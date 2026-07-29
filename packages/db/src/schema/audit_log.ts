@@ -1,11 +1,13 @@
-import { pgTable, uuid, text, timestamp, jsonb, bytea } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { org } from './org.js';
+import { bytea } from './types.js';
 
 export const auditLog = pgTable('audit_log', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: uuid('org_id')
     .notNull()
-    .references(() => import('./org.js').org.id),
+    .references(() => org.id),
   actorRef: text('actor_ref').notNull(),
   action: text('action').notNull(),
   target: text('target').notNull(),
@@ -16,8 +18,8 @@ export const auditLog = pgTable('audit_log', {
 });
 
 export const auditLogRelations = relations(auditLog, ({ one }) => ({
-  org: one(import('./org.js').org, {
+  org: one(org, {
     fields: [auditLog.orgId],
-    references: [import('./org.js').org.id],
+    references: [org.id],
   }),
 }));

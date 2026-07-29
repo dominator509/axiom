@@ -1,9 +1,10 @@
 import { pgTable, uuid, text, jsonb, timestamp } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { org } from './org.js';
 
 export const viralExemplar = pgTable('viral_exemplar', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => import('./org.js').org.id),
+  orgId: uuid('org_id').notNull().references(() => org.id),
   platform: text('platform').notNull(),
   title: text('title').notNull(),
   url: text('url').notNull(),
@@ -15,8 +16,8 @@ export const viralExemplar = pgTable('viral_exemplar', {
 });
 
 export const viralExemplarRelations = relations(viralExemplar, ({ one }) => ({
-  org: one(import('./org.js').org, {
+  org: one(org, {
     fields: [viralExemplar.orgId],
-    references: [import('./org.js').org.id],
+    references: [org.id],
   }),
 }));

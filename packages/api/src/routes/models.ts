@@ -20,15 +20,13 @@ const updateModelSchema = z.object({
 
 // List all models
 router.get('/', async (c) => {
-  const orgId = c.get('orgId');
-  // TODO: query db for models by orgId
+  // TODO: query db for models by orgId (c.get('orgId'))
   return c.json({ data: [], meta: { total: 0 } });
 });
 
 // Get single model
 router.get('/:id', async (c) => {
-  const { id } = c.req.param();
-  // TODO: query db
+  // TODO: query db with c.req.param('id')
   return c.json({ data: null });
 });
 
@@ -50,8 +48,7 @@ router.patch('/:id', zValidator('json', updateModelSchema), async (c) => {
 
 // Delete model
 router.delete('/:id', async (c) => {
-  const { id } = c.req.param();
-  // TODO: soft delete
+  // TODO: soft delete with c.req.param('id')
   return c.json({ success: true }, 200);
 });
 

@@ -1,5 +1,5 @@
 {
-  "name": "@axiom/auth",
+  "name": "@axiom/mcp-server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,18 +16,20 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "test": "vitest run",
+    "dev": "tsx watch src/index.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "better-auth": "^1.0.0",
-    "drizzle-orm": "^0.36.0",
-    "pg": "^8.13.0",
+    "hono": "^4.6.0",
+    "@hono/zod-validator": "^0.4.0",
+    "zod": "^3.23.0",
+    "uuid": "^11.0.0",
+    "@axiom/core": "workspace:*",
     "@axiom/db": "workspace:*",
-    "@axiom/core": "workspace:*"
+    "@axiom/api": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
-    "@types/node": "^22.9.0",
-    "@types/pg": "^8.11.0"
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.6.0"
   }
 }

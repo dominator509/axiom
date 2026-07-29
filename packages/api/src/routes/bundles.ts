@@ -18,13 +18,13 @@ const updateBundleStateSchema = z.object({
 
 // List bundles
 router.get('/', async (c) => {
-  const orgId = c.get('orgId');
+  // TODO: filter by orgId (c.get('orgId'))
   return c.json({ data: [], meta: { total: 0 } });
 });
 
 // Get bundle
 router.get('/:id', async (c) => {
-  const { id } = c.req.param();
+  // TODO: query db with c.req.param('id')
   return c.json({ data: null });
 });
 

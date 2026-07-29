@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
-import { auth } from '@axiom/auth';
 import { modelsRouter } from './routes/models.js';
 import { bundlesRouter } from './routes/bundles.js';
 import { socialRouter } from './routes/social.js';
@@ -30,8 +29,10 @@ app.route('/api/v1/bundles', bundlesRouter);
 app.route('/api/v1/social-accounts', socialRouter);
 app.route('/api/v1', killswitchRouter);
 
-// Auth endpoint mount
-app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));
+// Auth endpoint - placeholder for better-auth handler
+app.on(['GET', 'POST'], '/api/auth/*', (c) => {
+  return c.json({ error: 'auth not configured' }, 501);
+});
 
 export default app;
 

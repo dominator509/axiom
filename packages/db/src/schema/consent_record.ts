@@ -1,9 +1,10 @@
 import { pgTable, uuid, text, timestamp, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { modelProfile } from './model_profile.js';
 
 export const consentRecord = pgTable('consent_record', {
   id: uuid('id').primaryKey().defaultRandom(),
-  modelId: uuid('model_id').notNull().references(() => import('./model_profile.js').modelProfile.id),
+  modelId: uuid('model_id').notNull().references(() => modelProfile.id),
   platform: text('platform').notNull(),
   consentType: text('consent_type').notNull(),
   granted: boolean('granted').notNull(),
@@ -13,8 +14,8 @@ export const consentRecord = pgTable('consent_record', {
 });
 
 export const consentRecordRelations = relations(consentRecord, ({ one }) => ({
-  model: one(import('./model_profile.js').modelProfile, {
+  model: one(modelProfile, {
     fields: [consentRecord.modelId],
-    references: [import('./model_profile.js').modelProfile.id],
+    references: [modelProfile.id],
   }),
 }));

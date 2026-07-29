@@ -1,9 +1,11 @@
 import { pgTable, uuid, text, jsonb, boolean, integer, timestamp } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { org } from './org.js';
+import { relayCommand } from './relay_command.js';
 
 export const relayCard = pgTable('relay_card', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => import('./org.js').org.id),
+  orgId: uuid('org_id').notNull().references(() => org.id),
   title: text('title').notNull(),
   description: text('description'),
   icon: text('icon'),
@@ -14,11 +16,9 @@ export const relayCard = pgTable('relay_card', {
 });
 
 export const relayCardRelations = relations(relayCard, ({ one, many }) => ({
-  org: one(import('./org.js').org, {
+  org: one(org, {
     fields: [relayCard.orgId],
-    references: [import('./org.js').org.id],
+    references: [org.id],
   }),
   commands: many(relayCommand),
 }));
-
-import { relayCommand } from './relay_command.js';

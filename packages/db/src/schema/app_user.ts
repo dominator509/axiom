@@ -1,9 +1,10 @@
 import { pgTable, uuid, text, timestamp, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { org } from './org.js';
 
 export const appUser = pgTable('app_user', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => import('./org.js').org.id),
+  orgId: uuid('org_id').notNull().references(() => org.id),
   email: text('email').notNull().unique(),
   displayName: text('display_name').notNull(),
   avatarUrl: text('avatar_url'),
@@ -14,8 +15,8 @@ export const appUser = pgTable('app_user', {
 });
 
 export const appUserRelations = relations(appUser, ({ one }) => ({
-  org: one(import('./org.js').org, {
+  org: one(org, {
     fields: [appUser.orgId],
-    references: [import('./org.js').org.id],
+    references: [org.id],
   }),
 }));

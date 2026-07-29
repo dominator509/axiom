@@ -1,9 +1,10 @@
 import { pgTable, uuid, text, timestamp, boolean } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { org } from './org.js';
 
 export const idempotencyLedger = pgTable('idempotency_ledger', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => import('./org.js').org.id),
+  orgId: uuid('org_id').notNull().references(() => org.id),
   idemKey: text('idem_key').notNull().unique(),
   responseHash: text('response_hash'),
   locked: boolean('locked').notNull().default(false),
@@ -11,8 +12,8 @@ export const idempotencyLedger = pgTable('idempotency_ledger', {
 });
 
 export const idempotencyLedgerRelations = relations(idempotencyLedger, ({ one }) => ({
-  org: one(import('./org.js').org, {
+  org: one(org, {
     fields: [idempotencyLedger.orgId],
-    references: [import('./org.js').org.id],
+    references: [org.id],
   }),
 }));

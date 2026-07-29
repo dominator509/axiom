@@ -1,10 +1,14 @@
-import { pgTable, uuid, text, timestamp, bytea } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { org } from './org.js';
+import { contentBundle } from './content_bundle.js';
+import { platformConnection } from './platform_connection.js';
+import { bytea } from './types.js';
 
 export const postTarget = pgTable('post_target', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => import('./org.js').org.id),
-  bundleId: uuid('bundle_id').notNull().references(() => import('./content_bundle.js').contentBundle.id),
+  orgId: uuid('org_id').notNull().references(() => org.id),
+  bundleId: uuid('bundle_id').notNull().references(() => contentBundle.id),
   platform: text('platform').notNull(),
   connectionId: uuid('connection_id'),
   scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
@@ -15,16 +19,16 @@ export const postTarget = pgTable('post_target', {
 });
 
 export const postTargetRelations = relations(postTarget, ({ one }) => ({
-  org: one(import('./org.js').org, {
+  org: one(org, {
     fields: [postTarget.orgId],
-    references: [import('./org.js').org.id],
+    references: [org.id],
   }),
-  bundle: one(import('./content_bundle.js').contentBundle, {
+  bundle: one(contentBundle, {
     fields: [postTarget.bundleId],
-    references: [import('./content_bundle.js').contentBundle.id],
+    references: [contentBundle.id],
   }),
-  connection: one(import('./platform_connection.js').platformConnection, {
+  connection: one(platformConnection, {
     fields: [postTarget.connectionId],
-    references: [import('./platform_connection.js').platformConnection.id],
+    references: [platformConnection.id],
   }),
 }));

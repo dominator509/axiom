@@ -28,11 +28,13 @@
   },
   "dependencies": {
     "drizzle-orm": "^0.36.0",
+    "pg": "^8.13.0",
     "@axiom/core": "workspace:*"
   },
   "devDependencies": {
     "drizzle-kit": "^0.28.0",
     "typescript": "^5.6.0",
-    "@types/node": "^22.9.0"
+    "@types/node": "^22.9.0",
+    "@types/pg": "^8.11.0"
   }
 }

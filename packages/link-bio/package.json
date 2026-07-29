@@ -1,5 +1,5 @@
 {
-  "name": "@axiom/auth",
+  "name": "@axiom/link-bio",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -19,15 +19,13 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "better-auth": "^1.0.0",
-    "drizzle-orm": "^0.36.0",
-    "pg": "^8.13.0",
-    "@axiom/db": "workspace:*",
-    "@axiom/core": "workspace:*"
+    "hono": "^4.6.0",
+    "@hono/zod-validator": "^0.4.0",
+    "zod": "^3.23.0",
+    "@axiom/core": "workspace:*",
+    "@axiom/db": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
-    "@types/node": "^22.9.0",
-    "@types/pg": "^8.11.0"
+    "typescript": "^5.6.0"
   }
 }

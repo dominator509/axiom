@@ -1,10 +1,14 @@
-import { pgTable, uuid, text, timestamp, bytea, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, jsonb } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { org } from './org.js';
+import { modelProfile } from './model_profile.js';
+import { bytea } from './types.js';
+import { postTarget } from './post_target.js';
 
 export const platformConnection = pgTable('platform_connection', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => import('./org.js').org.id),
-  modelId: uuid('model_id').notNull().references(() => import('./model_profile.js').modelProfile.id),
+  orgId: uuid('org_id').notNull().references(() => org.id),
+  modelId: uuid('model_id').notNull().references(() => modelProfile.id),
   platform: text('platform').notNull(),
   displayName: text('display_name').notNull(),
   encToken: bytea('enc_token').notNull(),
@@ -16,15 +20,13 @@ export const platformConnection = pgTable('platform_connection', {
 });
 
 export const platformConnectionRelations = relations(platformConnection, ({ one, many }) => ({
-  org: one(import('./org.js').org, {
+  org: one(org, {
     fields: [platformConnection.orgId],
-    references: [import('./org.js').org.id],
+    references: [org.id],
   }),
-  model: one(import('./model_profile.js').modelProfile, {
+  model: one(modelProfile, {
     fields: [platformConnection.modelId],
-    references: [import('./model_profile.js').modelProfile.id],
+    references: [modelProfile.id],
   }),
   postTargets: many(postTarget),
 }));
-
-import { postTarget } from './post_target.js';
