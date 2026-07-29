@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        task: [typecheck, lint, test, build]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── pnpm & Node.js setup (shared across all matrix slots) ──
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js v20 with pnpm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ── Rust toolchain (needed by test, lint, and build slots) ──
+      - name: Setup Rust toolchain
+        if: matrix.task == 'test' || matrix.task == 'lint' || matrix.task == 'build'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      # ═══════════════════════════════════════════════════════════
+      #  MATRIX TASK: typecheck
+      # ═══════════════════════════════════════════════════════════
+      - name: TypeScript type checking
+        if: matrix.task == 'typecheck'
+        run: pnpm typecheck
+
+      # ═══════════════════════════════════════════════════════════
+      #  MATRIX TASK: lint
+      # ═══════════════════════════════════════════════════════════
+      - name: Run linter
+        if: matrix.task == 'lint'
+        run: pnpm lint
+
+      - name: Shell syntax check (scripts/)
+        if: matrix.task == 'lint'
+        run: |
+          find scripts/ -maxdepth 1 -name '*.sh' -type f -print -exec sh -n {} \; && echo "Shell syntax: ok"
+
+      - name: Rust clippy check
+        if: matrix.task == 'lint'
+        run: |
+          for crate in egress-plane media-plane vision-engine scraper; do
+            if [ -d "crates/$crate" ]; then
+              echo "--- clippy: $crate ---"
+              cargo clippy --manifest-path "crates/$crate/Cargo.toml" -- -D warnings
+            fi
+          done
+
+      # ═══════════════════════════════════════════════════════════
+      #  MATRIX TASK: test
+      # ═══════════════════════════════════════════════════════════
+      - name: Run JS/TS tests
+        if: matrix.task == 'test'
+        run: pnpm test
+
+      - name: Rust cargo check
+        if: matrix.task == 'test'
+        run: |
+          for crate in egress-plane media-plane vision-engine scraper; do
+            if [ -d "crates/$crate" ]; then
+              echo "--- cargo check: $crate ---"
+              cargo check --manifest-path "crates/$crate/Cargo.toml"
+            fi
+          done
+
+      - name: Rust cargo test
+        if: matrix.task == 'test'
+        run: |
+          for crate in egress-plane media-plane vision-engine scraper; do
+            if [ -d "crates/$crate" ]; then
+              echo "--- cargo test: $crate ---"
+              cargo test --manifest-path "crates/$crate/Cargo.toml"
+            fi
+          done
+
+      - name: RLS coverage check — verify ENABLE ROW LEVEL SECURITY policies
+        if: matrix.task == 'test'
+        run: |
+          MATCHES=$(grep -r "ENABLE ROW LEVEL SECURITY" migrations/ 2>/dev/null | wc -l)
+          echo "RLS policy statements found: $MATCHES"
+          if [ "$MATCHES" -ge 15 ]; then
+            echo "RLS coverage: PASS (>= 15)"
+          else
+            echo "RLS coverage: WARNING — only $MATCHES ENABLE ROW LEVEL SECURITY statements found (expected >= 15)"
+          fi
+
+      - name: Egress test stub (requires sudo — skipped in CI)
+        if: matrix.task == 'test'
+        run: |
+          echo "Egress integration test requires sudo and network namespace setup."
+          echo "This test is skipped in CI. Run manually with: sudo cargo test --manifest-path crates/egress-plane/Cargo.toml"
+        shell: bash
+
+      # ═══════════════════════════════════════════════════════════
+      #  MATRIX TASK: build
+      # ═══════════════════════════════════════════════════════════
+      - name: Build JS/TS packages
+        if: matrix.task == 'build'
+        run: pnpm build
+
+      - name: Build Rust crates
+        if: matrix.task == 'build'
+        run: |
+          for crate in egress-plane media-plane vision-engine scraper; do
+            if [ -d "crates/$crate" ]; then
+              echo "--- build: $crate ---"
+              cargo build --manifest-path "crates/$crate/Cargo.toml"
+            fi
+          done

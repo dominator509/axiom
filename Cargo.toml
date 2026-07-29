@@ -1,0 +1,28 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/egress-plane",
+    "crates/media-plane",
+    "crates/vision-engine",
+    "crates/scraper",
+]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MIT"
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "2"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+sha2 = "0.10"
+ring = "0.17"
+url = "2"
+axum = "0.8"
+scraper_crate = { version = "0.22", package = "scraper" }

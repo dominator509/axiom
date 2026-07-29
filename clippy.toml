@@ -1,0 +1,30 @@
+# AXIOM FanvueCRM — Clippy Configuration
+# Strict linting for the Rust hot-path plane.
+
+msrv = "1.81"
+
+# ---- Performance ----
+# Enforce pass-by-value semantics on trivially-copyable types
+performance-copymut = "warn"
+# Box allocations on hot path
+box-default = "warn"
+# Large enum variants trigger review
+large-enum-variant = { level = "warn", threshold = 200 }
+
+# ---- Correctness ----
+# Prevent integer overflow in release builds
+integer-arithmetic = "deny"
+# Prevent float comparisons by default
+float_arithmetic = "deny"
+# Ensure match arms are exhaustive in spirit
+match_wildcard_for_single_variants = "warn"
+# Prevent unwrap in hot-path code
+unwrap_used = "deny"
+
+# ---- Style ----
+# Enforce consistent module structure
+module_name_repetitions = "allow"
+# Allow short variable names in tight loops
+min_ident_name_threshold = 2
+# Disallow large stack allocations
+stack_size = { level = "warn", stack_size = 4096 }

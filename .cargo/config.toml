@@ -1,0 +1,21 @@
+# AXIOM FanvueCRM — Cargo Configuration
+# Hot-path plane: egress, media, vision, scraper
+
+[net]
+retry = 3
+
+[build]
+# Use single-threaded codegen for deterministic builds on constrained boxes
+codegen-units = 1
+# Optimise for speed on the hot path
+rustflags = ["-C", "target-cpu=native"]
+
+[target.x86_64-unknown-linux-gnu]
+linker = "cc"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+strip = "symbols"
+debug = false
+panic = "abort"

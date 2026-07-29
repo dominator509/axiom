@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "jsx": "preserve",
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+    "paths": {
+      "@axiom/core": ["./packages/core/src"],
+      "@axiom/db": ["./packages/db/src"],
+      "@axiom/auth": ["./packages/auth/src"],
+      "@axiom/api": ["./packages/api/src"],
+      "@axiom/core/*": ["./packages/core/src/*"],
+      "@axiom/db/*": ["./packages/db/src/*"],
+      "@axiom/auth/*": ["./packages/auth/src/*"],
+      "@axiom/api/*": ["./packages/api/src/*"]
+    }
+  },
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/db" },
+    { "path": "./packages/auth" },
+    { "path": "./packages/api" }
+  ],
+  "exclude": ["node_modules", "dist", ".turbo"]
+}

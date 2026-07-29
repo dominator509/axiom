@@ -1,0 +1,149 @@
+# =============================================================================
+# Caddyfile — AXIOM FanvueCRM Reverse Proxy
+#
+# Development config: listens on :80 without TLS.
+# For production, uncomment the production section and replace with your
+# actual domain and email for automatic Let's Encrypt TLS.
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Development mode (no TLS)
+# ---------------------------------------------------------------------------
+:80 {
+    # ---- Global headers ----
+    header {
+        # Security headers
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # ---- CORS headers for development ----
+    @cors_preflight {
+        method OPTIONS
+        header Origin *
+    }
+    handle @cors_preflight {
+        header Access-Control-Allow-Origin "*"
+        header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+        header Access-Control-Max-Age "86400"
+        respond 204
+    }
+
+    # ---- Static assets ----
+    handle /assets/* {
+        root * /app/packages/dashboard/public
+        file_server
+    }
+
+    handle /_next/static/* {
+        root * /app/packages/dashboard/.next/static
+        file_server
+    }
+
+    # ---- API proxy to Hono BFF ----
+    handle /api/* {
+        reverse_proxy localhost:3001 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+
+            # Strip /api prefix before forwarding to Hono
+            rewrite * {path}
+        }
+
+        # CORS for API responses
+        header Access-Control-Allow-Origin "*"
+        header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+    }
+
+    # ---- Next.js dashboard ----
+    handle {
+        reverse_proxy localhost:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # ---- Logging ----
+    log {
+        output file /var/log/caddy/access.log
+        format json
+    }
+}
+
+# ===========================================================================
+# Production mode (with automatic TLS)
+# ===========================================================================
+# Uncomment and configure for production deployment:
+#
+# your-domain.com {
+#     tls admin@your-domain.com
+#
+#     # Same headers as dev mode
+#     header {
+#         X-Content-Type-Options "nosniff"
+#         X-Frame-Options "DENY"
+#         X-XSS-Protection "1; mode=block"
+#         Referrer-Policy "strict-origin-when-cross-origin"
+#         Strict-Transport-Security "max-age=31536000; includeSubDomains"
+#     }
+#
+#     # CORS (production may restrict to specific origin)
+#     @cors_preflight {
+#         method OPTIONS
+#         header Origin *
+#     }
+#     handle @cors_preflight {
+#         header Access-Control-Allow-Origin "https://your-domain.com"
+#         header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+#         header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+#         header Access-Control-Max-Age "86400"
+#         respond 204
+#     }
+#
+#     # Static assets
+#     handle /assets/* {
+#         root * /app/packages/dashboard/public
+#         file_server
+#     }
+#
+#     handle /_next/static/* {
+#         root * /app/packages/dashboard/.next/static
+#         file_server
+#     }
+#
+#     # API proxy to Hono BFF
+#     handle /api/* {
+#         reverse_proxy localhost:3001 {
+#             header_up Host {host}
+#             header_up X-Real-IP {remote_host}
+#             header_up X-Forwarded-For {remote_host}
+#             header_up X-Forwarded-Proto {scheme}
+#         }
+#         header Access-Control-Allow-Origin "https://your-domain.com"
+#         header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+#         header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+#     }
+#
+#     # Next.js dashboard
+#     handle {
+#         reverse_proxy localhost:3000 {
+#             header_up Host {host}
+#             header_up X-Real-IP {remote_host}
+#             header_up X-Forwarded-For {remote_host}
+#             header_up X-Forwarded-Proto {scheme}
+#         }
+#     }
+#
+#     log {
+#         output file /var/log/caddy/access.log
+#         format json
+#     }
+# }

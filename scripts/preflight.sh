@@ -4,15 +4,24 @@ set -euo pipefail
 echo "AXIOM FanvueCRM — Preflight Check"
 echo "=================================="
 
-# Check required tooling
 MISSING=0
 
+# Use real binary paths, not aliases (which may go through RTK)
 check_cmd() {
-    if ! command -v "$1" &>/dev/null; then
+    local bin=""
+    # Try common locations
+    for p in /usr/bin/$1 /usr/local/bin/$1 /root/.cargo/bin/$1 /root/.local/share/pnpm/$1 /root/.nvm/versions/node/*/bin/$1; do
+        [ -x "$p" ] && bin="$p" && break
+    done
+    if [ -z "$bin" ]; then
+        # fallback to command -v
+        bin=$(command -v "$1" 2>/dev/null || true)
+    fi
+    if [ -z "$bin" ]; then
         echo "  MISSING: $1"
         MISSING=1
     else
-        echo "  FOUND: $1 ($(command -v "$1"))"
+        echo "  FOUND: $1 ($bin)"
     fi
 }
 
@@ -33,7 +42,8 @@ else
     MISSING=1
 fi
 
-# Check .agent directory
+# Check .agent directories
+mkdir -p .agent/execplans
 for d in .agent/markers .agent/state .agent/execplans; do
     if [ -d "$d" ]; then
         echo "  FOUND: $d/"

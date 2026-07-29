@@ -1,0 +1,76 @@
+# =============================================================================
+# Dockerfile.rust — Rust Hot-Path Plane (egress-plane)
+# Multi-stage: builder → runner (distroless)
+# =============================================================================
+
+# ------------------------------------------------------------------------------
+# Stage 1: Builder
+# ------------------------------------------------------------------------------
+FROM rust:1.81-slim-bookworm AS builder
+
+# Install build dependencies needed by native Rust crates
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Create a dummy main.rs to build dependencies first (improves caching)
+RUN mkdir -p crates/egress-plane/src crates/media-plane/src crates/vision-engine/src crates/scraper/src
+
+# Copy workspace Cargo config
+COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./Cargo.toml
+
+# Copy individual crate manifests
+COPY crates/egress-plane/Cargo.toml ./crates/egress-plane/Cargo.toml
+COPY crates/media-plane/Cargo.toml ./crates/media-plane/Cargo.toml
+COPY crates/vision-engine/Cargo.toml ./crates/vision-engine/Cargo.toml
+COPY crates/scraper/Cargo.toml ./crates/scraper/Cargo.toml
+
+# Build dependencies only — this layer gets cached unless Cargo.toml/Cargo.lock change
+RUN mkdir crates/egress-plane/src && \
+    echo "fn main() {}" > crates/egress-plane/src/main.rs && \
+    cargo build --release --package egress-plane 2>/dev/null || true
+
+# Remove the stub and copy real source
+RUN rm -rf crates/egress-plane/src
+
+COPY crates/egress-plane/src ./crates/egress-plane/src
+COPY crates/media-plane/src ./crates/media-plane/src
+COPY crates/vision-engine/src ./crates/vision-engine/src
+COPY crates/scraper/src ./crates/scraper/src
+
+# Full release build with the real source
+RUN cargo build --release --package egress-plane
+
+# ------------------------------------------------------------------------------
+# Stage 2: Runtime (distroless, cc variant for OpenSSL compatibility)
+# ------------------------------------------------------------------------------
+FROM gcr.io/distroless/cc-debian12 AS runner
+
+# Create a non-root user — distroless has no shell, so we use a numeric UID
+# The /passwd file is conventionally used by distroless images
+COPY --from=builder /etc/passwd /etc/passwd || true
+RUN echo "egress:x:1001:1001::/home/egress:/sbin/nologin" >> /etc/passwd && \
+    echo "egress:x:1001:" >> /etc/group && \
+    mkdir -p /home/egress && \
+    chown -R 1001:1001 /home/egress
+
+WORKDIR /app
+
+# Copy the compiled binary from the builder stage
+COPY --from=builder /app/target/release/egress-plane /app/egress-plane
+
+# Copy any needed CA certificates for HTTPS outbound
+COPY --from=builder /etc/ssl/certs /etc/ssl/certs
+
+USER 1001:1001
+
+EXPOSE 9090
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD ["/app/egress-plane", "--health"]
+
+ENTRYPOINT ["/app/egress-plane"]

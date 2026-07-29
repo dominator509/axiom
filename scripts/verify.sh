@@ -6,7 +6,7 @@ echo "AXIOM Verification Gate"
 echo "======================="
 
 # Check preflight
-if ! sh scripts/preflight.sh 2>&1 | grep -q "preflight: ok"; then
+if ! bash scripts/preflight.sh 2>&1 | grep -q "preflight: ok"; then
     echo "FAIL: preflight"
     exit 1
 fi
