@@ -15,3 +15,17 @@ reqwest.workspace = true
 ring.workspace = true
 url.workspace = true
 axum.workspace = true
+
+# XChaCha20-Poly1305 (ring doesn't directly support XChaCha20)
+chacha20poly1305 = "0.10"
+# Memory zeroing for sensitive data
+zeroize = { version = "1", features = ["zeroize_derive"] }
+# Correlation IDs
+uuid = { version = "1", features = ["v4"] }
+# Random nonce generation
+rand = "0.8"
+# Base64 encoding/decoding
+base64 = "0.22"
+
+[dev-dependencies]
+axum-test = "16"

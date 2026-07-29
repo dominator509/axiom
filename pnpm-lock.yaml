@@ -89,6 +89,22 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
+  packages/connectors:
+    dependencies:
+      '@axiom/core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   packages/core:
     devDependencies:
       typescript:
@@ -110,6 +126,19 @@ importers:
       drizzle-kit:
         specifier: ^0.28.0
         version: 0.28.1
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
+  packages/fanvue-mcp:
+    dependencies:
+      '@axiom/core':
+        specifier: workspace:*
+        version: link:../core
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
