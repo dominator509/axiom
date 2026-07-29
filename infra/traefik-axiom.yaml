@@ -1,0 +1,28 @@
+# AXIOM FanvueCRM — Dynamic Traefik Configuration
+# Managed manually. Will not be overwritten by Coolify.
+
+http:
+  routers:
+    axiom-api:
+      rule: "Host(`axiom.fanlynks.com`) && PathPrefix(`/api`)"
+      entryPoints:
+        - https
+      service: axiom-api
+      tls:
+        certResolver: letsencrypt
+      priority: 100
+
+    axiom-api-http:
+      rule: "Host(`axiom.fanlynks.com`) && PathPrefix(`/api`)"
+      entryPoints:
+        - http
+      service: axiom-api
+      middlewares:
+        - redirect-to-https
+      priority: 100
+
+  services:
+    axiom-api:
+      loadBalancer:
+        servers:
+          - url: "http://10.0.1.1:3001"

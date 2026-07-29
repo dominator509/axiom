@@ -3,6 +3,11 @@
 // Features: policy-based provider selection, fallback chains, rate limiting,
 // exponential-backoff retry, response caching, streaming, and pipeline transforms.
 
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 import { v4 as uuid } from 'uuid';
 import {
   callOpenAI,
@@ -121,7 +126,7 @@ const DEFAULT_PROVIDERS: ProviderConfig[] = [
     name: 'anthropic',
     apiKeyEnv: 'ANTHROPIC_API_KEY',
     baseUrl: ANTHROPIC_BASE_URL,
-    defaultModel: 'claude-sonnet-4-20250514',
+    defaultModel: 'claude-3-5-sonnet-latest',
     costPer1KInput: 0.003,
     costPer1KOutput: 0.015,
     latencyRank: 3,

@@ -2,7 +2,8 @@ node_modules/
 dist/
 .turbo/
 .env
-.env.local
+.env.*
+credentials/
 *.log
 .DS_Store
 coverage/

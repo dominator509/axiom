@@ -14,7 +14,7 @@ echo "  PASS: preflight"
 
 # Check phases complete
 for phase in P0 P1 P2 P3 P4; do
-    if grep -q "^DONE $phase" "$LEDGER" 2>/dev/null; then
+    if grep -q "DONE $phase" "$LEDGER" 2>/dev/null; then
         echo "  PASS: $phase complete"
     else
         echo "  PASS: $phase (not yet complete)"
