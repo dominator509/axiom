@@ -3,6 +3,7 @@ export type { BundleContent, PlatformVerdict, RelayCard } from './card.js';
 
 export { TelegramAdapter } from './channels/telegram.js';
 export { DiscordAdapter } from './channels/discord.js';
+export { ThreadsAdapter } from './channels/threads.js';
 export { IMessageAdapter } from './channels/imessage.js';
 export { SignalAdapter } from './channels/signal.js';
 

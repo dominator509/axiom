@@ -6,7 +6,7 @@ import { modelsRouter } from './routes/models.js';
 import { bundlesRouter } from './routes/bundles.js';
 import { socialRouter } from './routes/social.js';
 import { killswitchRouter } from './routes/killswitch.js';
-import { DiscordAdapter, createRelayRoutes, CardRenderer, CommandRouter, ViralLoop, Bandit, IncidentManager, HealthCheckRegistry } from '@axiom/relay';
+import { DiscordAdapter, ThreadsAdapter, createRelayRoutes, CardRenderer, CommandRouter, ViralLoop, Bandit, IncidentManager, HealthCheckRegistry } from '@axiom/relay';
 
 export type AppBindings = {
   Variables: {
@@ -62,6 +62,35 @@ export async function initRelay(): Promise<Hono> {
     incidentManager,
     healthRegistry,
   });
+
+  // Initialize Threads adapter if client ID configured
+  const threadsClientId = process.env.THREADS_CLIENT_ID;
+  const threadsClientSecret = process.env.THREADS_CLIENT_SECRET;
+  const threadsVerifyToken = process.env.THREADS_WEBHOOK_VERIFY_TOKEN || 'axiom-threads-verify';
+  if (threadsClientId && threadsClientSecret) {
+    const threads = new ThreadsAdapter({
+      clientId: threadsClientId,
+      clientSecret: threadsClientSecret,
+      verifyToken: threadsVerifyToken,
+    });
+
+    // Mount Threads webhook handler on the relay Hono app
+    relay.get('/webhooks/threads', (c) => {
+      const query = c.req.query();
+      const result = threads.handleVerification(query as Record<string, string | undefined>);
+      return c.body(result.body, result.status as 200 | 403);
+    });
+
+    relay.post('/webhooks/threads', async (c) => {
+      const rawBody = await c.req.text();
+      const payload = JSON.parse(rawBody);
+      const signature = c.req.header('X-Hub-Signature-256') || undefined;
+      const result = await threads.handleWebhook(payload, rawBody, signature);
+      return c.body(result.body, result.status as 200 | 400 | 403);
+    });
+
+    console.log('Threads adapter initialized');
+  }
 
   return relay;
 }

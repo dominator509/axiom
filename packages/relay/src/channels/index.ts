@@ -1,4 +1,5 @@
-export { TelegramAdapter } from './telegram.js';
 export { DiscordAdapter } from './discord.js';
-export { IMessageAdapter } from './imessage.js';
+export { TelegramAdapter } from './telegram.js';
 export { SignalAdapter } from './signal.js';
+export { IMessageAdapter } from './imessage.js';
+export { ThreadsAdapter } from './threads.js';
