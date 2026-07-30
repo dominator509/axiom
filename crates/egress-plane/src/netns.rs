@@ -16,8 +16,7 @@ pub fn create_netns(name: &str) -> io::Result<()> {
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
         error!(netns = %name, stderr = %stderr, "Failed to create network namespace");
-        Err(io::Error::new(
-            io::ErrorKind::Other,
+        Err(io::Error::other(
             format!("ip netns add failed: {}", stderr.trim()),
         ))
     }
@@ -46,8 +45,7 @@ pub fn delete_netns(name: &str) -> io::Result<()> {
             return Ok(());
         }
         error!(netns = %name, stderr = %stderr, "Failed to delete network namespace");
-        Err(io::Error::new(
-            io::ErrorKind::Other,
+        Err(io::Error::other(
             format!("ip netns delete failed: {}", stderr.trim()),
         ))
     }
@@ -146,8 +144,7 @@ pub fn execute_in_netns(ns: &str, cmd: &[&str]) -> io::Result<String> {
             stderr = %stderr,
             "Command failed in network namespace"
         );
-        Err(io::Error::new(
-            io::ErrorKind::Other,
+        Err(io::Error::other(
             format!("Command '{}' failed in netns '{}': {}", cmd_str, ns, stderr.trim()),
         ))
     }

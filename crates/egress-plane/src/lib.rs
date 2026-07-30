@@ -246,7 +246,7 @@ pub async fn egress_health_check(
 
     let healthy = netns::health_check_proxy(&body.proxy_type, &body.proxy_addr)
         .await
-        .map_err(|e| EgressError::Netns(e))?;
+        .map_err(EgressError::Netns)?;
 
     let status = if healthy { "healthy" } else { "unhealthy" };
 

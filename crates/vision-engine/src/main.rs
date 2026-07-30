@@ -9,7 +9,6 @@ use image::GenericImageView;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use thiserror::Error;
-use tracing_subscriber;
 
 // ---------------------------------------------------------------------------
 // Errors

@@ -51,7 +51,7 @@ pub fn decrypt_envelope(
 
     // Decrypt with associated data (AD) set to empty — no additional aad
     let plaintext = cipher
-        .decrypt(&nonce, Payload {
+        .decrypt(nonce, Payload {
             msg: enc_token,
             aad: b"",
         })
@@ -87,12 +87,11 @@ mod tests {
         key: &[u8],
         nonce: &[u8],
     ) -> Result<Vec<u8>, CryptoError> {
-        let cipher =
-            XChaCha20Poly1305::new_from_slice(key)
-                .map_err(|e| CryptoError::DecryptionFailed(format!("key init: {}", e)))?;
+        let cipher = XChaCha20Poly1305::new_from_slice(key)
+            .map_err(|e| CryptoError::DecryptionFailed(format!("key init: {0}", e)))?;
         let xnonce = XNonce::from_slice(nonce);
         cipher
-            .encrypt(&xnonce, Payload {
+            .encrypt(xnonce, Payload {
                 msg: plaintext,
                 aad: b"",
             })
@@ -192,6 +191,6 @@ mod tests {
     fn test_zeroize() {
         let mut data = vec![0xABu8; 64];
         zeroize(&mut data);
-        assert_eq!(data.iter().all(|&b| b == 0), true, "All bytes should be zero");
+        assert!(data.iter().all(|&b| b == 0), "All bytes should be zero");
     }
 }

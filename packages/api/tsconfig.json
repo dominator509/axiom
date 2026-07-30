@@ -3,12 +3,14 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "composite": true
+    "composite": true,
+    "types": ["node"]
   },
   "include": ["src"],
   "references": [
     { "path": "../core" },
     { "path": "../db" },
-    { "path": "../auth" }
+    { "path": "../auth" },
+    { "path": "../relay" }
   ]
 }

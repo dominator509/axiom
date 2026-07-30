@@ -234,7 +234,7 @@ async fn test_decrypt_endpoint() {
     // Encrypt using XChaCha20-Poly1305
     let cipher = XChaCha20Poly1305::new_from_slice(&key).unwrap();
     let ciphertext = cipher
-        .encrypt(&XNonce::from_slice(&nonce), Payload {
+        .encrypt(XNonce::from_slice(&nonce), Payload {
             msg: plaintext,
             aad: b"",
         })
