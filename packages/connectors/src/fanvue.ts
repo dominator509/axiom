@@ -63,7 +63,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     if (!input.mediaUrls || input.mediaUrls.length === 0) {
       errors.push({ field: 'mediaUrls', message: 'Fanvue requires at least one media file', severity: 'error' as const });
     }
-    if (!input.caption && input.caption === '') {
+    if (!input.caption) {
       errors.push({ field: 'caption', message: 'Fanvue posts require a caption', severity: 'error' as const });
     }
 

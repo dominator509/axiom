@@ -16,3 +16,4 @@
 2026-07-30T01:30:33Z | TEST Discord adapter — initialized and logged in, bot token verified (72 chars)
 2026-07-30T01:30:33Z | TEST Database — 15 tables, pgvector healthy
 2026-07-30T01:30:33Z | GATE verify — preflight: ok, verify: ok
+2026-07-31T22:10:41Z | OAuth hardening: Fanvue PKCE /authorize + state-validated callback, token persistence to .env, loopback-only bind (127.0.0.1:3001), systemd axiom-api.service, 9 vitest tests, uuid 11.1.1 + esbuild override (audit clean), secret-exposure audit clean

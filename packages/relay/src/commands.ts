@@ -30,7 +30,11 @@ export class CommandRouter {
   }
 
   signCommand(nonce: string, action: CardAction, cardId: string): string {
-    const payload = `${nonce}:${action}:${cardId}:${Date.now()}`;
+    // NOTE: timestamp intentionally omitted from payload. Previously included
+    // Date.now(), which made signatures non-deterministic: verifyCommand()
+    // recomputes the HMAC at verify time and would only match if sign+verify
+    // happened in the same millisecond (impossible over a network round-trip).
+    const payload = `${nonce}:${action}:${cardId}`;
     const hmac = createHmac('sha256', this.secret);
     hmac.update(payload);
     return hmac.digest('hex');

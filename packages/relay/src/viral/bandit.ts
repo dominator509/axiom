@@ -98,6 +98,13 @@ export class Bandit {
           break;
         }
       }
+      // Floating-point subtraction can leave a tiny positive remainder when
+      // rng() ≈ 1, so the loop above never breaks and would silently fall back
+      // to active[0]. In exact arithmetic roll reaches 0 on the last element,
+      // so select it explicitly as the fallback.
+      if (roll > 0) {
+        selectedStyle = active[active.length - 1];
+      }
     }
 
     selectedStyle.lastSelected = now;
@@ -136,7 +143,8 @@ export class Bandit {
   }
 
   getWeights(): Map<string, StyleWeight> {
-    return new Map(this.weights);
+    // Return a deep copy so callers cannot mutate internal selection state
+    return new Map(Array.from(this.weights, ([style, w]) => [style, { ...w }]));
   }
 
   resetWeights(): void {

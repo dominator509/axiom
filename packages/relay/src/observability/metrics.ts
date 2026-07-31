@@ -17,6 +17,7 @@ export interface Histogram {
 export class MetricsRegistry {
   private counters: Map<string, Counter[]> = new Map();
   private histograms: Map<string, Histogram> = new Map();
+  private counterHelp: Map<string, string> = new Map();
 
   private labelsToString(labels: Record<string, string>): string {
     return Object.entries(labels)
@@ -25,9 +26,10 @@ export class MetricsRegistry {
       .join(',');
   }
 
-  registerCounter(name: string, _help: string): void {
+  registerCounter(name: string, help: string): void {
     if (!this.counters.has(name)) {
       this.counters.set(name, []);
+      this.counterHelp.set(name, help);
     }
   }
 
@@ -69,9 +71,11 @@ export class MetricsRegistry {
 
   getMetrics(): string {
     const lines: string[] = [];
-    for (const [, counters] of this.counters) {
+    for (const [name, counters] of this.counters) {
+      const registeredHelp = this.counterHelp.get(name) || '';
       for (const c of counters) {
-        if (c.help) lines.push(`# HELP ${c.name} ${c.help}`);
+        const help = c.help || registeredHelp;
+        if (help) lines.push(`# HELP ${c.name} ${help}`);
         lines.push(`# TYPE ${c.name} counter`);
         const labelStr = this.labelsToString(c.labels);
         if (labelStr) {

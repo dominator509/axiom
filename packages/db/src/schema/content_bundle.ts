@@ -9,7 +9,7 @@ export const contentBundle = pgTable('content_bundle', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: uuid('org_id').notNull().references(() => org.id),
   modelId: uuid('model_id').notNull().references(() => modelProfile.id),
-  assetId: uuid('asset_id'),
+  assetId: uuid('asset_id').references(() => asset.id),
   captions: jsonb('captions').$type<Record<string, string>>().default({}),
   hashtags: jsonb('hashtags').$type<string[]>().default([]),
   tosReport: jsonb('tos_report').$type<Record<string, unknown>>(),

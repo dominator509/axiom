@@ -85,8 +85,8 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
       const description = input.caption || '';
       const privacyStatus = (input.options?.privacyStatus as string) ?? 'private';
 
-      // Append #Shorts tag if detected
-      const tags = (input.options?.tags as string[]) ?? [];
+      // Append #Shorts tag if detected (copy so we never mutate caller's input)
+      const tags = [...((input.options?.tags as string[]) ?? [])];
       if (isShort && !tags.includes('#Shorts')) {
         tags.push('#Shorts');
       }

@@ -158,6 +158,11 @@ export function resolveHighestTier(modelId: string): Tier | null {
   let highestWeight = 0;
   for (const permission of tokenStore.values()) {
     if (permission.modelId === modelId) {
+      // Skip expired tokens — an expired capability must not elevate tier
+      if (permission.expiresAt) {
+        const expires = new Date(permission.expiresAt).getTime();
+        if (Date.now() > expires) continue;
+      }
       const weight = TIER_ORDER[permission.tier];
       if (weight > highestWeight) {
         highest = permission.tier;
