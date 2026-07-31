@@ -6,6 +6,7 @@ import { modelsRouter } from './routes/models.js';
 import { bundlesRouter } from './routes/bundles.js';
 import { socialRouter } from './routes/social.js';
 import { killswitchRouter } from './routes/killswitch.js';
+import { fanvueAuthRouter } from './routes/fanvue-auth.js';
 import { DiscordAdapter, ThreadsAdapter, createRelayRoutes, CardRenderer, CommandRouter, ViralLoop, Bandit, IncidentManager, HealthCheckRegistry } from '@axiom/relay';
 
 export type AppBindings = {
@@ -28,6 +29,7 @@ app.get('/api/v1/health', (c) => c.json({ status: 'ok', version: '0.1.0' }));
 app.route('/api/v1/models', modelsRouter);
 app.route('/api/v1/bundles', bundlesRouter);
 app.route('/api/v1/social-accounts', socialRouter);
+app.route('/api/v1/connectors/fanvue', fanvueAuthRouter);
 app.route('/api/v1', killswitchRouter);
 
 // Auth endpoint - placeholder for better-auth handler
