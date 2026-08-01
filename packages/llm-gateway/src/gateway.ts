@@ -153,7 +153,7 @@ const DEFAULT_PROVIDERS: ProviderConfig[] = [
     name: 'deepseek',
     apiKeyEnv: 'DEEPSEEK_API_KEY',
     baseUrl: DEEPSEEK_BASE_URL,
-    defaultModel: 'deepseek-chat',
+    defaultModel: 'deepseek-v4-flash',
     costPer1KInput: 0.0005,
     costPer1KOutput: 0.0015,
     latencyRank: 2,
@@ -449,7 +449,7 @@ export class LLMGateway {
         }
 
         const start = performance.now();
-        const model = options.model ?? provider.defaultModel;
+        const model = options.model || provider.defaultModel;
 
         let content: string;
         let promptTokens: number;

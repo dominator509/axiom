@@ -239,16 +239,14 @@ describe('LLMGateway.chat — happy paths', () => {
     expect(body.max_tokens).toBe(123);
   });
 
-  it('sends an empty model string when no model is given (source quirk: defaultModel shadowed)', async () => {
+  it('falls back to the provider defaultModel when no model is given', async () => {
     const gw = new LLMGateway();
-    const result = await gw.chat(messages, { provider: 'openai' });
-    // SOURCE QUIRK: chat() builds `requiredOptions.model = model ?? ''`, so an
-    // absent model becomes '' which is NOT nullish — `options.model ??
-    // provider.defaultModel` inside callProvider keeps ''. The defaultModel
-    // fallback is therefore dead code on this path.
-    expect(result.model).toBe('');
+    const result = await gw.chat(messages, { provider: 'deepseek' });
+    // An absent model becomes '' in chat(), which is falsy — callProvider's
+    // `options.model || provider.defaultModel` then applies the default.
+    expect(result.model).toBe('deepseek-v4-flash');
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
-    expect(body.model).toBe('');
+    expect(body.model).toBe('deepseek-v4-flash');
   });
 
   it('routes to anthropic with system message extraction', async () => {
