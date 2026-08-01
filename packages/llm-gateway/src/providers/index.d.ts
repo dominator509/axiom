@@ -3,5 +3,8 @@ export type { ProviderMessage, ProviderOptions, ProviderChatResult, ProviderStre
 export { OpenAIProvider } from './openai.js';
 export { AnthropicProvider } from './anthropic.js';
 export { VeniceProvider } from './venice.js';
+export { MistralProvider } from './mistral.js';
+export { LightningProvider } from './lightning.js';
+export { GoogleProvider } from './google.js';
 export { VLLMProvider } from './vllm.js';
 //# sourceMappingURL=index.d.ts.map

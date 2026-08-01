@@ -9,6 +9,9 @@ const ENV_KEYS = [
   'ANTHROPIC_API_KEY',
   'DEEPSEEK_API_KEY',
   'GROK_API_KEY',
+  'MISTRAL_API_KEY',
+  'LIGHTNING_API_KEY',
+  'GOOGLE_API_KEY',
   'VENICE_API_KEY',
   'OPENAI_BASE_URL',
   'VENICE_BASE_URL',
@@ -118,6 +121,9 @@ function setAllKeys() {
     'ANTHROPIC_API_KEY',
     'DEEPSEEK_API_KEY',
     'GROK_API_KEY',
+    'MISTRAL_API_KEY',
+    'LIGHTNING_API_KEY',
+    'GOOGLE_API_KEY',
     'VENICE_API_KEY',
   ]) {
     process.env[k] = 'test-key-123';
@@ -148,7 +154,8 @@ describe('LLMGateway — availability and selection', () => {
   it('lists all providers when all API keys are set', () => {
     const gw = new LLMGateway();
     expect(gw.getAvailableProviders().sort()).toEqual([
-      'anthropic', 'deepseek', 'grok', 'openai', 'venice', 'vllm',
+      'anthropic', 'deepseek', 'google', 'grok', 'lightning', 'mistral',
+      'openai', 'venice', 'vllm',
     ]);
   });
 

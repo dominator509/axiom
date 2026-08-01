@@ -6,13 +6,16 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 import { v4 as uuid } from 'uuid';
 import { callOpenAI, streamOpenAI, OPENAI_BASE_URL, } from './providers/openai.js';
 import { callAnthropic, streamAnthropic, ANTHROPIC_BASE_URL, } from './providers/anthropic.js';
 import { callDeepSeek, streamDeepSeek, DEEPSEEK_BASE_URL, } from './providers/deepseek.js';
 import { callGrok, streamGrok, GROK_BASE_URL, } from './providers/grok.js';
 import { callVenice, streamVenice, VENICE_BASE_URL, } from './providers/venice.js';
+import { callMistral, streamMistral, MISTRAL_BASE_URL, } from './providers/mistral.js';
+import { callLightning, streamLightning, LIGHTNING_BASE_URL, } from './providers/lightning.js';
+import { callGoogle, streamGoogle, GOOGLE_BASE_URL, } from './providers/google.js';
 import { callVLLM, streamVLLM, VLLM_BASE_URL, } from './providers/vllm.js';
 import { ResponseCache } from './cache.js';
 import { Pipeline } from './pipeline.js';
@@ -48,7 +51,7 @@ const DEFAULT_PROVIDERS = [
         name: 'deepseek',
         apiKeyEnv: 'DEEPSEEK_API_KEY',
         baseUrl: DEEPSEEK_BASE_URL,
-        defaultModel: 'deepseek-chat',
+        defaultModel: 'deepseek-v4-flash',
         costPer1KInput: 0.0005,
         costPer1KOutput: 0.0015,
         latencyRank: 2,
@@ -66,6 +69,42 @@ const DEFAULT_PROVIDERS = [
         latencyRank: 2,
         qualityRank: 4,
         rpm: 300,
+        requiresKey: true,
+    },
+    {
+        name: 'mistral',
+        apiKeyEnv: 'MISTRAL_API_KEY',
+        baseUrl: MISTRAL_BASE_URL,
+        defaultModel: 'mistral-small-latest',
+        costPer1KInput: 0.0001,
+        costPer1KOutput: 0.0003,
+        latencyRank: 2,
+        qualityRank: 4,
+        rpm: 500,
+        requiresKey: true,
+    },
+    {
+        name: 'lightning',
+        apiKeyEnv: 'LIGHTNING_API_KEY',
+        baseUrl: LIGHTNING_BASE_URL,
+        defaultModel: 'lightning-v2',
+        costPer1KInput: 0.0002,
+        costPer1KOutput: 0.0008,
+        latencyRank: 2,
+        qualityRank: 4,
+        rpm: 300,
+        requiresKey: true,
+    },
+    {
+        name: 'google',
+        apiKeyEnv: 'GOOGLE_API_KEY',
+        baseUrl: GOOGLE_BASE_URL,
+        defaultModel: 'gemini-2.0-flash',
+        costPer1KInput: 0.0001,
+        costPer1KOutput: 0.0004,
+        latencyRank: 2,
+        qualityRank: 4,
+        rpm: 500,
         requiresKey: true,
     },
     {
@@ -268,7 +307,7 @@ export class LLMGateway {
                     throw new Error(`Rate limit exceeded for ${provider.name}`);
                 }
                 const start = performance.now();
-                const model = options.model ?? provider.defaultModel;
+                const model = options.model || provider.defaultModel;
                 let content;
                 let promptTokens;
                 let completionTokens;
@@ -321,6 +360,33 @@ export class LLMGateway {
                     if (!apiKey)
                         throw new Error('VENICE_API_KEY not set');
                     const res = await callVenice(apiKey, { model, messages, temperature: options.temperature, max_tokens: options.maxTokens }, options.signal);
+                    content = res.choices[0]?.message?.content ?? '';
+                    promptTokens = res.usage.prompt_tokens;
+                    completionTokens = res.usage.completion_tokens;
+                }
+                else if (provider.name === 'mistral') {
+                    const apiKey = getEnvVar('MISTRAL_API_KEY');
+                    if (!apiKey)
+                        throw new Error('MISTRAL_API_KEY not set');
+                    const res = await callMistral(apiKey, { model, messages, temperature: options.temperature, max_tokens: options.maxTokens }, options.signal);
+                    content = res.choices[0]?.message?.content ?? '';
+                    promptTokens = res.usage.prompt_tokens;
+                    completionTokens = res.usage.completion_tokens;
+                }
+                else if (provider.name === 'lightning') {
+                    const apiKey = getEnvVar('LIGHTNING_API_KEY');
+                    if (!apiKey)
+                        throw new Error('LIGHTNING_API_KEY not set');
+                    const res = await callLightning(apiKey, { model, messages, temperature: options.temperature, max_tokens: options.maxTokens }, options.signal);
+                    content = res.choices[0]?.message?.content ?? '';
+                    promptTokens = res.usage.prompt_tokens;
+                    completionTokens = res.usage.completion_tokens;
+                }
+                else if (provider.name === 'google') {
+                    const apiKey = getEnvVar('GOOGLE_API_KEY');
+                    if (!apiKey)
+                        throw new Error('GOOGLE_API_KEY not set');
+                    const res = await callGoogle(apiKey, { model, messages, temperature: options.temperature, max_tokens: options.maxTokens }, options.signal);
                     content = res.choices[0]?.message?.content ?? '';
                     promptTokens = res.usage.prompt_tokens;
                     completionTokens = res.usage.completion_tokens;
@@ -416,7 +482,7 @@ export class LLMGateway {
         const ordered = this.selectProvider(policy, options.provider);
         const chain = this.buildFallbackChain(ordered);
         // Try each provider in the chain
-        let lastError = null;
+        const chainErrors = [];
         for (const provider of chain) {
             try {
                 const result = await this.callProvider(provider, processedMessages, requiredOptions);
@@ -440,11 +506,17 @@ export class LLMGateway {
                 };
             }
             catch (err) {
-                lastError = err instanceof Error ? err : new Error(String(err));
+                const msg = err instanceof Error ? err.message : String(err);
+                chainErrors.push(`${provider.name}: ${msg}`);
                 // Continue to fallback
             }
         }
-        throw lastError ?? new Error('All providers in the fallback chain failed');
+        // Surface the primary provider's error first, then the fallback trail.
+        if (chainErrors.length > 0) {
+            const summary = chainErrors.join('; ');
+            throw new Error(`All providers in the fallback chain failed — ${summary}`);
+        }
+        throw new Error('All providers in the fallback chain failed');
     }
     /**
      * Streaming chat completion.
@@ -534,6 +606,39 @@ export class LLMGateway {
                         if (!apiKey)
                             throw new Error('VENICE_API_KEY not set');
                         stream = streamVenice(apiKey, {
+                            model: resolvedModel,
+                            messages: processedMessages,
+                            temperature: requiredOptions.temperature,
+                            max_tokens: requiredOptions.maxTokens,
+                        }, options.signal);
+                    }
+                    else if (provider.name === 'mistral') {
+                        const apiKey = getEnvVar('MISTRAL_API_KEY');
+                        if (!apiKey)
+                            throw new Error('MISTRAL_API_KEY not set');
+                        stream = streamMistral(apiKey, {
+                            model: resolvedModel,
+                            messages: processedMessages,
+                            temperature: requiredOptions.temperature,
+                            max_tokens: requiredOptions.maxTokens,
+                        }, options.signal);
+                    }
+                    else if (provider.name === 'lightning') {
+                        const apiKey = getEnvVar('LIGHTNING_API_KEY');
+                        if (!apiKey)
+                            throw new Error('LIGHTNING_API_KEY not set');
+                        stream = streamLightning(apiKey, {
+                            model: resolvedModel,
+                            messages: processedMessages,
+                            temperature: requiredOptions.temperature,
+                            max_tokens: requiredOptions.maxTokens,
+                        }, options.signal);
+                    }
+                    else if (provider.name === 'google') {
+                        const apiKey = getEnvVar('GOOGLE_API_KEY');
+                        if (!apiKey)
+                            throw new Error('GOOGLE_API_KEY not set');
+                        stream = streamGoogle(apiKey, {
                             model: resolvedModel,
                             messages: processedMessages,
                             temperature: requiredOptions.temperature,
