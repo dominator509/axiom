@@ -522,6 +522,14 @@ describe('viral_exemplar table', () => {
     expect(metrics.default).toEqual({ views: 0, likes: 0, shares: 0, comments: 0 });
   });
 
+  it('exposes the pgvector embedding column at 1536 dimensions', () => {
+    // Aligned with migration 0000: embedding vector(1536) DEFAULT NULL + HNSW index.
+    const embedding = columnsOf(viralExemplar).embedding;
+    expect(embedding.columnType).toBe('PgVector');
+    expect(embedding.hasDefault).toBe(false);
+    expect(embedding.notNull).toBe(false);
+  });
+
   it('relates to org', () => {
     expect(relationNames(viralExemplarRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
@@ -570,15 +578,17 @@ describe('job table', () => {
     expect(columnsOf(job).payload.default).toEqual({});
   });
 
-  it('attempts/maxAttempts are stored as text with string defaults', () => {
-    // NOTE: schema uses TEXT while migration 0000 uses INTEGER (documented drift).
+  it('attempts/maxAttempts are integer counters defaulting to 0 and 3', () => {
+    // Aligned with migration 0000: INTEGER NOT NULL DEFAULT 0 / 3 (was TEXT drift).
     const cols = columnsOf(job);
-    expect(cols.attempts.dataType).toBe('string');
+    expect(cols.attempts.dataType).toBe('number');
+    expect(cols.attempts.columnType).toBe('PgInteger');
     expect(cols.attempts.hasDefault).toBe(true);
-    expect(cols.attempts.default).toBe('0');
-    expect(cols.maxAttempts.dataType).toBe('string');
+    expect(cols.attempts.default).toBe(0);
+    expect(cols.maxAttempts.dataType).toBe('number');
+    expect(cols.maxAttempts.columnType).toBe('PgInteger');
     expect(cols.maxAttempts.hasDefault).toBe(true);
-    expect(cols.maxAttempts.default).toBe('3');
+    expect(cols.maxAttempts.default).toBe(3);
   });
 
   it('relates to org', () => {

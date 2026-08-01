@@ -17,3 +17,4 @@
 2026-07-30T01:30:33Z | TEST Database — 15 tables, pgvector healthy
 2026-07-30T01:30:33Z | GATE verify — preflight: ok, verify: ok
 2026-07-31T22:10:41Z | OAuth hardening: Fanvue PKCE /authorize + state-validated callback, token persistence to .env, loopback-only bind (127.0.0.1:3001), systemd axiom-api.service, 9 vitest tests, uuid 11.1.1 + esbuild override (audit clean), secret-exposure audit clean
+2026-07-31T23:02:14Z | L5.0 test matrix: 1033 vitest tests green across 9 TS packages (auth 6, api 95, connectors 243, db 83, fanvue-mcp 48, link-bio 33, llm-gateway 220, mcp-server 66, relay 239), tsc --noEmit clean all packages, 7 source bugs fixed by tests, pnpm audit clean, core types-only

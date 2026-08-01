@@ -160,10 +160,9 @@ describe('migration asset 0000_initial.sql', () => {
     expect(sql).toContain("decode('0000000000000000000000000000000000000000000000000000000000000000', 'hex')");
   });
 
-  it('documented drift: job attempts columns are INTEGER in SQL but TEXT in the drizzle schema', () => {
-    // The drizzle schema (job.ts) declares attempts/max_attempts as text with
-    // string defaults; the shipped migration declares them INTEGER. This test
-    // pins the *current* migration truth so the drift stays visible.
+  it('job attempts columns are INTEGER in SQL and aligned in the drizzle schema', () => {
+    // Migration truth: INTEGER NOT NULL DEFAULT 0 / 3. The drizzle schema
+    // (job.ts) is aligned with integer('attempts').default(0) — no drift.
     expect(sql).toContain('attempts       INTEGER     NOT NULL DEFAULT 0');
     expect(sql).toContain('max_attempts   INTEGER     NOT NULL DEFAULT 3');
   });
