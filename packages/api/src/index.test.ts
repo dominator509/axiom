@@ -66,3 +66,31 @@ describe('relay routes mounted via initRelay', () => {
     expect([200, 400, 500]).toContain(res.status);
   });
 });
+
+describe('llm gateway routes mounted', () => {
+  it('GET /api/v1/llm/providers lists available providers', async () => {
+    const res = await app.request('/api/v1/llm/providers');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.providers)).toBe(true);
+    // vllm is always available (no key required)
+    expect(body.providers).toContain('vllm');
+  });
+
+  it('GET /api/v1/llm/stats returns gateway statistics', async () => {
+    const res = await app.request('/api/v1/llm/stats');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(typeof body.requests).toBe('number');
+    expect(body.cache).toBeDefined();
+  });
+
+  it('POST /api/v1/llm/chat validates the request schema', async () => {
+    const res = await app.request('/api/v1/llm/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: 'not-an-array' }),
+    });
+    expect(res.status).toBe(400);
+  });
+});

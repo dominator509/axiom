@@ -53,6 +53,9 @@ importers:
       '@axiom/db':
         specifier: workspace:*
         version: link:../db
+      '@axiom/llm-gateway':
+        specifier: workspace:*
+        version: link:../llm-gateway
       '@axiom/relay':
         specifier: workspace:^
         version: link:../relay

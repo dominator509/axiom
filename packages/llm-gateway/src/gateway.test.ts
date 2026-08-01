@@ -434,6 +434,17 @@ describe('LLMGateway.chat — failures, retries, fallback', () => {
     expect(gw.getStats().failures).toBe(8);
   });
 
+  it('aggregates every chain failure and surfaces the primary provider first', async () => {
+    fetchMock.mockRejectedValue(new Error('boom'));
+    const gw = new LLMGateway();
+    vi.useFakeTimers();
+    const promise = gw.chat(messages, { provider: 'openai' });
+    promise.catch(() => {});
+    await vi.advanceTimersByTimeAsync(20_000);
+    await expect(promise).rejects.toThrow(/All providers in the fallback chain failed — openai: boom; vllm: boom/);
+    vi.useRealTimers();
+  });
+
   it('is rate limited when the bucket is empty (chat path throws after retries)', async () => {
     const gw = new LLMGateway([{ name: 'openai', rpm: 0 }, { name: 'vllm', rpm: 0 }]);
     vi.useFakeTimers();

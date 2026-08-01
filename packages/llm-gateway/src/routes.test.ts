@@ -40,6 +40,22 @@ const validBody = {
 };
 
 describe('createRouter — POST /chat', () => {
+  // POST /chat — non-streaming completion
+  it('returns a structured JSON error when the provider call fails', async () => {
+    const gateway = makeGatewayStub();
+    gateway.chat = vi.fn().mockRejectedValue(new Error('OPENAI_API_KEY not set'));
+    const app = createRouter(gateway);
+
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(validBody),
+    });
+    expect(res.status).toBe(502);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe('OPENAI_API_KEY not set');
+  });
+
   it('returns the chat result for a valid request', async () => {
     const gateway = makeGatewayStub();
     const app = createRouter(gateway);

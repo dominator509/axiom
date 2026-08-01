@@ -12,6 +12,9 @@ export type {
   RateLimitBucket,
 } from './gateway.js';
 
+// HTTP router (Hono) for the gateway
+export { createRouter as createLLMRouter } from './routes.js';
+
 // Prompt management (TOKENKILLER S0-S3 segments)
 export {
   buildS0,
@@ -58,3 +61,12 @@ export type {
   ProviderStreamChunk,
   ProviderOptions,
 } from './providers/types.js';
+export {
+  OpenAIProvider,
+  AnthropicProvider,
+  VeniceProvider,
+  MistralProvider,
+  LightningProvider,
+  GoogleProvider,
+  VLLMProvider,
+} from './providers/index.js';

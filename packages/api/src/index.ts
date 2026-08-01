@@ -7,6 +7,7 @@ import { bundlesRouter } from './routes/bundles.js';
 import { socialRouter } from './routes/social.js';
 import { killswitchRouter } from './routes/killswitch.js';
 import { fanvueAuthRouter } from './routes/fanvue-auth.js';
+import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { DiscordAdapter, ThreadsAdapter, createRelayRoutes, CardRenderer, CommandRouter, ViralLoop, Bandit, IncidentManager, HealthCheckRegistry } from '@axiom/relay';
 
 export type AppBindings = {
@@ -31,6 +32,11 @@ app.route('/api/v1/bundles', bundlesRouter);
 app.route('/api/v1/social-accounts', socialRouter);
 app.route('/api/v1/connectors/fanvue', fanvueAuthRouter);
 app.route('/api/v1', killswitchRouter);
+
+// LLM gateway — unified multi-provider chat completions
+const llmGateway = new LLMGateway();
+app.route('/api/v1/llm', createLLMRouter(llmGateway));
+console.log('LLM gateway routes mounted');
 
 // Auth endpoint - placeholder for better-auth handler
 app.on(['GET', 'POST'], '/api/auth/*', (c) => {

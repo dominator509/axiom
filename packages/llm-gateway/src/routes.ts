@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { LLMGateway } from './gateway.js';
+import { ProviderError } from './providers/types.js';
 
 const chatBodySchema = z.object({
   messages: z.array(
@@ -26,14 +27,20 @@ export function createRouter(gateway: LLMGateway): Hono {
   // POST /chat — non-streaming completion
   router.post('/chat', zValidator('json', chatBodySchema), async (c) => {
     const { messages, model, temperature, maxTokens, policy, provider } = c.req.valid('json');
-    const result = await gateway.chat(messages, {
-      model,
-      temperature,
-      maxTokens,
-      policy,
-      provider,
-    });
-    return c.json(result);
+    try {
+      const result = await gateway.chat(messages, {
+        model,
+        temperature,
+        maxTokens,
+        policy,
+        provider,
+      });
+      return c.json(result);
+    } catch (err) {
+      const status = (err instanceof ProviderError ? err.status : 502) as 400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504;
+      const msg = err instanceof Error ? err.message : 'LLM gateway error';
+      return c.json({ error: { message: msg, provider: err instanceof ProviderError ? err.provider : undefined } }, status);
+    }
   });
 
   // POST /chat/stream — streaming completion via SSE
