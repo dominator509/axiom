@@ -201,7 +201,7 @@ const DEFAULT_PROVIDERS: ProviderConfig[] = [
     name: 'google',
     apiKeyEnv: 'GOOGLE_API_KEY',
     baseUrl: GOOGLE_BASE_URL,
-    defaultModel: 'gemini-2.0-flash',
+    defaultModel: 'gemini-flash-latest',
     costPer1KInput: 0.0001,
     costPer1KOutput: 0.0004,
     latencyRank: 2,

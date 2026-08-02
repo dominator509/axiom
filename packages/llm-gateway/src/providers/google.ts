@@ -18,7 +18,7 @@ export class GoogleProvider implements BaseProvider {
 
   constructor(
     private readonly apiKey: string,
-    readonly model: string = 'gemini-2.0-flash',
+    readonly model: string = 'gemini-flash-latest',
   ) {}
 
   async chat(

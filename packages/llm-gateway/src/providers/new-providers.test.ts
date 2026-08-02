@@ -115,7 +115,7 @@ describe('callGoogle', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const res = await callGoogle('AIza-test', {
-      model: 'gemini-2.0-flash',
+      model: 'gemini-flash-latest',
       messages: [
         { role: 'system', content: 'be brief' },
         { role: 'user', content: 'hello' },
@@ -128,7 +128,7 @@ describe('callGoogle', () => {
     expect(res.usage.total_tokens).toBe(70);
 
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toContain(`${GOOGLE_BASE_URL}/models/gemini-2.0-flash:generateContent`);
+    expect(url).toContain(`${GOOGLE_BASE_URL}/models/gemini-flash-latest:generateContent`);
     expect(url).toContain('key=AIza-test');
     const sent = JSON.parse(init!.body as string);
     expect(sent.systemInstruction.parts[0].text).toBe('be brief');
@@ -144,7 +144,7 @@ describe('callGoogle', () => {
     })));
 
     await callGoogle('AIza-test', {
-      model: 'gemini-2.0-flash',
+      model: 'gemini-flash-latest',
       messages: [
         { role: 'user', content: 'a' },
         { role: 'assistant', content: 'b' },
@@ -160,14 +160,14 @@ describe('callGoogle', () => {
       error: { code: 400, message: 'invalid arg', status: 'INVALID_ARGUMENT' },
     })));
     await expect(
-      callGoogle('AIza-test', { model: 'gemini-2.0-flash', messages: [{ role: 'user', content: 'x' }] }),
+      callGoogle('AIza-test', { model: 'gemini-flash-latest', messages: [{ role: 'user', content: 'x' }] }),
     ).rejects.toThrow('Gemini API error 400: invalid arg');
   });
 
   it('throws on non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ error: 'nope' }, 429)));
     await expect(
-      callGoogle('AIza-test', { model: 'gemini-2.0-flash', messages: [] }),
+      callGoogle('AIza-test', { model: 'gemini-flash-latest', messages: [] }),
     ).rejects.toThrow('Gemini API error 429');
   });
 });
@@ -180,7 +180,7 @@ describe('streamGoogle', () => {
     ])));
 
     const chunks: string[] = [];
-    for await (const c of streamGoogle('AIza-test', { model: 'gemini-2.0-flash', messages: [{ role: 'user', content: 'hi' }] })) {
+    for await (const c of streamGoogle('AIza-test', { model: 'gemini-flash-latest', messages: [{ role: 'user', content: 'hi' }] })) {
       chunks.push(c);
     }
     expect(chunks).toEqual(['one ', 'two']);

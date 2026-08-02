@@ -7,7 +7,7 @@ export class GoogleProvider {
     apiKey;
     model;
     name = 'google';
-    constructor(apiKey, model = 'gemini-2.0-flash') {
+    constructor(apiKey, model = 'gemini-flash-latest') {
         this.apiKey = apiKey;
         this.model = model;
     }
