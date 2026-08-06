@@ -150,6 +150,102 @@ pub fn execute_in_netns(ns: &str, cmd: &[&str]) -> io::Result<String> {
     }
 }
 
+/// Create a veth pair bridging the host namespace to a netns.
+/// `host_ip` is assigned to the host-side interface (e.g. 10.240.0.1/30),
+/// `ns_ip` to the netns-side (e.g. 10.240.0.2/30). The netns-side address is
+/// where the per-model sidecar proxy listens; the host-side address is what
+/// API/connector clients connect to. Interface names are derived from a hash
+/// of the namespace name so distinct models never collide (and the 15-char
+/// Linux ifname limit is respected). Returns the host-side address.
+#[instrument]
+pub fn setup_veth(ns: &str, host_ip: &str, ns_ip: &str) -> io::Result<String> {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    ns.hash(&mut h);
+    let tag = format!("{:08x}", h.finish() & 0xffff_ffff);
+    let veth_host = format!("vh_{tag}");
+    let veth_ns = format!("vn_{tag}");
+    let _ = execute_in_netns(ns, &["ip", "link", "del", &veth_ns]);
+    let _ = Command::new("ip").args(["link", "del", &veth_host]).output();
+
+    let out = Command::new("ip")
+        .args(["link", "add", &veth_host, "type", "veth", "peer", "name", &veth_ns])
+        .output()?;
+    if !out.status.success() {
+        return Err(io::Error::other(format!(
+            "veth pair creation failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        )));
+    }
+    // Move the ns-side device into the namespace FROM the host side (the
+    // device exists in the host namespace right after pair creation).
+    let move_out = Command::new("ip")
+        .args(["link", "set", &veth_ns, "netns", ns])
+        .output()?;
+    if !move_out.status.success() {
+        let _ = Command::new("ip").args(["link", "del", &veth_host]).output();
+        return Err(io::Error::other(format!(
+            "veth move to netns failed: {}",
+            String::from_utf8_lossy(&move_out.stderr).trim()
+        )));
+    }
+    let _ = Command::new("ip").args(["addr", "add", host_ip, "dev", &veth_host]).output();
+    let _ = Command::new("ip").args(["link", "set", &veth_host, "up"]).output();
+    execute_in_netns(ns, &["ip", "addr", "add", ns_ip, "dev", &veth_ns])?;
+    execute_in_netns(ns, &["ip", "link", "set", &veth_ns, "up"])?;
+    let _ = execute_in_netns(ns, &["ip", "link", "set", "lo", "up"]);
+
+    info!(netns = %ns, veth_host = %veth_host, host_ip = %host_ip, ns_ip = %ns_ip, "veth pair ready");
+    Ok(host_ip.to_string())
+}
+
+/// Remove a veth pair by host-side interface name (idempotent).
+#[instrument]
+pub fn teardown_veth(veth_host: &str) -> io::Result<()> {
+    let output = Command::new("ip").args(["link", "del", veth_host]).output()?;
+    if output.status.success() || String::from_utf8_lossy(&output.stderr).contains("does not exist") {
+        Ok(())
+    } else {
+        Err(io::Error::other(format!(
+            "veth teardown failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )))
+    }
+}
+
+/// Sweep orphaned egress-plane kernel state at startup: leftover `vh_*` veth
+/// interfaces (from unclean shutdowns) and stale `egress_*` namespaces. Both
+/// are recreated on demand at bind time. Without this sweep, an orphan veth
+/// still holding a model's 10.240.x.1/30 address makes the next bind's
+/// `ip addr add` fail silently (address exists) and breaks connectivity —
+/// the exact class of stale-state bug that produced "No route to host".
+pub fn sweep_orphans() {
+    if let Ok(out) = Command::new("ip").args(["-o", "link", "show"]).output() {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        for line in stdout.lines() {
+            // Format: "N: vh_xxxx: <FLAGS> ..."
+            if let Some(name) = line
+                .split(':')
+                .nth(1)
+                .map(|s| s.trim())
+                .filter(|s| s.starts_with("vh_"))
+            {
+                let _ = Command::new("ip").args(["link", "del", name]).output();
+            }
+        }
+    }
+    if let Ok(out) = Command::new("ip").args(["netns", "list"]).output() {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        for line in stdout.lines() {
+            let name = line.split_whitespace().next().unwrap_or("");
+            if name.starts_with("egress_") {
+                let _ = Command::new("ip").args(["netns", "del", name]).output();
+            }
+        }
+    }
+    info!("swept orphaned egress veths/namespaces");
+}
+
 /// Health-check a proxy by attempting a TCP connection to its address.
 /// For HTTP proxies, also tries a GET /health if the TCP connect succeeds.
 #[instrument]

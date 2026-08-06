@@ -26,6 +26,8 @@ uuid = { version = "1", features = ["v4"] }
 rand = "0.8"
 # Base64 encoding/decoding
 base64 = "0.22"
+# Postgres access for model_network_configs (L2.6: Rust worker loads egress config)
+tokio-postgres = "0.7"
 
 [dev-dependencies]
 axum-test = "16"

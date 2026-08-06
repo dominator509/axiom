@@ -16,6 +16,31 @@ pub enum CryptoError {
 
     #[error("Decryption failed: {0}")]
     DecryptionFailed(String),
+
+    #[error("Encryption failed: {0}")]
+    EncryptionFailed(String),
+}
+
+/// Encrypt a plaintext into an XChaCha20-Poly1305 envelope.
+/// Generates a fresh random 24-byte nonce; returns `(ciphertext, nonce)`.
+/// Used by the control plane when persisting model egress credentials
+/// (L2.6: proxy/WG creds are envelope-encrypted at rest).
+pub fn encrypt_envelope(
+    plaintext: &[u8],
+    dek: &[u8],
+) -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
+    if dek.len() != 32 {
+        return Err(CryptoError::InvalidKeyLength(dek.len()));
+    }
+    let mut nonce = vec![0u8; 24];
+    rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut nonce);
+
+    let cipher = XChaCha20Poly1305::new_from_slice(dek)
+        .map_err(|e| CryptoError::EncryptionFailed(format!("key init: {e}")))?;
+    let ct = cipher
+        .encrypt(XNonce::from_slice(&nonce), Payload { msg: plaintext, aad: b"" })
+        .map_err(|e| CryptoError::EncryptionFailed(format!("encrypt: {e}")))?;
+    Ok((ct, nonce))
 }
 
 /// Decrypt an XChaCha20-Poly1305 encrypted envelope.
@@ -192,5 +217,29 @@ mod tests {
         let mut data = vec![0xABu8; 64];
         zeroize(&mut data);
         assert!(data.iter().all(|&b| b == 0), "All bytes should be zero");
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_round_trip() {
+        let key = random_bytes(32);
+        let plaintext = b"proxy:user:pass + wg private key material";
+
+        let (ct, nonce) = encrypt_envelope(plaintext, &key).expect("encrypt should succeed");
+        assert_eq!(nonce.len(), 24, "nonce must be 24 bytes");
+        assert_ne!(ct, plaintext, "ciphertext must differ from plaintext");
+
+        let dec = decrypt_envelope(&ct, &nonce, &key).expect("decrypt should succeed");
+        assert_eq!(dec, plaintext, "round trip must match");
+
+        let (ct2, nonce2) = encrypt_envelope(plaintext, &key).expect("encrypt 2");
+        assert_ne!(nonce, nonce2, "fresh nonce per encryption");
+        assert_ne!(ct, ct2, "same plaintext must not produce same ciphertext");
+    }
+
+    #[test]
+    fn test_encrypt_rejects_short_key() {
+        let key = random_bytes(16);
+        let result = encrypt_envelope(b"x", &key);
+        assert!(matches!(result, Err(CryptoError::InvalidKeyLength(16))));
     }
 }
