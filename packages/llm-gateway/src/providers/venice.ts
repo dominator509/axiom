@@ -32,7 +32,7 @@ export class VeniceProvider implements BaseProvider {
 
   constructor(
     private readonly apiKey: string,
-    readonly model: string = 'venice-xl',
+    readonly model: string = 'venice-uncensored-1-2',
     private readonly baseUrl: string = 'https://api.venice.ai/api/v1',
   ) {}
 

@@ -236,7 +236,7 @@ describe('VeniceProvider', () => {
   it('has a fixed name and default model', () => {
     const p = new VeniceProvider('venice-key-333');
     expect(p.name).toBe('venice');
-    expect(p.model).toBe('venice-xl');
+    expect(p.model).toBe('venice-uncensored-1-2');
   });
 
   it('chat returns content, usage and zero cost', async () => {
