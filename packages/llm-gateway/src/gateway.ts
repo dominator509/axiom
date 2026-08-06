@@ -6,6 +6,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { resolveEgressProxy, buildEgressFetch } from './egress.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 import { v4 as uuid } from 'uuid';
@@ -77,6 +78,13 @@ export interface ChatOptions {
   policy?: ProviderPolicy;
   provider?: string; // explicit provider override
   signal?: AbortSignal;
+  /**
+   * Route this call through the model's bound egress sidecar (L2.6).
+   * When true (or when the model profile has a bound, healthy egress),
+   * provider traffic goes through the egress-plane's per-model namespace
+   * proxy instead of the host's direct route.
+   */
+  egress?: boolean;
 }
 
 export interface ChatResult {
@@ -427,6 +435,16 @@ export class LLMGateway {
     return consumeBucket(bucket);
   }
 
+  /**
+   * Resolve a fetch implementation bound to the model's egress sidecar
+   * (L2.6). Returns undefined when the model has no healthy bound egress —
+   * callers then use the global fetch (direct route).
+   */
+  private async resolveEgressFetch(model: string): Promise<typeof fetch | undefined> {
+    const proxy = await resolveEgressProxy(model);
+    return proxy ? buildEgressFetch(proxy) : undefined;
+  }
+
   /** Call a single provider with retry + exponential backoff */
   private async callProvider(
     provider: ProviderConfig,
@@ -435,6 +453,10 @@ export class LLMGateway {
   ): Promise<ChatResult> {
     const maxRetries = 3;
     let lastError: Error | null = null;
+    // Egress: route through the model's bound sidecar when requested.
+    const egressFetchImpl = options.egress
+      ? await this.resolveEgressFetch(options.model)
+      : undefined;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (attempt > 0) {
@@ -462,6 +484,7 @@ export class LLMGateway {
             apiKey,
             { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
             options.signal,
+            egressFetchImpl ?? fetch,
           );
           content = res.choices[0]?.message?.content ?? '';
           promptTokens = res.usage.prompt_tokens;
@@ -481,6 +504,7 @@ export class LLMGateway {
               system: systemMsg?.content,
             },
             options.signal,
+            egressFetchImpl ?? fetch,
           );
           content = res.content.map(c => c.text).join('');
           promptTokens = res.usage.input_tokens;
@@ -492,6 +516,7 @@ export class LLMGateway {
             apiKey,
             { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
             options.signal,
+            egressFetchImpl ?? fetch,
           );
           content = res.choices[0]?.message?.content ?? '';
           promptTokens = res.usage.prompt_tokens;
@@ -503,6 +528,7 @@ export class LLMGateway {
             apiKey,
             { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
             options.signal,
+            egressFetchImpl ?? fetch,
           );
           content = res.choices[0]?.message?.content ?? '';
           promptTokens = res.usage.prompt_tokens;
@@ -514,6 +540,7 @@ export class LLMGateway {
             apiKey,
             { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
             options.signal,
+            egressFetchImpl ?? fetch,
           );
           content = res.choices[0]?.message?.content ?? '';
           promptTokens = res.usage.prompt_tokens;
@@ -525,6 +552,7 @@ export class LLMGateway {
             apiKey,
             { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
             options.signal,
+            egressFetchImpl ?? fetch,
           );
           content = res.choices[0]?.message?.content ?? '';
           promptTokens = res.usage.prompt_tokens;
@@ -536,6 +564,7 @@ export class LLMGateway {
             apiKey,
             { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
             options.signal,
+            egressFetchImpl ?? fetch,
           );
           content = res.choices[0]?.message?.content ?? '';
           promptTokens = res.usage.prompt_tokens;
@@ -547,6 +576,7 @@ export class LLMGateway {
             apiKey,
             { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
             options.signal,
+            egressFetchImpl ?? fetch,
           );
           content = res.choices[0]?.message?.content ?? '';
           promptTokens = res.usage.prompt_tokens;
@@ -555,6 +585,7 @@ export class LLMGateway {
           const res = await callVLLM(
             { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
             options.signal,
+            egressFetchImpl ?? fetch,
           );
           content = res.choices[0]?.message?.content ?? '';
           promptTokens = res.usage.prompt_tokens;
@@ -625,6 +656,7 @@ export class LLMGateway {
       policy,
       provider: options.provider ?? '',
       signal: options.signal!,
+      egress: options.egress ?? false,
     } as Required<ChatOptions>;
 
     // Run pipeline before-hooks
@@ -717,6 +749,7 @@ export class LLMGateway {
       policy,
       provider: options.provider ?? '',
       signal: options.signal!,
+      egress: options.egress ?? false,
     } as Required<ChatOptions>;
 
     // Run pipeline before-hooks
@@ -730,6 +763,9 @@ export class LLMGateway {
 
     // Build a combined async generator that tries each provider in chain
     const self = this;
+    const egressFetchImpl = requiredOptions.egress
+      ? await this.resolveEgressFetch(requiredOptions.model)
+      : undefined;
     async function* streamWithFallback(): AsyncIterable<string> {
       let lastError: Error | null = null;
 
@@ -756,6 +792,7 @@ export class LLMGateway {
                 max_tokens: requiredOptions.maxTokens,
               },
               options.signal,
+              egressFetchImpl ?? fetch,
             );
           } else if (provider.name === 'anthropic') {
             const apiKey = getEnvVar('ANTHROPIC_API_KEY');
@@ -772,6 +809,7 @@ export class LLMGateway {
                 system: systemMsg?.content,
               },
               options.signal,
+              egressFetchImpl ?? fetch,
             );
           } else if (provider.name === 'deepseek') {
             const apiKey = getEnvVar('DEEPSEEK_API_KEY');
@@ -785,6 +823,7 @@ export class LLMGateway {
                 max_tokens: requiredOptions.maxTokens,
               },
               options.signal,
+              egressFetchImpl ?? fetch,
             );
           } else if (provider.name === 'grok') {
             const apiKey = getEnvVar('GROK_API_KEY');
@@ -798,6 +837,7 @@ export class LLMGateway {
                 max_tokens: requiredOptions.maxTokens,
               },
               options.signal,
+              egressFetchImpl ?? fetch,
             );
           } else if (provider.name === 'venice') {
             const apiKey = getEnvVar('VENICE_API_KEY');
@@ -811,6 +851,7 @@ export class LLMGateway {
                 max_tokens: requiredOptions.maxTokens,
               },
               options.signal,
+              egressFetchImpl ?? fetch,
             );
           } else if (provider.name === 'mistral') {
             const apiKey = getEnvVar('MISTRAL_API_KEY');
@@ -824,6 +865,7 @@ export class LLMGateway {
                 max_tokens: requiredOptions.maxTokens,
               },
               options.signal,
+              egressFetchImpl ?? fetch,
             );
           } else if (provider.name === 'lightning') {
             const apiKey = getEnvVar('LIGHTNING_API_KEY');
@@ -837,6 +879,7 @@ export class LLMGateway {
                 max_tokens: requiredOptions.maxTokens,
               },
               options.signal,
+              egressFetchImpl ?? fetch,
             );
           } else if (provider.name === 'google') {
             const apiKey = getEnvVar('GOOGLE_API_KEY');
@@ -850,6 +893,7 @@ export class LLMGateway {
                 max_tokens: requiredOptions.maxTokens,
               },
               options.signal,
+              egressFetchImpl ?? fetch,
             );
           } else if (provider.name === 'vllm') {
             stream = streamVLLM(
@@ -860,6 +904,7 @@ export class LLMGateway {
                 max_tokens: requiredOptions.maxTokens,
               },
               options.signal,
+              egressFetchImpl ?? fetch,
             );
           } else {
             throw new Error(`Unsupported provider for streaming: ${provider.name}`);

@@ -189,7 +189,23 @@ pub fn setup_veth(ns: &str, host_ip: &str, ns_ip: &str) -> io::Result<String> {
             String::from_utf8_lossy(&move_out.stderr).trim()
         )));
     }
-    let _ = Command::new("ip").args(["addr", "add", host_ip, "dev", &veth_host]).output();
+    // The host-side address MUST be added before the interface goes up —
+    // and it must not fail silently. `ip addr add` on an address that
+    // already exists on ANOTHER interface returns "File exists"; ignoring
+    // that leaves the veth without an address and the host route to the
+    // netns-side .2 flows through a DIFFERENT (possibly live) bind — the
+    // exact ambiguity that made the fail-closed regression test probe the
+    // live chain. Propagate the error so the bind fails loudly.
+    let addr_out = Command::new("ip")
+        .args(["addr", "add", host_ip, "dev", &veth_host])
+        .output()?;
+    if !addr_out.status.success() {
+        let _ = Command::new("ip").args(["link", "del", &veth_host]).output();
+        return Err(io::Error::other(format!(
+            "host veth addr add failed (subnet already in use?): {}",
+            String::from_utf8_lossy(&addr_out.stderr).trim()
+        )));
+    }
     let _ = Command::new("ip").args(["link", "set", &veth_host, "up"]).output();
     execute_in_netns(ns, &["ip", "addr", "add", ns_ip, "dev", &veth_ns])?;
     execute_in_netns(ns, &["ip", "link", "set", &veth_ns, "up"])?;

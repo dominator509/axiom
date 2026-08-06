@@ -19,6 +19,8 @@ const chatBodySchema = z.object({
   policy: z.enum(['cost', 'latency', 'quality']).optional(),
   provider: z.string().optional(),
   stream: z.boolean().optional(),
+  /** Route through the model's bound egress sidecar (L2.6). */
+  egress: z.boolean().optional(),
 });
 
 export function createRouter(gateway: LLMGateway): Hono {
@@ -26,7 +28,7 @@ export function createRouter(gateway: LLMGateway): Hono {
 
   // POST /chat — non-streaming completion
   router.post('/chat', zValidator('json', chatBodySchema), async (c) => {
-    const { messages, model, temperature, maxTokens, policy, provider } = c.req.valid('json');
+    const { messages, model, temperature, maxTokens, policy, provider, egress } = c.req.valid('json');
     try {
       const result = await gateway.chat(messages, {
         model,
@@ -34,6 +36,7 @@ export function createRouter(gateway: LLMGateway): Hono {
         maxTokens,
         policy,
         provider,
+        egress,
       });
       return c.json(result);
     } catch (err) {
@@ -45,13 +48,14 @@ export function createRouter(gateway: LLMGateway): Hono {
 
   // POST /chat/stream — streaming completion via SSE
   router.post('/chat/stream', zValidator('json', chatBodySchema), async (c) => {
-    const { messages, model, temperature, maxTokens, policy, provider } = c.req.valid('json');
+    const { messages, model, temperature, maxTokens, policy, provider, egress } = c.req.valid('json');
     const stream = gateway.chatStream(messages, {
       model,
       temperature,
       maxTokens,
       policy,
       provider,
+      egress,
     });
 
     return new Response(

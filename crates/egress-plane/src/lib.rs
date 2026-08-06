@@ -102,7 +102,9 @@ impl Config {
             listen_addr: std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "0.0.0.0:3000".to_string()),
             echo_url: std::env::var("EGRESS_ECHO_URL")
                 .unwrap_or_else(|_| "https://api.ipify.org".to_string()),
-            database_url: std::env::var("DATABASE_URL").ok(),
+            database_url: std::env::var("EGRESS_DATABASE_URL")
+                .ok()
+                .or_else(|| std::env::var("DATABASE_URL").ok()),
             dek: db::dek_from_env(),
             sidecar_bin: std::env::var("SIDECAR_BIN").ok().map(std::path::PathBuf::from),
         }
@@ -159,7 +161,7 @@ impl Registry {
 
     fn alloc_octet(&mut self) -> Result<u16, String> {
         for octet in self.base_octet..=254u16 {
-            if !self.used_octets.contains(&octet) {
+            if !self.used_octets.contains(&octet) && !host_subnet_in_use(octet) {
                 self.used_octets.push(octet);
                 return Ok(octet);
             }
@@ -170,6 +172,24 @@ impl Registry {
     fn release_octet(&mut self, octet: u16) {
         self.used_octets.retain(|o| *o != octet);
     }
+}
+
+/// True when `10.240.<octet>.1/30` is already assigned to an interface in the
+/// DEFAULT namespace. The egress plane, its integration tests, and any other
+/// instance share the host's veth address space — a second bind on the same
+/// subnet makes the host route to the netns-side `.2` ambiguous, so probes
+/// can silently reach the WRONG sidecar (a healthy live chain instead of the
+/// test's dead upstream). Skipping host-occupied subnets keeps every bind
+/// isolated (L2.6 per-model netns).
+fn host_subnet_in_use(octet: u16) -> bool {
+    let needle = format!("10.240.{octet}.1/");
+    let Ok(out) = std::process::Command::new("ip")
+        .args(["-o", "addr", "show"])
+        .output()
+    else {
+        return false;
+    };
+    String::from_utf8_lossy(&out.stdout).contains(&needle)
 }
 
 pub struct AppState {
@@ -245,6 +265,18 @@ pub struct DecryptRequest {
     pub dek: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct EncryptRequest {
+    /// Base64-encoded plaintext (the serialized `Creds` JSON).
+    pub plaintext: String,
+    /// Vault DEK id this envelope is encrypted under.
+    pub dek_id: String,
+    /// Optional DEK override (base64, 32 bytes). When absent the
+    /// configured `EGRESS_DEK` from the plane's environment is used.
+    #[serde(default)]
+    pub dek: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct StatusResponse {
     pub status: String,
@@ -265,6 +297,16 @@ pub struct HealthResponse {
 #[derive(Debug, Serialize)]
 pub struct DecryptResponse {
     pub plaintext: String,
+    pub correlation_id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct EncryptResponse {
+    /// Base64-encoded XChaCha20-Poly1305 ciphertext (tag included).
+    pub enc_creds: String,
+    /// Base64-encoded 24-byte nonce.
+    pub enc_nonce: String,
+    pub dek_id: String,
     pub correlation_id: String,
 }
 
@@ -828,6 +870,52 @@ pub async fn egress_decrypt(
     ))
 }
 
+/// POST /egress/encrypt — envelope-encrypt credential plaintext for
+/// storage in `model_network_configs.enc_creds` (L2.6). The API control
+/// plane calls this BEFORE writing a config row, so secrets never touch
+/// the API process in plaintext after this call; the DEK stays in the
+/// egress plane's environment.
+#[instrument(skip(state))]
+pub async fn egress_encrypt(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<EncryptRequest>,
+) -> Result<impl IntoResponse, EgressError> {
+    use base64::Engine as _;
+    let correlation_id = Uuid::new_v4().to_string();
+
+    let plaintext = base64::engine::general_purpose::STANDARD
+        .decode(&body.plaintext)
+        .map_err(|e| EgressError::Validation(format!("invalid plaintext: {e}")))?;
+
+    // Resolve the DEK: explicit override wins, else the configured env DEK.
+    let mut dek: Vec<u8> = match &body.dek {
+        Some(d) => base64::engine::general_purpose::STANDARD
+            .decode(d)
+            .map_err(|e| EgressError::Validation(format!("invalid dek: {e}")))?,
+        None => state
+            .config
+            .dek
+            .map(|d| d.to_vec())
+            .ok_or_else(|| EgressError::Validation("EGRESS_DEK not configured".to_string()))?,
+    };
+    if dek.len() != 32 {
+        return Err(EgressError::Validation("DEK must be 32 bytes".to_string()));
+    }
+
+    let (ct, nonce) = crypto::encrypt_envelope(&plaintext, &dek)?;
+    crypto::zeroize(dek.as_mut_slice());
+
+    Ok((
+        StatusCode::OK,
+        Json(EncryptResponse {
+            enc_creds: base64::engine::general_purpose::STANDARD.encode(&ct),
+            enc_nonce: base64::engine::general_purpose::STANDARD.encode(&nonce),
+            dek_id: body.dek_id,
+            correlation_id,
+        }),
+    ))
+}
+
 /// POST /kill-switch/drain — kill all bound egress immediately
 #[instrument(skip(state))]
 pub async fn kill_switch_drain(State(state): State<Arc<AppState>>) -> impl IntoResponse {
@@ -982,6 +1070,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/egress/health-check", post(egress_health_check))
         .route("/egress/health-check/model", post(egress_health_check_model))
         .route("/egress/decrypt", post(egress_decrypt))
+        .route("/egress/encrypt", post(egress_encrypt))
         .route("/egress/sync", post(egress_sync))
         .route("/kill-switch/drain", post(kill_switch_drain))
         .route("/kill-switch/status", get(kill_switch_status))

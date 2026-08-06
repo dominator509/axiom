@@ -6,6 +6,7 @@ import { modelsRouter } from './routes/models.js';
 import { bundlesRouter } from './routes/bundles.js';
 import { socialRouter } from './routes/social.js';
 import { killswitchRouter } from './routes/killswitch.js';
+import { egressRouter } from './routes/egress.js';
 import { fanvueAuthRouter } from './routes/fanvue-auth.js';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { DiscordAdapter, ThreadsAdapter, createRelayRoutes, CardRenderer, CommandRouter, ViralLoop, Bandit, IncidentManager, HealthCheckRegistry } from '@axiom/relay';
@@ -32,6 +33,7 @@ app.route('/api/v1/bundles', bundlesRouter);
 app.route('/api/v1/social-accounts', socialRouter);
 app.route('/api/v1/connectors/fanvue', fanvueAuthRouter);
 app.route('/api/v1', killswitchRouter);
+app.route('/api/v1/egress', egressRouter);
 
 // LLM gateway — unified multi-provider chat completions
 const llmGateway = new LLMGateway();

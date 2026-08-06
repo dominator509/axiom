@@ -40,13 +40,14 @@ export class VeniceProvider implements BaseProvider {
     messages: ProviderMessage[],
     options?: ProviderOptions,
   ): Promise<ProviderChatResult> {
+    const doFetch = options?.fetchImpl ?? fetch;
     const body: Record<string, unknown> = {
       model: this.model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       ...(options ? toSnakeCase(options) : {}),
     };
 
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+    const res = await doFetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -98,6 +99,7 @@ export class VeniceProvider implements BaseProvider {
     messages: ProviderMessage[],
     options?: ProviderOptions,
   ): AsyncIterable<ProviderStreamChunk> {
+    const doFetch = options?.fetchImpl ?? fetch;
     const body: Record<string, unknown> = {
       model: this.model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -105,7 +107,7 @@ export class VeniceProvider implements BaseProvider {
       ...(options ? toSnakeCase(options) : {}),
     };
 
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+    const res = await doFetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -254,14 +256,14 @@ export interface VeniceCompletionResponse {
     total_tokens: number;
   };
 }
-
 export async function callVenice(
   apiKey: string,
   body: VeniceCompletionRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<VeniceCompletionResponse> {
   const baseUrl = process.env.VENICE_BASE_URL ?? VENICE_BASE_URL;
-  const res = await fetch(`${baseUrl}/chat/completions`, {
+  const res = await fetchImpl(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -281,9 +283,10 @@ export async function* streamVenice(
   apiKey: string,
   body: VeniceCompletionRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): AsyncIterable<string> {
   const baseUrl = process.env.VENICE_BASE_URL ?? VENICE_BASE_URL;
-  const res = await fetch(`${baseUrl}/chat/completions`, {
+  const res = await fetchImpl(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

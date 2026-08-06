@@ -26,6 +26,7 @@
     "@axiom/llm-gateway": "workspace:*",
     "@axiom/relay": "workspace:^",
     "@hono/zod-validator": "^0.4.0",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.6.0",
     "zod": "^3.23.0"
   },

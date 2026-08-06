@@ -136,11 +136,11 @@ function toOpenAICompat(res: AnthropicMessageResponse): LightningCompletionRespo
     },
   };
 }
-
 export async function callLightning(
   apiKey: string,
   body: LightningCompletionRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<LightningCompletionResponse> {
   // Anthropic Messages API requires max_tokens and has no role:'system' —
   // system messages are hoisted to the top-level `system` field.
@@ -159,7 +159,7 @@ export async function callLightning(
   };
   if (systemParts) anthropicBody.system = systemParts;
 
-  const res = await fetch(`${LIGHTNING_BASE_URL}/v1/messages`, {
+  const res = await fetchImpl(`${LIGHTNING_BASE_URL}/v1/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -180,6 +180,7 @@ export async function* streamLightning(
   apiKey: string,
   body: LightningCompletionRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): AsyncIterable<string> {
   const systemParts = body.messages
     .filter((m) => m.role === 'system')
@@ -197,7 +198,7 @@ export async function* streamLightning(
   };
   if (systemParts) anthropicBody.system = systemParts;
 
-  const res = await fetch(`${LIGHTNING_BASE_URL}/v1/messages`, {
+  const res = await fetchImpl(`${LIGHTNING_BASE_URL}/v1/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

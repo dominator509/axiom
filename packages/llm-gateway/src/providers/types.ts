@@ -12,6 +12,13 @@ export interface ProviderOptions {
   presencePenalty?: number;
   frequencyPenalty?: number;
   stop?: string[];
+  signal?: AbortSignal;
+  /**
+   * Override the fetch implementation used for this provider call.
+   * The gateway injects an egress-bound fetch (undici ProxyAgent) when the
+   * model profile has a healthy bound egress (L2.6). Absent = global fetch.
+   */
+  fetchImpl?: typeof fetch;
 }
 
 export interface ProviderChatResult {

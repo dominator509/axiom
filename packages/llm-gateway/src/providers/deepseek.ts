@@ -26,13 +26,13 @@ export interface DeepSeekCompletionResponse {
     total_tokens: number;
   };
 }
-
 export async function callDeepSeek(
   apiKey: string,
   body: DeepSeekCompletionRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<DeepSeekCompletionResponse> {
-  const res = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+  const res = await fetchImpl(`${DEEPSEEK_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -52,8 +52,9 @@ export async function* streamDeepSeek(
   apiKey: string,
   body: DeepSeekCompletionRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): AsyncIterable<string> {
-  const res = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+  const res = await fetchImpl(`${DEEPSEEK_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

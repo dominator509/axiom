@@ -109,9 +109,10 @@ export class AnthropicProvider implements BaseProvider {
     messages: ProviderMessage[],
     options?: ProviderOptions,
   ): Promise<ProviderChatResult> {
+    const doFetch = options?.fetchImpl ?? fetch;
     const body = toAnthropicBody(this.model, messages, options, false);
 
-    const res = await fetch(`${this.baseUrl}/messages`, {
+    const res = await doFetch(`${this.baseUrl}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -157,9 +158,10 @@ export class AnthropicProvider implements BaseProvider {
     messages: ProviderMessage[],
     options?: ProviderOptions,
   ): AsyncIterable<ProviderStreamChunk> {
+    const doFetch = options?.fetchImpl ?? fetch;
     const body = toAnthropicBody(this.model, messages, options, true);
 
-    const res = await fetch(`${this.baseUrl}/messages`, {
+    const res = await doFetch(`${this.baseUrl}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -294,13 +296,13 @@ export interface AnthropicMessageResponse {
     output_tokens: number;
   };
 }
-
 export async function callAnthropic(
   apiKey: string,
   body: AnthropicMessageRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<AnthropicMessageResponse> {
-  const res = await fetch(`${ANTHROPIC_BASE_URL}/messages`, {
+  const res = await fetchImpl(`${ANTHROPIC_BASE_URL}/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -321,8 +323,9 @@ export async function* streamAnthropic(
   apiKey: string,
   body: AnthropicMessageRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): AsyncIterable<string> {
-  const res = await fetch(`${ANTHROPIC_BASE_URL}/messages`, {
+  const res = await fetchImpl(`${ANTHROPIC_BASE_URL}/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

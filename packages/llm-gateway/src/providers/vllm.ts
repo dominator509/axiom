@@ -41,13 +41,14 @@ export class VLLMProvider implements BaseProvider {
     messages: ProviderMessage[],
     options?: ProviderOptions,
   ): Promise<ProviderChatResult> {
+    const doFetch = options?.fetchImpl ?? fetch;
     const body: Record<string, unknown> = {
       model: this.model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       ...(options ? toSnakeCase(options) : {}),
     };
 
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+    const res = await doFetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -96,6 +97,7 @@ export class VLLMProvider implements BaseProvider {
     messages: ProviderMessage[],
     options?: ProviderOptions,
   ): AsyncIterable<ProviderStreamChunk> {
+    const doFetch = options?.fetchImpl ?? fetch;
     const body: Record<string, unknown> = {
       model: this.model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -103,7 +105,7 @@ export class VLLMProvider implements BaseProvider {
       ...(options ? toSnakeCase(options) : {}),
     };
 
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+    const res = await doFetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -248,13 +250,13 @@ export interface VLLMCompletionResponse {
     total_tokens: number;
   };
 }
-
 export async function callVLLM(
   body: VLLMCompletionRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<VLLMCompletionResponse> {
   const baseUrl = process.env.VLLM_BASE_URL ?? VLLM_BASE_URL;
-  const res = await fetch(`${baseUrl}/chat/completions`, {
+  const res = await fetchImpl(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -270,9 +272,10 @@ export async function callVLLM(
 export async function* streamVLLM(
   body: VLLMCompletionRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): AsyncIterable<string> {
   const baseUrl = process.env.VLLM_BASE_URL ?? VLLM_BASE_URL;
-  const res = await fetch(`${baseUrl}/chat/completions`, {
+  const res = await fetchImpl(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...body, stream: true }),

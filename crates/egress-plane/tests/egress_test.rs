@@ -1,6 +1,21 @@
 use std::process::Command;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
+use tokio::sync::Mutex as AsyncMutex;
+
+// ---------------------------------------------------------------------------
+// Host-network serialization lock
+// ---------------------------------------------------------------------------
+// These integration tests create REAL netns/veth state on the host. Tokio
+// runs test functions in parallel, and each test's cleanup_leftovers() wipes
+// ALL known egress netns — including ones another test is mid-bind on. That
+// race produced "Cannot open network namespace egress_it_failclosed_https"
+// (deleted by a sibling test while bind_egress was inside it). Any test that
+// creates a netns must hold this lock for its whole body.
+static NETNS_LOCK: OnceLock<AsyncMutex<()>> = OnceLock::new();
+fn netns_lock() -> &'static AsyncMutex<()> {
+    NETNS_LOCK.get_or_init(|| AsyncMutex::new(()))
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -108,7 +123,14 @@ fn bind_json(model_id: &str, mode: &str, extra: serde_json::Value) -> serde_json
 
 /// Clean up any leftover netns/veth/wg from failed runs.
 fn cleanup_leftovers() {
-    for ns in ["egress_it_socks_m1", "egress_it_wg_m1", "egress_it_direct_m1", "egress_it_failover_m1", "egress_it_ks_blocked"] {
+    for ns in [
+        "egress_it_socks_m1",
+        "egress_it_wg_m1",
+        "egress_it_direct_m1",
+        "egress_it_failover_m1",
+        "egress_it_ks_blocked",
+        "egress_it_failclosed_https",
+    ] {
         let _ = Command::new("ip").args(["netns", "del", ns]).output();
     }
     // Delete every host-side egress veth (orphaned by panicked runs).
@@ -240,6 +262,116 @@ async fn test_decrypt_endpoint_roundtrip() {
     assert_eq!(decrypted, plaintext);
 }
 
+#[tokio::test]
+async fn test_encrypt_endpoint_roundtrip() {
+    use base64::Engine as _;
+    use chacha20poly1305::{
+        aead::{Aead, KeyInit, Payload},
+        XChaCha20Poly1305, XNonce,
+    };
+    let base_url = start_test_server("http://127.0.0.1:9/ip".to_string()).await;
+    let client = reqwest::Client::new();
+    let key = {
+        let mut k = vec![0u8; 32];
+        rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut k);
+        k
+    };
+    let plaintext = br#"{"proxy_username":"u","proxy_password":"p","wg_private_key":"k"}"#;
+
+    let resp = client
+        .post(format!("{base_url}/egress/encrypt"))
+        .json(&serde_json::json!({
+            "plaintext": base64::engine::general_purpose::STANDARD.encode(plaintext),
+            "dek_id": "test-dek",
+            "dek": base64::engine::general_purpose::STANDARD.encode(&key)
+        }))
+        .send()
+        .await
+        .expect("encrypt");
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = resp.json().await.expect("json");
+    assert_eq!(body["dek_id"], "test-dek");
+    let enc_creds = base64::engine::general_purpose::STANDARD
+        .decode(body["enc_creds"].as_str().unwrap())
+        .unwrap();
+    let enc_nonce = base64::engine::general_purpose::STANDARD
+        .decode(body["enc_nonce"].as_str().unwrap())
+        .unwrap();
+    assert_eq!(enc_nonce.len(), 24, "XChaCha20 nonce must be 24 bytes");
+
+    // Decrypt the envelope externally and confirm the plaintext round-trips.
+    let cipher = XChaCha20Poly1305::new_from_slice(&key).unwrap();
+    let decrypted = cipher
+        .decrypt(XNonce::from_slice(&enc_nonce), Payload { msg: &enc_creds, aad: b"" })
+        .expect("decrypt");
+    assert_eq!(decrypted, plaintext);
+}
+
+#[tokio::test]
+async fn test_encrypt_endpoint_rejects_bad_dek() {
+    use base64::Engine as _;
+    let base_url = start_test_server("http://127.0.0.1:9/ip".to_string()).await;
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(format!("{base_url}/egress/encrypt"))
+        .json(&serde_json::json!({
+            "plaintext": base64::engine::general_purpose::STANDARD.encode(b"x"),
+            "dek_id": "test-dek",
+            "dek": base64::engine::general_purpose::STANDARD.encode(&[0u8; 16])
+        }))
+        .send()
+        .await
+        .expect("encrypt");
+    assert_eq!(resp.status(), 400, "16-byte DEK must be rejected");
+}
+
+// Regression: LBI-02 fail-closed with an HTTPS echo URL. Before the
+// Proxy::http -> Proxy::all fix, the health probe bypassed the sidecar for
+// https:// echo targets and measured the HOST route — reporting healthy:true
+// through a DEAD upstream. A dead upstream must report healthy:false even
+// when the echo endpoint is HTTPS (the default api.ipify.org).
+#[tokio::test]
+async fn test_fail_closed_with_https_echo_and_dead_upstream() {
+    let _guard = netns_lock().lock().await;
+    cleanup_leftovers();
+    let base_url = start_test_server("https://api.ipify.org".to_string()).await;
+    let client = reqwest::Client::new();
+
+    let resp = client
+        .post(format!("{base_url}/egress/bind"))
+        .json(&bind_json("it_failclosed_https", "http", serde_json::json!({
+            // 127.0.0.1:1 — nothing listens; the chain MUST fail closed.
+            "proxy_addr": "127.0.0.1:1"
+        })))
+        .send()
+        .await
+        .expect("bind");
+    let body: serde_json::Value = resp.json().await.expect("json");
+    eprintln!("FAIL-CLOSED HTTPS BIND: {body}");
+    // Bind itself may succeed (netns + sidecar up) — but the FIRST probe
+    // must report the egress unhealthy, never the host's route.
+    assert_eq!(body["healthy"], false, "dead upstream with https echo must be unhealthy: {body}");
+    assert_eq!(body["status"], "bound", "bind should still complete: {body}");
+
+    let status: serde_json::Value = client
+        .get(format!("{base_url}/egress/status"))
+        .send()
+        .await
+        .expect("status")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(status["models"][0]["healthy"], false, "status must reflect unhealthy: {status}");
+
+    let unbind = client
+        .post(format!("{base_url}/egress/unbind"))
+        .json(&serde_json::json!({ "model_id": "it_failclosed_https" }))
+        .send()
+        .await
+        .expect("unbind");
+    assert_eq!(unbind.status(), 200);
+}
+
 // ---------------------------------------------------------------------------
 // REAL integration: direct mode (no isolation, explicit opt-in)
 // ---------------------------------------------------------------------------
@@ -287,6 +419,7 @@ async fn test_direct_mode_bind_and_health() {
 
 #[tokio::test]
 async fn test_socks5_proxy_mode_full_chain() {
+    let _guard = netns_lock().lock().await;
     cleanup_leftovers();
     let echo_ip = "198.51.100.9";
     let echo_port = start_echo_server(echo_ip).await;
@@ -361,6 +494,7 @@ async fn test_socks5_proxy_mode_full_chain() {
 
 #[tokio::test]
 async fn test_wireguard_tunnel_mode_full_chain() {
+    let _guard = netns_lock().lock().await;
     cleanup_leftovers();
     // Host-side WG "server": wg0 with 10.0.0.1/24 on the host, listening on
     // the model's future veth host IP (10.240.1.1) port 51820.
@@ -464,6 +598,7 @@ fn wg_pubkey(privkey: &str) -> String {
 
 #[tokio::test]
 async fn test_failover_to_approved_alternate_egress() {
+    let _guard = netns_lock().lock().await;
     cleanup_leftovers();
     let echo_ip = "192.0.2.55";
     let echo_port = start_echo_server(echo_ip).await;

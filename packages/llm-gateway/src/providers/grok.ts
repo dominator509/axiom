@@ -26,13 +26,13 @@ export interface GrokCompletionResponse {
     total_tokens: number;
   };
 }
-
 export async function callGrok(
   apiKey: string,
   body: GrokCompletionRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<GrokCompletionResponse> {
-  const res = await fetch(`${GROK_BASE_URL}/chat/completions`, {
+  const res = await fetchImpl(`${GROK_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -52,8 +52,9 @@ export async function* streamGrok(
   apiKey: string,
   body: GrokCompletionRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): AsyncIterable<string> {
-  const res = await fetch(`${GROK_BASE_URL}/chat/completions`, {
+  const res = await fetchImpl(`${GROK_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

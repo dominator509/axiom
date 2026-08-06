@@ -83,7 +83,12 @@ pub async fn probe_echo(
         .connect_timeout(timeout.min(Duration::from_secs(5)));
     if let Some((host, port)) = proxy {
         let proxy_url = format!("http://{host}:{port}");
-        match reqwest::Proxy::http(&proxy_url) {
+        // Proxy::all() — NOT Proxy::http(). With only Proxy::http(), an
+        // https:// echo URL (e.g. api.ipify.org) bypasses the proxy and the
+        // probe silently measures the HOST route — a fail-open. all() routes
+        // https through the sidecar via CONNECT, so the probe genuinely
+        // measures the model's egress chain (LBI-02).
+        match reqwest::Proxy::all(&proxy_url) {
             Ok(p) => {
                 builder = builder.proxy(p);
             }

@@ -32,7 +32,7 @@ export class GoogleProvider implements BaseProvider {
       max_tokens: options?.maxTokens,
       top_p: options?.topP,
       stop: options?.stop,
-    });
+    }, undefined, options?.fetchImpl ?? fetch);
     return {
       content: res.choices[0]?.message?.content ?? '',
       model: res.model ?? this.model,
@@ -57,7 +57,7 @@ export class GoogleProvider implements BaseProvider {
         max_tokens: options?.maxTokens,
         top_p: options?.topP,
         stop: options?.stop,
-      })) {
+      }, undefined, options?.fetchImpl ?? fetch)) {
         yield { type: 'delta', content: delta };
       }
     } catch (err) {
@@ -164,14 +164,14 @@ function toGenerateRequest(
     ...(Object.keys(generationConfig).length > 0 ? { generationConfig } : {}),
   };
 }
-
 export async function callGoogle(
   apiKey: string,
   body: { model: string; messages: Array<{ role: string; content: string }>; temperature?: number; max_tokens?: number; top_p?: number; stop?: string[] },
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<OpenAICompatCompletionResponse> {
   const req = toGenerateRequest(body.model, body.messages, body);
-  const res = await fetch(
+  const res = await fetchImpl(
     `${GOOGLE_BASE_URL}/models/${encodeURIComponent(body.model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
     {
       method: 'POST',
@@ -192,9 +192,10 @@ export async function* streamGoogle(
   apiKey: string,
   body: { model: string; messages: Array<{ role: string; content: string }>; temperature?: number; max_tokens?: number; top_p?: number; stop?: string[] },
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): AsyncIterable<string> {
   const req = toGenerateRequest(body.model, body.messages, body);
-  const res = await fetch(
+  const res = await fetchImpl(
     `${GOOGLE_BASE_URL}/models/${encodeURIComponent(body.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`,
     {
       method: 'POST',

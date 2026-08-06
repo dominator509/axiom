@@ -67,13 +67,14 @@ export class OpenAIProvider implements BaseProvider {
     messages: ProviderMessage[],
     options?: ProviderOptions,
   ): Promise<ProviderChatResult> {
+    const doFetch = options?.fetchImpl ?? fetch;
     const body: Record<string, unknown> = {
       model: this.model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       ...(options ? toSnakeCase(options) : {}),
     };
 
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+    const res = await doFetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -125,6 +126,7 @@ export class OpenAIProvider implements BaseProvider {
     messages: ProviderMessage[],
     options?: ProviderOptions,
   ): AsyncIterable<ProviderStreamChunk> {
+    const doFetch = options?.fetchImpl ?? fetch;
     const body: Record<string, unknown> = {
       model: this.model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -133,7 +135,7 @@ export class OpenAIProvider implements BaseProvider {
       ...(options ? toSnakeCase(options) : {}),
     };
 
-    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+    const res = await doFetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -292,14 +294,14 @@ export interface OpenAICompletionResponse {
     total_tokens: number;
   };
 }
-
 export async function callOpenAI(
   apiKey: string,
   body: OpenAICompletionRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<OpenAICompletionResponse> {
   const baseUrl = process.env.OPENAI_BASE_URL ?? OPENAI_BASE_URL;
-  const res = await fetch(`${baseUrl}/chat/completions`, {
+  const res = await fetchImpl(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -319,9 +321,10 @@ export async function* streamOpenAI(
   apiKey: string,
   body: OpenAICompletionRequest,
   signal?: AbortSignal,
+  fetchImpl: typeof fetch = fetch,
 ): AsyncIterable<string> {
   const baseUrl = process.env.OPENAI_BASE_URL ?? OPENAI_BASE_URL;
-  const res = await fetch(`${baseUrl}/chat/completions`, {
+  const res = await fetchImpl(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

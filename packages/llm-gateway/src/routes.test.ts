@@ -95,6 +95,36 @@ describe('createRouter — POST /chat', () => {
     );
   });
 
+  it('forwards the egress flag to the gateway (L2.6 egress routing)', async () => {
+    const gateway = makeGatewayStub();
+    const app = createRouter(gateway);
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], egress: true }),
+    });
+    expect(res.status).toBe(200);
+    expect(gateway.chat).toHaveBeenCalledWith(
+      [{ role: 'user', content: 'hi' }],
+      expect.objectContaining({ egress: true }),
+    );
+  });
+
+  it('forwards egress:false as false (not undefined) for stream', async () => {
+    const gateway = makeGatewayStub();
+    const app = createRouter(gateway);
+    const res = await app.request('/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'hi' }], egress: false }),
+    });
+    expect(res.status).toBe(200);
+    expect(gateway.chatStream).toHaveBeenCalledWith(
+      [{ role: 'user', content: 'hi' }],
+      expect.objectContaining({ egress: false }),
+    );
+  });
+
   it('accepts an empty messages array (source gap: schema has no min(1))', async () => {
     const gateway = makeGatewayStub();
     const app = createRouter(gateway);
