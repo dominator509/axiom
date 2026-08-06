@@ -146,7 +146,7 @@ describe('AnthropicProvider', () => {
   it('has a fixed name and default model/api version', () => {
     const p = new AnthropicProvider('ant-key-789');
     expect(p.name).toBe('anthropic');
-    expect(p.model).toBe('claude-sonnet-4-20250514');
+    expect(p.model).toBe('claude-sonnet-4-5');
   });
 
   it('chat joins text content blocks and returns usage', async () => {

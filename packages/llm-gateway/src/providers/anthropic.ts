@@ -9,6 +9,12 @@ import { ProviderError } from './types.js';
 
 // Anthropic Claude pricing (USD per 1M tokens)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  'claude-sonnet-4-5': { input: 3.0, output: 15.0 },
+  'claude-sonnet-4-5-20250929': { input: 3.0, output: 15.0 },
+  'claude-opus-4-5': { input: 15.0, output: 75.0 },
+  'claude-opus-4-5-20251101': { input: 15.0, output: 75.0 },
+  'claude-haiku-4-5': { input: 1.0, output: 5.0 },
+  'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
   'claude-sonnet-4-20250514': { input: 3.0, output: 15.0 },
   'claude-sonnet-4': { input: 3.0, output: 15.0 },
   'claude-3-5-sonnet-20241022': { input: 3.0, output: 15.0 },
@@ -94,7 +100,7 @@ export class AnthropicProvider implements BaseProvider {
 
   constructor(
     private readonly apiKey: string,
-    readonly model: string = 'claude-sonnet-4-20250514',
+    readonly model: string = 'claude-sonnet-4-5',
     private readonly apiVersion: string = '2023-06-01',
     private readonly baseUrl: string = 'https://api.anthropic.com/v1',
   ) {}

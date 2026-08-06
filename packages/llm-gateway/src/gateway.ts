@@ -141,7 +141,7 @@ const DEFAULT_PROVIDERS: ProviderConfig[] = [
     name: 'anthropic',
     apiKeyEnv: 'ANTHROPIC_API_KEY',
     baseUrl: ANTHROPIC_BASE_URL,
-    defaultModel: 'claude-3-5-sonnet-latest',
+    defaultModel: 'claude-sonnet-4-5',
     costPer1KInput: 0.003,
     costPer1KOutput: 0.015,
     latencyRank: 3,
