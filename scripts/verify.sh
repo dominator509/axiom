@@ -14,18 +14,19 @@ if ! bash scripts/preflight.sh 2>&1 | grep -q "preflight: ok"; then
 fi
 echo "  PASS: preflight"
 
-# Check phases complete
+# Check phases complete (ledger lines are timestamped: "… | DONE P0 - …"; anchor on the
+# pipe-delimited structure so prose mentioning "DONE P0-P4" in audit entries can't false-positive)
 for phase in P0 P1 P2 P3 P4; do
-    if grep -q "DONE $phase" "$LEDGER" 2>/dev/null; then
+    if grep -q "| DONE $phase" "$LEDGER" 2>/dev/null; then
         echo "  PASS: $phase complete"
     else
         echo "  PASS: $phase (not yet complete)"
     fi
 done
 
-# Check markers exist for completed phases (ledger lines are timestamped, so match "DONE Px" anywhere)
+# Check markers exist for completed phases
 for phase in P0 P1 P2 P3 P4; do
-    if grep -q "DONE $phase" "$LEDGER" 2>/dev/null; then
+    if grep -q "| DONE $phase" "$LEDGER" 2>/dev/null; then
         marker_count=$(find ".agent/markers/L4.$(( ${phase#P} + 1 ))" -name "*.done" 2>/dev/null | wc -l)
         if [ "$marker_count" -gt 0 ]; then
             echo "  PASS: $phase markers ($marker_count present)"

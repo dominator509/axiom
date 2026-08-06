@@ -10,8 +10,10 @@ if [ ! -f "$LEDGER" ]; then
     exit 0
 fi
 
-# Find the last completed phase (ledger lines are timestamped: "2026-07-29T17:53:00Z | DONE P0 - ...")
-LAST=$(grep -oE 'DONE P[0-4]' "$LEDGER" 2>/dev/null | tail -1 | awk '{print $2}' || echo "")
+# Find the last completed phase (ledger lines are timestamped: "2026-07-29T17:53:00Z | DONE P0 - ...").
+# Anchor on the pipe-delimited structure ("| DONE Px") so prose mentioning "DONE P0-P4" in later
+# entries (e.g. an audit note) can never be mistaken for a phase marker.
+LAST=$(grep -oE '\| DONE P[0-4]' "$LEDGER" 2>/dev/null | tail -1 | awk '{print $3}' || echo "")
 case "$LAST" in
     "") echo "NEXT P0" ;;
     P0) echo "NEXT P1" ;;
