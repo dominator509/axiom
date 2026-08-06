@@ -10,7 +10,8 @@
 #   5. Run database migrations
 #   6. Run pnpm build
 # ============================================================================
-set -euo pipefail
+set -eu
+if [ -n "${BASH_VERSION:-}" ]; then set -o pipefail; fi
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"

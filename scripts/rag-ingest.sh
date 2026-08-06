@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# POSIX-safe strict mode: dash (sh) rejects "set -o pipefail", so guard it.
+set -eu
+if [ -n "${BASH_VERSION:-}" ]; then set -o pipefail; fi
 cd /root/axiom
 
 # Ingest the entire blueprint pack at once

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# POSIX-safe strict mode: dash (sh) rejects "set -o pipefail", so guard it.
+set -eu
+if [ -n "${BASH_VERSION:-}" ]; then set -o pipefail; fi
 
 echo "AXIOM FanvueCRM — Preflight Check"
 echo "=================================="
@@ -31,8 +33,20 @@ check_cmd rustc
 check_cmd cargo
 check_cmd git
 check_cmd psql
-check_cmd docker
 check_cmd ufw
+
+# Docker is OPTIONAL: dev-only convenience (setup-dev.sh uses it only "if available";
+# production runs Postgres natively via systemd). Aliased rtk-tee must NOT count as
+# a real binary, so docker gets its own soft check instead of check_cmd.
+DOCKER_FOUND=""
+for p in /usr/bin/docker /usr/local/bin/docker /snap/bin/docker /usr/bin/docker.io; do
+    [ -x "$p" ] && DOCKER_FOUND="$p" && break
+done
+if [ -n "$DOCKER_FOUND" ]; then
+    echo "  FOUND: docker ($DOCKER_FOUND)"
+else
+    echo "  WARN: docker not found — optional (dev-only), continuing"
+fi
 
 # Check blueprint pack
 if [ -f "L0-governance/L0.0-governance-and-invariants.md" ]; then

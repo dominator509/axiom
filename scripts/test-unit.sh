@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
-# ============================================================================
-# test-unit.sh — Run only unit tests (fast subset of test.sh)
-#
-# Runs: pnpm --filter='*' test and cargo test --lib --workspace.
-# Skips integration/e2e tests and migration dry-runs.
-# ============================================================================
-set -euo pipefail
+# POSIX-safe strict mode: dash (sh) rejects "set -o pipefail", so guard it.
+set -eu
+if [ -n "${BASH_VERSION:-}" ]; then set -o pipefail; fi
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"

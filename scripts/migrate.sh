@@ -6,7 +6,8 @@
 # found in packages/db/migrations/ in alphabetical order.
 # Supports --dry-run to show what would run without executing.
 # ============================================================================
-set -euo pipefail
+set -eu
+if [ -n "${BASH_VERSION:-}" ]; then set -o pipefail; fi
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -29,7 +30,9 @@ if [ -z "${DATABASE_URL:-}" ]; then
       if [ "$key" = "DATABASE_URL" ]; then
         DATABASE_URL="$value"
       fi
-    done < <(grep -v '^#' .env)
+    done <<EOF
+$(grep -v '^#' .env)
+EOF
   fi
 fi
 
@@ -45,17 +48,18 @@ if [ ! -d "$MIGRATIONS_DIR" ]; then
 fi
 
 echo "=== migrate.sh ==="
-MASKED_URL="${DATABASE_URL//:[^:@]*@/:****@/}"
+# Mask password in URL for display (POSIX-safe: strip to ://user:***@host)
+MASKED_URL=$(printf '%s' "$DATABASE_URL" | sed -E 's#(://[^:]+:)[^@]+@#\1****@#')
 echo "  DATABASE_URL: $MASKED_URL"
 echo "  Migrations:   $MIGRATIONS_DIR"
 echo "  Dry-run:      $DRY_RUN"
 echo ""
 
-# Collect migrations in sorted order (POSIX-compatible)
+# Collect migrations in sorted order (POSIX-compatible; filenames contain no spaces)
 migrations=""
-while IFS= read -r f; do
+for f in $(find "$MIGRATIONS_DIR" -name '*.sql' -type f | sort); do
   migrations="$migrations $f"
-done < <(find "$MIGRATIONS_DIR" -name '*.sql' -type f | sort)
+done
 
 # Convert to array
 set -- $migrations

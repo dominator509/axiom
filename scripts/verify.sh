@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# POSIX-safe strict mode: dash (sh) rejects "set -o pipefail", so guard it.
+set -eu
+if [ -n "${BASH_VERSION:-}" ]; then set -o pipefail; fi
 
 LEDGER=".agent/state/LEDGER.md"
 echo "AXIOM Verification Gate"
@@ -21,10 +23,10 @@ for phase in P0 P1 P2 P3 P4; do
     fi
 done
 
-# Check markers exist for completed phases
+# Check markers exist for completed phases (ledger lines are timestamped, so match "DONE Px" anywhere)
 for phase in P0 P1 P2 P3 P4; do
-    if grep -q "^DONE $phase" "$LEDGER" 2>/dev/null; then
-        marker_count=$(find ".agent/markers/L4.${phase#P}" -name "*.done" 2>/dev/null | wc -l)
+    if grep -q "DONE $phase" "$LEDGER" 2>/dev/null; then
+        marker_count=$(find ".agent/markers/L4.$(( ${phase#P} + 1 ))" -name "*.done" 2>/dev/null | wc -l)
         if [ "$marker_count" -gt 0 ]; then
             echo "  PASS: $phase markers ($marker_count present)"
         else

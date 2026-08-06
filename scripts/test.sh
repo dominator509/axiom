@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
-# ============================================================================
-# test.sh — Run the full test suite for the AXIOM monorepo
-#
-# Runs: pnpm test (turbo run test), cargo test --workspace,
-#       and a migration dry-run test against the initial SQL migration.
-# ============================================================================
-set -euo pipefail
+# POSIX-safe strict mode: dash (sh) rejects "set -o pipefail", so guard it.
+set -eu
+if [ -n "${BASH_VERSION:-}" ]; then set -o pipefail; fi
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
