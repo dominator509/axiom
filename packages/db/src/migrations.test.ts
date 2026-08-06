@@ -44,6 +44,20 @@ const TS_TO_SQL: Record<string, string> = {
   linkbioClick: 'linkbio_click',
   shortLink: 'short_link',
   playbookScore: 'playbook_score',
+  apiKey: 'api_key',
+  assetVariant: 'asset_variant',
+  prePostRun: 'pre_post_run',
+  analyticsSnapshot: 'analytics_snapshot',
+  viralRecipe: 'viral_recipe',
+  viralEmbedding: 'viral_embedding',
+  banditState: 'bandit_state',
+  seoAeoRanking: 'seo_aeo_ranking',
+  fanvueMetric: 'fanvue_metric',
+  campaign: 'campaign',
+  triggerRule: 'trigger_rule',
+  linkbioAnalytics: 'linkbio_analytics',
+  relayBinding: 'relay_binding',
+  agentPermission: 'agent_permission',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -137,6 +151,20 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
       ['linkbio_click', ['provider_id UUID NOT NULL REFERENCES linkbio_provider(id)', 'target TEXT NOT NULL']],
       ['short_link', ['slug TEXT NOT NULL', 'target_url TEXT NOT NULL', 'clicks INTEGER NOT NULL DEFAULT 0']],
       ['playbook_score', ['score INTEGER NOT NULL', 'components JSONB NOT NULL DEFAULT']],
+      ['api_key', ['org_id UUID NOT NULL REFERENCES org(id) ON DELETE CASCADE', 'key_hash TEXT NOT NULL', "scopes JSONB NOT NULL DEFAULT '[]'::jsonb"]],
+      ['asset_variant', ['asset_id UUID NOT NULL REFERENCES asset(id) ON DELETE CASCADE', "variant_type TEXT NOT NULL DEFAULT 'crop'", 'storage_key TEXT NOT NULL']],
+      ['pre_post_run', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', "status TEXT NOT NULL DEFAULT 'pending'", 'script TEXT NOT NULL']],
+      ['analytics_snapshot', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'platform TEXT NOT NULL', 'followers BIGINT NOT NULL DEFAULT 0']],
+      ['viral_recipe', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', "label TEXT NOT NULL DEFAULT 'baseline'", 'perf_score DOUBLE PRECISION NOT NULL DEFAULT 0']],
+      ['viral_embedding', ['recipe_id UUID NOT NULL REFERENCES viral_recipe(id) ON DELETE CASCADE', 'embedding   vector(768) NOT NULL']],
+      ['bandit_state', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'alpha DOUBLE PRECISION NOT NULL DEFAULT 1', 'UNIQUE (model_id, platform, context, arm)']],
+      ['seo_aeo_ranking', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'keyword TEXT NOT NULL', 'position INTEGER']],
+      ['fanvue_metric', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'subscribers INTEGER NOT NULL DEFAULT 0', 'earnings_usd NUMERIC(12,2) NOT NULL DEFAULT 0']],
+      ['campaign', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', "status TEXT NOT NULL DEFAULT 'draft'", 'kpi JSONB NOT NULL DEFAULT']],
+      ['trigger_rule', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'condition JSONB NOT NULL DEFAULT']],
+      ['linkbio_analytics', ['provider_id UUID REFERENCES linkbio_provider(id) ON DELETE SET NULL', "kind TEXT NOT NULL DEFAULT 'click'"]],
+      ['relay_binding', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'channel TEXT NOT NULL', 'UNIQUE (model_id, channel)']],
+      ['agent_permission', ['agent_ref TEXT NOT NULL', "tier TEXT NOT NULL DEFAULT 'read'", 'can_publish BOOLEAN NOT NULL DEFAULT false', 'UNIQUE (agent_ref, model_id)']],
     ];
     for (const [tsName, fragments] of expectations) {
       const tableSql = sqlTableName(tsName);
@@ -197,10 +225,12 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     const indexStatements = sql.match(/CREATE INDEX IF NOT EXISTS /g) ?? [];
     // 15 tables in 0000 (org_id + key lookup) + 1 in 0001 (org_id) +
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
-    // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) — exact count.
-    expect(indexStatements).toHaveLength(36);
+    // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
+    // 29 in 0004 (job_pick + job_dedupe + 27 entity-table hot paths) — exact count.
+    expect(indexStatements).toHaveLength(65);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
+    expect(sql).toContain('CREATE INDEX IF NOT EXISTS job_pick ON job (state, run_after) WHERE state = \'ready\';');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_viral_exemplar_embedding ON viral_exemplar');
     expect(sql).toContain('USING hnsw (embedding vector_cosine_ops)');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_audit_log_ts ON audit_log(ts DESC);');

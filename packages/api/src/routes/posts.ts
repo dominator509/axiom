@@ -8,6 +8,7 @@ import { eq, and, gte, lte } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { enqueueJob } from '@axiom/worker';
 
 const router = new Hono<AppBindings>();
 
@@ -81,6 +82,18 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
       platform: body.platform,
       scheduledFor: scheduledFor.toISOString(),
     });
+
+    // Canonical flow (L2.0): schedule → worker publish at slot time. Enqueue
+    // publish.target in the SAME transaction; dedupe on the target id.
+    await enqueueJob(tx, {
+      orgId,
+      queue: 'publish',
+      kind: 'publish.target',
+      payload: { targetId: row.id },
+      runAfter: scheduledFor,
+      dedupeParts: ['publish.target', row.id],
+    });
+
     return row;
   });
   return c.json({ data: inserted }, 201);

@@ -52,6 +52,34 @@ import {
   linkbioClick,
   shortLink,
   playbookScore,
+  apiKey,
+  apiKeyRelations,
+  assetVariant,
+  assetVariantRelations,
+  prePostRun,
+  prePostRunRelations,
+  analyticsSnapshot,
+  analyticsSnapshotRelations,
+  viralRecipe,
+  viralRecipeRelations,
+  viralEmbedding,
+  viralEmbeddingRelations,
+  banditState,
+  banditStateRelations,
+  seoAeoRanking,
+  seoAeoRankingRelations,
+  fanvueMetric,
+  fanvueMetricRelations,
+  campaign,
+  campaignRelations,
+  triggerRule,
+  triggerRuleRelations,
+  linkbioAnalytics,
+  linkbioAnalyticsRelations,
+  relayBinding,
+  relayBindingRelations,
+  agentPermission,
+  agentPermissionRelations,
   allRelations,
 } from './schema/index.js';
 
@@ -137,10 +165,24 @@ describe('schema index', () => {
     expect(linkbioClick).toBeDefined();
     expect(shortLink).toBeDefined();
     expect(playbookScore).toBeDefined();
+    expect(apiKey).toBeDefined();
+    expect(assetVariant).toBeDefined();
+    expect(prePostRun).toBeDefined();
+    expect(analyticsSnapshot).toBeDefined();
+    expect(viralRecipe).toBeDefined();
+    expect(viralEmbedding).toBeDefined();
+    expect(banditState).toBeDefined();
+    expect(seoAeoRanking).toBeDefined();
+    expect(fanvueMetric).toBeDefined();
+    expect(campaign).toBeDefined();
+    expect(triggerRule).toBeDefined();
+    expect(linkbioAnalytics).toBeDefined();
+    expect(relayBinding).toBeDefined();
+    expect(agentPermission).toBeDefined();
   });
 
-  it('allRelations contains exactly the 27 relation configs', () => {
-    expect(allRelations).toHaveLength(27);
+  it('allRelations contains exactly the 41 relation configs', () => {
+    expect(allRelations).toHaveLength(41);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -171,6 +213,20 @@ describe('schema index', () => {
         'linkbio_click',
         'short_link',
         'playbook_score',
+        'api_key',
+        'asset_variant',
+        'pre_post_run',
+        'analytics_snapshot',
+        'viral_recipe',
+        'viral_embedding',
+        'bandit_state',
+        'seo_aeo_ranking',
+        'fanvue_metric',
+        'campaign',
+        'trigger_rule',
+        'linkbio_analytics',
+        'relay_binding',
+        'agent_permission',
       ].sort(),
     );
   });
@@ -725,6 +781,258 @@ describe('audit_log table', () => {
   it('relates to org', () => {
     expect(relationNames(auditLogRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('job worker columns (L3.4)', () => {
+  it('has run_after defaulting to now() and nullable locked_by/locked_at', () => {
+    const cols = columnsOf(job);
+    expect(cols.runAfter.dataType).toBe('date');
+    expect(cols.runAfter.columnType).toBe('PgTimestamp');
+    expect(cols.runAfter.notNull).toBe(true);
+    expect(cols.runAfter.hasDefault).toBe(true);
+    expect(cols.lockedBy.notNull).toBe(false);
+    expect(cols.lockedAt.notNull).toBe(false);
+  });
+
+  it('has nullable bytea dedupe_key', () => {
+    const dedupe = columnsOf(job).dedupeKey;
+    expect(dedupe.dataType).toBe('custom');
+    expect(dedupe.notNull).toBe(false);
+  });
+});
+
+describe('api_key table', () => {
+  it('uses table name api_key with org FK and key_hash', () => {
+    expect(tableName(apiKey)).toBe('api_key');
+    const cols = columnsOf(apiKey);
+    expect(cols.keyHash.notNull).toBe(true);
+    expect(cols.keyPrefix.notNull).toBe(true);
+    const fk = foreignKeysOf(apiKey)[0];
+    expect(tableName(fk.foreignTable)).toBe('org');
+  });
+
+  it('relates to org', () => {
+    expect(relationNames(apiKeyRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('asset_variant table', () => {
+  it('uses table name asset_variant with asset FK', () => {
+    expect(tableName(assetVariant)).toBe('asset_variant');
+    const fks = foreignKeysOf(assetVariant).map((fk) => tableName(fk.foreignTable));
+    expect(fks).toContain('asset');
+    expect(fks).toContain('org');
+  });
+
+  it('relates to org and asset', () => {
+    expect(relationNames(assetVariantRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      asset: { type: 'One', table: 'asset', fieldName: 'asset', fields: ['asset_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('pre_post_run table', () => {
+  it('uses table name pre_post_run with model + target FKs', () => {
+    expect(tableName(prePostRun)).toBe('pre_post_run');
+    const fks = foreignKeysOf(prePostRun).map((fk) => tableName(fk.foreignTable));
+    expect(fks).toContain('model_profile');
+    expect(fks).toContain('post_target');
+  });
+
+  it('relates to org, model and target', () => {
+    expect(relationNames(prePostRunRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      target: { type: 'One', table: 'post_target', fieldName: 'target', fields: ['target_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('analytics_snapshot table', () => {
+  it('uses table name analytics_snapshot with model FK and bigint counters', () => {
+    expect(tableName(analyticsSnapshot)).toBe('analytics_snapshot');
+    const cols = columnsOf(analyticsSnapshot);
+    expect(cols.followers.columnType).toBe('PgBigInt53');
+    expect(cols.followers.default).toBe(0);
+    expect(cols.engagement.columnType).toBe('PgDoublePrecision');
+  });
+
+  it('relates to org and model', () => {
+    expect(relationNames(analyticsSnapshotRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('viral_recipe table', () => {
+  it('uses table name viral_recipe with label/perf_score defaults', () => {
+    expect(tableName(viralRecipe)).toBe('viral_recipe');
+    const cols = columnsOf(viralRecipe);
+    expect(cols.label.default).toBe('baseline');
+    expect(cols.perfScore.default).toBe(0);
+  });
+
+  it('relates to org and model', () => {
+    expect(relationNames(viralRecipeRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('viral_embedding table', () => {
+  it('uses table name viral_embedding with 768-dim vector and recipe FK', () => {
+    expect(tableName(viralEmbedding)).toBe('viral_embedding');
+    const embedding = columnsOf(viralEmbedding).embedding;
+    expect(embedding.columnType).toBe('PgVector');
+    expect(embedding.notNull).toBe(true);
+    const fks = foreignKeysOf(viralEmbedding).map((fk) => tableName(fk.foreignTable));
+    expect(fks).toContain('viral_recipe');
+    expect(fks).toContain('model_profile');
+  });
+
+  it('relates to org, recipe and model', () => {
+    expect(relationNames(viralEmbeddingRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      recipe: { type: 'One', table: 'viral_recipe', fieldName: 'recipe', fields: ['recipe_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('bandit_state table', () => {
+  it('uses table name bandit_state with Beta-posterior defaults', () => {
+    expect(tableName(banditState)).toBe('bandit_state');
+    const cols = columnsOf(banditState);
+    expect(cols.alpha.default).toBe(1);
+    expect(cols.beta.default).toBe(1);
+    expect(cols.plays.default).toBe(0);
+  });
+
+  it('relates to org and model', () => {
+    expect(relationNames(banditStateRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('seo_aeo_ranking table', () => {
+  it('uses table name seo_aeo_ranking with keyword + engine', () => {
+    expect(tableName(seoAeoRanking)).toBe('seo_aeo_ranking');
+    const cols = columnsOf(seoAeoRanking);
+    expect(cols.keyword.notNull).toBe(true);
+    expect(cols.engine.notNull).toBe(true);
+    expect(cols.position.notNull).toBe(false);
+  });
+
+  it('relates to org and model', () => {
+    expect(relationNames(seoAeoRankingRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('fanvue_metric table', () => {
+  it('uses table name fanvue_metric with numeric earnings', () => {
+    expect(tableName(fanvueMetric)).toBe('fanvue_metric');
+    const cols = columnsOf(fanvueMetric);
+    expect(cols.subscribers.default).toBe(0);
+    expect(cols.earningsUsd.columnType).toBe('PgNumeric');
+  });
+
+  it('relates to org and model', () => {
+    expect(relationNames(fanvueMetricRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('campaign table', () => {
+  it('uses table name campaign with status default draft', () => {
+    expect(tableName(campaign)).toBe('campaign');
+    expect(columnsOf(campaign).status.default).toBe('draft');
+  });
+
+  it('relates to org and model', () => {
+    expect(relationNames(campaignRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('trigger_rule table', () => {
+  it('uses table name trigger_rule with condition/action jsonb', () => {
+    expect(tableName(triggerRule)).toBe('trigger_rule');
+    const cols = columnsOf(triggerRule);
+    expect(cols.condition.dataType).toBe('json');
+    expect(cols.condition.default).toEqual({});
+    expect(cols.enabled.default).toBe(true);
+  });
+
+  it('relates to org and model', () => {
+    expect(relationNames(triggerRuleRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('linkbio_analytics table', () => {
+  it('uses table name linkbio_analytics with nullable provider FK', () => {
+    expect(tableName(linkbioAnalytics)).toBe('linkbio_analytics');
+    const cols = columnsOf(linkbioAnalytics);
+    expect(cols.kind.default).toBe('click');
+    expect(cols.providerId.notNull).toBe(false);
+    const fks = foreignKeysOf(linkbioAnalytics).map((fk) => tableName(fk.foreignTable));
+    expect(fks).toContain('linkbio_provider');
+  });
+
+  it('relates to org and provider', () => {
+    expect(relationNames(linkbioAnalyticsRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      provider: { type: 'One', table: 'linkbio_provider', fieldName: 'provider', fields: ['provider_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('relay_binding table', () => {
+  it('uses table name relay_binding with channel and model FK', () => {
+    expect(tableName(relayBinding)).toBe('relay_binding');
+    const fks = foreignKeysOf(relayBinding).map((fk) => tableName(fk.foreignTable));
+    expect(fks).toContain('model_profile');
+  });
+
+  it('relates to org and model', () => {
+    expect(relationNames(relayBindingRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+    });
+  });
+});
+
+describe('agent_permission table', () => {
+  it('uses table name agent_permission with tier default read', () => {
+    expect(tableName(agentPermission)).toBe('agent_permission');
+    const cols = columnsOf(agentPermission);
+    expect(cols.tier.default).toBe('read');
+    expect(cols.canPublish.default).toBe(false);
+    expect(cols.canEdit.default).toBe(true);
+  });
+
+  it('relates to org and model', () => {
+    expect(relationNames(agentPermissionRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
     });
   });
 });

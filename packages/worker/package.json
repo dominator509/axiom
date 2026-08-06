@@ -1,0 +1,35 @@
+{
+  "name": "@axiom/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "test": "vitest run",
+    "dev": "tsx watch src/runner.ts",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@axiom/core": "workspace:*",
+    "@axiom/db": "workspace:*",
+    "@axiom/connectors": "workspace:*",
+    "@axiom/relay": "workspace:*",
+    "@axiom/llm-gateway": "workspace:*",
+    "@axiom/fanvue-mcp": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "tsx": "^4.19.0",
+    "@types/node": "^22.9.0",
+    "@types/pg": "^8.11.0"
+  }
+}

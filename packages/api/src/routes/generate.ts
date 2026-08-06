@@ -22,6 +22,7 @@ import {
 } from '@axiom/llm-gateway';
 import { LLMGateway } from '@axiom/llm-gateway';
 import { PLATFORM_RULES, DEFAULT_PLATFORM_THRESHOLDS } from '@axiom/fanvue-mcp';
+import { enqueueJob } from '@axiom/worker';
 
 type PromptPlatform =
   | 'instagram'
@@ -201,6 +202,16 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema), asy
       variantCount: variants.length,
       platforms,
       tosVerdict: tosReport.verdict,
+    });
+
+    // Canonical flow (L2.0): generate → ToS scan → relay card → operator.
+    // Enqueue in the SAME transaction as the bundle (L3.4 §1).
+    await enqueueJob(tx, {
+      orgId,
+      queue: 'tos',
+      kind: 'tos.scan',
+      payload: { bundleId: bundle.id },
+      dedupeParts: ['tos.scan', bundle.id],
     });
 
     return {

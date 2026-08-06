@@ -26,6 +26,20 @@ import { linkbioProvider, linkbioProviderRelations } from './linkbio_provider.js
 import { linkbioClick, linkbioClickRelations } from './linkbio_click.js';
 import { shortLink, shortLinkRelations } from './short_link.js';
 import { playbookScore, playbookScoreRelations } from './playbook_score.js';
+import { apiKey, apiKeyRelations } from './api_key.js';
+import { assetVariant, assetVariantRelations } from './asset_variant.js';
+import { prePostRun, prePostRunRelations } from './pre_post_run.js';
+import { analyticsSnapshot, analyticsSnapshotRelations } from './analytics_snapshot.js';
+import { viralRecipe, viralRecipeRelations } from './viral_recipe.js';
+import { viralEmbedding, viralEmbeddingRelations } from './viral_embedding.js';
+import { banditState, banditStateRelations } from './bandit_state.js';
+import { seoAeoRanking, seoAeoRankingRelations } from './seo_aeo_ranking.js';
+import { fanvueMetric, fanvueMetricRelations } from './fanvue_metric.js';
+import { campaign, campaignRelations } from './campaign.js';
+import { triggerRule, triggerRuleRelations } from './trigger_rule.js';
+import { linkbioAnalytics, linkbioAnalyticsRelations } from './linkbio_analytics.js';
+import { relayBinding, relayBindingRelations } from './relay_binding.js';
+import { agentPermission, agentPermissionRelations } from './agent_permission.js';
 
 export { org, orgRelations };
 export { appUser, appUserRelations };
@@ -55,6 +69,20 @@ export { linkbioProvider, linkbioProviderRelations };
 export { linkbioClick, linkbioClickRelations };
 export { shortLink, shortLinkRelations };
 export { playbookScore, playbookScoreRelations };
+export { apiKey, apiKeyRelations };
+export { assetVariant, assetVariantRelations };
+export { prePostRun, prePostRunRelations };
+export { analyticsSnapshot, analyticsSnapshotRelations };
+export { viralRecipe, viralRecipeRelations };
+export { viralEmbedding, viralEmbeddingRelations };
+export { banditState, banditStateRelations };
+export { seoAeoRanking, seoAeoRankingRelations };
+export { fanvueMetric, fanvueMetricRelations };
+export { campaign, campaignRelations };
+export { triggerRule, triggerRuleRelations };
+export { linkbioAnalytics, linkbioAnalyticsRelations };
+export { relayBinding, relayBindingRelations };
+export { agentPermission, agentPermissionRelations };
 
 export const allRelations = [
   orgRelations,
@@ -84,4 +112,18 @@ export const allRelations = [
   linkbioClickRelations,
   shortLinkRelations,
   playbookScoreRelations,
+  apiKeyRelations,
+  assetVariantRelations,
+  prePostRunRelations,
+  analyticsSnapshotRelations,
+  viralRecipeRelations,
+  viralEmbeddingRelations,
+  banditStateRelations,
+  seoAeoRankingRelations,
+  fanvueMetricRelations,
+  campaignRelations,
+  triggerRuleRelations,
+  linkbioAnalyticsRelations,
+  relayBindingRelations,
+  agentPermissionRelations,
 ];

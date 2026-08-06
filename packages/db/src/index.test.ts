@@ -66,7 +66,21 @@ describe('@axiom/db index', () => {
     expect(schema.linkbioClick).toBeDefined();
     expect(schema.shortLink).toBeDefined();
     expect(schema.playbookScore).toBeDefined();
-    expect(schema.allRelations).toHaveLength(27);
+    expect(schema.apiKey).toBeDefined();
+    expect(schema.assetVariant).toBeDefined();
+    expect(schema.prePostRun).toBeDefined();
+    expect(schema.analyticsSnapshot).toBeDefined();
+    expect(schema.viralRecipe).toBeDefined();
+    expect(schema.viralEmbedding).toBeDefined();
+    expect(schema.banditState).toBeDefined();
+    expect(schema.seoAeoRanking).toBeDefined();
+    expect(schema.fanvueMetric).toBeDefined();
+    expect(schema.campaign).toBeDefined();
+    expect(schema.triggerRule).toBeDefined();
+    expect(schema.linkbioAnalytics).toBeDefined();
+    expect(schema.relayBinding).toBeDefined();
+    expect(schema.agentPermission).toBeDefined();
+    expect(schema.allRelations).toHaveLength(41);
   });
 
   it('exposes a usable drizzle query builder without a live database', () => {
