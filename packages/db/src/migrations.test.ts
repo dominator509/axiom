@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { Table } from 'drizzle-orm';
 import * as schema from './schema/index.js';
 
@@ -8,7 +8,10 @@ function tableName(table: any): string {
   return (table as any)[T.Name];
 }
 
-const migrationPath = new URL('../migrations/0000_initial.sql', import.meta.url);
+const migrationsDir = new URL('../migrations/', import.meta.url);
+const migrationFiles = readdirSync(migrationsDir)
+  .filter((f) => f.endsWith('.sql'))
+  .sort();
 let sql = '';
 
 // TS export name -> SQL table name
@@ -18,6 +21,7 @@ const TS_TO_SQL: Record<string, string> = {
   modelProfile: 'model_profile',
   consentRecord: 'consent_record',
   platformConnection: 'platform_connection',
+  modelNetworkConfigs: 'model_network_configs',
   asset: 'asset',
   contentBundle: 'content_bundle',
   postTarget: 'post_target',
@@ -47,10 +51,16 @@ function norm(s: string): string {
 }
 
 beforeAll(() => {
-  sql = readFileSync(migrationPath, 'utf8');
+  sql = migrationFiles
+    .map((f) => readFileSync(new URL(f, migrationsDir), 'utf8'))
+    .join('\n');
 });
 
-describe('migration asset 0000_initial.sql', () => {
+describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)', () => {
+  it('has at least one migration file', () => {
+    expect(migrationFiles.length).toBeGreaterThan(0);
+  });
+
   it('exists and is non-empty', () => {
     expect(sql.length).toBeGreaterThan(1000);
   });
@@ -92,6 +102,7 @@ describe('migration asset 0000_initial.sql', () => {
       ['model_profile', ['handle TEXT NOT NULL', 'bio TEXT']],
       ['consent_record', ['model_id UUID NOT NULL REFERENCES model_profile(id)', 'granted BOOLEAN NOT NULL', 'expires_at TIMESTAMPTZ']],
       ['platform_connection', ['enc_token BYTEA NOT NULL', 'enc_nonce BYTEA NOT NULL', 'dek_id TEXT NOT NULL', "status TEXT NOT NULL DEFAULT 'active'"]],
+      ['model_network_configs', ["egress_mode TEXT NOT NULL DEFAULT 'direct'", 'CHECK (egress_mode IN', 'enc_creds BYTEA', 'expected_egress_ip TEXT', 'failover_proxy_addrs TEXT[]', 'UNIQUE (model_id)']],
       ['asset', ['file_size INTEGER NOT NULL', 'storage_key TEXT NOT NULL', 'width INTEGER']],
       ['content_bundle', ['asset_id UUID REFERENCES asset(id)', 'tos_report JSONB', "state TEXT NOT NULL DEFAULT 'generated'"]],
       ['post_target', ['bundle_id UUID NOT NULL REFERENCES content_bundle(id)', 'connection_id UUID REFERENCES platform_connection(id)', "state TEXT NOT NULL DEFAULT 'pending'", 'idem_key BYTEA']],
@@ -134,13 +145,14 @@ describe('migration asset 0000_initial.sql', () => {
 
   it('creates indexes for the hot query paths', () => {
     const indexStatements = sql.match(/CREATE INDEX IF NOT EXISTS /g) ?? [];
-    // 15 tables * (org_id + key lookup) — exact count from the migration.
-    expect(indexStatements).toHaveLength(26);
+    // 15 tables in 0000 (org_id + key lookup) + 1 in 0001 (org_id) — exact count.
+    expect(indexStatements).toHaveLength(27);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_viral_exemplar_embedding ON viral_exemplar');
     expect(sql).toContain('USING hnsw (embedding vector_cosine_ops)');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_audit_log_ts ON audit_log(ts DESC);');
+    expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_model_network_configs_org_id ON model_network_configs(org_id);');
   });
 
   it('grants least-privilege privileges to axiom_app and full rights to axiom_migrator', () => {

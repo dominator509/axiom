@@ -43,6 +43,7 @@ describe('@axiom/db index', () => {
     expect(schema.modelProfile).toBeDefined();
     expect(schema.consentRecord).toBeDefined();
     expect(schema.platformConnection).toBeDefined();
+    expect(schema.modelNetworkConfigs).toBeDefined();
     expect(schema.asset).toBeDefined();
     expect(schema.contentBundle).toBeDefined();
     expect(schema.postTarget).toBeDefined();
@@ -53,7 +54,7 @@ describe('@axiom/db index', () => {
     expect(schema.job).toBeDefined();
     expect(schema.idempotencyLedger).toBeDefined();
     expect(schema.auditLog).toBeDefined();
-    expect(schema.allRelations).toHaveLength(15);
+    expect(schema.allRelations).toHaveLength(16);
   });
 
   it('exposes a usable drizzle query builder without a live database', () => {

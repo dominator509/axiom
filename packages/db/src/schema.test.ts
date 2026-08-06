@@ -18,6 +18,8 @@ import {
   consentRecordRelations,
   platformConnection,
   platformConnectionRelations,
+  modelNetworkConfigs,
+  modelNetworkConfigsRelations,
   asset,
   assetRelations,
   contentBundle,
@@ -100,6 +102,7 @@ describe('schema index', () => {
     expect(modelProfile).toBeDefined();
     expect(consentRecord).toBeDefined();
     expect(platformConnection).toBeDefined();
+    expect(modelNetworkConfigs).toBeDefined();
     expect(asset).toBeDefined();
     expect(contentBundle).toBeDefined();
     expect(postTarget).toBeDefined();
@@ -112,8 +115,8 @@ describe('schema index', () => {
     expect(auditLog).toBeDefined();
   });
 
-  it('allRelations contains exactly the 15 relation configs', () => {
-    expect(allRelations).toHaveLength(15);
+  it('allRelations contains exactly the 16 relation configs', () => {
+    expect(allRelations).toHaveLength(16);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -122,6 +125,7 @@ describe('schema index', () => {
         'model_profile',
         'consent_record',
         'platform_connection',
+        'model_network_configs',
         'asset',
         'content_bundle',
         'post_target',
@@ -365,6 +369,48 @@ describe('platform_connection table', () => {
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
       model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
       postTargets: { type: 'Many', table: 'post_target', fieldName: 'postTargets', fields: null, references: null },
+    });
+  });
+});
+
+describe('model_network_configs table', () => {
+  it('uses table name model_network_configs and defaults egress_mode to direct', () => {
+    expect(tableName(modelNetworkConfigs)).toBe('model_network_configs');
+    const cols = columnsOf(modelNetworkConfigs);
+    expect(cols.egressMode.notNull).toBe(true);
+    expect(cols.egressMode.hasDefault).toBe(true);
+    expect(cols.egressMode.default).toBe('direct');
+  });
+
+  it('stores envelope-encrypted credentials (bytea creds + nonce, dek reference)', () => {
+    const cols = columnsOf(modelNetworkConfigs);
+    expect(cols.encCreds.columnType).toBe('PgCustomColumn');
+    expect(cols.encNonce.columnType).toBe('PgCustomColumn');
+    expect(cols.dekId.dataType).toBe('string');
+    expect(cols.encCreds.notNull).toBe(false);
+  });
+
+  it('carries health state and expected-IP drift policy fields', () => {
+    const cols = columnsOf(modelNetworkConfigs);
+    expect(cols.healthy.notNull).toBe(true);
+    expect(cols.healthy.default).toBe(false);
+    expect(cols.failCount.notNull).toBe(true);
+    expect(cols.failCount.default).toBe(0);
+    expect(cols.expectedEgressIp).toBeDefined();
+    expect(cols.lastEgressIp).toBeDefined();
+    expect(cols.latencyMs.dataType).toBe('number');
+    expect(cols.lastCheck.dataType).toBe('date');
+  });
+
+  it('model_id is unique — one network config per model profile', () => {
+    const idx = columnsOf(modelNetworkConfigs).modelId;
+    expect(idx.isUnique).toBe(true);
+  });
+
+  it('relates to org and model profile', () => {
+    expect(relationNames(modelNetworkConfigsRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
     });
   });
 });
