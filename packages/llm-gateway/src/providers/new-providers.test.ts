@@ -31,6 +31,23 @@ const openaiStyleCompletion = (content: string, prompt = 100, completion = 40) =
   usage: { prompt_tokens: prompt, completion_tokens: completion, total_tokens: prompt + completion },
 });
 
+const anthropicStyleCompletion = (content: string, input = 100, output = 40) => ({
+  id: 'msg_1',
+  type: 'message',
+  role: 'assistant',
+  model: 'claude-opus-4-7',
+  content: [{ type: 'text', text: content }],
+  stop_reason: 'end_turn',
+  stop_sequence: null,
+  stop_details: null,
+  usage: {
+    input_tokens: input,
+    output_tokens: output,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+  },
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -76,33 +93,68 @@ describe('streamMistral', () => {
 });
 
 describe('callLightning', () => {
-  it('posts to the Lightning chat completions endpoint with bearer auth', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(openaiStyleCompletion('hi there')));
+  it('posts to the Lightning Anthropic-compatible messages endpoint with bearer auth', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(anthropicStyleCompletion('hi there')));
     vi.stubGlobal('fetch', fetchMock);
 
     const res = await callLightning('lt-test', {
-      model: 'lightning-v2',
+      model: 'claude-opus-4-7',
       messages: [{ role: 'user', content: 'hi' }],
     });
 
     expect(res.choices[0].message.content).toBe('hi there');
+    expect(res.usage.prompt_tokens).toBe(100);
+    expect(res.usage.completion_tokens).toBe(40);
+    expect(res.usage.total_tokens).toBe(140);
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe(`${LIGHTNING_BASE_URL}/chat/completions`);
+    expect(url).toBe(`${LIGHTNING_BASE_URL}/v1/messages`);
     expect(init!.headers.Authorization).toBe('Bearer lt-test');
+    expect(JSON.parse(init!.body as string).max_tokens).toBe(1024);
+  });
+
+  it('hoists system messages to the top-level system field', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(anthropicStyleCompletion('ok')));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await callLightning('lt-test', {
+      model: 'claude-opus-4-7',
+      messages: [
+        { role: 'system', content: 'be brief' },
+        { role: 'user', content: 'hi' },
+      ],
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.system).toBe('be brief');
+    expect(body.messages).toEqual([{ role: 'user', content: 'hi' }]);
+  });
+
+  it('throws on non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ error: 'bad' }, 401)));
+    await expect(callLightning('lt-test', { model: 'm', messages: [] })).rejects.toThrow('Lightning API error 401');
   });
 });
 
 describe('streamLightning', () => {
-  it('yields delta content chunks', async () => {
+  it('yields text deltas from Anthropic SSE events', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse([
-      'data: {"choices":[{"delta":{"content":"a"}}]}',
-      'data: {"choices":[{"delta":{"content":"b"}}]}',
-      'data: [DONE]',
+      'event: message_start',
+      'data: {"type":"message_start","message":{}}',
+      'event: content_block_start',
+      'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}',
+      'event: content_block_delta',
+      'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"a"}}',
+      'event: content_block_delta',
+      'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"b"}}',
+      'event: message_stop',
+      'data: {"type":"message_stop"}',
     ])));
 
     const chunks: string[] = [];
     for await (const c of streamLightning('lt-test', { model: 'm', messages: [] })) chunks.push(c);
     expect(chunks).toEqual(['a', 'b']);
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect(JSON.parse(init!.body as string).stream).toBe(true);
   });
 });
 

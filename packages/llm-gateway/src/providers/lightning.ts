@@ -1,5 +1,11 @@
-// Lightning AI provider — OpenAI-compatible inference API
-// https://lightning.ai/docs — platform API for hosted/open models
+// Lightning AI provider — Anthropic Messages-compatible REST API
+// https://lightning.ai/docs — Model APIs: POST https://lightning.ai/v1/messages
+// Auth: Bearer <LIGHTNING_API_KEY> (verified live 2026-08-06; key format = UUID)
+// NOTE: The OpenAI-style /v1/chat/completions surface on api.lightning.ai returns
+// 401 even with a valid key — the Anthropic-shaped /v1/messages endpoint on
+// lightning.ai is the live, working surface. Responses are translated to the
+// shared OpenAI shape so the gateway dispatch stays uniform (same pattern as
+// the Gemini provider).
 
 import type {
   ProviderMessage,
@@ -10,14 +16,16 @@ import type {
 } from './types.js';
 import { ProviderError } from './types.js';
 
-export const LIGHTNING_BASE_URL = 'https://api.lightning.ai/v1';
+export const LIGHTNING_BASE_URL = 'https://lightning.ai';
+
+const DEFAULT_MAX_TOKENS = 1024;
 
 export class LightningProvider implements BaseProvider {
   readonly name = 'lightning';
 
   constructor(
     private readonly apiKey: string,
-    readonly model: string = 'lightning-v2',
+    readonly model: string = 'claude-opus-4-7',
   ) {}
 
   async chat(
@@ -38,7 +46,7 @@ export class LightningProvider implements BaseProvider {
         completionTokens: res.usage.completion_tokens,
         totalTokens: res.usage.total_tokens,
       },
-      cost: (res.usage.prompt_tokens * 0.0002 + res.usage.completion_tokens * 0.0008) / 1000,
+      cost: (res.usage.prompt_tokens * 0.015 + res.usage.completion_tokens * 0.075) / 1000,
     };
   }
 
@@ -70,6 +78,23 @@ export interface LightningCompletionRequest {
   stream?: boolean;
 }
 
+// Anthropic Messages API response shape (translated to OpenAI shape below)
+interface AnthropicMessageResponse {
+  id: string;
+  type: string;
+  role: string;
+  model: string;
+  content: Array<{ type: string; text?: string }>;
+  stop_reason: string | null;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+  };
+}
+
+// OpenAI-shaped completion that the gateway dispatch consumes
 export interface LightningCompletionResponse {
   id: string;
   object: string;
@@ -87,25 +112,68 @@ export interface LightningCompletionResponse {
   };
 }
 
+function toOpenAICompat(res: AnthropicMessageResponse): LightningCompletionResponse {
+  const content = res.content
+    .filter((b) => b.type === 'text' && b.text)
+    .map((b) => b.text)
+    .join('');
+  return {
+    id: res.id,
+    object: 'chat.completion',
+    created: Math.floor(Date.now() / 1000),
+    model: res.model,
+    choices: [
+      {
+        index: 0,
+        message: { role: 'assistant', content: content || null },
+        finish_reason: res.stop_reason ?? 'stop',
+      },
+    ],
+    usage: {
+      prompt_tokens: res.usage.input_tokens,
+      completion_tokens: res.usage.output_tokens,
+      total_tokens: res.usage.input_tokens + res.usage.output_tokens,
+    },
+  };
+}
+
 export async function callLightning(
   apiKey: string,
   body: LightningCompletionRequest,
   signal?: AbortSignal,
 ): Promise<LightningCompletionResponse> {
-  const res = await fetch(`${LIGHTNING_BASE_URL}/chat/completions`, {
+  // Anthropic Messages API requires max_tokens and has no role:'system' —
+  // system messages are hoisted to the top-level `system` field.
+  const systemParts = body.messages
+    .filter((m) => m.role === 'system')
+    .map((m) => m.content)
+    .join('\n');
+  const chatMessages = body.messages
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .map((m) => ({ role: m.role, content: m.content }));
+
+  const anthropicBody: Record<string, unknown> = {
+    model: body.model,
+    max_tokens: body.max_tokens ?? DEFAULT_MAX_TOKENS,
+    messages: chatMessages,
+  };
+  if (systemParts) anthropicBody.system = systemParts;
+
+  const res = await fetch(`${LIGHTNING_BASE_URL}/v1/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(anthropicBody),
     signal,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`Lightning API error ${res.status}: ${text}`);
   }
-  return res.json() as Promise<LightningCompletionResponse>;
+  const data = (await res.json()) as AnthropicMessageResponse;
+  return toOpenAICompat(data);
 }
 
 export async function* streamLightning(
@@ -113,13 +181,29 @@ export async function* streamLightning(
   body: LightningCompletionRequest,
   signal?: AbortSignal,
 ): AsyncIterable<string> {
-  const res = await fetch(`${LIGHTNING_BASE_URL}/chat/completions`, {
+  const systemParts = body.messages
+    .filter((m) => m.role === 'system')
+    .map((m) => m.content)
+    .join('\n');
+  const chatMessages = body.messages
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .map((m) => ({ role: m.role, content: m.content }));
+
+  const anthropicBody: Record<string, unknown> = {
+    model: body.model,
+    max_tokens: body.max_tokens ?? DEFAULT_MAX_TOKENS,
+    messages: chatMessages,
+    stream: true,
+  };
+  if (systemParts) anthropicBody.system = systemParts;
+
+  const res = await fetch(`${LIGHTNING_BASE_URL}/v1/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ ...body, stream: true }),
+    body: JSON.stringify(anthropicBody),
     signal,
   });
   if (!res.ok) {
@@ -140,12 +224,15 @@ export async function* streamLightning(
       buffer = lines.pop() ?? '';
       for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed || trimmed === 'data: [DONE]') continue;
+        if (!trimmed) continue;
+        // Anthropic SSE: `data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"..."}}`
         if (trimmed.startsWith('data: ')) {
           try {
             const parsed = JSON.parse(trimmed.slice(6));
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) yield delta;
+            if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
+              const text = parsed.delta.text;
+              if (text) yield text;
+            }
           } catch {
             // skip malformed lines
           }
