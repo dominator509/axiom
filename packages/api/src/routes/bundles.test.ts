@@ -1,85 +1,100 @@
-// ─── Bundles Router — Vitest Suite ───
-// Covers: list, get, create (zod validation), state transitions.
+// ─── Bundles Router (real DB-backed) — Vitest Suite ───
+// Covers: org-scoped list/get/create + approve/revise/reject lifecycle with
+// ToS gating (LBI-11) and audit writes, using the chainable @axiom/db mock.
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
+import { mockState, mockDbFactory } from './test-utils.js';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const MODEL_ID = '11111111-1111-4111-8111-111111111111';
-const ASSET_ID = '22222222-2222-4222-8222-222222222222';
+vi.mock('@axiom/db', () => mockDbFactory({ contentBundle: {}, postTarget: {} }));
 
-let router: any;
+import { bundlesRouter } from './bundles.js';
 
-beforeAll(async () => {
-  const mod = await import('./bundles.js');
-  router = mod.bundlesRouter;
-});
+const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const MODEL_ID = '22222222-2222-4222-8222-222222222222';
+const BUNDLE_ID = '33333333-3333-4333-8333-333333333333';
 
-function appWithOrg(orgId: string) {
+function appWithOrg(orgId: string | null) {
   const app = new Hono<AppBindings>();
   app.use('*', async (c, next) => {
-    c.set('orgId', orgId);
+    if (orgId) c.set('orgId', orgId);
+    c.set('userId', 'user-1');
     await next();
   });
-  app.route('/', router);
+  app.route('/', bundlesRouter);
   return app;
 }
 
+beforeEach(() => {
+  mockState.result = [];
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
 describe('GET / — list bundles', () => {
-  it('returns an empty list with meta', async () => {
-    const res = await router.request('/');
+  it('returns rows for the org (optionally filtered by modelId/state)', async () => {
+    mockState.result = [
+      { id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated' },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/?modelId=${MODEL_ID}&state=generated`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: [], meta: { total: 0 } });
+    const body = (await res.json()) as any;
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].state).toBe('generated');
+  });
+
+  it('returns an empty list when no bundles exist', async () => {
+    const res = await appWithOrg(ORG_ID).request('/');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.data).toEqual([]);
+  });
+
+  it('rejects without org context (401)', async () => {
+    const res = await appWithOrg(null).request('/');
+    expect(res.status).toBe(401);
   });
 });
 
 describe('GET /:id — get bundle', () => {
-  it('returns null data for any id', async () => {
-    const res = await router.request('/bundle-1');
+  it('returns the bundle when in the org', async () => {
+    mockState.result = [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated' }];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: null });
+    const body = (await res.json()) as any;
+    expect(body.data.id).toBe(BUNDLE_ID);
+  });
+
+  it('returns 404 when the bundle is not in the org', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}`);
+    expect(res.status).toBe(404);
   });
 });
 
 describe('POST / — create bundle', () => {
-  it('creates a bundle in generated state with timestamps and orgId', async () => {
-    const res = await appWithOrg('org-b1').request('/', {
+  it('creates a bundle in generated state with captions and audits', async () => {
+    mockState.result = [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated' }];
+    const res = await appWithOrg(ORG_ID).request('/', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         modelId: MODEL_ID,
-        assetIds: [ASSET_ID],
         captions: { instagram: 'hello' },
-        hashtags: ['#summer'],
+        hashtags: ['model'],
       }),
     });
     expect(res.status).toBe(201);
     const body = (await res.json()) as any;
-    expect(body.data.id).toMatch(UUID_RE);
-    expect(body.data.modelId).toBe(MODEL_ID);
-    expect(body.data.assetIds).toEqual([ASSET_ID]);
-    expect(body.data.captions).toEqual({ instagram: 'hello' });
-    expect(body.data.hashtags).toEqual(['#summer']);
     expect(body.data.state).toBe('generated');
-    expect(body.data.orgId).toBe('org-b1');
-    expect(new Date(body.data.createdAt).toISOString()).toBe(body.data.createdAt);
-  });
-
-  it('accepts a bundle with only a modelId', async () => {
-    const res = await appWithOrg('org-b1').request('/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ modelId: MODEL_ID }),
-    });
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as any;
-    expect(body.data.modelId).toBe(MODEL_ID);
-    expect(body.data.assetIds).toBeUndefined();
+    expect(body.data.orgId).toBe(ORG_ID);
   });
 
   it('rejects a non-uuid modelId', async () => {
-    const res = await router.request('/', {
+    const res = await appWithOrg(ORG_ID).request('/', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ modelId: 'not-a-uuid' }),
@@ -88,71 +103,96 @@ describe('POST / — create bundle', () => {
   });
 
   it('rejects a missing modelId', async () => {
-    const res = await router.request('/', {
+    const res = await appWithOrg(ORG_ID).request('/', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({}),
-    });
-    expect(res.status).toBe(400);
-  });
-
-  it('rejects a non-uuid asset id', async () => {
-    const res = await router.request('/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ modelId: MODEL_ID, assetIds: ['nope'] }),
-    });
-    expect(res.status).toBe(400);
-  });
-
-  it('rejects invalid JSON body', async () => {
-    const res = await router.request('/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: '{broken',
     });
     expect(res.status).toBe(400);
   });
 });
 
-describe('PATCH /:id/state — transition bundle state', () => {
-  const validStates = ['generated', 'approved', 'rejected', 'scheduled', 'publishing', 'published', 'failed'];
-
-  it.each(validStates)('accepts state "%s"', async (state) => {
-    const res = await router.request('/bundle-1/state', {
-      method: 'PATCH',
+describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
+  it('approves a passing bundle and creates post targets', async () => {
+    mockState.result = [
+      { id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'approved', tosReport: { verdict: 'pass', scores: [] } },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ state }),
+      body: JSON.stringify({ platforms: ['instagram', 'x'] }),
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.data).toEqual({ id: 'bundle-1', state });
+    expect(body.data.state).toBe('approved');
   });
 
-  it('rejects an unknown state value', async () => {
-    const res = await router.request('/bundle-1/state', {
-      method: 'PATCH',
+  it('rejects approval when the ToS verdict is block (409)', async () => {
+    mockState.result = [
+      { id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated', tosReport: { verdict: 'block', scores: [] } },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ state: 'bogus' }),
+      body: JSON.stringify({ platforms: ['instagram'] }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it('rejects a bundle with an empty platforms array (400)', async () => {
+    mockState.result = [{ id: BUNDLE_ID, orgId: ORG_ID, state: 'generated', tosReport: { verdict: 'pass' } }];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: [] }),
     });
     expect(res.status).toBe(400);
   });
 
-  it('rejects a missing state field', async () => {
-    const res = await router.request('/bundle-1/state', {
-      method: 'PATCH',
+  it('returns 404 when the bundle is not in the org', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: ['instagram'] }),
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('POST /:id/revise — return to generated', () => {
+  it('revises a bundle with instructions', async () => {
+    mockState.result = [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated' }];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/revise`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ instructions: 'make it warmer' }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.data.state).toBe('generated');
+  });
+
+  it('rejects missing instructions (400)', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/revise`, {
+      method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(400);
   });
+});
 
-  it('rejects a numeric state', async () => {
-    const res = await router.request('/bundle-1/state', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ state: 42 }),
-    });
-    expect(res.status).toBe(400);
+describe('POST /:id/reject', () => {
+  it('rejects a bundle', async () => {
+    mockState.result = [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'rejected' }];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/reject`, { method: 'POST' });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.data.state).toBe('rejected');
+  });
+
+  it('returns 404 when the bundle is not in the org', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/reject`, { method: 'POST' });
+    expect(res.status).toBe(404);
   });
 });

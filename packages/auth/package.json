@@ -19,15 +19,16 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@axiom/core": "workspace:*",
+    "@axiom/db": "workspace:*",
     "better-auth": "^1.0.0",
     "drizzle-orm": "^0.45.2",
-    "pg": "^8.13.0",
-    "@axiom/db": "workspace:*",
-    "@axiom/core": "workspace:*"
+    "pg": "^8.13.0"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
     "@types/node": "^22.9.0",
-    "@types/pg": "^8.11.0"
+    "@types/pg": "^8.11.0",
+    "hono": "4.12.32",
+    "typescript": "^5.6.0"
   }
 }

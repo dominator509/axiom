@@ -1,39 +1,132 @@
+// ─── Global kill switch (F-12, LBI-11) — DB-backed org_settings ───
+// Replaces the in-memory stub: the flag now persists in org_settings,
+// every flip is audited (LBI-08), and the dashboard reads real state.
+
 import { Hono } from 'hono';
+import { z } from 'zod';
+import { zValidator } from '@hono/zod-validator';
+import { eq } from 'drizzle-orm';
+import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
+import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
-// Global kill switch — when enabled, returns 503 for all non-critical operations
-const killSwitchState = {
-  enabled: false,
-  reason: '',
-  startedAt: null as string | null,
-  updatedAt: null as string | null,
-};
+const killSwitchSchema = z.object({
+  reason: z.string().max(500).optional(),
+});
 
-// Check kill switch status
-router.get('/killswitch', (c) => {
+async function getSettings(tx: any, orgId: string) {
+  const rows = await tx
+    .select()
+    .from(schema.orgSettings)
+    .where(eq(schema.orgSettings.orgId, orgId))
+    .limit(1);
+  if (rows.length > 0) return rows[0];
+  const [row] = await tx
+    .insert(schema.orgSettings)
+    .values({ orgId, publishingEnabled: true })
+    .onConflictDoNothing()
+    .returning();
+  return (
+    row ?? (await tx.select().from(schema.orgSettings).where(eq(schema.orgSettings.orgId, orgId)).limit(1))[0]
+  );
+}
+
+// GET /api/v1/killswitch — status
+router.get('/killswitch', async (c) => {
+  const orgId = requireOrg(c);
+  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  const settings = await withOrgContext(orgId, (tx) => getSettings(tx, orgId));
   return c.json({
-    data: killSwitchState,
+    data: {
+      enabled: !settings.publishingEnabled,
+      reason: settings.killSwitchReason ?? '',
+      startedAt: settings.killSwitchAt,
+      updatedAt: settings.updatedAt,
+    },
   });
 });
 
-// Enable kill switch
-router.post('/killswitch/enable', async (c) => {
-  const body = await c.req.json().catch(() => ({}));
-  killSwitchState.enabled = true;
-  killSwitchState.reason = body.reason ?? 'Emergency shutdown triggered';
-  killSwitchState.startedAt = new Date().toISOString();
-  killSwitchState.updatedAt = new Date().toISOString();
-  return c.json({ data: killSwitchState });
+// POST /api/v1/killswitch/enable — flip the global kill switch (LBI-11)
+router.post('/killswitch/enable', zValidator('json', killSwitchSchema), async (c) => {
+  const orgId = requireOrg(c);
+  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  const body = c.req.valid('json');
+  const userId = c.get('userId') ?? 'system';
+
+  const updated = await withOrgContext(orgId, async (tx) => {
+    const [row] = await tx
+      .update(schema.orgSettings)
+      .set({
+        publishingEnabled: false,
+        killSwitchReason: body.reason ?? 'Emergency shutdown triggered',
+        killSwitchActor: userId,
+        killSwitchAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.orgSettings.orgId, orgId))
+      .returning();
+    await writeAudit(tx, orgId, userId, 'killswitch.enable', orgId, {
+      reason: body.reason ?? '',
+    });
+    return row;
+  });
+  return c.json({ data: { enabled: true, ...updated } });
 });
 
-// Disable kill switch
-router.post('/killswitch/disable', (c) => {
-  killSwitchState.enabled = false;
-  killSwitchState.reason = '';
-  killSwitchState.updatedAt = new Date().toISOString();
-  return c.json({ data: killSwitchState });
+// POST /api/v1/killswitch/disable — restore publishing
+router.post('/killswitch/disable', async (c) => {
+  const orgId = requireOrg(c);
+  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  const userId = c.get('userId') ?? 'system';
+
+  const updated = await withOrgContext(orgId, async (tx) => {
+    const [row] = await tx
+      .update(schema.orgSettings)
+      .set({
+        publishingEnabled: true,
+        killSwitchReason: null,
+        killSwitchAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.orgSettings.orgId, orgId))
+      .returning();
+    await writeAudit(tx, orgId, userId, 'killswitch.disable', orgId, {});
+    return row;
+  });
+  return c.json({ data: { enabled: false, ...updated } });
+});
+
+// L3.0 contract alias: POST /api/v1/kill-switch {scope: org|model, model_id?}
+router.post('/kill-switch', zValidator('json', killSwitchSchema), async (c) => {
+  const orgId = requireOrg(c);
+  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  const body = c.req.valid('json');
+  const userId = c.get('userId') ?? 'system';
+
+  // Org-scope kill switch per L3.0. Model-scope would additionally flip the
+  // model's egress config; the plane already supports per-model binds, so
+  // the dashboard only exposes the org-wide switch (LBI-11).
+  const updated = await withOrgContext(orgId, async (tx) => {
+    const [row] = await tx
+      .update(schema.orgSettings)
+      .set({
+        publishingEnabled: false,
+        killSwitchReason: body.reason ?? 'Emergency shutdown triggered',
+        killSwitchActor: userId,
+        killSwitchAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.orgSettings.orgId, orgId))
+      .returning();
+    await writeAudit(tx, orgId, userId, 'kill-switch.org', orgId, {
+      reason: body.reason ?? '',
+      scope: 'org',
+    });
+    return row;
+  });
+  return c.json({ data: { enabled: true, ...updated } });
 });
 
 export { router as killswitchRouter };

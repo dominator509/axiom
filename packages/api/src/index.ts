@@ -7,7 +7,19 @@ import { bundlesRouter } from './routes/bundles.js';
 import { socialRouter } from './routes/social.js';
 import { killswitchRouter } from './routes/killswitch.js';
 import { egressRouter } from './routes/egress.js';
+import { networkRouter } from './routes/network.js';
+import { postsRouter } from './routes/posts.js';
+import { linkbioRouter } from './routes/linkbio.js';
+import { fansRouter } from './routes/fans.js';
+import { analyticsRouter } from './routes/analytics.js';
+import { viralRouter } from './routes/viral.js';
+import { playbookRouter } from './routes/playbook.js';
+import { generateRouter } from './routes/generate.js';
+import { auditRouter } from './routes/audit.js';
+import { incidentsRouter } from './routes/incidents.js';
 import { fanvueAuthRouter } from './routes/fanvue-auth.js';
+import { threadsAuthRouter } from './routes/threads-auth.js';
+import { auth, requireAuth } from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { DiscordAdapter, ThreadsAdapter, createRelayRoutes, CardRenderer, CommandRouter, ViralLoop, Bandit, IncidentManager, HealthCheckRegistry } from '@axiom/relay';
 
@@ -27,23 +39,57 @@ app.use('*', secureHeaders());
 // Health check
 app.get('/api/v1/health', (c) => c.json({ status: 'ok', version: '0.1.0' }));
 
-// Mount routes
+// ── Better Auth — mounted at /api/auth/* (replaces the 501 placeholder) ──
+app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));
+console.log('Better Auth mounted at /api/auth/*');
+
+// ── Mount dashboard + CRM routes ──
+// Every route group behind requireAuth: session → userId/orgId injected,
+// orgId then scopes all RLS transactions (LBI-02).
+app.use('/api/v1/models/*', requireAuth);
+app.use('/api/v1/bundles/*', requireAuth);
+app.use('/api/v1/social-accounts/*', requireAuth);
+app.use('/api/v1/egress/*', requireAuth);
+app.use('/api/v1/models/:modelId/network/*', requireAuth);
+app.use('/api/v1/posts/*', requireAuth);
+app.use('/api/v1/models/:modelId/calendar/*', requireAuth);
+app.use('/api/v1/models/:modelId/linkbio/*', requireAuth);
+app.use('/api/v1/linkbio/*', requireAuth);
+app.use('/api/v1/models/:modelId/fans/*', requireAuth);
+app.use('/api/v1/fans/*', requireAuth);
+app.use('/api/v1/custom-requests/*', requireAuth);
+app.use('/api/v1/models/:modelId/custom-requests/*', requireAuth);
+app.use('/api/v1/models/:modelId/analytics/*', requireAuth);
+app.use('/api/v1/models/:modelId/viral/*', requireAuth);
+app.use('/api/v1/models/:modelId/playbook-score/*', requireAuth);
+app.use('/api/v1/models/:modelId/generate/*', requireAuth);
+app.use('/api/v1/audit/*', requireAuth);
+app.use('/api/v1/incidents/*', requireAuth);
+app.use('/api/v1/killswitch/*', requireAuth);
+app.use('/api/v1/kill-switch/*', requireAuth);
+
 app.route('/api/v1/models', modelsRouter);
 app.route('/api/v1/bundles', bundlesRouter);
 app.route('/api/v1/social-accounts', socialRouter);
 app.route('/api/v1/connectors/fanvue', fanvueAuthRouter);
+app.route('/api/v1/connectors/threads', threadsAuthRouter);
 app.route('/api/v1', killswitchRouter);
 app.route('/api/v1/egress', egressRouter);
+app.route('/api/v1', networkRouter);
+app.route('/api/v1', postsRouter);
+app.route('/api/v1', linkbioRouter);
+app.route('/api/v1', fansRouter);
+app.route('/api/v1', analyticsRouter);
+app.route('/api/v1', viralRouter);
+app.route('/api/v1', playbookRouter);
+app.route('/api/v1', generateRouter);
+app.route('/api/v1', auditRouter);
+app.route('/api/v1', incidentsRouter);
 
 // LLM gateway — unified multi-provider chat completions
 const llmGateway = new LLMGateway();
 app.route('/api/v1/llm', createLLMRouter(llmGateway));
 console.log('LLM gateway routes mounted');
-
-// Auth endpoint - placeholder for better-auth handler
-app.on(['GET', 'POST'], '/api/auth/*', (c) => {
-  return c.json({ error: 'auth not configured' }, 501);
-});
 
 // ── Relay initialization ──────────────────────────────────────
 

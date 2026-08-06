@@ -32,6 +32,18 @@ const TS_TO_SQL: Record<string, string> = {
   job: 'job',
   idempotencyLedger: 'idempotency_ledger',
   auditLog: 'audit_log',
+  authUser: 'auth_user',
+  authSession: 'auth_session',
+  authAccount: 'auth_account',
+  authVerification: 'auth_verification',
+  orgSettings: 'org_settings',
+  fanCrmContact: 'fan_crm_contact',
+  fanTouchpoint: 'fan_touchpoint',
+  customRequest: 'custom_request',
+  linkbioProvider: 'linkbio_provider',
+  linkbioClick: 'linkbio_click',
+  shortLink: 'short_link',
+  playbookScore: 'playbook_score',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -108,11 +120,23 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
       ['post_target', ['bundle_id UUID NOT NULL REFERENCES content_bundle(id)', 'connection_id UUID REFERENCES platform_connection(id)', "state TEXT NOT NULL DEFAULT 'pending'", 'idem_key BYTEA']],
       ['relay_card', ['title TEXT NOT NULL', 'priority INTEGER NOT NULL DEFAULT 0']],
       ['relay_command', ['card_id UUID NOT NULL REFERENCES relay_card(id)', 'trigger TEXT NOT NULL']],
-      ['viral_exemplar', ['url TEXT NOT NULL', 'viral_label TEXT NOT NULL', 'embedding vector(1536) DEFAULT NULL']],
+      ['viral_exemplar', ['model_id UUID NOT NULL REFERENCES model_profile(id)', 'features jsonb NOT NULL DEFAULT', 'perf_score double precision NOT NULL DEFAULT 0', "label text NOT NULL DEFAULT 'baseline'", 'embedding vector(768) NOT NULL']],
       ['post_metric', ['post_target_id UUID NOT NULL REFERENCES post_target(id)', 'engagement_rate DOUBLE PRECISION NOT NULL DEFAULT 0']],
       ['job', ['queue TEXT NOT NULL', 'attempts INTEGER NOT NULL DEFAULT 0', 'max_attempts INTEGER NOT NULL DEFAULT 3']],
       ['idempotency_ledger', ['idem_key TEXT NOT NULL UNIQUE', 'locked BOOLEAN NOT NULL DEFAULT false']],
       ['audit_log', ['actor_ref TEXT NOT NULL', 'prev_hash BYTEA NOT NULL', 'row_hash BYTEA NOT NULL']],
+      ['auth_user', ['id TEXT PRIMARY KEY', 'email TEXT NOT NULL UNIQUE', 'org_id UUID REFERENCES org(id)', "role TEXT NOT NULL DEFAULT 'operator'"]],
+      ['auth_session', ['user_id TEXT NOT NULL REFERENCES auth_user(id)', 'token TEXT NOT NULL UNIQUE', 'expires_at TIMESTAMPTZ NOT NULL']],
+      ['auth_account', ['user_id TEXT NOT NULL REFERENCES auth_user(id)', 'provider_id TEXT NOT NULL']],
+      ['auth_verification', ['identifier TEXT NOT NULL', 'expires_at TIMESTAMPTZ NOT NULL']],
+      ['org_settings', ['org_id UUID PRIMARY KEY REFERENCES org(id)', 'publishing_enabled BOOLEAN NOT NULL DEFAULT true']],
+      ['fan_crm_contact', ['model_id UUID NOT NULL REFERENCES model_profile(id)', "tier TEXT NOT NULL DEFAULT 'new'", 'lifetime_value_usd NUMERIC(12,2) NOT NULL DEFAULT 0']],
+      ['fan_touchpoint', ['fan_id UUID NOT NULL REFERENCES fan_crm_contact(id)', "direction TEXT NOT NULL DEFAULT 'inbound'"]],
+      ['custom_request', ['model_id UUID NOT NULL REFERENCES model_profile(id)', "status TEXT NOT NULL DEFAULT 'pending'"]],
+      ['linkbio_provider', ['kind TEXT NOT NULL', 'enabled BOOLEAN NOT NULL DEFAULT true']],
+      ['linkbio_click', ['provider_id UUID NOT NULL REFERENCES linkbio_provider(id)', 'target TEXT NOT NULL']],
+      ['short_link', ['slug TEXT NOT NULL', 'target_url TEXT NOT NULL', 'clicks INTEGER NOT NULL DEFAULT 0']],
+      ['playbook_score', ['score INTEGER NOT NULL', 'components JSONB NOT NULL DEFAULT']],
     ];
     for (const [tsName, fragments] of expectations) {
       const tableSql = sqlTableName(tsName);
@@ -125,8 +149,34 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
   });
 
   it('defines one org_isolation RLS policy per table (ENABLE + FORCE + POLICY)', () => {
+    // Auth identity tables are cross-tenant (session lookup happens before org
+    // context exists) — excluded from the RLS sweep. All other tables are
+    // org-scoped and must be RLS-protected (LBI-02).
+    const nonTenant = new Set(['auth_user', 'auth_session', 'auth_account', 'auth_verification']);
+    // 0000/0001 emit literal ALTER statements; 0002 emits the same statements
+    // through a DO block with format('...', t) — both patterns are valid.
+    const doBlockTables = new Set([
+      'org_settings',
+      'fan_crm_contact',
+      'fan_touchpoint',
+      'custom_request',
+      'linkbio_provider',
+      'linkbio_click',
+      'short_link',
+      'playbook_score',
+    ]);
     for (const tsName of tsTables()) {
       const tableSql = sqlTableName(tsName);
+      if (nonTenant.has(tableSql)) continue;
+      if (doBlockTables.has(tableSql)) {
+        // DO-block form: table listed in the array + format() emits the policy
+        // (last array element has no trailing comma, so match both forms)
+        expect(sql).toMatch(new RegExp(`'${tableSql}'\\s*[,\\]]`));
+        expect(sql).toContain(`ALTER TABLE %I ENABLE ROW LEVEL SECURITY`);
+        expect(sql).toContain(`ALTER TABLE %I FORCE ROW LEVEL SECURITY`);
+        expect(sql).toContain(`CREATE POLICY org_isolation ON %I`);
+        continue;
+      }
       expect(sql).toContain(`ALTER TABLE ${tableSql} ENABLE ROW LEVEL SECURITY;`);
       expect(sql).toContain(`ALTER TABLE ${tableSql} FORCE ROW LEVEL SECURITY;`);
       expect(sql).toContain(`CREATE POLICY org_isolation ON ${tableSql}`);
@@ -145,8 +195,10 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
 
   it('creates indexes for the hot query paths', () => {
     const indexStatements = sql.match(/CREATE INDEX IF NOT EXISTS /g) ?? [];
-    // 15 tables in 0000 (org_id + key lookup) + 1 in 0001 (org_id) — exact count.
-    expect(indexStatements).toHaveLength(27);
+    // 15 tables in 0000 (org_id + key lookup) + 1 in 0001 (org_id) +
+    // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
+    // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) — exact count.
+    expect(indexStatements).toHaveLength(36);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_viral_exemplar_embedding ON viral_exemplar');

@@ -36,5 +36,5 @@
     { "path": "./packages/auth" },
     { "path": "./packages/api" }
   ],
-  "exclude": ["node_modules", "dist", ".turbo"]
+  "exclude": ["node_modules", "dist", ".turbo", "packages/dashboard"]
 }

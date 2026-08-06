@@ -1,145 +1,129 @@
-// ─── Social Connections Router — Vitest Suite ───
-// Covers: list, get, create (zod validation), revoke, refresh.
+// ─── Social Router (real DB-backed) — Vitest Suite ───
+// Covers: org-scoped list/connect/revoke for platform_connection with
+// envelope-encrypted credentials (LBI-01).
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
+import { mockState, mockDbFactory } from './test-utils.js';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const MODEL_ID = '11111111-1111-4111-8111-111111111111';
+vi.mock('@axiom/db', () => mockDbFactory({ platformConnection: {} }));
 
-let router: any;
+import { socialRouter } from './social.js';
 
-beforeAll(async () => {
-  const mod = await import('./social.js');
-  router = mod.socialRouter;
-});
+const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const MODEL_ID = '22222222-2222-4222-8222-222222222222';
+const CONN_ID = '33333333-3333-4333-8333-333333333333';
 
-function appWithOrg(orgId: string) {
+function appWithOrg(orgId: string | null) {
   const app = new Hono<AppBindings>();
   app.use('*', async (c, next) => {
-    c.set('orgId', orgId);
+    if (orgId) c.set('orgId', orgId);
+    c.set('userId', 'user-1');
     await next();
   });
-  app.route('/', router);
+  app.route('/', socialRouter);
   return app;
 }
 
+beforeEach(() => {
+  mockState.result = [];
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
 describe('GET / — list connections', () => {
-  it('returns an empty list with meta', async () => {
-    const res = await router.request('/');
+  it('returns connections for the org (filtered by modelId)', async () => {
+    mockState.result = [
+      { id: CONN_ID, orgId: ORG_ID, modelId: MODEL_ID, platform: 'instagram', displayName: '@luna', status: 'connected' },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/?modelId=${MODEL_ID}`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: [], meta: { total: 0 } });
+    const body = (await res.json()) as any;
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].platform).toBe('instagram');
+  });
+
+  it('returns an empty list when nothing is connected', async () => {
+    const res = await appWithOrg(ORG_ID).request('/');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.data).toEqual([]);
+  });
+
+  it('rejects without org context (401)', async () => {
+    const res = await appWithOrg(null).request('/');
+    expect(res.status).toBe(401);
   });
 });
 
-describe('GET /:id — get connection', () => {
-  it('returns null data for any id', async () => {
-    const res = await router.request('/conn-1');
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: null });
-  });
-});
+describe('POST / — connect', () => {
+  const body = {
+    platform: 'instagram',
+    displayName: '@luna',
+    encToken: Buffer.from('cipher').toString('base64'),
+    encNonce: Buffer.from('n'.repeat(24)).toString('base64'),
+    dekId: 'egress-dek',
+    capabilities: ['publish', 'metrics'],
+  };
 
-describe('POST / — create connection', () => {
-  it('creates an active connection with orgId and connectedAt', async () => {
-    const res = await appWithOrg('org-s1').request('/', {
+  it('connects a platform account (201)', async () => {
+    mockState.result = [
+      { id: CONN_ID, orgId: ORG_ID, modelId: MODEL_ID, platform: 'instagram', displayName: '@luna', status: 'connected' },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/?modelId=${MODEL_ID}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ modelId: MODEL_ID, platform: 'instagram', displayName: 'Luna IG' }),
+      body: JSON.stringify(body),
     });
     expect(res.status).toBe(201);
+    const resBody = (await res.json()) as any;
+    expect(resBody.data.platform).toBe('instagram');
+  });
+
+  it('rejects an unknown platform (400)', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/?modelId=${MODEL_ID}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...body, platform: 'myspace' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a missing modelId query (400)', async () => {
+    const res = await appWithOrg(ORG_ID).request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects missing encToken (400)', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/?modelId=${MODEL_ID}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...body, encToken: undefined }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('DELETE /:id — revoke', () => {
+  it('revokes a connection and audits (200)', async () => {
+    mockState.result = [{ id: CONN_ID, platform: 'instagram' }];
+    const res = await appWithOrg(ORG_ID).request(`/${CONN_ID}`, { method: 'DELETE' });
+    expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.data.id).toMatch(UUID_RE);
-    expect(body.data.modelId).toBe(MODEL_ID);
+    expect(body.success).toBe(true);
     expect(body.data.platform).toBe('instagram');
-    expect(body.data.displayName).toBe('Luna IG');
-    expect(body.data.status).toBe('active');
-    expect(body.data.orgId).toBe('org-s1');
-    expect(new Date(body.data.connectedAt).toISOString()).toBe(body.data.connectedAt);
   });
 
-  it('accepts an optional authCode', async () => {
-    const res = await appWithOrg('org-s1').request('/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ modelId: MODEL_ID, platform: 'fanvue', displayName: 'FV', authCode: 'xyz' }),
-    });
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as any;
-    expect(body.data.authCode).toBe('xyz');
-  });
-
-  it.each(['instagram', 'tiktok', 'x', 'youtube', 'reddit', 'threads', 'discord', 'telegram', 'facebook', 'snapchat', 'fanvue'])(
-    'accepts platform "%s"',
-    async (platform) => {
-      const res = await router.request('/', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ modelId: MODEL_ID, platform, displayName: 'D' }),
-      });
-      expect(res.status).toBe(201);
-    },
-  );
-
-  it('rejects an unsupported platform', async () => {
-    const res = await router.request('/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ modelId: MODEL_ID, platform: 'myspace', displayName: 'D' }),
-    });
-    expect(res.status).toBe(400);
-  });
-
-  it('rejects a missing modelId', async () => {
-    const res = await router.request('/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ platform: 'instagram', displayName: 'D' }),
-    });
-    expect(res.status).toBe(400);
-  });
-
-  it('rejects an empty displayName', async () => {
-    const res = await router.request('/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ modelId: MODEL_ID, platform: 'instagram', displayName: '' }),
-    });
-    expect(res.status).toBe(400);
-  });
-
-  it('rejects a displayName longer than 100 chars', async () => {
-    const res = await router.request('/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ modelId: MODEL_ID, platform: 'instagram', displayName: 'x'.repeat(101) }),
-    });
-    expect(res.status).toBe(400);
-  });
-
-  it('rejects invalid JSON body', async () => {
-    const res = await router.request('/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: 'oops',
-    });
-    expect(res.status).toBe(400);
-  });
-});
-
-describe('POST /:id/revoke — revoke connection', () => {
-  it('marks the connection revoked', async () => {
-    const res = await router.request('/conn-9/revoke', { method: 'POST' });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: { id: 'conn-9', status: 'revoked' } });
-  });
-});
-
-describe('POST /:id/refresh — refresh token', () => {
-  it('marks the connection refreshed', async () => {
-    const res = await router.request('/conn-9/refresh', { method: 'POST' });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: { id: 'conn-9', status: 'refreshed' } });
+  it('returns 404 when the connection is not in the org', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${CONN_ID}`, { method: 'DELETE' });
+    expect(res.status).toBe(404);
   });
 });

@@ -1,4 +1,9 @@
 // ─── @axiom/auth — Vitest Suite ───
+// Asserts the REAL better-auth configuration: email/password enabled,
+// org-scoped sessions via the custom orgId additionalField, and a handler
+// that serves the auth API. The organization plugin is intentionally NOT
+// used — org scoping is resolved by the API middleware from auth_user.org_id.
+
 import { describe, it, expect, beforeAll } from 'vitest';
 
 // The auth module creates a pg.Pool at import time but does not connect until
@@ -19,16 +24,24 @@ describe('better-auth configuration', () => {
     expect(typeof auth.api).toBe('object');
   });
 
-  it('disables email/password authentication', () => {
-    expect(auth.options?.emailAndPassword?.enabled).toBe(false);
+  it('enables email/password authentication', () => {
+    expect(auth.options?.emailAndPassword?.enabled).toBe(true);
+    expect(auth.options?.emailAndPassword?.minPasswordLength).toBe(8);
   });
 
-  it('enables magic-link authentication', () => {
-    expect(auth.options?.magicLinks?.enabled).toBe(true);
+  it('uses a server-assigned orgId additionalField (not the org plugin)', () => {
+    const fields = auth.options?.user?.additionalFields ?? {};
+    expect(fields.orgId).toBeDefined();
+    expect(fields.orgId.input).toBe(false); // never settable from the client
+    expect(fields.orgId.required).toBe(false);
+    // The rewrite deliberately scopes via auth_user.org_id instead of the
+    // organization plugin — assert the plugin is NOT enabled.
+    expect(auth.options?.organization?.enabled ?? false).toBe(false);
   });
 
-  it('enables the organization plugin', () => {
-    expect(auth.options?.organization?.enabled).toBe(true);
+  it('uses a hardened cookie prefix and lax sameSite', () => {
+    expect(auth.options?.advanced?.cookiePrefix).toBe('axiom');
+    expect(auth.options?.advanced?.defaultCookieAttributes?.sameSite).toBe('lax');
   });
 
   it('exposes the runtime context and error codes', () => {
@@ -36,9 +49,9 @@ describe('better-auth configuration', () => {
     expect(auth.$ERROR_CODES).toBeDefined();
   });
 
-  it('exposes a handler that serves the auth UI', async () => {
-    const res = await auth.handler(new Request('http://localhost/api/auth/error'));
-    expect(res.status).toBe(200);
-    expect((res.headers.get('content-type') || '').toLowerCase()).toContain('text/html');
+  it('exports the session and auth middleware helpers', async () => {
+    const mod = await import('./index.js');
+    expect(typeof mod.getSessionFromRequest).toBe('function');
+    expect(typeof mod.requireAuth).toBe('function');
   });
 });

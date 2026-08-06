@@ -40,6 +40,18 @@ import {
   idempotencyLedgerRelations,
   auditLog,
   auditLogRelations,
+  authUser,
+  authSession,
+  authAccount,
+  authVerification,
+  orgSettings,
+  fanCrmContact,
+  fanTouchpoint,
+  customRequest,
+  linkbioProvider,
+  linkbioClick,
+  shortLink,
+  playbookScore,
   allRelations,
 } from './schema/index.js';
 
@@ -113,10 +125,22 @@ describe('schema index', () => {
     expect(job).toBeDefined();
     expect(idempotencyLedger).toBeDefined();
     expect(auditLog).toBeDefined();
+    expect(authUser).toBeDefined();
+    expect(authSession).toBeDefined();
+    expect(authAccount).toBeDefined();
+    expect(authVerification).toBeDefined();
+    expect(orgSettings).toBeDefined();
+    expect(fanCrmContact).toBeDefined();
+    expect(fanTouchpoint).toBeDefined();
+    expect(customRequest).toBeDefined();
+    expect(linkbioProvider).toBeDefined();
+    expect(linkbioClick).toBeDefined();
+    expect(shortLink).toBeDefined();
+    expect(playbookScore).toBeDefined();
   });
 
-  it('allRelations contains exactly the 16 relation configs', () => {
-    expect(allRelations).toHaveLength(16);
+  it('allRelations contains exactly the 27 relation configs', () => {
+    expect(allRelations).toHaveLength(27);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -136,6 +160,17 @@ describe('schema index', () => {
         'job',
         'idempotency_ledger',
         'audit_log',
+        'auth_user',
+        'auth_session',
+        'auth_account',
+        'org_settings',
+        'fan_crm_contact',
+        'fan_touchpoint',
+        'custom_request',
+        'linkbio_provider',
+        'linkbio_click',
+        'short_link',
+        'playbook_score',
       ].sort(),
     );
   });
@@ -554,31 +589,33 @@ describe('relay_command table', () => {
 });
 
 describe('viral_exemplar table', () => {
-  it('uses table name viral_exemplar and requires url/viralLabel', () => {
+  it('uses table name viral_exemplar and requires model_id/label', () => {
     expect(tableName(viralExemplar)).toBe('viral_exemplar');
     const cols = columnsOf(viralExemplar);
-    expect(cols.url.notNull).toBe(true);
-    expect(cols.viralLabel.notNull).toBe(true);
-    expect(cols.thumbnailUrl.notNull).toBe(false);
+    expect(cols.modelId.notNull).toBe(true);
+    expect(cols.perfScore.notNull).toBe(true);
+    expect(cols.label.notNull).toBe(true);
+    expect(cols.features.notNull).toBe(true);
   });
 
-  it('metrics default to zeroed counters', () => {
-    const metrics = columnsOf(viralExemplar).metrics;
-    expect(metrics.hasDefault).toBe(true);
-    expect(metrics.default).toEqual({ views: 0, likes: 0, shares: 0, comments: 0 });
+  it('features default to empty object', () => {
+    const features = columnsOf(viralExemplar).features;
+    expect(features.hasDefault).toBe(true);
+    expect(features.default).toEqual({});
   });
 
-  it('exposes the pgvector embedding column at 1536 dimensions', () => {
-    // Aligned with migration 0000: embedding vector(1536) DEFAULT NULL + HNSW index.
+  it('exposes the pgvector embedding column at 768 dimensions', () => {
+    // Aligned with migration 0003 / blueprint L3.1: embedding vector(768) NOT NULL + HNSW index.
     const embedding = columnsOf(viralExemplar).embedding;
     expect(embedding.columnType).toBe('PgVector');
-    expect(embedding.hasDefault).toBe(false);
-    expect(embedding.notNull).toBe(false);
+    expect(embedding.notNull).toBe(true);
   });
 
-  it('relates to org', () => {
+  it('relates to org, model and bundle', () => {
     expect(relationNames(viralExemplarRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      bundle: { type: 'One', table: 'content_bundle', fieldName: 'bundle', fields: ['bundle_id'], references: ['id'] },
     });
   });
 });

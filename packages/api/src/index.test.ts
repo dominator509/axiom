@@ -4,6 +4,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 // The api index mounts the fanvue auth router which reads env at load time.
 process.env.FANVUE_CLIENT_ID = 'test-client-id';
 process.env.FANVUE_REDIRECT_URI = 'https://callback.example.test/callback';
+process.env.BETTER_AUTH_SECRET = 'test-secret-0123456789abcdef';
+process.env.BETTER_AUTH_URL = 'http://127.0.0.1:3001';
 
 let app: any;
 
@@ -14,25 +16,30 @@ beforeAll(async () => {
   await new Promise((r) => setTimeout(r, 250));
 });
 
-describe('health and auth placeholder', () => {
+describe('health', () => {
   it('GET /api/v1/health returns ok', async () => {
     const res = await app.request('/api/v1/health');
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ status: 'ok', version: '0.1.0' });
   });
+});
 
-  it('GET/POST /api/auth/* returns 501 until better-auth is wired', async () => {
+describe('better-auth mounted at /api/auth/*', () => {
+  it('GET /api/auth/session no longer returns 501 (handler mounted)', async () => {
     const res = await app.request('/api/auth/session');
-    expect(res.status).toBe(501);
+    expect(res.status).not.toBe(501);
+  });
+
+  it('GET /api/auth/get-session returns a JSON body from better-auth', async () => {
+    const res = await app.request('/api/auth/get-session');
+    expect([200, 401]).toContain(res.status);
   });
 });
 
 describe('mounted route groups', () => {
-  it('models list responds without a DB (stub returns empty)', async () => {
+  it('models list without a session returns 401 (auth-gated)', async () => {
     const res = await app.request('/api/v1/models');
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.data).toEqual([]);
+    expect(res.status).toBe(401);
   });
 
   it('fanvue authorize redirects to Fanvue with PKCE params', async () => {

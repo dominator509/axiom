@@ -1,0 +1,10 @@
+node_modules/
+.next/
+dist/
+*.js
+*.jsx
+*.js.map
+*.jsx.map
+*.d.ts
+*.d.ts.map
+tsconfig.tsbuildinfo

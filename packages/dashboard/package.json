@@ -1,0 +1,28 @@
+{
+  "name": "@axiom/dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "test": "vitest run --passWithNoTests",
+    "dev": "next dev -p 3002",
+    "start": "next start -p 3002",
+    "clean": "rm -rf .next"
+  },
+  "dependencies": {
+    "@axiom/auth": "workspace:*",
+    "next": "^15.5.22",
+    "react": "^19.0.8",
+    "react-dom": "^19.0.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.2.7"
+  }
+}

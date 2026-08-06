@@ -1,79 +1,99 @@
-// ─── Models Router — Vitest Suite ───
-// Covers: list, get, create (zod validation), update, delete.
+// ─── Models Router (real DB-backed) — Vitest Suite ───
+// Covers: org-scoped list/get/create/update/delete with the chainable
+// @axiom/db mock (same pattern as egress.test.ts). Validation errors and
+// missing-org 401s are exercised directly; CRUD paths exercise the mocked
+// transaction chain.
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
+import { mockState, mockDbFactory } from './test-utils.js';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+vi.mock('@axiom/db', () => mockDbFactory({ modelProfile: {} }));
 
-let router: any;
+import { modelsRouter } from './models.js';
 
-beforeAll(async () => {
-  const mod = await import('./models.js');
-  router = mod.modelsRouter;
-});
+const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 
-// Wrapper app that injects orgId (as real middleware would) so create handlers
-// can read it via c.get('orgId').
-function appWithOrg(orgId: string) {
+function appWithOrg(orgId: string | null) {
   const app = new Hono<AppBindings>();
   app.use('*', async (c, next) => {
-    c.set('orgId', orgId);
+    if (orgId) c.set('orgId', orgId);
+    c.set('userId', 'user-1');
     await next();
   });
-  app.route('/', router);
+  app.route('/', modelsRouter);
   return app;
 }
 
+beforeEach(() => {
+  mockState.result = [];
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
 describe('GET / — list models', () => {
-  it('returns an empty list with meta', async () => {
-    const res = await router.request('/');
+  it('returns rows from the org-scoped query', async () => {
+    mockState.result = [
+      { id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna Vex', handle: 'lunavex', isActive: true },
+    ];
+    const res = await appWithOrg(ORG_ID).request('/');
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body).toEqual({ data: [], meta: { total: 0 } });
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].displayName).toBe('Luna Vex');
+    expect(body.meta.total).toBe(1);
+  });
+
+  it('returns an empty list when the org has no models', async () => {
+    const res = await appWithOrg(ORG_ID).request('/');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.data).toEqual([]);
+    expect(body.meta.total).toBe(0);
+  });
+
+  it('rejects a request without org context (401)', async () => {
+    const res = await appWithOrg(null).request('/');
+    expect(res.status).toBe(401);
   });
 });
 
 describe('GET /:id — get single model', () => {
-  it('returns null data for any id', async () => {
-    const res = await router.request('/model-123');
+  it('returns the model when found in the org', async () => {
+    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna Vex', handle: 'lunavex' }];
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body).toEqual({ data: null });
+    expect(body.data.id).toBe(MODEL_ID);
+  });
+
+  it('returns 404 when the model is not in the org', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}`);
+    expect(res.status).toBe(404);
   });
 });
 
 describe('POST / — create model', () => {
-  it('creates a model with id, echoed body and orgId', async () => {
-    const res = await appWithOrg('org-abc').request('/', {
+  it('creates a model with orgId and audits the create', async () => {
+    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna Vex', handle: 'lunavex' }];
+    const res = await appWithOrg(ORG_ID).request('/', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ displayName: 'Luna Vex', handle: 'lunavex', bio: 'alt model' }),
     });
     expect(res.status).toBe(201);
     const body = (await res.json()) as any;
-    expect(body.data.id).toMatch(UUID_RE);
-    expect(body.data.displayName).toBe('Luna Vex');
-    expect(body.data.handle).toBe('lunavex');
-    expect(body.data.bio).toBe('alt model');
-    expect(body.data.orgId).toBe('org-abc');
-  });
-
-  it('accepts a model without an optional bio', async () => {
-    const res = await appWithOrg('org-abc').request('/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ displayName: 'No Bio', handle: 'nobio' }),
-    });
-    expect(res.status).toBe(201);
-    const body = (await res.json()) as any;
-    expect(body.data.displayName).toBe('No Bio');
-    expect(body.data.bio).toBeUndefined();
+    expect(body.data.id).toBe(MODEL_ID);
+    expect(body.data.orgId).toBe(ORG_ID);
   });
 
   it('rejects a missing displayName', async () => {
-    const res = await router.request('/', {
+    const res = await appWithOrg(ORG_ID).request('/', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ handle: 'nohandle' }),
@@ -82,7 +102,7 @@ describe('POST / — create model', () => {
   });
 
   it('rejects an empty handle', async () => {
-    const res = await router.request('/', {
+    const res = await appWithOrg(ORG_ID).request('/', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ displayName: 'X', handle: '' }),
@@ -91,7 +111,7 @@ describe('POST / — create model', () => {
   });
 
   it('rejects a displayName longer than 100 chars', async () => {
-    const res = await router.request('/', {
+    const res = await appWithOrg(ORG_ID).request('/', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ displayName: 'x'.repeat(101), handle: 'h' }),
@@ -100,7 +120,7 @@ describe('POST / — create model', () => {
   });
 
   it('rejects a bio longer than 500 chars', async () => {
-    const res = await router.request('/', {
+    const res = await appWithOrg(ORG_ID).request('/', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ displayName: 'X', handle: 'h', bio: 'y'.repeat(501) }),
@@ -109,7 +129,7 @@ describe('POST / — create model', () => {
   });
 
   it('rejects invalid JSON body', async () => {
-    const res = await router.request('/', {
+    const res = await appWithOrg(ORG_ID).request('/', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: '{not-json',
@@ -119,56 +139,49 @@ describe('POST / — create model', () => {
 });
 
 describe('PATCH /:id — update model', () => {
-  it('updates fields and echoes them with the id', async () => {
-    const res = await router.request('/model-1', {
+  it('updates fields and returns the updated row', async () => {
+    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'New Name', handle: 'lunavex' }];
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ displayName: 'New Name', avatarUrl: 'https://cdn.example.com/a.png' }),
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.data).toEqual({
-      id: 'model-1',
-      displayName: 'New Name',
-      avatarUrl: 'https://cdn.example.com/a.png',
-    });
+    expect(body.data.displayName).toBe('New Name');
   });
 
-  it('accepts an empty update (all fields optional) and returns only the id', async () => {
-    const res = await router.request('/model-1', {
+  it('returns 404 when the model is not in the org', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ displayName: 'X' }),
     });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as any;
-    expect(body.data).toEqual({ id: 'model-1' });
+    expect(res.status).toBe(404);
   });
 
   it('rejects an invalid avatarUrl', async () => {
-    const res = await router.request('/model-1', {
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ avatarUrl: 'not-a-url' }),
     });
     expect(res.status).toBe(400);
   });
-
-  it('rejects an over-long displayName', async () => {
-    const res = await router.request('/model-1', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ displayName: 'x'.repeat(101) }),
-    });
-    expect(res.status).toBe(400);
-  });
 });
 
 describe('DELETE /:id — delete model', () => {
-  it('returns success for any id', async () => {
-    const res = await router.request('/model-1', { method: 'DELETE' });
+  it('soft-deletes and returns success', async () => {
+    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, isActive: false }];
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}`, { method: 'DELETE' });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body).toEqual({ success: true });
+    expect(body.success).toBe(true);
+    expect(body.data.isActive).toBe(false);
+  });
+
+  it('returns 404 when the model is not in the org', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}`, { method: 'DELETE' });
+    expect(res.status).toBe(404);
   });
 });

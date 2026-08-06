@@ -24,6 +24,7 @@
     "@axiom/core": "workspace:*",
     "@axiom/db": "workspace:*",
     "@axiom/llm-gateway": "workspace:*",
+    "@axiom/fanvue-mcp": "workspace:*",
     "@axiom/relay": "workspace:^",
     "@hono/zod-validator": "^0.4.0",
     "drizzle-orm": "^0.45.2",
