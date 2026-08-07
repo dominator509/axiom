@@ -7,8 +7,8 @@ output** (systemctl, psql against live axiom_dev, grep, tsc, vitest, cargo). Sub
 findings were treated as leads, not facts.
 
 Gate state: `preflight: ok`, `graph-next: ALL_DONE`, `verify: ok`.
-Test totals (all run fresh): 1229 vitest + 32 cargo = 1261 green. All 6 systemd units
-exist; 5 active, 1 inactive (axiom-worker).
+Test totals (all run fresh): 1250 vitest + 64 cargo = 1314 green. All 6 systemd units
+exist and are active (axiom-worker enabled+started as part of H-1).
 
 ---
 
@@ -59,12 +59,29 @@ loop, link-bio mount, egress + planes as services) are verified real.
 - **Fix:** Execute approve/revise/reject/hold against `content_bundle`/`post_target`
   through drizzle, keep signed-command validation.
 
-### H-4. Cursor pagination is spec-only — zero endpoints implement it (L3.0)
+### H-4. Cursor pagination is spec-only — zero endpoints implement it (L3.0) — **FIXED + VERIFIED**
 - **Evidence (parent-verified):** `parseCursor`/`next_cursor`/`CursorPage` defined in
   `packages/api/src/contract.ts:223-237`, **0 usages** in any route file. List routes use
   `limit`/`offset` (models.ts:35-36, bundles.ts:194, fans.ts:49, audit.ts:17,
   incidents.ts:17, viral.ts:17).
-- **Fix:** Wire cursor pagination on list endpoints per L3.0.
+- **Fix (d36d4b6):** Real keyset cursor wired into all list endpoints — models (ASC
+  createdAt+id), bundles (DESC createdAt+id), fans (DESC lifetime_value_usd+id),
+  incidents (DESC created_at+id), audit (DESC ts+id), viral top (DESC perf_score+id).
+  contract.ts: `sql` imported as value (was type-only — latent runtime ReferenceError),
+  `CursorColumn = AnyPgColumn | SQL`, encodeCursor normalizes numeric sort values to
+  strings. contract.test.ts added: round-trip string/number/Date, garbage tolerance,
+  limit clamping, SQL predicate rendering, next_cursor logic (M-3 closed for cursors).
+- **Live bug found during verification (2429734):** E2E walk of /models?limit=2
+  produced duplicate rows — PG stores microsecond timestamps (.357238) while JS Date
+  truncates to ms (.357Z), so the boundary row satisfied `created_at > cursor` and was
+  re-fetched. Fixed via migration 0008: keyset-sort timestamp columns
+  (model_profile.created_at, content_bundle.created_at, job.created_at, audit_log.ts)
+  ALTERed to `timestamp(3) with time zone`; drizzle schemas aligned with precision:3;
+  regression test asserts the encoded boundary cursor decodes exactly and does not
+  satisfy its own ASC predicate.
+- **Verification:** api 207/207, db 122/122; **live E2E against running API +
+  real Postgres**: signed-in session, 15 models created, 8-page walk at limit=2,
+  zero overlap, `next_cursor` terminates null. Test artifacts cleaned from DB.
 
 ### H-5. post_target lacks UNIQUE(org_id, idem_key) — double-publish not structurally impossible
 - **Spec:** L3.1 §11 (idem_key bytea NOT NULL + UNIQUE(org_id, idem_key)); LBI-05
@@ -189,13 +206,13 @@ loop, link-bio mount, egress + planes as services) are verified real.
 
 ## GAP FIX ORDER (parent protocol: one at a time, fix → verify → report → commit)
 
-1. H-1 worker service enable+start (operational, unblocks queue drain)
-2. H-5 migration 0005: post_target UNIQUE + asset sha256 (+ relay_card alignment)
-3. H-3 relay command execution → DB state
-4. H-2 MCP server: real tools + mount /api/mcp
-5. H-8 exemplar injection into generate S2
-6. H-4 cursor pagination on list routes
-7. M-3 contract.test.ts
+1. ✅ H-1 worker service enable+start (operational, unblocks queue drain) — `076785f`
+2. ✅ H-5 migration 0005: post_target UNIQUE + asset sha256 (+ relay_card alignment) — `2f453b9`
+3. ✅ H-3 relay command execution → DB state — `d4535da`
+4. ✅ H-2 MCP server: real tools + mount /api/mcp — `0d2ed45`
+5. ✅ H-8 exemplar injection into generate S2 — `fd8c0f1`
+6. ✅ H-4 cursor pagination on list routes (+ ms-precision keyset fix) — `d36d4b6`, `2429734`
+7. M-3 contract.test.ts (cursor primitives covered; broader middleware tests remain)
 8. M-5 mount or prune @axiom/link-bio package
 9. M-7 reconcile relay in-memory loop vs DB path
 10. M-1 route errors → problem+json
