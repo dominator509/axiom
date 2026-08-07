@@ -518,6 +518,13 @@ describe('asset table', () => {
     expect(cols.storageKey.notNull).toBe(true);
   });
 
+  it('requires sha256 and kind per L3.1 §11 (content-addressed dedupe)', () => {
+    const cols = columnsOf(asset);
+    expect(cols.sha256.notNull).toBe(true);
+    expect(cols.kind.notNull).toBe(true);
+    expect(cols.nsfwRating.notNull).toBe(false);
+  });
+
   it('width/height/duration are optional integers', () => {
     const cols = columnsOf(asset);
     expect(cols.width.notNull).toBe(false);
@@ -583,12 +590,12 @@ describe('post_target table', () => {
     expect(tableName(fk!.foreignTable)).toBe('content_bundle');
   });
 
-  it('connection_id is optional; error/remote_id/idem_key are optional', () => {
+  it('connection_id is optional; idem_key required per L3.1 §11 (LBI-05)', () => {
     const cols = columnsOf(postTarget);
     expect(cols.connectionId.notNull).toBe(false);
     expect(cols.remoteId.notNull).toBe(false);
     expect(cols.error.notNull).toBe(false);
-    expect(cols.idemKey.notNull).toBe(false);
+    expect(cols.idemKey.notNull).toBe(true);
     expect(cols.idemKey.dataType).toBe('custom');
   });
 
@@ -609,6 +616,15 @@ describe('relay_card table', () => {
     expect(cols.priority.default).toBe(0);
     expect(cols.priority.dataType).toBe('number');
     expect(cols.config.default).toEqual({});
+  });
+
+  it('has L3.1 §5 dispatch-log columns (bundle_id/channel/external_ref/state)', () => {
+    const cols = columnsOf(relayCard);
+    expect(cols.bundleId).toBeDefined();
+    expect(cols.channel).toBeDefined();
+    expect(cols.externalRef).toBeDefined();
+    expect(cols.state.notNull).toBe(true);
+    expect(cols.state.default).toBe('sent');
   });
 
   it('relates to org (one) and commands (many)', () => {
