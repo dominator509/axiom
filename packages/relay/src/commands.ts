@@ -9,6 +9,17 @@ export interface CommandResult {
   error?: string;
 }
 
+/**
+ * Executes a verified relay command against domain state. Injected by the
+ * API layer (which owns the DB); the relay package stays persistence-free.
+ * Returns an optional result note. Throwing marks the command failed.
+ */
+export type CommandExecutor = (
+  action: CardAction,
+  cardId: string,
+  params: Record<string, unknown>,
+) => Promise<string | void>;
+
 interface NonceEntry {
   nonce: string;
   expiresAt: number;
@@ -19,10 +30,12 @@ export class CommandRouter {
   private nonces: Map<string, NonceEntry> = new Map();
   private ttlMs: number;
   private auditLog: CommandResult[] = [];
+  private executor?: CommandExecutor;
 
-  constructor(secret: string, ttlMinutes: number = 5) {
+  constructor(secret: string, ttlMinutes: number = 5, executor?: CommandExecutor) {
     this.secret = Buffer.from(secret, 'utf-8');
     this.ttlMs = ttlMinutes * 60 * 1000;
+    this.executor = executor;
   }
 
   generateNonce(): string {
@@ -76,7 +89,7 @@ export class CommandRouter {
   async processCommand(
     cardId: string,
     action: CardAction,
-    _params: Record<string, unknown> = {},
+    params: Record<string, unknown> = {},
   ): Promise<CommandResult> {
     const result: CommandResult = {
       success: true,
@@ -86,9 +99,15 @@ export class CommandRouter {
     };
 
     try {
-      // This would update content_bundle state in the DB
-      // For now we log the command
-      this.auditLog.push(result);
+      if (this.executor) {
+        const note = await this.executor(action, cardId, params);
+        result.error = note ?? undefined;
+      } else {
+        // No executor injected (e.g. unit tests): record the command in the
+        // in-memory audit log. Production wiring always injects the DB
+        // executor (see packages/api/src/index.ts initRelay).
+        this.auditLog.push(result);
+      }
     } catch (err) {
       result.success = false;
       result.error = err instanceof Error ? err.message : String(err);

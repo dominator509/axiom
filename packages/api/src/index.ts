@@ -22,8 +22,85 @@ import { threadsAuthRouter } from './routes/threads-auth.js';
 import { auth, requireAuth } from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { registerConnectors } from '@axiom/worker';
-import { DiscordAdapter, ThreadsAdapter, createRelayRoutes, CardRenderer, CommandRouter, ViralLoop, Bandit, IncidentManager, HealthCheckRegistry } from '@axiom/relay';
+import { DiscordAdapter, ThreadsAdapter, createRelayRoutes, CardRenderer, CommandRouter, ViralLoop, Bandit, IncidentManager, HealthCheckRegistry, type CardAction } from '@axiom/relay';
 import { correlationId, onError, idempotency, rateLimit } from './contract.js';
+import { schema } from '@axiom/db';
+import { sql, eq } from 'drizzle-orm';
+import { withOrgContext, writeAudit } from './routes/helpers.js';
+
+/**
+ * Executes a verified relay command against real domain state (H-3).
+ * The relay package stays persistence-free; this injection lives here because
+ * the API process owns @axiom/db. Org context is resolved from the card row
+ * (signed commands carry no session — the HMAC is the auth, LBI-04/F-70).
+ */
+async function relayCommandExecutor(
+  action: CardAction,
+  cardId: string,
+  params: Record<string, unknown>,
+): Promise<string | void> {
+  const card = await withOrgContext('00000000-0000-0000-0000-000000000000', async (tx) => {
+    // Resolve the card via SECURITY DEFINER resolver (migration 0006) — the
+    // signed command carries no session, so the card's org is unknown until
+    // here; RLS FORCE would block a plain cross-org SELECT (LBI-02).
+    const rows = await tx.execute(sql`SELECT * FROM resolve_relay_card(${cardId})`);
+    const res = (rows?.rows ?? []) as Array<{ org_id: string; bundle_id: string | null }>;
+    return res[0] ?? null;
+  });
+  if (!card) throw new Error(`relay command: card ${cardId} not found`);
+  const orgId = card.org_id as string;
+  const bundleId = card.bundle_id as string | null;
+
+  return withOrgContext(orgId, async (tx) => {
+    let note: string | undefined;
+
+    // Transition the bundle state per action (mirrors bundles.ts state machine).
+    if (bundleId) {
+      const bundle = await tx
+        .select({ id: schema.contentBundle.id })
+        .from(schema.contentBundle)
+        .where(eq(schema.contentBundle.id, bundleId))
+        .limit(1);
+      if (bundle.length === 0) throw new Error(`relay command: bundle ${bundleId} not found`);
+
+      const stateByAction: Partial<Record<CardAction, string>> = {
+        approve: 'approved',
+        approve_all: 'approved',
+        reject: 'rejected',
+        hold: 'hold',
+        revise: 'generated',
+        regenerate: 'generated',
+      };
+      const nextState = stateByAction[action];
+      if (nextState) {
+        await tx
+          .update(schema.contentBundle)
+          .set({ state: nextState, updatedAt: new Date() })
+          .where(eq(schema.contentBundle.id, bundleId));
+        note = `bundle ${bundleId} → ${nextState}`;
+      }
+    }
+
+    // Persist the command (relay_command row) for auditability (L2.7).
+    await tx.insert(schema.relayCommand).values({
+      orgId,
+      cardId,
+      trigger: 'relay',
+      action,
+      params,
+      enabled: true,
+    });
+
+    // Append to the hash-chained audit log (LBI-08).
+    await writeAudit(tx, orgId, 'relay', `relay.command.${action}`, cardId, {
+      action,
+      params,
+      note,
+    });
+
+    return note;
+  });
+}
 
 // Register the real platform connectors into the shared registry so API-side
 // connector lookups (social-accounts capabilities, validate-for-platform, etc.)
@@ -117,7 +194,11 @@ console.log('LLM gateway routes mounted');
 
 export async function initRelay(): Promise<Hono> {
   const cardRenderer = new CardRenderer();
-  const commandRouter = new CommandRouter(process.env.RELAY_SECRET || 'axiom-dev-secret');
+  const commandRouter = new CommandRouter(
+    process.env.RELAY_SECRET || 'axiom-dev-secret',
+    5,
+    relayCommandExecutor,
+  );
   const viralLoop = new ViralLoop();
   const bandit = new Bandit();
   const incidentManager = new IncidentManager();

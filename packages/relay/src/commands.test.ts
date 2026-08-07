@@ -154,3 +154,29 @@ describe('processCommand / getAuditLog', () => {
     expect(log.map((r) => r.action)).toEqual(actions);
   });
 });
+
+describe('processCommand with injected executor (H-3 DB wiring)', () => {
+  it('invokes the executor and surfaces its result note', async () => {
+    const executor = vi.fn().mockResolvedValue('bundle abc123 → approved');
+    const r = new CommandRouter('secret', 5, executor);
+    const result = await r.processCommand('card-1', 'approve', { note: 'ok' });
+    expect(executor).toHaveBeenCalledWith('approve', 'card-1', { note: 'ok' });
+    expect(result.success).toBe(true);
+    expect(result.error).toBe('bundle abc123 → approved');
+  });
+
+  it('marks the command failed when the executor throws', async () => {
+    const executor = vi.fn().mockRejectedValue(new Error('bundle not found'));
+    const r = new CommandRouter('secret', 5, executor);
+    const result = await r.processCommand('card-2', 'reject', {});
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('bundle not found');
+  });
+
+  it('does not write the in-memory audit log when an executor is present', async () => {
+    const executor = vi.fn().mockResolvedValue(undefined);
+    const r = new CommandRouter('secret', 5, executor);
+    await r.processCommand('card-3', 'hold', {});
+    expect(r.getAuditLog()).toHaveLength(0);
+  });
+});
