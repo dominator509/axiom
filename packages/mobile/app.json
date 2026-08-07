@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "AXIOM",
+    "slug": "axiom-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    }
+  }
+}
