@@ -136,6 +136,11 @@ loop, link-bio mount, egress + planes as services) are verified real.
   with REST calls (/upload). Standalone `FanvueMcpClient` (fanvue-mcp/client.ts) is
   proper JSON-RPC but the worker publish path uses the REST connector. Not fabricated —
   inconsistent surface.
+- **RESOLVED 2026-08-07**: connector retargeted to the REAL `api.fanvue.com` REST API
+  (v2025-06-26, X-Fanvue-API-Version header) with documented multipart upload + create-post
+  flow; the separate `FanvueMcpClient` remains the MCP tool surface (distinct, legit).
+  Worker env wiring fixed (FANVUE_MCP_TOKEN → FANVUE_ACCESS_TOKEN etc.). See LEDGER
+  2026-08-07T06:32:00Z.
 
 ### M-5. @axiom/link-bio package is dead code
 - 0 imports of `@axiom/link-bio` anywhere (parent-verified grep of package.json). API

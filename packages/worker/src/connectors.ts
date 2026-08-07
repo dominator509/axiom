@@ -31,7 +31,11 @@ export interface ConnectorEnv {
   DISCORD_BOT_TOKEN?: string;
   TELEGRAM_BOT_TOKEN?: string;
   SNAPCHAT_ACCESS_TOKEN?: string;
-  FANVUE_MCP_TOKEN?: string;
+  FANVUE_ACCESS_TOKEN?: string;
+  FANVUE_REFRESH_TOKEN?: string;
+  FANVUE_CLIENT_ID?: string;
+  FANVUE_CLIENT_SECRET?: string;
+  FANVUE_TOKEN_EXPIRES_AT?: string;
   FANVUE_MODEL_ID?: string;
 }
 
@@ -48,5 +52,14 @@ export function registerConnectors(env: ConnectorEnv = process.env as ConnectorE
   register(new DiscordConnector({ accessToken: token(env.DISCORD_BOT_TOKEN) }));
   register(new TelegramConnector({ accessToken: token(env.TELEGRAM_BOT_TOKEN) }));
   register(new SnapchatConnector({ accessToken: token(env.SNAPCHAT_ACCESS_TOKEN) }));
-  register(new FanvueConnector({ accessToken: token(env.FANVUE_MCP_TOKEN), externalUserId: env.FANVUE_MODEL_ID }));
+  register(new FanvueConnector({
+    accessToken: token(env.FANVUE_ACCESS_TOKEN),
+    refreshToken: env.FANVUE_REFRESH_TOKEN || undefined,
+    expiresAt: env.FANVUE_TOKEN_EXPIRES_AT ? new Date(env.FANVUE_TOKEN_EXPIRES_AT).getTime() / 1000 : undefined,
+    externalUserId: env.FANVUE_MODEL_ID,
+    extra: {
+      clientId: env.FANVUE_CLIENT_ID || undefined,
+      clientSecret: env.FANVUE_CLIENT_SECRET || undefined,
+    },
+  }));
 }

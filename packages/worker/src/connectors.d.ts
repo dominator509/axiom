@@ -9,7 +9,11 @@ export interface ConnectorEnv {
     DISCORD_BOT_TOKEN?: string;
     TELEGRAM_BOT_TOKEN?: string;
     SNAPCHAT_ACCESS_TOKEN?: string;
-    FANVUE_MCP_TOKEN?: string;
+    FANVUE_ACCESS_TOKEN?: string;
+    FANVUE_REFRESH_TOKEN?: string;
+    FANVUE_CLIENT_ID?: string;
+    FANVUE_CLIENT_SECRET?: string;
+    FANVUE_TOKEN_EXPIRES_AT?: string;
     FANVUE_MODEL_ID?: string;
 }
 /** Register every real connector; a missing token is a valid (closed) state. */

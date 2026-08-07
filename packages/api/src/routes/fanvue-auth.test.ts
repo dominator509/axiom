@@ -3,7 +3,7 @@
 // token exchange, one-time state usage, and .env token persistence.
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
-import { mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -14,6 +14,7 @@ const envFile = join(envDir, '.env');
 process.env.FANVUE_CLIENT_ID = 'test-client-id';
 process.env.FANVUE_CLIENT_SECRET = 'test-client-secret';
 process.env.FANVUE_REDIRECT_URI = 'https://callback.example.test/api/v1/connectors/fanvue/callback';
+process.env.FANVUE_REFRESH_TOKEN = 'ory_rt_test_refresh';
 process.env.AXIOM_ENV_FILE = envFile;
 
 // Router must be imported dynamically so the env above is visible at module load.
@@ -174,5 +175,78 @@ describe('state is one-time use', () => {
     expect(body.detail).toContain('CSRF');
 
     vi.unstubAllGlobals();
+  });
+});
+
+describe('POST /refresh', () => {
+  /** Seed the canonical env file with a refresh token (route reads the file). */
+  function seedRefreshToken(value: string): void {
+    const lines = readFileSync(envFile, 'utf8').split('\n');
+    const idx = lines.findIndex((l) => l.startsWith('FANVUE_REFRESH_TOKEN='));
+    if (idx >= 0) lines[idx] = `FANVUE_REFRESH_TOKEN=${value}`;
+    else lines.push(`FANVUE_REFRESH_TOKEN=${value}`);
+    writeFileSync(envFile, lines.join('\n'), { mode: 0o600 });
+  }
+
+  it('exchanges the stored refresh token with client_secret_basic and persists', async () => {
+    seedRefreshToken('ory_rt_test_refresh');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ access_token: 'fresh-token-abc123', refresh_token: 'new-rt', expires_in: 3600 }),
+    }));
+
+    const res = await router.request('/refresh', { method: 'POST' });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.tokenPreview).toBe('fresh-token-...');
+    expect(JSON.stringify(body)).not.toContain('fresh-token-abc123');
+
+    const fetchMock = vi.mocked(fetch);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://auth.fanvue.com/oauth2/token');
+    const form = new URLSearchParams((init.body as URLSearchParams).toString());
+    expect(form.get('grant_type')).toBe('refresh_token');
+    expect(form.get('refresh_token')).toBe('ory_rt_test_refresh');
+    expect(init.headers.Authorization).toMatch(/^Basic /);
+
+    // Rotated tokens persisted to the env file (rotation-safe).
+    const env = readFileSync(envFile, 'utf8');
+    expect(env).toContain('FANVUE_ACCESS_TOKEN=fresh-token-abc123');
+    expect(env).toContain('FANVUE_REFRESH_TOKEN=new-rt');
+
+    vi.unstubAllGlobals();
+  });
+
+  it('returns 400 when the refresh grant fails', async () => {
+    seedRefreshToken('ory_rt_test_refresh');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'invalid_grant', error_description: 'Refresh token revoked' }),
+    }));
+
+    const res = await router.request('/refresh', { method: 'POST' });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.detail).toBe('Token refresh failed');
+    expect(body.token_response.error).toBe('invalid_grant');
+
+    vi.unstubAllGlobals();
+  });
+
+  it('rejects when no refresh token is stored in the env file', async () => {
+    // Ensure the file has NO refresh token for this test.
+    const before = readFileSync(envFile, 'utf8');
+    const cleaned = before.split('\n').filter((l) => !l.startsWith('FANVUE_REFRESH_TOKEN=')).join('\n');
+    writeFileSync(envFile, cleaned, { mode: 0o600 });
+    try {
+      const res = await router.request('/refresh', { method: 'POST' });
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.detail).toContain('No refresh token stored');
+    } finally {
+      writeFileSync(envFile, before, { mode: 0o600 });
+    }
   });
 });

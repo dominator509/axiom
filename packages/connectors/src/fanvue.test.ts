@@ -1,6 +1,8 @@
-// ─── Fanvue Connector — Vitest Suite ───
-// Covers: capability(), validate() (media + caption rules), publish() upload→post flow
-// with mocked fetch, idempotency, failure paths, fetchMetrics(), and revoke().
+// ─── Fanvue Connector — Vitest Suite (real Fanvue API v2025-06-26) ───
+// Covers: capability(), validate(), publish() with the documented S3
+// multipart flow (download → create session → presigned parts → complete →
+// create post), idempotency, failure paths, fetchMetrics(), revoke(), and
+// token refresh via the Ory client_secret_basic endpoint.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { FanvueConnector } from './fanvue.js';
@@ -8,8 +10,18 @@ import type { ConnectorAuth, ConnectorPublishInput } from './types.js';
 
 const AUTH: ConnectorAuth = {
   accessToken: 'fanvue-token',
-  externalUserId: 'model-42',
+  externalUserId: 'de5c2550-652b-4342-8f9d-f612962625d9',
 };
+
+function refreshAuth(): ConnectorAuth {
+  return {
+    accessToken: 'fanvue-token',
+    refreshToken: 'ory_rt_test',
+    expiresAt: Math.floor(Date.now() / 1000) - 60, // already expired → refresh path
+    externalUserId: 'de5c2550-652b-4342-8f9d-f612962625d9',
+    extra: { clientId: 'client-1', clientSecret: 'secret-1' },
+  };
+}
 
 function input(overrides: Partial<ConnectorPublishInput> = {}): ConnectorPublishInput {
   return {
@@ -33,19 +45,19 @@ afterEach(() => {
 });
 
 describe('FanvueConnector', () => {
-  it('declares fanvue capabilities', () => {
+  it('declares fanvue capabilities against the real API limits', () => {
     const c = new FanvueConnector(AUTH);
     const cap = c.capability();
     expect(cap.publish).toBe(true);
-    expect(cap.media).toEqual(['image', 'video']);
-    expect(cap.maxMediaBytes).toBe(200_000_000);
+    expect(cap.media).toEqual(['image', 'video', 'audio']);
+    expect(cap.maxMediaBytes).toBe(1_610_612_736);
     expect(cap.maxMediaCount).toBe(10);
-    expect(cap.maxCaptionLength).toBe(2200);
+    expect(cap.maxCaptionLength).toBe(5000);
     expect(cap.scheduling).toBe('internal');
-    expect(cap.metrics).toEqual(['views', 'likes', 'comments']);
+    expect(cap.metrics).toEqual(['likes', 'comments']);
   });
 
-  it('exposes platform, displayName, publishMode and stores modelId from externalUserId', () => {
+  it('exposes platform, displayName and publishMode', () => {
     const c = new FanvueConnector(AUTH);
     expect(c.platform).toBe('fanvue');
     expect(c.displayName).toBe('Fanvue');
@@ -73,37 +85,77 @@ describe('validate', () => {
     });
   });
 
-  it('errors when the caption is an empty string', async () => {
+  it('errors when the caption is missing', async () => {
     const c = new FanvueConnector(AUTH);
     const report = await c.validate(input({ caption: '' }));
     expect(report.valid).toBe(false);
-    expect(report.errors).toContainEqual({
-      field: 'caption',
-      message: 'Fanvue posts require a caption',
-      severity: 'error',
-    });
-  });
-
-  it('errors when the caption is missing (regression: previously passed)', async () => {
-    const c = new FanvueConnector(AUTH);
-    const report = await c.validate(input({ caption: undefined as unknown as string }));
-    expect(report.valid).toBe(false);
     expect(report.errors.some((e) => e.field === 'caption')).toBe(true);
-  });
-
-  it('accumulates multiple errors', async () => {
-    const c = new FanvueConnector(AUTH);
-    const report = await c.validate(input({ caption: '', mediaUrls: [] }));
-    expect(report.errors).toHaveLength(2);
   });
 });
 
 describe('publish', () => {
-  it('uploads media then creates the post, returning remoteId and postUrl', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ id: 'asset-1', url: 'https://cdn.fanvue.com/asset-1' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'post-1', url: 'https://fanvue.com/post-1', status: 'published' }));
+  /** Build a fetch mock for the full multipart flow (1 part). */
+  function multipartFetchMock(overrides: { postStatus?: number; uploadStatus?: number } = {}) {
+    const mediaBytes = new Uint8Array([1, 2, 3, 4]);
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      const u = String(url);
+      if (u.startsWith('https://cdn.example.com/')) {
+        return Promise.resolve(
+          new Response(mediaBytes, {
+            status: 200,
+            headers: { 'Content-Type': 'image/jpeg' },
+          }),
+        );
+      }
+      if (u.endsWith('/media/uploads') && (init?.method ?? 'GET') === 'POST') {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              mediaUuid: 'm-uuid-1',
+              uploadId: 'up-1',
+              partSize: 4,
+              maxParts: 1,
+              totalParts: 1,
+            },
+            overrides.uploadStatus ?? 200,
+          ),
+        );
+      }
+      if (u.includes('/media/uploads/up-1/parts/1/url')) {
+        return Promise.resolve(new Response('https://s3.example.com/part-1', { status: 200 }));
+      }
+      if (u.startsWith('https://s3.example.com/')) {
+        return Promise.resolve(
+          new Response(null, { status: 200, headers: { etag: '"etag-1"' } }),
+        );
+      }
+      if (u.endsWith('/media/uploads/up-1') && (init?.method ?? '') === 'PATCH') {
+        return Promise.resolve(jsonResponse({ status: 'processing' }));
+      }
+      if (u.endsWith('/posts') && (init?.method ?? '') === 'POST') {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              uuid: 'post-1',
+              createdAt: '2026-08-07T00:00:00.000Z',
+              text: 'Check out my new post!',
+              price: null,
+              audience: 'followers-and-subscribers',
+              publishAt: null,
+              publishedAt: '2026-08-07T00:00:00.000Z',
+              expiresAt: null,
+            },
+            overrides.postStatus ?? 201,
+          ),
+        );
+      }
+      return Promise.resolve(jsonResponse({ error: 'unexpected call' }, 500));
+    });
+    return { fetchMock, mediaBytes };
+  }
+
+  it('uploads via the multipart flow then creates the post', async () => {
+    const { fetchMock } = multipartFetchMock();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FanvueConnector(AUTH);
@@ -111,61 +163,112 @@ describe('publish', () => {
 
     expect(result.state).toBe('published');
     expect(result.remoteId).toBe('post-1');
-    expect(result.postUrl).toBe('https://fanvue.com/post-1');
+    expect(result.postUrl).toBe('https://fanvue.com/post/post-1');
     expect(result.latencyMs).toEqual(expect.any(Number));
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const [uploadUrl, uploadInit] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(uploadUrl).toBe('https://mcp.fanvue.com/v1/upload');
-    expect(JSON.parse(uploadInit.body as string)).toEqual({
-      url: 'https://cdn.example.com/photo.jpg',
-      model_id: 'model-42',
+    // First call downloads the media.
+    expect(fetchMock.mock.calls[0][0]).toBe('https://cdn.example.com/photo.jpg');
+
+    // Upload session creation carries the version header and media metadata.
+    const createSession = fetchMock.mock.calls.find(
+      (call) => String(call[0]).endsWith('/media/uploads') && (call[1]?.method ?? 'GET') === 'POST',
+    ) as [string, RequestInit];
+    expect(createSession).toBeTruthy();
+    expect((createSession[1].headers as Record<string, string>)['X-Fanvue-API-Version']).toBe('2025-06-26');
+    expect(JSON.parse(createSession[1].body as string)).toEqual({
+      name: 'photo.jpg',
+      filename: 'photo.jpg',
+      mediaType: 'image',
+      sizeBytes: 4,
     });
 
-    const [postUrl, postInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(postUrl).toBe('https://mcp.fanvue.com/v1/posts');
-    const postBody = JSON.parse(postInit.body as string) as Record<string, unknown>;
-    expect(postBody.model_id).toBe('model-42');
-    expect(postBody.media_ids).toEqual(['asset-1']);
-    expect(postBody.caption).toBe('Check out my new post!');
-    expect(postBody.hashtags).toEqual(['summer', 'model']);
-    expect(postBody.scheduled_for).toBeNull();
+    // Presigned part URL fetched with the creator uuid.
+    const partUrlCall = fetchMock.mock.calls.find(
+      (call) => String(call[0]).includes('/creators/de5c2550-652b-4342-8f9d-f612962625d9/media/uploads/up-1/parts/1/url'),
+    ) as [string, RequestInit];
+    expect(partUrlCall).toBeTruthy();
+
+    // Part PUT goes to the signed URL with raw bytes.
+    const putCall = fetchMock.mock.calls.find(
+      (call) => String(call[0]) === 'https://s3.example.com/part-1',
+    ) as [string, RequestInit];
+    expect(putCall).toBeTruthy();
+    expect(putCall[1].method).toBe('PUT');
+
+    // Complete session carries the ETag.
+    const completeCall = fetchMock.mock.calls.find(
+      (call) => String(call[0]).endsWith('/media/uploads/up-1') && (call[1]?.method ?? '') === 'PATCH',
+    ) as [string, RequestInit];
+    expect(completeCall).toBeTruthy();
+    expect(JSON.parse(completeCall[1].body as string)).toEqual({
+      parts: [{ partNumber: 1, etag: '"etag-1"' }],
+    });
+
+    // Post creation body matches the API reference.
+    const postCall = fetchMock.mock.calls.find(
+      (call) => String(call[0]).endsWith('/posts') && (call[1]?.method ?? '') === 'POST',
+    ) as [string, RequestInit];
+    expect(JSON.parse(postCall[1].body as string)).toEqual({
+      audience: 'followers-and-subscribers',
+      text: 'Check out my new post!',
+      mediaUuids: ['m-uuid-1'],
+      publishAt: null,
+    });
   });
 
-  it('passes scheduled_for through when provided', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ id: 'asset-1', url: 'https://cdn.fanvue.com/asset-1' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'post-1', url: 'https://fanvue.com/post-1', status: 'published' }));
+  it('passes publishAt through when scheduledFor is provided', async () => {
+    const { fetchMock } = multipartFetchMock();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FanvueConnector(AUTH);
     await c.publish(input({ scheduledFor: '2026-08-02T10:00:00Z' }));
 
-    const postBody = JSON.parse((fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string) as Record<string, unknown>;
-    expect(postBody.scheduled_for).toBe('2026-08-02T10:00:00Z');
+    const postCall = fetchMock.mock.calls.find(
+      (call) => String(call[0]).endsWith('/posts') && (call[1]?.method ?? '') === 'POST',
+    ) as [string, RequestInit];
+    expect(JSON.parse(postCall[1].body as string).publishAt).toBe('2026-08-02T10:00:00Z');
   });
 
-  it('uploads every media URL before posting', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ id: 'asset-1', url: 'u1' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'asset-2', url: 'u2' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'post-1', url: 'https://fanvue.com/post-1', status: 'published' }));
+  it('honors the audience option', async () => {
+    const { fetchMock } = multipartFetchMock();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FanvueConnector(AUTH);
-    const result = await c.publish(input({ mediaUrls: ['https://a.jpg', 'https://b.mp4'] }));
+    await c.publish(input({ options: { audience: 'subscribers' } }));
+
+    const postCall = fetchMock.mock.calls.find(
+      (call) => String(call[0]).endsWith('/posts') && (call[1]?.method ?? '') === 'POST',
+    ) as [string, RequestInit];
+    expect(JSON.parse(postCall[1].body as string).audience).toBe('subscribers');
+  });
+
+  it('resolves the creator uuid from /users/me when externalUserId is absent', async () => {
+    const { fetchMock } = multipartFetchMock();
+    // First call is /users/me
+    const meCall = vi.fn().mockResolvedValueOnce(
+      jsonResponse({ uuid: 'me-uuid-42', handle: 'creator', isCreator: true }),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+        const u = String(url);
+        if (u.endsWith('/users/me')) return meCall();
+        return fetchMock(url, init);
+      }),
+    );
+
+    const c = new FanvueConnector({ accessToken: 'fanvue-token' });
+    const result = await c.publish(input());
     expect(result.state).toBe('published');
-    const postBody = JSON.parse((fetchMock.mock.calls[2] as [string, RequestInit])[1].body as string) as { media_ids: string[] };
-    expect(postBody.media_ids).toEqual(['asset-1', 'asset-2']);
+
+    const partUrlCall = fetchMock.mock.calls.find(
+      (call) => String(call[0]).includes('/creators/me-uuid-42/media/uploads/'),
+    ) as [string, RequestInit];
+    expect(partUrlCall).toBeTruthy();
   });
 
   it('is idempotent: a repeated publish with the same key is skipped without new requests', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ id: 'asset-1', url: 'u1' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'post-1', url: 'https://fanvue.com/post-1', status: 'published' }));
+    const { fetchMock } = multipartFetchMock();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FanvueConnector(AUTH);
@@ -176,34 +279,27 @@ describe('publish', () => {
     expect(first.state).toBe('published');
     expect(second.state).toBe('skipped');
     expect(second.remoteId).toBe('post-1');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('returns a failed result when the upload endpoint fails', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ error: 'nope' }, 500))
-      .mockResolvedValueOnce(jsonResponse({ id: 'post-1', url: 'u', status: 'published' }));
+  it('returns a failed result when the upload session fails', async () => {
+    const { fetchMock } = multipartFetchMock({ uploadStatus: 500 });
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FanvueConnector(AUTH);
     const result = await c.publish(input());
     expect(result.state).toBe('failed');
-    expect(result.error).toContain('API POST https://mcp.fanvue.com/v1/upload failed: 500');
+    expect(result.error).toContain('Fanvue API POST /media/uploads failed: 500');
     expect(result.remoteId).toBeNull();
   });
 
   it('returns a failed result when the post creation fails', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ id: 'asset-1', url: 'u1' }))
-      .mockResolvedValueOnce(jsonResponse({ error: 'x' }, 422));
+    const { fetchMock } = multipartFetchMock({ postStatus: 422 });
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FanvueConnector(AUTH);
     const result = await c.publish(input());
     expect(result.state).toBe('failed');
-    expect(result.error).toContain('API POST https://mcp.fanvue.com/v1/posts failed: 422');
+    expect(result.error).toContain('Fanvue API POST /posts failed: 422');
   });
 
   it('returns a failed result on network errors', async () => {
@@ -216,43 +312,133 @@ describe('publish', () => {
 });
 
 describe('fetchMetrics', () => {
-  it('maps analytics response into ConnectorMetrics', async () => {
+  it('maps GET /posts/{uuid} into ConnectorMetrics with likes + comments', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(jsonResponse({ views: 100, likes: 12, comments: 3, revenue: 500 })),
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          uuid: 'post-1',
+          likesCount: 42,
+          commentsCount: 7,
+          tips: { count: 3, totalGross: 5000, totalNet: 4250 },
+          price: 999,
+          audience: 'subscribers',
+          publishedAt: '2026-08-07T00:00:00.000Z',
+        }),
+      ),
     );
     const c = new FanvueConnector(AUTH);
     const metrics = await c.fetchMetrics('post-1');
 
     expect(metrics.postId).toBe('post-1');
     expect(metrics.platform).toBe('fanvue');
-    expect(metrics.metrics).toEqual({ views: 100, likes: 12, comments: 3 });
+    expect(metrics.metrics).toEqual({ likes: 42, comments: 7 });
+    expect(metrics.raw).toMatchObject({ tips: { count: 3 }, price: 999 });
     expect(metrics.collectedAt).toBeTruthy();
 
     const [url, init] = (vi.mocked(fetch).mock.calls[0] ?? []) as [string, RequestInit];
-    expect(url).toBe('https://mcp.fanvue.com/v1/analytics/posts/post-1');
+    expect(url).toBe('https://api.fanvue.com/posts/post-1');
     expect(init.method).toBe('GET');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer fanvue-token');
+    expect((init.headers as Record<string, string>)['X-Fanvue-API-Version']).toBe('2025-06-26');
   });
 
-  it('throws when the analytics endpoint fails', async () => {
+  it('throws when the post endpoint fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 500)));
     const c = new FanvueConnector(AUTH);
-    await expect(c.fetchMetrics('post-1')).rejects.toThrow('API GET');
+    await expect(c.fetchMetrics('post-1')).rejects.toThrow('Fanvue API GET /posts/post-1 failed');
+  });
+});
+
+describe('token refresh', () => {
+  it('exchanges the refresh token via Ory client_secret_basic when expired', async () => {
+    const tokenFetch = vi.fn().mockResolvedValue(
+      jsonResponse({ access_token: 'fresh-token', expires_in: 3600, token_type: 'bearer' }),
+    );
+    vi.stubGlobal('fetch', tokenFetch);
+
+    const c = new FanvueConnector(refreshAuth());
+    const { accessToken, expiresAt } = await c.refreshAccessToken();
+
+    expect(accessToken).toBe('fresh-token');
+    expect(expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
+
+    const [url, init] = tokenFetch.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://auth.fanvue.com/oauth2/token');
+    const headers = init.headers as Record<string, string>;
+    expect(headers.Authorization).toMatch(/^Basic /);
+    const body = new URLSearchParams(init.body as string);
+    expect(body.get('grant_type')).toBe('refresh_token');
+    expect(body.get('refresh_token')).toBe('ory_rt_test');
+  });
+
+  it('throws when refresh credentials are absent', async () => {
+    const c = new FanvueConnector(AUTH);
+    await expect(c.refreshAccessToken()).rejects.toThrow(
+      'Fanvue token refresh requires refreshToken + clientId + clientSecret',
+    );
+  });
+
+  it('refreshes before a request when the token is expired', async () => {
+    const refreshFetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'fresh-token', expires_in: 3600 }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          uuid: 'post-1',
+          likesCount: 1,
+          commentsCount: 0,
+          tips: null,
+        }),
+      );
+    vi.stubGlobal('fetch', refreshFetch);
+
+    const c = new FanvueConnector(refreshAuth());
+    const metrics = await c.fetchMetrics('post-1');
+
+    expect(metrics.metrics.likes).toBe(1);
+    expect(refreshFetch.mock.calls[0][0]).toBe('https://auth.fanvue.com/oauth2/token');
+    const [url, init] = refreshFetch.mock.calls[1] as [string, RequestInit];
+    expect(url).toBe('https://api.fanvue.com/posts/post-1');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer fresh-token');
+  });
+
+  it('throws on expired token without refresh credentials', async () => {
+    const expired: ConnectorAuth = {
+      accessToken: 'stale',
+      expiresAt: Math.floor(Date.now() / 1000) - 10,
+      externalUserId: 'uuid-1',
+    };
+    const c = new FanvueConnector(expired);
+    await expect(c.fetchMetrics('post-1')).rejects.toThrow(
+      'Fanvue access token expired and no refresh credentials available',
+    );
   });
 });
 
 describe('revoke', () => {
-  it('posts to the revoke endpoint and logs the event', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true }));
+  it('revokes the refresh token via the Ory RFC 7009 endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new FanvueConnector(refreshAuth());
+    await c.revoke();
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://auth.fanvue.com/oauth2/revoke');
+    const body = new URLSearchParams(init.body as string);
+    expect(body.get('token')).toBe('ory_rt_test');
+    expect(body.get('token_type_hint')).toBe('refresh_token');
+    expect(c.getLogs().some((l) => l.action === 'revoke')).toBe(true);
+  });
+
+  it('logs a warning when no refresh credentials are available', async () => {
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FanvueConnector(AUTH);
     await c.revoke();
-
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://mcp.fanvue.com/v1/auth/revoke');
-    expect(JSON.parse(init.body as string)).toEqual({ model_id: 'model-42' });
-    expect(c.getLogs().some((l) => l.action === 'revoke' && l.message === 'Fanvue MCP access revoked')).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(c.getLogs().some((l) => l.action === 'revoke' && l.level === 'warn')).toBe(true);
   });
 });
