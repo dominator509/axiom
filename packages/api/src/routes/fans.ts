@@ -8,6 +8,7 @@ import { eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
 
@@ -40,25 +41,37 @@ const statusSchema = z.object({
   status: z.enum(['pending', 'filming', 'editing', 'delivered']),
 });
 
-// GET /models/:id/fans — fan CRM contacts
+// GET /models/:id/fans — fan CRM contacts (keyset cursor, DESC by LTV)
 router.get('/models/:modelId/fans', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
   const { modelId } = c.req.param();
   const tier = c.req.query('tier');
-  const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10) || 50, 200);
+  const { limit, cursor } = parseCursor(c);
 
   const rows = await withOrgContext(orgId, (tx) => {
-    const conds = [eq(schema.fanCrmContact.orgId, orgId), eq(schema.fanCrmContact.modelId, modelId)];
+    const conds = [
+      eq(schema.fanCrmContact.orgId, orgId),
+      eq(schema.fanCrmContact.modelId, modelId),
+      ...cursorLt(schema.fanCrmContact.lifetimeValueUsd, schema.fanCrmContact.id, cursor),
+    ];
     if (tier) conds.push(eq(schema.fanCrmContact.tier, tier));
     return tx
       .select()
       .from(schema.fanCrmContact)
       .where(and(...conds))
       .limit(limit)
-      .orderBy(desc(schema.fanCrmContact.lifetimeValueUsd));
+      .orderBy(desc(schema.fanCrmContact.lifetimeValueUsd), desc(schema.fanCrmContact.id));
   });
-  return c.json({ data: rows, meta: { total: rows.length } });
+  const last = rows[rows.length - 1];
+  return c.json({
+    data: rows,
+    meta: {
+      total: rows.length,
+      limit,
+      next_cursor: nextCursor(last?.lifetimeValueUsd, last?.id, limit, rows.length),
+    },
+  });
 });
 
 // POST /models/:id/fans — upsert a fan contact

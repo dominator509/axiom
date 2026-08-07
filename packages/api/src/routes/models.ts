@@ -9,6 +9,7 @@ import { sql, eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { parseCursor, cursorGt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
 
@@ -27,24 +28,34 @@ const updateModelSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-// GET /api/v1/models — list models scoped to the session org
+// GET /api/v1/models — list models scoped to the session org (keyset cursor)
 router.get('/', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
 
-  const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10) || 50, 200);
-  const offset = parseInt(c.req.query('offset') ?? '0', 10) || 0;
+  const { limit, cursor } = parseCursor(c);
 
-  const rows = await withOrgContext(orgId, (tx) =>
-    tx
+  const rows = await withOrgContext(orgId, (tx) => {
+    const conds = [
+      eq(schema.modelProfile.orgId, orgId),
+      ...cursorGt(schema.modelProfile.createdAt, schema.modelProfile.id, cursor),
+    ];
+    return tx
       .select()
       .from(schema.modelProfile)
-      .where(eq(schema.modelProfile.orgId, orgId))
+      .where(and(...conds))
       .limit(limit)
-      .offset(offset)
-      .orderBy(schema.modelProfile.createdAt),
-  );
-  return c.json({ data: rows, meta: { total: rows.length, limit, offset } });
+      .orderBy(schema.modelProfile.createdAt, schema.modelProfile.id);
+  });
+  const last = rows[rows.length - 1];
+  return c.json({
+    data: rows,
+    meta: {
+      total: rows.length,
+      limit,
+      next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length),
+    },
+  });
 });
 
 // GET /api/v1/models/stats/count — count models for the org (dashboard overview)

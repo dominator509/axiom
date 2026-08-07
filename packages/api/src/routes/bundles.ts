@@ -10,6 +10,7 @@ import { sql, eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
 
@@ -191,10 +192,13 @@ router.get('/', async (c) => {
   if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
   const modelId = c.req.query('modelId');
   const state = c.req.query('state');
-  const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10) || 50, 200);
+  const { limit, cursor } = parseCursor(c);
 
   const rows = await withOrgContext(orgId, (tx) => {
-    const conds = [eq(schema.contentBundle.orgId, orgId)];
+    const conds = [
+      eq(schema.contentBundle.orgId, orgId),
+      ...cursorLt(schema.contentBundle.createdAt, schema.contentBundle.id, cursor),
+    ];
     if (modelId) conds.push(eq(schema.contentBundle.modelId, modelId));
     if (state) conds.push(eq(schema.contentBundle.state, state));
     return tx
@@ -202,9 +206,17 @@ router.get('/', async (c) => {
       .from(schema.contentBundle)
       .where(and(...conds))
       .limit(limit)
-      .orderBy(sql`${schema.contentBundle.createdAt} DESC`);
+      .orderBy(sql`${schema.contentBundle.createdAt} DESC`, sql`${schema.contentBundle.id} DESC`);
   });
-  return c.json({ data: rows, meta: { total: rows.length } });
+  const last = rows[rows.length - 1];
+  return c.json({
+    data: rows,
+    meta: {
+      total: rows.length,
+      limit,
+      next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length),
+    },
+  });
 });
 
 export { router as bundlesRouter };

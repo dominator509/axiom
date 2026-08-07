@@ -6,6 +6,7 @@ import { sql, eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg } from './helpers.js';
+import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
 
@@ -14,7 +15,7 @@ router.get('/models/:modelId/viral', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
   const { modelId } = c.req.param();
-  const limit = Math.min(parseInt(c.req.query('limit') ?? '20', 10) || 20, 100);
+  const { limit, cursor } = parseCursor(c, 20, 100);
 
   const data = await withOrgContext(orgId, async (tx) => {
     const byLabel = await tx
@@ -30,8 +31,14 @@ router.get('/models/:modelId/viral', async (c) => {
     const top = await tx
       .select()
       .from(schema.viralExemplar)
-      .where(and(eq(schema.viralExemplar.orgId, orgId), eq(schema.viralExemplar.modelId, modelId)))
-      .orderBy(desc(schema.viralExemplar.perfScore))
+      .where(
+        and(
+          eq(schema.viralExemplar.orgId, orgId),
+          eq(schema.viralExemplar.modelId, modelId),
+          ...cursorLt(schema.viralExemplar.perfScore, schema.viralExemplar.id, cursor),
+        ),
+      )
+      .orderBy(desc(schema.viralExemplar.perfScore), desc(schema.viralExemplar.id))
       .limit(limit);
 
     const byPlatform = await tx
@@ -51,7 +58,15 @@ router.get('/models/:modelId/viral', async (c) => {
       top,
     };
   });
-  return c.json({ data });
+  const last = data.top[data.top.length - 1];
+  return c.json({
+    data,
+    meta: {
+      total: data.top.length,
+      limit,
+      next_cursor: nextCursor(last?.perfScore, last?.id, limit, data.top.length),
+    },
+  });
 });
 
 export { router as viralRouter };

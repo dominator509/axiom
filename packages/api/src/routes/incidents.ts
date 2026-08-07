@@ -7,6 +7,7 @@ import { sql, eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
 
@@ -14,22 +15,30 @@ const router = new Hono<AppBindings>();
 router.get('/incidents', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
-  const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10) || 50, 200);
+  const { limit, cursor } = parseCursor(c);
 
-  const rows = await withOrgContext(orgId, (tx) =>
-    tx
+  const rows = await withOrgContext(orgId, (tx) => {
+    const conds = [
+      eq(schema.job.orgId, orgId),
+      sql`${schema.job.state} IN ('dead', 'failed') OR ${schema.job.attempts} >= ${schema.job.maxAttempts}`,
+      ...cursorLt(schema.job.createdAt, schema.job.id, cursor),
+    ];
+    return tx
       .select()
       .from(schema.job)
-      .where(
-        and(
-          eq(schema.job.orgId, orgId),
-          sql`${schema.job.state} IN ('dead', 'failed') OR ${schema.job.attempts} >= ${schema.job.maxAttempts}`,
-        ),
-      )
-      .orderBy(desc(schema.job.createdAt))
-      .limit(limit),
-  );
-  return c.json({ data: rows, meta: { total: rows.length } });
+      .where(and(...conds))
+      .orderBy(desc(schema.job.createdAt), desc(schema.job.id))
+      .limit(limit);
+  });
+  const last = rows[rows.length - 1];
+  return c.json({
+    data: rows,
+    meta: {
+      total: rows.length,
+      limit,
+      next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length),
+    },
+  });
 });
 
 // POST /incidents/:jobId/replay — reset a dead job back to ready (DLQ replay)
