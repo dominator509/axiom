@@ -1,4 +1,8 @@
-// ─── FanvueMcpClient — Vitest Suite (JSON-RPC 2.0 / MCP protocol) ───
+// ─── FanvueMcpClient — Vitest Suite (official Fanvue MCP + REST contracts) ───
+// Covers: connect handshake, the documented custom__ image-post flow
+// (custom__start-image-upload → PUT bytes → custom__create-image-post), the
+// documented REST endpoints (insights/earnings/summary, /chats,
+// /chats/{userUuid}/message), and error handling.
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { FanvueMcpClient, FanvueMcpError } from './client.js';
 
@@ -8,7 +12,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 const CREDS = {
   endpoint: 'https://mcp.fanvue.test',
-  apiKey: 'test-api-key-123',
+  accessToken: 'test-oauth-token',
   modelId: 'model-1',
 };
 
@@ -20,19 +24,19 @@ const INIT_RESULT = {
 
 const TOOLS_RESULT = {
   tools: [
-    { name: 'start-image-upload' },
-    { name: 'create-image-post' },
-    { name: 'read_analytics' },
-    { name: 'read_inbox' },
-    { name: 'reply_dm' },
+    { name: 'custom__start-image-upload' },
+    { name: 'custom__create-image-post' },
   ],
 };
 
 afterEach(() => vi.unstubAllGlobals());
 
-/** Stub fetch to answer initialize + tools/list + a final tool call. */
+/** Stub fetch to answer initialize + tools/list + a final MCP tool call. */
 function stubMcpFlow(toolResult: unknown) {
-  const fetchMock = vi.fn((_url: string, init: RequestInit) => {
+  const fetchMock = vi.fn((url: string, init: RequestInit) => {
+    if (String(url).startsWith('https://api.fanvue.com')) {
+      return Promise.resolve(jsonResponse(toolResult));
+    }
     const body = JSON.parse(init.body as string) as { method: string; id: number };
     if (body.method === 'initialize') {
       return Promise.resolve(jsonResponse({ jsonrpc: '2.0', result: INIT_RESULT, id: body.id }));
@@ -46,11 +50,6 @@ function stubMcpFlow(toolResult: unknown) {
   return fetchMock;
 }
 
-/**
- * Build a client and run the MCP handshake against the CURRENTLY stubbed
- * fetch. The test owns its stub (via stubMcpFlow) so call-count assertions
- * reference the right function.
- */
 async function connectedClient(): Promise<FanvueMcpClient> {
   const c = new FanvueMcpClient();
   await c.connect(CREDS);
@@ -62,7 +61,7 @@ describe('connect (MCP initialize handshake)', () => {
     const c = new FanvueMcpClient();
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
-    await expect(c.connect({ endpoint: 'not-a-url', apiKey: 'k' })).rejects.toThrow();
+    await expect(c.connect({ endpoint: 'not-a-url', accessToken: 'k' })).rejects.toThrow();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -73,7 +72,7 @@ describe('connect (MCP initialize handshake)', () => {
 
     expect(result.connected).toBe(true);
     expect(result.protocolVersion).toBe('2025-03-26');
-    expect(result.tools).toContain('start-image-upload');
+    expect(result.tools).toContain('custom__start-image-upload');
     expect(c['connected']).toBe(true);
 
     const calls = vi.mocked(fetchMock).mock.calls as unknown as Array<[string, RequestInit]>;
@@ -86,7 +85,7 @@ describe('connect (MCP initialize handshake)', () => {
     expect(initFrame.method).toBe('initialize');
     expect(initFrame.params.protocolVersion).toBe('2025-03-26');
     expect(initFrame.params.clientInfo.name).toBe('axiom-fanvue-mcp');
-    expect(calls[0][1].headers).toMatchObject({ 'X-API-Key': 'test-api-key-123' });
+    expect(calls[0][1].headers).toMatchObject({ Authorization: 'Bearer test-oauth-token' });
   });
 
   it('throws FanvueMcpError with MCP error code on JSON-RPC error frame', async () => {
@@ -109,29 +108,36 @@ describe('connect (MCP initialize handshake)', () => {
   });
 });
 
-describe('authenticated tool calls (tools/call)', () => {
-  it('uploadImage requires an active connection', async () => {
+describe('documented custom__ image-post flow', () => {
+  it('startImageUpload requires an active connection', async () => {
     const c = new FanvueMcpClient();
-    const err = await c.uploadImage('aGVsbG8=', 'x.jpg').catch((e: unknown) => e);
+    const err = await c.startImageUpload().catch((e: unknown) => e);
     expect(err).toBeInstanceOf(FanvueMcpError);
     expect((err as FanvueMcpError).code).toBe('NOT_CONNECTED');
   });
 
-  it('uploadImage calls tools/call start-image-upload with JSON-RPC frame', async () => {
-    const fetchMock = stubMcpFlow({ asset_id: 'a1', url: 'https://cdn.test/a1.jpg', width: 10, height: 10, size_bytes: 100 });
+  it('startImageUpload calls custom__start-image-upload with NO arguments', async () => {
+    const uploadResult = {
+      mediaUuid: 'b8c47a91-3f2d-4a55-b7e8-1c9d2e4f5a6b',
+      uploadId: 'dXBsb2FkLXNlc3Npb24tZXhhbXBsZQ',
+      uploadUrl: 'https://storage.example.com/uploads/b8c47a91?signature=abc',
+      instructions: 'PUT the raw image bytes (not base64) to uploadUrl...',
+    };
+    const fetchMock = stubMcpFlow(uploadResult);
     const c = await connectedClient();
-    const result = await c.uploadImage('aGVsbG8=', 'x.jpg');
+    const result = await c.startImageUpload();
 
-    expect(result.asset_id).toBe('a1');
+    expect(result.mediaUuid).toBe('b8c47a91-3f2d-4a55-b7e8-1c9d2e4f5a6b');
+    expect(result.uploadUrl).toContain('storage.example.com');
 
     const calls = vi.mocked(fetchMock).mock.calls as unknown as Array<[string, RequestInit]>;
     const callFrame = JSON.parse(calls[calls.length - 1][1].body as string);
     expect(callFrame.method).toBe('tools/call');
-    expect(callFrame.params.name).toBe('start-image-upload');
-    expect(callFrame.params.arguments).toMatchObject({ filename: 'x.jpg', model_id: 'model-1' });
+    expect(callFrame.params.name).toBe('custom__start-image-upload');
+    expect(callFrame.params.arguments).toEqual({});
   });
 
-  it('uploadImage rejects when tool not advertised', async () => {
+  it('startImageUpload rejects when tool not advertised', async () => {
     const fetchMock = vi.fn((_url: string, init: RequestInit) => {
       const body = JSON.parse(init.body as string) as { method: string; id: number };
       if (body.method === 'initialize') {
@@ -142,50 +148,154 @@ describe('authenticated tool calls (tools/call)', () => {
     vi.stubGlobal('fetch', fetchMock);
     const c = new FanvueMcpClient();
     await c.connect(CREDS);
-    const err = await c.uploadImage('aGVsbG8=', 'x.jpg').catch((e: unknown) => e);
+    const err = await c.startImageUpload().catch((e: unknown) => e);
     expect(err).toBeInstanceOf(FanvueMcpError);
     expect((err as FanvueMcpError).code).toBe('UNKNOWN_TOOL');
   });
 
-  it('createPost maps create-image-post result', async () => {
-    const fetchMock = stubMcpFlow({ post_id: 'p1', url: 'https://fanvue.com/p1', platform: 'fanvue', created_at: '2026-01-01T00:00:00Z' });
+  it('uploadImageBytes PUTs raw bytes with no Authorization header and returns ETag', async () => {
+    const putMock = vi.fn().mockResolvedValue(
+      new Response(null, { status: 200, headers: { etag: '"etag-1"' } }),
+    );
+    vi.stubGlobal('fetch', putMock);
+
+    const c = new FanvueMcpClient();
+    const etag = await c.uploadImageBytes('https://storage.example.com/up?sig=1', new Uint8Array([1, 2, 3]));
+
+    expect(etag).toBe('"etag-1"');
+    const [url, init] = putMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://storage.example.com/up?sig=1');
+    expect(init.method).toBe('PUT');
+    expect((init.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
+  });
+
+  it('uploadImageBytes throws when the PUT fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('nope', { status: 403 })));
+    const c = new FanvueMcpClient();
+    const err = await c.uploadImageBytes('https://storage.example.com/up', new Uint8Array([1])).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(FanvueMcpError);
+    expect((err as FanvueMcpError).code).toBe('UPLOAD_FAILED');
+  });
+
+  it('createImagePost calls custom__create-image-post with the documented args', async () => {
+    const postResult = {
+      uuid: '123e4567-e89b-12d3-a456-426614174000',
+      createdAt: '2026-06-12T18:00:00.000Z',
+      text: "Tonight's drop 🔥",
+      price: 999,
+      mediaPreviewUuid: null,
+      audience: 'subscribers',
+      publishAt: null,
+      publishedAt: '2026-06-12T18:00:00.000Z',
+      expiresAt: null,
+    };
+    const fetchMock = stubMcpFlow(postResult);
     const c = await connectedClient();
-    const result = await c.createPost('a1', 'caption text');
-    expect(result.post_id).toBe('p1');
+    const result = await c.createImagePost({
+      image: { mediaUuid: 'm1', uploadId: 'up1', etag: '"etag-1"' },
+      audience: 'subscribers',
+      text: "Tonight's drop 🔥",
+      price: 999,
+    });
+
+    expect(result.uuid).toBe('123e4567-e89b-12d3-a456-426614174000');
+    expect(result.price).toBe(999);
+    expect(result.audience).toBe('subscribers');
 
     const calls = vi.mocked(fetchMock).mock.calls as unknown as Array<[string, RequestInit]>;
     const callFrame = JSON.parse(calls[calls.length - 1][1].body as string);
-    expect(callFrame.params.name).toBe('create-image-post');
-    expect(callFrame.params.arguments.caption).toBe('caption text');
-  });
-
-  it('getAnalytics / getInbox / replyToDM route through tools/call', async () => {
-    const fetchMock = stubMcpFlow({ messages: [], unread_count: 0 });
-    const c = await connectedClient();
-
-    const inbox = await c.getInbox('model-1');
-    expect(inbox.unread_count).toBe(0);
-    const calls = vi.mocked(fetchMock).mock.calls as unknown as Array<[string, RequestInit]>;
-    const frame = JSON.parse(calls[calls.length - 1][1].body as string);
-    expect(frame.method).toBe('tools/call');
-    expect(frame.params.name).toBe('read_inbox');
+    expect(callFrame.method).toBe('tools/call');
+    expect(callFrame.params.name).toBe('custom__create-image-post');
+    expect(callFrame.params.arguments).toMatchObject({
+      image: { mediaUuid: 'm1', uploadId: 'up1', etag: '"etag-1"' },
+      audience: 'subscribers',
+      text: "Tonight's drop 🔥",
+      price: 999,
+    });
   });
 
   it('unwraps text-content envelopes (MCP standard result shape)', async () => {
     const fetchMock = stubMcpFlow({
-      content: [{ type: 'text', text: JSON.stringify({ asset_id: 'wrapped-1', url: 'u' }) }],
+      content: [{ type: 'text', text: JSON.stringify({ mediaUuid: 'wrapped-1', uploadUrl: 'u' }) }],
     });
     const c = await connectedClient();
-    const result = await c.uploadImage('aGVsbG8=', 'x.jpg');
-    expect(result.asset_id).toBe('wrapped-1');
+    const result = await c.startImageUpload();
+    expect(result.mediaUuid).toBe('wrapped-1');
     expect(vi.mocked(fetchMock).mock.calls.length).toBe(3);
   });
+});
 
+describe('documented REST endpoints (chats + insights)', () => {
+  it('getEarningsSummary hits GET /insights/earnings/summary with version header', async () => {
+    const fetchMock = stubMcpFlow({ totals: { gross: 1000 }, period: 'all' });
+    const c = await connectedClient();
+    const result = await c.getEarningsSummary();
+
+    expect(result).toMatchObject({ totals: { gross: 1000 } });
+
+    const calls = vi.mocked(fetchMock).mock.calls as unknown as Array<[string, RequestInit]>;
+    const [url, init] = calls[calls.length - 1] as [string, RequestInit];
+    expect(url).toBe('https://api.fanvue.com/insights/earnings/summary');
+    expect(init.method).toBe('GET');
+    expect((init.headers as Record<string, string>)['X-Fanvue-API-Version']).toBe('2025-06-26');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer test-oauth-token');
+  });
+
+  it('getInbox hits GET /chats (documented endpoint)', async () => {
+    const fetchMock = stubMcpFlow({ items: [], page: 1 });
+    const c = await connectedClient();
+    const result = await c.getInbox();
+
+    expect(result).toMatchObject({ page: 1 });
+
+    const calls = vi.mocked(fetchMock).mock.calls as unknown as Array<[string, RequestInit]>;
+    const [url] = calls[calls.length - 1] as [string, RequestInit];
+    expect(url).toBe('https://api.fanvue.com/chats');
+  });
+
+  it('replyToDM posts to /chats/{userUuid}/message (documented endpoint)', async () => {
+    const fetchMock = stubMcpFlow({ messageUuid: 'm-9' });
+    const c = await connectedClient();
+    const result = await c.replyToDM('fan-123', 'Hey!', { price: 500 });
+
+    expect(result).toMatchObject({ messageUuid: 'm-9' });
+
+    const calls = vi.mocked(fetchMock).mock.calls as unknown as Array<[string, RequestInit]>;
+    const [url, init] = calls[calls.length - 1] as [string, RequestInit];
+    expect(url).toBe('https://api.fanvue.com/chats/fan-123/message');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({ text: 'Hey!', price: 500 });
+  });
+
+  it('rest endpoint failure surfaces as HTTP_ERROR with status', async () => {
+    const fetchMock = vi.fn((url: string, init: RequestInit) => {
+      if (String(url).startsWith('https://api.fanvue.com')) {
+        return Promise.resolve(jsonResponse({ error: 'Insufficient scopes' }, 403));
+      }
+      const body = JSON.parse(init.body as string) as { method: string; id: number };
+      if (body.method === 'initialize') {
+        return Promise.resolve(jsonResponse({ jsonrpc: '2.0', result: INIT_RESULT, id: body.id }));
+      }
+      if (body.method === 'tools/list') {
+        return Promise.resolve(jsonResponse({ jsonrpc: '2.0', result: TOOLS_RESULT, id: body.id }));
+      }
+      return Promise.resolve(jsonResponse({ jsonrpc: '2.0', result: {}, id: body.id }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const c = await connectedClient();
+    const err = await c.getEarningsSummary().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(FanvueMcpError);
+    expect((err as FanvueMcpError).code).toBe('HTTP_ERROR');
+    expect((err as FanvueMcpError).statusCode).toBe(403);
+  });
+});
+
+describe('tool surface', () => {
   it('exposes the discovered tool list', async () => {
     stubMcpFlow({});
     const c = await connectedClient();
-    expect(c.listTools()).toContain('reply_dm');
-    expect(c.hasTool('read_analytics')).toBe(true);
+    expect(c.listTools()).toContain('custom__start-image-upload');
+    expect(c.hasTool('custom__create-image-post')).toBe(true);
     expect(c.hasTool('nope')).toBe(false);
   });
 });

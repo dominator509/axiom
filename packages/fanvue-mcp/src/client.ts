@@ -1,11 +1,15 @@
 import { z } from 'zod';
-import { type Platform } from '@axiom/core';
 
 // ─── Credential Schema ───
+// Fanvue uses OAuth 2.0 (no API keys). The MCP server is authorized through
+// the standard Fanvue OAuth flow; the resulting access token is sent as a
+// Bearer token on MCP frames. The same token authorizes documented REST
+// endpoints (api.fanvue.com) used for chats and insights.
 
 const FanvueCredentialsSchema = z.object({
   endpoint: z.string().url(),
-  apiKey: z.string().min(1),
+  apiKey: z.string().min(1).optional(),
+  accessToken: z.string().min(1).optional(),
   modelId: z.string().optional(),
 });
 
@@ -23,67 +27,56 @@ export interface ConnectResult {
   tools: string[];
 }
 
-export interface UploadResult {
-  asset_id: string;
-  url: string;
-  width: number;
-  height: number;
-  size_bytes: number;
+/** Result of custom__start-image-upload (documented MCP custom tool). */
+export interface StartImageUploadResult {
+  mediaUuid: string;
+  uploadId: string;
+  uploadUrl: string;
+  instructions: string;
 }
 
+/** Result of custom__create-image-post — same shape as POST /posts. */
 export interface PostResult {
-  post_id: string;
-  url: string;
-  platform: Platform;
-  created_at: string;
+  uuid: string;
+  createdAt: string;
+  text: string | null;
+  price: number | null;
+  mediaPreviewUuid: string | null;
+  audience: 'subscribers' | 'followers-and-subscribers';
+  publishAt: string | null;
+  publishedAt: string | null;
+  expiresAt: string | null;
 }
 
-export interface AnalyticsDataPoint {
-  date: string;
-  views: number;
-  likes: number;
-  comments: number;
-  shares: number;
-  engagement_rate: number;
-  revenue_cents: number;
+/** Arguments for custom__create-image-post (documented). */
+export interface CreateImagePostArgs {
+  image: { mediaUuid: string; uploadId: string; etag: string };
+  audience: 'subscribers' | 'followers-and-subscribers';
+  text?: string;
+  price?: number;
+  publishAt?: string;
+  expiresAt?: string;
+  previewImage?: { mediaUuid: string; uploadId: string; etag: string };
+  collectionUuids?: string[];
 }
 
+/** GET /insights/earnings/summary — pre-aggregated earnings (documented). */
 export interface AnalyticsResult {
-  model_id: string;
-  timeframe: string;
-  summary: {
-    total_views: number;
-    total_likes: number;
-    total_comments: number;
-    total_shares: number;
-    avg_engagement_rate: number;
-    total_revenue_cents: number;
-  };
-  daily: AnalyticsDataPoint[];
+  // Keys mirror the documented summary fields; keep permissive because the
+  // exact JSON shape is versioned by X-Fanvue-API-Version.
+  [key: string]: unknown;
 }
 
-export interface InboxMessage {
-  id: string;
-  from: string;
-  from_display: string;
-  subject: string;
-  body_preview: string;
-  received_at: string;
-  is_read: boolean;
-  thread_id: string;
-}
-
+/** GET /chats — paginated chat list (documented REST endpoint). */
 export interface InboxResult {
-  model_id: string;
-  messages: InboxMessage[];
-  unread_count: number;
+  // Keys mirror the documented chat list; permissive for versioned shape.
+  [key: string]: unknown;
 }
 
+/** POST /chats/{userUuid}/message — send a message (documented). */
 export interface ReplyResult {
-  message_id: string;
-  sent_at: string;
-  status: 'sent' | 'queued' | 'failed';
-  error?: string;
+  // Documented result shape for a sent message.
+  [key: string]: unknown;
 }
 
 // ─── JSON-RPC 2.0 / MCP protocol types ───
@@ -135,14 +128,20 @@ export class FanvueMcpError extends Error {
 
 // ─── MCP Client (JSON-RPC 2.0) ───
 //
-// Speaks the Model Context Protocol to mcp.fanvue.com/mcp (L2.10, F-03/F-31):
+// Speaks the Model Context Protocol to mcp.fanvue.com/mcp per the official
+// Fanvue docs (https://api.fanvue.com/docs/mcp-server):
 //   1. initialize handshake (protocolVersion, clientInfo, capabilities)
-//   2. tools/list  — discover the tool surface
+//   2. tools/list  — discover the tool surface (incl. custom__ tools)
 //   3. tools/call  — invoke each operation with typed arguments
-// All frames are JSON-RPC 2.0 POSTed to the MCP endpoint.
+// The docs document exactly two custom tools: custom__start-image-upload and
+// custom__create-image-post (the image-post flow). Everything else (chats,
+// insights, media, posts) is a documented REST endpoint on api.fanvue.com —
+// those are implemented as REST calls with the X-Fanvue-API-Version header.
 
 const MCP_PROTOCOL_VERSION = '2025-03-26';
 const DEFAULT_TOOL_TIMEOUT_MS = 30_000;
+const FANVUE_API_BASE = 'https://api.fanvue.com';
+const FANVUE_API_VERSION = '2025-06-26';
 
 export class FanvueMcpClient {
   private endpoint: string = '';
@@ -167,14 +166,14 @@ export class FanvueMcpClient {
     return `${this.endpoint}/mcp`;
   }
 
-  /** Authenticated headers for MCP frames. */
+  /** Authenticated headers for MCP frames (OAuth Bearer per Fanvue docs). */
   private headers(): Record<string, string> {
     const h: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json, text/event-stream',
     };
     if (this.token) h['Authorization'] = `Bearer ${this.token}`;
-    else h['X-API-Key'] = this.apiKey;
+    else if (this.apiKey) h['X-API-Key'] = this.apiKey;
     return h;
   }
 
@@ -185,9 +184,9 @@ export class FanvueMcpClient {
   async connect(credentials: FanvueCredentials): Promise<ConnectResult> {
     const parsed = FanvueCredentialsSchema.parse(credentials);
     this.endpoint = parsed.endpoint.replace(/\/+$/, '');
-    this.apiKey = parsed.apiKey;
+    this.apiKey = parsed.apiKey ?? '';
+    this.token = parsed.accessToken ?? '';
     this.modelId = parsed.modelId ?? '';
-    this.token = '';
 
     // 1. initialize handshake (JSON-RPC 2.0).
     const initResult = await this.request('initialize', {
@@ -211,7 +210,7 @@ export class FanvueMcpClient {
     this.toolsDiscovered = true;
 
     // Accept a returned auth token if the server provides one; otherwise the
-    // apiKey is used for subsequent frames (typical Bearer-capability model).
+    // provided access token (or apiKey) is used for subsequent frames.
     if (typeof serverInfo.auth === 'object' && serverInfo.auth !== null) {
       const auth = serverInfo.auth as Record<string, unknown>;
       if (typeof auth.token === 'string') this.token = auth.token;
@@ -360,105 +359,197 @@ export class FanvueMcpClient {
     }
   }
 
+  // ── Documented MCP custom tools: the image-post flow ──
+
   /**
-   * Upload an image asset via the MCP upload tool.
+   * Step 1 of the documented image-post flow: custom__start-image-upload.
+   * Takes no arguments; reserves an upload slot and returns everything the
+   * PUT step needs. Requires the write:media scope.
    */
-  async uploadImage(base64: string, filename: string): Promise<UploadResult> {
-    const result = await this.callTool('start-image-upload', {
-      model_id: this.modelId,
-      filename,
-      data: base64,
-    });
-    const unwrapped = this.unwrap(result, 'asset_id');
-    if (typeof unwrapped.asset_id !== 'string') {
+  async startImageUpload(): Promise<StartImageUploadResult> {
+    const result = await this.callTool('custom__start-image-upload', {});
+    const unwrapped = this.unwrap(result, 'mediaUuid');
+    if (typeof unwrapped.mediaUuid !== 'string' || typeof unwrapped.uploadUrl !== 'string') {
       throw new FanvueMcpError(
         'UPLOAD_FAILED',
-        'Fanvue MCP upload returned no asset_id',
+        'Fanvue MCP start-image-upload returned no mediaUuid/uploadUrl',
         undefined,
         result,
       );
     }
     return {
-      asset_id: unwrapped.asset_id as string,
-      url: (unwrapped.url as string) ?? '',
-      width: (unwrapped.width as number) ?? 0,
-      height: (unwrapped.height as number) ?? 0,
-      size_bytes: (unwrapped.size_bytes as number) ?? 0,
+      mediaUuid: unwrapped.mediaUuid as string,
+      uploadId: (unwrapped.uploadId as string) ?? '',
+      uploadUrl: unwrapped.uploadUrl as string,
+      instructions: (unwrapped.instructions as string) ?? '',
     };
   }
 
   /**
-   * Create a post using an uploaded asset via the MCP post tool.
+   * Step 2 of the documented image-post flow: HTTP PUT the raw image bytes
+   * (not base64) to the uploadUrl with no Authorization header, then return
+   * the ETag response header which confirms the upload.
    */
-  async createPost(assetId: string, caption: string): Promise<PostResult> {
-    const result = await this.callTool('create-image-post', {
-      model_id: this.modelId,
-      asset_id: assetId,
-      caption,
-    });
-    const unwrapped = this.unwrap(result, 'post_id');
-    if (typeof unwrapped.post_id !== 'string') {
+  async uploadImageBytes(uploadUrl: string, bytes: Uint8Array): Promise<string> {
+    let response: Response;
+    try {
+      response = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: bytes,
+        signal: AbortSignal.timeout(DEFAULT_TOOL_TIMEOUT_MS),
+      });
+    } catch (err) {
+      throw new FanvueMcpError(
+        'NETWORK_ERROR',
+        `Fanvue image upload failed: ${(err as Error).message}`,
+      );
+    }
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new FanvueMcpError(
+        'UPLOAD_FAILED',
+        `Fanvue image PUT failed: ${response.status} ${response.statusText}`,
+        response.status,
+        body,
+      );
+    }
+    const etag = response.headers.get('etag') ?? '';
+    if (!etag) {
+      throw new FanvueMcpError(
+        'UPLOAD_FAILED',
+        'Fanvue image PUT returned no ETag header',
+        response.status,
+      );
+    }
+    return etag;
+  }
+
+  /**
+   * Step 3 of the documented image-post flow: custom__create-image-post.
+   * Publishes a post carrying the uploaded image. Requires write:media,
+   * read:media and write:post scopes. The post is created once the image is
+   * ready to display. Returns the created post (same shape as POST /posts).
+   */
+  async createImagePost(args: CreateImagePostArgs): Promise<PostResult> {
+    const result = await this.callTool('custom__create-image-post', args as unknown as Record<string, unknown>);
+    const unwrapped = this.unwrap(result, 'uuid');
+    if (typeof unwrapped.uuid !== 'string') {
       throw new FanvueMcpError(
         'POST_FAILED',
-        'Fanvue MCP post returned no post_id',
+        'Fanvue MCP create-image-post returned no uuid',
         undefined,
         result,
       );
     }
     return {
-      post_id: unwrapped.post_id as string,
-      url: (unwrapped.url as string) ?? '',
-      platform: 'fanvue' as Platform,
-      created_at: (unwrapped.created_at as string) ?? new Date().toISOString(),
+      uuid: unwrapped.uuid as string,
+      createdAt: (unwrapped.createdAt as string) ?? new Date().toISOString(),
+      text: (unwrapped.text as string | null) ?? null,
+      price: (unwrapped.price as number | null) ?? null,
+      mediaPreviewUuid: (unwrapped.mediaPreviewUuid as string | null) ?? null,
+      audience: (unwrapped.audience as PostResult['audience']) ?? 'followers-and-subscribers',
+      publishAt: (unwrapped.publishAt as string | null) ?? null,
+      publishedAt: (unwrapped.publishedAt as string | null) ?? null,
+      expiresAt: (unwrapped.expiresAt as string | null) ?? null,
     };
   }
 
-  /**
-   * Fetch analytics for a model via the MCP analytics tool.
-   */
-  async getAnalytics(
-    modelId: string,
-    timeframe: '7d' | '30d' | '90d' = '30d',
-  ): Promise<AnalyticsResult> {
-    const result = await this.callTool('read_analytics', {
-      model_id: modelId,
-      timeframe,
-    });
-    const unwrapped = this.unwrap(result, 'summary');
-    return unwrapped as unknown as AnalyticsResult;
+  // ── Documented REST endpoints (api.fanvue.com) ──
+  // The MCP server mirrors the Fanvue API, but the docs document the REST
+  // surface precisely, so chats/insights operations go through the real API
+  // with the required X-Fanvue-API-Version header.
+
+  /** Authenticated REST headers for api.fanvue.com. */
+  private restHeaders(): Record<string, string> {
+    const h: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Fanvue-API-Version': FANVUE_API_VERSION,
+    };
+    const bearer = this.token || this.apiKey;
+    if (bearer) h['Authorization'] = `Bearer ${bearer}`;
+    return h;
+  }
+
+  private async restGet<T>(path: string): Promise<T> {
+    this.assertConnected();
+    let response: Response;
+    try {
+      response = await fetch(`${FANVUE_API_BASE}${path}`, {
+        method: 'GET',
+        headers: this.restHeaders(),
+        signal: AbortSignal.timeout(DEFAULT_TOOL_TIMEOUT_MS),
+      });
+    } catch (err) {
+      throw new FanvueMcpError(
+        'NETWORK_ERROR',
+        `Fanvue REST request failed: ${(err as Error).message}`,
+        undefined,
+        { path },
+      );
+    }
+    if (!response.ok) {
+      const body = await this.safeJson(response);
+      throw new FanvueMcpError(
+        'HTTP_ERROR',
+        `Fanvue REST GET ${path} failed: ${response.status} ${response.statusText}`,
+        response.status,
+        body,
+      );
+    }
+    return response.json() as Promise<T>;
+  }
+
+  private async restPost<T>(path: string, body: unknown): Promise<T> {
+    this.assertConnected();
+    let response: Response;
+    try {
+      response = await fetch(`${FANVUE_API_BASE}${path}`, {
+        method: 'POST',
+        headers: this.restHeaders(),
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(DEFAULT_TOOL_TIMEOUT_MS),
+      });
+    } catch (err) {
+      throw new FanvueMcpError(
+        'NETWORK_ERROR',
+        `Fanvue REST request failed: ${(err as Error).message}`,
+        undefined,
+        { path },
+      );
+    }
+    if (!response.ok) {
+      const body = await this.safeJson(response);
+      throw new FanvueMcpError(
+        'HTTP_ERROR',
+        `Fanvue REST POST ${path} failed: ${response.status} ${response.statusText}`,
+        response.status,
+        body,
+      );
+    }
+    return response.json() as Promise<T>;
+  }
+
+  /** GET /insights/earnings/summary (documented; read:insights scope). */
+  async getEarningsSummary(): Promise<AnalyticsResult> {
+    return this.restGet<AnalyticsResult>('/insights/earnings/summary');
+  }
+
+  /** GET /chats — paginated chat list (documented; read:chat scope). */
+  async getInbox(query = ''): Promise<InboxResult> {
+    const qs = query ? `?${query}` : '';
+    return this.restGet<InboxResult>(`/chats${qs}`);
   }
 
   /**
-   * Fetch inbox / DMs for a model via the MCP inbox tool.
+   * POST /chats/{userUuid}/message — send a message in an existing chat
+   * (documented; write:chat scope). Accepts text, media attachments, optional
+   * pricing, or a single third-party GIF.
    */
-  async getInbox(modelId: string): Promise<InboxResult> {
-    const result = await this.callTool('read_inbox', {
-      model_id: modelId,
-    });
-    const unwrapped = this.unwrap(result, 'messages');
-    return unwrapped as unknown as InboxResult;
-  }
-
-  /**
-   * Reply to a DM/inbox message via the MCP reply tool.
-   */
-  async replyToDM(
-    modelId: string,
-    messageId: string,
-    text: string,
-  ): Promise<ReplyResult> {
-    const result = await this.callTool('reply_dm', {
-      model_id: modelId,
-      message_id: messageId,
+  async replyToDM(userUuid: string, text: string, options: Record<string, unknown> = {}): Promise<ReplyResult> {
+    return this.restPost<ReplyResult>(`/chats/${userUuid}/message`, {
       text,
+      ...options,
     });
-    const unwrapped = this.unwrap(result, 'message_id');
-    return {
-      message_id: (unwrapped.message_id as string) ?? messageId,
-      sent_at: (unwrapped.sent_at as string) ?? new Date().toISOString(),
-      status: (unwrapped.status as ReplyResult['status']) ?? 'queued',
-      error: unwrapped.error as string | undefined,
-    };
   }
 
   /**

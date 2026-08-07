@@ -66,7 +66,7 @@ interface CompletedPart {
 
 export class FanvueConnector extends BaseConnector implements SocialConnector {
   private modelId: string;
-  private readonly refreshToken?: string;
+  private refreshToken?: string;
   private readonly clientId?: string;
   private readonly clientSecret?: string;
   private readonly tokenExpiresAt?: number;

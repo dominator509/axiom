@@ -4,12 +4,11 @@ export { FanvueMcpClient, FanvueMcpError } from './client.js';
 export type {
   FanvueCredentials,
   ConnectResult,
-  UploadResult,
+  StartImageUploadResult,
   PostResult,
+  CreateImagePostArgs,
   AnalyticsResult,
-  AnalyticsDataPoint,
   InboxResult,
-  InboxMessage,
   ReplyResult,
 } from './client.js';
 
