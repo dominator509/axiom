@@ -6,6 +6,7 @@ export { embedFeatures } from './embedding.js';
 export { claimNextJob } from './claim.js';
 export { defaultExecutors } from './executors/index.js';
 export { ParkJobError } from './executors/context.js';
+export { labelForZ } from './executors/viral.js';
 export { runWorker, workerTick, processJob, readKillSwitch } from './worker.js';
 export { JOB_KINDS } from './types.js';
 export { registerConnectors } from './connectors.js';

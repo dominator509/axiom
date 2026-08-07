@@ -1,5 +1,6 @@
 // ─── Relay Routes (Hono) — Vitest Suite ───
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { Hono } from 'hono';
 import { CardRenderer, type BundleContent } from './card.js';
 import { CommandRouter } from './commands.js';
 import { ViralLoop, type PostMetrics } from './viral/loop.js';
@@ -7,8 +8,9 @@ import { Bandit } from './viral/bandit.js';
 import { IncidentManager } from './observability/incidents.js';
 import { HealthCheckRegistry } from './observability/health.js';
 import { createRelayRoutes, type RelayDependencies } from './routes.js';
+import type { ViralPersistence } from './viral/persistence.js';
 
-function buildDeps(): RelayDependencies {
+function buildDeps(overrides: Partial<RelayDependencies> = {}): RelayDependencies {
   return {
     cardRenderer: new CardRenderer(),
     commandRouter: new CommandRouter('route-secret', 5),
@@ -16,6 +18,7 @@ function buildDeps(): RelayDependencies {
     bandit: new Bandit(),
     incidentManager: new IncidentManager(),
     healthRegistry: new HealthCheckRegistry(),
+    ...overrides,
   };
 }
 
@@ -188,6 +191,95 @@ describe('GET /api/v1/viral/exemplars', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.exemplars.length).toBeLessThanOrEqual(10);
+  });
+});
+
+describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
+  it('persists through the injected ViralPersistence and returns its label', async () => {
+    const persist = vi.fn(async () => ({ label: 'viral' as const }));
+    const listExemplars = vi.fn(async () => [{ label: 'viral', platform: 'tiktok' }]);
+    const persistence: ViralPersistence = { persist, listExemplars };
+    const localDeps = buildDeps({ viralPersistence: persistence });
+    const localApp = createRelayRoutes(localDeps);
+
+    const res = await localApp.request('/api/v1/viral/ingest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postId: 'db1', metrics: makePostMetrics('db1', 0.05) }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body).toEqual({ success: true, label: 'viral' });
+    expect(persist).toHaveBeenCalledWith({
+      postId: 'db1',
+      metrics: expect.objectContaining({ postId: 'db1', engagementRate: 0.05 }),
+      orgId: undefined,
+    });
+    // The in-memory loop must NOT be touched when persistence is injected.
+    expect(localDeps.viralLoop.getExemplarCount()).toBe(0);
+  });
+
+  it('passes the authenticated orgId from the request context', async () => {
+    const persist = vi.fn(async () => ({ label: 'baseline' as const }));
+    const persistence: ViralPersistence = { persist, listExemplars: async () => [] };
+    const localDeps = buildDeps({ viralPersistence: persistence });
+    const localApp = createRelayRoutes(localDeps);
+
+    // Mirror the API mount: requireAuth middleware on a parent app sets orgId
+    // on the shared context BEFORE the relay routes are reached (the API
+    // registers app.use(...requireAuth) ahead of app.route('/', relay)).
+    const parent = new Hono<{ Variables: { orgId?: string } }>();
+    parent.use('*', async (c, next) => {
+      c.set('orgId', 'org-123');
+      await next();
+    });
+    parent.route('/', localApp);
+
+    const res = await parent.request('/api/v1/viral/ingest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postId: 'db2', metrics: makePostMetrics('db2', 0.01) }),
+    });
+    expect(res.status).toBe(200);
+    expect(persist).toHaveBeenCalledWith({
+      postId: 'db2',
+      metrics: expect.any(Object),
+      orgId: 'org-123',
+    });
+  });
+
+  it('reads exemplars through the injected ViralPersistence', async () => {
+    const listExemplars = vi.fn(async () => [{ label: 'strong', platform: 'tiktok', perfScore: 1.2 }]);
+    const persistence: ViralPersistence = { persist: vi.fn(), listExemplars };
+    const localDeps = buildDeps({ viralPersistence: persistence });
+    const localApp = createRelayRoutes(localDeps);
+
+    const res = await localApp.request('/api/v1/viral/exemplars?platform=tiktok&limit=3');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.exemplars).toEqual([{ label: 'strong', platform: 'tiktok', perfScore: 1.2 }]);
+    expect(listExemplars).toHaveBeenCalledWith({ platform: 'tiktok', limit: 3, orgId: undefined });
+  });
+
+  it('returns 500 when persistence throws (fail closed, no silent in-memory fallback)', async () => {
+    const persistence: ViralPersistence = {
+      persist: vi.fn(async () => { throw new Error('no post_target'); }),
+      listExemplars: async () => [],
+    };
+    const localDeps = buildDeps({ viralPersistence: persistence });
+    const localApp = createRelayRoutes(localDeps);
+
+    const res = await localApp.request('/api/v1/viral/ingest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postId: 'db3', metrics: makePostMetrics('db3', 0.02) }),
+    });
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as any;
+    expect(body.success).toBe(false);
+    expect(body.error).toBe('no post_target');
+    expect(localDeps.viralLoop.getExemplarCount()).toBe(0);
   });
 });
 

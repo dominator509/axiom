@@ -24,6 +24,7 @@ import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { registerConnectors } from '@axiom/worker';
 import { createMcpServer } from '@axiom/mcp-server';
 import { DiscordAdapter, ThreadsAdapter, createRelayRoutes, CardRenderer, CommandRouter, ViralLoop, Bandit, IncidentManager, HealthCheckRegistry, type CardAction } from '@axiom/relay';
+import { relayViralPersistence } from './relay-viral.js';
 import { correlationId, onError, idempotency, rateLimit } from './contract.js';
 import { schema } from '@axiom/db';
 import { sql, eq } from 'drizzle-orm';
@@ -157,6 +158,10 @@ app.use('/api/v1/audit/*', requireAuth);
 app.use('/api/v1/incidents/*', requireAuth);
 app.use('/api/v1/killswitch/*', requireAuth);
 app.use('/api/v1/kill-switch/*', requireAuth);
+// Relay viral ingest/exemplars are DB-backed (M-7) — require a session so
+// orgId comes from the auth context, never from the request body.
+app.use('/api/v1/viral/ingest', requireAuth);
+app.use('/api/v1/viral/exemplars', requireAuth);
 
 // L3.0: mutations that touch the outside world require Idempotency-Key
 // (generate, approve/revise/reject, schedule, connect, fanvue OAuth).
@@ -252,6 +257,7 @@ export async function initRelay(): Promise<Hono> {
     bandit,
     incidentManager,
     healthRegistry,
+    viralPersistence: relayViralPersistence,
   });
 
   // Initialize Threads adapter if client ID configured

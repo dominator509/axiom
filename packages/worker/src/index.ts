@@ -12,6 +12,7 @@ export type { ClaimResult } from './claim.js';
 export { defaultExecutors } from './executors/index.js';
 export type { Executor, ExecutorContext } from './executors/context.js';
 export { ParkJobError } from './executors/context.js';
+export { labelForZ } from './executors/viral.js';
 export { runWorker, workerTick, processJob, readKillSwitch } from './worker.js';
 export type { WorkerOptions, WorkerStats } from './worker.js';
 export { JOB_KINDS } from './types.js';
