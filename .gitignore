@@ -10,3 +10,4 @@ credentials/
 coverage/
 .next/
 .axiom/markers/
+target/
