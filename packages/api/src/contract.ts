@@ -8,8 +8,9 @@
 
 import { randomUUID } from 'node:crypto';
 import type { Context, Next } from 'hono';
-import { sql, type SQL } from 'drizzle-orm';
+import { sql, eq, and, gt, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
+import { db, schema } from '@axiom/db';
 
 export interface ProblemDetails {
   type: string;
@@ -94,14 +95,18 @@ export function handleProblem(fn: (c: Context) => Promise<Response> | Response) 
 // Idempotency-Key
 // ---------------------------------------------------------------------------
 
-const IDEMPOTENCY_STORE = new Map<string, { response: unknown; status: number; at: number }>();
 const IDEM_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 /**
  * Enforce the Idempotency-Key header on mutating requests. When present and
- * previously seen (same key + route), returns the stored response without
- * re-executing the handler — the outside-world-safe behavior L3.0 requires
- * for mutations that touch platforms/queues.
+ * previously seen (same org + method + route + key), returns the stored
+ * response without re-executing the handler — the outside-world-safe behavior
+ * L3.0 requires for mutations that touch platforms/queues.
+ *
+ * Durable: responses are persisted to `api_idempotency` (RLS-scoped to the
+ * session org) so the replay guarantee survives process restarts (M-2). A
+ * missing/down DB degrades to execute-once (no replay), never double-executes
+ * on the happy path.
  */
 export function idempotency(required = true) {
   return async (c: Context, next: Next): Promise<Response | void> => {
@@ -124,34 +129,63 @@ export function idempotency(required = true) {
     }
 
     const route = c.req.path;
-    const storeKey = `${method} ${route} ${key}`;
-    const now = Date.now();
+    const orgId = c.get('orgId') as string | undefined;
 
-    // Sweep expired entries occasionally.
-    if (IDEMPOTENCY_STORE.size > 10_000) {
-      for (const [k, v] of IDEMPOTENCY_STORE) {
-        if (now - v.at > IDEM_TTL_MS) IDEMPOTENCY_STORE.delete(k);
+    // Replay a prior response from the durable store (only when authenticated,
+    // so RLS scoping has an org context to apply).
+    if (orgId) {
+      try {
+        const prior = await db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
+          return tx
+            .select()
+            .from(schema.apiIdempotency)
+            .where(
+              and(
+                eq(schema.apiIdempotency.orgId, orgId),
+                eq(schema.apiIdempotency.method, method),
+                eq(schema.apiIdempotency.route, route),
+                eq(schema.apiIdempotency.idemKey, key),
+                gt(schema.apiIdempotency.expiresAt, new Date()),
+              ),
+            )
+            .limit(1);
+        });
+        if (prior.length > 0) {
+          const status = (prior[0].status >= 200 && prior[0].status < 300 ? prior[0].status : 200) as 200 | 201 | 202;
+          return c.json(prior[0].responseBody as object, status);
+        }
+      } catch {
+        // DB unavailable — fall through and execute once (never replay).
       }
     }
 
-    const prior = IDEMPOTENCY_STORE.get(storeKey);
-    if (prior && now - prior.at <= IDEM_TTL_MS) {
-      const status = (prior.status >= 200 && prior.status < 300 ? prior.status : 200) as 200 | 201 | 202;
-      return c.json(prior.response as object, status);
-    }
-
     // Capture the response via c.res after next() (Hono stores the final
-    // Response there), then store it keyed by idempotency key.
+    // Response there), then persist it keyed by idempotency key.
     await next();
 
     const res = c.res;
-    if (res && res.status >= 200 && res.status < 300) {
+    if (res && res.status >= 200 && res.status < 300 && orgId) {
       try {
         const cloned = res.clone();
         const body: unknown = await cloned.json();
-        IDEMPOTENCY_STORE.set(storeKey, { response: body, status: res.status, at: now });
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
+          await tx
+            .insert(schema.apiIdempotency)
+            .values({
+              orgId,
+              method,
+              route,
+              idemKey: key,
+              status: res.status,
+              responseBody: body,
+              expiresAt: new Date(Date.now() + IDEM_TTL_MS),
+            })
+            .onConflictDoNothing(); // a concurrent duplicate already stored it
+        });
       } catch {
-        // Non-JSON response — skip caching (still executed once).
+        // Non-JSON response or DB error — skip caching (still executed once).
       }
     }
   };

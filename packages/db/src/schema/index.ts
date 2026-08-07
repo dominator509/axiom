@@ -13,6 +13,7 @@ import { viralExemplar, viralExemplarRelations } from './viral_exemplar.js';
 import { postMetric, postMetricRelations } from './post_metric.js';
 import { job, jobRelations } from './job.js';
 import { idempotencyLedger, idempotencyLedgerRelations } from './idempotency_ledger.js';
+import { apiIdempotency, apiIdempotencyRelations } from './api_idempotency.js';
 import { auditLog, auditLogRelations } from './audit_log.js';
 import { authUser, authUserRelations } from './auth_user.js';
 import { authSession, authSessionRelations } from './auth_session.js';
@@ -56,6 +57,7 @@ export { viralExemplar, viralExemplarRelations };
 export { postMetric, postMetricRelations };
 export { job, jobRelations };
 export { idempotencyLedger, idempotencyLedgerRelations };
+export { apiIdempotency, apiIdempotencyRelations };
 export { auditLog, auditLogRelations };
 export { authUser, authUserRelations };
 export { authSession, authSessionRelations };
@@ -126,4 +128,5 @@ export const allRelations = [
   linkbioAnalyticsRelations,
   relayBindingRelations,
   agentPermissionRelations,
+  apiIdempotencyRelations,
 ];

@@ -181,8 +181,8 @@ describe('schema index', () => {
     expect(agentPermission).toBeDefined();
   });
 
-  it('allRelations contains exactly the 41 relation configs', () => {
-    expect(allRelations).toHaveLength(41);
+  it('allRelations contains exactly the 42 relation configs', () => {
+    expect(allRelations).toHaveLength(42);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -201,6 +201,7 @@ describe('schema index', () => {
         'post_metric',
         'job',
         'idempotency_ledger',
+        'api_idempotency',
         'audit_log',
         'auth_user',
         'auth_session',

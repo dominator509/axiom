@@ -31,6 +31,7 @@ const TS_TO_SQL: Record<string, string> = {
   postMetric: 'post_metric',
   job: 'job',
   idempotencyLedger: 'idempotency_ledger',
+  apiIdempotency: 'api_idempotency',
   auditLog: 'audit_log',
   authUser: 'auth_user',
   authSession: 'auth_session',
@@ -138,6 +139,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
       ['post_metric', ['post_target_id UUID NOT NULL REFERENCES post_target(id)', 'engagement_rate DOUBLE PRECISION NOT NULL DEFAULT 0']],
       ['job', ['queue TEXT NOT NULL', 'attempts INTEGER NOT NULL DEFAULT 0', 'max_attempts INTEGER NOT NULL DEFAULT 3']],
       ['idempotency_ledger', ['idem_key TEXT NOT NULL UNIQUE', 'locked BOOLEAN NOT NULL DEFAULT false']],
+      ['api_idempotency', ['method text NOT NULL', 'route text NOT NULL', 'idem_key text NOT NULL', 'status integer NOT NULL', 'response_body jsonb NOT NULL', 'expires_at timestamp(3) with time zone NOT NULL', 'UNIQUE (org_id, method, route, idem_key)']],
       ['audit_log', ['actor_ref TEXT NOT NULL', 'prev_hash BYTEA NOT NULL', 'row_hash BYTEA NOT NULL']],
       ['auth_user', ['id TEXT PRIMARY KEY', 'email TEXT NOT NULL UNIQUE', 'org_id UUID REFERENCES org(id)', "role TEXT NOT NULL DEFAULT 'operator'"]],
       ['auth_session', ['user_id TEXT NOT NULL REFERENCES auth_user(id)', 'token TEXT NOT NULL UNIQUE', 'expires_at TIMESTAMPTZ NOT NULL']],
@@ -227,7 +229,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
     // 29 in 0004 (job_pick + job_dedupe + 27 entity-table hot paths) — exact count.
-    expect(indexStatements).toHaveLength(65);
+    expect(indexStatements).toHaveLength(66);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS job_pick ON job (state, run_after) WHERE state = \'ready\';');
