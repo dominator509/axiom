@@ -16,9 +16,11 @@ import {
   generatePhotoshootPrompts,
   buildS0,
   buildS1,
+  buildS2,
   buildS3,
   assemblePrompt,
   type ModelProfile as PromptModelProfile,
+  type ViralExemplar,
 } from '@axiom/llm-gateway';
 import { LLMGateway } from '@axiom/llm-gateway';
 import { PLATFORM_RULES, DEFAULT_PLATFORM_THRESHOLDS } from '@axiom/fanvue-mcp';
@@ -38,6 +40,59 @@ type PromptPlatform =
   | 'fanvue';
 
 const router = new Hono<AppBindings>();
+
+/**
+ * Retrieve the model's top-performing viral exemplars for S2 injection
+ * (F-83, L2.8/L3.5). Real DB path: viral_exemplar rows ranked by label
+ * (viral > strong > baseline > weak) then perf_score, scoped to model +
+ * platform. `features` carries title/caption/hashtags captured at label time.
+ */
+async function retrieveTopExemplars(
+  orgId: string,
+  modelId: string,
+  platform: string,
+  limit: number,
+): Promise<ViralExemplar[]> {
+  const labelOrder = ['viral', 'strong', 'baseline', 'weak'];
+  const rows = await withOrgContext(orgId, (tx) =>
+    tx
+      .select({
+        id: schema.viralExemplar.id,
+        platform: schema.viralExemplar.platform,
+        label: schema.viralExemplar.label,
+        perfScore: schema.viralExemplar.perfScore,
+        features: schema.viralExemplar.features,
+      })
+      .from(schema.viralExemplar)
+      .where(
+        and(
+          eq(schema.viralExemplar.modelId, modelId),
+          eq(schema.viralExemplar.platform, platform),
+        ),
+      )
+      .limit(50),
+  );
+
+  const sorted = rows.sort((a: { label: string; perfScore: number | null }, b: { label: string; perfScore: number | null }) => {
+    const la = labelOrder.indexOf(a.label) === -1 ? 3 : labelOrder.indexOf(a.label);
+    const lb = labelOrder.indexOf(b.label) === -1 ? 3 : labelOrder.indexOf(b.label);
+    if (la !== lb) return la - lb;
+    return (b.perfScore ?? 0) - (a.perfScore ?? 0);
+  });
+
+  return sorted.slice(0, limit).map((r: { id: string; platform: string; label: string; perfScore: number | null; features: unknown }) => {
+    const f = (r.features ?? {}) as Record<string, unknown>;
+    return {
+      id: r.id,
+      platform: (r.platform as ViralExemplar['platform']) ?? 'instagram',
+      title: (f.title as string) ?? '',
+      caption: (f.caption as string) ?? '',
+      hashtags: Array.isArray(f.hashtags) ? (f.hashtags as string[]) : [],
+      viralLabel: (r.label as ViralExemplar['viralLabel']) ?? 'baseline',
+      aiNotes: (f.aiNotes as string | null) ?? null,
+    };
+  });
+}
 
 const generateSchema = z.object({
   style: z.string().min(1).max(100).default('studio'),
@@ -141,10 +196,14 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema), asy
     if (body.enrichWithLlm) {
       try {
         const gateway = new LLMGateway();
+        // F-83 exemplar injection: retrieve the model's best-performing
+        // exemplars from the DB-backed viral memory (L2.8) and feed them
+        // into the S2 segment so generation is guided by what worked.
+        const exemplars = await retrieveTopExemplars(orgId, modelId, promptPlatform, 3);
         const prompt = assemblePrompt({
           S0: buildS0(profile),
           S1: buildS1(promptPlatform),
-          S2: '',
+          S2: buildS2(exemplars),
           S3: buildS3({
             modelId,
             task: 'Write an engaging caption for the photoshoot, max 200 chars.',

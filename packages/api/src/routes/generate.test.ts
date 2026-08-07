@@ -19,8 +19,16 @@ vi.mock('@axiom/llm-gateway', async (importOriginal) => {
         return { content: 'Enriched caption ✨', model: 'test', provider: 'test', cost: 0, tokens: { prompt: 1, completion: 1, total: 2 }, latency: 1, cached: false };
       }
     },
+    // Capture the assembled S0–S3 segments so tests can assert S2 carries
+    // real viral exemplars (F-83).
+    assemblePrompt: vi.fn((segments: Record<string, string>) => {
+      capturedSegments = segments;
+      return (actual.assemblePrompt as (s: Record<string, string>) => string)(segments);
+    }),
   };
 });
+
+let capturedSegments: Record<string, string> | null = null;
 
 import { generateRouter } from './generate.js';
 
@@ -104,5 +112,30 @@ describe('POST /models/:id/generate', () => {
       body: JSON.stringify(validBody),
     });
     expect(res.status).toBe(401);
+  });
+
+  it('injects real viral exemplars into the S2 segment (F-83)', async () => {
+    // Seed the model row + a top-performing exemplar (viral label + features).
+    mockState.result = [
+      { id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna Vex', handle: 'lunavex', bio: null, avatarUrl: null, state: 'generated' },
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        platform: 'instagram',
+        label: 'viral',
+        perfScore: 2.4,
+        features: { title: 'Golden hour beach reel', caption: 'Sunset swims hit different', hashtags: ['beach', 'goldenhour'], aiNotes: 'high save rate' },
+      },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, enrichWithLlm: true }),
+    });
+    expect(res.status).toBe(201);
+    expect(capturedSegments).not.toBeNull();
+    expect(capturedSegments!.S2).toContain('[VIRAL EXEMPLARS]');
+    expect(capturedSegments!.S2).toContain('Golden hour beach reel');
+    expect(capturedSegments!.S2).toContain('Sunset swims hit different');
+    expect(capturedSegments!.S2).toContain('high save rate');
   });
 });
