@@ -11,7 +11,7 @@ export const job = pgTable('job', {
   payload: jsonb('payload').$type<Record<string, unknown>>().default({}),
   state: text('state').notNull().default('ready'),
   attempts: integer('attempts').notNull().default(0),
-  maxAttempts: integer('max_attempts').notNull().default(3),
+  maxAttempts: integer('max_attempts').notNull().default(8),
   lastError: text('last_error'),
   runAfter: timestamp('run_after', { withTimezone: true }).notNull().defaultNow(),
   lockedBy: text('locked_by'),

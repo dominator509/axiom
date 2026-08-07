@@ -15,7 +15,7 @@ export const platformConnection = pgTable('platform_connection', {
   encNonce: bytea('enc_nonce').notNull(),
   dekId: text('dek_id').notNull(),
   capabilities: jsonb('capabilities').$type<string[]>().default([]),
-  status: text('status').notNull().default('active'),
+  status: text('status').notNull().default('connected'),
   connectedAt: timestamp('connected_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

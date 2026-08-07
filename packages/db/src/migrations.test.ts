@@ -20,6 +20,7 @@ const TS_TO_SQL: Record<string, string> = {
   appUser: 'app_user',
   modelProfile: 'model_profile',
   consentRecord: 'consent_record',
+  killSwitch: 'kill_switch',
   platformConnection: 'platform_connection',
   modelNetworkConfigs: 'model_network_configs',
   asset: 'asset',
@@ -127,7 +128,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
       ['org', ['id UUID PRIMARY KEY DEFAULT gen_random_uuid()', 'slug TEXT NOT NULL UNIQUE', "settings JSONB DEFAULT '{}'::jsonb", 'is_active BOOLEAN NOT NULL DEFAULT true']],
       ['app_user', ['org_id UUID NOT NULL REFERENCES org(id)', 'email TEXT NOT NULL UNIQUE', "role TEXT NOT NULL DEFAULT 'operator'"]],
       ['model_profile', ['handle TEXT NOT NULL', 'bio TEXT']],
-      ['consent_record', ['model_id UUID NOT NULL REFERENCES model_profile(id)', 'granted BOOLEAN NOT NULL', 'expires_at TIMESTAMPTZ']],
+      ['consent_record', ['model_id UUID NOT NULL REFERENCES model_profile(id)', 'granted BOOLEAN NOT NULL', 'expires_at TIMESTAMPTZ', 'subject_ref text NOT NULL DEFAULT', "doc_kind text NOT NULL DEFAULT 'platform_consent'", 'CHECK (doc_kind IN', 'sha256 bytea', 'valid_from date NOT NULL DEFAULT CURRENT_DATE']],
       ['platform_connection', ['enc_token BYTEA NOT NULL', 'enc_nonce BYTEA NOT NULL', 'dek_id TEXT NOT NULL', "status TEXT NOT NULL DEFAULT 'active'"]],
       ['model_network_configs', ["egress_mode TEXT NOT NULL DEFAULT 'direct'", 'CHECK (egress_mode IN', 'enc_creds BYTEA', 'expected_egress_ip TEXT', 'failover_proxy_addrs TEXT[]', 'UNIQUE (model_id)']],
       ['asset', ['file_size INTEGER NOT NULL', 'storage_key TEXT NOT NULL', 'width INTEGER', 'sha256 bytea', 'SET NOT NULL', 'UNIQUE (org_id, sha256)']],
@@ -166,6 +167,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
       ['trigger_rule', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'condition JSONB NOT NULL DEFAULT']],
       ['linkbio_analytics', ['provider_id UUID REFERENCES linkbio_provider(id) ON DELETE SET NULL', "kind TEXT NOT NULL DEFAULT 'click'"]],
       ['relay_binding', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'channel TEXT NOT NULL', 'UNIQUE (model_id, channel)']],
+      ['kill_switch', ['scope text NOT NULL DEFAULT', "action text NOT NULL CHECK (action IN ('enable','disable'))", 'actor_ref text NOT NULL', 'model_id uuid REFERENCES model_profile(id) ON DELETE CASCADE']],
       ['agent_permission', ['agent_ref TEXT NOT NULL', "tier TEXT NOT NULL DEFAULT 'read'", 'can_publish BOOLEAN NOT NULL DEFAULT false', 'UNIQUE (agent_ref, model_id)']],
     ];
     for (const [tsName, fragments] of expectations) {
@@ -229,7 +231,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
     // 29 in 0004 (job_pick + job_dedupe + 27 entity-table hot paths) — exact count.
-    expect(indexStatements).toHaveLength(66);
+    expect(indexStatements).toHaveLength(67);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS job_pick ON job (state, run_after) WHERE state = \'ready\';');

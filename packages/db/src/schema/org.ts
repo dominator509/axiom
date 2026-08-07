@@ -6,6 +6,7 @@ export const org = pgTable('org', {
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   logoUrl: text('logo_url'),
+  kekId: text('kek_id').notNull().default('egress-dek'),
   settings: jsonb('settings').$type<Record<string, unknown>>().default({}),
   features: jsonb('features').$type<string[]>().default([]),
   isActive: boolean('is_active').notNull().default(true),

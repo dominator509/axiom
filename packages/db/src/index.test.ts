@@ -80,14 +80,14 @@ describe('@axiom/db index', () => {
     expect(schema.linkbioAnalytics).toBeDefined();
     expect(schema.relayBinding).toBeDefined();
     expect(schema.agentPermission).toBeDefined();
-    expect(schema.allRelations).toHaveLength(42);
+    expect(schema.allRelations).toHaveLength(43);
   });
 
   it('exposes a usable drizzle query builder without a live database', () => {
     // select().toSQL() never touches the client, so it works offline.
     const sql = db.select().from(schema.org).toSQL();
     expect(sql.sql).toBe(
-      'select "id", "name", "slug", "logo_url", "settings", "features", "is_active", "created_at", "updated_at" from "org"',
+      'select "id", "name", "slug", "logo_url", "kek_id", "settings", "features", "is_active", "created_at", "updated_at" from "org"',
     );
   });
 

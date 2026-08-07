@@ -67,6 +67,13 @@ router.post('/killswitch/enable', zValidator('json', killSwitchSchema), async (c
       })
       .where(eq(schema.orgSettings.orgId, orgId))
       .returning();
+    await tx.insert(schema.killSwitch).values({
+      orgId,
+      scope: 'org',
+      action: 'enable',
+      reason: body.reason ?? '',
+      actorRef: userId,
+    });
     await writeAudit(tx, orgId, userId, 'killswitch.enable', orgId, {
       reason: body.reason ?? '',
     });
@@ -92,6 +99,13 @@ router.post('/killswitch/disable', async (c) => {
       })
       .where(eq(schema.orgSettings.orgId, orgId))
       .returning();
+    await tx.insert(schema.killSwitch).values({
+      orgId,
+      scope: 'org',
+      action: 'disable',
+      reason: '',
+      actorRef: userId,
+    });
     await writeAudit(tx, orgId, userId, 'killswitch.disable', orgId, {});
     return row;
   });
@@ -120,6 +134,13 @@ router.post('/kill-switch', zValidator('json', killSwitchSchema), async (c) => {
       })
       .where(eq(schema.orgSettings.orgId, orgId))
       .returning();
+    await tx.insert(schema.killSwitch).values({
+      orgId,
+      scope: 'org',
+      action: 'enable',
+      reason: body.reason ?? '',
+      actorRef: userId,
+    });
     await writeAudit(tx, orgId, userId, 'kill-switch.org', orgId, {
       reason: body.reason ?? '',
       scope: 'org',

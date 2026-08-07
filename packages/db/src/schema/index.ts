@@ -2,6 +2,7 @@ import { org, orgRelations } from './org.js';
 import { appUser, appUserRelations } from './app_user.js';
 import { modelProfile, modelProfileRelations } from './model_profile.js';
 import { consentRecord, consentRecordRelations } from './consent_record.js';
+import { killSwitch, killSwitchRelations } from './kill_switch.js';
 import { platformConnection, platformConnectionRelations } from './platform_connection.js';
 import { modelNetworkConfigs, modelNetworkConfigsRelations } from './model_network_configs.js';
 import { asset, assetRelations } from './asset.js';
@@ -46,6 +47,7 @@ export { org, orgRelations };
 export { appUser, appUserRelations };
 export { modelProfile, modelProfileRelations };
 export { consentRecord, consentRecordRelations };
+export { killSwitch, killSwitchRelations };
 export { platformConnection, platformConnectionRelations };
 export { modelNetworkConfigs, modelNetworkConfigsRelations };
 export { asset, assetRelations };
@@ -91,6 +93,7 @@ export const allRelations = [
   appUserRelations,
   modelProfileRelations,
   consentRecordRelations,
+  killSwitchRelations,
   platformConnectionRelations,
   modelNetworkConfigsRelations,
   assetRelations,

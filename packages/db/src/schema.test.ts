@@ -181,8 +181,8 @@ describe('schema index', () => {
     expect(agentPermission).toBeDefined();
   });
 
-  it('allRelations contains exactly the 42 relation configs', () => {
-    expect(allRelations).toHaveLength(42);
+  it('allRelations contains exactly the 43 relation configs', () => {
+    expect(allRelations).toHaveLength(43);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -190,6 +190,7 @@ describe('schema index', () => {
         'app_user',
         'model_profile',
         'consent_record',
+        'kill_switch',
         'platform_connection',
         'model_network_configs',
         'asset',
@@ -266,6 +267,7 @@ describe('org table', () => {
         'name',
         'slug',
         'logoUrl',
+        'kekId',
         'settings',
         'features',
         'isActive',
@@ -407,9 +409,34 @@ describe('consent_record table', () => {
   it('model_id is required FK to model_profile', () => {
     const modelId = columnsOf(consentRecord).modelId;
     expect(modelId.notNull).toBe(true);
-    const fk = foreignKeysOf(consentRecord)[0];
-    expect(fk.columns.map((c) => c.name)).toEqual(['model_id']);
-    expect(tableName(fk.foreignTable)).toBe('model_profile');
+    const fks = foreignKeysOf(consentRecord);
+    const modelFk = fks.find((fk) => fk.columns[0]?.name === 'model_id');
+    expect(modelFk).toBeDefined();
+    expect(modelFk!.columns.map((c) => c.name)).toEqual(['model_id']);
+    expect(tableName(modelFk!.foreignTable)).toBe('model_profile');
+  });
+
+  it('org_id is required FK to org (L3.1 §2 tenancy)', () => {
+    const orgId = columnsOf(consentRecord).orgId;
+    expect(orgId.notNull).toBe(true);
+    const fks = foreignKeysOf(consentRecord);
+    const orgFk = fks.find((fk) => fk.columns[0]?.name === 'org_id');
+    expect(orgFk).toBeDefined();
+    expect(orgFk!.columns.map((c) => c.name)).toEqual(['org_id']);
+    expect(tableName(orgFk!.foreignTable)).toBe('org');
+  });
+
+  it('exposes the L3.1 §2 compliance-vault columns', () => {
+    const cols = columnsOf(consentRecord);
+    expect(cols.subjectRef.notNull).toBe(true);
+    expect(cols.subjectRef.default).toBe('');
+    expect(cols.docKind.notNull).toBe(true);
+    expect(cols.docKind.default).toBe('platform_consent');
+    expect(cols.sha256.dataType).toBe('custom');
+    expect(cols.validFrom.notNull).toBe(true);
+    expect(cols.validFrom.hasDefault).toBe(true);
+    expect(cols.validTo.notNull).toBe(false);
+    expect(cols.blobRef.notNull).toBe(false);
   });
 
   it('granted is required with NO default (explicit consent required)', () => {
@@ -425,8 +452,9 @@ describe('consent_record table', () => {
     expect(cols.revokedAt.notNull).toBe(false);
   });
 
-  it('relates one-to-one to model', () => {
+  it('relates one-to-one to model and org', () => {
     expect(relationNames(consentRecordRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
       model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
     });
   });
@@ -448,10 +476,10 @@ describe('platform_connection table', () => {
     expect(cols.dekId.notNull).toBe(true);
   });
 
-  it('status defaults to active and capabilities to empty array', () => {
+  it('status defaults to connected and capabilities to empty array (L3.1 §3)', () => {
     const cols = columnsOf(platformConnection);
     expect(cols.status.hasDefault).toBe(true);
-    expect(cols.status.default).toBe('active');
+    expect(cols.status.default).toBe('connected');
     expect(cols.capabilities.hasDefault).toBe(true);
     expect(cols.capabilities.default).toEqual([]);
   });
@@ -734,8 +762,9 @@ describe('job table', () => {
     expect(columnsOf(job).payload.default).toEqual({});
   });
 
-  it('attempts/maxAttempts are integer counters defaulting to 0 and 3', () => {
-    // Aligned with migration 0000: INTEGER NOT NULL DEFAULT 0 / 3 (was TEXT drift).
+  it('attempts/maxAttempts are integer counters defaulting to 0 and 8 (L3.1 §8)', () => {
+    // Aligned with migration 0000 (INTEGER NOT NULL DEFAULT 0) + 0010
+    // (max_attempts default 3 → 8 per L3.1 §8).
     const cols = columnsOf(job);
     expect(cols.attempts.dataType).toBe('number');
     expect(cols.attempts.columnType).toBe('PgInteger');
@@ -744,7 +773,7 @@ describe('job table', () => {
     expect(cols.maxAttempts.dataType).toBe('number');
     expect(cols.maxAttempts.columnType).toBe('PgInteger');
     expect(cols.maxAttempts.hasDefault).toBe(true);
-    expect(cols.maxAttempts.default).toBe(3);
+    expect(cols.maxAttempts.default).toBe(8);
   });
 
   it('relates to org', () => {

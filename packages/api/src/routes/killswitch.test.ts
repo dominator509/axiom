@@ -6,7 +6,7 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
-vi.mock('@axiom/db', () => mockDbFactory({ orgSettings: {} }));
+vi.mock('@axiom/db', () => mockDbFactory({ orgSettings: {}, killSwitch: {} }));
 
 import { killswitchRouter } from './killswitch.js';
 
