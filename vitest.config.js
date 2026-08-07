@@ -6,7 +6,37 @@
 // ============================================================================
 import { defineConfig } from "vitest/config";
 import path from "path";
+import fs from "fs";
+// ----------------------------------------------------------------------------
+// preferTsSource
+// ----------------------------------------------------------------------------
+// The monorepo keeps compiled .js/.d.ts artifacts next to the TypeScript
+// sources inside packages/*/src. NodeNext-style relative imports written as
+// './file.js' would otherwise resolve to those (possibly stale) compiled
+// artifacts instead of the real source. This plugin redirects relative .js
+// specifiers to the sibling .ts file when one exists, so tests always exercise
+// the actual TypeScript source (mirroring the @axiom/* -> packages/*/src
+// alias configuration below).
+// ----------------------------------------------------------------------------
+function preferTsSource() {
+    return {
+        name: "prefer-ts-source",
+        enforce: "pre",
+        resolveId(source, importer) {
+            if (!importer)
+                return null;
+            if (!source.startsWith(".") || !source.endsWith(".js"))
+                return null;
+            const tsPath = path.resolve(path.dirname(importer), source.slice(0, -3) + ".ts");
+            if (fs.existsSync(tsPath)) {
+                return tsPath;
+            }
+            return null;
+        },
+    };
+}
 export default defineConfig({
+    plugins: [preferTsSource()],
     test: {
         // Where to find test files
         include: ["**/*.test.ts"],

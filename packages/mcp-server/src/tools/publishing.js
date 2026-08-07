@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { Tier, tierAtLeast } from '../auth.js';
+import { withModelOrg, schema } from '../org-context.js';
 /**
  * Input schema for publishing operations.
  * - action: 'schedule' queues a post, 'publish' posts immediately
@@ -24,6 +25,9 @@ export const PublishingInputSchema = z.object({
  * - Operator: DENIED (use Relay for direct operations)
  * - Manager:  ALLOWED with requiresApproval=true
  * - Autonomous: ALLOWED, requiresApproval=false
+ *
+ * Real behaviour (H-2): creates a content_bundle + post_target (idem-keyed,
+ * LBI-05) and enqueues a publish.target job in the same org-scoped txn.
  */
 export class PublishingTool {
     name = 'publishing_post';
@@ -46,14 +50,36 @@ export class PublishingTool {
         const isAutonomous = permission.tier === Tier.Autonomous;
         const needsApproval = !isAutonomous;
         const bundleId = uuidv4();
-        // Stub: insert into @axiom/db post_target and trigger connector.
-        // const { db } = await import('@axiom/db');
-        // const status = needsApproval ? 'pending_approval' : 'queued';
-        // await db.insert(postTarget).values({
-        //   id: bundleId, modelId: args.modelId, platform: args.post.platform,
-        //   config: { text: args.post.text, mediaIds: args.post.mediaIds },
-        //   scheduledAt: args.post.scheduledAt, status,
-        // }).execute();
+        const scheduledFor = args.post.scheduledAt ? new Date(args.post.scheduledAt) : null;
+        await withModelOrg(args.modelId, async (tx, orgId) => {
+            // 1. content_bundle — the approval/review unit (state machine).
+            await tx.insert(schema.contentBundle).values({
+                id: bundleId,
+                orgId,
+                modelId: args.modelId,
+                captions: args.post.text ? { [args.post.platform]: args.post.text } : {},
+                hashtags: [],
+                state: needsApproval ? 'pending_approval' : 'generated',
+            });
+            // 2. post_target with an idempotency key (LBI-05 / L3.1 §11).
+            await tx.insert(schema.postTarget).values({
+                orgId,
+                bundleId,
+                platform: args.post.platform,
+                scheduledFor,
+                state: 'pending',
+                idemKey: Buffer.from(`${bundleId}|${args.post.platform}|${args.action}`),
+            });
+            // 3. Enqueue the publish job in the same txn (L3.4 §1 dedupe).
+            await tx.insert(schema.job).values({
+                orgId,
+                queue: 'publish',
+                kind: 'publish.target',
+                payload: { bundleId, targetPlatforms: [args.post.platform] },
+                state: 'ready',
+                runAfter: scheduledFor ?? new Date(),
+            });
+        });
         return {
             success: true,
             tool: this.name,

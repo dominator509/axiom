@@ -1,16 +1,18 @@
 import { z } from 'zod';
-import { type Platform } from '@axiom/core';
 declare const FanvueCredentialsSchema: z.ZodObject<{
     endpoint: z.ZodString;
-    apiKey: z.ZodString;
+    apiKey: z.ZodOptional<z.ZodString>;
+    accessToken: z.ZodOptional<z.ZodString>;
     modelId: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     endpoint: string;
-    apiKey: string;
+    accessToken?: string | undefined;
+    apiKey?: string | undefined;
     modelId?: string | undefined;
 }, {
     endpoint: string;
-    apiKey: string;
+    accessToken?: string | undefined;
+    apiKey?: string | undefined;
     modelId?: string | undefined;
 }>;
 export type FanvueCredentials = z.infer<typeof FanvueCredentialsSchema>;
@@ -19,62 +21,85 @@ export interface ConnectResult {
     modelId: string;
     token: string;
     expiresAt: string;
+    protocolVersion: string;
+    serverCapabilities: Record<string, unknown>;
+    tools: string[];
 }
-export interface UploadResult {
-    asset_id: string;
-    url: string;
-    width: number;
-    height: number;
-    size_bytes: number;
+/** Result of custom__start-image-upload (documented MCP custom tool). */
+export interface StartImageUploadResult {
+    mediaUuid: string;
+    uploadId: string;
+    uploadUrl: string;
+    instructions: string;
 }
+/** Result of custom__create-image-post — same shape as POST /posts. */
 export interface PostResult {
-    post_id: string;
-    url: string;
-    platform: Platform;
-    created_at: string;
+    uuid: string;
+    createdAt: string;
+    text: string | null;
+    price: number | null;
+    mediaPreviewUuid: string | null;
+    audience: 'subscribers' | 'followers-and-subscribers';
+    publishAt: string | null;
+    publishedAt: string | null;
+    expiresAt: string | null;
 }
-export interface AnalyticsDataPoint {
-    date: string;
-    views: number;
-    likes: number;
-    comments: number;
-    shares: number;
-    engagement_rate: number;
-    revenue_cents: number;
-}
-export interface AnalyticsResult {
-    model_id: string;
-    timeframe: string;
-    summary: {
-        total_views: number;
-        total_likes: number;
-        total_comments: number;
-        total_shares: number;
-        avg_engagement_rate: number;
-        total_revenue_cents: number;
+/** Arguments for custom__create-image-post (documented). */
+export interface CreateImagePostArgs {
+    image: {
+        mediaUuid: string;
+        uploadId: string;
+        etag: string;
     };
-    daily: AnalyticsDataPoint[];
+    audience: 'subscribers' | 'followers-and-subscribers';
+    text?: string;
+    price?: number;
+    publishAt?: string;
+    expiresAt?: string;
+    previewImage?: {
+        mediaUuid: string;
+        uploadId: string;
+        etag: string;
+    };
+    collectionUuids?: string[];
 }
-export interface InboxMessage {
-    id: string;
-    from: string;
-    from_display: string;
-    subject: string;
-    body_preview: string;
-    received_at: string;
-    is_read: boolean;
-    thread_id: string;
+/** GET /insights/earnings/summary — pre-aggregated earnings (documented). */
+export interface AnalyticsResult {
+    [key: string]: unknown;
 }
+/** GET /chats — paginated chat list (documented REST endpoint). */
 export interface InboxResult {
-    model_id: string;
-    messages: InboxMessage[];
-    unread_count: number;
+    [key: string]: unknown;
 }
+/** POST /chats/{userUuid}/message — send a message (documented). */
 export interface ReplyResult {
-    message_id: string;
-    sent_at: string;
-    status: 'sent' | 'queued' | 'failed';
-    error?: string;
+    [key: string]: unknown;
+}
+export interface McpJsonRpcRequest {
+    jsonrpc: '2.0';
+    method: string;
+    params?: Record<string, unknown>;
+    id: number;
+}
+export interface McpJsonRpcSuccess {
+    jsonrpc: '2.0';
+    result: unknown;
+    id: number | null;
+}
+export interface McpJsonRpcError {
+    jsonrpc: '2.0';
+    error: {
+        code: number;
+        message: string;
+        data?: unknown;
+    };
+    id: number | null;
+}
+export type McpJsonRpcResponse = McpJsonRpcSuccess | McpJsonRpcError;
+export interface McpToolDefinition {
+    name: string;
+    description?: string;
+    inputSchema?: Record<string, unknown>;
 }
 export declare class FanvueMcpError extends Error {
     readonly code: string;
@@ -88,39 +113,72 @@ export declare class FanvueMcpClient {
     private token;
     private modelId;
     private connected;
+    private protocolVersion;
+    private serverCapabilities;
+    private toolNames;
+    /** True once tools/list has been discovered (even if it returned zero tools). */
+    private toolsDiscovered;
+    private requestCounter;
     constructor();
+    /** Resolve the JSON-RPC endpoint URL (append /mcp when missing). */
+    private mcpUrl;
+    /** Authenticated headers for MCP frames (OAuth Bearer per Fanvue docs). */
+    private headers;
     /**
-     * Authenticate with the Fanvue MCP endpoint.
+     * Perform the MCP initialize handshake against the Fanvue endpoint,
+     * then discover the tool surface via tools/list.
      */
     connect(credentials: FanvueCredentials): Promise<ConnectResult>;
+    /** Return the discovered tool surface. */
+    listTools(): string[];
+    /** Whether the server advertises a specific tool. */
+    hasTool(name: string): boolean;
     /**
-     * Ensure the client is authenticated before making API calls.
+     * Core JSON-RPC 2.0 request over HTTP POST. Handles both batched and
+     * single-frame responses; raises FanvueMcpError on protocol errors.
+     */
+    private request;
+    /** Call an MCP tool by name with typed arguments. */
+    private callTool;
+    /** Extract a named field from a tools/call result (result envelope). */
+    private unwrap;
+    /**
+     * Ensure the client has completed the MCP handshake.
      */
     private assertConnected;
     /**
-     * Build authenticated headers for MCP API requests.
+     * Step 1 of the documented image-post flow: custom__start-image-upload.
+     * Takes no arguments; reserves an upload slot and returns everything the
+     * PUT step needs. Requires the write:media scope.
      */
-    private authHeaders;
+    startImageUpload(): Promise<StartImageUploadResult>;
     /**
-     * Upload an image asset to Fanvue MCP.
+     * Step 2 of the documented image-post flow: HTTP PUT the raw image bytes
+     * (not base64) to the uploadUrl with no Authorization header, then return
+     * the ETag response header which confirms the upload.
      */
-    uploadImage(base64: string, filename: string): Promise<UploadResult>;
+    uploadImageBytes(uploadUrl: string, bytes: Uint8Array): Promise<string>;
     /**
-     * Create a post using an uploaded asset.
+     * Step 3 of the documented image-post flow: custom__create-image-post.
+     * Publishes a post carrying the uploaded image. Requires write:media,
+     * read:media and write:post scopes. The post is created once the image is
+     * ready to display. Returns the created post (same shape as POST /posts).
      */
-    createPost(assetId: string, caption: string): Promise<PostResult>;
+    createImagePost(args: CreateImagePostArgs): Promise<PostResult>;
+    /** Authenticated REST headers for api.fanvue.com. */
+    private restHeaders;
+    private restGet;
+    private restPost;
+    /** GET /insights/earnings/summary (documented; read:insights scope). */
+    getEarningsSummary(): Promise<AnalyticsResult>;
+    /** GET /chats — paginated chat list (documented; read:chat scope). */
+    getInbox(query?: string): Promise<InboxResult>;
     /**
-     * Fetch analytics for a model over a given timeframe.
+     * POST /chats/{userUuid}/message — send a message in an existing chat
+     * (documented; write:chat scope). Accepts text, media attachments, optional
+     * pricing, or a single third-party GIF.
      */
-    getAnalytics(modelId: string, timeframe?: '7d' | '30d' | '90d'): Promise<AnalyticsResult>;
-    /**
-     * Fetch inbox / DMs for a model.
-     */
-    getInbox(modelId: string): Promise<InboxResult>;
-    /**
-     * Reply to a DM/inbox message.
-     */
-    replyToDM(modelId: string, messageId: string, text: string): Promise<ReplyResult>;
+    replyToDM(userUuid: string, text: string, options?: Record<string, unknown>): Promise<ReplyResult>;
     /**
      * Safely parse JSON from a failed response. Returns null if parsing fails.
      */

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
+import { eq } from 'drizzle-orm';
 import { Tier } from '../auth.js';
+import { withModelOrg, schema } from '../org-context.js';
 /**
  * Input schema for network configuration updates.
  * Only available to Autonomous-tier agents via dashboard-grant.
@@ -23,6 +25,11 @@ export const NetworkInputSchema = z.object({
 /**
  * Network tool — update cross-platform network configuration.
  * Exclusive to Autonomous tier. Requires dashboard-grant (approval via Relay).
+ *
+ * Real behaviour (H-2): persists the requested configuration into the model's
+ * org_settings.features map (versioned) as a pending_approval change; the
+ * dashboard/relay approval path applies it. The change is auditable because
+ * org_settings carries updated_at.
  */
 export class NetworkTool {
     name = 'network_configure';
@@ -37,17 +44,24 @@ export class NetworkTool {
         if (args.modelId !== permission.modelId) {
             throw new Error(`Model mismatch: token scoped to ${permission.modelId}, requested ${args.modelId}`);
         }
-        const bundleId = uuidv4();
-        // Stub: persist config to @axiom/db platform_connection or a config table.
-        // const { db } = await import('@axiom/db');
-        // await db.update(platformConnection)
-        //   .set({ config: args.config })
-        //   .where(eq(platformConnection.modelId, args.modelId))
-        //   .execute();
+        const changeId = uuidv4();
+        await withModelOrg(args.modelId, async (tx, orgId) => {
+            const orgRows = await tx
+                .select({ features: schema.org.features })
+                .from(schema.org)
+                .where(eq(schema.org.id, orgId))
+                .limit(1);
+            const features = (orgRows[0]?.features ?? {});
+            const pending = (features.pendingNetworkChanges ?? {});
+            await tx
+                .update(schema.org)
+                .set({ features: { ...features, pendingNetworkChanges: { ...pending, [changeId]: args.config } } })
+                .where(eq(schema.org.id, orgId));
+        });
         return {
             success: true,
             tool: this.name,
-            bundleId,
+            changeId,
             requiresApproval: true,
             modelId: args.modelId,
             config: args.config,

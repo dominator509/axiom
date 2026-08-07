@@ -77,7 +77,7 @@ export declare function callGoogle(apiKey: string, body: {
     max_tokens?: number;
     top_p?: number;
     stop?: string[];
-}, signal?: AbortSignal): Promise<OpenAICompatCompletionResponse>;
+}, signal?: AbortSignal, fetchImpl?: typeof fetch): Promise<OpenAICompatCompletionResponse>;
 export declare function streamGoogle(apiKey: string, body: {
     model: string;
     messages: Array<{
@@ -88,5 +88,5 @@ export declare function streamGoogle(apiKey: string, body: {
     max_tokens?: number;
     top_p?: number;
     stop?: string[];
-}, signal?: AbortSignal): AsyncIterable<string>;
+}, signal?: AbortSignal, fetchImpl?: typeof fetch): AsyncIterable<string>;
 //# sourceMappingURL=google.d.ts.map

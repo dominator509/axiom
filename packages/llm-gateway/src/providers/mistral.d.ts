@@ -37,6 +37,6 @@ export interface MistralCompletionResponse {
         total_tokens: number;
     };
 }
-export declare function callMistral(apiKey: string, body: MistralCompletionRequest, signal?: AbortSignal): Promise<MistralCompletionResponse>;
-export declare function streamMistral(apiKey: string, body: MistralCompletionRequest, signal?: AbortSignal): AsyncIterable<string>;
+export declare function callMistral(apiKey: string, body: MistralCompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): Promise<MistralCompletionResponse>;
+export declare function streamMistral(apiKey: string, body: MistralCompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): AsyncIterable<string>;
 //# sourceMappingURL=mistral.d.ts.map

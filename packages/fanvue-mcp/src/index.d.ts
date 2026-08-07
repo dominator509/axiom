@@ -1,5 +1,5 @@
 export { FanvueMcpClient, FanvueMcpError } from './client.js';
-export type { FanvueCredentials, ConnectResult, UploadResult, PostResult, AnalyticsResult, AnalyticsDataPoint, InboxResult, InboxMessage, ReplyResult, } from './client.js';
+export type { FanvueCredentials, ConnectResult, StartImageUploadResult, PostResult, CreateImagePostArgs, AnalyticsResult, InboxResult, ReplyResult, } from './client.js';
 export { ToSEngine, DEFAULT_PLATFORM_THRESHOLDS, PLATFORM_RULES } from './tos-engine.js';
 export type { PlatformScore, EvaluationResult, ImageClassification, PlatformRule, } from './tos-engine.js';
 export { PrePostHook } from './prepost.js';

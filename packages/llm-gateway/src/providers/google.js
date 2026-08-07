@@ -19,7 +19,7 @@ export class GoogleProvider {
             max_tokens: options?.maxTokens,
             top_p: options?.topP,
             stop: options?.stop,
-        });
+        }, undefined, options?.fetchImpl ?? fetch);
         return {
             content: res.choices[0]?.message?.content ?? '',
             model: res.model ?? this.model,
@@ -40,7 +40,7 @@ export class GoogleProvider {
                 max_tokens: options?.maxTokens,
                 top_p: options?.topP,
                 stop: options?.stop,
-            })) {
+            }, undefined, options?.fetchImpl ?? fetch)) {
                 yield { type: 'delta', content: delta };
             }
         }
@@ -97,9 +97,9 @@ function toGenerateRequest(model, messages, options) {
         ...(Object.keys(generationConfig).length > 0 ? { generationConfig } : {}),
     };
 }
-export async function callGoogle(apiKey, body, signal) {
+export async function callGoogle(apiKey, body, signal, fetchImpl = fetch) {
     const req = toGenerateRequest(body.model, body.messages, body);
-    const res = await fetch(`${GOOGLE_BASE_URL}/models/${encodeURIComponent(body.model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+    const res = await fetchImpl(`${GOOGLE_BASE_URL}/models/${encodeURIComponent(body.model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(req),
@@ -112,9 +112,9 @@ export async function callGoogle(apiKey, body, signal) {
     const data = (await res.json());
     return toOpenAICompat(data, body.model);
 }
-export async function* streamGoogle(apiKey, body, signal) {
+export async function* streamGoogle(apiKey, body, signal, fetchImpl = fetch) {
     const req = toGenerateRequest(body.model, body.messages, body);
-    const res = await fetch(`${GOOGLE_BASE_URL}/models/${encodeURIComponent(body.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`, {
+    const res = await fetchImpl(`${GOOGLE_BASE_URL}/models/${encodeURIComponent(body.model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(req),

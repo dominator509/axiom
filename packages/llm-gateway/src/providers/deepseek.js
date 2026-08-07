@@ -1,7 +1,7 @@
 // DeepSeek provider — https://api-docs.deepseek.com/api/create-chat-completion
 export const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1';
-export async function callDeepSeek(apiKey, body, signal) {
-    const res = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+export async function callDeepSeek(apiKey, body, signal, fetchImpl = fetch) {
+    const res = await fetchImpl(`${DEEPSEEK_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -16,8 +16,8 @@ export async function callDeepSeek(apiKey, body, signal) {
     }
     return res.json();
 }
-export async function* streamDeepSeek(apiKey, body, signal) {
-    const res = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+export async function* streamDeepSeek(apiKey, body, signal, fetchImpl = fetch) {
+    const res = await fetchImpl(`${DEEPSEEK_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

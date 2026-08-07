@@ -39,6 +39,6 @@ export interface VeniceCompletionResponse {
         total_tokens: number;
     };
 }
-export declare function callVenice(apiKey: string, body: VeniceCompletionRequest, signal?: AbortSignal): Promise<VeniceCompletionResponse>;
-export declare function streamVenice(apiKey: string, body: VeniceCompletionRequest, signal?: AbortSignal): AsyncIterable<string>;
+export declare function callVenice(apiKey: string, body: VeniceCompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): Promise<VeniceCompletionResponse>;
+export declare function streamVenice(apiKey: string, body: VeniceCompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): AsyncIterable<string>;
 //# sourceMappingURL=venice.d.ts.map

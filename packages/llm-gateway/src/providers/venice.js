@@ -27,18 +27,19 @@ export class VeniceProvider {
     model;
     baseUrl;
     name = 'venice';
-    constructor(apiKey, model = 'venice-xl', baseUrl = 'https://api.venice.ai/api/v1') {
+    constructor(apiKey, model = 'venice-uncensored-1-2', baseUrl = 'https://api.venice.ai/api/v1') {
         this.apiKey = apiKey;
         this.model = model;
         this.baseUrl = baseUrl;
     }
     async chat(messages, options) {
+        const doFetch = options?.fetchImpl ?? fetch;
         const body = {
             model: this.model,
             messages: messages.map((m) => ({ role: m.role, content: m.content })),
             ...(options ? toSnakeCase(options) : {}),
         };
-        const res = await fetch(`${this.baseUrl}/chat/completions`, {
+        const res = await doFetch(`${this.baseUrl}/chat/completions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -66,13 +67,14 @@ export class VeniceProvider {
         };
     }
     async *chatStream(messages, options) {
+        const doFetch = options?.fetchImpl ?? fetch;
         const body = {
             model: this.model,
             messages: messages.map((m) => ({ role: m.role, content: m.content })),
             stream: true,
             ...(options ? toSnakeCase(options) : {}),
         };
-        const res = await fetch(`${this.baseUrl}/chat/completions`, {
+        const res = await doFetch(`${this.baseUrl}/chat/completions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -170,9 +172,9 @@ export class VeniceProvider {
 // Legacy function-level exports (used by gateway.ts)
 // ---------------------------------------------------------------------------
 export const VENICE_BASE_URL = 'https://api.venice.ai/api/v1';
-export async function callVenice(apiKey, body, signal) {
+export async function callVenice(apiKey, body, signal, fetchImpl = fetch) {
     const baseUrl = process.env.VENICE_BASE_URL ?? VENICE_BASE_URL;
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await fetchImpl(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -187,9 +189,9 @@ export async function callVenice(apiKey, body, signal) {
     }
     return res.json();
 }
-export async function* streamVenice(apiKey, body, signal) {
+export async function* streamVenice(apiKey, body, signal, fetchImpl = fetch) {
     const baseUrl = process.env.VENICE_BASE_URL ?? VENICE_BASE_URL;
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await fetchImpl(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

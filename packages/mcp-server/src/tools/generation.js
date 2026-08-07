@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { Tier, tierAtLeast } from '../auth.js';
+import { withModelOrg, schema } from '../org-context.js';
 /**
  * Input schema for content generation (photoshoot).
  * Requires approval at the Operator/Manager tier; Autonomous tier may skip approval.
@@ -18,6 +19,9 @@ export const GenerationInputSchema = z.object({
  * Generation tool — triggers an AI photoshoot generation.
  * Requires approval (except for Autonomous agents where the Relay
  * may pre-approve certain model/style combinations).
+ *
+ * Real behaviour (H-2): creates a content_bundle in 'generated' state and
+ * enqueues a content.generate job for the worker (L3.4), same-txn.
  */
 export class GenerationTool {
     name = 'generation_photoshoot';
@@ -32,29 +36,44 @@ export class GenerationTool {
         if (args.modelId !== permission.modelId) {
             throw new Error(`Model mismatch: token scoped to ${permission.modelId}, requested ${args.modelId}`);
         }
-        // Generate a bundle ID for approval tracking.
         const bundleId = uuidv4();
-        // Stub: push generation job to @axiom/db job table and/or the
-        // LLM generation pipeline.
-        // const { db } = await import('@axiom/db');
-        // await db.insert(job).values({
-        //   id: bundleId,
-        //   type: 'generation',
-        //   modelId: args.modelId,
-        //   config: { prompt: args.prompt, style: args.style, count: args.count },
-        //   status: 'pending_approval',
-        // }).execute();
+        const needsApproval = permission.tier !== Tier.Autonomous;
+        await withModelOrg(args.modelId, async (tx, orgId) => {
+            await tx.insert(schema.contentBundle).values({
+                id: bundleId,
+                orgId,
+                modelId: args.modelId,
+                captions: {},
+                hashtags: [],
+                state: needsApproval ? 'pending_approval' : 'generated',
+            });
+            await tx.insert(schema.job).values({
+                orgId,
+                queue: 'content',
+                kind: 'content.generate',
+                payload: {
+                    bundleId,
+                    prompt: args.prompt,
+                    style: args.style ?? 'default',
+                    count: args.count,
+                },
+                state: 'ready',
+                runAfter: new Date(),
+            });
+        });
         return {
             success: true,
             tool: this.name,
             bundleId,
-            requiresApproval: this.requiresApproval,
+            requiresApproval: needsApproval,
             modelId: args.modelId,
             prompt: args.prompt,
             style: args.style ?? 'default',
             count: args.count,
-            status: 'pending_approval',
-            message: 'Generation request submitted. The bundle is pending human approval via Relay.',
+            status: needsApproval ? 'pending_approval' : 'queued',
+            message: needsApproval
+                ? 'Generation request submitted. The bundle is pending human approval via Relay.'
+                : 'Generation job queued for the worker (Autonomous mode).',
         };
     }
 }

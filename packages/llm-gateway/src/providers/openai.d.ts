@@ -38,6 +38,6 @@ export interface OpenAICompletionResponse {
         total_tokens: number;
     };
 }
-export declare function callOpenAI(apiKey: string, body: OpenAICompletionRequest, signal?: AbortSignal): Promise<OpenAICompletionResponse>;
-export declare function streamOpenAI(apiKey: string, body: OpenAICompletionRequest, signal?: AbortSignal): AsyncIterable<string>;
+export declare function callOpenAI(apiKey: string, body: OpenAICompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): Promise<OpenAICompletionResponse>;
+export declare function streamOpenAI(apiKey: string, body: OpenAICompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): AsyncIterable<string>;
 //# sourceMappingURL=openai.d.ts.map

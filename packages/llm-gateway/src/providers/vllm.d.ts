@@ -41,6 +41,6 @@ export interface VLLMCompletionResponse {
         total_tokens: number;
     };
 }
-export declare function callVLLM(body: VLLMCompletionRequest, signal?: AbortSignal): Promise<VLLMCompletionResponse>;
-export declare function streamVLLM(body: VLLMCompletionRequest, signal?: AbortSignal): AsyncIterable<string>;
+export declare function callVLLM(body: VLLMCompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): Promise<VLLMCompletionResponse>;
+export declare function streamVLLM(body: VLLMCompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): AsyncIterable<string>;
 //# sourceMappingURL=vllm.d.ts.map

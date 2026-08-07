@@ -24,8 +24,12 @@ export declare const InboxInputSchema: z.ZodObject<{
 }>;
 export type InboxInput = z.infer<typeof InboxInputSchema>;
 /**
- * Inbox tool — read incoming messages and reply with direct messages.
- * Available at Operator tier and above.
+ * Inbox tool — read incoming messages and send direct message replies.
+ * Available at Operator tier and above. Real DB behaviour (H-2):
+ *  - read: fan_touchpoint inbound messages for the model (fan timeline, F-07)
+ *  - reply: appends an outbound touchpoint (fan_touchpoint) recording the DM;
+ *    live platform delivery requires a bound connector credential and fails
+ *    honestly if the referenced fan/message is unknown.
  */
 export declare class InboxTool {
     name: string;

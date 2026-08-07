@@ -38,8 +38,8 @@ export class YouTubeConnector extends BaseConnector {
             const title = input.options?.title ?? 'Untitled';
             const description = input.caption || '';
             const privacyStatus = input.options?.privacyStatus ?? 'private';
-            // Append #Shorts tag if detected
-            const tags = input.options?.tags ?? [];
+            // Append #Shorts tag if detected (copy so we never mutate caller's input)
+            const tags = [...(input.options?.tags ?? [])];
             if (isShort && !tags.includes('#Shorts')) {
                 tags.push('#Shorts');
             }

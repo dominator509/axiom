@@ -1,5 +1,5 @@
 import type { ProviderMessage, ProviderOptions, ProviderChatResult, ProviderStreamChunk, BaseProvider } from './types.js';
-export declare const LIGHTNING_BASE_URL = "https://api.lightning.ai/v1";
+export declare const LIGHTNING_BASE_URL = "https://lightning.ai";
 export declare class LightningProvider implements BaseProvider {
     private readonly apiKey;
     readonly model: string;
@@ -37,6 +37,6 @@ export interface LightningCompletionResponse {
         total_tokens: number;
     };
 }
-export declare function callLightning(apiKey: string, body: LightningCompletionRequest, signal?: AbortSignal): Promise<LightningCompletionResponse>;
-export declare function streamLightning(apiKey: string, body: LightningCompletionRequest, signal?: AbortSignal): AsyncIterable<string>;
+export declare function callLightning(apiKey: string, body: LightningCompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): Promise<LightningCompletionResponse>;
+export declare function streamLightning(apiKey: string, body: LightningCompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): AsyncIterable<string>;
 //# sourceMappingURL=lightning.d.ts.map

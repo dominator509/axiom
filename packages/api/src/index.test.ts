@@ -22,6 +22,15 @@ describe('health', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ status: 'ok', version: '0.1.0' });
   });
+
+  it('GET /api/v1/openapi.json serves the build-time OpenAPI doc (L3.0)', async () => {
+    const res = await app.request('/api/v1/openapi.json');
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.openapi).toBe('3.0.3');
+    expect(body.paths).toBeDefined();
+    expect(typeof body.paths).toBe('object');
+  });
 });
 
 describe('better-auth mounted at /api/auth/*', () => {

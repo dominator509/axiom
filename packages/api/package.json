@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node dist/gen-openapi.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "test": "vitest run",

@@ -33,12 +33,13 @@ export class VLLMProvider {
         this.baseUrl = baseUrl;
     }
     async chat(messages, options) {
+        const doFetch = options?.fetchImpl ?? fetch;
         const body = {
             model: this.model,
             messages: messages.map((m) => ({ role: m.role, content: m.content })),
             ...(options ? toSnakeCase(options) : {}),
         };
-        const res = await fetch(`${this.baseUrl}/chat/completions`, {
+        const res = await doFetch(`${this.baseUrl}/chat/completions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
@@ -63,13 +64,14 @@ export class VLLMProvider {
         };
     }
     async *chatStream(messages, options) {
+        const doFetch = options?.fetchImpl ?? fetch;
         const body = {
             model: this.model,
             messages: messages.map((m) => ({ role: m.role, content: m.content })),
             stream: true,
             ...(options ? toSnakeCase(options) : {}),
         };
-        const res = await fetch(`${this.baseUrl}/chat/completions`, {
+        const res = await doFetch(`${this.baseUrl}/chat/completions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
@@ -164,9 +166,9 @@ export class VLLMProvider {
 // Legacy function-level exports (used by gateway.ts)
 // ---------------------------------------------------------------------------
 export const VLLM_BASE_URL = 'http://localhost:8000/v1';
-export async function callVLLM(body, signal) {
+export async function callVLLM(body, signal, fetchImpl = fetch) {
     const baseUrl = process.env.VLLM_BASE_URL ?? VLLM_BASE_URL;
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await fetchImpl(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -178,9 +180,9 @@ export async function callVLLM(body, signal) {
     }
     return res.json();
 }
-export async function* streamVLLM(body, signal) {
+export async function* streamVLLM(body, signal, fetchImpl = fetch) {
     const baseUrl = process.env.VLLM_BASE_URL ?? VLLM_BASE_URL;
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await fetchImpl(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...body, stream: true }),

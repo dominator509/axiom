@@ -28,6 +28,6 @@ export interface GrokCompletionResponse {
         total_tokens: number;
     };
 }
-export declare function callGrok(apiKey: string, body: GrokCompletionRequest, signal?: AbortSignal): Promise<GrokCompletionResponse>;
-export declare function streamGrok(apiKey: string, body: GrokCompletionRequest, signal?: AbortSignal): AsyncIterable<string>;
+export declare function callGrok(apiKey: string, body: GrokCompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): Promise<GrokCompletionResponse>;
+export declare function streamGrok(apiKey: string, body: GrokCompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): AsyncIterable<string>;
 //# sourceMappingURL=grok.d.ts.map

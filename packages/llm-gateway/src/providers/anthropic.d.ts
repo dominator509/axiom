@@ -36,6 +36,6 @@ export interface AnthropicMessageResponse {
         output_tokens: number;
     };
 }
-export declare function callAnthropic(apiKey: string, body: AnthropicMessageRequest, signal?: AbortSignal): Promise<AnthropicMessageResponse>;
-export declare function streamAnthropic(apiKey: string, body: AnthropicMessageRequest, signal?: AbortSignal): AsyncIterable<string>;
+export declare function callAnthropic(apiKey: string, body: AnthropicMessageRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): Promise<AnthropicMessageResponse>;
+export declare function streamAnthropic(apiKey: string, body: AnthropicMessageRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): AsyncIterable<string>;
 //# sourceMappingURL=anthropic.d.ts.map

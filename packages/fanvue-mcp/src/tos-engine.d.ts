@@ -1,4 +1,5 @@
 import { Platform } from '@axiom/core';
+import { type OverrideVerdict } from './vision.js';
 /**
  * Default ToS violation score thresholds per platform (0–100 scale).
  * Higher values = more permissive; lower values = more restrictive.
@@ -44,8 +45,13 @@ export declare class ToSEngine {
     constructor(thresholds?: Record<string, number>);
     /**
      * Classify an image for ToS compliance using the local vision engine.
+     * `imagePath` is an absolute path the Rust engine can read from disk.
+     * Pass `options.override` to force the verdict ('pass' | 'review' | 'block')
+     * and bypass the model entirely.
      */
-    classifyImage(imageData: string): Promise<ImageClassification>;
+    classifyImage(imagePath: string, options?: {
+        override?: OverrideVerdict;
+    }): Promise<ImageClassification>;
     /**
      * Get the ToS score threshold for a specific platform.
      * Returns a value 0–100 where higher = more permissive.
@@ -53,12 +59,15 @@ export declare class ToSEngine {
     getPlatformThreshold(platform: Platform): number;
     /**
      * Evaluate an asset for ToS compliance across multiple platforms.
-     * Returns verdict, per-platform scores, and aggregated reasons.
+     * `asset.imageData` is an absolute image path the Rust engine reads from
+     * disk. Pass `options.override` to force the image verdict.
      */
     evaluate(asset: {
         imageData: string;
         caption?: string;
         hashtags?: string[];
-    }, platforms: Platform[]): Promise<EvaluationResult>;
+    }, platforms: Platform[], options?: {
+        override?: OverrideVerdict;
+    }): Promise<EvaluationResult>;
 }
 //# sourceMappingURL=tos-engine.d.ts.map

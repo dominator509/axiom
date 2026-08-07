@@ -1,7 +1,7 @@
 // Grok (xAI) provider — https://docs.x.ai/api/chat-completions
 export const GROK_BASE_URL = 'https://api.x.ai/v1';
-export async function callGrok(apiKey, body, signal) {
-    const res = await fetch(`${GROK_BASE_URL}/chat/completions`, {
+export async function callGrok(apiKey, body, signal, fetchImpl = fetch) {
+    const res = await fetchImpl(`${GROK_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -16,8 +16,8 @@ export async function callGrok(apiKey, body, signal) {
     }
     return res.json();
 }
-export async function* streamGrok(apiKey, body, signal) {
-    const res = await fetch(`${GROK_BASE_URL}/chat/completions`, {
+export async function* streamGrok(apiKey, body, signal, fetchImpl = fetch) {
+    const res = await fetchImpl(`${GROK_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

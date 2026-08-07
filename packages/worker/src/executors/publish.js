@@ -9,6 +9,7 @@ import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { connectorFor, hasConnector, validateForPlatform } from '@axiom/connectors';
 import { ParkJobError } from './context.js';
+import { runPrePostBefore, runPrePostAfter } from './pre_post.js';
 const KILL_SWITCH_PARK_MS = 60_000;
 export const publishTarget = async (ctx) => {
     const { tx, job, killSwitchEnabled } = ctx;
@@ -86,14 +87,30 @@ export const publishTarget = async (ctx) => {
         scheduledFor: target.scheduledFor ? new Date(target.scheduledFor).toISOString() : undefined,
         options: { modelId: model.id },
     };
+    // 3a. Pre-post stage (L2.10): Rust media-plane staging + registered hook
+    // scripts, recorded in pre_post_run — before ANY connector handoff.
+    const prePostInput = {
+        targetId,
+        bundleId: bundle.id,
+        platform,
+        modelId: model.id,
+        caption,
+        mediaUrls,
+        hashtags,
+        phase: 'before',
+    };
+    const preStage = await runPrePostBefore(ctx, prePostInput);
+    const stagedInput = preStage.input;
     const validation = await validateForPlatform(platform, input);
     if (!validation.valid) {
         throw new Error(`publish.target: validation failed for ${platform}: ${validation.errors.map((e) => e.message).join('; ')}`);
     }
-    const result = await connector.publish(input);
+    const result = await connector.publish(stagedInput);
     if (result.state === 'failed' || !result.remoteId) {
         throw new Error(`publish.target: connector publish failed: ${result.error ?? 'no remote_id'}`);
     }
+    // 3b. Post-publish hook (recorded in pre_post_run; fire-and-forget hooks).
+    await runPrePostAfter(ctx, prePostInput, result);
     // 4. Mark published + write idempotency ledger in the SAME txn (L3.4 §4).
     await tx
         .update(schema.postTarget)

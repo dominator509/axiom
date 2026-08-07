@@ -28,6 +28,6 @@ export interface DeepSeekCompletionResponse {
         total_tokens: number;
     };
 }
-export declare function callDeepSeek(apiKey: string, body: DeepSeekCompletionRequest, signal?: AbortSignal): Promise<DeepSeekCompletionResponse>;
-export declare function streamDeepSeek(apiKey: string, body: DeepSeekCompletionRequest, signal?: AbortSignal): AsyncIterable<string>;
+export declare function callDeepSeek(apiKey: string, body: DeepSeekCompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): Promise<DeepSeekCompletionResponse>;
+export declare function streamDeepSeek(apiKey: string, body: DeepSeekCompletionRequest, signal?: AbortSignal, fetchImpl?: typeof fetch): AsyncIterable<string>;
 //# sourceMappingURL=deepseek.d.ts.map

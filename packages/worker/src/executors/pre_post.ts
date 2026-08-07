@@ -42,19 +42,6 @@ export function getPrePostHook(): PrePostHook {
   return hookInstance;
 }
 
-export function setPrePostHookForTests(hook: PrePostHook | null): void {
-  hookInstance = hook;
-}
-
-/** Register a script on the shared hook. */
-export function registerPrePostScript(
-  name: string,
-  before: (i: unknown, p: Platform) => unknown | Promise<unknown>,
-  after: (r: PublishResult, p: Platform) => void | Promise<void>,
-): void {
-  getPrePostHook().registerScript({ name, beforePublish: before as never, afterPublish: after });
-}
-
 /**
  * Check the Rust media plane is reachable (L2.10 v2 isolated execution).
  * Returns the engine label actually used.

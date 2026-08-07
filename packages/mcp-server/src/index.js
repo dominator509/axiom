@@ -6,4 +6,5 @@ export { InboxTool } from './tools/inbox.js';
 export { GenerationTool } from './tools/generation.js';
 export { PublishingTool } from './tools/publishing.js';
 export { NetworkTool } from './tools/network.js';
+export { orgForModel, withModelOrg } from './org-context.js';
 //# sourceMappingURL=index.js.map

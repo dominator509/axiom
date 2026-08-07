@@ -1,6 +1,6 @@
 // ─── Response Types ───
 const DEFAULT_CONFIG = {
-    baseUrl: 'http://127.0.0.1:4100',
+    baseUrl: 'http://127.0.0.1:8101',
     timeoutMs: 30000,
 };
 // ─── Local Heuristic Fallback ───
@@ -27,6 +27,8 @@ function localTosHeuristic(imageData) {
             ? 'Local heuristic: explicit keywords detected in metadata'
             : 'Local heuristic: no clear ToS violations detected',
         source: 'local_fallback',
+        overridden: false,
+        overrideSource: null,
     };
 }
 function localNsfwHeuristic(imageData) {
@@ -40,6 +42,8 @@ function localNsfwHeuristic(imageData) {
         score: Math.round(score * 1000) / 1000,
         categories: detected.length > 0 ? detected : [],
         source: 'local_fallback',
+        overridden: false,
+        overrideSource: null,
     };
 }
 // ─── HTTP Helpers ───
@@ -70,38 +74,53 @@ export class VisionEngineClient {
     }
     /**
      * Call the Rust vision engine /vision/tos-classify endpoint.
+     * The engine reads `image_path` from local disk; pass an absolute path.
      * Falls back to local heuristic if the engine is unreachable.
      */
-    async callTosClassify(imageData) {
+    async callTosClassify(imagePath, options = {}) {
         try {
-            const result = await postJson(`${this.config.baseUrl}/vision/tos-classify`, { image: imageData }, this.config);
+            const body = { image_path: imagePath };
+            if (options.override)
+                body.override = options.override;
+            const result = await postJson(`${this.config.baseUrl}/vision/tos-classify`, body, this.config);
             return {
-                ...result,
-                score: Math.round(result.score * 1000) / 1000,
+                score: Math.round(result.nsfw_score * 1000) / 1000,
+                category: result.verdict === 'pass' ? null : result.verdict,
+                explanation: result.reasons.join('; ') || 'no violations detected',
                 source: 'rust_engine',
+                overridden: result.overridden,
+                overrideSource: result.override_source,
             };
         }
         catch (err) {
             console.warn(`[VisionEngine] Rust engine unreachable, falling back to local heuristic: ${err instanceof Error ? err.message : String(err)}`);
-            return localTosHeuristic(imageData);
+            return localTosHeuristic(imagePath);
         }
     }
     /**
      * Call the Rust vision engine /vision/nsfw-detect endpoint.
+     * The engine reads `image_path` from local disk; pass an absolute path.
      * Falls back to local heuristic if the engine is unreachable.
      */
-    async callNsfwDetect(imageData) {
+    async callNsfwDetect(imagePath, options = {}) {
         try {
-            const result = await postJson(`${this.config.baseUrl}/vision/nsfw-detect`, { image: imageData }, this.config);
+            const body = { image_path: imagePath };
+            if (options.override)
+                body.override = options.override;
+            const result = await postJson(`${this.config.baseUrl}/vision/nsfw-detect`, body, this.config);
+            // Categories = labels whose probability clears a 0.1 floor.
+            const categories = result.labels.filter((_label, i) => (result.probabilities[i] ?? 0) > 0.1);
             return {
-                ...result,
-                score: Math.round(result.score * 1000) / 1000,
+                score: Math.round(result.nsfw_score * 1000) / 1000,
+                categories,
                 source: 'rust_engine',
+                overridden: result.overridden,
+                overrideSource: result.override_source,
             };
         }
         catch (err) {
             console.warn(`[VisionEngine] Rust engine unreachable, falling back to local heuristic: ${err instanceof Error ? err.message : String(err)}`);
-            return localNsfwHeuristic(imageData);
+            return localNsfwHeuristic(imagePath);
         }
     }
 }

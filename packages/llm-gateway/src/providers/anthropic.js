@@ -1,6 +1,12 @@
 import { ProviderError } from './types.js';
 // Anthropic Claude pricing (USD per 1M tokens)
 const MODEL_PRICING = {
+    'claude-sonnet-4-5': { input: 3.0, output: 15.0 },
+    'claude-sonnet-4-5-20250929': { input: 3.0, output: 15.0 },
+    'claude-opus-4-5': { input: 15.0, output: 75.0 },
+    'claude-opus-4-5-20251101': { input: 15.0, output: 75.0 },
+    'claude-haiku-4-5': { input: 1.0, output: 5.0 },
+    'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
     'claude-sonnet-4-20250514': { input: 3.0, output: 15.0 },
     'claude-sonnet-4': { input: 3.0, output: 15.0 },
     'claude-3-5-sonnet-20241022': { input: 3.0, output: 15.0 },
@@ -66,15 +72,16 @@ export class AnthropicProvider {
     apiVersion;
     baseUrl;
     name = 'anthropic';
-    constructor(apiKey, model = 'claude-sonnet-4-20250514', apiVersion = '2023-06-01', baseUrl = 'https://api.anthropic.com/v1') {
+    constructor(apiKey, model = 'claude-sonnet-4-5', apiVersion = '2023-06-01', baseUrl = 'https://api.anthropic.com/v1') {
         this.apiKey = apiKey;
         this.model = model;
         this.apiVersion = apiVersion;
         this.baseUrl = baseUrl;
     }
     async chat(messages, options) {
+        const doFetch = options?.fetchImpl ?? fetch;
         const body = toAnthropicBody(this.model, messages, options, false);
-        const res = await fetch(`${this.baseUrl}/messages`, {
+        const res = await doFetch(`${this.baseUrl}/messages`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -106,8 +113,9 @@ export class AnthropicProvider {
         };
     }
     async *chatStream(messages, options) {
+        const doFetch = options?.fetchImpl ?? fetch;
         const body = toAnthropicBody(this.model, messages, options, true);
-        const res = await fetch(`${this.baseUrl}/messages`, {
+        const res = await doFetch(`${this.baseUrl}/messages`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -204,8 +212,8 @@ export class AnthropicProvider {
 // Legacy function-level exports (used by gateway.ts)
 // ---------------------------------------------------------------------------
 export const ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
-export async function callAnthropic(apiKey, body, signal) {
-    const res = await fetch(`${ANTHROPIC_BASE_URL}/messages`, {
+export async function callAnthropic(apiKey, body, signal, fetchImpl = fetch) {
+    const res = await fetchImpl(`${ANTHROPIC_BASE_URL}/messages`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -221,8 +229,8 @@ export async function callAnthropic(apiKey, body, signal) {
     }
     return res.json();
 }
-export async function* streamAnthropic(apiKey, body, signal) {
-    const res = await fetch(`${ANTHROPIC_BASE_URL}/messages`, {
+export async function* streamAnthropic(apiKey, body, signal, fetchImpl = fetch) {
+    const res = await fetchImpl(`${ANTHROPIC_BASE_URL}/messages`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

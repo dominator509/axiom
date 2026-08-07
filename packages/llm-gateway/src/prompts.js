@@ -19,6 +19,11 @@ export function alignBlocks(text) {
     const charsToAdd = tokensToAdd * CHARS_PER_TOKEN;
     return text + ' '.repeat(charsToAdd);
 }
+// ─── Platform Type ───
+export const PLATFORMS = [
+    'instagram', 'tiktok', 'x', 'youtube', 'facebook',
+    'reddit', 'threads', 'snapchat', 'discord', 'telegram', 'fanvue',
+];
 // ─── Platform Rules Map (mirrors fanvue-mcp tos-engine data) ───
 const PLATFORM_RULES = {
     instagram: {

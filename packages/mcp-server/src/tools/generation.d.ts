@@ -28,6 +28,9 @@ export type GenerationInput = z.infer<typeof GenerationInputSchema>;
  * Generation tool — triggers an AI photoshoot generation.
  * Requires approval (except for Autonomous agents where the Relay
  * may pre-approve certain model/style combinations).
+ *
+ * Real behaviour (H-2): creates a content_bundle in 'generated' state and
+ * enqueues a content.generate job for the worker (L3.4), same-txn.
  */
 export declare class GenerationTool {
     name: string;

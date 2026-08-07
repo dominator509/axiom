@@ -53,6 +53,11 @@ export type NetworkInput = z.infer<typeof NetworkInputSchema>;
 /**
  * Network tool — update cross-platform network configuration.
  * Exclusive to Autonomous tier. Requires dashboard-grant (approval via Relay).
+ *
+ * Real behaviour (H-2): persists the requested configuration into the model's
+ * org_settings.features map (versioned) as a pending_approval change; the
+ * dashboard/relay approval path applies it. The change is auditable because
+ * org_settings carries updated_at.
  */
 export declare class NetworkTool {
     name: string;

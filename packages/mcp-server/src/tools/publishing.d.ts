@@ -52,6 +52,9 @@ export type PublishingInput = z.infer<typeof PublishingInputSchema>;
  * - Operator: DENIED (use Relay for direct operations)
  * - Manager:  ALLOWED with requiresApproval=true
  * - Autonomous: ALLOWED, requiresApproval=false
+ *
+ * Real behaviour (H-2): creates a content_bundle + post_target (idem-keyed,
+ * LBI-05) and enqueues a publish.target job in the same org-scoped txn.
  */
 export declare class PublishingTool {
     name: string;

@@ -15,7 +15,7 @@ export class MistralProvider {
             messages: messages.map((m) => ({ role: m.role, content: m.content })),
             temperature: options?.temperature,
             max_tokens: options?.maxTokens,
-        });
+        }, undefined, options?.fetchImpl ?? fetch);
         return {
             content: res.choices[0]?.message?.content ?? '',
             model: res.model ?? this.model,
@@ -34,7 +34,7 @@ export class MistralProvider {
                 messages: messages.map((m) => ({ role: m.role, content: m.content })),
                 temperature: options?.temperature,
                 max_tokens: options?.maxTokens,
-            })) {
+            }, undefined, options?.fetchImpl ?? fetch)) {
                 yield { type: 'delta', content: delta };
             }
         }
@@ -44,8 +44,8 @@ export class MistralProvider {
         }
     }
 }
-export async function callMistral(apiKey, body, signal) {
-    const res = await fetch(`${MISTRAL_BASE_URL}/chat/completions`, {
+export async function callMistral(apiKey, body, signal, fetchImpl = fetch) {
+    const res = await fetchImpl(`${MISTRAL_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -60,8 +60,8 @@ export async function callMistral(apiKey, body, signal) {
     }
     return res.json();
 }
-export async function* streamMistral(apiKey, body, signal) {
-    const res = await fetch(`${MISTRAL_BASE_URL}/chat/completions`, {
+export async function* streamMistral(apiKey, body, signal, fetchImpl = fetch) {
+    const res = await fetchImpl(`${MISTRAL_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

@@ -55,12 +55,13 @@ export class OpenAIProvider {
         this.baseUrl = baseUrl;
     }
     async chat(messages, options) {
+        const doFetch = options?.fetchImpl ?? fetch;
         const body = {
             model: this.model,
             messages: messages.map((m) => ({ role: m.role, content: m.content })),
             ...(options ? toSnakeCase(options) : {}),
         };
-        const res = await fetch(`${this.baseUrl}/chat/completions`, {
+        const res = await doFetch(`${this.baseUrl}/chat/completions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -88,6 +89,7 @@ export class OpenAIProvider {
         };
     }
     async *chatStream(messages, options) {
+        const doFetch = options?.fetchImpl ?? fetch;
         const body = {
             model: this.model,
             messages: messages.map((m) => ({ role: m.role, content: m.content })),
@@ -95,7 +97,7 @@ export class OpenAIProvider {
             stream_options: { include_usage: true },
             ...(options ? toSnakeCase(options) : {}),
         };
-        const res = await fetch(`${this.baseUrl}/chat/completions`, {
+        const res = await doFetch(`${this.baseUrl}/chat/completions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -200,9 +202,9 @@ export class OpenAIProvider {
 // Legacy function-level exports (used by gateway.ts)
 // ---------------------------------------------------------------------------
 export const OPENAI_BASE_URL = 'https://api.openai.com/v1';
-export async function callOpenAI(apiKey, body, signal) {
+export async function callOpenAI(apiKey, body, signal, fetchImpl = fetch) {
     const baseUrl = process.env.OPENAI_BASE_URL ?? OPENAI_BASE_URL;
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await fetchImpl(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -217,9 +219,9 @@ export async function callOpenAI(apiKey, body, signal) {
     }
     return res.json();
 }
-export async function* streamOpenAI(apiKey, body, signal) {
+export async function* streamOpenAI(apiKey, body, signal, fetchImpl = fetch) {
     const baseUrl = process.env.OPENAI_BASE_URL ?? OPENAI_BASE_URL;
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await fetchImpl(`${baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

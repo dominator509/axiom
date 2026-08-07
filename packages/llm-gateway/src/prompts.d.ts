@@ -14,7 +14,8 @@ export interface TokenKillerSegments {
  * reducing inference variance from token boundary shifts.
  */
 export declare function alignBlocks(text: string): string;
-export type Platform = 'instagram' | 'tiktok' | 'x' | 'youtube' | 'facebook' | 'reddit' | 'threads' | 'snapchat' | 'discord' | 'telegram' | 'fanvue';
+export declare const PLATFORMS: readonly ["instagram", "tiktok", "x", "youtube", "facebook", "reddit", "threads", "snapchat", "discord", "telegram", "fanvue"];
+export type Platform = (typeof PLATFORMS)[number];
 export interface ModelProfile {
     id: string;
     displayName: string;

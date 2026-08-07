@@ -3,6 +3,17 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { ProviderError } from './providers/types.js';
+import { PLATFORMS } from './prompts.js';
+/** Standard RFC-7807 title for a status code (L3.0 error envelope). */
+function statusTitle(status) {
+    const titles = {
+        400: 'Bad Request', 401: 'Unauthorized', 402: 'Payment Required', 403: 'Forbidden',
+        404: 'Not Found', 408: 'Request Timeout', 409: 'Conflict', 422: 'Unprocessable Entity',
+        429: 'Too Many Requests', 500: 'Internal Server Error', 502: 'Bad Gateway',
+        503: 'Service Unavailable', 504: 'Gateway Timeout',
+    };
+    return titles[status] ?? 'Error';
+}
 const chatBodySchema = z.object({
     messages: z.array(z.object({
         role: z.enum(['system', 'user', 'assistant']),
@@ -14,12 +25,60 @@ const chatBodySchema = z.object({
     policy: z.enum(['cost', 'latency', 'quality']).optional(),
     provider: z.string().optional(),
     stream: z.boolean().optional(),
+    /** Route through the model's bound egress sidecar (L2.6). */
+    egress: z.boolean().optional(),
+});
+/** TOKENKILLER body: S0–S3 assembly inputs (L2.5, LBI-09). */
+const tokenkillerBodySchema = chatBodySchema.extend({
+    tokenkiller: z.object({
+        modelId: z.string().min(1),
+        platform: z.string().min(1),
+        exemplars: z
+            .array(z.object({
+            id: z.string(),
+            // Full ViralExemplar surface (prompts.ts) — zod strips unknown keys,
+            // so every field the gateway needs must be declared here.
+            platform: z.enum(PLATFORMS),
+            title: z.string(),
+            caption: z.string(),
+            hashtags: z.array(z.string()),
+            viralLabel: z.enum(['viral', 'strong', 'baseline', 'weak']),
+            aiNotes: z.string().nullable(),
+            // Viral-store enrichment fields (kept for compatibility).
+            features: z.record(z.unknown()).optional(),
+            perfScore: z.number().optional(),
+            label: z.string().optional(),
+        }))
+            .optional(),
+        task: z
+            .object({
+            modelId: z.string(),
+            platform: z.enum(PLATFORMS),
+            angle: z.string().optional(),
+            emojiStyle: z.enum(['minimal', 'moderate', 'heavy']).optional(),
+            cta: z.string().optional(),
+            talkingPoints: z.array(z.string()).optional(),
+            mediaDescriptions: z.array(z.string()).optional(),
+            imageCaption: z.string().optional(),
+        })
+            .passthrough(),
+        profile: z.object({
+            id: z.string(),
+            displayName: z.string(),
+            handle: z.string(),
+            avatarUrl: z.string().nullable(),
+            bio: z.string().nullable(),
+            persona: z.string().optional(),
+            characterRules: z.array(z.string()).optional(),
+        }),
+        prefixVersion: z.string().optional(),
+    }),
 });
 export function createRouter(gateway) {
     const router = new Hono();
     // POST /chat — non-streaming completion
     router.post('/chat', zValidator('json', chatBodySchema), async (c) => {
-        const { messages, model, temperature, maxTokens, policy, provider } = c.req.valid('json');
+        const { messages, model, temperature, maxTokens, policy, provider, egress } = c.req.valid('json');
         try {
             const result = await gateway.chat(messages, {
                 model,
@@ -27,24 +86,61 @@ export function createRouter(gateway) {
                 maxTokens,
                 policy,
                 provider,
+                egress,
             });
             return c.json(result);
         }
         catch (err) {
             const status = (err instanceof ProviderError ? err.status : 502);
             const msg = err instanceof Error ? err.message : 'LLM gateway error';
-            return c.json({ error: { message: msg, provider: err instanceof ProviderError ? err.provider : undefined } }, status);
+            const provider = err instanceof ProviderError ? err.provider : undefined;
+            return c.json({
+                type: 'about:blank',
+                title: statusTitle(status),
+                status,
+                detail: msg,
+                ...(provider ? { provider } : {}),
+            }, status);
+        }
+    });
+    // POST /chat/tokenkiller — TOKENKILLER S0–S3 assembled chat (L2.5, LBI-09)
+    router.post('/chat/tokenkiller', zValidator('json', tokenkillerBodySchema), async (c) => {
+        const { messages, tokenkiller, model, temperature, maxTokens, policy, provider, egress } = c.req.valid('json');
+        try {
+            const result = await gateway.chatWithTokenKiller(messages, {
+                model,
+                temperature,
+                maxTokens,
+                policy,
+                provider,
+                egress,
+                tokenkiller,
+            });
+            return c.json(result);
+        }
+        catch (err) {
+            const status = (err instanceof ProviderError ? err.status : 502);
+            const msg = err instanceof Error ? err.message : 'LLM gateway error';
+            const provider = err instanceof ProviderError ? err.provider : undefined;
+            return c.json({
+                type: 'about:blank',
+                title: statusTitle(status),
+                status,
+                detail: msg,
+                ...(provider ? { provider } : {}),
+            }, status);
         }
     });
     // POST /chat/stream — streaming completion via SSE
     router.post('/chat/stream', zValidator('json', chatBodySchema), async (c) => {
-        const { messages, model, temperature, maxTokens, policy, provider } = c.req.valid('json');
+        const { messages, model, temperature, maxTokens, policy, provider, egress } = c.req.valid('json');
         const stream = gateway.chatStream(messages, {
             model,
             temperature,
             maxTokens,
             policy,
             provider,
+            egress,
         });
         return new Response(new ReadableStream({
             async start(controller) {

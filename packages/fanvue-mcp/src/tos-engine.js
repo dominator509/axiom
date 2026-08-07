@@ -129,9 +129,12 @@ export class ToSEngine {
     }
     /**
      * Classify an image for ToS compliance using the local vision engine.
+     * `imagePath` is an absolute path the Rust engine can read from disk.
+     * Pass `options.override` to force the verdict ('pass' | 'review' | 'block')
+     * and bypass the model entirely.
      */
-    async classifyImage(imageData) {
-        const result = await this.visionClient.callTosClassify(imageData);
+    async classifyImage(imagePath, options = {}) {
+        const result = await this.visionClient.callTosClassify(imagePath, options);
         return {
             score: Math.round(result.score * 100),
             category: result.category,
@@ -147,10 +150,11 @@ export class ToSEngine {
     }
     /**
      * Evaluate an asset for ToS compliance across multiple platforms.
-     * Returns verdict, per-platform scores, and aggregated reasons.
+     * `asset.imageData` is an absolute image path the Rust engine reads from
+     * disk. Pass `options.override` to force the image verdict.
      */
-    async evaluate(asset, platforms) {
-        const classification = await this.classifyImage(asset.imageData);
+    async evaluate(asset, platforms, options = {}) {
+        const classification = await this.classifyImage(asset.imageData, options);
         const scores = [];
         const allReasons = new Set();
         for (const platform of platforms) {

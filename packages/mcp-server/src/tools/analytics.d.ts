@@ -21,8 +21,8 @@ export declare const AnalyticsInputSchema: z.ZodObject<{
 }>;
 export type AnalyticsInput = z.infer<typeof AnalyticsInputSchema>;
 /**
- * Analytics tool — retrieves model performance metrics.
- * Available at Viewer tier and above.
+ * Analytics tool — retrieves model performance metrics from post_metric.
+ * Available at Viewer tier and above. Real DB query (H-2).
  */
 export declare class AnalyticsTool {
     name: string;
