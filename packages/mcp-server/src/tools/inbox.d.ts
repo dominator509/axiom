@@ -12,13 +12,13 @@ export declare const InboxInputSchema: z.ZodObject<{
     messageId: z.ZodOptional<z.ZodString>;
     content: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    modelId: string;
     action: "read" | "reply";
+    modelId: string;
     messageId?: string | undefined;
     content?: string | undefined;
 }, {
-    modelId: string;
     action: "read" | "reply";
+    modelId: string;
     messageId?: string | undefined;
     content?: string | undefined;
 }>;
@@ -36,13 +36,13 @@ export declare class InboxTool {
         messageId: z.ZodOptional<z.ZodString>;
         content: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
-        modelId: string;
         action: "read" | "reply";
+        modelId: string;
         messageId?: string | undefined;
         content?: string | undefined;
     }, {
-        modelId: string;
         action: "read" | "reply";
+        modelId: string;
         messageId?: string | undefined;
         content?: string | undefined;
     }>;

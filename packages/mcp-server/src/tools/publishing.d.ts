@@ -25,7 +25,6 @@ export declare const PublishingInputSchema: z.ZodObject<{
         scheduledAt?: string | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
-    modelId: string;
     post: {
         platform: "instagram" | "x" | "discord" | "telegram" | "fanvue" | "onlyfans";
         text?: string | undefined;
@@ -33,8 +32,8 @@ export declare const PublishingInputSchema: z.ZodObject<{
         scheduledAt?: string | undefined;
     };
     action: "publish" | "schedule";
+    modelId: string;
 }, {
-    modelId: string;
     post: {
         platform: "instagram" | "x" | "discord" | "telegram" | "fanvue" | "onlyfans";
         text?: string | undefined;
@@ -42,6 +41,7 @@ export declare const PublishingInputSchema: z.ZodObject<{
         scheduledAt?: string | undefined;
     };
     action: "publish" | "schedule";
+    modelId: string;
 }>;
 export type PublishingInput = z.infer<typeof PublishingInputSchema>;
 /**
@@ -76,7 +76,6 @@ export declare class PublishingTool {
             scheduledAt?: string | undefined;
         }>;
     }, "strip", z.ZodTypeAny, {
-        modelId: string;
         post: {
             platform: "instagram" | "x" | "discord" | "telegram" | "fanvue" | "onlyfans";
             text?: string | undefined;
@@ -84,8 +83,8 @@ export declare class PublishingTool {
             scheduledAt?: string | undefined;
         };
         action: "publish" | "schedule";
+        modelId: string;
     }, {
-        modelId: string;
         post: {
             platform: "instagram" | "x" | "discord" | "telegram" | "fanvue" | "onlyfans";
             text?: string | undefined;
@@ -93,6 +92,7 @@ export declare class PublishingTool {
             scheduledAt?: string | undefined;
         };
         action: "publish" | "schedule";
+        modelId: string;
     }>;
     tier: Tier;
     /**

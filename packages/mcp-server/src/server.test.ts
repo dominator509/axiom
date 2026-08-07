@@ -3,7 +3,9 @@ import { describe, it, expect } from 'vitest';
 import { McpServer, createMcpServer, type McpRequest, type McpResponse } from './server.js';
 import { Tier, createCapabilityToken, authenticateAgent, type AgentPermission } from './auth.js';
 
-const MODEL = '11111111-1111-4111-8111-111111111111';
+// A model that exists in the live DB — the tools are DB-backed (H-2), so the
+// success-path tests exercise real resolve_model_org + org-scoped queries.
+const MODEL = '9283b927-b95d-461c-90d0-729bc2d13852';
 
 function permissionFor(tier: Tier, modelId: string = MODEL, agentId = 'agent-1'): AgentPermission {
   const token = createCapabilityToken(modelId, tier, agentId);

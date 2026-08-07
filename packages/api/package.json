@@ -27,6 +27,7 @@
     "@axiom/fanvue-mcp": "workspace:*",
     "@axiom/relay": "workspace:^",
     "@axiom/worker": "workspace:*",
+    "@axiom/mcp-server": "workspace:*",
     "@hono/zod-validator": "^0.4.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.6.0",

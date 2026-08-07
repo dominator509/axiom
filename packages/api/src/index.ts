@@ -22,6 +22,7 @@ import { threadsAuthRouter } from './routes/threads-auth.js';
 import { auth, requireAuth } from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { registerConnectors } from '@axiom/worker';
+import { createMcpServer } from '@axiom/mcp-server';
 import { DiscordAdapter, ThreadsAdapter, createRelayRoutes, CardRenderer, CommandRouter, ViralLoop, Bandit, IncidentManager, HealthCheckRegistry, type CardAction } from '@axiom/relay';
 import { correlationId, onError, idempotency, rateLimit } from './contract.js';
 import { schema } from '@axiom/db';
@@ -188,6 +189,37 @@ app.route('/api/v1', incidentsRouter);
 // LLM gateway — unified multi-provider chat completions
 const llmGateway = new LLMGateway();
 app.route('/api/v1/llm', createLLMRouter(llmGateway));
+
+// ── CRM MCP endpoint (F-45 / L2.11) ────────────────────────────────────────
+// Agents invoke MCP tools with a capability token (Bearer). Each request is
+// authenticated into a tier-scoped McpServer instance; tools execute real DB
+// work in the model's org context (H-2).
+app.post('/api/mcp', async (c) => {
+  const headers: Record<string, string> = {};
+  const authHeader = c.req.header('authorization');
+  if (authHeader) headers.authorization = authHeader;
+  let body: Record<string, unknown> = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    // empty body → params fallback only
+  }
+  try {
+    const server = createMcpServer({ headers, params: body as Record<string, unknown> });
+    const response = await server.handleRequest(body as never);
+    return c.json(response);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return c.json(
+      { jsonrpc: '2.0', error: { code: -32000, message }, id: null },
+      401,
+    );
+  }
+});
+app.get('/api/mcp', async (c) => {
+  // GET is not part of the JSON-RPC transport; used only as a liveness probe.
+  return c.json({ jsonrpc: '2.0', result: { status: 'mcp endpoint ready' }, id: null });
+});
 console.log('LLM gateway routes mounted');
 
 // ── Relay initialization ──────────────────────────────────────
