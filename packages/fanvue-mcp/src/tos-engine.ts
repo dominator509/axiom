@@ -1,5 +1,5 @@
 import { Platform } from '@axiom/core';
-import { VisionEngineClient } from './vision.js';
+import { VisionEngineClient, type OverrideVerdict } from './vision.js';
 
 // ─── Platform Thresholds ───
 
@@ -177,9 +177,15 @@ export class ToSEngine {
 
   /**
    * Classify an image for ToS compliance using the local vision engine.
+   * `imagePath` is an absolute path the Rust engine can read from disk.
+   * Pass `options.override` to force the verdict ('pass' | 'review' | 'block')
+   * and bypass the model entirely.
    */
-  async classifyImage(imageData: string): Promise<ImageClassification> {
-    const result = await this.visionClient.callTosClassify(imageData);
+  async classifyImage(
+    imagePath: string,
+    options: { override?: OverrideVerdict } = {},
+  ): Promise<ImageClassification> {
+    const result = await this.visionClient.callTosClassify(imagePath, options);
     return {
       score: Math.round(result.score * 100),
       category: result.category,
@@ -197,13 +203,15 @@ export class ToSEngine {
 
   /**
    * Evaluate an asset for ToS compliance across multiple platforms.
-   * Returns verdict, per-platform scores, and aggregated reasons.
+   * `asset.imageData` is an absolute image path the Rust engine reads from
+   * disk. Pass `options.override` to force the image verdict.
    */
   async evaluate(
     asset: { imageData: string; caption?: string; hashtags?: string[] },
     platforms: Platform[],
+    options: { override?: OverrideVerdict } = {},
   ): Promise<EvaluationResult> {
-    const classification = await this.classifyImage(asset.imageData);
+    const classification = await this.classifyImage(asset.imageData, options);
 
     const scores: PlatformScore[] = [];
     const allReasons = new Set<string>();

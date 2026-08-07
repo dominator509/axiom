@@ -6,6 +6,21 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
+/** Rust vision engine response shape (crates/vision-engine wire contract). */
+function visionResponse(over: Record<string, unknown> = {}): Response {
+  return jsonResponse({
+    verdict: 'pass',
+    nsfw_score: 0.01,
+    reasons: [],
+    engine: 'onnx-vit',
+    probabilities: [0.05, 0.05, 0.8, 0.05, 0.05],
+    labels: ['drawings', 'hentai', 'neutral', 'porn', 'sexy'],
+    overridden: false,
+    override_source: null,
+    ...over,
+  });
+}
+
 afterEach(() => vi.unstubAllGlobals());
 
 const PROMPT = {
@@ -18,7 +33,7 @@ const PROMPT = {
 
 describe('ContentGenerator.generateBundle', () => {
   it('produces a bundle with one content entry per platform', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ score: 0.01, category: null, explanation: 'ok' })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(visionResponse()));
     const gen = new ContentGenerator();
     const bundle = await gen.generateBundle('model-1', PROMPT, ['tiktok', 'instagram']);
     expect(bundle.contents).toHaveLength(2);
@@ -27,7 +42,7 @@ describe('ContentGenerator.generateBundle', () => {
   });
 
   it('appends hashtags per platform limits and marks truncation', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ score: 0.01, category: null, explanation: 'ok' })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(visionResponse()));
     const gen = new ContentGenerator();
     // threads max caption is 500 chars — a large talking-point set forces truncation
     const longPrompt = {
@@ -41,7 +56,7 @@ describe('ContentGenerator.generateBundle', () => {
   });
 
   it('builds a token-killer prefix per platform', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ score: 0.01, category: null, explanation: 'ok' })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(visionResponse()));
     const gen = new ContentGenerator();
     const bundle = await gen.generateBundle('model-1', PROMPT, ['x']);
     expect(bundle.contents[0].tokenKillerPrefix).toContain('[SYSTEM]');

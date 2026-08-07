@@ -41,9 +41,12 @@ export function alignBlocks(text: string): string {
 
 // ─── Platform Type ───
 
-export type Platform =
-  | 'instagram' | 'tiktok' | 'x' | 'youtube' | 'facebook'
-  | 'reddit' | 'threads' | 'snapchat' | 'discord' | 'telegram' | 'fanvue';
+export const PLATFORMS = [
+  'instagram', 'tiktok', 'x', 'youtube', 'facebook',
+  'reddit', 'threads', 'snapchat', 'discord', 'telegram', 'fanvue',
+] as const;
+
+export type Platform = (typeof PLATFORMS)[number];
 
 // ─── Profile / Model types ───
 

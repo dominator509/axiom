@@ -21,7 +21,15 @@ import { fanvueAuthRouter } from './routes/fanvue-auth.js';
 import { threadsAuthRouter } from './routes/threads-auth.js';
 import { auth, requireAuth } from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
+import { registerConnectors } from '@axiom/worker';
 import { DiscordAdapter, ThreadsAdapter, createRelayRoutes, CardRenderer, CommandRouter, ViralLoop, Bandit, IncidentManager, HealthCheckRegistry } from '@axiom/relay';
+import { correlationId, onError, idempotency, rateLimit } from './contract.js';
+
+// Register the real platform connectors into the shared registry so API-side
+// connector lookups (social-accounts capabilities, validate-for-platform, etc.)
+// work in this process. Idempotent; the worker process registers the same set.
+registerConnectors();
+console.log('Connectors registered (API process)');
 
 export type AppBindings = {
   Variables: {
@@ -35,6 +43,10 @@ const app = new Hono<AppBindings>();
 app.use('*', cors());
 app.use('*', logger());
 app.use('*', secureHeaders());
+// L3.0 contract: correlation_id on every request, then per-token rate limits.
+app.use('*', correlationId);
+app.use('/api/v1/*', rateLimit());
+app.onError(onError);
 
 // Health check
 app.get('/api/v1/health', (c) => c.json({ status: 'ok', version: '0.1.0' }));
@@ -67,6 +79,16 @@ app.use('/api/v1/audit/*', requireAuth);
 app.use('/api/v1/incidents/*', requireAuth);
 app.use('/api/v1/killswitch/*', requireAuth);
 app.use('/api/v1/kill-switch/*', requireAuth);
+
+// L3.0: mutations that touch the outside world require Idempotency-Key
+// (generate, approve/revise/reject, schedule, connect, fanvue OAuth).
+app.use('/api/v1/models/:modelId/generate', idempotency());
+app.use('/api/v1/models/:modelId/generate/*', idempotency());
+app.use('/api/v1/bundles/*/approve', idempotency());
+app.use('/api/v1/bundles/*/revise', idempotency());
+app.use('/api/v1/bundles/*/reject', idempotency());
+app.use('/api/v1/posts', idempotency());
+app.use('/api/v1/social-accounts', idempotency());
 
 app.route('/api/v1/models', modelsRouter);
 app.route('/api/v1/bundles', bundlesRouter);

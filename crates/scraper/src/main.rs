@@ -120,6 +120,7 @@ async fn scrape_social(
 
     // Parse with scraper crate to extract what we can
     let (display_name, bio, avatar_url) = parse_profile_page(&html);
+    let counts = parse_profile_counts(&html);
 
     // Fill in structured data from the parse or use defaults
     let now = chrono_now_iso();
@@ -129,9 +130,9 @@ async fn scrape_social(
         display_name,
         bio,
         avatar_url,
-        followers: 0,
-        following: 0,
-        posts: 0,
+        followers: counts.followers.unwrap_or(0),
+        following: counts.following.unwrap_or(0),
+        posts: counts.posts.unwrap_or(0),
         scraped_at: now,
     };
 
@@ -161,12 +162,12 @@ async fn scrape_competitor(
         let profile_url = build_platform_url(platform, &req.brand_name);
         let result = match fetch_page(&profile_url).await {
             Ok(html) => {
-                let (_name, _bio, _avatar) = parse_profile_page(&html);
+                let counts = parse_profile_counts(&html);
                 CompetitorResult {
                     platform: platform.clone(),
                     profile_url,
-                    followers: 0,
-                    posts: 0,
+                    followers: counts.followers.unwrap_or(0),
+                    posts: counts.posts.unwrap_or(0),
                     engagement_rate: 0.0,
                     error: None,
                 }
@@ -250,6 +251,151 @@ fn parse_profile_page(html: &str) -> (String, String, String) {
         .to_string();
 
     (display_name, bio, avatar_url)
+}
+
+/// Counts extracted from a profile page (real values when the page exposes
+/// them; `None` when the platform does not surface the metric in HTML).
+#[derive(Debug, Default, Clone, Copy)]
+struct ProfileCounts {
+    followers: Option<u64>,
+    following: Option<u64>,
+    posts: Option<u64>,
+}
+
+/// Parse a human-readable count like "1.2M", "4,500", "300" into a u64.
+fn parse_count(raw: &str) -> Option<u64> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    let lower = raw.to_lowercase();
+    let multiplier: f64 = if lower.contains('m') {
+        1_000_000.0
+    } else if lower.contains('k') {
+        1_000.0
+    } else if lower.contains('b') {
+        1_000_000_000.0
+    } else {
+        1.0
+    };
+    let cleaned: String = lower
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
+    let value: f64 = cleaned.parse().ok()?;
+    Some((value * multiplier).round() as u64)
+}
+
+/// Extract metrics from the page's embedded JSON (TikTok `__UNIVERSAL_DATA_...`,
+/// YouTube `ytInitialData`, generic `"followerCount"` fields).
+fn parse_embedded_json(html: &str) -> ProfileCounts {
+    let mut counts = ProfileCounts::default();
+
+    // Common rehydration keys across platforms. Field access by index avoids
+    // overlapping mutable borrows.
+    let find = |html: &str, key: &str| -> Option<u64> {
+        let pattern = format!(r#""{key}"\s*:\s*(\d+)"#);
+        let re = regex::Regex::new(&pattern).ok()?;
+        let cap = re.captures(html)?;
+        cap.get(1)?.as_str().parse::<u64>().ok()
+    };
+
+    for key in ["followerCount", "edge_followed_by"] {
+        if counts.followers.is_none() {
+            counts.followers = find(html, key);
+        }
+    }
+    for key in ["followingCount", "edge_follow"] {
+        if counts.following.is_none() {
+            counts.following = find(html, key);
+        }
+    }
+    for key in ["videoCount", "edge_owner_to_timeline_media"] {
+        if counts.posts.is_none() {
+            counts.posts = find(html, key);
+        }
+    }
+
+    // YouTube: subscriberCountText / videoCountText are human strings, often
+    // nested inside JSON objects — scan the whole HTML for the label pattern.
+    if counts.followers.is_none() {
+        if let Ok(re) = regex::Regex::new(r#"(?i)"subscriberCountText"\s*:\s*"([^"]+)"|([\d.,]+[kmb]?)\s+subscribers?"#) {
+            if let Some(cap) = re.captures(html) {
+                let raw = cap
+                    .get(1)
+                    .or_else(|| cap.get(2))
+                    .map(|m| m.as_str());
+                if let Some(raw) = raw {
+                    counts.followers = parse_count(raw);
+                }
+            }
+        }
+    }
+    if counts.posts.is_none() {
+        if let Ok(re) = regex::Regex::new(r#"(?i)"videoCountText"\s*:\s*"([^"]+)"|([\d.,]+[kmb]?)\s+videos?"#) {
+            if let Some(cap) = re.captures(html) {
+                let raw = cap
+                    .get(1)
+                    .or_else(|| cap.get(2))
+                    .map(|m| m.as_str());
+                if let Some(raw) = raw {
+                    counts.posts = parse_count(raw);
+                }
+            }
+        }
+    }
+
+    counts
+}
+
+/// Extract counts from the meta description (Instagram/X og:description
+/// convention: "1.2M Followers, 300 Following, 4,500 Posts").
+fn parse_meta_description(html: &str) -> ProfileCounts {
+    let mut counts = ProfileCounts::default();
+    let doc = scraper_crate::Html::parse_document(html);
+    let meta_desc_sel =
+        scraper_crate::Selector::parse(r#"meta[name="description"], meta[property="og:description"]"#)
+            .unwrap();
+    let desc = doc
+        .select(&meta_desc_sel)
+        .next()
+        .and_then(|el| el.value().attr("content"))
+        .unwrap_or("");
+
+    // Case-insensitive label match; also accept platform variants:
+    //   followers | subscribers (YouTube) → followers
+    //   posts | videos (YouTube)          → posts
+    for (labels, target) in [
+        (&["followers", "subscribers"][..], &mut counts.followers),
+        (&["following"][..], &mut counts.following),
+        (&["posts", "videos"][..], &mut counts.posts),
+    ] {
+        if target.is_some() {
+            continue;
+        }
+        let label_alt = labels.join("|");
+        let pattern = format!(r"(?i)([\d.,]+[kmb]?)\s+({label_alt})");
+        if let Ok(re) = regex::Regex::new(&pattern) {
+            if let Some(cap) = re.captures(desc) {
+                if let Some(raw) = cap.get(1) {
+                    *target = parse_count(raw.as_str());
+                }
+            }
+        }
+    }
+    counts
+}
+
+/// Full metric extraction for a profile page: embedded JSON first (exact),
+/// then the meta-description convention (rounded human counts).
+fn parse_profile_counts(html: &str) -> ProfileCounts {
+    let json = parse_embedded_json(html);
+    let meta = parse_meta_description(html);
+    ProfileCounts {
+        followers: json.followers.or(meta.followers),
+        following: json.following.or(meta.following),
+        posts: json.posts.or(meta.posts),
+    }
 }
 
 /// Build a platform-specific profile URL for a brand name.
@@ -341,9 +487,101 @@ async fn main() {
         .route("/scrape/social", post(scrape_social))
         .route("/scrape/competitor", post(scrape_competitor));
 
-    let addr = "0.0.0.0:3000";
+    let addr = std::env::var("AXIOM_SCRAPER_ADDR").unwrap_or_else(|_| "0.0.0.0:8102".to_string());
     info!("scraper listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const INSTAGRAM_HTML: &str = r#"<html><head>
+      <title>NASA (@nasa) • Instagram photos and videos</title>
+      <meta name="description" content="1.2M Followers, 300 Following, 4,500 Posts - See Instagram photos and videos from NASA (@nasa)">
+      <meta property="og:image" content="https://scontent.example/nasa.jpg">
+    </head><body></body></html>"#;
+
+    const TIKTOK_HTML: &str = r#"<html><head><title>TikTok</title></head><body>
+      <script id="__UNIVERSAL_DATA_FOR_REHYDRATION__">{"__DEFAULT_SCOPE__":{"webapp.user-detail":{"userInfo":{"user":{"id":"1","uniqueId":"nasa","nickname":"NASA"},"stats":{"followerCount":12345678,"followingCount":89,"videoCount":1234}}}}}</script>
+    </body></html>"#;
+
+    const YOUTUBE_HTML: &str = r#"<html><head><title>NASA - YouTube</title></head><body>
+      <script>var ytInitialData = {"header":{"pageHeaderRenderer":{"content":{"pageHeaderViewModel":{"metadata":{"contentMetadataViewModel":{"metadataRows":[{"metadataParts":[{"text":{"content":"29.7M subscribers"}},{"text":{"content":"8,145 videos"}}]}]}}}}}}}</script>
+    </body></html>"#;
+
+    const X_HTML: &str = r#"<html><head>
+      <title>NASA (@NASA) / X</title>
+      <meta name="description" content="42.7K Followers, 100 Following">
+    </head></body></html>"#;
+
+    #[test]
+    fn parse_count_handles_suffixes() {
+        assert_eq!(parse_count("1.2M"), Some(1_200_000));
+        assert_eq!(parse_count("4,500"), Some(4_500));
+        assert_eq!(parse_count("300"), Some(300));
+        assert_eq!(parse_count("29.7M"), Some(29_700_000));
+        assert_eq!(parse_count("8,145"), Some(8_145));
+        assert_eq!(parse_count(""), None);
+    }
+
+    #[test]
+    fn instagram_meta_description_counts() {
+        let counts = parse_profile_counts(INSTAGRAM_HTML);
+        assert_eq!(counts.followers, Some(1_200_000));
+        assert_eq!(counts.following, Some(300));
+        assert_eq!(counts.posts, Some(4_500));
+    }
+
+    #[test]
+    fn instagram_profile_fields() {
+        let (name, _bio, avatar) = parse_profile_page(INSTAGRAM_HTML);
+        assert!(name.contains("NASA"));
+        assert!(avatar.contains("scontent"));
+    }
+
+    #[test]
+    fn tiktok_rehydration_json_counts() {
+        let counts = parse_profile_counts(TIKTOK_HTML);
+        assert_eq!(counts.followers, Some(12_345_678));
+        assert_eq!(counts.following, Some(89));
+        assert_eq!(counts.posts, Some(1_234));
+    }
+
+    #[test]
+    fn youtube_subscriber_and_video_counts() {
+        let counts = parse_profile_counts(YOUTUBE_HTML);
+        assert_eq!(counts.followers, Some(29_700_000));
+        assert_eq!(counts.posts, Some(8_145));
+    }
+
+    #[test]
+    fn x_meta_description_counts() {
+        let counts = parse_profile_counts(X_HTML);
+        assert_eq!(counts.followers, Some(42_700));
+        assert_eq!(counts.following, Some(100));
+        assert_eq!(counts.posts, None);
+    }
+
+    #[test]
+    fn empty_page_yields_none() {
+        let counts = parse_profile_counts("<html><body></body></html>");
+        assert_eq!(counts.followers, None);
+        assert_eq!(counts.following, None);
+        assert_eq!(counts.posts, None);
+    }
+
+    #[test]
+    fn build_platform_url_shapes() {
+        assert_eq!(build_platform_url("instagram", "NASA"), "https://instagram.com/nasa");
+        assert_eq!(build_platform_url("tiktok", "NASA"), "https://tiktok.com/@nasa");
+        assert_eq!(build_platform_url("x", "NASA"), "https://x.com/nasa");
+        assert_eq!(build_platform_url("fanvue", "Ava"), "https://fanvue.com/ava");
+    }
 }

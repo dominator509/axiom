@@ -37,6 +37,7 @@ export type {
   CourseAdherenceInput,
   CourseAdherenceScore,
 } from './prompts.js';
+export type { TokenKillerOptions } from './gateway.js';
 
 // Prefix cache
 export { PrefixCache, ResponseCache, cacheKey, alignBlocks } from './cache.js';

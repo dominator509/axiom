@@ -26,3 +26,6 @@ ring = "0.17"
 url = "2"
 axum = "0.8"
 scraper_crate = { version = "0.22", package = "scraper" }
+ort = { version = "2.0.0-rc.13", features = ["download-binaries"] }
+ndarray = "0.17"
+regex = "1"

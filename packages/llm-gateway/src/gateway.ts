@@ -55,8 +55,21 @@ import {
   streamVLLM,
   VLLM_BASE_URL,
 } from './providers/vllm.js';
-import { ResponseCache } from './cache.js';
+import { ResponseCache, PrefixCache } from './cache.js';
 import { Pipeline, type PipelineOptions } from './pipeline.js';
+import {
+  buildS0,
+  buildS1,
+  buildS2,
+  buildS3,
+  assemblePrompt,
+  alignBlocks,
+  type TokenKillerSegments,
+  type ModelProfile,
+  type TaskVariables,
+  type ViralExemplar,
+} from './prompts.js';
+import { cacheKey } from './cache.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,6 +98,27 @@ export interface ChatOptions {
    * proxy instead of the host's direct route.
    */
   egress?: boolean;
+  /**
+   * TOKENKILLER (L2.5 / LBI-09): assemble the request as S0–S3 segments,
+   * align to 64-token blocks, and track prefix cache hits. When set, the
+   * gateway prepends the aligned S0–S2 prefix (byte-stable, provider prefix
+   * cache friendly) and appends the dynamic S3 task segment, then measures
+   * the prefix-cache hit ratio across calls (target > 97%).
+   */
+  tokenkiller?: TokenKillerOptions;
+}
+
+export interface TokenKillerOptions {
+  modelId: string;
+  platform: string;
+  /** Semi-static S2 exemplars (retrieved from the viral store). */
+  exemplars?: ViralExemplar[];
+  /** Dynamic S3 task variables (the actual task). */
+  task: TaskVariables;
+  /** Persona/system for S0 (per model, static). */
+  profile: ModelProfile;
+  /** Prefix version; bump when S0/S1 rules materially change. */
+  prefixVersion?: string;
 }
 
 export interface ChatResult {
@@ -297,12 +331,14 @@ export class LLMGateway {
   private rateLimiters: Map<string, RateLimitBucket> = new Map();
   private cache: ResponseCache;
   private pipeline: Pipeline;
+  private prefixCache: PrefixCache;
   private requestCount = 0;
   private failureCount = 0;
 
   constructor(providerOverrides?: Partial<ProviderConfig>[]) {
     this.cache = new ResponseCache();
     this.pipeline = new Pipeline();
+    this.prefixCache = new PrefixCache();
 
     const merged = providerOverrides
       ? this.mergeProviderConfigs(DEFAULT_PROVIDERS, providerOverrides)
@@ -359,6 +395,7 @@ export class LLMGateway {
       requests: this.requestCount,
       failures: this.failureCount,
       cache: this.cache.stats(),
+      tokenkiller: this.prefixCache.getStats(),
     };
   }
 
@@ -727,6 +764,69 @@ export class LLMGateway {
       throw new Error(`All providers in the fallback chain failed — ${summary}`);
     }
     throw new Error('All providers in the fallback chain failed');
+  }
+
+  /**
+   * TOKENKILLER chat (L2.5 / LBI-09): assemble the request as S0–S3 segments,
+   * 64-token block aligned, track the prefix in the PrefixCache, and emit a
+   * cache-hit metric. Stable S0–S2 prefixes hit the local cache (and the
+   * provider's prefix cache); only S3 varies per call. The >97% target is
+   * measurable via getStats().tokenkiller.ratio.
+   */
+  async chatWithTokenKiller(
+    messages: Message[],
+    options: ChatOptions,
+  ): Promise<ChatResult> {
+    const tk = options.tokenkiller;
+    if (!tk) {
+      throw new Error('chatWithTokenKiller: tokenkiller options required');
+    }
+
+    const prefixVersion = tk.prefixVersion ?? 'v1';
+    const segments: TokenKillerSegments = {
+      S0: buildS0(tk.profile),
+      S1: buildS1(tk.platform as Parameters<typeof buildS1>[0]),
+      S2: buildS2(tk.exemplars ?? []),
+      S3: buildS3(tk.task),
+    };
+    const prefix = alignBlocks(segments.S0 + segments.S1 + segments.S2);
+
+    // Content-addressed prefix key; same (model, platform, version, exemplar
+    // set) ⇒ same key ⇒ local prefix-cache hit (provider prefix cache also
+    // hits because the emitted prefix is byte-stable).
+    const key = cacheKey(tk.modelId, tk.platform, prefixVersion, segments.S2);
+    const cachedPrefix = this.prefixCache.get(key);
+    if (cachedPrefix === undefined) {
+      this.prefixCache.set(key, prefix, tk.modelId, tk.platform, prefixVersion, segments.S2);
+    }
+
+    const assembled = assemblePrompt(segments);
+    const tokenkillerMessages: Message[] = [
+      { role: 'system', content: assembled },
+      ...messages.filter((m) => m.role !== 'system'),
+    ];
+
+    const { tokenkiller: _tk, ...rest } = options;
+    const result = await this.chat(tokenkillerMessages, {
+      ...rest,
+      model: options.model ?? this.defaultModelFor(tk),
+      tokenkiller: undefined,
+    });
+    return {
+      ...result,
+      model: result.model,
+      provider: result.provider,
+    };
+  }
+
+  /** Choose a sensible model for a tokenkiller call (fallback for tests). */
+  private defaultModelFor(_tk: TokenKillerOptions): string {
+    for (const [, cfg] of this.providers) {
+      if (!cfg.requiresKey || getEnvVar(cfg.apiKeyEnv)) {
+        return cfg.defaultModel;
+      }
+    }
+    return 'default';
   }
 
   /**

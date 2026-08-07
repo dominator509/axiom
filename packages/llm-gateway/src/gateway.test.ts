@@ -203,6 +203,7 @@ describe('LLMGateway — availability and selection', () => {
       requests: 0,
       failures: 0,
       cache: { hits: 0, misses: 0, size: 0 },
+      tokenkiller: { hits: 0, misses: 0, ratio: 0, size: 0, capacity: 1000 },
     });
   });
 });

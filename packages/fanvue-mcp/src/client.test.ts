@@ -1,4 +1,4 @@
-// ─── FanvueMcpClient — Vitest Suite ───
+// ─── FanvueMcpClient — Vitest Suite (JSON-RPC 2.0 / MCP protocol) ───
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { FanvueMcpClient, FanvueMcpError } from './client.js';
 
@@ -7,24 +7,57 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 const CREDS = {
-  endpoint: 'https://mcp.fanvue.test/',
+  endpoint: 'https://mcp.fanvue.test',
   apiKey: 'test-api-key-123',
   modelId: 'model-1',
 };
 
+const INIT_RESULT = {
+  protocolVersion: '2025-03-26',
+  capabilities: { tools: {} },
+  serverInfo: { name: 'fanvue-mcp', version: '1.0.0' },
+};
+
+const TOOLS_RESULT = {
+  tools: [
+    { name: 'start-image-upload' },
+    { name: 'create-image-post' },
+    { name: 'read_analytics' },
+    { name: 'read_inbox' },
+    { name: 'reply_dm' },
+  ],
+};
+
 afterEach(() => vi.unstubAllGlobals());
 
+/** Stub fetch to answer initialize + tools/list + a final tool call. */
+function stubMcpFlow(toolResult: unknown) {
+  const fetchMock = vi.fn((_url: string, init: RequestInit) => {
+    const body = JSON.parse(init.body as string) as { method: string; id: number };
+    if (body.method === 'initialize') {
+      return Promise.resolve(jsonResponse({ jsonrpc: '2.0', result: INIT_RESULT, id: body.id }));
+    }
+    if (body.method === 'tools/list') {
+      return Promise.resolve(jsonResponse({ jsonrpc: '2.0', result: TOOLS_RESULT, id: body.id }));
+    }
+    return Promise.resolve(jsonResponse({ jsonrpc: '2.0', result: toolResult, id: body.id }));
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+/**
+ * Build a client and run the MCP handshake against the CURRENTLY stubbed
+ * fetch. The test owns its stub (via stubMcpFlow) so call-count assertions
+ * reference the right function.
+ */
 async function connectedClient(): Promise<FanvueMcpClient> {
   const c = new FanvueMcpClient();
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-    jsonResponse({ connected: true, modelId: 'model-1', token: 'tok-123', expiresAt: '2099-01-01T00:00:00Z' }),
-  ));
   await c.connect(CREDS);
-  vi.unstubAllGlobals();
   return c;
 }
 
-describe('connect', () => {
+describe('connect (MCP initialize handshake)', () => {
   it('rejects invalid credentials before any network call', async () => {
     const c = new FanvueMcpClient();
     const fetchSpy = vi.fn();
@@ -33,33 +66,50 @@ describe('connect', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('connects, stores the token, and strips trailing slashes from endpoint', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      jsonResponse({ connected: true, modelId: 'model-1', token: 'tok-123', expiresAt: '2099-01-01T00:00:00Z' }),
-    ));
+  it('performs initialize + tools/list against the /mcp endpoint', async () => {
+    const fetchMock = stubMcpFlow({});
     const c = new FanvueMcpClient();
     const result = await c.connect(CREDS);
+
     expect(result.connected).toBe(true);
-    expect(c['token']).toBe('tok-123');
+    expect(result.protocolVersion).toBe('2025-03-26');
+    expect(result.tools).toContain('start-image-upload');
     expect(c['connected']).toBe(true);
 
-    const [url, init] = (vi.mocked(fetch).mock.calls[0] as unknown as [string, RequestInit]);
-    expect(url).toBe('https://mcp.fanvue.test/auth/connect');
-    expect(init.headers).toMatchObject({ 'X-API-Key': 'test-api-key-123' });
-    expect(JSON.parse(init.body as string)).toEqual({ model_id: 'model-1' });
+    const calls = vi.mocked(fetchMock).mock.calls as unknown as Array<[string, RequestInit]>;
+    expect(calls.length).toBe(2);
+    expect(calls[0][0]).toBe('https://mcp.fanvue.test/mcp');
+    expect(calls[1][0]).toBe('https://mcp.fanvue.test/mcp');
+
+    const initFrame = JSON.parse(calls[0][1].body as string);
+    expect(initFrame.jsonrpc).toBe('2.0');
+    expect(initFrame.method).toBe('initialize');
+    expect(initFrame.params.protocolVersion).toBe('2025-03-26');
+    expect(initFrame.params.clientInfo.name).toBe('axiom-fanvue-mcp');
+    expect(calls[0][1].headers).toMatchObject({ 'X-API-Key': 'test-api-key-123' });
   });
 
-  it('throws FanvueMcpError with code AUTH_FAILED on non-ok', async () => {
+  it('throws FanvueMcpError with MCP error code on JSON-RPC error frame', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      jsonResponse({ jsonrpc: '2.0', error: { code: -32001, message: 'unauthorized' }, id: 1 }, 200),
+    ));
+    const c = new FanvueMcpClient();
+    const err = await c.connect(CREDS).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(FanvueMcpError);
+    expect((err as FanvueMcpError).code).toBe('MCP_-32001');
+  });
+
+  it('throws FanvueMcpError HTTP_ERROR on non-ok transport', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ error: 'bad' }, 401)));
     const c = new FanvueMcpClient();
     const err = await c.connect(CREDS).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(FanvueMcpError);
-    expect((err as FanvueMcpError).code).toBe('AUTH_FAILED');
+    expect((err as FanvueMcpError).code).toBe('HTTP_ERROR');
     expect((err as FanvueMcpError).statusCode).toBe(401);
   });
 });
 
-describe('authenticated calls', () => {
+describe('authenticated tool calls (tools/call)', () => {
   it('uploadImage requires an active connection', async () => {
     const c = new FanvueMcpClient();
     const err = await c.uploadImage('aGVsbG8=', 'x.jpg').catch((e: unknown) => e);
@@ -67,58 +117,75 @@ describe('authenticated calls', () => {
     expect((err as FanvueMcpError).code).toBe('NOT_CONNECTED');
   });
 
-  it('uploadImage posts base64 to /assets/upload with bearer auth', async () => {
+  it('uploadImage calls tools/call start-image-upload with JSON-RPC frame', async () => {
+    const fetchMock = stubMcpFlow({ asset_id: 'a1', url: 'https://cdn.test/a1.jpg', width: 10, height: 10, size_bytes: 100 });
     const c = await connectedClient();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      jsonResponse({ asset_id: 'a1', url: 'https://cdn.test/a1.jpg', width: 10, height: 10, size_bytes: 100 }),
-    ));
     const result = await c.uploadImage('aGVsbG8=', 'x.jpg');
+
     expect(result.asset_id).toBe('a1');
-    const [url, init] = (vi.mocked(fetch).mock.calls[0] as unknown as [string, RequestInit]);
-    expect(url).toBe('https://mcp.fanvue.test/assets/upload');
-    expect(init.headers).toMatchObject({ Authorization: 'Bearer tok-123' });
-    expect(JSON.parse(init.body as string)).toMatchObject({ filename: 'x.jpg' });
+
+    const calls = vi.mocked(fetchMock).mock.calls as unknown as Array<[string, RequestInit]>;
+    const callFrame = JSON.parse(calls[calls.length - 1][1].body as string);
+    expect(callFrame.method).toBe('tools/call');
+    expect(callFrame.params.name).toBe('start-image-upload');
+    expect(callFrame.params.arguments).toMatchObject({ filename: 'x.jpg', model_id: 'model-1' });
   });
 
-  it('createPost posts to /posts', async () => {
+  it('uploadImage rejects when tool not advertised', async () => {
+    const fetchMock = vi.fn((_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as { method: string; id: number };
+      if (body.method === 'initialize') {
+        return Promise.resolve(jsonResponse({ jsonrpc: '2.0', result: INIT_RESULT, id: body.id }));
+      }
+      return Promise.resolve(jsonResponse({ jsonrpc: '2.0', result: { tools: [] }, id: body.id }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const c = new FanvueMcpClient();
+    await c.connect(CREDS);
+    const err = await c.uploadImage('aGVsbG8=', 'x.jpg').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(FanvueMcpError);
+    expect((err as FanvueMcpError).code).toBe('UNKNOWN_TOOL');
+  });
+
+  it('createPost maps create-image-post result', async () => {
+    const fetchMock = stubMcpFlow({ post_id: 'p1', url: 'https://fanvue.com/p1', platform: 'fanvue', created_at: '2026-01-01T00:00:00Z' });
     const c = await connectedClient();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      jsonResponse({ post_id: 'p1', url: 'https://fanvue.test/p1', platform: 'fanvue', created_at: '2026-07-31T00:00:00Z' }),
-    ));
-    const result = await c.createPost('a1', 'hello #test');
+    const result = await c.createPost('a1', 'caption text');
     expect(result.post_id).toBe('p1');
-    const [, init] = (vi.mocked(fetch).mock.calls[0] as unknown as [string, RequestInit]);
-    expect(JSON.parse(init.body as string)).toMatchObject({ asset_id: 'a1', caption: 'hello #test' });
+
+    const calls = vi.mocked(fetchMock).mock.calls as unknown as Array<[string, RequestInit]>;
+    const callFrame = JSON.parse(calls[calls.length - 1][1].body as string);
+    expect(callFrame.params.name).toBe('create-image-post');
+    expect(callFrame.params.arguments.caption).toBe('caption text');
   });
 
-  it('getAnalytics GETs /analytics and returns the summary', async () => {
+  it('getAnalytics / getInbox / replyToDM route through tools/call', async () => {
+    const fetchMock = stubMcpFlow({ messages: [], unread_count: 0 });
     const c = await connectedClient();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      jsonResponse({
-        model_id: 'model-1',
-        timeframe: '7d',
-        summary: { total_views: 10, total_likes: 2, total_comments: 3, total_shares: 4, avg_engagement_rate: 0.05 },
-      }),
-    ));
-    const result = await c.getAnalytics('p1');
-    expect(result.summary.total_views).toBe(10);
+
+    const inbox = await c.getInbox('model-1');
+    expect(inbox.unread_count).toBe(0);
+    const calls = vi.mocked(fetchMock).mock.calls as unknown as Array<[string, RequestInit]>;
+    const frame = JSON.parse(calls[calls.length - 1][1].body as string);
+    expect(frame.method).toBe('tools/call');
+    expect(frame.params.name).toBe('read_inbox');
   });
 
-  it('getInbox GETs the inbox for a model', async () => {
+  it('unwraps text-content envelopes (MCP standard result shape)', async () => {
+    const fetchMock = stubMcpFlow({
+      content: [{ type: 'text', text: JSON.stringify({ asset_id: 'wrapped-1', url: 'u' }) }],
+    });
     const c = await connectedClient();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      jsonResponse({ messages: [{ id: 'm1' }] }),
-    ));
-    const result = await c.getInbox('model-1');
-    expect(result.messages).toHaveLength(1);
+    const result = await c.uploadImage('aGVsbG8=', 'x.jpg');
+    expect(result.asset_id).toBe('wrapped-1');
+    expect(vi.mocked(fetchMock).mock.calls.length).toBe(3);
   });
 
-  it('replyToDM POSTs a reply', async () => {
+  it('exposes the discovered tool list', async () => {
+    stubMcpFlow({});
     const c = await connectedClient();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      jsonResponse({ message_id: 'm2', status: 'sent' }),
-    ));
-    const result = await c.replyToDM('model-1', 'm1', 'Thanks!');
-    expect((result as { message_id?: string }).message_id).toBe('m2');
+    expect(c.listTools()).toContain('reply_dm');
+    expect(c.hasTool('read_analytics')).toBe(true);
+    expect(c.hasTool('nope')).toBe(false);
   });
 });
