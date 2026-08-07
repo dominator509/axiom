@@ -204,12 +204,12 @@ describe('POST /refresh', () => {
 
     const fetchMock = vi.mocked(fetch);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://auth.fanvue.com/oauth2/token');
-    const form = new URLSearchParams((init.body as URLSearchParams).toString());
+    const form = new URLSearchParams(init.body as string);
     expect(form.get('grant_type')).toBe('refresh_token');
     expect(form.get('refresh_token')).toBe('ory_rt_test_refresh');
-    expect(init.headers.Authorization).toMatch(/^Basic /);
+    expect((init.headers as Record<string, string>).Authorization).toMatch(/^Basic /);
 
     // Rotated tokens persisted to the env file (rotation-safe).
     const env = readFileSync(envFile, 'utf8');
