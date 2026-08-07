@@ -20,7 +20,7 @@ export const job = pgTable('job', {
   scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
   startedAt: timestamp('started_at', { withTimezone: true }),
   completedAt: timestamp('completed_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
 });
 
 export const jobRelations = relations(job, ({ one }) => ({

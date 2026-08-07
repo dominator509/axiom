@@ -12,7 +12,7 @@ export const auditLog = pgTable('audit_log', {
   action: text('action').notNull(),
   target: text('target').notNull(),
   detail: jsonb('detail').$type<Record<string, unknown>>().default({}),
-  ts: timestamp('ts', { withTimezone: true }).notNull().defaultNow(),
+  ts: timestamp('ts', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   prevHash: bytea('prev_hash').notNull(),
   rowHash: bytea('row_hash').notNull(),
 });

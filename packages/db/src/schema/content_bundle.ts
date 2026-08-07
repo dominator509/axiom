@@ -14,7 +14,7 @@ export const contentBundle = pgTable('content_bundle', {
   hashtags: jsonb('hashtags').$type<string[]>().default([]),
   tosReport: jsonb('tos_report').$type<Record<string, unknown>>(),
   state: text('state').notNull().default('generated'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

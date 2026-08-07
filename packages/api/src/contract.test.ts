@@ -61,6 +61,25 @@ describe('encodeCursor / decodeCursor', () => {
     });
   });
 
+  it('cursor round-trip is exact at millisecond precision (keyset boundary)', () => {
+    // Regression: PG stored microsecond timestamps (.357238) while JS Date
+    // truncates to ms (.357Z). The boundary row then satisfied
+    // `created_at > '...357Z'` and was re-fetched on the next page (dupes).
+    // Keyset columns are now timestamp(3); verify the encoded cursor decodes
+    // to exactly the value that compares equal to the stored row.
+    const boundary = new Date('2026-08-06T22:21:37.357Z');
+    const id = 'd7057200-04c0-4b09-ae6c-0d00b1f6f5cc';
+    const cursor = encodeCursor(boundary, id);
+    const decoded = decodeCursor(cursor);
+    expect(decoded).not.toBeNull();
+    expect(decoded!.value).toBe('2026-08-06T22:21:37.357Z');
+    expect(decoded!.id).toBe(id);
+    // The boundary row must NOT satisfy the ASC "after" predicate on itself.
+    const gt = cursorGt(sql`created_at`, sql`id`, decoded);
+    const text = renderSQL(gt[0]);
+    expect(text).toContain(`created_at > 2026-08-06T22:21:37.357Z OR (created_at = 2026-08-06T22:21:37.357Z AND id > ${id})`);
+  });
+
   it('returns null for garbage cursors (never throws)', () => {
     expect(decodeCursor(undefined)).toBeNull();
     expect(decodeCursor(null)).toBeNull();
