@@ -7,8 +7,9 @@ import { metricsPoll } from './metrics.js';
 import { viralLabel } from './viral.js';
 import { incidentNotify } from './incident.js';
 import { dlqReplay } from './dlq.js';
+import { digestWeekly } from './digest.js';
 export { ParkJobError } from './context.js';
-export { contentGenerate, tosScan, relayCard, publishTarget, metricsPoll, viralLabel, incidentNotify, dlqReplay };
+export { contentGenerate, tosScan, relayCard, publishTarget, metricsPoll, viralLabel, incidentNotify, dlqReplay, digestWeekly };
 export const defaultExecutors = {
     'content.generate': contentGenerate,
     'tos.scan': tosScan,
@@ -18,5 +19,6 @@ export const defaultExecutors = {
     'viral.label': viralLabel,
     'incident.notify': incidentNotify,
     'dlq.replay': dlqReplay,
+    'digest.weekly': digestWeekly,
 };
 //# sourceMappingURL=index.js.map

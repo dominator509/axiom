@@ -7,6 +7,8 @@ export const orgSettings = pgTable('org_settings', {
     .primaryKey()
     .references(() => org.id, { onDelete: 'cascade' }),
   publishingEnabled: boolean('publishing_enabled').notNull().default(true),
+  // F-86 (L2.8 §8): opt-in cross-model pattern sharing within the org.
+  viralSharing: boolean('viral_sharing').notNull().default(false),
   killSwitchReason: text('kill_switch_reason'),
   killSwitchActor: text('kill_switch_actor'),
   killSwitchAt: timestamp('kill_switch_at', { withTimezone: true }),

@@ -135,6 +135,7 @@ describe('default executor registry', () => {
             'viral.label',
             'incident.notify',
             'dlq.replay',
+            'digest.weekly',
         ].sort());
     });
 });

@@ -7,8 +7,9 @@ import { metricsPoll } from './metrics.js';
 import { viralLabel } from './viral.js';
 import { incidentNotify } from './incident.js';
 import { dlqReplay } from './dlq.js';
+import { digestWeekly } from './digest.js';
 export type { Executor, ExecutorContext } from './context.js';
 export { ParkJobError } from './context.js';
-export { contentGenerate, tosScan, relayCard, publishTarget, metricsPoll, viralLabel, incidentNotify, dlqReplay };
+export { contentGenerate, tosScan, relayCard, publishTarget, metricsPoll, viralLabel, incidentNotify, dlqReplay, digestWeekly };
 export declare const defaultExecutors: Record<string, Executor>;
 //# sourceMappingURL=index.d.ts.map

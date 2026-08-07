@@ -19,7 +19,7 @@ export { Bandit } from './viral/bandit.js';
 
 export { Logger } from './observability/logging.js';
 export { MetricsRegistry } from './observability/metrics.js';
-export { IncidentManager } from './observability/incidents.js';
+export { IncidentManager, type Incident, type Severity, type DLQEntry } from './observability/incidents.js';
 export { HealthCheckRegistry } from './observability/health.js';
 
 export { MetricPoller } from './metrics/poller.js';

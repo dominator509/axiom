@@ -54,6 +54,20 @@ async function retrieveTopExemplars(
   limit: number,
 ): Promise<ViralExemplar[]> {
   const labelOrder = ['viral', 'strong', 'baseline', 'weak'];
+
+  // F-86 (L2.8 §8): opt-in org-level cross-model sharing. When the org enables
+  // viral_sharing, generation may draw exemplars from ANY model in the same
+  // org (tenant-isolated by RLS — never across orgs); otherwise strict
+  // per-model scope.
+  const sharing = await withOrgContext(orgId, (tx) =>
+    tx
+      .select({ viralSharing: schema.orgSettings.viralSharing })
+      .from(schema.orgSettings)
+      .where(eq(schema.orgSettings.orgId, orgId))
+      .limit(1),
+  );
+  const shareAcrossModels = sharing[0]?.viralSharing ?? false;
+
   const rows = await withOrgContext(orgId, (tx) =>
     tx
       .select({
@@ -66,7 +80,8 @@ async function retrieveTopExemplars(
       .from(schema.viralExemplar)
       .where(
         and(
-          eq(schema.viralExemplar.modelId, modelId),
+          eq(schema.viralExemplar.orgId, orgId),
+          ...(shareAcrossModels ? [] : [eq(schema.viralExemplar.modelId, modelId)]),
           eq(schema.viralExemplar.platform, platform),
         ),
       )

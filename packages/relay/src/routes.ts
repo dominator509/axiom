@@ -124,7 +124,14 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
         message: string;
         source: string;
       }>();
-      const incident = deps.incidentManager.reportIncident(severity, message, source);
+      const incident = deps.incidentManager.reportIncident(
+        severity,
+        message,
+        source,
+        // Thread the authenticated org into the page so the DB-backed sink
+        // (F-78) can write an org-scoped relay card.
+        (c.get('orgId') as string | undefined) ? { orgId: c.get('orgId') as string } : undefined,
+      );
       return c.json({ success: true, incident });
     } catch (err) {
       logger.error('Failed to report incident', err as Error);

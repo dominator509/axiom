@@ -60,6 +60,7 @@ const TS_TO_SQL: Record<string, string> = {
   linkbioAnalytics: 'linkbio_analytics',
   relayBinding: 'relay_binding',
   agentPermission: 'agent_permission',
+  crashReport: 'crash_report',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -231,7 +232,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
     // 29 in 0004 (job_pick + job_dedupe + 27 entity-table hot paths) — exact count.
-    expect(indexStatements).toHaveLength(67);
+    expect(indexStatements).toHaveLength(68);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS job_pick ON job (state, run_after) WHERE state = \'ready\';');

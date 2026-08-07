@@ -10,6 +10,8 @@ export interface Incident {
   timestamp: number;
   resolved: boolean;
   crashLoop: boolean;
+  /** Optional context threaded from the reporter (e.g. orgId for the sink). */
+  meta?: Record<string, unknown>;
 }
 
 export interface DLQEntry {
@@ -43,7 +45,7 @@ export class IncidentManager {
     this.pageHandler = handler;
   }
 
-  reportIncident(severity: Severity, message: string, source: string): Incident {
+  reportIncident(severity: Severity, message: string, source: string, meta?: Record<string, unknown>): Incident {
     const now = Date.now();
     const crashLoop = this.detectCrashLoop(source, now);
 
@@ -55,6 +57,7 @@ export class IncidentManager {
       timestamp: now,
       resolved: false,
       crashLoop,
+      meta,
     };
 
     this.incidents.push(incident);

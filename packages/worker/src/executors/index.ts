@@ -9,10 +9,11 @@ import { metricsPoll } from './metrics.js';
 import { viralLabel } from './viral.js';
 import { incidentNotify } from './incident.js';
 import { dlqReplay } from './dlq.js';
+import { digestWeekly } from './digest.js';
 
 export type { Executor, ExecutorContext } from './context.js';
 export { ParkJobError } from './context.js';
-export { contentGenerate, tosScan, relayCard, publishTarget, metricsPoll, viralLabel, incidentNotify, dlqReplay };
+export { contentGenerate, tosScan, relayCard, publishTarget, metricsPoll, viralLabel, incidentNotify, dlqReplay, digestWeekly };
 
 export const defaultExecutors: Record<string, Executor> = {
   'content.generate': contentGenerate,
@@ -23,4 +24,5 @@ export const defaultExecutors: Record<string, Executor> = {
   'viral.label': viralLabel,
   'incident.notify': incidentNotify,
   'dlq.replay': dlqReplay,
+  'digest.weekly': digestWeekly,
 };

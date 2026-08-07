@@ -18,6 +18,9 @@ import { playbookRouter } from './routes/playbook.js';
 import { generateRouter } from './routes/generate.js';
 import { auditRouter } from './routes/audit.js';
 import { incidentsRouter } from './routes/incidents.js';
+import { digestsRouter } from './routes/digests.js';
+import { crashReportsRouter } from './routes/crash-reports.js';
+import { orgSettingsRouter } from './routes/org-settings.js';
 import { fanvueAuthRouter } from './routes/fanvue-auth.js';
 import { threadsAuthRouter } from './routes/threads-auth.js';
 import { auth, requireAuth } from '@axiom/auth';
@@ -26,6 +29,7 @@ import { registerConnectors } from '@axiom/worker';
 import { createMcpServer } from '@axiom/mcp-server';
 import { DiscordAdapter, ThreadsAdapter, createRelayRoutes, CardRenderer, CommandRouter, ViralLoop, Bandit, IncidentManager, HealthCheckRegistry, type CardAction } from '@axiom/relay';
 import { relayViralPersistence } from './relay-viral.js';
+import { relayIncidentPageHandler } from './relay-incidents.js';
 import { correlationId, onError, idempotency, rateLimit } from './contract.js';
 import { schema } from '@axiom/db';
 import { sql, eq } from 'drizzle-orm';
@@ -169,6 +173,9 @@ app.use('/api/v1/audit/*', requireAuth);
 app.use('/api/v1/incidents/*', requireAuth);
 app.use('/api/v1/killswitch/*', requireAuth);
 app.use('/api/v1/kill-switch/*', requireAuth);
+app.use('/api/v1/digests/*', requireAuth);
+app.use('/api/v1/crash-reports/*', requireAuth);
+app.use('/api/v1/org-settings/*', requireAuth);
 // Relay viral ingest/exemplars are DB-backed (M-7) — require a session so
 // orgId comes from the auth context, never from the request body.
 app.use('/api/v1/viral/ingest', requireAuth);
@@ -201,6 +208,9 @@ app.route('/api/v1', playbookRouter);
 app.route('/api/v1', generateRouter);
 app.route('/api/v1', auditRouter);
 app.route('/api/v1', incidentsRouter);
+app.route('/api/v1', digestsRouter);
+app.route('/api/v1', crashReportsRouter);
+app.route('/api/v1', orgSettingsRouter);
 
 // LLM gateway — unified multi-provider chat completions
 const llmGateway = new LLMGateway();
@@ -250,6 +260,9 @@ export async function initRelay(): Promise<Hono> {
   const viralLoop = new ViralLoop();
   const bandit = new Bandit();
   const incidentManager = new IncidentManager();
+  // F-78 (L2.9): sev-1 / crash-loop incidents auto-page into the Relay —
+  // the page handler writes a durable, org-scoped relay card + audit entry.
+  incidentManager.setPageHandler(relayIncidentPageHandler);
   const healthRegistry = new HealthCheckRegistry();
 
   // Initialize Discord adapter if token configured

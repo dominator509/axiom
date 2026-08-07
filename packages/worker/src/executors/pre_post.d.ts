@@ -1,5 +1,4 @@
 import { PrePostHook } from '@axiom/fanvue-mcp';
-import type { Platform, PublishResult } from '@axiom/core';
 import type { ConnectorPublishInput } from '@axiom/connectors';
 import type { ExecutorContext } from './context.js';
 export interface PrePostRunInput {
@@ -24,9 +23,6 @@ export interface PrePostStageResult {
     }>;
 }
 export declare function getPrePostHook(): PrePostHook;
-export declare function setPrePostHookForTests(hook: PrePostHook | null): void;
-/** Register a script on the shared hook. */
-export declare function registerPrePostScript(name: string, before: (i: unknown, p: Platform) => unknown | Promise<unknown>, after: (r: PublishResult, p: Platform) => void | Promise<void>): void;
 /**
  * Check the Rust media plane is reachable (L2.10 v2 isolated execution).
  * Returns the engine label actually used.

@@ -80,7 +80,7 @@ describe('@axiom/db index', () => {
     expect(schema.linkbioAnalytics).toBeDefined();
     expect(schema.relayBinding).toBeDefined();
     expect(schema.agentPermission).toBeDefined();
-    expect(schema.allRelations).toHaveLength(43);
+    expect(schema.allRelations).toHaveLength(44);
   });
 
   it('exposes a usable drizzle query builder without a live database', () => {

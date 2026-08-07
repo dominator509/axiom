@@ -42,6 +42,7 @@ import { triggerRule, triggerRuleRelations } from './trigger_rule.js';
 import { linkbioAnalytics, linkbioAnalyticsRelations } from './linkbio_analytics.js';
 import { relayBinding, relayBindingRelations } from './relay_binding.js';
 import { agentPermission, agentPermissionRelations } from './agent_permission.js';
+import { crashReport, crashReportRelations } from './crash_report.js';
 
 export { org, orgRelations };
 export { appUser, appUserRelations };
@@ -87,6 +88,7 @@ export { triggerRule, triggerRuleRelations };
 export { linkbioAnalytics, linkbioAnalyticsRelations };
 export { relayBinding, relayBindingRelations };
 export { agentPermission, agentPermissionRelations };
+export { crashReport, crashReportRelations };
 
 export const allRelations = [
   orgRelations,
@@ -131,5 +133,6 @@ export const allRelations = [
   linkbioAnalyticsRelations,
   relayBindingRelations,
   agentPermissionRelations,
+  crashReportRelations,
   apiIdempotencyRelations,
 ];

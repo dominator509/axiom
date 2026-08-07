@@ -182,7 +182,7 @@ describe('schema index', () => {
   });
 
   it('allRelations contains exactly the 43 relation configs', () => {
-    expect(allRelations).toHaveLength(43);
+    expect(allRelations).toHaveLength(44);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -229,6 +229,7 @@ describe('schema index', () => {
         'linkbio_analytics',
         'relay_binding',
         'agent_permission',
+        'crash_report',
       ].sort(),
     );
   });
