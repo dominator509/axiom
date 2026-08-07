@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 import { sql, eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import { calculateCourseAdherence } from '@axiom/llm-gateway';
 
 const router = new Hono<AppBindings>();
@@ -117,7 +117,7 @@ async function deriveAdherenceInputs(
 // GET /models/:id/playbook-score — current score + history
 router.get('/models/:modelId/playbook-score', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
 
   const data = await withOrgContext(orgId, async (tx) => {
@@ -143,7 +143,7 @@ router.get('/models/:modelId/playbook-score', async (c) => {
 // POST /models/:id/playbook-score/record — persist a score snapshot
 router.post('/models/:modelId/playbook-score/record', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
   const userId = c.get('userId') ?? 'system';
 

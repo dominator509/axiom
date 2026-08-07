@@ -7,7 +7,7 @@ import { zValidator } from '@hono/zod-validator';
 import { eq, and, gte, lte } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import { enqueueJob } from '@axiom/worker';
 
 const router = new Hono<AppBindings>();
@@ -27,7 +27,7 @@ const rescheduleSchema = z.object({
 // GET /models/:id/calendar?from=...&to=... — scheduled posts in range
 router.get('/models/:modelId/calendar', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
   const from = c.req.query('from');
   const to = c.req.query('to');
@@ -60,7 +60,7 @@ router.get('/models/:modelId/calendar', async (c) => {
 // POST /posts — schedule a post target from an approved bundle
 router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
   const scheduledFor = new Date(body.scheduledFor);
@@ -102,7 +102,7 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
 // PATCH /posts/:id — reschedule / edit target
 router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
@@ -122,14 +122,14 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
     }
     return rows;
   });
-  if (updated.length === 0) return c.json({ error: { message: 'post not found' } }, 404);
+  if (updated.length === 0) return apiError(c, 404, statusTitle(404), 'post not found');
   return c.json({ data: updated[0] });
 });
 
 // DELETE /posts/:id — unschedule
 router.delete('/posts/:id', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
   const userId = c.get('userId') ?? 'system';
 
@@ -143,7 +143,7 @@ router.delete('/posts/:id', async (c) => {
     }
     return rows;
   });
-  if (result.length === 0) return c.json({ error: { message: 'post not found' } }, 404);
+  if (result.length === 0) return apiError(c, 404, statusTitle(404), 'post not found');
   return c.json({ success: true, data: result[0] });
 });
 

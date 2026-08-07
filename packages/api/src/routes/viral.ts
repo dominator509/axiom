@@ -5,7 +5,7 @@ import { Hono } from 'hono';
 import { sql, eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg } from './helpers.js';
+import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
@@ -13,7 +13,7 @@ const router = new Hono<AppBindings>();
 // GET /models/:id/viral — exemplar distribution + top performers
 router.get('/models/:modelId/viral', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
   const { limit, cursor } = parseCursor(c, 20, 100);
 

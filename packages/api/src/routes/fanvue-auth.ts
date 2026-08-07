@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import { randomBytes, createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import type { AppBindings } from '../index.js';
+import { apiError, statusTitle } from './helpers.js';
 
 const FANVUE_CLIENT_ID = process.env.FANVUE_CLIENT_ID || '';
 const FANVUE_CLIENT_SECRET = process.env.FANVUE_CLIENT_SECRET || '';
@@ -70,7 +71,7 @@ function persistEnvToken(accessToken: string, refreshToken: string, expiresIn: n
  */
 router.get('/authorize', (c) => {
   if (!FANVUE_CLIENT_ID) {
-    return c.json({ error: 'Fanvue client ID not configured' }, 500);
+    return apiError(c, 500, statusTitle(500), 'Fanvue client ID not configured');
   }
 
   const verifier = generateCodeVerifier();
@@ -100,25 +101,25 @@ router.get('/callback', async (c) => {
   const error = c.req.query('error');
 
   if (error) {
-    return c.json({ error: `Fanvue auth error: ${error}` }, 400);
+    return apiError(c, 400, statusTitle(400), `Fanvue auth error: ${error}`);
   }
 
   if (!code) {
-    return c.json({ error: 'Missing authorization code' }, 400);
+    return apiError(c, 400, statusTitle(400), 'Missing authorization code');
   }
 
   if (!state || !verifierStore.has(state)) {
-    return c.json({ error: 'Invalid or missing state (CSRF check failed)' }, 400);
+    return apiError(c, 400, statusTitle(400), 'Invalid or missing state (CSRF check failed)');
   }
 
   const entry = verifierStore.get(state)!;
   verifierStore.delete(state); // one-time use
   if (Date.now() - entry.createdAt > VERIFIER_TTL_MS) {
-    return c.json({ error: 'Authorization flow expired, please start again' }, 400);
+    return apiError(c, 400, statusTitle(400), 'Authorization flow expired, please start again');
   }
 
   if (!FANVUE_CLIENT_ID || !FANVUE_CLIENT_SECRET) {
-    return c.json({ error: 'Fanvue client credentials not configured' }, 500);
+    return apiError(c, 500, statusTitle(500), 'Fanvue client credentials not configured');
   }
 
   try {
@@ -143,7 +144,7 @@ router.get('/callback', async (c) => {
 
     if (!resp.ok) {
       console.error('Fanvue token exchange failed:', tokens);
-      return c.json({ error: 'Token exchange failed', detail: tokens }, 400);
+      return apiError(c, 400, statusTitle(400), 'Token exchange failed', { token_response: tokens });
     }
 
     const accessToken = typeof tokens['access_token'] === 'string' ? tokens['access_token'] : '';
@@ -168,7 +169,7 @@ router.get('/callback', async (c) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('Fanvue token exchange error:', msg);
-    return c.json({ error: 'Token exchange error', detail: msg }, 500);
+    return apiError(c, 500, statusTitle(500), 'Token exchange error', { cause: msg });
   }
 });
 

@@ -8,7 +8,7 @@ import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
@@ -36,7 +36,7 @@ async function getSettings(tx: any, orgId: string) {
 // GET /api/v1/killswitch — status
 router.get('/killswitch', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const settings = await withOrgContext(orgId, (tx) => getSettings(tx, orgId));
   return c.json({
     data: {
@@ -51,7 +51,7 @@ router.get('/killswitch', async (c) => {
 // POST /api/v1/killswitch/enable — flip the global kill switch (LBI-11)
 router.post('/killswitch/enable', zValidator('json', killSwitchSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
 
@@ -78,7 +78,7 @@ router.post('/killswitch/enable', zValidator('json', killSwitchSchema), async (c
 // POST /api/v1/killswitch/disable — restore publishing
 router.post('/killswitch/disable', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const userId = c.get('userId') ?? 'system';
 
   const updated = await withOrgContext(orgId, async (tx) => {
@@ -101,7 +101,7 @@ router.post('/killswitch/disable', async (c) => {
 // L3.0 contract alias: POST /api/v1/kill-switch {scope: org|model, model_id?}
 router.post('/kill-switch', zValidator('json', killSwitchSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
 

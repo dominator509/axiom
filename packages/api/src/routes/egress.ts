@@ -11,6 +11,7 @@ import { zValidator } from '@hono/zod-validator';
 import { eq, and, sql } from 'drizzle-orm';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
+import { apiError, statusTitle } from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
@@ -101,7 +102,7 @@ function sanitizeConfig(row: any) {
 // List configs for the current org
 router.get('/', async (c) => {
   const orgId = c.get('orgId');
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   try {
     const rows = await withOrgContext(orgId, (tx) =>
       tx.select().from(schema.modelNetworkConfigs).where(eq(schema.modelNetworkConfigs.orgId, orgId)),
@@ -109,7 +110,7 @@ router.get('/', async (c) => {
     return c.json({ data: rows.map(sanitizeConfig), meta: { total: rows.length } });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: { message: `egress config list failed: ${msg}` } }, 500);
+    return apiError(c, 500, statusTitle(500), `egress config list failed: ${msg}`);
   }
 });
 
@@ -117,7 +118,7 @@ router.get('/', async (c) => {
 router.get('/:id', async (c) => {
   const orgId = c.get('orgId');
   const { id } = c.req.param();
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   try {
     const rows = await withOrgContext(orgId, (tx) =>
       tx
@@ -126,11 +127,11 @@ router.get('/:id', async (c) => {
         .where(and(eq(schema.modelNetworkConfigs.id, id), eq(schema.modelNetworkConfigs.orgId, orgId)))
         .limit(1),
     );
-    if (rows.length === 0) return c.json({ error: { message: 'config not found' } }, 404);
+    if (rows.length === 0) return apiError(c, 404, statusTitle(404), 'config not found');
     return c.json({ data: sanitizeConfig(rows[0]) });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: { message: `egress config get failed: ${msg}` } }, 500);
+    return apiError(c, 500, statusTitle(500), `egress config get failed: ${msg}`);
   }
 });
 
@@ -138,7 +139,7 @@ router.get('/:id', async (c) => {
 router.post('/', zValidator('json', createEgressConfigSchema), async (c) => {
   const orgId = c.get('orgId');
   const body = c.req.valid('json');
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
 
   try {
     const { modelId, egressMode, proxyType, proxyAddr, wgPublicKey, wgEndpoint, wgAllowedIps, wgPersistentKeepalive, expectedEgressIp, failoverProxyAddrs } = body;
@@ -150,10 +151,7 @@ router.post('/', zValidator('json', createEgressConfigSchema), async (c) => {
     if (credsJson) {
       const envelope = await encryptCreds(credsJson);
       if (!envelope) {
-        return c.json(
-          { error: { message: 'credential encryption failed — egress plane unreachable' } },
-          502,
-        );
+        return apiError(c, 502, statusTitle(502), 'credential encryption failed — egress plane unreachable');
       }
       encCreds = envelope.encCreds;
       encNonce = envelope.encNonce;
@@ -185,7 +183,7 @@ router.post('/', zValidator('json', createEgressConfigSchema), async (c) => {
     return c.json({ data: sanitizeConfig(inserted[0]) }, 201);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: { message: `egress config create failed: ${msg}` } }, 500);
+    return apiError(c, 500, statusTitle(500), `egress config create failed: ${msg}`);
   }
 });
 
@@ -194,7 +192,7 @@ router.patch('/:id', zValidator('json', updateEgressConfigSchema), async (c) => 
   const orgId = c.get('orgId');
   const { id } = c.req.param();
   const body = c.req.valid('json');
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
 
   try {
     const { modelId, egressMode, proxyType, proxyAddr, wgPublicKey, wgEndpoint, wgAllowedIps, wgPersistentKeepalive, expectedEgressIp, failoverProxyAddrs } = body;
@@ -214,10 +212,7 @@ router.patch('/:id', zValidator('json', updateEgressConfigSchema), async (c) => 
     if (credsJson) {
       const envelope = await encryptCreds(credsJson);
       if (!envelope) {
-        return c.json(
-          { error: { message: 'credential encryption failed — egress plane unreachable' } },
-          502,
-        );
+        return apiError(c, 502, statusTitle(502), 'credential encryption failed — egress plane unreachable');
       }
       values.encCreds = envelope.encCreds;
       values.encNonce = envelope.encNonce;
@@ -231,11 +226,11 @@ router.patch('/:id', zValidator('json', updateEgressConfigSchema), async (c) => 
         .where(and(eq(schema.modelNetworkConfigs.id, id), eq(schema.modelNetworkConfigs.orgId, orgId)))
         .returning(),
     );
-    if (updated.length === 0) return c.json({ error: { message: 'config not found' } }, 404);
+    if (updated.length === 0) return apiError(c, 404, statusTitle(404), 'config not found');
     return c.json({ data: sanitizeConfig(updated[0]) });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: { message: `egress config update failed: ${msg}` } }, 500);
+    return apiError(c, 500, statusTitle(500), `egress config update failed: ${msg}`);
   }
 });
 
@@ -243,7 +238,7 @@ router.patch('/:id', zValidator('json', updateEgressConfigSchema), async (c) => 
 router.delete('/:id', async (c) => {
   const orgId = c.get('orgId');
   const { id } = c.req.param();
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   try {
     const deleted = await withOrgContext(orgId, (tx) =>
       tx
@@ -251,11 +246,11 @@ router.delete('/:id', async (c) => {
         .where(and(eq(schema.modelNetworkConfigs.id, id), eq(schema.modelNetworkConfigs.orgId, orgId)))
         .returning(),
     );
-    if (deleted.length === 0) return c.json({ error: { message: 'config not found' } }, 404);
+    if (deleted.length === 0) return apiError(c, 404, statusTitle(404), 'config not found');
     return c.json({ success: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: { message: `egress config delete failed: ${msg}` } }, 500);
+    return apiError(c, 500, statusTitle(500), `egress config delete failed: ${msg}`);
   }
 });
 
@@ -265,7 +260,7 @@ router.delete('/:id', async (c) => {
 router.post('/plane/bind', async (c) => {
   const orgId = c.get('orgId');
   const body = await c.req.json().catch(() => ({}));
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   try {
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/bind`, {
       method: 'POST',
@@ -277,7 +272,7 @@ router.post('/plane/bind', async (c) => {
     return c.json({ data }, res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: { message: `egress plane unreachable: ${msg}` } }, 502);
+    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
   }
 });
 
@@ -285,7 +280,7 @@ router.post('/plane/bind', async (c) => {
 router.post('/plane/unbind', async (c) => {
   const orgId = c.get('orgId');
   const body = await c.req.json().catch(() => ({}));
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   try {
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/unbind`, {
       method: 'POST',
@@ -297,7 +292,7 @@ router.post('/plane/unbind', async (c) => {
     return c.json({ data }, res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: { message: `egress plane unreachable: ${msg}` } }, 502);
+    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
   }
 });
 
@@ -311,7 +306,7 @@ router.get('/plane/status', async (c) => {
     return c.json({ data }, res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: { message: `egress plane unreachable: ${msg}` } }, 502);
+    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
   }
 });
 
@@ -326,7 +321,7 @@ router.post('/plane/sync', async (c) => {
     return c.json({ data }, res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: { message: `egress plane unreachable: ${msg}` } }, 502);
+    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
   }
 });
 
@@ -340,7 +335,7 @@ router.get('/plane/health', async (c) => {
     return c.json({ data }, res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return c.json({ error: { message: `egress plane unreachable: ${msg}` } }, 502);
+    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
   }
 });
 

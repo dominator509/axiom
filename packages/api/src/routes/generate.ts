@@ -11,7 +11,7 @@ import { zValidator } from '@hono/zod-validator';
 import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import {
   generatePhotoshootPrompts,
   buildS0,
@@ -154,7 +154,7 @@ function evaluateTextToS(
 // POST /models/:id/generate
 router.post('/models/:modelId/generate', zValidator('json', generateSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
@@ -279,7 +279,7 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema), asy
     };
   });
 
-  if (result.status === 404) return c.json({ error: { message: 'model not found' } }, 404);
+  if (result.status === 404) return apiError(c, 404, statusTitle(404), 'model not found');
   return c.json({ data: result.data }, 201);
 });
 

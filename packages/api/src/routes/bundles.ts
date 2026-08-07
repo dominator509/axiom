@@ -9,7 +9,7 @@ import { zValidator } from '@hono/zod-validator';
 import { sql, eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
@@ -33,7 +33,7 @@ const reviseBundleSchema = z.object({
 // GET /api/v1/bundles/:id — bundle detail + variants + ToS scores
 router.get('/:id', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
 
   const rows = await withOrgContext(orgId, (tx) =>
@@ -43,14 +43,14 @@ router.get('/:id', async (c) => {
       .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.orgId, orgId)))
       .limit(1),
   );
-  if (rows.length === 0) return c.json({ error: { message: 'bundle not found' } }, 404);
+  if (rows.length === 0) return apiError(c, 404, statusTitle(404), 'bundle not found');
   return c.json({ data: rows[0] });
 });
 
 // POST /api/v1/bundles — create a generated bundle (from generator pipeline)
 router.post('/', zValidator('json', createBundleSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
 
@@ -78,7 +78,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
 // POST /api/v1/bundles/:id/approve — ToS-gated approval (LBI-11)
 router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
@@ -98,14 +98,14 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
       scores?: Array<{ platform: string; verdict: string }>;
     };
     if (tos.verdict === 'block') {
-      return { status: 409 as const, data: { error: { message: 'ToS block: bundle cannot be approved' } } };
+      return { status: 409 as const, error: 'ToS block: bundle cannot be approved' };
     }
     for (const platform of body.platforms) {
       const score = (tos.scores ?? []).find((s) => s.platform === platform);
       if (score?.verdict === 'block') {
         return {
           status: 409 as const,
-          data: { error: { message: `ToS block on ${platform}: bundle cannot be approved for this platform` } },
+          error: `ToS block on ${platform}: bundle cannot be approved for this platform`,
         };
       }
     }
@@ -136,15 +136,15 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
     return { status: 200 as const, data: updated };
   });
 
-  if (result.status === 404) return c.json({ error: { message: 'bundle not found' } }, 404);
-  if (result.status === 409) return c.json(result.data, 409);
+  if (result.status === 404) return apiError(c, 404, statusTitle(404), 'bundle not found');
+  if (result.status === 409) return apiError(c, 409, statusTitle(409), result.error ?? 'conflict');
   return c.json({ data: result.data });
 });
 
 // POST /api/v1/bundles/:id/revise — return to generated with instructions
 router.post('/:id/revise', zValidator('json', reviseBundleSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
@@ -161,14 +161,14 @@ router.post('/:id/revise', zValidator('json', reviseBundleSchema), async (c) => 
     });
     return { status: 200 as const, data: rows[0] };
   });
-  if (result.status === 404) return c.json({ error: { message: 'bundle not found' } }, 404);
+  if (result.status === 404) return apiError(c, 404, statusTitle(404), 'bundle not found');
   return c.json({ data: result.data });
 });
 
 // POST /api/v1/bundles/:id/reject
 router.post('/:id/reject', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
   const userId = c.get('userId') ?? 'system';
 
@@ -182,14 +182,14 @@ router.post('/:id/reject', async (c) => {
     await writeAudit(tx, orgId, userId, 'bundle.reject', id, {});
     return { status: 200 as const, data: rows[0] };
   });
-  if (result.status === 404) return c.json({ error: { message: 'bundle not found' } }, 404);
+  if (result.status === 404) return apiError(c, 404, statusTitle(404), 'bundle not found');
   return c.json({ data: result.data });
 });
 
 // GET /api/v1/bundles — list bundles for a model (dashboard approvals tab)
 router.get('/', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const modelId = c.req.query('modelId');
   const state = c.req.query('state');
   const { limit, cursor } = parseCursor(c);

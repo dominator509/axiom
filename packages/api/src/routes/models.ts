@@ -8,7 +8,7 @@ import { zValidator } from '@hono/zod-validator';
 import { sql, eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorGt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
@@ -31,7 +31,7 @@ const updateModelSchema = z.object({
 // GET /api/v1/models — list models scoped to the session org (keyset cursor)
 router.get('/', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
 
   const { limit, cursor } = parseCursor(c);
 
@@ -62,7 +62,7 @@ router.get('/', async (c) => {
 // Registered before /:id so the static segment wins.
 router.get('/stats/count', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const rows = await withOrgContext(orgId, (tx) =>
     tx
       .select({ count: sql<number>`count(*)::int` })
@@ -75,7 +75,7 @@ router.get('/stats/count', async (c) => {
 // GET /api/v1/models/:id — model detail
 router.get('/:id', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
 
   const rows = await withOrgContext(orgId, (tx) =>
@@ -85,14 +85,14 @@ router.get('/:id', async (c) => {
       .where(and(eq(schema.modelProfile.id, id), eq(schema.modelProfile.orgId, orgId)))
       .limit(1),
   );
-  if (rows.length === 0) return c.json({ error: { message: 'model not found' } }, 404);
+  if (rows.length === 0) return apiError(c, 404, statusTitle(404), 'model not found');
   return c.json({ data: rows[0] });
 });
 
 // POST /api/v1/models — create model
 router.post('/', zValidator('json', createModelSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
 
@@ -120,7 +120,7 @@ router.post('/', zValidator('json', createModelSchema), async (c) => {
 // PATCH /api/v1/models/:id — update model
 router.patch('/:id', zValidator('json', updateModelSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
@@ -136,14 +136,14 @@ router.patch('/:id', zValidator('json', updateModelSchema), async (c) => {
     }
     return rows;
   });
-  if (updated.length === 0) return c.json({ error: { message: 'model not found' } }, 404);
+  if (updated.length === 0) return apiError(c, 404, statusTitle(404), 'model not found');
   return c.json({ data: updated[0] });
 });
 
 // DELETE /api/v1/models/:id — soft delete (is_active = false)
 router.delete('/:id', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
   const userId = c.get('userId') ?? 'system';
 
@@ -158,7 +158,7 @@ router.delete('/:id', async (c) => {
     }
     return rows;
   });
-  if (updated.length === 0) return c.json({ error: { message: 'model not found' } }, 404);
+  if (updated.length === 0) return apiError(c, 404, statusTitle(404), 'model not found');
   return c.json({ success: true, data: updated[0] });
 });
 

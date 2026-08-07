@@ -8,7 +8,7 @@ import { zValidator } from '@hono/zod-validator';
 import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
@@ -31,7 +31,7 @@ const networkSchema = z.object({
 // GET /models/:id/network — egress config + health
 router.get('/:modelId/network', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
 
   const rows = await withOrgContext(orgId, (tx) =>
@@ -87,7 +87,7 @@ router.get('/:modelId/network', async (c) => {
 // PUT /models/:id/network — set egress config (dashboard-only fields, L2.11)
 router.put('/:modelId/network', zValidator('json', networkSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
@@ -125,7 +125,7 @@ router.put('/:modelId/network', zValidator('json', networkSchema), async (c) => 
 // GET /models/:id/network/health — live health via the egress plane
 router.get('/:modelId/network/health', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
 
   // Ask the plane for the model's bind health; fall back to DB row state.

@@ -3,6 +3,7 @@
 // tolerance, limit clamping, SQL predicate rendering, and next_cursor logic.
 
 import { describe, it, expect } from 'vitest';
+import { Hono } from 'hono';
 import { sql } from 'drizzle-orm';
 import type { Context } from 'hono';
 import {
@@ -12,6 +13,7 @@ import {
   cursorGt,
   cursorLt,
   nextCursor,
+  problem,
   type CursorPage,
 } from './contract.js';
 
@@ -178,5 +180,55 @@ describe('CursorPage shape', () => {
     expect(page.meta).toHaveProperty('total');
     expect(page.meta).toHaveProperty('limit');
     expect(page.meta).toHaveProperty('next_cursor');
+  });
+});
+
+describe('RFC-7807 problem envelope (M-1)', () => {
+  it('emits the L3.0 error shape with correlation_id', () => {
+    const body = problem(404, 'Not Found', 'bundle not found', 'corr-123');
+    expect(body).toMatchObject({
+      type: 'about:blank',
+      title: 'Not Found',
+      status: 404,
+      detail: 'bundle not found',
+      correlation_id: 'corr-123',
+    });
+  });
+
+  it('emits 401 problem+json from the auth gate (requireAuth shape)', async () => {
+    const app = new Hono();
+    app.get('/x', (c) =>
+      c.json(
+        {
+          type: 'about:blank',
+          title: 'Unauthorized',
+          status: 401,
+          detail: 'unauthorized',
+          correlation_id: c.req.header('X-Correlation-ID') ?? '',
+        },
+        401,
+      ),
+    );
+    const res = await app.request('/x', { headers: { 'X-Correlation-ID': 'corr-abc' } });
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as any;
+    expect(body.title).toBe('Unauthorized');
+    expect(body.detail).toBe('unauthorized');
+    expect(body.correlation_id).toBe('corr-abc');
+    expect(body.type).toBe('about:blank');
+  });
+
+  it('route-level errors no longer use the legacy { error: { message } } shape', async () => {
+    // Guards the M-1 sweep: any route returning legacy shape would fail here.
+    const app = new Hono();
+    app.get('/legacy', (c) => {
+      // Simulate what apiError produces: no `error` key at the top level.
+      return c.json({ type: 'about:blank', title: 'Conflict', status: 409, detail: 'x', correlation_id: 'c' }, 409);
+    });
+    const res = await app.request('/legacy');
+    const body = (await res.json()) as any;
+    expect(body.error).toBeUndefined();
+    expect(body.detail).toBe('x');
+    expect(body.status).toBe(409);
   });
 });

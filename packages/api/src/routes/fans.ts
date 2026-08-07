@@ -7,7 +7,7 @@ import { zValidator } from '@hono/zod-validator';
 import { eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
@@ -44,7 +44,7 @@ const statusSchema = z.object({
 // GET /models/:id/fans — fan CRM contacts (keyset cursor, DESC by LTV)
 router.get('/models/:modelId/fans', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
   const tier = c.req.query('tier');
   const { limit, cursor } = parseCursor(c);
@@ -77,7 +77,7 @@ router.get('/models/:modelId/fans', async (c) => {
 // POST /models/:id/fans — upsert a fan contact
 router.post('/models/:modelId/fans', zValidator('json', contactSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
@@ -115,7 +115,7 @@ router.post('/models/:modelId/fans', zValidator('json', contactSchema), async (c
 // GET /fans/:id — unified timeline (F-07)
 router.get('/fans/:fanId', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { fanId } = c.req.param();
 
   const data = await withOrgContext(orgId, async (tx) => {
@@ -138,14 +138,14 @@ router.get('/fans/:fanId', async (c) => {
       .orderBy(desc(schema.customRequest.createdAt));
     return { fan: fans[0], touchpoints, requests };
   });
-  if (!data) return c.json({ error: { message: 'fan not found' } }, 404);
+  if (!data) return apiError(c, 404, statusTitle(404), 'fan not found');
   return c.json({ data });
 });
 
 // POST /fans/:fanId/touchpoints — record a timeline entry
 router.post('/fans/:fanId/touchpoints', zValidator('json', touchpointSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { fanId } = c.req.param();
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
@@ -172,7 +172,7 @@ router.post('/fans/:fanId/touchpoints', zValidator('json', touchpointSchema), as
 // POST /custom-requests — ticket (F-08)
 router.post('/custom-requests', zValidator('json', requestSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
 
@@ -198,7 +198,7 @@ router.post('/custom-requests', zValidator('json', requestSchema), async (c) => 
 // PATCH /custom-requests/:id — status transition
 router.patch('/custom-requests/:id', zValidator('json', statusSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
@@ -214,14 +214,14 @@ router.patch('/custom-requests/:id', zValidator('json', statusSchema), async (c)
     }
     return rows;
   });
-  if (updated.length === 0) return c.json({ error: { message: 'request not found' } }, 404);
+  if (updated.length === 0) return apiError(c, 404, statusTitle(404), 'request not found');
   return c.json({ data: updated[0] });
 });
 
 // GET /models/:id/custom-requests — list tickets for a model
 router.get('/models/:modelId/custom-requests', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
 
   const rows = await withOrgContext(orgId, (tx) =>

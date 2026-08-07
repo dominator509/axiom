@@ -7,6 +7,7 @@
 
 import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
+import { apiError, statusTitle } from './helpers.js';
 
 const THREADS_APP_ID = process.env.THREADS_CLIENT_ID || '';
 const THREADS_APP_SECRET = process.env.THREADS_CLIENT_SECRET || '';
@@ -19,7 +20,7 @@ const router = new Hono<AppBindings>();
  */
 router.get('/authorize', (c) => {
   if (!THREADS_APP_ID) {
-    return c.json({ error: 'Threads client ID not configured' }, 500);
+    return apiError(c, 500, statusTitle(500), 'Threads client ID not configured');
   }
 
   const authUrl = new URL('https://threads.net/oauth/authorize');
@@ -40,15 +41,15 @@ router.get('/callback', async (c) => {
   const errorDescription = c.req.query('error_description');
 
   if (error) {
-    return c.json({ error: `OAuth error: ${error} — ${errorDescription || ''}` }, 400);
+    return apiError(c, 400, statusTitle(400), `OAuth error: ${error} — ${errorDescription || ''}`);
   }
 
   if (!code) {
-    return c.json({ error: 'Missing authorization code' }, 400);
+    return apiError(c, 400, statusTitle(400), 'Missing authorization code');
   }
 
   if (!THREADS_APP_ID || !THREADS_APP_SECRET) {
-    return c.json({ error: 'Threads client credentials not configured' }, 500);
+    return apiError(c, 500, statusTitle(500), 'Threads client credentials not configured');
   }
 
   try {
@@ -67,7 +68,7 @@ router.get('/callback', async (c) => {
 
     if (!tokenResp.ok) {
       const errorBody = await tokenResp.text();
-      return c.json({ error: `Token exchange failed: HTTP ${tokenResp.status} — ${errorBody}` }, 502);
+      return apiError(c, 502, statusTitle(502), `Token exchange failed: HTTP ${tokenResp.status} — ${errorBody}`);
     }
 
     const tokenData = await tokenResp.json() as {
@@ -105,7 +106,7 @@ router.get('/callback', async (c) => {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return c.json({ error: `Threads OAuth failed: ${message}` }, 500);
+    return apiError(c, 500, statusTitle(500), `Threads OAuth failed: ${message}`);
   }
 });
 
@@ -126,7 +127,7 @@ router.get('/delete', (c) => {
       confirmation_code: confirmationCode,
     });
   }
-  return c.json({ error: 'Missing confirmation_code' }, 400);
+  return apiError(c, 400, statusTitle(400), 'Missing confirmation_code');
 });
 
 /**

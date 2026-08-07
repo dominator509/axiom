@@ -5,14 +5,14 @@ import { Hono } from 'hono';
 import { sql, eq, and, gte } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg } from './helpers.js';
+import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
 // GET /models/:id/analytics?days=30 — dashboard aggregates
 router.get('/models/:modelId/analytics', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
   const days = Math.min(Math.max(parseInt(c.req.query('days') ?? '30', 10) || 30, 1), 365);
   const since = new Date(Date.now() - days * 86_400_000);

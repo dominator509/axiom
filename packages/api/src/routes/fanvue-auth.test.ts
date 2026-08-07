@@ -48,21 +48,21 @@ describe('GET /callback — validation', () => {
     const res = await router.request('/callback');
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toContain('Missing authorization code');
+    expect(body.detail).toContain('Missing authorization code');
   });
 
   it('rejects a request with an OAuth error param', async () => {
     const res = await router.request('/callback?error=access_denied');
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toContain('access_denied');
+    expect(body.detail).toContain('access_denied');
   });
 
   it('rejects a code with a forged/invalid state (CSRF guard)', async () => {
     const res = await router.request('/callback?code=abc123&state=forged-state');
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toContain('CSRF');
+    expect(body.detail).toContain('CSRF');
   });
 
   it('rejects a code with no state at all', async () => {
@@ -148,8 +148,8 @@ describe('GET /callback — token exchange + persistence', () => {
     const res = await router.request(`/callback?code=bad&state=${state}`);
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toBe('Token exchange failed');
-    expect(body.detail.error).toBe('invalid_grant');
+    expect(body.detail).toBe('Token exchange failed');
+    expect(body.token_response.error).toBe('invalid_grant');
 
     vi.unstubAllGlobals();
   });
@@ -171,7 +171,7 @@ describe('state is one-time use', () => {
     const replay = await router.request(`/callback?code=c2&state=${state}`);
     expect(replay.status).toBe(400);
     const body = await replay.json();
-    expect(body.error).toContain('CSRF');
+    expect(body.detail).toContain('CSRF');
 
     vi.unstubAllGlobals();
   });

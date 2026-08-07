@@ -8,7 +8,7 @@ import { zValidator } from '@hono/zod-validator';
 import { sql, eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
@@ -23,7 +23,7 @@ const enableSchema = z.object({
 // GET /models/:id/linkbio — active providers + primary
 router.get('/models/:modelId/linkbio', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
 
   const rows = await withOrgContext(orgId, (tx) =>
@@ -45,7 +45,7 @@ router.get('/models/:modelId/linkbio', async (c) => {
 // POST /models/:id/linkbio — enable provider {kind, config}
 router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
@@ -75,10 +75,10 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
 // DELETE /models/:id/linkbio/:kind — disable provider
 router.delete('/models/:modelId/linkbio/:kind', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId, kind } = c.req.param();
   if (!PROVIDER_KINDS.includes(kind as (typeof PROVIDER_KINDS)[number])) {
-    return c.json({ error: { message: 'unknown provider kind' } }, 400);
+    return apiError(c, 400, statusTitle(400), 'unknown provider kind');
   }
   const userId = c.get('userId') ?? 'system';
 
@@ -99,14 +99,14 @@ router.delete('/models/:modelId/linkbio/:kind', async (c) => {
     }
     return rows;
   });
-  if (updated.length === 0) return c.json({ error: { message: 'provider not enabled' } }, 404);
+  if (updated.length === 0) return apiError(c, 404, statusTitle(404), 'provider not enabled');
   return c.json({ data: updated[0] });
 });
 
 // GET /models/:id/linkbio/analytics — normalized cross-provider analytics (F-53)
 router.get('/models/:modelId/linkbio/analytics', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
 
   const data = await withOrgContext(orgId, async (tx) => {
@@ -151,7 +151,7 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
 // POST /linkbio/clicks — record a click (used by the served native page)
 router.post('/linkbio/clicks', zValidator('json', z.object({ providerId: z.string().uuid(), target: z.string().min(1), source: z.string().optional() })), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const body = c.req.valid('json');
 
   await withOrgContext(orgId, (tx) =>

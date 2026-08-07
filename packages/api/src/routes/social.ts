@@ -8,7 +8,7 @@ import { zValidator } from '@hono/zod-validator';
 import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
@@ -41,7 +41,7 @@ const connectSchema = z.object({
 // GET /api/v1/social-accounts?modelId=... — connected accounts
 router.get('/', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const modelId = c.req.query('modelId');
 
   const rows = await withOrgContext(orgId, (tx) => {
@@ -59,11 +59,11 @@ router.get('/', async (c) => {
 // POST /api/v1/social-accounts — connect a platform account
 router.post('/', zValidator('json', connectSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
   const modelId = c.req.query('modelId');
-  if (!modelId) return c.json({ error: { message: 'modelId query required' } }, 400);
+  if (!modelId) return apiError(c, 400, statusTitle(400), 'modelId query required');
 
   const inserted = await withOrgContext(orgId, async (tx) => {
     const [row] = await tx
@@ -103,14 +103,14 @@ router.post('/', zValidator('json', connectSchema), async (c) => {
     });
     return row;
   });
-  if (!inserted) return c.json({ error: { message: 'connect failed' } }, 500);
+  if (!inserted) return apiError(c, 500, statusTitle(500), 'connect failed');
   return c.json({ data: inserted }, 201);
 });
 
 // DELETE /api/v1/social-accounts/:id — revoke
 router.delete('/:id', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
   const userId = c.get('userId') ?? 'system';
 
@@ -123,7 +123,7 @@ router.delete('/:id', async (c) => {
     await writeAudit(tx, orgId, userId, 'social.revoke', id, { platform: rows[0].platform });
     return { status: 200 as const, data: rows[0] };
   });
-  if (result.status === 404) return c.json({ error: { message: 'connection not found' } }, 404);
+  if (result.status === 404) return apiError(c, 404, statusTitle(404), 'connection not found');
   return c.json({ success: true, data: result.data });
 });
 

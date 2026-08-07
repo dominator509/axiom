@@ -185,7 +185,10 @@ describe('POST / — create config', () => {
     });
     expect(res.status).toBe(502);
     const body = (await res.json()) as any;
-    expect(body.error.message).toContain('egress plane unreachable');
+    expect(body.detail).toContain('egress plane unreachable');
+    expect(body.status).toBe(502);
+    expect(body.title).toBe('Bad Gateway');
+    expect(body.correlation_id).toBeTruthy();
   });
 });
 
@@ -408,6 +411,6 @@ describe('Plane proxy endpoints', () => {
     const res = await appWithOrg('org-1').request('/plane/status');
     expect(res.status).toBe(502);
     const body = (await res.json()) as any;
-    expect(body.error.message).toContain('egress plane unreachable');
+    expect(body.detail).toContain('egress plane unreachable');
   });
 });

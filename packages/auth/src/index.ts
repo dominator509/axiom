@@ -110,7 +110,18 @@ export async function requireAuth(
 ): Promise<Response | void> {
   const session = await getSessionFromRequest(c);
   if (!session) {
-    return c.json({ error: { message: 'unauthorized' } }, 401);
+    // RFC-7807 problem+json (L3.0) with the request's correlation_id.
+    const correlationId = c.req.header('X-Correlation-ID') ?? '';
+    return c.json(
+      {
+        type: 'about:blank',
+        title: 'Unauthorized',
+        status: 401,
+        detail: 'unauthorized',
+        correlation_id: correlationId,
+      },
+      401,
+    );
   }
   c.set('userId', session.userId);
   c.set('orgId', session.orgId ?? '');

@@ -4,9 +4,49 @@
 // enforced in one place, defense-in-depth on top of Postgres RLS.
 
 import { sql } from 'drizzle-orm';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
 import { db, schema } from '@axiom/db';
+import { problem } from '../contract.js';
+
+/**
+ * Emit an RFC-7807 problem+json error envelope (L3.0) with the request's
+ * correlation_id. Replaces the legacy `{ error: { message } }` shape so every
+ * route error carries type/title/status/detail/correlation_id.
+ */
+export function apiError(
+  c: Context,
+  status: number,
+  title: string,
+  detail: string,
+  extra?: Record<string, unknown>,
+): Response {
+  const correlationId = (c.get('correlationId') as string) ?? randomUUID();
+  return c.json(
+    problem(status, title, detail, correlationId, extra) as unknown as object,
+    status as 400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
+  );
+}
+
+/** Standard RFC-7807 title for a status code. */
+export function statusTitle(status: number): string {
+  const titles: Record<number, string> = {
+    400: 'Bad Request',
+    401: 'Unauthorized',
+    402: 'Payment Required',
+    403: 'Forbidden',
+    404: 'Not Found',
+    408: 'Request Timeout',
+    409: 'Conflict',
+    422: 'Unprocessable Entity',
+    429: 'Too Many Requests',
+    500: 'Internal Server Error',
+    502: 'Bad Gateway',
+    503: 'Service Unavailable',
+    504: 'Gateway Timeout',
+  };
+  return titles[status] ?? 'Error';
+}
 
 /**
  * Run a callback inside a transaction with the org RLS context set.

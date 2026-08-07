@@ -52,8 +52,10 @@ describe('createRouter — POST /chat', () => {
       body: JSON.stringify(validBody),
     });
     expect(res.status).toBe(502);
-    const body = (await res.json()) as { error: { message: string } };
-    expect(body.error.message).toBe('OPENAI_API_KEY not set');
+    const body = (await res.json()) as { detail: string; status: number; title: string };
+    expect(body.detail).toBe('OPENAI_API_KEY not set');
+    expect(body.status).toBe(502);
+    expect(body.title).toBe('Bad Gateway');
   });
 
   it('returns the chat result for a valid request', async () => {

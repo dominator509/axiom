@@ -42,22 +42,22 @@ describe('GET /callback — validation', () => {
     const res = await router.request('/callback');
     expect(res.status).toBe(400);
     const body = (await res.json()) as any;
-    expect(body.error).toBe('Missing authorization code');
+    expect(body.detail).toBe('Missing authorization code');
   });
 
   it('reports OAuth error params from Meta', async () => {
     const res = await router.request('/callback?error=access_denied&error_description=user+said+no');
     expect(res.status).toBe(400);
     const body = (await res.json()) as any;
-    expect(body.error).toContain('OAuth error: access_denied');
-    expect(body.error).toContain('user said no');
+    expect(body.detail).toContain('OAuth error: access_denied');
+    expect(body.detail).toContain('user said no');
   });
 
   it('handles an OAuth error without a description', async () => {
     const res = await router.request('/callback?error=access_denied');
     expect(res.status).toBe(400);
     const body = (await res.json()) as any;
-    expect(body.error).toBe('OAuth error: access_denied — ');
+    expect(body.detail).toBe('OAuth error: access_denied — ');
   });
 });
 
@@ -131,8 +131,8 @@ describe('GET /callback — token exchange', () => {
     const res = await router.request('/callback?code=bad-code');
     expect(res.status).toBe(502);
     const body = (await res.json()) as any;
-    expect(body.error).toContain('Token exchange failed: HTTP 401');
-    expect(body.error).toContain('Invalid OAuth 2.0 Access Token');
+    expect(body.detail).toContain('Token exchange failed: HTTP 401');
+    expect(body.detail).toContain('Invalid OAuth 2.0 Access Token');
   });
 
   it('returns 500 when the token endpoint throws', async () => {
@@ -141,7 +141,7 @@ describe('GET /callback — token exchange', () => {
     const res = await router.request('/callback?code=c2');
     expect(res.status).toBe(500);
     const body = (await res.json()) as any;
-    expect(body.error).toBe('Threads OAuth failed: network down');
+    expect(body.detail).toBe('Threads OAuth failed: network down');
   });
 });
 
@@ -158,7 +158,7 @@ describe('GET /delete — GDPR data-deletion callback', () => {
     const res = await router.request('/delete');
     expect(res.status).toBe(400);
     const body = (await res.json()) as any;
-    expect(body.error).toBe('Missing confirmation_code');
+    expect(body.detail).toBe('Missing confirmation_code');
   });
 });
 
@@ -226,7 +226,7 @@ describe('unconfigured credentials', () => {
     const res = await unconfigured.request('/authorize');
     expect(res.status).toBe(500);
     const body = (await res.json()) as any;
-    expect(body.error).toBe('Threads client ID not configured');
+    expect(body.detail).toBe('Threads client ID not configured');
   });
 
   it('rejects /callback when client credentials are missing', async () => {
@@ -236,6 +236,6 @@ describe('unconfigured credentials', () => {
     const res = await unconfigured.request('/callback?code=abc');
     expect(res.status).toBe(500);
     const body = (await res.json()) as any;
-    expect(body.error).toBe('Threads client credentials not configured');
+    expect(body.detail).toBe('Threads client credentials not configured');
   });
 });

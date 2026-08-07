@@ -6,7 +6,7 @@ import { Hono } from 'hono';
 import { sql, eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit } from './helpers.js';
+import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
@@ -14,7 +14,7 @@ const router = new Hono<AppBindings>();
 // GET /incidents — dead/failed jobs (the durable DLQ view)
 router.get('/incidents', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { limit, cursor } = parseCursor(c);
 
   const rows = await withOrgContext(orgId, (tx) => {
@@ -44,7 +44,7 @@ router.get('/incidents', async (c) => {
 // POST /incidents/:jobId/replay — reset a dead job back to ready (DLQ replay)
 router.post('/incidents/:jobId/replay', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return c.json({ error: { message: 'orgId required' } }, 401);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { jobId } = c.req.param();
   const userId = c.get('userId') ?? 'system';
 
@@ -64,7 +64,7 @@ router.post('/incidents/:jobId/replay', async (c) => {
     await writeAudit(tx, orgId, userId, 'incident.replay', jobId, {});
     return { status: 200 as const, data: rows[0] };
   });
-  if (result.status === 404) return c.json({ error: { message: 'job not found' } }, 404);
+  if (result.status === 404) return apiError(c, 404, statusTitle(404), 'job not found');
   return c.json({ success: true, data: result.data });
 });
 

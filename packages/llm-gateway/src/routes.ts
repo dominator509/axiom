@@ -7,6 +7,17 @@ import type { LLMGateway } from './gateway.js';
 import { ProviderError } from './providers/types.js';
 import { PLATFORMS } from './prompts.js';
 
+/** Standard RFC-7807 title for a status code (L3.0 error envelope). */
+function statusTitle(status: number): string {
+  const titles: Record<number, string> = {
+    400: 'Bad Request', 401: 'Unauthorized', 402: 'Payment Required', 403: 'Forbidden',
+    404: 'Not Found', 408: 'Request Timeout', 409: 'Conflict', 422: 'Unprocessable Entity',
+    429: 'Too Many Requests', 500: 'Internal Server Error', 502: 'Bad Gateway',
+    503: 'Service Unavailable', 504: 'Gateway Timeout',
+  };
+  return titles[status] ?? 'Error';
+}
+
 const chatBodySchema = z.object({
   messages: z.array(
     z.object({
@@ -92,7 +103,17 @@ export function createRouter(gateway: LLMGateway): Hono {
     } catch (err) {
       const status = (err instanceof ProviderError ? err.status : 502) as 400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504;
       const msg = err instanceof Error ? err.message : 'LLM gateway error';
-      return c.json({ error: { message: msg, provider: err instanceof ProviderError ? err.provider : undefined } }, status);
+      const provider = err instanceof ProviderError ? err.provider : undefined;
+      return c.json(
+        {
+          type: 'about:blank',
+          title: statusTitle(status),
+          status,
+          detail: msg,
+          ...(provider ? { provider } : {}),
+        },
+        status,
+      );
     }
   });
 
@@ -113,7 +134,17 @@ export function createRouter(gateway: LLMGateway): Hono {
     } catch (err) {
       const status = (err instanceof ProviderError ? err.status : 502) as 400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504;
       const msg = err instanceof Error ? err.message : 'LLM gateway error';
-      return c.json({ error: { message: msg, provider: err instanceof ProviderError ? err.provider : undefined } }, status);
+      const provider = err instanceof ProviderError ? err.provider : undefined;
+      return c.json(
+        {
+          type: 'about:blank',
+          title: statusTitle(status),
+          status,
+          detail: msg,
+          ...(provider ? { provider } : {}),
+        },
+        status,
+      );
     }
   });
 
