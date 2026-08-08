@@ -40,7 +40,7 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
 
   return (
     <div>
-      <h2>Link-in-bio (F-48..F-53)</h2>
+      <h2>Link in bio</h2>
       <div className="card">
         <h3>Providers</h3>
         {!data || data.providers.length === 0 ? (
@@ -58,7 +58,7 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
       </div>
       {analytics && analytics.totalClicks > 0 && (
         <div className="card">
-          <h3>Click analytics (F-53)</h3>
+          <h3>Click analytics</h3>
           <strong>Total clicks: {analytics.totalClicks}</strong>
           <table style={{ marginTop: 8 }}>
             <thead>

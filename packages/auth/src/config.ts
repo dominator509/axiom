@@ -2,6 +2,7 @@ export interface AuthRuntimeConfig {
   databaseUrl: string;
   secret: string;
   baseURL: string;
+  trustedOrigins: string[];
 }
 
 /** Resolve auth configuration while allowing explicit local-development defaults. */
@@ -17,9 +18,14 @@ export function resolveAuthConfig(env: NodeJS.ProcessEnv): AuthRuntimeConfig {
   }
   if (production && !baseURL) throw new Error('BETTER_AUTH_URL is required in production');
 
+  const resolvedBaseURL = baseURL ?? 'http://127.0.0.1:3001';
+
   return {
     databaseUrl: databaseUrl ?? 'postgresql://axiom:axiom@localhost:5432/axiom_dev',
     secret: secret ?? 'axiom-dev-secret-change-me',
-    baseURL: baseURL ?? 'http://127.0.0.1:3001',
+    baseURL: resolvedBaseURL,
+    trustedOrigins: production
+      ? [resolvedBaseURL]
+      : [resolvedBaseURL, 'http://127.0.0.1:3002', 'http://localhost:3002'],
   };
 }

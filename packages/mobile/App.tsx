@@ -5,18 +5,15 @@ import type { SessionUser } from './src/api/auth';
 import DashboardScreen from './src/screens/DashboardScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RelayScreen from './src/screens/RelayScreen';
+import { palette } from './src/theme';
 
 type Tab = 'dashboard' | 'relay';
 
-const TABS: Array<{ key: Tab; label: string }> = [
-  { key: 'dashboard', label: 'Dashboard' },
-  { key: 'relay', label: 'Relay' },
+const TABS: Array<{ key: Tab; label: string; icon: string }> = [
+  { key: 'dashboard', label: 'Studio', icon: '◇' },
+  { key: 'relay', label: 'Relay', icon: '✦' },
 ];
 
-/**
- * Navigation-less shell: a state-based switch between the Login screen and
- * the authenticated Dashboard/Relay tabs. No router dependency needed.
- */
 export default function App() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [tab, setTab] = useState<Tab>('dashboard');
@@ -31,13 +28,31 @@ export default function App() {
     setTab('dashboard');
   }
 
-  if (user === null) {
-    return <LoginScreen onAuthed={handleAuthed} />;
-  }
+  if (user === null) return <LoginScreen onAuthed={handleAuthed} />;
 
   return (
     <View style={styles.root}>
-      <View style={styles.tabBar}>
+      <View style={styles.brandBar}>
+        <View style={styles.brandMark}>
+          <Text style={styles.brandLetter}>A</Text>
+        </View>
+        <View>
+          <Text style={styles.brand}>AXIOM</Text>
+          <Text style={styles.brandDetail}>CREATOR INTELLIGENCE</Text>
+        </View>
+        <View style={styles.privatePill}>
+          <View style={styles.liveDot} />
+          <Text style={styles.privateText}>PRIVATE</Text>
+        </View>
+      </View>
+      <View style={styles.body}>
+        {tab === 'dashboard' ? (
+          <DashboardScreen user={user} onSignOut={handleSignOut} />
+        ) : (
+          <RelayScreen />
+        )}
+      </View>
+      <View style={styles.tabBar} accessibilityRole="tablist">
         {TABS.map((item) => {
           const active = tab === item.key;
           return (
@@ -48,42 +63,74 @@ export default function App() {
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
             >
+              <Text style={[styles.tabIcon, active && styles.tabIconActive]}>{item.icon}</Text>
               <Text style={[styles.tabText, active && styles.tabTextActive]}>{item.label}</Text>
             </Pressable>
           );
         })}
-      </View>
-      <View style={styles.body}>
-        {tab === 'dashboard' ? (
-          <DashboardScreen user={user} onSignOut={handleSignOut} />
-        ) : (
-          <RelayScreen />
-        )}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0b1220' },
-  tabBar: {
+  root: { flex: 1, backgroundColor: palette.canvas },
+  brandBar: {
+    minHeight: 70,
     flexDirection: 'row',
-    backgroundColor: '#131c2e',
-    borderBottomWidth: 1,
-    borderBottomColor: '#22304a',
-    paddingTop: 8,
-  },
-  tab: {
-    flex: 1,
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.lineSoft,
+    backgroundColor: palette.canvasSoft,
   },
-  tabActive: {
-    borderBottomColor: '#4f6ef7',
+  brandMark: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    backgroundColor: palette.rose,
   },
-  tabText: { color: '#8a94a6', fontSize: 14, fontWeight: '600' },
-  tabTextActive: { color: '#ffffff' },
+  brandLetter: { color: palette.roseInk, fontSize: 18, fontWeight: '800' },
+  brand: { color: palette.text, fontSize: 14, fontWeight: '800', letterSpacing: 2.3 },
+  brandDetail: {
+    color: palette.faint,
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+  privatePill: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: palette.line,
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  liveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: palette.success },
+  privateText: { color: palette.muted, fontSize: 8, fontWeight: '800', letterSpacing: 1 },
   body: { flex: 1 },
+  tabBar: {
+    minHeight: 72,
+    flexDirection: 'row',
+    backgroundColor: palette.canvasSoft,
+    borderTopWidth: 1,
+    borderTopColor: palette.lineSoft,
+    paddingHorizontal: 16,
+    paddingTop: 7,
+    paddingBottom: 8,
+  },
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 14, gap: 2 },
+  tabActive: { backgroundColor: palette.panelRaised },
+  tabIcon: { color: palette.faint, fontSize: 17 },
+  tabIconActive: { color: palette.roseBright },
+  tabText: { color: palette.faint, fontSize: 10, fontWeight: '700', letterSpacing: 0.4 },
+  tabTextActive: { color: palette.text },
 });

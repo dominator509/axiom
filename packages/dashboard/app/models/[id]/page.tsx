@@ -46,7 +46,7 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
         </div>
       </div>
       <div className="card stack">
-        <h3>Network & Security (F-02)</h3>
+        <h3>Network &amp; security</h3>
         {network ? (
           <>
             <div className="row" style={{ justifyContent: 'space-between' }}>

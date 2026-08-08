@@ -78,7 +78,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
 
   return (
     <div className="card">
-      <h2>Generation (F-36)</h2>
+      <h2>Create content</h2>
       <form onSubmit={onSubmit} className="stack" style={{ maxWidth: 640 }}>
         <div className="grid">
           <div>

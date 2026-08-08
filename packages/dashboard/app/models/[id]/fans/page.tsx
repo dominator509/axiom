@@ -24,7 +24,7 @@ export default async function FansPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div>
-      <h2>Fan CRM (F-05..F-08)</h2>
+      <h2>Fan relationships</h2>
       <div className="grid">
         <div className="card">
           <h3>High-value contacts</h3>
@@ -53,7 +53,7 @@ export default async function FansPage({ params }: { params: Promise<{ id: strin
           </table>
         </div>
         <div className="card">
-          <h3>Custom requests (F-08)</h3>
+          <h3>Custom requests</h3>
           {requests.length === 0 && (
             <p style={{ color: 'var(--muted)' }}>No custom request tickets.</p>
           )}

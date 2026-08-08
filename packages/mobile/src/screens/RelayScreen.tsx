@@ -9,22 +9,7 @@ import {
 } from 'react-native';
 
 import { getCrashReports, getDigests, type CrashReport, type DigestCard } from '../api/endpoints';
-
-/** Severity glyph for crash reports (falls back to status when unknown). */
-function severityIcon(report: CrashReport): string {
-  switch (report.severity) {
-    case 'sev-1':
-      return '🔴';
-    case 'sev-2':
-      return '🟠';
-    case 'sev-3':
-      return '🟡';
-    case 'sev-4':
-      return '🟢';
-    default:
-      return report.status === 'open' ? '🔴' : '⚪';
-  }
-}
+import { palette, surfaceShadow } from '../theme';
 
 interface RelayScreenState {
   digests: DigestCard[];
@@ -75,7 +60,7 @@ export default function RelayScreen() {
   if (state.loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#4f6ef7" />
+        <ActivityIndicator size="large" color={palette.rose} />
         <Text style={styles.muted}>Loading relay…</Text>
       </View>
     );
@@ -89,11 +74,13 @@ export default function RelayScreen() {
         <RefreshControl
           refreshing={state.refreshing}
           onRefresh={() => void load(true)}
-          tintColor="#4f6ef7"
+          tintColor={palette.rose}
         />
       }
     >
+      <Text style={styles.eyebrow}>LIVE SIGNALS</Text>
       <Text style={styles.title}>Relay</Text>
+      <Text style={styles.subtitle}>The pulse of your private studio.</Text>
       {state.error ? <Text style={styles.error}>{state.error}</Text> : null}
 
       <Text style={styles.sectionTitle}>Incidents</Text>
@@ -104,7 +91,18 @@ export default function RelayScreen() {
           state.crashReports.map((report) => (
             <View key={report.id} style={styles.listItem}>
               <View style={styles.row}>
-                <Text style={styles.icon}>{severityIcon(report)}</Text>
+                <Text
+                  style={[
+                    styles.icon,
+                    report.severity === 'sev-1'
+                      ? styles.sevOne
+                      : report.severity === 'sev-2'
+                        ? styles.sevTwo
+                        : styles.sevOther,
+                  ]}
+                >
+                  ●
+                </Text>
                 <View style={styles.rowText}>
                   <Text style={styles.itemTitle}>{report.service}</Text>
                   <Text style={styles.itemSubtitle}>
@@ -128,7 +126,7 @@ export default function RelayScreen() {
           state.digests.map((digest) => (
             <View key={digest.id} style={styles.listItem}>
               <View style={styles.row}>
-                <Text style={styles.icon}>📬</Text>
+                <Text style={styles.digestIcon}>✦</Text>
                 <View style={styles.rowText}>
                   <Text style={styles.itemTitle}>{digest.title || 'Untitled digest'}</Text>
                   {digest.description ? (
@@ -148,42 +146,66 @@ export default function RelayScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0b1220' },
-  content: { padding: 16, paddingBottom: 48 },
+  container: { flex: 1, backgroundColor: palette.canvas },
+  content: { padding: 18, paddingBottom: 48 },
   centered: {
     flex: 1,
-    backgroundColor: '#0b1220',
+    backgroundColor: palette.canvas,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
   },
-  title: { color: '#ffffff', fontSize: 24, fontWeight: '800', marginBottom: 4 },
-  muted: { color: '#8a94a6', fontSize: 13 },
-  error: { color: '#ff6b6b', fontSize: 13, marginBottom: 8 },
-  sectionTitle: {
-    color: '#e6eaf2',
-    fontSize: 15,
-    fontWeight: '700',
-    marginTop: 16,
+  eyebrow: {
+    color: palette.roseBright,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    marginTop: 7,
+    marginBottom: 5,
+  },
+  title: { color: palette.text, fontSize: 30, fontWeight: '700', letterSpacing: -0.6 },
+  subtitle: { color: palette.muted, fontSize: 12, marginTop: 3, marginBottom: 7 },
+  muted: { color: palette.muted, fontSize: 12 },
+  error: {
+    color: palette.danger,
+    fontSize: 12,
+    marginTop: 10,
     marginBottom: 8,
+    backgroundColor: palette.dangerDeep,
+    borderRadius: 10,
+    padding: 11,
+    overflow: 'hidden',
+  },
+  sectionTitle: {
+    color: palette.textSoft,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+    marginTop: 22,
+    marginBottom: 10,
   },
   card: {
-    backgroundColor: '#131c2e',
-    borderRadius: 12,
+    backgroundColor: palette.panel,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#22304a',
-    padding: 14,
-    marginBottom: 8,
+    borderColor: palette.lineSoft,
+    padding: 17,
+    marginBottom: 6,
+    ...surfaceShadow,
   },
   listItem: {
     borderBottomWidth: 1,
-    borderBottomColor: '#1c2740',
-    paddingVertical: 10,
+    borderBottomColor: palette.lineSoft,
+    paddingVertical: 13,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rowText: { flex: 1 },
-  icon: { fontSize: 18 },
-  itemTitle: { color: '#ffffff', fontSize: 14, fontWeight: '600' },
-  itemSubtitle: { color: '#aab4c5', fontSize: 13, marginTop: 2 },
-  itemMeta: { color: '#8a94a6', fontSize: 12, marginTop: 6 },
+  icon: { fontSize: 14 },
+  sevOne: { color: palette.danger },
+  sevTwo: { color: palette.warning },
+  sevOther: { color: palette.success },
+  digestIcon: { color: palette.roseBright, fontSize: 18 },
+  itemTitle: { color: palette.text, fontSize: 14, fontWeight: '600' },
+  itemSubtitle: { color: palette.textSoft, fontSize: 12, lineHeight: 17, marginTop: 3 },
+  itemMeta: { color: palette.faint, fontSize: 10, marginTop: 7 },
 });

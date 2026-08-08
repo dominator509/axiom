@@ -14,7 +14,7 @@ export default async function KillSwitchPage() {
 
   return (
     <div style={{ maxWidth: 560 }}>
-      <h1>Global kill switch (F-12 / LBI-11)</h1>
+      <h1>Publishing safety</h1>
       {error && (
         <div className="card" style={{ color: 'var(--bad)' }}>
           {error}

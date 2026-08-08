@@ -16,7 +16,7 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ id: 
   return (
     <div>
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h2>Approvals (F-37 / F-68)</h2>
+        <h2>Approvals</h2>
         <span style={{ color: 'var(--muted)' }}>{bundles.length} awaiting decision</span>
       </div>
       {error && (

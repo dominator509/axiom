@@ -15,7 +15,7 @@ export default async function NetworkPage({ params }: { params: Promise<{ id: st
   return (
     <div>
       <div className="card">
-        <h2>Network &amp; Security (F-02 / F-04)</h2>
+        <h2>Network &amp; security</h2>
         {network && (
           <div className="stack" style={{ marginBottom: 16 }}>
             <div className="row" style={{ justifyContent: 'space-between' }}>

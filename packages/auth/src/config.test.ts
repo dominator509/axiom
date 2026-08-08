@@ -6,6 +6,8 @@ describe('resolveAuthConfig', () => {
     const config = resolveAuthConfig({ NODE_ENV: 'test' });
     expect(config.databaseUrl).toContain('localhost');
     expect(config.baseURL).toContain('127.0.0.1');
+    expect(config.trustedOrigins).toContain('http://127.0.0.1:3002');
+    expect(config.trustedOrigins).toContain('http://localhost:3002');
   });
 
   it('fails closed when production credentials are absent', () => {
@@ -31,5 +33,6 @@ describe('resolveAuthConfig', () => {
       BETTER_AUTH_URL: 'https://app.example',
     });
     expect(config.baseURL).toBe('https://app.example');
+    expect(config.trustedOrigins).toEqual(['https://app.example']);
   });
 });

@@ -19,7 +19,7 @@ export default async function CalendarPage({ params }: { params: Promise<{ id: s
   return (
     <div>
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h2>Calendar (F-10)</h2>
+        <h2>Content calendar</h2>
         <span style={{ color: 'var(--muted)' }}>{posts.length} scheduled</span>
       </div>
       {error && (

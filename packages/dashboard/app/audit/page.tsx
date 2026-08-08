@@ -18,7 +18,7 @@ export default async function AuditPage() {
   return (
     <div>
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h1>Audit log (LBI-08)</h1>
+        <h1>Trust &amp; activity</h1>
         {verification && (
           <span className={`badge ${verification.valid ? 'good' : 'bad'}`}>
             chain: {verification.valid ? 'valid' : `BROKEN at ${verification.brokenAt}`} ·{' '}

@@ -26,7 +26,7 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
   if (!data) {
     return (
       <div>
-        <h2>Course Adherence Score (F-57)</h2>
+        <h2>Playbook score</h2>
         <div className="card">
           <p style={{ color: 'var(--muted)' }}>Score unavailable.</p>
         </div>
@@ -38,7 +38,7 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
 
   return (
     <div>
-      <h2>Course Adherence Score (F-57)</h2>
+      <h2>Playbook score</h2>
       <div className="grid">
         <div className="card">
           <h3>Current score</h3>

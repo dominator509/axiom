@@ -14,7 +14,7 @@ export default async function IncidentsPage() {
 
   return (
     <div>
-      <h1>Incidents &amp; DLQ (F-73..F-78)</h1>
+      <h1>Incidents &amp; recovery</h1>
       {error && (
         <div className="card" style={{ color: 'var(--bad)' }}>
           {error}

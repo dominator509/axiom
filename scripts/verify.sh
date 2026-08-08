@@ -8,7 +8,7 @@ echo "AXIOM Verification Gate"
 echo "======================="
 
 # Check preflight while preserving its diagnostics for audit output.
-PREFLIGHT_OUTPUT=$(bash scripts/preflight.sh 2>&1) || {
+PREFLIGHT_OUTPUT=$(sh scripts/preflight.sh 2>&1) || {
     printf '%s\n' "$PREFLIGHT_OUTPUT"
     echo "FAIL: preflight"
     exit 1
@@ -34,7 +34,9 @@ done
 # Check markers exist for completed phases
 for phase in P0 P1 P2 P3 P4; do
     if grep -q "| DONE $phase" "$LEDGER" 2>/dev/null; then
-        marker_count=$(find ".agent/markers/L4.$(( ${phase#P} + 1 ))" -name "*.done" 2>/dev/null | wc -l)
+        marker_dir=".agent/markers/L4.$(( ${phase#P} + 1 ))"
+        set -- "$marker_dir"/*.done
+        if [ -e "$1" ]; then marker_count=$#; else marker_count=0; fi
         if [ "$marker_count" -gt 0 ]; then
             echo "  PASS: $phase markers ($marker_count present)"
         else

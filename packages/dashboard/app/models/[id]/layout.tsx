@@ -1,20 +1,9 @@
 import Link from 'next/link';
-import { api } from '@/lib/api';
 import { notFound } from 'next/navigation';
+import { api } from '@/lib/api';
+import ModelTabs from '@/components/ModelTabs';
 
 export const dynamic = 'force-dynamic';
-
-const TABS = [
-  { href: '', label: 'Overview' },
-  { href: 'network', label: 'Network' },
-  { href: 'calendar', label: 'Calendar' },
-  { href: 'generation', label: 'Generation' },
-  { href: 'approvals', label: 'Approvals' },
-  { href: 'fans', label: 'Fan CRM' },
-  { href: 'linkbio', label: 'Link-in-bio' },
-  { href: 'analytics', label: 'Analytics' },
-  { href: 'playbook', label: 'Playbook' },
-];
 
 export default async function ModelLayout({
   params,
@@ -32,34 +21,32 @@ export default async function ModelLayout({
   }
 
   return (
-    <div>
-      <div className="row" style={{ justifyContent: 'space-between' }}>
+    <div className="page-stack">
+      <header className="talent-header">
         <div>
-          <Link href="/" style={{ color: 'var(--muted)', textDecoration: 'none', fontSize: 13 }}>
-            ← Models
+          <Link href="/" className="back-link">
+            <span aria-hidden="true">←</span> Talent portfolio
           </Link>
-          <h1 style={{ margin: '4px 0 0' }}>{model.displayName}</h1>
-          <p style={{ color: 'var(--muted)', margin: '4px 0 0' }}>@{model.handle}</p>
+          <div className="talent-identity">
+            <span className="talent-avatar">{model.displayName.slice(0, 1).toUpperCase()}</span>
+            <div>
+              <p className="eyebrow">Talent workspace</p>
+              <h1>{model.displayName}</h1>
+              <p className="subtle">@{model.handle}</p>
+            </div>
+          </div>
         </div>
         {model.isActive ? (
-          <span className="badge good">active</span>
+          <span className="badge good">
+            <i /> Active
+          </span>
         ) : (
-          <span className="badge mute">inactive</span>
+          <span className="badge mute">
+            <i /> Inactive
+          </span>
         )}
-      </div>
-
-      <nav className="tabs" style={{ marginTop: 16 }}>
-        {TABS.map((t) => (
-          <Link
-            key={t.href}
-            href={`/models/${id}/${t.href}`}
-            className={t.href === '' ? 'active' : ''}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </nav>
-
+      </header>
+      <ModelTabs modelId={id} />
       {children}
     </div>
   );

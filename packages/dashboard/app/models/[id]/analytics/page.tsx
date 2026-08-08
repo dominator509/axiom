@@ -41,7 +41,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
 
   return (
     <div>
-      <h2>Analytics (F-27 / F-85)</h2>
+      <h2>Performance</h2>
       {analytics ? (
         <>
           <div className="grid">
@@ -132,7 +132,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
         </div>
       )}
 
-      <h2 style={{ marginTop: 24 }}>Viral insights (F-85)</h2>
+      <h2 style={{ marginTop: 24 }}>Viral insights</h2>
       <div className="card">
         {!viral || viral.totalExemplars === 0 ? (
           <p style={{ color: 'var(--muted)' }}>

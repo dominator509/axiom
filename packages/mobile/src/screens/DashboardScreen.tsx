@@ -20,6 +20,7 @@ import {
   type DigestCard,
   type OrgSettings,
 } from '../api/endpoints';
+import { palette, surfaceShadow } from '../theme';
 
 interface DashboardScreenProps {
   user: SessionUser;
@@ -132,7 +133,7 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
   if (state.loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#4f6ef7" />
+        <ActivityIndicator size="large" color={palette.rose} />
         <Text style={styles.muted}>Loading dashboard…</Text>
       </View>
     );
@@ -144,10 +145,9 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.title}>Dashboard</Text>
-          <Text style={styles.muted}>
-            {user.email} · org {user.orgId ?? 'unknown'}
-          </Text>
+          <Text style={styles.eyebrow}>STUDIO OVERVIEW</Text>
+          <Text style={styles.title}>Hello, {user.email.split('@')[0]}</Text>
+          <Text style={styles.muted}>Your private workspace is ready.</Text>
         </View>
         <Pressable style={styles.signOutButton} onPress={() => void handleSignOut()}>
           <Text style={styles.signOutText}>Sign out</Text>
@@ -168,12 +168,13 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
                 <Text style={styles.rowHint}>Share winning patterns across models in this org</Text>
               </View>
               {state.togglingViral ? (
-                <ActivityIndicator color="#4f6ef7" />
+                <ActivityIndicator color={palette.rose} />
               ) : (
                 <Switch
                   value={settings.viralSharing}
                   onValueChange={(next) => void handleToggleViralSharing(next)}
-                  trackColor={{ true: '#4f6ef7', false: '#22304a' }}
+                  trackColor={{ true: palette.rose, false: palette.line }}
+                  thumbColor={palette.text}
                   accessibilityLabel="Viral sharing toggle"
                 />
               )}
@@ -203,7 +204,7 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
           disabled={state.generating}
         >
           {state.generating ? (
-            <ActivityIndicator color="#ffffff" size="small" />
+            <ActivityIndicator color={palette.roseInk} size="small" />
           ) : (
             <Text style={styles.smallButtonText}>Generate</Text>
           )}
@@ -253,11 +254,11 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0b1220' },
-  content: { padding: 16, paddingBottom: 48 },
+  container: { flex: 1, backgroundColor: palette.canvas },
+  content: { padding: 18, paddingBottom: 48 },
   centered: {
     flex: 1,
-    backgroundColor: '#0b1220',
+    backgroundColor: palette.canvas,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
@@ -266,81 +267,107 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginTop: 7,
+    marginBottom: 22,
   },
-  title: { color: '#ffffff', fontSize: 24, fontWeight: '800' },
-  muted: { color: '#8a94a6', fontSize: 13 },
-  error: { color: '#ff6b6b', fontSize: 13, marginBottom: 8 },
-  actionMessage: { color: '#4ade80', fontSize: 13, marginBottom: 8 },
+  eyebrow: {
+    color: palette.roseBright,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    marginBottom: 5,
+  },
+  title: { color: palette.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.6 },
+  muted: { color: palette.muted, fontSize: 12, marginTop: 3 },
+  error: {
+    color: palette.danger,
+    fontSize: 12,
+    marginBottom: 10,
+    backgroundColor: palette.dangerDeep,
+    borderRadius: 10,
+    padding: 11,
+    overflow: 'hidden',
+  },
+  actionMessage: {
+    color: palette.success,
+    fontSize: 12,
+    marginBottom: 10,
+    backgroundColor: palette.successDeep,
+    borderRadius: 10,
+    padding: 11,
+    overflow: 'hidden',
+  },
   sectionTitle: {
-    color: '#e6eaf2',
-    fontSize: 15,
+    color: palette.textSoft,
+    fontSize: 12,
     fontWeight: '700',
-    marginTop: 16,
-    marginBottom: 8,
+    letterSpacing: 0.7,
+    marginTop: 21,
+    marginBottom: 10,
   },
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: 21,
+    marginBottom: 10,
   },
   card: {
-    backgroundColor: '#131c2e',
-    borderRadius: 12,
+    backgroundColor: palette.panel,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#22304a',
-    padding: 14,
-    marginBottom: 8,
+    borderColor: palette.lineSoft,
+    padding: 17,
+    marginBottom: 6,
+    ...surfaceShadow,
   },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   rowText: { flex: 1 },
-  rowLabel: { color: '#e6eaf2', fontSize: 14, fontWeight: '600' },
-  rowHint: { color: '#8a94a6', fontSize: 12, marginTop: 2 },
-  divider: { height: 1, backgroundColor: '#22304a', marginVertical: 12 },
+  rowLabel: { color: palette.text, fontSize: 14, fontWeight: '600' },
+  rowHint: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
+  divider: { height: 1, backgroundColor: palette.lineSoft, marginVertical: 15 },
   badgeOn: {
-    color: '#4ade80',
-    fontSize: 12,
+    color: palette.success,
+    fontSize: 10,
     fontWeight: '700',
-    backgroundColor: '#143524',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: palette.successDeep,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
     overflow: 'hidden',
   },
   badgeOff: {
-    color: '#ffb86b',
-    fontSize: 12,
+    color: palette.warning,
+    fontSize: 10,
     fontWeight: '700',
-    backgroundColor: '#3a2a14',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    backgroundColor: palette.warningDeep,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
     overflow: 'hidden',
   },
   listItem: {
     borderBottomWidth: 1,
-    borderBottomColor: '#1c2740',
-    paddingVertical: 10,
+    borderBottomColor: palette.lineSoft,
+    paddingVertical: 13,
   },
-  itemTitle: { color: '#ffffff', fontSize: 14, fontWeight: '600' },
-  itemSubtitle: { color: '#aab4c5', fontSize: 13, marginTop: 2 },
-  itemMeta: { color: '#8a94a6', fontSize: 12, marginTop: 4 },
+  itemTitle: { color: palette.text, fontSize: 14, fontWeight: '600' },
+  itemSubtitle: { color: palette.textSoft, fontSize: 12, lineHeight: 17, marginTop: 3 },
+  itemMeta: { color: palette.faint, fontSize: 10, marginTop: 6 },
   signOutButton: {
     borderWidth: 1,
-    borderColor: '#ff6b6b',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderColor: palette.line,
+    borderRadius: 11,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
   },
-  signOutText: { color: '#ff6b6b', fontSize: 13, fontWeight: '600' },
+  signOutText: { color: palette.muted, fontSize: 11, fontWeight: '600' },
   smallButton: {
-    backgroundColor: '#4f6ef7',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: palette.rose,
+    borderRadius: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
   },
-  smallButtonText: { color: '#ffffff', fontSize: 13, fontWeight: '700' },
+  smallButtonText: { color: palette.roseInk, fontSize: 11, fontWeight: '800' },
   buttonDisabled: { opacity: 0.5 },
 });

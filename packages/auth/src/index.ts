@@ -25,6 +25,9 @@ export const auth = betterAuth({
   }),
   secret: runtimeConfig.secret,
   baseURL: runtimeConfig.baseURL,
+  // The dashboard runs on its own local port during development. Production
+  // stays pinned to the configured public origin (covered in config tests).
+  trustedOrigins: runtimeConfig.trustedOrigins,
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,

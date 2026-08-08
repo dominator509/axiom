@@ -1,0 +1,32 @@
+export const palette = {
+  canvas: '#0B080E',
+  canvasSoft: '#120D15',
+  panel: '#1B141F',
+  panelRaised: '#241A29',
+  line: '#382A35',
+  lineSoft: '#2A2028',
+  text: '#F8F3F5',
+  textSoft: '#C9BCC4',
+  muted: '#A99BA4',
+  faint: '#756A72',
+  rose: '#D88DA9',
+  roseBright: '#F0AAC3',
+  roseInk: '#321622',
+  lavender: '#AA98CE',
+  gold: '#D8BC88',
+  success: '#77C6A0',
+  successDeep: '#183428',
+  warning: '#E4BD72',
+  warningDeep: '#372B18',
+  danger: '#EE8F93',
+  dangerDeep: '#3B1B20',
+  white: '#FFFFFF',
+} as const;
+
+export const surfaceShadow = {
+  shadowColor: '#000000',
+  shadowOffset: { width: 0, height: 14 },
+  shadowOpacity: 0.28,
+  shadowRadius: 28,
+  elevation: 8,
+} as const;
