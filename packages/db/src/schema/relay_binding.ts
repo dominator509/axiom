@@ -5,8 +5,12 @@ import { modelProfile } from './model_profile.js';
 
 export const relayBinding = pgTable('relay_binding', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
-  modelId: uuid('model_id').notNull().references(() => modelProfile.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id, { onDelete: 'cascade' }),
+  modelId: uuid('model_id')
+    .notNull()
+    .references(() => modelProfile.id, { onDelete: 'cascade' }),
   channel: text('channel').notNull(),
   chatRef: text('chat_ref'),
   enabled: boolean('enabled').notNull().default(true),

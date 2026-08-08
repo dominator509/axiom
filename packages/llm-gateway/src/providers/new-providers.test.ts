@@ -28,7 +28,11 @@ const openaiStyleCompletion = (content: string, prompt = 100, completion = 40) =
   created: 1,
   model: 'test-model',
   choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
-  usage: { prompt_tokens: prompt, completion_tokens: completion, total_tokens: prompt + completion },
+  usage: {
+    prompt_tokens: prompt,
+    completion_tokens: completion,
+    total_tokens: prompt + completion,
+  },
 });
 
 const anthropicStyleCompletion = (content: string, input = 100, output = 40) => ({
@@ -72,17 +76,26 @@ describe('callMistral', () => {
 
   it('throws on non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ error: 'bad' }, 401)));
-    await expect(callMistral('sk-test', { model: 'm', messages: [] })).rejects.toThrow('Mistral API error 401');
+    await expect(callMistral('sk-test', { model: 'm', messages: [] })).rejects.toThrow(
+      'Mistral API error 401',
+    );
   });
 });
 
 describe('streamMistral', () => {
   it('yields delta content chunks', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse([
-      'data: {"choices":[{"delta":{"content":"hel"}}]}',
-      'data: {"choices":[{"delta":{"content":"lo"}}]}',
-      'data: [DONE]',
-    ])));
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          sseResponse([
+            'data: {"choices":[{"delta":{"content":"hel"}}]}',
+            'data: {"choices":[{"delta":{"content":"lo"}}]}',
+            'data: [DONE]',
+          ]),
+        ),
+    );
 
     const chunks: string[] = [];
     for await (const c of streamMistral('sk-test', { model: 'm', messages: [] })) chunks.push(c);
@@ -131,24 +144,33 @@ describe('callLightning', () => {
 
   it('throws on non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ error: 'bad' }, 401)));
-    await expect(callLightning('lt-test', { model: 'm', messages: [] })).rejects.toThrow('Lightning API error 401');
+    await expect(callLightning('lt-test', { model: 'm', messages: [] })).rejects.toThrow(
+      'Lightning API error 401',
+    );
   });
 });
 
 describe('streamLightning', () => {
   it('yields text deltas from Anthropic SSE events', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse([
-      'event: message_start',
-      'data: {"type":"message_start","message":{}}',
-      'event: content_block_start',
-      'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}',
-      'event: content_block_delta',
-      'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"a"}}',
-      'event: content_block_delta',
-      'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"b"}}',
-      'event: message_stop',
-      'data: {"type":"message_stop"}',
-    ])));
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          sseResponse([
+            'event: message_start',
+            'data: {"type":"message_start","message":{}}',
+            'event: content_block_start',
+            'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}',
+            'event: content_block_delta',
+            'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"a"}}',
+            'event: content_block_delta',
+            'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"b"}}',
+            'event: message_stop',
+            'data: {"type":"message_stop"}',
+          ]),
+        ),
+    );
 
     const chunks: string[] = [];
     for await (const c of streamLightning('lt-test', { model: 'm', messages: [] })) chunks.push(c);
@@ -160,10 +182,12 @@ describe('streamLightning', () => {
 
 describe('callGoogle', () => {
   it('translates Gemini generateContent responses to the shared OpenAI-compatible shape', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
-      candidates: [{ content: { parts: [{ text: 'from gemini' }] }, finishReason: 'STOP' }],
-      usageMetadata: { promptTokenCount: 50, candidatesTokenCount: 20, totalTokenCount: 70 },
-    }));
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        candidates: [{ content: { parts: [{ text: 'from gemini' }] }, finishReason: 'STOP' }],
+        usageMetadata: { promptTokenCount: 50, candidatesTokenCount: 20, totalTokenCount: 70 },
+      }),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     const res = await callGoogle('AIza-test', {
@@ -190,10 +214,15 @@ describe('callGoogle', () => {
   });
 
   it('maps assistant role to model role for Gemini contents', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
-      candidates: [{ content: { parts: [{ text: 'ok' }] } }],
-      usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 },
-    })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          candidates: [{ content: { parts: [{ text: 'ok' }] } }],
+          usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1, totalTokenCount: 2 },
+        }),
+      ),
+    );
 
     await callGoogle('AIza-test', {
       model: 'gemini-flash-latest',
@@ -208,11 +237,19 @@ describe('callGoogle', () => {
   });
 
   it('surfaces Gemini error objects as errors', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
-      error: { code: 400, message: 'invalid arg', status: 'INVALID_ARGUMENT' },
-    })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        jsonResponse({
+          error: { code: 400, message: 'invalid arg', status: 'INVALID_ARGUMENT' },
+        }),
+      ),
+    );
     await expect(
-      callGoogle('AIza-test', { model: 'gemini-flash-latest', messages: [{ role: 'user', content: 'x' }] }),
+      callGoogle('AIza-test', {
+        model: 'gemini-flash-latest',
+        messages: [{ role: 'user', content: 'x' }],
+      }),
     ).rejects.toThrow('Gemini API error 400: invalid arg');
   });
 
@@ -226,13 +263,23 @@ describe('callGoogle', () => {
 
 describe('streamGoogle', () => {
   it('yields text parts from SSE streamGenerateContent', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(sseResponse([
-      'data: {"candidates":[{"content":{"parts":[{"text":"one "}]}}]}',
-      'data: {"candidates":[{"content":{"parts":[{"text":"two"}]}}]}',
-    ])));
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          sseResponse([
+            'data: {"candidates":[{"content":{"parts":[{"text":"one "}]}}]}',
+            'data: {"candidates":[{"content":{"parts":[{"text":"two"}]}}]}',
+          ]),
+        ),
+    );
 
     const chunks: string[] = [];
-    for await (const c of streamGoogle('AIza-test', { model: 'gemini-flash-latest', messages: [{ role: 'user', content: 'hi' }] })) {
+    for await (const c of streamGoogle('AIza-test', {
+      model: 'gemini-flash-latest',
+      messages: [{ role: 'user', content: 'hi' }],
+    })) {
       chunks.push(c);
     }
     expect(chunks).toEqual(['one ', 'two']);

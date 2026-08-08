@@ -16,9 +16,9 @@
 //! - tunnel modes (wireguard/vpn): the sidecar connects directly; the
 //!   namespace route forces every byte through the tunnel.
 
+use base64::Engine as _;
 use std::io;
 use std::net::SocketAddr;
-use base64::Engine as _;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, info, warn};
@@ -105,7 +105,13 @@ async fn socks5_handshake(socket: &mut TcpStream, upstream: &Upstream) -> io::Re
     let mut methods = vec![0u8; nmethods];
     socket.read_exact(&mut methods).await?;
 
-    let user_pass_ok = matches!(upstream, Upstream::Proxy { username: Some(_), .. });
+    let user_pass_ok = matches!(
+        upstream,
+        Upstream::Proxy {
+            username: Some(_),
+            ..
+        }
+    );
     if methods.contains(&0x00) && !user_pass_ok {
         socket.write_all(&[0x05, 0x00]).await?; // no-auth
     } else if methods.contains(&0x02) && user_pass_ok {
@@ -138,7 +144,9 @@ async fn socks5_handshake(socket: &mut TcpStream, upstream: &Upstream) -> io::Re
     let mut req = [0u8; 4];
     socket.read_exact(&mut req).await?;
     if req[1] != 0x01 {
-        socket.write_all(&[0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?; // command not supported
+        socket
+            .write_all(&[0x05, 0x07, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+            .await?; // command not supported
         return Err(io::Error::other("only CONNECT supported"));
     }
     let atyp = req[3];
@@ -148,7 +156,14 @@ async fn socks5_handshake(socket: &mut TcpStream, upstream: &Upstream) -> io::Re
             socket.read_exact(&mut ip).await?;
             let mut port = [0u8; 2];
             socket.read_exact(&mut port).await?;
-            format!("{}.{}.{}.{}:{}", ip[0], ip[1], ip[2], ip[3], u16::from_be_bytes(port))
+            format!(
+                "{}.{}.{}.{}:{}",
+                ip[0],
+                ip[1],
+                ip[2],
+                ip[3],
+                u16::from_be_bytes(port)
+            )
         }
         0x03 => {
             let mut len = [0u8; 1];
@@ -177,7 +192,9 @@ async fn socks5_handshake(socket: &mut TcpStream, upstream: &Upstream) -> io::Re
     };
 
     // Reply success (IPv4-mapped 0.0.0.0:0).
-    socket.write_all(&[0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0]).await?;
+    socket
+        .write_all(&[0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+        .await?;
     Ok(target)
 }
 
@@ -212,7 +229,9 @@ async fn http_forward(socket: &mut TcpStream, upstream: &Upstream) -> io::Result
 
     // CONNECT: establish a raw tunnel to the target.
     if method == "CONNECT" {
-        socket.write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n").await?;
+        socket
+            .write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            .await?;
         let mut target_stream = connect_target(upstream, &target).await?;
         tokio::io::copy_bidirectional(socket, &mut target_stream).await?;
         return Ok(());
@@ -220,10 +239,16 @@ async fn http_forward(socket: &mut TcpStream, upstream: &Upstream) -> io::Result
 
     // Absolute-form (proxy-style) request: METHOD http://host:port/path HTTP/1.1
     let url = url::Url::parse(&target).map_err(|_| io::Error::other("bad absolute-form URL"))?;
-    let host = url.host_str().ok_or_else(|| io::Error::other("absolute URL missing host"))?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| io::Error::other("absolute URL missing host"))?;
     let port = url.port_or_known_default().unwrap_or(80);
     let target_addr = format!("{host}:{port}");
-    let path = if url.path().is_empty() { "/".to_string() } else { url.path().to_string() };
+    let path = if url.path().is_empty() {
+        "/".to_string()
+    } else {
+        url.path().to_string()
+    };
     let query = url.query().map(|q| format!("?{q}")).unwrap_or_default();
     let origin_form = format!("{path}{query}");
 
@@ -262,14 +287,19 @@ async fn http_forward(socket: &mut TcpStream, upstream: &Upstream) -> io::Result
 async fn connect_target(upstream: &Upstream, target: &str) -> io::Result<TcpStream> {
     match upstream {
         Upstream::Direct => TcpStream::connect(target).await,
-        Upstream::Proxy { kind, addr, username, password } => {
+        Upstream::Proxy {
+            kind,
+            addr,
+            username,
+            password,
+        } => {
             let mut proxy = TcpStream::connect(addr).await?;
             match kind {
                 ProxyKind::Http => {
                     let mut req = format!("CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n");
                     if let (Some(u), Some(p)) = (username, password) {
-                        let cred = base64::engine::general_purpose::STANDARD
-                            .encode(format!("{u}:{p}"));
+                        let cred =
+                            base64::engine::general_purpose::STANDARD.encode(format!("{u}:{p}"));
                         req.push_str(&format!("Proxy-Authorization: Basic {cred}\r\n"));
                     }
                     req.push_str("\r\n");
@@ -289,7 +319,9 @@ async fn connect_target(upstream: &Upstream, target: &str) -> io::Result<TcpStre
                     let head = String::from_utf8_lossy(&resp).to_string();
                     let status = head.lines().next().unwrap_or("");
                     if !status.contains("200") {
-                        return Err(io::Error::other(format!("upstream proxy refused: {status}")));
+                        return Err(io::Error::other(format!(
+                            "upstream proxy refused: {status}"
+                        )));
                     }
                     Ok(proxy)
                 }
@@ -315,12 +347,21 @@ async fn connect_target(upstream: &Upstream, target: &str) -> io::Result<TcpStre
                                 return Err(io::Error::other("upstream socks auth failed"));
                             }
                         }
-                        m => return Err(io::Error::other(format!("upstream socks method {m} rejected"))),
+                        m => {
+                            return Err(io::Error::other(format!(
+                                "upstream socks method {m} rejected"
+                            )))
+                        }
                     }
                     // connect request with domain
-                    let host_port = target.rsplit_once(':').ok_or_else(|| io::Error::other("bad target"))?;
+                    let host_port = target
+                        .rsplit_once(':')
+                        .ok_or_else(|| io::Error::other("bad target"))?;
                     let host = host_port.0;
-                    let port: u16 = host_port.1.parse().map_err(|_| io::Error::other("bad target port"))?;
+                    let port: u16 = host_port
+                        .1
+                        .parse()
+                        .map_err(|_| io::Error::other("bad target port"))?;
                     let mut req = vec![0x05, 0x01, 0x00, 0x03, host.len() as u8];
                     req.extend_from_slice(host.as_bytes());
                     req.extend_from_slice(&port.to_be_bytes());
@@ -328,7 +369,10 @@ async fn connect_target(upstream: &Upstream, target: &str) -> io::Result<TcpStre
                     let mut conn_resp = [0u8; 10];
                     proxy.read_exact(&mut conn_resp).await?;
                     if conn_resp[1] != 0x00 {
-                        return Err(io::Error::other(format!("upstream socks connect failed: {}", conn_resp[1])));
+                        return Err(io::Error::other(format!(
+                            "upstream socks connect failed: {}",
+                            conn_resp[1]
+                        )));
                     }
                     Ok(proxy)
                 }
@@ -350,13 +394,29 @@ pub fn spawn_sidecar_in_netns(
 ) -> io::Result<std::process::Child> {
     let listen = format!("{listen_ip}:{sidecar_port}");
     let mut cmd = std::process::Command::new("ip");
-    cmd.args(["netns", "exec", ns, exe.to_str().unwrap_or("egress-plane"), "--sidecar", "--listen", &listen]);
+    cmd.args([
+        "netns",
+        "exec",
+        ns,
+        exe.to_str().unwrap_or("egress-plane"),
+        "--sidecar",
+        "--listen",
+        &listen,
+    ]);
     match upstream {
         Upstream::Direct => {
             cmd.env("SIDECAR_UPSTREAM", "direct");
         }
-        Upstream::Proxy { kind, addr, username, password } => {
-            cmd.env("SIDECAR_UPSTREAM", format!("proxy:{}:{}", kind_str(*kind), addr));
+        Upstream::Proxy {
+            kind,
+            addr,
+            username,
+            password,
+        } => {
+            cmd.env(
+                "SIDECAR_UPSTREAM",
+                format!("proxy:{}:{}", kind_str(*kind), addr),
+            );
             if let (Some(u), Some(p)) = (username, password) {
                 cmd.env("SIDECAR_UPSTREAM_USER", u);
                 cmd.env("SIDECAR_UPSTREAM_PASS", p);
@@ -418,7 +478,12 @@ mod tests {
         std::env::set_var("SIDECAR_UPSTREAM_PASS", "p");
         let u = upstream_from_env();
         match u {
-            Upstream::Proxy { kind, addr, username, password } => {
+            Upstream::Proxy {
+                kind,
+                addr,
+                username,
+                password,
+            } => {
                 assert_eq!(kind, ProxyKind::Http);
                 assert_eq!(addr, "proxy.example.com:3128");
                 assert_eq!(username.as_deref(), Some("u"));

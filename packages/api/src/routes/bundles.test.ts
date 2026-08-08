@@ -37,9 +37,7 @@ afterEach(() => {
 
 describe('GET / — list bundles', () => {
   it('returns rows for the org (optionally filtered by modelId/state)', async () => {
-    mockState.result = [
-      { id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated' },
-    ];
+    mockState.result = [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated' }];
     const res = await appWithOrg(ORG_ID).request(`/?modelId=${MODEL_ID}&state=generated`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
@@ -115,7 +113,13 @@ describe('POST / — create bundle', () => {
 describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
   it('approves a passing bundle and creates post targets', async () => {
     mockState.result = [
-      { id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'approved', tosReport: { verdict: 'pass', scores: [] } },
+      {
+        id: BUNDLE_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        state: 'approved',
+        tosReport: { verdict: 'pass', scores: [] },
+      },
     ];
     const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
       method: 'POST',
@@ -129,7 +133,13 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
 
   it('rejects approval when the ToS verdict is block (409)', async () => {
     mockState.result = [
-      { id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated', tosReport: { verdict: 'block', scores: [] } },
+      {
+        id: BUNDLE_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        state: 'generated',
+        tosReport: { verdict: 'block', scores: [] },
+      },
     ];
     const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
       method: 'POST',
@@ -140,7 +150,9 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
   });
 
   it('rejects a bundle with an empty platforms array (400)', async () => {
-    mockState.result = [{ id: BUNDLE_ID, orgId: ORG_ID, state: 'generated', tosReport: { verdict: 'pass' } }];
+    mockState.result = [
+      { id: BUNDLE_ID, orgId: ORG_ID, state: 'generated', tosReport: { verdict: 'pass' } },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

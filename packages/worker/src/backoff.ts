@@ -9,10 +9,7 @@ export interface BackoffOptions {
 }
 
 /** Deterministic exponent for tests (jitter = 0). */
-export function backoffDelayMs(
-  attempts: number,
-  opts: BackoffOptions = {},
-): number {
+export function backoffDelayMs(attempts: number, opts: BackoffOptions = {}): number {
   const baseMs = opts.baseMs ?? 5000;
   const capMs = opts.capMs ?? 3_600_000;
   const jitter = opts.jitter ?? 0.2;

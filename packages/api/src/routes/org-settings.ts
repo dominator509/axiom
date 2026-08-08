@@ -37,7 +37,8 @@ router.patch('/org-settings', async (c) => {
   const parsed = patchSchema.safeParse(await c.req.json().catch(() => ({})));
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'invalid org settings body');
   const body = parsed.data;
-  if (Object.keys(body).length === 0) return apiError(c, 400, statusTitle(400), 'nothing to update');
+  if (Object.keys(body).length === 0)
+    return apiError(c, 400, statusTitle(400), 'nothing to update');
 
   const rows = await withOrgContext(orgId, async (tx) => {
     const updated = await tx

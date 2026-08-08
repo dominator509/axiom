@@ -77,7 +77,9 @@ describe('POST /crash-reports', () => {
   });
 
   it('captures a new crash (count 1 → isNew true)', async () => {
-    mockState.result = [{ id: 'crash-1', orgId: ORG_ID, fingerprint: 'abc', count: 1, status: 'open' }];
+    mockState.result = [
+      { id: 'crash-1', orgId: ORG_ID, fingerprint: 'abc', count: 1, status: 'open' },
+    ];
     const res = await appWithOrg(ORG_ID).request('/crash-reports', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -91,7 +93,9 @@ describe('POST /crash-reports', () => {
   });
 
   it('marks a recurring crash as existing (count > 1 → isNew false)', async () => {
-    mockState.result = [{ id: 'crash-1', orgId: ORG_ID, fingerprint: 'abc', count: 3, status: 'open' }];
+    mockState.result = [
+      { id: 'crash-1', orgId: ORG_ID, fingerprint: 'abc', count: 3, status: 'open' },
+    ];
     const res = await appWithOrg(ORG_ID).request('/crash-reports', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -106,7 +110,13 @@ describe('POST /crash-reports', () => {
 describe('GET /crash-reports', () => {
   it('lists grouped issues with cursor metadata', async () => {
     mockState.result = [
-      { id: 'crash-1', orgId: ORG_ID, fingerprint: 'abc', count: 5, lastSeen: new Date('2026-08-07T00:00:00Z') },
+      {
+        id: 'crash-1',
+        orgId: ORG_ID,
+        fingerprint: 'abc',
+        count: 5,
+        lastSeen: new Date('2026-08-07T00:00:00Z'),
+      },
     ];
     const res = await appWithOrg(ORG_ID).request('/crash-reports');
     expect(res.status).toBe(200);
@@ -127,14 +137,18 @@ describe('GET /crash-reports', () => {
 describe('PATCH /crash-reports/:id/resolve', () => {
   it('resolves an open issue', async () => {
     mockState.result = [{ id: 'crash-1', orgId: ORG_ID, status: 'resolved' }];
-    const res = await appWithOrg(ORG_ID).request('/crash-reports/crash-1/resolve', { method: 'PATCH' });
+    const res = await appWithOrg(ORG_ID).request('/crash-reports/crash-1/resolve', {
+      method: 'PATCH',
+    });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.status).toBe('resolved');
   });
 
   it('404s when the issue is not found', async () => {
-    const res = await appWithOrg(ORG_ID).request('/crash-reports/nope/resolve', { method: 'PATCH' });
+    const res = await appWithOrg(ORG_ID).request('/crash-reports/nope/resolve', {
+      method: 'PATCH',
+    });
     expect(res.status).toBe(404);
   });
 });

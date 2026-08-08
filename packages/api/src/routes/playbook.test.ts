@@ -6,12 +6,19 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
-vi.mock('@axiom/db', () => mockDbFactory({ postTarget: {}, contentBundle: {}, postMetric: {}, playbookScore: {} }));
+vi.mock('@axiom/db', () =>
+  mockDbFactory({ postTarget: {}, contentBundle: {}, postMetric: {}, playbookScore: {} }),
+);
 vi.mock('@axiom/llm-gateway', () => ({
   calculateCourseAdherence: vi.fn((input: any) => ({
     overall: 0.72,
     components: input,
-    weights: { personaConsistency: 0.25, platformRuleCompliance: 0.25, exemplarSimilarity: 0.25, taskAlignment: 0.25 },
+    weights: {
+      personaConsistency: 0.25,
+      platformRuleCompliance: 0.25,
+      exemplarSimilarity: 0.25,
+      taskAlignment: 0.25,
+    },
     passed: true,
     minimumThreshold: 0.5,
   })),

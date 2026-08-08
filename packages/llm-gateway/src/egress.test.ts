@@ -53,50 +53,60 @@ describe('resolveEgressProxy', () => {
   });
 
   it('returns the sidecar proxy URL for a healthy bound model', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      statusBody([
-        { model_id: 'gpt-4o', mode: 'wireguard', host_ip: '10.77.0.2', healthy: true },
-      ]),
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        statusBody([
+          { model_id: 'gpt-4o', mode: 'wireguard', host_ip: '10.77.0.2', healthy: true },
+        ]),
+      ) as unknown as typeof fetch;
     const { resolveEgressProxy } = await loadEgress();
     const proxy = await resolveEgressProxy('gpt-4o');
     expect(proxy).toBe('http://10.77.0.2:8080');
   });
 
   it('returns null for a model that is bound but unhealthy', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      statusBody([
-        { model_id: 'gpt-4o', mode: 'wireguard', host_ip: '10.77.0.2', healthy: false },
-      ]),
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        statusBody([
+          { model_id: 'gpt-4o', mode: 'wireguard', host_ip: '10.77.0.2', healthy: false },
+        ]),
+      ) as unknown as typeof fetch;
     const { resolveEgressProxy } = await loadEgress();
     expect(await resolveEgressProxy('gpt-4o')).toBeNull();
   });
 
   it('returns null for a model not present in the status', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      statusBody([{ model_id: 'other-model', healthy: true, host_ip: '10.77.0.9' }]),
-    ) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        statusBody([{ model_id: 'other-model', healthy: true, host_ip: '10.77.0.9' }]),
+      ) as unknown as typeof fetch;
     const { resolveEgressProxy } = await loadEgress();
     expect(await resolveEgressProxy('gpt-4o')).toBeNull();
   });
 
   it('degrades to null (direct egress) when the plane is unreachable', async () => {
-    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('fetch failed')) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(new TypeError('fetch failed')) as unknown as typeof fetch;
     const { resolveEgressProxy } = await loadEgress();
     expect(await resolveEgressProxy('gpt-4o')).toBeNull();
   });
 
   it('degrades to null when the plane returns a non-OK status', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(new Response('boom', { status: 503 })) as unknown as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(new Response('boom', { status: 503 })) as unknown as typeof fetch;
     const { resolveEgressProxy } = await loadEgress();
     expect(await resolveEgressProxy('gpt-4o')).toBeNull();
   });
 
   it('caches the result for the TTL window (one plane call for two lookups)', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      statusBody([{ model_id: 'gpt-4o', host_ip: '10.77.0.2', healthy: true }]),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(statusBody([{ model_id: 'gpt-4o', host_ip: '10.77.0.2', healthy: true }]));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     const { resolveEgressProxy } = await loadEgress();
     expect(await resolveEgressProxy('gpt-4o')).toBe('http://10.77.0.2:8080');
@@ -105,9 +115,9 @@ describe('resolveEgressProxy', () => {
   });
 
   it('re-queries after clearEgressCache', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      statusBody([{ model_id: 'gpt-4o', host_ip: '10.77.0.2', healthy: true }]),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(statusBody([{ model_id: 'gpt-4o', host_ip: '10.77.0.2', healthy: true }]));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     const { resolveEgressProxy, clearEgressCache } = await loadEgress();
     await resolveEgressProxy('gpt-4o');
@@ -149,7 +159,9 @@ describe('buildEgressFetch', () => {
     const init = undiciFetchMock.mock.calls[0][1] as { dispatcher: unknown };
     // dispatcher must be an undici ProxyAgent for the sidecar proxy URL
     expect(init.dispatcher).toBeDefined();
-    expect((init.dispatcher as { constructor: { name: string } }).constructor.name).toBe('ProxyAgent');
+    expect((init.dispatcher as { constructor: { name: string } }).constructor.name).toBe(
+      'ProxyAgent',
+    );
     undiciFetchMock.mockClear();
   });
 

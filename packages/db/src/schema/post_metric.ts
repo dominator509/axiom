@@ -1,4 +1,12 @@
-import { pgTable, uuid, text, timestamp, doublePrecision, bigint, primaryKey } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  timestamp,
+  doublePrecision,
+  bigint,
+  primaryKey,
+} from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { postTarget } from './post_target.js';
 
@@ -9,7 +17,9 @@ export const postMetric = pgTable(
   'post_metric',
   {
     id: uuid('id').notNull().defaultRandom(),
-    postTargetId: uuid('post_target_id').notNull().references(() => postTarget.id),
+    postTargetId: uuid('post_target_id')
+      .notNull()
+      .references(() => postTarget.id),
     platform: text('platform').notNull(),
     remoteId: text('remote_id').notNull(),
     views: bigint('views', { mode: 'number' }).notNull().default(0),
@@ -19,9 +29,7 @@ export const postMetric = pgTable(
     engagementRate: doublePrecision('engagement_rate').notNull().default(0),
     collectedAt: timestamp('collected_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    primaryKey({ name: 'post_metric_pkey', columns: [t.id, t.collectedAt] }),
-  ],
+  (t) => [primaryKey({ name: 'post_metric_pkey', columns: [t.id, t.collectedAt] })],
 );
 
 export const postMetricRelations = relations(postMetric, ({ one }) => ({

@@ -75,8 +75,10 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     super('fanvue' as Platform, 'Fanvue', 'api' as PublishMode, auth);
     this.modelId = auth.externalUserId || '';
     this.refreshToken = auth.refreshToken;
-    this.clientId = (auth.extra as Record<string, unknown> | undefined)?.['clientId'] as string | undefined;
-    this.clientSecret = (auth.extra as Record<string, unknown> | undefined)?.['clientSecret'] as string | undefined;
+    this.clientId = (auth.extra as Record<string, unknown> | undefined)?.['clientId'] as
+      string | undefined;
+    this.clientSecret = (auth.extra as Record<string, unknown> | undefined)?.['clientSecret'] as
+      string | undefined;
     this.tokenExpiresAt = auth.expiresAt;
   }
 
@@ -127,7 +129,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
       throw new Error(`Fanvue token refresh failed: ${resp.status} ${resp.statusText}`);
     }
 
-    const tokens: Record<string, unknown> = await resp.json() as Record<string, unknown>;
+    const tokens: Record<string, unknown> = (await resp.json()) as Record<string, unknown>;
     const accessToken = typeof tokens['access_token'] === 'string' ? tokens['access_token'] : '';
     const expiresIn = typeof tokens['expires_in'] === 'number' ? tokens['expires_in'] : 3600;
     if (!accessToken) {
@@ -136,9 +138,10 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
     // Ory ROTATES the refresh token on every grant — the old one is revoked
     // immediately. Adopt the rotated token so the next refresh keeps working.
-    const rotatedRefresh = typeof tokens['refresh_token'] === 'string' && tokens['refresh_token']
-      ? tokens['refresh_token']
-      : undefined;
+    const rotatedRefresh =
+      typeof tokens['refresh_token'] === 'string' && tokens['refresh_token']
+        ? tokens['refresh_token']
+        : undefined;
     if (rotatedRefresh) {
       this.refreshToken = rotatedRefresh;
       this.auth.refreshToken = rotatedRefresh;
@@ -192,7 +195,9 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     if (!response.ok) {
       const responseBody = await response.text().catch(() => '');
       this.log('error', method, `HTTP ${response.status}: ${responseBody}`, { path });
-      throw new Error(`Fanvue API ${method} ${path} failed: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `Fanvue API ${method} ${path} failed: ${response.status} ${response.statusText}`,
+      );
     }
 
     if (response.status === 204) return undefined as T;
@@ -278,10 +283,18 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     const errors = [];
 
     if (!input.mediaUrls || input.mediaUrls.length === 0) {
-      errors.push({ field: 'mediaUrls', message: 'Fanvue requires at least one media file', severity: 'error' as const });
+      errors.push({
+        field: 'mediaUrls',
+        message: 'Fanvue requires at least one media file',
+        severity: 'error' as const,
+      });
     }
     if (!input.caption) {
-      errors.push({ field: 'caption', message: 'Fanvue posts require a caption', severity: 'error' as const });
+      errors.push({
+        field: 'caption',
+        message: 'Fanvue posts require a caption',
+        severity: 'error' as const,
+      });
     }
 
     return {
@@ -311,7 +324,9 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
       }
 
       // 2. Create the post (audience defaults to followers-and-subscribers).
-      const audience = (input.options?.['audience'] as 'subscribers' | 'followers-and-subscribers' | undefined) ?? 'followers-and-subscribers';
+      const audience =
+        (input.options?.['audience'] as 'subscribers' | 'followers-and-subscribers' | undefined) ??
+        'followers-and-subscribers';
       const post = await this.fanvueRequest<FanvuePost>('POST', '/posts', {
         audience,
         text: input.caption,

@@ -77,21 +77,15 @@ export class PrePostHook {
    * Each registered script's beforePublish is called in registration order,
    * with each script receiving the output of the previous script.
    */
-  async beforePublish(
-    input: PublishInput,
-    platform: Platform,
-  ): Promise<PublishInput> {
+  async beforePublish(input: PublishInput, platform: Platform): Promise<PublishInput> {
     let current = structuredClone(input);
 
     for (const [name, script] of this.sandbox.scripts) {
       try {
         current = await script.beforePublish(current, platform);
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : String(err);
-        throw new Error(
-          `PrePublish script "${name}" failed for ${platform}: ${message}`,
-        );
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`PrePublish script "${name}" failed for ${platform}: ${message}`);
       }
     }
 
@@ -103,16 +97,12 @@ export class PrePostHook {
    * Each registered script's afterPublish is called in registration order.
    * Errors are logged but do not propagate (fire-and-forget).
    */
-  async afterPublish(
-    result: PublishResult,
-    platform: Platform,
-  ): Promise<void> {
+  async afterPublish(result: PublishResult, platform: Platform): Promise<void> {
     for (const [name, script] of this.sandbox.scripts) {
       try {
         await script.afterPublish(result, platform);
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : String(err);
+        const message = err instanceof Error ? err.message : String(err);
         console.error(
           `[PrePostHook] afterPublish script "${name}" failed for ${platform}: ${message}`,
         );

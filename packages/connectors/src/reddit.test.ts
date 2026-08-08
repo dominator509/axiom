@@ -145,7 +145,9 @@ describe('publish', () => {
     const [rulesUrl, rulesInit] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(rulesUrl).toBe('https://oauth.reddit.com/r/testsub/about/rules');
     expect(rulesInit.method).toBeUndefined(); // GET is the fetch default; no explicit method
-    expect((rulesInit.headers as Record<string, string>).Authorization).toBe('Bearer reddit-token-123');
+    expect((rulesInit.headers as Record<string, string>).Authorization).toBe(
+      'Bearer reddit-token-123',
+    );
 
     const [submitUrl, submitInit] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(submitUrl).toBe('https://oauth.reddit.com/api/submit');
@@ -267,7 +269,11 @@ describe('publish', () => {
       .mockResolvedValueOnce(
         jsonResponse({
           rules: [
-            { short_name: 'No Spam', description: 'Do not spam the subreddit', violation_reason: 'spam' },
+            {
+              short_name: 'No Spam',
+              description: 'Do not spam the subreddit',
+              violation_reason: 'spam',
+            },
             { short_name: 'Be Nice', description: 'Be kind to others' },
           ],
           site_rules: [],
@@ -286,7 +292,9 @@ describe('publish', () => {
 
     expect(result.state).toBe('published');
     expect(
-      c.getLogs().some((l) => l.level === 'warn' && l.message.includes('Subreddit rules may be violated')),
+      c
+        .getLogs()
+        .some((l) => l.level === 'warn' && l.message.includes('Subreddit rules may be violated')),
     ).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -335,7 +343,14 @@ describe('publish', () => {
       .fn()
       .mockResolvedValueOnce(jsonResponse(EMPTY_RULES))
       .mockResolvedValueOnce(
-        jsonResponse({ json: { errors: [['BAD_TITLE', 'bad title'], ['NO_TEXT', 'no text']] } }),
+        jsonResponse({
+          json: {
+            errors: [
+              ['BAD_TITLE', 'bad title'],
+              ['NO_TEXT', 'no text'],
+            ],
+          },
+        }),
       );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -486,7 +501,10 @@ describe('fetchMetrics', () => {
   });
 
   it('throws when the post is not found', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ kind: 'Listing', data: { children: [] } })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ kind: 'Listing', data: { children: [] } })),
+    );
     const c = new RedditConnector(AUTH);
     await expect(c.fetchMetrics('abc123')).rejects.toThrow('Reddit post abc123 not found');
   });
@@ -505,10 +523,14 @@ describe('revoke', () => {
     expect(init.method).toBe('POST');
     expect(init.body).toBe('token=reddit-token-123&token_type_hint=access_token');
     const headers = init.headers as Record<string, string>;
-    expect(headers.Authorization).toBe(`Basic ${Buffer.from('client-1:secret-1').toString('base64')}`);
+    expect(headers.Authorization).toBe(
+      `Basic ${Buffer.from('client-1:secret-1').toString('base64')}`,
+    );
     expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded');
 
-    expect(c.getLogs().some((l) => l.action === 'revoke' && l.message.includes('token revoked'))).toBe(true);
+    expect(
+      c.getLogs().some((l) => l.action === 'revoke' && l.message.includes('token revoked')),
+    ).toBe(true);
     expect(c.auth.accessToken).toBe('');
     expect(c.auth.refreshToken).toBeUndefined();
     expect(c.auth.expiresAt).toBe(0);
@@ -521,7 +543,9 @@ describe('revoke', () => {
     const c = new RedditConnector(AUTH);
     await expect(c.revoke()).resolves.toBeUndefined();
 
-    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('warned: 400'))).toBe(true);
+    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('warned: 400'))).toBe(
+      true,
+    );
     expect(c.auth.accessToken).toBe('');
     expect(c.auth.expiresAt).toBe(0);
   });

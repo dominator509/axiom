@@ -71,7 +71,13 @@ export async function processJob(
       await executor({ tx, job, workerId, killSwitchEnabled });
       await tx
         .update(schema.job)
-        .set({ state: 'done', completedAt: new Date(), lastError: null, lockedBy: null, lockedAt: null })
+        .set({
+          state: 'done',
+          completedAt: new Date(),
+          lastError: null,
+          lockedBy: null,
+          lockedAt: null,
+        })
         .where(sql`${schema.job.id} = ${job.id}`);
       return 'done' as const;
     });

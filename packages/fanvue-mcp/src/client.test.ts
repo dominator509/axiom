@@ -7,7 +7,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { FanvueMcpClient, FanvueMcpError } from './client.js';
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 const CREDS = {
@@ -23,10 +26,7 @@ const INIT_RESULT = {
 };
 
 const TOOLS_RESULT = {
-  tools: [
-    { name: 'custom__start-image-upload' },
-    { name: 'custom__create-image-post' },
-  ],
+  tools: [{ name: 'custom__start-image-upload' }, { name: 'custom__create-image-post' }],
 };
 
 afterEach(() => vi.unstubAllGlobals());
@@ -89,9 +89,17 @@ describe('connect (MCP initialize handshake)', () => {
   });
 
   it('throws FanvueMcpError with MCP error code on JSON-RPC error frame', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      jsonResponse({ jsonrpc: '2.0', error: { code: -32001, message: 'unauthorized' }, id: 1 }, 200),
-    ));
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            { jsonrpc: '2.0', error: { code: -32001, message: 'unauthorized' }, id: 1 },
+            200,
+          ),
+        ),
+    );
     const c = new FanvueMcpClient();
     const err = await c.connect(CREDS).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(FanvueMcpError);
@@ -154,25 +162,31 @@ describe('documented custom__ image-post flow', () => {
   });
 
   it('uploadImageBytes PUTs raw bytes with no Authorization header and returns ETag', async () => {
-    const putMock = vi.fn().mockResolvedValue(
-      new Response(null, { status: 200, headers: { etag: '"etag-1"' } }),
-    );
+    const putMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200, headers: { etag: '"etag-1"' } }));
     vi.stubGlobal('fetch', putMock);
 
     const c = new FanvueMcpClient();
-    const etag = await c.uploadImageBytes('https://storage.example.com/up?sig=1', new Uint8Array([1, 2, 3]));
+    const etag = await c.uploadImageBytes(
+      'https://storage.example.com/up?sig=1',
+      new Uint8Array([1, 2, 3]),
+    );
 
     expect(etag).toBe('"etag-1"');
     const [url, init] = putMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://storage.example.com/up?sig=1');
     expect(init.method).toBe('PUT');
     expect((init.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
+    expect(Array.from(new Uint8Array(init.body as ArrayBuffer))).toEqual([1, 2, 3]);
   });
 
   it('uploadImageBytes throws when the PUT fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('nope', { status: 403 })));
     const c = new FanvueMcpClient();
-    const err = await c.uploadImageBytes('https://storage.example.com/up', new Uint8Array([1])).catch((e: unknown) => e);
+    const err = await c
+      .uploadImageBytes('https://storage.example.com/up', new Uint8Array([1]))
+      .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(FanvueMcpError);
     expect((err as FanvueMcpError).code).toBe('UPLOAD_FAILED');
   });

@@ -43,7 +43,25 @@ pub fn parse_echo_ip(body: &str) -> Option<String> {
                 let start = rest.trim_start_matches(['"', ' ']);
                 let ip: String = start
                     .chars()
-                    .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == ':' || *c == '[' || *c == ']' || *c == 'a' || *c == 'b' || *c == 'c' || *c == 'd' || *c == 'e' || *c == 'f' || *c == 'A' || *c == 'B' || *c == 'C' || *c == 'D' || *c == 'E' || *c == 'F')
+                    .take_while(|c| {
+                        c.is_ascii_digit()
+                            || *c == '.'
+                            || *c == ':'
+                            || *c == '['
+                            || *c == ']'
+                            || *c == 'a'
+                            || *c == 'b'
+                            || *c == 'c'
+                            || *c == 'd'
+                            || *c == 'e'
+                            || *c == 'f'
+                            || *c == 'A'
+                            || *c == 'B'
+                            || *c == 'C'
+                            || *c == 'D'
+                            || *c == 'E'
+                            || *c == 'F'
+                    })
                     .collect();
                 if !ip.is_empty() {
                     return Some(ip);
@@ -170,7 +188,11 @@ pub fn reconcile_health(
         (Some(_), None) => true,
         (None, _) => false,
     };
-    let fail_count = if result.ok { 0 } else { prev.fail_count.saturating_add(1) };
+    let fail_count = if result.ok {
+        0
+    } else {
+        prev.fail_count.saturating_add(1)
+    };
     if result.ok {
         info!(egress_ip = ?result.egress_ip, latency_ms = result.latency_ms, drift = drift, "egress health probe OK");
     } else {
@@ -194,15 +216,30 @@ mod tests {
     #[test]
     fn parse_bare_ip() {
         assert_eq!(parse_echo_ip("1.2.3.4\n"), Some("1.2.3.4".to_string()));
-        assert_eq!(parse_echo_ip("203.0.113.7"), Some("203.0.113.7".to_string()));
-        assert_eq!(parse_echo_ip("2605:a141:2335:7656::1"), Some("2605:a141:2335:7656::1".to_string()));
+        assert_eq!(
+            parse_echo_ip("203.0.113.7"),
+            Some("203.0.113.7".to_string())
+        );
+        assert_eq!(
+            parse_echo_ip("2605:a141:2335:7656::1"),
+            Some("2605:a141:2335:7656::1".to_string())
+        );
     }
 
     #[test]
     fn parse_json_ip() {
-        assert_eq!(parse_echo_ip(r#"{"ip":"9.9.9.9"}"#), Some("9.9.9.9".to_string()));
-        assert_eq!(parse_echo_ip(r#"{"address":"1.1.1.1"}"#), Some("1.1.1.1".to_string()));
-        assert_eq!(parse_echo_ip(r#"{"query":"8.8.8.8"}"#), Some("8.8.8.8".to_string()));
+        assert_eq!(
+            parse_echo_ip(r#"{"ip":"9.9.9.9"}"#),
+            Some("9.9.9.9".to_string())
+        );
+        assert_eq!(
+            parse_echo_ip(r#"{"address":"1.1.1.1"}"#),
+            Some("1.1.1.1".to_string())
+        );
+        assert_eq!(
+            parse_echo_ip(r#"{"query":"8.8.8.8"}"#),
+            Some("8.8.8.8".to_string())
+        );
     }
 
     #[test]
@@ -215,7 +252,12 @@ mod tests {
     fn reconcile_marks_drift() {
         let prev = HealthState::default();
         let now = "2026-08-06T00:00:00Z";
-        let ok = ProbeResult { ok: true, egress_ip: Some("5.5.5.5".into()), latency_ms: 42, error: None };
+        let ok = ProbeResult {
+            ok: true,
+            egress_ip: Some("5.5.5.5".into()),
+            latency_ms: 42,
+            error: None,
+        };
         let st = reconcile_health(&prev, &ok, Some("5.5.5.5"), now);
         assert!(st.healthy);
         assert!(!st.drift);
@@ -225,7 +267,12 @@ mod tests {
         assert!(drift.drift);
         assert_eq!(drift.fail_count, 0); // drift is a warning, not a failure
 
-        let bad = ProbeResult { ok: false, egress_ip: None, latency_ms: 0, error: Some("timeout".into()) };
+        let bad = ProbeResult {
+            ok: false,
+            egress_ip: None,
+            latency_ms: 0,
+            error: Some("timeout".into()),
+        };
         let fail = reconcile_health(&st, &bad, None, now);
         assert!(!fail.healthy);
         assert_eq!(fail.fail_count, 1);

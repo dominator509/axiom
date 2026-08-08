@@ -19,7 +19,16 @@ export interface PlatformVerdict {
   reason: string;
 }
 
-export type CardAction = 'approve' | 'approve_all' | 'reject' | 'edit_caption' | 'change_price' | 'reschedule' | 'regenerate' | 'revise' | 'hold';
+export type CardAction =
+  | 'approve'
+  | 'approve_all'
+  | 'reject'
+  | 'edit_caption'
+  | 'change_price'
+  | 'reschedule'
+  | 'regenerate'
+  | 'revise'
+  | 'hold';
 
 export interface RelayCard {
   bundleId: string;
@@ -43,9 +52,10 @@ export class CardRenderer {
       platform,
       passed: (bundle.tosScores[platform] ?? 1) >= 0.7,
       score: bundle.tosScores[platform] ?? 1,
-      reason: (bundle.tosScores[platform] ?? 1) >= 0.7
-        ? 'ToS check passed'
-        : 'ToS check failed — score below threshold',
+      reason:
+        (bundle.tosScores[platform] ?? 1) >= 0.7
+          ? 'ToS check passed'
+          : 'ToS check failed — score below threshold',
     }));
 
     const allPassed = verdicts.every((v) => v.passed);
@@ -72,7 +82,10 @@ export class CardRenderer {
 
   toHtml(card: RelayCard): string {
     const verdictRows = card.verdicts
-      .map((v) => `<b>${v.platform}:</b> ${v.passed ? '✅ PASS' : '❌ FAIL'} (${(v.score * 100).toFixed(0)}%)`)
+      .map(
+        (v) =>
+          `<b>${v.platform}:</b> ${v.passed ? '✅ PASS' : '❌ FAIL'} (${(v.score * 100).toFixed(0)}%)`,
+      )
       .join('\n');
     const hashtagRows = Object.entries(card.hashtagSets)
       .map(([p, tags]) => `<b>${p}:</b> ${tags.slice(0, 5).join(' ')}`)
@@ -126,7 +139,9 @@ export class CardRenderer {
       `Caption: ${card.caption.slice(0, 200)}`,
       '',
       'ToS Verdicts:',
-      ...card.verdicts.map((v) => `  ${v.platform}: ${v.passed ? 'PASS' : 'FAIL'} (${(v.score * 100).toFixed(0)}%)`),
+      ...card.verdicts.map(
+        (v) => `  ${v.platform}: ${v.passed ? 'PASS' : 'FAIL'} (${(v.score * 100).toFixed(0)}%)`,
+      ),
       '',
       'Actions (reply with number):',
       ...card.actions.map((a, i) => `  ${i + 1}. ${a}`),

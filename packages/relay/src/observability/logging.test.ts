@@ -66,7 +66,9 @@ describe('Logger', () => {
     const logger = new Logger('relay');
     logger.debug('dbg');
     logger.warn('wrn');
-    const levels = stdoutSpy.mock.calls.map((c: [string]) => (JSON.parse(c[0] as string) as LogEntry).level);
+    const levels = stdoutSpy.mock.calls.map(
+      (c: [string]) => (JSON.parse(c[0] as string) as LogEntry).level,
+    );
     expect(levels).toEqual(['debug', 'warn']);
   });
 
@@ -85,7 +87,9 @@ describe('Logger', () => {
       error: { message: 'boom' },
     });
     expect(errEntry.error?.stack).toContain('Error: boom');
-    const fatalEntry = JSON.parse(stderrSpy.mock.calls[stderrSpy.mock.calls.length - 1][0] as string);
+    const fatalEntry = JSON.parse(
+      stderrSpy.mock.calls[stderrSpy.mock.calls.length - 1][0] as string,
+    );
     expect(fatalEntry.level).toBe('fatal');
     expect(fatalEntry.error?.message).toBe('boom');
   });

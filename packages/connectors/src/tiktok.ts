@@ -147,7 +147,9 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
 
       if (!uploadResp.ok) {
         const uploadBody = await uploadResp.text().catch(() => '');
-        throw new Error(`TikTok video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${uploadBody}`);
+        throw new Error(
+          `TikTok video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${uploadBody}`,
+        );
       }
 
       this.log('info', 'publish', `TikTok video uploaded (${videoBuffer.byteLength} bytes)`);
@@ -176,10 +178,14 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       );
 
       if (completeResp.error) {
-        throw new Error(`TikTok complete failed: ${completeResp.error.code} — ${completeResp.error.message}`);
+        throw new Error(
+          `TikTok complete failed: ${completeResp.error.code} — ${completeResp.error.message}`,
+        );
       }
 
-      this.log('info', 'publish', `TikTok video published`, { publish_id: completeResp.data.publish_id });
+      this.log('info', 'publish', `TikTok video published`, {
+        publish_id: completeResp.data.publish_id,
+      });
 
       const postUrl = `https://www.tiktok.com/@${this.auth.extra?.username ?? 'user'}/video/${completeResp.data.publish_id}`;
 
@@ -244,7 +250,11 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       }
     } catch {
       // Token may already be expired — still proceed with logical disconnect
-      this.log('warn', 'revoke', `Could not verify TikTok user ${openId}; proceeding with disconnect`);
+      this.log(
+        'warn',
+        'revoke',
+        `Could not verify TikTok user ${openId}; proceeding with disconnect`,
+      );
     }
 
     this.log('info', 'revoke', `TikTok OAuth disconnected for user ${openId}`);

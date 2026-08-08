@@ -4,12 +4,19 @@
 // and the unconfigured-credentials path.
 
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-const REDIRECT_URI = 'https://axiom.fanlynks.com/api/v1/auth/threads/callback';
+const REDIRECT_URI = 'https://threads.test/api/v1/auth/threads/callback';
 
 // Env is read at module load — set it BEFORE the dynamic import.
 process.env.THREADS_CLIENT_ID = 'test-threads-client-id';
 process.env.THREADS_CLIENT_SECRET = 'test-threads-client-secret';
+process.env.BETTER_AUTH_URL = 'https://threads.test';
+const envFile = join(mkdtempSync(join(tmpdir(), 'axiom-threads-test-')), '.env');
+writeFileSync(envFile, '', { mode: 0o600 });
+process.env.AXIOM_ENV_FILE = envFile;
 
 let router: any;
 
@@ -34,6 +41,7 @@ describe('GET /authorize', () => {
     expect(url.searchParams.get('redirect_uri')).toBe(REDIRECT_URI);
     expect(url.searchParams.get('scope')).toBe('threads_basic,threads_publish');
     expect(url.searchParams.get('response_type')).toBe('code');
+    expect(url.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{32}$/);
   });
 });
 
@@ -46,7 +54,9 @@ describe('GET /callback — validation', () => {
   });
 
   it('reports OAuth error params from Meta', async () => {
-    const res = await router.request('/callback?error=access_denied&error_description=user+said+no');
+    const res = await router.request(
+      '/callback?error=access_denied&error_description=user+said+no',
+    );
     expect(res.status).toBe(400);
     const body = (await res.json()) as any;
     expect(body.detail).toContain('OAuth error: access_denied');
@@ -62,12 +72,22 @@ describe('GET /callback — validation', () => {
 });
 
 describe('GET /callback — token exchange', () => {
+  async function authorizeState(): Promise<string> {
+    const response = await router.request('/authorize');
+    return new URL(response.headers.get('location')!).searchParams.get('state')!;
+  }
+
   it('exchanges the code for a short-lived token and upgrades to long-lived', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       // 1st call: short-lived token exchange
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ access_token: 'short-lived-token', user_id: 'threads-user-42', token_type: 'bearer' }),
+        json: async () => ({
+          access_token: 'short-lived-token',
+          user_id: 'threads-user-42',
+          token_type: 'bearer',
+        }),
       })
       // 2nd call: long-lived exchange
       .mockResolvedValueOnce({
@@ -76,14 +96,18 @@ describe('GET /callback — token exchange', () => {
       });
     vi.stubGlobal('fetch', fetchMock);
 
-    const res = await router.request('/callback?code=meta_auth_code');
+    const state = await authorizeState();
+    const res = await router.request(`/callback?code=meta_auth_code&state=${state}`);
     expect(res.status).toBe(200);
 
     const body = (await res.json()) as any;
     expect(body.status).toBe('success');
     expect(body.platform).toBe('threads');
     expect(body.userThreadsId).toBe('threads-user-42');
-    expect(body.tokenPreview).toBe('long-lived-t...');
+    expect(body).not.toHaveProperty('tokenPreview');
+    const persisted = readFileSync(envFile, 'utf8');
+    expect(persisted).toContain('THREADS_ACCESS_TOKEN=long-lived-token-abc');
+    expect(persisted).toContain('THREADS_USER_ID=threads-user-42');
 
     // Verify both exchange requests
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -99,7 +123,7 @@ describe('GET /callback — token exchange', () => {
     expect(form.get('redirect_uri')).toBe(REDIRECT_URI);
     expect(form.get('code')).toBe('meta_auth_code');
 
-    const [longUrl] = fetchMock.mock.calls[1];
+    const longUrl = String(fetchMock.mock.calls[1][0]);
     expect(longUrl).toContain('https://graph.threads.net/access_token');
     expect(longUrl).toContain('grant_type=th_exchange_token');
     expect(longUrl).toContain('client_secret=test-threads-client-secret');
@@ -107,41 +131,72 @@ describe('GET /callback — token exchange', () => {
   });
 
   it('falls back to the short-lived token when the long-lived exchange fails', async () => {
-    vi.stubGlobal('fetch', vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ access_token: 'short-token', user_id: 'u1' }),
-      })
-      .mockResolvedValueOnce({ ok: false, status: 400, text: async () => 'bad request' }));
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ access_token: 'short-token', user_id: 'u1' }),
+        })
+        .mockResolvedValueOnce({ ok: false, status: 400, text: async () => 'bad request' }),
+    );
 
-    const res = await router.request('/callback?code=c1');
+    const state = await authorizeState();
+    const res = await router.request(`/callback?code=c1&state=${state}`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.status).toBe('success');
-    expect(body.tokenPreview).toBe('short-token...');
+    expect(body).not.toHaveProperty('tokenPreview');
   });
 
   it('returns 502 when the short-lived token exchange fails', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      text: async () => '{"error":{"message":"Invalid OAuth 2.0 Access Token"}}',
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        text: async () => '{"error":{"message":"Invalid OAuth 2.0 Access Token"}}',
+      }),
+    );
 
-    const res = await router.request('/callback?code=bad-code');
+    const state = await authorizeState();
+    const res = await router.request(`/callback?code=bad-code&state=${state}`);
     expect(res.status).toBe(502);
     const body = (await res.json()) as any;
     expect(body.detail).toContain('Token exchange failed: HTTP 401');
-    expect(body.detail).toContain('Invalid OAuth 2.0 Access Token');
+    expect(body.detail).not.toContain('Invalid OAuth 2.0 Access Token');
   });
 
   it('returns 500 when the token endpoint throws', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
 
-    const res = await router.request('/callback?code=c2');
+    const state = await authorizeState();
+    const res = await router.request(`/callback?code=c2&state=${state}`);
     expect(res.status).toBe(500);
     const body = (await res.json()) as any;
-    expect(body.detail).toBe('Threads OAuth failed: network down');
+    expect(body.detail).toBe('Threads OAuth exchange or persistence failed');
+  });
+
+  it('rejects a callback with missing or replayed state', async () => {
+    const missing = await router.request('/callback?code=c3');
+    expect(missing.status).toBe(400);
+
+    const state = await authorizeState();
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ access_token: 'single-use-token', user_id: 'u2' }),
+        })
+        .mockResolvedValueOnce({ ok: false }),
+    );
+    const first = await router.request(`/callback?code=c4&state=${state}`);
+    expect(first.status).toBe(200);
+    const replay = await router.request(`/callback?code=c5&state=${state}`);
+    expect(replay.status).toBe(400);
   });
 });
 
@@ -151,7 +206,9 @@ describe('GET /delete — GDPR data-deletion callback', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.confirmation_code).toBe('gdpr-123');
-    expect(body.url).toBe('https://axiom.fanlynks.com/api/v1/auth/threads/delete/status?id=gdpr-123');
+    expect(body.url).toBe(
+      'https://axiom.fanlynks.com/api/v1/auth/threads/delete/status?id=gdpr-123',
+    );
   });
 
   it('rejects a missing confirmation_code', async () => {

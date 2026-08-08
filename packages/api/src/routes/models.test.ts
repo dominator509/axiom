@@ -65,7 +65,9 @@ describe('GET / — list models', () => {
 
 describe('GET /:id — get single model', () => {
   it('returns the model when found in the org', async () => {
-    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna Vex', handle: 'lunavex' }];
+    mockState.result = [
+      { id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna Vex', handle: 'lunavex' },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
@@ -80,7 +82,9 @@ describe('GET /:id — get single model', () => {
 
 describe('POST / — create model', () => {
   it('creates a model with orgId and audits the create', async () => {
-    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna Vex', handle: 'lunavex' }];
+    mockState.result = [
+      { id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna Vex', handle: 'lunavex' },
+    ];
     const res = await appWithOrg(ORG_ID).request('/', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -140,7 +144,9 @@ describe('POST / — create model', () => {
 
 describe('PATCH /:id — update model', () => {
   it('updates fields and returns the updated row', async () => {
-    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'New Name', handle: 'lunavex' }];
+    mockState.result = [
+      { id: MODEL_ID, orgId: ORG_ID, displayName: 'New Name', handle: 'lunavex' },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },

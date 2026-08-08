@@ -71,7 +71,17 @@ export const PLATFORM_RULES: Record<Platform, PlatformRule> = {
   youtube: {
     platform: 'youtube',
     description: 'YouTube Community Guidelines — no nudity, sexual content, harmful content',
-    blockedKeywords: ['nude', 'naked', 'sex', 'porn', 'escort', 'onlyfans', 'nsfw', 'violence', 'gore'],
+    blockedKeywords: [
+      'nude',
+      'naked',
+      'sex',
+      'porn',
+      'escort',
+      'onlyfans',
+      'nsfw',
+      'violence',
+      'gore',
+    ],
     maxHashtags: 15,
     maxCaptionLength: 5000,
     linksAllowed: true,
@@ -115,7 +125,8 @@ export const PLATFORM_RULES: Record<Platform, PlatformRule> = {
   },
   discord: {
     platform: 'discord',
-    description: 'Discord Community Guidelines — no hate speech, harassment, explicit content in non-NSFW channels',
+    description:
+      'Discord Community Guidelines — no hate speech, harassment, explicit content in non-NSFW channels',
     blockedKeywords: ['harassment', 'dox', 'gore'],
     maxHashtags: 0,
     maxCaptionLength: 2000,
@@ -231,9 +242,7 @@ export class ToSEngine {
         captionLower.includes(kw.toLowerCase()),
       );
       if (blockedInCaption.length > 0) {
-        reasons.push(
-          `Caption contains blocked keywords: ${blockedInCaption.join(', ')}`,
-        );
+        reasons.push(`Caption contains blocked keywords: ${blockedInCaption.join(', ')}`);
       }
 
       // Check caption length
@@ -252,13 +261,8 @@ export class ToSEngine {
       }
 
       // Check review categories
-      if (
-        classification.category &&
-        rule.reviewCategories.includes(classification.category)
-      ) {
-        reasons.push(
-          `Image category "${classification.category}" requires review on ${platform}`,
-        );
+      if (classification.category && rule.reviewCategories.includes(classification.category)) {
+        reasons.push(`Image category "${classification.category}" requires review on ${platform}`);
       }
 
       // Build final score combining image classification and rule violations

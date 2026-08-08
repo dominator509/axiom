@@ -8,6 +8,7 @@
 
 import type { RelayCard, CardAction } from '../card.js';
 import { CardRenderer } from '../card.js';
+import { createHmac } from 'node:crypto';
 
 export interface ThreadsConfig {
   clientId: string;
@@ -34,7 +35,8 @@ interface MetaWebhookPayload {
 export class ThreadsAdapter {
   private readonly config: ThreadsConfig;
   private readonly renderer: CardRenderer;
-  private readonly handlers: Map<string, (action: CardAction, bundleId: string) => Promise<void>> = new Map();
+  private readonly handlers: Map<string, (action: CardAction, bundleId: string) => Promise<void>> =
+    new Map();
 
   constructor(config: ThreadsConfig) {
     this.config = { ...config };
@@ -58,7 +60,6 @@ export class ThreadsAdapter {
     if (!signatureHeader) return false;
     if (!signatureHeader.startsWith('sha256=')) return false;
 
-    const { createHmac } = require('node:crypto');
     const expected = createHmac('sha256', this.config.clientSecret)
       .update(payload, 'utf-8')
       .digest('hex');
@@ -106,26 +107,47 @@ export class ThreadsAdapter {
   /** Threads API doesn't support bot-initiated DMs with interactive cards.
    *  Cards are delivered via Fanvue or companion relay channels (Discord/Telegram). */
   async sendCard(userId: string, card: RelayCard): Promise<void> {
-    this.log('info', 'send_card_unsupported',
-      `Card delivery not supported via Threads API (user=${userId}, bundle=${card.bundleId})`);
+    this.log(
+      'info',
+      'send_card_unsupported',
+      `Card delivery not supported via Threads API (user=${userId}, bundle=${card.bundleId})`,
+    );
   }
 
   /** Start polling for new comments/replies (falls back when webhook not configured) */
-  async startPolling(threadsUserId: string, accessToken: string, intervalMs = 60_000): Promise<void> {
-    this.log('info', 'polling_configured',
-      `Polling every ${intervalMs}ms for user ${threadsUserId.slice(0, 6)}... (token length: ${accessToken.length})`);
+  async startPolling(
+    threadsUserId: string,
+    accessToken: string,
+    intervalMs = 60_000,
+  ): Promise<void> {
+    this.log(
+      'info',
+      'polling_configured',
+      `Polling every ${intervalMs}ms for user ${threadsUserId.slice(0, 6)}... (token length: ${accessToken.length})`,
+    );
   }
 
-  private async processChange(userId: string, change: {
-    field: string;
-    value: Record<string, unknown>;
-  }): Promise<void> {
+  private async processChange(
+    userId: string,
+    change: {
+      field: string;
+      value: Record<string, unknown>;
+    },
+  ): Promise<void> {
     switch (change.field) {
       case 'comments':
-        this.log('info', 'comment_received', `Comment on post ${String(change.value.id)} (user=${userId.slice(0, 6)}...)`);
+        this.log(
+          'info',
+          'comment_received',
+          `Comment on post ${String(change.value.id)} (user=${userId.slice(0, 6)}...)`,
+        );
         break;
       case 'mentions':
-        this.log('info', 'mention_received', `Mention from user ${String(change.value.id)} (user=${userId.slice(0, 6)}...)`);
+        this.log(
+          'info',
+          'mention_received',
+          `Mention from user ${String(change.value.id)} (user=${userId.slice(0, 6)}...)`,
+        );
         break;
       default:
         this.log('debug', 'unknown_change', `Unhandled change field: ${change.field}`);
@@ -133,7 +155,11 @@ export class ThreadsAdapter {
   }
 
   private async processMessage(_userId: string, _msg: Record<string, unknown>): Promise<void> {
-    this.log('debug', 'message_received', 'Messaging event ignored (Threads DMs not supported via Graph API)');
+    this.log(
+      'debug',
+      'message_received',
+      'Messaging event ignored (Threads DMs not supported via Graph API)',
+    );
   }
 
   private log(level: 'info' | 'warn' | 'debug', event: string, message: string): void {

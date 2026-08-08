@@ -16,7 +16,15 @@ vi.mock('@axiom/llm-gateway', async (importOriginal) => {
     ...actual,
     LLMGateway: class {
       async chat() {
-        return { content: 'Enriched caption ✨', model: 'test', provider: 'test', cost: 0, tokens: { prompt: 1, completion: 1, total: 2 }, latency: 1, cached: false };
+        return {
+          content: 'Enriched caption ✨',
+          model: 'test',
+          provider: 'test',
+          cost: 0,
+          tokens: { prompt: 1, completion: 1, total: 2 },
+          latency: 1,
+          cached: false,
+        };
       }
     },
     // Capture the assembled S0–S3 segments so tests can assert S2 carries
@@ -70,7 +78,15 @@ describe('POST /models/:id/generate', () => {
     // The chainable mock returns the same row for the model lookup AND the
     // bundle insert — include state on the shared row so both resolve.
     mockState.result = [
-      { id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna Vex', handle: 'lunavex', bio: null, avatarUrl: null, state: 'generated' },
+      {
+        id: MODEL_ID,
+        orgId: ORG_ID,
+        displayName: 'Luna Vex',
+        handle: 'lunavex',
+        bio: null,
+        avatarUrl: null,
+        state: 'generated',
+      },
     ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST',
@@ -95,7 +111,14 @@ describe('POST /models/:id/generate', () => {
 
   it('rejects an empty platforms array (400)', async () => {
     mockState.result = [
-      { id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna Vex', handle: 'lunavex', bio: null, avatarUrl: null },
+      {
+        id: MODEL_ID,
+        orgId: ORG_ID,
+        displayName: 'Luna Vex',
+        handle: 'lunavex',
+        bio: null,
+        avatarUrl: null,
+      },
     ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST',
@@ -117,13 +140,26 @@ describe('POST /models/:id/generate', () => {
   it('injects real viral exemplars into the S2 segment (F-83)', async () => {
     // Seed the model row + a top-performing exemplar (viral label + features).
     mockState.result = [
-      { id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna Vex', handle: 'lunavex', bio: null, avatarUrl: null, state: 'generated' },
+      {
+        id: MODEL_ID,
+        orgId: ORG_ID,
+        displayName: 'Luna Vex',
+        handle: 'lunavex',
+        bio: null,
+        avatarUrl: null,
+        state: 'generated',
+      },
       {
         id: '33333333-3333-4333-8333-333333333333',
         platform: 'instagram',
         label: 'viral',
         perfScore: 2.4,
-        features: { title: 'Golden hour beach reel', caption: 'Sunset swims hit different', hashtags: ['beach', 'goldenhour'], aiNotes: 'high save rate' },
+        features: {
+          title: 'Golden hour beach reel',
+          caption: 'Sunset swims hit different',
+          hashtags: ['beach', 'goldenhour'],
+          aiNotes: 'high save rate',
+        },
       },
     ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {

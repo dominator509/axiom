@@ -51,18 +51,21 @@ describe('mounted route groups', () => {
     expect(res.status).toBe(401);
   });
 
-  it('fanvue authorize redirects to Fanvue with PKCE params', async () => {
+  it('fanvue authorize requires an authenticated operator session', async () => {
     const res = await app.request('/api/v1/connectors/fanvue/authorize');
-    expect(res.status).toBe(302);
-    const url = new URL(res.headers.get('location')!);
-    expect(url.origin).toBe('https://auth.fanvue.com');
-    expect(url.searchParams.get('client_id')).toBe('test-client-id');
-    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(res.status).toBe(401);
   });
 
   it('fanvue callback rejects missing code', async () => {
     const res = await app.request('/api/v1/connectors/fanvue/callback');
     expect(res.status).toBe(400);
+  });
+
+  it('does not reflect an untrusted browser origin', async () => {
+    const res = await app.request('/api/v1/health', {
+      headers: { Origin: 'https://attacker.example' },
+    });
+    expect(res.headers.get('access-control-allow-origin')).not.toBe('https://attacker.example');
   });
 });
 
@@ -72,41 +75,33 @@ describe('relay routes mounted via initRelay', () => {
     expect(res.status).toBe(200);
   });
 
-  it('POST /api/v1/relay/card handles a card request', async () => {
+  it('POST /api/v1/relay/card requires an authenticated operator session', async () => {
     const res = await app.request('/api/v1/relay/card', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     });
-    // Responds with a structured error/success rather than crashing
-    expect([200, 400, 500]).toContain(res.status);
+    expect(res.status).toBe(401);
   });
 });
 
 describe('llm gateway routes mounted', () => {
-  it('GET /api/v1/llm/providers lists available providers', async () => {
+  it('GET /api/v1/llm/providers requires an authenticated session', async () => {
     const res = await app.request('/api/v1/llm/providers');
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(Array.isArray(body.providers)).toBe(true);
-    // vllm is always available (no key required)
-    expect(body.providers).toContain('vllm');
+    expect(res.status).toBe(401);
   });
 
-  it('GET /api/v1/llm/stats returns gateway statistics', async () => {
+  it('GET /api/v1/llm/stats requires an authenticated session', async () => {
     const res = await app.request('/api/v1/llm/stats');
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(typeof body.requests).toBe('number');
-    expect(body.cache).toBeDefined();
+    expect(res.status).toBe(401);
   });
 
-  it('POST /api/v1/llm/chat validates the request schema', async () => {
+  it('POST /api/v1/llm/chat rejects unauthenticated requests before provider work', async () => {
     const res = await app.request('/api/v1/llm/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: 'not-an-array' }),
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(401);
   });
 });

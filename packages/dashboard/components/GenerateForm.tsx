@@ -3,7 +3,19 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const PLATFORMS = ['instagram', 'tiktok', 'x', 'youtube', 'reddit', 'threads', 'discord', 'telegram', 'facebook', 'snapchat', 'fanvue'];
+const PLATFORMS = [
+  'instagram',
+  'tiktok',
+  'x',
+  'youtube',
+  'reddit',
+  'threads',
+  'discord',
+  'telegram',
+  'facebook',
+  'snapchat',
+  'fanvue',
+];
 
 export default function GenerateForm({ modelId }: { modelId: string }) {
   const router = useRouter();
@@ -17,7 +29,13 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
   const [enrich, setEnrich] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ variants: Array<{ styleLabel: string; caption: string; hashtags: string[] }>; tosReport: { verdict: string; scores: Array<{ platform: string; verdict: string; score: number }> } } | null>(null);
+  const [result, setResult] = useState<{
+    variants: Array<{ styleLabel: string; caption: string; hashtags: string[] }>;
+    tosReport: {
+      verdict: string;
+      scores: Array<{ platform: string; verdict: string; score: number }>;
+    };
+  } | null>(null);
 
   function togglePlatform(p: string) {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
@@ -32,7 +50,16 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
       const res = await fetch(`/api/v1/models/${modelId}/generate`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ style, outfit, location, mood, lighting, aspectRatio, platforms, enrichWithLlm: enrich }),
+        body: JSON.stringify({
+          style,
+          outfit,
+          location,
+          mood,
+          lighting,
+          aspectRatio,
+          platforms,
+          enrichWithLlm: enrich,
+        }),
       });
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
@@ -76,9 +103,15 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
           </div>
           <div>
             <label htmlFor="aspectRatio">Aspect ratio</label>
-            <select id="aspectRatio" value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)}>
+            <select
+              id="aspectRatio"
+              value={aspectRatio}
+              onChange={(e) => setAspectRatio(e.target.value)}
+            >
               {['4:5', '9:16', '1:1', '16:9'].map((r) => (
-                <option key={r} value={r}>{r}</option>
+                <option key={r} value={r}>
+                  {r}
+                </option>
               ))}
             </select>
           </div>
@@ -100,7 +133,12 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
           </div>
         </div>
         <label className="row" style={{ cursor: 'pointer' }}>
-          <input type="checkbox" checked={enrich} onChange={(e) => setEnrich(e.target.checked)} style={{ width: 'auto' }} />
+          <input
+            type="checkbox"
+            checked={enrich}
+            onChange={(e) => setEnrich(e.target.checked)}
+            style={{ width: 'auto' }}
+          />
           Enrich captions via LLM gateway (optional, live provider call)
         </label>
         {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
@@ -115,20 +153,32 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         <div style={{ marginTop: 20 }}>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <h3>ToS report</h3>
-            <span className={`badge ${result.tosReport.verdict === 'pass' ? 'good' : result.tosReport.verdict === 'review' ? 'warn' : 'bad'}`}>
+            <span
+              className={`badge ${result.tosReport.verdict === 'pass' ? 'good' : result.tosReport.verdict === 'review' ? 'warn' : 'bad'}`}
+            >
               {result.tosReport.verdict}
             </span>
           </div>
           <table>
             <thead>
-              <tr><th>Platform</th><th>Score</th><th>Verdict</th></tr>
+              <tr>
+                <th>Platform</th>
+                <th>Score</th>
+                <th>Verdict</th>
+              </tr>
             </thead>
             <tbody>
               {result.tosReport.scores.map((s) => (
                 <tr key={s.platform}>
                   <td>{s.platform}</td>
                   <td>{s.score}</td>
-                  <td><span className={`badge ${s.verdict === 'pass' ? 'good' : s.verdict === 'review' ? 'warn' : 'bad'}`}>{s.verdict}</span></td>
+                  <td>
+                    <span
+                      className={`badge ${s.verdict === 'pass' ? 'good' : s.verdict === 'review' ? 'warn' : 'bad'}`}
+                    >
+                      {s.verdict}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -137,7 +187,9 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
             <div key={i} className="card" style={{ background: 'var(--panel2)' }}>
               <h3>{v.styleLabel}</h3>
               <p>{v.caption}</p>
-              <p className="mono" style={{ color: 'var(--muted)' }}>{v.hashtags.join(' ')}</p>
+              <p className="mono" style={{ color: 'var(--muted)' }}>
+                {v.hashtags.join(' ')}
+              </p>
             </div>
           ))}
         </div>

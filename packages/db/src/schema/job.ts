@@ -5,7 +5,9 @@ import { bytea } from './types.js';
 
 export const job = pgTable('job', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id),
   queue: text('queue').notNull(),
   kind: text('kind').notNull(),
   payload: jsonb('payload').$type<Record<string, unknown>>().default({}),

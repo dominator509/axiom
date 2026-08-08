@@ -22,10 +22,18 @@ export class MetricPoller {
   private schedules: Map<string, PollingSchedule> = new Map();
   private intervals: Map<string, ReturnType<typeof setInterval>> = new Map();
   private metricsHistory: PlatformMetrics[] = [];
-  private pollHandler?: (connectionId: string, platform: string, remoteIds: string[]) => Promise<PlatformMetrics>;
+  private pollHandler?: (
+    connectionId: string,
+    platform: string,
+    remoteIds: string[],
+  ) => Promise<PlatformMetrics>;
 
   setPollHandler(
-    handler: (connectionId: string, platform: string, remoteIds: string[]) => Promise<PlatformMetrics>,
+    handler: (
+      connectionId: string,
+      platform: string,
+      remoteIds: string[],
+    ) => Promise<PlatformMetrics>,
   ): void {
     this.pollHandler = handler;
   }
@@ -48,7 +56,11 @@ export class MetricPoller {
     }
   }
 
-  async pollPlatform(connectionId: string, platform: string, remoteIds: string[]): Promise<PlatformMetrics | null> {
+  async pollPlatform(
+    connectionId: string,
+    platform: string,
+    remoteIds: string[],
+  ): Promise<PlatformMetrics | null> {
     if (!this.pollHandler) return null;
 
     try {

@@ -21,7 +21,10 @@ function input(overrides: Partial<ConnectorPublishInput> = {}): ConnectorPublish
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 afterEach(() => {
@@ -84,10 +87,14 @@ describe('publish', () => {
     // Publish calls use creation ids
     const publishInit1 = fetchMock.mock.calls[2] as [string, RequestInit];
     expect(publishInit1[0]).toBe('https://graph.facebook.com/v22.0/ig-business-1/media_publish');
-    expect(JSON.parse(publishInit1[1].body as string)).toMatchObject({ creation_id: 'container-1' });
+    expect(JSON.parse(publishInit1[1].body as string)).toMatchObject({
+      creation_id: 'container-1',
+    });
 
     const publishInit2 = fetchMock.mock.calls[3] as [string, RequestInit];
-    expect(JSON.parse(publishInit2[1].body as string)).toMatchObject({ creation_id: 'container-2' });
+    expect(JSON.parse(publishInit2[1].body as string)).toMatchObject({
+      creation_id: 'container-2',
+    });
   });
 
   it('fails fast when externalUserId is missing', async () => {
@@ -147,7 +154,13 @@ describe('fetchMetrics', () => {
     const metrics = await c.fetchMetrics('post-9');
 
     expect(metrics.postId).toBe('post-9');
-    expect(metrics.metrics).toEqual({ impressions: 1000, likes: 55, comments: 4, shares: 0, saves: 0 });
+    expect(metrics.metrics).toEqual({
+      impressions: 1000,
+      likes: 55,
+      comments: 4,
+      shares: 0,
+      saves: 0,
+    });
     expect(metrics.raw).toEqual(insights);
 
     const [url] = vi.mocked(fetch).mock.calls[0] as [string];
@@ -158,7 +171,9 @@ describe('fetchMetrics', () => {
 
   it('throws when externalUserId is missing', async () => {
     const c = new InstagramConnector({ accessToken: 'ig-token' });
-    await expect(c.fetchMetrics('post-9')).rejects.toThrow('externalUserId is required for metrics');
+    await expect(c.fetchMetrics('post-9')).rejects.toThrow(
+      'externalUserId is required for metrics',
+    );
   });
 });
 
@@ -171,9 +186,15 @@ describe('revoke', () => {
     await c.revoke();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://graph.facebook.com/v22.0/ig-business-1/permissions?delegation&access_token=ig-token');
+    expect(url).toBe(
+      'https://graph.facebook.com/v22.0/ig-business-1/permissions?delegation&access_token=ig-token',
+    );
     expect(init.method).toBe('DELETE');
-    expect(c.getLogs().some((l) => l.action === 'revoke' && l.message.includes('Revoked Instagram permissions'))).toBe(true);
+    expect(
+      c
+        .getLogs()
+        .some((l) => l.action === 'revoke' && l.message.includes('Revoked Instagram permissions')),
+    ).toBe(true);
   });
 
   it('skips gracefully when externalUserId is missing', async () => {

@@ -48,7 +48,9 @@ describe('reportIncident', () => {
     const incident = manager.reportIncident('sev-1', 'PRODUCTION DOWN', 'egress');
     await flush();
     expect(pageHandler).toHaveBeenCalledTimes(1);
-    expect(pageHandler).toHaveBeenCalledWith(expect.objectContaining({ id: incident.id, severity: 'sev-1' }));
+    expect(pageHandler).toHaveBeenCalledWith(
+      expect.objectContaining({ id: incident.id, severity: 'sev-1' }),
+    );
   });
 
   it('auto-paging without a handler does not throw', async () => {
@@ -107,7 +109,12 @@ describe('enqueueDLQ / replayDLQ', () => {
   });
 
   it('replays a successful DLQ entry and removes it', async () => {
-    const entry = manager.enqueueDLQ({ originalPayload: { a: 1 }, error: 'e', source: 's', maxRetries: 3 });
+    const entry = manager.enqueueDLQ({
+      originalPayload: { a: 1 },
+      error: 'e',
+      source: 's',
+      maxRetries: 3,
+    });
     const handler = vi.fn().mockResolvedValue(undefined);
     const ok = await manager.replayDLQ(entry.id, handler);
     expect(ok).toBe(true);
@@ -121,7 +128,12 @@ describe('enqueueDLQ / replayDLQ', () => {
   });
 
   it('returns false once maxRetries are exhausted and keeps the entry', async () => {
-    const entry = manager.enqueueDLQ({ originalPayload: { a: 1 }, error: 'e', source: 's', maxRetries: 2 });
+    const entry = manager.enqueueDLQ({
+      originalPayload: { a: 1 },
+      error: 'e',
+      source: 's',
+      maxRetries: 2,
+    });
     const failingHandler = vi.fn().mockRejectedValue(new Error('still broken'));
 
     expect(await manager.replayDLQ(entry.id, failingHandler)).toBe(false);
@@ -134,7 +146,12 @@ describe('enqueueDLQ / replayDLQ', () => {
   });
 
   it('keeps the entry and increments retryCount when the handler throws', async () => {
-    const entry = manager.enqueueDLQ({ originalPayload: { a: 1 }, error: 'e', source: 's', maxRetries: 5 });
+    const entry = manager.enqueueDLQ({
+      originalPayload: { a: 1 },
+      error: 'e',
+      source: 's',
+      maxRetries: 5,
+    });
     const failingHandler = vi.fn().mockRejectedValue(new Error('nope'));
     const ok = await manager.replayDLQ(entry.id, failingHandler);
     expect(ok).toBe(false);

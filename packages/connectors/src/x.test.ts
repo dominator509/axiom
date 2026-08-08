@@ -45,7 +45,14 @@ describe('XConnector basics', () => {
     expect(cap.caption).toBe(true);
     expect(cap.maxCaptionLength).toBe(4_000);
     expect(cap.scheduling).toBe('internal');
-    expect(cap.metrics).toEqual(['likes', 'comments', 'shares', 'impressions', 'reposts', 'quotes']);
+    expect(cap.metrics).toEqual([
+      'likes',
+      'comments',
+      'shares',
+      'impressions',
+      'reposts',
+      'quotes',
+    ]);
     expect(cap.refreshMetrics).toBe(true);
   });
 
@@ -117,8 +124,12 @@ describe('publish', () => {
   it('uploads an image (INIT → APPEND → FINALIZE) then creates the tweet', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response('jpegdata', { status: 200, headers: { 'Content-Type': 'image/jpeg' } })) // 0: download
-      .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: 8, expires_after_secs: 3600 })) // 1: INIT
+      .mockResolvedValueOnce(
+        new Response('jpegdata', { status: 200, headers: { 'Content-Type': 'image/jpeg' } }),
+      ) // 0: download
+      .mockResolvedValueOnce(
+        jsonResponse({ media_id_string: 'm1', media_id: 1, size: 8, expires_after_secs: 3600 }),
+      ) // 1: INIT
       .mockResolvedValueOnce(jsonResponse({})) // 2: APPEND segment 0
       .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: 8 })) // 3: FINALIZE
       .mockResolvedValueOnce(jsonResponse({ data: { id: 'tweet-1', text: 'Hello from X' } })); // 4: tweet
@@ -191,7 +202,9 @@ describe('publish', () => {
     const big = 'a'.repeat(5 * 1024 * 1024 + 1); // > 5 MB chunk size
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response(big, { status: 200, headers: { 'Content-Type': 'image/jpeg' } }))
+      .mockResolvedValueOnce(
+        new Response(big, { status: 200, headers: { 'Content-Type': 'image/jpeg' } }),
+      )
       .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: big.length }))
       .mockResolvedValueOnce(jsonResponse({})) // APPEND 0
       .mockResolvedValueOnce(jsonResponse({})) // APPEND 1
@@ -215,11 +228,22 @@ describe('publish', () => {
     try {
       const fetchMock = vi
         .fn()
-        .mockResolvedValueOnce(new Response('videodata', { status: 200, headers: { 'Content-Type': 'video/mp4' } })) // download
+        .mockResolvedValueOnce(
+          new Response('videodata', { status: 200, headers: { 'Content-Type': 'video/mp4' } }),
+        ) // download
         .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: 9 })) // INIT
         .mockResolvedValueOnce(jsonResponse({})) // APPEND
-        .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: 9, processing_state: 'pending' })) // FINALIZE
-        .mockResolvedValueOnce(jsonResponse({ processing_info: { state: 'in_progress', progress_percent: 50 } })) // STATUS 1
+        .mockResolvedValueOnce(
+          jsonResponse({
+            media_id_string: 'm1',
+            media_id: 1,
+            size: 9,
+            processing_state: 'pending',
+          }),
+        ) // FINALIZE
+        .mockResolvedValueOnce(
+          jsonResponse({ processing_info: { state: 'in_progress', progress_percent: 50 } }),
+        ) // STATUS 1
         .mockResolvedValueOnce(jsonResponse({ processing_info: { state: 'succeeded' } })) // STATUS 2
         .mockResolvedValueOnce(jsonResponse({ data: { id: 'tweet-1', text: 'Hello from X' } })); // tweet
       vi.stubGlobal('fetch', fetchMock);
@@ -249,12 +273,26 @@ describe('publish', () => {
     try {
       const fetchMock = vi
         .fn()
-        .mockResolvedValueOnce(new Response('videodata', { status: 200, headers: { 'Content-Type': 'video/mp4' } }))
+        .mockResolvedValueOnce(
+          new Response('videodata', { status: 200, headers: { 'Content-Type': 'video/mp4' } }),
+        )
         .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: 9 }))
         .mockResolvedValueOnce(jsonResponse({}))
-        .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: 9, processing_state: 'pending' }))
         .mockResolvedValueOnce(
-          jsonResponse({ processing_info: { state: 'failed', error: { code: 1, name: 'n', message: 'bad media' } } }),
+          jsonResponse({
+            media_id_string: 'm1',
+            media_id: 1,
+            size: 9,
+            processing_state: 'pending',
+          }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            processing_info: {
+              state: 'failed',
+              error: { code: 1, name: 'n', message: 'bad media' },
+            },
+          }),
         );
       vi.stubGlobal('fetch', fetchMock);
 
@@ -285,7 +323,9 @@ describe('publish', () => {
   it('returns a failed result when the media INIT fails', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response('data', { status: 200, headers: { 'Content-Type': 'image/jpeg' } }))
+      .mockResolvedValueOnce(
+        new Response('data', { status: 200, headers: { 'Content-Type': 'image/jpeg' } }),
+      )
       .mockResolvedValueOnce(jsonResponse({ error: 'no' }, 500));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -299,7 +339,9 @@ describe('publish', () => {
   it('returns a failed result when a media APPEND fails', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response('data', { status: 200, headers: { 'Content-Type': 'image/jpeg' } }))
+      .mockResolvedValueOnce(
+        new Response('data', { status: 200, headers: { 'Content-Type': 'image/jpeg' } }),
+      )
       .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: 4 }))
       .mockResolvedValueOnce(jsonResponse({ error: 'too big' }, 413));
     vi.stubGlobal('fetch', fetchMock);
@@ -314,7 +356,9 @@ describe('publish', () => {
   it('returns a failed result when the media FINALIZE fails', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response('data', { status: 200, headers: { 'Content-Type': 'image/jpeg' } }))
+      .mockResolvedValueOnce(
+        new Response('data', { status: 200, headers: { 'Content-Type': 'image/jpeg' } }),
+      )
       .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: 4 }))
       .mockResolvedValueOnce(jsonResponse({}))
       .mockResolvedValueOnce(jsonResponse({ error: 'nope' }, 500));
@@ -330,7 +374,9 @@ describe('publish', () => {
   it('returns a failed result when the tweet creation fails', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response('data', { status: 200, headers: { 'Content-Type': 'image/jpeg' } }))
+      .mockResolvedValueOnce(
+        new Response('data', { status: 200, headers: { 'Content-Type': 'image/jpeg' } }),
+      )
       .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: 4 }))
       .mockResolvedValueOnce(jsonResponse({}))
       .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: 4 }))
@@ -422,9 +468,13 @@ describe('revoke', () => {
     expect(url).toBe('https://api.twitter.com/2/oauth2/revoke');
     expect(init.method).toBe('POST');
     expect(init.body).toBe('token=x-token-123&token_type_hint=access_token&client_id=x-client-1');
-    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/x-www-form-urlencoded');
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe(
+      'application/x-www-form-urlencoded',
+    );
 
-    expect(c.getLogs().some((l) => l.action === 'revoke' && l.message.includes('token revoked'))).toBe(true);
+    expect(
+      c.getLogs().some((l) => l.action === 'revoke' && l.message.includes('token revoked')),
+    ).toBe(true);
     expect(c.auth.accessToken).toBe('');
     expect(c.auth.refreshToken).toBeUndefined();
     expect(c.auth.expiresAt).toBe(0);
@@ -447,7 +497,9 @@ describe('revoke', () => {
     const c = new XConnector(AUTH);
     await expect(c.revoke()).resolves.toBeUndefined();
 
-    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('warned: 400'))).toBe(true);
+    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('warned: 400'))).toBe(
+      true,
+    );
     expect(c.auth.accessToken).toBe('');
     expect(c.auth.expiresAt).toBe(0);
   });

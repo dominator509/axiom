@@ -36,9 +36,17 @@ afterEach(() => {
 describe('GET /models/:modelId/calendar', () => {
   it('returns scheduled posts for the model in range', async () => {
     mockState.result = [
-      { id: POST_ID, bundleId: BUNDLE_ID, platform: 'instagram', scheduledFor: '2026-08-10T12:00:00Z', state: 'pending' },
+      {
+        id: POST_ID,
+        bundleId: BUNDLE_ID,
+        platform: 'instagram',
+        scheduledFor: '2026-08-10T12:00:00Z',
+        state: 'pending',
+      },
     ];
-    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/calendar?from=2026-08-01T00:00:00Z&to=2026-08-31T00:00:00Z`);
+    const res = await appWithOrg(ORG_ID).request(
+      `/models/${MODEL_ID}/calendar?from=2026-08-01T00:00:00Z&to=2026-08-31T00:00:00Z`,
+    );
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data).toHaveLength(1);
@@ -55,11 +63,24 @@ describe('GET /models/:modelId/calendar', () => {
 
 describe('POST /posts', () => {
   it('schedules a post target (201)', async () => {
-    mockState.result = [{ id: POST_ID, orgId: ORG_ID, bundleId: BUNDLE_ID, platform: 'instagram', scheduledFor: new Date('2026-08-10T12:00:00Z'), state: 'pending' }];
+    mockState.result = [
+      {
+        id: POST_ID,
+        orgId: ORG_ID,
+        bundleId: BUNDLE_ID,
+        platform: 'instagram',
+        scheduledFor: new Date('2026-08-10T12:00:00Z'),
+        state: 'pending',
+      },
+    ];
     const res = await appWithOrg(ORG_ID).request('/posts', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ bundleId: BUNDLE_ID, platform: 'instagram', scheduledFor: '2026-08-10T12:00:00Z' }),
+      body: JSON.stringify({
+        bundleId: BUNDLE_ID,
+        platform: 'instagram',
+        scheduledFor: '2026-08-10T12:00:00Z',
+      }),
     });
     expect(res.status).toBe(201);
     const body = (await res.json()) as any;
@@ -79,7 +100,11 @@ describe('POST /posts', () => {
     const res = await appWithOrg(ORG_ID).request('/posts', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ bundleId: BUNDLE_ID, platform: 'instagram', scheduledFor: 'not-a-date' }),
+      body: JSON.stringify({
+        bundleId: BUNDLE_ID,
+        platform: 'instagram',
+        scheduledFor: 'not-a-date',
+      }),
     });
     expect(res.status).toBe(400);
   });
@@ -87,7 +112,16 @@ describe('POST /posts', () => {
 
 describe('PATCH /posts/:id', () => {
   it('reschedules a post', async () => {
-    mockState.result = [{ id: POST_ID, orgId: ORG_ID, bundleId: BUNDLE_ID, platform: 'instagram', scheduledFor: new Date('2026-08-12T12:00:00Z'), state: 'pending' }];
+    mockState.result = [
+      {
+        id: POST_ID,
+        orgId: ORG_ID,
+        bundleId: BUNDLE_ID,
+        platform: 'instagram',
+        scheduledFor: new Date('2026-08-12T12:00:00Z'),
+        state: 'pending',
+      },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },

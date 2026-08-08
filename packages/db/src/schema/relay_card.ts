@@ -6,7 +6,9 @@ import { relayCommand } from './relay_command.js';
 
 export const relayCard = pgTable('relay_card', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id),
   // L3.1 §5 dispatch-log fields (migration 0005): a relay_card records a card
   // pushed to a channel for a bundle. bundle_id/channel/external_ref/state are
   // the spec shape; the config columns below remain for card templates.

@@ -191,9 +191,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
       const submitData = (await submitResp.json()) as RedditSubmitResponse;
 
       if (submitData.json.errors && submitData.json.errors.length > 0) {
-        const errorMessages = submitData.json.errors
-          .map((e) => e.join(': '))
-          .join('; ');
+        const errorMessages = submitData.json.errors.map((e) => e.join(': ')).join('; ');
         throw new Error(`Reddit submit rejected: ${errorMessages}`);
       }
 
@@ -208,7 +206,9 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
         subreddit,
       });
 
-      const postUrl = submitData.json.data?.url ?? `https://www.reddit.com/r/${subreddit}/comments/${remoteId.replace('t3_', '')}/`;
+      const postUrl =
+        submitData.json.data?.url ??
+        `https://www.reddit.com/r/${subreddit}/comments/${remoteId.replace('t3_', '')}/`;
 
       return {
         remoteId,
@@ -311,10 +311,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
    * Fetch subreddit rules and check for potential violations.
    * Returns an array of rule descriptions that may be violated.
    */
-  private async checkSubredditRules(
-    subreddit: string,
-    content: string,
-  ): Promise<string[]> {
+  private async checkSubredditRules(subreddit: string, content: string): Promise<string[]> {
     const violations: string[] = [];
 
     try {
@@ -328,7 +325,11 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
       });
 
       if (!resp.ok) {
-        this.log('warn', 'checkSubredditRules', `Could not fetch rules for r/${subreddit}: HTTP ${resp.status}`);
+        this.log(
+          'warn',
+          'checkSubredditRules',
+          `Could not fetch rules for r/${subreddit}: HTTP ${resp.status}`,
+        );
         return violations;
       }
 
@@ -344,7 +345,9 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
 
         // Check for content-length rules (e.g., "no low effort" posts with very short content)
         if (
-          (ruleName.includes('effort') || ruleDesc.includes('effort') || ruleName.includes('quality')) &&
+          (ruleName.includes('effort') ||
+            ruleDesc.includes('effort') ||
+            ruleName.includes('quality')) &&
           content.trim().length < 50
         ) {
           violations.push(rule.short_name);
@@ -353,7 +356,9 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
 
         // Check for spam rules if content contains URL-like patterns
         if (
-          (ruleName.includes('spam') || ruleDesc.includes('spam') || ruleName.includes('self-promotion')) &&
+          (ruleName.includes('spam') ||
+            ruleDesc.includes('spam') ||
+            ruleName.includes('self-promotion')) &&
           (content.match(/https?:\/\/[^\s]+/g)?.length ?? 0) > 1
         ) {
           violations.push(rule.short_name);

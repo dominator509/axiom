@@ -5,8 +5,12 @@ import { modelProfile } from './model_profile.js';
 
 export const campaign = pgTable('campaign', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
-  modelId: uuid('model_id').notNull().references(() => modelProfile.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id, { onDelete: 'cascade' }),
+  modelId: uuid('model_id')
+    .notNull()
+    .references(() => modelProfile.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   status: text('status').notNull().default('draft'),
   scheduledAt: timestamp('scheduled_at', { withTimezone: true }),

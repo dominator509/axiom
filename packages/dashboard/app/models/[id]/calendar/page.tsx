@@ -2,11 +2,7 @@ import { api } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 
-export default async function CalendarPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function CalendarPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const now = new Date();
   const from = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
@@ -26,7 +22,11 @@ export default async function CalendarPage({
         <h2>Calendar (F-10)</h2>
         <span style={{ color: 'var(--muted)' }}>{posts.length} scheduled</span>
       </div>
-      {error && <div className="card" style={{ color: 'var(--bad)' }}>{error}</div>}
+      {error && (
+        <div className="card" style={{ color: 'var(--bad)' }}>
+          {error}
+        </div>
+      )}
       {posts.length === 0 && !error && (
         <div className="card">
           <p style={{ color: 'var(--muted)', margin: 0 }}>
@@ -39,14 +39,20 @@ export default async function CalendarPage({
           <div key={p.id} className="card">
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <span className="mono">{p.platform}</span>
-              <span className={`badge ${p.state === 'published' ? 'good' : p.state === 'failed' ? 'bad' : 'mute'}`}>
+              <span
+                className={`badge ${p.state === 'published' ? 'good' : p.state === 'failed' ? 'bad' : 'mute'}`}
+              >
                 {p.state}
               </span>
             </div>
             <div style={{ marginTop: 8 }}>
               {p.scheduledFor ? new Date(p.scheduledFor).toLocaleString() : 'not scheduled'}
             </div>
-            {p.error && <div style={{ color: 'var(--bad)', marginTop: 6 }} className="mono">{p.error}</div>}
+            {p.error && (
+              <div style={{ color: 'var(--bad)', marginTop: 6 }} className="mono">
+                {p.error}
+              </div>
+            )}
           </div>
         ))}
       </div>

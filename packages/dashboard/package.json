@@ -6,11 +6,11 @@
   "scripts": {
     "build": "next build",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/",
+    "lint": "eslint app/ components/ lib/",
     "test": "vitest run --passWithNoTests",
     "dev": "next dev -p 3002",
     "start": "next start -p 3002",
-    "clean": "rm -rf .next"
+    "clean": "node ../../scripts/clean.mjs .next"
   },
   "dependencies": {
     "@axiom/auth": "workspace:*",

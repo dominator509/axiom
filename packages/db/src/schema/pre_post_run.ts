@@ -6,8 +6,12 @@ import { postTarget } from './post_target.js';
 
 export const prePostRun = pgTable('pre_post_run', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
-  modelId: uuid('model_id').notNull().references(() => modelProfile.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id, { onDelete: 'cascade' }),
+  modelId: uuid('model_id')
+    .notNull()
+    .references(() => modelProfile.id, { onDelete: 'cascade' }),
   targetId: uuid('target_id').references(() => postTarget.id, { onDelete: 'set null' }),
   script: text('script').notNull(),
   status: text('status').notNull().default('pending'),

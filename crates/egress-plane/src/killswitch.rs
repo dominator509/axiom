@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tracing::{info, warn, instrument};
+use tracing::{info, instrument, warn};
 
 /// KillSwitch provides a thread-safe atomic flag that controls whether
 /// egress is allowed. When enabled, all egress allow-rules are flushed
@@ -86,7 +86,10 @@ mod tests {
         ks.set_enabled(true);
         assert!(ks.is_enabled(), "Should be enabled after set_enabled(true)");
         ks.set_enabled(false);
-        assert!(!ks.is_enabled(), "Should be disabled after set_enabled(false)");
+        assert!(
+            !ks.is_enabled(),
+            "Should be disabled after set_enabled(false)"
+        );
     }
 
     #[test]
@@ -94,7 +97,10 @@ mod tests {
         let ks = KillSwitch::new(true);
         // drain_all should not panic
         ks.drain_all();
-        assert!(ks.is_enabled(), "drain_all should not change the switch state");
+        assert!(
+            ks.is_enabled(),
+            "drain_all should not change the switch state"
+        );
     }
 
     #[test]

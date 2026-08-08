@@ -35,8 +35,4 @@ export { TokenKillerAssembler, alignBlocks, cacheKey } from './tokenkiller.js';
 export type { TokenKillerSegments, CacheEntry, PrefixVersion } from './tokenkiller.js';
 
 export { VisionEngineClient } from './vision.js';
-export type {
-  TosClassifyResult,
-  NsfwDetectResult,
-  VisionEngineConfig,
-} from './vision.js';
+export type { TosClassifyResult, NsfwDetectResult, VisionEngineConfig } from './vision.js';

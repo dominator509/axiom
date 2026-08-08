@@ -5,9 +5,13 @@ import { modelProfile } from './model_profile.js';
 
 export const agentPermission = pgTable('agent_permission', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id, { onDelete: 'cascade' }),
   agentRef: text('agent_ref').notNull(),
-  modelId: uuid('model_id').notNull().references(() => modelProfile.id, { onDelete: 'cascade' }),
+  modelId: uuid('model_id')
+    .notNull()
+    .references(() => modelProfile.id, { onDelete: 'cascade' }),
   tier: text('tier').notNull().default('read'),
   canPublish: boolean('can_publish').notNull().default(false),
   canEdit: boolean('can_edit').notNull().default(true),

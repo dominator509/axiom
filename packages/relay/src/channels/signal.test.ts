@@ -50,7 +50,8 @@ describe('sendCard', () => {
     expect(cliPath).toBe('/usr/bin/signal-cli');
     expect(args).toEqual([
       'send',
-      '-a', '+15550001111',
+      '-a',
+      '+15550001111',
       '+15559998888',
       expect.stringContaining('📦 Bundle: bundle-1'),
     ]);
@@ -59,7 +60,9 @@ describe('sendCard', () => {
 
   it('propagates CLI failures', async () => {
     mockedExeca.mockRejectedValue(new Error('signal-cli exited with code 1'));
-    await expect(adapter.sendCard('+15559998888', makeCard())).rejects.toThrow('signal-cli exited with code 1');
+    await expect(adapter.sendCard('+15559998888', makeCard())).rejects.toThrow(
+      'signal-cli exited with code 1',
+    );
   });
 });
 
@@ -95,7 +98,9 @@ describe('parseResponse', () => {
   it.each([['10'], ['0'], ['approve_all'], ['change_price'], ['reschedule'], ['banana'], ['']])(
     'returns null for unrecognized text "%s"',
     (text) => {
-      expect(adapter.parseResponse({ text, source: 'x', timestamp: 1 } as SignalMessage)).toBeNull();
+      expect(
+        adapter.parseResponse({ text, source: 'x', timestamp: 1 } as SignalMessage),
+      ).toBeNull();
     },
   );
 });

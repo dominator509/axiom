@@ -45,7 +45,12 @@ export class IncidentManager {
     this.pageHandler = handler;
   }
 
-  reportIncident(severity: Severity, message: string, source: string, meta?: Record<string, unknown>): Incident {
+  reportIncident(
+    severity: Severity,
+    message: string,
+    source: string,
+    meta?: Record<string, unknown>,
+  ): Incident {
     const now = Date.now();
     const crashLoop = this.detectCrashLoop(source, now);
 
@@ -61,12 +66,14 @@ export class IncidentManager {
     };
 
     this.incidents.push(incident);
-    this.logger.error(`Incident reported: [${severity}] ${message}`, undefined, { source, incidentId: incident.id, crashLoop });
+    this.logger.error(`Incident reported: [${severity}] ${message}`, undefined, {
+      source,
+      incidentId: incident.id,
+      crashLoop,
+    });
 
     if (severity === 'sev-1' || crashLoop) {
-      this.autoPage(incident).catch((err) =>
-        this.logger.error('Auto-page failed', err as Error),
-      );
+      this.autoPage(incident).catch((err) => this.logger.error('Auto-page failed', err as Error));
     }
 
     return incident;
@@ -117,7 +124,10 @@ export class IncidentManager {
     }
 
     if (entry.retryCount >= entry.maxRetries) {
-      this.logger.error('DLQ entry max retries exceeded', undefined, { dlqId, retryCount: entry.retryCount });
+      this.logger.error('DLQ entry max retries exceeded', undefined, {
+        dlqId,
+        retryCount: entry.retryCount,
+      });
       return false;
     }
 

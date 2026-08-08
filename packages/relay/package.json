@@ -14,7 +14,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "dev": "tsx watch",
-    "clean": "rm -rf dist"
+    "clean": "node ../../scripts/clean.mjs dist"
   },
   "dependencies": {
     "@axiom/core": "workspace:*",

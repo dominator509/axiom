@@ -35,7 +35,8 @@ export type PublishingInput = z.infer<typeof PublishingInputSchema>;
  */
 export class PublishingTool {
   name = 'publishing_post';
-  description = 'Schedule or publish content posts to social platforms (Fanvue, OnlyFans, X, Instagram, Telegram, Discord).';
+  description =
+    'Schedule or publish content posts to social platforms (Fanvue, OnlyFans, X, Instagram, Telegram, Discord).';
   inputSchema = PublishingInputSchema;
   tier: Tier = Tier.Manager;
 
@@ -51,7 +52,9 @@ export class PublishingTool {
       throw new Error(`Insufficient permissions: requires ${this.tier}, got ${permission.tier}`);
     }
     if (args.modelId !== permission.modelId) {
-      throw new Error(`Model mismatch: token scoped to ${permission.modelId}, requested ${args.modelId}`);
+      throw new Error(
+        `Model mismatch: token scoped to ${permission.modelId}, requested ${args.modelId}`,
+      );
     }
 
     const isAutonomous = permission.tier === Tier.Autonomous;

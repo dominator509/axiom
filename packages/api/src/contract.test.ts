@@ -79,7 +79,9 @@ describe('encodeCursor / decodeCursor', () => {
     // The boundary row must NOT satisfy the ASC "after" predicate on itself.
     const gt = cursorGt(sql`created_at`, sql`id`, decoded);
     const text = renderSQL(gt[0]);
-    expect(text).toContain(`created_at > 2026-08-06T22:21:37.357Z OR (created_at = 2026-08-06T22:21:37.357Z AND id > ${id})`);
+    expect(text).toContain(
+      `created_at > 2026-08-06T22:21:37.357Z OR (created_at = 2026-08-06T22:21:37.357Z AND id > ${id})`,
+    );
   });
 
   it('returns null for garbage cursors (never throws)', () => {
@@ -223,7 +225,10 @@ describe('RFC-7807 problem envelope (M-1)', () => {
     const app = new Hono();
     app.get('/legacy', (c) => {
       // Simulate what apiError produces: no `error` key at the top level.
-      return c.json({ type: 'about:blank', title: 'Conflict', status: 409, detail: 'x', correlation_id: 'c' }, 409);
+      return c.json(
+        { type: 'about:blank', title: 'Conflict', status: 409, detail: 'x', correlation_id: 'c' },
+        409,
+      );
     });
     const res = await app.request('/legacy');
     const body = (await res.json()) as any;

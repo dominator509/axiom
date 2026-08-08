@@ -5,14 +5,15 @@
 
 import { vi } from 'vitest';
 
-export const mockState: { result: unknown } = { result: [] };
+export const mockState: { result: unknown; results: unknown[] } = { result: [], results: [] };
 
 export function makeChain(): any {
   const handler = {
     get(_t: unknown, prop: string | symbol) {
       if (prop === 'then') {
         return (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => {
-          Promise.resolve(mockState.result).then(resolve, reject);
+          const value = mockState.results.length > 0 ? mockState.results.shift() : mockState.result;
+          Promise.resolve(value).then(resolve, reject);
         };
       }
       return () => makeChain();

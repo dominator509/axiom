@@ -6,11 +6,11 @@
 //
 // Wire order in index.ts: correlation → rate limit → idempotency → routes.
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Context, Next } from 'hono';
-import { sql, eq, and, gt, type SQL } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import { db, schema } from '@axiom/db';
+import { db } from '@axiom/db';
 
 export interface ProblemDetails {
   type: string;
@@ -59,7 +59,10 @@ export async function correlationId(c: Context, next: Next): Promise<Response | 
 export function onError(err: Error, c: Context): Response {
   const correlationId = (c.get('correlationId') as string) ?? randomUUID();
   const status = 500;
-  const body = problem(status, 'Internal Server Error', err.message, correlationId);
+  // Keep implementation details in server logs; public 5xx responses expose
+  // only a stable message plus the correlation ID used to find that log.
+  console.error('Unhandled API error', { correlationId, error: err });
+  const body = problem(status, 'Internal Server Error', 'An internal error occurred', correlationId);
   return c.json(body, status);
 }
 
@@ -84,7 +87,10 @@ export function handleProblem(fn: (c: Context) => Promise<Response> | Response) 
     } catch (err) {
       const correlationId = (c.get('correlationId') as string) ?? randomUUID();
       if (err instanceof ProblemError) {
-        return c.json(problem(err.status, err.title, err.message, correlationId, err.extra), err.status as 400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504);
+        return c.json(
+          problem(err.status, err.title, err.message, correlationId, err.extra),
+          err.status as 400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
+        );
       }
       return onError(err as Error, c);
     }
@@ -97,21 +103,48 @@ export function handleProblem(fn: (c: Context) => Promise<Response> | Response) 
 
 const IDEM_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
+interface IdempotencyRow {
+  id: string;
+  state: 'pending' | 'completed';
+  request_hash: string;
+  owner_token: string | null;
+  status: number | null;
+  response_body: unknown;
+  expires_at: Date;
+}
+
+function queryRows<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  return ((result as { rows?: T[] } | null)?.rows ?? []) as T[];
+}
+
+function idempotencyResponse(
+  c: Context,
+  status: number,
+  title: string,
+  detail: string,
+  extra?: Record<string, unknown>,
+): Response {
+  const correlationId = (c.get('correlationId') as string) ?? randomUUID();
+  return c.json(problem(status, title, detail, correlationId, extra) as object, status as 409 | 503);
+}
+
 /**
  * Enforce the Idempotency-Key header on mutating requests. When present and
  * previously seen (same org + method + route + key), returns the stored
  * response without re-executing the handler — the outside-world-safe behavior
  * L3.0 requires for mutations that touch platforms/queues.
  *
- * Durable: responses are persisted to `api_idempotency` (RLS-scoped to the
- * session org) so the replay guarantee survives process restarts (M-2). A
- * missing/down DB degrades to execute-once (no replay), never double-executes
- * on the happy path.
+ * Durable: a pending reservation is committed before the handler executes,
+ * then promoted to completed with the response. Concurrent duplicates cannot
+ * execute the handler, and DB failures fail closed rather than risking a
+ * repeated outside-world side effect.
  */
 export function idempotency(required = true) {
   return async (c: Context, next: Next): Promise<Response | void> => {
     const method = c.req.method;
-    const mutating = method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE';
+    const mutating =
+      method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE';
     if (!mutating) {
       return await next();
     }
@@ -122,7 +155,12 @@ export function idempotency(required = true) {
         const correlationId = (c.get('correlationId') as string) ?? randomUUID();
         c.status(400);
         return c.json(
-          problem(400, 'Bad Request', 'Idempotency-Key header required for this mutation', correlationId) as unknown as object,
+          problem(
+            400,
+            'Bad Request',
+            'Idempotency-Key header required for this mutation',
+            correlationId,
+          ) as unknown as object,
         );
       }
       return await next();
@@ -130,63 +168,130 @@ export function idempotency(required = true) {
 
     const route = c.req.path;
     const orgId = c.get('orgId') as string | undefined;
-
-    // Replay a prior response from the durable store (only when authenticated,
-    // so RLS scoping has an org context to apply).
-    if (orgId) {
-      try {
-        const prior = await db.transaction(async (tx) => {
-          await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
-          return tx
-            .select()
-            .from(schema.apiIdempotency)
-            .where(
-              and(
-                eq(schema.apiIdempotency.orgId, orgId),
-                eq(schema.apiIdempotency.method, method),
-                eq(schema.apiIdempotency.route, route),
-                eq(schema.apiIdempotency.idemKey, key),
-                gt(schema.apiIdempotency.expiresAt, new Date()),
-              ),
-            )
-            .limit(1);
-        });
-        if (prior.length > 0) {
-          const status = (prior[0].status >= 200 && prior[0].status < 300 ? prior[0].status : 200) as 200 | 201 | 202;
-          return c.json(prior[0].responseBody as object, status);
-        }
-      } catch {
-        // DB unavailable — fall through and execute once (never replay).
-      }
+    if (!orgId) {
+      return idempotencyResponse(c, 503, 'Service Unavailable', 'Idempotency store unavailable');
     }
 
-    // Capture the response via c.res after next() (Hono stores the final
-    // Response there), then persist it keyed by idempotency key.
+    const requestBytes = Buffer.from(await c.req.raw.clone().arrayBuffer());
+    const requestHash = createHash('sha256')
+      .update(method)
+      .update('\n')
+      .update(route)
+      .update('\n')
+      .update(c.req.header('content-type') ?? '')
+      .update('\n')
+      .update(requestBytes)
+      .digest('hex');
+    const ownerToken = randomUUID();
+    const expiresAt = new Date(Date.now() + IDEM_TTL_MS);
+
+    let reservation: { owner: boolean; row: IdempotencyRow };
+    try {
+      reservation = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
+        const claimed = queryRows<IdempotencyRow>(
+          await tx.execute(sql`
+            INSERT INTO api_idempotency
+              (org_id, method, route, idem_key, state, request_hash, owner_token, expires_at)
+            VALUES
+              (${orgId}, ${method}, ${route}, ${key}, 'pending', ${requestHash}, ${ownerToken}, ${expiresAt})
+            ON CONFLICT (org_id, method, route, idem_key) DO UPDATE SET
+              state = 'pending',
+              request_hash = EXCLUDED.request_hash,
+              owner_token = EXCLUDED.owner_token,
+              status = NULL,
+              response_body = NULL,
+              created_at = now(),
+              expires_at = EXCLUDED.expires_at
+            WHERE api_idempotency.state = 'completed'
+              AND api_idempotency.expires_at <= now()
+            RETURNING id, state, request_hash, owner_token, status, response_body, expires_at
+          `),
+        );
+        if (claimed[0]) return { owner: true, row: claimed[0] };
+        const existing = queryRows<IdempotencyRow>(
+          await tx.execute(sql`
+            SELECT id, state, request_hash, owner_token, status, response_body, expires_at
+              FROM api_idempotency
+             WHERE org_id = ${orgId}
+               AND method = ${method}
+               AND route = ${route}
+               AND idem_key = ${key}
+             LIMIT 1
+          `),
+        )[0];
+        if (!existing) throw new Error('idempotency reservation disappeared');
+        return { owner: false, row: existing };
+      });
+    } catch {
+      return idempotencyResponse(c, 503, 'Service Unavailable', 'Idempotency store unavailable');
+    }
+
+    if (!reservation.owner) {
+      if (reservation.row.request_hash !== requestHash) {
+        return idempotencyResponse(
+          c,
+          409,
+          'Conflict',
+          'Idempotency-Key was already used with a different request',
+        );
+      }
+      if (reservation.row.state === 'pending') {
+        c.header('Retry-After', '2');
+        return idempotencyResponse(c, 409, 'Conflict', 'A request with this key is still in progress', {
+          retry_after_seconds: 2,
+        });
+      }
+      if (reservation.row.status === null || reservation.row.response_body === null) {
+        return idempotencyResponse(c, 503, 'Service Unavailable', 'Stored idempotency response is invalid');
+      }
+      return new Response(JSON.stringify(reservation.row.response_body), {
+        status: reservation.row.status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Execute only after durable ownership is established.
     await next();
 
     const res = c.res;
-    if (res && res.status >= 200 && res.status < 300 && orgId) {
-      try {
-        const cloned = res.clone();
-        const body: unknown = await cloned.json();
-        await db.transaction(async (tx) => {
-          await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
-          await tx
-            .insert(schema.apiIdempotency)
-            .values({
-              orgId,
-              method,
-              route,
-              idemKey: key,
-              status: res.status,
-              responseBody: body,
-              expiresAt: new Date(Date.now() + IDEM_TTL_MS),
-            })
-            .onConflictDoNothing(); // a concurrent duplicate already stored it
-        });
-      } catch {
-        // Non-JSON response or DB error — skip caching (still executed once).
-      }
+    if (!res) {
+      return idempotencyResponse(c, 503, 'Service Unavailable', 'Mutation response unavailable');
+    }
+    let body: unknown;
+    try {
+      body = await res.clone().json();
+    } catch {
+      return idempotencyResponse(c, 503, 'Service Unavailable', 'Mutation response was not JSON');
+    }
+    try {
+      const completed = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
+        return queryRows<{ id: string }>(
+          await tx.execute(sql`
+            UPDATE api_idempotency
+               SET state = 'completed',
+                   status = ${res.status},
+                   response_body = ${JSON.stringify(body)}::jsonb,
+                   owner_token = NULL
+             WHERE org_id = ${orgId}
+               AND method = ${method}
+               AND route = ${route}
+               AND idem_key = ${key}
+               AND state = 'pending'
+               AND owner_token = ${ownerToken}
+            RETURNING id
+          `),
+        );
+      });
+      if (completed.length !== 1) throw new Error('idempotency ownership lost');
+    } catch {
+      return idempotencyResponse(
+        c,
+        503,
+        'Service Unavailable',
+        'Mutation completed but its idempotency response could not be stored',
+      );
     }
   };
 }
@@ -206,10 +311,19 @@ const RATE_BUCKETS = new Map<string, Bucket>();
 const DEFAULT_CAPACITY = 60; // 60 requests
 const DEFAULT_REFILL = 10; // 10 req/sec sustained
 
-function getBucket(key: string, capacity: number, refillPerSec: number): Bucket {
+function getBucket(
+  key: string,
+  capacity: number,
+  refillPerSec: number,
+  maxBuckets: number,
+): Bucket {
   let bucket = RATE_BUCKETS.get(key);
   const now = Date.now() / 1000;
   if (!bucket) {
+    if (RATE_BUCKETS.size >= maxBuckets) {
+      const oldest = RATE_BUCKETS.keys().next().value as string | undefined;
+      if (oldest) RATE_BUCKETS.delete(oldest);
+    }
     bucket = { tokens: capacity, capacity, refillPerSec, updatedAt: now };
     RATE_BUCKETS.set(key, bucket);
     return bucket;
@@ -218,6 +332,9 @@ function getBucket(key: string, capacity: number, refillPerSec: number): Bucket 
   const elapsed = now - bucket.updatedAt;
   bucket.tokens = Math.min(bucket.capacity, bucket.tokens + elapsed * bucket.refillPerSec);
   bucket.updatedAt = now;
+  // Refresh insertion order so the size bound below behaves as an LRU cache.
+  RATE_BUCKETS.delete(key);
+  RATE_BUCKETS.set(key, bucket);
   return bucket;
 }
 
@@ -225,19 +342,27 @@ function getBucket(key: string, capacity: number, refillPerSec: number): Bucket 
  * Per-token rate limiter: keyed by the caller's API token (or client IP when
  * no token). Returns 429 with Retry-After per L3.0.
  */
-export function rateLimit(opts: { capacity?: number; refillPerSec?: number } = {}) {
+export function rateLimit(
+  opts: { capacity?: number; refillPerSec?: number; maxBuckets?: number } = {},
+) {
   const capacity = opts.capacity ?? DEFAULT_CAPACITY;
   const refillPerSec = opts.refillPerSec ?? DEFAULT_REFILL;
+  const maxBuckets = Math.max(1, opts.maxBuckets ?? 10_000);
   return async (c: Context, next: Next): Promise<Response | void> => {
-    const token =
-      c.req.header('Authorization')?.replace(/^Bearer\s+/i, '') ||
-      c.req.header('X-API-Key') ||
-      c.req.header('x-forwarded-for') ||
-      'anonymous';
-    const bucket = getBucket(token, capacity, refillPerSec);
+    const credential = c.req.header('Authorization')?.replace(/^Bearer\s+/i, '');
+    const apiKey = c.req.header('X-API-Key');
+    const forwardedFor = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+    const source = credential
+      ? `bearer:${credential}`
+      : apiKey
+        ? `api-key:${apiKey}`
+        : `ip:${forwardedFor || 'anonymous'}`;
+    // Retain only an irreversible fingerprint, never a live credential.
+    const bucketKey = createHash('sha256').update(source).digest('base64url');
+    const bucket = getBucket(bucketKey, capacity, refillPerSec, maxBuckets);
 
     if (bucket.tokens < 1) {
-      const retryAfter = Math.max(1, Math.ceil(1 / bucket.refillPerSec));
+      const retryAfter = bucket.refillPerSec > 0 ? Math.max(1, Math.ceil(1 / bucket.refillPerSec)) : 60;
       const correlationId = (c.get('correlationId') as string) ?? randomUUID();
       c.header('Retry-After', String(retryAfter));
       c.status(429);
@@ -280,10 +405,15 @@ export function encodeCursor(sortValue: string | number | Date, id: string): str
  * Decode a keyset cursor. Returns null for missing/garbage cursors — callers
  * treat null as "start from the beginning" (never an error).
  */
-export function decodeCursor(cursor: string | undefined | null): { value: string; id: string } | null {
+export function decodeCursor(
+  cursor: string | undefined | null,
+): { value: string; id: string } | null {
   if (!cursor) return null;
   try {
-    const [value, id] = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as [unknown, unknown];
+    const [value, id] = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as [
+      unknown,
+      unknown,
+    ];
     if (typeof value !== 'string' || typeof id !== 'string') return null;
     return { value, id };
   } catch {
@@ -293,7 +423,10 @@ export function decodeCursor(cursor: string | undefined | null): { value: string
 
 /** Parse cursor/limit query params per L3.0 conventions. */
 export function parseCursor(c: Context, defaultLimit = 50, maxLimit = 200) {
-  const limit = Math.min(Math.max(parseInt(c.req.query('limit') ?? String(defaultLimit), 10) || defaultLimit, 1), maxLimit);
+  const limit = Math.min(
+    Math.max(parseInt(c.req.query('limit') ?? String(defaultLimit), 10) || defaultLimit, 1),
+    maxLimit,
+  );
   const cursor = c.req.query('cursor');
   return { limit, cursor: decodeCursor(cursor) };
 }
@@ -306,7 +439,11 @@ export type CursorColumn = AnyPgColumn | SQL;
  * Returns an array of SQL conditions to AND into the query:
  *   (sort > value) OR (sort = value AND id > id)
  */
-export function cursorGt(sortCol: CursorColumn, idCol: CursorColumn, cursor: { value: string; id: string } | null) {
+export function cursorGt(
+  sortCol: CursorColumn,
+  idCol: CursorColumn,
+  cursor: { value: string; id: string } | null,
+) {
   if (!cursor) return [];
   return [
     sql`(${sortCol} > ${cursor.value} OR (${sortCol} = ${cursor.value} AND ${idCol} > ${cursor.id}))`,
@@ -316,7 +453,11 @@ export function cursorGt(sortCol: CursorColumn, idCol: CursorColumn, cursor: { v
 /**
  * Keyset predicate for a DESC-ordered list keyed on (sortColumn, id).
  */
-export function cursorLt(sortCol: CursorColumn, idCol: CursorColumn, cursor: { value: string; id: string } | null) {
+export function cursorLt(
+  sortCol: CursorColumn,
+  idCol: CursorColumn,
+  cursor: { value: string; id: string } | null,
+) {
   if (!cursor) return [];
   return [
     sql`(${sortCol} < ${cursor.value} OR (${sortCol} = ${cursor.value} AND ${idCol} < ${cursor.id}))`,
@@ -327,7 +468,19 @@ export function cursorLt(sortCol: CursorColumn, idCol: CursorColumn, cursor: { v
  * Build the next_cursor from the last row of a page. Pass the sort value and
  * id of the last element; returns null when the page is short (no more data).
  */
-export function nextCursor(lastSort: string | number | Date | null | undefined, lastId: string | null | undefined, limit: number, count: number): string | null {
-  if (count < limit || lastSort === null || lastSort === undefined || lastId === null || lastId === undefined) return null;
+export function nextCursor(
+  lastSort: string | number | Date | null | undefined,
+  lastId: string | null | undefined,
+  limit: number,
+  count: number,
+): string | null {
+  if (
+    count < limit ||
+    lastSort === null ||
+    lastSort === undefined ||
+    lastId === null ||
+    lastId === undefined
+  )
+    return null;
   return encodeCursor(lastSort, lastId);
 }

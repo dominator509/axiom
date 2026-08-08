@@ -26,7 +26,11 @@ describe('McpServer construction', () => {
   });
 
   it('listTools returns the manifest for the bound tier', () => {
-    expect(makeServer(Tier.Viewer).listTools().map(t => t.name)).toEqual(['analytics_query']);
+    expect(
+      makeServer(Tier.Viewer)
+        .listTools()
+        .map((t) => t.name),
+    ).toEqual(['analytics_query']);
     expect(makeServer(Tier.Autonomous).listTools()).toHaveLength(5);
   });
 });
@@ -34,7 +38,9 @@ describe('McpServer construction', () => {
 describe('McpServer.handleRequest — protocol surface', () => {
   it('responds to ping with pong', async () => {
     const res = await makeServer(Tier.Viewer).handleRequest({
-      jsonrpc: '2.0', method: 'ping', id: 1,
+      jsonrpc: '2.0',
+      method: 'ping',
+      id: 1,
     });
     expect(res).toEqual({ jsonrpc: '2.0', result: { status: 'pong' }, id: 1 });
   });
@@ -51,7 +57,9 @@ describe('McpServer.handleRequest — protocol surface', () => {
 
   it('returns -32601 for unknown methods', async () => {
     const res = await makeServer(Tier.Viewer).handleRequest({
-      jsonrpc: '2.0', method: 'flyToMoon', id: 9,
+      jsonrpc: '2.0',
+      method: 'flyToMoon',
+      id: 9,
     });
     expect(res).toMatchObject({
       jsonrpc: '2.0',
@@ -62,7 +70,10 @@ describe('McpServer.handleRequest — protocol surface', () => {
 
   it('returns -32602 when callTool lacks a name', async () => {
     const res = await makeServer(Tier.Viewer).handleRequest({
-      jsonrpc: '2.0', method: 'callTool', params: { arguments: {} }, id: 3,
+      jsonrpc: '2.0',
+      method: 'callTool',
+      params: { arguments: {} },
+      id: 3,
     });
     expect(res).toMatchObject({
       error: { code: -32602, message: 'Invalid params: tool name required' },
@@ -72,11 +83,14 @@ describe('McpServer.handleRequest — protocol surface', () => {
 
   it('wraps unexpected errors as -32603 internal errors', async () => {
     const res = await makeServer(Tier.Viewer).handleRequest({
-      jsonrpc: '2.0', method: 'callTool', params: { name: 'nope' }, id: 4,
+      jsonrpc: '2.0',
+      method: 'callTool',
+      params: { name: 'nope' },
+      id: 4,
     });
     expect(res).toMatchObject({
       jsonrpc: '2.0',
-      error: { code: -32603, message: 'Internal error: Unknown tool: nope' },
+      error: { code: -32603, message: 'Internal error' },
       id: 4,
     });
   });
@@ -220,9 +234,9 @@ describe('McpServer.callTool — permission and validation failures', () => {
 
   it('checks tier before schema validation', async () => {
     const server = makeServer(Tier.Viewer);
-    await expect(
-      server.callTool('generation_photoshoot', { prompt: 12345 }),
-    ).rejects.toThrow('requires tier "operator"');
+    await expect(server.callTool('generation_photoshoot', { prompt: 12345 })).rejects.toThrow(
+      'requires tier "operator"',
+    );
   });
 });
 
@@ -250,7 +264,10 @@ describe('McpServer.handleRequest — callTool end to end', () => {
       id: 5,
     })) as McpResponse;
     expect(res).toMatchObject({
-      error: { code: -32603, message: expect.stringContaining('Invalid arguments for "analytics_query"') },
+      error: {
+        code: -32603,
+        message: 'Internal error',
+      },
       id: 5,
     });
   });
@@ -283,10 +300,9 @@ describe('createMcpServer', () => {
     expect(server.getPermission().agentId).toBe('agent-zz');
   });
 
-  it('authenticates via params.token', () => {
+  it('rejects capability tokens supplied in JSON-RPC params', () => {
     const token = createCapabilityToken(MODEL, Tier.Manager, 'agent-param');
-    const server = createMcpServer({ params: { token } });
-    expect(server.getTier()).toBe(Tier.Manager);
+    expect(() => createMcpServer({ params: { token } })).toThrow('Authentication required');
   });
 
   it('throws when authentication fails', () => {

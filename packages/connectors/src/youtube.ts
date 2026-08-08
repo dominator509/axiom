@@ -81,7 +81,7 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
       const isShort = durationSec > 0 && durationSec <= 60 && aspectRatio === '9:16';
 
       // Build snippet and status metadata
-      const title = input.options?.title as string ?? 'Untitled';
+      const title = (input.options?.title as string) ?? 'Untitled';
       const description = input.caption || '';
       const privacyStatus = (input.options?.privacyStatus as string) ?? 'private';
 

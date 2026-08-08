@@ -47,22 +47,23 @@ export function groupRoutes(routes: RouteEntry[]): Record<string, Record<string,
         '401': { description: 'Unauthorized' },
         '500': { description: 'Internal error' },
       },
-      parameters: method === 'get'
-        ? [
-            {
-              name: 'limit',
-              in: 'query',
-              schema: { type: 'integer', minimum: 1, maximum: 100 },
-              description: 'Page size (keyset pagination)',
-            },
-            {
-              name: 'cursor',
-              in: 'query',
-              schema: { type: 'string' },
-              description: 'Opaque keyset cursor',
-            },
-          ]
-        : [],
+      parameters:
+        method === 'get'
+          ? [
+              {
+                name: 'limit',
+                in: 'query',
+                schema: { type: 'integer', minimum: 1, maximum: 100 },
+                description: 'Page size (keyset pagination)',
+              },
+              {
+                name: 'cursor',
+                in: 'query',
+                schema: { type: 'string' },
+                description: 'Opaque keyset cursor',
+              },
+            ]
+          : [],
     };
   }
   return paths;
@@ -85,8 +86,7 @@ export function buildOpenApi(routes: RouteEntry[]): Record<string, unknown> {
 
 // ── Main (build-time): only runs when executed directly, not when imported ──
 const isMain =
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMain) {
   // Import the built app — module init mounts all routers.
@@ -106,5 +106,7 @@ if (isMain) {
     {},
   );
   console.log(`openapi: wrote ${outPath}`);
-  console.log(`openapi: ${Object.keys(doc.paths as Record<string, unknown>).length} paths, ${JSON.stringify(counts)}`);
+  console.log(
+    `openapi: ${Object.keys(doc.paths as Record<string, unknown>).length} paths, ${JSON.stringify(counts)}`,
+  );
 }

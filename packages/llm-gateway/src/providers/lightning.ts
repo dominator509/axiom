@@ -28,10 +28,7 @@ export class LightningProvider implements BaseProvider {
     readonly model: string = 'claude-opus-4-7',
   ) {}
 
-  async chat(
-    messages: ProviderMessage[],
-    options?: ProviderOptions,
-  ): Promise<ProviderChatResult> {
+  async chat(messages: ProviderMessage[], options?: ProviderOptions): Promise<ProviderChatResult> {
     const res = await callLightning(this.apiKey, {
       model: this.model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),

@@ -6,13 +6,19 @@
 
 import { Hono } from 'hono';
 import { randomBytes, createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import type { AppBindings } from '../index.js';
+import { persistEnvValues } from '../credentials.js';
 import { apiError, statusTitle } from './helpers.js';
 
 const FANVUE_CLIENT_ID = process.env.FANVUE_CLIENT_ID || '';
 const FANVUE_CLIENT_SECRET = process.env.FANVUE_CLIENT_SECRET || '';
-const FANVUE_REDIRECT_URI = process.env.FANVUE_REDIRECT_URI || 'https://66.94.123.250/api/v1/connectors/fanvue/callback';
+const FANVUE_REDIRECT_URI =
+  process.env.FANVUE_REDIRECT_URI ||
+  new URL(
+    '/api/v1/connectors/fanvue/callback',
+    process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
+  ).toString();
 const AXIOM_ENV_FILE = process.env.AXIOM_ENV_FILE || '/root/axiom/.env';
 
 const FANVUE_AUTH_URL = 'https://auth.fanvue.com/oauth2/auth';
@@ -54,32 +60,11 @@ function generateCodeChallenge(verifier: string): string {
 
 function persistEnvToken(accessToken: string, refreshToken: string, expiresIn: number): void {
   const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
-  let env = '';
-  try {
-    env = readFileSync(AXIOM_ENV_FILE, 'utf8');
-  } catch {
-    env = '';
-  }
-
-  const lines = env.split('\n');
-  const upsert = (key: string, value: string) => {
-    const idx = lines.findIndex((l) => l.startsWith(`${key}=`));
-    const line = `${key}=${value}`;
-    if (idx >= 0) lines[idx] = line;
-    else lines.push(line);
-  };
-
-  upsert('FANVUE_ACCESS_TOKEN', accessToken);
-  upsert('FANVUE_REFRESH_TOKEN', refreshToken);
-  upsert('FANVUE_TOKEN_EXPIRES_AT', expiresAt);
-
-  try {
-    writeFileSync(AXIOM_ENV_FILE, lines.join('\n'), { mode: 0o600 });
-    chmodSync(AXIOM_ENV_FILE, 0o600);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('Fanvue: failed to persist tokens to .env:', msg);
-  }
+  persistEnvValues(AXIOM_ENV_FILE, {
+    FANVUE_ACCESS_TOKEN: accessToken,
+    FANVUE_REFRESH_TOKEN: refreshToken,
+    FANVUE_TOKEN_EXPIRES_AT: expiresAt,
+  });
 }
 
 /**
@@ -145,7 +130,7 @@ router.get('/callback', async (c) => {
     const resp = await fetch(FANVUE_TOKEN_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Basic ${basicAuth}`,
+        Authorization: `Basic ${basicAuth}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
@@ -156,23 +141,23 @@ router.get('/callback', async (c) => {
       }),
     });
 
-    const tokens: Record<string, unknown> = await resp.json() as Record<string, unknown>;
+    const tokens: Record<string, unknown> = (await resp.json()) as Record<string, unknown>;
 
     if (!resp.ok) {
-      console.error('Fanvue token exchange failed:', tokens);
-      return apiError(c, 400, statusTitle(400), 'Token exchange failed', { token_response: tokens });
+      console.error('Fanvue token exchange failed', { status: resp.status });
+      return apiError(c, 400, statusTitle(400), 'Token exchange failed');
     }
 
     const accessToken = typeof tokens['access_token'] === 'string' ? tokens['access_token'] : '';
     const refreshToken = typeof tokens['refresh_token'] === 'string' ? tokens['refresh_token'] : '';
     const expiresIn = typeof tokens['expires_in'] === 'number' ? tokens['expires_in'] : 3600;
 
-    if (accessToken) {
-      persistEnvToken(accessToken, refreshToken, expiresIn);
-      console.log('Fanvue tokens acquired and persisted to .env');
-    } else {
-      console.error('Fanvue token exchange succeeded but no access_token in response:', tokens);
+    if (!accessToken) {
+      console.error('Fanvue token exchange succeeded without an access token');
+      return apiError(c, 502, statusTitle(502), 'Token exchange returned no access token');
     }
+    persistEnvToken(accessToken, refreshToken, expiresIn);
+    console.log('Fanvue tokens acquired and persisted to .env');
 
     return c.json({
       success: true,
@@ -180,12 +165,10 @@ router.get('/callback', async (c) => {
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,
       expiresIn,
-      tokenPreview: accessToken ? `${accessToken.slice(0, 12)}...` : null,
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('Fanvue token exchange error:', msg);
-    return apiError(c, 500, statusTitle(500), 'Token exchange error', { cause: msg });
+    console.error('Fanvue token exchange or persistence failed');
+    return apiError(c, 500, statusTitle(500), 'Token exchange or persistence failed');
   }
 });
 
@@ -224,7 +207,7 @@ router.post('/refresh', async (c) => {
     const resp = await fetch(FANVUE_TOKEN_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Basic ${basicAuth}`,
+        Authorization: `Basic ${basicAuth}`,
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       // NOTE: scope intentionally omitted — requesting scopes beyond the
@@ -235,19 +218,20 @@ router.post('/refresh', async (c) => {
       }),
     });
 
-    const tokens: Record<string, unknown> = await resp.json() as Record<string, unknown>;
+    const tokens: Record<string, unknown> = (await resp.json()) as Record<string, unknown>;
 
     if (!resp.ok) {
-      console.error('Fanvue token refresh failed:', tokens);
-      return apiError(c, 400, statusTitle(400), 'Token refresh failed', { token_response: tokens });
+      console.error('Fanvue token refresh failed', { status: resp.status });
+      return apiError(c, 400, statusTitle(400), 'Token refresh failed');
     }
 
     const accessToken = typeof tokens['access_token'] === 'string' ? tokens['access_token'] : '';
-    const newRefreshToken = typeof tokens['refresh_token'] === 'string' ? tokens['refresh_token'] : refreshToken;
+    const newRefreshToken =
+      typeof tokens['refresh_token'] === 'string' ? tokens['refresh_token'] : refreshToken;
     const expiresIn = typeof tokens['expires_in'] === 'number' ? tokens['expires_in'] : 3600;
 
     if (!accessToken) {
-      console.error('Fanvue token refresh succeeded but no access_token in response:', tokens);
+      console.error('Fanvue token refresh succeeded without an access token');
       return apiError(c, 502, statusTitle(502), 'Refresh succeeded but no access_token returned');
     }
 
@@ -258,12 +242,10 @@ router.post('/refresh', async (c) => {
       success: true,
       message: 'Fanvue tokens refreshed.',
       expiresIn,
-      tokenPreview: `${accessToken.slice(0, 12)}...`,
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('Fanvue token refresh error:', msg);
-    return apiError(c, 500, statusTitle(500), 'Token refresh error', { cause: msg });
+  } catch {
+    console.error('Fanvue token refresh or persistence failed');
+    return apiError(c, 500, statusTitle(500), 'Token refresh or persistence failed');
   }
 });
 

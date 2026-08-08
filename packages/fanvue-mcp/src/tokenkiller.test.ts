@@ -1,6 +1,11 @@
 // ─── TOKENKILLER — Vitest Suite ───
 import { describe, it, expect } from 'vitest';
-import { alignBlocks, cacheKey, TokenKillerAssembler, type TokenKillerSegments } from './tokenkiller.js';
+import {
+  alignBlocks,
+  cacheKey,
+  TokenKillerAssembler,
+  type TokenKillerSegments,
+} from './tokenkiller.js';
 
 describe('alignBlocks', () => {
   it('returns text unchanged when already aligned to 64 tokens', () => {
@@ -66,7 +71,12 @@ describe('TokenKillerAssembler', () => {
   });
 
   it('skips empty segments', () => {
-    const out = new TokenKillerAssembler().segmentPrompt({ S0: '', S1: '', S2: '', S3: 'only task' });
+    const out = new TokenKillerAssembler().segmentPrompt({
+      S0: '',
+      S1: '',
+      S2: '',
+      S3: 'only task',
+    });
     expect(out).not.toContain('[SYSTEM]');
     expect(out).not.toContain('[PLAYBOOK]');
     expect(out).not.toContain('[EXEMPLARS]');

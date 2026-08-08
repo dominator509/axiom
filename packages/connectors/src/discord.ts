@@ -147,7 +147,11 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
   async fetchMetrics(_remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
     // Discord webhooks do not expose post-level metrics (views, likes, comments, shares).
     // This connector uses link_share mode where analytics are handled externally.
-    this.log('info', 'fetchMetrics', 'Discord does not expose post metrics via webhooks; returning empty');
+    this.log(
+      'info',
+      'fetchMetrics',
+      'Discord does not expose post metrics via webhooks; returning empty',
+    );
 
     return {
       postId: _remoteId,
@@ -185,7 +189,11 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      this.log('warn', 'revoke', `Discord webhook deletion warned: HTTP ${response.status} — ${body}`);
+      this.log(
+        'warn',
+        'revoke',
+        `Discord webhook deletion warned: HTTP ${response.status} — ${body}`,
+      );
     } else {
       this.log('info', 'revoke', `Discord webhook ${webhookId} deleted successfully`);
     }

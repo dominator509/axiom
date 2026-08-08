@@ -30,14 +30,18 @@ router.get('/models/:modelId/linkbio', async (c) => {
     tx
       .select()
       .from(schema.linkbioProvider)
-      .where(and(eq(schema.linkbioProvider.orgId, orgId), eq(schema.linkbioProvider.modelId, modelId)))
+      .where(
+        and(eq(schema.linkbioProvider.orgId, orgId), eq(schema.linkbioProvider.modelId, modelId)),
+      )
       .orderBy(schema.linkbioProvider.createdAt),
   );
   return c.json({
     data: {
       providers: rows,
       primary: rows.find((r: { isPrimary?: boolean | null }) => r.isPrimary) ?? rows[0] ?? null,
-      nativeEnabled: rows.some((r: { kind?: string | null; enabled?: boolean | null }) => r.kind === 'native' && r.enabled),
+      nativeEnabled: rows.some(
+        (r: { kind?: string | null; enabled?: boolean | null }) => r.kind === 'native' && r.enabled,
+      ),
     },
   });
 });
@@ -62,7 +66,11 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
         config: body.config,
       })
       .onConflictDoUpdate({
-        target: [schema.linkbioProvider.orgId, schema.linkbioProvider.modelId, schema.linkbioProvider.kind],
+        target: [
+          schema.linkbioProvider.orgId,
+          schema.linkbioProvider.modelId,
+          schema.linkbioProvider.kind,
+        ],
         set: { enabled: true, config: body.config, updatedAt: new Date() },
       })
       .returning();
@@ -113,7 +121,9 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
     const providers = await tx
       .select()
       .from(schema.linkbioProvider)
-      .where(and(eq(schema.linkbioProvider.orgId, orgId), eq(schema.linkbioProvider.modelId, modelId)));
+      .where(
+        and(eq(schema.linkbioProvider.orgId, orgId), eq(schema.linkbioProvider.modelId, modelId)),
+      );
 
     const providerIds = providers.map((p: { id: string }) => p.id);
     let clicks: Array<{ providerId: string; target: string; count: number }> = [];
@@ -134,13 +144,15 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
 
     const total = clicks.reduce((acc, c) => acc + c.count, 0);
     return {
-      providers: providers.map((p: { id: string; kind: string; enabled: boolean; isPrimary?: boolean | null }) => ({
-        id: p.id,
-        kind: p.kind,
-        enabled: p.enabled,
-        isPrimary: p.isPrimary,
-        clicks: clicks.filter((c) => c.providerId === p.id).reduce((acc, c) => acc + c.count, 0),
-      })),
+      providers: providers.map(
+        (p: { id: string; kind: string; enabled: boolean; isPrimary?: boolean | null }) => ({
+          id: p.id,
+          kind: p.kind,
+          enabled: p.enabled,
+          isPrimary: p.isPrimary,
+          clicks: clicks.filter((c) => c.providerId === p.id).reduce((acc, c) => acc + c.count, 0),
+        }),
+      ),
       totalClicks: total,
       topTargets: clicks.slice(0, 10),
     };
@@ -149,21 +161,32 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
 });
 
 // POST /linkbio/clicks — record a click (used by the served native page)
-router.post('/linkbio/clicks', zValidator('json', z.object({ providerId: z.string().uuid(), target: z.string().min(1), source: z.string().optional() })), async (c) => {
-  const orgId = requireOrg(c);
-  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
-  const body = c.req.valid('json');
-
-  await withOrgContext(orgId, (tx) =>
-    tx.insert(schema.linkbioClick).values({
-      orgId,
-      providerId: body.providerId,
-      target: body.target,
-      source: body.source ?? null,
-      ts: new Date(),
+router.post(
+  '/linkbio/clicks',
+  zValidator(
+    'json',
+    z.object({
+      providerId: z.string().uuid(),
+      target: z.string().min(1),
+      source: z.string().optional(),
     }),
-  );
-  return c.json({ success: true });
-});
+  ),
+  async (c) => {
+    const orgId = requireOrg(c);
+    if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+    const body = c.req.valid('json');
+
+    await withOrgContext(orgId, (tx) =>
+      tx.insert(schema.linkbioClick).values({
+        orgId,
+        providerId: body.providerId,
+        target: body.target,
+        source: body.source ?? null,
+        ts: new Date(),
+      }),
+    );
+    return c.json({ success: true });
+  },
+);
 
 export { router as linkbioRouter };

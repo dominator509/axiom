@@ -23,11 +23,7 @@ interface LinkbioData {
   nativeEnabled: boolean;
 }
 
-export default async function LinkbioPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function LinkbioPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let data: LinkbioData | null = null;
   let analytics: LinkbioAnalytics | null = null;
@@ -49,7 +45,8 @@ export default async function LinkbioPage({
         <h3>Providers</h3>
         {!data || data.providers.length === 0 ? (
           <p style={{ color: 'var(--muted)' }}>
-            No providers enabled. The Native provider requires nothing external — enable it to serve a link page.
+            No providers enabled. The Native provider requires nothing external — enable it to serve
+            a link page.
           </p>
         ) : (
           <p style={{ color: 'var(--muted)' }}>
@@ -65,7 +62,10 @@ export default async function LinkbioPage({
           <strong>Total clicks: {analytics.totalClicks}</strong>
           <table style={{ marginTop: 8 }}>
             <thead>
-              <tr><th>Target</th><th>Clicks</th></tr>
+              <tr>
+                <th>Target</th>
+                <th>Clicks</th>
+              </tr>
             </thead>
             <tbody>
               {analytics.topTargets.map((t) => (

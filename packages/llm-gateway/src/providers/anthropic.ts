@@ -31,11 +31,7 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-function calculateCost(
-  model: string,
-  inputTokens: number,
-  outputTokens: number,
-): number {
+function calculateCost(model: string, inputTokens: number, outputTokens: number): number {
   const pricing = MODEL_PRICING[model];
   if (pricing) {
     return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
@@ -105,10 +101,7 @@ export class AnthropicProvider implements BaseProvider {
     private readonly baseUrl: string = 'https://api.anthropic.com/v1',
   ) {}
 
-  async chat(
-    messages: ProviderMessage[],
-    options?: ProviderOptions,
-  ): Promise<ProviderChatResult> {
+  async chat(messages: ProviderMessage[], options?: ProviderOptions): Promise<ProviderChatResult> {
     const doFetch = options?.fetchImpl ?? fetch;
     const body = toAnthropicBody(this.model, messages, options, false);
 
@@ -228,7 +221,11 @@ export class AnthropicProvider implements BaseProvider {
                 yield {
                   type: 'done',
                   content: fullContent,
-                  usage: { promptTokens: inputTokens, completionTokens: ct, totalTokens: inputTokens + ct },
+                  usage: {
+                    promptTokens: inputTokens,
+                    completionTokens: ct,
+                    totalTokens: inputTokens + ct,
+                  },
                   cost: calculateCost(this.model, inputTokens, ct),
                 };
                 return;
@@ -243,7 +240,11 @@ export class AnthropicProvider implements BaseProvider {
                 yield {
                   type: 'done',
                   content: fullContent,
-                  usage: { promptTokens: inputTokens, completionTokens: ct, totalTokens: inputTokens + ct },
+                  usage: {
+                    promptTokens: inputTokens,
+                    completionTokens: ct,
+                    totalTokens: inputTokens + ct,
+                  },
                   cost: calculateCost(this.model, inputTokens, ct),
                 };
                 return;
@@ -314,7 +315,12 @@ export async function callAnthropic(
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new ProviderError(`Anthropic API error ${res.status}: ${text}`, res.status, 'anthropic', text);
+    throw new ProviderError(
+      `Anthropic API error ${res.status}: ${text}`,
+      res.status,
+      'anthropic',
+      text,
+    );
   }
   return res.json() as Promise<AnthropicMessageResponse>;
 }
@@ -337,7 +343,12 @@ export async function* streamAnthropic(
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new ProviderError(`Anthropic stream error ${res.status}: ${text}`, res.status, 'anthropic', text);
+    throw new ProviderError(
+      `Anthropic stream error ${res.status}: ${text}`,
+      res.status,
+      'anthropic',
+      text,
+    );
   }
   const reader = res.body?.getReader();
   if (!reader) throw new ProviderError('Anthropic stream body is null', 0, 'anthropic');

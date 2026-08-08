@@ -5,30 +5,13 @@
 
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import pg from 'pg';
 import type { Context, Next } from 'hono';
 
-import {
-  authUser,
-  authSession,
-  authAccount,
-  authVerification,
-} from '@axiom/db/schema';
+import { db } from '@axiom/db';
+import { authUser, authSession, authAccount, authVerification } from '@axiom/db/schema';
+import { resolveAuthConfig } from './config.js';
 
-const DATABASE_URL =
-  process.env.DATABASE_URL ??
-  'postgresql://axiom:axiom@localhost:5432/axiom_dev';
-
-const db = drizzle({
-  client: new pg.Pool({ connectionString: DATABASE_URL }),
-  schema: {
-    user: authUser,
-    session: authSession,
-    account: authAccount,
-    verification: authVerification,
-  },
-});
+const runtimeConfig = resolveAuthConfig(process.env);
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -40,8 +23,8 @@ export const auth = betterAuth({
       verification: authVerification,
     },
   }),
-  secret: process.env.BETTER_AUTH_SECRET ?? 'axiom-dev-secret-change-me',
-  baseURL: process.env.BETTER_AUTH_URL ?? 'http://127.0.0.1:3001',
+  secret: runtimeConfig.secret,
+  baseURL: runtimeConfig.baseURL,
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
@@ -89,8 +72,7 @@ export async function getSessionFromRequest(c: Context): Promise<{
       headers: c.req.raw.headers,
     });
     if (!session?.user?.id) return null;
-    const orgId =
-      (session.user as unknown as { orgId?: string | null }).orgId ?? null;
+    const orgId = (session.user as unknown as { orgId?: string | null }).orgId ?? null;
     return { userId: session.user.id, orgId };
   } catch {
     return null;

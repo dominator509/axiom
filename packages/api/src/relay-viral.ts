@@ -92,7 +92,9 @@ async function computeLabel(
 }
 
 export const relayViralPersistence: ViralPersistence = {
-  async persist(input: ViralPersistInput): Promise<{ label: 'viral' | 'strong' | 'baseline' | 'weak' }> {
+  async persist(
+    input: ViralPersistInput,
+  ): Promise<{ label: 'viral' | 'strong' | 'baseline' | 'weak' }> {
     const { postId, metrics, orgId } = input;
     if (!orgId) throw new Error('viral.ingest: orgId required');
 

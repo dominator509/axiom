@@ -170,7 +170,7 @@ export class FanvueMcpClient {
   private headers(): Record<string, string> {
     const h: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Accept': 'application/json, text/event-stream',
+      Accept: 'application/json, text/event-stream',
     };
     if (this.token) h['Authorization'] = `Bearer ${this.token}`;
     else if (this.apiKey) h['X-API-Key'] = this.apiKey;
@@ -281,7 +281,7 @@ export class FanvueMcpClient {
 
     let payload: McpJsonRpcResponse;
     try {
-      payload = await response.json() as McpJsonRpcResponse;
+      payload = (await response.json()) as McpJsonRpcResponse;
     } catch {
       throw new FanvueMcpError(
         'BAD_RESPONSE',
@@ -311,10 +311,7 @@ export class FanvueMcpClient {
   }
 
   /** Call an MCP tool by name with typed arguments. */
-  private async callTool(
-    name: string,
-    args: Record<string, unknown>,
-  ): Promise<unknown> {
+  private async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     this.assertConnected();
     // Only enforce the unknown-tool guard once the surface has been
     // discovered. An explicitly empty list means the server advertises no
@@ -393,9 +390,13 @@ export class FanvueMcpClient {
   async uploadImageBytes(uploadUrl: string, bytes: Uint8Array): Promise<string> {
     let response: Response;
     try {
+      // Copy into an ArrayBuffer owned by this call. Uint8Array may be backed by
+      // SharedArrayBuffer, which is not a portable Fetch BodyInit.
+      const body = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(body).set(bytes);
       response = await fetch(uploadUrl, {
         method: 'PUT',
-        body: bytes,
+        body,
         signal: AbortSignal.timeout(DEFAULT_TOOL_TIMEOUT_MS),
       });
     } catch (err) {
@@ -431,7 +432,10 @@ export class FanvueMcpClient {
    * ready to display. Returns the created post (same shape as POST /posts).
    */
   async createImagePost(args: CreateImagePostArgs): Promise<PostResult> {
-    const result = await this.callTool('custom__create-image-post', args as unknown as Record<string, unknown>);
+    const result = await this.callTool(
+      'custom__create-image-post',
+      args as unknown as Record<string, unknown>,
+    );
     const unwrapped = this.unwrap(result, 'uuid');
     if (typeof unwrapped.uuid !== 'string') {
       throw new FanvueMcpError(
@@ -545,7 +549,11 @@ export class FanvueMcpClient {
    * (documented; write:chat scope). Accepts text, media attachments, optional
    * pricing, or a single third-party GIF.
    */
-  async replyToDM(userUuid: string, text: string, options: Record<string, unknown> = {}): Promise<ReplyResult> {
+  async replyToDM(
+    userUuid: string,
+    text: string,
+    options: Record<string, unknown> = {},
+  ): Promise<ReplyResult> {
     return this.restPost<ReplyResult>(`/chats/${userUuid}/message`, {
       text,
       ...options,

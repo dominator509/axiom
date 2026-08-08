@@ -3,7 +3,8 @@
 import type { Platform, PublishMode } from '@axiom/core';
 
 /** Media types a connector can handle */
-export type MediaType = 'image' | 'video' | 'carousel' | 'story' | 'short' | 'text' | 'gif' | 'audio';
+export type MediaType =
+  'image' | 'video' | 'carousel' | 'story' | 'short' | 'text' | 'gif' | 'audio';
 
 /** Scheduling capability */
 export type SchedulingCapability = 'none' | 'native' | 'internal';

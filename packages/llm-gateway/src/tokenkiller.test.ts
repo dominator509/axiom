@@ -42,7 +42,13 @@ const completion = {
   object: 'chat.completion',
   created: 1,
   model: 'deepseek-chat',
-  choices: [{ index: 0, message: { role: 'assistant', content: 'here is your caption' }, finish_reason: 'stop' }],
+  choices: [
+    {
+      index: 0,
+      message: { role: 'assistant', content: 'here is your caption' },
+      finish_reason: 'stop',
+    },
+  ],
   usage: { prompt_tokens: 500, completion_tokens: 50, total_tokens: 550 },
 };
 
@@ -51,24 +57,35 @@ function tokenkillerOpts(overrides: Partial<TokenKillerOptions> = {}): TokenKill
     modelId: 'model-1',
     platform: 'instagram',
     profile,
-    task: { modelId: 'model-1', platform: 'instagram', style: 'studio', outfit: 'summer dress', mood: 'energetic' },
+    task: {
+      modelId: 'model-1',
+      platform: 'instagram',
+      style: 'studio',
+      outfit: 'summer dress',
+      mood: 'energetic',
+    },
     ...overrides,
   };
 }
 
 function stubCompletion() {
-  vi.stubGlobal('fetch', vi.fn(() =>
-    Promise.resolve(new Response(JSON.stringify(completion), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })),
-  ));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify(completion), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    ),
+  );
 }
 
 describe('chatWithTokenKiller (S0–S3 assembly)', () => {
   beforeEach(() => {
     clearAllKeys();
-    process.env.DEEPSEEK_API_KEY='***';
+    process.env.DEEPSEEK_API_KEY = '***';
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -125,15 +142,31 @@ describe('prefix cache-hit ratio (LBI-09, target > 97%)', () => {
 
     const gateway = new LLMGateway();
     // Warm the prefix cache.
-    await gateway.chatWithTokenKiller(
-      [{ role: 'user', content: 'one' }],
-      { tokenkiller: tokenkillerOpts({ task: { modelId: 'model-1', platform: 'instagram', style: 'studio', outfit: 'a', mood: 'm1' } }), provider: 'deepseek' },
-    );
+    await gateway.chatWithTokenKiller([{ role: 'user', content: 'one' }], {
+      tokenkiller: tokenkillerOpts({
+        task: {
+          modelId: 'model-1',
+          platform: 'instagram',
+          style: 'studio',
+          outfit: 'a',
+          mood: 'm1',
+        },
+      }),
+      provider: 'deepseek',
+    });
     // Same prefix, different S3 task → prefix-cache HIT.
-    await gateway.chatWithTokenKiller(
-      [{ role: 'user', content: 'two' }],
-      { tokenkiller: tokenkillerOpts({ task: { modelId: 'model-1', platform: 'instagram', style: 'outdoor', outfit: 'b', mood: 'm2' } }), provider: 'deepseek' },
-    );
+    await gateway.chatWithTokenKiller([{ role: 'user', content: 'two' }], {
+      tokenkiller: tokenkillerOpts({
+        task: {
+          modelId: 'model-1',
+          platform: 'instagram',
+          style: 'outdoor',
+          outfit: 'b',
+          mood: 'm2',
+        },
+      }),
+      provider: 'deepseek',
+    });
 
     const stats = gateway.getStats().tokenkiller;
     expect(stats.hits).toBeGreaterThanOrEqual(1);
@@ -144,17 +177,43 @@ describe('prefix cache-hit ratio (LBI-09, target > 97%)', () => {
     stubCompletion();
 
     const gateway = new LLMGateway();
-    const exemplarA = [{ id: 'e1', platform: 'instagram' as const, title: 't', caption: 'c', hashtags: [], viralLabel: 'viral' as const, aiNotes: null, features: { a: 1 }, perfScore: 0.9, label: 'win' }];
-    const exemplarB = [{ id: 'e2', platform: 'instagram' as const, title: 't', caption: 'c', hashtags: [], viralLabel: 'weak' as const, aiNotes: null, features: { b: 2 }, perfScore: 0.5, label: 'meh' }];
+    const exemplarA = [
+      {
+        id: 'e1',
+        platform: 'instagram' as const,
+        title: 't',
+        caption: 'c',
+        hashtags: [],
+        viralLabel: 'viral' as const,
+        aiNotes: null,
+        features: { a: 1 },
+        perfScore: 0.9,
+        label: 'win',
+      },
+    ];
+    const exemplarB = [
+      {
+        id: 'e2',
+        platform: 'instagram' as const,
+        title: 't',
+        caption: 'c',
+        hashtags: [],
+        viralLabel: 'weak' as const,
+        aiNotes: null,
+        features: { b: 2 },
+        perfScore: 0.5,
+        label: 'meh',
+      },
+    ];
 
-    await gateway.chatWithTokenKiller(
-      [{ role: 'user', content: 'one' }],
-      { tokenkiller: tokenkillerOpts({ exemplars: exemplarA }), provider: 'deepseek' },
-    );
-    await gateway.chatWithTokenKiller(
-      [{ role: 'user', content: 'two' }],
-      { tokenkiller: tokenkillerOpts({ exemplars: exemplarB }), provider: 'deepseek' },
-    );
+    await gateway.chatWithTokenKiller([{ role: 'user', content: 'one' }], {
+      tokenkiller: tokenkillerOpts({ exemplars: exemplarA }),
+      provider: 'deepseek',
+    });
+    await gateway.chatWithTokenKiller([{ role: 'user', content: 'two' }], {
+      tokenkiller: tokenkillerOpts({ exemplars: exemplarB }),
+      provider: 'deepseek',
+    });
 
     const stats = gateway.getStats().tokenkiller;
     expect(stats.misses).toBeGreaterThanOrEqual(1);
@@ -164,14 +223,14 @@ describe('prefix cache-hit ratio (LBI-09, target > 97%)', () => {
     stubCompletion();
 
     const gateway = new LLMGateway();
-    await gateway.chatWithTokenKiller(
-      [{ role: 'user', content: 'one' }],
-      { tokenkiller: tokenkillerOpts({ prefixVersion: 'v1' }), provider: 'deepseek' },
-    );
-    await gateway.chatWithTokenKiller(
-      [{ role: 'user', content: 'two' }],
-      { tokenkiller: tokenkillerOpts({ prefixVersion: 'v2' }), provider: 'deepseek' },
-    );
+    await gateway.chatWithTokenKiller([{ role: 'user', content: 'one' }], {
+      tokenkiller: tokenkillerOpts({ prefixVersion: 'v1' }),
+      provider: 'deepseek',
+    });
+    await gateway.chatWithTokenKiller([{ role: 'user', content: 'two' }], {
+      tokenkiller: tokenkillerOpts({ prefixVersion: 'v2' }),
+      provider: 'deepseek',
+    });
 
     const stats = gateway.getStats().tokenkiller;
     expect(stats.misses).toBeGreaterThanOrEqual(1);

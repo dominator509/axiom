@@ -50,7 +50,10 @@ impl EgressMode {
     }
 
     pub fn is_proxy(&self) -> bool {
-        matches!(self, EgressMode::Socks5 | EgressMode::Http | EgressMode::Https)
+        matches!(
+            self,
+            EgressMode::Socks5 | EgressMode::Http | EgressMode::Https
+        )
     }
 }
 
@@ -141,7 +144,11 @@ impl NetworkConfig {
             "egress_{}",
             self.model_id
                 .chars()
-                .map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' })
+                .map(|c| if c.is_ascii_alphanumeric() || c == '_' {
+                    c
+                } else {
+                    '_'
+                })
                 .collect::<String>()
         )
     }
@@ -180,11 +187,19 @@ mod tests {
 
     #[test]
     fn sanitizers() {
-        assert_eq!(NetworkConfig::sanitize_hostport("proxy.example.com:3128").unwrap(), "proxy.example.com:3128");
+        assert_eq!(
+            NetworkConfig::sanitize_hostport("proxy.example.com:3128").unwrap(),
+            "proxy.example.com:3128"
+        );
         assert!(NetworkConfig::sanitize_hostport("$(rm -rf /)").is_err());
-        assert_eq!(NetworkConfig::sanitize_cidrs("0.0.0.0/0, 10.0.0.0/8").unwrap(), "0.0.0.0/0, 10.0.0.0/8");
+        assert_eq!(
+            NetworkConfig::sanitize_cidrs("0.0.0.0/0, 10.0.0.0/8").unwrap(),
+            "0.0.0.0/0, 10.0.0.0/8"
+        );
         assert!(NetworkConfig::sanitize_cidrs("0.0.0.0/0; rm -rf /").is_err());
-        assert!(NetworkConfig::sanitize_key("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").is_ok());
+        assert!(
+            NetworkConfig::sanitize_key("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=").is_ok()
+        );
         assert!(NetworkConfig::sanitize_key("short").is_err());
     }
 

@@ -5,8 +5,12 @@ import { modelProfile } from './model_profile.js';
 
 export const analyticsSnapshot = pgTable('analytics_snapshot', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
-  modelId: uuid('model_id').notNull().references(() => modelProfile.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id, { onDelete: 'cascade' }),
+  modelId: uuid('model_id')
+    .notNull()
+    .references(() => modelProfile.id, { onDelete: 'cascade' }),
   platform: text('platform').notNull(),
   ts: timestamp('ts', { withTimezone: true }).notNull().defaultNow(),
   followers: bigint('followers', { mode: 'number' }).notNull().default(0),

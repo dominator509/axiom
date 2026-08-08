@@ -40,7 +40,10 @@ describe('groupRoutes (L3.0 build-time OpenAPI)', () => {
     expect((doc.info as Record<string, unknown>).title).toBe('AXIOM FanvueCRM API');
     const paths = doc.paths as Record<string, unknown>;
     expect(Object.keys(paths)).toHaveLength(2);
-    const schemes = (doc.components as Record<string, unknown>).securitySchemes as Record<string, unknown>;
+    const schemes = (doc.components as Record<string, unknown>).securitySchemes as Record<
+      string,
+      unknown
+    >;
     expect(Object.keys(schemes).sort()).toEqual(['bearerAuth', 'capabilityToken']);
   });
 });

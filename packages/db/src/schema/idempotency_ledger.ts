@@ -4,7 +4,9 @@ import { org } from './org.js';
 
 export const idempotencyLedger = pgTable('idempotency_ledger', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id),
   idemKey: text('idem_key').notNull().unique(),
   responseHash: text('response_hash'),
   locked: boolean('locked').notNull().default(false),

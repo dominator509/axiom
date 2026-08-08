@@ -48,7 +48,9 @@ echo ""
 # 2. Check file permissions — no world-writable files
 # ------------------------------------------------------------------
 echo "--- Check 2: File permissions (no world-writable files) ---"
-WORLD_WRITABLE=$(find . -perm -o+w -not -path './node_modules/*' -not -path './.git/*' -not -path './target/*' -not -path './.turbo/*' -type f 2>/dev/null || true)
+WORLD_WRITABLE=$(find . \
+  \( -path './node_modules' -o -path './.git' -o -path './target' -o -path './.turbo' -o -path './var' \) -prune -o \
+  -type f -perm -o+w -print 2>/dev/null || true)
 if [ -n "$WORLD_WRITABLE" ]; then
   echo "  [FAIL] World-writable files found:"
   echo "$WORLD_WRITABLE" | while IFS= read -r f; do
@@ -61,14 +63,27 @@ fi
 echo ""
 
 # ------------------------------------------------------------------
-# 3. Check pnpm audit
+# 3. Verify repository-maintained dependency security patches
 # ------------------------------------------------------------------
-echo "--- Check 3: pnpm audit ---"
+echo "--- Check 3: Patched dependency regressions ---"
+if node scripts/test-patched-dependencies.mjs 2>&1; then
+  echo "  [PASS] Patched dependencies reject known malicious fixtures"
+else
+  echo "  [FAIL] A patched dependency regression failed (see above)"
+  EXIT_CODE=1
+fi
+echo ""
+
+# ------------------------------------------------------------------
+# 4. Check pnpm audit
+# ------------------------------------------------------------------
+echo "--- Check 4: pnpm audit ---"
 if command -v pnpm &>/dev/null; then
   echo "  Running pnpm audit..."
-  # pnpm audit exits non-zero on vulnerabilities; we capture that
-  if pnpm audit --audit-level=high 2>&1; then
-    echo "  [PASS] No high-severity vulnerabilities found"
+  # The wrapper accepts only advisories backed by repository patches and the
+  # executable regression gate above; every other high/critical finding fails.
+  if node scripts/audit-pnpm.mjs 2>&1; then
+    echo "  [PASS] No unmitigated high-severity vulnerabilities found"
   else
     echo "  [FAIL] High-severity vulnerabilities detected (see above)"
     EXIT_CODE=1
@@ -79,9 +94,9 @@ fi
 echo ""
 
 # ------------------------------------------------------------------
-# 4. Check cargo audit
+# 5. Check cargo audit
 # ------------------------------------------------------------------
-echo "--- Check 4: cargo audit ---"
+echo "--- Check 5: cargo audit ---"
 if command -v cargo-audit &>/dev/null; then
   if [ -f "Cargo.lock" ] || [ -f "Cargo.toml" ]; then
     cargo audit 2>&1 || {
@@ -97,9 +112,9 @@ fi
 echo ""
 
 # ------------------------------------------------------------------
-# 5. Check .env is in .gitignore
+# 6. Check .env is in .gitignore
 # ------------------------------------------------------------------
-echo "--- Check 5: .env is gitignored ---"
+echo "--- Check 6: .env is gitignored ---"
 if [ -f ".gitignore" ]; then
   if grep -q '^\.env$' .gitignore || grep -q '^\.env\b' .gitignore; then
     echo "  [PASS] .env is listed in .gitignore"

@@ -66,7 +66,9 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
     WHERE mp.org_id = ${job.org_id}
       AND ve.created_at >= ${since}
   `);
-  const labelRow = Array.isArray(labelRows) ? labelRows[0] : (labelRows as { rows: unknown[] }).rows?.[0];
+  const labelRow = Array.isArray(labelRows)
+    ? labelRows[0]
+    : (labelRows as { rows: unknown[] }).rows?.[0];
 
   const digest: WeeklyDigest = {
     weekStart: since.toISOString(),

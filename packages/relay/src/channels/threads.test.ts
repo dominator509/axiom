@@ -67,15 +67,21 @@ describe('handleVerification', () => {
 
 describe('validateSignature', () => {
   it('accepts a correctly signed payload', () => {
-    expect(adapter.validateSignature('raw-body', signPayload('raw-body', 'threads-secret'))).toBe(true);
+    expect(adapter.validateSignature('raw-body', signPayload('raw-body', 'threads-secret'))).toBe(
+      true,
+    );
   });
 
   it('rejects a tampered payload', () => {
-    expect(adapter.validateSignature('raw-body', signPayload('tampered', 'threads-secret'))).toBe(false);
+    expect(adapter.validateSignature('raw-body', signPayload('tampered', 'threads-secret'))).toBe(
+      false,
+    );
   });
 
   it('rejects a signature produced with a different secret', () => {
-    expect(adapter.validateSignature('raw-body', signPayload('raw-body', 'other-secret'))).toBe(false);
+    expect(adapter.validateSignature('raw-body', signPayload('raw-body', 'other-secret'))).toBe(
+      false,
+    );
   });
 
   it('rejects missing or malformed signature headers', () => {
@@ -161,9 +167,16 @@ describe('onCommand / sendCard / startPolling', () => {
 
     const infoSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const card: RelayCard = {
-      bundleId: 'bundle-1', mediaPreview: '', caption: 'c', captionVariants: {},
-      hashtagSets: {}, verdicts: [], targetPlatforms: ['threads'],
-      actions: ['approve' as CardAction], timestamp: 1, format: 'html',
+      bundleId: 'bundle-1',
+      mediaPreview: '',
+      caption: 'c',
+      captionVariants: {},
+      hashtagSets: {},
+      verdicts: [],
+      targetPlatforms: ['threads'],
+      actions: ['approve' as CardAction],
+      timestamp: 1,
+      format: 'html',
     };
     await adapter.sendCard('user-1', card);
     expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('[send_card_unsupported]'));

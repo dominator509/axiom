@@ -33,7 +33,14 @@ check_cmd rustc
 check_cmd cargo
 check_cmd git
 check_cmd psql
-check_cmd ufw
+
+# ufw is a Linux production-host control. A Windows/macOS audit workstation
+# cannot install or exercise it, so keep the production requirement explicit
+# without making local development impossible.
+case "$(uname -s 2>/dev/null || echo unknown)" in
+    Linux*) check_cmd ufw ;;
+    *) echo "  SKIP: ufw (Linux production host only)" ;;
+esac
 
 # Docker is OPTIONAL: dev-only convenience (setup-dev.sh uses it only "if available";
 # production runs Postgres natively via systemd). Aliased rtk-tee must NOT count as
@@ -42,6 +49,9 @@ DOCKER_FOUND=""
 for p in /usr/bin/docker /usr/local/bin/docker /snap/bin/docker /usr/bin/docker.io; do
     [ -x "$p" ] && DOCKER_FOUND="$p" && break
 done
+if [ -z "$DOCKER_FOUND" ]; then
+    DOCKER_FOUND=$(command -v docker 2>/dev/null || true)
+fi
 if [ -n "$DOCKER_FOUND" ]; then
     echo "  FOUND: docker ($DOCKER_FOUND)"
 else

@@ -5,6 +5,7 @@
 // via @axiom/db, which is mocked with the shared chainable proxy.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { mockState, mockDbFactory } from './routes/test-utils.js';
@@ -15,7 +16,9 @@ import { idempotency, rateLimit, correlationId } from './contract.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 
-function makeApp(opts: { rate?: { capacity?: number; refillPerSec?: number } } = {}) {
+function makeApp(
+  opts: { rate?: { capacity?: number; refillPerSec?: number; maxBuckets?: number } } = {},
+) {
   const app = new Hono<{ Variables: { orgId: string; userId: string; correlationId?: string } }>();
   app.use('*', correlationId);
   app.use('*', async (c, next) => {
@@ -28,7 +31,9 @@ function makeApp(opts: { rate?: { capacity?: number; refillPerSec?: number } } =
 }
 
 /** A route that records every execution (to prove replay skips it). */
-function countedRoute(app: Hono<{ Variables: { orgId: string; userId: string; correlationId?: string } }>) {
+function countedRoute(
+  app: Hono<{ Variables: { orgId: string; userId: string; correlationId?: string } }>,
+) {
   let calls = 0;
   app.post('/mutate', idempotency(), async (c) => {
     calls += 1;
@@ -39,6 +44,7 @@ function countedRoute(app: Hono<{ Variables: { orgId: string; userId: string; co
 
 beforeEach(() => {
   mockState.result = [];
+  mockState.results = [];
 });
 
 afterEach(() => {
@@ -47,6 +53,18 @@ afterEach(() => {
 });
 
 describe('idempotency middleware (durable, M-2)', () => {
+  function requestHash(body = '', contentType = ''): string {
+    return createHash('sha256')
+      .update('POST')
+      .update('\n')
+      .update('/mutate')
+      .update('\n')
+      .update(contentType)
+      .update('\n')
+      .update(body)
+      .digest('hex');
+  }
+
   it('requires the Idempotency-Key header on mutations (400 problem+json)', async () => {
     const app = makeApp();
     let calls = 0;
@@ -68,24 +86,42 @@ describe('idempotency middleware (durable, M-2)', () => {
     const getCalls = countedRoute(app);
     const headers = { 'Idempotency-Key': 'key-1' };
 
-    // First call: no prior row (mock returns []), handler executes, response persisted.
-    mockState.result = [];
+    // First call: reservation is claimed, handler executes, response is completed.
+    mockState.results = [
+      [],
+      [
+        {
+          id: 'row-1',
+          state: 'pending',
+          request_hash: requestHash(),
+          owner_token: 'owner-1',
+          status: null,
+          response_body: null,
+          expires_at: new Date(Date.now() + 86_400_000),
+        },
+      ],
+      [],
+      [{ id: 'row-1' }],
+    ];
     const first = await app.request('/mutate', { method: 'POST', headers });
     expect(first.status).toBe(201);
     expect(getCalls()).toBe(1);
 
-    // Second call: mock returns the persisted row → replay, handler NOT re-run.
-    mockState.result = [
-      {
-        id: 'row-1',
-        orgId: ORG_ID,
-        method: 'POST',
-        route: '/mutate',
-        idemKey: 'key-1',
-        status: 201,
-        responseBody: { data: { ok: true, call: 1 } },
-        expiresAt: new Date(Date.now() + 86_400_000),
-      },
+    // Second call: claim conflicts and the completed row is replayed.
+    mockState.results = [
+      [],
+      [],
+      [
+        {
+          id: 'row-1',
+          state: 'completed',
+          request_hash: requestHash(),
+          owner_token: null,
+          status: 201,
+          response_body: { data: { ok: true, call: 1 } },
+          expires_at: new Date(Date.now() + 86_400_000),
+        },
+      ],
     ];
     const second = await app.request('/mutate', { method: 'POST', headers });
     expect(second.status).toBe(201);
@@ -101,20 +137,71 @@ describe('idempotency middleware (durable, M-2)', () => {
     expect(res.status).toBe(200);
   });
 
-  it('falls through to execute once when the DB is unavailable (no replay, no 500)', async () => {
+  it('fails closed before execution when the DB is unavailable', async () => {
     const app = makeApp();
     const getCalls = countedRoute(app);
-    // db.transaction throws → middleware catch falls through to execute.
-    vi.stubGlobal('db', undefined); // not used directly; simulate via mockState throw below
-    // The mock db.transaction rejects:
+    // The mock db.transaction rejects before a reservation can be established.
     const { db } = await import('@axiom/db');
     (db.transaction as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('db down'));
     const res = await app.request('/mutate', {
       method: 'POST',
       headers: { 'Idempotency-Key': 'key-x' },
     });
-    expect(res.status).toBe(201);
-    expect(getCalls()).toBe(1);
+    expect(res.status).toBe(503);
+    expect(getCalls()).toBe(0);
+  });
+
+  it('rejects a concurrent duplicate while the first request is pending', async () => {
+    const app = makeApp();
+    const getCalls = countedRoute(app);
+    mockState.results = [
+      [],
+      [],
+      [
+        {
+          id: 'row-pending',
+          state: 'pending',
+          request_hash: requestHash(),
+          owner_token: 'another-owner',
+          status: null,
+          response_body: null,
+          expires_at: new Date(Date.now() + 86_400_000),
+        },
+      ],
+    ];
+    const res = await app.request('/mutate', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'key-pending' },
+    });
+    expect(res.status).toBe(409);
+    expect(res.headers.get('Retry-After')).toBe('2');
+    expect(getCalls()).toBe(0);
+  });
+
+  it('rejects reuse of a key with a different request body', async () => {
+    const app = makeApp();
+    const getCalls = countedRoute(app);
+    mockState.results = [
+      [],
+      [],
+      [
+        {
+          id: 'row-existing',
+          state: 'completed',
+          request_hash: requestHash('different'),
+          owner_token: null,
+          status: 201,
+          response_body: { data: { ok: true } },
+          expires_at: new Date(Date.now() + 86_400_000),
+        },
+      ],
+    ];
+    const res = await app.request('/mutate', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'key-mismatch' },
+    });
+    expect(res.status).toBe(409);
+    expect(getCalls()).toBe(0);
   });
 });
 
@@ -142,6 +229,20 @@ describe('rateLimit middleware (L3.0)', () => {
     expect(body.type).toBe('about:blank');
     expect(body.title).toBe('Too Many Requests');
     expect(body.detail).toBe('Rate limit exceeded');
+  });
+
+  it('bounds attacker-controlled bucket cardinality with LRU eviction', async () => {
+    const app = makeApp({ rate: { capacity: 1, refillPerSec: 0, maxBuckets: 2 } });
+    app.get('/x', (c) => c.json({ ok: true }));
+    await app.request('/x', { headers: { Authorization: 'Bearer cardinality-a' } });
+    await app.request('/x', { headers: { Authorization: 'Bearer cardinality-b' } });
+    await app.request('/x', { headers: { Authorization: 'Bearer cardinality-c' } });
+    // The oldest bucket was evicted, so it is fresh rather than permanently
+    // growing the process-wide map with every attacker-supplied credential.
+    const replayOldest = await app.request('/x', {
+      headers: { Authorization: 'Bearer cardinality-a' },
+    });
+    expect(replayOldest.status).toBe(200);
   });
 });
 

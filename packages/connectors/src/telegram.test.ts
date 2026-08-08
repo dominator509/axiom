@@ -22,7 +22,10 @@ function input(overrides: Partial<ConnectorPublishInput> = {}): ConnectorPublish
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 afterEach(() => {
@@ -78,14 +81,18 @@ describe('publish', () => {
   });
 
   it('falls back to @channel when externalUserId is missing', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse({ ok: true, result: { message_id: 7, chat: { id: -100, type: 'channel' } } }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ ok: true, result: { message_id: 7, chat: { id: -100, type: 'channel' } } }),
+      );
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new TelegramConnector({ accessToken: '123:bot-token' });
     await c.publish(input({ hashtags: undefined }));
-    const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string) as Record<string, string>;
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as Record<string, string>;
     expect(body.chat_id).toBe('@channel');
     expect(body.text).toBe('New update is live\n\nhttps://fanvue.com/post/1');
   });

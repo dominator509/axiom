@@ -2,7 +2,12 @@
 import { describe, it, expect } from 'vitest';
 import { ViralLoop, type PostMetrics, type ViralLabel } from './loop.js';
 
-function makeMetrics(postId: string, platform: string, er: number, overrides: Partial<PostMetrics> = {}): PostMetrics {
+function makeMetrics(
+  postId: string,
+  platform: string,
+  er: number,
+  overrides: Partial<PostMetrics> = {},
+): PostMetrics {
   return {
     postId,
     platform,
@@ -54,18 +59,21 @@ describe('labelPost', () => {
     for (let i = 1; i <= 5; i++) {
       loop.ingestMetrics(`p${i}`, makeMetrics(`p${i}`, 'tiktok', i / 100));
     }
-    expect(loop.labelPost('p5')).toBe('viral');   // 0.05 >= p90
-    expect(loop.labelPost('p4')).toBe('strong');  // 0.04 >= p70
+    expect(loop.labelPost('p5')).toBe('viral'); // 0.05 >= p90
+    expect(loop.labelPost('p4')).toBe('strong'); // 0.04 >= p70
     expect(loop.labelPost('p3')).toBe('baseline'); // 0.03 >= p30
     expect(loop.labelPost('p2')).toBe('baseline'); // 0.02 >= p30
-    expect(loop.labelPost('p1')).toBe('weak');    // 0.01 < p30
+    expect(loop.labelPost('p1')).toBe('weak'); // 0.01 < p30
   });
 
   it('computes percentiles per platform+modelName pair', () => {
     const loop = new ViralLoop();
     for (let i = 1; i <= 5; i++) {
       loop.ingestMetrics(`t${i}`, makeMetrics(`t${i}`, 'tiktok', i / 100));
-      loop.ingestMetrics(`i${i}`, makeMetrics(`i${i}`, 'instagram', (10 - i) / 100, { modelName: 'sd3' }));
+      loop.ingestMetrics(
+        `i${i}`,
+        makeMetrics(`i${i}`, 'instagram', (10 - i) / 100, { modelName: 'sd3' }),
+      );
     }
     // tiktok/flux-pro: p90 = 0.05 → t5 viral
     expect(loop.labelPost('t5')).toBe('viral');

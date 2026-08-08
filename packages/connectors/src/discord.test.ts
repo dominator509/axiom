@@ -22,7 +22,10 @@ function input(overrides: Partial<ConnectorPublishInput> = {}): ConnectorPublish
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 afterEach(() => {
@@ -49,9 +52,11 @@ describe('DiscordConnector', () => {
 
 describe('publish', () => {
   it('sends an embed with caption, image, and footer', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse({ id: 'msg-1', type: 1, channel_id: 'chan-1', guild_id: 'guild-1' }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ id: 'msg-1', type: 1, channel_id: 'chan-1', guild_id: 'guild-1' }),
+      );
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new DiscordConnector(AUTH);
@@ -75,13 +80,17 @@ describe('publish', () => {
 
   it('truncates captions over 256 chars into the title and keeps full text in description', async () => {
     const longCaption = 'x'.repeat(300);
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ id: 'msg-2', type: 1, channel_id: 'c' }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ id: 'msg-2', type: 1, channel_id: 'c' }));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new DiscordConnector(AUTH);
     await c.publish(input({ caption: longCaption }));
 
-    const payload = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string) as {
+    const payload = JSON.parse(
+      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as {
       embeds: Array<Record<string, string>>;
     };
     const embed = payload.embeds[0];
@@ -90,7 +99,9 @@ describe('publish', () => {
   });
 
   it('uses linkUrl as embed url and rewrites the title when truncated', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ id: 'msg-3', type: 1, channel_id: 'c' }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ id: 'msg-3', type: 1, channel_id: 'c' }));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new DiscordConnector(AUTH);
@@ -101,7 +112,9 @@ describe('publish', () => {
       }),
     );
 
-    const payload = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string) as {
+    const payload = JSON.parse(
+      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as {
       embeds: Array<Record<string, string>>;
     };
     const embed = payload.embeds[0];
@@ -111,13 +124,17 @@ describe('publish', () => {
   });
 
   it('attaches video media as embed.video', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ id: 'msg-4', type: 1, channel_id: 'c' }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ id: 'msg-4', type: 1, channel_id: 'c' }));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new DiscordConnector(AUTH);
     await c.publish(input({ mediaUrls: ['https://cdn.example.com/clip.mp4'] }));
 
-    const payload = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string) as {
+    const payload = JSON.parse(
+      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as {
       embeds: Array<{ video?: { url: string }; image?: { url: string } }>;
     };
     const embed = payload.embeds[0];
@@ -134,7 +151,10 @@ describe('publish', () => {
   });
 
   it('returns failed when the webhook call fails', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ message: 'Unknown Webhook' }, 404)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ message: 'Unknown Webhook' }, 404)),
+    );
     const c = new DiscordConnector(AUTH);
     const result = await c.publish(input());
     expect(result.state).toBe('failed');
@@ -179,7 +199,10 @@ describe('revoke', () => {
   it('skips when the webhook id cannot be parsed', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const c = new DiscordConnector({ accessToken: 't', extra: { webhookUrl: 'https://discord.com/api/not-a-webhook' } });
+    const c = new DiscordConnector({
+      accessToken: 't',
+      extra: { webhookUrl: 'https://discord.com/api/not-a-webhook' },
+    });
     await expect(c.revoke()).resolves.toBeUndefined();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -189,6 +212,8 @@ describe('revoke', () => {
     const c = new DiscordConnector(AUTH);
     await c.revoke();
     expect(c.auth.accessToken).toBe('');
-    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('deletion warned'))).toBe(true);
+    expect(
+      c.getLogs().some((l) => l.level === 'warn' && l.message.includes('deletion warned')),
+    ).toBe(true);
   });
 });

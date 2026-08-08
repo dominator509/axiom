@@ -9,7 +9,10 @@ import { tierAtLeast } from './auth.js';
 // ─── Tool registry ──────────────────────────────────────────────────────────
 
 /** All known tools indexed by name. */
-const allTools: Record<string, AnalyticsTool | InboxTool | GenerationTool | PublishingTool | NetworkTool> = {
+const allTools: Record<
+  string,
+  AnalyticsTool | InboxTool | GenerationTool | PublishingTool | NetworkTool
+> = {
   analytics_query: new AnalyticsTool(),
   inbox_manage: new InboxTool(),
   generation_photoshoot: new GenerationTool(),

@@ -6,12 +6,20 @@
 //   POST /uninstall — Meta app-uninstall callback
 
 import { Hono } from 'hono';
+import { randomBytes } from 'node:crypto';
 import type { AppBindings } from '../index.js';
+import { persistEnvValues } from '../credentials.js';
 import { apiError, statusTitle } from './helpers.js';
 
 const THREADS_APP_ID = process.env.THREADS_CLIENT_ID || '';
 const THREADS_APP_SECRET = process.env.THREADS_CLIENT_SECRET || '';
-const REDIRECT_URI = 'https://axiom.fanlynks.com/api/v1/auth/threads/callback';
+const REDIRECT_URI = new URL(
+  '/api/v1/auth/threads/callback',
+  process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
+).toString();
+const AXIOM_ENV_FILE = process.env.AXIOM_ENV_FILE || '/root/axiom/.env';
+const STATE_TTL_MS = 10 * 60 * 1000;
+const stateStore = new Map<string, number>();
 
 const router = new Hono<AppBindings>();
 
@@ -28,6 +36,9 @@ router.get('/authorize', (c) => {
   authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
   authUrl.searchParams.set('scope', 'threads_basic,threads_publish');
   authUrl.searchParams.set('response_type', 'code');
+  const state = randomBytes(24).toString('base64url');
+  stateStore.set(state, Date.now());
+  authUrl.searchParams.set('state', state);
 
   return c.redirect(authUrl.toString(), 302);
 });
@@ -37,6 +48,7 @@ router.get('/authorize', (c) => {
  */
 router.get('/callback', async (c) => {
   const code = c.req.query('code');
+  const state = c.req.query('state');
   const error = c.req.query('error');
   const errorDescription = c.req.query('error_description');
 
@@ -50,6 +62,15 @@ router.get('/callback', async (c) => {
 
   if (!THREADS_APP_ID || !THREADS_APP_SECRET) {
     return apiError(c, 500, statusTitle(500), 'Threads client credentials not configured');
+  }
+
+  const stateCreatedAt = state ? stateStore.get(state) : undefined;
+  if (!stateCreatedAt) {
+    return apiError(c, 400, statusTitle(400), 'Invalid or missing state (CSRF check failed)');
+  }
+  stateStore.delete(state!);
+  if (Date.now() - stateCreatedAt > STATE_TTL_MS) {
+    return apiError(c, 400, statusTitle(400), 'Authorization flow expired, please start again');
   }
 
   try {
@@ -67,11 +88,10 @@ router.get('/callback', async (c) => {
     });
 
     if (!tokenResp.ok) {
-      const errorBody = await tokenResp.text();
-      return apiError(c, 502, statusTitle(502), `Token exchange failed: HTTP ${tokenResp.status} — ${errorBody}`);
+      return apiError(c, 502, statusTitle(502), `Token exchange failed: HTTP ${tokenResp.status}`);
     }
 
-    const tokenData = await tokenResp.json() as {
+    const tokenData = (await tokenResp.json()) as {
       access_token: string;
       user_id: string;
       token_type?: string;
@@ -82,31 +102,36 @@ router.get('/callback', async (c) => {
     const threadsUserId = tokenData.user_id;
 
     // Exchange short-lived token for a long-lived token (60 days)
-    const longLivedResp = await fetch(
-      `https://graph.threads.net/access_token` +
-      `?grant_type=th_exchange_token` +
-      `&client_secret=${THREADS_APP_SECRET}` +
-      `&access_token=${accessToken}`,
-    );
+    const longLivedUrl = new URL('https://graph.threads.net/access_token');
+    longLivedUrl.searchParams.set('grant_type', 'th_exchange_token');
+    longLivedUrl.searchParams.set('client_secret', THREADS_APP_SECRET);
+    longLivedUrl.searchParams.set('access_token', accessToken);
+    const longLivedResp = await fetch(longLivedUrl);
 
     let finalToken = accessToken;
     if (longLivedResp.ok) {
-      const longLivedData = await longLivedResp.json() as { access_token: string; expires_in?: number };
+      const longLivedData = (await longLivedResp.json()) as {
+        access_token: string;
+        expires_in?: number;
+      };
       finalToken = longLivedData.access_token;
     }
 
-    console.log(`Threads OAuth successful: user_id=${threadsUserId}, token=${finalToken.slice(0, 8)}...`);
+    persistEnvValues(AXIOM_ENV_FILE, {
+      THREADS_ACCESS_TOKEN: finalToken,
+      THREADS_USER_ID: threadsUserId,
+    });
+    console.log(`Threads OAuth successful: user_id=${threadsUserId}; credentials persisted`);
 
     return c.json({
       status: 'success',
       platform: 'threads',
       userThreadsId: threadsUserId,
-      message: 'Threads connected. Store THREADS_ACCESS_TOKEN and THREADS_USER_ID in .env',
-      tokenPreview: finalToken.slice(0, 12) + '...',
+      message: 'Threads connected. Credentials stored in .env.',
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return apiError(c, 500, statusTitle(500), `Threads OAuth failed: ${message}`);
+  } catch {
+    console.error('Threads OAuth exchange or persistence failed');
+    return apiError(c, 500, statusTitle(500), 'Threads OAuth exchange or persistence failed');
   }
 });
 

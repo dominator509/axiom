@@ -19,16 +19,18 @@ export class MistralProvider implements BaseProvider {
     readonly model: string = 'mistral-small-latest',
   ) {}
 
-  async chat(
-    messages: ProviderMessage[],
-    options?: ProviderOptions,
-  ): Promise<ProviderChatResult> {
-    const res = await callMistral(this.apiKey, {
-      model: this.model,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      temperature: options?.temperature,
-      max_tokens: options?.maxTokens,
-    }, undefined, options?.fetchImpl ?? fetch);
+  async chat(messages: ProviderMessage[], options?: ProviderOptions): Promise<ProviderChatResult> {
+    const res = await callMistral(
+      this.apiKey,
+      {
+        model: this.model,
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        temperature: options?.temperature,
+        max_tokens: options?.maxTokens,
+      },
+      undefined,
+      options?.fetchImpl ?? fetch,
+    );
     return {
       content: res.choices[0]?.message?.content ?? '',
       model: res.model ?? this.model,
@@ -46,12 +48,17 @@ export class MistralProvider implements BaseProvider {
     options?: ProviderOptions,
   ): AsyncIterable<ProviderStreamChunk> {
     try {
-      for await (const delta of streamMistral(this.apiKey, {
-        model: this.model,
-        messages: messages.map((m) => ({ role: m.role, content: m.content })),
-        temperature: options?.temperature,
-        max_tokens: options?.maxTokens,
-      }, undefined, options?.fetchImpl ?? fetch)) {
+      for await (const delta of streamMistral(
+        this.apiKey,
+        {
+          model: this.model,
+          messages: messages.map((m) => ({ role: m.role, content: m.content })),
+          temperature: options?.temperature,
+          max_tokens: options?.maxTokens,
+        },
+        undefined,
+        options?.fetchImpl ?? fetch,
+      )) {
         yield { type: 'delta', content: delta };
       }
     } catch (err) {

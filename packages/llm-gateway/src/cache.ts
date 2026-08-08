@@ -48,8 +48,17 @@ export interface PrefixCacheStats {
 }
 
 export type Platform =
-  | 'instagram' | 'tiktok' | 'x' | 'youtube' | 'facebook'
-  | 'reddit' | 'threads' | 'snapchat' | 'discord' | 'telegram' | 'fanvue';
+  | 'instagram'
+  | 'tiktok'
+  | 'x'
+  | 'youtube'
+  | 'facebook'
+  | 'reddit'
+  | 'threads'
+  | 'snapchat'
+  | 'discord'
+  | 'telegram'
+  | 'fanvue';
 
 // ─── Cache Key Hash ───
 
@@ -263,7 +272,10 @@ export class PrefixCache {
  * Separate from the prefix cache — this stores full responses by conversation key.
  */
 export class ResponseCache {
-  private store = new Map<string, { content: string; usage: { prompt: number; completion: number } }>();
+  private store = new Map<
+    string,
+    { content: string; usage: { prompt: number; completion: number } }
+  >();
   private hits = 0;
   private misses = 0;
 
@@ -277,7 +289,10 @@ export class ResponseCache {
     return null;
   }
 
-  set(key: string, value: { content: string; usage: { prompt: number; completion: number } }): void {
+  set(
+    key: string,
+    value: { content: string; usage: { prompt: number; completion: number } },
+  ): void {
     this.store.set(key, value);
   }
 

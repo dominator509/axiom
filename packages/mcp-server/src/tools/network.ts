@@ -37,7 +37,8 @@ export type NetworkInput = z.infer<typeof NetworkInputSchema>;
  */
 export class NetworkTool {
   name = 'network_configure';
-  description = 'Update cross-platform network configuration including cross-posting toggles, auto-reply thresholds, repost cadence, rate limits, and content blocklists. Autonomous-tier only — requires dashboard approval.';
+  description =
+    'Update cross-platform network configuration including cross-posting toggles, auto-reply thresholds, repost cadence, rate limits, and content blocklists. Autonomous-tier only — requires dashboard approval.';
   inputSchema = NetworkInputSchema;
   tier: Tier = Tier.Autonomous;
   requiresApproval = true;
@@ -47,7 +48,9 @@ export class NetworkTool {
       throw new Error(`Network configuration requires Autonomous tier, got ${permission.tier}`);
     }
     if (args.modelId !== permission.modelId) {
-      throw new Error(`Model mismatch: token scoped to ${permission.modelId}, requested ${args.modelId}`);
+      throw new Error(
+        `Model mismatch: token scoped to ${permission.modelId}, requested ${args.modelId}`,
+      );
     }
 
     const changeId = uuidv4();
@@ -63,7 +66,9 @@ export class NetworkTool {
       const pending = (features.pendingNetworkChanges ?? {}) as Record<string, unknown>;
       await tx
         .update(schema.org)
-        .set({ features: { ...features, pendingNetworkChanges: { ...pending, [changeId]: args.config } } })
+        .set({
+          features: { ...features, pendingNetworkChanges: { ...pending, [changeId]: args.config } },
+        })
         .where(eq(schema.org.id, orgId));
     });
 

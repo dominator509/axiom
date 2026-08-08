@@ -21,7 +21,8 @@ export type AnalyticsInput = z.infer<typeof AnalyticsInputSchema>;
  */
 export class AnalyticsTool {
   name = 'analytics_query';
-  description = 'Query model analytics and performance metrics (views, likes, shares, comments, engagement rate) over a date range.';
+  description =
+    'Query model analytics and performance metrics (views, likes, shares, comments, engagement rate) over a date range.';
   inputSchema = AnalyticsInputSchema;
   tier: Tier = Tier.Viewer;
   requiresApproval = false;
@@ -31,13 +32,16 @@ export class AnalyticsTool {
       throw new Error(`Insufficient permissions: requires ${this.tier}, got ${permission.tier}`);
     }
     if (args.modelId !== permission.modelId) {
-      throw new Error(`Model mismatch: token scoped to ${permission.modelId}, requested ${args.modelId}`);
+      throw new Error(
+        `Model mismatch: token scoped to ${permission.modelId}, requested ${args.modelId}`,
+      );
     }
 
     const data = await withModelOrg(args.modelId, async (tx) => {
       // Join post_metric → post_target → content_bundle to scope to the model.
       const conditions = [eq(schema.contentBundle.modelId, args.modelId)];
-      if (args.dateFrom) conditions.push(gte(schema.postMetric.collectedAt, new Date(args.dateFrom)));
+      if (args.dateFrom)
+        conditions.push(gte(schema.postMetric.collectedAt, new Date(args.dateFrom)));
       if (args.dateTo) conditions.push(lte(schema.postMetric.collectedAt, new Date(args.dateTo)));
 
       const rows = await tx
@@ -53,9 +57,18 @@ export class AnalyticsTool {
         .innerJoin(schema.contentBundle, eq(schema.postTarget.bundleId, schema.contentBundle.id))
         .where(and(...conditions));
 
-      type MetricRow = { views: number | null; likes: number | null; shares: number | null; comments: number | null; engagementRate: number | null };
+      type MetricRow = {
+        views: number | null;
+        likes: number | null;
+        shares: number | null;
+        comments: number | null;
+        engagementRate: number | null;
+      };
       const summary = rows.reduce(
-        (acc: { views: number; likes: number; shares: number; comments: number }, r: MetricRow) => ({
+        (
+          acc: { views: number; likes: number; shares: number; comments: number },
+          r: MetricRow,
+        ) => ({
           views: acc.views + Number(r.views ?? 0),
           likes: acc.likes + Number(r.likes ?? 0),
           shares: acc.shares + Number(r.shares ?? 0),
@@ -63,9 +76,10 @@ export class AnalyticsTool {
         }),
         { views: 0, likes: 0, shares: 0, comments: 0 },
       );
-      const engagementRate = summary.views > 0
-        ? ((summary.likes + summary.comments + summary.shares) / summary.views) * 100
-        : 0;
+      const engagementRate =
+        summary.views > 0
+          ? ((summary.likes + summary.comments + summary.shares) / summary.views) * 100
+          : 0;
 
       return {
         metric: args.metric ?? 'all',

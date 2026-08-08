@@ -11,7 +11,9 @@ registerConnectors();
 
 const workerId = process.env.WORKER_ID ?? `worker-${process.pid}`;
 const pollIntervalMs = parseInt(process.env.WORKER_POLL_INTERVAL_MS ?? '1000', 10);
-const maxAttempts = process.env.WORKER_MAX_ATTEMPTS ? parseInt(process.env.WORKER_MAX_ATTEMPTS, 10) : undefined;
+const maxAttempts = process.env.WORKER_MAX_ATTEMPTS
+  ? parseInt(process.env.WORKER_MAX_ATTEMPTS, 10)
+  : undefined;
 
 runWorker({ workerId, pollIntervalMs, maxAttempts }).catch((err) => {
   console.error('[worker] fatal:', err);

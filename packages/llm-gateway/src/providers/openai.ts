@@ -30,11 +30,7 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-function calculateCost(
-  model: string,
-  promptTokens: number,
-  completionTokens: number,
-): number {
+function calculateCost(model: string, promptTokens: number, completionTokens: number): number {
   const pricing = MODEL_PRICING[model];
   if (pricing) {
     return (promptTokens * pricing.input + completionTokens * pricing.output) / 1_000_000;
@@ -63,10 +59,7 @@ export class OpenAIProvider implements BaseProvider {
     private readonly baseUrl: string = 'https://api.openai.com/v1',
   ) {}
 
-  async chat(
-    messages: ProviderMessage[],
-    options?: ProviderOptions,
-  ): Promise<ProviderChatResult> {
+  async chat(messages: ProviderMessage[], options?: ProviderOptions): Promise<ProviderChatResult> {
     const doFetch = options?.fetchImpl ?? fetch;
     const body: Record<string, unknown> = {
       model: this.model,
@@ -335,7 +328,12 @@ export async function* streamOpenAI(
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new ProviderError(`OpenAI stream error ${res.status}: ${text}`, res.status, 'openai', text);
+    throw new ProviderError(
+      `OpenAI stream error ${res.status}: ${text}`,
+      res.status,
+      'openai',
+      text,
+    );
   }
   const reader = res.body?.getReader();
   if (!reader) throw new ProviderError('OpenAI stream body is null', 0, 'openai');

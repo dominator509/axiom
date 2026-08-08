@@ -37,10 +37,7 @@ export class VLLMProvider implements BaseProvider {
     private readonly baseUrl: string = 'http://localhost:8000/v1',
   ) {}
 
-  async chat(
-    messages: ProviderMessage[],
-    options?: ProviderOptions,
-  ): Promise<ProviderChatResult> {
+  async chat(messages: ProviderMessage[], options?: ProviderOptions): Promise<ProviderChatResult> {
     const doFetch = options?.fetchImpl ?? fetch;
     const body: Record<string, unknown> = {
       model: this.model,
@@ -56,12 +53,7 @@ export class VLLMProvider implements BaseProvider {
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new ProviderError(
-        `vLLM API error ${res.status}: ${text}`,
-        res.status,
-        this.name,
-        text,
-      );
+      throw new ProviderError(`vLLM API error ${res.status}: ${text}`, res.status, this.name, text);
     }
 
     const data = (await res.json()) as {
@@ -173,7 +165,11 @@ export class VLLMProvider implements BaseProvider {
                 yield {
                   type: 'done',
                   content: fullContent,
-                  usage: { promptTokens: pt, completionTokens: ct, totalTokens: parsed.usage.total_tokens },
+                  usage: {
+                    promptTokens: pt,
+                    completionTokens: ct,
+                    totalTokens: parsed.usage.total_tokens,
+                  },
                   cost: COST_PER_CHAT,
                 };
                 return;

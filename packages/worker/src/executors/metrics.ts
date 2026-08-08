@@ -38,7 +38,8 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
   const connector = connectorFor(platform);
 
   const collected = await connector.fetchMetrics(target.remoteId, 'day');
-  if (!collected) throw new Error(`metrics.poll: connector returned no metrics for ${target.remoteId}`);
+  if (!collected)
+    throw new Error(`metrics.poll: connector returned no metrics for ${target.remoteId}`);
 
   const m = collected.metrics ?? {};
   const impressions = m.impressions ?? m.views ?? 0;

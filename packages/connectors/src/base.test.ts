@@ -116,7 +116,11 @@ describe('idempotency', () => {
     const c = new TestConnector();
     const result = await c.publish(input({ idempotencyKey: 'key-1' }));
     expect(result).toEqual({ remoteId: 'r1', state: 'published', latencyMs: expect.any(Number) });
-    expect(c.checkIdem('key-1')).toMatchObject({ idempotencyKey: 'key-1', remoteId: 'r1', state: 'published' });
+    expect(c.checkIdem('key-1')).toMatchObject({
+      idempotencyKey: 'key-1',
+      remoteId: 'r1',
+      state: 'published',
+    });
   });
 
   it('skips and returns the previous remoteId when already published', async () => {
@@ -160,7 +164,12 @@ describe('logging', () => {
     c.writeLog('info', 'publish', 'hello world');
     const logs = c.getLogs();
     expect(logs).toHaveLength(1);
-    expect(logs[0]).toMatchObject({ level: 'info', action: 'publish', message: 'hello world', platform: 'x' });
+    expect(logs[0]).toMatchObject({
+      level: 'info',
+      action: 'publish',
+      message: 'hello world',
+      platform: 'x',
+    });
     expect(logs[0].timestamp).toBeTruthy();
   });
 
@@ -176,7 +185,9 @@ describe('logging', () => {
 
 describe('apiGet', () => {
   it('performs an authenticated GET and parses JSON', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new TestConnector({ accessToken: 'tok' });
@@ -192,7 +203,11 @@ describe('apiGet', () => {
   it('throws with status details and logs an error on non-ok responses', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(new Response('nope', { status: 500, statusText: 'Internal Server Error' })),
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response('nope', { status: 500, statusText: 'Internal Server Error' }),
+        ),
     );
     const c = new TestConnector();
     await expect(c.get('https://api.example.com/v1/things')).rejects.toThrow(
@@ -211,7 +226,9 @@ describe('apiGet', () => {
 
 describe('apiPost', () => {
   it('POSTs a JSON-serialized body with auth header', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 7 }), { status: 201 }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ id: 7 }), { status: 201 }));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new TestConnector({ accessToken: 'tok' });
@@ -225,7 +242,10 @@ describe('apiPost', () => {
   });
 
   it('throws on non-ok responses', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('bad', { status: 400, statusText: 'Bad Request' })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('bad', { status: 400, statusText: 'Bad Request' })),
+    );
     const c = new TestConnector();
     await expect(c.post('https://api.example.com/v1/create', {})).rejects.toThrow(
       'API POST https://api.example.com/v1/create failed: 400 Bad Request',
@@ -241,7 +261,9 @@ describe('apiPost', () => {
 
 describe('apiUpload', () => {
   it('uploads FormData with Bearer auth and no JSON content-type', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ uploaded: true }), { status: 200 }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ uploaded: true }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new TestConnector({ accessToken: 'tok' });
@@ -261,7 +283,10 @@ describe('apiUpload', () => {
   });
 
   it('throws on non-ok responses', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('x', { status: 503, statusText: 'Unavailable' })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('x', { status: 503, statusText: 'Unavailable' })),
+    );
     const c = new TestConnector();
     const fd = new FormData();
     await expect(c.upload('https://api.example.com/v1/upload', fd)).rejects.toThrow(
@@ -272,7 +297,9 @@ describe('apiUpload', () => {
 
 describe('apiDelete', () => {
   it('sends a DELETE request and parses JSON', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new TestConnector({ accessToken: 'tok' });
@@ -286,7 +313,10 @@ describe('apiDelete', () => {
   });
 
   it('throws on non-ok responses', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('nope', { status: 404, statusText: 'Not Found' })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('nope', { status: 404, statusText: 'Not Found' })),
+    );
     const c = new TestConnector();
     await expect(c.del('https://api.example.com/v1/things/1')).rejects.toThrow(
       'API DELETE https://api.example.com/v1/things/1 failed: 404 Not Found',

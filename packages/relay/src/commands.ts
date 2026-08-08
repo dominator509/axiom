@@ -1,5 +1,14 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-export type CardAction = 'approve' | 'approve_all' | 'reject' | 'edit_caption' | 'change_price' | 'reschedule' | 'regenerate' | 'revise' | 'hold';
+export type CardAction =
+  | 'approve'
+  | 'approve_all'
+  | 'reject'
+  | 'edit_caption'
+  | 'change_price'
+  | 'reschedule'
+  | 'regenerate'
+  | 'revise'
+  | 'hold';
 
 export interface CommandResult {
   success: boolean;

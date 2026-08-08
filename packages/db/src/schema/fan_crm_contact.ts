@@ -19,7 +19,9 @@ export const fanCrmContact = pgTable(
     externalId: text('external_id').notNull(),
     displayName: text('display_name'),
     tier: text('tier').notNull().default('new'),
-    lifetimeValueUsd: numeric('lifetime_value_usd', { precision: 12, scale: 2 }).notNull().default('0'),
+    lifetimeValueUsd: numeric('lifetime_value_usd', { precision: 12, scale: 2 })
+      .notNull()
+      .default('0'),
     lastActiveAt: timestamp('last_active_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

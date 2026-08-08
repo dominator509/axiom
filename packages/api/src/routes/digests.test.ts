@@ -68,7 +68,13 @@ describe('POST /digests/generate', () => {
 describe('GET /digests', () => {
   it('returns digest cards with cursor metadata', async () => {
     mockState.result = [
-      { id: 'card-1', orgId: ORG_ID, channel: 'digest', title: 'Weekly digest — 2026-08-03', createdAt: new Date('2026-08-07T00:00:00Z') },
+      {
+        id: 'card-1',
+        orgId: ORG_ID,
+        channel: 'digest',
+        title: 'Weekly digest — 2026-08-03',
+        createdAt: new Date('2026-08-07T00:00:00Z'),
+      },
     ];
     const res = await appWithOrg(ORG_ID).request('/digests');
     expect(res.status).toBe(200);

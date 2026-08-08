@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::io;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
-use tracing::{info, warn, instrument};
+use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
 pub mod config;
@@ -99,14 +99,17 @@ impl Config {
     pub fn from_env() -> Self {
         Self {
             kill_switch: std::env::var("KILL_SWITCH").unwrap_or_else(|_| "false".to_string()),
-            listen_addr: std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "0.0.0.0:3000".to_string()),
+            listen_addr: std::env::var("LISTEN_ADDR")
+                .unwrap_or_else(|_| "127.0.0.1:3000".to_string()),
             echo_url: std::env::var("EGRESS_ECHO_URL")
                 .unwrap_or_else(|_| "https://api.ipify.org".to_string()),
             database_url: std::env::var("EGRESS_DATABASE_URL")
                 .ok()
                 .or_else(|| std::env::var("DATABASE_URL").ok()),
             dek: db::dek_from_env(),
-            sidecar_bin: std::env::var("SIDECAR_BIN").ok().map(std::path::PathBuf::from),
+            sidecar_bin: std::env::var("SIDECAR_BIN")
+                .ok()
+                .map(std::path::PathBuf::from),
         }
     }
 }
@@ -324,10 +327,14 @@ async fn resolve_config(req: &BindRequest) -> Result<NetworkConfig, EgressError>
     let mode = EgressMode::from_str(&req.mode)
         .ok_or_else(|| EgressError::Validation(format!("invalid egress mode: {}", req.mode)))?;
     if req.model_id.is_empty() {
-        return Err(EgressError::Validation("model_id must not be empty".to_string()));
+        return Err(EgressError::Validation(
+            "model_id must not be empty".to_string(),
+        ));
     }
     if mode.is_proxy() && req.proxy_addr.is_none() {
-        return Err(EgressError::Validation("proxy modes require proxy_addr".to_string()));
+        return Err(EgressError::Validation(
+            "proxy modes require proxy_addr".to_string(),
+        ));
     }
     if mode.is_tunnel() && req.wg_private_key.is_none() {
         return Err(EgressError::Validation(
@@ -372,7 +379,9 @@ fn proxy_upstream_for(cfg: &NetworkConfig, req: &BindRequest, addr: &str) -> Ups
 async fn bind_egress(state: &Arc<AppState>, req: &BindRequest) -> Result<BoundEgress, EgressError> {
     let cfg = resolve_config(req).await?;
     if state.kill_switch.is_enabled() {
-        return Err(EgressError::KillSwitch("egress blocked by kill-switch".to_string()));
+        return Err(EgressError::KillSwitch(
+            "egress blocked by kill-switch".to_string(),
+        ));
     }
 
     let exe = state
@@ -419,7 +428,10 @@ async fn bind_egress(state: &Arc<AppState>, req: &BindRequest) -> Result<BoundEg
                 .wg_private_key
                 .as_deref()
                 .ok_or_else(|| EgressError::Validation("missing wg_private_key".to_string()))?;
-            let iface_addr = req.iface_addr.clone().unwrap_or_else(|| "10.7.0.2/32".to_string());
+            let iface_addr = req
+                .iface_addr
+                .clone()
+                .unwrap_or_else(|| "10.7.0.2/32".to_string());
             let spec = tunnel::TunnelSpec::from_config(&cfg, private_key, &iface_addr)
                 .map_err(EgressError::Validation)?;
             tunnel::bring_up_tunnel(&ns, &spec, private_key, req.wg_preshared_key.as_deref())?;
@@ -438,29 +450,23 @@ async fn bind_egress(state: &Arc<AppState>, req: &BindRequest) -> Result<BoundEg
                 }
             }
             for h in hosts {
-                let sanitized = NetworkConfig::sanitize_hostport(&h).map_err(EgressError::Validation)?;
+                let sanitized =
+                    NetworkConfig::sanitize_hostport(&h).map_err(EgressError::Validation)?;
                 netns::add_allow_rule(&ns, &sanitized)?;
             }
         }
 
         let upstream = match cfg.mode {
             EgressMode::Socks5 | EgressMode::Http | EgressMode::Https => {
-                let primary = cfg
-                    .proxy_addr
-                    .clone()
-                    .ok_or_else(|| EgressError::Validation("proxy modes require proxy_addr".to_string()))?;
+                let primary = cfg.proxy_addr.clone().ok_or_else(|| {
+                    EgressError::Validation("proxy modes require proxy_addr".to_string())
+                })?;
                 proxy_upstream_for(&cfg, req, &primary)
             }
             _ => Upstream::Direct,
         };
 
-        let child = proxy::spawn_sidecar_in_netns(
-            &ns,
-            &exe,
-            &ns_ip,
-            SIDECAR_PORT,
-            &upstream,
-        )?;
+        let child = proxy::spawn_sidecar_in_netns(&ns, &exe, &ns_ip, SIDECAR_PORT, &upstream)?;
         Ok::<_, EgressError>((upstream, child))
     }
     .await;
@@ -523,7 +529,10 @@ fn chrono_iso_now() -> String {
     // Minimal UTC ISO-8601 without pulling chrono into the graph: use the
     // system `date` command once per probe (sub-second precision is not
     // required for health timestamps).
-    match std::process::Command::new("date").args(["-u", "+%Y-%m-%dT%H:%M:%SZ"]).output() {
+    match std::process::Command::new("date")
+        .args(["-u", "+%Y-%m-%dT%H:%M:%SZ"])
+        .output()
+    {
         Ok(o) => String::from_utf8_lossy(&o.stdout).trim().to_string(),
         Err(_) => "1970-01-01T00:00:00Z".to_string(),
     }
@@ -651,7 +660,11 @@ pub async fn egress_unbind(
     };
     match removed {
         Some(bound) => {
-            let octet = bound.host_ip.split('.').nth(2).and_then(|s| s.parse::<u16>().ok());
+            let octet = bound
+                .host_ip
+                .split('.')
+                .nth(2)
+                .and_then(|s| s.parse::<u16>().ok());
             let _ = teardown_bound(bound);
             if let Some(o) = octet {
                 state.registry.lock().unwrap().release_octet(o);
@@ -665,7 +678,10 @@ pub async fn egress_unbind(
                 })),
             ))
         }
-        None => Err(EgressError::Validation(format!("model {} is not bound", body.model_id))),
+        None => Err(EgressError::Validation(format!(
+            "model {} is not bound",
+            body.model_id
+        ))),
     }
 }
 
@@ -741,7 +757,8 @@ pub async fn egress_health_check_model(
             let _ = child.wait();
         }
         let upstream = proxy_upstream_for(&bound.config, &from_bound(&bound), &next);
-        match proxy::spawn_sidecar_in_netns(&bound.ns, &exe, &bound.ns_ip, SIDECAR_PORT, &upstream) {
+        match proxy::spawn_sidecar_in_netns(&bound.ns, &exe, &bound.ns_ip, SIDECAR_PORT, &upstream)
+        {
             Ok(child) => {
                 bound.child = Some(child);
                 bound.upstream = upstream;
@@ -758,7 +775,12 @@ pub async fn egress_health_check_model(
     let snapshot = bound.health.clone();
     let org = bound.config.org_id.clone();
     {
-        state.registry.lock().unwrap().bounds.insert(model_id.clone(), bound);
+        state
+            .registry
+            .lock()
+            .unwrap()
+            .bounds
+            .insert(model_id.clone(), bound);
     }
     let mut client = state.db.lock().unwrap().take();
     if let Some(c) = client.as_mut() {
@@ -922,7 +944,14 @@ pub async fn kill_switch_drain(State(state): State<Arc<AppState>>) -> impl IntoR
     let correlation_id = Uuid::new_v4().to_string();
     warn!(correlation_id = %correlation_id, "Kill-switch drain requested");
     state.kill_switch.set_enabled(true);
-    let bound_list: Vec<String> = state.registry.lock().unwrap().bounds.keys().cloned().collect();
+    let bound_list: Vec<String> = state
+        .registry
+        .lock()
+        .unwrap()
+        .bounds
+        .keys()
+        .cloned()
+        .collect();
     for model_id in bound_list {
         if let Some(bound) = state.registry.lock().unwrap().bounds.remove(&model_id) {
             let _ = teardown_bound(bound);
@@ -979,24 +1008,38 @@ pub async fn metrics(State(state): State<Arc<AppState>>) -> impl IntoResponse {
         health: reg
             .bounds
             .iter()
-            .map(|(id, b)| (id.clone(), (b.config.mode.as_str().to_string(), b.health.clone())))
+            .map(|(id, b)| {
+                (
+                    id.clone(),
+                    (b.config.mode.as_str().to_string(), b.health.clone()),
+                )
+            })
             .collect(),
     };
     (
         StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4",
+        )],
         m.render(),
     )
 }
 
 /// POST /egress/sync — load all configs from Postgres and bind them
 #[instrument(skip(state))]
-pub async fn egress_sync(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse, EgressError> {
+pub async fn egress_sync(
+    State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, EgressError> {
     let correlation_id = Uuid::new_v4().to_string();
     let mut client = state.db.lock().unwrap().take();
     let configs = match client.as_mut() {
         Some(c) => db::load_configs(c).await.map_err(EgressError::Config)?,
-        None => return Err(EgressError::Config("DATABASE_URL not configured".to_string())),
+        None => {
+            return Err(EgressError::Config(
+                "DATABASE_URL not configured".to_string(),
+            ))
+        }
     };
     *state.db.lock().unwrap() = client;
     let mut bound = 0usize;
@@ -1035,7 +1078,12 @@ pub async fn egress_sync(State(state): State<Arc<AppState>>) -> Result<impl Into
             Ok(mut b) => {
                 probe_bound(&state, &mut b).await;
                 state.registry.lock().unwrap().binds_total += 1;
-                state.registry.lock().unwrap().bounds.insert(cfg.model_id.clone(), b);
+                state
+                    .registry
+                    .lock()
+                    .unwrap()
+                    .bounds
+                    .insert(cfg.model_id.clone(), b);
                 bound += 1;
             }
             Err(e) => {
@@ -1068,7 +1116,10 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/egress/unbind", post(egress_unbind))
         .route("/egress/status", get(egress_status))
         .route("/egress/health-check", post(egress_health_check))
-        .route("/egress/health-check/model", post(egress_health_check_model))
+        .route(
+            "/egress/health-check/model",
+            post(egress_health_check_model),
+        )
         .route("/egress/decrypt", post(egress_decrypt))
         .route("/egress/encrypt", post(egress_encrypt))
         .route("/egress/sync", post(egress_sync))

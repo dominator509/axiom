@@ -50,7 +50,11 @@ export default async function ModelLayout({
 
       <nav className="tabs" style={{ marginTop: 16 }}>
         {TABS.map((t) => (
-          <Link key={t.href} href={`/models/${id}/${t.href}`} className={t.href === '' ? 'active' : ''}>
+          <Link
+            key={t.href}
+            href={`/models/${id}/${t.href}`}
+            className={t.href === '' ? 'active' : ''}
+          >
             {t.label}
           </Link>
         ))}

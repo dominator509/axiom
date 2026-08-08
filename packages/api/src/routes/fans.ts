@@ -96,11 +96,17 @@ router.post('/models/:modelId/fans', zValidator('json', contactSchema), async (c
         lastActiveAt: new Date(),
       })
       .onConflictDoUpdate({
-        target: [schema.fanCrmContact.orgId, schema.fanCrmContact.modelId, schema.fanCrmContact.platform, schema.fanCrmContact.externalId],
+        target: [
+          schema.fanCrmContact.orgId,
+          schema.fanCrmContact.modelId,
+          schema.fanCrmContact.platform,
+          schema.fanCrmContact.externalId,
+        ],
         set: {
           displayName: body.displayName ?? undefined,
           tier: body.tier ?? undefined,
-          lifetimeValueUsd: body.lifetimeValueUsd != null ? String(body.lifetimeValueUsd) : undefined,
+          lifetimeValueUsd:
+            body.lifetimeValueUsd != null ? String(body.lifetimeValueUsd) : undefined,
           lastActiveAt: new Date(),
           updatedAt: new Date(),
         },

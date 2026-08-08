@@ -127,7 +127,10 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
           );
 
           lastRemoteId = videoResp.id;
-          this.log('info', 'publish', `Facebook video published`, { remoteId: videoResp.id, mediaUrl });
+          this.log('info', 'publish', `Facebook video published`, {
+            remoteId: videoResp.id,
+            mediaUrl,
+          });
         } else if (mediaType === 'story') {
           // Story upload via /{page-id}/stories
           const body: Record<string, string> = {
@@ -143,7 +146,10 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
           );
 
           lastRemoteId = storyResp.id;
-          this.log('info', 'publish', `Facebook story published`, { remoteId: storyResp.id, mediaUrl });
+          this.log('info', 'publish', `Facebook story published`, {
+            remoteId: storyResp.id,
+            mediaUrl,
+          });
         } else {
           // POST /{page-id}/photos
           const body: Record<string, string> = {
@@ -159,7 +165,10 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
           );
 
           lastRemoteId = photoResp.post_id ?? photoResp.id;
-          this.log('info', 'publish', `Facebook photo published`, { remoteId: lastRemoteId, mediaUrl });
+          this.log('info', 'publish', `Facebook photo published`, {
+            remoteId: lastRemoteId,
+            mediaUrl,
+          });
         }
       }
 
@@ -208,13 +217,12 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
     let likes = result['likes'] ?? 0;
     let comments = result['comments'] ?? 0;
     let shares = result['shares'] ?? 0;
-    let impressions = result['impressions'] ?? 0;
+    const impressions = result['impressions'] ?? 0;
 
     // Fallback: fetch post reactions/comments counts directly
     if (likes === 0 || comments === 0) {
       try {
-        const postUrl =
-          `${FB_GRAPH_BASE}/${pageId}_${remoteId}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0),shares&access_token=${accessToken}`;
+        const postUrl = `${FB_GRAPH_BASE}/${pageId}_${remoteId}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0),shares&access_token=${accessToken}`;
 
         const postResp = await fetch(postUrl);
         if (postResp.ok) {
@@ -239,7 +247,13 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
       }
     }
 
-    this.log('info', 'fetchMetrics', `Fetched Facebook metrics`, { remoteId, likes, comments, shares, impressions });
+    this.log('info', 'fetchMetrics', `Fetched Facebook metrics`, {
+      remoteId,
+      likes,
+      comments,
+      shares,
+      impressions,
+    });
 
     return {
       postId: remoteId,
@@ -265,8 +279,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
     const accessToken = this.auth.accessToken;
 
     // Revoke: DELETE /{page-id}/permissions removes all app permissions
-    const revokeUrl =
-      `${FB_GRAPH_BASE}/${pageId}/permissions?access_token=${encodeURIComponent(accessToken)}`;
+    const revokeUrl = `${FB_GRAPH_BASE}/${pageId}/permissions?access_token=${encodeURIComponent(accessToken)}`;
 
     const response = await fetch(revokeUrl, {
       method: 'DELETE',
@@ -277,7 +290,11 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      this.log('warn', 'revoke', `Facebook permissions deletion warned: ${response.status} — ${body}`);
+      this.log(
+        'warn',
+        'revoke',
+        `Facebook permissions deletion warned: ${response.status} — ${body}`,
+      );
     } else {
       const result = (await response.json()) as FbPermissionsResponse;
       this.log('info', 'revoke', `Facebook permissions revoked for page ${pageId}`, {
@@ -287,8 +304,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
 
     // Also attempt to revoke the user-level token
     try {
-      const userTokenRevokeUrl =
-        `${FB_GRAPH_BASE}/me/permissions?access_token=${encodeURIComponent(accessToken)}`;
+      const userTokenRevokeUrl = `${FB_GRAPH_BASE}/me/permissions?access_token=${encodeURIComponent(accessToken)}`;
 
       const userResp = await fetch(userTokenRevokeUrl, {
         method: 'DELETE',

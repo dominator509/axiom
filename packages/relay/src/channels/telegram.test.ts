@@ -40,7 +40,9 @@ describe('construction / getBot / onCommand', () => {
   it('stores action handlers for callback queries', async () => {
     const handler = vi.fn().mockResolvedValue(undefined);
     adapter.onCommand('approve', handler);
-    const answerSpy = vi.spyOn(adapter.getBot().api, 'answerCallbackQuery').mockResolvedValue(true as any);
+    const answerSpy = vi
+      .spyOn(adapter.getBot().api, 'answerCallbackQuery')
+      .mockResolvedValue(true as any);
 
     await adapter.handleCallback({ id: 'cb-1', data: 'approve:bundle-1' });
 
@@ -51,7 +53,9 @@ describe('construction / getBot / onCommand', () => {
 
 describe('sendCard', () => {
   it('sends an HTML card with an inline keyboard of action buttons', async () => {
-    const sendSpy = vi.spyOn(adapter.getBot().api, 'sendMessage').mockResolvedValue({ message_id: 1 } as any);
+    const sendSpy = vi
+      .spyOn(adapter.getBot().api, 'sendMessage')
+      .mockResolvedValue({ message_id: 1 } as any);
 
     await adapter.sendCard('chat-1', makeCard(['approve', 'reject', 'hold']));
 
@@ -74,13 +78,28 @@ describe('sendCard', () => {
   });
 
   it('builds a button per action for large action sets', async () => {
-    const sendSpy = vi.spyOn(adapter.getBot().api, 'sendMessage').mockResolvedValue({ message_id: 1 } as any);
-    const actions: CardAction[] = ['approve', 'approve_all', 'edit_caption', 'change_price', 'reschedule', 'regenerate', 'revise', 'hold', 'reject'];
+    const sendSpy = vi
+      .spyOn(adapter.getBot().api, 'sendMessage')
+      .mockResolvedValue({ message_id: 1 } as any);
+    const actions: CardAction[] = [
+      'approve',
+      'approve_all',
+      'edit_caption',
+      'change_price',
+      'reschedule',
+      'regenerate',
+      'revise',
+      'hold',
+      'reject',
+    ];
     await adapter.sendCard('chat-1', makeCard(actions));
     const [, , opts] = sendSpy.mock.calls[0] as unknown as [string, string, any];
     const keyboard = opts.reply_markup as InlineKeyboard;
     expect(keyboard.inline_keyboard[0]).toHaveLength(9);
-    expect(keyboard.inline_keyboard[0][1]).toEqual({ text: '✅✅ Approve All', callback_data: 'approve_all:bundle-1' });
+    expect(keyboard.inline_keyboard[0][1]).toEqual({
+      text: '✅✅ Approve All',
+      callback_data: 'approve_all:bundle-1',
+    });
   });
 
   it('propagates API errors', async () => {
@@ -98,7 +117,9 @@ describe('handleCallback', () => {
   });
 
   it('ignores callbacks with no registered handler', async () => {
-    const answerSpy = vi.spyOn(adapter.getBot().api, 'answerCallbackQuery').mockResolvedValue(true as any);
+    const answerSpy = vi
+      .spyOn(adapter.getBot().api, 'answerCallbackQuery')
+      .mockResolvedValue(true as any);
     await adapter.handleCallback({ id: 'cb-1', data: 'approve:bundle-1' });
     expect(answerSpy).not.toHaveBeenCalled();
   });
@@ -113,10 +134,21 @@ describe('handleCallback', () => {
 
 describe('setupCommands', () => {
   it('registers all eight slash commands', () => {
-    const commandSpy = vi.spyOn(adapter.getBot(), 'command').mockImplementation(() => adapter.getBot() as any);
+    const commandSpy = vi
+      .spyOn(adapter.getBot(), 'command')
+      .mockImplementation(() => adapter.getBot() as any);
     adapter.setupCommands();
     const names = commandSpy.mock.calls.map((c) => c[0]);
-    expect(names).toEqual(['approve', 'approve_all', 'reject', 'edit', 'reschedule', 'regenerate', 'revise', 'hold']);
+    expect(names).toEqual([
+      'approve',
+      'approve_all',
+      'reject',
+      'edit',
+      'reschedule',
+      'regenerate',
+      'revise',
+      'hold',
+    ]);
   });
 
   it('wires command handlers to the registered action handlers', async () => {
@@ -148,7 +180,9 @@ describe('setupCommands', () => {
 
 describe('startPolling / setWebhook', () => {
   it('startPolling registers commands and starts the bot', async () => {
-    const commandSpy = vi.spyOn(adapter.getBot(), 'command').mockImplementation(() => adapter.getBot() as any);
+    const commandSpy = vi
+      .spyOn(adapter.getBot(), 'command')
+      .mockImplementation(() => adapter.getBot() as any);
     const startSpy = vi.spyOn(adapter.getBot(), 'start').mockResolvedValue();
     await adapter.startPolling();
     expect(commandSpy).toHaveBeenCalled();
@@ -156,7 +190,9 @@ describe('startPolling / setWebhook', () => {
   });
 
   it('setWebhook calls the API and registers commands', async () => {
-    const commandSpy = vi.spyOn(adapter.getBot(), 'command').mockImplementation(() => adapter.getBot() as any);
+    const commandSpy = vi
+      .spyOn(adapter.getBot(), 'command')
+      .mockImplementation(() => adapter.getBot() as any);
     const webhookSpy = vi.spyOn(adapter.getBot().api, 'setWebhook').mockResolvedValue(true as any);
     await adapter.setWebhook('https://relay.example/hook');
     expect(webhookSpy).toHaveBeenCalledWith('https://relay.example/hook');

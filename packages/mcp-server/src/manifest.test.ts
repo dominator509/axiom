@@ -14,7 +14,7 @@ const ALL_TOOL_NAMES = [
 ];
 
 function names(manifest: ToolDescriptor[]): string[] {
-  return manifest.map(t => t.name).sort();
+  return manifest.map((t) => t.name).sort();
 }
 
 describe('allTools registry', () => {
@@ -75,38 +75,40 @@ describe('getManifest — descriptors', () => {
   });
 
   it('exposes the raw zod _def as inputSchema', () => {
-    const analytics = getManifest(Tier.Viewer, MODEL).find(t => t.name === 'analytics_query')!;
+    const analytics = getManifest(Tier.Viewer, MODEL).find((t) => t.name === 'analytics_query')!;
     expect(analytics.inputSchema).toBe(allTools.analytics_query.inputSchema._def);
   });
 
   it('flags generation as requiring approval at Operator tier', () => {
-    const gen = getManifest(Tier.Operator, MODEL).find(t => t.name === 'generation_photoshoot')!;
+    const gen = getManifest(Tier.Operator, MODEL).find((t) => t.name === 'generation_photoshoot')!;
     expect(gen.requiresApproval).toBe(true);
     expect(gen.tier).toBe(Tier.Operator);
   });
 
   it('does not flag analytics or inbox as requiring approval', () => {
     const manifest = getManifest(Tier.Autonomous, MODEL);
-    expect(manifest.find(t => t.name === 'analytics_query')!.requiresApproval).toBe(false);
-    expect(manifest.find(t => t.name === 'inbox_manage')!.requiresApproval).toBe(false);
+    expect(manifest.find((t) => t.name === 'analytics_query')!.requiresApproval).toBe(false);
+    expect(manifest.find((t) => t.name === 'inbox_manage')!.requiresApproval).toBe(false);
   });
 
   it('publishing requires approval for Manager but not Autonomous', () => {
-    const manager = getManifest(Tier.Manager, MODEL).find(t => t.name === 'publishing_post')!;
+    const manager = getManifest(Tier.Manager, MODEL).find((t) => t.name === 'publishing_post')!;
     expect(manager.requiresApproval).toBe(true);
-    const autonomous = getManifest(Tier.Autonomous, MODEL).find(t => t.name === 'publishing_post')!;
+    const autonomous = getManifest(Tier.Autonomous, MODEL).find(
+      (t) => t.name === 'publishing_post',
+    )!;
     expect(autonomous.requiresApproval).toBe(false);
   });
 
   it('network_configure always requires approval and is autonomous-tier only', () => {
-    const net = getManifest(Tier.Autonomous, MODEL).find(t => t.name === 'network_configure')!;
+    const net = getManifest(Tier.Autonomous, MODEL).find((t) => t.name === 'network_configure')!;
     expect(net.requiresApproval).toBe(true);
     expect(net.tier).toBe(Tier.Autonomous);
   });
 
   it('reports the correct minimum tier on each descriptor', () => {
     const manifest = getManifest(Tier.Autonomous, MODEL);
-    const byName = Object.fromEntries(manifest.map(t => [t.name, t]));
+    const byName = Object.fromEntries(manifest.map((t) => [t.name, t]));
     expect(byName.analytics_query.tier).toBe(Tier.Viewer);
     expect(byName.inbox_manage.tier).toBe(Tier.Operator);
     expect(byName.generation_photoshoot.tier).toBe(Tier.Operator);

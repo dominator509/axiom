@@ -10,7 +10,8 @@ export interface TelegramConfig {
 export class TelegramAdapter {
   private bot: Bot;
   private renderer: CardRenderer;
-  private handlers: Map<string, (action: CardAction, bundleId: string) => Promise<void>> = new Map();
+  private handlers: Map<string, (action: CardAction, bundleId: string) => Promise<void>> =
+    new Map();
 
   constructor(config: TelegramConfig) {
     this.bot = new Bot(config.token);

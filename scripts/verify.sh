@@ -7,9 +7,15 @@ LEDGER=".agent/state/LEDGER.md"
 echo "AXIOM Verification Gate"
 echo "======================="
 
-# Check preflight
-if ! bash scripts/preflight.sh 2>&1 | grep -q "preflight: ok"; then
+# Check preflight while preserving its diagnostics for audit output.
+PREFLIGHT_OUTPUT=$(bash scripts/preflight.sh 2>&1) || {
+    printf '%s\n' "$PREFLIGHT_OUTPUT"
     echo "FAIL: preflight"
+    exit 1
+}
+printf '%s\n' "$PREFLIGHT_OUTPUT"
+if ! printf '%s\n' "$PREFLIGHT_OUTPUT" | grep -q "preflight: ok"; then
+    echo "FAIL: preflight did not emit the required success marker"
     exit 1
 fi
 echo "  PASS: preflight"
@@ -20,7 +26,8 @@ for phase in P0 P1 P2 P3 P4; do
     if grep -q "| DONE $phase" "$LEDGER" 2>/dev/null; then
         echo "  PASS: $phase complete"
     else
-        echo "  PASS: $phase (not yet complete)"
+        echo "  FAIL: $phase not complete"
+        exit 1
     fi
 done
 

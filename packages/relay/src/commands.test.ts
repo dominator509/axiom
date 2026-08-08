@@ -65,9 +65,7 @@ describe('signCommand / verifyCommand', () => {
 
   it('matches the expected raw HMAC computation', () => {
     const nonce = 'abc123';
-    const expected = createHmac('sha256', SECRET)
-      .update(`${nonce}:approve:bundle-1`)
-      .digest('hex');
+    const expected = createHmac('sha256', SECRET).update(`${nonce}:approve:bundle-1`).digest('hex');
     expect(router.signCommand(nonce, 'approve', 'bundle-1')).toBe(expected);
   });
 });
@@ -145,7 +143,17 @@ describe('processCommand / getAuditLog', () => {
   });
 
   it('accumulates multiple commands in order', async () => {
-    const actions: CardAction[] = ['approve', 'reject', 'hold', 'revise', 'regenerate', 'edit_caption', 'change_price', 'reschedule', 'approve_all'];
+    const actions: CardAction[] = [
+      'approve',
+      'reject',
+      'hold',
+      'revise',
+      'regenerate',
+      'edit_caption',
+      'change_price',
+      'reschedule',
+      'approve_all',
+    ];
     for (const a of actions) {
       await router.processCommand(`b-${a}`, a);
     }

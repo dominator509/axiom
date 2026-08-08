@@ -14,11 +14,7 @@ interface PlaybookData {
   scheduleCount30d: number;
 }
 
-export default async function PlaybookPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function PlaybookPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let data: PlaybookData | null = null;
   try {
@@ -48,19 +44,24 @@ export default async function PlaybookPage({
           <h3>Current score</h3>
           <div style={{ fontSize: 40, fontWeight: 700 }}>{pct}%</div>
           <p style={{ color: 'var(--muted)', margin: 0 }}>
-            {data.score.passed ? 'Adherent to the Fanvue Creator Course.' : 'Below adherence threshold.'}
+            {data.score.passed
+              ? 'Adherent to the Fanvue Creator Course.'
+              : 'Below adherence threshold.'}
           </p>
         </div>
         <div className="card">
           <h3>Cadence</h3>
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <span>Posts / day (30d)</span><strong>{data.cadencePerDay.toFixed(2)}</strong>
+            <span>Posts / day (30d)</span>
+            <strong>{data.cadencePerDay.toFixed(2)}</strong>
           </div>
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <span>Published (30d)</span><strong>{data.postCount30d}</strong>
+            <span>Published (30d)</span>
+            <strong>{data.postCount30d}</strong>
           </div>
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <span>Scheduled (30d)</span><strong>{data.scheduleCount30d}</strong>
+            <span>Scheduled (30d)</span>
+            <strong>{data.scheduleCount30d}</strong>
           </div>
         </div>
       </div>
@@ -69,7 +70,10 @@ export default async function PlaybookPage({
           <h3>Score history</h3>
           <table>
             <thead>
-              <tr><th>When</th><th>Score</th></tr>
+              <tr>
+                <th>When</th>
+                <th>Score</th>
+              </tr>
             </thead>
             <tbody>
               {data.history.map((h) => (

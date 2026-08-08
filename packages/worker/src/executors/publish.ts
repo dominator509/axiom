@@ -63,7 +63,12 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     const ledger = await tx
       .select()
       .from(schema.idempotencyLedger)
-      .where(and(eq(schema.idempotencyLedger.orgId, job.org_id), eq(schema.idempotencyLedger.idemKey, idemKeyHex)))
+      .where(
+        and(
+          eq(schema.idempotencyLedger.orgId, job.org_id),
+          eq(schema.idempotencyLedger.idemKey, idemKeyHex),
+        ),
+      )
       .limit(1);
     if (ledger.length > 0) {
       // Key hit — return stored result without any platform call.
@@ -159,4 +164,3 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     })
     .onConflictDoNothing();
 };
-

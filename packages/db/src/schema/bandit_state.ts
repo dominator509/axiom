@@ -5,8 +5,12 @@ import { modelProfile } from './model_profile.js';
 
 export const banditState = pgTable('bandit_state', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
-  modelId: uuid('model_id').notNull().references(() => modelProfile.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id, { onDelete: 'cascade' }),
+  modelId: uuid('model_id')
+    .notNull()
+    .references(() => modelProfile.id, { onDelete: 'cascade' }),
   platform: text('platform').notNull(),
   context: text('context').notNull(),
   arm: text('arm').notNull(),

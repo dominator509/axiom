@@ -52,14 +52,18 @@ export function registerConnectors(env: ConnectorEnv = process.env as ConnectorE
   register(new DiscordConnector({ accessToken: token(env.DISCORD_BOT_TOKEN) }));
   register(new TelegramConnector({ accessToken: token(env.TELEGRAM_BOT_TOKEN) }));
   register(new SnapchatConnector({ accessToken: token(env.SNAPCHAT_ACCESS_TOKEN) }));
-  register(new FanvueConnector({
-    accessToken: token(env.FANVUE_ACCESS_TOKEN),
-    refreshToken: env.FANVUE_REFRESH_TOKEN || undefined,
-    expiresAt: env.FANVUE_TOKEN_EXPIRES_AT ? new Date(env.FANVUE_TOKEN_EXPIRES_AT).getTime() / 1000 : undefined,
-    externalUserId: env.FANVUE_MODEL_ID,
-    extra: {
-      clientId: env.FANVUE_CLIENT_ID || undefined,
-      clientSecret: env.FANVUE_CLIENT_SECRET || undefined,
-    },
-  }));
+  register(
+    new FanvueConnector({
+      accessToken: token(env.FANVUE_ACCESS_TOKEN),
+      refreshToken: env.FANVUE_REFRESH_TOKEN || undefined,
+      expiresAt: env.FANVUE_TOKEN_EXPIRES_AT
+        ? new Date(env.FANVUE_TOKEN_EXPIRES_AT).getTime() / 1000
+        : undefined,
+      externalUserId: env.FANVUE_MODEL_ID,
+      extra: {
+        clientId: env.FANVUE_CLIENT_ID || undefined,
+        clientSecret: env.FANVUE_CLIENT_SECRET || undefined,
+      },
+    }),
+  );
 }

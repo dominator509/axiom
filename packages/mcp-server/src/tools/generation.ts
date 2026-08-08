@@ -29,7 +29,8 @@ export type GenerationInput = z.infer<typeof GenerationInputSchema>;
  */
 export class GenerationTool {
   name = 'generation_photoshoot';
-  description = 'Generate AI photoshoot imagery for a model profile. Requires human approval via Relay.';
+  description =
+    'Generate AI photoshoot imagery for a model profile. Requires human approval via Relay.';
   inputSchema = GenerationInputSchema;
   tier: Tier = Tier.Operator;
   requiresApproval = true;
@@ -39,7 +40,9 @@ export class GenerationTool {
       throw new Error(`Insufficient permissions: requires ${this.tier}, got ${permission.tier}`);
     }
     if (args.modelId !== permission.modelId) {
-      throw new Error(`Model mismatch: token scoped to ${permission.modelId}, requested ${args.modelId}`);
+      throw new Error(
+        `Model mismatch: token scoped to ${permission.modelId}, requested ${args.modelId}`,
+      );
     }
 
     const bundleId = uuidv4();

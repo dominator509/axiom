@@ -15,8 +15,13 @@ export const modelNetworkConfigs = pgTable(
   'model_network_configs',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    orgId: uuid('org_id').notNull().references(() => org.id),
-    modelId: uuid('model_id').notNull().unique().references(() => modelProfile.id),
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => org.id),
+    modelId: uuid('model_id')
+      .notNull()
+      .unique()
+      .references(() => modelProfile.id),
     egressMode: text('egress_mode').notNull().default('direct'),
     proxyType: text('proxy_type'),
     proxyAddr: text('proxy_addr'),

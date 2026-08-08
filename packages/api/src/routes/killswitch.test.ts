@@ -35,7 +35,13 @@ afterEach(() => {
 describe('GET /killswitch — status', () => {
   it('reports the kill switch disabled when settings exist and publishing is enabled', async () => {
     mockState.result = [
-      { orgId: ORG_ID, publishingEnabled: true, killSwitchReason: null, killSwitchAt: null, updatedAt: new Date().toISOString() },
+      {
+        orgId: ORG_ID,
+        publishingEnabled: true,
+        killSwitchReason: null,
+        killSwitchAt: null,
+        updatedAt: new Date().toISOString(),
+      },
     ];
     const res = await appWithOrg(ORG_ID).request('/killswitch');
     expect(res.status).toBe(200);
@@ -45,7 +51,13 @@ describe('GET /killswitch — status', () => {
 
   it('reports enabled when publishing is disabled', async () => {
     mockState.result = [
-      { orgId: ORG_ID, publishingEnabled: false, killSwitchReason: 'Emergency', killSwitchAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      {
+        orgId: ORG_ID,
+        publishingEnabled: false,
+        killSwitchReason: 'Emergency',
+        killSwitchAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
     ];
     const res = await appWithOrg(ORG_ID).request('/killswitch');
     expect(res.status).toBe(200);
@@ -56,7 +68,13 @@ describe('GET /killswitch — status', () => {
 
   it('returns default disabled state when a settings row is present', async () => {
     mockState.result = [
-      { orgId: ORG_ID, publishingEnabled: true, killSwitchReason: null, killSwitchAt: null, updatedAt: new Date().toISOString() },
+      {
+        orgId: ORG_ID,
+        publishingEnabled: true,
+        killSwitchReason: null,
+        killSwitchAt: null,
+        updatedAt: new Date().toISOString(),
+      },
     ];
     const res = await appWithOrg(ORG_ID).request('/killswitch');
     expect(res.status).toBe(200);
@@ -72,7 +90,14 @@ describe('GET /killswitch — status', () => {
 
 describe('POST /killswitch/enable', () => {
   it('enables with a custom reason', async () => {
-    mockState.result = [{ orgId: ORG_ID, publishingEnabled: false, killSwitchReason: 'Manual', killSwitchAt: new Date().toISOString() }];
+    mockState.result = [
+      {
+        orgId: ORG_ID,
+        publishingEnabled: false,
+        killSwitchReason: 'Manual',
+        killSwitchAt: new Date().toISOString(),
+      },
+    ];
     const res = await appWithOrg(ORG_ID).request('/killswitch/enable', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -96,7 +121,9 @@ describe('POST /killswitch/enable', () => {
 
 describe('POST /killswitch/disable', () => {
   it('disables and clears the reason', async () => {
-    mockState.result = [{ orgId: ORG_ID, publishingEnabled: true, killSwitchReason: null, killSwitchAt: null }];
+    mockState.result = [
+      { orgId: ORG_ID, publishingEnabled: true, killSwitchReason: null, killSwitchAt: null },
+    ];
     const res = await appWithOrg(ORG_ID).request('/killswitch/disable', { method: 'POST' });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
@@ -106,7 +133,14 @@ describe('POST /killswitch/disable', () => {
 
 describe('POST /kill-switch (L3.0 alias)', () => {
   it('enables the org kill switch via the contract route', async () => {
-    mockState.result = [{ orgId: ORG_ID, publishingEnabled: false, killSwitchReason: 'Shutdown', killSwitchAt: new Date().toISOString() }];
+    mockState.result = [
+      {
+        orgId: ORG_ID,
+        publishingEnabled: false,
+        killSwitchReason: 'Shutdown',
+        killSwitchAt: new Date().toISOString(),
+      },
+    ];
     const res = await appWithOrg(ORG_ID).request('/kill-switch', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

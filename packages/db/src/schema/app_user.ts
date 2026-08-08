@@ -4,7 +4,9 @@ import { org } from './org.js';
 
 export const appUser = pgTable('app_user', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id),
   email: text('email').notNull().unique(),
   displayName: text('display_name').notNull(),
   avatarUrl: text('avatar_url'),

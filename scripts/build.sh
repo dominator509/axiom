@@ -9,13 +9,17 @@ echo "==========="
 # Build TypeScript packages
 if [ -f "package.json" ]; then
     echo "Building TypeScript..."
-    pnpm build 2>/dev/null || echo "  (no pnpm build script yet)"
+    pnpm build
+else
+    echo "  SKIP: package.json not found"
 fi
 
 # Build Rust crates
 if [ -d "crates" ]; then
     echo "Building Rust crates..."
-    cargo build --workspace 2>/dev/null || echo "  (no Rust workspace yet)"
+    cargo build --workspace
+else
+    echo "  SKIP: crates/ not found"
 fi
 
 echo "build: ok"

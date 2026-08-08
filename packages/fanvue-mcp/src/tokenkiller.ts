@@ -138,11 +138,7 @@ export class TokenKillerAssembler {
    * Compute the cache key for a given model, platform, and version.
    * Optionally incorporates segment content for content-addressability.
    */
-  getCacheKey(
-    modelId: string,
-    platform: Platform,
-    segments?: TokenKillerSegments,
-  ): string {
+  getCacheKey(modelId: string, platform: Platform, segments?: TokenKillerSegments): string {
     if (segments) {
       // Content-addressed: hash includes segment content
       const contentStr = [
@@ -152,10 +148,7 @@ export class TokenKillerAssembler {
         segments.S0,
         segments.S1,
       ].join('::');
-      return createHash('sha256')
-        .update(contentStr, 'utf-8')
-        .digest('hex')
-        .slice(0, 16);
+      return createHash('sha256').update(contentStr, 'utf-8').digest('hex').slice(0, 16);
     }
     return cacheKey(modelId, platform, versionToString(this.version));
   }
@@ -164,10 +157,7 @@ export class TokenKillerAssembler {
    * Store an assembled prefix in the content-addressed cache.
    */
   store(segments: TokenKillerSegments, prefix: string): string {
-    const key = createHash('sha256')
-      .update(prefix, 'utf-8')
-      .digest('hex')
-      .slice(0, 16);
+    const key = createHash('sha256').update(prefix, 'utf-8').digest('hex').slice(0, 16);
 
     this.cache.set(key, {
       prefix,

@@ -5,8 +5,12 @@ import { modelProfile } from './model_profile.js';
 
 export const triggerRule = pgTable('trigger_rule', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
-  modelId: uuid('model_id').notNull().references(() => modelProfile.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id, { onDelete: 'cascade' }),
+  modelId: uuid('model_id')
+    .notNull()
+    .references(() => modelProfile.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   platform: text('platform').notNull(),
   condition: jsonb('condition').$type<Record<string, unknown>>().notNull().default({}),

@@ -203,7 +203,9 @@ describe('publish', () => {
       }),
     );
 
-    const initBody = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string) as {
+    const initBody = JSON.parse(
+      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as {
       snippet: { tags: string[] };
     };
     expect(initBody.snippet.tags).toEqual(['fun', '#Shorts']);
@@ -224,7 +226,9 @@ describe('publish', () => {
 
     // Regression: publish() must not mutate the caller's input options
     expect(options.tags).toEqual(['fun']);
-    const initBody = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string) as {
+    const initBody = JSON.parse(
+      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as {
       snippet: { tags: string[] };
     };
     expect(initBody.snippet.tags).toEqual(['fun', '#Shorts']);
@@ -244,7 +248,9 @@ describe('publish', () => {
       input({ options: { title: 'Long', durationSec: 120, aspectRatio: '9:16', tags: ['fun'] } }),
     );
 
-    const initBody = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string) as {
+    const initBody = JSON.parse(
+      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as {
       snippet: { tags: string[] };
     };
     expect(initBody.snippet.tags).toEqual(['fun']);
@@ -261,7 +267,9 @@ describe('publish', () => {
     const c = new YouTubeConnector(AUTH);
     await c.publish(input());
 
-    const initBody = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string) as {
+    const initBody = JSON.parse(
+      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as {
       snippet: { title: string; description: string; tags: string[]; categoryId: string };
       status: { privacyStatus: string; selfDeclaredMadeForKids: boolean };
     };
@@ -286,7 +294,9 @@ describe('publish', () => {
   });
 
   it('returns a failed result when the resumable init fails', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: { message: 'denied' } }, 403));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse({ error: { message: 'denied' } }, 403));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new YouTubeConnector(AUTH);
@@ -318,7 +328,9 @@ describe('publish', () => {
     const result = await c.publish(input());
 
     expect(result.state).toBe('failed');
-    expect(result.error).toBe('Failed to download video from https://cdn.example.com/video.mp4: 404');
+    expect(result.error).toBe(
+      'Failed to download video from https://cdn.example.com/video.mp4: 404',
+    );
   });
 
   it('returns a failed result when the PUT upload fails', async () => {
@@ -373,7 +385,10 @@ describe('fetchMetrics', () => {
   });
 
   it('defaults missing statistics to zero', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [{ id: 'vid-1', statistics: {} }] })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ items: [{ id: 'vid-1', statistics: {} }] })),
+    );
     const c = new YouTubeConnector(AUTH);
     const metrics = await c.fetchMetrics('vid-1');
     expect(metrics.metrics).toEqual({ views: 0, likes: 0, comments: 0, shares: 0 });
@@ -403,9 +418,13 @@ describe('revoke', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://oauth2.googleapis.com/revoke?token=yt-token-123');
     expect(init.method).toBe('POST');
-    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/x-www-form-urlencoded');
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe(
+      'application/x-www-form-urlencoded',
+    );
 
-    expect(c.getLogs().some((l) => l.action === 'revoke' && l.message.includes('revoked successfully'))).toBe(true);
+    expect(
+      c.getLogs().some((l) => l.action === 'revoke' && l.message.includes('revoked successfully')),
+    ).toBe(true);
     expect(c.auth.accessToken).toBe('');
     expect(c.auth.refreshToken).toBeUndefined();
     expect(c.auth.expiresAt).toBe(0);
@@ -418,7 +437,9 @@ describe('revoke', () => {
     const c = new YouTubeConnector(AUTH);
     await expect(c.revoke()).resolves.toBeUndefined();
 
-    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('warned: 400'))).toBe(true);
+    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('warned: 400'))).toBe(
+      true,
+    );
     expect(c.auth.accessToken).toBe('');
     expect(c.auth.expiresAt).toBe(0);
   });

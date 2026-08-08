@@ -29,7 +29,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/killswitch">Kill Switch</Link>
             </nav>
             <div className="spacer" />
-            <span className="who">{(session as { user?: { email?: string } }).user?.email ?? 'operator'}</span>
+            <span className="who">
+              {(session as { user?: { email?: string } }).user?.email ?? 'operator'}
+            </span>
           </header>
           <KillSwitchBanner />
           <main className="main">{children}</main>

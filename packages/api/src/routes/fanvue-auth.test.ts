@@ -10,6 +10,7 @@ import { join } from 'node:path';
 // ── Isolated env: temp .env file + test credentials, set BEFORE module load ──
 const envDir = mkdtempSync(join(tmpdir(), 'axiom-fanvue-test-'));
 const envFile = join(envDir, '.env');
+writeFileSync(envFile, '', { mode: 0o600 });
 
 process.env.FANVUE_CLIENT_ID = 'test-client-id';
 process.env.FANVUE_CLIENT_SECRET = 'test-client-secret';
@@ -114,8 +115,10 @@ describe('GET /callback — token exchange + persistence', () => {
     expect(env).toContain('FANVUE_ACCESS_TOKEN=acc-tok-1234567890');
     expect(env).toContain('FANVUE_REFRESH_TOKEN=ref-tok-0987654321');
     expect(env).toContain('FANVUE_TOKEN_EXPIRES_AT=');
-    const mode = statSync(envFile).mode & 0o777;
-    expect(mode).toBe(0o600);
+    if (process.platform !== 'win32') {
+      const mode = statSync(envFile).mode & 0o777;
+      expect(mode).toBe(0o600);
+    }
 
     vi.unstubAllGlobals();
   });
@@ -124,14 +127,21 @@ describe('GET /callback — token exchange + persistence', () => {
     const authRes = await router.request('/authorize');
     const state = new URL(authRes.headers.get('location')!).searchParams.get('state')!;
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ access_token: 'super-secret-token-value', refresh_token: 'r', expires_in: 3600 }),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          access_token: 'super-secret-token-value',
+          refresh_token: 'r',
+          expires_in: 3600,
+        }),
+      }),
+    );
 
     const res = await router.request(`/callback?code=c&state=${state}`);
     const body = await res.json();
-    expect(body.tokenPreview).toBe('super-secret...');
+    expect(body).not.toHaveProperty('tokenPreview');
     expect(JSON.stringify(body)).not.toContain('super-secret-token-value');
 
     vi.unstubAllGlobals();
@@ -141,16 +151,19 @@ describe('GET /callback — token exchange + persistence', () => {
     const authRes = await router.request('/authorize');
     const state = new URL(authRes.headers.get('location')!).searchParams.get('state')!;
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      json: async () => ({ error: 'invalid_grant' }),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'invalid_grant' }),
+      }),
+    );
 
     const res = await router.request(`/callback?code=bad&state=${state}`);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.detail).toBe('Token exchange failed');
-    expect(body.token_response.error).toBe('invalid_grant');
+    expect(body).not.toHaveProperty('token_response');
 
     vi.unstubAllGlobals();
   });
@@ -161,10 +174,13 @@ describe('state is one-time use', () => {
     const authRes = await router.request('/authorize');
     const state = new URL(authRes.headers.get('location')!).searchParams.get('state')!;
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ access_token: 'a', refresh_token: 'r', expires_in: 3600 }),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ access_token: 'a', refresh_token: 'r', expires_in: 3600 }),
+      }),
+    );
 
     const first = await router.request(`/callback?code=c1&state=${state}`);
     expect(first.status).toBe(200);
@@ -190,16 +206,23 @@ describe('POST /refresh', () => {
 
   it('exchanges the stored refresh token with client_secret_basic and persists', async () => {
     seedRefreshToken('ory_rt_test_refresh');
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ access_token: 'fresh-token-abc123', refresh_token: 'new-rt', expires_in: 3600 }),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          access_token: 'fresh-token-abc123',
+          refresh_token: 'new-rt',
+          expires_in: 3600,
+        }),
+      }),
+    );
 
     const res = await router.request('/refresh', { method: 'POST' });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
-    expect(body.tokenPreview).toBe('fresh-token-...');
+    expect(body).not.toHaveProperty('tokenPreview');
     expect(JSON.stringify(body)).not.toContain('fresh-token-abc123');
 
     const fetchMock = vi.mocked(fetch);
@@ -221,16 +244,19 @@ describe('POST /refresh', () => {
 
   it('returns 400 when the refresh grant fails', async () => {
     seedRefreshToken('ory_rt_test_refresh');
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      json: async () => ({ error: 'invalid_grant', error_description: 'Refresh token revoked' }),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'invalid_grant', error_description: 'Refresh token revoked' }),
+      }),
+    );
 
     const res = await router.request('/refresh', { method: 'POST' });
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.detail).toBe('Token refresh failed');
-    expect(body.token_response.error).toBe('invalid_grant');
+    expect(body).not.toHaveProperty('token_response');
 
     vi.unstubAllGlobals();
   });
@@ -238,7 +264,10 @@ describe('POST /refresh', () => {
   it('rejects when no refresh token is stored in the env file', async () => {
     // Ensure the file has NO refresh token for this test.
     const before = readFileSync(envFile, 'utf8');
-    const cleaned = before.split('\n').filter((l) => !l.startsWith('FANVUE_REFRESH_TOKEN=')).join('\n');
+    const cleaned = before
+      .split('\n')
+      .filter((l) => !l.startsWith('FANVUE_REFRESH_TOKEN='))
+      .join('\n');
     writeFileSync(envFile, cleaned, { mode: 0o600 });
     try {
       const res = await router.request('/refresh', { method: 'POST' });

@@ -46,7 +46,12 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
   capability(): ConnectorCapability {
     return {
       publish: true,
-      media: ['image' as MediaType, 'video' as MediaType, 'carousel' as MediaType, 'story' as MediaType],
+      media: [
+        'image' as MediaType,
+        'video' as MediaType,
+        'carousel' as MediaType,
+        'story' as MediaType,
+      ],
       maxMediaBytes: 104_857_600, // 100 MB
       maxMediaCount: 10,
       caption: true,
@@ -95,7 +100,10 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
         );
 
         creationIds.push(createResp.id);
-        this.log('info', 'publish', `Created media container ${createResp.id}`, { mediaUrl, mediaType });
+        this.log('info', 'publish', `Created media container ${createResp.id}`, {
+          mediaUrl,
+          mediaType,
+        });
       }
 
       // Step 2: Publish each container
@@ -115,9 +123,7 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
         this.log('info', 'publish', `Published container ${creationId} -> post ${publishResp.id}`);
       }
 
-      const postUrl = lastRemoteId
-        ? `https://www.instagram.com/p/${lastRemoteId}/`
-        : undefined;
+      const postUrl = lastRemoteId ? `https://www.instagram.com/p/${lastRemoteId}/` : undefined;
 
       return {
         remoteId: lastRemoteId,

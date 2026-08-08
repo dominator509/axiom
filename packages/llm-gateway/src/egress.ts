@@ -67,7 +67,10 @@ export function buildEgressFetch(proxyUrl: string): typeof fetch {
   // undici's fetch types differ from Node's global fetch (bytes/textStream);
   // the cast through unknown reconciles the two surfaces.
   return ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) =>
-    undiciFetch(input as never, { ...init, dispatcher: agent } as never) as unknown as Promise<Response>) as typeof fetch;
+    undiciFetch(
+      input as never,
+      { ...init, dispatcher: agent } as never,
+    ) as unknown as Promise<Response>) as typeof fetch;
 }
 
 /** Clear the status cache (used by tests). */

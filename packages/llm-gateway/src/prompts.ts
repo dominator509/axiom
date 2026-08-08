@@ -42,8 +42,17 @@ export function alignBlocks(text: string): string {
 // ─── Platform Type ───
 
 export const PLATFORMS = [
-  'instagram', 'tiktok', 'x', 'youtube', 'facebook',
-  'reddit', 'threads', 'snapchat', 'discord', 'telegram', 'fanvue',
+  'instagram',
+  'tiktok',
+  'x',
+  'youtube',
+  'facebook',
+  'reddit',
+  'threads',
+  'snapchat',
+  'discord',
+  'telegram',
+  'fanvue',
 ] as const;
 
 export type Platform = (typeof PLATFORMS)[number];
@@ -120,7 +129,17 @@ const PLATFORM_RULES: Record<Platform, PlatformRules> = {
   },
   youtube: {
     description: 'YouTube Community Guidelines — no nudity, sexual content, harmful content',
-    blockedKeywords: ['nude', 'naked', 'sex', 'porn', 'escort', 'onlyfans', 'nsfw', 'violence', 'gore'],
+    blockedKeywords: [
+      'nude',
+      'naked',
+      'sex',
+      'porn',
+      'escort',
+      'onlyfans',
+      'nsfw',
+      'violence',
+      'gore',
+    ],
     maxHashtags: 15,
     maxCaptionLength: 5000,
     linksAllowed: true,
@@ -159,7 +178,8 @@ const PLATFORM_RULES: Record<Platform, PlatformRules> = {
     reviewCategories: ['suggestive', 'revealing', 'intimate'],
   },
   discord: {
-    description: 'Discord Community Guidelines — no hate speech, harassment, explicit content in non-NSFW channels',
+    description:
+      'Discord Community Guidelines — no hate speech, harassment, explicit content in non-NSFW channels',
     blockedKeywords: ['harassment', 'dox', 'gore'],
     maxHashtags: 0,
     maxCaptionLength: 2000,
@@ -207,12 +227,10 @@ export function buildS0(profile: ModelProfile): string {
       'Your tone is professional, friendly, and approachable. You connect with your audience while maintaining a polished brand voice.',
     casual:
       'You speak naturally, like a friend chatting with followers. Keep it real and relatable.',
-    hype:
-      'You are high-energy and enthusiastic. Every post radiates excitement and positivity.',
+    hype: 'You are high-energy and enthusiastic. Every post radiates excitement and positivity.',
     educational:
       'You are an expert educator breaking down complex topics into engaging content. Inform and inspire.',
-    default:
-      'You write engaging, authentic content that resonates with your audience.',
+    default: 'You write engaging, authentic content that resonates with your audience.',
   };
 
   const personaText = profile.persona
@@ -353,7 +371,7 @@ export function buildS3(task: TaskVariables): string {
 
   // Optional image caption
   if (task.imageCaption) {
-    if (!lines.some(l => l.startsWith('[MEDIA]'))) {
+    if (!lines.some((l) => l.startsWith('[MEDIA]'))) {
       lines.push(`\n[MEDIA]`);
     }
     lines.push(`Image: ${task.imageCaption}`);
@@ -361,7 +379,9 @@ export function buildS3(task: TaskVariables): string {
 
   // Generation instruction
   lines.push(`\n[OUTPUT]`);
-  lines.push(`Generate a single caption for this platform. Do not include hashtags in the body of the caption.`);
+  lines.push(
+    `Generate a single caption for this platform. Do not include hashtags in the body of the caption.`,
+  );
 
   return lines.join('\n');
 }
@@ -404,12 +424,12 @@ export function assemblePrompt(segments: TokenKillerSegments): string {
 
 export interface PhotoshootConfig {
   modelName: string;
-  style: string;         // e.g. 'beach', 'studio', 'urban', 'natural', 'luxury'
-  outfit: string;        // e.g. 'summer dress', 'casual', 'swimwear'
-  location: string;      // e.g. 'Miami Beach', 'downtown LA', 'studio'
-  mood: string;          // e.g. 'energetic', 'romantic', 'edgy', 'calm'
-  lighting: string;      // e.g. 'golden hour', 'soft studio', 'natural'
-  aspectRatio: string;   // e.g. '4:5', '9:16', '1:1', '16:9'
+  style: string; // e.g. 'beach', 'studio', 'urban', 'natural', 'luxury'
+  outfit: string; // e.g. 'summer dress', 'casual', 'swimwear'
+  location: string; // e.g. 'Miami Beach', 'downtown LA', 'studio'
+  mood: string; // e.g. 'energetic', 'romantic', 'edgy', 'calm'
+  lighting: string; // e.g. 'golden hour', 'soft studio', 'natural'
+  aspectRatio: string; // e.g. '4:5', '9:16', '1:1', '16:9'
   platform: Platform;
 }
 
@@ -431,31 +451,36 @@ export function generatePhotoshootPrompts(config: PhotoshootConfig): PhotoshootV
   const shotTypes = [
     {
       label: 'Full Body',
-      composition: `full body shot, ${config.mood} mood, ${config.lighting} lighting, ` +
+      composition:
+        `full body shot, ${config.mood} mood, ${config.lighting} lighting, ` +
         `${config.style} style, showing the complete outfit and surroundings`,
       promptSuffix: `, full body composition, ${config.aspectRatio} aspect ratio`,
     },
     {
       label: 'Close Up',
-      composition: `close up portrait, ${config.mood} expression, ${config.lighting} lighting, ` +
+      composition:
+        `close up portrait, ${config.mood} expression, ${config.lighting} lighting, ` +
         `intimate and detailed, ${config.style} aesthetic`,
       promptSuffix: `, close up portrait, face focused, ${config.aspectRatio} aspect ratio`,
     },
     {
       label: 'Candid',
-      composition: `candid moment, natural ${config.mood} pose, ${config.lighting} lighting, ` +
+      composition:
+        `candid moment, natural ${config.mood} pose, ${config.lighting} lighting, ` +
         `captured in the moment at ${config.location}, ${config.style} vibe`,
       promptSuffix: `, candid photography style, natural pose, ${config.aspectRatio} aspect ratio`,
     },
     {
       label: 'Editorial',
-      composition: `editorial fashion shoot, ${config.mood} atmosphere, ${config.lighting} lighting, ` +
+      composition:
+        `editorial fashion shoot, ${config.mood} atmosphere, ${config.lighting} lighting, ` +
         `high fashion ${config.style} styling, magazine quality at ${config.location}`,
       promptSuffix: `, editorial fashion photography, styled shoot, ${config.aspectRatio} aspect ratio`,
     },
     {
       label: 'Action',
-      composition: `dynamic action shot, ${config.mood} energy, ${config.lighting} lighting, ` +
+      composition:
+        `dynamic action shot, ${config.mood} energy, ${config.lighting} lighting, ` +
         `movement and motion at ${config.location}, ${config.style} style`,
       promptSuffix: `, motion capture, dynamic pose, ${config.aspectRatio} aspect ratio`,
     },
@@ -480,7 +505,8 @@ export function generatePhotoshootPrompts(config: PhotoshootConfig): PhotoshootV
 
   for (let i = 0; i < shotTypes.length; i++) {
     const shot = shotTypes[i];
-    const prompt = `Professional photoshoot: ${basePrompt}, ${shot.composition}${shot.promptSuffix}, ` +
+    const prompt =
+      `Professional photoshoot: ${basePrompt}, ${shot.composition}${shot.promptSuffix}, ` +
       `high quality, 8K, detailed, professional lighting, sharp focus`;
 
     const hashtags = [
@@ -503,14 +529,14 @@ export function generatePhotoshootPrompts(config: PhotoshootConfig): PhotoshootV
 // ─── CourseAdherenceScore Calculator ───
 
 export interface CourseAdherenceInput {
-  personaConsistency: number;   // 0–1 how well the output matches persona
+  personaConsistency: number; // 0–1 how well the output matches persona
   platformRuleCompliance: number; // 0–1 fraction of platform rules satisfied
-  exemplarSimilarity: number;   // 0–1 similarity to viral exemplars
-  taskAlignment: number;        // 0–1 match between output and task requirements
+  exemplarSimilarity: number; // 0–1 similarity to viral exemplars
+  taskAlignment: number; // 0–1 match between output and task requirements
 }
 
 export interface CourseAdherenceScore {
-  overall: number;              // 0–1 weighted composite
+  overall: number; // 0–1 weighted composite
   components: {
     persona: number;
     platform: number;
@@ -529,9 +555,9 @@ export interface CourseAdherenceScore {
 
 const DEFAULT_WEIGHTS = {
   persona: 0.35,
-  platform: 0.30,
+  platform: 0.3,
   exemplar: 0.15,
-  task: 0.20,
+  task: 0.2,
 };
 
 const DEFAULT_THRESHOLD = 0.7;

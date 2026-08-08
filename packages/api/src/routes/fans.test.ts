@@ -4,7 +4,9 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
-vi.mock('@axiom/db', () => mockDbFactory({ fanCrmContact: {}, fanTouchpoint: {}, customRequest: {} }));
+vi.mock('@axiom/db', () =>
+  mockDbFactory({ fanCrmContact: {}, fanTouchpoint: {}, customRequest: {} }),
+);
 
 import { fansRouter } from './fans.js';
 
@@ -36,7 +38,15 @@ afterEach(() => {
 describe('GET /models/:modelId/fans', () => {
   it('returns fan contacts for the model', async () => {
     mockState.result = [
-      { id: FAN_ID, orgId: ORG_ID, modelId: MODEL_ID, platform: 'fanvue', displayName: 'WhaleFan', tier: 'whale', lifetimeValueUsd: '1200.00' },
+      {
+        id: FAN_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        platform: 'fanvue',
+        displayName: 'WhaleFan',
+        tier: 'whale',
+        lifetimeValueUsd: '1200.00',
+      },
     ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/fans`);
     expect(res.status).toBe(200);
@@ -46,7 +56,9 @@ describe('GET /models/:modelId/fans', () => {
   });
 
   it('filters by tier', async () => {
-    mockState.result = [{ id: FAN_ID, orgId: ORG_ID, modelId: MODEL_ID, platform: 'fanvue', tier: 'whale' }];
+    mockState.result = [
+      { id: FAN_ID, orgId: ORG_ID, modelId: MODEL_ID, platform: 'fanvue', tier: 'whale' },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/fans?tier=whale`);
     expect(res.status).toBe(200);
   });
@@ -61,11 +73,25 @@ describe('GET /models/:modelId/fans', () => {
 
 describe('POST /models/:modelId/fans — upsert', () => {
   it('upserts a fan contact (201)', async () => {
-    mockState.result = [{ id: FAN_ID, orgId: ORG_ID, modelId: MODEL_ID, platform: 'fanvue', externalId: 'ext-1', tier: 'new' }];
+    mockState.result = [
+      {
+        id: FAN_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        platform: 'fanvue',
+        externalId: 'ext-1',
+        tier: 'new',
+      },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/fans`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ modelId: MODEL_ID, platform: 'fanvue', externalId: 'ext-1', displayName: 'Fan One' }),
+      body: JSON.stringify({
+        modelId: MODEL_ID,
+        platform: 'fanvue',
+        externalId: 'ext-1',
+        displayName: 'Fan One',
+      }),
     });
     expect(res.status).toBe(201);
     const body = (await res.json()) as any;
@@ -94,7 +120,14 @@ describe('POST /models/:modelId/fans — upsert', () => {
 describe('GET /fans/:fanId — unified timeline', () => {
   it('returns fan + touchpoints + requests', async () => {
     mockState.result = [
-      { id: FAN_ID, orgId: ORG_ID, modelId: MODEL_ID, platform: 'fanvue', displayName: 'Fan', tier: 'loyal' },
+      {
+        id: FAN_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        platform: 'fanvue',
+        displayName: 'Fan',
+        tier: 'loyal',
+      },
     ];
     const res = await appWithOrg(ORG_ID).request(`/fans/${FAN_ID}`);
     expect(res.status).toBe(200);
@@ -111,7 +144,9 @@ describe('GET /fans/:fanId — unified timeline', () => {
 
 describe('POST /fans/:fanId/touchpoints', () => {
   it('records a touchpoint (201)', async () => {
-    mockState.result = [{ id: 'tp-1', orgId: ORG_ID, fanId: FAN_ID, platform: 'x', kind: 'dm', direction: 'inbound' }];
+    mockState.result = [
+      { id: 'tp-1', orgId: ORG_ID, fanId: FAN_ID, platform: 'x', kind: 'dm', direction: 'inbound' },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/fans/${FAN_ID}/touchpoints`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -125,7 +160,9 @@ describe('POST /fans/:fanId/touchpoints', () => {
 
 describe('POST /custom-requests', () => {
   it('creates a ticket in pending state (201)', async () => {
-    mockState.result = [{ id: REQ_ID, orgId: ORG_ID, modelId: MODEL_ID, title: 'Custom video', status: 'pending' }];
+    mockState.result = [
+      { id: REQ_ID, orgId: ORG_ID, modelId: MODEL_ID, title: 'Custom video', status: 'pending' },
+    ];
     const res = await appWithOrg(ORG_ID).request('/custom-requests', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -148,7 +185,9 @@ describe('POST /custom-requests', () => {
 
 describe('PATCH /custom-requests/:id', () => {
   it('transitions status (200)', async () => {
-    mockState.result = [{ id: REQ_ID, orgId: ORG_ID, modelId: MODEL_ID, title: 'Custom video', status: 'filming' }];
+    mockState.result = [
+      { id: REQ_ID, orgId: ORG_ID, modelId: MODEL_ID, title: 'Custom video', status: 'filming' },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/custom-requests/${REQ_ID}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -180,7 +219,9 @@ describe('PATCH /custom-requests/:id', () => {
 
 describe('GET /models/:modelId/custom-requests', () => {
   it('lists tickets for the model', async () => {
-    mockState.result = [{ id: REQ_ID, orgId: ORG_ID, modelId: MODEL_ID, title: 'Custom video', status: 'pending' }];
+    mockState.result = [
+      { id: REQ_ID, orgId: ORG_ID, modelId: MODEL_ID, title: 'Custom video', status: 'pending' },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/custom-requests`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;

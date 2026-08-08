@@ -34,7 +34,17 @@ afterEach(() => {
 describe('GET /:modelId/network', () => {
   it('returns the egress config + health when a config exists', async () => {
     mockState.result = [
-      { id: 'cfg-1', orgId: ORG_ID, modelId: MODEL_ID, egressMode: 'wireguard', healthy: true, latencyMs: 120, lastEgressIp: '203.0.113.7', failCount: 0, lastError: null },
+      {
+        id: 'cfg-1',
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        egressMode: 'wireguard',
+        healthy: true,
+        latencyMs: 120,
+        lastEgressIp: '203.0.113.7',
+        failCount: 0,
+        lastError: null,
+      },
     ];
     const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`);
     expect(res.status).toBe(200);
@@ -59,7 +69,15 @@ describe('GET /:modelId/network', () => {
 
 describe('PUT /:modelId/network', () => {
   it('updates an existing config', async () => {
-    mockState.result = [{ id: 'cfg-1', orgId: ORG_ID, modelId: MODEL_ID, egressMode: 'socks5', proxyAddr: '127.0.0.1:1080' }];
+    mockState.result = [
+      {
+        id: 'cfg-1',
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        egressMode: 'socks5',
+        proxyAddr: '127.0.0.1:1080',
+      },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`, {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
@@ -83,10 +101,23 @@ describe('PUT /:modelId/network', () => {
 describe('GET /:modelId/network/health', () => {
   it('returns DB state and best-effort live plane state', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ healthy: true, egress_ip: '66.94.123.250' }), { status: 200 }),
+      new Response(JSON.stringify({ healthy: true, egress_ip: '66.94.123.250' }), {
+        status: 200,
+      }),
     );
     vi.stubGlobal('fetch', fetchMock);
-    mockState.result = [{ orgId: ORG_ID, modelId: MODEL_ID, healthy: true, lastCheck: null, latencyMs: 171, lastEgressIp: '66.94.123.250', failCount: 0, lastError: null }];
+    mockState.result = [
+      {
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        healthy: true,
+        lastCheck: null,
+        latencyMs: 171,
+        lastEgressIp: '66.94.123.250',
+        failCount: 0,
+        lastError: null,
+      },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network/health`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;

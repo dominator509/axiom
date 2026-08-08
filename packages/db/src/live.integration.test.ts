@@ -72,10 +72,12 @@ beforeAll(async () => {
     'm9-live-test',
     `m9-${orgId.slice(0, 8)}`,
   ]);
-  await q(
-    `INSERT INTO model_profile (id, org_id, display_name, handle) VALUES ($1, $2, $3, $4)`,
-    [modelId, orgId, 'M9 Test Model', `m9-${orgId.slice(0, 8)}`],
-  );
+  await q(`INSERT INTO model_profile (id, org_id, display_name, handle) VALUES ($1, $2, $3, $4)`, [
+    modelId,
+    orgId,
+    'M9 Test Model',
+    `m9-${orgId.slice(0, 8)}`,
+  ]);
 });
 
 afterAll(async () => {
@@ -116,10 +118,41 @@ skip('M-9 live DB — RLS org isolation (LBI-02)', () => {
   it('unset org context yields zero rows, not leakage', async () => {
     // A context that matches no org behaves as fail-closed: the RLS policy
     // (org_id = current_setting(...)) matches nothing, so zero rows return.
-    await q(`SELECT set_config('app.current_org_id', '99999999-9999-4999-8999-999999999999', false)`);
+    await q(
+      `SELECT set_config('app.current_org_id', '99999999-9999-4999-8999-999999999999', false)`,
+    );
     const rows = await q(`SELECT count(*)::int AS n FROM model_profile`);
     expect(rows.rows[0].n).toBe(0);
     await setOrg(orgId);
+  });
+});
+
+skip('M-9 live DB — privileged function ACLs', () => {
+  it('denies PUBLIC and preserves axiom_app execution on every RLS resolver', async () => {
+    const aclRows = await q(
+      `SELECT p.oid::regprocedure::text AS signature,
+              coalesce(array_to_string(p.proacl, ','), '') AS acl
+         FROM pg_proc p
+         JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+          AND p.proname IN ('claim_job', 'resolve_relay_card', 'resolve_model_org')
+        ORDER BY p.proname`,
+    );
+    expect(aclRows.rows).toHaveLength(3);
+    for (const row of aclRows.rows) {
+      expect(row.acl).not.toMatch(/(^|,)=X\//);
+      expect(row.acl).toContain('axiom_app=X');
+    }
+
+    const publicCreate = await q(
+      `SELECT count(*)::int AS n
+         FROM pg_namespace n,
+              LATERAL aclexplode(coalesce(n.nspacl, acldefault('n', n.nspowner))) acl
+        WHERE n.nspname = 'public'
+          AND acl.grantee = 0
+          AND acl.privilege_type = 'CREATE'`,
+    );
+    expect(publicCreate.rows[0].n).toBe(0);
   });
 });
 
@@ -207,6 +240,73 @@ skip('M-9 live DB — durable idempotency (M-2)', () => {
       [orgId, `m9-key-${randomUUID()}`],
     );
   });
+
+  it('allows exactly one pending reservation across concurrent connections', async () => {
+    const isolatedOrg = randomUUID();
+    const key = `m9-race-${randomUUID()}`;
+    const setup = new pg.Client({ connectionString: DATABASE_URL });
+    const first = new pg.Client({ connectionString: DATABASE_URL });
+    const second = new pg.Client({ connectionString: DATABASE_URL });
+    await Promise.all([setup.connect(), first.connect(), second.connect()]);
+
+    try {
+      await setup.query('BEGIN');
+      await setup.query(`SELECT set_config('app.current_org_id', $1, true)`, [isolatedOrg]);
+      await setup.query(`INSERT INTO org (id, name, slug) VALUES ($1, $2, $3)`, [
+        isolatedOrg,
+        'm9-idempotency-race',
+        `m9r-${isolatedOrg.slice(0, 8)}`,
+      ]);
+      await setup.query('COMMIT');
+
+      for (const connection of [first, second]) {
+        await connection.query('BEGIN');
+        await connection.query(`SELECT set_config('app.current_org_id', $1, true)`, [isolatedOrg]);
+      }
+
+      const claim = (connection: pg.Client, ownerToken: string) =>
+        connection.query(
+          `INSERT INTO api_idempotency
+             (org_id, method, route, idem_key, state, request_hash, owner_token, expires_at)
+           VALUES ($1, 'POST', '/api/v1/race', $2, 'pending', 'same-request', $3, now() + interval '1 day')
+           ON CONFLICT (org_id, method, route, idem_key) DO NOTHING
+           RETURNING id`,
+          [isolatedOrg, key, ownerToken],
+        );
+
+      const pending = [claim(first, randomUUID()), claim(second, randomUUID())];
+      const winner = await Promise.race(
+        pending.map((promise, index) => promise.then((result) => ({ index, result }))),
+      );
+      expect(winner.result.rows).toHaveLength(1);
+      await [first, second][winner.index].query('COMMIT');
+
+      const loserIndex = winner.index === 0 ? 1 : 0;
+      const loser = await pending[loserIndex];
+      expect(loser.rows).toHaveLength(0);
+      await [first, second][loserIndex].query('COMMIT');
+
+      await setup.query('BEGIN');
+      await setup.query(`SELECT set_config('app.current_org_id', $1, true)`, [isolatedOrg]);
+      const stored = await setup.query(
+        `SELECT state, count(*)::int AS n
+           FROM api_idempotency
+          WHERE org_id = $1 AND idem_key = $2
+          GROUP BY state`,
+        [isolatedOrg, key],
+      );
+      expect(stored.rows).toEqual([{ state: 'pending', n: 1 }]);
+      await setup.query(`DELETE FROM org WHERE id = $1`, [isolatedOrg]);
+      await setup.query('COMMIT');
+    } finally {
+      await Promise.all(
+        [setup, first, second].map(async (connection) => {
+          await connection.query('ROLLBACK').catch(() => {});
+          await connection.end().catch(() => {});
+        }),
+      );
+    }
+  });
 });
 
 skip('M-9 live DB — kill-switch audit log (LBI-12)', () => {
@@ -218,10 +318,7 @@ skip('M-9 live DB — kill-switch audit log (LBI-12)', () => {
       [orgId],
     );
 
-    const rows = await q(
-      `SELECT action, reason FROM kill_switch WHERE org_id = $1`,
-      [orgId],
-    );
+    const rows = await q(`SELECT action, reason FROM kill_switch WHERE org_id = $1`, [orgId]);
     expect(rows.rows).toHaveLength(1);
     expect(rows.rows[0]).toMatchObject({ action: 'enable', reason: 'm9 test' });
 

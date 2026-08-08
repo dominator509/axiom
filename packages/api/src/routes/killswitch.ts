@@ -29,7 +29,10 @@ async function getSettings(tx: any, orgId: string) {
     .onConflictDoNothing()
     .returning();
   return (
-    row ?? (await tx.select().from(schema.orgSettings).where(eq(schema.orgSettings.orgId, orgId)).limit(1))[0]
+    row ??
+    (
+      await tx.select().from(schema.orgSettings).where(eq(schema.orgSettings.orgId, orgId)).limit(1)
+    )[0]
   );
 }
 

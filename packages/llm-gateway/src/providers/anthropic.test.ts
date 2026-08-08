@@ -72,7 +72,7 @@ describe('callAnthropic', () => {
 
   it('throws ProviderError with body on non-ok response', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: { message: 'bad' } }, 400));
-    const err = await callAnthropic('ant-key-789', req).catch(e => e);
+    const err = await callAnthropic('ant-key-789', req).catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.status).toBe(400);
     expect(err.provider).toBe('anthropic');
@@ -126,8 +126,10 @@ describe('streamAnthropic', () => {
   it('throws ProviderError on non-ok response', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'x' }, 500));
     const err = await (async () => {
-      for await (const _ of streamAnthropic('ant-key-789', req)) { /* drain */ }
-    })().catch(e => e);
+      for await (const _ of streamAnthropic('ant-key-789', req)) {
+        /* drain */
+      }
+    })().catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.message).toContain('Anthropic stream error 500');
   });
@@ -135,8 +137,10 @@ describe('streamAnthropic', () => {
   it('throws ProviderError when body is null', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
     const err = await (async () => {
-      for await (const _ of streamAnthropic('ant-key-789', req)) { /* drain */ }
-    })().catch(e => e);
+      for await (const _ of streamAnthropic('ant-key-789', req)) {
+        /* drain */
+      }
+    })().catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.message).toBe('Anthropic stream body is null');
   });
@@ -237,7 +241,7 @@ describe('AnthropicProvider', () => {
   it('chat throws ProviderError on non-ok response', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'x' }, 401));
     const p = new AnthropicProvider('ant-key-789');
-    const err = await p.chat([{ role: 'user', content: 'hi' }]).catch(e => e);
+    const err = await p.chat([{ role: 'user', content: 'hi' }]).catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.status).toBe(401);
     expect(err.provider).toBe('anthropic');
@@ -260,7 +264,10 @@ describe('AnthropicProvider', () => {
     const chunks = [];
     for await (const c of p.chatStream([{ role: 'user', content: 'hi' }])) chunks.push(c);
 
-    expect(chunks.filter(c => c.type === 'delta').map(c => c.content)).toEqual(['Hi ', 'there']);
+    expect(chunks.filter((c) => c.type === 'delta').map((c) => c.content)).toEqual([
+      'Hi ',
+      'there',
+    ]);
     const done = chunks[chunks.length - 1];
     expect(done).toMatchObject({ type: 'done', content: 'Hi there' });
     // input tokens came from message_start usage (12), not the estimate
@@ -285,7 +292,10 @@ describe('AnthropicProvider', () => {
 
   it('chatStream emits a final done chunk when the stream ends without stop events', async () => {
     fetchMock.mockResolvedValueOnce(
-      sseResponse(['event: content_block_delta', 'data: {"type":"content_block_delta","delta":{"text":"z"}}']),
+      sseResponse([
+        'event: content_block_delta',
+        'data: {"type":"content_block_delta","delta":{"text":"z"}}',
+      ]),
     );
     const p = new AnthropicProvider('ant-key-789');
     const chunks = [];
@@ -297,8 +307,10 @@ describe('AnthropicProvider', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'x' }, 500));
     const p = new AnthropicProvider('ant-key-789');
     const err = await (async () => {
-      for await (const _ of p.chatStream([{ role: 'user', content: 'hi' }])) { /* drain */ }
-    })().catch(e => e);
+      for await (const _ of p.chatStream([{ role: 'user', content: 'hi' }])) {
+        /* drain */
+      }
+    })().catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
   });
 });

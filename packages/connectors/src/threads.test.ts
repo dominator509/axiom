@@ -22,7 +22,10 @@ function input(overrides: Partial<ConnectorPublishInput> = {}): ConnectorPublish
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 afterEach(() => {
@@ -35,7 +38,14 @@ describe('ThreadsConnector', () => {
     expect(cap.media).toEqual(['image', 'video']);
     expect(cap.maxMediaCount).toBe(10);
     expect(cap.maxCaptionLength).toBe(500);
-    expect(cap.metrics).toEqual(['impressions', 'likes', 'comments', 'shares', 'reposts', 'quotes']);
+    expect(cap.metrics).toEqual([
+      'impressions',
+      'likes',
+      'comments',
+      'shares',
+      'reposts',
+      'quotes',
+    ]);
   });
 
   it('validates via validatePublish', async () => {
@@ -128,7 +138,9 @@ describe('fetchMetrics', () => {
 
     const [url] = vi.mocked(fetch).mock.calls[0] as [string];
     expect(url).toContain('/threads-user-1/threads');
-    expect(url).toContain('fields=insights.metric(impressions,likes,comments,shares,reposts,quotes)');
+    expect(url).toContain(
+      'fields=insights.metric(impressions,likes,comments,shares,reposts,quotes)',
+    );
   });
 
   it('throws when the metrics fetch fails', async () => {
@@ -147,7 +159,9 @@ describe('revoke', () => {
     await c.revoke();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://graph.threads.net/v1.0/threads-user-1/permissions?access_token=threads-token');
+    expect(url).toBe(
+      'https://graph.threads.net/v1.0/threads-user-1/permissions?access_token=threads-token',
+    );
     expect(init.method).toBe('DELETE');
   });
 

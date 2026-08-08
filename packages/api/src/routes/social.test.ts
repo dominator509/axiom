@@ -38,7 +38,14 @@ afterEach(() => {
 describe('GET / — list connections', () => {
   it('returns connections for the org (filtered by modelId)', async () => {
     mockState.result = [
-      { id: CONN_ID, orgId: ORG_ID, modelId: MODEL_ID, platform: 'instagram', displayName: '@luna', status: 'connected' },
+      {
+        id: CONN_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        platform: 'instagram',
+        displayName: '@luna',
+        status: 'connected',
+      },
     ];
     const res = await appWithOrg(ORG_ID).request(`/?modelId=${MODEL_ID}`);
     expect(res.status).toBe(200);
@@ -72,7 +79,14 @@ describe('POST / — connect', () => {
 
   it('connects a platform account (201)', async () => {
     mockState.result = [
-      { id: CONN_ID, orgId: ORG_ID, modelId: MODEL_ID, platform: 'instagram', displayName: '@luna', status: 'connected' },
+      {
+        id: CONN_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        platform: 'instagram',
+        displayName: '@luna',
+        status: 'connected',
+      },
     ];
     const res = await appWithOrg(ORG_ID).request(`/?modelId=${MODEL_ID}`, {
       method: 'POST',

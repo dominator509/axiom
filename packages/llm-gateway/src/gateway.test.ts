@@ -35,7 +35,11 @@ const openaiCompletion = {
   created: 1,
   model: 'gpt-4o',
   choices: [
-    { index: 0, message: { role: 'assistant', content: 'hello from openai' }, finish_reason: 'stop' },
+    {
+      index: 0,
+      message: { role: 'assistant', content: 'hello from openai' },
+      finish_reason: 'stop',
+    },
   ],
   usage: { prompt_tokens: 100, completion_tokens: 25, total_tokens: 125 },
 };
@@ -46,7 +50,11 @@ const deepseekCompletion = {
   created: 1,
   model: 'deepseek-chat',
   choices: [
-    { index: 0, message: { role: 'assistant', content: 'hello from deepseek' }, finish_reason: 'stop' },
+    {
+      index: 0,
+      message: { role: 'assistant', content: 'hello from deepseek' },
+      finish_reason: 'stop',
+    },
   ],
   usage: { prompt_tokens: 1000, completion_tokens: 500, total_tokens: 1500 },
 };
@@ -68,7 +76,11 @@ const veniceCompletion = {
   created: 1,
   model: 'llama-3.1-70b',
   choices: [
-    { index: 0, message: { role: 'assistant', content: 'hello from venice' }, finish_reason: 'stop' },
+    {
+      index: 0,
+      message: { role: 'assistant', content: 'hello from venice' },
+      finish_reason: 'stop',
+    },
   ],
   usage: { prompt_tokens: 1000, completion_tokens: 500, total_tokens: 1500 },
 };
@@ -154,8 +166,15 @@ describe('LLMGateway — availability and selection', () => {
   it('lists all providers when all API keys are set', () => {
     const gw = new LLMGateway();
     expect(gw.getAvailableProviders().sort()).toEqual([
-      'anthropic', 'deepseek', 'google', 'grok', 'lightning', 'mistral',
-      'openai', 'venice', 'vllm',
+      'anthropic',
+      'deepseek',
+      'google',
+      'grok',
+      'lightning',
+      'mistral',
+      'openai',
+      'venice',
+      'vllm',
     ]);
   });
 
@@ -187,7 +206,13 @@ describe('LLMGateway — availability and selection', () => {
 
   it('merges custom provider overrides and adds new providers', () => {
     const gw = new LLMGateway([
-      { name: 'custom-box', apiKeyEnv: 'CUSTOM_KEY', baseUrl: 'http://custom.test', defaultModel: 'custom-model', requiresKey: false },
+      {
+        name: 'custom-box',
+        apiKeyEnv: 'CUSTOM_KEY',
+        baseUrl: 'http://custom.test',
+        defaultModel: 'custom-model',
+        requiresKey: false,
+      },
       { name: 'openai', rpm: 7 },
     ]);
     const avail = gw.getAvailableProviders();
@@ -447,12 +472,17 @@ describe('LLMGateway.chat — failures, retries, fallback', () => {
     const promise = gw.chat(messages, { provider: 'openai' });
     promise.catch(() => {});
     await vi.advanceTimersByTimeAsync(20_000);
-    await expect(promise).rejects.toThrow(/All providers in the fallback chain failed — openai: boom; vllm: boom/);
+    await expect(promise).rejects.toThrow(
+      /All providers in the fallback chain failed — openai: boom; vllm: boom/,
+    );
     vi.useRealTimers();
   });
 
   it('is rate limited when the bucket is empty (chat path throws after retries)', async () => {
-    const gw = new LLMGateway([{ name: 'openai', rpm: 0 }, { name: 'vllm', rpm: 0 }]);
+    const gw = new LLMGateway([
+      { name: 'openai', rpm: 0 },
+      { name: 'vllm', rpm: 0 },
+    ]);
     vi.useFakeTimers();
     const promise = gw.chat(messages, { provider: 'openai' });
     promise.catch(() => {});
@@ -536,12 +566,16 @@ describe('LLMGateway.chatStream', () => {
 
     const gw = new LLMGateway([{ name: 'openai', rpm: 1 }]);
     const first = await gw.chatStream(messages, { provider: 'openai' });
-    for await (const _ of first) { /* drain */ }
+    for await (const _ of first) {
+      /* drain */
+    }
     expect(gw.getStats().failures).toBe(0);
 
     // second call: openai bucket empty -> falls back to vllm
     const second = await gw.chatStream(messages, { provider: 'openai' });
-    for await (const _ of second) { /* drain */ }
+    for await (const _ of second) {
+      /* drain */
+    }
     expect(gw.getStats().failures).toBe(1);
   });
 
@@ -561,7 +595,7 @@ describe('LLMGateway.chatStream', () => {
     };
     await expect(collect()).rejects.toThrow('stream aborted');
     // only the openai endpoint was hit — no fallback
-    expect(fetchMock.mock.calls.map(c => c[0])).toEqual([
+    expect(fetchMock.mock.calls.map((c) => c[0])).toEqual([
       'https://api.openai.com/v1/chat/completions',
     ]);
   });

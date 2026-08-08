@@ -3,7 +3,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ContentGenerator } from './generator.js';
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 /** Rust vision engine response shape (crates/vision-engine wire contract). */
@@ -47,7 +50,10 @@ describe('ContentGenerator.generateBundle', () => {
     // threads max caption is 500 chars — a large talking-point set forces truncation
     const longPrompt = {
       ...PROMPT,
-      talkingPoints: Array.from({ length: 25 }, (_, i) => `talking point number ${i} with some extra descriptive detail`),
+      talkingPoints: Array.from(
+        { length: 25 },
+        (_, i) => `talking point number ${i} with some extra descriptive detail`,
+      ),
     };
     const bundle = await gen.generateBundle('model-1', longPrompt, ['threads']);
     const content = bundle.contents[0];
@@ -66,6 +72,8 @@ describe('ContentGenerator.generateBundle', () => {
 
   it('rejects invalid prompt config', async () => {
     const gen = new ContentGenerator();
-    await expect(gen.generateBundle('model-1', { emojiStyle: 'loud' } as never, ['x'])).rejects.toThrow();
+    await expect(
+      gen.generateBundle('model-1', { emojiStyle: 'loud' } as never, ['x']),
+    ).rejects.toThrow();
   });
 });

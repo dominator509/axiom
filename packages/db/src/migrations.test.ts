@@ -80,9 +80,7 @@ function norm(s: string): string {
 }
 
 beforeAll(() => {
-  sql = migrationFiles
-    .map((f) => readFileSync(new URL(f, migrationsDir), 'utf8'))
-    .join('\n');
+  sql = migrationFiles.map((f) => readFileSync(new URL(f, migrationsDir), 'utf8')).join('\n');
 });
 
 describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)', () => {
@@ -126,50 +124,330 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
 
   it('matches key columns per table', () => {
     const expectations: Array<[string, string[]]> = [
-      ['org', ['id UUID PRIMARY KEY DEFAULT gen_random_uuid()', 'slug TEXT NOT NULL UNIQUE', "settings JSONB DEFAULT '{}'::jsonb", 'is_active BOOLEAN NOT NULL DEFAULT true']],
-      ['app_user', ['org_id UUID NOT NULL REFERENCES org(id)', 'email TEXT NOT NULL UNIQUE', "role TEXT NOT NULL DEFAULT 'operator'"]],
+      [
+        'org',
+        [
+          'id UUID PRIMARY KEY DEFAULT gen_random_uuid()',
+          'slug TEXT NOT NULL UNIQUE',
+          "settings JSONB DEFAULT '{}'::jsonb",
+          'is_active BOOLEAN NOT NULL DEFAULT true',
+        ],
+      ],
+      [
+        'app_user',
+        [
+          'org_id UUID NOT NULL REFERENCES org(id)',
+          'email TEXT NOT NULL UNIQUE',
+          "role TEXT NOT NULL DEFAULT 'operator'",
+        ],
+      ],
       ['model_profile', ['handle TEXT NOT NULL', 'bio TEXT']],
-      ['consent_record', ['model_id UUID NOT NULL REFERENCES model_profile(id)', 'granted BOOLEAN NOT NULL', 'expires_at TIMESTAMPTZ', 'subject_ref text NOT NULL DEFAULT', "doc_kind text NOT NULL DEFAULT 'platform_consent'", 'CHECK (doc_kind IN', 'sha256 bytea', 'valid_from date NOT NULL DEFAULT CURRENT_DATE']],
-      ['platform_connection', ['enc_token BYTEA NOT NULL', 'enc_nonce BYTEA NOT NULL', 'dek_id TEXT NOT NULL', "status TEXT NOT NULL DEFAULT 'active'"]],
-      ['model_network_configs', ["egress_mode TEXT NOT NULL DEFAULT 'direct'", 'CHECK (egress_mode IN', 'enc_creds BYTEA', 'expected_egress_ip TEXT', 'failover_proxy_addrs TEXT[]', 'UNIQUE (model_id)']],
-      ['asset', ['file_size INTEGER NOT NULL', 'storage_key TEXT NOT NULL', 'width INTEGER', 'sha256 bytea', 'SET NOT NULL', 'UNIQUE (org_id, sha256)']],
-      ['content_bundle', ['asset_id UUID REFERENCES asset(id)', 'tos_report JSONB', "state TEXT NOT NULL DEFAULT 'generated'"]],
-      ['post_target', ['bundle_id UUID NOT NULL REFERENCES content_bundle(id)', 'connection_id UUID REFERENCES platform_connection(id)', "state TEXT NOT NULL DEFAULT 'pending'", 'idem_key SET NOT NULL', 'UNIQUE (org_id, idem_key)']],
-      ['relay_card', ['title TEXT NOT NULL', 'priority INTEGER NOT NULL DEFAULT 0', 'bundle_id uuid REFERENCES content_bundle(id)', 'channel text', 'external_ref text', "state text NOT NULL DEFAULT 'sent'"]],
-      ['relay_command', ['card_id UUID NOT NULL REFERENCES relay_card(id)', 'trigger TEXT NOT NULL']],
-      ['viral_exemplar', ['model_id UUID NOT NULL REFERENCES model_profile(id)', 'features jsonb NOT NULL DEFAULT', 'perf_score double precision NOT NULL DEFAULT 0', "label text NOT NULL DEFAULT 'baseline'", 'embedding vector(768) NOT NULL']],
-      ['post_metric', ['post_target_id UUID NOT NULL REFERENCES post_target(id)', 'engagement_rate DOUBLE PRECISION NOT NULL DEFAULT 0']],
-      ['job', ['queue TEXT NOT NULL', 'attempts INTEGER NOT NULL DEFAULT 0', 'max_attempts INTEGER NOT NULL DEFAULT 3']],
-      ['idempotency_ledger', ['idem_key TEXT NOT NULL UNIQUE', 'locked BOOLEAN NOT NULL DEFAULT false']],
-      ['api_idempotency', ['method text NOT NULL', 'route text NOT NULL', 'idem_key text NOT NULL', 'status integer NOT NULL', 'response_body jsonb NOT NULL', 'expires_at timestamp(3) with time zone NOT NULL', 'UNIQUE (org_id, method, route, idem_key)']],
-      ['audit_log', ['actor_ref TEXT NOT NULL', 'prev_hash BYTEA NOT NULL', 'row_hash BYTEA NOT NULL']],
-      ['auth_user', ['id TEXT PRIMARY KEY', 'email TEXT NOT NULL UNIQUE', 'org_id UUID REFERENCES org(id)', "role TEXT NOT NULL DEFAULT 'operator'"]],
-      ['auth_session', ['user_id TEXT NOT NULL REFERENCES auth_user(id)', 'token TEXT NOT NULL UNIQUE', 'expires_at TIMESTAMPTZ NOT NULL']],
-      ['auth_account', ['user_id TEXT NOT NULL REFERENCES auth_user(id)', 'provider_id TEXT NOT NULL']],
+      [
+        'consent_record',
+        [
+          'model_id UUID NOT NULL REFERENCES model_profile(id)',
+          'granted BOOLEAN NOT NULL',
+          'expires_at TIMESTAMPTZ',
+          'subject_ref text NOT NULL DEFAULT',
+          "doc_kind text NOT NULL DEFAULT 'platform_consent'",
+          'CHECK (doc_kind IN',
+          'sha256 bytea',
+          'valid_from date NOT NULL DEFAULT CURRENT_DATE',
+        ],
+      ],
+      [
+        'platform_connection',
+        [
+          'enc_token BYTEA NOT NULL',
+          'enc_nonce BYTEA NOT NULL',
+          'dek_id TEXT NOT NULL',
+          "status TEXT NOT NULL DEFAULT 'active'",
+        ],
+      ],
+      [
+        'model_network_configs',
+        [
+          "egress_mode TEXT NOT NULL DEFAULT 'direct'",
+          'CHECK (egress_mode IN',
+          'enc_creds BYTEA',
+          'expected_egress_ip TEXT',
+          'failover_proxy_addrs TEXT[]',
+          'UNIQUE (model_id)',
+        ],
+      ],
+      [
+        'asset',
+        [
+          'file_size INTEGER NOT NULL',
+          'storage_key TEXT NOT NULL',
+          'width INTEGER',
+          'sha256 bytea',
+          'SET NOT NULL',
+          'UNIQUE (org_id, sha256)',
+        ],
+      ],
+      [
+        'content_bundle',
+        [
+          'asset_id UUID REFERENCES asset(id)',
+          'tos_report JSONB',
+          "state TEXT NOT NULL DEFAULT 'generated'",
+        ],
+      ],
+      [
+        'post_target',
+        [
+          'bundle_id UUID NOT NULL REFERENCES content_bundle(id)',
+          'connection_id UUID REFERENCES platform_connection(id)',
+          "state TEXT NOT NULL DEFAULT 'pending'",
+          'idem_key SET NOT NULL',
+          'UNIQUE (org_id, idem_key)',
+        ],
+      ],
+      [
+        'relay_card',
+        [
+          'title TEXT NOT NULL',
+          'priority INTEGER NOT NULL DEFAULT 0',
+          'bundle_id uuid REFERENCES content_bundle(id)',
+          'channel text',
+          'external_ref text',
+          "state text NOT NULL DEFAULT 'sent'",
+        ],
+      ],
+      [
+        'relay_command',
+        ['card_id UUID NOT NULL REFERENCES relay_card(id)', 'trigger TEXT NOT NULL'],
+      ],
+      [
+        'viral_exemplar',
+        [
+          'model_id UUID NOT NULL REFERENCES model_profile(id)',
+          'features jsonb NOT NULL DEFAULT',
+          'perf_score double precision NOT NULL DEFAULT 0',
+          "label text NOT NULL DEFAULT 'baseline'",
+          'embedding vector(768) NOT NULL',
+        ],
+      ],
+      [
+        'post_metric',
+        [
+          'post_target_id UUID NOT NULL REFERENCES post_target(id)',
+          'engagement_rate DOUBLE PRECISION NOT NULL DEFAULT 0',
+        ],
+      ],
+      [
+        'job',
+        [
+          'queue TEXT NOT NULL',
+          'attempts INTEGER NOT NULL DEFAULT 0',
+          'max_attempts INTEGER NOT NULL DEFAULT 3',
+        ],
+      ],
+      [
+        'idempotency_ledger',
+        ['idem_key TEXT NOT NULL UNIQUE', 'locked BOOLEAN NOT NULL DEFAULT false'],
+      ],
+      [
+        'api_idempotency',
+        [
+          'method text NOT NULL',
+          'route text NOT NULL',
+          'idem_key text NOT NULL',
+          "ADD COLUMN IF NOT EXISTS state text NOT NULL DEFAULT 'completed'",
+          "ADD COLUMN IF NOT EXISTS request_hash text NOT NULL DEFAULT ''",
+          'ADD COLUMN IF NOT EXISTS owner_token uuid',
+          'ALTER COLUMN status DROP NOT NULL',
+          'ALTER COLUMN response_body DROP NOT NULL',
+          'expires_at timestamp(3) with time zone NOT NULL',
+          'UNIQUE (org_id, method, route, idem_key)',
+          'api_idempotency_state_check',
+        ],
+      ],
+      [
+        'audit_log',
+        ['actor_ref TEXT NOT NULL', 'prev_hash BYTEA NOT NULL', 'row_hash BYTEA NOT NULL'],
+      ],
+      [
+        'auth_user',
+        [
+          'id TEXT PRIMARY KEY',
+          'email TEXT NOT NULL UNIQUE',
+          'org_id UUID REFERENCES org(id)',
+          "role TEXT NOT NULL DEFAULT 'operator'",
+        ],
+      ],
+      [
+        'auth_session',
+        [
+          'user_id TEXT NOT NULL REFERENCES auth_user(id)',
+          'token TEXT NOT NULL UNIQUE',
+          'expires_at TIMESTAMPTZ NOT NULL',
+        ],
+      ],
+      [
+        'auth_account',
+        ['user_id TEXT NOT NULL REFERENCES auth_user(id)', 'provider_id TEXT NOT NULL'],
+      ],
       ['auth_verification', ['identifier TEXT NOT NULL', 'expires_at TIMESTAMPTZ NOT NULL']],
-      ['org_settings', ['org_id UUID PRIMARY KEY REFERENCES org(id)', 'publishing_enabled BOOLEAN NOT NULL DEFAULT true']],
-      ['fan_crm_contact', ['model_id UUID NOT NULL REFERENCES model_profile(id)', "tier TEXT NOT NULL DEFAULT 'new'", 'lifetime_value_usd NUMERIC(12,2) NOT NULL DEFAULT 0']],
-      ['fan_touchpoint', ['fan_id UUID NOT NULL REFERENCES fan_crm_contact(id)', "direction TEXT NOT NULL DEFAULT 'inbound'"]],
-      ['custom_request', ['model_id UUID NOT NULL REFERENCES model_profile(id)', "status TEXT NOT NULL DEFAULT 'pending'"]],
+      [
+        'org_settings',
+        [
+          'org_id UUID PRIMARY KEY REFERENCES org(id)',
+          'publishing_enabled BOOLEAN NOT NULL DEFAULT true',
+        ],
+      ],
+      [
+        'fan_crm_contact',
+        [
+          'model_id UUID NOT NULL REFERENCES model_profile(id)',
+          "tier TEXT NOT NULL DEFAULT 'new'",
+          'lifetime_value_usd NUMERIC(12,2) NOT NULL DEFAULT 0',
+        ],
+      ],
+      [
+        'fan_touchpoint',
+        [
+          'fan_id UUID NOT NULL REFERENCES fan_crm_contact(id)',
+          "direction TEXT NOT NULL DEFAULT 'inbound'",
+        ],
+      ],
+      [
+        'custom_request',
+        [
+          'model_id UUID NOT NULL REFERENCES model_profile(id)',
+          "status TEXT NOT NULL DEFAULT 'pending'",
+        ],
+      ],
       ['linkbio_provider', ['kind TEXT NOT NULL', 'enabled BOOLEAN NOT NULL DEFAULT true']],
-      ['linkbio_click', ['provider_id UUID NOT NULL REFERENCES linkbio_provider(id)', 'target TEXT NOT NULL']],
-      ['short_link', ['slug TEXT NOT NULL', 'target_url TEXT NOT NULL', 'clicks INTEGER NOT NULL DEFAULT 0']],
+      [
+        'linkbio_click',
+        ['provider_id UUID NOT NULL REFERENCES linkbio_provider(id)', 'target TEXT NOT NULL'],
+      ],
+      [
+        'short_link',
+        ['slug TEXT NOT NULL', 'target_url TEXT NOT NULL', 'clicks INTEGER NOT NULL DEFAULT 0'],
+      ],
       ['playbook_score', ['score INTEGER NOT NULL', 'components JSONB NOT NULL DEFAULT']],
-      ['api_key', ['org_id UUID NOT NULL REFERENCES org(id) ON DELETE CASCADE', 'key_hash TEXT NOT NULL', "scopes JSONB NOT NULL DEFAULT '[]'::jsonb"]],
-      ['asset_variant', ['asset_id UUID NOT NULL REFERENCES asset(id) ON DELETE CASCADE', "variant_type TEXT NOT NULL DEFAULT 'crop'", 'storage_key TEXT NOT NULL']],
-      ['pre_post_run', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', "status TEXT NOT NULL DEFAULT 'pending'", 'script TEXT NOT NULL']],
-      ['analytics_snapshot', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'platform TEXT NOT NULL', 'followers BIGINT NOT NULL DEFAULT 0']],
-      ['viral_recipe', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', "label TEXT NOT NULL DEFAULT 'baseline'", 'perf_score DOUBLE PRECISION NOT NULL DEFAULT 0']],
-      ['viral_embedding', ['recipe_id UUID NOT NULL REFERENCES viral_recipe(id) ON DELETE CASCADE', 'embedding   vector(768) NOT NULL']],
-      ['bandit_state', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'alpha DOUBLE PRECISION NOT NULL DEFAULT 1', 'UNIQUE (model_id, platform, context, arm)']],
-      ['seo_aeo_ranking', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'keyword TEXT NOT NULL', 'position INTEGER']],
-      ['fanvue_metric', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'subscribers INTEGER NOT NULL DEFAULT 0', 'earnings_usd NUMERIC(12,2) NOT NULL DEFAULT 0']],
-      ['campaign', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', "status TEXT NOT NULL DEFAULT 'draft'", 'kpi JSONB NOT NULL DEFAULT']],
-      ['trigger_rule', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'condition JSONB NOT NULL DEFAULT']],
-      ['linkbio_analytics', ['provider_id UUID REFERENCES linkbio_provider(id) ON DELETE SET NULL', "kind TEXT NOT NULL DEFAULT 'click'"]],
-      ['relay_binding', ['model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE', 'channel TEXT NOT NULL', 'UNIQUE (model_id, channel)']],
-      ['kill_switch', ['scope text NOT NULL DEFAULT', "action text NOT NULL CHECK (action IN ('enable','disable'))", 'actor_ref text NOT NULL', 'model_id uuid REFERENCES model_profile(id) ON DELETE CASCADE']],
-      ['agent_permission', ['agent_ref TEXT NOT NULL', "tier TEXT NOT NULL DEFAULT 'read'", 'can_publish BOOLEAN NOT NULL DEFAULT false', 'UNIQUE (agent_ref, model_id)']],
+      [
+        'api_key',
+        [
+          'org_id UUID NOT NULL REFERENCES org(id) ON DELETE CASCADE',
+          'key_hash TEXT NOT NULL',
+          "scopes JSONB NOT NULL DEFAULT '[]'::jsonb",
+        ],
+      ],
+      [
+        'asset_variant',
+        [
+          'asset_id UUID NOT NULL REFERENCES asset(id) ON DELETE CASCADE',
+          "variant_type TEXT NOT NULL DEFAULT 'crop'",
+          'storage_key TEXT NOT NULL',
+        ],
+      ],
+      [
+        'pre_post_run',
+        [
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          "status TEXT NOT NULL DEFAULT 'pending'",
+          'script TEXT NOT NULL',
+        ],
+      ],
+      [
+        'analytics_snapshot',
+        [
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          'platform TEXT NOT NULL',
+          'followers BIGINT NOT NULL DEFAULT 0',
+        ],
+      ],
+      [
+        'viral_recipe',
+        [
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          "label TEXT NOT NULL DEFAULT 'baseline'",
+          'perf_score DOUBLE PRECISION NOT NULL DEFAULT 0',
+        ],
+      ],
+      [
+        'viral_embedding',
+        [
+          'recipe_id UUID NOT NULL REFERENCES viral_recipe(id) ON DELETE CASCADE',
+          'embedding   vector(768) NOT NULL',
+        ],
+      ],
+      [
+        'bandit_state',
+        [
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          'alpha DOUBLE PRECISION NOT NULL DEFAULT 1',
+          'UNIQUE (model_id, platform, context, arm)',
+        ],
+      ],
+      [
+        'seo_aeo_ranking',
+        [
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          'keyword TEXT NOT NULL',
+          'position INTEGER',
+        ],
+      ],
+      [
+        'fanvue_metric',
+        [
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          'subscribers INTEGER NOT NULL DEFAULT 0',
+          'earnings_usd NUMERIC(12,2) NOT NULL DEFAULT 0',
+        ],
+      ],
+      [
+        'campaign',
+        [
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          "status TEXT NOT NULL DEFAULT 'draft'",
+          'kpi JSONB NOT NULL DEFAULT',
+        ],
+      ],
+      [
+        'trigger_rule',
+        [
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          'condition JSONB NOT NULL DEFAULT',
+        ],
+      ],
+      [
+        'linkbio_analytics',
+        [
+          'provider_id UUID REFERENCES linkbio_provider(id) ON DELETE SET NULL',
+          "kind TEXT NOT NULL DEFAULT 'click'",
+        ],
+      ],
+      [
+        'relay_binding',
+        [
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          'channel TEXT NOT NULL',
+          'UNIQUE (model_id, channel)',
+        ],
+      ],
+      [
+        'kill_switch',
+        [
+          'scope text NOT NULL DEFAULT',
+          "action text NOT NULL CHECK (action IN ('enable','disable'))",
+          'actor_ref text NOT NULL',
+          'model_id uuid REFERENCES model_profile(id) ON DELETE CASCADE',
+        ],
+      ],
+      [
+        'agent_permission',
+        [
+          'agent_ref TEXT NOT NULL',
+          "tier TEXT NOT NULL DEFAULT 'read'",
+          'can_publish BOOLEAN NOT NULL DEFAULT false',
+          'UNIQUE (agent_ref, model_id)',
+        ],
+      ],
     ];
     for (const [tsName, fragments] of expectations) {
       const tableSql = sqlTableName(tsName);
@@ -218,7 +496,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
 
   it('applies tenant isolation to consent_record via model_profile', () => {
     expect(sql).toContain('USING (model_id IN (');
-    expect(sql).toContain('WHERE org_id = current_setting(\'app.current_org_id\')::uuid');
+    expect(sql).toContain("WHERE org_id = current_setting('app.current_org_id')::uuid");
   });
 
   it('applies tenant isolation to post_metric via post_target -> content_bundle', () => {
@@ -235,19 +513,36 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(indexStatements).toHaveLength(68);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
-    expect(sql).toContain('CREATE INDEX IF NOT EXISTS job_pick ON job (state, run_after) WHERE state = \'ready\';');
-    expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_viral_exemplar_embedding ON viral_exemplar');
+    expect(sql).toContain(
+      "CREATE INDEX IF NOT EXISTS job_pick ON job (state, run_after) WHERE state = 'ready';",
+    );
+    expect(sql).toContain(
+      'CREATE INDEX IF NOT EXISTS idx_viral_exemplar_embedding ON viral_exemplar',
+    );
     expect(sql).toContain('USING hnsw (embedding vector_cosine_ops)');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_audit_log_ts ON audit_log(ts DESC);');
-    expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_model_network_configs_org_id ON model_network_configs(org_id);');
+    expect(sql).toContain(
+      'CREATE INDEX IF NOT EXISTS idx_model_network_configs_org_id ON model_network_configs(org_id);',
+    );
   });
 
   it('grants least-privilege privileges to axiom_app and full rights to axiom_migrator', () => {
     expect(sql).toContain('GRANT USAGE ON SCHEMA public TO axiom_app;');
-    expect(sql).toContain('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO axiom_app;');
+    expect(sql).toContain(
+      'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO axiom_app;',
+    );
     expect(sql).toContain('GRANT ALL ON SCHEMA public TO axiom_migrator;');
     expect(sql).toContain('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO axiom_migrator;');
     expect(sql).toContain('ALTER DEFAULT PRIVILEGES FOR ROLE axiom_migrator IN SCHEMA public');
+    expect(sql).toContain('REVOKE CREATE ON SCHEMA public FROM PUBLIC;');
+    for (const signature of [
+      'claim_job(text)',
+      'resolve_relay_card(uuid)',
+      'resolve_model_org(uuid)',
+    ]) {
+      expect(sql).toContain(`REVOKE ALL ON FUNCTION ${signature} FROM PUBLIC;`);
+      expect(sql).toContain(`GRANT EXECUTE ON FUNCTION ${signature} TO axiom_app;`);
+    }
   });
 
   it('seeds the genesis org and audit-log chain head', () => {
@@ -256,7 +551,9 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(sql).toContain("'00000000-0000-0000-0000-000000000000'");
     expect(sql).toContain("action = 'genesis'");
     expect(sql).toContain("sha256('genesis'::bytea)");
-    expect(sql).toContain("decode('0000000000000000000000000000000000000000000000000000000000000000', 'hex')");
+    expect(sql).toContain(
+      "decode('0000000000000000000000000000000000000000000000000000000000000000', 'hex')",
+    );
   });
 
   it('job attempts columns are INTEGER in SQL and aligned in the drizzle schema', () => {

@@ -70,7 +70,12 @@ export default function LinkbioPanel({
       {providers.filter((p) => p.enabled).length > 0 && (
         <table>
           <thead>
-            <tr><th>Kind</th><th>Primary</th><th>Clicks</th><th></th></tr>
+            <tr>
+              <th>Kind</th>
+              <th>Primary</th>
+              <th>Clicks</th>
+              <th></th>
+            </tr>
           </thead>
           <tbody>
             {providers
@@ -81,7 +86,13 @@ export default function LinkbioPanel({
                   <td>{p.isPrimary ? '★' : '—'}</td>
                   <td>{p.clicks ?? 0}</td>
                   <td>
-                    <button className="btn danger" type="button" disabled={busy} onClick={() => disable(p.kind)} style={{ padding: '4px 10px', fontSize: 12 }}>
+                    <button
+                      className="btn danger"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => disable(p.kind)}
+                      style={{ padding: '4px 10px', fontSize: 12 }}
+                    >
                       Disable
                     </button>
                   </td>
@@ -93,7 +104,9 @@ export default function LinkbioPanel({
       <div className="row">
         <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
           {KINDS.filter((k) => !providers.some((p) => p.kind === k && p.enabled)).map((k) => (
-            <option key={k} value={k}>{k}</option>
+            <option key={k} value={k}>
+              {k}
+            </option>
           ))}
         </select>
         <button className="btn" type="button" disabled={busy} onClick={enable}>

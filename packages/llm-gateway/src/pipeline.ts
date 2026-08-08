@@ -33,7 +33,7 @@ export class Pipeline {
   }
 
   remove(name: string): boolean {
-    const idx = this.transforms.findIndex(t => t.name === name);
+    const idx = this.transforms.findIndex((t) => t.name === name);
     if (idx === -1) return false;
     this.transforms.splice(idx, 1);
     return true;

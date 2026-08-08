@@ -24,7 +24,11 @@ beforeEach(() => {
 
 describe('script registration', () => {
   it('registers, lists, and retrieves scripts', () => {
-    const script: PrePostScript = { name: 'append-cta', beforePublish: async (i) => i, afterPublish: async () => {} };
+    const script: PrePostScript = {
+      name: 'append-cta',
+      beforePublish: async (i) => i,
+      afterPublish: async () => {},
+    };
     hook.registerScript(script);
     expect(hook.listScripts()).toEqual(['append-cta']);
     expect(hook.getScript('append-cta')).toBe(script);
@@ -33,7 +37,11 @@ describe('script registration', () => {
   });
 
   it('rejects duplicate script names', () => {
-    const script: PrePostScript = { name: 'dup', beforePublish: async (i) => i, afterPublish: async () => {} };
+    const script: PrePostScript = {
+      name: 'dup',
+      beforePublish: async (i) => i,
+      afterPublish: async () => {},
+    };
     hook.registerScript(script);
     expect(() => hook.registerScript({ ...script })).toThrow('already registered');
   });
@@ -49,12 +57,18 @@ describe('beforePublish pipeline', () => {
   it('chains scripts in registration order, passing output forward', async () => {
     const first: PrePostScript = {
       name: 'first',
-      beforePublish: async (i) => ({ ...i, captions: { ...i.captions, tiktok: `${i.captions.tiktok} one` } }),
+      beforePublish: async (i) => ({
+        ...i,
+        captions: { ...i.captions, tiktok: `${i.captions.tiktok} one` },
+      }),
       afterPublish: async () => {},
     };
     const second: PrePostScript = {
       name: 'second',
-      beforePublish: async (i) => ({ ...i, captions: { ...i.captions, tiktok: `${i.captions.tiktok} two` } }),
+      beforePublish: async (i) => ({
+        ...i,
+        captions: { ...i.captions, tiktok: `${i.captions.tiktok} two` },
+      }),
       afterPublish: async () => {},
     };
     hook.registerScript(first);
@@ -76,10 +90,14 @@ describe('beforePublish pipeline', () => {
   it('wraps script failures with the script name and platform', async () => {
     hook.registerScript({
       name: 'boom',
-      beforePublish: async () => { throw new Error('kaboom'); },
+      beforePublish: async () => {
+        throw new Error('kaboom');
+      },
       afterPublish: async () => {},
     });
-    await expect(hook.beforePublish(INPUT, 'tiktok')).rejects.toThrow('PrePublish script "boom" failed for tiktok: kaboom');
+    await expect(hook.beforePublish(INPUT, 'tiktok')).rejects.toThrow(
+      'PrePublish script "boom" failed for tiktok: kaboom',
+    );
   });
 });
 
@@ -99,7 +117,9 @@ describe('afterPublish pipeline', () => {
     hook.registerScript({
       name: 'bad',
       beforePublish: async (i) => i,
-      afterPublish: async () => { throw new Error('logged only'); },
+      afterPublish: async () => {
+        throw new Error('logged only');
+      },
     });
     await expect(hook.afterPublish(RESULT, 'tiktok')).resolves.toBeUndefined();
     expect(error).toHaveBeenCalledWith(expect.stringContaining('bad'));

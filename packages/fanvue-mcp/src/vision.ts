@@ -42,11 +42,14 @@ export interface VisionEngineConfig {
   baseUrl: string;
   /** Request timeout in milliseconds */
   timeoutMs: number;
+  /** Explicit development/test escape hatch. Production defaults fail closed. */
+  allowLocalFallback: boolean;
 }
 
 const DEFAULT_CONFIG: VisionEngineConfig = {
   baseUrl: 'http://127.0.0.1:8101',
   timeoutMs: 30000,
+  allowLocalFallback: false,
 };
 
 // ─── Local Heuristic Fallback ───
@@ -68,8 +71,7 @@ function localTosHeuristic(imageData: string): TosClassifyResult {
 
   // Check for watermark-like patterns in base64 (simple heuristic)
   const asLower = imageData.toLowerCase();
-  const hasExplicitKeywords =
-    /\b(nsfw|nude|explicit|adult|xxx)\b/i.test(asLower);
+  const hasExplicitKeywords = /\b(nsfw|nude|explicit|adult|xxx)\b/i.test(asLower);
 
   const score = hasExplicitKeywords ? Math.max(0.6, sizeScore) : sizeScore;
 
@@ -90,9 +92,7 @@ function localNsfwHeuristic(imageData: string): NsfwDetectResult {
   const keywords = ['nsfw', 'nude', 'explicit', 'adult', 'xxx', '18+'];
   const detected = keywords.filter((k) => asLower.includes(k));
 
-  const score = detected.length > 0
-    ? Math.min(0.4 + detected.length * 0.15, 0.95)
-    : 0.05;
+  const score = detected.length > 0 ? Math.min(0.4 + detected.length * 0.15, 0.95) : 0.05;
 
   return {
     score: Math.round(score * 1000) / 1000,
@@ -134,11 +134,7 @@ interface RustNsfwDetectResponse {
 
 // ─── HTTP Helpers ───
 
-async function postJson<T>(
-  url: string,
-  body: unknown,
-  config: VisionEngineConfig,
-): Promise<T> {
+async function postJson<T>(url: string, body: unknown, config: VisionEngineConfig): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
 
@@ -151,9 +147,7 @@ async function postJson<T>(
     });
 
     if (!response.ok) {
-      throw new Error(
-        `Vision engine returned ${response.status}: ${response.statusText}`,
-      );
+      throw new Error(`Vision engine returned ${response.status}: ${response.statusText}`);
     }
 
     return (await response.json()) as T;
@@ -199,6 +193,7 @@ export class VisionEngineClient {
         overrideSource: result.override_source,
       };
     } catch (err) {
+      if (!this.config.allowLocalFallback) throw err;
       console.warn(
         `[VisionEngine] Rust engine unreachable, falling back to local heuristic: ${err instanceof Error ? err.message : String(err)}`,
       );
@@ -226,9 +221,7 @@ export class VisionEngineClient {
       );
 
       // Categories = labels whose probability clears a 0.1 floor.
-      const categories = result.labels.filter(
-        (_label, i) => (result.probabilities[i] ?? 0) > 0.1,
-      );
+      const categories = result.labels.filter((_label, i) => (result.probabilities[i] ?? 0) > 0.1);
 
       return {
         score: Math.round(result.nsfw_score * 1000) / 1000,
@@ -238,6 +231,7 @@ export class VisionEngineClient {
         overrideSource: result.override_source,
       };
     } catch (err) {
+      if (!this.config.allowLocalFallback) throw err;
       console.warn(
         `[VisionEngine] Rust engine unreachable, falling back to local heuristic: ${err instanceof Error ? err.message : String(err)}`,
       );

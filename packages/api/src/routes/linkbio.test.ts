@@ -35,8 +35,22 @@ afterEach(() => {
 describe('GET /models/:modelId/linkbio', () => {
   it('returns providers + primary + native flag', async () => {
     mockState.result = [
-      { id: PROVIDER_ID, orgId: ORG_ID, modelId: MODEL_ID, kind: 'native', enabled: true, isPrimary: true },
-      { id: 'p2', orgId: ORG_ID, modelId: MODEL_ID, kind: 'linktree', enabled: false, isPrimary: false },
+      {
+        id: PROVIDER_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        kind: 'native',
+        enabled: true,
+        isPrimary: true,
+      },
+      {
+        id: 'p2',
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        kind: 'linktree',
+        enabled: false,
+        isPrimary: false,
+      },
     ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`);
     expect(res.status).toBe(200);
@@ -58,7 +72,16 @@ describe('GET /models/:modelId/linkbio', () => {
 
 describe('POST /models/:modelId/linkbio', () => {
   it('enables a provider (201)', async () => {
-    mockState.result = [{ id: PROVIDER_ID, orgId: ORG_ID, modelId: MODEL_ID, kind: 'native', enabled: true, isPrimary: false }];
+    mockState.result = [
+      {
+        id: PROVIDER_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        kind: 'native',
+        enabled: true,
+        isPrimary: false,
+      },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -82,20 +105,35 @@ describe('POST /models/:modelId/linkbio', () => {
 
 describe('DELETE /models/:modelId/linkbio/:kind', () => {
   it('disables a provider', async () => {
-    mockState.result = [{ id: PROVIDER_ID, orgId: ORG_ID, modelId: MODEL_ID, kind: 'native', enabled: false, isPrimary: false }];
-    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/native`, { method: 'DELETE' });
+    mockState.result = [
+      {
+        id: PROVIDER_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        kind: 'native',
+        enabled: false,
+        isPrimary: false,
+      },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/native`, {
+      method: 'DELETE',
+    });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.enabled).toBe(false);
   });
 
   it('returns 404 when the provider is not enabled', async () => {
-    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/native`, { method: 'DELETE' });
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/native`, {
+      method: 'DELETE',
+    });
     expect(res.status).toBe(404);
   });
 
   it('rejects an unknown kind (400)', async () => {
-    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/myspace`, { method: 'DELETE' });
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/myspace`, {
+      method: 'DELETE',
+    });
     expect(res.status).toBe(400);
   });
 });
@@ -117,7 +155,11 @@ describe('POST /linkbio/clicks', () => {
     const res = await appWithOrg(ORG_ID).request('/linkbio/clicks', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ providerId: PROVIDER_ID, target: 'https://fanvue.com/luna', source: 'bio' }),
+      body: JSON.stringify({
+        providerId: PROVIDER_ID,
+        target: 'https://fanvue.com/luna',
+        source: 'bio',
+      }),
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;

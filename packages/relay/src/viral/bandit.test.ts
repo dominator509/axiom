@@ -16,7 +16,13 @@ afterEach(() => {
 });
 
 function exemplar(postId: string, er: number, format = 'carousel'): Exemplar {
-  return { postId, label: 'viral', platform: 'tiktok', performance: { engagementRate: er }, format };
+  return {
+    postId,
+    label: 'viral',
+    platform: 'tiktok',
+    performance: { engagementRate: er },
+    format,
+  };
 }
 
 describe('constructor', () => {
@@ -87,17 +93,13 @@ describe('selectStyle', () => {
 
   it('picks peak timing when most exemplars have strong engagement', () => {
     const bandit = new Bandit();
-    const sel = bandit.selectStyle([
-      exemplar('a', 0.09), exemplar('b', 0.08), exemplar('c', 0.07),
-    ]);
+    const sel = bandit.selectStyle([exemplar('a', 0.09), exemplar('b', 0.08), exemplar('c', 0.07)]);
     expect(sel.timing).toBe('peak');
   });
 
   it('picks off-peak timing when most exemplars are weak', () => {
     const bandit = new Bandit();
-    const sel = bandit.selectStyle([
-      exemplar('a', 0.01), exemplar('b', 0.02), exemplar('c', 0.09),
-    ]);
+    const sel = bandit.selectStyle([exemplar('a', 0.01), exemplar('b', 0.02), exemplar('c', 0.09)]);
     expect(sel.timing).toBe('off-peak');
   });
 

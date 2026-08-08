@@ -10,12 +10,22 @@ describe('minuteSlot', () => {
 
 describe('publishIdemKey', () => {
   it('is deterministic for the same inputs', () => {
-    const input = { modelId: 'm1', assetSha256: 'abc', platform: 'instagram', when: new Date('2026-08-06T10:15:00Z') };
+    const input = {
+      modelId: 'm1',
+      assetSha256: 'abc',
+      platform: 'instagram',
+      when: new Date('2026-08-06T10:15:00Z'),
+    };
     expect(publishIdemKey(input)).toBe(publishIdemKey(input));
   });
 
   it('changes when platform or slot changes', () => {
-    const base = { modelId: 'm1', assetSha256: 'abc', platform: 'instagram', when: new Date('2026-08-06T10:15:00Z') };
+    const base = {
+      modelId: 'm1',
+      assetSha256: 'abc',
+      platform: 'instagram',
+      when: new Date('2026-08-06T10:15:00Z'),
+    };
     expect(publishIdemKey(base)).not.toBe(publishIdemKey({ ...base, platform: 'tiktok' }));
     expect(publishIdemKey(base)).not.toBe(
       publishIdemKey({ ...base, when: new Date('2026-08-06T10:16:00Z') }),

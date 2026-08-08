@@ -89,14 +89,22 @@ describe('relayViralPersistence.listExemplars', () => {
       { id: 'e1', label: 'viral', platform: 'tiktok', perfScore: 2.4 },
       { id: 'e2', label: 'strong', platform: 'fanvue', perfScore: 1.3 },
     ];
-    const rows = await relayViralPersistence.listExemplars({ platform: 'all', limit: 10, orgId: ORG_ID });
+    const rows = await relayViralPersistence.listExemplars({
+      platform: 'all',
+      limit: 10,
+      orgId: ORG_ID,
+    });
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ id: 'e1', label: 'viral' });
   });
 
   it('filters by platform when a specific platform is requested', async () => {
     mockState.result = [{ id: 'e1', label: 'viral', platform: 'tiktok', perfScore: 2.4 }];
-    const rows = await relayViralPersistence.listExemplars({ platform: 'tiktok', limit: 5, orgId: ORG_ID });
+    const rows = await relayViralPersistence.listExemplars({
+      platform: 'tiktok',
+      limit: 5,
+      orgId: ORG_ID,
+    });
     expect(rows).toHaveLength(1);
     expect(rows[0].platform).toBe('tiktok');
   });

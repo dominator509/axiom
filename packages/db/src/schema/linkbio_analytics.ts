@@ -5,7 +5,9 @@ import { linkbioProvider } from './linkbio_provider.js';
 
 export const linkbioAnalytics = pgTable('linkbio_analytics', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id, { onDelete: 'cascade' }),
   providerId: uuid('provider_id').references(() => linkbioProvider.id, { onDelete: 'set null' }),
   ts: timestamp('ts', { withTimezone: true }).notNull().defaultNow(),
   kind: text('kind').notNull().default('click'),

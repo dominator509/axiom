@@ -29,7 +29,9 @@ export async function relayIncidentPageHandler(incident: Incident): Promise<void
         orgId,
         channel: 'incident',
         state: 'sent',
-        title: incident.crashLoop ? `⚠️ Crash loop detected: ${incident.source}` : `🚨 ${severity}: ${incident.message}`,
+        title: incident.crashLoop
+          ? `⚠️ Crash loop detected: ${incident.source}`
+          : `🚨 ${severity}: ${incident.message}`,
         description: incident.message,
         icon: '🚨',
         priority,

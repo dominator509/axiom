@@ -41,18 +41,11 @@ export type { TokenKillerOptions } from './gateway.js';
 
 // Prefix cache
 export { PrefixCache, ResponseCache, cacheKey, alignBlocks } from './cache.js';
-export type {
-  PrefixCacheEntry,
-  PrefixCacheStats,
-} from './cache.js';
+export type { PrefixCacheEntry, PrefixCacheStats } from './cache.js';
 
 // Pipeline
 export { Pipeline } from './pipeline.js';
-export type {
-  PipelineTransform,
-  PipelineOptions,
-  PipelineResult,
-} from './pipeline.js';
+export type { PipelineTransform, PipelineOptions, PipelineResult } from './pipeline.js';
 
 // Providers
 export type {

@@ -48,8 +48,16 @@ export class Bandit {
 
     // Initialize default styles
     const defaultStyles = [
-      'direct_call', 'storytelling', 'educational', 'humorous', 'controversial',
-      'emotional', 'trend_jacking', 'behind_scenes', 'testimonial', 'comparison',
+      'direct_call',
+      'storytelling',
+      'educational',
+      'humorous',
+      'controversial',
+      'emotional',
+      'trend_jacking',
+      'behind_scenes',
+      'testimonial',
+      'comparison',
     ];
     for (const style of defaultStyles) {
       this.weights.set(style, {
@@ -88,7 +96,10 @@ export class Bandit {
       selectedStyle = active[Math.floor(this.rng() * active.length)];
     } else {
       // Exploit: weighted selection
-      const totalWeight = active.reduce((sum, w) => sum + (w.weight + this.config.explorationFloor), 0);
+      const totalWeight = active.reduce(
+        (sum, w) => sum + (w.weight + this.config.explorationFloor),
+        0,
+      );
       let roll = this.rng() * totalWeight;
       selectedStyle = active[0];
       for (const w of active) {
@@ -111,11 +122,12 @@ export class Bandit {
     selectedStyle.selectionCount++;
 
     // Extract features from best exemplar of this platform
-    const bestExemplar = exemplars.length > 0
-      ? exemplars.reduce((best, e) =>
-          e.performance.engagementRate > best.performance.engagementRate ? e : best
-        )
-      : undefined;
+    const bestExemplar =
+      exemplars.length > 0
+        ? exemplars.reduce((best, e) =>
+            e.performance.engagementRate > best.performance.engagementRate ? e : best,
+          )
+        : undefined;
 
     return {
       captionStyle: selectedStyle.style,

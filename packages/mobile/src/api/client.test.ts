@@ -15,18 +15,9 @@ import {
   resolveBaseUrl,
   setStoredCookie,
 } from './client';
-import {
-  parseCrashReport,
-  parseCursorPage,
-  parseDigestCard,
-  parseOrgSettings,
-} from './endpoints';
+import { parseCrashReport, parseCursorPage, parseDigestCard, parseOrgSettings } from './endpoints';
 
-function jsonResponse(
-  body: unknown,
-  status = 200,
-  headers: Record<string, string> = {},
-): Response {
+function jsonResponse(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json', ...headers },
@@ -98,11 +89,9 @@ describe('apiFetch', () => {
 
   it('POSTs JSON, captures the session cookie, and parses the JSON body', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(
-        { token: 'tok-1', user: { id: 'u1', email: 'a@b.c' } },
-        200,
-        { 'set-cookie': 'axiom_session=sess-1; Path=/' },
-      ),
+      jsonResponse({ token: 'tok-1', user: { id: 'u1', email: 'a@b.c' } }, 200, {
+        'set-cookie': 'axiom_session=sess-1; Path=/',
+      }),
     );
 
     const result = await apiFetch<{ token: string; user: { id: string; email: string } }>(
@@ -152,9 +141,7 @@ describe('apiFetch', () => {
   });
 
   it('falls back to the Better Auth {message} body on non-2xx', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ message: 'Invalid email or password' }, 401),
-    );
+    fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'Invalid email or password' }, 401));
 
     const error = await apiFetch<unknown>('/api/auth/sign-in/email', {
       method: 'POST',
@@ -231,12 +218,10 @@ describe('response parsing', () => {
   });
 
   it('rejects malformed shapes instead of silently accepting them', () => {
-    expect(() =>
-      parseCrashReport({ id: 'cr-1', status: 'weird' }),
-    ).toThrow(/response shape/);
+    expect(() => parseCrashReport({ id: 'cr-1', status: 'weird' })).toThrow(/response shape/);
     expect(() => parseOrgSettings({ orgId: 'org-1' })).toThrow(/response shape/);
-    expect(() =>
-      parseCursorPage({ data: 'nope', meta: {} }, parseDigestCard),
-    ).toThrow(/response shape/);
+    expect(() => parseCursorPage({ data: 'nope', meta: {} }, parseDigestCard)).toThrow(
+      /response shape/,
+    );
   });
 });

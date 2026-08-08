@@ -129,9 +129,19 @@ describe('POST /api/v1/relay/command', () => {
   it('rejects nonce replay with 403 even with a valid signature', async () => {
     const nonce = deps.commandRouter.generateNonce();
     const sig = deps.commandRouter.signCommand(nonce, 'reject', 'bundle-2');
-    const first = await postJson('/api/v1/relay/command', { signature: sig, nonce, action: 'reject', cardId: 'bundle-2' });
+    const first = await postJson('/api/v1/relay/command', {
+      signature: sig,
+      nonce,
+      action: 'reject',
+      cardId: 'bundle-2',
+    });
     expect(first.status).toBe(200);
-    const second = await postJson('/api/v1/relay/command', { signature: sig, nonce, action: 'reject', cardId: 'bundle-2' });
+    const second = await postJson('/api/v1/relay/command', {
+      signature: sig,
+      nonce,
+      action: 'reject',
+      cardId: 'bundle-2',
+    });
     expect(second.status).toBe(403);
   });
 
@@ -178,7 +188,10 @@ describe('POST /api/v1/viral/ingest', () => {
 
 describe('GET /api/v1/viral/exemplars', () => {
   it('returns exemplars filtered by platform', async () => {
-    await postJson('/api/v1/viral/ingest', { postId: 'ex1', metrics: makePostMetrics('ex1', 0.06) });
+    await postJson('/api/v1/viral/ingest', {
+      postId: 'ex1',
+      metrics: makePostMetrics('ex1', 0.06),
+    });
     const res = await app.request('/api/v1/viral/exemplars?platform=tiktok&limit=5');
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
@@ -250,7 +263,9 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
   });
 
   it('reads exemplars through the injected ViralPersistence', async () => {
-    const listExemplars = vi.fn(async () => [{ label: 'strong', platform: 'tiktok', perfScore: 1.2 }]);
+    const listExemplars = vi.fn(async () => [
+      { label: 'strong', platform: 'tiktok', perfScore: 1.2 },
+    ]);
     const persistence: ViralPersistence = { persist: vi.fn(), listExemplars };
     const localDeps = buildDeps({ viralPersistence: persistence });
     const localApp = createRelayRoutes(localDeps);
@@ -264,7 +279,9 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
 
   it('returns 500 when persistence throws (fail closed, no silent in-memory fallback)', async () => {
     const persistence: ViralPersistence = {
-      persist: vi.fn(async () => { throw new Error('no post_target'); }),
+      persist: vi.fn(async () => {
+        throw new Error('no post_target');
+      }),
       listExemplars: async () => [],
     };
     const localDeps = buildDeps({ viralPersistence: persistence });
@@ -278,7 +295,7 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
     expect(res.status).toBe(500);
     const body = (await res.json()) as any;
     expect(body.success).toBe(false);
-    expect(body.error).toBe('no post_target');
+    expect(body.error).toBe('Failed to ingest metrics');
     expect(localDeps.viralLoop.getExemplarCount()).toBe(0);
   });
 });
@@ -293,7 +310,11 @@ describe('POST /api/v1/incidents/report', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.success).toBe(true);
-    expect(body.incident).toMatchObject({ severity: 'sev-2', message: 'latency spike', source: 'poller' });
+    expect(body.incident).toMatchObject({
+      severity: 'sev-2',
+      message: 'latency spike',
+      source: 'poller',
+    });
   });
 
   it('returns 500 for a malformed body', async () => {

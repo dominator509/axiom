@@ -1,4 +1,12 @@
-import { pgTable, uuid, text, jsonb, timestamp, vector, doublePrecision } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  jsonb,
+  timestamp,
+  vector,
+  doublePrecision,
+} from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { org } from './org.js';
 import { modelProfile } from './model_profile.js';
@@ -9,8 +17,12 @@ import { contentBundle } from './content_bundle.js';
 // the normalized engagement z-score, features holds caption/hook/timing/tags.
 export const viralExemplar = pgTable('viral_exemplar', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id),
-  modelId: uuid('model_id').notNull().references(() => modelProfile.id),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id),
+  modelId: uuid('model_id')
+    .notNull()
+    .references(() => modelProfile.id),
   bundleId: uuid('bundle_id').references(() => contentBundle.id),
   platform: text('platform').notNull(),
   features: jsonb('features').$type<Record<string, unknown>>().notNull().default({}),

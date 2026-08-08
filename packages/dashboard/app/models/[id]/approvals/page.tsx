@@ -3,11 +3,7 @@ import ApproveButtons from '@/components/ApproveButtons';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ApprovalsPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function ApprovalsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let bundles: Awaited<ReturnType<typeof api.bundles.list>>['data'] = [];
   let error: string | null = null;
@@ -23,7 +19,11 @@ export default async function ApprovalsPage({
         <h2>Approvals (F-37 / F-68)</h2>
         <span style={{ color: 'var(--muted)' }}>{bundles.length} awaiting decision</span>
       </div>
-      {error && <div className="card" style={{ color: 'var(--bad)' }}>{error}</div>}
+      {error && (
+        <div className="card" style={{ color: 'var(--bad)' }}>
+          {error}
+        </div>
+      )}
       {bundles.length === 0 && !error && (
         <div className="card">
           <p style={{ color: 'var(--muted)', margin: 0 }}>
@@ -37,14 +37,21 @@ export default async function ApprovalsPage({
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <div>
                 <span className="mono">{b.id.slice(0, 8)}</span>
-                <span className="badge warn" style={{ marginLeft: 8 }}>{b.state}</span>
+                <span className="badge warn" style={{ marginLeft: 8 }}>
+                  {b.state}
+                </span>
                 {b.tosReport && (
-                  <span className={`badge ${b.tosReport.verdict === 'pass' ? 'good' : b.tosReport.verdict === 'review' ? 'warn' : 'bad'}`} style={{ marginLeft: 8 }}>
+                  <span
+                    className={`badge ${b.tosReport.verdict === 'pass' ? 'good' : b.tosReport.verdict === 'review' ? 'warn' : 'bad'}`}
+                    style={{ marginLeft: 8 }}
+                  >
                     ToS: {b.tosReport.verdict}
                   </span>
                 )}
               </div>
-              <span style={{ color: 'var(--muted)' }}>{new Date(b.createdAt).toLocaleString()}</span>
+              <span style={{ color: 'var(--muted)' }}>
+                {new Date(b.createdAt).toLocaleString()}
+              </span>
             </div>
             <div className="stack" style={{ marginTop: 10 }}>
               {Object.entries(b.captions ?? {}).map(([platform, caption]) => (
@@ -52,7 +59,9 @@ export default async function ApprovalsPage({
                   <strong>{platform}:</strong> {caption}
                 </div>
               ))}
-              <div className="mono" style={{ color: 'var(--muted)' }}>{(b.hashtags ?? []).join(' ')}</div>
+              <div className="mono" style={{ color: 'var(--muted)' }}>
+                {(b.hashtags ?? []).join(' ')}
+              </div>
             </div>
             <div style={{ marginTop: 12 }}>
               <ApproveButtons bundleId={b.id} tosBlocked={b.tosReport?.verdict === 'block'} />

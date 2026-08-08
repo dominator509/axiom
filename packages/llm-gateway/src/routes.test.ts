@@ -53,7 +53,8 @@ describe('createRouter — POST /chat', () => {
     });
     expect(res.status).toBe(502);
     const body = (await res.json()) as { detail: string; status: number; title: string };
-    expect(body.detail).toBe('OPENAI_API_KEY not set');
+    expect(body.detail).toBe('The requested LLM provider could not complete the request');
+    expect(body.detail).not.toContain('OPENAI_API_KEY');
     expect(body.status).toBe(502);
     expect(body.title).toBe('Bad Gateway');
   });
@@ -243,7 +244,8 @@ describe('createRouter — POST /chat/stream', () => {
     });
     const text = await res.text();
     expect(text).toContain('event: error');
-    expect(text).toContain('stream broke');
+    expect(text).toContain('The requested LLM provider could not complete the stream');
+    expect(text).not.toContain('stream broke');
     expect(text).not.toContain('data: [DONE]');
   });
 

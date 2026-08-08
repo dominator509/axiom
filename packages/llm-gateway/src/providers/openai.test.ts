@@ -32,7 +32,9 @@ const completion = {
   object: 'chat.completion',
   created: 1,
   model: 'gpt-4o',
-  choices: [{ index: 0, message: { role: 'assistant', content: 'hi there' }, finish_reason: 'stop' }],
+  choices: [
+    { index: 0, message: { role: 'assistant', content: 'hi there' }, finish_reason: 'stop' },
+  ],
   usage: { prompt_tokens: 1000, completion_tokens: 500, total_tokens: 1500 },
 };
 
@@ -90,7 +92,7 @@ describe('callOpenAI', () => {
 
   it('throws ProviderError with body on non-ok response', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'bad key' }, 401));
-    const err = await callOpenAI('bad-key', req).catch(e => e);
+    const err = await callOpenAI('bad-key', req).catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.status).toBe(401);
     expect(err.provider).toBe('openai');
@@ -125,11 +127,7 @@ describe('streamOpenAI', () => {
 
   it('skips malformed JSON lines without failing', async () => {
     fetchMock.mockResolvedValueOnce(
-      sseResponse([
-        'data: {not json',
-        'data: {"choices":[{"delta":{"content":"ok"}}]}',
-        '',
-      ]),
+      sseResponse(['data: {not json', 'data: {"choices":[{"delta":{"content":"ok"}}]}', '']),
     );
     const chunks: string[] = [];
     for await (const c of streamOpenAI('sk-test-456', req)) chunks.push(c);
@@ -138,7 +136,9 @@ describe('streamOpenAI', () => {
 
   it('marks the request stream=true in the body', async () => {
     fetchMock.mockResolvedValueOnce(sseResponse(['data: [DONE]']));
-    for await (const _ of streamOpenAI('sk-test-456', req)) { /* drain */ }
+    for await (const _ of streamOpenAI('sk-test-456', req)) {
+      /* drain */
+    }
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
     expect(body.stream).toBe(true);
   });
@@ -146,8 +146,10 @@ describe('streamOpenAI', () => {
   it('throws ProviderError on non-ok response', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'nope' }, 500));
     const err = await (async () => {
-      for await (const _ of streamOpenAI('sk-test-456', req)) { /* drain */ }
-    })().catch(e => e);
+      for await (const _ of streamOpenAI('sk-test-456', req)) {
+        /* drain */
+      }
+    })().catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.status).toBe(500);
     expect(err.message).toContain('OpenAI stream error 500');
@@ -156,8 +158,10 @@ describe('streamOpenAI', () => {
   it('throws ProviderError when the response body is null', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
     const err = await (async () => {
-      for await (const _ of streamOpenAI('sk-test-456', req)) { /* drain */ }
-    })().catch(e => e);
+      for await (const _ of streamOpenAI('sk-test-456', req)) {
+        /* drain */
+      }
+    })().catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.message).toBe('OpenAI stream body is null');
   });
@@ -228,7 +232,9 @@ describe('OpenAIProvider', () => {
         object: 'chat.completion',
         created: 1,
         model: 'gpt-4o',
-        choices: [{ index: 0, message: { role: 'assistant', content: 'hi there' }, finish_reason: 'stop' }],
+        choices: [
+          { index: 0, message: { role: 'assistant', content: 'hi there' }, finish_reason: 'stop' },
+        ],
       }),
     );
     const p = new OpenAIProvider('sk-test-456');
@@ -254,7 +260,7 @@ describe('OpenAIProvider', () => {
   it('chat throws ProviderError on non-ok response', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'over' }, 429));
     const p = new OpenAIProvider('sk-test-456');
-    const err = await p.chat([{ role: 'user', content: 'x' }]).catch(e => e);
+    const err = await p.chat([{ role: 'user', content: 'x' }]).catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.status).toBe(429);
     expect(err.provider).toBe('openai');
@@ -264,7 +270,9 @@ describe('OpenAIProvider', () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         ...completion,
-        choices: [{ index: 0, message: { role: 'assistant', content: null }, finish_reason: 'stop' }],
+        choices: [
+          { index: 0, message: { role: 'assistant', content: null }, finish_reason: 'stop' },
+        ],
       }),
     );
     const p = new OpenAIProvider('sk-test-456');
@@ -305,7 +313,7 @@ describe('OpenAIProvider', () => {
     const p = new OpenAIProvider('sk-test-456');
     const chunks = [];
     for await (const c of p.chatStream([{ role: 'user', content: 'hi' }])) chunks.push(c);
-    const done = chunks.find(c => c.type === 'done');
+    const done = chunks.find((c) => c.type === 'done');
     expect(done).toMatchObject({
       type: 'done',
       content: 'yo',
@@ -316,7 +324,9 @@ describe('OpenAIProvider', () => {
   });
 
   it('chatStream emits a final done chunk when the stream ends without a stop marker', async () => {
-    fetchMock.mockResolvedValueOnce(sseResponse(['data: {"choices":[{"delta":{"content":"only"}}]}']));
+    fetchMock.mockResolvedValueOnce(
+      sseResponse(['data: {"choices":[{"delta":{"content":"only"}}]}']),
+    );
     const p = new OpenAIProvider('sk-test-456');
     const chunks = [];
     for await (const c of p.chatStream([{ role: 'user', content: 'hi' }])) chunks.push(c);
@@ -325,18 +335,24 @@ describe('OpenAIProvider', () => {
 
   it('chatStream skips malformed JSON lines', async () => {
     fetchMock.mockResolvedValueOnce(
-      sseResponse(['data: garbage', 'data: {"choices":[{"delta":{"content":"ok"}}]}', 'data: [DONE]']),
+      sseResponse([
+        'data: garbage',
+        'data: {"choices":[{"delta":{"content":"ok"}}]}',
+        'data: [DONE]',
+      ]),
     );
     const p = new OpenAIProvider('sk-test-456');
     const chunks = [];
     for await (const c of p.chatStream([{ role: 'user', content: 'hi' }])) chunks.push(c);
-    expect(chunks.filter(c => c.type === 'delta').map(c => c.content)).toEqual(['ok']);
+    expect(chunks.filter((c) => c.type === 'delta').map((c) => c.content)).toEqual(['ok']);
   });
 
   it('chatStream sends stream:true and include_usage in the body', async () => {
     fetchMock.mockResolvedValueOnce(sseResponse(['data: [DONE]']));
     const p = new OpenAIProvider('sk-test-456');
-    for await (const _ of p.chatStream([{ role: 'user', content: 'hi' }])) { /* drain */ }
+    for await (const _ of p.chatStream([{ role: 'user', content: 'hi' }])) {
+      /* drain */
+    }
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
     expect(body.stream).toBe(true);
     expect(body.stream_options).toEqual({ include_usage: true });
@@ -346,8 +362,10 @@ describe('OpenAIProvider', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'x' }, 500));
     const p = new OpenAIProvider('sk-test-456');
     const err = await (async () => {
-      for await (const _ of p.chatStream([{ role: 'user', content: 'hi' }])) { /* drain */ }
-    })().catch(e => e);
+      for await (const _ of p.chatStream([{ role: 'user', content: 'hi' }])) {
+        /* drain */
+      }
+    })().catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
   });
 
@@ -355,8 +373,10 @@ describe('OpenAIProvider', () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
     const p = new OpenAIProvider('sk-test-456');
     const err = await (async () => {
-      for await (const _ of p.chatStream([{ role: 'user', content: 'hi' }])) { /* drain */ }
-    })().catch(e => e);
+      for await (const _ of p.chatStream([{ role: 'user', content: 'hi' }])) {
+        /* drain */
+      }
+    })().catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.message).toBe('OpenAI stream body is null');
   });

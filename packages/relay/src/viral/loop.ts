@@ -32,7 +32,8 @@ export interface Exemplar {
 export class ViralLoop {
   private metricsStore: Map<string, PostMetrics> = new Map();
   private exemplars: Exemplar[] = [];
-  private thresholds: Map<string, Map<string, { p90: number; p70: number; p30: number }>> = new Map();
+  private thresholds: Map<string, Map<string, { p90: number; p70: number; p30: number }>> =
+    new Map();
 
   ingestMetrics(postId: string, metrics: PostMetrics): void {
     this.metricsStore.set(postId, metrics);
@@ -65,9 +66,7 @@ export class ViralLoop {
     const metrics = this.metricsStore.get(postId);
     if (!metrics) return 'baseline';
 
-    const thresholds = this.thresholds
-      .get(metrics.platform)
-      ?.get(metrics.modelName);
+    const thresholds = this.thresholds.get(metrics.platform)?.get(metrics.modelName);
 
     if (!thresholds) return 'baseline';
 

@@ -26,7 +26,12 @@ function makeCard(overrides: Partial<RelayCard> = {}): RelayCard {
     hashtagSets: { tiktok: ['#summer', '#fyp'] },
     verdicts: [
       { platform: 'tiktok', passed: true, score: 0.9, reason: 'ToS check passed' },
-      { platform: 'instagram', passed: false, score: 0.4, reason: 'ToS check failed — score below threshold' },
+      {
+        platform: 'instagram',
+        passed: false,
+        score: 0.4,
+        reason: 'ToS check failed — score below threshold',
+      },
     ],
     targetPlatforms: ['tiktok', 'instagram'],
     actions: ['regenerate', 'revise', 'reject', 'hold'],
@@ -50,17 +55,34 @@ describe('renderBundleCard', () => {
     expect(card.timestamp).toBeGreaterThan(0);
     expect(card.verdicts).toHaveLength(2);
     expect(card.verdicts[0]).toMatchObject({ platform: 'tiktok', passed: true, score: 0.9 });
-    expect(card.verdicts[1]).toMatchObject({ platform: 'instagram', passed: false, score: 0.4, reason: 'ToS check failed — score below threshold' });
+    expect(card.verdicts[1]).toMatchObject({
+      platform: 'instagram',
+      passed: false,
+      score: 0.4,
+      reason: 'ToS check failed — score below threshold',
+    });
   });
 
   it('passes verdict when platform has no ToS score (defaults to 1)', () => {
-    const card = renderer.renderBundleCard(makeBundle({ tosScores: {}, targetPlatforms: ['tiktok'] }));
+    const card = renderer.renderBundleCard(
+      makeBundle({ tosScores: {}, targetPlatforms: ['tiktok'] }),
+    );
     expect(card.verdicts[0]).toMatchObject({ passed: true, score: 1, reason: 'ToS check passed' });
   });
 
   it('all-passed bundles get the full approve action set', () => {
-    const card = renderer.renderBundleCard(makeBundle({ tosScores: { tiktok: 0.95, instagram: 0.8 } }));
-    expect(card.actions).toEqual(['approve', 'approve_all', 'edit_caption', 'change_price', 'reschedule', 'reject', 'hold']);
+    const card = renderer.renderBundleCard(
+      makeBundle({ tosScores: { tiktok: 0.95, instagram: 0.8 } }),
+    );
+    expect(card.actions).toEqual([
+      'approve',
+      'approve_all',
+      'edit_caption',
+      'change_price',
+      'reschedule',
+      'reject',
+      'hold',
+    ]);
   });
 
   it('bundles with any failing verdict get regenerate/revise action set', () => {
@@ -72,13 +94,23 @@ describe('renderBundleCard', () => {
     const card = renderer.renderBundleCard(makeBundle({ mediaUrls: [], targetPlatforms: [] }));
     expect(card.mediaPreview).toBe('');
     expect(card.verdicts).toEqual([]);
-    expect(card.actions).toEqual(['approve', 'approve_all', 'edit_caption', 'change_price', 'reschedule', 'reject', 'hold']);
+    expect(card.actions).toEqual([
+      'approve',
+      'approve_all',
+      'edit_caption',
+      'change_price',
+      'reschedule',
+      'reject',
+      'hold',
+    ]);
     expect(card.price).toBeUndefined();
     expect(card.scheduleAt).toBeUndefined();
   });
 
   it('preserves price and scheduleAt when provided', () => {
-    const card = renderer.renderBundleCard(makeBundle({ price: 29.99, scheduleAt: '2026-08-01T12:00:00Z' }));
+    const card = renderer.renderBundleCard(
+      makeBundle({ price: 29.99, scheduleAt: '2026-08-01T12:00:00Z' }),
+    );
     expect(card.price).toBe(29.99);
     expect(card.scheduleAt).toBe('2026-08-01T12:00:00Z');
   });
@@ -102,15 +134,19 @@ describe('toHtml', () => {
   });
 
   it('limits hashtags to 5 per platform', () => {
-    const html = renderer.toHtml(makeCard({
-      hashtagSets: { tiktok: ['#1', '#2', '#3', '#4', '#5', '#6', '#7'] },
-    }));
+    const html = renderer.toHtml(
+      makeCard({
+        hashtagSets: { tiktok: ['#1', '#2', '#3', '#4', '#5', '#6', '#7'] },
+      }),
+    );
     expect(html).toContain('#1 #2 #3 #4 #5');
     expect(html).not.toContain('#6');
   });
 
   it('includes price and schedule lines only when present', () => {
-    const withOpts = renderer.toHtml(makeCard({ price: 19.99, scheduleAt: '2026-09-01T00:00:00Z' }));
+    const withOpts = renderer.toHtml(
+      makeCard({ price: 19.99, scheduleAt: '2026-09-01T00:00:00Z' }),
+    );
     expect(withOpts).toContain('Price:</b> $19.99');
     expect(withOpts).toContain('Scheduled:</b> 2026-09-01T00:00:00Z');
 
@@ -136,9 +172,11 @@ describe('toEmbed', () => {
   });
 
   it('is green when every verdict passes', () => {
-    const embed = renderer.toEmbed(makeCard({
-      verdicts: [{ platform: 'tiktok', passed: true, score: 0.9, reason: 'ok' }],
-    }));
+    const embed = renderer.toEmbed(
+      makeCard({
+        verdicts: [{ platform: 'tiktok', passed: true, score: 0.9, reason: 'ok' }],
+      }),
+    );
     expect(embed.color).toBe(0x00ff00);
   });
 
@@ -155,7 +193,9 @@ describe('toEmbed', () => {
   });
 
   it('truncates description to 400 chars and title to 8 bundle chars', () => {
-    const embed = renderer.toEmbed(makeCard({ caption: 'y'.repeat(600), bundleId: 'super-long-bundle-id' }));
+    const embed = renderer.toEmbed(
+      makeCard({ caption: 'y'.repeat(600), bundleId: 'super-long-bundle-id' }),
+    );
     expect(embed.title).toBe('📦 Bundle: super-lo');
     expect((embed.description as string).length).toBe(400);
   });

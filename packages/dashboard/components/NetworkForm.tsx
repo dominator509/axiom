@@ -68,11 +68,21 @@ export default function NetworkForm({
       </div>
       <div>
         <label htmlFor="proxyAddr">Proxy address (host:port)</label>
-        <input id="proxyAddr" value={proxyAddr} onChange={(e) => setProxyAddr(e.target.value)} placeholder="127.0.0.1:1080" />
+        <input
+          id="proxyAddr"
+          value={proxyAddr}
+          onChange={(e) => setProxyAddr(e.target.value)}
+          placeholder="127.0.0.1:1080"
+        />
       </div>
       <div>
         <label htmlFor="expectedIp">Expected egress IP (drift policy)</label>
-        <input id="expectedIp" value={expectedIp} onChange={(e) => setExpectedIp(e.target.value)} placeholder="203.0.113.7" />
+        <input
+          id="expectedIp"
+          value={expectedIp}
+          onChange={(e) => setExpectedIp(e.target.value)}
+          placeholder="203.0.113.7"
+        />
       </div>
       {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
       {done && <p style={{ color: 'var(--good)', margin: 0 }}>Saved.</p>}

@@ -3,11 +3,7 @@ import NetworkForm from '@/components/NetworkForm';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NetworkPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function NetworkPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let network;
   try {
@@ -28,7 +24,11 @@ export default async function NetworkPage({
             </div>
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <span>Health</span>
-              {network.healthy ? <span className="badge good">healthy</span> : <span className="badge bad">degraded</span>}
+              {network.healthy ? (
+                <span className="badge good">healthy</span>
+              ) : (
+                <span className="badge bad">degraded</span>
+              )}
             </div>
             {network.latencyMs != null && (
               <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -81,7 +81,9 @@ async function SocialAccounts({ modelId }: { modelId: string }) {
             <td>{String(a.platform)}</td>
             <td>{String(a.displayName)}</td>
             <td>
-              <span className={`badge ${a.status === 'connected' ? 'good' : 'mute'}`}>{String(a.status)}</span>
+              <span className={`badge ${a.status === 'connected' ? 'good' : 'mute'}`}>
+                {String(a.status)}
+              </span>
             </td>
             <td className="mono">{(a.capabilities as string[])?.join(', ') ?? '—'}</td>
           </tr>

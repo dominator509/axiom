@@ -92,10 +92,7 @@ describe('@axiom/db index', () => {
   });
 
   it('builds insert statements with mapped columns and bound params', () => {
-    const sql = db
-      .insert(schema.org)
-      .values({ name: 'acme-corp', slug: 'acme' })
-      .toSQL();
+    const sql = db.insert(schema.org).values({ name: 'acme-corp', slug: 'acme' }).toSQL();
     expect(sql.sql).toContain('insert into "org"');
     expect(sql.sql).toContain('"name"');
     expect(sql.sql).toContain('"slug"');

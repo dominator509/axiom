@@ -70,10 +70,7 @@ export function requireOrg(c: Context): string | null {
 }
 
 /** Resolve a model's owning org — used to scope nested model resources. */
-export async function modelOrgId(
-  tx: any,
-  modelId: string,
-): Promise<string | null> {
+export async function modelOrgId(tx: any, modelId: string): Promise<string | null> {
   const rows = await tx
     .select({ orgId: schema.modelProfile.orgId })
     .from(schema.modelProfile)
@@ -199,7 +196,5 @@ export function idemKey(
   platform: string,
   slotIso: string,
 ): Buffer {
-  return createHash('sha256')
-    .update(`${modelId}|${bundleId}|${platform}|${slotIso}`)
-    .digest();
+  return createHash('sha256').update(`${modelId}|${bundleId}|${platform}|${slotIso}`).digest();
 }

@@ -54,12 +54,16 @@ async function main() {
     process.exit(1);
   }
   const configId = created.data.id;
-  results.push(`  id=${configId} mode=${created.data.egressMode} credsStripped=${!('encCreds' in created.data)}`);
+  results.push(
+    `  id=${configId} mode=${created.data.egressMode} credsStripped=${!('encCreds' in created.data)}`,
+  );
 
   // 2. List — row must be visible under the org context
   const listRes = await app.request('/');
   const list = (await listRes.json()) as any;
-  results.push(`list: ${listRes.status} total=${list.meta.total} match=${list.data.some((r: any) => r.id === configId)}`);
+  results.push(
+    `list: ${listRes.status} total=${list.meta.total} match=${list.data.some((r: any) => r.id === configId)}`,
+  );
 
   // 3. Get single
   const getRes = await app.request(`/${configId}`);
@@ -69,12 +73,21 @@ async function main() {
   // 4. Verify the envelope is really stored encrypted in Postgres (not plaintext)
   const { db, schema } = await import('@axiom/db');
   const rows = await db.transaction(async (tx: any) => {
-    await tx.execute(await import('drizzle-orm').then((m) => m.sql`SELECT set_config('app.current_org_id', ${ORG_ID}, true)`));
-    return tx.select().from(schema.modelNetworkConfigs).where((await import('drizzle-orm')).eq(schema.modelNetworkConfigs.id, configId));
+    await tx.execute(
+      await import('drizzle-orm').then(
+        (m) => m.sql`SELECT set_config('app.current_org_id', ${ORG_ID}, true)`,
+      ),
+    );
+    return tx
+      .select()
+      .from(schema.modelNetworkConfigs)
+      .where((await import('drizzle-orm')).eq(schema.modelNetworkConfigs.id, configId));
   });
   const row = rows[0] as any;
   const storedEnc = row.encCreds ? Buffer.from(row.encCreds as Uint8Array).length : 0;
-  results.push(`db: enc_creds_bytes=${storedEnc} enc_nonce_bytes=${row.encNonce ? Buffer.from(row.encNonce as Uint8Array).length : 0} dek_id=${row.dekId}`);
+  results.push(
+    `db: enc_creds_bytes=${storedEnc} enc_nonce_bytes=${row.encNonce ? Buffer.from(row.encNonce as Uint8Array).length : 0} dek_id=${row.dekId}`,
+  );
 
   // 5. Update (no creds) — must not hit the plane
   const updRes = await app.request(`/${configId}`, {

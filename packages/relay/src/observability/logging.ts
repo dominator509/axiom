@@ -50,11 +50,21 @@ export class Logger {
     }
   }
 
-  debug(message: string, data?: Record<string, unknown>): void { this.log('debug', message, data); }
-  info(message: string, data?: Record<string, unknown>): void { this.log('info', message, data); }
-  warn(message: string, data?: Record<string, unknown>): void { this.log('warn', message, data); }
-  error(message: string, err?: Error, data?: Record<string, unknown>): void { this.log('error', message, data, err); }
-  fatal(message: string, err?: Error, data?: Record<string, unknown>): void { this.log('fatal', message, data, err); }
+  debug(message: string, data?: Record<string, unknown>): void {
+    this.log('debug', message, data);
+  }
+  info(message: string, data?: Record<string, unknown>): void {
+    this.log('info', message, data);
+  }
+  warn(message: string, data?: Record<string, unknown>): void {
+    this.log('warn', message, data);
+  }
+  error(message: string, err?: Error, data?: Record<string, unknown>): void {
+    this.log('error', message, data, err);
+  }
+  fatal(message: string, err?: Error, data?: Record<string, unknown>): void {
+    this.log('fatal', message, data, err);
+  }
 
   child(source: string): Logger {
     return new Logger(`${this.source}:${source}`);

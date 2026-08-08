@@ -29,17 +29,17 @@ export interface PlatformLimits {
 }
 
 const PLATFORM_LIMITS: Record<Platform, PlatformLimits> = {
-  instagram:  { maxCaptionChars: 2200, maxHashtags: 30, hashtagStyle: 'trailing' },
-  tiktok:     { maxCaptionChars: 2200, maxHashtags: 20, hashtagStyle: 'trailing' },
-  x:          { maxCaptionChars: 4000, maxHashtags: 50, hashtagStyle: 'trailing' },
-  youtube:    { maxCaptionChars: 5000, maxHashtags: 15, hashtagStyle: 'trailing' },
-  facebook:   { maxCaptionChars: 63206, maxHashtags: 30, hashtagStyle: 'trailing' },
-  reddit:     { maxCaptionChars: 40000, maxHashtags: 0, hashtagStyle: 'trailing' },
-  threads:    { maxCaptionChars: 500, maxHashtags: 10, hashtagStyle: 'trailing' },
-  snapchat:   { maxCaptionChars: 250, maxHashtags: 0, hashtagStyle: 'trailing' },
-  discord:    { maxCaptionChars: 2000, maxHashtags: 0, hashtagStyle: 'trailing' },
-  telegram:   { maxCaptionChars: 4096, maxHashtags: 0, hashtagStyle: 'trailing' },
-  fanvue:     { maxCaptionChars: 5000, maxHashtags: 50, hashtagStyle: 'trailing' },
+  instagram: { maxCaptionChars: 2200, maxHashtags: 30, hashtagStyle: 'trailing' },
+  tiktok: { maxCaptionChars: 2200, maxHashtags: 20, hashtagStyle: 'trailing' },
+  x: { maxCaptionChars: 4000, maxHashtags: 50, hashtagStyle: 'trailing' },
+  youtube: { maxCaptionChars: 5000, maxHashtags: 15, hashtagStyle: 'trailing' },
+  facebook: { maxCaptionChars: 63206, maxHashtags: 30, hashtagStyle: 'trailing' },
+  reddit: { maxCaptionChars: 40000, maxHashtags: 0, hashtagStyle: 'trailing' },
+  threads: { maxCaptionChars: 500, maxHashtags: 10, hashtagStyle: 'trailing' },
+  snapchat: { maxCaptionChars: 250, maxHashtags: 0, hashtagStyle: 'trailing' },
+  discord: { maxCaptionChars: 2000, maxHashtags: 0, hashtagStyle: 'trailing' },
+  telegram: { maxCaptionChars: 4096, maxHashtags: 0, hashtagStyle: 'trailing' },
+  fanvue: { maxCaptionChars: 5000, maxHashtags: 50, hashtagStyle: 'trailing' },
 };
 
 // ─── Generation Result Types ───
@@ -166,7 +166,23 @@ export class ContentGenerator {
     const emojiMap: Record<string, string[]> = {
       minimal: [],
       moderate: ['✨', '🔥', '💫', '❤️', '👇'],
-      heavy: ['✨', '🔥', '💫', '❤️', '👇', '🌟', '💥', '🎯', '⚡', '💯', '👑', '💎', '🚀', '💜', '⭐'],
+      heavy: [
+        '✨',
+        '🔥',
+        '💫',
+        '❤️',
+        '👇',
+        '🌟',
+        '💥',
+        '🎯',
+        '⚡',
+        '💯',
+        '👑',
+        '💎',
+        '🚀',
+        '💜',
+        '⭐',
+      ],
     };
 
     const emojis = emojiMap[config.emojiStyle] ?? emojiMap.moderate;
@@ -212,11 +228,7 @@ export class ContentGenerator {
   /**
    * Generate a set of hashtags for a platform.
    */
-  private generateHashtags(
-    _config: PromptConfig,
-    platform: Platform,
-    max: number,
-  ): string[] {
+  private generateHashtags(_config: PromptConfig, platform: Platform, max: number): string[] {
     const baseTags = ['newpost', 'contentcreator', 'trending'];
     const platformTags: Record<Platform, string[]> = {
       instagram: ['photooftheday', 'instadaily', 'picoftheday'],
@@ -248,8 +260,7 @@ export class ContentGenerator {
         'You are a professional social media content creator. Your tone is friendly, approachable, and polished. You write engaging captions that connect with your audience while maintaining brand voice.',
       casual:
         'You speak naturally, like a friend chatting with their followers. Keep it real, keep it relatable.',
-      hype:
-        'You are high-energy and enthusiastic. Every post radiates excitement and positivity. Get the audience hyped!',
+      hype: 'You are high-energy and enthusiastic. Every post radiates excitement and positivity. Get the audience hyped!',
       educational:
         'You are an expert educator who breaks down complex topics into engaging, easy-to-understand content. Your posts inform and inspire.',
       default:
@@ -300,9 +311,7 @@ export class ContentGenerator {
       `Angle: ${config.angle}`,
       `Emoji style: ${config.emojiStyle}`,
       `CTA: ${config.cta}`,
-      config.talkingPoints.length > 0
-        ? `Talking points: ${config.talkingPoints.join(' | ')}`
-        : '',
+      config.talkingPoints.length > 0 ? `Talking points: ${config.talkingPoints.join(' | ')}` : '',
     ]
       .filter(Boolean)
       .join('\n');

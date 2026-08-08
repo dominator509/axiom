@@ -10,10 +10,19 @@ import { PLATFORMS } from './prompts.js';
 /** Standard RFC-7807 title for a status code (L3.0 error envelope). */
 function statusTitle(status: number): string {
   const titles: Record<number, string> = {
-    400: 'Bad Request', 401: 'Unauthorized', 402: 'Payment Required', 403: 'Forbidden',
-    404: 'Not Found', 408: 'Request Timeout', 409: 'Conflict', 422: 'Unprocessable Entity',
-    429: 'Too Many Requests', 500: 'Internal Server Error', 502: 'Bad Gateway',
-    503: 'Service Unavailable', 504: 'Gateway Timeout',
+    400: 'Bad Request',
+    401: 'Unauthorized',
+    402: 'Payment Required',
+    403: 'Forbidden',
+    404: 'Not Found',
+    408: 'Request Timeout',
+    409: 'Conflict',
+    422: 'Unprocessable Entity',
+    429: 'Too Many Requests',
+    500: 'Internal Server Error',
+    502: 'Bad Gateway',
+    503: 'Service Unavailable',
+    504: 'Gateway Timeout',
   };
   return titles[status] ?? 'Error';
 }
@@ -89,7 +98,8 @@ export function createRouter(gateway: LLMGateway): Hono {
 
   // POST /chat — non-streaming completion
   router.post('/chat', zValidator('json', chatBodySchema), async (c) => {
-    const { messages, model, temperature, maxTokens, policy, provider, egress } = c.req.valid('json');
+    const { messages, model, temperature, maxTokens, policy, provider, egress } =
+      c.req.valid('json');
     try {
       const result = await gateway.chat(messages, {
         model,
@@ -101,15 +111,15 @@ export function createRouter(gateway: LLMGateway): Hono {
       });
       return c.json(result);
     } catch (err) {
-      const status = (err instanceof ProviderError ? err.status : 502) as 400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504;
-      const msg = err instanceof Error ? err.message : 'LLM gateway error';
+      const status = (err instanceof ProviderError ? err.status : 502) as
+        400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504;
       const provider = err instanceof ProviderError ? err.provider : undefined;
       return c.json(
         {
           type: 'about:blank',
           title: statusTitle(status),
           status,
-          detail: msg,
+          detail: 'The requested LLM provider could not complete the request',
           ...(provider ? { provider } : {}),
         },
         status,
@@ -119,7 +129,8 @@ export function createRouter(gateway: LLMGateway): Hono {
 
   // POST /chat/tokenkiller — TOKENKILLER S0–S3 assembled chat (L2.5, LBI-09)
   router.post('/chat/tokenkiller', zValidator('json', tokenkillerBodySchema), async (c) => {
-    const { messages, tokenkiller, model, temperature, maxTokens, policy, provider, egress } = c.req.valid('json');
+    const { messages, tokenkiller, model, temperature, maxTokens, policy, provider, egress } =
+      c.req.valid('json');
     try {
       const result = await gateway.chatWithTokenKiller(messages, {
         model,
@@ -132,15 +143,15 @@ export function createRouter(gateway: LLMGateway): Hono {
       });
       return c.json(result);
     } catch (err) {
-      const status = (err instanceof ProviderError ? err.status : 502) as 400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504;
-      const msg = err instanceof Error ? err.message : 'LLM gateway error';
+      const status = (err instanceof ProviderError ? err.status : 502) as
+        400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504;
       const provider = err instanceof ProviderError ? err.provider : undefined;
       return c.json(
         {
           type: 'about:blank',
           title: statusTitle(status),
           status,
-          detail: msg,
+          detail: 'The requested LLM provider could not complete the request',
           ...(provider ? { provider } : {}),
         },
         status,
@@ -150,7 +161,8 @@ export function createRouter(gateway: LLMGateway): Hono {
 
   // POST /chat/stream — streaming completion via SSE
   router.post('/chat/stream', zValidator('json', chatBodySchema), async (c) => {
-    const { messages, model, temperature, maxTokens, policy, provider, egress } = c.req.valid('json');
+    const { messages, model, temperature, maxTokens, policy, provider, egress } =
+      c.req.valid('json');
     const stream = gateway.chatStream(messages, {
       model,
       temperature,
@@ -165,12 +177,17 @@ export function createRouter(gateway: LLMGateway): Hono {
         async start(controller) {
           try {
             for await (const chunk of await stream) {
-              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: chunk })}\n\n`));
+              controller.enqueue(
+                new TextEncoder().encode(`data: ${JSON.stringify({ content: chunk })}\n\n`),
+              );
             }
             controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
           } catch (err) {
-            const msg = err instanceof Error ? err.message : 'Stream error';
-            controller.enqueue(new TextEncoder().encode(`event: error\ndata: ${msg}\n\n`));
+            controller.enqueue(
+              new TextEncoder().encode(
+                'event: error\ndata: The requested LLM provider could not complete the stream\n\n',
+              ),
+            );
           } finally {
             controller.close();
           }

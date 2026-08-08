@@ -11,3 +11,28 @@ coverage/
 .next/
 .axiom/markers/
 target/
+*.tsbuildinfo
+
+# Root TypeScript compiler output for the source Vitest configuration
+/vitest.config.js
+/vitest.config.js.map
+/vitest.config.d.ts
+/vitest.config.d.ts.map
+/jest.config.js
+/jest.config.js.map
+/jest.config.d.ts
+/jest.config.d.ts.map
+
+# TypeScript compiler output must live in package dist/ directories, never src/
+/packages/*/src/**/*.js
+/packages/*/src/**/*.js.map
+/packages/*/src/**/*.d.ts
+/packages/*/src/**/*.d.ts.map
+
+# Local Serena index, memories, logs, and machine-specific project state
+.serena/
+
+# Local Obsidian application and workspace state; vault notes remain trackable
+.obsidian/
+# Local media-plane working data
+/var/

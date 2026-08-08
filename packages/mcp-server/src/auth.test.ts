@@ -48,15 +48,15 @@ describe('tierAtLeast', () => {
 });
 
 describe('createCapabilityToken / validateToken', () => {
-  it('creates a 64-char hex token with a future expiry (default 1h)', () => {
+  it('creates a signed v1 token with a future expiry (default 1h)', () => {
     const token = createCapabilityToken(MODEL, Tier.Manager, 'agent-1');
-    expect(token).toMatch(/^[0-9a-f]{64}$/);
+    expect(token).toMatch(/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
     const perm = validateToken(token);
     expect(perm).not.toBeNull();
     expect(perm!.modelId).toBe(MODEL);
     expect(perm!.tier).toBe(Tier.Manager);
     expect(perm!.agentId).toBe('agent-1');
-    expect(perm!.token).toBe(token);
+    expect(perm).not.toHaveProperty('token');
     expect(perm!.scopes).toEqual([]);
     expect(Date.parse(perm!.expiresAt!)).toBeGreaterThan(Date.now());
   });
@@ -108,10 +108,11 @@ describe('authenticateAgent', () => {
     expect(perm.agentId).toBe('agent-6');
   });
 
-  it('falls back to params.token when no header is present', () => {
+  it('rejects params.token so credentials cannot enter request-body logs', () => {
     const token = createCapabilityToken(MODEL, Tier.Operator, 'agent-7');
-    const perm = authenticateAgent({ params: { token } });
-    expect(perm.agentId).toBe('agent-7');
+    expect(() => authenticateAgent({ params: { token } })).toThrow(
+      'Authentication required: no token provided',
+    );
   });
 
   it('prefers the header token over params.token', () => {
@@ -126,22 +127,28 @@ describe('authenticateAgent', () => {
 
   it('does not accept an authorization header without the Bearer prefix', () => {
     const token = createCapabilityToken(MODEL, Tier.Viewer, 'agent-8');
-    expect(() =>
-      authenticateAgent({ headers: { authorization: `Basic ${token}` } }),
-    ).toThrow('Authentication required: no token provided');
+    expect(() => authenticateAgent({ headers: { authorization: `Basic ${token}` } })).toThrow(
+      'Authentication required: no token provided',
+    );
   });
 
   it('throws when no token is provided at all', () => {
     expect(() => authenticateAgent({})).toThrow('Authentication required: no token provided');
-    expect(() => authenticateAgent({ headers: {} })).toThrow('Authentication required: no token provided');
+    expect(() => authenticateAgent({ headers: {} })).toThrow(
+      'Authentication required: no token provided',
+    );
   });
 
   it('throws for an invalid or expired token', () => {
-    expect(() => authenticateAgent({ headers: { authorization: 'Bearer not-a-real-token' } }))
-      .toThrow('Authentication failed: invalid or expired token');
+    expect(() =>
+      authenticateAgent({ headers: { authorization: 'Bearer not-a-real-token' } }),
+    ).toThrow('Authentication failed: invalid or expired token');
     const expired = createCapabilityToken(MODEL, Tier.Viewer, 'agent-9', -1);
-    expect(() => authenticateAgent({ params: { token: expired } }))
-      .toThrow('Authentication failed: invalid or expired token');
+    expect(() =>
+      authenticateAgent({ headers: { authorization: `Bearer ${expired}` } }),
+    ).toThrow(
+      'Authentication failed: invalid or expired token',
+    );
   });
 });
 

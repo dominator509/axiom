@@ -236,9 +236,10 @@ describe('schema index', () => {
 
   it('allRelations entries can be built with helpers (no runtime errors)', () => {
     for (const rel of allRelations) {
-      const built = rel.config(
-        createTableRelationsHelpers(rel.table as PgTable),
-      ) as Record<string, unknown>;
+      const built = rel.config(createTableRelationsHelpers(rel.table as PgTable)) as Record<
+        string,
+        unknown
+      >;
       expect(Object.keys(built).length).toBeGreaterThan(0);
     }
   });
@@ -335,11 +336,41 @@ describe('org table', () => {
 
   it('has many-relations to users, profiles, connections, bundles and audit logs', () => {
     expect(relationNames(orgRelations)).toEqual({
-      users: { type: 'Many', table: 'app_user', fieldName: 'users', fields: null, references: null },
-      profiles: { type: 'Many', table: 'model_profile', fieldName: 'profiles', fields: null, references: null },
-      connections: { type: 'Many', table: 'platform_connection', fieldName: 'connections', fields: null, references: null },
-      bundles: { type: 'Many', table: 'content_bundle', fieldName: 'bundles', fields: null, references: null },
-      auditLogs: { type: 'Many', table: 'audit_log', fieldName: 'auditLogs', fields: null, references: null },
+      users: {
+        type: 'Many',
+        table: 'app_user',
+        fieldName: 'users',
+        fields: null,
+        references: null,
+      },
+      profiles: {
+        type: 'Many',
+        table: 'model_profile',
+        fieldName: 'profiles',
+        fields: null,
+        references: null,
+      },
+      connections: {
+        type: 'Many',
+        table: 'platform_connection',
+        fieldName: 'connections',
+        fields: null,
+        references: null,
+      },
+      bundles: {
+        type: 'Many',
+        table: 'content_bundle',
+        fieldName: 'bundles',
+        fields: null,
+        references: null,
+      },
+      auditLogs: {
+        type: 'Many',
+        table: 'audit_log',
+        fieldName: 'auditLogs',
+        fields: null,
+        references: null,
+      },
     });
   });
 });
@@ -396,8 +427,20 @@ describe('model_profile table', () => {
   it('relates to org (one), connections and bundles (many)', () => {
     expect(relationNames(modelProfileRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      connections: { type: 'Many', table: 'platform_connection', fieldName: 'connections', fields: null, references: null },
-      bundles: { type: 'Many', table: 'content_bundle', fieldName: 'bundles', fields: null, references: null },
+      connections: {
+        type: 'Many',
+        table: 'platform_connection',
+        fieldName: 'connections',
+        fields: null,
+        references: null,
+      },
+      bundles: {
+        type: 'Many',
+        table: 'content_bundle',
+        fieldName: 'bundles',
+        fields: null,
+        references: null,
+      },
     });
   });
 });
@@ -456,7 +499,13 @@ describe('consent_record table', () => {
   it('relates one-to-one to model and org', () => {
     expect(relationNames(consentRecordRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -488,8 +537,20 @@ describe('platform_connection table', () => {
   it('relates to org and model (one) and post targets (many)', () => {
     expect(relationNames(platformConnectionRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
-      postTargets: { type: 'Many', table: 'post_target', fieldName: 'postTargets', fields: null, references: null },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
+      postTargets: {
+        type: 'Many',
+        table: 'post_target',
+        fieldName: 'postTargets',
+        fields: null,
+        references: null,
+      },
     });
   });
 });
@@ -531,7 +592,13 @@ describe('model_network_configs table', () => {
   it('relates to org and model profile', () => {
     expect(relationNames(modelNetworkConfigsRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -565,8 +632,20 @@ describe('asset table', () => {
   it('relates to org, model and bundles', () => {
     expect(relationNames(assetRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
-      bundles: { type: 'Many', table: 'content_bundle', fieldName: 'bundles', fields: null, references: null },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
+      bundles: {
+        type: 'Many',
+        table: 'content_bundle',
+        fieldName: 'bundles',
+        fields: null,
+        references: null,
+      },
     });
   });
 });
@@ -596,9 +675,27 @@ describe('content_bundle table', () => {
   it('relates to org, model, asset (one) and post targets (many)', () => {
     expect(relationNames(contentBundleRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
-      asset: { type: 'One', table: 'asset', fieldName: 'asset', fields: ['asset_id'], references: ['id'] },
-      postTargets: { type: 'Many', table: 'post_target', fieldName: 'postTargets', fields: null, references: null },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
+      asset: {
+        type: 'One',
+        table: 'asset',
+        fieldName: 'asset',
+        fields: ['asset_id'],
+        references: ['id'],
+      },
+      postTargets: {
+        type: 'Many',
+        table: 'post_target',
+        fieldName: 'postTargets',
+        fields: null,
+        references: null,
+      },
     });
   });
 });
@@ -632,8 +729,20 @@ describe('post_target table', () => {
   it('relates to org, bundle and connection', () => {
     expect(relationNames(postTargetRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      bundle: { type: 'One', table: 'content_bundle', fieldName: 'bundle', fields: ['bundle_id'], references: ['id'] },
-      connection: { type: 'One', table: 'platform_connection', fieldName: 'connection', fields: ['connection_id'], references: ['id'] },
+      bundle: {
+        type: 'One',
+        table: 'content_bundle',
+        fieldName: 'bundle',
+        fields: ['bundle_id'],
+        references: ['id'],
+      },
+      connection: {
+        type: 'One',
+        table: 'platform_connection',
+        fieldName: 'connection',
+        fields: ['connection_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -660,7 +769,13 @@ describe('relay_card table', () => {
   it('relates to org (one) and commands (many)', () => {
     expect(relationNames(relayCardRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      commands: { type: 'Many', table: 'relay_command', fieldName: 'commands', fields: null, references: null },
+      commands: {
+        type: 'Many',
+        table: 'relay_command',
+        fieldName: 'commands',
+        fields: null,
+        references: null,
+      },
     });
   });
 });
@@ -685,7 +800,13 @@ describe('relay_command table', () => {
   it('relates to org and card', () => {
     expect(relationNames(relayCommandRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      card: { type: 'One', table: 'relay_card', fieldName: 'card', fields: ['card_id'], references: ['id'] },
+      card: {
+        type: 'One',
+        table: 'relay_card',
+        fieldName: 'card',
+        fields: ['card_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -716,8 +837,20 @@ describe('viral_exemplar table', () => {
   it('relates to org, model and bundle', () => {
     expect(relationNames(viralExemplarRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
-      bundle: { type: 'One', table: 'content_bundle', fieldName: 'bundle', fields: ['bundle_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
+      bundle: {
+        type: 'One',
+        table: 'content_bundle',
+        fieldName: 'bundle',
+        fields: ['bundle_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -746,7 +879,13 @@ describe('post_metric table', () => {
 
   it('relates to post target', () => {
     expect(relationNames(postMetricRelations)).toEqual({
-      postTarget: { type: 'One', table: 'post_target', fieldName: 'postTarget', fields: ['post_target_id'], references: ['id'] },
+      postTarget: {
+        type: 'One',
+        table: 'post_target',
+        fieldName: 'postTarget',
+        fields: ['post_target_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -878,7 +1017,13 @@ describe('asset_variant table', () => {
   it('relates to org and asset', () => {
     expect(relationNames(assetVariantRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      asset: { type: 'One', table: 'asset', fieldName: 'asset', fields: ['asset_id'], references: ['id'] },
+      asset: {
+        type: 'One',
+        table: 'asset',
+        fieldName: 'asset',
+        fields: ['asset_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -894,8 +1039,20 @@ describe('pre_post_run table', () => {
   it('relates to org, model and target', () => {
     expect(relationNames(prePostRunRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
-      target: { type: 'One', table: 'post_target', fieldName: 'target', fields: ['target_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
+      target: {
+        type: 'One',
+        table: 'post_target',
+        fieldName: 'target',
+        fields: ['target_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -912,7 +1069,13 @@ describe('analytics_snapshot table', () => {
   it('relates to org and model', () => {
     expect(relationNames(analyticsSnapshotRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -928,7 +1091,13 @@ describe('viral_recipe table', () => {
   it('relates to org and model', () => {
     expect(relationNames(viralRecipeRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -947,8 +1116,20 @@ describe('viral_embedding table', () => {
   it('relates to org, recipe and model', () => {
     expect(relationNames(viralEmbeddingRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      recipe: { type: 'One', table: 'viral_recipe', fieldName: 'recipe', fields: ['recipe_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      recipe: {
+        type: 'One',
+        table: 'viral_recipe',
+        fieldName: 'recipe',
+        fields: ['recipe_id'],
+        references: ['id'],
+      },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -965,7 +1146,13 @@ describe('bandit_state table', () => {
   it('relates to org and model', () => {
     expect(relationNames(banditStateRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -982,7 +1169,13 @@ describe('seo_aeo_ranking table', () => {
   it('relates to org and model', () => {
     expect(relationNames(seoAeoRankingRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -998,7 +1191,13 @@ describe('fanvue_metric table', () => {
   it('relates to org and model', () => {
     expect(relationNames(fanvueMetricRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -1012,7 +1211,13 @@ describe('campaign table', () => {
   it('relates to org and model', () => {
     expect(relationNames(campaignRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -1029,7 +1234,13 @@ describe('trigger_rule table', () => {
   it('relates to org and model', () => {
     expect(relationNames(triggerRuleRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -1047,7 +1258,13 @@ describe('linkbio_analytics table', () => {
   it('relates to org and provider', () => {
     expect(relationNames(linkbioAnalyticsRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      provider: { type: 'One', table: 'linkbio_provider', fieldName: 'provider', fields: ['provider_id'], references: ['id'] },
+      provider: {
+        type: 'One',
+        table: 'linkbio_provider',
+        fieldName: 'provider',
+        fields: ['provider_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -1062,7 +1279,13 @@ describe('relay_binding table', () => {
   it('relates to org and model', () => {
     expect(relationNames(relayBindingRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
     });
   });
 });
@@ -1079,7 +1302,13 @@ describe('agent_permission table', () => {
   it('relates to org and model', () => {
     expect(relationNames(agentPermissionRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
-      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
     });
   });
 });

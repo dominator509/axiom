@@ -71,8 +71,17 @@ describe('register', () => {
 
   it('allows registering every platform', () => {
     const platforms: Platform[] = [
-      'instagram', 'tiktok', 'x', 'youtube', 'facebook', 'reddit',
-      'threads', 'snapchat', 'discord', 'telegram', 'fanvue',
+      'instagram',
+      'tiktok',
+      'x',
+      'youtube',
+      'facebook',
+      'reddit',
+      'threads',
+      'snapchat',
+      'discord',
+      'telegram',
+      'fanvue',
     ];
     for (const p of platforms) {
       mod.register(fakeConnector(p));
@@ -166,7 +175,11 @@ describe('validateForPlatform', () => {
   });
 
   it('throws for an unregistered platform', async () => {
-    const input: ConnectorPublishInput = { idempotencyKey: 'k', caption: 'c', mediaUrls: ['https://a.jpg'] };
+    const input: ConnectorPublishInput = {
+      idempotencyKey: 'k',
+      caption: 'c',
+      mediaUrls: ['https://a.jpg'],
+    };
     await expect(mod.validateForPlatform('facebook', input)).rejects.toThrow(
       "No connector registered for platform 'facebook'",
     );

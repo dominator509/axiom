@@ -31,15 +31,12 @@ pub enum ScraperError {
 impl IntoResponse for ScraperError {
     fn into_response(self) -> axum::response::Response {
         let (status, body) = match &self {
-            Self::Http(e) => (
-                StatusCode::BAD_GATEWAY,
-                format!("HTTP error: {e}"),
+            Self::Http(e) => (StatusCode::BAD_GATEWAY, format!("HTTP error: {e}")),
+            Self::Io(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("I/O error: {e}")),
+            Self::Parse(p) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                format!("Parse error: {p}"),
             ),
-            Self::Io(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("I/O error: {e}"),
-            ),
-            Self::Parse(p) => (StatusCode::UNPROCESSABLE_ENTITY, format!("Parse error: {p}")),
             Self::Json(e) => (StatusCode::BAD_REQUEST, format!("JSON error: {e}")),
         };
         (status, Json(serde_json::json!({ "error": body }))).into_response()
@@ -197,9 +194,27 @@ async fn scrape_competitor(
 
 /// Fetch a URL and return the HTML body as a string.
 async fn fetch_page(url: &str) -> Result<String, ScraperError> {
+    let parsed = reqwest::Url::parse(url)
+        .map_err(|_| ScraperError::Parse("invalid profile URL".to_string()))?;
+    if parsed.scheme() != "https" || !is_allowed_profile_host(parsed.host_str()) {
+        return Err(ScraperError::Parse(
+            "profile URL must use HTTPS on a supported platform host".to_string(),
+        ));
+    }
     info!("fetching: {url}");
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 5 {
+                return attempt.error("too many redirects");
+            }
+            let next = attempt.url();
+            if next.scheme() == "https" && is_allowed_profile_host(next.host_str()) {
+                attempt.follow()
+            } else {
+                attempt.stop()
+            }
+        }))
         .user_agent("Mozilla/5.0 (compatible; AXIOM-Scraper/1.0)")
         .build()?;
 
@@ -214,6 +229,28 @@ async fn fetch_page(url: &str) -> Result<String, ScraperError> {
     }
     let text = resp.text().await?;
     Ok(text)
+}
+
+fn is_allowed_profile_host(host: Option<&str>) -> bool {
+    matches!(
+        host.map(|value| value.to_ascii_lowercase()).as_deref(),
+        Some(
+            "x.com"
+                | "www.x.com"
+                | "twitter.com"
+                | "www.twitter.com"
+                | "instagram.com"
+                | "www.instagram.com"
+                | "tiktok.com"
+                | "www.tiktok.com"
+                | "youtube.com"
+                | "www.youtube.com"
+                | "facebook.com"
+                | "www.facebook.com"
+                | "fanvue.com"
+                | "www.fanvue.com"
+        )
+    )
 }
 
 /// Parse an HTML profile page using the scraper crate.
@@ -231,8 +268,7 @@ fn parse_profile_page(html: &str) -> (String, String, String) {
         .unwrap_or_default();
 
     // Meta description -> bio
-    let meta_desc_sel =
-        scraper_crate::Selector::parse(r#"meta[name="description"]"#).unwrap();
+    let meta_desc_sel = scraper_crate::Selector::parse(r#"meta[name="description"]"#).unwrap();
     let bio = doc
         .select(&meta_desc_sel)
         .next()
@@ -241,8 +277,7 @@ fn parse_profile_page(html: &str) -> (String, String, String) {
         .to_string();
 
     // og:image -> avatar URL
-    let og_image_sel =
-        scraper_crate::Selector::parse(r#"meta[property="og:image"]"#).unwrap();
+    let og_image_sel = scraper_crate::Selector::parse(r#"meta[property="og:image"]"#).unwrap();
     let avatar_url = doc
         .select(&og_image_sel)
         .next()
@@ -319,12 +354,11 @@ fn parse_embedded_json(html: &str) -> ProfileCounts {
     // YouTube: subscriberCountText / videoCountText are human strings, often
     // nested inside JSON objects — scan the whole HTML for the label pattern.
     if counts.followers.is_none() {
-        if let Ok(re) = regex::Regex::new(r#"(?i)"subscriberCountText"\s*:\s*"([^"]+)"|([\d.,]+[kmb]?)\s+subscribers?"#) {
+        if let Ok(re) = regex::Regex::new(
+            r#"(?i)"subscriberCountText"\s*:\s*"([^"]+)"|([\d.,]+[kmb]?)\s+subscribers?"#,
+        ) {
             if let Some(cap) = re.captures(html) {
-                let raw = cap
-                    .get(1)
-                    .or_else(|| cap.get(2))
-                    .map(|m| m.as_str());
+                let raw = cap.get(1).or_else(|| cap.get(2)).map(|m| m.as_str());
                 if let Some(raw) = raw {
                     counts.followers = parse_count(raw);
                 }
@@ -332,12 +366,11 @@ fn parse_embedded_json(html: &str) -> ProfileCounts {
         }
     }
     if counts.posts.is_none() {
-        if let Ok(re) = regex::Regex::new(r#"(?i)"videoCountText"\s*:\s*"([^"]+)"|([\d.,]+[kmb]?)\s+videos?"#) {
+        if let Ok(re) =
+            regex::Regex::new(r#"(?i)"videoCountText"\s*:\s*"([^"]+)"|([\d.,]+[kmb]?)\s+videos?"#)
+        {
             if let Some(cap) = re.captures(html) {
-                let raw = cap
-                    .get(1)
-                    .or_else(|| cap.get(2))
-                    .map(|m| m.as_str());
+                let raw = cap.get(1).or_else(|| cap.get(2)).map(|m| m.as_str());
                 if let Some(raw) = raw {
                     counts.posts = parse_count(raw);
                 }
@@ -353,9 +386,10 @@ fn parse_embedded_json(html: &str) -> ProfileCounts {
 fn parse_meta_description(html: &str) -> ProfileCounts {
     let mut counts = ProfileCounts::default();
     let doc = scraper_crate::Html::parse_document(html);
-    let meta_desc_sel =
-        scraper_crate::Selector::parse(r#"meta[name="description"], meta[property="og:description"]"#)
-            .unwrap();
+    let meta_desc_sel = scraper_crate::Selector::parse(
+        r#"meta[name="description"], meta[property="og:description"]"#,
+    )
+    .unwrap();
     let desc = doc
         .select(&meta_desc_sel)
         .next()
@@ -408,7 +442,7 @@ fn build_platform_url(platform: &str, brand: &str) -> String {
         "youtube" => format!("https://youtube.com/@{slug}"),
         "facebook" => format!("https://facebook.com/{slug}"),
         "fanvue" => format!("https://fanvue.com/{slug}"),
-        _ => format!("https://{platform}.com/{slug}"),
+        _ => String::new(),
     }
 }
 
@@ -487,7 +521,7 @@ async fn main() {
         .route("/scrape/social", post(scrape_social))
         .route("/scrape/competitor", post(scrape_competitor));
 
-    let addr = std::env::var("AXIOM_SCRAPER_ADDR").unwrap_or_else(|_| "0.0.0.0:8102".to_string());
+    let addr = std::env::var("AXIOM_SCRAPER_ADDR").unwrap_or_else(|_| "127.0.0.1:8102".to_string());
     info!("scraper listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
@@ -579,9 +613,30 @@ mod tests {
 
     #[test]
     fn build_platform_url_shapes() {
-        assert_eq!(build_platform_url("instagram", "NASA"), "https://instagram.com/nasa");
-        assert_eq!(build_platform_url("tiktok", "NASA"), "https://tiktok.com/@nasa");
+        assert_eq!(
+            build_platform_url("instagram", "NASA"),
+            "https://instagram.com/nasa"
+        );
+        assert_eq!(
+            build_platform_url("tiktok", "NASA"),
+            "https://tiktok.com/@nasa"
+        );
         assert_eq!(build_platform_url("x", "NASA"), "https://x.com/nasa");
-        assert_eq!(build_platform_url("fanvue", "Ava"), "https://fanvue.com/ava");
+        assert_eq!(
+            build_platform_url("fanvue", "Ava"),
+            "https://fanvue.com/ava"
+        );
+        assert_eq!(build_platform_url("unsupported", "Ava"), "");
+    }
+
+    #[test]
+    fn profile_host_allowlist_rejects_ssrf_targets() {
+        assert!(is_allowed_profile_host(Some("instagram.com")));
+        assert!(is_allowed_profile_host(Some("www.youtube.com")));
+        assert!(!is_allowed_profile_host(Some("127.0.0.1")));
+        assert!(!is_allowed_profile_host(Some("metadata.google.internal")));
+        assert!(!is_allowed_profile_host(Some(
+            "instagram.com.attacker.example"
+        )));
     }
 }

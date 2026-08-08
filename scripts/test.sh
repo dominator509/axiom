@@ -7,12 +7,12 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo "=== [test] Running pnpm test (turbo run test) ==="
-pnpm test
+node scripts/run-with-env.mjs pnpm test
 
 echo ""
 echo "=== [test] Running cargo test --workspace ==="
 if command -v cargo &>/dev/null; then
-  cargo test --workspace
+  node scripts/run-with-env.mjs cargo test --workspace
 else
   echo "  [skip] cargo not found"
 fi

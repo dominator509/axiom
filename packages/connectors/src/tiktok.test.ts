@@ -198,12 +198,21 @@ describe('publish', () => {
     const c = new TikTokConnector(AUTH);
     await c.publish(input());
 
-    const initBody = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string) as {
+    const initBody = JSON.parse(
+      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as {
       source_info: { video_size: number; chunk_size: number; total_chunk_count: number };
     };
-    expect(initBody.source_info).toEqual({ source: 'FILE_UPLOAD', video_size: 0, chunk_size: 0, total_chunk_count: 1 });
+    expect(initBody.source_info).toEqual({
+      source: 'FILE_UPLOAD',
+      video_size: 0,
+      chunk_size: 0,
+      total_chunk_count: 1,
+    });
 
-    const completeBody = JSON.parse((fetchMock.mock.calls[3] as [string, RequestInit])[1].body as string) as {
+    const completeBody = JSON.parse(
+      (fetchMock.mock.calls[3] as [string, RequestInit])[1].body as string,
+    ) as {
       post_info: { privacy_level: string; disable_duet: boolean };
     };
     expect(completeBody.post_info.privacy_level).toBe('PUBLIC_TO_EVERYONE');
@@ -239,7 +248,9 @@ describe('publish', () => {
   it('returns a failed result when init reports an API error', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ error: { code: 'bad_request', message: 'invalid payload' } }));
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: 'bad_request', message: 'invalid payload' } }),
+      );
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new TikTokConnector(AUTH);
@@ -257,7 +268,9 @@ describe('publish', () => {
     const result = await c.publish(input());
 
     expect(result.state).toBe('failed');
-    expect(result.error).toContain('API POST https://open.tiktokapis.com/v2/post/publish/video/init/ failed: 500');
+    expect(result.error).toContain(
+      'API POST https://open.tiktokapis.com/v2/post/publish/video/init/ failed: 500',
+    );
   });
 
   it('returns a failed result when the source video cannot be downloaded', async () => {
@@ -271,7 +284,9 @@ describe('publish', () => {
     const result = await c.publish(input());
 
     expect(result.state).toBe('failed');
-    expect(result.error).toBe('Failed to download video from https://cdn.example.com/video.mp4: 404');
+    expect(result.error).toBe(
+      'Failed to download video from https://cdn.example.com/video.mp4: 404',
+    );
   });
 
   it('returns a failed result when the PUT upload fails', async () => {
@@ -295,7 +310,9 @@ describe('publish', () => {
       .mockResolvedValueOnce(jsonResponse(INIT_OK))
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
       .mockResolvedValueOnce(jsonResponse({}))
-      .mockResolvedValueOnce(jsonResponse({ error: { code: 'missing_fields', message: 'title required' } }));
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: 'missing_fields', message: 'title required' } }),
+      );
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new TikTokConnector(AUTH);
@@ -336,7 +353,9 @@ describe('fetchMetrics', () => {
     expect(metrics.postId).toBe('vid-1');
     expect(metrics.platform).toBe('tiktok');
     expect(metrics.metrics).toEqual({ views: 100, likes: 5, comments: 2, shares: 1, follows: 0 });
-    expect(metrics.raw).toEqual({ statistics: { view_count: 100, like_count: 5, comment_count: 2, share_count: 1 } });
+    expect(metrics.raw).toEqual({
+      statistics: { view_count: 100, like_count: 5, comment_count: 2, share_count: 1 },
+    });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://open.tiktokapis.com/v2/video/query/?fields=statistics&id=vid-1');
@@ -347,7 +366,9 @@ describe('fetchMetrics', () => {
   it('throws when the API returns an error object', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(jsonResponse({ error: { code: 'no_permission', message: 'denied' } })),
+      vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ error: { code: 'no_permission', message: 'denied' } })),
     );
     const c = new TikTokConnector(AUTH);
     await expect(c.fetchMetrics('vid-1')).rejects.toThrow(
@@ -370,9 +391,11 @@ describe('fetchMetrics', () => {
 
 describe('revoke', () => {
   it('verifies the user then logs the disconnect (no server-side revocation)', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse({ data: { user: { open_id: 'open-1', display_name: 'testuser' } } }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ data: { user: { open_id: 'open-1', display_name: 'testuser' } } }),
+      );
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new TikTokConnector(AUTH);
@@ -383,8 +406,12 @@ describe('revoke', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tt-token-123');
 
     const logs = c.getLogs();
-    expect(logs.some((l) => l.action === 'revoke' && l.message.includes('Verified TikTok user'))).toBe(true);
-    expect(logs.some((l) => l.action === 'revoke' && l.message.includes('OAuth disconnected'))).toBe(true);
+    expect(
+      logs.some((l) => l.action === 'revoke' && l.message.includes('Verified TikTok user')),
+    ).toBe(true);
+    expect(
+      logs.some((l) => l.action === 'revoke' && l.message.includes('OAuth disconnected')),
+    ).toBe(true);
   });
 
   it('proceeds with disconnect when the user info check fails', async () => {
@@ -395,8 +422,12 @@ describe('revoke', () => {
     await expect(c.revoke()).resolves.toBeUndefined();
 
     const logs = c.getLogs();
-    expect(logs.some((l) => l.level === 'warn' && l.message.includes('Could not verify TikTok user'))).toBe(true);
-    expect(logs.some((l) => l.action === 'revoke' && l.message.includes('OAuth disconnected'))).toBe(true);
+    expect(
+      logs.some((l) => l.level === 'warn' && l.message.includes('Could not verify TikTok user')),
+    ).toBe(true);
+    expect(
+      logs.some((l) => l.action === 'revoke' && l.message.includes('OAuth disconnected')),
+    ).toBe(true);
   });
 
   it('proceeds with disconnect on network errors during the liveness check', async () => {

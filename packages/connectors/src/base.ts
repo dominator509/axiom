@@ -21,9 +21,7 @@ import type { Platform, PublishMode } from '@axiom/core';
 const idempotencyLedger = new Map<string, IdempotencyEntry>();
 
 /** Default metric names available to all platforms */
-export const COMMON_METRICS: MetricName[] = [
-  'likes', 'comments', 'shares', 'views', 'impressions',
-];
+export const COMMON_METRICS: MetricName[] = ['likes', 'comments', 'shares', 'views', 'impressions'];
 
 /** Maximum log entries kept per connector */
 const MAX_LOG = 100;
@@ -50,7 +48,12 @@ export abstract class BaseConnector implements SocialConnector {
 
   protected logHistory: LogEntry[] = [];
 
-  constructor(platform: Platform, displayName: string, publishMode: PublishMode, auth: ConnectorAuth) {
+  constructor(
+    platform: Platform,
+    displayName: string,
+    publishMode: PublishMode,
+    auth: ConnectorAuth,
+  ) {
     this.platform = platform;
     this.displayName = displayName;
     this.publishMode = publishMode;
@@ -128,11 +131,7 @@ export abstract class BaseConnector implements SocialConnector {
       const result = await doPublish();
       result.latencyMs = Date.now() - start;
 
-      this.recordIdempotency(
-        input.idempotencyKey,
-        result.remoteId,
-        result.state,
-      );
+      this.recordIdempotency(input.idempotencyKey, result.remoteId, result.state);
 
       return result;
     } catch (err: unknown) {

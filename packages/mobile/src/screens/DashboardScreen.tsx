@@ -155,9 +155,7 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
       </View>
 
       {state.error ? <Text style={styles.error}>{state.error}</Text> : null}
-      {state.actionMessage ? (
-        <Text style={styles.actionMessage}>{state.actionMessage}</Text>
-      ) : null}
+      {state.actionMessage ? <Text style={styles.actionMessage}>{state.actionMessage}</Text> : null}
 
       {/* Org settings */}
       <Text style={styles.sectionTitle}>Org settings</Text>
@@ -167,9 +165,7 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
             <View style={styles.row}>
               <View style={styles.rowText}>
                 <Text style={styles.rowLabel}>Viral sharing</Text>
-                <Text style={styles.rowHint}>
-                  Share winning patterns across models in this org
-                </Text>
+                <Text style={styles.rowHint}>Share winning patterns across models in this org</Text>
               </View>
               {state.togglingViral ? (
                 <ActivityIndicator color="#4f6ef7" />
@@ -208,7 +204,7 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
         >
           {state.generating ? (
             <ActivityIndicator color="#ffffff" size="small" />
-        ) : (
+          ) : (
             <Text style={styles.smallButtonText}>Generate</Text>
           )}
         </Pressable>
@@ -276,7 +272,13 @@ const styles = StyleSheet.create({
   muted: { color: '#8a94a6', fontSize: 13 },
   error: { color: '#ff6b6b', fontSize: 13, marginBottom: 8 },
   actionMessage: { color: '#4ade80', fontSize: 13, marginBottom: 8 },
-  sectionTitle: { color: '#e6eaf2', fontSize: 15, fontWeight: '700', marginTop: 16, marginBottom: 8 },
+  sectionTitle: {
+    color: '#e6eaf2',
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 16,
+    marginBottom: 8,
+  },
   sectionRow: {
     flexDirection: 'row',
     alignItems: 'center',

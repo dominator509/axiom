@@ -151,9 +151,7 @@ describe('publish', () => {
   });
 
   it('publishes an image via the photos endpoint and prefers post_id', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(jsonResponse({ id: 'photo-1', post_id: 'post-9' }));
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ id: 'photo-1', post_id: 'post-9' }));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FacebookConnector(AUTH);
@@ -257,7 +255,9 @@ describe('publish', () => {
     const result = await c.publish(input({ mediaUrls: [] }));
 
     expect(result.state).toBe('failed');
-    expect(result.error).toContain('API POST https://graph.facebook.com/v22.0/page-1/feed failed: 500');
+    expect(result.error).toContain(
+      'API POST https://graph.facebook.com/v22.0/page-1/feed failed: 500',
+    );
   });
 
   it('returns a failed result when the photos endpoint fails', async () => {
@@ -268,7 +268,9 @@ describe('publish', () => {
     const result = await c.publish(input());
 
     expect(result.state).toBe('failed');
-    expect(result.error).toContain('API POST https://graph.facebook.com/v22.0/page-1/photos failed: 400');
+    expect(result.error).toContain(
+      'API POST https://graph.facebook.com/v22.0/page-1/photos failed: 400',
+    );
   });
 
   it('returns a failed result on network errors', async () => {
@@ -339,7 +341,9 @@ describe('fetchMetrics', () => {
   it('throws when the insights endpoint fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 500)));
     const c = new FacebookConnector(AUTH);
-    await expect(c.fetchMetrics('post-1')).rejects.toThrow('Facebook metrics fetch failed: HTTP 500');
+    await expect(c.fetchMetrics('post-1')).rejects.toThrow(
+      'Facebook metrics fetch failed: HTTP 500',
+    );
   });
 
   it('throws when externalUserId (Page ID) is missing', async () => {
@@ -372,13 +376,17 @@ describe('revoke', () => {
     expect(pageInit.method).toBe('DELETE');
 
     const [userUrl, userInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(userUrl).toBe('https://graph.facebook.com/v22.0/me/permissions?access_token=fb-token-123');
+    expect(userUrl).toBe(
+      'https://graph.facebook.com/v22.0/me/permissions?access_token=fb-token-123',
+    );
     expect(userInit.method).toBe('DELETE');
 
     expect(c.auth.accessToken).toBe('');
     expect(c.auth.refreshToken).toBeUndefined();
     expect(c.auth.expiresAt).toBe(0);
-    expect(c.getLogs().some((l) => l.action === 'revoke' && l.message.includes('permissions revoked'))).toBe(true);
+    expect(
+      c.getLogs().some((l) => l.action === 'revoke' && l.message.includes('permissions revoked')),
+    ).toBe(true);
   });
 
   it('warns and still clears auth when permission deletion fails', async () => {
@@ -391,7 +399,9 @@ describe('revoke', () => {
     const c = new FacebookConnector(AUTH);
     await expect(c.revoke()).resolves.toBeUndefined();
 
-    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('warned: 403'))).toBe(true);
+    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('warned: 403'))).toBe(
+      true,
+    );
     expect(c.auth.accessToken).toBe('');
     expect(c.auth.expiresAt).toBe(0);
   });
@@ -404,7 +414,9 @@ describe('revoke', () => {
     await c.revoke();
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('skipping revoke'))).toBe(true);
+    expect(
+      c.getLogs().some((l) => l.level === 'warn' && l.message.includes('skipping revoke')),
+    ).toBe(true);
     expect(c.auth.accessToken).toBe('fb-token-123');
   });
 });

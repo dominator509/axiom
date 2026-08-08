@@ -69,7 +69,9 @@ describe('validatePublish', () => {
     );
     expect(report.valid).toBe(false);
     expect(report.tosVerdict).toBe('block');
-    expect(report.errors.some((e) => e.message.includes('Maximum of 4 media items allowed'))).toBe(true);
+    expect(report.errors.some((e) => e.message.includes('Maximum of 4 media items allowed'))).toBe(
+      true,
+    );
   });
 
   it('flags unsupported media types as warnings', () => {

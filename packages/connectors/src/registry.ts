@@ -1,7 +1,12 @@
 // ─── Connector Registry ───
 
 import type { Platform } from '@axiom/core';
-import type { SocialConnector, ConnectorCapability, ConnectorPublishInput, ValidationReport } from './types.js';
+import type {
+  SocialConnector,
+  ConnectorCapability,
+  ConnectorPublishInput,
+  ValidationReport,
+} from './types.js';
 
 /** Registry mapping Platform -> SocialConnector instance */
 const registry = new Map<Platform, SocialConnector>();

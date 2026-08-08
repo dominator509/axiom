@@ -12,10 +12,16 @@ process.env.DATABASE_URL = 'postgres://test-user@localhost:5432/axiom_test';
 
 let auth: any;
 
-beforeAll(async () => {
-  const mod = await import('./index.js');
-  auth = mod.auth;
-});
+beforeAll(
+  async () => {
+    const mod = await import('./index.js');
+    auth = mod.auth;
+  },
+  // better-auth has a large module graph. The import normally completes in a
+  // few seconds, but can exceed Vitest's 10-second hook default when Turbo is
+  // concurrently building and testing the full workspace on a loaded CI host.
+  30_000,
+);
 
 describe('better-auth configuration', () => {
   it('exports a configured auth instance', () => {

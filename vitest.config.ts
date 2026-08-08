@@ -5,10 +5,10 @@
 // Uses the 'forks' pool for isolation and the v8 coverage provider.
 // ============================================================================
 
-import { defineConfig } from "vitest/config";
-import path from "path";
-import fs from "fs";
-import type { Plugin } from "vite";
+import { defineConfig } from 'vitest/config';
+import path from 'path';
+import fs from 'fs';
+import type { Plugin } from 'vite';
 
 // ----------------------------------------------------------------------------
 // preferTsSource
@@ -23,15 +23,12 @@ import type { Plugin } from "vite";
 // ----------------------------------------------------------------------------
 function preferTsSource(): Plugin {
   return {
-    name: "prefer-ts-source",
-    enforce: "pre",
+    name: 'prefer-ts-source',
+    enforce: 'pre',
     resolveId(source, importer) {
       if (!importer) return null;
-      if (!source.startsWith(".") || !source.endsWith(".js")) return null;
-      const tsPath = path.resolve(
-        path.dirname(importer),
-        source.slice(0, -3) + ".ts",
-      );
+      if (!source.startsWith('.') || !source.endsWith('.js')) return null;
+      const tsPath = path.resolve(path.dirname(importer), source.slice(0, -3) + '.ts');
       if (fs.existsSync(tsPath)) {
         return tsPath;
       }
@@ -45,42 +42,38 @@ export default defineConfig({
 
   test: {
     // Where to find test files
-    include: ["**/*.test.ts"],
+    include: ['**/*.test.ts'],
 
     // Use forks pool for process-level isolation (more robust than threads)
-    pool: "forks",
+    pool: 'forks',
 
     // Enable coverage with v8 provider
     coverage: {
-      provider: "v8",
-      include: ["packages/*/src/**/*.ts"],
-      exclude: [
-        "**/node_modules/**",
-        "**/dist/**",
-        "**/*.test.ts",
-        "**/*.spec.ts",
-      ],
-      reporter: ["text", "json", "html", "lcov"],
-      reportsDirectory: "./coverage",
+      provider: 'v8',
+      include: ['packages/*/src/**/*.ts'],
+      exclude: ['**/node_modules/**', '**/dist/**', '**/*.test.ts', '**/*.spec.ts'],
+      reporter: ['text', 'json', 'html', 'lcov'],
+      reportsDirectory: './coverage',
     },
 
     // Node environment
-    environment: "node",
+    environment: 'node',
 
     // Global test utilities
     globals: true,
 
     // Timeout
     testTimeout: 30_000,
+    hookTimeout: 30_000,
   },
 
   // Resolve aliases matching @axiom/* -> packages/*/src
   resolve: {
     alias: {
-      "@axiom/core": path.resolve(__dirname, "packages/core/src"),
-      "@axiom/db": path.resolve(__dirname, "packages/db/src"),
-      "@axiom/auth": path.resolve(__dirname, "packages/auth/src"),
-      "@axiom/api": path.resolve(__dirname, "packages/api/src"),
+      '@axiom/core': path.resolve(__dirname, 'packages/core/src'),
+      '@axiom/db': path.resolve(__dirname, 'packages/db/src'),
+      '@axiom/auth': path.resolve(__dirname, 'packages/auth/src'),
+      '@axiom/api': path.resolve(__dirname, 'packages/api/src'),
     },
   },
 });

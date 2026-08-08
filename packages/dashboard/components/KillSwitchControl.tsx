@@ -36,7 +36,12 @@ export default function KillSwitchControl({ enabled }: { enabled: boolean }) {
       {!enabled && (
         <div>
           <label htmlFor="ks-reason">Reason (recorded in audit)</label>
-          <input id="ks-reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Emergency — platform flagged account" />
+          <input
+            id="ks-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Emergency — platform flagged account"
+          />
         </div>
       )}
       {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}

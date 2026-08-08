@@ -1,14 +1,24 @@
 use std::io;
 use std::process::Command;
 use std::time::Duration;
-use tracing::{error, info, warn, instrument};
+use tracing::{error, info, instrument, warn};
+
+fn require_linux_netns() -> io::Result<()> {
+    if cfg!(target_os = "linux") {
+        Ok(())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Linux network namespaces are not supported on this platform",
+        ))
+    }
+}
 
 /// Create a network namespace using `ip netns add`.
 #[instrument]
 pub fn create_netns(name: &str) -> io::Result<()> {
-    let output = Command::new("ip")
-        .args(["netns", "add", name])
-        .output()?;
+    require_linux_netns()?;
+    let output = Command::new("ip").args(["netns", "add", name]).output()?;
 
     if output.status.success() {
         info!(netns = %name, "Created network namespace");
@@ -16,15 +26,17 @@ pub fn create_netns(name: &str) -> io::Result<()> {
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
         error!(netns = %name, stderr = %stderr, "Failed to create network namespace");
-        Err(io::Error::other(
-            format!("ip netns add failed: {}", stderr.trim()),
-        ))
+        Err(io::Error::other(format!(
+            "ip netns add failed: {}",
+            stderr.trim()
+        )))
     }
 }
 
 /// Delete a network namespace using `ip netns delete`.
 #[instrument]
 pub fn delete_netns(name: &str) -> io::Result<()> {
+    require_linux_netns()?;
     let output = Command::new("ip")
         .args(["netns", "delete", name])
         .output()?;
@@ -45,9 +57,10 @@ pub fn delete_netns(name: &str) -> io::Result<()> {
             return Ok(());
         }
         error!(netns = %name, stderr = %stderr, "Failed to delete network namespace");
-        Err(io::Error::other(
-            format!("ip netns delete failed: {}", stderr.trim()),
-        ))
+        Err(io::Error::other(format!(
+            "ip netns delete failed: {}",
+            stderr.trim()
+        )))
     }
 }
 
@@ -56,6 +69,7 @@ pub fn delete_netns(name: &str) -> io::Result<()> {
 /// Only explicitly allowed hosts (via iptables/nftables) can be reached.
 #[instrument]
 pub fn set_null_default_route(ns: &str) -> io::Result<()> {
+    require_linux_netns()?;
     // Delete any existing default route first
     let _ = execute_in_netns(ns, &["ip", "route", "del", "default"]);
 
@@ -84,6 +98,7 @@ pub fn set_null_default_route(ns: &str) -> io::Result<()> {
 /// sets a default DROP policy on the OUTPUT chain.
 #[instrument]
 pub fn add_allow_rule(ns: &str, host: &str) -> io::Result<()> {
+    require_linux_netns()?;
     // Ensure the OUTPUT chain exists and has a default DROP policy
     let _ = execute_in_netns(ns, &["iptables", "-P", "OUTPUT", "DROP"]);
 
@@ -108,6 +123,7 @@ pub fn add_allow_rule(ns: &str, host: &str) -> io::Result<()> {
 /// Used by the kill-switch to block all egress immediately.
 #[instrument]
 pub fn flush_allow_rules(ns: &str) -> io::Result<()> {
+    require_linux_netns()?;
     let output = execute_in_netns(ns, &["iptables", "-F", "OUTPUT"]);
     match output {
         Ok(out) => {
@@ -127,6 +143,7 @@ pub fn flush_allow_rules(ns: &str) -> io::Result<()> {
 /// Returns stdout as a String on success.
 #[instrument]
 pub fn execute_in_netns(ns: &str, cmd: &[&str]) -> io::Result<String> {
+    require_linux_netns()?;
     let mut args = vec!["netns", "exec", ns];
     args.extend_from_slice(cmd);
 
@@ -144,9 +161,12 @@ pub fn execute_in_netns(ns: &str, cmd: &[&str]) -> io::Result<String> {
             stderr = %stderr,
             "Command failed in network namespace"
         );
-        Err(io::Error::other(
-            format!("Command '{}' failed in netns '{}': {}", cmd_str, ns, stderr.trim()),
-        ))
+        Err(io::Error::other(format!(
+            "Command '{}' failed in netns '{}': {}",
+            cmd_str,
+            ns,
+            stderr.trim()
+        )))
     }
 }
 
@@ -159,6 +179,7 @@ pub fn execute_in_netns(ns: &str, cmd: &[&str]) -> io::Result<String> {
 /// Linux ifname limit is respected). Returns the host-side address.
 #[instrument]
 pub fn setup_veth(ns: &str, host_ip: &str, ns_ip: &str) -> io::Result<String> {
+    require_linux_netns()?;
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
     ns.hash(&mut h);
@@ -166,10 +187,14 @@ pub fn setup_veth(ns: &str, host_ip: &str, ns_ip: &str) -> io::Result<String> {
     let veth_host = format!("vh_{tag}");
     let veth_ns = format!("vn_{tag}");
     let _ = execute_in_netns(ns, &["ip", "link", "del", &veth_ns]);
-    let _ = Command::new("ip").args(["link", "del", &veth_host]).output();
+    let _ = Command::new("ip")
+        .args(["link", "del", &veth_host])
+        .output();
 
     let out = Command::new("ip")
-        .args(["link", "add", &veth_host, "type", "veth", "peer", "name", &veth_ns])
+        .args([
+            "link", "add", &veth_host, "type", "veth", "peer", "name", &veth_ns,
+        ])
         .output()?;
     if !out.status.success() {
         return Err(io::Error::other(format!(
@@ -183,7 +208,9 @@ pub fn setup_veth(ns: &str, host_ip: &str, ns_ip: &str) -> io::Result<String> {
         .args(["link", "set", &veth_ns, "netns", ns])
         .output()?;
     if !move_out.status.success() {
-        let _ = Command::new("ip").args(["link", "del", &veth_host]).output();
+        let _ = Command::new("ip")
+            .args(["link", "del", &veth_host])
+            .output();
         return Err(io::Error::other(format!(
             "veth move to netns failed: {}",
             String::from_utf8_lossy(&move_out.stderr).trim()
@@ -200,13 +227,17 @@ pub fn setup_veth(ns: &str, host_ip: &str, ns_ip: &str) -> io::Result<String> {
         .args(["addr", "add", host_ip, "dev", &veth_host])
         .output()?;
     if !addr_out.status.success() {
-        let _ = Command::new("ip").args(["link", "del", &veth_host]).output();
+        let _ = Command::new("ip")
+            .args(["link", "del", &veth_host])
+            .output();
         return Err(io::Error::other(format!(
             "host veth addr add failed (subnet already in use?): {}",
             String::from_utf8_lossy(&addr_out.stderr).trim()
         )));
     }
-    let _ = Command::new("ip").args(["link", "set", &veth_host, "up"]).output();
+    let _ = Command::new("ip")
+        .args(["link", "set", &veth_host, "up"])
+        .output();
     execute_in_netns(ns, &["ip", "addr", "add", ns_ip, "dev", &veth_ns])?;
     execute_in_netns(ns, &["ip", "link", "set", &veth_ns, "up"])?;
     let _ = execute_in_netns(ns, &["ip", "link", "set", "lo", "up"]);
@@ -218,8 +249,12 @@ pub fn setup_veth(ns: &str, host_ip: &str, ns_ip: &str) -> io::Result<String> {
 /// Remove a veth pair by host-side interface name (idempotent).
 #[instrument]
 pub fn teardown_veth(veth_host: &str) -> io::Result<()> {
-    let output = Command::new("ip").args(["link", "del", veth_host]).output()?;
-    if output.status.success() || String::from_utf8_lossy(&output.stderr).contains("does not exist") {
+    require_linux_netns()?;
+    let output = Command::new("ip")
+        .args(["link", "del", veth_host])
+        .output()?;
+    if output.status.success() || String::from_utf8_lossy(&output.stderr).contains("does not exist")
+    {
         Ok(())
     } else {
         Err(io::Error::other(format!(
@@ -236,6 +271,10 @@ pub fn teardown_veth(veth_host: &str) -> io::Result<()> {
 /// `ip addr add` fail silently (address exists) and breaks connectivity —
 /// the exact class of stale-state bug that produced "No route to host".
 pub fn sweep_orphans() {
+    if let Err(error) = require_linux_netns() {
+        warn!(%error, "Skipping network namespace sweep");
+        return;
+    }
     if let Ok(out) = Command::new("ip").args(["-o", "link", "show"]).output() {
         let stdout = String::from_utf8_lossy(&out.stdout);
         for line in stdout.lines() {
@@ -335,8 +374,12 @@ mod tests {
     #[test]
     fn test_delete_nonexistent_netns() {
         let result = delete_netns("nonexistent_ns_99999");
-        // Should succeed because we handle "does not exist" gracefully
-        assert!(result.is_ok());
+        if cfg!(target_os = "linux") {
+            // Should succeed because we handle "does not exist" gracefully.
+            assert!(result.is_ok());
+        } else {
+            assert_eq!(result.unwrap_err().kind(), io::ErrorKind::Unsupported);
+        }
     }
 
     #[test]

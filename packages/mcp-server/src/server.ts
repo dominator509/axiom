@@ -113,9 +113,8 @@ export class McpServer {
         default:
           return this._error(id, -32601, `Method not found: ${method}`);
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      return this._error(id, -32603, `Internal error: ${message}`);
+    } catch {
+      return this._error(id, -32603, 'Internal error');
     }
   }
 
@@ -123,10 +122,7 @@ export class McpServer {
    * Call a specific tool by name with the given arguments.
    * Permission checks are delegated to the tool's handle() method.
    */
-  async callTool(
-    toolName: string,
-    args: Record<string, unknown>,
-  ): Promise<unknown> {
+  async callTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
     const tool = allTools[toolName];
     if (!tool) {
       throw new Error(`Unknown tool: ${toolName}`);
@@ -134,21 +130,20 @@ export class McpServer {
 
     // Gate by tier
     if (!tierAtLeast(this.tier, tool.tier)) {
-      throw new Error(
-        `Tool "${toolName}" requires tier "${tool.tier}", agent has "${this.tier}"`,
-      );
+      throw new Error(`Tool "${toolName}" requires tier "${tool.tier}", agent has "${this.tier}"`);
     }
 
     // Validate input schema
     const parsed = tool.inputSchema.safeParse(args);
     if (!parsed.success) {
-      throw new Error(
-        `Invalid arguments for "${toolName}": ${parsed.error.message}`,
-      );
+      throw new Error(`Invalid arguments for "${toolName}": ${parsed.error.message}`);
     }
 
     // Execute the tool handler
-    return (tool as { handle: (args: unknown, perm: AgentPermission) => Promise<unknown> }).handle(parsed.data as unknown, this.permission);
+    return (tool as { handle: (args: unknown, perm: AgentPermission) => Promise<unknown> }).handle(
+      parsed.data as unknown,
+      this.permission,
+    );
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────

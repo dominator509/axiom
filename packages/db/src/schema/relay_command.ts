@@ -5,8 +5,12 @@ import { relayCard } from './relay_card.js';
 
 export const relayCommand = pgTable('relay_command', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id),
-  cardId: uuid('card_id').notNull().references(() => relayCard.id),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id),
+  cardId: uuid('card_id')
+    .notNull()
+    .references(() => relayCard.id),
   trigger: text('trigger').notNull(),
   action: text('action').notNull(),
   params: jsonb('params').$type<Record<string, unknown>>().default({}),

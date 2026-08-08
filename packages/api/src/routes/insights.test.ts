@@ -5,7 +5,15 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () =>
-  mockDbFactory({ postMetric: {}, postTarget: {}, contentBundle: {}, viralExemplar: {}, playbookScore: {}, auditLog: {}, job: {} }),
+  mockDbFactory({
+    postMetric: {},
+    postTarget: {},
+    contentBundle: {},
+    viralExemplar: {},
+    playbookScore: {},
+    auditLog: {},
+    job: {},
+  }),
 );
 
 import { analyticsRouter } from './analytics.js';
@@ -44,7 +52,14 @@ describe('analytics — GET /models/:id/analytics', () => {
   const appWithOrg = withOrg(analyticsRouter);
   it('returns totals + per-platform + daily series', async () => {
     mockState.result = [
-      { platform: 'instagram', views: 1000, likes: 100, shares: 10, comments: 5, engagementRate: 4.2 },
+      {
+        platform: 'instagram',
+        views: 1000,
+        likes: 100,
+        shares: 10,
+        comments: 5,
+        engagementRate: 4.2,
+      },
     ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/analytics?days=30`);
     expect(res.status).toBe(200);
@@ -91,9 +106,7 @@ describe('viral — GET /models/:id/viral', () => {
 describe('playbook — GET /models/:id/playbook-score', () => {
   const appWithOrg = withOrg(playbookRouter);
   it('computes a course adherence score from real cadence', async () => {
-    mockState.result = [
-      { platform: 'instagram', scheduledFor: new Date(), state: 'published' },
-    ];
+    mockState.result = [{ platform: 'instagram', scheduledFor: new Date(), state: 'published' }];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/playbook-score`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
@@ -104,7 +117,9 @@ describe('playbook — GET /models/:id/playbook-score', () => {
 
   it('records a score snapshot (201)', async () => {
     mockState.result = [{ id: 'score-1', orgId: ORG_ID, modelId: MODEL_ID, score: 70 }];
-    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/playbook-score/record`, { method: 'POST' });
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/playbook-score/record`, {
+      method: 'POST',
+    });
     expect(res.status).toBe(201);
     const body = (await res.json()) as any;
     expect(body.data.score).toBe(70);
@@ -168,7 +183,9 @@ describe('audit — GET /audit + /audit/verify', () => {
 describe('incidents — GET /incidents + replay', () => {
   const appWithOrg = withOrg(incidentsRouter);
   it('returns dead/failed jobs', async () => {
-    mockState.result = [{ id: JOB_ID, orgId: ORG_ID, kind: 'publish', state: 'dead', attempts: 3, maxAttempts: 3 }];
+    mockState.result = [
+      { id: JOB_ID, orgId: ORG_ID, kind: 'publish', state: 'dead', attempts: 3, maxAttempts: 3 },
+    ];
     const res = await appWithOrg(ORG_ID).request('/incidents');
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
@@ -177,7 +194,9 @@ describe('incidents — GET /incidents + replay', () => {
   });
 
   it('replays a dead job back to ready (200)', async () => {
-    mockState.result = [{ id: JOB_ID, orgId: ORG_ID, kind: 'publish', state: 'ready', attempts: 0 }];
+    mockState.result = [
+      { id: JOB_ID, orgId: ORG_ID, kind: 'publish', state: 'ready', attempts: 0 },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/incidents/${JOB_ID}/replay`, { method: 'POST' });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;

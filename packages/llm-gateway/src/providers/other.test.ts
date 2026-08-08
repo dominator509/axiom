@@ -14,7 +14,12 @@ import {
   VLLM_BASE_URL,
   type VLLMCompletionRequest,
 } from './vllm.js';
-import { callDeepSeek, streamDeepSeek, DEEPSEEK_BASE_URL, type DeepSeekCompletionRequest } from './deepseek.js';
+import {
+  callDeepSeek,
+  streamDeepSeek,
+  DEEPSEEK_BASE_URL,
+  type DeepSeekCompletionRequest,
+} from './deepseek.js';
 import { callGrok, streamGrok, GROK_BASE_URL, type GrokCompletionRequest } from './grok.js';
 import { ProviderError } from './types.js';
 
@@ -42,7 +47,11 @@ const openaiStyleCompletion = (content: string, prompt = 100, completion = 40) =
   created: 1,
   model: 'some-model',
   choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
-  usage: { prompt_tokens: prompt, completion_tokens: completion, total_tokens: prompt + completion },
+  usage: {
+    prompt_tokens: prompt,
+    completion_tokens: completion,
+    total_tokens: prompt + completion,
+  },
 });
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -70,7 +79,10 @@ describe('base URL constants', () => {
 });
 
 describe('callDeepSeek', () => {
-  const req: DeepSeekCompletionRequest = { model: 'deepseek-chat', messages: [{ role: 'user', content: 'hi' }] };
+  const req: DeepSeekCompletionRequest = {
+    model: 'deepseek-chat',
+    messages: [{ role: 'user', content: 'hi' }],
+  };
 
   it('calls the deepseek endpoint with bearer auth', async () => {
     const res = await callDeepSeek('ds-key-111', req);
@@ -83,14 +95,17 @@ describe('callDeepSeek', () => {
 
   it('throws a plain Error (not ProviderError) on non-ok', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'x' }, 503));
-    const err = await callDeepSeek('ds-key-111', req).catch(e => e);
+    const err = await callDeepSeek('ds-key-111', req).catch((e) => e);
     expect(err).not.toBeInstanceOf(ProviderError);
     expect(err.message).toContain('DeepSeek API error 503');
   });
 });
 
 describe('streamDeepSeek', () => {
-  const req: DeepSeekCompletionRequest = { model: 'deepseek-chat', messages: [{ role: 'user', content: 'hi' }] };
+  const req: DeepSeekCompletionRequest = {
+    model: 'deepseek-chat',
+    messages: [{ role: 'user', content: 'hi' }],
+  };
 
   it('yields deltas and stops at [DONE]', async () => {
     fetchMock.mockResolvedValueOnce(
@@ -108,26 +123,37 @@ describe('streamDeepSeek', () => {
   it('marks stream=true and throws plain Error on non-ok', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'x' }, 500));
     const err = await (async () => {
-      for await (const _ of streamDeepSeek('ds-key-111', req)) { /* drain */ }
-    })().catch(e => e);
+      for await (const _ of streamDeepSeek('ds-key-111', req)) {
+        /* drain */
+      }
+    })().catch((e) => e);
     expect(err.message).toContain('DeepSeek stream error 500');
 
     fetchMock.mockResolvedValueOnce(sseResponse(['data: [DONE]']));
-    for await (const _ of streamDeepSeek('ds-key-111', req)) { /* drain */ }
-    expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string).stream).toBe(true);
+    for await (const _ of streamDeepSeek('ds-key-111', req)) {
+      /* drain */
+    }
+    expect(JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string).stream).toBe(
+      true,
+    );
   });
 
   it('throws plain Error when body is null', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
     const err = await (async () => {
-      for await (const _ of streamDeepSeek('ds-key-111', req)) { /* drain */ }
-    })().catch(e => e);
+      for await (const _ of streamDeepSeek('ds-key-111', req)) {
+        /* drain */
+      }
+    })().catch((e) => e);
     expect(err.message).toBe('DeepSeek stream body is null');
   });
 });
 
 describe('callGrok / streamGrok', () => {
-  const req: GrokCompletionRequest = { model: 'grok-2-latest', messages: [{ role: 'user', content: 'hi' }] };
+  const req: GrokCompletionRequest = {
+    model: 'grok-2-latest',
+    messages: [{ role: 'user', content: 'hi' }],
+  };
 
   it('calls the x.ai endpoint with bearer auth', async () => {
     const res = await callGrok('grok-key-222', req);
@@ -140,7 +166,7 @@ describe('callGrok / streamGrok', () => {
 
   it('throws a plain Error on non-ok', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'x' }, 429));
-    const err = await callGrok('grok-key-222', req).catch(e => e);
+    const err = await callGrok('grok-key-222', req).catch((e) => e);
     expect(err.message).toContain('Grok API error 429');
   });
 
@@ -155,7 +181,10 @@ describe('callGrok / streamGrok', () => {
 });
 
 describe('callVenice / streamVenice', () => {
-  const req: VeniceCompletionRequest = { model: 'llama-3.1-70b', messages: [{ role: 'user', content: 'hi' }] };
+  const req: VeniceCompletionRequest = {
+    model: 'llama-3.1-70b',
+    messages: [{ role: 'user', content: 'hi' }],
+  };
 
   it('calls the venice endpoint with bearer auth', async () => {
     const res = await callVenice('venice-key-333', req);
@@ -174,7 +203,7 @@ describe('callVenice / streamVenice', () => {
 
   it('throws ProviderError on non-ok', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'x' }, 401));
-    const err = await callVenice('venice-key-333', req).catch(e => e);
+    const err = await callVenice('venice-key-333', req).catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.status).toBe(401);
     expect(err.provider).toBe('venice');
@@ -190,15 +219,20 @@ describe('callVenice / streamVenice', () => {
 
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'x' }, 500));
     const err = await (async () => {
-      for await (const _ of streamVenice('venice-key-333', req)) { /* drain */ }
-    })().catch(e => e);
+      for await (const _ of streamVenice('venice-key-333', req)) {
+        /* drain */
+      }
+    })().catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.message).toContain('Venice stream error 500');
   });
 });
 
 describe('callVLLM / streamVLLM', () => {
-  const req: VLLMCompletionRequest = { model: 'local-model', messages: [{ role: 'user', content: 'hi' }] };
+  const req: VLLMCompletionRequest = {
+    model: 'local-model',
+    messages: [{ role: 'user', content: 'hi' }],
+  };
 
   it('calls the local endpoint without auth headers', async () => {
     const res = await callVLLM(req);
@@ -217,7 +251,7 @@ describe('callVLLM / streamVLLM', () => {
 
   it('throws ProviderError on non-ok', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'x' }, 500));
-    const err = await callVLLM(req).catch(e => e);
+    const err = await callVLLM(req).catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.provider).toBe('vllm');
   });
@@ -251,8 +285,13 @@ describe('VeniceProvider', () => {
   it('maps options to snake_case and estimates usage when missing', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
-        id: 'x', object: 'chat.completion', created: 1, model: 'venice-xl',
-        choices: [{ index: 0, message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' }],
+        id: 'x',
+        object: 'chat.completion',
+        created: 1,
+        model: 'venice-xl',
+        choices: [
+          { index: 0, message: { role: 'assistant', content: 'hi' }, finish_reason: 'stop' },
+        ],
       }),
     );
     const p = new VeniceProvider('venice-key-333');
@@ -268,7 +307,7 @@ describe('VeniceProvider', () => {
   it('chat throws ProviderError on non-ok', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'x' }, 500));
     const p = new VeniceProvider('venice-key-333');
-    const err = await p.chat([{ role: 'user', content: 'hi' }]).catch(e => e);
+    const err = await p.chat([{ role: 'user', content: 'hi' }]).catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.provider).toBe('venice');
   });
@@ -330,7 +369,7 @@ describe('VLLMProvider', () => {
   it('chat throws ProviderError on non-ok', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'x' }, 503));
     const p = new VLLMProvider();
-    const err = await p.chat([{ role: 'user', content: 'hi' }]).catch(e => e);
+    const err = await p.chat([{ role: 'user', content: 'hi' }]).catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.provider).toBe('vllm');
     expect(err.status).toBe(503);
@@ -347,7 +386,7 @@ describe('VLLMProvider', () => {
     const p = new VLLMProvider();
     const chunks = [];
     for await (const c of p.chatStream([{ role: 'user', content: 'hi' }])) chunks.push(c);
-    expect(chunks.filter(c => c.type === 'delta').map(c => c.content)).toEqual(['a', 'b']);
+    expect(chunks.filter((c) => c.type === 'delta').map((c) => c.content)).toEqual(['a', 'b']);
     const done = chunks[chunks.length - 1];
     expect(done).toMatchObject({ type: 'done', content: 'ab', cost: 0 });
   });
@@ -369,8 +408,10 @@ describe('VLLMProvider', () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
     const p = new VLLMProvider();
     const err = await (async () => {
-      for await (const _ of p.chatStream([{ role: 'user', content: 'hi' }])) { /* drain */ }
-    })().catch(e => e);
+      for await (const _ of p.chatStream([{ role: 'user', content: 'hi' }])) {
+        /* drain */
+      }
+    })().catch((e) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err.message).toBe('vLLM stream body is null');
   });

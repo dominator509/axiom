@@ -57,13 +57,7 @@ export interface PublishResult {
 }
 
 export type ContentBundleState =
-  | 'generated'
-  | 'approved'
-  | 'rejected'
-  | 'scheduled'
-  | 'publishing'
-  | 'published'
-  | 'failed';
+  'generated' | 'approved' | 'rejected' | 'scheduled' | 'publishing' | 'published' | 'failed';
 
 export type PostTargetState = 'pending' | 'publishing' | 'published' | 'failed' | 'skipped';
 

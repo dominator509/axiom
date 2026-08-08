@@ -12,12 +12,29 @@ export function evaluateTextToS(
   caption: string,
   hashtags: string[],
   platforms: string[],
-): { verdict: 'pass' | 'review' | 'block'; scores: Array<{ platform: string; score: number; threshold: number; verdict: string; reasons: string[] }>; reasons: string[] } {
-  const scores: Array<{ platform: string; score: number; threshold: number; verdict: string; reasons: string[] }> = [];
+): {
+  verdict: 'pass' | 'review' | 'block';
+  scores: Array<{
+    platform: string;
+    score: number;
+    threshold: number;
+    verdict: string;
+    reasons: string[];
+  }>;
+  reasons: string[];
+} {
+  const scores: Array<{
+    platform: string;
+    score: number;
+    threshold: number;
+    verdict: string;
+    reasons: string[];
+  }> = [];
   const allReasons = new Set<string>();
   for (const platform of platforms) {
     const rule = PLATFORM_RULES[platform as keyof typeof PLATFORM_RULES];
-    const threshold = DEFAULT_PLATFORM_THRESHOLDS[platform as keyof typeof DEFAULT_PLATFORM_THRESHOLDS] ?? 70;
+    const threshold =
+      DEFAULT_PLATFORM_THRESHOLDS[platform as keyof typeof DEFAULT_PLATFORM_THRESHOLDS] ?? 70;
     if (!rule) {
       scores.push({ platform, score: 0, threshold, verdict: 'pass', reasons: [] });
       continue;
@@ -25,10 +42,13 @@ export function evaluateTextToS(
     const reasons: string[] = [];
     const captionLower = caption.toLowerCase();
     const blocked = rule.blockedKeywords.filter((kw) => captionLower.includes(kw.toLowerCase()));
-    if (blocked.length > 0) reasons.push(`Caption contains blocked keywords: ${blocked.join(', ')}`);
-    if (caption.length > rule.maxCaptionLength) reasons.push(`Caption exceeds ${rule.maxCaptionLength} chars (${caption.length})`);
-    if (hashtags.length > rule.maxHashtags) reasons.push(`Hashtags (${hashtags.length}) exceed limit (${rule.maxHashtags})`);
-    let score = blocked.length * 15;
+    if (blocked.length > 0)
+      reasons.push(`Caption contains blocked keywords: ${blocked.join(', ')}`);
+    if (caption.length > rule.maxCaptionLength)
+      reasons.push(`Caption exceeds ${rule.maxCaptionLength} chars (${caption.length})`);
+    if (hashtags.length > rule.maxHashtags)
+      reasons.push(`Hashtags (${hashtags.length}) exceed limit (${rule.maxHashtags})`);
+    const score = blocked.length * 15;
     const verdict = score >= threshold + 15 ? 'block' : score >= threshold ? 'review' : 'pass';
     reasons.forEach((r) => allReasons.add(r));
     scores.push({ platform, score: Math.min(score, 100), threshold, verdict, reasons });

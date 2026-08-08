@@ -15,7 +15,8 @@ export interface SignalMessage {
 export class SignalAdapter {
   private renderer: CardRenderer;
   private config: SignalConfig;
-  private handlers: Map<string, (action: CardAction, bundleId: string) => Promise<void>> = new Map();
+  private handlers: Map<string, (action: CardAction, bundleId: string) => Promise<void>> =
+    new Map();
 
   constructor(config: SignalConfig) {
     this.renderer = new CardRenderer();
@@ -33,12 +34,7 @@ export class SignalAdapter {
     const body = this.renderer.toText(card);
     const { execa } = await import('execa');
 
-    await execa(this.config.cliPath, [
-      'send',
-      '-a', this.config.account,
-      chatId,
-      body,
-    ]);
+    await execa(this.config.cliPath, ['send', '-a', this.config.account, chatId, body]);
   }
 
   parseResponse(message: SignalMessage): { action: CardAction; bundleId: string } | null {

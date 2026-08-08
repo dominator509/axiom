@@ -99,8 +99,7 @@ async function deriveAdherenceInputs(
   const exemplarSimilarity = Math.min(avgRate / 0.05, 1);
 
   // Scheduled → published conversion
-  const taskAlignment =
-    scheduleCount30d > 0 ? published.length / scheduleCount30d : 0;
+  const taskAlignment = scheduleCount30d > 0 ? published.length / scheduleCount30d : 0;
 
   return {
     input: {

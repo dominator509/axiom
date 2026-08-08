@@ -5,8 +5,6 @@
 retry = 3
 
 [build]
-# Use single-threaded codegen for deterministic builds on constrained boxes
-codegen-units = 1
 # Optimise for speed on the hot path
 rustflags = ["-C", "target-cpu=native"]
 
@@ -15,6 +13,8 @@ linker = "cc"
 
 [profile.release]
 opt-level = 3
+# Use single-threaded codegen for deterministic release builds on constrained boxes
+codegen-units = 1
 lto = "fat"
 strip = "symbols"
 debug = false

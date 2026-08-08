@@ -22,8 +22,18 @@ function makeCard(actions: CardAction[]): RelayCard {
 }
 
 const FULL_ACTIONS: CardAction[] = [
-  'approve', 'approve_all', 'edit_caption', 'change_price', 'reschedule',
-  'regenerate', 'revise', 'hold', 'reject', 'approve', 'hold', 'reject',
+  'approve',
+  'approve_all',
+  'edit_caption',
+  'change_price',
+  'reschedule',
+  'regenerate',
+  'revise',
+  'hold',
+  'reject',
+  'approve',
+  'hold',
+  'reject',
 ];
 
 let adapter: DiscordAdapter;
@@ -53,7 +63,10 @@ describe('construction / getClient / onCommand', () => {
     };
     await adapter.handleInteraction(interaction as any);
     expect(handler).toHaveBeenCalledWith('approve', 'bundle-1');
-    expect(interaction.reply).toHaveBeenCalledWith({ content: 'Action "approve" processed', ephemeral: true });
+    expect(interaction.reply).toHaveBeenCalledWith({
+      content: 'Action "approve" processed',
+      ephemeral: true,
+    });
   });
 });
 
@@ -85,16 +98,39 @@ describe('sendCard', () => {
     (channel as any).send = mockSend;
     vi.spyOn(adapter.getClient().channels, 'fetch').mockResolvedValue(channel);
 
-    await adapter.sendCard('channel-1', makeCard(['approve', 'reject', 'hold', 'edit_caption', 'change_price']));
+    await adapter.sendCard(
+      'channel-1',
+      makeCard(['approve', 'reject', 'hold', 'edit_caption', 'change_price']),
+    );
 
     const [payload] = mockSend.mock.calls[0];
     const row = payload.components[0] as ActionRowBuilder<ButtonBuilder>;
     const buttons = row.components.map((b) => b.data);
-    expect(buttons[0]).toMatchObject({ custom_id: 'approve:bundle-1', label: '✅ Approve', style: ButtonStyle.Success });
-    expect(buttons[1]).toMatchObject({ custom_id: 'reject:bundle-1', label: '❌ Reject', style: ButtonStyle.Danger });
-    expect(buttons[2]).toMatchObject({ custom_id: 'hold:bundle-1', label: '⏸️ Hold', style: ButtonStyle.Secondary });
-    expect(buttons[3]).toMatchObject({ custom_id: 'edit_caption:bundle-1', label: '✏️ Edit', style: ButtonStyle.Primary });
-    expect(buttons[4]).toMatchObject({ custom_id: 'change_price:bundle-1', label: '💰 Price', style: ButtonStyle.Primary });
+    expect(buttons[0]).toMatchObject({
+      custom_id: 'approve:bundle-1',
+      label: '✅ Approve',
+      style: ButtonStyle.Success,
+    });
+    expect(buttons[1]).toMatchObject({
+      custom_id: 'reject:bundle-1',
+      label: '❌ Reject',
+      style: ButtonStyle.Danger,
+    });
+    expect(buttons[2]).toMatchObject({
+      custom_id: 'hold:bundle-1',
+      label: '⏸️ Hold',
+      style: ButtonStyle.Secondary,
+    });
+    expect(buttons[3]).toMatchObject({
+      custom_id: 'edit_caption:bundle-1',
+      label: '✏️ Edit',
+      style: ButtonStyle.Primary,
+    });
+    expect(buttons[4]).toMatchObject({
+      custom_id: 'change_price:bundle-1',
+      label: '💰 Price',
+      style: ButtonStyle.Primary,
+    });
   });
 
   it('does not send when the resolved channel is not a TextChannel', async () => {
@@ -109,14 +145,18 @@ describe('sendCard', () => {
   });
 
   it('does not send when fetch resolves to undefined', async () => {
-    const fetchSpy = vi.spyOn(adapter.getClient().channels, 'fetch').mockResolvedValue(undefined as any);
+    const fetchSpy = vi
+      .spyOn(adapter.getClient().channels, 'fetch')
+      .mockResolvedValue(undefined as any);
     await adapter.sendCard('missing', makeCard(['approve']));
     expect(fetchSpy).toHaveBeenCalledWith('missing');
   });
 
   it('propagates fetch failures', async () => {
     vi.spyOn(adapter.getClient().channels, 'fetch').mockRejectedValue(new Error('rate limited'));
-    await expect(adapter.sendCard('channel-1', makeCard(['approve']))).rejects.toThrow('rate limited');
+    await expect(adapter.sendCard('channel-1', makeCard(['approve']))).rejects.toThrow(
+      'rate limited',
+    );
   });
 
   it('builds a single row for 5 or fewer actions', async () => {
@@ -165,7 +205,9 @@ describe('handleInteraction', () => {
 
 describe('login', () => {
   it('logs in with the configured token', async () => {
-    const loginSpy = vi.spyOn(adapter.getClient(), 'login').mockResolvedValue('token-string' as any);
+    const loginSpy = vi
+      .spyOn(adapter.getClient(), 'login')
+      .mockResolvedValue('token-string' as any);
     await adapter.login();
     expect(loginSpy).toHaveBeenCalledWith('discord-token');
   });

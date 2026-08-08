@@ -8,12 +8,7 @@ import {
   View,
 } from 'react-native';
 
-import {
-  getCrashReports,
-  getDigests,
-  type CrashReport,
-  type DigestCard,
-} from '../api/endpoints';
+import { getCrashReports, getDigests, type CrashReport, type DigestCard } from '../api/endpoints';
 
 /** Severity glyph for crash reports (falls back to status when unknown). */
 function severityIcon(report: CrashReport): string {

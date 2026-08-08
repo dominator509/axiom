@@ -47,7 +47,14 @@ describe('GET /models/:modelId/analytics — aggregates', () => {
 
   it('aggregates per-platform totals', async () => {
     mockState.result = [
-      { platform: 'instagram', views: 100, likes: 10, shares: 2, comments: 3, engagementRate: 0.08 },
+      {
+        platform: 'instagram',
+        views: 100,
+        likes: 10,
+        shares: 2,
+        comments: 3,
+        engagementRate: 0.08,
+      },
       { platform: 'x', views: 50, likes: 5, shares: 1, comments: 1, engagementRate: 0.06 },
     ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/analytics?days=7`);

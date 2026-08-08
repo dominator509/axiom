@@ -48,9 +48,7 @@ export default function App() {
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
             >
-              <Text style={[styles.tabText, active && styles.tabTextActive]}>
-                {item.label}
-              </Text>
+              <Text style={[styles.tabText, active && styles.tabTextActive]}>{item.label}</Text>
             </Pressable>
           );
         })}

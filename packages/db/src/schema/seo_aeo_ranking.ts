@@ -5,8 +5,12 @@ import { modelProfile } from './model_profile.js';
 
 export const seoAeoRanking = pgTable('seo_aeo_ranking', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
-  modelId: uuid('model_id').notNull().references(() => modelProfile.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id, { onDelete: 'cascade' }),
+  modelId: uuid('model_id')
+    .notNull()
+    .references(() => modelProfile.id, { onDelete: 'cascade' }),
   keyword: text('keyword').notNull(),
   engine: text('engine').notNull(),
   position: integer('position'),

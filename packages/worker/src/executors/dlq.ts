@@ -22,7 +22,13 @@ export const dlqReplay: Executor = async (ctx: ExecutorContext) => {
       lockedBy: null,
       lockedAt: null,
     })
-    .where(and(eq(schema.job.id, jobId), eq(schema.job.orgId, job.org_id), sql`${schema.job.state} IN ('dead', 'failed')`))
+    .where(
+      and(
+        eq(schema.job.id, jobId),
+        eq(schema.job.orgId, job.org_id),
+        sql`${schema.job.state} IN ('dead', 'failed')`,
+      ),
+    )
     .returning({ id: schema.job.id });
 
   if (rows.length === 0) {

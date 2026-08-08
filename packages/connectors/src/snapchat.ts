@@ -41,17 +41,31 @@ export class SnapchatConnector extends BaseConnector implements SocialConnector 
     const warnings: Array<{ field: string; message: string; severity: 'warning' }> = [];
 
     if (!input.mediaUrls || input.mediaUrls.length === 0) {
-      errors.push({ field: 'mediaUrls', message: 'Snapchat requires at least one media', severity: 'error' as const });
+      errors.push({
+        field: 'mediaUrls',
+        message: 'Snapchat requires at least one media',
+        severity: 'error' as const,
+      });
     }
     if (input.caption && input.caption.length > 100) {
-      warnings.push({ field: 'caption', message: 'Snapchat captions limited to ~100 chars', severity: 'warning' as const });
+      warnings.push({
+        field: 'caption',
+        message: 'Snapchat captions limited to ~100 chars',
+        severity: 'warning' as const,
+      });
     }
 
     return {
       valid: errors.length === 0,
       errors,
       warnings,
-      infos: [{ field: 'general', message: 'Snapchat uses assisted publish — operator must tap to post', severity: 'info' as const }],
+      infos: [
+        {
+          field: 'general',
+          message: 'Snapchat uses assisted publish — operator must tap to post',
+          severity: 'info' as const,
+        },
+      ],
       tosVerdict: 'pass' as const,
     };
   }

@@ -125,9 +125,7 @@ describe('publish', () => {
         return Promise.resolve(new Response('https://s3.example.com/part-1', { status: 200 }));
       }
       if (u.startsWith('https://s3.example.com/')) {
-        return Promise.resolve(
-          new Response(null, { status: 200, headers: { etag: '"etag-1"' } }),
-        );
+        return Promise.resolve(new Response(null, { status: 200, headers: { etag: '"etag-1"' } }));
       }
       if (u.endsWith('/media/uploads/up-1') && (init?.method ?? '') === 'PATCH') {
         return Promise.resolve(jsonResponse({ status: 'processing' }));
@@ -174,7 +172,9 @@ describe('publish', () => {
       (call) => String(call[0]).endsWith('/media/uploads') && (call[1]?.method ?? 'GET') === 'POST',
     ) as [string, RequestInit];
     expect(createSession).toBeTruthy();
-    expect((createSession[1].headers as Record<string, string>)['X-Fanvue-API-Version']).toBe('2025-06-26');
+    expect((createSession[1].headers as Record<string, string>)['X-Fanvue-API-Version']).toBe(
+      '2025-06-26',
+    );
     expect(JSON.parse(createSession[1].body as string)).toEqual({
       name: 'photo.jpg',
       filename: 'photo.jpg',
@@ -183,8 +183,10 @@ describe('publish', () => {
     });
 
     // Presigned part URL fetched with the creator uuid.
-    const partUrlCall = fetchMock.mock.calls.find(
-      (call) => String(call[0]).includes('/creators/de5c2550-652b-4342-8f9d-f612962625d9/media/uploads/up-1/parts/1/url'),
+    const partUrlCall = fetchMock.mock.calls.find((call) =>
+      String(call[0]).includes(
+        '/creators/de5c2550-652b-4342-8f9d-f612962625d9/media/uploads/up-1/parts/1/url',
+      ),
     ) as [string, RequestInit];
     expect(partUrlCall).toBeTruthy();
 
@@ -197,7 +199,8 @@ describe('publish', () => {
 
     // Complete session carries the ETag.
     const completeCall = fetchMock.mock.calls.find(
-      (call) => String(call[0]).endsWith('/media/uploads/up-1') && (call[1]?.method ?? '') === 'PATCH',
+      (call) =>
+        String(call[0]).endsWith('/media/uploads/up-1') && (call[1]?.method ?? '') === 'PATCH',
     ) as [string, RequestInit];
     expect(completeCall).toBeTruthy();
     expect(JSON.parse(completeCall[1].body as string)).toEqual({
@@ -245,9 +248,11 @@ describe('publish', () => {
   it('resolves the creator uuid from /users/me when externalUserId is absent', async () => {
     const { fetchMock } = multipartFetchMock();
     // First call is /users/me
-    const meCall = vi.fn().mockResolvedValueOnce(
-      jsonResponse({ uuid: 'me-uuid-42', handle: 'creator', isCreator: true }),
-    );
+    const meCall = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ uuid: 'me-uuid-42', handle: 'creator', isCreator: true }),
+      );
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string, init?: RequestInit) => {
@@ -261,8 +266,8 @@ describe('publish', () => {
     const result = await c.publish(input());
     expect(result.state).toBe('published');
 
-    const partUrlCall = fetchMock.mock.calls.find(
-      (call) => String(call[0]).includes('/creators/me-uuid-42/media/uploads/'),
+    const partUrlCall = fetchMock.mock.calls.find((call) =>
+      String(call[0]).includes('/creators/me-uuid-42/media/uploads/'),
     ) as [string, RequestInit];
     expect(partUrlCall).toBeTruthy();
   });
@@ -352,9 +357,11 @@ describe('fetchMetrics', () => {
 
 describe('token refresh', () => {
   it('exchanges the refresh token via Ory client_secret_basic when expired', async () => {
-    const tokenFetch = vi.fn().mockResolvedValue(
-      jsonResponse({ access_token: 'fresh-token', expires_in: 3600, token_type: 'bearer' }),
-    );
+    const tokenFetch = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ access_token: 'fresh-token', expires_in: 3600, token_type: 'bearer' }),
+      );
     vi.stubGlobal('fetch', tokenFetch);
 
     const c = new FanvueConnector(refreshAuth());

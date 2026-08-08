@@ -20,7 +20,8 @@ export const incidentNotify: Executor = async (ctx: ExecutorContext) => {
     .where(eq(schema.auditLog.orgId, job.org_id))
     .orderBy(schema.auditLog.ts, 'desc')
     .limit(1);
-  const prevHash: Buffer = prev.length > 0 ? Buffer.from(prev[0].rowHash as Uint8Array) : Buffer.alloc(32);
+  const prevHash: Buffer =
+    prev.length > 0 ? Buffer.from(prev[0].rowHash as Uint8Array) : Buffer.alloc(32);
 
   await tx.insert(schema.auditLog).values({
     orgId: job.org_id,

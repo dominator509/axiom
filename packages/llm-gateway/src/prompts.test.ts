@@ -119,8 +119,17 @@ describe('buildS1', () => {
     // list, so the `length > 0` branch in buildS1 is always taken. The
     // "no keywords" branch is effectively dead code.
     const platforms = [
-      'instagram', 'tiktok', 'x', 'youtube', 'facebook', 'reddit',
-      'threads', 'snapchat', 'discord', 'telegram', 'fanvue',
+      'instagram',
+      'tiktok',
+      'x',
+      'youtube',
+      'facebook',
+      'reddit',
+      'threads',
+      'snapchat',
+      'discord',
+      'telegram',
+      'fanvue',
     ] as const;
     for (const p of platforms) {
       expect(buildS1(p)).toContain('Blocked keywords:');
@@ -142,8 +151,17 @@ describe('buildS1', () => {
 
   it('covers every platform in the rules map with required fields', () => {
     const platforms = [
-      'instagram', 'tiktok', 'x', 'youtube', 'facebook', 'reddit',
-      'threads', 'snapchat', 'discord', 'telegram', 'fanvue',
+      'instagram',
+      'tiktok',
+      'x',
+      'youtube',
+      'facebook',
+      'reddit',
+      'threads',
+      'snapchat',
+      'discord',
+      'telegram',
+      'fanvue',
     ] as const;
     for (const p of platforms) {
       const s1 = buildS1(p);
@@ -318,8 +336,12 @@ describe('generatePhotoshootPrompts', () => {
   it('generates exactly 5 variants with the expected style labels', () => {
     const variants = generatePhotoshootPrompts(config);
     expect(variants).toHaveLength(5);
-    expect(variants.map(v => v.styleLabel)).toEqual([
-      'Full Body', 'Close Up', 'Candid', 'Editorial', 'Action',
+    expect(variants.map((v) => v.styleLabel)).toEqual([
+      'Full Body',
+      'Close Up',
+      'Candid',
+      'Editorial',
+      'Action',
     ]);
   });
 
@@ -371,7 +393,7 @@ describe('generatePhotoshootPrompts', () => {
   });
 
   it('keeps prompts distinct across variants', () => {
-    const prompts = generatePhotoshootPrompts(config).map(v => v.prompt);
+    const prompts = generatePhotoshootPrompts(config).map((v) => v.prompt);
     expect(new Set(prompts).size).toBe(5);
   });
 });
@@ -387,10 +409,16 @@ describe('calculateCourseAdherence', () => {
     // 0.35*1 + 0.30*0.5 + 0.15*0 + 0.20*1 = 0.70
     expect(score.overall).toBe(0.7);
     expect(score.components).toEqual({
-      persona: 1, platform: 0.5, exemplar: 0, task: 1,
+      persona: 1,
+      platform: 0.5,
+      exemplar: 0,
+      task: 1,
     });
     expect(score.weights).toEqual({
-      persona: 0.35, platform: 0.30, exemplar: 0.15, task: 0.20,
+      persona: 0.35,
+      platform: 0.3,
+      exemplar: 0.15,
+      task: 0.2,
     });
     expect(score.passed).toBe(true);
     expect(score.minimumThreshold).toBe(0.7);
@@ -440,7 +468,12 @@ describe('calculateCourseAdherence', () => {
 
   it('respects custom minimum threshold', () => {
     const score = calculateCourseAdherence(
-      { personaConsistency: 0.6, platformRuleCompliance: 0.6, exemplarSimilarity: 0.6, taskAlignment: 0.6 },
+      {
+        personaConsistency: 0.6,
+        platformRuleCompliance: 0.6,
+        exemplarSimilarity: 0.6,
+        taskAlignment: 0.6,
+      },
       undefined,
       0.5,
     );

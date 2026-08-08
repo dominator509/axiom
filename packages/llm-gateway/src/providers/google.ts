@@ -21,18 +21,20 @@ export class GoogleProvider implements BaseProvider {
     readonly model: string = 'gemini-flash-latest',
   ) {}
 
-  async chat(
-    messages: ProviderMessage[],
-    options?: ProviderOptions,
-  ): Promise<ProviderChatResult> {
-    const res = await callGoogle(this.apiKey, {
-      model: this.model,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      temperature: options?.temperature,
-      max_tokens: options?.maxTokens,
-      top_p: options?.topP,
-      stop: options?.stop,
-    }, undefined, options?.fetchImpl ?? fetch);
+  async chat(messages: ProviderMessage[], options?: ProviderOptions): Promise<ProviderChatResult> {
+    const res = await callGoogle(
+      this.apiKey,
+      {
+        model: this.model,
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        temperature: options?.temperature,
+        max_tokens: options?.maxTokens,
+        top_p: options?.topP,
+        stop: options?.stop,
+      },
+      undefined,
+      options?.fetchImpl ?? fetch,
+    );
     return {
       content: res.choices[0]?.message?.content ?? '',
       model: res.model ?? this.model,
@@ -50,14 +52,19 @@ export class GoogleProvider implements BaseProvider {
     options?: ProviderOptions,
   ): AsyncIterable<ProviderStreamChunk> {
     try {
-      for await (const delta of streamGoogle(this.apiKey, {
-        model: this.model,
-        messages: messages.map((m) => ({ role: m.role, content: m.content })),
-        temperature: options?.temperature,
-        max_tokens: options?.maxTokens,
-        top_p: options?.topP,
-        stop: options?.stop,
-      }, undefined, options?.fetchImpl ?? fetch)) {
+      for await (const delta of streamGoogle(
+        this.apiKey,
+        {
+          model: this.model,
+          messages: messages.map((m) => ({ role: m.role, content: m.content })),
+          temperature: options?.temperature,
+          max_tokens: options?.maxTokens,
+          top_p: options?.topP,
+          stop: options?.stop,
+        },
+        undefined,
+        options?.fetchImpl ?? fetch,
+      )) {
         yield { type: 'delta', content: delta };
       }
     } catch (err) {
@@ -120,7 +127,7 @@ function toOpenAICompat(
   if (data.error) {
     throw new Error(`Gemini API error ${data.error.code}: ${data.error.message}`);
   }
-  const text = data.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? '';
+  const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
   return {
     id: `gemini-${Date.now()}`,
     object: 'chat.completion',
@@ -146,9 +153,9 @@ function toGenerateRequest(
   messages: Array<{ role: string; content: string }>,
   options?: { temperature?: number; max_tokens?: number; top_p?: number; stop?: string[] },
 ): GoogleGenerateRequest {
-  const systemMsg = messages.find(m => m.role === 'system');
-  const chatMessages = messages.filter(m => m.role !== 'system');
-  const contents = chatMessages.map(m => ({
+  const systemMsg = messages.find((m) => m.role === 'system');
+  const chatMessages = messages.filter((m) => m.role !== 'system');
+  const contents = chatMessages.map((m) => ({
     role: (m.role === 'assistant' ? 'model' : 'user') as 'user' | 'model',
     parts: [{ text: m.content }],
   }));
@@ -156,7 +163,8 @@ function toGenerateRequest(
   if (options?.temperature !== undefined) generationConfig.temperature = options.temperature;
   if (options?.max_tokens !== undefined) generationConfig.maxOutputTokens = options.max_tokens;
   if (options?.top_p !== undefined) generationConfig.topP = options.top_p;
-  if (options?.stop !== undefined && options.stop.length > 0) generationConfig.stopSequences = options.stop;
+  if (options?.stop !== undefined && options.stop.length > 0)
+    generationConfig.stopSequences = options.stop;
   return {
     model,
     contents,
@@ -166,7 +174,14 @@ function toGenerateRequest(
 }
 export async function callGoogle(
   apiKey: string,
-  body: { model: string; messages: Array<{ role: string; content: string }>; temperature?: number; max_tokens?: number; top_p?: number; stop?: string[] },
+  body: {
+    model: string;
+    messages: Array<{ role: string; content: string }>;
+    temperature?: number;
+    max_tokens?: number;
+    top_p?: number;
+    stop?: string[];
+  },
   signal?: AbortSignal,
   fetchImpl: typeof fetch = fetch,
 ): Promise<OpenAICompatCompletionResponse> {
@@ -190,7 +205,14 @@ export async function callGoogle(
 
 export async function* streamGoogle(
   apiKey: string,
-  body: { model: string; messages: Array<{ role: string; content: string }>; temperature?: number; max_tokens?: number; top_p?: number; stop?: string[] },
+  body: {
+    model: string;
+    messages: Array<{ role: string; content: string }>;
+    temperature?: number;
+    max_tokens?: number;
+    top_p?: number;
+    stop?: string[];
+  },
   signal?: AbortSignal,
   fetchImpl: typeof fetch = fetch,
 ): AsyncIterable<string> {
@@ -226,7 +248,8 @@ export async function* streamGoogle(
         if (trimmed.startsWith('data: ')) {
           try {
             const parsed = JSON.parse(trimmed.slice(6)) as GoogleGenerateResponse;
-            const delta = parsed.candidates?.[0]?.content?.parts?.map(p => p.text ?? '').join('') ?? '';
+            const delta =
+              parsed.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
             if (delta) yield delta;
           } catch {
             // skip malformed lines

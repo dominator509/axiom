@@ -36,10 +36,7 @@ export class VeniceProvider implements BaseProvider {
     private readonly baseUrl: string = 'https://api.venice.ai/api/v1',
   ) {}
 
-  async chat(
-    messages: ProviderMessage[],
-    options?: ProviderOptions,
-  ): Promise<ProviderChatResult> {
+  async chat(messages: ProviderMessage[], options?: ProviderOptions): Promise<ProviderChatResult> {
     const doFetch = options?.fetchImpl ?? fetch;
     const body: Record<string, unknown> = {
       model: this.model,
@@ -178,7 +175,11 @@ export class VeniceProvider implements BaseProvider {
                 yield {
                   type: 'done',
                   content: fullContent,
-                  usage: { promptTokens: pt, completionTokens: ct, totalTokens: parsed.usage.total_tokens },
+                  usage: {
+                    promptTokens: pt,
+                    completionTokens: ct,
+                    totalTokens: parsed.usage.total_tokens,
+                  },
                   cost: calculateCost(pt, ct),
                 };
                 return;
@@ -297,7 +298,12 @@ export async function* streamVenice(
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new ProviderError(`Venice stream error ${res.status}: ${text}`, res.status, 'venice', text);
+    throw new ProviderError(
+      `Venice stream error ${res.status}: ${text}`,
+      res.status,
+      'venice',
+      text,
+    );
   }
   const reader = res.body?.getReader();
   if (!reader) throw new ProviderError('Venice stream body is null', 0, 'venice');

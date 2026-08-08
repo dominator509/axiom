@@ -2,9 +2,9 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
+use egress_plane::killswitch::KillSwitch;
 use egress_plane::proxy;
 use egress_plane::{build_router, AppState, Config, Registry};
-use egress_plane::killswitch::KillSwitch;
 
 #[tokio::main]
 async fn main() {
@@ -61,7 +61,9 @@ async fn main() {
         .expect("Failed to bind TCP listener");
 
     info!("Egress-plane listening on {}", config.listen_addr);
-    axum::serve(listener, app).await.expect("Server exited with error");
+    axum::serve(listener, app)
+        .await
+        .expect("Server exited with error");
 }
 
 async fn run_sidecar(args: &[String]) {

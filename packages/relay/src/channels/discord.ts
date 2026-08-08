@@ -1,4 +1,13 @@
-import { Client, GatewayIntentBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Interaction, TextChannel } from 'discord.js';
+import {
+  Client,
+  GatewayIntentBits,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  Interaction,
+  TextChannel,
+} from 'discord.js';
 import type { RelayCard, CardAction } from '../card.js';
 import { CardRenderer } from '../card.js';
 
@@ -10,7 +19,8 @@ export interface DiscordConfig {
 export class DiscordAdapter {
   private client: Client;
   private renderer: CardRenderer;
-  private handlers: Map<string, (action: CardAction, bundleId: string) => Promise<void>> = new Map();
+  private handlers: Map<string, (action: CardAction, bundleId: string) => Promise<void>> =
+    new Map();
 
   constructor(private config: DiscordConfig) {
     this.client = new Client({

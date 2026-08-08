@@ -30,7 +30,7 @@ describe('Pipeline', () => {
     p.use({ name: 'a' });
     p.use({ name: 'b' });
     expect(p.remove('a')).toBe(true);
-    expect(p.list().map(t => t.name)).toEqual(['b']);
+    expect(p.list().map((t) => t.name)).toEqual(['b']);
     expect(p.remove('missing')).toBe(false);
   });
 

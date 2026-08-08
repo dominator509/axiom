@@ -2,11 +2,7 @@ import { api } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ModelOverviewPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function ModelOverviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let model;
   let network;
@@ -39,9 +35,15 @@ export default async function ModelOverviewPage({
     <div className="grid">
       <div className="card stack">
         <h3>Profile</h3>
-        <div><strong>Handle:</strong> @{model.handle}</div>
-        <div><strong>Bio:</strong> {model.bio ?? '—'}</div>
-        <div><strong>Created:</strong> {new Date(model.createdAt).toLocaleDateString()}</div>
+        <div>
+          <strong>Handle:</strong> @{model.handle}
+        </div>
+        <div>
+          <strong>Bio:</strong> {model.bio ?? '—'}
+        </div>
+        <div>
+          <strong>Created:</strong> {new Date(model.createdAt).toLocaleDateString()}
+        </div>
       </div>
       <div className="card stack">
         <h3>Network & Security (F-02)</h3>
@@ -53,7 +55,11 @@ export default async function ModelOverviewPage({
             </div>
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <span>Health</span>
-              {network.healthy ? <span className="badge good">healthy</span> : <span className="badge bad">degraded</span>}
+              {network.healthy ? (
+                <span className="badge good">healthy</span>
+              ) : (
+                <span className="badge bad">degraded</span>
+              )}
             </div>
             {network.latencyMs != null && (
               <div className="row" style={{ justifyContent: 'space-between' }}>

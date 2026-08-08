@@ -17,8 +17,7 @@ export const DEFAULT_API_BASE_URL = 'http://localhost:3001';
 
 /** Resolve the BFF base URL: EXPO_PUBLIC_API_URL env var, else local default. */
 export function resolveBaseUrl(): string {
-  const configured =
-    typeof process !== 'undefined' ? process.env.EXPO_PUBLIC_API_URL : undefined;
+  const configured = typeof process !== 'undefined' ? process.env.EXPO_PUBLIC_API_URL : undefined;
   if (configured && configured.trim().length > 0) {
     return configured.replace(/\/+$/, '');
   }
@@ -74,11 +73,7 @@ export function buildCookieHeader(): string | undefined {
  * RFC-7807 problem+json ({ detail, title, status, correlation_id }), Better
  * Auth returns { message }, and proxies may return plain text.
  */
-export function extractErrorMessage(
-  body: unknown,
-  status: number,
-  rawText: string,
-): string {
+export function extractErrorMessage(body: unknown, status: number, rawText: string): string {
   if (body && typeof body === 'object') {
     const record = body as Record<string, unknown>;
     const detail = record['detail'];

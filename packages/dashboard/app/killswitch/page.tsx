@@ -15,21 +15,30 @@ export default async function KillSwitchPage() {
   return (
     <div style={{ maxWidth: 560 }}>
       <h1>Global kill switch (F-12 / LBI-11)</h1>
-      {error && <div className="card" style={{ color: 'var(--bad)' }}>{error}</div>}
+      {error && (
+        <div className="card" style={{ color: 'var(--bad)' }}>
+          {error}
+        </div>
+      )}
       {state && (
         <div className="card">
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <h2 style={{ margin: 0 }}>Publishing</h2>
-            {state.enabled ? <span className="badge bad">HALTED</span> : <span className="badge good">enabled</span>}
+            {state.enabled ? (
+              <span className="badge bad">HALTED</span>
+            ) : (
+              <span className="badge good">enabled</span>
+            )}
           </div>
           {state.enabled && (
             <p style={{ color: 'var(--bad)' }}>
-              Reason: {state.reason || 'no reason recorded'} — started {state.startedAt ? new Date(state.startedAt).toLocaleString() : '?'}
+              Reason: {state.reason || 'no reason recorded'} — started{' '}
+              {state.startedAt ? new Date(state.startedAt).toLocaleString() : '?'}
             </p>
           )}
           <p style={{ color: 'var(--muted)' }}>
-            Flipping the switch persists to <span className="mono">org_settings</span>, is audit-logged, and halts the
-            scheduler from dequeuing publish/DM jobs within seconds.
+            Flipping the switch persists to <span className="mono">org_settings</span>, is
+            audit-logged, and halts the scheduler from dequeuing publish/DM jobs within seconds.
           </p>
           <KillSwitchControl enabled={state.enabled} />
         </div>

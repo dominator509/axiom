@@ -96,7 +96,12 @@ router.put('/:modelId/network', zValidator('json', networkSchema), async (c) => 
     const existing = await tx
       .select({ id: schema.modelNetworkConfigs.id })
       .from(schema.modelNetworkConfigs)
-      .where(and(eq(schema.modelNetworkConfigs.orgId, orgId), eq(schema.modelNetworkConfigs.modelId, modelId)))
+      .where(
+        and(
+          eq(schema.modelNetworkConfigs.orgId, orgId),
+          eq(schema.modelNetworkConfigs.modelId, modelId),
+        ),
+      )
       .limit(1);
 
     let row;
@@ -143,7 +148,12 @@ router.get('/:modelId/network/health', async (c) => {
     tx
       .select()
       .from(schema.modelNetworkConfigs)
-      .where(and(eq(schema.modelNetworkConfigs.orgId, orgId), eq(schema.modelNetworkConfigs.modelId, modelId)))
+      .where(
+        and(
+          eq(schema.modelNetworkConfigs.orgId, orgId),
+          eq(schema.modelNetworkConfigs.modelId, modelId),
+        ),
+      )
       .limit(1),
   );
 
@@ -156,7 +166,14 @@ router.get('/:modelId/network/health', async (c) => {
         failCount: rows[0].failCount,
         lastError: rows[0].lastError,
       }
-    : { healthy: false, lastCheck: null, latencyMs: null, lastEgressIp: null, failCount: 0, lastError: 'no config' };
+    : {
+        healthy: false,
+        lastCheck: null,
+        latencyMs: null,
+        lastEgressIp: null,
+        failCount: 0,
+        lastError: 'no config',
+      };
 
   return c.json({ data: { modelId, live, db: dbState } });
 });

@@ -91,7 +91,10 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
         );
 
         creationIds.push(createResp.id);
-        this.log('info', 'publish', `Created Threads media container ${createResp.id}`, { mediaUrl, mediaType });
+        this.log('info', 'publish', `Created Threads media container ${createResp.id}`, {
+          mediaUrl,
+          mediaType,
+        });
       }
 
       // Step 2: Publish each container
@@ -108,7 +111,11 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
         );
 
         lastRemoteId = publishResp.id;
-        this.log('info', 'publish', `Published Threads container ${creationId} -> post ${publishResp.id}`);
+        this.log(
+          'info',
+          'publish',
+          `Published Threads container ${creationId} -> post ${publishResp.id}`,
+        );
       }
 
       const postUrl = lastRemoteId

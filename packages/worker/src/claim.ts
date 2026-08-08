@@ -17,10 +17,7 @@ export interface ClaimResult {
  * Claim the next ready job for this worker. Must run inside a transaction —
  * the returned job's org context is set on the session for the rest of it.
  */
-export async function claimNextJob(
-  tx: any,
-  workerId: string,
-): Promise<ClaimResult> {
+export async function claimNextJob(tx: any, workerId: string): Promise<ClaimResult> {
   const res = await tx.execute(sql`SELECT * FROM claim_job(${workerId})`);
   const rows = (res?.rows ?? []) as unknown[];
   if (rows.length === 0) return { job: null, empty: true };

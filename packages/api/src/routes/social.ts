@@ -118,7 +118,10 @@ router.delete('/:id', async (c) => {
     const rows = await tx
       .delete(schema.platformConnection)
       .where(and(eq(schema.platformConnection.id, id), eq(schema.platformConnection.orgId, orgId)))
-      .returning({ id: schema.platformConnection.id, platform: schema.platformConnection.platform });
+      .returning({
+        id: schema.platformConnection.id,
+        platform: schema.platformConnection.platform,
+      });
     if (rows.length === 0) return { status: 404 as const, data: null };
     await writeAudit(tx, orgId, userId, 'social.revoke', id, { platform: rows[0].platform });
     return { status: 200 as const, data: rows[0] };

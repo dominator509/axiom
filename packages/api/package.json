@@ -16,8 +16,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "test": "vitest run",
-    "dev": "tsx watch src/index.ts",
-    "clean": "rm -rf dist"
+    "dev": "tsx watch src/server.ts",
+    "clean": "node ../../scripts/clean.mjs dist"
   },
   "dependencies": {
     "@axiom/auth": "workspace:*",

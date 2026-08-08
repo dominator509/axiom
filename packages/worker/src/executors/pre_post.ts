@@ -13,7 +13,7 @@ import type { ExecutorContext } from './context.js';
 
 const DEFAULT_MEDIA_PLANE_URL = process.env.AXIOM_MEDIA_ADDR
   ? `http://${process.env.AXIOM_MEDIA_ADDR}`
-  : process.env.MEDIA_PLANE_URL ?? 'http://127.0.0.1:8100';
+  : (process.env.MEDIA_PLANE_URL ?? 'http://127.0.0.1:8100');
 
 export interface PrePostRunInput {
   targetId: string;
@@ -89,7 +89,7 @@ export async function runPrePostBefore(
   const engine = await mediaPlaneEngine();
   const scriptResults: PrePostStageResult['scriptResults'] = [];
   let error: string | null = null;
-  let output: Record<string, unknown> = { engine };
+  const output: Record<string, unknown> = { engine };
 
   // Start from the real connector input shape (what will be published).
   let working: ConnectorPublishInput = {

@@ -14,7 +14,8 @@ export interface IMessageResponse {
 export class IMessageAdapter {
   private renderer: CardRenderer;
   private config: IMessageConfig;
-  private handlers: Map<string, (action: CardAction, bundleId: string) => Promise<void>> = new Map();
+  private handlers: Map<string, (action: CardAction, bundleId: string) => Promise<void>> =
+    new Map();
 
   constructor(config: IMessageConfig) {
     this.renderer = new CardRenderer();

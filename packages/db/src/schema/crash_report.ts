@@ -22,10 +22,7 @@ export const crashReport = pgTable('crash_report', {
     .$type<'sev-1' | 'sev-2' | 'sev-3' | 'sev-4'>()
     .notNull()
     .default('sev-3'),
-  status: text('status')
-    .$type<'open' | 'resolved' | 'ignored'>()
-    .notNull()
-    .default('open'),
+  status: text('status').$type<'open' | 'resolved' | 'ignored'>().notNull().default('open'),
   count: integer('count').notNull().default(1),
   firstSeen: timestamp('first_seen', { withTimezone: true }).notNull().defaultNow(),
   lastSeen: timestamp('last_seen', { withTimezone: true, precision: 3 }).notNull().defaultNow(),

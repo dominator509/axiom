@@ -7,6 +7,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use thiserror::Error;
 use tokio::process::Command;
@@ -38,32 +39,33 @@ pub enum MediaError {
 
     #[error("Input file does not exist: {0}")]
     InputMissing(String),
+
+    #[error("Media path is outside the configured media root")]
+    InvalidPath,
 }
 
 impl IntoResponse for MediaError {
     fn into_response(self) -> axum::response::Response {
         let (status, body) = match &self {
-            Self::Io(e) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("I/O error: {e}"))
-            }
-            Self::Image(e) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("Image error: {e}"))
-            }
+            Self::Io(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("I/O error: {e}")),
+            Self::Image(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Image error: {e}"),
+            ),
             Self::UnsupportedFormat(f) => {
                 (StatusCode::BAD_REQUEST, format!("Unsupported format: {f}"))
             }
-            Self::InvalidPosition(p) => {
-                (StatusCode::BAD_REQUEST, format!("Invalid position: {p}"))
-            }
-            Self::Json(e) => {
-                (StatusCode::BAD_REQUEST, format!("JSON error: {e}"))
-            }
-            Self::Ffmpeg(e) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("ffmpeg error: {e}"))
-            }
-            Self::InputMissing(p) => {
-                (StatusCode::BAD_REQUEST, format!("Input file does not exist: {p}"))
-            }
+            Self::InvalidPosition(p) => (StatusCode::BAD_REQUEST, format!("Invalid position: {p}")),
+            Self::Json(e) => (StatusCode::BAD_REQUEST, format!("JSON error: {e}")),
+            Self::Ffmpeg(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("ffmpeg error: {e}"),
+            ),
+            Self::InputMissing(p) => (
+                StatusCode::BAD_REQUEST,
+                format!("Input file does not exist: {p}"),
+            ),
+            Self::InvalidPath => (StatusCode::BAD_REQUEST, self.to_string()),
         };
         (status, Json(serde_json::json!({ "error": body }))).into_response()
     }
@@ -176,6 +178,63 @@ async fn health() -> Json<serde_json::Value> {
 }
 
 // ---------------------------------------------------------------------------
+// Filesystem boundary
+// ---------------------------------------------------------------------------
+
+/// All media-plane file access is confined to `<working-directory>/var/media`.
+/// Relative asset IDs are resolved beneath this root; absolute paths are
+/// accepted only when their canonical target is already inside it.
+fn media_root() -> Result<PathBuf, MediaError> {
+    let root = std::env::current_dir()?.join("var").join("media");
+    std::fs::create_dir_all(&root)?;
+    Ok(root.canonicalize()?)
+}
+
+fn resolve_input(path: &str) -> Result<PathBuf, MediaError> {
+    let root = media_root()?;
+    let supplied = Path::new(path);
+    let candidate = if supplied.is_absolute() {
+        supplied.to_path_buf()
+    } else {
+        root.join(supplied)
+    };
+    if !candidate.exists() {
+        return Err(MediaError::InputMissing(path.to_string()));
+    }
+    let canonical = candidate.canonicalize()?;
+    if !canonical.starts_with(&root) {
+        return Err(MediaError::InvalidPath);
+    }
+    Ok(canonical)
+}
+
+fn resolve_output(path: &str) -> Result<PathBuf, MediaError> {
+    let root = media_root()?;
+    let supplied = Path::new(path);
+    let candidate = if supplied.is_absolute() {
+        supplied.to_path_buf()
+    } else {
+        root.join(supplied)
+    };
+    let parent = candidate.parent().ok_or(MediaError::InvalidPath)?;
+    std::fs::create_dir_all(parent)?;
+    let canonical_parent = parent.canonicalize()?;
+    if !canonical_parent.starts_with(&root) {
+        return Err(MediaError::InvalidPath);
+    }
+    let file_name = candidate.file_name().ok_or(MediaError::InvalidPath)?;
+    let resolved = canonical_parent.join(file_name);
+    if resolved.exists() && !resolved.canonicalize()?.starts_with(&root) {
+        return Err(MediaError::InvalidPath);
+    }
+    Ok(resolved)
+}
+
+fn path_arg(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
+// ---------------------------------------------------------------------------
 // /media/transcode
 // ---------------------------------------------------------------------------
 
@@ -187,15 +246,19 @@ async fn transcode(
         req.input_path, req.output_path, req.target_format
     );
 
-    let img = image::open(&req.input_path)?;
+    let input_path = resolve_input(&req.input_path)?;
+    let output_path = resolve_output(&req.output_path)?;
+    let img = image::open(input_path)?;
 
     match req.target_format.to_lowercase().as_str() {
-        "png" => img.save(&req.output_path)?,
-        "jpeg" | "jpg" => img.save(&req.output_path)?,
+        "png" => img.save(output_path)?,
+        "jpeg" | "jpg" => img.save(output_path)?,
         other => return Err(MediaError::UnsupportedFormat(other.to_string())),
     }
 
-    Ok(Json(serde_json::json!({ "status": "ok", "output_path": req.output_path })))
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "output_path": req.output_path }),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -210,8 +273,11 @@ async fn watermark(
         req.image_path, req.watermark_path, req.output_path, req.position
     );
 
-    let mut base = image::open(&req.image_path)?;
-    let watermark_img = image::open(&req.watermark_path)?;
+    let image_path = resolve_input(&req.image_path)?;
+    let watermark_path = resolve_input(&req.watermark_path)?;
+    let output_path = resolve_output(&req.output_path)?;
+    let mut base = image::open(image_path)?;
+    let watermark_img = image::open(watermark_path)?;
 
     let (base_w, base_h) = (base.width(), base.height());
     let (wm_w, wm_h) = (watermark_img.width(), watermark_img.height());
@@ -229,59 +295,64 @@ async fn watermark(
     };
 
     image::imageops::overlay(&mut base, &watermark_img, x as i64, y as i64);
-    base.save(&req.output_path)?;
+    base.save(output_path)?;
 
-    Ok(Json(serde_json::json!({ "status": "ok", "output_path": req.output_path })))
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "output_path": req.output_path }),
+    ))
 }
 
 // ---------------------------------------------------------------------------
 // /media/resize
 // ---------------------------------------------------------------------------
 
-async fn resize(
-    Json(req): Json<ResizeRequest>,
-) -> Result<Json<serde_json::Value>, MediaError> {
+async fn resize(Json(req): Json<ResizeRequest>) -> Result<Json<serde_json::Value>, MediaError> {
     info!(
         "resize: {} -> {} ({}x{})",
         req.image_path, req.output_path, req.width, req.height
     );
 
-    let img = image::open(&req.image_path)?;
+    let image_path = resolve_input(&req.image_path)?;
+    let output_path = resolve_output(&req.output_path)?;
+    let img = image::open(image_path)?;
     let resized = img.resize_exact(req.width, req.height, image::imageops::FilterType::Lanczos3);
-    resized.save(&req.output_path)?;
+    resized.save(output_path)?;
 
-    Ok(Json(serde_json::json!({ "status": "ok", "output_path": req.output_path })))
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "output_path": req.output_path }),
+    ))
 }
 
 // ---------------------------------------------------------------------------
 // /media/clip
 // ---------------------------------------------------------------------------
 
-async fn clip(
-    Json(req): Json<ClipRequest>,
-) -> Result<Json<serde_json::Value>, MediaError> {
+async fn clip(Json(req): Json<ClipRequest>) -> Result<Json<serde_json::Value>, MediaError> {
     info!(
         "clip: {} -> {} (x:{} y:{} w:{} h:{})",
         req.image_path, req.output_path, req.x, req.y, req.width, req.height
     );
 
-    let img = image::open(&req.image_path)?;
+    let image_path = resolve_input(&req.image_path)?;
+    let output_path = resolve_output(&req.output_path)?;
+    let img = image::open(image_path)?;
     let cropped = img.crop_imm(req.x, req.y, req.width, req.height);
-    cropped.save(&req.output_path)?;
+    cropped.save(output_path)?;
 
-    Ok(Json(serde_json::json!({ "status": "ok", "output_path": req.output_path })))
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "output_path": req.output_path }),
+    ))
 }
 
 // ---------------------------------------------------------------------------
 // /media/compute-hash
 // ---------------------------------------------------------------------------
 
-async fn compute_hash(
-    Json(req): Json<HashRequest>,
-) -> Result<Json<HashResponse>, MediaError> {
+async fn compute_hash(Json(req): Json<HashRequest>) -> Result<Json<HashResponse>, MediaError> {
     info!("compute-hash: {}", req.image_path);
 
-    let bytes = tokio::fs::read(&req.image_path).await?;
+    let image_path = resolve_input(&req.image_path)?;
+    let bytes = tokio::fs::read(image_path).await?;
     let hash = {
         let mut hasher = Sha256::new();
         hasher.update(&bytes);
@@ -313,16 +384,13 @@ async fn run_ffmpeg(args: &[String]) -> Result<String, MediaError> {
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
     if !output.status.success() {
         let tail: String = stderr.lines().rev().take(8).collect::<Vec<_>>().join("\n");
-        return Err(MediaError::Ffmpeg(format!("status {:?}: {}", output.status.code(), tail)));
+        return Err(MediaError::Ffmpeg(format!(
+            "status {:?}: {}",
+            output.status.code(),
+            tail
+        )));
     }
     Ok(stderr)
-}
-
-async fn ensure_input(path: &str) -> Result<(), MediaError> {
-    if !std::path::Path::new(path).exists() {
-        return Err(MediaError::InputMissing(path.to_string()));
-    }
-    Ok(())
 }
 
 /// Reuse the ffmpeg position mapping for overlays (bottom-right default).
@@ -345,14 +413,11 @@ async fn video_transcode(
         "video transcode: {} -> {} ({})",
         req.input_path, req.output_path, req.target_format
     );
-    ensure_input(&req.input_path).await?;
+    let input_path = resolve_input(&req.input_path)?;
+    let output_path = resolve_output(&req.output_path)?;
 
     let fmt = req.target_format.to_lowercase();
-    let mut args: Vec<String> = vec![
-        "-y".into(),
-        "-i".into(),
-        req.input_path.clone(),
-    ];
+    let mut args: Vec<String> = vec!["-y".into(), "-i".into(), path_arg(&input_path)];
     if let Some(scale) = &req.scale {
         args.push("-vf".into());
         args.push(format!("scale={scale}"));
@@ -363,10 +428,12 @@ async fn video_transcode(
     }
     args.push("-f".into());
     args.push(fmt.clone());
-    args.push(req.output_path.clone());
+    args.push(path_arg(&output_path));
 
     run_ffmpeg(&args).await?;
-    Ok(Json(serde_json::json!({ "status": "ok", "output_path": req.output_path, "format": fmt })))
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "output_path": req.output_path, "format": fmt }),
+    ))
 }
 
 // /media/video/watermark
@@ -377,25 +444,28 @@ async fn video_watermark(
         "video watermark: {} + {} -> {} (position: {})",
         req.video_path, req.watermark_path, req.output_path, req.position
     );
-    ensure_input(&req.video_path).await?;
-    ensure_input(&req.watermark_path).await?;
+    let video_path = resolve_input(&req.video_path)?;
+    let watermark_path = resolve_input(&req.watermark_path)?;
+    let output_path = resolve_output(&req.output_path)?;
     let pos = overlay_position(&req.position)?;
 
     let filter = format!("overlay={pos}");
     let args: Vec<String> = vec![
         "-y".into(),
         "-i".into(),
-        req.video_path.clone(),
+        path_arg(&video_path),
         "-i".into(),
-        req.watermark_path.clone(),
+        path_arg(&watermark_path),
         "-filter_complex".into(),
         filter,
         "-codec:a".into(),
         "copy".into(),
-        req.output_path.clone(),
+        path_arg(&output_path),
     ];
     run_ffmpeg(&args).await?;
-    Ok(Json(serde_json::json!({ "status": "ok", "output_path": req.output_path })))
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "output_path": req.output_path }),
+    ))
 }
 
 // /media/video/clip
@@ -406,14 +476,15 @@ async fn video_clip(
         "video clip: {} -> {} (start: {} duration: {})",
         req.video_path, req.output_path, req.start, req.duration
     );
-    ensure_input(&req.video_path).await?;
+    let video_path = resolve_input(&req.video_path)?;
+    let output_path = resolve_output(&req.output_path)?;
 
     let mut args: Vec<String> = vec![
         "-y".into(),
         "-ss".into(),
         req.start.clone(),
         "-i".into(),
-        req.video_path.clone(),
+        path_arg(&video_path),
         "-c".into(),
         "copy".into(),
     ];
@@ -421,10 +492,12 @@ async fn video_clip(
         args.push("-t".into());
         args.push(req.duration.clone());
     }
-    args.push(req.output_path.clone());
+    args.push(path_arg(&output_path));
 
     run_ffmpeg(&args).await?;
-    Ok(Json(serde_json::json!({ "status": "ok", "output_path": req.output_path })))
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "output_path": req.output_path }),
+    ))
 }
 
 // /media/video/probe
@@ -433,7 +506,20 @@ async fn video_probe(
 ) -> Result<Json<VideoProbeResponse>, MediaError> {
     info!("video probe: {}", req.video_path);
 
-    if !std::path::Path::new(&req.video_path).exists() {
+    let video_path = match resolve_input(&req.video_path) {
+        Ok(path) => path,
+        Err(MediaError::InputMissing(_)) => {
+            return Ok(Json(VideoProbeResponse {
+                exists: false,
+                duration_seconds: None,
+                width: None,
+                height: None,
+                size_bytes: None,
+            }));
+        }
+        Err(err) => return Err(err),
+    };
+    if !video_path.exists() {
         return Ok(Json(VideoProbeResponse {
             exists: false,
             duration_seconds: None,
@@ -443,7 +529,8 @@ async fn video_probe(
         }));
     }
 
-    let metadata = tokio::fs::metadata(&req.video_path).await?;
+    let metadata = tokio::fs::metadata(&video_path).await?;
+    let video_path_arg = path_arg(&video_path);
     let ffprobe = Command::new("ffprobe")
         .args([
             "-v",
@@ -454,7 +541,7 @@ async fn video_probe(
             "stream=width,height:format=duration",
             "-of",
             "json",
-            &req.video_path,
+            &video_path_arg,
         ])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -510,10 +597,16 @@ async fn main() {
         .route("/media/video/clip", post(video_clip))
         .route("/media/video/probe", post(video_probe));
 
-    let addr = std::env::var("AXIOM_MEDIA_ADDR").unwrap_or_else(|_| "0.0.0.0:8100".to_string());
+    let addr = std::env::var("AXIOM_MEDIA_ADDR").unwrap_or_else(|_| "127.0.0.1:8100".to_string());
+    let socket_addr: std::net::SocketAddr =
+        addr.parse().expect("AXIOM_MEDIA_ADDR must be host:port");
+    assert!(
+        socket_addr.ip().is_loopback(),
+        "media-plane refuses non-loopback bind addresses"
+    );
     info!("media-plane listening on {addr}");
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(socket_addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
@@ -536,9 +629,23 @@ mod tests {
     }
 
     #[test]
-    fn ensure_input_detects_missing_file() {
-        let err = tokio_test_block_on(ensure_input("/nonexistent/nope.png"));
+    fn resolve_input_detects_missing_file() {
+        let err = resolve_input("missing/nope.png");
         assert!(matches!(err, Err(MediaError::InputMissing(_))));
+    }
+
+    #[test]
+    fn media_paths_reject_parent_traversal() {
+        assert!(matches!(
+            resolve_output("../../outside.png"),
+            Err(MediaError::InvalidPath)
+        ));
+    }
+
+    #[test]
+    fn media_paths_accept_relative_outputs_under_root() {
+        let output = resolve_output("jobs/example/output.png").unwrap();
+        assert!(output.starts_with(media_root().unwrap()));
     }
 
     #[test]

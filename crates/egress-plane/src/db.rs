@@ -28,7 +28,10 @@ pub async fn load_configs(client: &mut Client) -> Result<Vec<NetworkConfig>, Str
     // Discover org ids from the rows themselves via a superuser-safe query:
     // we set the org GUC per distinct org and read that org's rows.
     let org_rows = client
-        .query("SELECT DISTINCT org_id FROM model_network_configs ORDER BY org_id", &[])
+        .query(
+            "SELECT DISTINCT org_id FROM model_network_configs ORDER BY org_id",
+            &[],
+        )
         .await
         .map_err(|e| format!("distinct org query failed: {e}"))?;
 
@@ -91,14 +94,15 @@ pub async fn load_configs(client: &mut Client) -> Result<Vec<NetworkConfig>, Str
 /// Decrypt a config's credential envelope with the supplied DEK.
 /// The returned `Creds` must be zeroized after use (LBI-05).
 pub fn decrypt_creds(cfg: &NetworkConfig, dek: Option<&[u8]>) -> Result<Option<Creds>, String> {
-    let (Some(enc), Some(nonce), Some(key)) = (cfg.enc_creds.as_deref(), cfg.enc_nonce.as_deref(), dek)
+    let (Some(enc), Some(nonce), Some(key)) =
+        (cfg.enc_creds.as_deref(), cfg.enc_nonce.as_deref(), dek)
     else {
         return Ok(None);
     };
     let plain = crate::crypto::decrypt_envelope(enc, nonce, key)
         .map_err(|e| format!("envelope decrypt failed: {e}"))?;
-    let creds: Creds = serde_json::from_slice(&plain)
-        .map_err(|e| format!("creds parse failed: {e}"))?;
+    let creds: Creds =
+        serde_json::from_slice(&plain).map_err(|e| format!("creds parse failed: {e}"))?;
     Ok(Some(creds))
 }
 
@@ -119,9 +123,11 @@ pub async fn save_health(
         .transaction()
         .await
         .map_err(|e| format!("tx begin failed: {e}"))?;
-    tx.batch_execute(&format!("SELECT set_config('app.current_org_id', '{org_id}', true)"))
-        .await
-        .map_err(|e| format!("set org ctx failed: {e}"))?;
+    tx.batch_execute(&format!(
+        "SELECT set_config('app.current_org_id', '{org_id}', true)"
+    ))
+    .await
+    .map_err(|e| format!("set org ctx failed: {e}"))?;
 
     tx.execute(
         "UPDATE model_network_configs
@@ -144,7 +150,9 @@ pub async fn save_health(
     if drift {
         error!(model_id = %model_id, "EGRESS IP DRIFT: expected policy violated");
     }
-    tx.commit().await.map_err(|e| format!("tx commit failed: {e}"))?;
+    tx.commit()
+        .await
+        .map_err(|e| format!("tx commit failed: {e}"))?;
     Ok(())
 }
 

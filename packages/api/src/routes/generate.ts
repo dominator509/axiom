@@ -88,25 +88,40 @@ async function retrieveTopExemplars(
       .limit(50),
   );
 
-  const sorted = rows.sort((a: { label: string; perfScore: number | null }, b: { label: string; perfScore: number | null }) => {
-    const la = labelOrder.indexOf(a.label) === -1 ? 3 : labelOrder.indexOf(a.label);
-    const lb = labelOrder.indexOf(b.label) === -1 ? 3 : labelOrder.indexOf(b.label);
-    if (la !== lb) return la - lb;
-    return (b.perfScore ?? 0) - (a.perfScore ?? 0);
-  });
+  const sorted = rows.sort(
+    (
+      a: { label: string; perfScore: number | null },
+      b: { label: string; perfScore: number | null },
+    ) => {
+      const la = labelOrder.indexOf(a.label) === -1 ? 3 : labelOrder.indexOf(a.label);
+      const lb = labelOrder.indexOf(b.label) === -1 ? 3 : labelOrder.indexOf(b.label);
+      if (la !== lb) return la - lb;
+      return (b.perfScore ?? 0) - (a.perfScore ?? 0);
+    },
+  );
 
-  return sorted.slice(0, limit).map((r: { id: string; platform: string; label: string; perfScore: number | null; features: unknown }) => {
-    const f = (r.features ?? {}) as Record<string, unknown>;
-    return {
-      id: r.id,
-      platform: (r.platform as ViralExemplar['platform']) ?? 'instagram',
-      title: (f.title as string) ?? '',
-      caption: (f.caption as string) ?? '',
-      hashtags: Array.isArray(f.hashtags) ? (f.hashtags as string[]) : [],
-      viralLabel: (r.label as ViralExemplar['viralLabel']) ?? 'baseline',
-      aiNotes: (f.aiNotes as string | null) ?? null,
-    };
-  });
+  return sorted
+    .slice(0, limit)
+    .map(
+      (r: {
+        id: string;
+        platform: string;
+        label: string;
+        perfScore: number | null;
+        features: unknown;
+      }) => {
+        const f = (r.features ?? {}) as Record<string, unknown>;
+        return {
+          id: r.id,
+          platform: (r.platform as ViralExemplar['platform']) ?? 'instagram',
+          title: (f.title as string) ?? '',
+          caption: (f.caption as string) ?? '',
+          hashtags: Array.isArray(f.hashtags) ? (f.hashtags as string[]) : [],
+          viralLabel: (r.label as ViralExemplar['viralLabel']) ?? 'baseline',
+          aiNotes: (f.aiNotes as string | null) ?? null,
+        };
+      },
+    );
 }
 
 const generateSchema = z.object({
@@ -123,21 +138,24 @@ const generateSchema = z.object({
 
 interface TextToSResult {
   verdict: 'pass' | 'review' | 'block';
-  scores: Array<{ platform: string; score: number; threshold: number; verdict: string; reasons: string[] }>;
+  scores: Array<{
+    platform: string;
+    score: number;
+    threshold: number;
+    verdict: string;
+    reasons: string[];
+  }>;
   reasons: string[];
 }
 
 /** Text-only ToS check (caption keywords, length, hashtag count) per platform. */
-function evaluateTextToS(
-  caption: string,
-  hashtags: string[],
-  platforms: string[],
-): TextToSResult {
+function evaluateTextToS(caption: string, hashtags: string[], platforms: string[]): TextToSResult {
   const scores: TextToSResult['scores'] = [];
   const allReasons = new Set<string>();
   for (const platform of platforms) {
     const rule = PLATFORM_RULES[platform as keyof typeof PLATFORM_RULES];
-    const threshold = DEFAULT_PLATFORM_THRESHOLDS[platform as keyof typeof DEFAULT_PLATFORM_THRESHOLDS] ?? 70;
+    const threshold =
+      DEFAULT_PLATFORM_THRESHOLDS[platform as keyof typeof DEFAULT_PLATFORM_THRESHOLDS] ?? 70;
     if (!rule) {
       scores.push({ platform, score: 0, threshold, verdict: 'pass', reasons: [] });
       continue;
@@ -145,15 +163,17 @@ function evaluateTextToS(
     const reasons: string[] = [];
     const captionLower = caption.toLowerCase();
     const blocked = rule.blockedKeywords.filter((kw) => captionLower.includes(kw.toLowerCase()));
-    if (blocked.length > 0) reasons.push(`Caption contains blocked keywords: ${blocked.join(', ')}`);
+    if (blocked.length > 0)
+      reasons.push(`Caption contains blocked keywords: ${blocked.join(', ')}`);
     if (caption.length > rule.maxCaptionLength) {
       reasons.push(`Caption exceeds ${rule.maxCaptionLength} chars (${caption.length})`);
     }
     if (hashtags.length > rule.maxHashtags) {
       reasons.push(`Hashtags (${hashtags.length}) exceed limit (${rule.maxHashtags})`);
     }
-    let score = blocked.length * 15;
-    const verdict: string = score >= threshold + 15 ? 'block' : score >= threshold ? 'review' : 'pass';
+    const score = blocked.length * 15;
+    const verdict: string =
+      score >= threshold + 15 ? 'block' : score >= threshold ? 'review' : 'pass';
     reasons.forEach((r) => allReasons.add(r));
     scores.push({ platform, score: Math.min(score, 100), threshold, verdict, reasons });
   }
@@ -227,7 +247,10 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema), asy
           }),
         });
         const chat = await gateway.chat(
-          [{ role: 'system', content: prompt }, { role: 'user', content: variants[0].prompt }],
+          [
+            { role: 'system', content: prompt },
+            { role: 'user', content: variants[0].prompt },
+          ],
           { model: body.model },
         );
         enrichedCaption = chat.content.trim();

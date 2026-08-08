@@ -1,11 +1,6 @@
 // ─── PrefixCache / ResponseCache / cacheKey / alignBlocks — Vitest Suite ───
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  PrefixCache,
-  ResponseCache,
-  cacheKey,
-  alignBlocks,
-} from './cache.js';
+import { PrefixCache, ResponseCache, cacheKey, alignBlocks } from './cache.js';
 
 describe('alignBlocks', () => {
   it('returns text unchanged when estimated tokens are already a multiple of 64', () => {

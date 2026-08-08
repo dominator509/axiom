@@ -21,9 +21,14 @@ impl Metrics {
         out.push_str("# TYPE egress_models_bound gauge\n");
         out.push_str(&format!("egress_models_bound {}\n", self.models_bound));
 
-        out.push_str("# HELP egress_kill_switch_enabled Whether the global egress kill switch is engaged.\n");
+        out.push_str(
+            "# HELP egress_kill_switch_enabled Whether the global egress kill switch is engaged.\n",
+        );
         out.push_str("# TYPE egress_kill_switch_enabled gauge\n");
-        out.push_str(&format!("egress_kill_switch_enabled {}\n", self.kill_switch as u8));
+        out.push_str(&format!(
+            "egress_kill_switch_enabled {}\n",
+            self.kill_switch as u8
+        ));
 
         out.push_str("# HELP egress_binds_total Total egress bind operations.\n");
         out.push_str("# TYPE egress_binds_total counter\n");
@@ -37,7 +42,10 @@ impl Metrics {
         out.push_str("# TYPE egress_health gauge\n");
         for (model, (mode, h)) in &self.health {
             let m = escape(model);
-            out.push_str(&format!("egress_health{{model=\"{m}\",mode=\"{mode}\"}} {}\n", h.healthy as u8));
+            out.push_str(&format!(
+                "egress_health{{model=\"{m}\",mode=\"{mode}\"}} {}\n",
+                h.healthy as u8
+            ));
         }
 
         out.push_str("# HELP egress_latency_ms Last echo-IP probe latency.\n");
@@ -49,18 +57,28 @@ impl Metrics {
             }
         }
 
-        out.push_str("# HELP egress_ip_drift 1 if the echo IP differs from the expected-IP policy.\n");
+        out.push_str(
+            "# HELP egress_ip_drift 1 if the echo IP differs from the expected-IP policy.\n",
+        );
         out.push_str("# TYPE egress_ip_drift gauge\n");
         for (model, (_mode, h)) in &self.health {
             let m = escape(model);
-            out.push_str(&format!("egress_ip_drift{{model=\"{m}\"}} {}\n", h.drift as u8));
+            out.push_str(&format!(
+                "egress_ip_drift{{model=\"{m}\"}} {}\n",
+                h.drift as u8
+            ));
         }
 
-        out.push_str("# HELP egress_fail_count Consecutive health-check failures for the model's egress.\n");
+        out.push_str(
+            "# HELP egress_fail_count Consecutive health-check failures for the model's egress.\n",
+        );
         out.push_str("# TYPE egress_fail_count gauge\n");
         for (model, (_mode, h)) in &self.health {
             let m = escape(model);
-            out.push_str(&format!("egress_fail_count{{model=\"{m}\"}} {}\n", h.fail_count));
+            out.push_str(&format!(
+                "egress_fail_count{{model=\"{m}\"}} {}\n",
+                h.fail_count
+            ));
         }
 
         out

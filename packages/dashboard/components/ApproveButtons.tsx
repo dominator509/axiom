@@ -3,7 +3,19 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const PLATFORMS = ['instagram', 'tiktok', 'x', 'youtube', 'reddit', 'threads', 'discord', 'telegram', 'facebook', 'snapchat', 'fanvue'];
+const PLATFORMS = [
+  'instagram',
+  'tiktok',
+  'x',
+  'youtube',
+  'reddit',
+  'threads',
+  'discord',
+  'telegram',
+  'facebook',
+  'snapchat',
+  'fanvue',
+];
 
 export default function ApproveButtons({
   bundleId,
@@ -73,15 +85,30 @@ export default function ApproveButtons({
       <div className="row">
         <label style={{ margin: 0 }}>
           Slot
-          <input type="datetime-local" value={slot} onChange={(e) => setSlot(e.target.value)} style={{ marginLeft: 8, width: 'auto' }} />
+          <input
+            type="datetime-local"
+            value={slot}
+            onChange={(e) => setSlot(e.target.value)}
+            style={{ marginLeft: 8, width: 'auto' }}
+          />
         </label>
       </div>
       {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
       <div className="row">
-        <button className="btn" type="button" disabled={busy || tosBlocked} onClick={() => act('approve')}>
+        <button
+          className="btn"
+          type="button"
+          disabled={busy || tosBlocked}
+          onClick={() => act('approve')}
+        >
           {tosBlocked ? 'Blocked by ToS' : 'Approve'}
         </button>
-        <button className="btn secondary" type="button" disabled={busy} onClick={() => act('revise')}>
+        <button
+          className="btn secondary"
+          type="button"
+          disabled={busy}
+          onClick={() => act('revise')}
+        >
           Revise
         </button>
         <button className="btn danger" type="button" disabled={busy} onClick={() => act('reject')}>

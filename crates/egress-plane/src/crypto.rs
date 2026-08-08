@@ -25,10 +25,7 @@ pub enum CryptoError {
 /// Generates a fresh random 24-byte nonce; returns `(ciphertext, nonce)`.
 /// Used by the control plane when persisting model egress credentials
 /// (L2.6: proxy/WG creds are envelope-encrypted at rest).
-pub fn encrypt_envelope(
-    plaintext: &[u8],
-    dek: &[u8],
-) -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
+pub fn encrypt_envelope(plaintext: &[u8], dek: &[u8]) -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
     if dek.len() != 32 {
         return Err(CryptoError::InvalidKeyLength(dek.len()));
     }
@@ -38,7 +35,13 @@ pub fn encrypt_envelope(
     let cipher = XChaCha20Poly1305::new_from_slice(dek)
         .map_err(|e| CryptoError::EncryptionFailed(format!("key init: {e}")))?;
     let ct = cipher
-        .encrypt(XNonce::from_slice(&nonce), Payload { msg: plaintext, aad: b"" })
+        .encrypt(
+            XNonce::from_slice(&nonce),
+            Payload {
+                msg: plaintext,
+                aad: b"",
+            },
+        )
         .map_err(|e| CryptoError::EncryptionFailed(format!("encrypt: {e}")))?;
     Ok((ct, nonce))
 }
@@ -76,10 +79,13 @@ pub fn decrypt_envelope(
 
     // Decrypt with associated data (AD) set to empty — no additional aad
     let plaintext = cipher
-        .decrypt(nonce, Payload {
-            msg: enc_token,
-            aad: b"",
-        })
+        .decrypt(
+            nonce,
+            Payload {
+                msg: enc_token,
+                aad: b"",
+            },
+        )
         .map_err(|e| CryptoError::DecryptionFailed(format!("decrypt: {}", e)))?;
 
     Ok(plaintext)
@@ -116,10 +122,13 @@ mod tests {
             .map_err(|e| CryptoError::DecryptionFailed(format!("key init: {0}", e)))?;
         let xnonce = XNonce::from_slice(nonce);
         cipher
-            .encrypt(xnonce, Payload {
-                msg: plaintext,
-                aad: b"",
-            })
+            .encrypt(
+                xnonce,
+                Payload {
+                    msg: plaintext,
+                    aad: b"",
+                },
+            )
             .map_err(|e| CryptoError::DecryptionFailed(format!("encrypt: {}", e)))
     }
 
@@ -129,11 +138,11 @@ mod tests {
         let nonce = random_bytes(24);
         let plaintext = b"Hello, egress plane! This is a test message.";
 
-        let ciphertext = encrypt_with_xchacha20(plaintext, &key, &nonce)
-            .expect("Encryption should succeed");
+        let ciphertext =
+            encrypt_with_xchacha20(plaintext, &key, &nonce).expect("Encryption should succeed");
 
-        let decrypted = decrypt_envelope(&ciphertext, &nonce, &key)
-            .expect("Decryption should succeed");
+        let decrypted =
+            decrypt_envelope(&ciphertext, &nonce, &key).expect("Decryption should succeed");
 
         assert_eq!(decrypted, plaintext, "Decrypted text must match original");
     }
@@ -145,8 +154,8 @@ mod tests {
         let nonce = random_bytes(24);
         let plaintext = b"Secret data";
 
-        let ciphertext = encrypt_with_xchacha20(plaintext, &key, &nonce)
-            .expect("Encryption should succeed");
+        let ciphertext =
+            encrypt_with_xchacha20(plaintext, &key, &nonce).expect("Encryption should succeed");
 
         let result = decrypt_envelope(&ciphertext, &nonce, &wrong_key);
         assert!(result.is_err(), "Decryption with wrong key should fail");
@@ -159,8 +168,8 @@ mod tests {
         let wrong_nonce = random_bytes(24);
         let plaintext = b"Secret data";
 
-        let ciphertext = encrypt_with_xchacha20(plaintext, &key, &nonce)
-            .expect("Encryption should succeed");
+        let ciphertext =
+            encrypt_with_xchacha20(plaintext, &key, &nonce).expect("Encryption should succeed");
 
         let result = decrypt_envelope(&ciphertext, &wrong_nonce, &key);
         assert!(result.is_err(), "Decryption with wrong nonce should fail");
@@ -172,8 +181,8 @@ mod tests {
         let nonce = random_bytes(24);
         let plaintext = b"Secret data";
 
-        let mut ciphertext = encrypt_with_xchacha20(plaintext, &key, &nonce)
-            .expect("Encryption should succeed");
+        let mut ciphertext =
+            encrypt_with_xchacha20(plaintext, &key, &nonce).expect("Encryption should succeed");
 
         // Tamper with the ciphertext
         if let Some(b) = ciphertext.get_mut(0) {

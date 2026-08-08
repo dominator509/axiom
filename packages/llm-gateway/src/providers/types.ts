@@ -39,7 +39,10 @@ export interface BaseProvider {
   readonly name: string;
   readonly model: string;
   chat(messages: ProviderMessage[], options?: ProviderOptions): Promise<ProviderChatResult>;
-  chatStream(messages: ProviderMessage[], options?: ProviderOptions): AsyncIterable<ProviderStreamChunk>;
+  chatStream(
+    messages: ProviderMessage[],
+    options?: ProviderOptions,
+  ): AsyncIterable<ProviderStreamChunk>;
 }
 
 export class ProviderError extends Error {

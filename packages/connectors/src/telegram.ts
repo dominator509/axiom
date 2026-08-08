@@ -58,7 +58,11 @@ export class TelegramConnector extends BaseConnector implements SocialConnector 
     const errors = [];
 
     if (!input.mediaUrls || input.mediaUrls.length === 0) {
-      errors.push({ field: 'mediaUrls', message: 'At least one media URL required for link share', severity: 'error' as const });
+      errors.push({
+        field: 'mediaUrls',
+        message: 'At least one media URL required for link share',
+        severity: 'error' as const,
+      });
     }
 
     return {
@@ -78,19 +82,22 @@ export class TelegramConnector extends BaseConnector implements SocialConnector 
 
       // Post content link with preview to Telegram channel
       const text = `${caption}\n\n${linkUrl}`;
-      const hashtags = input.hashtags?.length ? `\n\n${input.hashtags.map((h) => `#${h}`).join(' ')}` : '';
+      const hashtags = input.hashtags?.length
+        ? `\n\n${input.hashtags.map((h) => `#${h}`).join(' ')}`
+        : '';
 
-      const response = await this.apiPost<TelegramSendResponse>(
-        `${this.apiBase}/sendMessage`,
-        {
-          chat_id: channelId,
-          text: text + hashtags,
-          parse_mode: 'HTML',
-          disable_web_page_preview: false,
-        },
+      const response = await this.apiPost<TelegramSendResponse>(`${this.apiBase}/sendMessage`, {
+        chat_id: channelId,
+        text: text + hashtags,
+        parse_mode: 'HTML',
+        disable_web_page_preview: false,
+      });
+
+      this.log(
+        'info',
+        'publish',
+        `Telegram link shared to ${channelId}: msg ${response.result.message_id}`,
       );
-
-      this.log('info', 'publish', `Telegram link shared to ${channelId}: msg ${response.result.message_id}`);
 
       return {
         remoteId: String(response.result.message_id),

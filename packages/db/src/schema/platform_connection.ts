@@ -7,8 +7,12 @@ import { postTarget } from './post_target.js';
 
 export const platformConnection = pgTable('platform_connection', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id),
-  modelId: uuid('model_id').notNull().references(() => modelProfile.id),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id),
+  modelId: uuid('model_id')
+    .notNull()
+    .references(() => modelProfile.id),
   platform: text('platform').notNull(),
   displayName: text('display_name').notNull(),
   encToken: bytea('enc_token').notNull(),

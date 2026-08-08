@@ -27,7 +27,14 @@ function makeChain(): any {
 
 vi.mock('@axiom/db', () => {
   const schemaProxy = new Proxy<Record<string, unknown>>(
-    { relayCard: {}, postMetric: {}, postTarget: {}, contentBundle: {}, viralExemplar: {}, modelProfile: {} },
+    {
+      relayCard: {},
+      postMetric: {},
+      postTarget: {},
+      contentBundle: {},
+      viralExemplar: {},
+      modelProfile: {},
+    },
     {
       get(target, prop) {
         if (prop in target) return target[prop as string];
@@ -93,7 +100,9 @@ afterEach(() => {
 
 describe('digestWeekly executor', () => {
   it('computes digest aggregates and inserts a relay_card', async () => {
-    await expect(digestWeekly({ tx: makeChain(), job: makeJob(), killSwitchEnabled: false, workerId: 'w1' })).resolves.toBeUndefined();
+    await expect(
+      digestWeekly({ tx: makeChain(), job: makeJob(), killSwitchEnabled: false, workerId: 'w1' }),
+    ).resolves.toBeUndefined();
   });
 
   it('handles an org with zero metrics (all aggregates coalesced)', async () => {
@@ -110,6 +119,8 @@ describe('digestWeekly executor', () => {
         strong: 0,
       },
     ];
-    await expect(digestWeekly({ tx: makeChain(), job: makeJob(), killSwitchEnabled: false, workerId: 'w1' })).resolves.toBeUndefined();
+    await expect(
+      digestWeekly({ tx: makeChain(), job: makeJob(), killSwitchEnabled: false, workerId: 'w1' }),
+    ).resolves.toBeUndefined();
   });
 });

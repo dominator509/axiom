@@ -38,7 +38,9 @@ export class InboxTool {
       throw new Error(`Insufficient permissions: requires ${this.tier}, got ${permission.tier}`);
     }
     if (args.modelId !== permission.modelId) {
-      throw new Error(`Model mismatch: token scoped to ${permission.modelId}, requested ${args.modelId}`);
+      throw new Error(
+        `Model mismatch: token scoped to ${permission.modelId}, requested ${args.modelId}`,
+      );
     }
 
     if (args.action === 'read') {
@@ -65,14 +67,25 @@ export class InboxTool {
           .limit(20);
         // Scope in SQL would need fan join; filter in-memory is honest but
         // rows are already RLS-scoped to orgId (LBI-02).
-        return rows.filter((r: { fanId: string }) => fanIds.includes(r.fanId)).map((r: { id: string; fanId: string; platform: string; kind: string; content: string | null; ts: Date }) => ({
-          id: r.id,
-          fanId: r.fanId,
-          platform: r.platform,
-          kind: r.kind,
-          content: r.content,
-          receivedAt: r.ts,
-        }));
+        return rows
+          .filter((r: { fanId: string }) => fanIds.includes(r.fanId))
+          .map(
+            (r: {
+              id: string;
+              fanId: string;
+              platform: string;
+              kind: string;
+              content: string | null;
+              ts: Date;
+            }) => ({
+              id: r.id,
+              fanId: r.fanId,
+              platform: r.platform,
+              kind: r.kind,
+              content: r.content,
+              receivedAt: r.ts,
+            }),
+          );
       });
       return { success: true, tool: this.name, action: 'read', modelId: args.modelId, messages };
     }

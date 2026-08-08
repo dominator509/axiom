@@ -134,10 +134,7 @@ export function parseOrgSettings(value: unknown): OrgSettings {
 }
 
 /** Parse + validate a cursor-paginated envelope into CursorPage<T>. */
-export function parseCursorPage<T>(
-  value: unknown,
-  parseItem: (item: unknown) => T,
-): CursorPage<T> {
+export function parseCursorPage<T>(value: unknown, parseItem: (item: unknown) => T): CursorPage<T> {
   if (!isRecord(value)) {
     throw new Error('response shape: cursor page must be an object');
   }

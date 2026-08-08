@@ -23,7 +23,10 @@ beforeEach(async () => {
   capabilities = await import('./capabilities.js');
 });
 
-function fakeConnector(platform: Platform, capOverride?: Partial<ConnectorCapability>): SocialConnector {
+function fakeConnector(
+  platform: Platform,
+  capOverride?: Partial<ConnectorCapability>,
+): SocialConnector {
   const cap: ConnectorCapability = {
     publish: true,
     media: ['image'],

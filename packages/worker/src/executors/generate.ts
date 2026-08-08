@@ -77,7 +77,10 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
         }),
       });
       const chat = await gateway.chat(
-        [{ role: 'system', content: prompt }, { role: 'user', content: variants[0].prompt }],
+        [
+          { role: 'system', content: prompt },
+          { role: 'user', content: variants[0].prompt },
+        ],
         { model: payload.model },
       );
       caption = chat.content.trim();

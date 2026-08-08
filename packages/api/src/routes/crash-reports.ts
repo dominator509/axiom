@@ -27,7 +27,11 @@ const reportSchema = z.object({
 });
 
 /** Stable grouping key: service + message + first stack frame. */
-export function crashFingerprint(service: string, message: string, stacktrace: Array<Record<string, unknown>>): string {
+export function crashFingerprint(
+  service: string,
+  message: string,
+  stacktrace: Array<Record<string, unknown>>,
+): string {
   const firstFrame = stacktrace[0]?.function ?? stacktrace[0]?.filename ?? '';
   return createHash('sha256').update(`${service}|${message}|${firstFrame}`).digest('hex');
 }
@@ -39,7 +43,8 @@ router.post('/crash-reports', async (c) => {
   const parsed = reportSchema.safeParse(await c.req.json().catch(() => ({})));
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'invalid crash report body');
   const body = parsed.data;
-  const fingerprint = body.fingerprint ?? crashFingerprint(body.service, body.message, body.stacktrace);
+  const fingerprint =
+    body.fingerprint ?? crashFingerprint(body.service, body.message, body.stacktrace);
 
   const result = await withOrgContext(orgId, async (tx) => {
     // Single ON CONFLICT upsert: recurring fingerprint bumps count + refresh;
@@ -96,7 +101,9 @@ router.get('/crash-reports', async (c) => {
       .where(
         and(
           eq(schema.crashReport.orgId, orgId),
-          ...(status ? [eq(schema.crashReport.status, status as 'open' | 'resolved' | 'ignored')] : []),
+          ...(status
+            ? [eq(schema.crashReport.status, status as 'open' | 'resolved' | 'ignored')]
+            : []),
           ...cursorLt(schema.crashReport.lastSeen, schema.crashReport.id, cursor),
         ),
       )
@@ -106,7 +113,11 @@ router.get('/crash-reports', async (c) => {
   const last = rows[rows.length - 1];
   return c.json({
     data: rows,
-    meta: { total: rows.length, limit, next_cursor: nextCursor(last?.lastSeen, last?.id, limit, rows.length) },
+    meta: {
+      total: rows.length,
+      limit,
+      next_cursor: nextCursor(last?.lastSeen, last?.id, limit, rows.length),
+    },
   });
 });
 

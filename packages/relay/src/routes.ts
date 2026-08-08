@@ -36,11 +36,13 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
     try {
       const body = await c.req.json<BundleContent>();
       const card = deps.cardRenderer.renderBundleCard(body);
-      metricsRegistry.incrementCounter('relay_cards_sent', { platforms: body.targetPlatforms.join(',') });
+      metricsRegistry.incrementCounter('relay_cards_sent', {
+        platforms: body.targetPlatforms.join(','),
+      });
       return c.json({ success: true, card });
     } catch (err) {
       logger.error('Failed to generate card', err as Error);
-      return c.json({ success: false, error: (err as Error).message }, 500);
+      return c.json({ success: false, error: 'Failed to generate card' }, 500);
     }
   });
 
@@ -64,7 +66,7 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
       return c.json(result);
     } catch (err) {
       logger.error('Failed to process command', err as Error);
-      return c.json({ success: false, error: (err as Error).message }, 500);
+      return c.json({ success: false, error: 'Failed to process command' }, 500);
     }
   });
 
@@ -93,7 +95,7 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
       return c.json({ success: true, label });
     } catch (err) {
       logger.error('Failed to ingest metrics', err as Error);
-      return c.json({ success: false, error: (err as Error).message }, 500);
+      return c.json({ success: false, error: 'Failed to ingest metrics' }, 500);
     }
   });
 
@@ -104,7 +106,7 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
       const limit = parseInt(c.req.query('limit') ?? '10', 10);
       if (deps.viralPersistence) {
         // DB-backed path (M-7): read from viral_exemplar.
-        const orgId = (c.get('orgId') as string | undefined) ?? (c.req.query('orgId') ?? undefined);
+        const orgId = (c.get('orgId') as string | undefined) ?? c.req.query('orgId') ?? undefined;
         const exemplars = await deps.viralPersistence.listExemplars({ platform, limit, orgId });
         return c.json({ success: true, exemplars });
       }
@@ -112,7 +114,7 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
       return c.json({ success: true, exemplars });
     } catch (err) {
       logger.error('Failed to retrieve exemplars', err as Error);
-      return c.json({ success: false, error: (err as Error).message }, 500);
+      return c.json({ success: false, error: 'Failed to retrieve exemplars' }, 500);
     }
   });
 
@@ -135,7 +137,7 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
       return c.json({ success: true, incident });
     } catch (err) {
       logger.error('Failed to report incident', err as Error);
-      return c.json({ success: false, error: (err as Error).message }, 500);
+      return c.json({ success: false, error: 'Failed to report incident' }, 500);
     }
   });
 
@@ -150,7 +152,7 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
       return c.json({ success });
     } catch (err) {
       logger.error('Failed to replay DLQ', err as Error);
-      return c.json({ success: false, error: (err as Error).message }, 500);
+      return c.json({ success: false, error: 'Failed to replay incident' }, 500);
     }
   });
 

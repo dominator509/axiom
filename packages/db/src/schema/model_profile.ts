@@ -6,7 +6,9 @@ import { contentBundle } from './content_bundle.js';
 
 export const modelProfile = pgTable('model_profile', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id),
   displayName: text('display_name').notNull(),
   handle: text('handle').notNull(),
   avatarUrl: text('avatar_url'),

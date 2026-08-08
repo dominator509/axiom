@@ -133,10 +133,13 @@ describe('POST / — create config', () => {
     const encCreds = Buffer.from('cipher').toString('base64');
     const encNonce = Buffer.from('n'.repeat(24)).toString('base64');
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ enc_creds: encCreds, enc_nonce: encNonce, dek_id: 'egress-dek' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
+      new Response(
+        JSON.stringify({ enc_creds: encCreds, enc_nonce: encNonce, dek_id: 'egress-dek' }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
     );
     vi.stubGlobal('fetch', fetchMock);
     mockState.result = [
@@ -346,9 +349,11 @@ describe('Plane proxy endpoints', () => {
   it('GET /plane/health proxies the plane health check', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ status: 'ok', version: '0.1.0' }), { status: 200 }),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ status: 'ok', version: '0.1.0' }), { status: 200 }),
+        ),
     );
     const res = await appWithOrg('org-1').request('/plane/health');
     expect(res.status).toBe(200);
@@ -361,7 +366,11 @@ describe('Plane proxy endpoints', () => {
       'fetch',
       vi.fn().mockResolvedValue(
         new Response(
-          JSON.stringify({ status: 'ok', count: 1, models: [{ model_id: MODEL_ID, healthy: true }] }),
+          JSON.stringify({
+            status: 'ok',
+            count: 1,
+            models: [{ model_id: MODEL_ID, healthy: true }],
+          }),
           { status: 200 },
         ),
       ),
@@ -395,9 +404,11 @@ describe('Plane proxy endpoints', () => {
   });
 
   it('POST /plane/sync asks the plane to sync configs from the DB', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ status: 'synced', bound: 2 }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ status: 'synced', bound: 2 }), { status: 200 }),
+      );
     vi.stubGlobal('fetch', fetchMock);
     const res = await appWithOrg('org-1').request('/plane/sync', { method: 'POST' });
     expect(res.status).toBe(200);

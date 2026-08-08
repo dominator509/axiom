@@ -47,9 +47,20 @@ export class MetricsRegistry {
     }
   }
 
-  registerHistogram(name: string, help: string, buckets: number[] = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]): void {
+  registerHistogram(
+    name: string,
+    help: string,
+    buckets: number[] = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+  ): void {
     if (!this.histograms.has(name)) {
-      this.histograms.set(name, { name, help, buckets, values: new Array(buckets.length + 1).fill(0), sum: 0, count: 0 });
+      this.histograms.set(name, {
+        name,
+        help,
+        buckets,
+        values: new Array(buckets.length + 1).fill(0),
+        sum: 0,
+        count: 0,
+      });
     }
   }
 

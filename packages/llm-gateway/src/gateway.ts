@@ -10,51 +10,15 @@ import { resolveEgressProxy, buildEgressFetch } from './egress.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 import { v4 as uuid } from 'uuid';
-import {
-  callOpenAI,
-  streamOpenAI,
-  OPENAI_BASE_URL,
-} from './providers/openai.js';
-import {
-  callAnthropic,
-  streamAnthropic,
-  ANTHROPIC_BASE_URL,
-} from './providers/anthropic.js';
-import {
-  callDeepSeek,
-  streamDeepSeek,
-  DEEPSEEK_BASE_URL,
-} from './providers/deepseek.js';
-import {
-  callGrok,
-  streamGrok,
-  GROK_BASE_URL,
-} from './providers/grok.js';
-import {
-  callVenice,
-  streamVenice,
-  VENICE_BASE_URL,
-} from './providers/venice.js';
-import {
-  callMistral,
-  streamMistral,
-  MISTRAL_BASE_URL,
-} from './providers/mistral.js';
-import {
-  callLightning,
-  streamLightning,
-  LIGHTNING_BASE_URL,
-} from './providers/lightning.js';
-import {
-  callGoogle,
-  streamGoogle,
-  GOOGLE_BASE_URL,
-} from './providers/google.js';
-import {
-  callVLLM,
-  streamVLLM,
-  VLLM_BASE_URL,
-} from './providers/vllm.js';
+import { callOpenAI, streamOpenAI, OPENAI_BASE_URL } from './providers/openai.js';
+import { callAnthropic, streamAnthropic, ANTHROPIC_BASE_URL } from './providers/anthropic.js';
+import { callDeepSeek, streamDeepSeek, DEEPSEEK_BASE_URL } from './providers/deepseek.js';
+import { callGrok, streamGrok, GROK_BASE_URL } from './providers/grok.js';
+import { callVenice, streamVenice, VENICE_BASE_URL } from './providers/venice.js';
+import { callMistral, streamMistral, MISTRAL_BASE_URL } from './providers/mistral.js';
+import { callLightning, streamLightning, LIGHTNING_BASE_URL } from './providers/lightning.js';
+import { callGoogle, streamGoogle, GOOGLE_BASE_URL } from './providers/google.js';
+import { callVLLM, streamVLLM, VLLM_BASE_URL } from './providers/vllm.js';
 import { ResponseCache, PrefixCache } from './cache.js';
 import { Pipeline, type PipelineOptions } from './pipeline.js';
 import {
@@ -315,7 +279,7 @@ function calculateCost(
 }
 
 /** Sleep helper */
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Get env var — case-insensitive lookup, prefers upper-case */
 function getEnvVar(name: string): string | undefined {
@@ -355,7 +319,7 @@ export class LLMGateway {
     defaults: ProviderConfig[],
     overrides: Partial<ProviderConfig>[],
   ): ProviderConfig[] {
-    const map = new Map(defaults.map(d => [d.name, { ...d }]));
+    const map = new Map(defaults.map((d) => [d.name, { ...d }]));
     for (const o of overrides) {
       if (o.name && map.has(o.name)) {
         map.set(o.name, { ...map.get(o.name)!, ...o });
@@ -411,10 +375,7 @@ export class LLMGateway {
   }
 
   /** Select a provider based on policy and availability */
-  private selectProvider(
-    policy: ProviderPolicy = 'cost',
-    explicit?: string,
-  ): ProviderConfig[] {
+  private selectProvider(policy: ProviderPolicy = 'cost', explicit?: string): ProviderConfig[] {
     // If an explicit provider is requested, try it first
     if (explicit) {
       const cfg = this.providers.get(explicit);
@@ -423,7 +384,7 @@ export class LLMGateway {
     }
 
     // Filter to available providers (key present or no key required)
-    const available = Array.from(this.providers.values()).filter(p => {
+    const available = Array.from(this.providers.values()).filter((p) => {
       if (p.requiresKey && !getEnvVar(p.apiKeyEnv)) return false;
       return true;
     });
@@ -436,8 +397,7 @@ export class LLMGateway {
     const sorted = [...available];
     if (policy === 'cost') {
       sorted.sort(
-        (a, b) =>
-          a.costPer1KInput + a.costPer1KOutput - (b.costPer1KInput + b.costPer1KOutput),
+        (a, b) => a.costPer1KInput + a.costPer1KOutput - (b.costPer1KInput + b.costPer1KOutput),
       );
     } else if (policy === 'latency') {
       sorted.sort((a, b) => a.latencyRank - b.latencyRank);
@@ -529,13 +489,13 @@ export class LLMGateway {
         } else if (provider.name === 'anthropic') {
           const apiKey = getEnvVar('ANTHROPIC_API_KEY');
           if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-          const systemMsg = messages.find(m => m.role === 'system');
-          const chatMessages = messages.filter(m => m.role !== 'system');
+          const systemMsg = messages.find((m) => m.role === 'system');
+          const chatMessages = messages.filter((m) => m.role !== 'system');
           const res = await callAnthropic(
             apiKey,
             {
               model,
-              messages: chatMessages.map(m => ({ role: m.role, content: m.content })),
+              messages: chatMessages.map((m) => ({ role: m.role, content: m.content })),
               max_tokens: options.maxTokens ?? 4096,
               temperature: options.temperature,
               system: systemMsg?.content,
@@ -543,7 +503,7 @@ export class LLMGateway {
             options.signal,
             egressFetchImpl ?? fetch,
           );
-          content = res.content.map(c => c.text).join('');
+          content = res.content.map((c) => c.text).join('');
           promptTokens = res.usage.input_tokens;
           completionTokens = res.usage.output_tokens;
         } else if (provider.name === 'deepseek') {
@@ -677,10 +637,7 @@ export class LLMGateway {
    * Selects a provider (based on policy), checks cache, executes with retry,
    * falls back through the chain on failure.
    */
-  async chat(
-    messages: Message[],
-    options: ChatOptions = {},
-  ): Promise<ChatResult> {
+  async chat(messages: Message[], options: ChatOptions = {}): Promise<ChatResult> {
     const model = options.model;
     const temperature = options.temperature ?? 0.7;
     const maxTokens = options.maxTokens ?? 4096;
@@ -773,10 +730,7 @@ export class LLMGateway {
    * provider's prefix cache); only S3 varies per call. The >97% target is
    * measurable via getStats().tokenkiller.ratio.
    */
-  async chatWithTokenKiller(
-    messages: Message[],
-    options: ChatOptions,
-  ): Promise<ChatResult> {
+  async chatWithTokenKiller(messages: Message[], options: ChatOptions): Promise<ChatResult> {
     const tk = options.tokenkiller;
     if (!tk) {
       throw new Error('chatWithTokenKiller: tokenkiller options required');
@@ -833,10 +787,7 @@ export class LLMGateway {
    * Streaming chat completion.
    * Returns an AsyncIterable of content chunks.
    */
-  async chatStream(
-    messages: Message[],
-    options: ChatOptions = {},
-  ): Promise<AsyncIterable<string>> {
+  async chatStream(messages: Message[], options: ChatOptions = {}): Promise<AsyncIterable<string>> {
     const model = options.model;
     const temperature = options.temperature ?? 0.7;
     const maxTokens = options.maxTokens ?? 4096;
@@ -862,7 +813,16 @@ export class LLMGateway {
     const chain = this.buildFallbackChain(ordered);
 
     // Build a combined async generator that tries each provider in chain
-    const self = this;
+    const checkRateLimit = (providerName: string) => this.checkRateLimit(providerName);
+    const recordRequest = () => {
+      this.requestCount++;
+    };
+    const recordFailure = () => {
+      this.failureCount++;
+    };
+    const cacheResponse = (key: string, content: string) => {
+      this.cache.set(key, { content, usage: { prompt: 0, completion: 0 } });
+    };
     const egressFetchImpl = requiredOptions.egress
       ? await this.resolveEgressFetch(requiredOptions.model)
       : undefined;
@@ -872,7 +832,7 @@ export class LLMGateway {
       for (const provider of chain) {
         try {
           // Rate limit check
-          if (!self.checkRateLimit(provider.name)) {
+          if (!checkRateLimit(provider.name)) {
             throw new Error(`Rate limit exceeded for ${provider.name}`);
           }
 
@@ -897,13 +857,13 @@ export class LLMGateway {
           } else if (provider.name === 'anthropic') {
             const apiKey = getEnvVar('ANTHROPIC_API_KEY');
             if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-            const systemMsg = processedMessages.find(m => m.role === 'system');
-            const chatMessages = processedMessages.filter(m => m.role !== 'system');
+            const systemMsg = processedMessages.find((m) => m.role === 'system');
+            const chatMessages = processedMessages.filter((m) => m.role !== 'system');
             stream = streamAnthropic(
               apiKey,
               {
                 model: resolvedModel,
-                messages: chatMessages.map(m => ({ role: m.role, content: m.content })),
+                messages: chatMessages.map((m) => ({ role: m.role, content: m.content })),
                 max_tokens: requiredOptions.maxTokens ?? 4096,
                 temperature: requiredOptions.temperature,
                 system: systemMsg?.content,
@@ -1010,7 +970,7 @@ export class LLMGateway {
             throw new Error(`Unsupported provider for streaming: ${provider.name}`);
           }
 
-          self.requestCount++;
+          recordRequest();
           let fullContent = '';
           for await (const chunk of stream) {
             fullContent += chunk;
@@ -1019,15 +979,12 @@ export class LLMGateway {
 
           // Cache the full response
           const streamCacheKey = `${processedMessages}::${resolvedModel}`;
-          self.cache.set(streamCacheKey, {
-            content: fullContent,
-            usage: { prompt: 0, completion: 0 },
-          });
+          cacheResponse(streamCacheKey, fullContent);
 
           return; // Success — stop iterating fallback chain
         } catch (err) {
           lastError = err instanceof Error ? err : new Error(String(err));
-          self.failureCount++;
+          recordFailure();
           if (err instanceof DOMException && err.name === 'AbortError') {
             throw err;
           }

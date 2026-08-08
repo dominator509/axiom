@@ -138,7 +138,8 @@ export const api = {
     analytics: (id: string, days = 30) =>
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/analytics?days=${days}`),
     viral: (id: string) => apiFetch<{ data: unknown }>(`/api/v1/models/${id}/viral`),
-    playbookScore: (id: string) => apiFetch<{ data: unknown }>(`/api/v1/models/${id}/playbook-score`),
+    playbookScore: (id: string) =>
+      apiFetch<{ data: unknown }>(`/api/v1/models/${id}/playbook-score`),
     generate: (id: string, body: Record<string, unknown>) =>
       apiFetch<{ data: { bundle: ContentBundle; variants: unknown[]; tosReport: unknown } }>(
         `/api/v1/models/${id}/generate`,
@@ -181,7 +182,10 @@ export const api = {
   },
   audit: {
     list: () => apiFetch<{ data: Array<Record<string, unknown>> }>('/api/v1/audit'),
-    verify: () => apiFetch<{ data: { rows: number; valid: boolean; brokenAt?: string } }>('/api/v1/audit/verify'),
+    verify: () =>
+      apiFetch<{ data: { rows: number; valid: boolean; brokenAt?: string } }>(
+        '/api/v1/audit/verify',
+      ),
   },
   incidents: {
     list: () => apiFetch<{ data: Array<Record<string, unknown>> }>('/api/v1/incidents'),
@@ -190,7 +194,9 @@ export const api = {
   },
   social: {
     list: (modelId: string) =>
-      apiFetch<{ data: Array<Record<string, unknown>> }>(`/api/v1/social-accounts?modelId=${modelId}`),
+      apiFetch<{ data: Array<Record<string, unknown>> }>(
+        `/api/v1/social-accounts?modelId=${modelId}`,
+      ),
   },
   llm: {
     providers: () => apiFetch<{ providers: string[] }>('/api/v1/llm/providers'),

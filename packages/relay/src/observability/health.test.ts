@@ -15,10 +15,15 @@ describe('registerCheck / runAll', () => {
   it('aggregates healthy checks into an ok status', async () => {
     const registry = new HealthCheckRegistry();
     registry.registerCheck('db', async () => ({
-      name: 'db', status: 'ok' as const, message: 'fine', latencyMs: 1,
+      name: 'db',
+      status: 'ok' as const,
+      message: 'fine',
+      latencyMs: 1,
     }));
     registry.registerCheck('cache', async () => ({
-      name: 'cache', status: 'ok' as const, latencyMs: 2,
+      name: 'cache',
+      status: 'ok' as const,
+      latencyMs: 2,
     }));
     const status = await registry.runAll();
     expect(status.status).toBe('ok');
@@ -29,15 +34,29 @@ describe('registerCheck / runAll', () => {
   it('reports degraded when any check is degraded', async () => {
     const registry = new HealthCheckRegistry();
     registry.registerCheck('a', async () => ({ name: 'a', status: 'ok' as const, latencyMs: 0 }));
-    registry.registerCheck('b', async () => ({ name: 'b', status: 'degraded' as const, message: 'slow', latencyMs: 50 }));
+    registry.registerCheck('b', async () => ({
+      name: 'b',
+      status: 'degraded' as const,
+      message: 'slow',
+      latencyMs: 50,
+    }));
     const status = await registry.runAll();
     expect(status.status).toBe('degraded');
   });
 
   it('reports fail when any check fails (fail overrides degraded)', async () => {
     const registry = new HealthCheckRegistry();
-    registry.registerCheck('a', async () => ({ name: 'a', status: 'degraded' as const, latencyMs: 1 }));
-    registry.registerCheck('b', async () => ({ name: 'b', status: 'fail' as const, message: 'down', latencyMs: 1 }));
+    registry.registerCheck('a', async () => ({
+      name: 'a',
+      status: 'degraded' as const,
+      latencyMs: 1,
+    }));
+    registry.registerCheck('b', async () => ({
+      name: 'b',
+      status: 'fail' as const,
+      message: 'down',
+      latencyMs: 1,
+    }));
     const status = await registry.runAll();
     expect(status.status).toBe('fail');
   });

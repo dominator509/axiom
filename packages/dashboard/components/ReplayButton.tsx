@@ -29,7 +29,13 @@ export default function ReplayButton({ jobId }: { jobId: string }) {
 
   return (
     <span>
-      <button className="btn secondary" type="button" disabled={busy} onClick={replay} style={{ padding: '4px 10px', fontSize: 12 }}>
+      <button
+        className="btn secondary"
+        type="button"
+        disabled={busy}
+        onClick={replay}
+        style={{ padding: '4px 10px', fontSize: 12 }}
+      >
         {busy ? '…' : 'Replay'}
       </button>
       {msg && <span style={{ color: 'var(--muted)', marginLeft: 6, fontSize: 12 }}>{msg}</span>}

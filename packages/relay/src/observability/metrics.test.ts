@@ -78,7 +78,7 @@ describe('registerHistogram / observeHistogram', () => {
     registry.registerHistogram('h', 'help', [1, 2, 3]);
     registry.observeHistogram('h', 0.5); // bucket 1
     registry.observeHistogram('h', 2.5); // bucket 3
-    registry.observeHistogram('h', 99);  // +Inf overflow
+    registry.observeHistogram('h', 99); // +Inf overflow
     const out = registry.getMetrics();
     expect(out).toContain('h_bucket{le="1"} 1');
     expect(out).toContain('h_bucket{le="2"} 0');

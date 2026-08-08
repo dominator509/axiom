@@ -102,14 +102,10 @@ export class XConnector extends BaseConnector implements SocialConnector {
         body.media = { media_ids: mediaIds };
       }
 
-      const tweetResp = await this.apiPost<TweetResponse>(
-        `${TWITTER_API_BASE}/tweets`,
-        body,
-        {
-          Authorization: `Bearer ${this.auth.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      );
+      const tweetResp = await this.apiPost<TweetResponse>(`${TWITTER_API_BASE}/tweets`, body, {
+        Authorization: `Bearer ${this.auth.accessToken}`,
+        'Content-Type': 'application/json',
+      });
 
       const remoteId = tweetResp.data.id;
       this.log('info', 'publish', `Tweet published`, { remoteId });
@@ -264,7 +260,9 @@ export class XConnector extends BaseConnector implements SocialConnector {
 
       if (!appendResp.ok) {
         const appendBody = await appendResp.text().catch(() => '');
-        throw new Error(`X media APPEND failed at segment ${segmentIndex}: HTTP ${appendResp.status} — ${appendBody}`);
+        throw new Error(
+          `X media APPEND failed at segment ${segmentIndex}: HTTP ${appendResp.status} — ${appendBody}`,
+        );
       }
 
       segmentIndex++;
@@ -346,9 +344,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
       }
 
       if (info.state === 'failed') {
-        throw new Error(
-          `X media processing failed: ${info.error?.message ?? 'Unknown error'}`,
-        );
+        throw new Error(`X media processing failed: ${info.error?.message ?? 'Unknown error'}`);
       }
 
       this.log('info', 'pollMediaProcessing', `Media processing ${info.state}`, {

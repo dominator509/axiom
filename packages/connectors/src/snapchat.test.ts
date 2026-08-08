@@ -18,7 +18,10 @@ function input(overrides: Partial<ConnectorPublishInput> = {}): ConnectorPublish
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 afterEach(() => {
@@ -97,7 +100,10 @@ describe('publish', () => {
 
 describe('fetchMetrics', () => {
   it('fetches views and impressions from the Snap Kit insights endpoint', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ views: 500, impressions: 1200 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ views: 500, impressions: 1200 })),
+    );
     const c = new SnapchatConnector(AUTH);
     const metrics = await c.fetchMetrics('snap-1');
 
@@ -127,7 +133,9 @@ describe('revoke', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://kit.snapchat.com/v1/oauth/revoke');
     expect(init.method).toBe('DELETE');
-    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/x-www-form-urlencoded');
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe(
+      'application/x-www-form-urlencoded',
+    );
     expect(c.getLogs().some((l) => l.message === 'Snapchat access revoked')).toBe(true);
   });
 });

@@ -47,11 +47,22 @@ export default function NewModelForm() {
     <form onSubmit={onSubmit} className="card stack" style={{ minWidth: 300 }}>
       <div>
         <label htmlFor="displayName">Display name</label>
-        <input id="displayName" required value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+        <input
+          id="displayName"
+          required
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+        />
       </div>
       <div>
         <label htmlFor="handle">Handle</label>
-        <input id="handle" required value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="lunavex" />
+        <input
+          id="handle"
+          required
+          value={handle}
+          onChange={(e) => setHandle(e.target.value)}
+          placeholder="lunavex"
+        />
       </div>
       <div>
         <label htmlFor="bio">Bio (optional)</label>

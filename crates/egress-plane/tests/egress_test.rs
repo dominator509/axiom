@@ -1,6 +1,10 @@
+#[cfg(target_os = "linux")]
 use std::process::Command;
-use std::sync::{Arc, Mutex, OnceLock};
+#[cfg(target_os = "linux")]
+use std::sync::OnceLock;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
+#[cfg(target_os = "linux")]
 use tokio::sync::Mutex as AsyncMutex;
 
 // ---------------------------------------------------------------------------
@@ -12,7 +16,9 @@ use tokio::sync::Mutex as AsyncMutex;
 // race produced "Cannot open network namespace egress_it_failclosed_https"
 // (deleted by a sibling test while bind_egress was inside it). Any test that
 // creates a netns must hold this lock for its whole body.
+#[cfg(target_os = "linux")]
 static NETNS_LOCK: OnceLock<AsyncMutex<()>> = OnceLock::new();
+#[cfg(target_os = "linux")]
 fn netns_lock() -> &'static AsyncMutex<()> {
     NETNS_LOCK.get_or_init(|| AsyncMutex::new(()))
 }
@@ -50,7 +56,9 @@ async fn start_test_server_with_base(echo_url: String, base_octet: u16) -> Strin
         registry: Mutex::new(egress_plane::Registry::with_start(base_octet)),
     });
     let app = egress_plane::build_router_for_test(state);
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
     let addr = listener.local_addr().expect("addr");
     let base_url = format!("http://{}", addr);
     tokio::spawn(async move {
@@ -77,12 +85,12 @@ async fn start_echo_server(ip: &str) -> u16 {
     let ip = ip.to_string();
     let app = axum::Router::new().route(
         "/ip",
-        axum::routing::get(move || async move {
-            axum::Json(serde_json::json!({ "ip": ip }))
-        }),
+        axum::routing::get(move || async move { axum::Json(serde_json::json!({ "ip": ip })) }),
     );
     tokio::spawn(async move {
-        let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await.expect("echo bind");
+        let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
+            .await
+            .expect("echo bind");
         axum::serve(listener, app).await.expect("echo serve");
     });
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -92,6 +100,7 @@ async fn start_echo_server(ip: &str) -> u16 {
 /// Spawn the real egress-plane binary as a host-side "upstream proxy"
 /// (direct upstream). Represents the model's approved external egress proxy.
 /// Returns (port, child).
+#[cfg(target_os = "linux")]
 fn spawn_host_upstream_proxy() -> (u16, std::process::Child) {
     let port = free_port();
     let child = Command::new(sidecar_bin())
@@ -122,6 +131,7 @@ fn bind_json(model_id: &str, mode: &str, extra: serde_json::Value) -> serde_json
 }
 
 /// Clean up any leftover netns/veth/wg from failed runs.
+#[cfg(target_os = "linux")]
 fn cleanup_leftovers() {
     for ns in [
         "egress_it_socks_m1",
@@ -147,8 +157,12 @@ fn cleanup_leftovers() {
             }
         }
     }
-    let _ = Command::new("ip").args(["link", "del", "wg-host-test"]).output();
-    let _ = Command::new("rm").args(["-f", "/tmp/wg_priv_host_test", "/tmp/wg_peer_host_test"]).status();
+    let _ = Command::new("ip")
+        .args(["link", "del", "wg-host-test"])
+        .output();
+    let _ = Command::new("rm")
+        .args(["-f", "/tmp/wg_priv_host_test", "/tmp/wg_peer_host_test"])
+        .status();
 }
 
 // ---------------------------------------------------------------------------
@@ -208,7 +222,11 @@ async fn test_kill_switch_drain_and_status() {
 async fn test_kill_switch_blocks_bind() {
     let base_url = start_test_server("http://127.0.0.1:9/ip".to_string()).await;
     let client = reqwest::Client::new();
-    client.post(format!("{base_url}/kill-switch/drain")).send().await.expect("drain");
+    client
+        .post(format!("{base_url}/kill-switch/drain"))
+        .send()
+        .await
+        .expect("drain");
     let resp = client
         .post(format!("{base_url}/egress/bind"))
         .json(&bind_json("it_ks_blocked", "direct", serde_json::json!({})))
@@ -240,7 +258,13 @@ async fn test_decrypt_endpoint_roundtrip() {
     let plaintext = b"egress envelope secret";
     let cipher = XChaCha20Poly1305::new_from_slice(&key).unwrap();
     let ciphertext = cipher
-        .encrypt(XNonce::from_slice(&nonce), Payload { msg: plaintext, aad: b"" })
+        .encrypt(
+            XNonce::from_slice(&nonce),
+            Payload {
+                msg: plaintext,
+                aad: b"",
+            },
+        )
         .expect("encrypt");
 
     let resp = client
@@ -302,7 +326,13 @@ async fn test_encrypt_endpoint_roundtrip() {
     // Decrypt the envelope externally and confirm the plaintext round-trips.
     let cipher = XChaCha20Poly1305::new_from_slice(&key).unwrap();
     let decrypted = cipher
-        .decrypt(XNonce::from_slice(&enc_nonce), Payload { msg: &enc_creds, aad: b"" })
+        .decrypt(
+            XNonce::from_slice(&enc_nonce),
+            Payload {
+                msg: &enc_creds,
+                aad: b"",
+            },
+        )
         .expect("decrypt");
     assert_eq!(decrypted, plaintext);
 }
@@ -330,7 +360,9 @@ async fn test_encrypt_endpoint_rejects_bad_dek() {
 // https:// echo targets and measured the HOST route — reporting healthy:true
 // through a DEAD upstream. A dead upstream must report healthy:false even
 // when the echo endpoint is HTTPS (the default api.ipify.org).
+#[cfg(target_os = "linux")]
 #[tokio::test]
+#[ignore = "requires root and Linux network namespace privileges"]
 async fn test_fail_closed_with_https_echo_and_dead_upstream() {
     let _guard = netns_lock().lock().await;
     cleanup_leftovers();
@@ -339,10 +371,14 @@ async fn test_fail_closed_with_https_echo_and_dead_upstream() {
 
     let resp = client
         .post(format!("{base_url}/egress/bind"))
-        .json(&bind_json("it_failclosed_https", "http", serde_json::json!({
-            // 127.0.0.1:1 — nothing listens; the chain MUST fail closed.
-            "proxy_addr": "127.0.0.1:1"
-        })))
+        .json(&bind_json(
+            "it_failclosed_https",
+            "http",
+            serde_json::json!({
+                // 127.0.0.1:1 — nothing listens; the chain MUST fail closed.
+                "proxy_addr": "127.0.0.1:1"
+            }),
+        ))
         .send()
         .await
         .expect("bind");
@@ -350,8 +386,14 @@ async fn test_fail_closed_with_https_echo_and_dead_upstream() {
     eprintln!("FAIL-CLOSED HTTPS BIND: {body}");
     // Bind itself may succeed (netns + sidecar up) — but the FIRST probe
     // must report the egress unhealthy, never the host's route.
-    assert_eq!(body["healthy"], false, "dead upstream with https echo must be unhealthy: {body}");
-    assert_eq!(body["status"], "bound", "bind should still complete: {body}");
+    assert_eq!(
+        body["healthy"], false,
+        "dead upstream with https echo must be unhealthy: {body}"
+    );
+    assert_eq!(
+        body["status"], "bound",
+        "bind should still complete: {body}"
+    );
 
     let status: serde_json::Value = client
         .get(format!("{base_url}/egress/status"))
@@ -361,7 +403,10 @@ async fn test_fail_closed_with_https_echo_and_dead_upstream() {
         .json()
         .await
         .expect("json");
-    assert_eq!(status["models"][0]["healthy"], false, "status must reflect unhealthy: {status}");
+    assert_eq!(
+        status["models"][0]["healthy"], false,
+        "status must reflect unhealthy: {status}"
+    );
 
     let unbind = client
         .post(format!("{base_url}/egress/unbind"))
@@ -384,9 +429,13 @@ async fn test_direct_mode_bind_and_health() {
 
     let resp = client
         .post(format!("{base_url}/egress/bind"))
-        .json(&bind_json("it_direct_m1", "direct", serde_json::json!({
-            "expected_egress_ip": "203.0.113.7"
-        })))
+        .json(&bind_json(
+            "it_direct_m1",
+            "direct",
+            serde_json::json!({
+                "expected_egress_ip": "203.0.113.7"
+            }),
+        ))
         .send()
         .await
         .expect("bind");
@@ -417,7 +466,9 @@ async fn test_direct_mode_bind_and_health() {
 // The netns has a blackhole default route; the ONLY reachable host is the
 // approved upstream proxy — this is the LBI-02 fail-closed proof.
 
+#[cfg(target_os = "linux")]
 #[tokio::test]
+#[ignore = "requires root and Linux network namespace privileges"]
 async fn test_socks5_proxy_mode_full_chain() {
     let _guard = netns_lock().lock().await;
     cleanup_leftovers();
@@ -427,17 +478,22 @@ async fn test_socks5_proxy_mode_full_chain() {
     // ECHO_URL target is reached by the host-side upstream proxy, so it lives
     // on the host loopback. The model's sidecar connects to the upstream
     // proxy via the host-side veth IP (allow-listed in the netns).
-    let base_url = start_test_server_with_base(format!("http://127.0.0.1:{echo_port}/ip"), 10).await;
+    let base_url =
+        start_test_server_with_base(format!("http://127.0.0.1:{echo_port}/ip"), 10).await;
     let client = reqwest::Client::new();
 
     // Fresh registry with base 10 -> first bind gets octet 10 -> host veth
     // 10.240.10.1 (proxy path) / sidecar reachable at 10.240.10.2:8080.
     let resp = client
         .post(format!("{base_url}/egress/bind"))
-        .json(&bind_json("it_socks_m1", "socks5", serde_json::json!({
-            "proxy_addr": format!("10.240.10.1:{upstream_port}"),
-            "expected_egress_ip": echo_ip
-        })))
+        .json(&bind_json(
+            "it_socks_m1",
+            "socks5",
+            serde_json::json!({
+                "proxy_addr": format!("10.240.10.1:{upstream_port}"),
+                "expected_egress_ip": echo_ip
+            }),
+        ))
         .send()
         .await
         .expect("bind");
@@ -446,8 +502,14 @@ async fn test_socks5_proxy_mode_full_chain() {
     assert_eq!(status_code, 200, "bind failed: {body}");
     eprintln!("SOCKS BIND: {}", body);
     assert_eq!(body["status"], "bound", "bind: {body}");
-    assert_eq!(body["healthy"], true, "full chain should be healthy: {body}");
-    assert_eq!(body["egress_ip"], echo_ip, "egress IP via proxy chain: {body}");
+    assert_eq!(
+        body["healthy"], true,
+        "full chain should be healthy: {body}"
+    );
+    assert_eq!(
+        body["egress_ip"], echo_ip,
+        "egress IP via proxy chain: {body}"
+    );
     assert_eq!(body["drift"], false);
 
     // Status endpoint reflects the bound model.
@@ -472,7 +534,10 @@ async fn test_socks5_proxy_mode_full_chain() {
         .text()
         .await
         .expect("text");
-    assert!(metrics.contains("egress_health{model=\"it_socks_m1\",mode=\"socks5\"} 1"), "metrics: {metrics}");
+    assert!(
+        metrics.contains("egress_health{model=\"it_socks_m1\",mode=\"socks5\"} 1"),
+        "metrics: {metrics}"
+    );
     assert!(metrics.contains("egress_models_bound 1"));
 
     // Fail-closed proof: unbind, then the netns is gone.
@@ -492,7 +557,9 @@ async fn test_socks5_proxy_mode_full_chain() {
 // REAL integration: wireguard tunnel mode with a local WG pair
 // ---------------------------------------------------------------------------
 
+#[cfg(target_os = "linux")]
 #[tokio::test]
+#[ignore = "requires root, Linux network namespaces, and WireGuard tools"]
 async fn test_wireguard_tunnel_mode_full_chain() {
     let _guard = netns_lock().lock().await;
     cleanup_leftovers();
@@ -508,17 +575,61 @@ async fn test_wireguard_tunnel_mode_full_chain() {
     let pub_client = wg_pubkey(&priv_client);
 
     // Host wg interface.
-    let _ = Command::new("ip").args(["link", "del", "wg-host-test"]).output();
-    assert!(Command::new("ip").args(["link", "add", "wg-host-test", "type", "wireguard"]).status().expect("wg add").success());
+    let _ = Command::new("ip")
+        .args(["link", "del", "wg-host-test"])
+        .output();
+    assert!(Command::new("ip")
+        .args(["link", "add", "wg-host-test", "type", "wireguard"])
+        .status()
+        .expect("wg add")
+        .success());
     // The host interface must listen on the veth host IP — created at bind
     // time. Register the peer first; the listen IP is bound later in the test
     // flow: we instead listen on 0.0.0.0:51820 to decouple.
-    let _ = Command::new("bash").args(["-c", &format!("printf '%s' '{}' > /tmp/wg_priv_host_test", priv_host)]).status();
-    assert!(Command::new("wg").args(["set", "wg-host-test", "listen-port", "51820", "private-key", "/tmp/wg_priv_host_test"]).status().expect("wg set").success());
-    let _ = Command::new("bash").args(["-c", &format!("printf '%s' '{}' > /tmp/wg_peer_host_test", pub_client)]).status();
-    assert!(Command::new("wg").args(["set", "wg-host-test", "peer", &pub_client, "allowed-ips", "10.0.0.2/32"]).status().expect("wg peer").success());
-    let _ = Command::new("ip").args(["address", "add", "10.0.0.1/24", "dev", "wg-host-test"]).output();
-    assert!(Command::new("ip").args(["link", "set", "wg-host-test", "up"]).status().expect("wg up").success());
+    let _ = Command::new("bash")
+        .args([
+            "-c",
+            &format!("printf '%s' '{}' > /tmp/wg_priv_host_test", priv_host),
+        ])
+        .status();
+    assert!(Command::new("wg")
+        .args([
+            "set",
+            "wg-host-test",
+            "listen-port",
+            "51820",
+            "private-key",
+            "/tmp/wg_priv_host_test"
+        ])
+        .status()
+        .expect("wg set")
+        .success());
+    let _ = Command::new("bash")
+        .args([
+            "-c",
+            &format!("printf '%s' '{}' > /tmp/wg_peer_host_test", pub_client),
+        ])
+        .status();
+    assert!(Command::new("wg")
+        .args([
+            "set",
+            "wg-host-test",
+            "peer",
+            &pub_client,
+            "allowed-ips",
+            "10.0.0.2/32"
+        ])
+        .status()
+        .expect("wg peer")
+        .success());
+    let _ = Command::new("ip")
+        .args(["address", "add", "10.0.0.1/24", "dev", "wg-host-test"])
+        .output();
+    assert!(Command::new("ip")
+        .args(["link", "set", "wg-host-test", "up"])
+        .status()
+        .expect("wg up")
+        .success());
     std::thread::sleep(Duration::from_millis(200));
 
     let base_url = start_test_server_with_base(format!("http://10.0.0.1:{echo_port}/ip"), 20).await;
@@ -526,15 +637,19 @@ async fn test_wireguard_tunnel_mode_full_chain() {
 
     let resp = client
         .post(format!("{base_url}/egress/bind"))
-        .json(&bind_json("it_wg_m1", "wireguard", serde_json::json!({
-            "wg_public_key": pub_host,
-            "wg_endpoint": "10.240.20.1:51820",
-            "wg_allowed_ips": "0.0.0.0/0",
-            "wg_private_key": priv_client,
-            "wg_persistent_keepalive": 25,
-            "iface_addr": "10.0.0.2/32",
-            "expected_egress_ip": echo_ip
-        })))
+        .json(&bind_json(
+            "it_wg_m1",
+            "wireguard",
+            serde_json::json!({
+                "wg_public_key": pub_host,
+                "wg_endpoint": "10.240.20.1:51820",
+                "wg_allowed_ips": "0.0.0.0/0",
+                "wg_private_key": priv_client,
+                "wg_persistent_keepalive": 25,
+                "iface_addr": "10.0.0.2/32",
+                "expected_egress_ip": echo_ip
+            }),
+        ))
         .send()
         .await
         .expect("bind");
@@ -575,19 +690,38 @@ async fn test_wireguard_tunnel_mode_full_chain() {
         .await
         .expect("unbind");
     assert_eq!(unbind.status(), 200);
-    let _ = Command::new("ip").args(["link", "del", "wg-host-test"]).output();
-    let _ = Command::new("rm").args(["-f", "/tmp/wg_priv_host_test", "/tmp/wg_peer_host_test"]).status();
+    let _ = Command::new("ip")
+        .args(["link", "del", "wg-host-test"])
+        .output();
+    let _ = Command::new("rm")
+        .args(["-f", "/tmp/wg_priv_host_test", "/tmp/wg_peer_host_test"])
+        .status();
 }
 
+#[cfg(target_os = "linux")]
 fn wg_genkey() -> String {
-    let out = Command::new("wg").arg("genkey").output().expect("wg genkey");
+    let out = Command::new("wg")
+        .arg("genkey")
+        .output()
+        .expect("wg genkey");
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
+#[cfg(target_os = "linux")]
 fn wg_pubkey(privkey: &str) -> String {
-    let mut child = Command::new("wg").arg("pubkey").stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).spawn().expect("wg pubkey spawn");
+    let mut child = Command::new("wg")
+        .arg("pubkey")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .expect("wg pubkey spawn");
     use std::io::Write;
-    child.stdin.as_mut().unwrap().write_all(privkey.as_bytes()).expect("write");
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(privkey.as_bytes())
+        .expect("write");
     let out = child.wait_with_output().expect("wg pubkey out");
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
@@ -596,14 +730,17 @@ fn wg_pubkey(privkey: &str) -> String {
 // Failover: unhealthy primary -> approved alternate egress
 // ---------------------------------------------------------------------------
 
+#[cfg(target_os = "linux")]
 #[tokio::test]
+#[ignore = "requires root and Linux network namespace privileges"]
 async fn test_failover_to_approved_alternate_egress() {
     let _guard = netns_lock().lock().await;
     cleanup_leftovers();
     let echo_ip = "192.0.2.55";
     let echo_port = start_echo_server(echo_ip).await;
     let (backup_port, mut backup_child) = spawn_host_upstream_proxy();
-    let base_url = start_test_server_with_base(format!("http://127.0.0.1:{echo_port}/ip"), 30).await;
+    let base_url =
+        start_test_server_with_base(format!("http://127.0.0.1:{echo_port}/ip"), 30).await;
     let client = reqwest::Client::new();
 
     // Primary proxy: a port with nothing listening (dead).
@@ -611,17 +748,24 @@ async fn test_failover_to_approved_alternate_egress() {
     // Fresh registry with base 30 -> octet 30 -> host veth 10.240.30.1.
     let resp = client
         .post(format!("{base_url}/egress/bind"))
-        .json(&bind_json("it_failover_m1", "http", serde_json::json!({
-            "proxy_addr": format!("10.240.30.1:{dead_port}"),
-            "failover_proxy_addrs": [format!("10.240.30.1:{backup_port}")],
-            "expected_egress_ip": echo_ip
-        })))
+        .json(&bind_json(
+            "it_failover_m1",
+            "http",
+            serde_json::json!({
+                "proxy_addr": format!("10.240.30.1:{dead_port}"),
+                "failover_proxy_addrs": [format!("10.240.30.1:{backup_port}")],
+                "expected_egress_ip": echo_ip
+            }),
+        ))
         .send()
         .await
         .expect("bind");
     assert_eq!(resp.status(), 200, "bind failed");
     let body: serde_json::Value = resp.json().await.expect("json");
-    assert_eq!(body["healthy"], false, "dead primary must report unhealthy: {body}");
+    assert_eq!(
+        body["healthy"], false,
+        "dead primary must report unhealthy: {body}"
+    );
 
     // Trigger health-check: should fail over to the backup and become healthy.
     let hc: serde_json::Value = client
@@ -644,7 +788,10 @@ async fn test_failover_to_approved_alternate_egress() {
         .json()
         .await
         .expect("json");
-    assert_eq!(status["models"][0]["failover_index"], 1, "failover index should advance");
+    assert_eq!(
+        status["models"][0]["failover_index"], 1,
+        "failover index should advance"
+    );
 
     // Cleanup.
     let _ = client

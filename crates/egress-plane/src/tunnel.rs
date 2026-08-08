@@ -32,7 +32,11 @@ impl TunnelSpec {
     /// Parse from a raw NetworkConfig + decrypted private key.
     /// `iface_addr` is derived from the allowed-ips' first /32 for simplicity
     /// — production configs may pin it explicitly in the creds envelope.
-    pub fn from_config(cfg: &NetworkConfig, private_key: &str, iface_addr: &str) -> Result<Self, String> {
+    pub fn from_config(
+        cfg: &NetworkConfig,
+        private_key: &str,
+        iface_addr: &str,
+    ) -> Result<Self, String> {
         let peer_pubkey = cfg
             .wg_public_key
             .as_deref()
@@ -41,10 +45,7 @@ impl TunnelSpec {
             .wg_endpoint
             .as_deref()
             .ok_or("wireguard mode requires wg_endpoint")?;
-        let allowed_ips = cfg
-            .wg_allowed_ips
-            .as_deref()
-            .unwrap_or("0.0.0.0/0");
+        let allowed_ips = cfg.wg_allowed_ips.as_deref().unwrap_or("0.0.0.0/0");
 
         // Validate the private key the same way as any WG key (44 base64 chars).
         NetworkConfig::sanitize_key(private_key)?;
@@ -72,7 +73,12 @@ impl TunnelSpec {
 ///   3. assign the tunnel address
 ///   4. bring the interface up (route via allowed-ips is automatic)
 #[instrument(skip_all)]
-pub fn bring_up_tunnel(ns: &str, spec: &TunnelSpec, private_key: &str, preshared_key: Option<&str>) -> io::Result<()> {
+pub fn bring_up_tunnel(
+    ns: &str,
+    spec: &TunnelSpec,
+    private_key: &str,
+    preshared_key: Option<&str>,
+) -> io::Result<()> {
     let exec = |args: &[&str]| -> io::Result<String> { crate::netns::execute_in_netns(ns, args) };
 
     // Create the interface.
@@ -113,7 +119,14 @@ pub fn bring_up_tunnel(ns: &str, spec: &TunnelSpec, private_key: &str, preshared
     let _ = std::fs::remove_file(&key_file);
 
     // Assign the tunnel address and bring it up.
-    exec(&["ip", "address", "add", &spec.iface_addr, "dev", TUNNEL_IFACE])?;
+    exec(&[
+        "ip",
+        "address",
+        "add",
+        &spec.iface_addr,
+        "dev",
+        TUNNEL_IFACE,
+    ])?;
     exec(&["ip", "link", "set", TUNNEL_IFACE, "up"])?;
 
     // wg-quick semantics: the kernel does NOT add allowed-ips routes until
@@ -141,7 +154,10 @@ pub fn tunnel_has_handshake(ns: &str) -> bool {
     match crate::netns::execute_in_netns(ns, &["wg", "show", TUNNEL_IFACE, "latest-handshakes"]) {
         Ok(out) => {
             // Format: <peer-pubkey>\t<unix-seconds>; non-zero time = handshake.
-            out.split_whitespace().nth(1).map(|t| t != "0").unwrap_or(false)
+            out.split_whitespace()
+                .nth(1)
+                .map(|t| t != "0")
+                .unwrap_or(false)
         }
         Err(e) => {
             warn!(netns = %ns, error = %e, "wg show failed");
@@ -176,7 +192,12 @@ mod tests {
     #[test]
     fn tunnel_spec_parses() {
         let cfg = base_cfg();
-        let spec = TunnelSpec::from_config(&cfg, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "10.7.0.2/32").unwrap();
+        let spec = TunnelSpec::from_config(
+            &cfg,
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "10.7.0.2/32",
+        )
+        .unwrap();
         assert_eq!(spec.peer_pubkey, cfg.wg_public_key.unwrap());
         assert_eq!(spec.endpoint, "vpn.example.com:51820");
         assert_eq!(spec.allowed_ips, "0.0.0.0/0");
@@ -187,10 +208,20 @@ mod tests {
     fn tunnel_spec_rejects_unsafe_input() {
         let mut cfg = base_cfg();
         cfg.wg_endpoint = Some("$(evil)".to_string());
-        assert!(TunnelSpec::from_config(&cfg, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "10.7.0.2/32").is_err());
+        assert!(TunnelSpec::from_config(
+            &cfg,
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "10.7.0.2/32"
+        )
+        .is_err());
 
         let mut cfg2 = base_cfg();
         cfg2.wg_public_key = None;
-        assert!(TunnelSpec::from_config(&cfg2, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "10.7.0.2/32").is_err());
+        assert!(TunnelSpec::from_config(
+            &cfg2,
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            "10.7.0.2/32"
+        )
+        .is_err());
     }
 }

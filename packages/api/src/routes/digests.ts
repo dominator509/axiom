@@ -61,7 +61,11 @@ router.get('/digests', async (c) => {
   const last = rows[rows.length - 1];
   return c.json({
     data: rows,
-    meta: { total: rows.length, limit, next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length) },
+    meta: {
+      total: rows.length,
+      limit,
+      next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length),
+    },
   });
 });
 

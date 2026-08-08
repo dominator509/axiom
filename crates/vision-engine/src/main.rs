@@ -9,7 +9,7 @@ use image::GenericImageView;
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::value::TensorRef;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use thiserror::Error;
 
@@ -30,17 +30,24 @@ enum VisionError {
 
     #[error("Invalid override '{0}' — expected one of: pass, review, block")]
     InvalidOverride(String),
+
+    #[error("Image path is outside the configured media root")]
+    InvalidPath,
+
+    #[error("Vision model is unavailable")]
+    ModelUnavailable,
 }
 
 impl IntoResponse for VisionError {
     fn into_response(self) -> axum::response::Response {
         let (status, msg) = match &self {
-            VisionError::ImageLoad(_, _) | VisionError::InvalidOverride(_) => {
-                (StatusCode::BAD_REQUEST, self.to_string())
-            }
+            VisionError::ImageLoad(_, _)
+            | VisionError::InvalidOverride(_)
+            | VisionError::InvalidPath => (StatusCode::BAD_REQUEST, self.to_string()),
             VisionError::Internal(_) | VisionError::Onnx(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
             }
+            VisionError::ModelUnavailable => (StatusCode::SERVICE_UNAVAILABLE, self.to_string()),
         };
         (status, Json(serde_json::json!({ "error": msg }))).into_response()
     }
@@ -111,6 +118,35 @@ struct ImageMetrics {
     avg_brightness: f64,
     std_dev_brightness: f64,
     aspect_ratio: f64,
+}
+
+/// Keep the unauthenticated vision sidecar from becoming a host-file oracle.
+/// It shares the same repository-local media boundary as media-plane.
+fn media_root() -> Result<PathBuf, VisionError> {
+    let root = std::env::current_dir()
+        .map_err(|e| VisionError::Internal(e.to_string()))?
+        .join("var")
+        .join("media");
+    std::fs::create_dir_all(&root).map_err(|e| VisionError::Internal(e.to_string()))?;
+    root.canonicalize()
+        .map_err(|e| VisionError::Internal(e.to_string()))
+}
+
+fn resolve_image_path(path: &str) -> Result<PathBuf, VisionError> {
+    let root = media_root()?;
+    let supplied = Path::new(path);
+    let candidate = if supplied.is_absolute() {
+        supplied.to_path_buf()
+    } else {
+        root.join(supplied)
+    };
+    let canonical = candidate
+        .canonicalize()
+        .map_err(|e| VisionError::ImageLoad(path.to_string(), e.to_string()))?;
+    if !canonical.starts_with(&root) {
+        return Err(VisionError::InvalidPath);
+    }
+    Ok(canonical)
 }
 
 fn compute_metrics(path: &str) -> Result<ImageMetrics, VisionError> {
@@ -187,7 +223,7 @@ fn model_path() -> String {
 }
 
 /// Load the ONNX model once at process start. Returns Ok(None) if the model
-/// file is absent (caller logs and falls back to the heuristic).
+/// file is absent; production requests then fail closed with ModelUnavailable.
 fn load_model() -> Result<Option<&'static std::sync::Mutex<Option<VisionModel>>>, VisionError> {
     let guard = MODEL.get_or_init(|| std::sync::Mutex::new(None));
 
@@ -207,9 +243,7 @@ fn load_model() -> Result<Option<&'static std::sync::Mutex<Option<VisionModel>>>
             tracing::info!("vision model loaded from {path}");
             *inner = Some(VisionModel { session });
         } else {
-            tracing::warn!(
-                "vision model not found at {path} — falling back to heuristic engine"
-            );
+            tracing::warn!("vision model not found at {path} — production inference unavailable");
         }
     }
     let loaded = inner.is_some();
@@ -223,10 +257,7 @@ fn load_model() -> Result<Option<&'static std::sync::Mutex<Option<VisionModel>>>
 
 fn softmax(logits: &[f32]) -> Vec<f64> {
     let max = logits.iter().cloned().fold(f32::MIN, f32::max);
-    let exps: Vec<f64> = logits
-        .iter()
-        .map(|l| ((l - max) as f64).exp())
-        .collect();
+    let exps: Vec<f64> = logits.iter().map(|l| ((l - max) as f64).exp()).collect();
     let sum: f64 = exps.iter().sum();
     exps.iter().map(|e| e / sum).collect()
 }
@@ -244,16 +275,18 @@ fn preprocess(path: &str) -> Result<Vec<f32>, VisionError> {
     );
     let rgb = resized.to_rgb8();
 
-    let mut chw = vec![0.0f32; 3 * IMG_SIZE * IMG_SIZE];
+    let channel_size = IMG_SIZE * IMG_SIZE;
+    let mut chw = vec![0.0f32; 3 * channel_size];
     for (i, pixel) in rgb.pixels().enumerate() {
         let r = (pixel[0] as f32 / 255.0 - 0.5) / 0.5;
         let g = (pixel[1] as f32 / 255.0 - 0.5) / 0.5;
         let b = (pixel[2] as f32 / 255.0 - 0.5) / 0.5;
         let px = i % IMG_SIZE;
         let py = i / IMG_SIZE;
-        chw[0 * IMG_SIZE * IMG_SIZE + py * IMG_SIZE + px] = r;
-        chw[1 * IMG_SIZE * IMG_SIZE + py * IMG_SIZE + px] = g;
-        chw[2 * IMG_SIZE * IMG_SIZE + py * IMG_SIZE + px] = b;
+        let pixel_index = py * IMG_SIZE + px;
+        chw[pixel_index] = r;
+        chw[channel_size + pixel_index] = g;
+        chw[2 * channel_size + pixel_index] = b;
     }
     Ok(chw)
 }
@@ -264,14 +297,11 @@ fn model_infer(path: &str) -> Result<Vec<f64>, VisionError> {
         .ok_or_else(|| VisionError::Internal("vision model not loaded".to_string()))?;
 
     let pixels = preprocess(path)?;
-    let array = ndarray::Array4::from_shape_vec(
-        (1, 3, IMG_SIZE, IMG_SIZE),
-        pixels,
-    )
-    .map_err(|e| VisionError::Internal(e.to_string()))?;
+    let array = ndarray::Array4::from_shape_vec((1, 3, IMG_SIZE, IMG_SIZE), pixels)
+        .map_err(|e| VisionError::Internal(e.to_string()))?;
 
-    let tensor = TensorRef::from_array_view(&array)
-        .map_err(|e| VisionError::Onnx(e.to_string()))?;
+    let tensor =
+        TensorRef::from_array_view(&array).map_err(|e| VisionError::Onnx(e.to_string()))?;
 
     let mut model = guard
         .lock()
@@ -335,7 +365,9 @@ const OVERRIDE_ENV: &str = "AXIOM_VISION_OVERRIDE";
 const OVERRIDE_VALUES: [&str; 3] = ["pass", "review", "block"];
 
 /// Resolve the effective override. Returns (verdict, source) or None.
-fn resolve_override(request_override: &Option<String>) -> Result<Option<(String, String)>, VisionError> {
+fn resolve_override(
+    request_override: &Option<String>,
+) -> Result<Option<(String, String)>, VisionError> {
     let raw = request_override
         .clone()
         .or_else(|| std::env::var(OVERRIDE_ENV).ok())
@@ -346,7 +378,11 @@ fn resolve_override(request_override: &Option<String>) -> Result<Option<(String,
         None => Ok(None),
         Some(value) => {
             if OVERRIDE_VALUES.contains(&value.as_str()) {
-                let source = if request_override.is_some() { "request" } else { "environment" };
+                let source = if request_override.is_some() {
+                    "request"
+                } else {
+                    "environment"
+                };
                 Ok(Some((value, source.to_string())))
             } else {
                 Err(VisionError::InvalidOverride(value))
@@ -355,7 +391,8 @@ fn resolve_override(request_override: &Option<String>) -> Result<Option<(String,
     }
 }
 
-/// Shared evaluation: metrics + (model | heuristic), then optional override.
+/// Shared evaluation: model-backed production inference (test-only heuristic),
+/// then optional override.
 /// Returns the pieces both response shapes need.
 struct Evaluation {
     verdict: String,
@@ -369,7 +406,11 @@ struct Evaluation {
 }
 
 fn evaluate(path: &str, request_override: &Option<String>) -> Result<Evaluation, VisionError> {
-    let metrics = compute_metrics(path)?;
+    let image_path = resolve_image_path(path)?;
+    let image_path = image_path
+        .to_str()
+        .ok_or_else(|| VisionError::InvalidPath)?;
+    let metrics = compute_metrics(image_path)?;
     let mut reasons: Vec<String> = Vec::new();
     let mut needs_review = false;
 
@@ -421,17 +462,18 @@ fn evaluate(path: &str, request_override: &Option<String>) -> Result<Evaluation,
     // Primary engine: the real ONNX vision model.
     let (engine, probs, nsfw_score, confidence) = match load_model()? {
         Some(_) => {
-            let probs = model_infer(path)?;
+            let probs = model_infer(image_path)?;
             let score = nsfw_from_probs(&probs);
             let conf = confidence_from_probs(&probs);
             ("onnx-vit", probs, score, conf)
         }
-        None => {
+        None if cfg!(test) => {
             let score = heuristic_nsfw_score(&metrics);
             let conf = heuristic_confidence(&metrics);
             let probs = vec![0.0; N_CLASSES];
             ("heuristic", probs, score, conf)
         }
+        None => return Err(VisionError::ModelUnavailable),
     };
 
     if engine == "heuristic" {
@@ -439,10 +481,16 @@ fn evaluate(path: &str, request_override: &Option<String>) -> Result<Evaluation,
     }
 
     let verdict = if nsfw_score > 0.75 {
-        reasons.push(format!("NSFW probability ({:.4}) exceeds block threshold", nsfw_score));
+        reasons.push(format!(
+            "NSFW probability ({:.4}) exceeds block threshold",
+            nsfw_score
+        ));
         "block".to_string()
     } else if nsfw_score > 0.5 {
-        reasons.push(format!("NSFW probability ({:.4}) exceeds review threshold", nsfw_score));
+        reasons.push(format!(
+            "NSFW probability ({:.4}) exceeds review threshold",
+            nsfw_score
+        ));
         "review".to_string()
     } else if needs_review {
         "review".to_string()
@@ -466,19 +514,21 @@ fn evaluate(path: &str, request_override: &Option<String>) -> Result<Evaluation,
 // Handlers
 // ---------------------------------------------------------------------------
 
-async fn health() -> Json<serde_json::Value> {
+async fn health() -> axum::response::Response {
     let loaded = load_model().map(|m| m.is_some()).unwrap_or(false);
-    let override_state = resolve_override(&None)
-        .ok()
-        .flatten()
-        .map(|(verdict, source)| serde_json::json!({ "verdict": verdict, "source": source }))
-        .unwrap_or_else(|| serde_json::Value::Null);
-    Json(serde_json::json!({
-        "status": "ok",
-        "model": model_path(),
-        "model_loaded": loaded,
-        "override": override_state,
-    }))
+    let status = if loaded {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+    (
+        status,
+        Json(serde_json::json!({
+            "status": if loaded { "ok" } else { "unavailable" },
+            "model_loaded": loaded,
+        })),
+    )
+        .into_response()
 }
 
 async fn tos_classify(
@@ -540,7 +590,9 @@ async fn main() {
     // Load (or detect absence of) the model at startup.
     match load_model() {
         Ok(Some(_)) => tracing::info!("vision engine: ONNX model ready"),
-        Ok(None) => tracing::warn!("vision engine: no model file — heuristic fallback active"),
+        Ok(None) => {
+            tracing::warn!("vision engine: no model file — production inference unavailable")
+        }
         Err(e) => tracing::error!("vision engine: model load error: {e}"),
     }
 
@@ -549,16 +601,14 @@ async fn main() {
         .route("/vision/tos-classify", post(tos_classify))
         .route("/vision/nsfw-detect", post(nsfw_detect));
 
-    let addr = std::env::var("AXIOM_VISION_ADDR").unwrap_or_else(|_| "0.0.0.0:8101".to_string());
+    let addr = std::env::var("AXIOM_VISION_ADDR").unwrap_or_else(|_| "127.0.0.1:8101".to_string());
     tracing::info!("Vision Engine listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .expect("Failed to bind TCP listener");
 
-    axum::serve(listener, app)
-        .await
-        .expect("Server error");
+    axum::serve(listener, app).await.expect("Server error");
 }
 
 // ---------------------------------------------------------------------------
@@ -568,6 +618,11 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_media_path(name: &str) -> PathBuf {
+        let root = media_root().expect("media root");
+        root.join(name)
+    }
 
     #[test]
     fn softmax_normalizes_and_orders() {
@@ -635,7 +690,10 @@ mod tests {
                 continue;
             }
             assert!(
-                matches!(resolve_override(&Some(value.to_string())), Err(VisionError::InvalidOverride(_))),
+                matches!(
+                    resolve_override(&Some(value.to_string())),
+                    Err(VisionError::InvalidOverride(_))
+                ),
                 "expected InvalidOverride for {value:?}"
             );
         }
@@ -647,7 +705,9 @@ mod tests {
         unsafe {
             std::env::set_var(OVERRIDE_ENV, "block");
         }
-        let resolved = resolve_override(&None).unwrap().expect("env override should resolve");
+        let resolved = resolve_override(&None)
+            .unwrap()
+            .expect("env override should resolve");
         assert_eq!(resolved.0, "block");
         assert_eq!(resolved.1, "environment");
 
@@ -667,9 +727,10 @@ mod tests {
         // Use a tiny real image so compute_metrics succeeds; override means
         // the model is never consulted (engine = "override").
         let img = image::RgbImage::from_pixel(64, 64, image::Rgb([10, 10, 10]));
-        img.save("/tmp/override-test.png").unwrap();
+        let path = test_media_path("override-test.png");
+        img.save(&path).unwrap();
 
-        let ev = evaluate("/tmp/override-test.png", &Some("pass".to_string())).unwrap();
+        let ev = evaluate(path.to_str().unwrap(), &Some("pass".to_string())).unwrap();
         assert_eq!(ev.verdict, "pass");
         assert_eq!(ev.engine, "override");
         assert!(ev.overridden);
@@ -677,12 +738,14 @@ mod tests {
         assert!(ev.probabilities.is_empty());
         assert_eq!(ev.nsfw_score, 0.0);
         assert!(
-            ev.reasons.iter().any(|r| r.contains("overridden by request")),
+            ev.reasons
+                .iter()
+                .any(|r| r.contains("overridden by request")),
             "reasons should state the override: {:?}",
             ev.reasons
         );
 
-        let ev = evaluate("/tmp/override-test.png", &Some("block".to_string())).unwrap();
+        let ev = evaluate(path.to_str().unwrap(), &Some("block".to_string())).unwrap();
         assert_eq!(ev.verdict, "block");
         assert_eq!(ev.nsfw_score, 1.0);
         assert!(ev.overridden);
@@ -693,10 +756,23 @@ mod tests {
         // No model file is guaranteed in the unit-test environment, and no
         // override → heuristic path must still produce a sane verdict.
         let img = image::RgbImage::from_pixel(64, 64, image::Rgb([200, 200, 200]));
-        img.save("/tmp/no-override-test.png").unwrap();
-        let ev = evaluate("/tmp/no-override-test.png", &None).unwrap();
+        let path = test_media_path("no-override-test.png");
+        img.save(&path).unwrap();
+        let ev = evaluate(path.to_str().unwrap(), &None).unwrap();
         assert!(!ev.overridden);
         assert!(matches!(ev.engine.as_str(), "onnx-vit" | "heuristic"));
         assert!(matches!(ev.verdict.as_str(), "pass" | "review" | "block"));
+    }
+
+    #[test]
+    fn evaluate_rejects_files_outside_media_root() {
+        let outside = std::env::temp_dir().join("axiom-vision-outside.png");
+        let img = image::RgbImage::from_pixel(64, 64, image::Rgb([10, 10, 10]));
+        img.save(&outside).unwrap();
+        assert!(matches!(
+            evaluate(outside.to_str().unwrap(), &Some("pass".to_string())),
+            Err(VisionError::InvalidPath)
+        ));
+        let _ = std::fs::remove_file(outside);
     }
 }

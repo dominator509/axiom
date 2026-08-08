@@ -62,7 +62,10 @@ router.get('/models/:modelId/analytics', async (c) => {
       .orderBy(sql`to_char(${schema.postMetric.collectedAt}, 'YYYY-MM-DD')`);
 
     const totals = perPlatform.reduce(
-      (acc: { views: number; likes: number; shares: number; comments: number }, r: { views: number; likes: number; shares: number; comments: number }) => ({
+      (
+        acc: { views: number; likes: number; shares: number; comments: number },
+        r: { views: number; likes: number; shares: number; comments: number },
+      ) => ({
         views: acc.views + r.views,
         likes: acc.likes + r.likes,
         shares: acc.shares + r.shares,
@@ -75,7 +78,9 @@ router.get('/models/:modelId/analytics', async (c) => {
       .from(schema.postMetric)
       .innerJoin(schema.postTarget, eq(schema.postTarget.id, schema.postMetric.postTargetId))
       .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.postTarget.bundleId))
-      .where(and(eq(schema.contentBundle.modelId, modelId), gte(schema.postMetric.collectedAt, since)));
+      .where(
+        and(eq(schema.contentBundle.modelId, modelId), gte(schema.postMetric.collectedAt, since)),
+      );
 
     return {
       windowDays: days,

@@ -46,7 +46,10 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
 
   if (bindings.length === 0) {
     // Fail-safe (L3.3 §5): no reachable channel → stay generated, never auto-publish.
-    throw new ParkJobError(`relay.card: no relay binding for model ${bundle.modelId}`, NO_BINDING_PARK_MS);
+    throw new ParkJobError(
+      `relay.card: no relay binding for model ${bundle.modelId}`,
+      NO_BINDING_PARK_MS,
+    );
   }
   const binding = bindings[0];
 
@@ -59,10 +62,9 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
     captionVariants: captions,
     hashtagSets: { [binding.channel]: (bundle.hashtags as string[]) ?? [] },
     tosScores: Object.fromEntries(
-      Object.entries((tosReport.scores as Array<{ platform: string; score: number }>) ?? []).map(([, s]) => [
-        s.platform,
-        s.score / 100,
-      ]),
+      Object.entries((tosReport.scores as Array<{ platform: string; score: number }>) ?? []).map(
+        ([, s]) => [s.platform, s.score / 100],
+      ),
     ),
     targetPlatforms: Object.keys(captions).length > 0 ? Object.keys(captions) : ['instagram'],
   };

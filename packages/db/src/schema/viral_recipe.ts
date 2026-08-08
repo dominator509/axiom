@@ -5,8 +5,12 @@ import { modelProfile } from './model_profile.js';
 
 export const viralRecipe = pgTable('viral_recipe', {
   id: uuid('id').primaryKey().defaultRandom(),
-  orgId: uuid('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
-  modelId: uuid('model_id').notNull().references(() => modelProfile.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id')
+    .notNull()
+    .references(() => org.id, { onDelete: 'cascade' }),
+  modelId: uuid('model_id')
+    .notNull()
+    .references(() => modelProfile.id, { onDelete: 'cascade' }),
   platform: text('platform').notNull(),
   label: text('label').notNull().default('baseline'),
   perfScore: doublePrecision('perf_score').notNull().default(0),
