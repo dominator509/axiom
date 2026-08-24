@@ -7,6 +7,10 @@ import type { LLMGateway } from './gateway.js';
 import { ProviderError } from './providers/types.js';
 import { PLATFORMS } from './prompts.js';
 
+type GatewayEnv = {
+  Variables: { userId: string; orgId: string };
+};
+
 /** Standard RFC-7807 title for a status code (L3.0 error envelope). */
 function statusTitle(status: number): string {
   const titles: Record<number, string> = {
@@ -43,6 +47,8 @@ const chatBodySchema = z.object({
   /** Route through the model's bound egress sidecar (L2.6). */
   egress: z.boolean().optional(),
 });
+
+const subscriptionProviderSchema = z.enum(['openai', 'anthropic', 'grok']);
 
 /** TOKENKILLER body: S0–S3 assembly inputs (L2.5, LBI-09). */
 const tokenkillerBodySchema = chatBodySchema.extend({
@@ -93,8 +99,8 @@ const tokenkillerBodySchema = chatBodySchema.extend({
   }),
 });
 
-export function createRouter(gateway: LLMGateway): Hono {
-  const router = new Hono();
+export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
+  const router = new Hono<GatewayEnv>();
 
   // POST /chat — non-streaming completion
   router.post('/chat', zValidator('json', chatBodySchema), async (c) => {
@@ -108,6 +114,7 @@ export function createRouter(gateway: LLMGateway): Hono {
         policy,
         provider,
         egress,
+        userId: c.get('userId'),
       });
       return c.json(result);
     } catch (err) {
@@ -139,6 +146,7 @@ export function createRouter(gateway: LLMGateway): Hono {
         policy,
         provider,
         egress,
+        userId: c.get('userId'),
         tokenkiller,
       });
       return c.json(result);
@@ -170,6 +178,7 @@ export function createRouter(gateway: LLMGateway): Hono {
       policy,
       provider,
       egress,
+      userId: c.get('userId'),
     });
 
     return new Response(
@@ -182,7 +191,7 @@ export function createRouter(gateway: LLMGateway): Hono {
               );
             }
             controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
-          } catch (err) {
+          } catch {
             controller.enqueue(
               new TextEncoder().encode(
                 'event: error\ndata: The requested LLM provider could not complete the stream\n\n',
@@ -204,8 +213,66 @@ export function createRouter(gateway: LLMGateway): Hono {
   });
 
   // GET /providers — list available providers
+  router.get('/subscriptions/:provider', async (c) => {
+    const parsed = subscriptionProviderSchema.safeParse(c.req.param('provider'));
+    if (!parsed.success) return c.json({ error: 'Unsupported subscription provider' }, 404);
+    try {
+      return c.json(await gateway.getSubscriptionStatus(parsed.data, c.get('userId')));
+    } catch (err) {
+      const status = (err instanceof ProviderError ? err.status : 502) as 401 | 404 | 502 | 503;
+      return c.json({ error: 'Unable to read subscription status' }, status);
+    }
+  });
+
+  router.post('/subscriptions/:provider/login', async (c) => {
+    const parsed = subscriptionProviderSchema.safeParse(c.req.param('provider'));
+    if (!parsed.success) return c.json({ error: 'Unsupported subscription provider' }, 404);
+    const events = gateway.connectSubscription(parsed.data, c.get('userId'), c.req.raw.signal);
+    return new Response(
+      new ReadableStream({
+        async start(controller) {
+          const encoder = new TextEncoder();
+          try {
+            for await (const message of events) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ message })}\n\n`));
+            }
+            controller.enqueue(encoder.encode('event: connected\ndata: {}\n\n'));
+          } catch {
+            controller.enqueue(
+              encoder.encode('event: error\ndata: Subscription login did not complete\n\n'),
+            );
+          } finally {
+            controller.close();
+          }
+        },
+      }),
+      {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-store',
+          Connection: 'keep-alive',
+        },
+      },
+    );
+  });
+
+  router.delete('/subscriptions/:provider', async (c) => {
+    const parsed = subscriptionProviderSchema.safeParse(c.req.param('provider'));
+    if (!parsed.success) return c.json({ error: 'Unsupported subscription provider' }, 404);
+    try {
+      await gateway.disconnectSubscription(parsed.data, c.get('userId'));
+      return c.json({ provider: parsed.data, connected: false });
+    } catch (err) {
+      const status = (err instanceof ProviderError ? err.status : 502) as 401 | 404 | 502 | 503;
+      return c.json({ error: 'Unable to disconnect subscription' }, status);
+    }
+  });
+
   router.get('/providers', (c) => {
-    return c.json({ providers: gateway.getAvailableProviders() });
+    return c.json({
+      providers: gateway.getAvailableProviders(),
+      capabilities: gateway.getProviderCapabilities(),
+    });
   });
 
   // GET /stats — cache stats

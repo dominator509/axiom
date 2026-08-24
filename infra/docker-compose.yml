@@ -9,7 +9,7 @@ volumes:
 
 services:
   postgres:
-    image: timescale/timescaledb:2-pg16-vector
+    image: timescale/timescaledb:2.29.2-pg16
     container_name: axiom-postgres
     restart: unless-stopped
     environment:

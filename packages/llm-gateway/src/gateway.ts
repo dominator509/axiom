@@ -1,5 +1,5 @@
 // LLMGateway — unified multi-provider chat completion gateway
-// Supports OpenAI, Anthropic, DeepSeek, Grok, Venice, and local vLLM.
+// Supports user-funded OAuth subscription transports and local vLLM.
 // Features: policy-based provider selection, fallback chains, rate limiting,
 // exponential-backoff retry, response caching, streaming, and pipeline transforms.
 
@@ -10,15 +10,13 @@ import { resolveEgressProxy, buildEgressFetch } from './egress.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 import { v4 as uuid } from 'uuid';
-import { callOpenAI, streamOpenAI, OPENAI_BASE_URL } from './providers/openai.js';
-import { callAnthropic, streamAnthropic, ANTHROPIC_BASE_URL } from './providers/anthropic.js';
-import { callDeepSeek, streamDeepSeek, DEEPSEEK_BASE_URL } from './providers/deepseek.js';
-import { callGrok, streamGrok, GROK_BASE_URL } from './providers/grok.js';
-import { callVenice, streamVenice, VENICE_BASE_URL } from './providers/venice.js';
-import { callMistral, streamMistral, MISTRAL_BASE_URL } from './providers/mistral.js';
-import { callLightning, streamLightning, LIGHTNING_BASE_URL } from './providers/lightning.js';
-import { callGoogle, streamGoogle, GOOGLE_BASE_URL } from './providers/google.js';
 import { callVLLM, streamVLLM, VLLM_BASE_URL } from './providers/vllm.js';
+import {
+  OfficialSubscriptionTransport,
+  type SubscriptionProvider,
+  type SubscriptionTransport,
+} from './providers/subscription.js';
+import { ProviderError } from './providers/types.js';
 import { ResponseCache, PrefixCache } from './cache.js';
 import { Pipeline, type PipelineOptions } from './pipeline.js';
 import {
@@ -54,6 +52,8 @@ export interface ChatOptions {
   maxTokens?: number;
   policy?: ProviderPolicy;
   provider?: string; // explicit provider override
+  /** Authenticated AXIOM user whose provider subscription funds this call. */
+  userId?: string;
   signal?: AbortSignal;
   /**
    * Route this call through the model's bound egress sidecar (L2.6).
@@ -102,7 +102,6 @@ export interface ChatResult {
 
 export interface ProviderConfig {
   name: string;
-  apiKeyEnv: string;
   baseUrl: string;
   defaultModel: string;
   /** Cost per 1K input tokens (USD, approximate) */
@@ -115,8 +114,8 @@ export interface ProviderConfig {
   qualityRank: number;
   /** Max requests per minute for rate limiting */
   rpm: number;
-  /** Whether this provider requires an API key to be set */
-  requiresKey: boolean;
+  /** Official user-subscription CLI transport is available. */
+  subscriptionSupported?: boolean;
 }
 
 export interface RateLimitBucket {
@@ -133,103 +132,89 @@ export interface RateLimitBucket {
 const DEFAULT_PROVIDERS: ProviderConfig[] = [
   {
     name: 'openai',
-    apiKeyEnv: 'OPENAI_API_KEY',
-    baseUrl: OPENAI_BASE_URL,
-    defaultModel: 'gpt-4o',
-    costPer1KInput: 0.0025,
-    costPer1KOutput: 0.01,
+    baseUrl: 'subscription://openai',
+    defaultModel: 'openai-default',
+    costPer1KInput: 0,
+    costPer1KOutput: 0,
     latencyRank: 2,
     qualityRank: 5,
     rpm: 500,
-    requiresKey: true,
+    subscriptionSupported: true,
   },
   {
     name: 'anthropic',
-    apiKeyEnv: 'ANTHROPIC_API_KEY',
-    baseUrl: ANTHROPIC_BASE_URL,
-    defaultModel: 'claude-sonnet-4-5',
-    costPer1KInput: 0.003,
-    costPer1KOutput: 0.015,
+    baseUrl: 'subscription://anthropic',
+    defaultModel: 'anthropic-default',
+    costPer1KInput: 0,
+    costPer1KOutput: 0,
     latencyRank: 3,
     qualityRank: 5,
     rpm: 400,
-    requiresKey: true,
+    subscriptionSupported: true,
   },
   {
     name: 'deepseek',
-    apiKeyEnv: 'DEEPSEEK_API_KEY',
-    baseUrl: DEEPSEEK_BASE_URL,
+    baseUrl: 'api-disabled://deepseek',
     defaultModel: 'deepseek-v4-flash',
     costPer1KInput: 0.0005,
     costPer1KOutput: 0.0015,
     latencyRank: 2,
     qualityRank: 3,
     rpm: 600,
-    requiresKey: true,
   },
   {
     name: 'grok',
-    apiKeyEnv: 'GROK_API_KEY',
-    baseUrl: GROK_BASE_URL,
-    defaultModel: 'grok-3-latest',
-    costPer1KInput: 0.002,
-    costPer1KOutput: 0.008,
+    baseUrl: 'subscription://grok',
+    defaultModel: 'grok-default',
+    costPer1KInput: 0,
+    costPer1KOutput: 0,
     latencyRank: 2,
     qualityRank: 4,
     rpm: 300,
-    requiresKey: true,
+    subscriptionSupported: true,
   },
   {
     name: 'mistral',
-    apiKeyEnv: 'MISTRAL_API_KEY',
-    baseUrl: MISTRAL_BASE_URL,
+    baseUrl: 'api-disabled://mistral',
     defaultModel: 'mistral-small-latest',
     costPer1KInput: 0.0001,
     costPer1KOutput: 0.0003,
     latencyRank: 2,
     qualityRank: 4,
     rpm: 500,
-    requiresKey: true,
   },
   {
     name: 'lightning',
-    apiKeyEnv: 'LIGHTNING_API_KEY',
-    baseUrl: LIGHTNING_BASE_URL,
+    baseUrl: 'api-disabled://lightning',
     defaultModel: 'claude-opus-4-7',
     costPer1KInput: 0.015,
     costPer1KOutput: 0.075,
     latencyRank: 2,
     qualityRank: 4,
     rpm: 300,
-    requiresKey: true,
   },
   {
     name: 'google',
-    apiKeyEnv: 'GOOGLE_API_KEY',
-    baseUrl: GOOGLE_BASE_URL,
+    baseUrl: 'api-disabled://google',
     defaultModel: 'gemini-flash-latest',
     costPer1KInput: 0.0001,
     costPer1KOutput: 0.0004,
     latencyRank: 2,
     qualityRank: 4,
     rpm: 500,
-    requiresKey: true,
   },
   {
     name: 'venice',
-    apiKeyEnv: 'VENICE_API_KEY',
-    baseUrl: VENICE_BASE_URL,
+    baseUrl: 'api-disabled://venice',
     defaultModel: 'venice-uncensored-1-2',
     costPer1KInput: 0.0009,
     costPer1KOutput: 0.0009,
     latencyRank: 2,
     qualityRank: 3,
     rpm: 200,
-    requiresKey: true,
   },
   {
     name: 'vllm',
-    apiKeyEnv: '', // no key needed for local
     baseUrl: VLLM_BASE_URL,
     defaultModel: 'local-model',
     costPer1KInput: 0,
@@ -237,7 +222,6 @@ const DEFAULT_PROVIDERS: ProviderConfig[] = [
     latencyRank: 1,
     qualityRank: 2,
     rpm: 1000,
-    requiresKey: false,
   },
 ];
 
@@ -281,11 +265,11 @@ function calculateCost(
 /** Sleep helper */
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Get env var — case-insensitive lookup, prefers upper-case */
-function getEnvVar(name: string): string | undefined {
-  return process.env[name] ?? process.env[name.toLowerCase()] ?? undefined;
+function responseCacheKey(messages: Message[], model: string, userId: string): string {
+  return JSON.stringify({ userId, model, messages });
 }
 
+/** Get env var — case-insensitive lookup, prefers upper-case */
 // ---------------------------------------------------------------------------
 // LLMGateway
 // ---------------------------------------------------------------------------
@@ -298,11 +282,16 @@ export class LLMGateway {
   private prefixCache: PrefixCache;
   private requestCount = 0;
   private failureCount = 0;
+  private subscriptionTransport: SubscriptionTransport;
 
-  constructor(providerOverrides?: Partial<ProviderConfig>[]) {
+  constructor(
+    providerOverrides?: Partial<ProviderConfig>[],
+    subscriptionTransport: SubscriptionTransport = new OfficialSubscriptionTransport(),
+  ) {
     this.cache = new ResponseCache();
     this.pipeline = new Pipeline();
     this.prefixCache = new PrefixCache();
+    this.subscriptionTransport = subscriptionTransport;
 
     const merged = providerOverrides
       ? this.mergeProviderConfigs(DEFAULT_PROVIDERS, providerOverrides)
@@ -327,7 +316,6 @@ export class LLMGateway {
         // New provider from override
         map.set(o.name, {
           name: o.name,
-          apiKeyEnv: '',
           baseUrl: '',
           defaultModel: 'default',
           costPer1KInput: 0,
@@ -335,7 +323,6 @@ export class LLMGateway {
           latencyRank: 3,
           qualityRank: 3,
           rpm: 100,
-          requiresKey: false,
           ...o,
         });
       }
@@ -363,15 +350,63 @@ export class LLMGateway {
     };
   }
 
-  /** Return a list of available (configured + key-present) provider names */
+  /** Return providers that cannot create operator-funded API charges. */
   getAvailableProviders(): string[] {
     const available: string[] = [];
     for (const [name, cfg] of this.providers) {
-      if (!cfg.requiresKey || getEnvVar(cfg.apiKeyEnv)) {
+      if (name === 'vllm' || cfg.subscriptionSupported) {
         available.push(name);
       }
     }
     return available;
+  }
+
+  /** Full billing/auth matrix, including providers intentionally disabled. */
+  getProviderCapabilities() {
+    return Array.from(this.providers.values()).map((provider) => ({
+      provider: provider.name,
+      available: provider.name === 'vllm' || provider.subscriptionSupported === true,
+      transport:
+        provider.name === 'vllm'
+          ? 'local'
+          : provider.subscriptionSupported
+            ? 'user-subscription'
+            : 'unsupported',
+      auth: provider.subscriptionSupported ? 'oauth' : provider.name === 'vllm' ? 'none' : null,
+      operatorApiCost: false,
+      reason:
+        provider.name === 'vllm' || provider.subscriptionSupported
+          ? null
+          : 'No qualifying official subscription-backed transport',
+    }));
+  }
+
+  async getSubscriptionStatus(provider: string, userId: string) {
+    const config = this.providers.get(provider);
+    if (!config?.subscriptionSupported) {
+      throw new ProviderError('Provider has no subscription transport', 404, provider);
+    }
+    return this.subscriptionTransport.status(provider as SubscriptionProvider, userId);
+  }
+
+  connectSubscription(
+    provider: string,
+    userId: string,
+    signal?: AbortSignal,
+  ): AsyncIterable<string> {
+    const config = this.providers.get(provider);
+    if (!config?.subscriptionSupported) {
+      throw new ProviderError('Provider has no subscription transport', 404, provider);
+    }
+    return this.subscriptionTransport.connect(provider as SubscriptionProvider, userId, signal);
+  }
+
+  async disconnectSubscription(provider: string, userId: string): Promise<void> {
+    const config = this.providers.get(provider);
+    if (!config?.subscriptionSupported) {
+      throw new ProviderError('Provider has no subscription transport', 404, provider);
+    }
+    await this.subscriptionTransport.disconnect(provider as SubscriptionProvider, userId);
   }
 
   /** Select a provider based on policy and availability */
@@ -379,25 +414,34 @@ export class LLMGateway {
     // If an explicit provider is requested, try it first
     if (explicit) {
       const cfg = this.providers.get(explicit);
-      if (cfg) return [cfg];
+      if (cfg && (cfg.name === 'vllm' || cfg.subscriptionSupported)) return [cfg];
+      if (cfg) {
+        throw new ProviderError(
+          `${explicit} does not provide a supported user-subscription transport`,
+          503,
+          explicit,
+        );
+      }
       throw new Error(`Unknown provider: ${explicit}`);
     }
 
-    // Filter to available providers (key present or no key required)
+    // API-key-only providers are intentionally unavailable. A SaaS request may
+    // use an official user subscription transport or the operator's local vLLM.
     const available = Array.from(this.providers.values()).filter((p) => {
-      if (p.requiresKey && !getEnvVar(p.apiKeyEnv)) return false;
-      return true;
+      return p.name === 'vllm' || p.subscriptionSupported === true;
     });
 
     if (available.length === 0) {
-      throw new Error('No providers available — set at least one API key');
+      throw new Error('No subscription or local providers available');
     }
 
     // Sort by policy
     const sorted = [...available];
     if (policy === 'cost') {
       sorted.sort(
-        (a, b) => a.costPer1KInput + a.costPer1KOutput - (b.costPer1KInput + b.costPer1KOutput),
+        (a, b) =>
+          a.costPer1KInput + a.costPer1KOutput - (b.costPer1KInput + b.costPer1KOutput) ||
+          Number(b.name === 'vllm') - Number(a.name === 'vllm'),
       );
     } else if (policy === 'latency') {
       sorted.sort((a, b) => a.latencyRank - b.latencyRank);
@@ -410,7 +454,8 @@ export class LLMGateway {
   }
 
   /** Build the fallback chain: primary → secondary → vLLM (local) */
-  private buildFallbackChain(ordered: ProviderConfig[]): ProviderConfig[] {
+  private buildFallbackChain(ordered: ProviderConfig[], explicit = false): ProviderConfig[] {
+    if (explicit) return ordered.slice(0, 1);
     const chain: ProviderConfig[] = [];
     if (ordered.length >= 2) {
       chain.push(ordered[0], ordered[1]);
@@ -448,12 +493,15 @@ export class LLMGateway {
     messages: Message[],
     options: Required<ChatOptions>,
   ): Promise<ChatResult> {
-    const maxRetries = 3;
+    // Never retry subscription generations: a transport failure after the
+    // provider accepted the turn could consume the user's allowance twice.
+    const maxRetries = provider.subscriptionSupported ? 0 : 3;
     let lastError: Error | null = null;
     // Egress: route through the model's bound sidecar when requested.
-    const egressFetchImpl = options.egress
-      ? await this.resolveEgressFetch(options.model)
-      : undefined;
+    const egressFetchImpl =
+      options.egress && provider.name === 'vllm'
+        ? await this.resolveEgressFetch(options.model)
+        : undefined;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (attempt > 0) {
@@ -474,110 +522,27 @@ export class LLMGateway {
         let promptTokens: number;
         let completionTokens: number;
 
-        if (provider.name === 'openai') {
-          const apiKey = getEnvVar('OPENAI_API_KEY');
-          if (!apiKey) throw new Error('OPENAI_API_KEY not set');
-          const res = await callOpenAI(
-            apiKey,
-            { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
-            options.signal,
-            egressFetchImpl ?? fetch,
-          );
-          content = res.choices[0]?.message?.content ?? '';
-          promptTokens = res.usage.prompt_tokens;
-          completionTokens = res.usage.completion_tokens;
-        } else if (provider.name === 'anthropic') {
-          const apiKey = getEnvVar('ANTHROPIC_API_KEY');
-          if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-          const systemMsg = messages.find((m) => m.role === 'system');
-          const chatMessages = messages.filter((m) => m.role !== 'system');
-          const res = await callAnthropic(
-            apiKey,
-            {
-              model,
-              messages: chatMessages.map((m) => ({ role: m.role, content: m.content })),
-              max_tokens: options.maxTokens ?? 4096,
-              temperature: options.temperature,
-              system: systemMsg?.content,
-            },
-            options.signal,
-            egressFetchImpl ?? fetch,
-          );
-          content = res.content.map((c) => c.text).join('');
-          promptTokens = res.usage.input_tokens;
-          completionTokens = res.usage.output_tokens;
-        } else if (provider.name === 'deepseek') {
-          const apiKey = getEnvVar('DEEPSEEK_API_KEY');
-          if (!apiKey) throw new Error('DEEPSEEK_API_KEY not set');
-          const res = await callDeepSeek(
-            apiKey,
-            { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
-            options.signal,
-            egressFetchImpl ?? fetch,
-          );
-          content = res.choices[0]?.message?.content ?? '';
-          promptTokens = res.usage.prompt_tokens;
-          completionTokens = res.usage.completion_tokens;
-        } else if (provider.name === 'grok') {
-          const apiKey = getEnvVar('GROK_API_KEY');
-          if (!apiKey) throw new Error('GROK_API_KEY not set');
-          const res = await callGrok(
-            apiKey,
-            { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
-            options.signal,
-            egressFetchImpl ?? fetch,
-          );
-          content = res.choices[0]?.message?.content ?? '';
-          promptTokens = res.usage.prompt_tokens;
-          completionTokens = res.usage.completion_tokens;
-        } else if (provider.name === 'venice') {
-          const apiKey = getEnvVar('VENICE_API_KEY');
-          if (!apiKey) throw new Error('VENICE_API_KEY not set');
-          const res = await callVenice(
-            apiKey,
-            { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
-            options.signal,
-            egressFetchImpl ?? fetch,
-          );
-          content = res.choices[0]?.message?.content ?? '';
-          promptTokens = res.usage.prompt_tokens;
-          completionTokens = res.usage.completion_tokens;
-        } else if (provider.name === 'mistral') {
-          const apiKey = getEnvVar('MISTRAL_API_KEY');
-          if (!apiKey) throw new Error('MISTRAL_API_KEY not set');
-          const res = await callMistral(
-            apiKey,
-            { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
-            options.signal,
-            egressFetchImpl ?? fetch,
-          );
-          content = res.choices[0]?.message?.content ?? '';
-          promptTokens = res.usage.prompt_tokens;
-          completionTokens = res.usage.completion_tokens;
-        } else if (provider.name === 'lightning') {
-          const apiKey = getEnvVar('LIGHTNING_API_KEY');
-          if (!apiKey) throw new Error('LIGHTNING_API_KEY not set');
-          const res = await callLightning(
-            apiKey,
-            { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
-            options.signal,
-            egressFetchImpl ?? fetch,
-          );
-          content = res.choices[0]?.message?.content ?? '';
-          promptTokens = res.usage.prompt_tokens;
-          completionTokens = res.usage.completion_tokens;
-        } else if (provider.name === 'google') {
-          const apiKey = getEnvVar('GOOGLE_API_KEY');
-          if (!apiKey) throw new Error('GOOGLE_API_KEY not set');
-          const res = await callGoogle(
-            apiKey,
-            { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
-            options.signal,
-            egressFetchImpl ?? fetch,
-          );
-          content = res.choices[0]?.message?.content ?? '';
-          promptTokens = res.usage.prompt_tokens;
-          completionTokens = res.usage.completion_tokens;
+        if (provider.subscriptionSupported) {
+          if (!options.userId) {
+            throw new ProviderError('Authenticated user is required', 401, provider.name);
+          }
+          if (options.egress) {
+            throw new ProviderError(
+              'Subscription CLI transports cannot use model egress bindings',
+              422,
+              provider.name,
+            );
+          }
+          const res = await this.subscriptionTransport.chat({
+            provider: provider.name as SubscriptionProvider,
+            userId: options.userId,
+            model,
+            messages,
+            signal: options.signal,
+          });
+          content = res.content;
+          promptTokens = res.usage.promptTokens;
+          completionTokens = res.usage.completionTokens;
         } else if (provider.name === 'vllm') {
           const res = await callVLLM(
             { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
@@ -596,8 +561,8 @@ export class LLMGateway {
         const cost = calculateCost(provider, promptTokens, completionTokens);
 
         // Cache the result
-        const cacheKey = `${typeof messages === 'string' ? messages : JSON.stringify(messages)}::${model}`;
-        this.cache.set(cacheKey, {
+        const resultCacheKey = responseCacheKey(messages, model, options.userId);
+        this.cache.set(resultCacheKey, {
           content,
           usage: { prompt: promptTokens, completion: completionTokens },
         });
@@ -649,6 +614,7 @@ export class LLMGateway {
       maxTokens,
       policy,
       provider: options.provider ?? '',
+      userId: options.userId ?? '',
       signal: options.signal!,
       egress: options.egress ?? false,
     } as Required<ChatOptions>;
@@ -662,14 +628,19 @@ export class LLMGateway {
     requiredOptions.model = resolvedModel ?? requiredOptions.model;
 
     // Check cache
-    const cacheKey = requiredOptions.model || model || '';
-    if (cacheKey) {
-      const cached = this.cache.get(cacheKey);
+    const requestedModel = requiredOptions.model || model || '';
+    if (requestedModel) {
+      const resultCacheKey = responseCacheKey(
+        processedMessages,
+        requestedModel,
+        requiredOptions.userId,
+      );
+      const cached = this.cache.get(resultCacheKey);
       if (cached !== null) {
         return {
           id: uuid(),
           content: cached.content,
-          model: cacheKey,
+          model: requestedModel,
           provider: 'cache',
           cost: 0,
           tokens: { prompt: 0, completion: 0, total: 0 },
@@ -681,10 +652,10 @@ export class LLMGateway {
 
     // Select provider(s) and build fallback chain
     const ordered = this.selectProvider(policy, options.provider);
-    const chain = this.buildFallbackChain(ordered);
+    const chain = this.buildFallbackChain(ordered, Boolean(options.provider));
 
     // Try each provider in the chain
-    const chainErrors: string[] = [];
+    const chainErrors: Array<{ provider: string; error: Error }> = [];
     for (const provider of chain) {
       try {
         const result = await this.callProvider(provider, processedMessages, requiredOptions);
@@ -709,15 +680,18 @@ export class LLMGateway {
           latency: pipelineResult.latency,
         };
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        chainErrors.push(`${provider.name}: ${msg}`);
+        const error = err instanceof Error ? err : new Error(String(err));
+        chainErrors.push({ provider: provider.name, error });
         // Continue to fallback
       }
     }
 
     // Surface the primary provider's error first, then the fallback trail.
     if (chainErrors.length > 0) {
-      const summary = chainErrors.join('; ');
+      if (options.provider) throw chainErrors[0].error;
+      const summary = chainErrors
+        .map(({ provider, error }) => `${provider}: ${error.message}`)
+        .join('; ');
       throw new Error(`All providers in the fallback chain failed — ${summary}`);
     }
     throw new Error('All providers in the fallback chain failed');
@@ -776,7 +750,7 @@ export class LLMGateway {
   /** Choose a sensible model for a tokenkiller call (fallback for tests). */
   private defaultModelFor(_tk: TokenKillerOptions): string {
     for (const [, cfg] of this.providers) {
-      if (!cfg.requiresKey || getEnvVar(cfg.apiKeyEnv)) {
+      if (cfg.name === 'vllm' || cfg.subscriptionSupported) {
         return cfg.defaultModel;
       }
     }
@@ -799,6 +773,7 @@ export class LLMGateway {
       maxTokens,
       policy,
       provider: options.provider ?? '',
+      userId: options.userId ?? '',
       signal: options.signal!,
       egress: options.egress ?? false,
     } as Required<ChatOptions>;
@@ -810,7 +785,7 @@ export class LLMGateway {
 
     // Select provider and build fallback chain
     const ordered = this.selectProvider(policy, options.provider);
-    const chain = this.buildFallbackChain(ordered);
+    const chain = this.buildFallbackChain(ordered, Boolean(options.provider));
 
     // Build a combined async generator that tries each provider in chain
     const checkRateLimit = (providerName: string) => this.checkRateLimit(providerName);
@@ -823,9 +798,11 @@ export class LLMGateway {
     const cacheResponse = (key: string, content: string) => {
       this.cache.set(key, { content, usage: { prompt: 0, completion: 0 } });
     };
-    const egressFetchImpl = requiredOptions.egress
-      ? await this.resolveEgressFetch(requiredOptions.model)
-      : undefined;
+    const subscriptionTransport = this.subscriptionTransport;
+    const egressFetchImpl =
+      requiredOptions.egress && chain.some((provider) => provider.name === 'vllm')
+        ? await this.resolveEgressFetch(requiredOptions.model)
+        : undefined;
     async function* streamWithFallback(): AsyncIterable<string> {
       let lastError: Error | null = null;
 
@@ -840,121 +817,24 @@ export class LLMGateway {
 
           let stream: AsyncIterable<string>;
 
-          if (provider.name === 'openai') {
-            const apiKey = getEnvVar('OPENAI_API_KEY');
-            if (!apiKey) throw new Error('OPENAI_API_KEY not set');
-            stream = streamOpenAI(
-              apiKey,
-              {
-                model: resolvedModel,
-                messages: processedMessages,
-                temperature: requiredOptions.temperature,
-                max_tokens: requiredOptions.maxTokens,
-              },
-              options.signal,
-              egressFetchImpl ?? fetch,
-            );
-          } else if (provider.name === 'anthropic') {
-            const apiKey = getEnvVar('ANTHROPIC_API_KEY');
-            if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-            const systemMsg = processedMessages.find((m) => m.role === 'system');
-            const chatMessages = processedMessages.filter((m) => m.role !== 'system');
-            stream = streamAnthropic(
-              apiKey,
-              {
-                model: resolvedModel,
-                messages: chatMessages.map((m) => ({ role: m.role, content: m.content })),
-                max_tokens: requiredOptions.maxTokens ?? 4096,
-                temperature: requiredOptions.temperature,
-                system: systemMsg?.content,
-              },
-              options.signal,
-              egressFetchImpl ?? fetch,
-            );
-          } else if (provider.name === 'deepseek') {
-            const apiKey = getEnvVar('DEEPSEEK_API_KEY');
-            if (!apiKey) throw new Error('DEEPSEEK_API_KEY not set');
-            stream = streamDeepSeek(
-              apiKey,
-              {
-                model: resolvedModel,
-                messages: processedMessages,
-                temperature: requiredOptions.temperature,
-                max_tokens: requiredOptions.maxTokens,
-              },
-              options.signal,
-              egressFetchImpl ?? fetch,
-            );
-          } else if (provider.name === 'grok') {
-            const apiKey = getEnvVar('GROK_API_KEY');
-            if (!apiKey) throw new Error('GROK_API_KEY not set');
-            stream = streamGrok(
-              apiKey,
-              {
-                model: resolvedModel,
-                messages: processedMessages,
-                temperature: requiredOptions.temperature,
-                max_tokens: requiredOptions.maxTokens,
-              },
-              options.signal,
-              egressFetchImpl ?? fetch,
-            );
-          } else if (provider.name === 'venice') {
-            const apiKey = getEnvVar('VENICE_API_KEY');
-            if (!apiKey) throw new Error('VENICE_API_KEY not set');
-            stream = streamVenice(
-              apiKey,
-              {
-                model: resolvedModel,
-                messages: processedMessages,
-                temperature: requiredOptions.temperature,
-                max_tokens: requiredOptions.maxTokens,
-              },
-              options.signal,
-              egressFetchImpl ?? fetch,
-            );
-          } else if (provider.name === 'mistral') {
-            const apiKey = getEnvVar('MISTRAL_API_KEY');
-            if (!apiKey) throw new Error('MISTRAL_API_KEY not set');
-            stream = streamMistral(
-              apiKey,
-              {
-                model: resolvedModel,
-                messages: processedMessages,
-                temperature: requiredOptions.temperature,
-                max_tokens: requiredOptions.maxTokens,
-              },
-              options.signal,
-              egressFetchImpl ?? fetch,
-            );
-          } else if (provider.name === 'lightning') {
-            const apiKey = getEnvVar('LIGHTNING_API_KEY');
-            if (!apiKey) throw new Error('LIGHTNING_API_KEY not set');
-            stream = streamLightning(
-              apiKey,
-              {
-                model: resolvedModel,
-                messages: processedMessages,
-                temperature: requiredOptions.temperature,
-                max_tokens: requiredOptions.maxTokens,
-              },
-              options.signal,
-              egressFetchImpl ?? fetch,
-            );
-          } else if (provider.name === 'google') {
-            const apiKey = getEnvVar('GOOGLE_API_KEY');
-            if (!apiKey) throw new Error('GOOGLE_API_KEY not set');
-            stream = streamGoogle(
-              apiKey,
-              {
-                model: resolvedModel,
-                messages: processedMessages,
-                temperature: requiredOptions.temperature,
-                max_tokens: requiredOptions.maxTokens,
-              },
-              options.signal,
-              egressFetchImpl ?? fetch,
-            );
+          if (provider.subscriptionSupported) {
+            if (!requiredOptions.userId) {
+              throw new ProviderError('Authenticated user is required', 401, provider.name);
+            }
+            if (requiredOptions.egress) {
+              throw new ProviderError(
+                'Subscription CLI transports cannot use model egress bindings',
+                422,
+                provider.name,
+              );
+            }
+            stream = subscriptionTransport.stream({
+              provider: provider.name as SubscriptionProvider,
+              userId: requiredOptions.userId,
+              model: resolvedModel,
+              messages: processedMessages,
+              signal: options.signal,
+            });
           } else if (provider.name === 'vllm') {
             stream = streamVLLM(
               {
@@ -978,7 +858,11 @@ export class LLMGateway {
           }
 
           // Cache the full response
-          const streamCacheKey = `${processedMessages}::${resolvedModel}`;
+          const streamCacheKey = responseCacheKey(
+            processedMessages,
+            resolvedModel,
+            requiredOptions.userId,
+          );
           cacheResponse(streamCacheKey, fullContent);
 
           return; // Success — stop iterating fallback chain

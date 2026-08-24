@@ -10,6 +10,10 @@ credentials/
 coverage/
 .next/
 .axiom/markers/
+.axiom-subscriptions/
+.codex/
+.claude/
+.grok/
 target/
 *.tsbuildinfo
 

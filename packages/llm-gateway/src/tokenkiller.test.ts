@@ -95,7 +95,7 @@ describe('chatWithTokenKiller (S0–S3 assembly)', () => {
     const gateway = new LLMGateway();
     const result = await gateway.chatWithTokenKiller(
       [{ role: 'user', content: 'generate for instagram' }],
-      { tokenkiller: tokenkillerOpts(), provider: 'deepseek' },
+      { tokenkiller: tokenkillerOpts(), provider: 'vllm' },
     );
 
     expect(result.content).toBe('here is your caption');
@@ -152,7 +152,7 @@ describe('prefix cache-hit ratio (LBI-09, target > 97%)', () => {
           mood: 'm1',
         },
       }),
-      provider: 'deepseek',
+      provider: 'vllm',
     });
     // Same prefix, different S3 task → prefix-cache HIT.
     await gateway.chatWithTokenKiller([{ role: 'user', content: 'two' }], {
@@ -165,7 +165,7 @@ describe('prefix cache-hit ratio (LBI-09, target > 97%)', () => {
           mood: 'm2',
         },
       }),
-      provider: 'deepseek',
+      provider: 'vllm',
     });
 
     const stats = gateway.getStats().tokenkiller;
@@ -208,11 +208,11 @@ describe('prefix cache-hit ratio (LBI-09, target > 97%)', () => {
 
     await gateway.chatWithTokenKiller([{ role: 'user', content: 'one' }], {
       tokenkiller: tokenkillerOpts({ exemplars: exemplarA }),
-      provider: 'deepseek',
+      provider: 'vllm',
     });
     await gateway.chatWithTokenKiller([{ role: 'user', content: 'two' }], {
       tokenkiller: tokenkillerOpts({ exemplars: exemplarB }),
-      provider: 'deepseek',
+      provider: 'vllm',
     });
 
     const stats = gateway.getStats().tokenkiller;
@@ -225,11 +225,11 @@ describe('prefix cache-hit ratio (LBI-09, target > 97%)', () => {
     const gateway = new LLMGateway();
     await gateway.chatWithTokenKiller([{ role: 'user', content: 'one' }], {
       tokenkiller: tokenkillerOpts({ prefixVersion: 'v1' }),
-      provider: 'deepseek',
+      provider: 'vllm',
     });
     await gateway.chatWithTokenKiller([{ role: 'user', content: 'two' }], {
       tokenkiller: tokenkillerOpts({ prefixVersion: 'v2' }),
-      provider: 'deepseek',
+      provider: 'vllm',
     });
 
     const stats = gateway.getStats().tokenkiller;
@@ -255,7 +255,7 @@ describe('POST /chat/tokenkiller route', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messages: [{ role: 'user', content: 'hi' }],
-        provider: 'deepseek',
+        provider: 'vllm',
         tokenkiller: tokenkillerOpts(),
       }),
     });

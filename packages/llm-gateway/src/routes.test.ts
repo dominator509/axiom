@@ -1,5 +1,6 @@
 // ─── LLM Gateway HTTP routes (Hono) — Vitest Suite ───
 import { describe, it, expect, vi } from 'vitest';
+import { Hono } from 'hono';
 import { createRouter } from './routes.js';
 import type { LLMGateway } from './gateway.js';
 
@@ -22,12 +23,48 @@ function makeGatewayStub() {
       })(),
     ),
     getAvailableProviders: vi.fn(() => ['openai', 'vllm']),
+    getProviderCapabilities: vi.fn(() => [
+      {
+        provider: 'openai',
+        available: true,
+        transport: 'user-subscription',
+        auth: 'oauth',
+        operatorApiCost: false,
+        reason: null,
+      },
+      {
+        provider: 'vllm',
+        available: true,
+        transport: 'local',
+        auth: 'none',
+        operatorApiCost: false,
+        reason: null,
+      },
+    ]),
+    getSubscriptionStatus: vi.fn(async (provider: string) => ({ provider, connected: true })),
+    connectSubscription: vi.fn(() =>
+      (async function* () {
+        yield 'Continue in your browser';
+      })(),
+    ),
+    disconnectSubscription: vi.fn(async () => undefined),
     getStats: vi.fn(() => ({
       requests: 4,
       failures: 1,
       cache: { hits: 2, misses: 3, size: 1 },
     })),
   } as unknown as LLMGateway;
+}
+
+function authenticatedApp(gateway: LLMGateway) {
+  const app = new Hono<{ Variables: { userId: string; orgId: string } }>();
+  app.use('*', async (c, next) => {
+    c.set('userId', 'user-route-test');
+    c.set('orgId', 'org-route-test');
+    await next();
+  });
+  app.route('/', createRouter(gateway));
+  return app;
 }
 
 const validBody = {
@@ -268,7 +305,7 @@ describe('createRouter — GET endpoints', () => {
     const app = createRouter(gateway);
     const res = await app.request('/providers');
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ providers: ['openai', 'vllm'] });
+    expect(await res.json()).toMatchObject({ providers: ['openai', 'vllm'] });
   });
 
   it('GET /stats returns gateway statistics', async () => {
@@ -287,6 +324,47 @@ describe('createRouter — GET endpoints', () => {
     const gateway = makeGatewayStub();
     const app = createRouter(gateway);
     const res = await app.request('/nope');
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('createRouter — subscription OAuth lifecycle', () => {
+  it('reports connection state for the authenticated user', async () => {
+    const gateway = makeGatewayStub();
+    const res = await authenticatedApp(gateway).request('/subscriptions/grok');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ provider: 'grok', connected: true });
+    expect(gateway.getSubscriptionStatus).toHaveBeenCalledWith('grok', 'user-route-test');
+  });
+
+  it('streams provider login instructions without caching', async () => {
+    const gateway = makeGatewayStub();
+    const res = await authenticatedApp(gateway).request('/subscriptions/openai/login', {
+      method: 'POST',
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(await res.text()).toContain('event: connected');
+    expect(gateway.connectSubscription).toHaveBeenCalledWith(
+      'openai',
+      'user-route-test',
+      expect.any(AbortSignal),
+    );
+  });
+
+  it('disconnects only the authenticated user profile', async () => {
+    const gateway = makeGatewayStub();
+    const res = await authenticatedApp(gateway).request('/subscriptions/anthropic', {
+      method: 'DELETE',
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ provider: 'anthropic', connected: false });
+    expect(gateway.disconnectSubscription).toHaveBeenCalledWith('anthropic', 'user-route-test');
+  });
+
+  it('rejects providers without a qualifying subscription transport', async () => {
+    const gateway = makeGatewayStub();
+    const res = await authenticatedApp(gateway).request('/subscriptions/deepseek');
     expect(res.status).toBe(404);
   });
 });

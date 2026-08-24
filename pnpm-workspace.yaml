@@ -2,6 +2,8 @@ packages:
   - 'packages/*'
 
 onlyBuiltDependencies:
+  - '@anthropic-ai/claude-code'
+  - '@xai-official/grok'
   - expo
   - react-native
   - '@expo/metro-config'

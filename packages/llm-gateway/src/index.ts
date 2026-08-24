@@ -55,12 +55,6 @@ export type {
   ProviderStreamChunk,
   ProviderOptions,
 } from './providers/types.js';
-export {
-  OpenAIProvider,
-  AnthropicProvider,
-  VeniceProvider,
-  MistralProvider,
-  LightningProvider,
-  GoogleProvider,
-  VLLMProvider,
-} from './providers/index.js';
+// Paid API providers remain internal compatibility code and are intentionally
+// absent from the public package surface.
+export { VLLMProvider } from './providers/vllm.js';
