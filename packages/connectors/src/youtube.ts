@@ -40,7 +40,6 @@ interface YtStatisticsResponse {
       likeCount?: string;
       commentCount?: string;
       shareCount?: string;
-      favoriteCount?: string;
     };
   }>;
 }
@@ -59,7 +58,7 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
       caption: true,
       maxCaptionLength: 5_000,
       scheduling: 'native' as const,
-      metrics: ['views', 'likes', 'comments', 'shares'],
+      metrics: ['views', 'likes', 'comments'],
       refreshMetrics: true,
     };
   }
@@ -195,7 +194,6 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
         views: parseInt(stats.viewCount ?? '0', 10),
         likes: parseInt(stats.likeCount ?? '0', 10),
         comments: parseInt(stats.commentCount ?? '0', 10),
-        shares: parseInt(stats.favoriteCount ?? '0', 10), // YouTube uses "favorites" as share equivalent
       },
       raw: stats as unknown as Record<string, unknown>,
     };

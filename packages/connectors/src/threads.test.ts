@@ -35,8 +35,8 @@ afterEach(() => {
 describe('ThreadsConnector', () => {
   it('declares threads capabilities', () => {
     const cap = new ThreadsConnector(AUTH).capability();
-    expect(cap.media).toEqual(['image', 'video']);
-    expect(cap.maxMediaCount).toBe(10);
+    expect(cap.media).toEqual(['image', 'video', 'carousel']);
+    expect(cap.maxMediaCount).toBe(20);
     expect(cap.maxCaptionLength).toBe(500);
     expect(cap.metrics).toEqual([
       'impressions',
@@ -57,13 +57,14 @@ describe('ThreadsConnector', () => {
 
 describe('publish', () => {
   it('creates containers with the right media_type and publishes them', async () => {
-    // Source flow: create ALL containers first, then publish each (4 calls)
+    // Source flow: create child containers, create the carousel parent, then
+    // publish the parent (4 calls).
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ id: 'c1' }))
       .mockResolvedValueOnce(jsonResponse({ id: 'c2' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'p1' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'p2' }));
+      .mockResolvedValueOnce(jsonResponse({ id: 'parent-1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'p1' }));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new ThreadsConnector(AUTH);
@@ -72,31 +73,36 @@ describe('publish', () => {
     );
 
     expect(result.state).toBe('published');
-    expect(result.remoteId).toBe('p2');
-    expect(result.postUrl).toBe('https://www.threads.net/@axiom/post/p2');
+    expect(result.remoteId).toBe('p1');
+    expect(result.postUrl).toBe('https://www.threads.net/@axiom/post/p1');
 
     // Container creation calls come first (both)
     const create1 = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(create1[0]).toBe('https://graph.threads.net/v1.0/threads-user-1/threads');
     expect(JSON.parse(create1[1].body as string)).toMatchObject({
       media_type: 'IMAGE',
-      text: 'Hello Threads',
-      media_url: 'https://cdn.example.com/a.jpg',
+      image_url: 'https://cdn.example.com/a.jpg',
+      is_carousel_item: true,
     });
 
     const create2 = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(JSON.parse(create2[1].body as string)).toMatchObject({
       media_type: 'VIDEO',
-      media_url: 'https://cdn.example.com/b.mp4',
+      video_url: 'https://cdn.example.com/b.mp4',
+      is_carousel_item: true,
     });
 
-    // Publish calls follow, in container order
-    const publish1 = fetchMock.mock.calls[2] as [string, RequestInit];
-    expect(publish1[0]).toBe('https://graph.threads.net/v1.0/threads-user-1/threads_publish');
-    expect(JSON.parse(publish1[1].body as string)).toMatchObject({ creation_id: 'c1' });
+    const parent = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(parent[0]).toBe('https://graph.threads.net/v1.0/threads-user-1/threads');
+    expect(JSON.parse(parent[1].body as string)).toMatchObject({
+      media_type: 'CAROUSEL_ALBUM',
+      text: 'Hello Threads',
+      children: 'c1,c2',
+    });
 
-    const publish2 = fetchMock.mock.calls[3] as [string, RequestInit];
-    expect(JSON.parse(publish2[1].body as string)).toMatchObject({ creation_id: 'c2' });
+    const publish = fetchMock.mock.calls[3] as [string, RequestInit];
+    expect(publish[0]).toBe('https://graph.threads.net/v1.0/threads-user-1/threads_publish');
+    expect(JSON.parse(publish[1].body as string)).toMatchObject({ creation_id: 'parent-1' });
   });
 
   it('fails fast when externalUserId is missing', async () => {
@@ -119,7 +125,7 @@ describe('fetchMetrics', () => {
   it('maps insights to metrics', async () => {
     const data = {
       data: [
-        { name: 'impressions', period: 'day', values: [{ value: 90 }] },
+        { name: 'views', period: 'lifetime', values: [{ value: 90 }] },
         { name: 'likes', period: 'day', values: [{ value: 9 }] },
       ],
     };
@@ -137,9 +143,8 @@ describe('fetchMetrics', () => {
     });
 
     const [url] = vi.mocked(fetch).mock.calls[0] as [string];
-    expect(url).toContain('/threads-user-1/threads');
-    expect(url).toContain(
-      'fields=insights.metric(impressions,likes,comments,shares,reposts,quotes)',
+    expect(url).toBe(
+      'https://graph.threads.net/v1.0/p1/insights?metric=views,likes,replies,reposts,quotes,shares&access_token=threads-token',
     );
   });
 

@@ -29,10 +29,11 @@ interface TiktokInitResponse {
   };
 }
 
-interface TiktokCompleteResponse {
+interface TiktokStatusResponse {
   data: {
-    publish_id: string;
     status: string;
+    fail_reason?: string;
+    publicaly_available_post_id?: number[];
   };
   error?: {
     code: string;
@@ -51,20 +52,6 @@ interface TiktokVideoQueryResponse {
         share_count: number;
       };
     }>;
-  };
-  error?: {
-    code: string;
-    message: string;
-  };
-}
-
-interface TiktokUserInfoResponse {
-  data: {
-    user: {
-      open_id: string;
-      union_id?: string;
-      display_name?: string;
-    };
   };
   error?: {
     code: string;
@@ -102,13 +89,51 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
         throw new Error('TikTok requires at least one video URL');
       }
 
-      // Step 1: Initialize the video upload
+      const options = input.options ?? {};
+      const pendingPublishId =
+        typeof options.publishId === 'string' && options.publishId.length > 0
+          ? options.publishId
+          : undefined;
+
+      // A TikTok publish is asynchronous. Retries resume by polling the
+      // publish_id stored on post_target instead of uploading a second copy.
+      if (pendingPublishId) {
+        return this.statusResult(pendingPublishId, await this.fetchPublishStatus(pendingPublishId));
+      }
+
+      // Download first so FILE_UPLOAD metadata reflects the actual bytes.
+      const videoResponse = await fetch(videoUrl);
+      if (!videoResponse.ok) {
+        throw new Error(`Failed to download video from ${videoUrl}: ${videoResponse.status}`);
+      }
+      const videoBuffer = await videoResponse.arrayBuffer();
+      const videoSize = videoBuffer.byteLength;
+      if (videoSize <= 0) throw new Error('TikTok video must not be empty');
+      const requestedChunkSize = Number(options.chunkSize);
+      const chunkSize =
+        Number.isSafeInteger(requestedChunkSize) && requestedChunkSize > 0
+          ? requestedChunkSize
+          : videoSize;
+      const totalChunkCount = Math.ceil(videoSize / chunkSize);
+
+      // Step 1: Initialize the video upload. TikTok requires post_info,
+      // including privacy_level, in this request alongside FILE_UPLOAD data.
       const initPayload: Record<string, unknown> = {
+        post_info: {
+          title: input.caption,
+          privacy_level: (options.privacyLevel as string | undefined) ?? 'SELF_ONLY',
+          disable_duet: options.disableDuet ?? false,
+          disable_stitch: options.disableStitch ?? false,
+          disable_comment: options.disableComment ?? false,
+          brand_content_toggle: options.brandContentToggle ?? options.brandContent ?? false,
+          brand_organic_toggle: options.brandOrganicToggle ?? options.brandOrganicUse ?? false,
+          is_aigc: options.isAigc ?? false,
+        },
         source_info: {
           source: 'FILE_UPLOAD',
-          video_size: input.options?.videoSize ?? 0,
-          chunk_size: input.options?.chunkSize ?? 0,
-          total_chunk_count: input.options?.totalChunkCount ?? 1,
+          video_size: videoSize,
+          chunk_size: chunkSize,
+          total_chunk_count: totalChunkCount,
         },
       };
 
@@ -121,21 +146,14 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
         },
       );
 
-      if (initResp.error) {
+      if (initResp.error && initResp.error.code !== 'ok') {
         throw new Error(`TikTok init failed: ${initResp.error.code} — ${initResp.error.message}`);
       }
 
       const { publish_id, upload_url } = initResp.data;
       this.log('info', 'publish', `TikTok video init complete`, { publish_id });
 
-      // Step 2: Download the video from the source URL and upload to TikTok
-      const videoResponse = await fetch(videoUrl);
-      if (!videoResponse.ok) {
-        throw new Error(`Failed to download video from ${videoUrl}: ${videoResponse.status}`);
-      }
-
-      const videoBuffer = await videoResponse.arrayBuffer();
-
+      // Step 2: Upload the downloaded bytes to TikTok.
       const uploadResp = await fetch(upload_url, {
         method: 'PUT',
         headers: {
@@ -154,46 +172,9 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
 
       this.log('info', 'publish', `TikTok video uploaded (${videoBuffer.byteLength} bytes)`);
 
-      // Step 3: Complete the publish
-      const completePayload: Record<string, unknown> = {
-        publish_id,
-        post_info: {
-          title: input.caption,
-          privacy_level: input.options?.privacyLevel ?? 'PUBLIC_TO_EVERYONE',
-          disable_duet: input.options?.disableDuet ?? false,
-          disable_stitch: input.options?.disableStitch ?? false,
-          disable_comment: input.options?.disableComment ?? false,
-          brand_organic_use: input.options?.brandOrganicUse ?? false,
-          brand_content: input.options?.brandContent ?? false,
-        },
-      };
-
-      const completeResp = await this.apiPost<TiktokCompleteResponse>(
-        `${TIKTOK_API_BASE}/post/publish/video/complete/`,
-        completePayload,
-        {
-          Authorization: `Bearer ${this.auth.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (completeResp.error) {
-        throw new Error(
-          `TikTok complete failed: ${completeResp.error.code} — ${completeResp.error.message}`,
-        );
-      }
-
-      this.log('info', 'publish', `TikTok video published`, {
-        publish_id: completeResp.data.publish_id,
-      });
-
-      const postUrl = `https://www.tiktok.com/@${this.auth.extra?.username ?? 'user'}/video/${completeResp.data.publish_id}`;
-
-      return {
-        remoteId: completeResp.data.publish_id,
-        state: 'published',
-        postUrl,
-      };
+      // Step 3: TikTok processes the upload asynchronously. Use the
+      // documented status endpoint; there is no /video/complete endpoint.
+      return this.statusResult(publish_id, await this.fetchPublishStatus(publish_id));
     });
   }
 
@@ -231,33 +212,63 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
   }
 
   async revoke(): Promise<void> {
-    // TikTok does not have a server-side token revocation endpoint.
-    // Disconnection is handled client-side by discarding the stored OAuth tokens.
-    const openId = this.auth.externalUserId ?? 'unknown';
-
-    // Attempt to call the user info endpoint as a liveness check,
-    // then disconnect by clearing token representation on our side.
-    try {
-      const resp = await this.apiGet<TiktokUserInfoResponse>(
-        `${TIKTOK_API_BASE}/user/info/?fields=open_id`,
-        {
-          Authorization: `Bearer ${this.auth.accessToken}`,
-        },
-      );
-
-      if (resp.data?.user?.open_id) {
-        this.log('info', 'revoke', `Verified TikTok user ${openId} before disconnect`);
-      }
-    } catch {
-      // Token may already be expired — still proceed with logical disconnect
-      this.log(
-        'warn',
-        'revoke',
-        `Could not verify TikTok user ${openId}; proceeding with disconnect`,
-      );
+    const clientKey = this.auth.extra?.clientKey as string | undefined;
+    const clientSecret = this.auth.extra?.clientSecret as string | undefined;
+    if (!clientKey || !clientSecret) {
+      throw new Error('TikTok revoke requires clientKey and clientSecret in auth.extra');
     }
 
-    this.log('info', 'revoke', `TikTok OAuth disconnected for user ${openId}`);
+    const response = await fetch(`${TIKTOK_API_BASE}/oauth/revoke/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_key: clientKey,
+        client_secret: clientSecret,
+        token: this.auth.accessToken,
+      }),
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new Error(`TikTok token revoke failed: ${response.status} — ${body}`);
+    }
+
+    this.auth.accessToken = '';
+    this.auth.refreshToken = undefined;
+    this.auth.expiresAt = 0;
+    this.log('info', 'revoke', 'TikTok OAuth token revoked successfully');
+  }
+
+  private async fetchPublishStatus(publishId: string): Promise<TiktokStatusResponse> {
+    return this.apiPost<TiktokStatusResponse>(
+      `${TIKTOK_API_BASE}/post/publish/status/fetch/`,
+      { publish_id: publishId },
+      { 'Content-Type': 'application/json' },
+    );
+  }
+
+  private statusResult(publishId: string, response: TiktokStatusResponse): ConnectorPublishResult {
+    if (response.error && response.error.code !== 'ok') {
+      throw new Error(`TikTok status failed: ${response.error.code} — ${response.error.message}`);
+    }
+    const status = response.data.status;
+    if (status === 'FAILED') {
+      throw new Error(`TikTok publish failed: ${response.data.fail_reason ?? 'unknown reason'}`);
+    }
+    const postId = response.data.publicaly_available_post_id?.[0];
+    if (status === 'PUBLISH_COMPLETE' && postId !== undefined) {
+      const remoteId = String(postId);
+      this.log('info', 'publish', 'TikTok video published', { publish_id: publishId, remoteId });
+      return {
+        remoteId,
+        state: 'published',
+        postUrl: `https://www.tiktok.com/@${this.auth.extra?.username ?? 'user'}/video/${remoteId}`,
+      };
+    }
+    return {
+      remoteId: publishId,
+      state: 'pending',
+      error: `TikTok publish status is ${status}; waiting for the final post ID`,
+    };
   }
 }
 

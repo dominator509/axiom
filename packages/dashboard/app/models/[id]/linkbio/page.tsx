@@ -45,8 +45,8 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
         <h3>Providers</h3>
         {!data || data.providers.length === 0 ? (
           <p style={{ color: 'var(--muted)' }}>
-            No providers enabled. The Native provider requires nothing external — enable it to serve
-            a link page.
+            No provider enabled. The native page requires nothing external — enable it to serve a
+            first-party link page.
           </p>
         ) : (
           <p style={{ color: 'var(--muted)' }}>
@@ -56,6 +56,9 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
         )}
         <LinkbioPanel modelId={id} providers={data?.providers ?? []} />
       </div>
+      <p style={{ color: 'var(--muted)', fontSize: 12 }}>
+        External Linktree, Beacons, and Fanlynks adapters are not available in this release.
+      </p>
       {analytics && analytics.totalClicks > 0 && (
         <div className="card">
           <h3>Click analytics</h3>

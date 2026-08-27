@@ -58,8 +58,8 @@ describe('publish', () => {
       .fn()
       .mockResolvedValueOnce(jsonResponse({ id: 'container-1' }))
       .mockResolvedValueOnce(jsonResponse({ id: 'container-2' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'post-1' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'post-2' }));
+      .mockResolvedValueOnce(jsonResponse({ id: 'carousel-1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'post-1' }));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new InstagramConnector(AUTH);
@@ -68,8 +68,8 @@ describe('publish', () => {
     );
 
     expect(result.state).toBe('published');
-    expect(result.remoteId).toBe('post-2');
-    expect(result.postUrl).toBe('https://www.instagram.com/p/post-2/');
+    expect(result.remoteId).toBe('post-1');
+    expect(result.postUrl).toBe('https://www.instagram.com/p/post-1/');
 
     // Container creation calls (all containers are created before any publish)
     const createInit1 = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -77,23 +77,27 @@ describe('publish', () => {
     const body1 = JSON.parse(createInit1[1].body as string) as Record<string, string>;
     expect(body1.image_url).toBe('https://cdn.example.com/a.jpg');
     expect(body1.media_type).toBeUndefined();
+    expect(body1.is_carousel_item).toBe('true');
 
     const createInit2 = fetchMock.mock.calls[1] as [string, RequestInit];
     const body2 = JSON.parse(createInit2[1].body as string) as Record<string, string>;
     expect(body2.media_type).toBe('VIDEO');
     expect(body2.video_url).toBe('https://cdn.example.com/b.mp4');
     expect(body2.image_url).toBeUndefined();
+    expect(body2.is_carousel_item).toBe('true');
 
-    // Publish calls use creation ids
-    const publishInit1 = fetchMock.mock.calls[2] as [string, RequestInit];
-    expect(publishInit1[0]).toBe('https://graph.facebook.com/v22.0/ig-business-1/media_publish');
-    expect(JSON.parse(publishInit1[1].body as string)).toMatchObject({
-      creation_id: 'container-1',
+    const parentInit = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(parentInit[0]).toBe('https://graph.facebook.com/v22.0/ig-business-1/media');
+    expect(JSON.parse(parentInit[1].body as string)).toMatchObject({
+      media_type: 'CAROUSEL',
+      children: 'container-1,container-2',
+      caption: 'Summer vibes',
     });
 
-    const publishInit2 = fetchMock.mock.calls[3] as [string, RequestInit];
-    expect(JSON.parse(publishInit2[1].body as string)).toMatchObject({
-      creation_id: 'container-2',
+    const publishInit = fetchMock.mock.calls[3] as [string, RequestInit];
+    expect(publishInit[0]).toBe('https://graph.facebook.com/v22.0/ig-business-1/media_publish');
+    expect(JSON.parse(publishInit[1].body as string)).toMatchObject({
+      creation_id: 'carousel-1',
     });
   });
 

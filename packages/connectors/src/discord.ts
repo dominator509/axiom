@@ -53,7 +53,9 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
       caption: true,
       maxCaptionLength: 2_000,
       scheduling: 'internal' as const,
-      metrics: ['views', 'likes', 'comments', 'shares'],
+      // Webhooks do not expose post-level analytics. Do not advertise metrics
+      // that this connector cannot collect.
+      metrics: [],
       refreshMetrics: false,
     };
   }
@@ -114,8 +116,12 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
         embeds: [embed],
       };
 
-      // Send the webhook
-      const response = await fetch(webhookUrl, {
+      // wait=true makes Discord return the created message. Even with it set,
+      // handle 204 defensively because a successful webhook must never be
+      // retried merely because there is no JSON response body.
+      const executeUrl = new URL(webhookUrl);
+      executeUrl.searchParams.set('wait', 'true');
+      const response = await fetch(executeUrl.toString(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -128,16 +134,20 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
         throw new Error(`Discord webhook failed: HTTP ${response.status} — ${body}`);
       }
 
-      const result = (await response.json()) as DiscordWebhookResponse;
+      const responseBody = await response.text().catch(() => '');
+      let result: Partial<DiscordWebhookResponse> = {};
+      if (responseBody.trim().length > 0) {
+        result = JSON.parse(responseBody) as DiscordWebhookResponse;
+      }
 
       this.log('info', 'publish', `Discord webhook sent`, {
-        messageId: result.id,
-        channelId: result.channel_id,
-        guildId: result.guild_id,
+        messageId: result.id ?? null,
+        channelId: result.channel_id ?? null,
+        guildId: result.guild_id ?? null,
       });
 
       return {
-        remoteId: result.id,
+        remoteId: result.id ?? null,
         state: 'published',
         postUrl: linkUrl,
       };
@@ -173,19 +183,31 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
       return;
     }
 
-    // Parse webhook ID from URL: /api/webhooks/{webhookId}/{webhookToken}
-    const match = webhookUrl.match(/\/webhooks\/(\d+)\//);
+    // Delete Webhook with Token is the unauthenticated endpoint for an
+    // incoming webhook. The ID-only endpoint requires MANAGE_WEBHOOKS.
+    let webhook: URL;
+    try {
+      webhook = new URL(webhookUrl);
+    } catch {
+      this.log('warn', 'revoke', 'Could not parse webhook URL; skipping');
+      return;
+    }
+    const match = webhook.pathname.match(/\/webhooks\/(\d+)\/([^/]+)$/);
     if (!match) {
-      this.log('warn', 'revoke', 'Could not parse webhook ID from URL; skipping');
+      this.log('warn', 'revoke', 'Webhook URL does not contain an ID and token; skipping');
       return;
     }
 
     const webhookId = match[1];
+    const webhookToken = decodeURIComponent(match[2]);
 
     // Delete the webhook via Discord API
-    const response = await fetch(`${DISCORD_API_BASE}/webhooks/${webhookId}`, {
-      method: 'DELETE',
-    });
+    const response = await fetch(
+      `${DISCORD_API_BASE}/webhooks/${webhookId}/${encodeURIComponent(webhookToken)}`,
+      {
+        method: 'DELETE',
+      },
+    );
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');

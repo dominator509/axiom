@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        task: [typecheck, lint, test, build]
+        task: [typecheck, lint, test, build, security]
 
     steps:
       - name: Checkout repository
@@ -25,12 +25,12 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: latest
+          version: '9.14.0'
 
-      - name: Setup Node.js v20 with pnpm cache
+      - name: Setup Node.js v22 with pnpm cache
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
 
@@ -39,7 +39,7 @@ jobs:
 
       # ── Rust toolchain (needed by test, lint, and build slots) ──
       - name: Setup Rust toolchain
-        if: matrix.task == 'test' || matrix.task == 'lint' || matrix.task == 'build'
+        if: matrix.task == 'test' || matrix.task == 'lint' || matrix.task == 'build' || matrix.task == 'security'
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -103,12 +103,13 @@ jobs:
       - name: RLS coverage check — verify ENABLE ROW LEVEL SECURITY policies
         if: matrix.task == 'test'
         run: |
-          MATCHES=$(grep -r "ENABLE ROW LEVEL SECURITY" migrations/ 2>/dev/null | wc -l)
+          MATCHES=$(grep -r "ENABLE ROW LEVEL SECURITY" packages/db/migrations/ 2>/dev/null | wc -l)
           echo "RLS policy statements found: $MATCHES"
           if [ "$MATCHES" -ge 15 ]; then
             echo "RLS coverage: PASS (>= 15)"
           else
-            echo "RLS coverage: WARNING — only $MATCHES ENABLE ROW LEVEL SECURITY statements found (expected >= 15)"
+            echo "RLS coverage: FAIL — only $MATCHES ENABLE ROW LEVEL SECURITY statements found (expected >= 15)"
+            exit 1
           fi
 
       - name: Egress test stub (requires sudo — skipped in CI)
@@ -134,3 +135,14 @@ jobs:
               cargo build --manifest-path "crates/$crate/Cargo.toml"
             fi
           done
+
+      # ═══════════════════════════════════════════════════════════
+      #  MATRIX TASK: security
+      # ═══════════════════════════════════════════════════════════
+      - name: Install cargo-audit
+        if: matrix.task == 'security'
+        run: cargo install cargo-audit --locked
+
+      - name: Run repository security gates
+        if: matrix.task == 'security'
+        run: pnpm security-check

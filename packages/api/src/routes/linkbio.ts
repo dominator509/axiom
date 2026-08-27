@@ -1,6 +1,7 @@
-// ─── Link-in-bio (F-48..F-53, L3.0) — real provider CRUD + analytics ───
-// linkbio_provider rows per model (native/fanlynks/linktree/beacons),
-// normalized analytics from linkbio_click (+ post_metric.clicks).
+// ─── Link-in-bio — native provider CRUD + first-party analytics ────────────
+// External provider adapters are not implemented yet. Keep them out of the
+// production route until provisioning, OAuth, token revocation, and analytics
+// ingestion exist; never represent a database label as an active integration.
 
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -12,7 +13,7 @@ import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from '.
 
 const router = new Hono<AppBindings>();
 
-const PROVIDER_KINDS = ['native', 'fanlynks', 'linktree', 'beacons'] as const;
+const PROVIDER_KINDS = ['native'] as const;
 
 const enableSchema = z.object({
   kind: z.enum(PROVIDER_KINDS),
@@ -31,7 +32,11 @@ router.get('/models/:modelId/linkbio', async (c) => {
       .select()
       .from(schema.linkbioProvider)
       .where(
-        and(eq(schema.linkbioProvider.orgId, orgId), eq(schema.linkbioProvider.modelId, modelId)),
+        and(
+          eq(schema.linkbioProvider.orgId, orgId),
+          eq(schema.linkbioProvider.modelId, modelId),
+          eq(schema.linkbioProvider.kind, 'native'),
+        ),
       )
       .orderBy(schema.linkbioProvider.createdAt),
   );
@@ -122,7 +127,11 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
       .select()
       .from(schema.linkbioProvider)
       .where(
-        and(eq(schema.linkbioProvider.orgId, orgId), eq(schema.linkbioProvider.modelId, modelId)),
+        and(
+          eq(schema.linkbioProvider.orgId, orgId),
+          eq(schema.linkbioProvider.modelId, modelId),
+          eq(schema.linkbioProvider.kind, 'native'),
+        ),
       );
 
     const providerIds = providers.map((p: { id: string }) => p.id);

@@ -85,7 +85,7 @@ export abstract class BaseConnector implements SocialConnector {
   protected recordIdempotency(
     key: string,
     remoteId: string | null,
-    state: 'published' | 'failed' | 'skipped',
+    state: 'published' | 'pending' | 'failed' | 'skipped',
   ): void {
     idempotencyLedger.set(`${this.platform}:${key}`, {
       idempotencyKey: key,
@@ -122,8 +122,13 @@ export abstract class BaseConnector implements SocialConnector {
           error: 'Previously skipped',
         };
       }
+      if (existing.state === 'pending') {
+        this.log('info', 'publish', `Resuming pending post ${input.idempotencyKey}`);
+      }
       // 'failed' state — allow retry
-      this.log('warn', 'publish', `Retrying previously-failed post ${input.idempotencyKey}`);
+      if (existing.state === 'failed') {
+        this.log('warn', 'publish', `Retrying previously-failed post ${input.idempotencyKey}`);
+      }
     }
 
     const start = Date.now();

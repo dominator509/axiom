@@ -3,8 +3,8 @@
 // and in the Expo runtime (native + web) unchanged.
 //
 // Auth model: Better Auth sets the session via Set-Cookie on
-// POST /api/auth/sign-in/email. We capture that header into an in-memory
-// cookie store and attach it as a Cookie header on every subsequent request
+// POST /api/auth/sign-in/email. We capture that header into secure/native
+// storage and attach it as a Cookie header on every subsequent request
 // (react-native fetch lets us set Cookie; on web the header is also attached
 // when the CORS policy permits it).
 //
@@ -12,6 +12,8 @@
 // the BFF is assumed to run locally on :3001.
 
 declare const process: { env: Record<string, string | undefined> } | undefined;
+
+import { loadSessionCookie, removeSessionCookie, saveSessionCookie } from './storage';
 
 export const DEFAULT_API_BASE_URL = 'http://localhost:3001';
 
@@ -51,15 +53,27 @@ export function clearStoredCookie(): void {
   storedCookie = null;
 }
 
+/** Restore the cookie before the authenticated navigation is rendered. */
+export async function restoreStoredCookie(): Promise<void> {
+  storedCookie = await loadSessionCookie();
+}
+
+/** Clear both the in-memory and persisted session material. */
+export async function clearPersistedCookie(): Promise<void> {
+  storedCookie = null;
+  await removeSessionCookie();
+}
+
 /**
  * Capture a Set-Cookie response header into the in-memory cookie store.
  * A single header may carry multiple cookie pairs joined by commas; we store
  * it verbatim so the server's cookie attributes (Path, SameSite...) survive.
  */
-export function captureSetCookie(headers: Headers): void {
+export async function captureSetCookie(headers: Headers): Promise<void> {
   const value = headers.get('set-cookie');
   if (value && value.trim().length > 0) {
     storedCookie = value;
+    await saveSessionCookie(value);
   }
 }
 
@@ -127,7 +141,7 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
     throw new Error(`network error: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  captureSetCookie(res.headers);
+  await captureSetCookie(res.headers);
 
   const raw = await res.text();
   let body: unknown = null;

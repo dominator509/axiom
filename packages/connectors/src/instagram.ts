@@ -75,7 +75,9 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
 
       const accessToken = this.auth.accessToken;
 
-      // Step 1: Create media containers for each media URL
+      // Step 1: Create media containers for each media URL. For a carousel,
+      // each child must be marked is_carousel_item and the parent below is
+      // the only container that gets published.
       const creationIds: string[] = [];
 
       for (const mediaUrl of input.mediaUrls) {
@@ -83,7 +85,6 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
 
         const body: Record<string, string> = {
           image_url: mediaUrl,
-          caption: input.caption,
           access_token: accessToken,
         };
 
@@ -92,6 +93,8 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
           body.video_url = mediaUrl;
           delete body.image_url;
         }
+        if (input.mediaUrls.length > 1) body.is_carousel_item = 'true';
+        else body.caption = input.caption;
 
         const createResp = await this.apiPost<IgMediaContainerResponse>(
           `${IG_GRAPH_BASE}/${igUserId}/media`,
@@ -106,22 +109,36 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
         });
       }
 
-      // Step 2: Publish each container
-      let lastRemoteId: string | null = null;
+      const publishCreationId =
+        creationIds.length > 1
+          ? (
+              await this.apiPost<IgMediaContainerResponse>(
+                `${IG_GRAPH_BASE}/${igUserId}/media`,
+                {
+                  media_type: 'CAROUSEL',
+                  children: creationIds.join(','),
+                  caption: input.caption,
+                  access_token: accessToken,
+                },
+                { 'Content-Type': 'application/json' },
+              )
+            ).id
+          : creationIds[0];
 
-      for (const creationId of creationIds) {
-        const publishResp = await this.apiPost<IgPublishResponse>(
-          `${IG_GRAPH_BASE}/${igUserId}/media_publish`,
-          {
-            creation_id: creationId,
-            access_token: accessToken,
-          },
-          { 'Content-Type': 'application/json' },
-        );
+      if (!publishCreationId) throw new Error('Instagram did not return a publish container ID');
 
-        lastRemoteId = publishResp.id;
-        this.log('info', 'publish', `Published container ${creationId} -> post ${publishResp.id}`);
-      }
+      // Step 2: Publish the single container (or carousel parent).
+      const publishResp = await this.apiPost<IgPublishResponse>(
+        `${IG_GRAPH_BASE}/${igUserId}/media_publish`,
+        { creation_id: publishCreationId, access_token: accessToken },
+        { 'Content-Type': 'application/json' },
+      );
+      const lastRemoteId = publishResp.id;
+      this.log(
+        'info',
+        'publish',
+        `Published container ${publishCreationId} -> post ${lastRemoteId}`,
+      );
 
       const postUrl = lastRemoteId ? `https://www.instagram.com/p/${lastRemoteId}/` : undefined;
 

@@ -40,6 +40,7 @@ describe('DiscordConnector', () => {
     const cap = c.capability();
     expect(cap.media).toEqual(['image', 'video']);
     expect(cap.maxCaptionLength).toBe(2000);
+    expect(cap.metrics).toEqual([]);
     expect(cap.refreshMetrics).toBe(false);
   });
 
@@ -66,7 +67,7 @@ describe('publish', () => {
     expect(result.remoteId).toBe('msg-1');
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://discord.com/api/webhooks/12345/secret-token');
+    expect(url).toBe('https://discord.com/api/webhooks/12345/secret-token?wait=true');
     expect(init.method).toBe('POST');
 
     const payload = JSON.parse(init.body as string) as { embeds: Array<Record<string, unknown>> };
@@ -160,6 +161,17 @@ describe('publish', () => {
     expect(result.state).toBe('failed');
     expect(result.error).toContain('404');
   });
+
+  it('treats a successful 204 webhook response as published without retrying', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new DiscordConnector(AUTH);
+    const result = await c.publish(input({ idempotencyKey: 'discord-204' }));
+
+    expect(result).toMatchObject({ state: 'published', remoteId: null });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('fetchMetrics', () => {
@@ -181,7 +193,7 @@ describe('revoke', () => {
     await c.revoke();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://discord.com/api/webhooks/12345');
+    expect(url).toBe('https://discord.com/api/webhooks/12345/secret-token');
     expect(init.method).toBe('DELETE');
     expect(c.auth.accessToken).toBe('');
     expect(c.auth.refreshToken).toBeUndefined();

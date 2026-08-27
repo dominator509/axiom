@@ -22,23 +22,23 @@ echo "=== [test] Running migration dry-run test ==="
 MIGRATION_FILE="packages/db/migrations/0000_initial.sql"
 if [ -f "$MIGRATION_FILE" ]; then
   if [ -n "${TEST_DATABASE_URL:-}" ]; then
-    echo "  TEST_DATABASE_URL is set — applying dry-run (--echo-errors)..."
-    psql --echo-errors -f "$MIGRATION_FILE" "$TEST_DATABASE_URL"
-    echo "  Migration dry-run: SUCCESS"
+    echo "  TEST_DATABASE_URL is set — applying all migrations through the runner..."
+    MIGRATOR_DATABASE_URL="$TEST_DATABASE_URL" sh scripts/migrate.sh
+    echo "  Migration runner: SUCCESS"
   else
     echo "  TEST_DATABASE_URL not set — checking SQL syntax with sh -n style parsing"
-    # Basic syntax check: verify BEGIN/COMMIT balance and no obvious issues
+    # Basic syntax check: verify migration files are present and the runner
+    # owns the outer transaction. The runner strips historical top-level
+    # BEGIN/COMMIT statements without changing checksum-addressed files.
     if head -1 "$MIGRATION_FILE" | grep -q '^-'; then
       echo "  Migration file exists and has valid header"
     fi
-    # Count BEGIN vs COMMIT as a basic sanity check
-    begin_count=$(grep -c '^BEGIN;' "$MIGRATION_FILE" || true)
-    commit_count=$(grep -c '^COMMIT;' "$MIGRATION_FILE" || true)
-    if [ "$begin_count" -eq "$commit_count" ]; then
-      echo "  Migration file '$MIGRATION_FILE' exists — BEGIN/COMMIT balanced ($begin_count/$commit_count)"
+    if grep -q 'stream_migration_without_transaction_control' scripts/migrate.sh \
+      && grep -q -- '--single-transaction' scripts/migrate.sh; then
+      echo "  Migration runner atomicity: outer transaction + transaction-control normalization"
       echo "  Migration syntax check: PASSED"
     else
-      echo "  ERROR: BEGIN/COMMIT mismatch ($begin_count BEGIN vs $commit_count COMMIT)"
+      echo "  ERROR: migration runner does not own a single transaction"
       exit 1
     fi
   fi

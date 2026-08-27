@@ -86,7 +86,7 @@ export interface ConnectorPublishInput {
 /** Result of a publish operation */
 export interface ConnectorPublishResult {
   remoteId: string | null;
-  state: 'published' | 'failed' | 'skipped';
+  state: 'published' | 'pending' | 'failed' | 'skipped';
   error?: string;
   /** Platform-specific post URL */
   postUrl?: string;
@@ -166,7 +166,7 @@ export interface IdempotencyEntry {
   idempotencyKey: string;
   platform: Platform;
   remoteId: string | null;
-  state: 'published' | 'failed' | 'skipped';
+  state: 'published' | 'pending' | 'failed' | 'skipped';
   completedAt: string;
 }
 

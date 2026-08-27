@@ -50,7 +50,7 @@ export interface PublishResult {
   results: Array<{
     platform: Platform;
     remoteId: string | null;
-    state: 'published' | 'failed' | 'skipped';
+    state: 'published' | 'pending' | 'failed' | 'skipped';
     error?: string;
   }>;
   publishedAt: string;

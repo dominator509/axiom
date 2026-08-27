@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { mutationFetch } from '@/lib/mutation';
 
 const PLATFORMS = [
   'instagram',
@@ -47,7 +48,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
     setError(null);
     setResult(null);
     try {
-      const res = await fetch(`/api/v1/models/${modelId}/generate`, {
+      const res = await mutationFetch(`/api/v1/models/${modelId}/generate`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({

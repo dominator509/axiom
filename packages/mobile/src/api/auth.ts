@@ -2,7 +2,7 @@
 // Talks to the BFF's Better Auth endpoints at /api/auth/*. The session cookie
 // captured by apiFetch is what authenticates /api/v1/* calls.
 
-import { apiFetch, clearStoredCookie, getStoredCookie } from './client';
+import { apiFetch, clearPersistedCookie, getStoredCookie, restoreStoredCookie } from './client';
 
 export interface SessionUser {
   id: string;
@@ -62,7 +62,7 @@ export async function signOut(): Promise<void> {
   try {
     await apiFetch<unknown>('/api/auth/sign-out', { method: 'POST' });
   } finally {
-    clearStoredCookie();
+    await clearPersistedCookie();
   }
 }
 
@@ -74,4 +74,19 @@ export async function getSession(): Promise<AuthSession | null> {
   if (typeof record['user'] !== 'object' || record['user'] === null) return null;
   const token = getStoredCookie() ?? undefined;
   return { user: parseSessionUser(record['user']), token };
+}
+
+/** Restore the persisted cookie, then ask the server whether it is still valid. */
+export async function restoreSession(): Promise<AuthSession | null> {
+  try {
+    await restoreStoredCookie();
+    return await getSession();
+  } catch {
+    try {
+      await clearPersistedCookie();
+    } catch {
+      // A storage failure must still fail closed to the login screen.
+    }
+    return null;
+  }
 }

@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { mutationFetch } from '@/lib/mutation';
 
-const KINDS = ['native', 'fanlynks', 'linktree', 'beacons'] as const;
+const KINDS = ['native'] as const;
 
 interface ProviderRow {
   id: string;
@@ -29,7 +30,7 @@ export default function LinkbioPanel({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/v1/models/${modelId}/linkbio`, {
+      const res = await mutationFetch(`/api/v1/models/${modelId}/linkbio`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ kind, config: {} }),
@@ -51,7 +52,9 @@ export default function LinkbioPanel({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/v1/models/${modelId}/linkbio/${k}`, { method: 'DELETE' });
+      const res = await mutationFetch(`/api/v1/models/${modelId}/linkbio/${k}`, {
+        method: 'DELETE',
+      });
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
         setError(b?.error?.message ?? 'Disable failed');
@@ -110,7 +113,7 @@ export default function LinkbioPanel({
           ))}
         </select>
         <button className="btn" type="button" disabled={busy} onClick={enable}>
-          Enable provider
+          Enable native page
         </button>
       </div>
       {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}

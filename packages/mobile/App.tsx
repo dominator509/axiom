@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { SessionUser } from './src/api/auth';
+import { restoreSession, type SessionUser } from './src/api/auth';
 import DashboardScreen from './src/screens/DashboardScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RelayScreen from './src/screens/RelayScreen';
@@ -15,8 +15,24 @@ const TABS: Array<{ key: Tab; label: string; icon: string }> = [
 ];
 
 export default function App() {
+  const [restoring, setRestoring] = useState(true);
   const [user, setUser] = useState<SessionUser | null>(null);
   const [tab, setTab] = useState<Tab>('dashboard');
+
+  useEffect(() => {
+    let mounted = true;
+    void restoreSession()
+      .then((session) => {
+        if (!mounted) return;
+        setUser(session?.user ?? null);
+      })
+      .finally(() => {
+        if (mounted) setRestoring(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   function handleAuthed(nextUser: SessionUser) {
     setUser(nextUser);
@@ -26,6 +42,15 @@ export default function App() {
   function handleSignOut() {
     setUser(null);
     setTab('dashboard');
+  }
+
+  if (restoring) {
+    return (
+      <View style={styles.restoreScreen}>
+        <ActivityIndicator color={palette.roseBright} />
+        <Text style={styles.restoreText}>Restoring secure session…</Text>
+      </View>
+    );
   }
 
   if (user === null) return <LoginScreen onAuthed={handleAuthed} />;
@@ -75,6 +100,14 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.canvas },
+  restoreScreen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    backgroundColor: palette.canvas,
+  },
+  restoreText: { color: palette.muted, fontSize: 13 },
   brandBar: {
     minHeight: 70,
     flexDirection: 'row',

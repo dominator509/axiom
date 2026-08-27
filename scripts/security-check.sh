@@ -97,17 +97,18 @@ echo ""
 # 5. Check cargo audit
 # ------------------------------------------------------------------
 echo "--- Check 5: cargo audit ---"
-if command -v cargo-audit &>/dev/null; then
-  if [ -f "Cargo.lock" ] || [ -f "Cargo.toml" ]; then
+if [ -f "Cargo.lock" ] || [ -f "Cargo.toml" ]; then
+  if command -v cargo-audit &>/dev/null; then
     cargo audit 2>&1 || {
       echo "  [FAIL] cargo audit found issues"
       EXIT_CODE=1
     }
   else
-    echo "  [skip] No Cargo.lock or Cargo.toml found"
+    echo "  [FAIL] cargo-audit is required when Rust manifests are present"
+    EXIT_CODE=1
   fi
 else
-  echo "  [warn] cargo-audit not installed — skipping Rust audit (install with 'cargo install cargo-audit')"
+  echo "  [skip] No Cargo.lock or Cargo.toml found"
 fi
 echo ""
 

@@ -47,9 +47,9 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
   capability(): ConnectorCapability {
     return {
       publish: true,
-      media: ['image' as MediaType, 'video' as MediaType],
+      media: ['image' as MediaType, 'video' as MediaType, 'carousel' as MediaType],
       maxMediaBytes: 104_857_600, // 100 MB
-      maxMediaCount: 10,
+      maxMediaCount: 20,
       caption: true,
       maxCaptionLength: 500,
       scheduling: 'native' as const,
@@ -71,18 +71,19 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
 
       const accessToken = this.auth.accessToken;
 
-      // Step 1: Create a media container for each URL
+      // Step 1: Create one child container per URL. Threads requires
+      // image_url/video_url (not the generic media_url) for media posts.
       const creationIds: string[] = [];
 
       for (const mediaUrl of input.mediaUrls) {
         const mediaType = this.detectMediaType(mediaUrl);
 
-        const body: Record<string, string> = {
+        const body: Record<string, string | boolean> = {
           media_type: mediaType === 'video' ? 'VIDEO' : 'IMAGE',
-          text: input.caption,
-          media_url: mediaUrl,
+          ...(mediaType === 'video' ? { video_url: mediaUrl } : { image_url: mediaUrl }),
           access_token: accessToken,
         };
+        if (input.mediaUrls.length > 1) body.is_carousel_item = true;
 
         const createResp = await this.apiPost<ThreadsMediaContainerResponse>(
           `${THREADS_GRAPH_BASE}/${threadsUserId}/threads`,
@@ -97,26 +98,31 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
         });
       }
 
-      // Step 2: Publish each container
-      let lastRemoteId: string | null = null;
+      const publishCreationId =
+        creationIds.length > 1
+          ? (
+              await this.apiPost<ThreadsMediaContainerResponse>(
+                `${THREADS_GRAPH_BASE}/${threadsUserId}/threads`,
+                {
+                  media_type: 'CAROUSEL_ALBUM',
+                  text: input.caption,
+                  children: creationIds.join(','),
+                  access_token: accessToken,
+                },
+                { 'Content-Type': 'application/json' },
+              )
+            ).id
+          : creationIds[0];
 
-      for (const creationId of creationIds) {
-        const publishResp = await this.apiPost<ThreadsPublishResponse>(
-          `${THREADS_GRAPH_BASE}/${threadsUserId}/threads_publish`,
-          {
-            creation_id: creationId,
-            access_token: accessToken,
-          },
-          { 'Content-Type': 'application/json' },
-        );
+      if (!publishCreationId) throw new Error('Threads did not return a publish container ID');
 
-        lastRemoteId = publishResp.id;
-        this.log(
-          'info',
-          'publish',
-          `Published Threads container ${creationId} -> post ${publishResp.id}`,
-        );
-      }
+      // Step 2: Publish the single container (or carousel parent).
+      const publishResp = await this.apiPost<ThreadsPublishResponse>(
+        `${THREADS_GRAPH_BASE}/${threadsUserId}/threads_publish`,
+        { creation_id: publishCreationId, access_token: accessToken },
+        { 'Content-Type': 'application/json' },
+      );
+      const lastRemoteId = publishResp.id;
 
       const postUrl = lastRemoteId
         ? `https://www.threads.net/@${this.auth.extra?.username ?? 'user'}/post/${lastRemoteId}`
@@ -139,8 +145,8 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
     const accessToken = this.auth.accessToken;
 
     const metricsUrl =
-      `${THREADS_GRAPH_BASE}/${threadsUserId}/threads` +
-      `?fields=insights.metric(impressions,likes,comments,shares,reposts,quotes)` +
+      `${THREADS_GRAPH_BASE}/${remoteId}/insights` +
+      `?metric=views,likes,replies,reposts,quotes,shares` +
       `&access_token=${accessToken}`;
 
     const resp = await fetch(metricsUrl);
@@ -164,9 +170,9 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
       platform: this.platform,
       collectedAt: new Date().toISOString(),
       metrics: {
-        impressions: result['impressions'] ?? 0,
+        impressions: result['impressions'] ?? result['views'] ?? 0,
         likes: result['likes'] ?? 0,
-        comments: result['comments'] ?? 0,
+        comments: result['comments'] ?? result['replies'] ?? 0,
         shares: result['shares'] ?? 0,
         reposts: result['reposts'] ?? 0,
         quotes: result['quotes'] ?? 0,

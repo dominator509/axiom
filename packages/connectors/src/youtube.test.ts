@@ -52,7 +52,7 @@ describe('YouTubeConnector basics', () => {
     expect(cap.caption).toBe(true);
     expect(cap.maxCaptionLength).toBe(5_000);
     expect(cap.scheduling).toBe('native');
-    expect(cap.metrics).toEqual(['views', 'likes', 'comments', 'shares']);
+    expect(cap.metrics).toEqual(['views', 'likes', 'comments']);
     expect(cap.refreshMetrics).toBe(true);
   });
 
@@ -376,7 +376,7 @@ describe('fetchMetrics', () => {
 
     expect(metrics.postId).toBe('vid-1');
     expect(metrics.platform).toBe('youtube');
-    expect(metrics.metrics).toEqual({ views: 100, likes: 5, comments: 2, shares: 1 });
+    expect(metrics.metrics).toEqual({ views: 100, likes: 5, comments: 2 });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://www.googleapis.com/youtube/v3/videos?part=statistics&id=vid-1');
@@ -391,7 +391,7 @@ describe('fetchMetrics', () => {
     );
     const c = new YouTubeConnector(AUTH);
     const metrics = await c.fetchMetrics('vid-1');
-    expect(metrics.metrics).toEqual({ views: 0, likes: 0, comments: 0, shares: 0 });
+    expect(metrics.metrics).toEqual({ views: 0, likes: 0, comments: 0 });
   });
 
   it('throws when the video is not found', async () => {

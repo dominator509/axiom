@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { mutationFetch } from '@/lib/mutation';
 
 const PLATFORMS = [
   'instagram',
@@ -40,19 +41,19 @@ export default function ApproveButtons({
     try {
       let res: Response;
       if (action === 'approve') {
-        res = await fetch(`/api/v1/bundles/${bundleId}/approve`, {
+        res = await mutationFetch(`/api/v1/bundles/${bundleId}/approve`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ platforms: selected, slot: slot || undefined }),
         });
       } else if (action === 'revise') {
-        res = await fetch(`/api/v1/bundles/${bundleId}/revise`, {
+        res = await mutationFetch(`/api/v1/bundles/${bundleId}/revise`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ instructions: 'Revise per operator' }),
         });
       } else {
-        res = await fetch(`/api/v1/bundles/${bundleId}/reject`, { method: 'POST' });
+        res = await mutationFetch(`/api/v1/bundles/${bundleId}/reject`, { method: 'POST' });
       }
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));

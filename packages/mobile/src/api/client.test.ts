@@ -50,8 +50,8 @@ describe('cookie store', () => {
   beforeEach(() => clearStoredCookie());
   afterEach(() => clearStoredCookie());
 
-  it('captures Set-Cookie and replays it as a Cookie header', () => {
-    captureSetCookie(
+  it('captures Set-Cookie and replays it as a Cookie header', async () => {
+    await captureSetCookie(
       new Headers({
         'set-cookie': 'axiom_session=abc123; Path=/; HttpOnly; SameSite=Lax',
       }),
@@ -60,8 +60,8 @@ describe('cookie store', () => {
     expect(buildCookieHeader()).toBe('axiom_session=abc123; Path=/; HttpOnly; SameSite=Lax');
   });
 
-  it('ignores responses without a Set-Cookie header', () => {
-    captureSetCookie(new Headers({ 'content-type': 'application/json' }));
+  it('ignores responses without a Set-Cookie header', async () => {
+    await captureSetCookie(new Headers({ 'content-type': 'application/json' }));
     expect(getStoredCookie()).toBeNull();
   });
 

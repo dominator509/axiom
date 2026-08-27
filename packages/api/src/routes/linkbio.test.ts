@@ -43,19 +43,11 @@ describe('GET /models/:modelId/linkbio', () => {
         enabled: true,
         isPrimary: true,
       },
-      {
-        id: 'p2',
-        orgId: ORG_ID,
-        modelId: MODEL_ID,
-        kind: 'linktree',
-        enabled: false,
-        isPrimary: false,
-      },
     ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.data.providers).toHaveLength(2);
+    expect(body.data.providers).toHaveLength(1);
     expect(body.data.nativeEnabled).toBe(true);
     expect(body.data.primary.kind).toBe('native');
   });
@@ -98,6 +90,15 @@ describe('POST /models/:modelId/linkbio', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ kind: 'myspace' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects unsupported external providers instead of creating a label row', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'linktree' }),
     });
     expect(res.status).toBe(400);
   });

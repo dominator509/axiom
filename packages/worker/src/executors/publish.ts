@@ -14,6 +14,7 @@ import { runPrePostBefore, runPrePostAfter } from './pre_post.js';
 import type { Executor, ExecutorContext } from './context.js';
 
 const KILL_SWITCH_PARK_MS = 60_000;
+const PENDING_PUBLISH_RETRY_MS = 60_000;
 
 export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const { tx, job, killSwitchEnabled } = ctx;
@@ -34,8 +35,10 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     .limit(1);
   if (targets.length === 0) throw new Error(`publish.target: target ${targetId} not found`);
   const target = targets[0];
-  if (target.state === 'published' && target.remoteId) {
-    // Already published — idempotent re-run no-op (LBI-05).
+  if (target.state === 'published') {
+    // Already published — idempotent re-run no-op (LBI-05). Some providers
+    // confirm the side effect with a successful empty response (for example,
+    // Discord can return 204), so a null remote_id is still terminal.
     return;
   }
 
@@ -97,7 +100,10 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     mediaUrls,
     hashtags,
     scheduledFor: target.scheduledFor ? new Date(target.scheduledFor).toISOString() : undefined,
-    options: { modelId: model.id },
+    options: {
+      modelId: model.id,
+      ...(target.state === 'pending' && target.remoteId ? { publishId: target.remoteId } : {}),
+    },
   };
 
   // 3a. Pre-post stage (L2.10): Rust media-plane staging + registered hook
@@ -113,7 +119,15 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     phase: 'before' as const,
   };
   const preStage = await runPrePostBefore(ctx, prePostInput);
-  const stagedInput = preStage.input;
+  const stagedInput = {
+    ...preStage.input,
+    // Pre-post hooks intentionally expose only their public input shape. Keep
+    // the persisted TikTok publish_id across a pending-status retry.
+    options: {
+      ...(preStage.input.options ?? {}),
+      ...(target.state === 'pending' && target.remoteId ? { publishId: target.remoteId } : {}),
+    },
+  };
 
   const validation = await validateForPlatform(platform, input);
   if (!validation.valid) {
@@ -124,7 +138,24 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
 
   const result = await connector.publish(stagedInput);
 
-  if (result.state === 'failed' || !result.remoteId) {
+  if (result.state === 'pending') {
+    await tx
+      .update(schema.postTarget)
+      .set({ state: 'pending', remoteId: result.remoteId, error: result.error ?? null })
+      .where(eq(schema.postTarget.id, targetId));
+
+    await tx.insert(schema.job).values({
+      orgId: job.org_id,
+      queue: 'publish',
+      kind: 'publish.target',
+      payload: { targetId },
+      state: 'ready',
+      runAfter: new Date(Date.now() + PENDING_PUBLISH_RETRY_MS),
+    });
+    return;
+  }
+
+  if (result.state === 'failed' || (result.state !== 'published' && !result.remoteId)) {
     throw new Error(`publish.target: connector publish failed: ${result.error ?? 'no remote_id'}`);
   }
 
@@ -149,18 +180,21 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
       .onConflictDoNothing();
   }
 
-  // 5. Enqueue metrics.poll for the published target (decayed schedule handled
-  // by the poller's run_after).
-  const runAfter = new Date(Date.now() + 60_000); // first poll ~1 min after publish
-  await tx
-    .insert(schema.job)
-    .values({
-      orgId: job.org_id,
-      queue: 'metrics',
-      kind: 'metrics.poll',
-      payload: { targetId },
-      state: 'ready',
-      runAfter,
-    })
-    .onConflictDoNothing();
+  // 5. Enqueue metrics.poll only when the provider returned a remote ID. A
+  // successful empty response is terminal, but there is no provider resource
+  // to query (Discord webhook execution with a 204 response is one example).
+  if (result.remoteId) {
+    const runAfter = new Date(Date.now() + 60_000); // first poll ~1 min after publish
+    await tx
+      .insert(schema.job)
+      .values({
+        orgId: job.org_id,
+        queue: 'metrics',
+        kind: 'metrics.poll',
+        payload: { targetId },
+        state: 'ready',
+        runAfter,
+      })
+      .onConflictDoNothing();
+  }
 };
