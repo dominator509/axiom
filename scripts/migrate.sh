@@ -115,15 +115,19 @@ fi
 for f in "$@"; do
   name=$(basename "$f")
   checksum=$(sha256sum "$f" | awk '{print $1}')
+  case "$name" in
+    *[!A-Za-z0-9._-]*)
+      echo "ERROR: unsafe migration filename: $name"
+      exit 1
+      ;;
+  esac
   echo ">>> Processing: $name..."
   if [ "$DRY_RUN" = true ]; then
     echo "  [dry-run] checksum=$checksum"
     echo ""
   else
-    recorded=$(psql -X -v ON_ERROR_STOP=1 -Atq \
-      -v migration_name="$name" \
-      "$MIGRATOR_DATABASE_URL" \
-      -c "SELECT checksum_sha256 FROM public.axiom_schema_migrations WHERE migration_name = :'migration_name'")
+    recorded=$(psql -X -v ON_ERROR_STOP=1 -Atq "$MIGRATOR_DATABASE_URL" \
+      -c "SELECT checksum_sha256 FROM public.axiom_schema_migrations WHERE migration_name = '$name'")
     if [ -n "$recorded" ]; then
       if [ "$recorded" != "$checksum" ]; then
         echo "ERROR: checksum mismatch for previously applied migration $name"
@@ -133,18 +137,15 @@ for f in "$@"; do
       continue
     fi
     if [ "$BASELINE" = true ]; then
-      psql -X -v ON_ERROR_STOP=1 \
-        -v migration_name="$name" -v checksum="$checksum" \
-        "$MIGRATOR_DATABASE_URL" \
-        -c "INSERT INTO public.axiom_schema_migrations (migration_name, checksum_sha256) VALUES (:'migration_name', :'checksum')"
+      psql -X -v ON_ERROR_STOP=1 "$MIGRATOR_DATABASE_URL" \
+        -c "INSERT INTO public.axiom_schema_migrations (migration_name, checksum_sha256) VALUES ('$name', '$checksum')"
       echo "  -> baselined"
       continue
     fi
     {
       stream_migration_without_transaction_control "$f"
-      printf '%s\n' "INSERT INTO public.axiom_schema_migrations (migration_name, checksum_sha256) VALUES (:'migration_name', :'checksum');"
+      printf '%s\n' "INSERT INTO public.axiom_schema_migrations (migration_name, checksum_sha256) VALUES ('$name', '$checksum');"
     } | psql -X --echo-errors -v ON_ERROR_STOP=1 --single-transaction \
-      -v migration_name="$name" -v checksum="$checksum" \
       "$MIGRATOR_DATABASE_URL"
     echo "  -> done"
     echo ""
