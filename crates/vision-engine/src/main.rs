@@ -409,7 +409,7 @@ fn evaluate(path: &str, request_override: &Option<String>) -> Result<Evaluation,
     let image_path = resolve_image_path(path)?;
     let image_path = image_path
         .to_str()
-        .ok_or_else(|| VisionError::InvalidPath)?;
+        .ok_or(VisionError::InvalidPath)?;
     let metrics = compute_metrics(image_path)?;
     let mut reasons: Vec<String> = Vec::new();
     let mut needs_review = false;
