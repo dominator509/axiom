@@ -120,8 +120,9 @@ for f in "$@"; do
     echo "  [dry-run] checksum=$checksum"
     echo ""
   else
-    recorded=$(psql -X -v ON_ERROR_STOP=1 -Atq "$MIGRATOR_DATABASE_URL" \
+    recorded=$(psql -X -v ON_ERROR_STOP=1 -Atq \
       -v migration_name="$name" \
+      "$MIGRATOR_DATABASE_URL" \
       -c "SELECT checksum_sha256 FROM public.axiom_schema_migrations WHERE migration_name = :'migration_name'")
     if [ -n "$recorded" ]; then
       if [ "$recorded" != "$checksum" ]; then
@@ -132,8 +133,9 @@ for f in "$@"; do
       continue
     fi
     if [ "$BASELINE" = true ]; then
-      psql -X -v ON_ERROR_STOP=1 "$MIGRATOR_DATABASE_URL" \
+      psql -X -v ON_ERROR_STOP=1 \
         -v migration_name="$name" -v checksum="$checksum" \
+        "$MIGRATOR_DATABASE_URL" \
         -c "INSERT INTO public.axiom_schema_migrations (migration_name, checksum_sha256) VALUES (:'migration_name', :'checksum')"
       echo "  -> baselined"
       continue
@@ -142,7 +144,8 @@ for f in "$@"; do
       stream_migration_without_transaction_control "$f"
       printf '%s\n' "INSERT INTO public.axiom_schema_migrations (migration_name, checksum_sha256) VALUES (:'migration_name', :'checksum');"
     } | psql -X --echo-errors -v ON_ERROR_STOP=1 --single-transaction \
-      "$MIGRATOR_DATABASE_URL" -v migration_name="$name" -v checksum="$checksum"
+      -v migration_name="$name" -v checksum="$checksum" \
+      "$MIGRATOR_DATABASE_URL"
     echo "  -> done"
     echo ""
   fi
