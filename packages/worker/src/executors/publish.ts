@@ -9,6 +9,7 @@
 import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { asPlatform, connectorForTarget } from '../connection.js';
+import { enqueueJob } from '../enqueue.js';
 import { ParkJobError } from './context.js';
 import { runPrePostBefore, runPrePostAfter } from './pre_post.js';
 import type { Executor, ExecutorContext } from './context.js';
@@ -154,13 +155,17 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
       .set({ state: 'pending', remoteId: result.remoteId, error: result.error ?? null })
       .where(eq(schema.postTarget.id, targetId));
 
-    await tx.insert(schema.job).values({
+    // The current job already owns the canonical publish.target dedupe key.
+    // Use the source job ID for the successor key so exactly one retry is
+    // created for this pending attempt without preventing later status polls.
+    await enqueueJob(tx, {
       orgId: job.org_id,
       queue: 'publish',
       kind: 'publish.target',
       payload: { targetId },
-      state: 'ready',
       runAfter: new Date(Date.now() + PENDING_PUBLISH_RETRY_MS),
+      maxAttempts: job.max_attempts,
+      dedupeParts: ['publish.target.retry', targetId, job.id],
     });
     return;
   }
@@ -195,16 +200,14 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   // to query (Discord webhook execution with a 204 response is one example).
   if (result.remoteId) {
     const runAfter = new Date(Date.now() + 60_000); // first poll ~1 min after publish
-    await tx
-      .insert(schema.job)
-      .values({
-        orgId: job.org_id,
-        queue: 'metrics',
-        kind: 'metrics.poll',
-        payload: { targetId },
-        state: 'ready',
-        runAfter,
-      })
-      .onConflictDoNothing();
+    await enqueueJob(tx, {
+      orgId: job.org_id,
+      queue: 'metrics',
+      kind: 'metrics.poll',
+      payload: { targetId },
+      runAfter,
+      maxAttempts: job.max_attempts,
+      dedupeParts: ['metrics.poll', targetId, job.id],
+    });
   }
 };

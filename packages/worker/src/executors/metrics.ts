@@ -5,6 +5,7 @@
 import { eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { asPlatform, connectorForTarget } from '../connection.js';
+import { enqueueJob } from '../enqueue.js';
 import { ParkJobError } from './context.js';
 import type { Executor, ExecutorContext } from './context.js';
 
@@ -80,15 +81,15 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
   });
 
   // Label the exemplar once enough signal exists (L2.8 §2).
-  await tx
-    .insert(schema.job)
-    .values({
-      orgId: job.org_id,
-      queue: 'viral',
-      kind: 'viral.label',
-      payload: { targetId },
-      state: 'ready',
-      runAfter: new Date(),
-    })
-    .onConflictDoNothing();
+  await enqueueJob(tx, {
+    orgId: job.org_id,
+    queue: 'viral',
+    kind: 'viral.label',
+    payload: { targetId },
+    runAfter: new Date(),
+    maxAttempts: job.max_attempts,
+    // A later metrics poll should create its own label refresh, while a
+    // retry of this exact poll must not create duplicate label jobs.
+    dedupeParts: ['viral.label', targetId, job.id],
+  });
 };

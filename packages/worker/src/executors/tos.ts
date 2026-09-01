@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { PLATFORM_RULES, DEFAULT_PLATFORM_THRESHOLDS } from '@axiom/fanvue-mcp';
 import type { Executor, ExecutorContext } from './context.js';
+import { enqueueJob } from '../enqueue.js';
 
 export function evaluateTextToS(
   caption: string,
@@ -87,15 +88,15 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
     .where(eq(schema.contentBundle.id, bundleId));
 
   // A pass/review verdict flows to the relay card (produced by relay.card).
-  await tx
-    .insert(schema.job)
-    .values({
-      orgId: ctx.job.org_id,
-      queue: 'relay',
-      kind: 'relay.card',
-      payload: { bundleId },
-      state: 'ready',
-      runAfter: new Date(),
-    })
-    .onConflictDoNothing();
+  await enqueueJob(tx, {
+    orgId: ctx.job.org_id,
+    queue: 'relay',
+    kind: 'relay.card',
+    payload: { bundleId },
+    runAfter: new Date(),
+    maxAttempts: ctx.job.max_attempts,
+    // A revised bundle has a new ToS job and therefore gets a new relay card;
+    // retrying this exact scan reuses its handoff key.
+    dedupeParts: ['relay.card', bundleId, ctx.job.id],
+  });
 };
