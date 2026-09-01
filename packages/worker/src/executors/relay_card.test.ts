@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockState = vi.hoisted(() => ({
   results: [] as unknown[],
   sent: [] as Array<{ chatRef: string; card: Record<string, unknown> }>,
+  inserts: [] as unknown[],
 }));
 
 function makeChain(): any {
@@ -16,6 +17,12 @@ function makeChain(): any {
         return (resolve: (value: unknown) => void, reject?: (error: unknown) => void) => {
           const value = mockState.results.length > 0 ? mockState.results.shift() : [];
           Promise.resolve(value).then(resolve, reject);
+        };
+      }
+      if (prop === 'values') {
+        return (value: unknown) => {
+          mockState.inserts.push(value);
+          return makeChain();
         };
       }
       return () => makeChain();
@@ -78,6 +85,7 @@ beforeEach(() => {
     [],
   ];
   mockState.sent = [];
+  mockState.inserts = [];
   vi.stubEnv('TELEGRAM_BOT_TOKEN', 'test-token');
 });
 
@@ -92,9 +100,19 @@ describe('relayCard', () => {
 
     expect(mockState.sent).toHaveLength(1);
     expect(mockState.sent[0].chatRef).toBe('chat-1');
+    expect(mockState.inserts).toContainEqual(expect.objectContaining({ externalRef: 'chat-1' }));
     expect(mockState.sent[0].card).toMatchObject({
       cardId: 'card-1',
       bundleId: 'bundle-1',
+    });
+    expect(mockState.sent[0].card.commandTokens).toEqual({
+      approve: expect.any(String),
+      approve_all: expect.any(String),
+      edit_caption: expect.any(String),
+      change_price: expect.any(String),
+      reschedule: expect.any(String),
+      reject: expect.any(String),
+      hold: expect.any(String),
     });
     expect((mockState.sent[0].card.verdicts as Array<Record<string, unknown>>)[0]).toMatchObject({
       platform: 'instagram',

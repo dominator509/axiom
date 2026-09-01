@@ -70,6 +70,41 @@ describe('signCommand / verifyCommand', () => {
   });
 });
 
+describe('compact provider command tokens', () => {
+  it('round-trips UUID card ids within the Telegram payload limit', () => {
+    const cardId = '00000000-0000-0000-0000-000000000001';
+    const token = router.createCommandToken('approve_all', cardId);
+
+    expect(token.length).toBeLessThanOrEqual(64);
+    expect(router.verifyCommandToken(token)).toEqual({ action: 'approve_all', cardId });
+  });
+
+  it('round-trips non-UUID ids for compatible standalone callers', () => {
+    const token = router.createCommandToken('hold', 'card-1');
+    expect(router.verifyCommandToken(token)).toEqual({ action: 'hold', cardId: 'card-1' });
+  });
+
+  it('rejects tampering and replay', () => {
+    const token = router.createCommandToken('approve', 'card-1');
+    const tampered = `${token.slice(0, -1)}${token.endsWith('a') ? 'b' : 'a'}`;
+
+    expect(router.verifyCommandToken(tampered)).toBeNull();
+    expect(router.verifyCommandToken(token, 'reject')).toBeNull();
+    expect(router.verifyCommandToken(token)).toEqual({ action: 'approve', cardId: 'card-1' });
+    expect(router.verifyCommandToken(token)).toBeNull();
+  });
+
+  it('allows a token to be used again only after its TTL expires', () => {
+    const token = router.createCommandToken('hold', 'card-1');
+    expect(router.verifyCommandToken(token)).not.toBeNull();
+
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 6 * 60 * 1000);
+    expect(router.verifyCommandToken(token)).toEqual({ action: 'hold', cardId: 'card-1' });
+    vi.useRealTimers();
+  });
+});
+
 describe('nonce reuse protection', () => {
   it('rejects replay of the same nonce with a valid signature', () => {
     const nonce = router.generateNonce();

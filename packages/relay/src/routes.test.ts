@@ -145,9 +145,9 @@ describe('POST /api/v1/relay/command', () => {
     expect(second.status).toBe(403);
   });
 
-  it('returns 500 for a malformed body', async () => {
+  it('returns 400 for a malformed body', async () => {
     const res = await app.request('/api/v1/relay/command', { method: 'POST' });
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(400);
     const body = (await res.json()) as any;
     expect(body.success).toBe(false);
   });

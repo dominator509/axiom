@@ -10,23 +10,32 @@ import {
 } from 'discord.js';
 import type { RelayCard, CardAction } from '../card.js';
 import { CardRenderer } from '../card.js';
+import { CommandRouter, type CommandContext } from '../commands.js';
 
 export interface DiscordConfig {
   token: string;
   clientId: string;
 }
 
+type CommandHandler = (
+  action: CardAction,
+  cardId: string,
+  context?: CommandContext,
+) => Promise<void>;
+
 export class DiscordAdapter {
   private client: Client;
   private renderer: CardRenderer;
-  private handlers: Map<string, (action: CardAction, bundleId: string) => Promise<void>> =
-    new Map();
+  private handlers: Map<string, CommandHandler> = new Map();
+  private commandRouter?: CommandRouter;
+  private interactionHandlerRegistered = false;
 
-  constructor(private config: DiscordConfig) {
+  constructor(private config: DiscordConfig, commandRouter?: CommandRouter) {
     this.client = new Client({
       intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
     });
     this.renderer = new CardRenderer();
+    this.commandRouter = commandRouter;
   }
 
   getClient(): Client {
@@ -35,7 +44,7 @@ export class DiscordAdapter {
 
   onCommand(
     action: CardAction,
-    handler: (action: CardAction, bundleId: string) => Promise<void>,
+    handler: CommandHandler,
   ): void {
     this.handlers.set(action, handler);
   }
@@ -49,8 +58,12 @@ export class DiscordAdapter {
     let currentRow = new ActionRowBuilder<ButtonBuilder>();
 
     for (const action of card.actions) {
+      const commandToken = card.commandTokens?.[action];
+      if (!commandToken) {
+        throw new Error(`relay card missing signed command token for ${action}`);
+      }
       const button = new ButtonBuilder()
-        .setCustomId(`${action}:${card.cardId}`)
+        .setCustomId(commandToken)
         .setLabel(this.actionLabel(action))
         .setStyle(this.actionStyle(action));
 
@@ -72,16 +85,32 @@ export class DiscordAdapter {
 
   async handleInteraction(interaction: Interaction): Promise<void> {
     if (!interaction.isButton()) return;
-    const [action, bundleId] = interaction.customId.split(':');
-    const handler = this.handlers.get(action as CardAction);
-    if (handler) {
-      await handler(action as CardAction, bundleId);
-      await interaction.reply({ content: `Action "${action}" processed`, ephemeral: true });
-    }
+    if (!this.commandRouter) return;
+    const command = this.commandRouter.verifyCommandToken(interaction.customId);
+    if (!command) return;
+    const sourceId = interaction.channelId;
+    if (!sourceId) return;
+    const handler = this.handlers.get(command.action);
+    if (!handler) return;
+    await handler(command.action, command.cardId, {
+      channel: 'discord',
+      sourceId,
+    });
+    await interaction.reply({ content: `Action processed`, ephemeral: true });
   }
 
   async login(): Promise<void> {
     await this.client.login(this.config.token);
+  }
+
+  registerInteractionHandler(): void {
+    if (this.interactionHandlerRegistered) return;
+    this.interactionHandlerRegistered = true;
+    this.client.on('interactionCreate', (interaction) => {
+      void this.handleInteraction(interaction).catch((error) => {
+        console.error('Discord relay interaction failed', error);
+      });
+    });
   }
 
   private actionLabel(action: CardAction): string {

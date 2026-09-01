@@ -1,21 +1,30 @@
 import { Bot, Context, InlineKeyboard } from 'grammy';
 import type { RelayCard, CardAction } from '../card.js';
 import { CardRenderer } from '../card.js';
+import { CommandRouter, type CommandContext } from '../commands.js';
 
 export interface TelegramConfig {
   token: string;
   webhookUrl?: string;
 }
 
+type CommandHandler = (
+  action: CardAction,
+  cardId: string,
+  context?: CommandContext,
+) => Promise<void>;
+
 export class TelegramAdapter {
   private bot: Bot;
   private renderer: CardRenderer;
-  private handlers: Map<string, (action: CardAction, bundleId: string) => Promise<void>> =
-    new Map();
+  private handlers: Map<string, CommandHandler> = new Map();
+  private commandRouter?: CommandRouter;
+  private callbackHandlerRegistered = false;
 
-  constructor(config: TelegramConfig) {
+  constructor(config: TelegramConfig, commandRouter?: CommandRouter) {
     this.bot = new Bot(config.token);
     this.renderer = new CardRenderer();
+    this.commandRouter = commandRouter;
   }
 
   getBot(): Bot {
@@ -24,7 +33,7 @@ export class TelegramAdapter {
 
   onCommand(
     action: CardAction,
-    handler: (action: CardAction, bundleId: string) => Promise<void>,
+    handler: CommandHandler,
   ): void {
     this.handlers.set(action, handler);
   }
@@ -35,9 +44,13 @@ export class TelegramAdapter {
     const keyboard = new InlineKeyboard();
 
     for (const action of card.actions) {
+      const commandToken = card.commandTokens?.[action];
+      if (!commandToken) {
+        throw new Error(`relay card missing signed command token for ${action}`);
+      }
       keyboard.add({
         text: this.actionLabel(action),
-        callback_data: `${action}:${card.cardId}`,
+        callback_data: commandToken,
       });
     }
 
@@ -48,60 +61,79 @@ export class TelegramAdapter {
   }
 
   async handleCallback(callbackQuery: any): Promise<void> {
-    if (!callbackQuery.data) return;
-    const [action, bundleId] = callbackQuery.data.split(':');
-    const handler = this.handlers.get(action as CardAction);
-    if (handler) {
-      await handler(action as CardAction, bundleId);
+    const token = typeof callbackQuery?.data === 'string' ? callbackQuery.data : '';
+    const sourceId = callbackQuery?.message?.chat?.id;
+    const processed = await this.dispatchToken(
+      token,
+      undefined,
+      sourceId === undefined || sourceId === null ? undefined : String(sourceId),
+    );
+    if (processed) {
       await this.bot.api.answerCallbackQuery(callbackQuery.id, {
-        text: `Action "${action}" processed`,
+        text: `Action processed`,
       });
     }
   }
 
   setupCommands(): void {
-    this.bot.command('approve', async (ctx: Context) => {
-      const handler = this.handlers.get('approve');
-      if (handler) await handler('approve', String(ctx.match ?? ''));
-    });
-    this.bot.command('approve_all', async (ctx: Context) => {
-      const handler = this.handlers.get('approve_all');
-      if (handler) await handler('approve_all', String(ctx.match ?? ''));
-    });
-    this.bot.command('reject', async (ctx: Context) => {
-      const handler = this.handlers.get('reject');
-      if (handler) await handler('reject', String(ctx.match ?? ''));
-    });
-    this.bot.command('edit', async (ctx: Context) => {
-      const handler = this.handlers.get('edit_caption');
-      if (handler) await handler('edit_caption', String(ctx.match ?? ''));
-    });
-    this.bot.command('reschedule', async (ctx: Context) => {
-      const handler = this.handlers.get('reschedule');
-      if (handler) await handler('reschedule', String(ctx.match ?? ''));
-    });
-    this.bot.command('regenerate', async (ctx: Context) => {
-      const handler = this.handlers.get('regenerate');
-      if (handler) await handler('regenerate', String(ctx.match ?? ''));
-    });
-    this.bot.command('revise', async (ctx: Context) => {
-      const handler = this.handlers.get('revise');
-      if (handler) await handler('revise', String(ctx.match ?? ''));
-    });
-    this.bot.command('hold', async (ctx: Context) => {
-      const handler = this.handlers.get('hold');
-      if (handler) await handler('hold', String(ctx.match ?? ''));
-    });
+    const commands: Array<[string, CardAction]> = [
+      ['approve', 'approve'],
+      ['approve_all', 'approve_all'],
+      ['reject', 'reject'],
+      ['edit', 'edit_caption'],
+      ['reschedule', 'reschedule'],
+      ['regenerate', 'regenerate'],
+      ['revise', 'revise'],
+      ['hold', 'hold'],
+    ];
+    for (const [name, action] of commands) {
+      this.bot.command(name, async (ctx: Context) => {
+        const token = String(ctx.match ?? '').trim();
+        const sourceId = ctx.chat?.id;
+        await this.dispatchToken(
+          token,
+          action,
+          sourceId === undefined || sourceId === null ? undefined : String(sourceId),
+        );
+      });
+    }
   }
 
   async startPolling(): Promise<void> {
     this.setupCommands();
+    this.registerCallbackHandler();
     this.bot.start();
   }
 
   async setWebhook(url: string): Promise<void> {
     await this.bot.api.setWebhook(url);
     this.setupCommands();
+    this.registerCallbackHandler();
+  }
+
+  private registerCallbackHandler(): void {
+    if (this.callbackHandlerRegistered) return;
+    this.callbackHandlerRegistered = true;
+    this.bot.on('callback_query:data', async (ctx) => {
+      await this.handleCallback(ctx.callbackQuery);
+    });
+  }
+
+  private async dispatchToken(
+    token: string,
+    expectedAction: CardAction | undefined,
+    sourceId: string | undefined,
+  ): Promise<boolean> {
+    if (!this.commandRouter || !token || !sourceId) return false;
+    const command = this.commandRouter.verifyCommandToken(token, expectedAction);
+    if (!command) return false;
+    const handler = this.handlers.get(command.action);
+    if (!handler) return false;
+    await handler(command.action, command.cardId, {
+      channel: 'telegram',
+      sourceId,
+    });
+    return true;
   }
 
   private actionLabel(action: CardAction): string {

@@ -3,12 +3,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TextChannel, ButtonStyle, type ActionRowBuilder, type ButtonBuilder } from 'discord.js';
 import { DiscordAdapter } from './discord.js';
 import type { RelayCard, CardAction } from '../card.js';
+import { CommandRouter } from '../commands.js';
 
 const config = { token: 'discord-token', clientId: 'client-1' };
+const COMMAND_SECRET = 'discord-test-secret';
 
 function makeCard(actions: CardAction[]): RelayCard {
+  const signer = new CommandRouter(COMMAND_SECRET);
+  const cardId = 'card-1';
   return {
-    cardId: 'card-1',
+    cardId,
     bundleId: 'bundle-1',
     mediaPreview: 'https://cdn.example/1.jpg',
     caption: 'Test caption',
@@ -17,6 +21,9 @@ function makeCard(actions: CardAction[]): RelayCard {
     verdicts: [{ platform: 'tiktok', passed: true, score: 0.9, reason: 'ok' }],
     targetPlatforms: ['tiktok'],
     actions,
+    commandTokens: Object.fromEntries(
+      actions.map((action) => [action, signer.createCommandToken(action, cardId)]),
+    ),
     timestamp: 1_700_000_000_000,
     format: 'html',
   };
@@ -40,7 +47,7 @@ const FULL_ACTIONS: CardAction[] = [
 let adapter: DiscordAdapter;
 
 beforeEach(() => {
-  adapter = new DiscordAdapter(config);
+  adapter = new DiscordAdapter(config, new CommandRouter(COMMAND_SECRET));
 });
 
 afterEach(() => {
@@ -59,19 +66,31 @@ describe('construction / getClient / onCommand', () => {
     adapter.onCommand('approve', handler);
     const interaction = {
       isButton: () => true,
-      customId: 'approve:bundle-1',
+      customId: new CommandRouter(COMMAND_SECRET).createCommandToken('approve', 'bundle-1'),
+      channelId: 'channel-1',
       reply: vi.fn().mockResolvedValue(undefined),
     };
     await adapter.handleInteraction(interaction as any);
-    expect(handler).toHaveBeenCalledWith('approve', 'bundle-1');
+    expect(handler).toHaveBeenCalledWith('approve', 'bundle-1', {
+      channel: 'discord',
+      sourceId: 'channel-1',
+    });
     expect(interaction.reply).toHaveBeenCalledWith({
-      content: 'Action "approve" processed',
+      content: 'Action processed',
       ephemeral: true,
     });
   });
 });
 
 describe('sendCard', () => {
+  it('fails closed when an action has no signed command token', async () => {
+    const card = makeCard(['approve']);
+    delete card.commandTokens;
+    await expect(adapter.sendCard('channel-1', card)).rejects.toThrow(
+      'relay card missing signed command token for approve',
+    );
+  });
+
   it('sends a card with an embed and button rows to a TextChannel', async () => {
     const mockSend = vi.fn().mockResolvedValue({});
     const channel = Object.create(TextChannel.prototype) as TextChannel;
@@ -99,36 +118,39 @@ describe('sendCard', () => {
     (channel as any).send = mockSend;
     vi.spyOn(adapter.getClient().channels, 'fetch').mockResolvedValue(channel);
 
+    const card = makeCard(
+      ['approve', 'reject', 'hold', 'edit_caption', 'change_price'],
+    );
     await adapter.sendCard(
       'channel-1',
-      makeCard(['approve', 'reject', 'hold', 'edit_caption', 'change_price']),
+      card,
     );
 
     const [payload] = mockSend.mock.calls[0];
     const row = payload.components[0] as ActionRowBuilder<ButtonBuilder>;
     const buttons = row.components.map((b) => b.data);
     expect(buttons[0]).toMatchObject({
-      custom_id: 'approve:card-1',
+      custom_id: card.commandTokens?.approve,
       label: '✅ Approve',
       style: ButtonStyle.Success,
     });
     expect(buttons[1]).toMatchObject({
-      custom_id: 'reject:card-1',
+      custom_id: card.commandTokens?.reject,
       label: '❌ Reject',
       style: ButtonStyle.Danger,
     });
     expect(buttons[2]).toMatchObject({
-      custom_id: 'hold:card-1',
+      custom_id: card.commandTokens?.hold,
       label: '⏸️ Hold',
       style: ButtonStyle.Secondary,
     });
     expect(buttons[3]).toMatchObject({
-      custom_id: 'edit_caption:card-1',
+      custom_id: card.commandTokens?.edit_caption,
       label: '✏️ Edit',
       style: ButtonStyle.Primary,
     });
     expect(buttons[4]).toMatchObject({
-      custom_id: 'change_price:card-1',
+      custom_id: card.commandTokens?.change_price,
       label: '💰 Price',
       style: ButtonStyle.Primary,
     });
@@ -182,7 +204,8 @@ describe('handleInteraction', () => {
   it('ignores button interactions with no registered handler', async () => {
     const interaction = {
       isButton: () => true,
-      customId: 'approve:bundle-1',
+      customId: new CommandRouter(COMMAND_SECRET).createCommandToken('approve', 'bundle-1'),
+      channelId: 'channel-1',
       reply: vi.fn(),
     };
     await adapter.handleInteraction(interaction as any);
@@ -211,5 +234,13 @@ describe('login', () => {
       .mockResolvedValue('token-string' as any);
     await adapter.login();
     expect(loginSpy).toHaveBeenCalledWith('discord-token');
+  });
+
+  it('registers only one inbound interaction listener', () => {
+    const onSpy = vi.spyOn(adapter.getClient(), 'on');
+    adapter.registerInteractionHandler();
+    adapter.registerInteractionHandler();
+    expect(onSpy).toHaveBeenCalledTimes(1);
+    expect(onSpy).toHaveBeenCalledWith('interactionCreate', expect.any(Function));
   });
 });

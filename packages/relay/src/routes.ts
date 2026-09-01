@@ -3,8 +3,8 @@ import { Logger } from './observability/logging.js';
 import { metricsRegistry } from './observability/metrics.js';
 import { IncidentManager } from './observability/incidents.js';
 import { HealthCheckRegistry } from './observability/health.js';
-import { CardRenderer, type BundleContent, type CardAction } from './card.js';
-import { CommandRouter } from './commands.js';
+import { CardRenderer, type BundleContent } from './card.js';
+import { CommandRouter, isCardAction } from './commands.js';
 import { ViralLoop, type PostMetrics } from './viral/loop.js';
 import { Bandit } from './viral/bandit.js';
 import type { ViralPersistence } from './viral/persistence.js';
@@ -48,21 +48,34 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
 
   // POST /api/v1/relay/command - process relay command
   app.post('/api/v1/relay/command', async (c) => {
+    let body: unknown;
     try {
-      const { signature, nonce, action, cardId, params } = await c.req.json<{
-        signature: string;
-        nonce: string;
-        action: CardAction;
-        cardId: string;
-        params?: Record<string, unknown>;
-      }>();
+      body = await c.req.json();
+    } catch {
+      return c.json({ success: false, error: 'Invalid command request body' }, 400);
+    }
 
+    if (!isRecord(body)) {
+      return c.json({ success: false, error: 'Invalid command request body' }, 400);
+    }
+    const { signature, nonce, action, cardId, params } = body;
+    if (
+      typeof signature !== 'string' ||
+      typeof nonce !== 'string' ||
+      typeof cardId !== 'string' ||
+      !isCardAction(action) ||
+      (params !== undefined && !isRecord(params))
+    ) {
+      return c.json({ success: false, error: 'Invalid command request body' }, 400);
+    }
+
+    try {
       const verified = deps.commandRouter.verifyCommand(signature, nonce, action, cardId);
       if (!verified) {
         return c.json({ success: false, error: 'Invalid or expired command signature' }, 403);
       }
 
-      const result = await deps.commandRouter.processCommand(cardId, action, params);
+      const result = await deps.commandRouter.processCommand(cardId, action, params ?? {});
       return c.json(result);
     } catch (err) {
       logger.error('Failed to process command', err as Error);
@@ -172,4 +185,8 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
   });
 
   return app as unknown as Hono;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

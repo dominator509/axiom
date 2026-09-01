@@ -7,6 +7,7 @@ import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import {
   CardRenderer,
+  CommandRouter,
   DiscordAdapter,
   IMessageAdapter,
   SignalAdapter,
@@ -56,6 +57,12 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
       NO_BINDING_PARK_MS,
     );
   }
+  const relaySecret = process.env.RELAY_SECRET;
+  if (process.env.NODE_ENV === 'production' && !relaySecret) {
+    throw new Error('relay.card: RELAY_SECRET is required in production');
+  }
+  const commandRouter = new CommandRouter(relaySecret || 'axiom-dev-secret');
+
   const tosReport = (bundle.tosReport as Record<string, unknown> | null) ?? {};
   const captions = (bundle.captions as Record<string, string> | null) ?? {};
   const scores = (tosReport.scores as Array<{
@@ -83,12 +90,16 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
   const renderer = new CardRenderer();
   for (const binding of bindings) {
     const channel = binding.channel.toLowerCase();
+    const chatRef = binding.chatRef;
+    if (!chatRef) throw new Error(`relay.card: binding ${binding.id} has no chat_ref`);
+
     const [relayCardRow] = await tx
       .insert(schema.relayCard)
       .values({
         orgId: job.org_id,
         bundleId: bundle.id,
         channel,
+        externalRef: chatRef,
         state: 'pending',
         title: `Bundle approval — ${bundle.id}`,
         description: captions['instagram'] ?? Object.values(captions)[0] ?? '',
@@ -108,10 +119,11 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
       targetPlatforms,
     };
     const card = renderer.renderBundleCard(content);
+    card.commandTokens = Object.fromEntries(
+      card.actions.map((action) => [action, commandRouter.createCommandToken(action, relayCardRow.id)]),
+    );
 
     // Dispatch through the configured channel adapter.
-    const chatRef = binding.chatRef;
-    if (!chatRef) throw new Error(`relay.card: binding ${binding.id} has no chat_ref`);
 
     switch (channel) {
       case 'telegram': {

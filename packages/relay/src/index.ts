@@ -7,8 +7,8 @@ export { ThreadsAdapter } from './channels/threads.js';
 export { IMessageAdapter } from './channels/imessage.js';
 export { SignalAdapter } from './channels/signal.js';
 
-export { CommandRouter } from './commands.js';
-export type { CardAction, CommandResult } from './commands.js';
+export { CommandRouter, CARD_ACTIONS, isCardAction } from './commands.js';
+export type { CardAction, CommandContext, CommandResult } from './commands.js';
 
 export { ViralLoop } from './viral/loop.js';
 export type { Exemplar } from './viral/loop.js';

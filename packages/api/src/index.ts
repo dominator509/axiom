@@ -28,6 +28,7 @@ import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { asPlatform, enqueueJob, registerConnectors } from '@axiom/worker';
 import { createMcpServer } from '@axiom/mcp-server';
 import {
+  TelegramAdapter,
   DiscordAdapter,
   ThreadsAdapter,
   createRelayRoutes,
@@ -37,6 +38,8 @@ import {
   Bandit,
   IncidentManager,
   HealthCheckRegistry,
+  CARD_ACTIONS,
+  type CommandContext,
   type CardAction,
 } from '@axiom/relay';
 import { relayViralPersistence } from './relay-viral.js';
@@ -50,12 +53,14 @@ import { withOrgContext, writeAudit } from './routes/helpers.js';
  * Executes a verified relay command against real domain state (H-3).
  * The relay package stays persistence-free; this injection lives here because
  * the API process owns @axiom/db. Org context is resolved from the card row
- * (signed commands carry no session — the HMAC is the auth, LBI-04/F-70).
+ * (HTTP signed commands carry no session; provider callbacks additionally
+ * carry a channel identity that must match the persisted card binding).
  */
 async function relayCommandExecutor(
   action: CardAction,
   cardId: string,
   params: Record<string, unknown>,
+  context?: CommandContext,
 ): Promise<string | void> {
   const card = await withOrgContext('00000000-0000-0000-0000-000000000000', async (tx) => {
     // Resolve the card via SECURITY DEFINER resolver (migration 0006) — the
@@ -70,6 +75,20 @@ async function relayCommandExecutor(
   const bundleId = card.bundle_id as string | null;
 
   return withOrgContext(orgId, async (tx) => {
+    const relayCards = await tx
+      .select({ channel: schema.relayCard.channel, externalRef: schema.relayCard.externalRef })
+      .from(schema.relayCard)
+      .where(eq(schema.relayCard.id, cardId))
+      .limit(1);
+    const relayCard = relayCards[0];
+    if (!relayCard) throw new Error(`relay command: card ${cardId} not found`);
+    if (
+      context &&
+      (context.channel !== relayCard.channel || context.sourceId !== relayCard.externalRef)
+    ) {
+      throw new Error('relay command: source is not bound to this relay card');
+    }
+
     let note: string | undefined;
 
     // Transition the bundle state per action (mirrors bundles.ts state machine).
@@ -233,6 +252,23 @@ export type AppBindings = {
   };
 };
 
+let relayCommandRouter: CommandRouter | undefined;
+
+function getRelayCommandRouter(): CommandRouter {
+  if (!relayCommandRouter) {
+    const relaySecret = process.env.RELAY_SECRET;
+    if (process.env.NODE_ENV === 'production' && !relaySecret) {
+      throw new Error('RELAY_SECRET is required in production');
+    }
+    relayCommandRouter = new CommandRouter(
+      relaySecret || 'axiom-dev-secret',
+      5,
+      relayCommandExecutor,
+    );
+  }
+  return relayCommandRouter;
+}
+
 const app = new Hono<AppBindings>();
 
 // Browser clients are credentialed, so never reflect arbitrary origins.
@@ -395,15 +431,7 @@ console.log('LLM gateway routes mounted');
 
 export function createRelayApp(): Hono {
   const cardRenderer = new CardRenderer();
-  const relaySecret = process.env.RELAY_SECRET;
-  if (process.env.NODE_ENV === 'production' && !relaySecret) {
-    throw new Error('RELAY_SECRET is required in production');
-  }
-  const commandRouter = new CommandRouter(
-    relaySecret || 'axiom-dev-secret',
-    5,
-    relayCommandExecutor,
-  );
+  const commandRouter = getRelayCommandRouter();
   const viralLoop = new ViralLoop();
   const bandit = new Bandit();
   const incidentManager = new IncidentManager();
@@ -469,12 +497,56 @@ app.route('/', createRelayApp());
 
 /** Start adapters that perform external I/O. Called only by the server entrypoint. */
 export async function initializeRuntime(): Promise<void> {
+  const commandRouter = getRelayCommandRouter();
+  const registerRelayHandlers = (
+    adapter: TelegramAdapter | DiscordAdapter,
+    channel: 'telegram' | 'discord',
+  ): void => {
+    for (const action of CARD_ACTIONS) {
+      adapter.onCommand(action, async (receivedAction, cardId, context) => {
+        if (!context || context.channel !== channel || !context.sourceId) {
+          throw new Error('relay command: missing or invalid provider source');
+        }
+        const result = await commandRouter.processCommand(
+          cardId,
+          receivedAction,
+          {},
+          context,
+        );
+        if (!result.success) {
+          throw new Error(result.error ?? 'relay command failed');
+        }
+      });
+    }
+  };
+
   const discordToken = process.env.DISCORD_BOT_TOKEN;
   const discordClientId = process.env.DISCORD_APPLICATION_ID;
   if (discordToken && discordClientId) {
-    const discord = new DiscordAdapter({ token: discordToken, clientId: discordClientId });
+    const discord = new DiscordAdapter(
+      { token: discordToken, clientId: discordClientId },
+      commandRouter,
+    );
+    registerRelayHandlers(discord, 'discord');
+    discord.registerInteractionHandler();
     await discord.login();
     console.log('Discord adapter initialized');
+  }
+
+  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (telegramToken) {
+    const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
+    const telegram = new TelegramAdapter(
+      { token: telegramToken, webhookUrl: telegramWebhookUrl },
+      commandRouter,
+    );
+    registerRelayHandlers(telegram, 'telegram');
+    if (telegramWebhookUrl) {
+      await telegram.setWebhook(telegramWebhookUrl);
+    } else {
+      await telegram.startPolling();
+    }
+    console.log('Telegram adapter initialized');
   }
 }
 

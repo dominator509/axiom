@@ -3,12 +3,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { InlineKeyboard } from 'grammy';
 import { TelegramAdapter } from './telegram.js';
 import type { RelayCard, CardAction } from '../card.js';
+import { CommandRouter } from '../commands.js';
 
 const config = { token: '123:test-token', webhookUrl: 'https://relay.example/webhook' };
+const COMMAND_SECRET = 'telegram-test-secret';
 
 function makeCard(actions: CardAction[]): RelayCard {
+  const signer = new CommandRouter(COMMAND_SECRET);
+  const cardId = 'card-1';
   return {
-    cardId: 'card-1',
+    cardId,
     bundleId: 'bundle-1',
     mediaPreview: 'https://cdn.example/1.jpg',
     caption: 'Test caption',
@@ -17,6 +21,9 @@ function makeCard(actions: CardAction[]): RelayCard {
     verdicts: [{ platform: 'tiktok', passed: true, score: 0.9, reason: 'ok' }],
     targetPlatforms: ['tiktok'],
     actions,
+    commandTokens: Object.fromEntries(
+      actions.map((action) => [action, signer.createCommandToken(action, cardId)]),
+    ),
     timestamp: 1_700_000_000_000,
     format: 'html',
   };
@@ -25,7 +32,7 @@ function makeCard(actions: CardAction[]): RelayCard {
 let adapter: TelegramAdapter;
 
 beforeEach(() => {
-  adapter = new TelegramAdapter(config);
+  adapter = new TelegramAdapter(config, new CommandRouter(COMMAND_SECRET));
 });
 
 afterEach(() => {
@@ -45,20 +52,37 @@ describe('construction / getBot / onCommand', () => {
       .spyOn(adapter.getBot().api, 'answerCallbackQuery')
       .mockResolvedValue(true as any);
 
-    await adapter.handleCallback({ id: 'cb-1', data: 'approve:bundle-1' });
+    const token = new CommandRouter(COMMAND_SECRET).createCommandToken('approve', 'bundle-1');
+    await adapter.handleCallback({
+      id: 'cb-1',
+      data: token,
+      message: { chat: { id: 'chat-1' } },
+    });
 
-    expect(handler).toHaveBeenCalledWith('approve', 'bundle-1');
-    expect(answerSpy).toHaveBeenCalledWith('cb-1', { text: 'Action "approve" processed' });
+    expect(handler).toHaveBeenCalledWith('approve', 'bundle-1', {
+      channel: 'telegram',
+      sourceId: 'chat-1',
+    });
+    expect(answerSpy).toHaveBeenCalledWith('cb-1', { text: 'Action processed' });
   });
 });
 
 describe('sendCard', () => {
+  it('fails closed when an action has no signed command token', async () => {
+    const card = makeCard(['approve']);
+    delete card.commandTokens;
+    await expect(adapter.sendCard('chat-1', card)).rejects.toThrow(
+      'relay card missing signed command token for approve',
+    );
+  });
+
   it('sends an HTML card with an inline keyboard of action buttons', async () => {
     const sendSpy = vi
       .spyOn(adapter.getBot().api, 'sendMessage')
       .mockResolvedValue({ message_id: 1 } as any);
 
-    await adapter.sendCard('chat-1', makeCard(['approve', 'reject', 'hold']));
+    const card = makeCard(['approve', 'reject', 'hold']);
+    await adapter.sendCard('chat-1', card);
 
     expect(sendSpy).toHaveBeenCalledTimes(1);
     const [chatId, html, opts] = sendSpy.mock.calls[0] as unknown as [string, string, any];
@@ -71,9 +95,9 @@ describe('sendCard', () => {
     expect(keyboard).toBeInstanceOf(InlineKeyboard);
     expect(keyboard.inline_keyboard).toEqual([
       [
-        { text: '✅ Approve', callback_data: 'approve:card-1' },
-        { text: '❌ Reject', callback_data: 'reject:card-1' },
-        { text: '⏸️ Hold', callback_data: 'hold:card-1' },
+        { text: '✅ Approve', callback_data: card.commandTokens?.approve },
+        { text: '❌ Reject', callback_data: card.commandTokens?.reject },
+        { text: '⏸️ Hold', callback_data: card.commandTokens?.hold },
       ],
     ]);
   });
@@ -93,13 +117,14 @@ describe('sendCard', () => {
       'hold',
       'reject',
     ];
-    await adapter.sendCard('chat-1', makeCard(actions));
+    const card = makeCard(actions);
+    await adapter.sendCard('chat-1', card);
     const [, , opts] = sendSpy.mock.calls[0] as unknown as [string, string, any];
     const keyboard = opts.reply_markup as InlineKeyboard;
     expect(keyboard.inline_keyboard[0]).toHaveLength(9);
     expect(keyboard.inline_keyboard[0][1]).toEqual({
       text: '✅✅ Approve All',
-      callback_data: 'approve_all:card-1',
+      callback_data: card.commandTokens?.approve_all,
     });
   });
 
@@ -121,14 +146,32 @@ describe('handleCallback', () => {
     const answerSpy = vi
       .spyOn(adapter.getBot().api, 'answerCallbackQuery')
       .mockResolvedValue(true as any);
-    await adapter.handleCallback({ id: 'cb-1', data: 'approve:bundle-1' });
+    await adapter.handleCallback({
+      id: 'cb-1',
+      data: new CommandRouter(COMMAND_SECRET).createCommandToken('approve', 'bundle-1'),
+      message: { chat: { id: 'chat-1' } },
+    });
     expect(answerSpy).not.toHaveBeenCalled();
   });
 
   it('handles malformed callback data without crashing', async () => {
     const handler = vi.fn();
     adapter.onCommand('approve', handler);
-    await adapter.handleCallback({ id: 'cb-1', data: 'garbage' });
+    await adapter.handleCallback({
+      id: 'cb-1',
+      data: 'garbage',
+      message: { chat: { id: 'chat-1' } },
+    });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('rejects a valid token when the provider supplies no source chat', async () => {
+    const handler = vi.fn();
+    adapter.onCommand('approve', handler);
+    await adapter.handleCallback({
+      id: 'cb-1',
+      data: new CommandRouter(COMMAND_SECRET).createCommandToken('approve', 'bundle-1'),
+    });
     expect(handler).not.toHaveBeenCalled();
   });
 });
@@ -169,13 +212,29 @@ describe('setupCommands', () => {
 
     adapter.setupCommands();
 
-    await captured.get('approve')!({ match: 'bundle-42' });
-    expect(approveHandler).toHaveBeenCalledWith('approve', 'bundle-42');
+    const signer = new CommandRouter(COMMAND_SECRET);
+    await captured.get('approve')!({
+      match: signer.createCommandToken('approve', 'bundle-42'),
+      chat: { id: 'chat-1' },
+    });
+    expect(approveHandler).toHaveBeenCalledWith('approve', 'bundle-42', {
+      channel: 'telegram',
+      sourceId: 'chat-1',
+    });
 
-    await captured.get('edit')!({ match: 'bundle-43' });
+    await captured.get('edit')!({
+      match: signer.createCommandToken('edit_caption', 'bundle-43'),
+      chat: { id: 'chat-1' },
+    });
     // 'edit' maps to edit_caption; no handler registered → nothing
-    await captured.get('hold')!({ match: 'bundle-44' });
-    expect(holdHandler).toHaveBeenCalledWith('hold', 'bundle-44');
+    await captured.get('hold')!({
+      match: signer.createCommandToken('hold', 'bundle-44'),
+      chat: { id: 'chat-1' },
+    });
+    expect(holdHandler).toHaveBeenCalledWith('hold', 'bundle-44', {
+      channel: 'telegram',
+      sourceId: 'chat-1',
+    });
   });
 });
 
