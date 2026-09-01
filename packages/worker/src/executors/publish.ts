@@ -50,6 +50,11 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     .limit(1);
   if (bundles.length === 0) throw new Error(`publish.target: bundle ${target.bundleId} not found`);
   const bundle = bundles[0];
+  if (bundle.state !== 'approved') {
+    throw new Error(
+      `publish.target: bundle ${target.bundleId} is ${bundle.state}; publishing requires approved state`,
+    );
+  }
 
   const models = await tx
     .select()

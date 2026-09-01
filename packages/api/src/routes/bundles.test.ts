@@ -262,15 +262,35 @@ describe('POST /:id/revise — return to generated', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it('rejects revising an approved bundle (409)', async () => {
+    mockState.results = [[], [{ id: BUNDLE_ID, state: 'approved' }]];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/revise`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ instructions: 'make it warmer' }),
+    });
+    expect(res.status).toBe(409);
+  });
 });
 
 describe('POST /:id/reject', () => {
   it('rejects a bundle', async () => {
-    mockState.result = [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'rejected' }];
+    mockState.results = [
+      [],
+      [{ id: BUNDLE_ID, state: 'generated' }],
+      [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'rejected' }],
+    ];
     const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/reject`, { method: 'POST' });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.state).toBe('rejected');
+  });
+
+  it('rejects an approved bundle without leaving its publish work eligible (409)', async () => {
+    mockState.results = [[], [{ id: BUNDLE_ID, state: 'approved' }]];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/reject`, { method: 'POST' });
+    expect(res.status).toBe(409);
   });
 
   it('returns 404 when the bundle is not in the org', async () => {

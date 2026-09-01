@@ -1,5 +1,5 @@
 // ─── Content bundles (F-36/F-37, L3.0) — real DB CRUD + lifecycle ───
-// state machine: generated → approved → scheduled → publishing → published
+// state machine: generated/hold → approved → scheduled → publishing → published
 // approve/revise/reject transitions are audited (LBI-08) and ToS-gated
 // (LBI-11: a block verdict prevents approval).
 
@@ -113,10 +113,10 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
       .limit(1);
     if (rows.length === 0) return { status: 404 as const, data: null };
     const bundle = rows[0];
-    if (bundle.state !== 'generated') {
+    if (bundle.state !== 'generated' && bundle.state !== 'hold') {
       return {
         status: 409 as const,
-        error: `bundle is already ${bundle.state}; only generated bundles can be approved`,
+        error: `bundle is already ${bundle.state}; only generated or held bundles can be approved`,
       };
     }
 
@@ -171,8 +171,19 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
     const [updated] = await tx
       .update(schema.contentBundle)
       .set({ state: 'approved', updatedAt: new Date() })
-      .where(eq(schema.contentBundle.id, id))
+      .where(
+        and(
+          eq(schema.contentBundle.id, id),
+          eq(schema.contentBundle.state, bundle.state),
+        ),
+      )
       .returning();
+    if (updated.length === 0) {
+      return {
+        status: 409 as const,
+        error: 'bundle changed while approval was being applied; retry the action',
+      };
+    }
     await writeAudit(tx, orgId, userId, 'bundle.approve', id, {
       platforms,
       slot: slot.toISOString(),
@@ -194,18 +205,43 @@ router.post('/:id/revise', zValidator('json', reviseBundleSchema), async (c) => 
   const userId = c.get('userId') ?? 'system';
 
   const result = await withOrgContext(orgId, async (tx) => {
+    const current = await tx
+      .select({ id: schema.contentBundle.id, state: schema.contentBundle.state })
+      .from(schema.contentBundle)
+      .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.orgId, orgId)))
+      .limit(1);
+    if (current.length === 0) return { status: 404 as const, data: null };
+    if (current[0].state !== 'generated' && current[0].state !== 'hold') {
+      return {
+        status: 409 as const,
+        error: `bundle is already ${current[0].state}; only generated or held bundles can be revised`,
+      };
+    }
+
     const rows = await tx
       .update(schema.contentBundle)
       .set({ state: 'generated', updatedAt: new Date() })
-      .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.orgId, orgId)))
+      .where(
+        and(
+          eq(schema.contentBundle.id, id),
+          eq(schema.contentBundle.orgId, orgId),
+          eq(schema.contentBundle.state, current[0].state),
+        ),
+      )
       .returning();
-    if (rows.length === 0) return { status: 404 as const, data: null };
+    if (rows.length === 0) {
+      return {
+        status: 409 as const,
+        error: 'bundle changed while revision was being applied; retry the action',
+      };
+    }
     await writeAudit(tx, orgId, userId, 'bundle.revise', id, {
       instructions: body.instructions,
     });
     return { status: 200 as const, data: rows[0] };
   });
   if (result.status === 404) return apiError(c, 404, statusTitle(404), 'bundle not found');
+  if (result.status === 409) return apiError(c, 409, statusTitle(409), result.error ?? 'conflict');
   return c.json({ data: result.data });
 });
 
@@ -217,16 +253,41 @@ router.post('/:id/reject', async (c) => {
   const userId = c.get('userId') ?? 'system';
 
   const result = await withOrgContext(orgId, async (tx) => {
+    const current = await tx
+      .select({ id: schema.contentBundle.id, state: schema.contentBundle.state })
+      .from(schema.contentBundle)
+      .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.orgId, orgId)))
+      .limit(1);
+    if (current.length === 0) return { status: 404 as const, data: null };
+    if (current[0].state !== 'generated' && current[0].state !== 'hold') {
+      return {
+        status: 409 as const,
+        error: `bundle is already ${current[0].state}; only generated or held bundles can be rejected`,
+      };
+    }
+
     const rows = await tx
       .update(schema.contentBundle)
       .set({ state: 'rejected', updatedAt: new Date() })
-      .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.orgId, orgId)))
+      .where(
+        and(
+          eq(schema.contentBundle.id, id),
+          eq(schema.contentBundle.orgId, orgId),
+          eq(schema.contentBundle.state, current[0].state),
+        ),
+      )
       .returning();
-    if (rows.length === 0) return { status: 404 as const, data: null };
+    if (rows.length === 0) {
+      return {
+        status: 409 as const,
+        error: 'bundle changed while rejection was being applied; retry the action',
+      };
+    }
     await writeAudit(tx, orgId, userId, 'bundle.reject', id, {});
     return { status: 200 as const, data: rows[0] };
   });
   if (result.status === 404) return apiError(c, 404, statusTitle(404), 'bundle not found');
+  if (result.status === 409) return apiError(c, 409, statusTitle(409), result.error ?? 'conflict');
   return c.json({ data: result.data });
 });
 
