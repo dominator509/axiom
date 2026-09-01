@@ -82,6 +82,13 @@ describe('GET /models/:modelId/calendar', () => {
     const body = (await res.json()) as any;
     expect(body.data).toEqual([]);
   });
+
+  it('rejects an invalid range timestamp before querying', async () => {
+    const res = await appWithOrg(ORG_ID).request(
+      `/models/${MODEL_ID}/calendar?from=not-a-timestamp`,
+    );
+    expect(res.status).toBe(400);
+  });
 });
 
 describe('POST /posts', () => {
@@ -217,6 +224,53 @@ describe('PATCH /posts/:id', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.scheduledFor).toBeTruthy();
+    expect(enqueueJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        kind: 'publish.target',
+        payload: { targetId: POST_ID },
+        runAfter: new Date('2026-08-12T12:00:00Z'),
+      }),
+    );
+  });
+
+  it('rejects an unsupported retarget platform', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platform: 'onlyfans' }),
+    });
+    expect(res.status).toBe(400);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it('rejects edits after the worker has started publication', async () => {
+    mockState.result = [
+      {
+        id: POST_ID,
+        orgId: ORG_ID,
+        bundleId: BUNDLE_ID,
+        platform: 'instagram',
+        scheduledFor: new Date('2026-08-10T12:00:00Z'),
+        state: 'published',
+      },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ scheduledFor: '2026-08-12T12:00:00Z' }),
+    });
+    expect(res.status).toBe(409);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it('rejects an empty edit', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
   });
 
   it('returns 404 when the post is not in the org', async () => {
