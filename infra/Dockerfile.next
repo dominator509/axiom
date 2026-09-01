@@ -17,6 +17,7 @@ RUN npm install -g pnpm@9.14.0
 
 # Copy monorepo root manifests
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY patches ./patches
 
 # Copy all workspace package.json files so pnpm can resolve the dependency graph
 # before source code is copied. This keeps frozen-lockfile installs reproducible
