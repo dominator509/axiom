@@ -75,3 +75,4 @@
 2026-09-01T22:40:58Z | [P1][EGRESS] Align API network health with plane status and scope plane status/bind/unbind to authenticated tenant; focused and full API suites passed.
 2026-09-01T22:52:44Z | [P1][API] Enforce model/fan/provider ownership on nested writes and add missing org predicates to calendar/analytics; API 290/290, typecheck, and lint passed.
 2026-09-01T23:02:52Z | [P1][API] Include mutation query strings in idempotency request fingerprints; API 291/291 and typecheck passed.
+2026-09-01T23:22:29Z | [P1][CI] Validate generation targets against canonical platforms, make egress status build type-safe, and serialize egress DEK environment tests; API 293/293, root typecheck/lint/build, security-check, Rust check/test/clippy passed; hosted PostgreSQL and Docker gates remain environment-blocked locally.
