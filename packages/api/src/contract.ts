@@ -173,10 +173,17 @@ export function idempotency(required = true) {
     }
 
     const requestBytes = Buffer.from(await c.req.raw.clone().arrayBuffer());
+    // Include the query string in the fingerprint. Some mutating routes use
+    // query parameters for resource identity (for example, modelId on the
+    // social-account connect route); omitting it could replay a response for
+    // a different resource when an idempotency key is accidentally reused.
+    const query = new URL(c.req.url).search;
     const requestHash = createHash('sha256')
       .update(method)
       .update('\n')
       .update(route)
+      .update('\n')
+      .update(query)
       .update('\n')
       .update(c.req.header('content-type') ?? '')
       .update('\n')

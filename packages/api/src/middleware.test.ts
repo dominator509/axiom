@@ -53,11 +53,13 @@ afterEach(() => {
 });
 
 describe('idempotency middleware (durable, M-2)', () => {
-  function requestHash(body = '', contentType = ''): string {
+  function requestHash(body = '', contentType = '', query = ''): string {
     return createHash('sha256')
       .update('POST')
       .update('\n')
       .update('/mutate')
+      .update('\n')
+      .update(query)
       .update('\n')
       .update(contentType)
       .update('\n')
@@ -199,6 +201,32 @@ describe('idempotency middleware (durable, M-2)', () => {
     const res = await app.request('/mutate', {
       method: 'POST',
       headers: { 'Idempotency-Key': 'key-mismatch' },
+    });
+    expect(res.status).toBe(409);
+    expect(getCalls()).toBe(0);
+  });
+
+  it('rejects reuse of a key with a different query string', async () => {
+    const app = makeApp();
+    const getCalls = countedRoute(app);
+    mockState.results = [
+      [],
+      [],
+      [
+        {
+          id: 'row-query-mismatch',
+          state: 'completed',
+          request_hash: requestHash('', '', '?modelId=model-a'),
+          owner_token: null,
+          status: 201,
+          response_body: { data: { ok: true } },
+          expires_at: new Date(Date.now() + 86_400_000),
+        },
+      ],
+    ];
+    const res = await app.request('/mutate?modelId=model-b', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'key-query-mismatch' },
     });
     expect(res.status).toBe(409);
     expect(getCalls()).toBe(0);
