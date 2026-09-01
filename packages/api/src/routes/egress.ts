@@ -314,7 +314,9 @@ router.post('/plane/bind', async (c) => {
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/bind`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ org_id: orgId, ...body }),
+      // The authenticated request context is authoritative. Put org_id last
+      // so a caller cannot smuggle another tenant into the plane payload.
+      body: JSON.stringify({ ...body, org_id: orgId }),
       signal: AbortSignal.timeout(10000),
     });
     const data = await res.json().catch(() => ({}));
@@ -337,7 +339,7 @@ router.post('/plane/unbind', async (c) => {
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/unbind`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ org_id: orgId, ...body }),
+      body: JSON.stringify({ ...body, org_id: orgId }),
       signal: AbortSignal.timeout(10000),
     });
     const data = await res.json().catch(() => ({}));

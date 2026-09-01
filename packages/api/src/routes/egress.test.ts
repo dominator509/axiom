@@ -403,6 +403,23 @@ describe('Plane proxy endpoints', () => {
     expect(payload.model_id).toBe(MODEL_ID);
   });
 
+  it('POST /plane/bind cannot override the authenticated organization', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: 'bound' }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await appWithOrg('org-1').request('/plane/bind', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ org_id: 'other-org', model_id: MODEL_ID }),
+    });
+    expect(res.status).toBe(200);
+    const payload = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body) as {
+      org_id: string;
+    };
+    expect(payload.org_id).toBe('org-1');
+  });
+
   it('POST /plane/sync asks the plane to sync configs from the DB', async () => {
     const fetchMock = vi
       .fn()
