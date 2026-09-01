@@ -71,8 +71,8 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
   private readonly clientSecret?: string;
   private readonly tokenExpiresAt?: number;
 
-  constructor(auth: ConnectorAuth) {
-    super('fanvue' as Platform, 'Fanvue', 'api' as PublishMode, auth);
+  constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
+    super('fanvue' as Platform, 'Fanvue', 'api' as PublishMode, auth, fetchImpl);
     this.modelId = auth.externalUserId || '';
     this.refreshToken = auth.refreshToken;
     this.clientId = (auth.extra as Record<string, unknown> | undefined)?.['clientId'] as
@@ -109,7 +109,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     }
 
     const basic = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
-    const resp = await fetch(FANVUE_TOKEN_URL, {
+    const resp = await this.fetchImpl(FANVUE_TOKEN_URL, {
       method: 'POST',
       headers: {
         Authorization: `Basic ${basic}`,
@@ -186,7 +186,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     rawText = false,
   ): Promise<T> {
     await this.ensureFreshToken();
-    const response = await fetch(`${FANVUE_API_BASE}${path}`, {
+    const response = await this.fetchImpl(`${FANVUE_API_BASE}${path}`, {
       method,
       headers: this.fanvueHeaders(),
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -216,7 +216,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
   /** Download remote media bytes (bounded) for the multipart upload. */
   private async downloadMedia(url: string): Promise<Uint8Array> {
-    const resp = await fetch(url, { method: 'GET' });
+    const resp = await this.fetchImpl(url, { method: 'GET' });
     if (!resp.ok) {
       throw new Error(`Fanvue media download failed: ${resp.status} ${resp.statusText} (${url})`);
     }
@@ -257,7 +257,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
       const end = Math.min(bytes.length, partNumber * session.partSize);
       const partBytes = bytes.slice(start, end);
 
-      const putRes = await fetch(signedUrl, {
+      const putRes = await this.fetchImpl(signedUrl, {
         method: 'PUT',
         body: partBytes,
       });
@@ -371,7 +371,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     }
 
     const basic = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
-    const resp = await fetch(FANVUE_REVOKE_URL, {
+    const resp = await this.fetchImpl(FANVUE_REVOKE_URL, {
       method: 'POST',
       headers: {
         Authorization: `Basic ${basic}`,

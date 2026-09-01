@@ -6,19 +6,31 @@
 # ------------------------------------------------------------------------------
 # Stage 1: Dependencies
 # ------------------------------------------------------------------------------
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 
 RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 
 # Install pnpm globally
-RUN npm install -g pnpm@latest
+RUN npm install -g pnpm@9.14.0
 
 # Copy monorepo root manifests
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 
 # Copy all workspace package.json files so pnpm can resolve the dependency graph
+# before source code is copied. This keeps frozen-lockfile installs reproducible
+# in a clean Docker context.
+COPY packages/auth/package.json ./packages/auth/package.json
+COPY packages/core/package.json ./packages/core/package.json
+COPY packages/db/package.json ./packages/db/package.json
+COPY packages/connectors/package.json ./packages/connectors/package.json
+COPY packages/relay/package.json ./packages/relay/package.json
+COPY packages/llm-gateway/package.json ./packages/llm-gateway/package.json
+COPY packages/fanvue-mcp/package.json ./packages/fanvue-mcp/package.json
+COPY packages/mcp-server/package.json ./packages/mcp-server/package.json
+COPY packages/worker/package.json ./packages/worker/package.json
+COPY packages/mobile/package.json ./packages/mobile/package.json
 COPY packages/api/package.json ./packages/api/package.json
 COPY packages/dashboard/package.json ./packages/dashboard/package.json
 
@@ -28,11 +40,11 @@ RUN pnpm install --frozen-lockfile
 # ------------------------------------------------------------------------------
 # Stage 2: Builder
 # ------------------------------------------------------------------------------
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-RUN npm install -g pnpm@latest
+RUN npm install -g pnpm@9.14.0
 
 # Copy node_modules and lockfile from deps stage
 COPY --from=deps /app/node_modules ./node_modules
@@ -42,8 +54,8 @@ COPY pnpm-workspace.yaml package.json ./
 # Copy source code for the entire monorepo (needed by build)
 COPY . .
 
-# Build only the dashboard package
-RUN pnpm --filter=@axiom/dashboard build
+# Build the dashboard and its workspace dependencies from a clean checkout.
+RUN pnpm --filter=@axiom/dashboard... build
 
 # Prune dev dependencies for production
 RUN pnpm --filter=@axiom/dashboard --prod deploy /app/pruned
@@ -51,7 +63,7 @@ RUN pnpm --filter=@axiom/dashboard --prod deploy /app/pruned
 # ------------------------------------------------------------------------------
 # Stage 3: Runner
 # ------------------------------------------------------------------------------
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 RUN addgroup --system --gid 1001 nextjs && \
     adduser --system --uid 1001 nextjs

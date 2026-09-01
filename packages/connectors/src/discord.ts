@@ -40,8 +40,8 @@ interface DiscordWebhookResponse {
 }
 
 export class DiscordConnector extends BaseConnector implements SocialConnector {
-  constructor(auth: ConnectorAuth) {
-    super('discord' as Platform, 'Discord', 'link_share' as PublishMode, auth);
+  constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
+    super('discord' as Platform, 'Discord', 'link_share' as PublishMode, auth, fetchImpl);
   }
 
   capability(): ConnectorCapability {
@@ -121,7 +121,7 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
       // retried merely because there is no JSON response body.
       const executeUrl = new URL(webhookUrl);
       executeUrl.searchParams.set('wait', 'true');
-      const response = await fetch(executeUrl.toString(), {
+      const response = await this.fetchImpl(executeUrl.toString(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -202,7 +202,7 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
     const webhookToken = decodeURIComponent(match[2]);
 
     // Delete the webhook via Discord API
-    const response = await fetch(
+    const response = await this.fetchImpl(
       `${DISCORD_API_BASE}/webhooks/${webhookId}/${encodeURIComponent(webhookToken)}`,
       {
         method: 'DELETE',

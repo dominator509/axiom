@@ -2,13 +2,13 @@
 // One job per platform target. Inside the txn:
 //  1. Kill-switch gate — publishing_enabled=false ⇒ park (L3.4 §5).
 //  2. Idempotency ledger — key hit ⇒ return stored result, no platform call.
-//  3. connector.publish() via the platform connector registry.
+//  3. connector.publish() via the target's encrypted platform connection.
 //  4. post_target → published + remote_id, idempotency ledger row — same txn.
 //  5. Enqueue metrics.poll for the published target (L2.8 §1).
 
 import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { connectorFor, hasConnector, validateForPlatform } from '@axiom/connectors';
+import { asPlatform, connectorForTarget } from '../connection.js';
 import { ParkJobError } from './context.js';
 import { runPrePostBefore, runPrePostAfter } from './pre_post.js';
 import type { Executor, ExecutorContext } from './context.js';
@@ -84,12 +84,19 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     }
   }
 
-  // 3. Connector publish.
-  const platform = target.platform as Parameters<typeof connectorFor>[0];
-  if (!hasConnector(platform)) {
-    throw new Error(`publish.target: no connector registered for '${platform}'`);
+  // 3. Resolve the target's org/model/platform connection and its healthy
+  // model-scoped egress client. Never fall back to deployment-wide env auth.
+  const platform = asPlatform(target.platform);
+  const { connection, connector } = await connectorForTarget(tx, job.org_id, model.id, {
+    connectionId: target.connectionId,
+    platform,
+  });
+  if (!target.connectionId) {
+    await tx
+      .update(schema.postTarget)
+      .set({ connectionId: connection.id })
+      .where(eq(schema.postTarget.id, targetId));
   }
-  const connector = connectorFor(platform);
   const caption = (bundle.captions as Record<string, string> | null)?.[platform] ?? '';
   const hashtags = (bundle.hashtags as string[] | null) ?? [];
   const mediaUrls = bundle.assetId ? [`asset://${bundle.assetId}`] : [];
@@ -121,6 +128,9 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const preStage = await runPrePostBefore(ctx, prePostInput);
   const stagedInput = {
     ...preStage.input,
+    // Preserve the durable target idempotency key across the pre-post
+    // adapter boundary; the hook's phase key is only for hook bookkeeping.
+    idempotencyKey: input.idempotencyKey,
     // Pre-post hooks intentionally expose only their public input shape. Keep
     // the persisted TikTok publish_id across a pending-status retry.
     options: {
@@ -129,7 +139,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     },
   };
 
-  const validation = await validateForPlatform(platform, input);
+  const validation = await connector.validate(stagedInput);
   if (!validation.valid) {
     throw new Error(
       `publish.target: validation failed for ${platform}: ${validation.errors.map((e) => e.message).join('; ')}`,

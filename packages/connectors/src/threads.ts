@@ -40,8 +40,8 @@ interface ThreadsPermissionsResponse {
 }
 
 export class ThreadsConnector extends BaseConnector implements SocialConnector {
-  constructor(auth: ConnectorAuth) {
-    super('threads' as Platform, 'Threads', 'api' as PublishMode, auth);
+  constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
+    super('threads' as Platform, 'Threads', 'api' as PublishMode, auth, fetchImpl);
   }
 
   capability(): ConnectorCapability {
@@ -149,7 +149,7 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
       `?metric=views,likes,replies,reposts,quotes,shares` +
       `&access_token=${accessToken}`;
 
-    const resp = await fetch(metricsUrl);
+    const resp = await this.fetchImpl(metricsUrl);
     if (!resp.ok) {
       const body = await resp.text().catch(() => '');
       throw new Error(`Threads metrics fetch failed: HTTP ${resp.status} — ${body}`);

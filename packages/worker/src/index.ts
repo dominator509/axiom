@@ -19,3 +19,12 @@ export { JOB_KINDS } from './types.js';
 export type { JobRow, JobKind } from './types.js';
 export { registerConnectors } from './connectors.js';
 export type { ConnectorEnv } from './connectors.js';
+export { resolveCapabilities, capabilityNames } from '@axiom/connectors';
+export {
+  asPlatform,
+  resolvePlatformConnection,
+  decryptConnectorAuth,
+  parseConnectorAuth,
+  connectorForTarget,
+} from './connection.js';
+export type { TargetConnectionRef, ResolvedTargetConnector } from './connection.js';

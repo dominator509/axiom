@@ -18,8 +18,8 @@ import type { Platform, PublishMode } from '@axiom/core';
 const SNAP_BASE = 'https://kit.snapchat.com/v1';
 
 export class SnapchatConnector extends BaseConnector implements SocialConnector {
-  constructor(auth: ConnectorAuth) {
-    super('snapchat' as Platform, 'Snapchat', 'assisted' as PublishMode, auth);
+  constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
+    super('snapchat' as Platform, 'Snapchat', 'assisted' as PublishMode, auth, fetchImpl);
   }
 
   capability(): ConnectorCapability {

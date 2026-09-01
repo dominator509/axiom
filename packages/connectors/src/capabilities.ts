@@ -41,3 +41,19 @@ export function cacheCapability(platform: Platform): ConnectorCapability {
 export function clearCapabilityCache(): void {
   cache = new WeakMap<SocialConnector, ConnectorCapability>();
 }
+
+/**
+ * Serialize the structured connector declaration into the capability names
+ * stored on platform_connection. This is deliberately derived from the
+ * registered connector, never accepted from a client request.
+ */
+export function capabilityNames(capability: ConnectorCapability): string[] {
+  const names: string[] = [];
+
+  if (capability.publish) names.push('publish');
+  for (const media of capability.media) names.push(`publish.${media}`);
+  if (capability.scheduling !== 'none') names.push(`schedule.${capability.scheduling}`);
+  if (capability.metrics.length > 0) names.push('read.insights');
+
+  return names;
+}

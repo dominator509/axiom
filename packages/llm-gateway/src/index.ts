@@ -2,6 +2,7 @@
 
 // Core gateway
 export { LLMGateway } from './gateway.js';
+export { resolveEgressProxy, buildEgressFetch, clearEgressCache } from './egress.js';
 export type {
   Message,
   MessageRole,

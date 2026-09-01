@@ -60,8 +60,8 @@ interface TiktokVideoQueryResponse {
 }
 
 export class TikTokConnector extends BaseConnector implements SocialConnector {
-  constructor(auth: ConnectorAuth) {
-    super('tiktok' as Platform, 'TikTok', 'api' as PublishMode, auth);
+  constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
+    super('tiktok' as Platform, 'TikTok', 'api' as PublishMode, auth, fetchImpl);
   }
 
   capability(): ConnectorCapability {
@@ -102,7 +102,7 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       }
 
       // Download first so FILE_UPLOAD metadata reflects the actual bytes.
-      const videoResponse = await fetch(videoUrl);
+      const videoResponse = await this.fetchImpl(videoUrl);
       if (!videoResponse.ok) {
         throw new Error(`Failed to download video from ${videoUrl}: ${videoResponse.status}`);
       }
@@ -154,7 +154,7 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       this.log('info', 'publish', `TikTok video init complete`, { publish_id });
 
       // Step 2: Upload the downloaded bytes to TikTok.
-      const uploadResp = await fetch(upload_url, {
+      const uploadResp = await this.fetchImpl(upload_url, {
         method: 'PUT',
         headers: {
           'Content-Type': 'video/mp4',
@@ -218,7 +218,7 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       throw new Error('TikTok revoke requires clientKey and clientSecret in auth.extra');
     }
 
-    const response = await fetch(`${TIKTOK_API_BASE}/oauth/revoke/`, {
+    const response = await this.fetchImpl(`${TIKTOK_API_BASE}/oauth/revoke/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({

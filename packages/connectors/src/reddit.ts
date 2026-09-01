@@ -69,8 +69,8 @@ interface RedditRevokeResponse {
 }
 
 export class RedditConnector extends BaseConnector implements SocialConnector {
-  constructor(auth: ConnectorAuth) {
-    super('reddit' as Platform, 'Reddit', 'api' as PublishMode, auth);
+  constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
+    super('reddit' as Platform, 'Reddit', 'api' as PublishMode, auth, fetchImpl);
   }
 
   capability(): ConnectorCapability {
@@ -173,7 +173,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
         // Continue anyway — the API will enforce strict rules
       }
 
-      const submitResp = await fetch(`${REDDIT_API_BASE}/api/submit`, {
+      const submitResp = await this.fetchImpl(`${REDDIT_API_BASE}/api/submit`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -224,7 +224,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
 
     const url = `${REDDIT_API_BASE}/api/info?id=${normalizedId}`;
 
-    const resp = await fetch(url, {
+    const resp = await this.fetchImpl(url, {
       headers: {
         Authorization: `Bearer ${this.auth.accessToken}`,
         'User-Agent': 'axiom:connector:reddit:v0.1.0 (by /u/axiom)',
@@ -283,7 +283,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
 
     const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
-    const response = await fetch(REDDIT_OAUTH_REVOKE, {
+    const response = await this.fetchImpl(REDDIT_OAUTH_REVOKE, {
       method: 'POST',
       headers: {
         Authorization: `Basic ${credentials}`,
@@ -317,7 +317,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
     try {
       const url = `${REDDIT_API_BASE}/r/${subreddit}/about/rules`;
 
-      const resp = await fetch(url, {
+      const resp = await this.fetchImpl(url, {
         headers: {
           Authorization: `Bearer ${this.auth.accessToken}`,
           'User-Agent': 'axiom:connector:reddit:v0.1.0 (by /u/axiom)',

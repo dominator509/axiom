@@ -1,12 +1,14 @@
 // ─── Social accounts per model (F-58..F-67, L3.0) — real DB CRUD ───
 // platform_connection rows store envelope-encrypted credentials (LBI-01).
-// Capabilities are resolved from the connector registry at connect time.
+// Capabilities are resolved from the connector registry at connect time and
+// are never accepted from the browser as an authority.
 
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
+import { capabilityNames, resolveCapabilities } from '@axiom/worker';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 
@@ -35,7 +37,6 @@ const connectSchema = z.object({
   encToken: z.string().min(1),
   encNonce: z.string().min(1),
   dekId: z.string().min(1),
-  capabilities: z.array(z.string()).optional(),
 });
 
 // GET /api/v1/social-accounts?modelId=... — connected accounts
@@ -65,6 +66,18 @@ router.post('/', zValidator('json', connectSchema), async (c) => {
   const modelId = c.req.query('modelId');
   if (!modelId) return apiError(c, 400, statusTitle(400), 'modelId query required');
 
+  let capabilities: string[];
+  try {
+    capabilities = capabilityNames(resolveCapabilities(body.platform));
+  } catch {
+    return apiError(
+      c,
+      503,
+      statusTitle(503),
+      `connector for '${body.platform}' is unavailable`,
+    );
+  }
+
   const inserted = await withOrgContext(orgId, async (tx) => {
     const [row] = await tx
       .insert(schema.platformConnection)
@@ -76,7 +89,7 @@ router.post('/', zValidator('json', connectSchema), async (c) => {
         encToken: new Uint8Array(Buffer.from(body.encToken, 'base64')),
         encNonce: new Uint8Array(Buffer.from(body.encNonce, 'base64')),
         dekId: body.dekId,
-        capabilities: body.capabilities ?? [],
+        capabilities,
         status: 'connected',
         connectedAt: new Date(),
       })
