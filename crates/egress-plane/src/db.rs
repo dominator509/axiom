@@ -173,20 +173,29 @@ pub fn dek_from_env() -> Option<[u8; 32]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Environment variables are process-global, so these tests must not race
+    // while assigning EGRESS_DEK under Rust's default parallel test runner.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn dek_parses_hex() {
+        let _lock = ENV_LOCK.lock().expect("DEK test lock should not be poisoned");
         // 64 hex chars = 32 bytes of 0xAB
         let hex = "ab".repeat(32);
         std::env::set_var("EGRESS_DEK", &hex);
         let dek = dek_from_env().expect("dek should parse");
         assert_eq!(dek.len(), 32);
         assert!(dek.iter().all(|&b| b == 0xAB));
+        std::env::remove_var("EGRESS_DEK");
     }
 
     #[test]
     fn dek_rejects_bad_length() {
+        let _lock = ENV_LOCK.lock().expect("DEK test lock should not be poisoned");
         std::env::set_var("EGRESS_DEK", "abc");
         assert!(dek_from_env().is_none());
+        std::env::remove_var("EGRESS_DEK");
     }
 }

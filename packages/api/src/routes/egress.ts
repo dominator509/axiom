@@ -394,7 +394,9 @@ router.get('/plane/status', async (c) => {
   }
 
   try {
-    const data = await res.json().catch(() => ({}));
+    const data = (await res.json().catch(() => ({}))) as unknown;
+    const dataRecord =
+      typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : null;
     const rows = await withOrgContext(orgId, (tx) =>
       tx
         .select({ modelId: schema.modelNetworkConfigs.modelId })
@@ -406,8 +408,7 @@ router.get('/plane/status', async (c) => {
         .map((row: { modelId?: unknown }) => row.modelId)
         .filter((modelId: unknown): modelId is string => typeof modelId === 'string'),
     );
-    const upstreamModels =
-      typeof data === 'object' && data !== null && Array.isArray(data.models) ? data.models : [];
+    const upstreamModels = dataRecord && Array.isArray(dataRecord.models) ? dataRecord.models : [];
     const models = upstreamModels.filter(
       (model: unknown): model is Record<string, unknown> =>
         typeof model === 'object' &&
@@ -416,8 +417,8 @@ router.get('/plane/status', async (c) => {
         allowedModelIds.has((model as Record<string, unknown>).model_id as string),
     );
     const scopedData =
-      typeof data === 'object' && data !== null
-        ? { ...(data as Record<string, unknown>), count: models.length, models }
+      dataRecord
+        ? { ...dataRecord, count: models.length, models }
         : { count: models.length, models };
     return c.json(
       { data: scopedData },

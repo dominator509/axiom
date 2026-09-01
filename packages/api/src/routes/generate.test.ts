@@ -128,6 +128,24 @@ describe('POST /models/:id/generate', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects an unsupported platform before touching the model (400)', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, platforms: ['not-a-platform'] }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects duplicate platform targets before creating a bundle (400)', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, platforms: ['instagram', 'instagram'] }),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('rejects without org context (401)', async () => {
     const res = await appWithOrg(null).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST',

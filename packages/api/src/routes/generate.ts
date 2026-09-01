@@ -24,7 +24,7 @@ import {
 } from '@axiom/llm-gateway';
 import { LLMGateway } from '@axiom/llm-gateway';
 import { PLATFORM_RULES, DEFAULT_PLATFORM_THRESHOLDS } from '@axiom/fanvue-mcp';
-import { enqueueJob } from '@axiom/worker';
+import { asPlatform, enqueueJob } from '@axiom/worker';
 
 type PromptPlatform =
   | 'instagram'
@@ -194,6 +194,30 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema), asy
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
 
+  // Keep generation targets aligned with the connector/worker contract. The
+  // prompt and ToS paths use platform-specific rules, so accepting arbitrary
+  // strings here would persist captions that no worker can publish.
+  const platforms: PromptPlatform[] = [];
+  const seenPlatforms = new Set<PromptPlatform>();
+  for (const requestedPlatform of body.platforms) {
+    let platform: PromptPlatform;
+    try {
+      platform = asPlatform(requestedPlatform);
+    } catch {
+      return apiError(
+        c,
+        400,
+        statusTitle(400),
+        `unsupported target platform '${requestedPlatform}'`,
+      );
+    }
+    if (seenPlatforms.has(platform)) {
+      return apiError(c, 400, statusTitle(400), `duplicate target platform '${platform}'`);
+    }
+    seenPlatforms.add(platform);
+    platforms.push(platform);
+  }
+
   const result = await withOrgContext(orgId, async (tx) => {
     // Verify model belongs to org
     const models = await tx
@@ -204,7 +228,6 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema), asy
     if (models.length === 0) return { status: 404 as const, data: null };
     const model = models[0];
 
-    const platforms = body.platforms;
     const promptPlatform = (platforms[0] ?? 'instagram') as PromptPlatform;
     const profile: PromptModelProfile = {
       id: model.id,
