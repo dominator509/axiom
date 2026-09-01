@@ -16,6 +16,7 @@ RUN npm install -g pnpm@9.14.0
 
 # Copy monorepo root manifests
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY patches ./patches
 
 # Copy every workspace package manifest for dependency resolution. The API
 # depends on the other workspace packages at build time, so copying only the
