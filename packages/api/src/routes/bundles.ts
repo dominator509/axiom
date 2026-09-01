@@ -11,6 +11,7 @@ import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
+import { enqueueJob } from '@axiom/worker';
 
 const router = new Hono<AppBindings>();
 
@@ -113,15 +114,31 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
     // Create post_targets (per-platform), transition bundle → approved
     const slot = body.slot ? new Date(body.slot) : new Date(Date.now() + 3600_000);
     for (const platform of body.platforms) {
-      await tx.insert(schema.postTarget).values({
+      const [target] = await tx
+        .insert(schema.postTarget)
+        .values({
+          orgId,
+          bundleId: id,
+          platform,
+          scheduledFor: slot,
+          state: 'pending',
+          remoteId: null,
+          error: null,
+          idemKey: Buffer.from(`${id}|${platform}|${slot.toISOString()}`),
+        })
+        .returning({ id: schema.postTarget.id });
+      if (!target?.id) throw new Error(`bundle.approve: target insert returned no id`);
+
+      // Approval is also the dashboard's scheduling action. Enqueue in the
+      // same transaction as the target so a committed approval always has a
+      // durable worker handoff, with duplicate taps collapsed by target ID.
+      await enqueueJob(tx, {
         orgId,
-        bundleId: id,
-        platform,
-        scheduledFor: slot,
-        state: 'pending',
-        remoteId: null,
-        error: null,
-        idemKey: Buffer.from(`${id}|${platform}|${slot.toISOString()}`),
+        queue: 'publish',
+        kind: 'publish.target',
+        payload: { targetId: target.id },
+        runAfter: slot,
+        dedupeParts: ['publish.target', target.id],
       });
     }
     const [updated] = await tx
