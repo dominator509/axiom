@@ -5,8 +5,29 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ postTarget: {}, contentBundle: {} }));
+vi.mock('@axiom/worker', () => ({
+  enqueueJob: vi.fn(async () => ({ id: 'job-1' })),
+  asPlatform: vi.fn((platform: string) => {
+    const supported = [
+      'instagram',
+      'tiktok',
+      'x',
+      'youtube',
+      'reddit',
+      'threads',
+      'discord',
+      'telegram',
+      'facebook',
+      'snapchat',
+      'fanvue',
+    ];
+    if (!supported.includes(platform)) throw new Error(`unsupported target platform '${platform}'`);
+    return platform;
+  }),
+}));
 
 import { postsRouter } from './posts.js';
+import { enqueueJob } from '@axiom/worker';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -26,6 +47,8 @@ function appWithOrg(orgId: string | null) {
 
 beforeEach(() => {
   mockState.result = [];
+  mockState.results = [];
+  vi.mocked(enqueueJob).mockClear();
 });
 
 afterEach(() => {
@@ -73,6 +96,11 @@ describe('POST /posts', () => {
         state: 'pending',
       },
     ];
+    mockState.results = [
+      [],
+      [{ id: BUNDLE_ID, orgId: ORG_ID, state: 'approved' }],
+      mockState.result,
+    ];
     const res = await appWithOrg(ORG_ID).request('/posts', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -85,6 +113,56 @@ describe('POST /posts', () => {
     expect(res.status).toBe(201);
     const body = (await res.json()) as any;
     expect(body.data.state).toBe('pending');
+    expect(enqueueJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        kind: 'publish.target',
+        payload: { targetId: POST_ID },
+      }),
+    );
+  });
+
+  it('rejects scheduling a bundle that is not approved (409)', async () => {
+    mockState.result = [{ id: BUNDLE_ID, orgId: ORG_ID, state: 'generated' }];
+    const res = await appWithOrg(ORG_ID).request('/posts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        bundleId: BUNDLE_ID,
+        platform: 'instagram',
+        scheduledFor: '2026-08-10T12:00:00Z',
+      }),
+    });
+    expect(res.status).toBe(409);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it('rejects scheduling a bundle outside the organization (404)', async () => {
+    const res = await appWithOrg(ORG_ID).request('/posts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        bundleId: BUNDLE_ID,
+        platform: 'instagram',
+        scheduledFor: '2026-08-10T12:00:00Z',
+      }),
+    });
+    expect(res.status).toBe(404);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unsupported platform before scheduling (400)', async () => {
+    const res = await appWithOrg(ORG_ID).request('/posts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        bundleId: BUNDLE_ID,
+        platform: 'onlyfans',
+        scheduledFor: '2026-08-10T12:00:00Z',
+      }),
+    });
+    expect(res.status).toBe(400);
+    expect(enqueueJob).not.toHaveBeenCalled();
   });
 
   it('rejects a missing bundleId (400)', async () => {
