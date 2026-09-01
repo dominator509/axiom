@@ -8,6 +8,7 @@ const config = { token: '123:test-token', webhookUrl: 'https://relay.example/web
 
 function makeCard(actions: CardAction[]): RelayCard {
   return {
+    cardId: 'card-1',
     bundleId: 'bundle-1',
     mediaPreview: 'https://cdn.example/1.jpg',
     caption: 'Test caption',
@@ -70,9 +71,9 @@ describe('sendCard', () => {
     expect(keyboard).toBeInstanceOf(InlineKeyboard);
     expect(keyboard.inline_keyboard).toEqual([
       [
-        { text: '✅ Approve', callback_data: 'approve:bundle-1' },
-        { text: '❌ Reject', callback_data: 'reject:bundle-1' },
-        { text: '⏸️ Hold', callback_data: 'hold:bundle-1' },
+        { text: '✅ Approve', callback_data: 'approve:card-1' },
+        { text: '❌ Reject', callback_data: 'reject:card-1' },
+        { text: '⏸️ Hold', callback_data: 'hold:card-1' },
       ],
     ]);
   });
@@ -98,7 +99,7 @@ describe('sendCard', () => {
     expect(keyboard.inline_keyboard[0]).toHaveLength(9);
     expect(keyboard.inline_keyboard[0][1]).toEqual({
       text: '✅✅ Approve All',
-      callback_data: 'approve_all:bundle-1',
+      callback_data: 'approve_all:card-1',
     });
   });
 

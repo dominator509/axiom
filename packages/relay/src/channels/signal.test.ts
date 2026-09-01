@@ -26,6 +26,7 @@ afterEach(() => {
 
 function makeCard(): RelayCard {
   return {
+    cardId: 'card-1',
     bundleId: 'bundle-1',
     mediaPreview: 'https://cdn.example/1.jpg',
     caption: 'Test caption',

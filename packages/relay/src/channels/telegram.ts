@@ -30,13 +30,14 @@ export class TelegramAdapter {
   }
 
   async sendCard(chatId: string, card: RelayCard): Promise<void> {
+    if (!card.cardId) throw new Error('relay card missing persistent card id');
     const html = this.renderer.toHtml(card);
     const keyboard = new InlineKeyboard();
 
     for (const action of card.actions) {
       keyboard.add({
         text: this.actionLabel(action),
-        callback_data: `${action}:${card.bundleId}`,
+        callback_data: `${action}:${card.cardId}`,
       });
     }
 

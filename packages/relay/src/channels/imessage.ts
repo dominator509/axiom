@@ -36,7 +36,7 @@ export class IMessageAdapter {
       text: body,
     };
 
-    await fetch(`${this.config.blueBubblesUrl}/api/v1/message`, {
+    const response = await fetch(`${this.config.blueBubblesUrl}/api/v1/message`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -44,6 +44,9 @@ export class IMessageAdapter {
       },
       body: JSON.stringify(payload),
     });
+    if (!response.ok) {
+      throw new Error(`BlueBubbles send failed: HTTP ${response.status}`);
+    }
   }
 
   parseResponse(response: IMessageResponse): { action: CardAction; bundleId: string } | null {

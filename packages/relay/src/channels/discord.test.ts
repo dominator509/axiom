@@ -8,6 +8,7 @@ const config = { token: 'discord-token', clientId: 'client-1' };
 
 function makeCard(actions: CardAction[]): RelayCard {
   return {
+    cardId: 'card-1',
     bundleId: 'bundle-1',
     mediaPreview: 'https://cdn.example/1.jpg',
     caption: 'Test caption',
@@ -107,27 +108,27 @@ describe('sendCard', () => {
     const row = payload.components[0] as ActionRowBuilder<ButtonBuilder>;
     const buttons = row.components.map((b) => b.data);
     expect(buttons[0]).toMatchObject({
-      custom_id: 'approve:bundle-1',
+      custom_id: 'approve:card-1',
       label: '✅ Approve',
       style: ButtonStyle.Success,
     });
     expect(buttons[1]).toMatchObject({
-      custom_id: 'reject:bundle-1',
+      custom_id: 'reject:card-1',
       label: '❌ Reject',
       style: ButtonStyle.Danger,
     });
     expect(buttons[2]).toMatchObject({
-      custom_id: 'hold:bundle-1',
+      custom_id: 'hold:card-1',
       label: '⏸️ Hold',
       style: ButtonStyle.Secondary,
     });
     expect(buttons[3]).toMatchObject({
-      custom_id: 'edit_caption:bundle-1',
+      custom_id: 'edit_caption:card-1',
       label: '✏️ Edit',
       style: ButtonStyle.Primary,
     });
     expect(buttons[4]).toMatchObject({
-      custom_id: 'change_price:bundle-1',
+      custom_id: 'change_price:card-1',
       label: '💰 Price',
       style: ButtonStyle.Primary,
     });

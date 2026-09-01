@@ -41,6 +41,7 @@ export class DiscordAdapter {
   }
 
   async sendCard(channelId: string, card: RelayCard): Promise<void> {
+    if (!card.cardId) throw new Error('relay card missing persistent card id');
     const embedData = this.renderer.toEmbed(card);
     const embed = new EmbedBuilder(embedData as any);
 
@@ -49,7 +50,7 @@ export class DiscordAdapter {
 
     for (const action of card.actions) {
       const button = new ButtonBuilder()
-        .setCustomId(`${action}:${card.bundleId}`)
+        .setCustomId(`${action}:${card.cardId}`)
         .setLabel(this.actionLabel(action))
         .setStyle(this.actionStyle(action));
 

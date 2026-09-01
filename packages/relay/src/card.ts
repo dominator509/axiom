@@ -1,6 +1,8 @@
 // --- Types ---
 export interface BundleContent {
   id: string;
+  /** Persistent relay_card id used to bind action callbacks to one card. */
+  cardId?: string;
   mediaUrls: string[];
   caption: string;
   captionVariants: Record<string, string>;
@@ -31,6 +33,8 @@ export type CardAction =
   | 'hold';
 
 export interface RelayCard {
+  /** Persistent relay_card id; absent only for non-dispatch preview renders. */
+  cardId?: string;
   bundleId: string;
   mediaPreview: string;
   caption: string;
@@ -65,6 +69,7 @@ export class CardRenderer {
       : ['regenerate', 'revise', 'reject', 'hold'];
 
     return {
+      cardId: bundle.cardId,
       bundleId: bundle.id,
       mediaPreview: bundle.mediaUrls[0] ?? '',
       caption: bundle.caption,

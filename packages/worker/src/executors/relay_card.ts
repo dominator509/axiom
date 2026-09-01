@@ -5,7 +5,13 @@
 
 import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { CardRenderer, TelegramAdapter, DiscordAdapter } from '@axiom/relay';
+import {
+  CardRenderer,
+  DiscordAdapter,
+  IMessageAdapter,
+  SignalAdapter,
+  TelegramAdapter,
+} from '@axiom/relay';
 import type { BundleContent } from '@axiom/relay';
 import { ParkJobError } from './context.js';
 import type { Executor, ExecutorContext } from './context.js';
@@ -42,7 +48,6 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
         ...(payload.channel ? [eq(schema.relayBinding.channel, payload.channel)] : []),
       ),
     )
-    .limit(1);
 
   if (bindings.length === 0) {
     // Fail-safe (L3.3 §5): no reachable channel → stay generated, never auto-publish.
@@ -51,47 +56,104 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
       NO_BINDING_PARK_MS,
     );
   }
-  const binding = bindings[0];
-
   const tosReport = (bundle.tosReport as Record<string, unknown> | null) ?? {};
   const captions = (bundle.captions as Record<string, string> | null) ?? {};
-  const content: BundleContent = {
-    id: bundle.id,
-    mediaUrls: [],
-    caption: captions[binding.channel] ?? captions['instagram'] ?? '',
-    captionVariants: captions,
-    hashtagSets: { [binding.channel]: (bundle.hashtags as string[]) ?? [] },
-    tosScores: Object.fromEntries(
-      Object.entries((tosReport.scores as Array<{ platform: string; score: number }>) ?? []).map(
-        ([, s]) => [s.platform, s.score / 100],
-      ),
-    ),
-    targetPlatforms: Object.keys(captions).length > 0 ? Object.keys(captions) : ['instagram'],
-  };
+  const scores = (tosReport.scores as Array<{
+    platform: string;
+    score: number;
+    verdict?: string;
+  }>) ?? [];
+  // evaluateTextToS stores a risk score (0 is safe, 100 is risky), while the
+  // relay renderer consumes a safety score (1 is safe, 0 is unsafe).
+  const tosScores = Object.fromEntries(
+    scores.map((score) => {
+      const rawRisk = Number(score.score);
+      const safety =
+        score.verdict === 'block'
+          ? 0
+          : score.verdict === 'review'
+            ? 0.5
+            : Number.isFinite(rawRisk)
+              ? Math.max(0, Math.min(1, 1 - rawRisk / 100))
+              : 0;
+      return [score.platform, safety];
+    }),
+  );
+  const targetPlatforms = Object.keys(captions).length > 0 ? Object.keys(captions) : ['instagram'];
   const renderer = new CardRenderer();
-  const card = renderer.renderBundleCard(content);
+  for (const binding of bindings) {
+    const channel = binding.channel.toLowerCase();
+    const [relayCardRow] = await tx
+      .insert(schema.relayCard)
+      .values({
+        orgId: job.org_id,
+        bundleId: bundle.id,
+        channel,
+        state: 'pending',
+        title: `Bundle approval — ${bundle.id}`,
+        description: captions['instagram'] ?? Object.values(captions)[0] ?? '',
+        config: { targetPlatforms, tosScores },
+      })
+      .returning({ id: schema.relayCard.id });
+    if (!relayCardRow?.id) throw new Error('relay.card: relay card insert returned no id');
 
-  // Dispatch through the configured channel adapter.
-  const chatRef = binding.chatRef;
-  if (!chatRef) throw new Error(`relay.card: binding ${binding.id} has no chat_ref`);
+    const content: BundleContent = {
+      id: bundle.id,
+      cardId: relayCardRow.id,
+      mediaUrls: [],
+      caption: captions[channel] ?? captions['instagram'] ?? '',
+      captionVariants: captions,
+      hashtagSets: { [channel]: (bundle.hashtags as string[]) ?? [] },
+      tosScores,
+      targetPlatforms,
+    };
+    const card = renderer.renderBundleCard(content);
 
-  switch (binding.channel) {
-    case 'telegram': {
-      const token = process.env.TELEGRAM_BOT_TOKEN;
-      if (!token) throw new Error('relay.card: TELEGRAM_BOT_TOKEN not configured');
-      const adapter = new TelegramAdapter({ token });
-      await adapter.sendCard(chatRef, card);
-      break;
+    // Dispatch through the configured channel adapter.
+    const chatRef = binding.chatRef;
+    if (!chatRef) throw new Error(`relay.card: binding ${binding.id} has no chat_ref`);
+
+    switch (channel) {
+      case 'telegram': {
+        const token = process.env.TELEGRAM_BOT_TOKEN;
+        if (!token) throw new Error('relay.card: TELEGRAM_BOT_TOKEN not configured');
+        const adapter = new TelegramAdapter({ token });
+        await adapter.sendCard(chatRef, card);
+        break;
+      }
+      case 'discord': {
+        const token = process.env.DISCORD_BOT_TOKEN;
+        const clientId = process.env.DISCORD_APPLICATION_ID;
+        if (!token || !clientId) throw new Error('relay.card: Discord bot env not configured');
+        const adapter = new DiscordAdapter({ token, clientId });
+        await adapter.sendCard(chatRef, card);
+        break;
+      }
+      case 'signal': {
+        const cliPath = process.env.SIGNAL_CLI_PATH;
+        const account = process.env.SIGNAL_ACCOUNT;
+        if (!cliPath || !account) throw new Error('relay.card: Signal CLI env not configured');
+        const adapter = new SignalAdapter({ cliPath, account });
+        await adapter.sendCard(chatRef, card);
+        break;
+      }
+      case 'imessage': {
+        const blueBubblesUrl = process.env.BLUEBUBBLES_URL;
+        const apiKey = process.env.BLUEBUBBLES_API_KEY;
+        if (!blueBubblesUrl || !apiKey) {
+          throw new Error('relay.card: BlueBubbles env not configured');
+        }
+        const adapter = new IMessageAdapter({ blueBubblesUrl, apiKey });
+        await adapter.sendCard(chatRef, card);
+        break;
+      }
+      default:
+        throw new Error(`relay.card: channel '${binding.channel}' dispatch not implemented`);
     }
-    case 'discord': {
-      const token = process.env.DISCORD_BOT_TOKEN;
-      const clientId = process.env.DISCORD_APPLICATION_ID;
-      if (!token || !clientId) throw new Error('relay.card: Discord bot env not configured');
-      const adapter = new DiscordAdapter({ token, clientId });
-      await adapter.sendCard(chatRef, card);
-      break;
-    }
-    default:
-      throw new Error(`relay.card: channel '${binding.channel}' dispatch not implemented`);
+
+    await tx
+      .update(schema.relayCard)
+      .set({ state: 'sent' })
+      .where(eq(schema.relayCard.id, relayCardRow.id));
   }
 };

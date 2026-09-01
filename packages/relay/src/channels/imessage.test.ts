@@ -18,6 +18,7 @@ afterEach(() => {
 
 function makeCard(): RelayCard {
   return {
+    cardId: 'card-1',
     bundleId: 'bundle-1',
     mediaPreview: 'https://cdn.example/1.jpg',
     caption: 'Test caption',
@@ -52,10 +53,12 @@ describe('sendCard', () => {
     expect(body.text).toContain('1. approve');
   });
 
-  it('does not throw when the API returns a non-ok response', async () => {
+  it('throws when the API returns a non-ok response so the worker can retry', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500 });
     vi.stubGlobal('fetch', fetchMock);
-    await expect(adapter.sendCard('chat-1', makeCard())).resolves.toBeUndefined();
+    await expect(adapter.sendCard('chat-1', makeCard())).rejects.toThrow(
+      'BlueBubbles send failed: HTTP 500',
+    );
   });
 
   it('propagates network failures', async () => {

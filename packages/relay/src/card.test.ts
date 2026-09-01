@@ -63,6 +63,11 @@ describe('renderBundleCard', () => {
     });
   });
 
+  it('preserves the persistent card id for dispatch callbacks', () => {
+    const card = renderer.renderBundleCard(makeBundle({ cardId: 'card-456' }));
+    expect(card.cardId).toBe('card-456');
+  });
+
   it('passes verdict when platform has no ToS score (defaults to 1)', () => {
     const card = renderer.renderBundleCard(
       makeBundle({ tosScores: {}, targetPlatforms: ['tiktok'] }),
