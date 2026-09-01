@@ -133,17 +133,6 @@ router.get('/:modelId/network/health', async (c) => {
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
 
-  // Ask the plane for the model's bind health; fall back to DB row state.
-  let live: Record<string, unknown> | null = null;
-  try {
-    const res = await fetch(`${EGRESS_PLANE_URL}/plane/health/${modelId}`, {
-      signal: AbortSignal.timeout(3000),
-    });
-    if (res.ok) live = (await res.json()) as Record<string, unknown>;
-  } catch {
-    live = null;
-  }
-
   const rows = await withOrgContext(orgId, (tx) =>
     tx
       .select()
@@ -156,6 +145,32 @@ router.get('/:modelId/network/health', async (c) => {
       )
       .limit(1),
   );
+
+  // The plane exposes one global status resource. Only query it for a model
+  // with a config visible to this org, then select that model from the
+  // response so another tenant's live egress state cannot be disclosed.
+  let live: Record<string, unknown> | null = null;
+  if (rows.length > 0) {
+    try {
+      const res = await fetch(`${EGRESS_PLANE_URL}/egress/status`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (res.ok) {
+        const status = (await res.json()) as { models?: unknown };
+        if (Array.isArray(status.models)) {
+          const model = status.models.find(
+            (entry: unknown): entry is Record<string, unknown> =>
+              typeof entry === 'object' &&
+              entry !== null &&
+              (entry as Record<string, unknown>).model_id === modelId,
+          );
+          live = model ?? null;
+        }
+      }
+    } catch {
+      live = null;
+    }
+  }
 
   const dbState = rows[0]
     ? {

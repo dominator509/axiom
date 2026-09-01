@@ -72,3 +72,4 @@
 2026-09-01T22:18:40Z | [P1][API] Calendar filters now preserve tenant/model predicates; post edits validate pending state, idempotency key, platform binding, and queued publish timing; API 276/276 and typecheck passed.
 2026-09-01T22:22:33Z | [P1][EGRESS] Plane bind/unbind proxy now force authenticated org identity; egress 21/21 and typecheck passed.
 2026-09-01T22:33:15Z | [P1][EGRESS] Credential envelopes now serialize through JSON.stringify so valid special-character secrets remain parseable; egress 21/21 and typecheck passed.
+2026-09-01T22:40:58Z | [P1][EGRESS] Align API network health with plane status and scope plane status/bind/unbind to authenticated tenant; focused and full API suites passed.

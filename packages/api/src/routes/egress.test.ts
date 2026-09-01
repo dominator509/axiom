@@ -41,6 +41,7 @@ vi.mock('@axiom/db', () => ({
   },
   schema: {
     modelNetworkConfigs: {},
+    modelProfile: {},
   },
 }));
 
@@ -378,11 +379,39 @@ describe('Plane proxy endpoints', () => {
         ),
       ),
     );
+    mockState.result = [{ modelId: MODEL_ID }];
     const res = await appWithOrg('org-1').request('/plane/status');
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.count).toBe(1);
     expect(body.data.models[0].model_id).toBe(MODEL_ID);
+  });
+
+  it('GET /plane/status excludes models outside the authenticated org', async () => {
+    const otherModelId = '22222222-2222-4222-8222-222222222222';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            status: 'ok',
+            count: 2,
+            host_ip: '10.240.1.1',
+            models: [
+              { model_id: MODEL_ID, healthy: true },
+              { model_id: otherModelId, healthy: false },
+            ],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+    mockState.result = [{ modelId: MODEL_ID }];
+    const res = await appWithOrg('org-1').request('/plane/status');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.data.count).toBe(1);
+    expect(body.data.models).toEqual([{ model_id: MODEL_ID, healthy: true }]);
   });
 
   it('POST /plane/bind forwards the model bind with org_id injected', async () => {
@@ -392,6 +421,7 @@ describe('Plane proxy endpoints', () => {
       }),
     );
     vi.stubGlobal('fetch', fetchMock);
+    mockState.result = [{ orgId: 'org-1' }];
     const res = await appWithOrg('org-1').request('/plane/bind', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -411,6 +441,7 @@ describe('Plane proxy endpoints', () => {
       new Response(JSON.stringify({ status: 'bound' }), { status: 200 }),
     );
     vi.stubGlobal('fetch', fetchMock);
+    mockState.result = [{ orgId: 'org-1' }];
     const res = await appWithOrg('org-1').request('/plane/bind', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -421,6 +452,39 @@ describe('Plane proxy endpoints', () => {
       org_id: string;
     };
     expect(payload.org_id).toBe('org-1');
+  });
+
+  it('POST /plane/bind rejects a model outside the authenticated org', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    mockState.result = [];
+    const res = await appWithOrg('org-1').request('/plane/bind', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model_id: MODEL_ID, mode: 'direct' }),
+    });
+    expect(res.status).toBe(404);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('POST /plane/unbind requires an owned model before forwarding', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: 'unbound', model_id: MODEL_ID }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    mockState.result = [{ orgId: 'org-1' }];
+    const res = await appWithOrg('org-1').request('/plane/unbind', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model_id: MODEL_ID }),
+    });
+    expect(res.status).toBe(200);
+    expect((fetchMock.mock.calls[0][0] as string).endsWith('/egress/unbind')).toBe(true);
+    const payload = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body) as {
+      model_id: string;
+      org_id: string;
+    };
+    expect(payload).toEqual({ model_id: MODEL_ID, org_id: 'org-1' });
   });
 
   it('POST /plane/sync asks the plane to sync configs from the DB', async () => {

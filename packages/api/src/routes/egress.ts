@@ -11,7 +11,7 @@ import { zValidator } from '@hono/zod-validator';
 import { eq, and, sql } from 'drizzle-orm';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { apiError, statusTitle } from './helpers.js';
+import { apiError, modelOrgId, statusTitle } from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
@@ -308,13 +308,25 @@ router.post('/plane/bind', async (c) => {
   const orgId = c.get('orgId');
   const body = await c.req.json().catch(() => ({}));
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return apiError(c, 400, statusTitle(400), 'request body must be an object');
+  }
+  const payload = body as Record<string, unknown>;
+  const modelId = z.string().uuid().safeParse(payload.model_id);
+  if (!modelId.success) {
+    return apiError(c, 400, statusTitle(400), 'model_id must be a UUID');
+  }
   try {
+    const ownerOrgId = await withOrgContext(orgId, (tx) => modelOrgId(tx, modelId.data));
+    if (ownerOrgId !== orgId) {
+      return apiError(c, 404, statusTitle(404), 'model not found');
+    }
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/bind`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       // The authenticated request context is authoritative. Put org_id last
       // so a caller cannot smuggle another tenant into the plane payload.
-      body: JSON.stringify({ ...body, org_id: orgId }),
+      body: JSON.stringify({ ...payload, org_id: orgId }),
       signal: AbortSignal.timeout(10000),
     });
     const data = await res.json().catch(() => ({}));
@@ -333,11 +345,23 @@ router.post('/plane/unbind', async (c) => {
   const orgId = c.get('orgId');
   const body = await c.req.json().catch(() => ({}));
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return apiError(c, 400, statusTitle(400), 'request body must be an object');
+  }
+  const payload = body as Record<string, unknown>;
+  const modelId = z.string().uuid().safeParse(payload.model_id);
+  if (!modelId.success) {
+    return apiError(c, 400, statusTitle(400), 'model_id must be a UUID');
+  }
   try {
+    const ownerOrgId = await withOrgContext(orgId, (tx) => modelOrgId(tx, modelId.data));
+    if (ownerOrgId !== orgId) {
+      return apiError(c, 404, statusTitle(404), 'model not found');
+    }
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/unbind`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ ...body, org_id: orgId }),
+      body: JSON.stringify({ ...payload, org_id: orgId }),
       signal: AbortSignal.timeout(10000),
     });
     const data = await res.json().catch(() => ({}));
@@ -353,18 +377,52 @@ router.post('/plane/unbind', async (c) => {
 
 // GET /plane/status — live bound-egress status from the plane
 router.get('/plane/status', async (c) => {
+  const orgId = c.get('orgId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+
+  let res: Response;
   try {
-    const res = await fetch(`${EGRESS_PLANE_URL}/egress/status`, {
+    res = await fetch(`${EGRESS_PLANE_URL}/egress/status`, {
       signal: AbortSignal.timeout(3000),
     });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
+  }
+
+  try {
     const data = await res.json().catch(() => ({}));
+    const rows = await withOrgContext(orgId, (tx) =>
+      tx
+        .select({ modelId: schema.modelNetworkConfigs.modelId })
+        .from(schema.modelNetworkConfigs)
+        .where(eq(schema.modelNetworkConfigs.orgId, orgId)),
+    );
+    const allowedModelIds = new Set(
+      rows
+        .map((row: { modelId?: unknown }) => row.modelId)
+        .filter((modelId: unknown): modelId is string => typeof modelId === 'string'),
+    );
+    const upstreamModels =
+      typeof data === 'object' && data !== null && Array.isArray(data.models) ? data.models : [];
+    const models = upstreamModels.filter(
+      (model: unknown): model is Record<string, unknown> =>
+        typeof model === 'object' &&
+        model !== null &&
+        typeof (model as Record<string, unknown>).model_id === 'string' &&
+        allowedModelIds.has((model as Record<string, unknown>).model_id as string),
+    );
+    const scopedData =
+      typeof data === 'object' && data !== null
+        ? { ...(data as Record<string, unknown>), count: models.length, models }
+        : { count: models.length, models };
     return c.json(
-      { data },
+      { data: scopedData },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
+    return apiError(c, 500, statusTitle(500), `egress status scope failed: ${msg}`);
   }
 });
 

@@ -101,9 +101,16 @@ describe('PUT /:modelId/network', () => {
 describe('GET /:modelId/network/health', () => {
   it('returns DB state and best-effort live plane state', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ healthy: true, egress_ip: '66.94.123.250' }), {
-        status: 200,
-      }),
+      new Response(
+        JSON.stringify({
+          status: 'ok',
+          count: 1,
+          models: [{ model_id: MODEL_ID, healthy: true, egress_ip: '66.94.123.250' }],
+        }),
+        {
+          status: 200,
+        },
+      ),
     );
     vi.stubGlobal('fetch', fetchMock);
     mockState.result = [
@@ -123,16 +130,34 @@ describe('GET /:modelId/network/health', () => {
     const body = (await res.json()) as any;
     expect(body.data.modelId).toBe(MODEL_ID);
     expect(body.data.live).toBeTruthy();
+    expect(body.data.live.model_id).toBe(MODEL_ID);
     expect(body.data.db.healthy).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/\/egress\/status$/),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
   });
 
   it('degrades gracefully when the plane is unreachable', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
-    mockState.result = [];
+    const fetchMock = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+    vi.stubGlobal('fetch', fetchMock);
+    mockState.result = [
+      {
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        healthy: false,
+        lastCheck: null,
+        latencyMs: null,
+        lastEgressIp: null,
+        failCount: 1,
+        lastError: 'probe failed',
+      },
+    ];
     const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network/health`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.live).toBeNull();
     expect(body.data.db.healthy).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
