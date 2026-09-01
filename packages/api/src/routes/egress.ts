@@ -82,24 +82,22 @@ async function encryptCreds(
 
 /** Build the credential JSON payload for a config create/update. */
 function credsPayload(body: Record<string, unknown>): string | null {
-  const parts: string[] = [];
-  const keys = [
-    'proxyUsername',
-    'proxyPassword',
-    'wgPrivateKey',
-    'wgPresharedKey',
-    'vpnConfig',
-  ] as const;
-  for (const k of keys) {
-    const v = body[k];
-    if (typeof v === 'string' && v.length > 0) {
-      parts.push(
-        `"${k.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase())}":"${v.replace(/"/g, '\\"')}"`,
-      );
-    }
+  const fieldNames = {
+    proxyUsername: 'proxy_username',
+    proxyPassword: 'proxy_password',
+    wgPrivateKey: 'wg_private_key',
+    wgPresharedKey: 'wg_preshared_key',
+    vpnConfig: 'vpn_config',
+  } as const;
+  const credentials: Record<string, string> = {};
+  for (const [inputName, outputName] of Object.entries(fieldNames)) {
+    const value = body[inputName];
+    if (typeof value === 'string' && value.length > 0) credentials[outputName] = value;
   }
-  if (parts.length === 0) return null;
-  return `{${parts.join(',')}}`;
+  if (Object.keys(credentials).length === 0) return null;
+  // JSON.stringify handles backslashes, control characters, and quotes in
+  // proxy/WireGuard credentials. Hand-built JSON cannot safely encode them.
+  return JSON.stringify(credentials);
 }
 
 function sanitizeConfig(row: any) {

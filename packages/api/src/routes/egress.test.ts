@@ -158,8 +158,8 @@ describe('POST / — create config', () => {
         modelId: MODEL_ID,
         egressMode: 'socks5',
         proxyAddr: '127.0.0.1:1080',
-        proxyUsername: 'alice',
-        proxyPassword: 's3cret',
+        proxyUsername: 'alice\\ops',
+        proxyPassword: 's3cret"line\nnext',
       }),
     });
     expect(res.status).toBe(201);
@@ -170,7 +170,10 @@ describe('POST / — create config', () => {
     const payload = JSON.parse(callInit.body) as { plaintext: string };
     // plaintext is base64 of the creds JSON — never raw in the request body
     const decoded = Buffer.from(payload.plaintext, 'base64').toString('utf8');
-    expect(decoded).toContain('proxy_password');
+    expect(JSON.parse(decoded)).toEqual({
+      proxy_username: 'alice\\ops',
+      proxy_password: 's3cret"line\nnext',
+    });
     expect(callInit.body).not.toContain('s3cret');
   });
 
