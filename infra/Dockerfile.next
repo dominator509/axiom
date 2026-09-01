@@ -50,6 +50,7 @@ RUN npm install -g pnpm@9.14.0
 # Copy node_modules and lockfile from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages ./packages
+COPY --from=deps /app/patches ./patches
 COPY --from=deps /app/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY pnpm-workspace.yaml package.json ./
 
