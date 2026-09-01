@@ -25,7 +25,7 @@ import { fanvueAuthRouter } from './routes/fanvue-auth.js';
 import { threadsAuthRouter } from './routes/threads-auth.js';
 import { auth, requireAuth } from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
-import { registerConnectors } from '@axiom/worker';
+import { asPlatform, enqueueJob, registerConnectors } from '@axiom/worker';
 import { createMcpServer } from '@axiom/mcp-server';
 import {
   DiscordAdapter,
@@ -43,7 +43,7 @@ import { relayViralPersistence } from './relay-viral.js';
 import { relayIncidentPageHandler } from './relay-incidents.js';
 import { correlationId, onError, idempotency, rateLimit } from './contract.js';
 import { checkDatabase, schema } from '@axiom/db';
-import { sql, eq } from 'drizzle-orm';
+import { sql, eq, and } from 'drizzle-orm';
 import { withOrgContext, writeAudit } from './routes/helpers.js';
 
 /**
@@ -75,27 +75,127 @@ async function relayCommandExecutor(
     // Transition the bundle state per action (mirrors bundles.ts state machine).
     if (bundleId) {
       const bundle = await tx
-        .select({ id: schema.contentBundle.id })
+        .select()
         .from(schema.contentBundle)
         .where(eq(schema.contentBundle.id, bundleId))
         .limit(1);
       if (bundle.length === 0) throw new Error(`relay command: bundle ${bundleId} not found`);
 
-      const stateByAction: Partial<Record<CardAction, string>> = {
-        approve: 'approved',
-        approve_all: 'approved',
-        reject: 'rejected',
-        hold: 'hold',
-        revise: 'generated',
-        regenerate: 'generated',
-      };
-      const nextState = stateByAction[action];
-      if (nextState) {
-        await tx
+      const currentState = bundle[0].state as string;
+      if (action === 'approve' || action === 'approve_all') {
+        if (currentState !== 'generated' && currentState !== 'hold') {
+          throw new Error(
+            `relay command: bundle is already ${currentState}; only generated or held bundles can be approved`,
+          );
+        }
+
+        const tos = (bundle[0].tosReport ?? {}) as {
+          verdict?: string;
+          scores?: Array<{ platform: string; verdict: string }>;
+        };
+        if (tos.verdict === 'block') {
+          throw new Error('relay command: ToS block prevents approval');
+        }
+
+        const captions = (bundle[0].captions as Record<string, string> | null) ?? {};
+        const requestedPlatforms =
+          Object.keys(captions).length > 0 ? Object.keys(captions) : ['instagram'];
+        const platforms = requestedPlatforms.map((value) => {
+          try {
+            return asPlatform(value);
+          } catch {
+            throw new Error(`relay command: unsupported target platform '${value}'`);
+          }
+        });
+        for (const platform of platforms) {
+          const score = (tos.scores ?? []).find((item) => item.platform === platform);
+          if (score?.verdict === 'block') {
+            throw new Error(`relay command: ToS block on ${platform} prevents approval`);
+          }
+        }
+
+        const rawSlot =
+          typeof params.slot === 'string'
+            ? params.slot
+            : typeof params.scheduledFor === 'string'
+              ? params.scheduledFor
+              : undefined;
+        const slot = rawSlot ? new Date(rawSlot) : new Date(Date.now() + 3600_000);
+        if (Number.isNaN(slot.getTime()) || slot.getTime() <= Date.now()) {
+          throw new Error('relay command: approval slot must be a valid future timestamp');
+        }
+
+        const transitioned = await tx
           .update(schema.contentBundle)
-          .set({ state: nextState, updatedAt: new Date() })
-          .where(eq(schema.contentBundle.id, bundleId));
-        note = `bundle ${bundleId} → ${nextState}`;
+          .set({ state: 'approved', updatedAt: new Date() })
+          .where(
+            and(
+              eq(schema.contentBundle.id, bundleId),
+              eq(schema.contentBundle.orgId, orgId),
+              eq(schema.contentBundle.state, currentState),
+            ),
+          )
+          .returning({ id: schema.contentBundle.id });
+        if (transitioned.length === 0) {
+          throw new Error('relay command: bundle changed while approval was being applied');
+        }
+
+        for (const platform of platforms) {
+          const [target] = await tx
+            .insert(schema.postTarget)
+            .values({
+              orgId,
+              bundleId,
+              platform,
+              scheduledFor: slot,
+              state: 'pending',
+              remoteId: null,
+              error: null,
+              idemKey: Buffer.from(`${bundleId}|${platform}|${slot.toISOString()}`),
+            })
+            .returning({ id: schema.postTarget.id });
+          if (!target?.id) throw new Error('relay command: target insert returned no id');
+          await enqueueJob(tx, {
+            orgId,
+            queue: 'publish',
+            kind: 'publish.target',
+            payload: { targetId: target.id },
+            runAfter: slot,
+            dedupeParts: ['publish.target', target.id],
+          });
+        }
+
+        note = `bundle ${bundleId} → approved (${platforms.join(', ')})`;
+      } else {
+        const stateByAction: Partial<Record<CardAction, string>> = {
+          reject: 'rejected',
+          hold: 'hold',
+          revise: 'generated',
+          regenerate: 'generated',
+        };
+        const nextState = stateByAction[action];
+        if (nextState && currentState !== 'generated' && currentState !== 'hold') {
+          throw new Error(
+            `relay command: bundle is already ${currentState}; action '${action}' requires a generated or held bundle`,
+          );
+        }
+        if (nextState) {
+          const transitioned = await tx
+            .update(schema.contentBundle)
+            .set({ state: nextState, updatedAt: new Date() })
+            .where(
+              and(
+                eq(schema.contentBundle.id, bundleId),
+                eq(schema.contentBundle.orgId, orgId),
+                eq(schema.contentBundle.state, currentState),
+              ),
+            )
+            .returning({ id: schema.contentBundle.id });
+          if (transitioned.length === 0) {
+            throw new Error(`relay command: bundle changed while '${action}' was being applied`);
+          }
+          note = `bundle ${bundleId} → ${nextState}`;
+        }
       }
     }
 
