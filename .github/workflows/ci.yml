@@ -30,7 +30,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        task: [typecheck, lint, test, build, security]
+        task: [typecheck, lint, test, build, security, container]
 
     steps:
       - name: Checkout repository
@@ -186,3 +186,12 @@ jobs:
       - name: Run repository security gates
         if: matrix.task == 'security'
         run: pnpm security-check
+
+      # ───────────────────────────────────────────────────────────────────────
+      #  MATRIX TASK: container
+      # ───────────────────────────────────────────────────────────────────────
+      - name: Build deployment images
+        if: matrix.task == 'container'
+        run: |
+          docker build --file infra/Dockerfile.hono --tag axiom-hono:ci .
+          docker build --file infra/Dockerfile.next --tag axiom-dashboard:ci .

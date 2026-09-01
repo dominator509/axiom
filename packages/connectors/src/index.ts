@@ -2,6 +2,8 @@
 
 export { BaseConnector } from './base.js';
 export type { LogEntry } from './base.js';
+export { createConnector } from './factory.js';
+export { capabilityNames } from './capabilities.js';
 
 export { InstagramConnector } from './instagram.js';
 export { TikTokConnector } from './tiktok.js';

@@ -264,6 +264,8 @@ pub struct DecryptRequest {
     pub enc_token: String,
     pub enc_nonce: String,
     pub dek_id: String,
+    /// Optional test/key-rotation override. Normal execution-plane callers
+    /// omit this and the egress plane resolves its configured DEK.
     #[serde(default)]
     pub dek: Option<String>,
 }
@@ -857,10 +859,12 @@ pub async fn egress_health_check(
     ))
 }
 
-/// POST /egress/decrypt — envelope decryption (kept for compatibility)
-#[instrument(skip(_state))]
+/// POST /egress/decrypt — envelope decryption for the execution planes.
+/// When no explicit DEK override is supplied, the plane uses its configured
+/// EGRESS_DEK so callers never need to receive or forward the key.
+#[instrument(skip(state))]
 pub async fn egress_decrypt(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     Json(body): Json<DecryptRequest>,
 ) -> Result<impl IntoResponse, EgressError> {
     use base64::Engine as _;
@@ -875,18 +879,23 @@ pub async fn egress_decrypt(
         Some(d) => base64::engine::general_purpose::STANDARD
             .decode(d)
             .map_err(|e| EgressError::Validation(format!("invalid dek: {e}")))?,
-        None => {
-            return Err(EgressError::Validation(
-                "DEK not provided and vault integration not yet connected".to_string(),
-            ));
-        }
+        None => state
+            .config
+            .dek
+            .map(|d| d.to_vec())
+            .ok_or_else(|| EgressError::Validation("EGRESS_DEK not configured".to_string()))?,
     };
-    let plaintext = crypto::decrypt_envelope(&enc_token, &enc_nonce, &dek)?;
+    if dek.len() != 32 {
+        return Err(EgressError::Validation("DEK must be 32 bytes".to_string()));
+    }
+    let mut plaintext = crypto::decrypt_envelope(&enc_token, &enc_nonce, &dek)?;
     crypto::zeroize(dek.as_mut_slice());
+    let encoded = base64::engine::general_purpose::STANDARD.encode(&plaintext);
+    crypto::zeroize(plaintext.as_mut_slice());
     Ok((
         StatusCode::OK,
         Json(DecryptResponse {
-            plaintext: base64::engine::general_purpose::STANDARD.encode(&plaintext),
+            plaintext: encoded,
             correlation_id,
         }),
     ))

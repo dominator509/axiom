@@ -31,8 +31,8 @@ interface TelegramSendResponse {
 export class TelegramConnector extends BaseConnector implements SocialConnector {
   private botToken: string;
 
-  constructor(auth: ConnectorAuth) {
-    super('telegram' as Platform, 'Telegram', 'link_share' as PublishMode, auth);
+  constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
+    super('telegram' as Platform, 'Telegram', 'link_share' as PublishMode, auth, fetchImpl);
     this.botToken = auth.accessToken;
   }
 

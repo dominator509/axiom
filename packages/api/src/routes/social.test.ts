@@ -8,8 +8,29 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ platformConnection: {} }));
+vi.mock('@axiom/worker', () => ({
+  resolveCapabilities: vi.fn(() => ({
+    publish: true,
+    media: ['image', 'carousel'],
+    maxMediaBytes: 100,
+    maxMediaCount: 2,
+    caption: true,
+    maxCaptionLength: 100,
+    scheduling: 'native',
+    metrics: ['likes'],
+    refreshMetrics: true,
+  })),
+  capabilityNames: vi.fn(() => [
+    'publish',
+    'publish.image',
+    'publish.carousel',
+    'schedule.native',
+    'read.insights',
+  ]),
+}));
 
 import { socialRouter } from './social.js';
+import { capabilityNames, resolveCapabilities } from '@axiom/worker';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -74,7 +95,8 @@ describe('POST / — connect', () => {
     encToken: Buffer.from('cipher').toString('base64'),
     encNonce: Buffer.from('n'.repeat(24)).toString('base64'),
     dekId: 'egress-dek',
-    capabilities: ['publish', 'metrics'],
+    // Legacy client capability claims must not control the persisted value.
+    capabilities: ['client-controlled'],
   };
 
   it('connects a platform account (201)', async () => {
@@ -96,6 +118,8 @@ describe('POST / — connect', () => {
     expect(res.status).toBe(201);
     const resBody = (await res.json()) as any;
     expect(resBody.data.platform).toBe('instagram');
+    expect(resolveCapabilities).toHaveBeenCalledWith('instagram');
+    expect(capabilityNames).toHaveBeenCalled();
   });
 
   it('rejects an unknown platform (400)', async () => {

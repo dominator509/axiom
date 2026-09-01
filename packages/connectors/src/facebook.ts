@@ -45,8 +45,8 @@ interface FbPermissionsResponse {
 }
 
 export class FacebookConnector extends BaseConnector implements SocialConnector {
-  constructor(auth: ConnectorAuth) {
-    super('facebook' as Platform, 'Facebook', 'api' as PublishMode, auth);
+  constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
+    super('facebook' as Platform, 'Facebook', 'api' as PublishMode, auth, fetchImpl);
   }
 
   capability(): ConnectorCapability {
@@ -197,7 +197,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
       `${FB_GRAPH_BASE}/${pageId}_${remoteId}/insights` +
       `?metric=impressions,likes,comments,shares&access_token=${accessToken}`;
 
-    const resp = await fetch(insightsUrl);
+    const resp = await this.fetchImpl(insightsUrl);
     if (!resp.ok) {
       const body = await resp.text().catch(() => '');
       throw new Error(`Facebook metrics fetch failed: HTTP ${resp.status} — ${body}`);
@@ -224,7 +224,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
       try {
         const postUrl = `${FB_GRAPH_BASE}/${pageId}_${remoteId}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0),shares&access_token=${accessToken}`;
 
-        const postResp = await fetch(postUrl);
+        const postResp = await this.fetchImpl(postUrl);
         if (postResp.ok) {
           const postData = (await postResp.json()) as {
             likes?: { summary?: { total_count?: number } };
@@ -281,7 +281,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
     // Revoke: DELETE /{page-id}/permissions removes all app permissions
     const revokeUrl = `${FB_GRAPH_BASE}/${pageId}/permissions?access_token=${encodeURIComponent(accessToken)}`;
 
-    const response = await fetch(revokeUrl, {
+    const response = await this.fetchImpl(revokeUrl, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',
@@ -306,7 +306,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
     try {
       const userTokenRevokeUrl = `${FB_GRAPH_BASE}/me/permissions?access_token=${encodeURIComponent(accessToken)}`;
 
-      const userResp = await fetch(userTokenRevokeUrl, {
+      const userResp = await this.fetchImpl(userTokenRevokeUrl, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

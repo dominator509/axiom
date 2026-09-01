@@ -43,12 +43,16 @@ describe('@axiom/connectors barrel exports', () => {
     }
   });
 
+  it('exports the tenant-scoped connector factory and capability serializer', () => {
+    expect(connectors.createConnector).toBeTypeOf('function');
+    expect(connectors.capabilityNames).toBeTypeOf('function');
+  });
+
   it('exports validatePublish', () => {
     expect(connectors.validatePublish).toBeTypeOf('function');
   });
 
-  it('does not export internal helpers unintentionally', () => {
-    // capabilities.ts is intentionally NOT re-exported from the barrel.
+  it('does not export internal cache helpers unintentionally', () => {
     expect('clearCapabilityCache' in connectors).toBe(false);
   });
 });

@@ -39,8 +39,8 @@ interface IgPermissionsResponse {
 }
 
 export class InstagramConnector extends BaseConnector implements SocialConnector {
-  constructor(auth: ConnectorAuth) {
-    super('instagram' as Platform, 'Instagram', 'api' as PublishMode, auth);
+  constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
+    super('instagram' as Platform, 'Instagram', 'api' as PublishMode, auth, fetchImpl);
   }
 
   capability(): ConnectorCapability {

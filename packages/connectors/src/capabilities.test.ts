@@ -72,6 +72,40 @@ describe('resolveCapabilities', () => {
   });
 });
 
+describe('capabilityNames', () => {
+  it('serializes only capabilities declared by the connector', () => {
+    expect(
+      capabilities.capabilityNames({
+        publish: true,
+        media: ['image', 'carousel'],
+        maxMediaBytes: 100,
+        maxMediaCount: 2,
+        caption: true,
+        maxCaptionLength: 100,
+        scheduling: 'native',
+        metrics: ['likes'],
+        refreshMetrics: true,
+      }),
+    ).toEqual(['publish', 'publish.image', 'publish.carousel', 'schedule.native', 'read.insights']);
+  });
+
+  it('does not advertise scheduling or insights when they are unsupported', () => {
+    expect(
+      capabilities.capabilityNames({
+        publish: true,
+        media: ['image'],
+        maxMediaBytes: 100,
+        maxMediaCount: 1,
+        caption: false,
+        maxCaptionLength: 0,
+        scheduling: 'none',
+        metrics: [],
+        refreshMetrics: false,
+      }),
+    ).toEqual(['publish', 'publish.image']);
+  });
+});
+
 describe('cacheCapability', () => {
   it('calls capability() once and serves subsequent calls from cache', () => {
     const c = fakeConnector('instagram');

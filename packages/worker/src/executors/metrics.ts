@@ -4,7 +4,7 @@
 
 import { eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { connectorFor, hasConnector } from '@axiom/connectors';
+import { asPlatform, connectorForTarget } from '../connection.js';
 import { ParkJobError } from './context.js';
 import type { Executor, ExecutorContext } from './context.js';
 
@@ -31,11 +31,26 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
     throw new ParkJobError('metrics.poll: target not published yet', RATE_BUCKET_PARK_MS);
   }
 
-  const platform = target.platform as Parameters<typeof connectorFor>[0];
-  if (!hasConnector(platform)) {
-    throw new Error(`metrics.poll: no connector registered for '${platform}'`);
+  const bundles = await tx
+    .select({ modelId: schema.contentBundle.modelId })
+    .from(schema.contentBundle)
+    .where(eq(schema.contentBundle.id, target.bundleId))
+    .limit(1);
+  if (bundles.length === 0) {
+    throw new Error(`metrics.poll: bundle ${target.bundleId} not found`);
   }
-  const connector = connectorFor(platform);
+
+  const platform = asPlatform(target.platform);
+  const { connection, connector } = await connectorForTarget(tx, job.org_id, bundles[0].modelId, {
+    connectionId: target.connectionId,
+    platform,
+  });
+  if (!target.connectionId) {
+    await tx
+      .update(schema.postTarget)
+      .set({ connectionId: connection.id })
+      .where(eq(schema.postTarget.id, targetId));
+  }
 
   const collected = await connector.fetchMetrics(target.remoteId, 'day');
   if (!collected)

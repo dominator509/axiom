@@ -60,8 +60,8 @@ interface RevokeResponse {
 }
 
 export class XConnector extends BaseConnector implements SocialConnector {
-  constructor(auth: ConnectorAuth) {
-    super('x' as Platform, 'X (Twitter)', 'api' as PublishMode, auth);
+  constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
+    super('x' as Platform, 'X (Twitter)', 'api' as PublishMode, auth, fetchImpl);
   }
 
   capability(): ConnectorCapability {
@@ -123,7 +123,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
     const url = `${TWITTER_API_BASE}/tweets/${remoteId}?tweet.fields=public_metrics`;
 
-    const resp = await fetch(url, {
+    const resp = await this.fetchImpl(url, {
       headers: {
         Authorization: `Bearer ${this.auth.accessToken}`,
       },
@@ -171,7 +171,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
       params.append('client_id', clientId);
     }
 
-    const response = await fetch(TWITTER_OAUTH_REVOKE, {
+    const response = await this.fetchImpl(TWITTER_OAUTH_REVOKE, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -200,7 +200,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
    */
   private async uploadMedia(mediaUrl: string): Promise<string> {
     // Download the media file
-    const mediaResponse = await fetch(mediaUrl);
+    const mediaResponse = await this.fetchImpl(mediaUrl);
     if (!mediaResponse.ok) {
       throw new Error(`Failed to download media from ${mediaUrl}: ${mediaResponse.status}`);
     }
@@ -218,7 +218,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
     initFormData.append('media_type', mediaType);
     initFormData.append('total_bytes', String(totalBytes));
 
-    const initResp = await fetch(`${TWITTER_UPLOAD_BASE}/media/upload.json`, {
+    const initResp = await this.fetchImpl(`${TWITTER_UPLOAD_BASE}/media/upload.json`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.auth.accessToken}`,
@@ -250,7 +250,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
       appendFormData.append('segment_index', String(segmentIndex));
       appendFormData.append('media', new Blob([chunk], { type: contentType }));
 
-      const appendResp = await fetch(`${TWITTER_UPLOAD_BASE}/media/upload.json`, {
+      const appendResp = await this.fetchImpl(`${TWITTER_UPLOAD_BASE}/media/upload.json`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.auth.accessToken}`,
@@ -275,7 +275,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
     finalizeFormData.append('command', 'FINALIZE');
     finalizeFormData.append('media_id', mediaId);
 
-    const finalizeResp = await fetch(`${TWITTER_UPLOAD_BASE}/media/upload.json`, {
+    const finalizeResp = await this.fetchImpl(`${TWITTER_UPLOAD_BASE}/media/upload.json`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.auth.accessToken}`,
@@ -310,7 +310,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
 
-      const statusResp = await fetch(
+      const statusResp = await this.fetchImpl(
         `${TWITTER_UPLOAD_BASE}/media/upload.json?command=STATUS&media_id=${mediaId}`,
         {
           headers: {

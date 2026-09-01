@@ -45,6 +45,8 @@ export abstract class BaseConnector implements SocialConnector {
   readonly displayName: string;
   readonly publishMode: PublishMode;
   readonly auth: ConnectorAuth;
+  /** HTTP client supplied by the owning execution plane. */
+  protected readonly fetchImpl: typeof fetch;
 
   protected logHistory: LogEntry[] = [];
 
@@ -53,11 +55,13 @@ export abstract class BaseConnector implements SocialConnector {
     displayName: string,
     publishMode: PublishMode,
     auth: ConnectorAuth,
+    fetchImpl: typeof fetch = globalThis.fetch,
   ) {
     this.platform = platform;
     this.displayName = displayName;
     this.publishMode = publishMode;
     this.auth = auth;
+    this.fetchImpl = fetchImpl;
   }
 
   // ── Abstract methods ──
@@ -186,7 +190,7 @@ export abstract class BaseConnector implements SocialConnector {
    * Authenticated GET request.
    */
   protected async apiGet<T>(url: string, headers?: Record<string, string>): Promise<T> {
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${this.auth.accessToken}`,
@@ -212,7 +216,7 @@ export abstract class BaseConnector implements SocialConnector {
     body: unknown,
     headers?: Record<string, string>,
   ): Promise<T> {
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.auth.accessToken}`,
@@ -239,7 +243,7 @@ export abstract class BaseConnector implements SocialConnector {
     formData: FormData,
     headers?: Record<string, string>,
   ): Promise<T> {
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.auth.accessToken}`,
@@ -261,7 +265,7 @@ export abstract class BaseConnector implements SocialConnector {
    * DELETE request.
    */
   protected async apiDelete<T>(url: string, headers?: Record<string, string>): Promise<T> {
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: 'DELETE',
       headers: {
         Authorization: `Bearer ${this.auth.accessToken}`,

@@ -45,8 +45,8 @@ interface YtStatisticsResponse {
 }
 
 export class YouTubeConnector extends BaseConnector implements SocialConnector {
-  constructor(auth: ConnectorAuth) {
-    super('youtube' as Platform, 'YouTube', 'api' as PublishMode, auth);
+  constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
+    super('youtube' as Platform, 'YouTube', 'api' as PublishMode, auth, fetchImpl);
   }
 
   capability(): ConnectorCapability {
@@ -106,7 +106,7 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
       // Step 1: Initiate resumable upload session
       const metadataJson = JSON.stringify(metadata);
 
-      const initResponse = await fetch(
+      const initResponse = await this.fetchImpl(
         `${YT_UPLOAD_BASE}/videos?part=snippet,status&uploadType=resumable`,
         {
           method: 'POST',
@@ -135,14 +135,14 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
       this.log('info', 'publish', `YouTube resumable upload session created`);
 
       // Step 2: Download the video and upload it to the resumable URL
-      const videoResponse = await fetch(videoUrl);
+      const videoResponse = await this.fetchImpl(videoUrl);
       if (!videoResponse.ok) {
         throw new Error(`Failed to download video from ${videoUrl}: ${videoResponse.status}`);
       }
 
       const videoBuffer = await videoResponse.arrayBuffer();
 
-      const uploadResp = await fetch(uploadUrl, {
+      const uploadResp = await this.fetchImpl(uploadUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'video/*',
@@ -205,7 +205,7 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
     // Revoke the OAuth token at Google's revocation endpoint
     const revokeUrl = `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`;
 
-    const response = await fetch(revokeUrl, {
+    const response = await this.fetchImpl(revokeUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
