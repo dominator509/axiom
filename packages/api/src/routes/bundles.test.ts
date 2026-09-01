@@ -10,6 +10,23 @@ import { mockState, mockDbFactory } from './test-utils.js';
 vi.mock('@axiom/db', () => mockDbFactory({ contentBundle: {}, postTarget: {} }));
 vi.mock('@axiom/worker', () => ({
   enqueueJob: vi.fn(async () => ({ id: 'job-1' })),
+  asPlatform: vi.fn((platform: string) => {
+    const supported = [
+      'instagram',
+      'tiktok',
+      'x',
+      'youtube',
+      'reddit',
+      'threads',
+      'discord',
+      'telegram',
+      'facebook',
+      'snapchat',
+      'fanvue',
+    ];
+    if (!supported.includes(platform)) throw new Error(`unsupported target platform '${platform}'`);
+    return platform;
+  }),
 }));
 
 import { bundlesRouter } from './bundles.js';
@@ -32,6 +49,7 @@ function appWithOrg(orgId: string | null) {
 
 beforeEach(() => {
   mockState.result = [];
+  mockState.results = [];
   vi.mocked(enqueueJob).mockClear();
 });
 
@@ -117,14 +135,21 @@ describe('POST / — create bundle', () => {
 
 describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
   it('approves a passing bundle and creates post targets', async () => {
-    mockState.result = [
-      {
-        id: BUNDLE_ID,
-        orgId: ORG_ID,
-        modelId: MODEL_ID,
-        state: 'approved',
-        tosReport: { verdict: 'pass', scores: [] },
-      },
+    const generatedBundle = {
+      id: BUNDLE_ID,
+      orgId: ORG_ID,
+      modelId: MODEL_ID,
+      state: 'generated',
+      tosReport: { verdict: 'pass', scores: [] },
+    };
+    const approvedBundle = { ...generatedBundle, state: 'approved' };
+    mockState.result = [approvedBundle];
+    mockState.results = [
+      [],
+      [generatedBundle],
+      [{ id: BUNDLE_ID }],
+      [{ id: BUNDLE_ID }],
+      [approvedBundle],
     ];
     const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
       method: 'POST',
@@ -163,6 +188,35 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
       body: JSON.stringify({ platforms: ['instagram'] }),
     });
     expect(res.status).toBe(409);
+  });
+
+  it('rejects approval of a bundle that is no longer generated (409)', async () => {
+    mockState.result = [
+      {
+        id: BUNDLE_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        state: 'approved',
+        tosReport: { verdict: 'pass', scores: [] },
+      },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: ['instagram'] }),
+    });
+    expect(res.status).toBe(409);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unsupported target platform before creating a job (400)', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: ['onlyfans'] }),
+    });
+    expect(res.status).toBe(400);
+    expect(enqueueJob).not.toHaveBeenCalled();
   });
 
   it('rejects a bundle with an empty platforms array (400)', async () => {

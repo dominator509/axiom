@@ -8,7 +8,7 @@ import { eq, and, gte, lte } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
-import { enqueueJob } from '@axiom/worker';
+import { asPlatform, enqueueJob } from '@axiom/worker';
 
 const router = new Hono<AppBindings>();
 
@@ -65,21 +65,48 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
   const userId = c.get('userId') ?? 'system';
   const scheduledFor = new Date(body.scheduledFor);
 
-  const inserted = await withOrgContext(orgId, async (tx) => {
+  let platform: string;
+  try {
+    platform = asPlatform(body.platform);
+  } catch {
+    return apiError(c, 400, statusTitle(400), `unsupported target platform '${body.platform}'`);
+  }
+
+  const result = await withOrgContext(orgId, async (tx) => {
+    const bundles = await tx
+      .select({ id: schema.contentBundle.id, state: schema.contentBundle.state })
+      .from(schema.contentBundle)
+      .where(
+        and(
+          eq(schema.contentBundle.id, body.bundleId),
+          eq(schema.contentBundle.orgId, orgId),
+        ),
+      )
+      .limit(1);
+    if (bundles.length === 0) return { status: 404 as const, data: null };
+    const bundle = bundles[0];
+    if (bundle.state !== 'approved') {
+      return {
+        status: 409 as const,
+        data: null,
+        error: `bundle must be approved before scheduling (current state: ${bundle.state})`,
+      };
+    }
+
     const [row] = await tx
       .insert(schema.postTarget)
       .values({
         orgId,
         bundleId: body.bundleId,
-        platform: body.platform,
+        platform,
         scheduledFor,
         state: 'pending',
-        idemKey: Buffer.from(`${body.bundleId}|${body.platform}|${scheduledFor.toISOString()}`),
+        idemKey: Buffer.from(`${body.bundleId}|${platform}|${scheduledFor.toISOString()}`),
       })
       .returning();
     await writeAudit(tx, orgId, userId, 'post.schedule', row.id, {
       bundleId: body.bundleId,
-      platform: body.platform,
+      platform,
       scheduledFor: scheduledFor.toISOString(),
     });
 
@@ -94,9 +121,11 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
       dedupeParts: ['publish.target', row.id],
     });
 
-    return row;
+    return { status: 201 as const, data: row };
   });
-  return c.json({ data: inserted }, 201);
+  if (result.status === 404) return apiError(c, 404, statusTitle(404), 'bundle not found');
+  if (result.status === 409) return apiError(c, 409, statusTitle(409), result.error);
+  return c.json({ data: result.data }, 201);
 });
 
 // PATCH /posts/:id — reschedule / edit target

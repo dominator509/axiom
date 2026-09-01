@@ -11,7 +11,7 @@ import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
-import { enqueueJob } from '@axiom/worker';
+import { asPlatform, enqueueJob } from '@axiom/worker';
 
 const router = new Hono<AppBindings>();
 
@@ -84,6 +84,27 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
 
+  const platforms: string[] = [];
+  const seenPlatforms = new Set<string>();
+  for (const requestedPlatform of body.platforms) {
+    let platform: string;
+    try {
+      platform = asPlatform(requestedPlatform);
+    } catch {
+      return apiError(
+        c,
+        400,
+        statusTitle(400),
+        `unsupported target platform '${requestedPlatform}'`,
+      );
+    }
+    if (seenPlatforms.has(platform)) {
+      return apiError(c, 400, statusTitle(400), `duplicate target platform '${platform}'`);
+    }
+    seenPlatforms.add(platform);
+    platforms.push(platform);
+  }
+
   const result = await withOrgContext(orgId, async (tx) => {
     const rows = await tx
       .select()
@@ -92,6 +113,12 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
       .limit(1);
     if (rows.length === 0) return { status: 404 as const, data: null };
     const bundle = rows[0];
+    if (bundle.state !== 'generated') {
+      return {
+        status: 409 as const,
+        error: `bundle is already ${bundle.state}; only generated bundles can be approved`,
+      };
+    }
 
     // ToS gate: a block verdict cannot be approved (LBI-11)
     const tos = (bundle.tosReport ?? {}) as {
@@ -101,7 +128,7 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
     if (tos.verdict === 'block') {
       return { status: 409 as const, error: 'ToS block: bundle cannot be approved' };
     }
-    for (const platform of body.platforms) {
+    for (const platform of platforms) {
       const score = (tos.scores ?? []).find((s) => s.platform === platform);
       if (score?.verdict === 'block') {
         return {
@@ -147,7 +174,7 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
       .where(eq(schema.contentBundle.id, id))
       .returning();
     await writeAudit(tx, orgId, userId, 'bundle.approve', id, {
-      platforms: body.platforms,
+      platforms,
       slot: slot.toISOString(),
     });
     return { status: 200 as const, data: updated };
