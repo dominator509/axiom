@@ -18,11 +18,15 @@ const schedulePostSchema = z.object({
   scheduledFor: z.string().datetime(),
 });
 
-const rescheduleSchema = z.object({
-  scheduledFor: z.string().datetime().optional(),
-  platform: z.string().min(1).max(50).optional(),
-  state: z.enum(['pending', 'publishing', 'published', 'failed', 'skipped']).optional(),
-});
+// Publication state is owned by the worker after it has performed the
+// provider side effect. The API may reschedule or retarget an editable post,
+// but it must never accept a caller-supplied terminal/worker state.
+const rescheduleSchema = z
+  .object({
+    scheduledFor: z.string().datetime().optional(),
+    platform: z.string().min(1).max(50).optional(),
+  })
+  .strict();
 
 // GET /models/:id/calendar?from=...&to=... — scheduled posts in range
 router.get('/models/:modelId/calendar', async (c) => {
@@ -142,7 +146,6 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
       .set({
         ...(body.scheduledFor ? { scheduledFor: new Date(body.scheduledFor) } : {}),
         ...(body.platform ? { platform: body.platform } : {}),
-        ...(body.state ? { state: body.state } : {}),
       })
       .where(and(eq(schema.postTarget.id, id), eq(schema.postTarget.orgId, orgId)))
       .returning();

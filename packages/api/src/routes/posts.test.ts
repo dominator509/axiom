@@ -189,6 +189,15 @@ describe('POST /posts', () => {
 });
 
 describe('PATCH /posts/:id', () => {
+  it('rejects caller-supplied publication state transitions (400)', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ state: 'published' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('reschedules a post', async () => {
     mockState.result = [
       {
