@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { capabilityNames, resolveCapabilities } from '@axiom/worker';
+import { capabilityNames, connectorForConnection, resolveCapabilities } from '@axiom/worker';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 
@@ -126,6 +126,30 @@ router.delete('/:id', async (c) => {
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
   const userId = c.get('userId') ?? 'system';
+
+  const connections = await withOrgContext(orgId, (tx) =>
+    tx
+      .select()
+      .from(schema.platformConnection)
+      .where(and(eq(schema.platformConnection.id, id), eq(schema.platformConnection.orgId, orgId)))
+      .limit(1),
+  );
+  const connection = connections[0];
+  if (!connection) return apiError(c, 404, statusTitle(404), 'connection not found');
+
+  try {
+    const { connector } = await connectorForConnection(connection);
+    await connector.revoke();
+  } catch {
+    // Keep the encrypted row so the operator can retry. Deleting it after a
+    // failed provider revoke would leave a live remote credential orphaned.
+    return apiError(
+      c,
+      502,
+      statusTitle(502),
+      'provider revocation failed; local connection was retained',
+    );
+  }
 
   const result = await withOrgContext(orgId, async (tx) => {
     const rows = await tx

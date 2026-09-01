@@ -27,10 +27,14 @@ vi.mock('@axiom/worker', () => ({
     'schedule.native',
     'read.insights',
   ]),
+  connectorForConnection: vi.fn(async () => ({
+    connection: {},
+    connector: { revoke: vi.fn(async () => undefined) },
+  })),
 }));
 
 import { socialRouter } from './social.js';
-import { capabilityNames, resolveCapabilities } from '@axiom/worker';
+import { capabilityNames, connectorForConnection, resolveCapabilities } from '@axiom/worker';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -158,6 +162,16 @@ describe('DELETE /:id — revoke', () => {
     const body = (await res.json()) as any;
     expect(body.success).toBe(true);
     expect(body.data.platform).toBe('instagram');
+    expect(connectorForConnection).toHaveBeenCalledTimes(1);
+  });
+
+  it('retains the local connection when provider revocation fails (502)', async () => {
+    mockState.result = [{ id: CONN_ID, platform: 'instagram' }];
+    vi.mocked(connectorForConnection).mockRejectedValueOnce(new Error('egress unavailable'));
+    const res = await appWithOrg(ORG_ID).request(`/${CONN_ID}`, { method: 'DELETE' });
+    expect(res.status).toBe(502);
+    const body = (await res.json()) as any;
+    expect(body.detail).toContain('local connection was retained');
   });
 
   it('returns 404 when the connection is not in the org', async () => {

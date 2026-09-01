@@ -23,6 +23,26 @@ export interface ResolvedTargetConnector {
   connector: SocialConnector;
 }
 
+/**
+ * Build a connector for an already-resolved tenant connection. Provider
+ * traffic remains bound to the model's healthy egress sidecar, including
+ * disconnect/revocation calls initiated by the API.
+ */
+export async function connectorForConnection(
+  connection: PlatformConnectionRow,
+): Promise<ResolvedTargetConnector> {
+  const platform = asPlatform(connection.platform);
+  const proxy = await resolveEgressProxy(connection.modelId);
+  if (!proxy) {
+    throw new Error(`model ${connection.modelId} has no healthy egress sidecar`);
+  }
+  const auth = await decryptConnectorAuth(connection);
+  return {
+    connection,
+    connector: createConnector(platform, auth, buildEgressFetch(proxy)),
+  };
+}
+
 /** Resolve a stored platform identifier without allowing arbitrary dispatch. */
 export function asPlatform(value: string): Platform {
   const platforms: readonly Platform[] = [
@@ -173,13 +193,5 @@ export async function connectorForTarget(
   target: TargetConnectionRef,
 ): Promise<ResolvedTargetConnector> {
   const connection = await resolvePlatformConnection(tx, orgId, modelId, target);
-  const proxy = await resolveEgressProxy(modelId);
-  if (!proxy) {
-    throw new Error(`model ${modelId} has no healthy egress sidecar`);
-  }
-  const auth = await decryptConnectorAuth(connection);
-  return {
-    connection,
-    connector: createConnector(asPlatform(target.platform), auth, buildEgressFetch(proxy)),
-  };
+  return connectorForConnection(connection);
 }

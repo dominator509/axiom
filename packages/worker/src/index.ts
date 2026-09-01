@@ -23,6 +23,7 @@ export { resolveCapabilities, capabilityNames } from '@axiom/connectors';
 export {
   asPlatform,
   resolvePlatformConnection,
+  connectorForConnection,
   decryptConnectorAuth,
   parseConnectorAuth,
   connectorForTarget,
