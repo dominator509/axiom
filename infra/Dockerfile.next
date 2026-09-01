@@ -56,6 +56,7 @@ COPY pnpm-workspace.yaml package.json ./
 
 # Copy source code for the entire monorepo (needed by build)
 COPY . .
+RUN mkdir -p packages/dashboard/public
 
 # Build the dashboard and its workspace dependencies from a clean checkout.
 RUN pnpm --filter=@axiom/dashboard... build
