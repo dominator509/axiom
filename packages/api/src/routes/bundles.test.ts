@@ -8,8 +8,12 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ contentBundle: {}, postTarget: {} }));
+vi.mock('@axiom/worker', () => ({
+  enqueueJob: vi.fn(async () => ({ id: 'job-1' })),
+}));
 
 import { bundlesRouter } from './bundles.js';
+import { enqueueJob } from '@axiom/worker';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -28,6 +32,7 @@ function appWithOrg(orgId: string | null) {
 
 beforeEach(() => {
   mockState.result = [];
+  vi.mocked(enqueueJob).mockClear();
 });
 
 afterEach(() => {
@@ -129,6 +134,17 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.state).toBe('approved');
+    expect(enqueueJob).toHaveBeenCalledTimes(2);
+    expect(enqueueJob).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      expect.objectContaining({
+        queue: 'publish',
+        kind: 'publish.target',
+        runAfter: expect.any(Date),
+        dedupeParts: ['publish.target', BUNDLE_ID],
+      }),
+    );
   });
 
   it('rejects approval when the ToS verdict is block (409)', async () => {
