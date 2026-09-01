@@ -49,6 +49,7 @@ RUN npm install -g pnpm@9.14.0
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY pnpm-workspace.yaml package.json ./
+COPY tsconfig.base.json ./tsconfig.base.json
 
 # Copy workspace source so TypeScript project references and runtime packages
 # are available in the clean image build.
