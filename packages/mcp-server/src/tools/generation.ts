@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { Tier, type AgentPermission, tierAtLeast } from '../auth.js';
 import { withModelOrg, schema } from '../org-context.js';
+import { enqueueJob } from '@axiom/worker';
 
 /**
  * Input schema for content generation (photoshoot).
@@ -55,20 +56,24 @@ export class GenerationTool {
         modelId: args.modelId,
         captions: {},
         hashtags: [],
-        state: needsApproval ? 'pending_approval' : 'generated',
+        // The persisted state machine starts at generated. Approval is a
+        // tool-level permission decision, not a second database state; using
+        // generated keeps the dashboard/Relay approval query consistent.
+        state: 'generated',
       });
-      await tx.insert(schema.job).values({
+      await enqueueJob(tx, {
         orgId,
         queue: 'content',
         kind: 'content.generate',
         payload: {
           bundleId,
+          modelId: args.modelId,
           prompt: args.prompt,
           style: args.style ?? 'default',
           count: args.count,
         },
-        state: 'ready',
         runAfter: new Date(),
+        dedupeParts: ['content.generate', bundleId],
       });
     });
 

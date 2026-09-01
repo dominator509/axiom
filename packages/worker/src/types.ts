@@ -58,8 +58,11 @@ export interface RelayCardPayload {
   channel?: string;
 }
 export interface GeneratePayload {
+  bundleId?: string;
   modelId: string;
-  prompt?: Record<string, unknown>;
+  prompt?: string;
+  style?: string;
+  count?: number;
 }
 export interface TosScanPayload {
   bundleId: string;

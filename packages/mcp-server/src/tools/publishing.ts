@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { Tier, type AgentPermission, tierAtLeast } from '../auth.js';
 import { withModelOrg, schema } from '../org-context.js';
+import { enqueueJob } from '@axiom/worker';
 
 /**
  * Input schema for publishing operations.
@@ -14,7 +15,7 @@ export const PublishingInputSchema = z.object({
   post: z.object({
     text: z.string().max(4000).optional(),
     mediaIds: z.array(z.string().uuid()).optional(),
-    platform: z.enum(['fanvue', 'onlyfans', 'x', 'instagram', 'telegram', 'discord']),
+    platform: z.enum(['fanvue', 'x', 'instagram', 'telegram', 'discord']),
     scheduledAt: z.string().datetime().optional(),
   }),
 });
@@ -30,13 +31,15 @@ export type PublishingInput = z.infer<typeof PublishingInputSchema>;
  * - Manager:  ALLOWED with requiresApproval=true
  * - Autonomous: ALLOWED, requiresApproval=false
  *
- * Real behaviour (H-2): creates a content_bundle + post_target (idem-keyed,
- * LBI-05) and enqueues a publish.target job in the same org-scoped txn.
+ * Real behaviour (H-2): creates a content_bundle and, for Autonomous calls,
+ * an idem-keyed post_target (LBI-05) plus publish.target job in the same
+ * org-scoped txn. Manager calls stop at the generated bundle and wait for the
+ * dashboard/Relay approval path to create the target and enqueue publishing.
  */
 export class PublishingTool {
   name = 'publishing_post';
   description =
-    'Schedule or publish content posts to social platforms (Fanvue, OnlyFans, X, Instagram, Telegram, Discord).';
+    'Schedule or publish content posts to social platforms (Fanvue, X, Instagram, Telegram, Discord).';
   inputSchema = PublishingInputSchema;
   tier: Tier = Tier.Manager;
 
@@ -71,27 +74,33 @@ export class PublishingTool {
         modelId: args.modelId,
         captions: args.post.text ? { [args.post.platform]: args.post.text } : {},
         hashtags: [],
-        state: needsApproval ? 'pending_approval' : 'generated',
+        state: 'generated',
       });
+
+      if (!isAutonomous) return;
 
       // 2. post_target with an idempotency key (LBI-05 / L3.1 §11).
-      await tx.insert(schema.postTarget).values({
-        orgId,
-        bundleId,
-        platform: args.post.platform,
-        scheduledFor,
-        state: 'pending',
-        idemKey: Buffer.from(`${bundleId}|${args.post.platform}|${args.action}`),
-      });
+      const [target] = await tx
+        .insert(schema.postTarget)
+        .values({
+          orgId,
+          bundleId,
+          platform: args.post.platform,
+          scheduledFor,
+          state: 'pending',
+          idemKey: Buffer.from(bundleId + '|' + args.post.platform + '|' + args.action),
+        })
+        .returning({ id: schema.postTarget.id });
+      if (!target?.id) throw new Error('publishing_post: target insert returned no id');
 
       // 3. Enqueue the publish job in the same txn (L3.4 §1 dedupe).
-      await tx.insert(schema.job).values({
+      await enqueueJob(tx, {
         orgId,
         queue: 'publish',
         kind: 'publish.target',
-        payload: { bundleId, targetPlatforms: [args.post.platform] },
-        state: 'ready',
+        payload: { targetId: target.id },
         runAfter: scheduledFor ?? new Date(),
+        dedupeParts: ['publish.target', target.id],
       });
     });
 

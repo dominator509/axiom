@@ -3,7 +3,7 @@
 // content_bundle, then enqueues tos.scan. This is the async/queue path of the
 // same pipeline the API exposes synchronously at POST /models/:id/generate.
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import {
   generatePhotoshootPrompts,
@@ -15,11 +15,15 @@ import {
   type ModelProfile as PromptModelProfile,
 } from '@axiom/llm-gateway';
 import type { Executor, ExecutorContext } from './context.js';
+import { enqueueJob } from '../enqueue.js';
 
 export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   const { tx, job } = ctx;
   const payload = (job.payload ?? {}) as {
+    bundleId?: string;
     modelId?: string;
+    prompt?: string;
+    count?: number;
     style?: string;
     outfit?: string;
     location?: string;
@@ -30,7 +34,38 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
     enrichWithLlm?: boolean;
     model?: string;
   };
-  const modelId = payload.modelId;
+  let modelId = payload.modelId;
+  let existingBundle: { id: string; modelId: string } | undefined;
+
+  // MCP requests allocate the bundle before queueing so callers can receive a
+  // durable identifier immediately. Reuse that row instead of creating a
+  // second bundle when the worker claims the job; this also makes retries
+  // idempotent across the tool -> queue -> executor boundary.
+  if (payload.bundleId) {
+    const bundles = await tx
+      .select({ id: schema.contentBundle.id, modelId: schema.contentBundle.modelId })
+      .from(schema.contentBundle)
+      .where(
+        and(
+          eq(schema.contentBundle.id, payload.bundleId),
+          eq(schema.contentBundle.orgId, job.org_id),
+        ),
+      )
+      .limit(1);
+    if (bundles.length === 0) {
+      throw new Error('content.generate: bundle ' + payload.bundleId + ' not found');
+    }
+    const bundle = bundles[0];
+    if (!bundle) {
+      throw new Error('content.generate: bundle lookup returned no row');
+    }
+    existingBundle = bundle;
+    if (modelId && modelId !== bundle.modelId) {
+      throw new Error('content.generate: bundle/model mismatch');
+    }
+    modelId ??= bundle.modelId;
+  }
+
   if (!modelId) throw new Error('content.generate: payload.modelId required');
 
   const models = await tx
@@ -90,28 +125,50 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
     }
   }
 
-  const [bundle] = await tx
-    .insert(schema.contentBundle)
-    .values({
-      orgId: job.org_id,
-      modelId,
-      captions: { [platform]: caption },
-      hashtags: variants[0].hashtags,
-      tosReport: null,
-      state: 'generated',
-    })
-    .returning();
+  const bundleId =
+    existingBundle?.id ??
+    (
+      await tx
+        .insert(schema.contentBundle)
+        .values({
+          orgId: job.org_id,
+          modelId,
+          captions: { [platform]: caption },
+          hashtags: variants[0].hashtags,
+          tosReport: null,
+          state: 'generated',
+        })
+        .returning({ id: schema.contentBundle.id })
+    )[0]?.id;
 
-  // Enqueue ToS scan for the new bundle (canonical flow: generate → tos).
-  await tx
-    .insert(schema.job)
-    .values({
-      orgId: job.org_id,
-      queue: 'tos',
-      kind: 'tos.scan',
-      payload: { bundleId: bundle.id },
-      state: 'ready',
-      runAfter: new Date(),
-    })
-    .onConflictDoNothing();
+  if (!bundleId) throw new Error('content.generate: bundle insert returned no id');
+
+  if (existingBundle) {
+    await tx
+      .update(schema.contentBundle)
+      .set({
+        captions: { [platform]: caption },
+        hashtags: variants[0].hashtags,
+        tosReport: null,
+        state: 'generated',
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.contentBundle.id, bundleId),
+          eq(schema.contentBundle.orgId, job.org_id),
+        ),
+      );
+  }
+
+  // Enqueue ToS scan for the bundle (canonical flow: generate → tos). The
+  // bundle ID is the unit of work, so a retry cannot create duplicate scans.
+  await enqueueJob(tx, {
+    orgId: job.org_id,
+    queue: 'tos',
+    kind: 'tos.scan',
+    payload: { bundleId },
+    runAfter: new Date(),
+    dedupeParts: ['tos.scan', bundleId],
+  });
 };
