@@ -185,8 +185,9 @@ router.post('/', zValidator('json', createEgressConfigSchema), async (c) => {
       dekId = envelope.dekId;
     }
 
-    const inserted = await withOrgContext(orgId, (tx) =>
-      tx
+    const inserted = await withOrgContext(orgId, async (tx) => {
+      if ((await modelOrgId(tx, modelId)) !== orgId) return null;
+      return tx
         .insert(schema.modelNetworkConfigs)
         .values({
           orgId,
@@ -205,8 +206,9 @@ router.post('/', zValidator('json', createEgressConfigSchema), async (c) => {
           dekId: dekId ?? null,
           healthy: false,
         })
-        .returning(),
-    );
+        .returning();
+    });
+    if (!inserted) return apiError(c, 404, statusTitle(404), 'model not found');
     return c.json({ data: sanitizeConfig(inserted[0]) }, 201);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -262,15 +264,16 @@ router.patch('/:id', zValidator('json', updateEgressConfigSchema), async (c) => 
       values.dekId = envelope.dekId;
     }
 
-    const updated = await withOrgContext(orgId, (tx) =>
-      tx
+    const updated = await withOrgContext(orgId, async (tx) => {
+      if (modelId !== undefined && (await modelOrgId(tx, modelId)) !== orgId) return [];
+      return tx
         .update(schema.modelNetworkConfigs)
         .set(values)
         .where(
           and(eq(schema.modelNetworkConfigs.id, id), eq(schema.modelNetworkConfigs.orgId, orgId)),
         )
-        .returning(),
-    );
+        .returning();
+    });
     if (updated.length === 0) return apiError(c, 404, statusTitle(404), 'config not found');
     return c.json({ data: sanitizeConfig(updated[0]) });
   } catch (err) {

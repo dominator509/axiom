@@ -53,6 +53,7 @@ router.get('/models/:modelId/calendar', async (c) => {
     // filters cannot discard tenant/model isolation.
     const conditions = [
       eq(schema.postTarget.orgId, orgId),
+      eq(schema.contentBundle.orgId, orgId),
       eq(schema.contentBundle.modelId, modelId),
     ];
     if (fromDate) conditions.push(gte(schema.postTarget.scheduledFor, fromDate));

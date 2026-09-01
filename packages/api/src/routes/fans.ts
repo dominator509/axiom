@@ -7,7 +7,7 @@ import { zValidator } from '@hono/zod-validator';
 import { eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
+import { withOrgContext, modelOrgId, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
@@ -81,8 +81,12 @@ router.post('/models/:modelId/fans', zValidator('json', contactSchema), async (c
   const { modelId } = c.req.param();
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
+  if (body.modelId !== modelId) {
+    return apiError(c, 400, statusTitle(400), 'modelId must match the path resource');
+  }
 
   const saved = await withOrgContext(orgId, async (tx) => {
+    if ((await modelOrgId(tx, modelId)) !== orgId) return null;
     const [row] = await tx
       .insert(schema.fanCrmContact)
       .values({
@@ -115,6 +119,7 @@ router.post('/models/:modelId/fans', zValidator('json', contactSchema), async (c
     await writeAudit(tx, orgId, userId, 'fan.upsert', row.id, { platform: body.platform });
     return row;
   });
+  if (!saved) return apiError(c, 404, statusTitle(404), 'model not found');
   return c.json({ data: saved }, 201);
 });
 
@@ -155,8 +160,17 @@ router.post('/fans/:fanId/touchpoints', zValidator('json', touchpointSchema), as
   const { fanId } = c.req.param();
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
+  if (body.fanId !== fanId) {
+    return apiError(c, 400, statusTitle(400), 'fanId must match the path resource');
+  }
 
   const saved = await withOrgContext(orgId, async (tx) => {
+    const fans = await tx
+      .select({ id: schema.fanCrmContact.id })
+      .from(schema.fanCrmContact)
+      .where(and(eq(schema.fanCrmContact.id, fanId), eq(schema.fanCrmContact.orgId, orgId)))
+      .limit(1);
+    if (fans.length === 0) return null;
     const [row] = await tx
       .insert(schema.fanTouchpoint)
       .values({
@@ -172,6 +186,7 @@ router.post('/fans/:fanId/touchpoints', zValidator('json', touchpointSchema), as
     await writeAudit(tx, orgId, userId, 'fan.touchpoint', fanId, { kind: body.kind });
     return row;
   });
+  if (!saved) return apiError(c, 404, statusTitle(404), 'fan not found');
   return c.json({ data: saved }, 201);
 });
 
@@ -183,6 +198,20 @@ router.post('/custom-requests', zValidator('json', requestSchema), async (c) => 
   const userId = c.get('userId') ?? 'system';
 
   const saved = await withOrgContext(orgId, async (tx) => {
+    if ((await modelOrgId(tx, body.modelId)) !== orgId) return null;
+    if (body.fanId) {
+      const fans = await tx
+        .select({ id: schema.fanCrmContact.id, modelId: schema.fanCrmContact.modelId })
+        .from(schema.fanCrmContact)
+        .where(
+          and(
+            eq(schema.fanCrmContact.id, body.fanId),
+            eq(schema.fanCrmContact.orgId, orgId),
+          ),
+        )
+        .limit(1);
+      if (fans.length === 0 || fans[0].modelId !== body.modelId) return null;
+    }
     const [row] = await tx
       .insert(schema.customRequest)
       .values({
@@ -198,6 +227,7 @@ router.post('/custom-requests', zValidator('json', requestSchema), async (c) => 
     await writeAudit(tx, orgId, userId, 'custom_request.create', row.id, { title: body.title });
     return row;
   });
+  if (!saved) return apiError(c, 404, statusTitle(404), 'model or fan not found');
   return c.json({ data: saved }, 201);
 });
 

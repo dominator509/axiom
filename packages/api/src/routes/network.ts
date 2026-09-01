@@ -8,7 +8,7 @@ import { zValidator } from '@hono/zod-validator';
 import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
+import { withOrgContext, modelOrgId, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
@@ -93,6 +93,7 @@ router.put('/:modelId/network', zValidator('json', networkSchema), async (c) => 
   const userId = c.get('userId') ?? 'system';
 
   const saved = await withOrgContext(orgId, async (tx) => {
+    if ((await modelOrgId(tx, modelId)) !== orgId) return null;
     const existing = await tx
       .select({ id: schema.modelNetworkConfigs.id })
       .from(schema.modelNetworkConfigs)
@@ -124,6 +125,7 @@ router.put('/:modelId/network', zValidator('json', networkSchema), async (c) => 
     });
     return row;
   });
+  if (!saved) return apiError(c, 404, statusTitle(404), 'model not found');
   return c.json({ data: saved });
 });
 

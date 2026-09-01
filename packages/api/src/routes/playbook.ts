@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 import { sql, eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
+import { withOrgContext, modelOrgId, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import { calculateCourseAdherence } from '@axiom/llm-gateway';
 
 const router = new Hono<AppBindings>();
@@ -147,6 +147,7 @@ router.post('/models/:modelId/playbook-score/record', async (c) => {
   const userId = c.get('userId') ?? 'system';
 
   const saved = await withOrgContext(orgId, async (tx) => {
+    if ((await modelOrgId(tx, modelId)) !== orgId) return null;
     const derived = await deriveAdherenceInputs(tx, orgId, modelId);
     const score = calculateCourseAdherence(derived.input);
     const [row] = await tx
@@ -172,6 +173,7 @@ router.post('/models/:modelId/playbook-score/record', async (c) => {
     });
     return row;
   });
+  if (!saved) return apiError(c, 404, statusTitle(404), 'model not found');
   return c.json({ data: saved }, 201);
 });
 

@@ -131,6 +131,16 @@ describe('POST / — create bundle', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it('rejects a model outside the organization before inserting', async () => {
+    mockState.result = [];
+    const res = await appWithOrg(ORG_ID).request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ modelId: MODEL_ID }),
+    });
+    expect(res.status).toBe(404);
+  });
 });
 
 describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {

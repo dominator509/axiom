@@ -96,6 +96,16 @@ describe('PUT /:modelId/network', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it('rejects configuring a model outside the organization', async () => {
+    mockState.result = [];
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ egressMode: 'direct' }),
+    });
+    expect(res.status).toBe(404);
+  });
 });
 
 describe('GET /:modelId/network/health', () => {

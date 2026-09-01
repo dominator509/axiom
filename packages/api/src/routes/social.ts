@@ -10,7 +10,7 @@ import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { capabilityNames, connectorForConnection, resolveCapabilities } from '@axiom/worker';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
+import { withOrgContext, modelOrgId, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
@@ -79,6 +79,7 @@ router.post('/', zValidator('json', connectSchema), async (c) => {
   }
 
   const inserted = await withOrgContext(orgId, async (tx) => {
+    if ((await modelOrgId(tx, modelId)) !== orgId) return null;
     const [row] = await tx
       .insert(schema.platformConnection)
       .values({
@@ -116,7 +117,7 @@ router.post('/', zValidator('json', connectSchema), async (c) => {
     });
     return row;
   });
-  if (!inserted) return apiError(c, 500, statusTitle(500), 'connect failed');
+  if (!inserted) return apiError(c, 404, statusTitle(404), 'model not found');
   return c.json({ data: inserted }, 201);
 });
 

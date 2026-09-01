@@ -79,7 +79,11 @@ router.get('/models/:modelId/analytics', async (c) => {
       .innerJoin(schema.postTarget, eq(schema.postTarget.id, schema.postMetric.postTargetId))
       .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.postTarget.bundleId))
       .where(
-        and(eq(schema.contentBundle.modelId, modelId), gte(schema.postMetric.collectedAt, since)),
+        and(
+          eq(schema.contentBundle.orgId, orgId),
+          eq(schema.contentBundle.modelId, modelId),
+          gte(schema.postMetric.collectedAt, since),
+        ),
       );
 
     return {

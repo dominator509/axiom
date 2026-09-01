@@ -9,7 +9,7 @@ import { zValidator } from '@hono/zod-validator';
 import { sql, eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
+import { withOrgContext, modelOrgId, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
@@ -60,6 +60,7 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
   const userId = c.get('userId') ?? 'system';
 
   const saved = await withOrgContext(orgId, async (tx) => {
+    if ((await modelOrgId(tx, modelId)) !== orgId) return null;
     const [row] = await tx
       .insert(schema.linkbioProvider)
       .values({
@@ -82,6 +83,7 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
     await writeAudit(tx, orgId, userId, 'linkbio.enable', modelId, { kind: body.kind });
     return row;
   });
+  if (!saved) return apiError(c, 404, statusTitle(404), 'model not found');
   return c.json({ data: saved }, 201);
 });
 
@@ -185,15 +187,29 @@ router.post(
     if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
     const body = c.req.valid('json');
 
-    await withOrgContext(orgId, (tx) =>
-      tx.insert(schema.linkbioClick).values({
+    const recorded = await withOrgContext(orgId, async (tx) => {
+      const providers = await tx
+        .select({ id: schema.linkbioProvider.id })
+        .from(schema.linkbioProvider)
+        .where(
+          and(
+            eq(schema.linkbioProvider.id, body.providerId),
+            eq(schema.linkbioProvider.orgId, orgId),
+            eq(schema.linkbioProvider.enabled, true),
+          ),
+        )
+        .limit(1);
+      if (providers.length === 0) return false;
+      await tx.insert(schema.linkbioClick).values({
         orgId,
         providerId: body.providerId,
         target: body.target,
         source: body.source ?? null,
         ts: new Date(),
-      }),
-    );
+      });
+      return true;
+    });
+    if (!recorded) return apiError(c, 404, statusTitle(404), 'provider not enabled');
     return c.json({ success: true });
   },
 );

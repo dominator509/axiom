@@ -9,7 +9,14 @@ import { zValidator } from '@hono/zod-validator';
 import { sql, eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
+import {
+  withOrgContext,
+  modelOrgId,
+  requireOrg,
+  writeAudit,
+  apiError,
+  statusTitle,
+} from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 import { asPlatform, enqueueJob } from '@axiom/worker';
 
@@ -56,6 +63,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
   const userId = c.get('userId') ?? 'system';
 
   const inserted = await withOrgContext(orgId, async (tx) => {
+    if ((await modelOrgId(tx, body.modelId)) !== orgId) return null;
     const [row] = await tx
       .insert(schema.contentBundle)
       .values({
@@ -73,6 +81,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
     });
     return row;
   });
+  if (!inserted) return apiError(c, 404, statusTitle(404), 'model not found');
   return c.json({ data: inserted }, 201);
 });
 
@@ -140,7 +149,7 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
 
     // Create post_targets (per-platform), transition bundle → approved
     const slot = body.slot ? new Date(body.slot) : new Date(Date.now() + 3600_000);
-    for (const platform of body.platforms) {
+    for (const platform of platforms) {
       const [target] = await tx
         .insert(schema.postTarget)
         .values({

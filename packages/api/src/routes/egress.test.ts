@@ -197,6 +197,16 @@ describe('POST / — create config', () => {
     expect(body.title).toBe('Bad Gateway');
     expect(body.correlation_id).toBeTruthy();
   });
+
+  it('rejects creating a config for a model outside the organization', async () => {
+    mockState.result = [];
+    const res = await appWithOrg('org-1').request('/', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ modelId: MODEL_ID, egressMode: 'direct' }),
+    });
+    expect(res.status).toBe(404);
+  });
 });
 
 describe('GET / — list configs', () => {

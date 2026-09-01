@@ -90,6 +90,14 @@ describe('POST /models/:modelId/playbook-score/record', () => {
     expect(body.data.score).toBe(72);
   });
 
+  it('rejects recording a score for a model outside the organization', async () => {
+    mockState.result = [];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/playbook-score/record`, {
+      method: 'POST',
+    });
+    expect(res.status).toBe(404);
+  });
+
   it('rejects without org context (401)', async () => {
     const res = await appWithOrg(null).request(`/models/${MODEL_ID}/playbook-score/record`, {
       method: 'POST',

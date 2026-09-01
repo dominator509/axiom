@@ -152,6 +152,16 @@ describe('POST / — connect', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it('rejects connecting an account for a model outside the organization', async () => {
+    mockState.result = [];
+    const res = await appWithOrg(ORG_ID).request(`/?modelId=${MODEL_ID}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    expect(res.status).toBe(404);
+  });
 });
 
 describe('DELETE /:id — revoke', () => {

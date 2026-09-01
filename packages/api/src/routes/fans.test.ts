@@ -115,6 +115,16 @@ describe('POST /models/:modelId/fans — upsert', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it('rejects a contact for a model outside the organization', async () => {
+    mockState.result = [];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/fans`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ modelId: MODEL_ID, platform: 'fanvue', externalId: 'x' }),
+    });
+    expect(res.status).toBe(404);
+  });
 });
 
 describe('GET /fans/:fanId — unified timeline', () => {
@@ -156,6 +166,16 @@ describe('POST /fans/:fanId/touchpoints', () => {
     const body = (await res.json()) as any;
     expect(body.data.kind).toBe('dm');
   });
+
+  it('rejects a touchpoint for a fan outside the organization', async () => {
+    mockState.result = [];
+    const res = await appWithOrg(ORG_ID).request(`/fans/${FAN_ID}/touchpoints`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fanId: FAN_ID, platform: 'x', kind: 'dm' }),
+    });
+    expect(res.status).toBe(404);
+  });
 });
 
 describe('POST /custom-requests', () => {
@@ -180,6 +200,16 @@ describe('POST /custom-requests', () => {
       body: JSON.stringify({ modelId: MODEL_ID }),
     });
     expect(res.status).toBe(400);
+  });
+
+  it('rejects a request for a model outside the organization', async () => {
+    mockState.result = [];
+    const res = await appWithOrg(ORG_ID).request('/custom-requests', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ modelId: MODEL_ID, title: 'Custom video' }),
+    });
+    expect(res.status).toBe(404);
   });
 });
 

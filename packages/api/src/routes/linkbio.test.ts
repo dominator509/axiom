@@ -102,6 +102,16 @@ describe('POST /models/:modelId/linkbio', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it('rejects enabling a provider for a model outside the organization', async () => {
+    mockState.result = [];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'native' }),
+    });
+    expect(res.status).toBe(404);
+  });
 });
 
 describe('DELETE /models/:modelId/linkbio/:kind', () => {
@@ -153,6 +163,7 @@ describe('GET /models/:modelId/linkbio/analytics', () => {
 
 describe('POST /linkbio/clicks', () => {
   it('records a click (200)', async () => {
+    mockState.result = [{ id: PROVIDER_ID, enabled: true }];
     const res = await appWithOrg(ORG_ID).request('/linkbio/clicks', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -165,6 +176,16 @@ describe('POST /linkbio/clicks', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.success).toBe(true);
+  });
+
+  it('rejects clicks for a provider outside the organization', async () => {
+    mockState.result = [];
+    const res = await appWithOrg(ORG_ID).request('/linkbio/clicks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ providerId: PROVIDER_ID, target: 'https://fanvue.com/luna' }),
+    });
+    expect(res.status).toBe(404);
   });
 
   it('rejects a bad providerId (400)', async () => {
