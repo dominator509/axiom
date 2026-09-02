@@ -107,3 +107,4 @@
 2026-09-02T21:38:22Z | [P1][API/AUTH] emit RFC-7807 problem+json responses and preserve correlation/retry headers; focused tests, typecheck, lint passed; full local matrix requires PostgreSQL
 2026-09-02T21:53:53Z | [P1][LLM] reject empty chat messages and unsupported TOKENKILLER platforms; normalize provider/subscription failures to RFC-7807 problem+json; LLM tests 244/244, typecheck/build/lint passed
 2026-09-02T22:06:53Z | [P2][LLM] keep one canonical media section when S3 includes descriptions and image caption; llm-gateway 244/244
+2026-09-02T22:12:25Z | [P2][TOS] require a real imagePath for ContentGenerator visual evaluation; fanvue-mcp 61/61

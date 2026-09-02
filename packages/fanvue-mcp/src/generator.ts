@@ -83,13 +83,21 @@ export class ContentGenerator {
    * 4. Run ToS evaluation
    * 5. Assemble TOKENKILLER prefix
    * 6. Return structured bundle
+   *
+   * `imagePath` is required because the ToS engine performs a real local
+   * vision classification. A generated text bundle must never silently pass
+   * an empty path and pretend that its visual safety check ran.
    */
   async generateBundle(
     modelId: string,
     promptConfig: PromptConfig,
     targetPlatforms: Platform[],
+    imagePath: string,
   ): Promise<ContentBundleResult> {
     const config = PromptConfigSchema.parse(promptConfig);
+    if (!imagePath.trim()) {
+      throw new Error('ContentGenerator.generateBundle requires a non-empty imagePath');
+    }
     const bundleId = this.generateBundleId(modelId);
     const contents: PlatformContent[] = [];
 
@@ -136,7 +144,7 @@ export class ContentGenerator {
     // Run ToS evaluation on the generated content
     const tosResult = await this.tosEngine.evaluate(
       {
-        imageData: '', // Will be set by caller when image is available
+        imageData: imagePath,
         caption: contents.map((c) => c.caption).join('\n'),
         hashtags: contents.flatMap((c) => c.hashtags),
       },

@@ -33,12 +33,13 @@ const PROMPT = {
   emojiStyle: 'moderate' as const,
   cta: 'Follow for more',
 };
+const IMAGE_PATH = '/tmp/axiom-generator-fixture.png';
 
 describe('ContentGenerator.generateBundle', () => {
   it('produces a bundle with one content entry per platform', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(visionResponse()));
     const gen = new ContentGenerator();
-    const bundle = await gen.generateBundle('model-1', PROMPT, ['tiktok', 'instagram']);
+    const bundle = await gen.generateBundle('model-1', PROMPT, ['tiktok', 'instagram'], IMAGE_PATH);
     expect(bundle.contents).toHaveLength(2);
     expect(bundle.contents.map((c) => c.platform).sort()).toEqual(['instagram', 'tiktok']);
     expect(bundle.contents[0].caption.length).toBeGreaterThan(0);
@@ -55,7 +56,7 @@ describe('ContentGenerator.generateBundle', () => {
         (_, i) => `talking point number ${i} with some extra descriptive detail`,
       ),
     };
-    const bundle = await gen.generateBundle('model-1', longPrompt, ['threads']);
+    const bundle = await gen.generateBundle('model-1', longPrompt, ['threads'], IMAGE_PATH);
     const content = bundle.contents[0];
     expect(content.truncated).toBe(true);
     expect(content.caption.length).toBeLessThanOrEqual(500);
@@ -64,7 +65,7 @@ describe('ContentGenerator.generateBundle', () => {
   it('builds a token-killer prefix per platform', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(visionResponse()));
     const gen = new ContentGenerator();
-    const bundle = await gen.generateBundle('model-1', PROMPT, ['x']);
+    const bundle = await gen.generateBundle('model-1', PROMPT, ['x'], IMAGE_PATH);
     expect(bundle.contents[0].tokenKillerPrefix).toContain('[SYSTEM]');
     expect(bundle.contents[0].tokenKillerPrefix).toContain('[PLAYBOOK]');
     expect(bundle.contents[0].tokenKillerPrefix).toContain('[TASK]');
@@ -73,7 +74,18 @@ describe('ContentGenerator.generateBundle', () => {
   it('rejects invalid prompt config', async () => {
     const gen = new ContentGenerator();
     await expect(
-      gen.generateBundle('model-1', { emojiStyle: 'loud' } as never, ['x']),
+      gen.generateBundle('model-1', { emojiStyle: 'loud' } as never, ['x'], IMAGE_PATH),
     ).rejects.toThrow();
+  });
+
+  it('rejects an empty image path before attempting visual ToS evaluation', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const gen = new ContentGenerator();
+
+    await expect(gen.generateBundle('model-1', PROMPT, ['x'], '   ')).rejects.toThrow(
+      'requires a non-empty imagePath',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
