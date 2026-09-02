@@ -2,21 +2,25 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
   beforeError: null as Error | null,
+  afterError: null as Error | null,
+  auditFailure: null as Error | null,
   auditRows: null as Array<Record<string, unknown>> | null,
 }));
 
 vi.mock('@axiom/db', () => ({
   schema: { prePostRun: {} },
   db: {
-    transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
-      callback({
+    transaction: async (callback: (tx: unknown) => Promise<unknown>) => {
+      if (mockState.auditFailure) throw mockState.auditFailure;
+      return callback({
         execute: async () => undefined,
         insert: () => ({
           values: async (row: Record<string, unknown>) => {
             mockState.auditRows?.push(row);
           },
         }),
-      }),
+      });
+    },
   },
 }));
 
@@ -27,7 +31,9 @@ vi.mock('@axiom/fanvue-mcp', () => ({
       return input;
     }
 
-    async afterPublish(): Promise<void> {}
+    async afterPublish(): Promise<void> {
+      if (mockState.afterError) throw mockState.afterError;
+    }
 
     listScripts(): string[] {
       return [];
@@ -35,10 +41,12 @@ vi.mock('@axiom/fanvue-mcp', () => ({
   },
 }));
 
-import { mediaPlaneEngine, runPrePostBefore } from './pre_post.js';
+import { mediaPlaneEngine, runPrePostAfter, runPrePostBefore } from './pre_post.js';
 
 afterEach(() => {
   mockState.beforeError = null;
+  mockState.afterError = null;
+  mockState.auditFailure = null;
   mockState.auditRows = null;
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -155,6 +163,41 @@ describe('runPrePostBefore', () => {
     ).rejects.toThrow('media-plane probe reported that the input is missing');
 
     expect(rows[0]).toMatchObject({ status: 'failed', error: expect.any(String) });
+    expect(transactionRows).toEqual([]);
+  });
+});
+
+describe('runPrePostAfter', () => {
+  it('persists the post-publish audit outside the publish transaction', async () => {
+    const rows: Array<Record<string, unknown>> = [];
+    const transactionRows: Array<Record<string, unknown>> = [];
+    mockState.auditRows = rows;
+
+    const stage = await runPrePostAfter(
+      { ...context, tx: makeTx(transactionRows) } as never,
+      { ...input, phase: 'after' },
+      { remoteId: 'remote-1' },
+    );
+
+    expect(stage.runId).toBeTruthy();
+    expect(rows[0]).toMatchObject({
+      status: 'success',
+      script: 'pre-post.after (in-process)',
+    });
+    expect(transactionRows).toEqual([]);
+  });
+
+  it('does not turn an audit persistence failure into a publish retry', async () => {
+    mockState.auditFailure = new Error('audit database unavailable');
+    const transactionRows: Array<Record<string, unknown>> = [];
+
+    await expect(
+      runPrePostAfter(
+        { ...context, tx: makeTx(transactionRows) } as never,
+        { ...input, phase: 'after' },
+        { remoteId: 'remote-1' },
+      ),
+    ).resolves.toMatchObject({ engine: 'in-process' });
     expect(transactionRows).toEqual([]);
   });
 });

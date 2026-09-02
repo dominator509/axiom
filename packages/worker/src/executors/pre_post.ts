@@ -191,7 +191,7 @@ export async function runPrePostAfter(
   input: PrePostRunInput,
   result: unknown,
 ): Promise<PrePostStageResult> {
-  const { tx, job } = ctx;
+  const { job } = ctx;
   const hook = getPrePostHook();
   const startedAt = new Date();
   const scriptResults: PrePostStageResult['scriptResults'] = [];
@@ -207,7 +207,7 @@ export async function runPrePostAfter(
   }
 
   const runId = crypto.randomUUID();
-  await tx.insert(schema.prePostRun).values({
+  const run = {
     id: runId,
     orgId: job.org_id,
     modelId: input.modelId,
@@ -219,7 +219,24 @@ export async function runPrePostAfter(
     error,
     startedAt,
     finishedAt: new Date(),
-  });
+  };
+
+  // The provider side effect has already happened when this stage runs. Do
+  // not make its durable publish transaction depend on a bookkeeping insert:
+  // a failed audit insert must not roll back the publish and cause a retry of
+  // an external side effect. Keep the audit write org-scoped and independent,
+  // matching the failure path in runPrePostBefore.
+  try {
+    await db.transaction(async (auditTx) => {
+      await auditTx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
+      await auditTx.insert(schema.prePostRun).values(run);
+    });
+  } catch (auditError) {
+    console.error(
+      '[worker] failed to persist post-publish audit:',
+      auditError instanceof Error ? auditError.message : String(auditError),
+    );
+  }
 
   return {
     input: {
