@@ -29,7 +29,9 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
   const targets = await tx
     .select()
     .from(schema.postTarget)
-    .where(eq(schema.postTarget.id, targetId))
+    .where(
+      and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
+    )
     .limit(1);
   if (targets.length === 0) throw new Error(`viral.label: target ${targetId} not found`);
   const target = targets[0];
@@ -37,7 +39,12 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
   const bundles = await tx
     .select()
     .from(schema.contentBundle)
-    .where(eq(schema.contentBundle.id, target.bundleId))
+    .where(
+      and(
+        eq(schema.contentBundle.id, target.bundleId),
+        eq(schema.contentBundle.orgId, job.org_id),
+      ),
+    )
     .limit(1);
   if (bundles.length === 0) throw new Error(`viral.label: bundle ${target.bundleId} not found`);
   const bundle = bundles[0];
@@ -57,6 +64,8 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.postTarget.bundleId))
     .where(
       and(
+        eq(schema.postTarget.orgId, job.org_id),
+        eq(schema.contentBundle.orgId, job.org_id),
         eq(schema.contentBundle.modelId, bundle.modelId),
         eq(schema.postMetric.platform, target.platform),
         gte(schema.postMetric.collectedAt, windowStart),
@@ -100,6 +109,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     .from(schema.viralExemplar)
     .where(
       and(
+        eq(schema.viralExemplar.orgId, job.org_id),
         eq(schema.viralExemplar.modelId, bundle.modelId),
         eq(schema.viralExemplar.bundleId, bundle.id),
         eq(schema.viralExemplar.platform, target.platform),
@@ -122,7 +132,12 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     await tx
       .update(schema.viralExemplar)
       .set(exemplarValues)
-      .where(eq(schema.viralExemplar.id, existing[0].id));
+      .where(
+        and(
+          eq(schema.viralExemplar.id, existing[0].id),
+          eq(schema.viralExemplar.orgId, job.org_id),
+        ),
+      );
   } else {
     await tx.insert(schema.viralExemplar).values(exemplarValues);
   }

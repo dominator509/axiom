@@ -3,7 +3,7 @@
 // marks that job dead (DLQ). The Relay page push is channel-side and uses the
 // same binding resolution as relay.card.
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { Executor, ExecutorContext } from './context.js';
 
@@ -38,6 +38,8 @@ export const incidentNotify: Executor = async (ctx: ExecutorContext) => {
     await tx
       .update(schema.job)
       .set({ state: 'dead', lastError: `incident ${payload.incidentId}` })
-      .where(eq(schema.job.id, payload.jobId));
+      .where(
+        and(eq(schema.job.id, payload.jobId), eq(schema.job.orgId, job.org_id)),
+      );
   }
 };

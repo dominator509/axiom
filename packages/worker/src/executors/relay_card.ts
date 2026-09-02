@@ -33,7 +33,12 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
   const bundles = await tx
     .select()
     .from(schema.contentBundle)
-    .where(eq(schema.contentBundle.id, bundleId))
+    .where(
+      and(
+        eq(schema.contentBundle.id, bundleId),
+        eq(schema.contentBundle.orgId, job.org_id),
+      ),
+    )
     .limit(1);
   if (bundles.length === 0) throw new Error(`relay.card: bundle ${bundleId} not found`);
   const bundle = bundles[0];
@@ -44,6 +49,7 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
     .from(schema.relayBinding)
     .where(
       and(
+        eq(schema.relayBinding.orgId, job.org_id),
         eq(schema.relayBinding.modelId, bundle.modelId),
         eq(schema.relayBinding.enabled, true),
         ...(payload.channel ? [eq(schema.relayBinding.channel, payload.channel)] : []),
@@ -166,6 +172,11 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
     await tx
       .update(schema.relayCard)
       .set({ state: 'sent' })
-      .where(eq(schema.relayCard.id, relayCardRow.id));
+      .where(
+        and(
+          eq(schema.relayCard.id, relayCardRow.id),
+          eq(schema.relayCard.orgId, job.org_id),
+        ),
+      );
   }
 };

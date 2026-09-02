@@ -16,6 +16,7 @@ import {
 } from '@axiom/llm-gateway';
 import type { Executor, ExecutorContext } from './context.js';
 import { enqueueJob } from '../enqueue.js';
+import { asPlatform } from '../connection.js';
 
 export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   const { tx, job } = ctx;
@@ -71,12 +72,22 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   const models = await tx
     .select()
     .from(schema.modelProfile)
-    .where(eq(schema.modelProfile.id, modelId))
+    .where(
+      and(
+        eq(schema.modelProfile.id, modelId),
+        eq(schema.modelProfile.orgId, job.org_id),
+      ),
+    )
     .limit(1);
   if (models.length === 0) throw new Error(`content.generate: model ${modelId} not found`);
   const model = models[0];
 
-  const platform = payload.platform ?? 'instagram';
+  let platform: string;
+  try {
+    platform = asPlatform(payload.platform ?? 'instagram');
+  } catch {
+    throw new Error(`content.generate: unsupported target platform '${payload.platform}'`);
+  }
   const profile: PromptModelProfile = {
     id: model.id,
     displayName: model.displayName,

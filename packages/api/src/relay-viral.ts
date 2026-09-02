@@ -55,13 +55,16 @@ async function resolveTarget(
  */
 async function computeLabel(
   tx: any,
+  orgId: string,
   bundleId: string,
   platform: string,
 ): Promise<'viral' | 'strong' | 'baseline' | 'weak'> {
   const bundles = await tx
     .select({ modelId: schema.contentBundle.modelId })
     .from(schema.contentBundle)
-    .where(eq(schema.contentBundle.id, bundleId))
+    .where(
+      and(eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, orgId)),
+    )
     .limit(1);
   if (bundles.length === 0) throw new Error(`viral.ingest: bundle ${bundleId} not found`);
   const modelId = bundles[0].modelId;
@@ -74,6 +77,8 @@ async function computeLabel(
     .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.postTarget.bundleId))
     .where(
       and(
+        eq(schema.contentBundle.orgId, orgId),
+        eq(schema.postTarget.orgId, orgId),
         eq(schema.contentBundle.modelId, modelId),
         eq(schema.postMetric.platform, platform),
         gte(schema.postMetric.collectedAt, windowStart),
@@ -126,7 +131,7 @@ export const relayViralPersistence: ViralPersistence = {
         runAfter: new Date(),
       });
 
-      const label = await computeLabel(tx, target.bundleId, metrics.platform);
+      const label = await computeLabel(tx, orgId, target.bundleId, metrics.platform);
       return { label };
     });
   },

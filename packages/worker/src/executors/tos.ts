@@ -3,7 +3,7 @@
 // the Rust plane adds local vision on media). Writes the tos_report verdict
 // so the relay card carries pass/review/block (L3.3 §1, LBI-11).
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { PLATFORM_RULES, DEFAULT_PLATFORM_THRESHOLDS } from '@axiom/fanvue-mcp';
 import type { Executor, ExecutorContext } from './context.js';
@@ -72,7 +72,12 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
   const bundles = await tx
     .select()
     .from(schema.contentBundle)
-    .where(eq(schema.contentBundle.id, bundleId))
+    .where(
+      and(
+        eq(schema.contentBundle.id, bundleId),
+        eq(schema.contentBundle.orgId, ctx.job.org_id),
+      ),
+    )
     .limit(1);
   if (bundles.length === 0) throw new Error(`tos.scan: bundle ${bundleId} not found`);
   const bundle = bundles[0];
@@ -85,7 +90,12 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
   await tx
     .update(schema.contentBundle)
     .set({ tosReport: report, updatedAt: new Date() })
-    .where(eq(schema.contentBundle.id, bundleId));
+    .where(
+      and(
+        eq(schema.contentBundle.id, bundleId),
+        eq(schema.contentBundle.orgId, ctx.job.org_id),
+      ),
+    );
 
   // A pass/review verdict flows to the relay card (produced by relay.card).
   await enqueueJob(tx, {

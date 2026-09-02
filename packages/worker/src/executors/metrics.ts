@@ -2,7 +2,7 @@
 // Polls a published target's platform connector for current insights and
 // writes a post_metric row (Timescale-shaped). Producer for viral.label.
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { asPlatform, connectorForTarget } from '../connection.js';
 import { enqueueJob } from '../enqueue.js';
@@ -20,7 +20,9 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
   const targets = await tx
     .select()
     .from(schema.postTarget)
-    .where(eq(schema.postTarget.id, targetId))
+    .where(
+      and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
+    )
     .limit(1);
   if (targets.length === 0) throw new Error(`metrics.poll: target ${targetId} not found`);
   const target = targets[0];
@@ -35,7 +37,12 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
   const bundles = await tx
     .select({ modelId: schema.contentBundle.modelId })
     .from(schema.contentBundle)
-    .where(eq(schema.contentBundle.id, target.bundleId))
+    .where(
+      and(
+        eq(schema.contentBundle.id, target.bundleId),
+        eq(schema.contentBundle.orgId, job.org_id),
+      ),
+    )
     .limit(1);
   if (bundles.length === 0) {
     throw new Error(`metrics.poll: bundle ${target.bundleId} not found`);
@@ -50,7 +57,9 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
     await tx
       .update(schema.postTarget)
       .set({ connectionId: connection.id })
-      .where(eq(schema.postTarget.id, targetId));
+      .where(
+        and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
+      );
   }
 
   const collected = await connector.fetchMetrics(target.remoteId, 'day');

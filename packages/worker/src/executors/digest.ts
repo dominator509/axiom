@@ -38,6 +38,7 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
     JOIN post_target pt ON pt.id = pm.post_target_id
     JOIN content_bundle cb ON cb.id = pt.bundle_id
     WHERE cb.org_id = ${job.org_id}
+      AND pt.org_id = ${job.org_id}
       AND pm.collected_at >= ${since}
   `);
   const agg = Array.isArray(aggRows) ? aggRows[0] : (aggRows as { rows: unknown[] }).rows?.[0];
@@ -49,6 +50,7 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
     JOIN post_target pt ON pt.id = pm.post_target_id
     JOIN content_bundle cb ON cb.id = pt.bundle_id
     WHERE cb.org_id = ${job.org_id}
+      AND pt.org_id = ${job.org_id}
       AND pm.collected_at >= ${since}
     GROUP BY pm.platform
     ORDER BY views DESC
@@ -64,6 +66,7 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
     FROM viral_exemplar ve
     JOIN model_profile mp ON mp.id = ve.model_id
     WHERE mp.org_id = ${job.org_id}
+      AND ve.org_id = ${job.org_id}
       AND ve.created_at >= ${since}
   `);
   const labelRow = Array.isArray(labelRows)

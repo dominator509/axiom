@@ -32,7 +32,9 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const targets = await tx
     .select()
     .from(schema.postTarget)
-    .where(eq(schema.postTarget.id, targetId))
+    .where(
+      and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
+    )
     .limit(1);
   if (targets.length === 0) throw new Error(`publish.target: target ${targetId} not found`);
   const target = targets[0];
@@ -46,7 +48,12 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const bundles = await tx
     .select()
     .from(schema.contentBundle)
-    .where(eq(schema.contentBundle.id, target.bundleId))
+    .where(
+      and(
+        eq(schema.contentBundle.id, target.bundleId),
+        eq(schema.contentBundle.orgId, job.org_id),
+      ),
+    )
     .limit(1);
   if (bundles.length === 0) throw new Error(`publish.target: bundle ${target.bundleId} not found`);
   const bundle = bundles[0];
@@ -59,7 +66,9 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const models = await tx
     .select()
     .from(schema.modelProfile)
-    .where(eq(schema.modelProfile.id, bundle.modelId))
+    .where(
+      and(eq(schema.modelProfile.id, bundle.modelId), eq(schema.modelProfile.orgId, job.org_id)),
+    )
     .limit(1);
   if (models.length === 0) throw new Error(`publish.target: model ${bundle.modelId} not found`);
   const model = models[0];
@@ -85,7 +94,9 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
       await tx
         .update(schema.postTarget)
         .set({ state: 'published', remoteId: stored || null, error: null })
-        .where(eq(schema.postTarget.id, targetId));
+        .where(
+          and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
+        );
       return;
     }
   }
@@ -101,7 +112,9 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     await tx
       .update(schema.postTarget)
       .set({ connectionId: connection.id })
-      .where(eq(schema.postTarget.id, targetId));
+      .where(
+        and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
+      );
   }
   const caption = (bundle.captions as Record<string, string> | null)?.[platform] ?? '';
   const hashtags = (bundle.hashtags as string[] | null) ?? [];
@@ -158,7 +171,9 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     await tx
       .update(schema.postTarget)
       .set({ state: 'pending', remoteId: result.remoteId, error: result.error ?? null })
-      .where(eq(schema.postTarget.id, targetId));
+      .where(
+        and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
+      );
 
     // The current job already owns the canonical publish.target dedupe key.
     // Use the source job ID for the successor key so exactly one retry is
@@ -186,7 +201,9 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   await tx
     .update(schema.postTarget)
     .set({ state: 'published', remoteId: result.remoteId, error: null })
-    .where(eq(schema.postTarget.id, targetId));
+    .where(
+      and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
+    );
 
   if (idemKeyHex) {
     await tx
