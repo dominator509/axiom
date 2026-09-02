@@ -34,6 +34,7 @@ function makeMetrics(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   mockState.result = [];
+  mockState.results = [];
 });
 
 afterEach(() => {
@@ -62,6 +63,7 @@ describe('relayViralPersistence.persist', () => {
         id: 'target-1',
         bundleId: 'bundle-1',
         modelId: 'model-1',
+        postTargetId: 'target-1',
         engagementRate: 0.05,
       },
     ];
@@ -73,6 +75,36 @@ describe('relayViralPersistence.persist', () => {
     });
 
     // Single metric in window → variance 0 → perfScore 0 → baseline.
+    expect(result.label).toBe('baseline');
+  });
+
+  it('scores the ingested target instead of the newest unrelated post metric', async () => {
+    mockState.results = [
+      [],
+      [{ id: 'target-1', bundleId: 'bundle-1' }],
+      [],
+      [{ id: 'job-1' }],
+      [{ modelId: 'model-1' }],
+      [
+        {
+          postTargetId: 'other-target',
+          engagementRate: 0.03,
+        },
+        {
+          postTargetId: 'target-1',
+          engagementRate: 0.01,
+        },
+      ],
+    ];
+
+    const result = await relayViralPersistence.persist({
+      postId: 'post-1',
+      metrics: makeMetrics(),
+      orgId: ORG_ID,
+    });
+
+    // The target is below the window mean, so it must not inherit the
+    // unrelated newest row's positive score.
     expect(result.label).toBe('baseline');
   });
 });

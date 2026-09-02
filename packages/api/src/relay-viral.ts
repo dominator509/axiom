@@ -14,7 +14,7 @@
 
 import { and, eq, gte, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { enqueueJob, labelForZ } from '@axiom/worker';
+import { enqueueJob, scoreTargetEngagement, labelForZ } from '@axiom/worker';
 import { withOrgContext } from './routes/helpers.js';
 import type { ViralPersistence, ViralPersistInput, ViralListInput } from '@axiom/relay';
 
@@ -50,28 +50,30 @@ async function resolveTarget(
 
 /**
  * Compute the label with the same math as the viral.label executor
- * (z-score of the newest engagementRate against the 72h window for the
+ * (z-score of this target's engagementRate against the 72h window for the
  * target's (model, platform)).
  */
 async function computeLabel(
   tx: any,
   orgId: string,
   bundleId: string,
+  targetId: string,
   platform: string,
 ): Promise<'viral' | 'strong' | 'baseline' | 'weak'> {
   const bundles = await tx
     .select({ modelId: schema.contentBundle.modelId })
     .from(schema.contentBundle)
-    .where(
-      and(eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, orgId)),
-    )
+    .where(and(eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, orgId)))
     .limit(1);
   if (bundles.length === 0) throw new Error(`viral.ingest: bundle ${bundleId} not found`);
   const modelId = bundles[0].modelId;
 
   const windowStart = new Date(Date.now() - LABEL_WINDOW_MS);
   const history = await tx
-    .select({ engagementRate: schema.postMetric.engagementRate })
+    .select({
+      postTargetId: schema.postMetric.postTargetId,
+      engagementRate: schema.postMetric.engagementRate,
+    })
     .from(schema.postMetric)
     .innerJoin(schema.postTarget, eq(schema.postTarget.id, schema.postMetric.postTargetId))
     .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.postTarget.bundleId))
@@ -86,14 +88,11 @@ async function computeLabel(
     )
     .orderBy(desc(schema.postMetric.collectedAt));
 
-  if (history.length === 0) return 'baseline';
-  const values = history.map((h: { engagementRate: number }) => h.engagementRate);
-  const mean = values.reduce((a: number, b: number) => a + b, 0) / values.length;
-  const variance = values.reduce((a: number, b: number) => a + (b - mean) ** 2, 0) / values.length;
-  const std = Math.sqrt(variance);
-  const own = values[0] ?? 0;
-  const perfScore = std === 0 ? 0 : (own - mean) / std;
-  return labelForZ(perfScore);
+  try {
+    return labelForZ(scoreTargetEngagement(history, targetId).perfScore);
+  } catch (err) {
+    throw new Error(`viral.ingest: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 export const relayViralPersistence: ViralPersistence = {
@@ -131,7 +130,7 @@ export const relayViralPersistence: ViralPersistence = {
         runAfter: new Date(),
       });
 
-      const label = await computeLabel(tx, orgId, target.bundleId, metrics.platform);
+      const label = await computeLabel(tx, orgId, target.bundleId, target.id, metrics.platform);
       return { label };
     });
   },

@@ -96,3 +96,4 @@
 2026-09-02T18:45:35Z | [P1][AUTH] persist OAuth state in encrypted HttpOnly cookies and align Threads callback mount
 2026-09-02T18:55:39Z | [P1][CI] execute privileged egress namespace and WireGuard integration tests
 2026-09-02T19:16:35Z | [P1][WORKER] fail closed when mandatory Rust pre-post isolation is unavailable
+2026-09-02T19:38:47Z | [P1][RELAY/WORKER] score viral metrics for the requested target

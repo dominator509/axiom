@@ -13,11 +13,45 @@ import type { Executor, ExecutorContext } from './context.js';
 
 const LABEL_THRESHOLDS = { viral: 2, strong: 1, baseline: -1, weak: -Infinity };
 
+export interface ViralMetricSample {
+  postTargetId: string;
+  engagementRate: number;
+}
+
+export interface ViralScore<T extends ViralMetricSample = ViralMetricSample> {
+  own: T;
+  mean: number;
+  std: number;
+  perfScore: number;
+}
+
 export function labelForZ(z: number): 'viral' | 'strong' | 'baseline' | 'weak' {
   if (z >= LABEL_THRESHOLDS.viral) return 'viral';
   if (z >= LABEL_THRESHOLDS.strong) return 'strong';
   if (z >= LABEL_THRESHOLDS.baseline) return 'baseline';
   return 'weak';
+}
+
+/** Score the requested target against the complete model/platform window. */
+export function scoreTargetEngagement<T extends ViralMetricSample>(
+  history: T[],
+  targetId: string,
+): ViralScore<T> {
+  if (history.length === 0) {
+    throw new Error('no post_metric history for (model, platform) window');
+  }
+
+  const own = history.find((sample) => sample.postTargetId === targetId);
+  if (!own) {
+    throw new Error(`no post_metric history for target ${targetId} in window`);
+  }
+
+  const values = history.map((sample) => sample.engagementRate);
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+  const std = Math.sqrt(variance);
+  const perfScore = std === 0 ? 0 : (own.engagementRate - mean) / std;
+  return { own, mean, std, perfScore };
 }
 
 export const viralLabel: Executor = async (ctx: ExecutorContext) => {
@@ -29,9 +63,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
   const targets = await tx
     .select()
     .from(schema.postTarget)
-    .where(
-      and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
-    )
+    .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)))
     .limit(1);
   if (targets.length === 0) throw new Error(`viral.label: target ${targetId} not found`);
   const target = targets[0];
@@ -40,10 +72,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     .select()
     .from(schema.contentBundle)
     .where(
-      and(
-        eq(schema.contentBundle.id, target.bundleId),
-        eq(schema.contentBundle.orgId, job.org_id),
-      ),
+      and(eq(schema.contentBundle.id, target.bundleId), eq(schema.contentBundle.orgId, job.org_id)),
     )
     .limit(1);
   if (bundles.length === 0) throw new Error(`viral.label: bundle ${target.bundleId} not found`);
@@ -53,6 +82,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
   const windowStart = new Date(Date.now() - 72 * 3600_000);
   const history = await tx
     .select({
+      postTargetId: schema.postMetric.postTargetId,
       views: schema.postMetric.views,
       likes: schema.postMetric.likes,
       shares: schema.postMetric.shares,
@@ -73,17 +103,14 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     )
     .orderBy(desc(schema.postMetric.collectedAt));
 
-  if (history.length === 0) {
-    throw new Error('viral.label: no post_metric history for (model, platform) window');
-  }
-
   // 2. Perf score: z-score of the target's own engagement against the window.
-  const values = history.map((h: { engagementRate: number }) => h.engagementRate);
-  const mean = values.reduce((a: number, b: number) => a + b, 0) / values.length;
-  const variance = values.reduce((a: number, b: number) => a + (b - mean) ** 2, 0) / values.length;
-  const std = Math.sqrt(variance);
-  const own = history[0]?.engagementRate ?? 0;
-  const perfScore = std === 0 ? 0 : (own - mean) / std;
+  let score: ViralScore<(typeof history)[number]>;
+  try {
+    score = scoreTargetEngagement(history, targetId);
+  } catch (err) {
+    throw new Error(`viral.label: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const { own, mean, std, perfScore } = score;
 
   // 3. Label (L3.5 §1.3).
   const label = labelForZ(perfScore);
@@ -153,11 +180,11 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
       perfScore,
       recipe: features,
       realizedMetrics: {
-        views: history[0]?.views ?? 0,
-        likes: history[0]?.likes ?? 0,
-        shares: history[0]?.shares ?? 0,
-        comments: history[0]?.comments ?? 0,
-        engagementRate: history[0]?.engagementRate ?? 0,
+        views: own.views,
+        likes: own.likes,
+        shares: own.shares,
+        comments: own.comments,
+        engagementRate: own.engagementRate,
       },
     })
     .returning();
