@@ -54,6 +54,14 @@ describe('validatePublish', () => {
     expect(report.errors[0].field).toBe('mediaUrls');
   });
 
+  it('allows empty mediaUrls when text publishing is declared', () => {
+    const textCap: ConnectorCapability = { ...cap, media: ['image', 'video', 'text'] };
+    const report = validatePublish(input({ mediaUrls: [] }), textCap);
+    expect(report.valid).toBe(true);
+    expect(report.tosVerdict).toBe('pass');
+    expect(report.errors).toEqual([]);
+  });
+
   it('blocks when the media count exceeds maxMediaCount', () => {
     const report = validatePublish(
       input({

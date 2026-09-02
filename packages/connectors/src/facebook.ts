@@ -52,7 +52,12 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
   capability(): ConnectorCapability {
     return {
       publish: true,
-      media: ['image' as MediaType, 'video' as MediaType, 'story' as MediaType],
+      media: [
+        'image' as MediaType,
+        'video' as MediaType,
+        'story' as MediaType,
+        'text' as MediaType,
+      ],
       maxMediaBytes: 4_294_967_296, // 4 GB
       maxMediaCount: 10,
       caption: true,

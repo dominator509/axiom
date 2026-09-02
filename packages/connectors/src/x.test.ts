@@ -39,7 +39,7 @@ describe('XConnector basics', () => {
     const c = new XConnector(AUTH);
     const cap = c.capability();
     expect(cap.publish).toBe(true);
-    expect(cap.media).toEqual(['image', 'video']);
+    expect(cap.media).toEqual(['image', 'video', 'text']);
     expect(cap.maxMediaBytes).toBe(536_870_912);
     expect(cap.maxMediaCount).toBe(4);
     expect(cap.caption).toBe(true);
@@ -73,15 +73,12 @@ describe('validate', () => {
     expect(report.tosVerdict).toBe('pass');
   });
 
-  it('errors when mediaUrls is empty', async () => {
+  it('allows text-only publishing when mediaUrls is empty', async () => {
     const c = new XConnector(AUTH);
     const report = await c.validate(input());
-    expect(report.valid).toBe(false);
-    expect(report.errors).toContainEqual({
-      field: 'mediaUrls',
-      message: 'At least one media URL is required.',
-      severity: 'error',
-    });
+    expect(report.valid).toBe(true);
+    expect(report.errors).toEqual([]);
+    expect(report.tosVerdict).toBe('pass');
   });
 
   it('errors when the caption exceeds maxCaptionLength', async () => {
@@ -113,7 +110,8 @@ describe('validate', () => {
     expect(report.valid).toBe(true);
     expect(report.warnings).toContainEqual({
       field: 'mediaUrls[0]',
-      message: 'Media type "audio" is not in the connector\'s supported types (image, video).',
+      message:
+        'Media type "audio" is not in the connector\'s supported types (image, video, text).',
       severity: 'warning',
     });
     expect(report.tosVerdict).toBe('flag');

@@ -97,3 +97,4 @@
 2026-09-02T18:55:39Z | [P1][CI] execute privileged egress namespace and WireGuard integration tests
 2026-09-02T19:16:35Z | [P1][WORKER] fail closed when mandatory Rust pre-post isolation is unavailable
 2026-09-02T19:38:47Z | [P1][RELAY/WORKER] score viral metrics for the requested target
+2026-09-02T19:54:03Z | [P1][CONNECTOR] allow declared text-only publish modes

@@ -37,7 +37,7 @@ describe('FacebookConnector basics', () => {
     const c = new FacebookConnector(AUTH);
     const cap = c.capability();
     expect(cap.publish).toBe(true);
-    expect(cap.media).toEqual(['image', 'video', 'story']);
+    expect(cap.media).toEqual(['image', 'video', 'story', 'text']);
     expect(cap.maxMediaBytes).toBe(4_294_967_296);
     expect(cap.maxMediaCount).toBe(10);
     expect(cap.caption).toBe(true);
@@ -64,16 +64,12 @@ describe('validate', () => {
     expect(report.tosVerdict).toBe('pass');
   });
 
-  it('errors when mediaUrls is empty', async () => {
+  it('allows text-only publishing when mediaUrls is empty', async () => {
     const c = new FacebookConnector(AUTH);
     const report = await c.validate(input({ mediaUrls: [] }));
-    expect(report.valid).toBe(false);
-    expect(report.errors).toContainEqual({
-      field: 'mediaUrls',
-      message: 'At least one media URL is required.',
-      severity: 'error',
-    });
-    expect(report.tosVerdict).toBe('block');
+    expect(report.valid).toBe(true);
+    expect(report.errors).toEqual([]);
+    expect(report.tosVerdict).toBe('pass');
   });
 
   it('errors when the caption exceeds maxCaptionLength', async () => {
@@ -105,7 +101,8 @@ describe('validate', () => {
     expect(report.valid).toBe(true);
     expect(report.warnings).toContainEqual({
       field: 'mediaUrls[0]',
-      message: 'Media type "gif" is not in the connector\'s supported types (image, video, story).',
+      message:
+        'Media type "gif" is not in the connector\'s supported types (image, video, story, text).',
       severity: 'warning',
     });
   });

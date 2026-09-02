@@ -54,7 +54,7 @@ function detectMediaType(url: string): MediaType {
  * Validate a publish input against a connector's capability declaration.
  *
  * Checks:
- * - Empty mediaUrls
+ * - Empty mediaUrls unless the connector declares text-only publishing
  * - Per-media size against maxMediaBytes
  * - Media type against supported media[]
  * - Empty/missing caption against caption requirement
@@ -71,11 +71,13 @@ export function validatePublish(
   // ── Media URL checks ──────────────────────────────────────
 
   if (!input.mediaUrls || input.mediaUrls.length === 0) {
-    errors.push({
-      field: 'mediaUrls',
-      message: 'At least one media URL is required.',
-      severity: 'error',
-    });
+    if (!cap.media.includes('text')) {
+      errors.push({
+        field: 'mediaUrls',
+        message: 'At least one media URL is required.',
+        severity: 'error',
+      });
+    }
   } else {
     // Cap the number of checked items to the actual URL count
     for (let i = 0; i < input.mediaUrls.length; i++) {

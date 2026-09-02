@@ -76,7 +76,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
   capability(): ConnectorCapability {
     return {
       publish: true,
-      media: ['image' as MediaType, 'video' as MediaType],
+      media: ['image' as MediaType, 'video' as MediaType, 'text' as MediaType],
       maxMediaBytes: 1_073_741_824, // 1 GB
       maxMediaCount: 1,
       caption: true,

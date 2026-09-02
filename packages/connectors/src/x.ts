@@ -67,7 +67,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
   capability(): ConnectorCapability {
     return {
       publish: true,
-      media: ['image' as MediaType, 'video' as MediaType],
+      media: ['image' as MediaType, 'video' as MediaType, 'text' as MediaType],
       maxMediaBytes: 536_870_912, // 512 MB
       maxMediaCount: 4,
       caption: true,
