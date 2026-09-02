@@ -37,6 +37,15 @@ export interface WorkerStats {
 
 const JOB_LEASE_HEARTBEAT_MS = 5 * 60_000;
 
+function ownedRunningJob(job: JobRow, workerId: string) {
+  return and(
+    eq(schema.job.id, job.id),
+    eq(schema.job.orgId, job.org_id),
+    eq(schema.job.state, 'running'),
+    eq(schema.job.lockedBy, workerId),
+  );
+}
+
 /** Renew a claimed job's lease without holding the executor transaction open. */
 async function renewJobLease(job: JobRow, workerId: string): Promise<void> {
   await db.transaction(async (tx) => {
@@ -44,14 +53,7 @@ async function renewJobLease(job: JobRow, workerId: string): Promise<void> {
     await tx
       .update(schema.job)
       .set({ lockedAt: new Date() })
-      .where(
-        and(
-          eq(schema.job.id, job.id),
-          eq(schema.job.orgId, job.org_id),
-          eq(schema.job.state, 'running'),
-          eq(schema.job.lockedBy, workerId),
-        ),
-      );
+      .where(ownedRunningJob(job, workerId));
   });
 }
 
@@ -108,7 +110,7 @@ export async function processJob(
           lockedBy: null,
           lockedAt: null,
         })
-        .where(and(eq(schema.job.id, job.id), eq(schema.job.orgId, job.org_id)));
+        .where(ownedRunningJob(job, workerId));
       return 'done' as const;
     });
     return result;
@@ -125,7 +127,7 @@ export async function processJob(
             lockedBy: null,
             lockedAt: null,
           })
-          .where(and(eq(schema.job.id, job.id), eq(schema.job.orgId, job.org_id)));
+          .where(ownedRunningJob(job, workerId));
       });
       return 'parked';
     }
@@ -140,7 +142,7 @@ export async function processJob(
         await tx
           .update(schema.job)
           .set({ state: 'dead', lastError: message, lockedBy: null, lockedAt: null })
-          .where(and(eq(schema.job.id, job.id), eq(schema.job.orgId, job.org_id)));
+          .where(ownedRunningJob(job, workerId));
       });
       return 'dead';
     }
@@ -158,7 +160,7 @@ export async function processJob(
           lockedBy: null,
           lockedAt: null,
         })
-        .where(and(eq(schema.job.id, job.id), eq(schema.job.orgId, job.org_id)));
+        .where(ownedRunningJob(job, workerId));
     });
     return 'retry';
   } finally {

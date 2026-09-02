@@ -88,3 +88,4 @@
 2026-09-02T17:07:41Z | [P1][CI] probe dashboard login route over explicit IPv4 GET
 2026-09-02T17:21:01Z | [P1][CONNECTOR] align TikTok Direct Post uploads with ranged chunk contract
 2026-09-02T17:39:18Z | [P1][WORKER] reclaim stale queue leases and renew live claims
+2026-09-02T17:51:06Z | [P1][WORKER] guard terminal job transitions by active lease owner
