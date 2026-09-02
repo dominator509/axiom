@@ -94,3 +94,4 @@
 2026-09-02T18:22:16Z | [P1][MOBILE] normalize persisted Set-Cookie into valid request cookies
 2026-09-02T18:25:30Z | [P1][WORKER] reject terminal transitions after lease ownership loss
 2026-09-02T18:45:35Z | [P1][AUTH] persist OAuth state in encrypted HttpOnly cookies and align Threads callback mount
+2026-09-02T18:55:39Z | [P1][CI] execute privileged egress namespace and WireGuard integration tests

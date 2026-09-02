@@ -152,11 +152,23 @@ jobs:
             exit 1
           fi
 
-      - name: Egress test stub (requires sudo — skipped in CI)
+      - name: Install privileged egress test dependencies
         if: matrix.task == 'test'
         run: |
-          echo "Egress integration test requires sudo and network namespace setup."
-          echo "This test is skipped in CI. Run manually with: sudo cargo test --manifest-path crates/egress-plane/Cargo.toml"
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y iproute2 iptables wireguard-tools
+          command -v ip
+          command -v iptables
+          command -v wg
+          sudo ip netns list
+        shell: bash
+
+      - name: Run privileged egress integration tests
+        if: matrix.task == 'test'
+        run: |
+          sudo -E env "PATH=$PATH" cargo test \
+            --manifest-path crates/egress-plane/Cargo.toml \
+            --test egress_test -- --ignored --test-threads=1
         shell: bash
 
       # ═══════════════════════════════════════════════════════════
