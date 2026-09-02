@@ -195,3 +195,60 @@ jobs:
         run: |
           docker build --file infra/Dockerfile.hono --tag axiom-hono:ci .
           docker build --file infra/Dockerfile.next --tag axiom-dashboard:ci .
+
+      - name: Smoke-test deployment containers
+        if: matrix.task == 'container'
+        run: |
+          set -euo pipefail
+
+          cleanup() {
+            docker rm --force axiom-hono-ci axiom-dashboard-ci >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          wait_for_health() {
+            local container="$1"
+            for _ in $(seq 1 45); do
+              status="$(docker inspect --format '{{.State.Health.Status}}' "$container" 2>/dev/null || true)"
+              case "$status" in
+                healthy)
+                  echo "$container: healthy"
+                  return 0
+                  ;;
+                unhealthy)
+                  echo "$container: unhealthy"
+                  docker logs "$container"
+                  return 1
+                  ;;
+              esac
+              if [ "$(docker inspect --format '{{.State.Status}}' "$container")" = "exited" ]; then
+                echo "$container: exited before becoming healthy"
+                docker logs "$container"
+                return 1
+              fi
+              sleep 2
+            done
+            echo "$container: healthcheck timeout"
+            docker logs "$container"
+            return 1
+          }
+
+          ci_auth_value='ci-authentication-value-012345678901'
+          ci_relay_value='ci-relay-value-012345678901234567'
+
+          docker run --detach --name axiom-hono-ci --network host \
+            --env NODE_ENV=production \
+            --env API_HOST=0.0.0.0 \
+            --env DATABASE_URL=postgresql://axiom:changeme@127.0.0.1:5432/axiom_test \
+            --env BETTER_AUTH_SECRET="$ci_auth_value" \
+            --env BETTER_AUTH_URL=http://127.0.0.1:3001 \
+            --env RELAY_SECRET="$ci_relay_value" \
+            axiom-hono:ci
+          docker run --detach --name axiom-dashboard-ci --network host \
+            --env NODE_ENV=production \
+            --env PORT=3000 \
+            --env HOSTNAME=0.0.0.0 \
+            axiom-dashboard:ci
+
+          wait_for_health axiom-hono-ci
+          wait_for_health axiom-dashboard-ci
