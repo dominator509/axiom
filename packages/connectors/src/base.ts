@@ -26,6 +26,13 @@ export const COMMON_METRICS: MetricName[] = ['likes', 'comments', 'shares', 'vie
 /** Maximum log entries kept per connector */
 const MAX_LOG = 100;
 
+/**
+ * Bound every provider request so a stalled upstream cannot occupy a worker
+ * forever. This is long enough for the largest supported upload chunk while
+ * remaining below the worker's stale-lease recovery window.
+ */
+export const CONNECTOR_REQUEST_TIMEOUT_MS = 5 * 60_000;
+
 /** Structured log entry */
 export interface LogEntry {
   timestamp: string;
@@ -61,7 +68,14 @@ export abstract class BaseConnector implements SocialConnector {
     this.displayName = displayName;
     this.publishMode = publishMode;
     this.auth = auth;
-    this.fetchImpl = fetchImpl;
+    const transport = fetchImpl;
+    this.fetchImpl = (input, init) => {
+      const timeoutSignal = AbortSignal.timeout(CONNECTOR_REQUEST_TIMEOUT_MS);
+      const signal = init?.signal
+        ? AbortSignal.any([init.signal, timeoutSignal])
+        : timeoutSignal;
+      return transport(input, { ...init, signal });
+    };
   }
 
   // ── Abstract methods ──

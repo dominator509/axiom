@@ -89,3 +89,4 @@
 2026-09-02T17:21:01Z | [P1][CONNECTOR] align TikTok Direct Post uploads with ranged chunk contract
 2026-09-02T17:39:18Z | [P1][WORKER] reclaim stale queue leases and renew live claims
 2026-09-02T17:51:06Z | [P1][WORKER] guard terminal job transitions by active lease owner
+2026-09-02T18:01:47Z | [P1][CONNECTOR] bound provider requests with finite transport deadlines

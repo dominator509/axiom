@@ -3,7 +3,7 @@
 // logging with MAX_LOG cap, and the HTTP helpers (apiGet/apiPost/apiUpload/apiDelete).
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { BaseConnector } from './base.js';
+import { BaseConnector, CONNECTOR_REQUEST_TIMEOUT_MS } from './base.js';
 import type {
   ConnectorAuth,
   ConnectorPublishInput,
@@ -72,6 +72,9 @@ class TestConnector extends BaseConnector {
   }
   del<T>(url: string, headers?: Record<string, string>) {
     return this.apiDelete<T>(url, headers);
+  }
+  request(input: Parameters<typeof fetch>[0], init?: RequestInit) {
+    return this.fetchImpl(input, init);
   }
   writeLog(level: 'info' | 'warn' | 'error' | 'debug', action: string, message: string) {
     this.log(level, action, message);
@@ -321,5 +324,22 @@ describe('apiDelete', () => {
     await expect(c.del('https://api.example.com/v1/things/1')).rejects.toThrow(
       'API DELETE https://api.example.com/v1/things/1 failed: 404 Not Found',
     );
+  });
+});
+
+describe('provider request deadline', () => {
+  it('passes a finite timeout signal to the provider transport', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new TestConnector();
+    await c.request('https://api.example.com/v1/things');
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(init.signal?.aborted).toBe(false);
+    expect(CONNECTOR_REQUEST_TIMEOUT_MS).toBe(5 * 60_000);
   });
 });

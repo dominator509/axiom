@@ -1,6 +1,6 @@
 // ─── Connectors Barrel Export ───
 
-export { BaseConnector } from './base.js';
+export { BaseConnector, CONNECTOR_REQUEST_TIMEOUT_MS } from './base.js';
 export type { LogEntry } from './base.js';
 export { createConnector } from './factory.js';
 export { capabilityNames } from './capabilities.js';
