@@ -2,10 +2,22 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
   beforeError: null as Error | null,
+  auditRows: null as Array<Record<string, unknown>> | null,
 }));
 
 vi.mock('@axiom/db', () => ({
   schema: { prePostRun: {} },
+  db: {
+    transaction: async (callback: (tx: unknown) => Promise<unknown>) =>
+      callback({
+        execute: async () => undefined,
+        insert: () => ({
+          values: async (row: Record<string, unknown>) => {
+            mockState.auditRows?.push(row);
+          },
+        }),
+      }),
+  },
 }));
 
 vi.mock('@axiom/fanvue-mcp', () => ({
@@ -27,6 +39,7 @@ import { mediaPlaneEngine, runPrePostBefore } from './pre_post.js';
 
 afterEach(() => {
   mockState.beforeError = null;
+  mockState.auditRows = null;
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
@@ -81,9 +94,11 @@ describe('runPrePostBefore', () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('connection refused')));
     const rows: Array<Record<string, unknown>> = [];
+    const transactionRows: Array<Record<string, unknown>> = [];
+    mockState.auditRows = rows;
 
     await expect(
-      runPrePostBefore({ ...context, tx: makeTx(rows) } as never, input),
+      runPrePostBefore({ ...context, tx: makeTx(transactionRows) } as never, input),
     ).rejects.toThrow('pre-post.before failed: Rust media plane unavailable');
 
     expect(rows[0]).toMatchObject({
@@ -91,6 +106,7 @@ describe('runPrePostBefore', () => {
       script: 'pre-post.before (unavailable)',
       error: 'Rust media plane unavailable (connection refused)',
     });
+    expect(transactionRows).toEqual([]);
   });
 
   it('records hook failures and blocks publication', async () => {
@@ -98,9 +114,11 @@ describe('runPrePostBefore', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));
     mockState.beforeError = new Error('hook rejected input');
     const rows: Array<Record<string, unknown>> = [];
+    const transactionRows: Array<Record<string, unknown>> = [];
+    mockState.auditRows = rows;
 
     await expect(
-      runPrePostBefore({ ...context, tx: makeTx(rows) } as never, input),
+      runPrePostBefore({ ...context, tx: makeTx(transactionRows) } as never, input),
     ).rejects.toThrow('pre-post.before failed: hook rejected input');
 
     expect(rows[0]).toMatchObject({
@@ -108,6 +126,7 @@ describe('runPrePostBefore', () => {
       script: 'pre-post.before (rust-media-plane)',
       error: 'hook rejected input',
     });
+    expect(transactionRows).toEqual([]);
   });
 
   it('fails when media staging reports a missing input', async () => {
@@ -125,14 +144,17 @@ describe('runPrePostBefore', () => {
         ),
     );
     const rows: Array<Record<string, unknown>> = [];
+    const transactionRows: Array<Record<string, unknown>> = [];
+    mockState.auditRows = rows;
 
     await expect(
-      runPrePostBefore({ ...context, tx: makeTx(rows) } as never, {
+      runPrePostBefore({ ...context, tx: makeTx(transactionRows) } as never, {
         ...input,
         mediaUrls: ['asset://asset-1'],
       }),
     ).rejects.toThrow('media-plane probe reported that the input is missing');
 
     expect(rows[0]).toMatchObject({ status: 'failed', error: expect.any(String) });
+    expect(transactionRows).toEqual([]);
   });
 });

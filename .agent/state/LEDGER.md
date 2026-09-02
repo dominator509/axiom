@@ -98,3 +98,4 @@
 2026-09-02T19:16:35Z | [P1][WORKER] fail closed when mandatory Rust pre-post isolation is unavailable
 2026-09-02T19:38:47Z | [P1][RELAY/WORKER] score viral metrics for the requested target
 2026-09-02T19:54:03Z | [P1][CONNECTOR] allow declared text-only publish modes
+2026-09-02T20:08:33Z | [P1][WORKER] persist failed pre-post audit runs outside rolled-back publish transactions

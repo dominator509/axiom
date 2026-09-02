@@ -5,7 +5,8 @@
 // media there (Rust-isolated execution, L2.10 v2). Every run is recorded in
 // `pre_post_run` for auditability — status, timing, input/output, error.
 
-import { schema } from '@axiom/db';
+import { db, schema } from '@axiom/db';
+import { sql } from 'drizzle-orm';
 import { PrePostHook } from '@axiom/fanvue-mcp';
 import type { Platform, PublishResult } from '@axiom/core';
 import type { ConnectorPublishInput } from '@axiom/connectors';
@@ -140,7 +141,7 @@ export async function runPrePostBefore(
   }
 
   const runId = crypto.randomUUID();
-  await tx.insert(schema.prePostRun).values({
+  const run = {
     id: runId,
     orgId: job.org_id,
     modelId: input.modelId,
@@ -152,7 +153,28 @@ export async function runPrePostBefore(
     error,
     startedAt,
     finishedAt: new Date(),
-  });
+  };
+
+  if (error) {
+    // The caller deliberately throws after this point, which rolls back its
+    // publish transaction. Keep the failed pre-post record in a separate
+    // org-scoped transaction so isolation and hook failures remain auditable.
+    try {
+      await db.transaction(async (auditTx) => {
+        await auditTx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
+        await auditTx.insert(schema.prePostRun).values(run);
+      });
+    } catch (auditError) {
+      // Preserve the original fail-closed error. The worker's error transition
+      // still records the failure on the job if the audit transaction is down.
+      console.error(
+        '[worker] failed to persist pre-post failure audit:',
+        auditError instanceof Error ? auditError.message : String(auditError),
+      );
+    }
+  } else {
+    await tx.insert(schema.prePostRun).values(run);
+  }
 
   if (error) {
     throw new Error(`pre-post.before failed: ${error}`);
