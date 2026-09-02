@@ -94,6 +94,8 @@ describe('createRouter — POST /chat', () => {
     expect(body.detail).not.toContain('OPENAI_API_KEY');
     expect(body.status).toBe(502);
     expect(body.title).toBe('Bad Gateway');
+    expect(res.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
+    expect(res.headers.get('X-Correlation-ID')).toMatch(/^[A-Za-z0-9-]{8,64}$/);
   });
 
   it('returns the chat result for a valid request', async () => {
@@ -165,7 +167,7 @@ describe('createRouter — POST /chat', () => {
     );
   });
 
-  it('accepts an empty messages array (source gap: schema has no min(1))', async () => {
+  it('rejects an empty messages array before provider work', async () => {
     const gateway = makeGatewayStub();
     const app = createRouter(gateway);
     const res = await app.request('/chat', {
@@ -173,11 +175,8 @@ describe('createRouter — POST /chat', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: [] }),
     });
-    // The chatBodySchema does not enforce a minimum message count, so an
-    // empty array passes validation and reaches the gateway. Documented as a
-    // validation gap; asserting the real behavior here.
-    expect(res.status).toBe(200);
-    expect(gateway.chat).toHaveBeenCalledWith([], expect.anything());
+    expect(res.status).toBe(400);
+    expect(gateway.chat).not.toHaveBeenCalled();
   });
 
   it('rejects messages with an invalid role', async () => {
@@ -187,6 +186,31 @@ describe('createRouter — POST /chat', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: [{ role: 'admin', content: 'x' }] }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects token-killer requests for unsupported platforms', async () => {
+    const gateway = makeGatewayStub();
+    const app = createRouter(gateway);
+    const res = await app.request('/chat/tokenkiller', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'hi' }],
+        tokenkiller: {
+          modelId: 'model-1',
+          platform: 'myspace',
+          task: { modelId: 'model-1', platform: 'instagram' },
+          profile: {
+            id: 'profile-1',
+            displayName: 'Creator',
+            handle: 'creator',
+            avatarUrl: null,
+            bio: null,
+          },
+        },
+      }),
     });
     expect(res.status).toBe(400);
   });

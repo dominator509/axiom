@@ -105,3 +105,4 @@
 2026-09-02T21:00:53Z | AUDIT_HARDEN health registry now requires injected dependency probes and fails closed when unconfigured; verify: ok
 2026-09-02T21:12:04Z | [P3][RELAY] normalize in-memory viral fallback feature vectors before cosine use; relay 257/257 and verify: ok
 2026-09-02T21:38:22Z | [P1][API/AUTH] emit RFC-7807 problem+json responses and preserve correlation/retry headers; focused tests, typecheck, lint passed; full local matrix requires PostgreSQL
+2026-09-02T21:53:53Z | [P1][LLM] reject empty chat messages and unsupported TOKENKILLER platforms; normalize provider/subscription failures to RFC-7807 problem+json; LLM tests 244/244, typecheck/build/lint passed

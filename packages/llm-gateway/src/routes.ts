@@ -3,6 +3,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
+import { randomUUID } from 'node:crypto';
 import type { LLMGateway } from './gateway.js';
 import { ProviderError } from './providers/types.js';
 import { PLATFORMS } from './prompts.js';
@@ -31,13 +32,40 @@ function statusTitle(status: number): string {
   return titles[status] ?? 'Error';
 }
 
+function problemResponse(
+  c: { req: { header(name: string): string | undefined } },
+  status: number,
+  detail: string,
+  provider?: string,
+): Response {
+  const incoming = c.req.header('X-Correlation-ID');
+  const correlationId = incoming && /^[A-Za-z0-9-]{8,64}$/.test(incoming) ? incoming : randomUUID();
+  const body = {
+    type: 'about:blank',
+    title: statusTitle(status),
+    status,
+    detail,
+    correlation_id: correlationId,
+    ...(provider ? { provider } : {}),
+  };
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/problem+json; charset=UTF-8',
+      'X-Correlation-ID': correlationId,
+    },
+  });
+}
+
 const chatBodySchema = z.object({
-  messages: z.array(
-    z.object({
-      role: z.enum(['system', 'user', 'assistant']),
-      content: z.string(),
-    }),
-  ),
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(['system', 'user', 'assistant']),
+        content: z.string(),
+      }),
+    )
+    .min(1, 'at least one message is required'),
   model: z.string().optional(),
   temperature: z.number().min(0).max(2).optional(),
   maxTokens: z.number().int().positive().optional(),
@@ -54,7 +82,7 @@ const subscriptionProviderSchema = z.enum(['openai', 'anthropic', 'grok']);
 const tokenkillerBodySchema = chatBodySchema.extend({
   tokenkiller: z.object({
     modelId: z.string().min(1),
-    platform: z.string().min(1),
+    platform: z.enum(PLATFORMS),
     exemplars: z
       .array(
         z.object({
@@ -121,15 +149,11 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
       const status = (err instanceof ProviderError ? err.status : 502) as
         400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504;
       const provider = err instanceof ProviderError ? err.provider : undefined;
-      return c.json(
-        {
-          type: 'about:blank',
-          title: statusTitle(status),
-          status,
-          detail: 'The requested LLM provider could not complete the request',
-          ...(provider ? { provider } : {}),
-        },
+      return problemResponse(
+        c,
         status,
+        'The requested LLM provider could not complete the request',
+        provider,
       );
     }
   });
@@ -154,15 +178,11 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
       const status = (err instanceof ProviderError ? err.status : 502) as
         400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504;
       const provider = err instanceof ProviderError ? err.provider : undefined;
-      return c.json(
-        {
-          type: 'about:blank',
-          title: statusTitle(status),
-          status,
-          detail: 'The requested LLM provider could not complete the request',
-          ...(provider ? { provider } : {}),
-        },
+      return problemResponse(
+        c,
         status,
+        'The requested LLM provider could not complete the request',
+        provider,
       );
     }
   });
@@ -215,18 +235,18 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
   // GET /providers — list available providers
   router.get('/subscriptions/:provider', async (c) => {
     const parsed = subscriptionProviderSchema.safeParse(c.req.param('provider'));
-    if (!parsed.success) return c.json({ error: 'Unsupported subscription provider' }, 404);
+    if (!parsed.success) return problemResponse(c, 404, 'Unsupported subscription provider');
     try {
       return c.json(await gateway.getSubscriptionStatus(parsed.data, c.get('userId')));
     } catch (err) {
       const status = (err instanceof ProviderError ? err.status : 502) as 401 | 404 | 502 | 503;
-      return c.json({ error: 'Unable to read subscription status' }, status);
+      return problemResponse(c, status, 'Unable to read subscription status');
     }
   });
 
   router.post('/subscriptions/:provider/login', async (c) => {
     const parsed = subscriptionProviderSchema.safeParse(c.req.param('provider'));
-    if (!parsed.success) return c.json({ error: 'Unsupported subscription provider' }, 404);
+    if (!parsed.success) return problemResponse(c, 404, 'Unsupported subscription provider');
     const events = gateway.connectSubscription(parsed.data, c.get('userId'), c.req.raw.signal);
     return new Response(
       new ReadableStream({
@@ -258,13 +278,13 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
 
   router.delete('/subscriptions/:provider', async (c) => {
     const parsed = subscriptionProviderSchema.safeParse(c.req.param('provider'));
-    if (!parsed.success) return c.json({ error: 'Unsupported subscription provider' }, 404);
+    if (!parsed.success) return problemResponse(c, 404, 'Unsupported subscription provider');
     try {
       await gateway.disconnectSubscription(parsed.data, c.get('userId'));
       return c.json({ provider: parsed.data, connected: false });
     } catch (err) {
       const status = (err instanceof ProviderError ? err.status : 502) as 401 | 404 | 502 | 503;
-      return c.json({ error: 'Unable to disconnect subscription' }, status);
+      return problemResponse(c, status, 'Unable to disconnect subscription');
     }
   });
 
