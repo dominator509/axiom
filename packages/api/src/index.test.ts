@@ -49,6 +49,8 @@ describe('mounted route groups', () => {
   it('models list without a session returns 401 (auth-gated)', async () => {
     const res = await app.request('/api/v1/models');
     expect(res.status).toBe(401);
+    expect(res.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
+    expect(res.headers.get('X-Correlation-ID')).toMatch(/^[A-Za-z0-9-]{8,64}$/);
   });
 
   it('fanvue authorize requires an authenticated operator session', async () => {

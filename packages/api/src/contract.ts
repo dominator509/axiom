@@ -40,6 +40,22 @@ export function problem(
   };
 }
 
+/**
+ * Serialize an RFC-7807 response with the media type required by the
+ * contract. Hono's `c.json()` always labels a response as application/json,
+ * even when its body is a Problem Details document.
+ */
+export function problemResponse(
+  body: ProblemDetails,
+  status: number,
+  additionalHeaders?: Record<string, string>,
+): Response {
+  const headers = new Headers(additionalHeaders);
+  headers.set('Content-Type', 'application/problem+json; charset=UTF-8');
+  headers.set('X-Correlation-ID', body.correlation_id);
+  return new Response(JSON.stringify(body), { status, headers });
+}
+
 // ---------------------------------------------------------------------------
 // Correlation ID
 // ---------------------------------------------------------------------------
@@ -62,8 +78,13 @@ export function onError(err: Error, c: Context): Response {
   // Keep implementation details in server logs; public 5xx responses expose
   // only a stable message plus the correlation ID used to find that log.
   console.error('Unhandled API error', { correlationId, error: err });
-  const body = problem(status, 'Internal Server Error', 'An internal error occurred', correlationId);
-  return c.json(body, status);
+  const body = problem(
+    status,
+    'Internal Server Error',
+    'An internal error occurred',
+    correlationId,
+  );
+  return problemResponse(body, status);
 }
 
 /** Convert a thrown ProblemError into the envelope. */
@@ -87,9 +108,9 @@ export function handleProblem(fn: (c: Context) => Promise<Response> | Response) 
     } catch (err) {
       const correlationId = (c.get('correlationId') as string) ?? randomUUID();
       if (err instanceof ProblemError) {
-        return c.json(
+        return problemResponse(
           problem(err.status, err.title, err.message, correlationId, err.extra),
-          err.status as 400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
+          err.status,
         );
       }
       return onError(err as Error, c);
@@ -124,9 +145,14 @@ function idempotencyResponse(
   title: string,
   detail: string,
   extra?: Record<string, unknown>,
+  additionalHeaders?: Record<string, string>,
 ): Response {
   const correlationId = (c.get('correlationId') as string) ?? randomUUID();
-  return c.json(problem(status, title, detail, correlationId, extra) as object, status as 409 | 503);
+  return problemResponse(
+    problem(status, title, detail, correlationId, extra),
+    status,
+    additionalHeaders,
+  );
 }
 
 /**
@@ -153,14 +179,14 @@ export function idempotency(required = true) {
     if (!key) {
       if (required) {
         const correlationId = (c.get('correlationId') as string) ?? randomUUID();
-        c.status(400);
-        return c.json(
+        return problemResponse(
           problem(
             400,
             'Bad Request',
             'Idempotency-Key header required for this mutation',
             correlationId,
-          ) as unknown as object,
+          ),
+          400,
         );
       }
       return await next();
@@ -244,13 +270,22 @@ export function idempotency(required = true) {
         );
       }
       if (reservation.row.state === 'pending') {
-        c.header('Retry-After', '2');
-        return idempotencyResponse(c, 409, 'Conflict', 'A request with this key is still in progress', {
-          retry_after_seconds: 2,
-        });
+        return idempotencyResponse(
+          c,
+          409,
+          'Conflict',
+          'A request with this key is still in progress',
+          { retry_after_seconds: 2 },
+          { 'Retry-After': '2' },
+        );
       }
       if (reservation.row.status === null || reservation.row.response_body === null) {
-        return idempotencyResponse(c, 503, 'Service Unavailable', 'Stored idempotency response is invalid');
+        return idempotencyResponse(
+          c,
+          503,
+          'Service Unavailable',
+          'Stored idempotency response is invalid',
+        );
       }
       return new Response(JSON.stringify(reservation.row.response_body), {
         status: reservation.row.status,
@@ -369,14 +404,15 @@ export function rateLimit(
     const bucket = getBucket(bucketKey, capacity, refillPerSec, maxBuckets);
 
     if (bucket.tokens < 1) {
-      const retryAfter = bucket.refillPerSec > 0 ? Math.max(1, Math.ceil(1 / bucket.refillPerSec)) : 60;
+      const retryAfter =
+        bucket.refillPerSec > 0 ? Math.max(1, Math.ceil(1 / bucket.refillPerSec)) : 60;
       const correlationId = (c.get('correlationId') as string) ?? randomUUID();
-      c.header('Retry-After', String(retryAfter));
-      c.status(429);
-      return c.json(
+      return problemResponse(
         problem(429, 'Too Many Requests', 'Rate limit exceeded', correlationId, {
           retry_after_seconds: retryAfter,
-        }) as unknown as object,
+        }),
+        429,
+        { 'Retry-After': String(retryAfter) },
       );
     }
     bucket.tokens -= 1;

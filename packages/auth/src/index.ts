@@ -6,6 +6,7 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import type { Context, Next } from 'hono';
+import { randomUUID } from 'node:crypto';
 
 import { db } from '@axiom/db';
 import { authUser, authSession, authAccount, authVerification } from '@axiom/db/schema';
@@ -96,16 +97,24 @@ export async function requireAuth(
   const session = await getSessionFromRequest(c);
   if (!session) {
     // RFC-7807 problem+json (L3.0) with the request's correlation_id.
-    const correlationId = c.req.header('X-Correlation-ID') ?? '';
-    return c.json(
-      {
+    const incoming = c.req.header('X-Correlation-ID');
+    const correlationId =
+      incoming && /^[A-Za-z0-9-]{8,64}$/.test(incoming) ? incoming : randomUUID();
+    return new Response(
+      JSON.stringify({
         type: 'about:blank',
         title: 'Unauthorized',
         status: 401,
         detail: 'unauthorized',
         correlation_id: correlationId,
+      }),
+      {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/problem+json; charset=UTF-8',
+          'X-Correlation-ID': correlationId,
+        },
       },
-      401,
     );
   }
   c.set('userId', session.userId);

@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
 import { db, schema } from '@axiom/db';
-import { problem } from '../contract.js';
+import { problem, problemResponse } from '../contract.js';
 
 /**
  * Emit an RFC-7807 problem+json error envelope (L3.0) with the request's
@@ -22,10 +22,7 @@ export function apiError(
   extra?: Record<string, unknown>,
 ): Response {
   const correlationId = (c.get('correlationId') as string) ?? randomUUID();
-  return c.json(
-    problem(status, title, detail, correlationId, extra) as unknown as object,
-    status as 400 | 401 | 402 | 403 | 404 | 408 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
-  );
+  return problemResponse(problem(status, title, detail, correlationId, extra), status);
 }
 
 /** Standard RFC-7807 title for a status code. */

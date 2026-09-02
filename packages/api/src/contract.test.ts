@@ -14,6 +14,7 @@ import {
   cursorLt,
   nextCursor,
   problem,
+  problemResponse,
   type CursorPage,
 } from './contract.js';
 
@@ -195,6 +196,18 @@ describe('RFC-7807 problem envelope (M-1)', () => {
       detail: 'bundle not found',
       correlation_id: 'corr-123',
     });
+  });
+
+  it('uses the RFC-7807 media type and correlation response header', async () => {
+    const app = new Hono();
+    app.get('/problem', () =>
+      problemResponse(problem(422, 'Unprocessable Entity', 'invalid input', 'corr-media'), 422),
+    );
+    const res = await app.request('/problem');
+    expect(res.status).toBe(422);
+    expect(res.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
+    expect(res.headers.get('X-Correlation-ID')).toBe('corr-media');
+    expect(((await res.json()) as { detail: string }).detail).toBe('invalid input');
   });
 
   it('emits 401 problem+json from the auth gate (requireAuth shape)', async () => {

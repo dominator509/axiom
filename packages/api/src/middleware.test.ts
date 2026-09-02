@@ -76,6 +76,7 @@ describe('idempotency middleware (durable, M-2)', () => {
     });
     const res = await app.request('/mutate', { method: 'POST' });
     expect(res.status).toBe(400);
+    expect(res.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
     const body = (await res.json()) as any;
     expect(body.type).toBe('about:blank');
     expect(body.title).toBe('Bad Request');
@@ -253,6 +254,7 @@ describe('rateLimit middleware (L3.0)', () => {
     expect(r1.status).toBe(200);
     expect(r2.status).toBe(429);
     expect(r2.headers.get('Retry-After')).toBeTruthy();
+    expect(r2.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
     const body = (await r2.json()) as any;
     expect(body.type).toBe('about:blank');
     expect(body.title).toBe('Too Many Requests');
