@@ -18,7 +18,8 @@ import {
   statusTitle,
 } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
-import { asPlatform, enqueueJob } from '@axiom/worker';
+import { asPlatform, enqueueJob, resolveCapabilities } from '@axiom/worker';
+import type { Platform } from '@axiom/core';
 
 const router = new Hono<AppBindings>();
 
@@ -93,10 +94,10 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
 
-  const platforms: string[] = [];
+  const platforms: Platform[] = [];
   const seenPlatforms = new Set<string>();
   for (const requestedPlatform of body.platforms) {
-    let platform: string;
+    let platform: Platform;
     try {
       platform = asPlatform(requestedPlatform);
     } catch {
@@ -147,6 +148,27 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
       }
     }
 
+    // Generation currently creates prompt/caption bundles; it does not
+    // create an asset row. Do not enqueue a publish job that the connector
+    // will inevitably reject for missing media. Text-capable connectors can
+    // still be approved without an asset; all others fail before mutation.
+    if (!bundle.assetId) {
+      for (const platform of platforms) {
+        try {
+          if (resolveCapabilities(platform).media.includes('text')) continue;
+        } catch {
+          return {
+            status: 409 as const,
+            error: `cannot resolve ${platform} capabilities; media requirement is unknown`,
+          };
+        }
+        return {
+          status: 409 as const,
+          error: `bundle has no media asset; ${platform} requires media before approval`,
+        };
+      }
+    }
+
     // Create post_targets (per-platform), transition bundle → approved
     const slot = body.slot ? new Date(body.slot) : new Date(Date.now() + 3600_000);
     for (const platform of platforms) {
@@ -180,12 +202,7 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
     const [updated] = await tx
       .update(schema.contentBundle)
       .set({ state: 'approved', updatedAt: new Date() })
-      .where(
-        and(
-          eq(schema.contentBundle.id, id),
-          eq(schema.contentBundle.state, bundle.state),
-        ),
-      )
+      .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.state, bundle.state)))
       .returning();
     if (updated.length === 0) {
       return {

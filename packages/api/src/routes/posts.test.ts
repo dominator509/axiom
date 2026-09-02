@@ -7,6 +7,9 @@ import { mockState, mockDbFactory } from './test-utils.js';
 vi.mock('@axiom/db', () => mockDbFactory({ postTarget: {}, contentBundle: {} }));
 vi.mock('@axiom/worker', () => ({
   enqueueJob: vi.fn(async () => ({ id: 'job-1' })),
+  resolveCapabilities: vi.fn((platform: string) => ({
+    media: platform === 'x' || platform === 'reddit' ? ['text'] : ['image'],
+  })),
   asPlatform: vi.fn((platform: string) => {
     const supported = [
       'instagram',
@@ -105,7 +108,7 @@ describe('POST /posts', () => {
     ];
     mockState.results = [
       [],
-      [{ id: BUNDLE_ID, orgId: ORG_ID, state: 'approved' }],
+      [{ id: BUNDLE_ID, orgId: ORG_ID, state: 'approved', assetId: 'asset-1' }],
       mockState.result,
     ];
     const res = await appWithOrg(ORG_ID).request('/posts', {
@@ -127,6 +130,22 @@ describe('POST /posts', () => {
         payload: { targetId: POST_ID },
       }),
     );
+  });
+
+  it('rejects scheduling a media-only platform when the bundle has no asset', async () => {
+    mockState.result = [{ id: BUNDLE_ID, orgId: ORG_ID, state: 'approved', assetId: null }];
+    const res = await appWithOrg(ORG_ID).request('/posts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        bundleId: BUNDLE_ID,
+        platform: 'instagram',
+        scheduledFor: '2026-08-10T12:00:00Z',
+      }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain('requires media');
+    expect(enqueueJob).not.toHaveBeenCalled();
   });
 
   it('rejects scheduling a bundle that is not approved (409)', async () => {

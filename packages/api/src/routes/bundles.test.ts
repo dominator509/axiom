@@ -10,6 +10,9 @@ import { mockState, mockDbFactory } from './test-utils.js';
 vi.mock('@axiom/db', () => mockDbFactory({ contentBundle: {}, postTarget: {} }));
 vi.mock('@axiom/worker', () => ({
   enqueueJob: vi.fn(async () => ({ id: 'job-1' })),
+  resolveCapabilities: vi.fn((platform: string) => ({
+    media: platform === 'x' || platform === 'reddit' ? ['text'] : ['image'],
+  })),
   asPlatform: vi.fn((platform: string) => {
     const supported = [
       'instagram',
@@ -150,6 +153,7 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
       orgId: ORG_ID,
       modelId: MODEL_ID,
       state: 'generated',
+      assetId: 'asset-1',
       tosReport: { verdict: 'pass', scores: [] },
     };
     const approvedBundle = { ...generatedBundle, state: 'approved' };
@@ -198,6 +202,27 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
       body: JSON.stringify({ platforms: ['instagram'] }),
     });
     expect(res.status).toBe(409);
+  });
+
+  it('rejects media-only approval when the bundle has no asset', async () => {
+    mockState.result = [
+      {
+        id: BUNDLE_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        state: 'generated',
+        assetId: null,
+        tosReport: { verdict: 'pass', scores: [] },
+      },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: ['instagram'] }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain('requires media');
+    expect(enqueueJob).not.toHaveBeenCalled();
   });
 
   it('rejects approval of a bundle that is no longer generated (409)', async () => {

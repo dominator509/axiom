@@ -8,7 +8,8 @@ import { eq, and, gte, lte, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
-import { asPlatform, enqueueJob } from '@axiom/worker';
+import { asPlatform, enqueueJob, resolveCapabilities } from '@axiom/worker';
+import type { Platform } from '@axiom/core';
 
 const router = new Hono<AppBindings>();
 
@@ -85,7 +86,7 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
   const userId = c.get('userId') ?? 'system';
   const scheduledFor = new Date(body.scheduledFor);
 
-  let platform: string;
+  let platform: Platform;
   try {
     platform = asPlatform(body.platform);
   } catch {
@@ -94,14 +95,13 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
 
   const result = await withOrgContext(orgId, async (tx) => {
     const bundles = await tx
-      .select({ id: schema.contentBundle.id, state: schema.contentBundle.state })
+      .select({
+        id: schema.contentBundle.id,
+        state: schema.contentBundle.state,
+        assetId: schema.contentBundle.assetId,
+      })
       .from(schema.contentBundle)
-      .where(
-        and(
-          eq(schema.contentBundle.id, body.bundleId),
-          eq(schema.contentBundle.orgId, orgId),
-        ),
-      )
+      .where(and(eq(schema.contentBundle.id, body.bundleId), eq(schema.contentBundle.orgId, orgId)))
       .limit(1);
     if (bundles.length === 0) return { status: 404 as const, data: null };
     const bundle = bundles[0];
@@ -111,6 +111,23 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
         data: null,
         error: `bundle must be approved before scheduling (current state: ${bundle.state})`,
       };
+    }
+    if (!bundle.assetId) {
+      try {
+        if (!resolveCapabilities(platform).media.includes('text')) {
+          return {
+            status: 409 as const,
+            data: null,
+            error: `bundle has no media asset; ${platform} requires media before scheduling`,
+          };
+        }
+      } catch {
+        return {
+          status: 409 as const,
+          data: null,
+          error: `cannot resolve ${platform} capabilities; media requirement is unknown`,
+        };
+      }
     }
 
     const [row] = await tx
@@ -192,9 +209,7 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
       .update(schema.postTarget)
       .set({
         ...(scheduledFor ? { scheduledFor } : {}),
-        ...(platform
-          ? { platform, ...(platformChanged ? { connectionId: null } : {}) }
-          : {}),
+        ...(platform ? { platform, ...(platformChanged ? { connectionId: null } : {}) } : {}),
         idemKey: nextIdemKey,
       })
       .where(
