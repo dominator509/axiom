@@ -10,16 +10,18 @@ import { randomBytes } from 'node:crypto';
 import type { AppBindings } from '../index.js';
 import { persistEnvValues } from '../credentials.js';
 import { apiError, statusTitle } from './helpers.js';
+import { clearOAuthStateCookie, getOAuthStateCookie, setOAuthStateCookie } from './oauth-state.js';
 
 const THREADS_APP_ID = process.env.THREADS_CLIENT_ID || '';
 const THREADS_APP_SECRET = process.env.THREADS_CLIENT_SECRET || '';
 const REDIRECT_URI = new URL(
-  '/api/v1/auth/threads/callback',
+  '/api/v1/connectors/threads/callback',
   process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
 ).toString();
 const AXIOM_ENV_FILE = process.env.AXIOM_ENV_FILE || '/root/axiom/.env';
-const STATE_TTL_MS = 10 * 60 * 1000;
-const stateStore = new Map<string, number>();
+const OAUTH_STATE_COOKIE = 'axiom_threads_oauth_state';
+const OAUTH_COOKIE_PATH = '/api/v1/connectors/threads';
+const OAUTH_COOKIE_SECRET = process.env.BETTER_AUTH_SECRET || THREADS_APP_SECRET;
 
 const router = new Hono<AppBindings>();
 
@@ -30,6 +32,9 @@ router.get('/authorize', (c) => {
   if (!THREADS_APP_ID) {
     return apiError(c, 500, statusTitle(500), 'Threads client ID not configured');
   }
+  if (!THREADS_APP_SECRET) {
+    return apiError(c, 500, statusTitle(500), 'Threads client credentials not configured');
+  }
 
   const authUrl = new URL('https://threads.net/oauth/authorize');
   authUrl.searchParams.set('client_id', THREADS_APP_ID);
@@ -37,7 +42,13 @@ router.get('/authorize', (c) => {
   authUrl.searchParams.set('scope', 'threads_basic,threads_publish');
   authUrl.searchParams.set('response_type', 'code');
   const state = randomBytes(24).toString('base64url');
-  stateStore.set(state, Date.now());
+  setOAuthStateCookie(
+    c,
+    OAUTH_STATE_COOKIE,
+    { state, issuedAt: Date.now() },
+    OAUTH_COOKIE_SECRET,
+    OAUTH_COOKIE_PATH,
+  );
   authUrl.searchParams.set('state', state);
 
   return c.redirect(authUrl.toString(), 302);
@@ -64,14 +75,11 @@ router.get('/callback', async (c) => {
     return apiError(c, 500, statusTitle(500), 'Threads client credentials not configured');
   }
 
-  const stateCreatedAt = state ? stateStore.get(state) : undefined;
-  if (!stateCreatedAt) {
+  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_COOKIE_SECRET);
+  if (!state || !pending || pending.state !== state) {
     return apiError(c, 400, statusTitle(400), 'Invalid or missing state (CSRF check failed)');
   }
-  stateStore.delete(state!);
-  if (Date.now() - stateCreatedAt > STATE_TTL_MS) {
-    return apiError(c, 400, statusTitle(400), 'Authorization flow expired, please start again');
-  }
+  clearOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_COOKIE_PATH);
 
   try {
     // Exchange authorization code for a short-lived access token
@@ -141,12 +149,12 @@ router.get('/callback', async (c) => {
  * and provides a status URL.
  *
  * In Meta Dev Portal, set Delete Callback URL to:
- *   https://axiom.fanlynks.com/api/v1/auth/threads/delete
+ *   https://axiom.fanlynks.com/api/v1/connectors/threads/delete
  */
 router.get('/delete', (c) => {
   const confirmationCode = c.req.query('confirmation_code');
   if (confirmationCode) {
-    const statusUrl = `https://axiom.fanlynks.com/api/v1/auth/threads/delete/status?id=${confirmationCode}`;
+    const statusUrl = `https://axiom.fanlynks.com/api/v1/connectors/threads/delete/status?id=${confirmationCode}`;
     return c.json({
       url: statusUrl,
       confirmation_code: confirmationCode,
@@ -159,7 +167,7 @@ router.get('/delete', (c) => {
  * Threads Uninstall webhook — Meta sends POST when a user removes the app.
  *
  * In Meta Dev Portal, set Uninstall Callback URL to:
- *   https://axiom.fanlynks.com/api/v1/auth/threads/uninstall
+ *   https://axiom.fanlynks.com/api/v1/connectors/threads/uninstall
  */
 router.post('/uninstall', async (c) => {
   const payload = await c.req.json().catch(() => ({}));

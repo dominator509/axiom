@@ -8,7 +8,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const REDIRECT_URI = 'https://threads.test/api/v1/auth/threads/callback';
+const REDIRECT_URI = 'https://threads.test/api/v1/connectors/threads/callback';
 
 // Env is read at module load — set it BEFORE the dynamic import.
 process.env.THREADS_CLIENT_ID = 'test-threads-client-id';
@@ -19,6 +19,14 @@ writeFileSync(envFile, '', { mode: 0o600 });
 process.env.AXIOM_ENV_FILE = envFile;
 
 let router: any;
+
+function callbackInit(authorizationResponse: Response): RequestInit {
+  return {
+    headers: {
+      Cookie: authorizationResponse.headers.get('set-cookie')?.split(';', 1)[0] ?? '',
+    },
+  };
+}
 
 beforeAll(async () => {
   const mod = await import('./threads-auth.js');
@@ -42,6 +50,8 @@ describe('GET /authorize', () => {
     expect(url.searchParams.get('scope')).toBe('threads_basic,threads_publish');
     expect(url.searchParams.get('response_type')).toBe('code');
     expect(url.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{32}$/);
+    expect(res.headers.get('set-cookie')).toContain('axiom_threads_oauth_state=');
+    expect(res.headers.get('set-cookie')).toContain('HttpOnly');
   });
 });
 
@@ -72,9 +82,12 @@ describe('GET /callback — validation', () => {
 });
 
 describe('GET /callback — token exchange', () => {
-  async function authorizeState(): Promise<string> {
+  async function authorizeState(): Promise<{ state: string; response: Response }> {
     const response = await router.request('/authorize');
-    return new URL(response.headers.get('location')!).searchParams.get('state')!;
+    return {
+      response,
+      state: new URL(response.headers.get('location')!).searchParams.get('state')!,
+    };
   }
 
   it('exchanges the code for a short-lived token and upgrades to long-lived', async () => {
@@ -96,8 +109,11 @@ describe('GET /callback — token exchange', () => {
       });
     vi.stubGlobal('fetch', fetchMock);
 
-    const state = await authorizeState();
-    const res = await router.request(`/callback?code=meta_auth_code&state=${state}`);
+    const { state, response } = await authorizeState();
+    const res = await router.request(
+      `/callback?code=meta_auth_code&state=${state}`,
+      callbackInit(response),
+    );
     expect(res.status).toBe(200);
 
     const body = (await res.json()) as any;
@@ -142,8 +158,8 @@ describe('GET /callback — token exchange', () => {
         .mockResolvedValueOnce({ ok: false, status: 400, text: async () => 'bad request' }),
     );
 
-    const state = await authorizeState();
-    const res = await router.request(`/callback?code=c1&state=${state}`);
+    const { state, response } = await authorizeState();
+    const res = await router.request(`/callback?code=c1&state=${state}`, callbackInit(response));
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.status).toBe('success');
@@ -160,8 +176,11 @@ describe('GET /callback — token exchange', () => {
       }),
     );
 
-    const state = await authorizeState();
-    const res = await router.request(`/callback?code=bad-code&state=${state}`);
+    const { state, response } = await authorizeState();
+    const res = await router.request(
+      `/callback?code=bad-code&state=${state}`,
+      callbackInit(response),
+    );
     expect(res.status).toBe(502);
     const body = (await res.json()) as any;
     expect(body.detail).toContain('Token exchange failed: HTTP 401');
@@ -171,8 +190,8 @@ describe('GET /callback — token exchange', () => {
   it('returns 500 when the token endpoint throws', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
 
-    const state = await authorizeState();
-    const res = await router.request(`/callback?code=c2&state=${state}`);
+    const { state, response } = await authorizeState();
+    const res = await router.request(`/callback?code=c2&state=${state}`, callbackInit(response));
     expect(res.status).toBe(500);
     const body = (await res.json()) as any;
     expect(body.detail).toBe('Threads OAuth exchange or persistence failed');
@@ -182,7 +201,7 @@ describe('GET /callback — token exchange', () => {
     const missing = await router.request('/callback?code=c3');
     expect(missing.status).toBe(400);
 
-    const state = await authorizeState();
+    const { state, response } = await authorizeState();
     vi.stubGlobal(
       'fetch',
       vi
@@ -193,7 +212,7 @@ describe('GET /callback — token exchange', () => {
         })
         .mockResolvedValueOnce({ ok: false }),
     );
-    const first = await router.request(`/callback?code=c4&state=${state}`);
+    const first = await router.request(`/callback?code=c4&state=${state}`, callbackInit(response));
     expect(first.status).toBe(200);
     const replay = await router.request(`/callback?code=c5&state=${state}`);
     expect(replay.status).toBe(400);
@@ -207,7 +226,7 @@ describe('GET /delete — GDPR data-deletion callback', () => {
     const body = (await res.json()) as any;
     expect(body.confirmation_code).toBe('gdpr-123');
     expect(body.url).toBe(
-      'https://axiom.fanlynks.com/api/v1/auth/threads/delete/status?id=gdpr-123',
+      'https://axiom.fanlynks.com/api/v1/connectors/threads/delete/status?id=gdpr-123',
     );
   });
 

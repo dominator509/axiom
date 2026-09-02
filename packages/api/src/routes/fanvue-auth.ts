@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import type { AppBindings } from '../index.js';
 import { persistEnvValues } from '../credentials.js';
 import { apiError, statusTitle } from './helpers.js';
+import { clearOAuthStateCookie, getOAuthStateCookie, setOAuthStateCookie } from './oauth-state.js';
 
 const FANVUE_CLIENT_ID = process.env.FANVUE_CLIENT_ID || '';
 const FANVUE_CLIENT_SECRET = process.env.FANVUE_CLIENT_SECRET || '';
@@ -40,9 +41,9 @@ const FANVUE_SCOPES = [
   'read:fan',
 ];
 
-// In-memory PKCE verifier store, keyed by state (single-operator deployment)
-const verifierStore = new Map<string, { verifier: string; createdAt: number }>();
-const VERIFIER_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const OAUTH_STATE_COOKIE = 'axiom_fanvue_oauth_state';
+const OAUTH_COOKIE_PATH = '/api/v1/connectors/fanvue';
+const OAUTH_COOKIE_SECRET = process.env.BETTER_AUTH_SECRET || FANVUE_CLIENT_SECRET;
 
 const router = new Hono<AppBindings>();
 
@@ -74,11 +75,20 @@ router.get('/authorize', (c) => {
   if (!FANVUE_CLIENT_ID) {
     return apiError(c, 500, statusTitle(500), 'Fanvue client ID not configured');
   }
+  if (!FANVUE_CLIENT_SECRET) {
+    return apiError(c, 500, statusTitle(500), 'Fanvue client credentials not configured');
+  }
 
   const verifier = generateCodeVerifier();
   const challenge = generateCodeChallenge(verifier);
   const state = base64URLEncode(randomBytes(16));
-  verifierStore.set(state, { verifier, createdAt: Date.now() });
+  setOAuthStateCookie(
+    c,
+    OAUTH_STATE_COOKIE,
+    { state, verifier, issuedAt: Date.now() },
+    OAUTH_COOKIE_SECRET,
+    OAUTH_COOKIE_PATH,
+  );
 
   const authUrl = new URL(FANVUE_AUTH_URL);
   authUrl.searchParams.set('client_id', FANVUE_CLIENT_ID);
@@ -109,15 +119,12 @@ router.get('/callback', async (c) => {
     return apiError(c, 400, statusTitle(400), 'Missing authorization code');
   }
 
-  if (!state || !verifierStore.has(state)) {
+  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_COOKIE_SECRET);
+  if (!state || !pending || pending.state !== state || !pending.verifier) {
     return apiError(c, 400, statusTitle(400), 'Invalid or missing state (CSRF check failed)');
   }
 
-  const entry = verifierStore.get(state)!;
-  verifierStore.delete(state); // one-time use
-  if (Date.now() - entry.createdAt > VERIFIER_TTL_MS) {
-    return apiError(c, 400, statusTitle(400), 'Authorization flow expired, please start again');
-  }
+  clearOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_COOKIE_PATH);
 
   if (!FANVUE_CLIENT_ID || !FANVUE_CLIENT_SECRET) {
     return apiError(c, 500, statusTitle(500), 'Fanvue client credentials not configured');
@@ -137,7 +144,7 @@ router.get('/callback', async (c) => {
         grant_type: 'authorization_code',
         code,
         redirect_uri: FANVUE_REDIRECT_URI,
-        code_verifier: entry.verifier,
+        code_verifier: pending.verifier,
       }),
     });
 

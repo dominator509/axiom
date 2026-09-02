@@ -21,6 +21,14 @@ process.env.AXIOM_ENV_FILE = envFile;
 // Router must be imported dynamically so the env above is visible at module load.
 let router: any;
 
+function callbackInit(authorizationResponse: Response): RequestInit {
+  return {
+    headers: {
+      Cookie: authorizationResponse.headers.get('set-cookie')?.split(';', 1)[0] ?? '',
+    },
+  };
+}
+
 beforeAll(async () => {
   const mod = await import('./fanvue-auth.js');
   router = mod.fanvueAuthRouter;
@@ -42,6 +50,8 @@ describe('GET /authorize', () => {
     expect(url.searchParams.get('code_challenge')).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(url.searchParams.get('scope')).toContain('openid');
     expect(url.searchParams.get('scope')).toContain('offline_access');
+    expect(res.headers.get('set-cookie')).toContain('axiom_fanvue_oauth_state=');
+    expect(res.headers.get('set-cookie')).toContain('HttpOnly');
   });
 });
 
@@ -91,7 +101,10 @@ describe('GET /callback — token exchange + persistence', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     // 3. Hit the callback with the real state
-    const res = await router.request(`/callback?code=ory_test_code&state=${state}`);
+    const res = await router.request(
+      `/callback?code=ory_test_code&state=${state}`,
+      callbackInit(authRes),
+    );
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -139,7 +152,7 @@ describe('GET /callback — token exchange + persistence', () => {
       }),
     );
 
-    const res = await router.request(`/callback?code=c&state=${state}`);
+    const res = await router.request(`/callback?code=c&state=${state}`, callbackInit(authRes));
     const body = await res.json();
     expect(body).not.toHaveProperty('tokenPreview');
     expect(JSON.stringify(body)).not.toContain('super-secret-token-value');
@@ -159,7 +172,7 @@ describe('GET /callback — token exchange + persistence', () => {
       }),
     );
 
-    const res = await router.request(`/callback?code=bad&state=${state}`);
+    const res = await router.request(`/callback?code=bad&state=${state}`, callbackInit(authRes));
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.detail).toBe('Token exchange failed');
@@ -169,8 +182,8 @@ describe('GET /callback — token exchange + persistence', () => {
   });
 });
 
-describe('state is one-time use', () => {
-  it('rejects replay of the same state after a completed exchange', async () => {
+describe('state cookie lifecycle', () => {
+  it('clears the state cookie after a completed exchange', async () => {
     const authRes = await router.request('/authorize');
     const state = new URL(authRes.headers.get('location')!).searchParams.get('state')!;
 
@@ -182,8 +195,9 @@ describe('state is one-time use', () => {
       }),
     );
 
-    const first = await router.request(`/callback?code=c1&state=${state}`);
+    const first = await router.request(`/callback?code=c1&state=${state}`, callbackInit(authRes));
     expect(first.status).toBe(200);
+    expect(first.headers.get('set-cookie')).toContain('Max-Age=0');
 
     const replay = await router.request(`/callback?code=c2&state=${state}`);
     expect(replay.status).toBe(400);
