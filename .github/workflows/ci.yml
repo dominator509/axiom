@@ -255,3 +255,19 @@ jobs:
           wait_for_health axiom-egress-ci
           wait_for_health axiom-hono-ci
           wait_for_health axiom-dashboard-ci
+
+          # Liveness only proves that the Hono process is serving HTTP. The
+          # readiness endpoint performs the real database dependency check;
+          # require it before declaring the deployment image healthy.
+          for _ in $(seq 1 45); do
+            if curl --fail --silent --show-error http://127.0.0.1:3001/api/v1/ready >/dev/null; then
+              echo "axiom-hono-ci: ready"
+              break
+            fi
+            sleep 2
+          done
+          if ! curl --fail --silent --show-error http://127.0.0.1:3001/api/v1/ready >/dev/null; then
+            echo "axiom-hono-ci: readiness check failed"
+            docker logs axiom-hono-ci
+            exit 1
+          fi
