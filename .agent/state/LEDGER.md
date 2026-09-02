@@ -102,3 +102,4 @@
 2026-09-02T20:19:18Z | [P1][WORKER] isolate post-publish audit persistence from external side effects
 2026-09-02T20:32:46Z | [P1][LIFECYCLE] reject media-only approval and scheduling without a bundle asset
 2026-09-02T20:47:49Z | [P1][RELAY/API] reject media-less approvals across dashboard, schedule, and signed Relay commands
+2026-09-02T21:00:53Z | AUDIT_HARDEN health registry now requires injected dependency probes and fails closed when unconfigured; verify: ok

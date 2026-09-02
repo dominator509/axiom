@@ -358,11 +358,15 @@ describe('GET /api/v1/metrics', () => {
 });
 
 describe('GET /api/v1/health', () => {
-  it('returns 200 ok when no checks are registered', async () => {
+  it('fails closed when no checks are registered', async () => {
     const res = await app.request('/api/v1/health');
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
     const body = (await res.json()) as any;
-    expect(body.status).toBe('ok');
+    expect(body.status).toBe('fail');
+    expect(body.checks[0]).toMatchObject({
+      name: 'health-registry',
+      message: 'No health checks are registered',
+    });
   });
 
   it('returns 503 when a registered check fails', async () => {

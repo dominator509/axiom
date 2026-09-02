@@ -11,6 +11,13 @@ export interface HealthStatus {
   timestamp: string;
 }
 
+export interface StandardHealthProbes {
+  postgres: () => Promise<void>;
+  egressPlane: () => Promise<void>;
+  visionEngine: () => Promise<void>;
+  relayChannels: () => Promise<void>;
+}
+
 export class HealthCheckRegistry {
   private checks: Map<string, () => Promise<HealthCheckResult>> = new Map();
 
@@ -19,8 +26,24 @@ export class HealthCheckRegistry {
   }
 
   async runAll(): Promise<HealthStatus> {
+    if (this.checks.size === 0) {
+      return {
+        status: 'fail',
+        checks: [
+          {
+            name: 'health-registry',
+            status: 'fail',
+            message: 'No health checks are registered',
+            latencyMs: 0,
+          },
+        ],
+        timestamp: new Date().toISOString(),
+      };
+    }
+
     const results: HealthCheckResult[] = [];
     const promises = Array.from(this.checks.entries()).map(async ([name, fn]) => {
+      const start = Date.now();
       try {
         const result = await fn();
         results.push(result);
@@ -29,7 +52,7 @@ export class HealthCheckRegistry {
           name,
           status: 'fail',
           message: err instanceof Error ? err.message : String(err),
-          latencyMs: 0,
+          latencyMs: Date.now() - start,
         });
       }
     });
@@ -46,57 +69,29 @@ export class HealthCheckRegistry {
     };
   }
 
-  // Register standard checks
-  registerStandardChecks(): void {
-    this.registerCheck('postgres', async () => {
-      const start = Date.now();
-      try {
-        // Placeholder: would query pg
-        await Promise.resolve();
+  /**
+   * Register the standard dependency checks using real, caller-owned probes.
+   * Keeping the I/O outside this package lets the API inject its DB and
+   * service clients without turning this persistence-free relay package into
+   * a source of fabricated health signals.
+   */
+  registerStandardChecks(probes: StandardHealthProbes): void {
+    const registerProbe = (name: string, message: string, probe: () => Promise<void>): void => {
+      this.registerCheck(name, async () => {
+        const start = Date.now();
+        await probe();
         return {
-          name: 'postgres',
+          name,
           status: 'ok',
-          message: 'PostgreSQL connection healthy',
+          message,
           latencyMs: Date.now() - start,
         };
-      } catch {
-        return {
-          name: 'postgres',
-          status: 'fail',
-          message: 'PostgreSQL connection failed',
-          latencyMs: Date.now() - start,
-        };
-      }
-    });
+      });
+    };
 
-    this.registerCheck('egress-plane', async () => {
-      const start = Date.now();
-      return {
-        name: 'egress-plane',
-        status: 'ok',
-        message: 'Egress plane available',
-        latencyMs: Date.now() - start,
-      };
-    });
-
-    this.registerCheck('vision-engine', async () => {
-      const start = Date.now();
-      return {
-        name: 'vision-engine',
-        status: 'ok',
-        message: 'Vision engine available',
-        latencyMs: Date.now() - start,
-      };
-    });
-
-    this.registerCheck('relay-channels', async () => {
-      const start = Date.now();
-      return {
-        name: 'relay-channels',
-        status: 'ok',
-        message: 'Relay channel adapters registered',
-        latencyMs: Date.now() - start,
-      };
-    });
+    registerProbe('postgres', 'PostgreSQL connection healthy', probes.postgres);
+    registerProbe('egress-plane', 'Egress plane available', probes.egressPlane);
+    registerProbe('vision-engine', 'Vision engine available', probes.visionEngine);
+    registerProbe('relay-channels', 'Relay channel adapters registered', probes.relayChannels);
   }
 }

@@ -5,4 +5,4 @@ export type { Counter, Histogram } from './metrics.js';
 export { IncidentManager } from './incidents.js';
 export type { Incident, Severity, DLQEntry } from './incidents.js';
 export { HealthCheckRegistry } from './health.js';
-export type { HealthCheckResult, HealthStatus } from './health.js';
+export type { HealthCheckResult, HealthStatus, StandardHealthProbes } from './health.js';

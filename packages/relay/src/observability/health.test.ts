@@ -3,11 +3,18 @@ import { describe, it, expect } from 'vitest';
 import { HealthCheckRegistry, type HealthCheckResult } from './health.js';
 
 describe('registerCheck / runAll', () => {
-  it('returns ok with empty checks for an empty registry', async () => {
+  it('fails closed when no checks are registered', async () => {
     const registry = new HealthCheckRegistry();
     const status = await registry.runAll();
-    expect(status.status).toBe('ok');
-    expect(status.checks).toEqual([]);
+    expect(status.status).toBe('fail');
+    expect(status.checks).toEqual([
+      {
+        name: 'health-registry',
+        status: 'fail',
+        message: 'No health checks are registered',
+        latencyMs: 0,
+      },
+    ]);
     expect(typeof status.timestamp).toBe('string');
     expect(new Date(status.timestamp).getTime()).not.toBeNaN();
   });
@@ -95,7 +102,13 @@ describe('registerCheck / runAll', () => {
 describe('registerStandardChecks', () => {
   it('registers the four standard checks, all passing', async () => {
     const registry = new HealthCheckRegistry();
-    registry.registerStandardChecks();
+    const probes = {
+      postgres: async () => {},
+      egressPlane: async () => {},
+      visionEngine: async () => {},
+      relayChannels: async () => {},
+    };
+    registry.registerStandardChecks(probes);
     const status = await registry.runAll();
     expect(status.status).toBe('ok');
     const names = status.checks.map((c: HealthCheckResult) => c.name).sort();
@@ -104,5 +117,24 @@ describe('registerStandardChecks', () => {
       expect(c.latencyMs).toBeGreaterThanOrEqual(0);
       expect(c.message).toBeTruthy();
     }
+  });
+
+  it('reports a failed standard dependency probe', async () => {
+    const registry = new HealthCheckRegistry();
+    registry.registerStandardChecks({
+      postgres: async () => {
+        throw new Error('database unavailable');
+      },
+      egressPlane: async () => {},
+      visionEngine: async () => {},
+      relayChannels: async () => {},
+    });
+
+    const status = await registry.runAll();
+    expect(status.status).toBe('fail');
+    expect(status.checks.find((check) => check.name === 'postgres')).toMatchObject({
+      status: 'fail',
+      message: 'database unavailable',
+    });
   });
 });

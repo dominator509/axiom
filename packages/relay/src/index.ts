@@ -26,6 +26,7 @@ export {
   type DLQEntry,
 } from './observability/incidents.js';
 export { HealthCheckRegistry } from './observability/health.js';
+export type { StandardHealthProbes } from './observability/health.js';
 
 export { MetricPoller } from './metrics/poller.js';
 
