@@ -35,6 +35,35 @@ export interface WorkerStats {
   running: boolean;
 }
 
+const JOB_LEASE_HEARTBEAT_MS = 5 * 60_000;
+
+/** Renew a claimed job's lease without holding the executor transaction open. */
+async function renewJobLease(job: JobRow, workerId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
+    await tx
+      .update(schema.job)
+      .set({ lockedAt: new Date() })
+      .where(
+        and(
+          eq(schema.job.id, job.id),
+          eq(schema.job.orgId, job.org_id),
+          eq(schema.job.state, 'running'),
+          eq(schema.job.lockedBy, workerId),
+        ),
+      );
+  });
+}
+
+function startJobLeaseHeartbeat(job: JobRow, workerId: string): () => void {
+  const timer = setInterval(() => {
+    void renewJobLease(job, workerId).catch((err: unknown) => {
+      console.error('[worker] job lease renewal failed:', (err as Error).message ?? String(err));
+    });
+  }, JOB_LEASE_HEARTBEAT_MS);
+  return () => clearInterval(timer);
+}
+
 /** Read org kill-switch state inside the org-scoped txn (L3.4 §5). */
 export async function readKillSwitch(tx: any, orgId: string): Promise<boolean> {
   const rows = await tx
@@ -61,6 +90,7 @@ export async function processJob(
     throw new Error(`worker: no executor for kind '${job.kind}'`);
   }
 
+  const stopLeaseHeartbeat = startJobLeaseHeartbeat(job, workerId);
   try {
     // claim_job set the org context only for ITS transaction; this executor
     // runs in a fresh txn, so set the org context from the claimed job first
@@ -131,6 +161,8 @@ export async function processJob(
         .where(and(eq(schema.job.id, job.id), eq(schema.job.orgId, job.org_id)));
     });
     return 'retry';
+  } finally {
+    stopLeaseHeartbeat();
   }
 }
 

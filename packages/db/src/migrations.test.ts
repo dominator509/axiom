@@ -97,6 +97,15 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(sql.trimEnd().endsWith('COMMIT;')).toBe(true);
   });
 
+  it('reclaims stale worker leases before selecting the next job', () => {
+    expect(sql).toContain("state = 'running'");
+    expect(sql).toContain("locked_at < now() - INTERVAL '15 minutes'");
+    expect(sql).toContain('worker lease expired before completion');
+    expect(sql).toContain(
+      "state = CASE WHEN attempts + 1 >= max_attempts THEN 'dead' ELSE 'ready' END",
+    );
+  });
+
   it('enables the required extensions', () => {
     expect(sql).toContain('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
     expect(sql).toContain('CREATE EXTENSION IF NOT EXISTS "vector";');
