@@ -12,10 +12,15 @@ async fn main() {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--health") {
+        run_healthcheck().await;
+        return;
+    }
+
     // Sidecar mode: this process is the per-model forward proxy executed
     // INSIDE a model's network namespace via `ip netns exec`. It never
     // starts the control-plane server.
-    let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--sidecar") {
         run_sidecar(&args).await;
         return;
@@ -64,6 +69,23 @@ async fn main() {
     axum::serve(listener, app)
         .await
         .expect("Server exited with error");
+}
+
+async fn run_healthcheck() {
+    let url = std::env::var("HEALTHCHECK_URL").unwrap_or_else(|_| {
+        let listen = std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "127.0.0.1:3000".into());
+        let port = listen.rsplit(':').next().unwrap_or("3000");
+        format!("http://127.0.0.1:{port}/health")
+    });
+    let result = reqwest::Client::new()
+        .get(url)
+        .timeout(std::time::Duration::from_secs(2))
+        .send()
+        .await;
+    std::process::exit(match result {
+        Ok(response) if response.status().is_success() => 0,
+        _ => 1,
+    });
 }
 
 async fn run_sidecar(args: &[String]) {

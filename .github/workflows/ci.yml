@@ -195,6 +195,7 @@ jobs:
         run: |
           docker build --file infra/Dockerfile.hono --tag axiom-hono:ci .
           docker build --file infra/Dockerfile.next --tag axiom-dashboard:ci .
+          docker build --file infra/Dockerfile.rust --tag axiom-egress-plane:ci .
 
       - name: Smoke-test deployment containers
         if: matrix.task == 'container'
@@ -202,7 +203,7 @@ jobs:
           set -euo pipefail
 
           cleanup() {
-            docker rm --force axiom-hono-ci axiom-dashboard-ci >/dev/null 2>&1 || true
+            docker rm --force axiom-egress-ci axiom-hono-ci axiom-dashboard-ci >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
 
@@ -236,6 +237,7 @@ jobs:
           ci_auth_value='ci-authentication-value-012345678901'
           ci_relay_value='ci-relay-value-012345678901234567'
 
+          docker run --detach --name axiom-egress-ci --network host --cap-add=NET_ADMIN axiom-egress-plane:ci
           docker run --detach --name axiom-hono-ci --network host \
             --env NODE_ENV=production \
             --env API_HOST=0.0.0.0 \
@@ -250,5 +252,6 @@ jobs:
             --env HOSTNAME=0.0.0.0 \
             axiom-dashboard:ci
 
+          wait_for_health axiom-egress-ci
           wait_for_health axiom-hono-ci
           wait_for_health axiom-dashboard-ci
