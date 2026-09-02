@@ -44,13 +44,7 @@ export class InboxTool {
     }
 
     if (args.action === 'read') {
-      const messages = await withModelOrg(args.modelId, async (tx) => {
-        const contacts = await tx
-          .select({ id: schema.fanCrmContact.id })
-          .from(schema.fanCrmContact)
-          .where(eq(schema.fanCrmContact.modelId, args.modelId));
-        if (contacts.length === 0) return [];
-        const fanIds = contacts.map((c: { id: string }) => c.id);
+      const messages = await withModelOrg(args.modelId, async (tx, orgId) => {
         const rows = await tx
           .select({
             id: schema.fanTouchpoint.id,
@@ -62,30 +56,37 @@ export class InboxTool {
             ts: schema.fanTouchpoint.ts,
           })
           .from(schema.fanTouchpoint)
-          .where(and(eq(schema.fanTouchpoint.direction, 'inbound')))
+          .innerJoin(
+            schema.fanCrmContact,
+            eq(schema.fanTouchpoint.fanId, schema.fanCrmContact.id),
+          )
+          .where(
+            and(
+              eq(schema.fanTouchpoint.orgId, orgId),
+              eq(schema.fanCrmContact.orgId, orgId),
+              eq(schema.fanCrmContact.modelId, args.modelId),
+              eq(schema.fanTouchpoint.direction, 'inbound'),
+            ),
+          )
           .orderBy(desc(schema.fanTouchpoint.ts))
           .limit(20);
-        // Scope in SQL would need fan join; filter in-memory is honest but
-        // rows are already RLS-scoped to orgId (LBI-02).
-        return rows
-          .filter((r: { fanId: string }) => fanIds.includes(r.fanId))
-          .map(
-            (r: {
-              id: string;
-              fanId: string;
-              platform: string;
-              kind: string;
-              content: string | null;
-              ts: Date;
-            }) => ({
-              id: r.id,
-              fanId: r.fanId,
-              platform: r.platform,
-              kind: r.kind,
-              content: r.content,
-              receivedAt: r.ts,
-            }),
-          );
+        return rows.map(
+          (r: {
+            id: string;
+            fanId: string;
+            platform: string;
+            kind: string;
+            content: string | null;
+            ts: Date;
+          }) => ({
+            id: r.id,
+            fanId: r.fanId,
+            platform: r.platform,
+            kind: r.kind,
+            content: r.content,
+            receivedAt: r.ts,
+          }),
+        );
       });
       return { success: true, tool: this.name, action: 'read', modelId: args.modelId, messages };
     }
@@ -99,7 +100,18 @@ export class InboxTool {
         const msg = await tx
           .select({ fanId: schema.fanTouchpoint.fanId, platform: schema.fanTouchpoint.platform })
           .from(schema.fanTouchpoint)
-          .where(eq(schema.fanTouchpoint.id, args.messageId as string))
+          .innerJoin(
+            schema.fanCrmContact,
+            eq(schema.fanTouchpoint.fanId, schema.fanCrmContact.id),
+          )
+          .where(
+            and(
+              eq(schema.fanTouchpoint.id, args.messageId as string),
+              eq(schema.fanTouchpoint.orgId, orgId),
+              eq(schema.fanCrmContact.orgId, orgId),
+              eq(schema.fanCrmContact.modelId, args.modelId),
+            ),
+          )
           .limit(1);
         if (msg.length === 0) {
           throw new Error(`Message ${args.messageId} not found`);

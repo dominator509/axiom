@@ -78,7 +78,7 @@ async function relayCommandExecutor(
     const relayCards = await tx
       .select({ channel: schema.relayCard.channel, externalRef: schema.relayCard.externalRef })
       .from(schema.relayCard)
-      .where(eq(schema.relayCard.id, cardId))
+      .where(and(eq(schema.relayCard.id, cardId), eq(schema.relayCard.orgId, orgId)))
       .limit(1);
     const relayCard = relayCards[0];
     if (!relayCard) throw new Error(`relay command: card ${cardId} not found`);
@@ -96,7 +96,7 @@ async function relayCommandExecutor(
       const bundle = await tx
         .select()
         .from(schema.contentBundle)
-        .where(eq(schema.contentBundle.id, bundleId))
+        .where(and(eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, orgId)))
         .limit(1);
       if (bundle.length === 0) throw new Error(`relay command: bundle ${bundleId} not found`);
 

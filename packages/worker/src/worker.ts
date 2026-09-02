@@ -3,7 +3,7 @@
 // executor → mark done. Errors: backoff into ready, or dead (DLQ) at
 // max_attempts. Kill-switch parks re-queue with a delay instead of failing.
 
-import { sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db, schema } from '@axiom/db';
 import { backoffDelayMs } from './backoff.js';
 import { claimNextJob } from './claim.js';
@@ -78,7 +78,7 @@ export async function processJob(
           lockedBy: null,
           lockedAt: null,
         })
-        .where(sql`${schema.job.id} = ${job.id}`);
+        .where(and(eq(schema.job.id, job.id), eq(schema.job.orgId, job.org_id)));
       return 'done' as const;
     });
     return result;
@@ -95,7 +95,7 @@ export async function processJob(
             lockedBy: null,
             lockedAt: null,
           })
-          .where(sql`${schema.job.id} = ${job.id}`);
+          .where(and(eq(schema.job.id, job.id), eq(schema.job.orgId, job.org_id)));
       });
       return 'parked';
     }
@@ -110,7 +110,7 @@ export async function processJob(
         await tx
           .update(schema.job)
           .set({ state: 'dead', lastError: message, lockedBy: null, lockedAt: null })
-          .where(sql`${schema.job.id} = ${job.id}`);
+          .where(and(eq(schema.job.id, job.id), eq(schema.job.orgId, job.org_id)));
       });
       return 'dead';
     }
@@ -128,7 +128,7 @@ export async function processJob(
           lockedBy: null,
           lockedAt: null,
         })
-        .where(sql`${schema.job.id} = ${job.id}`);
+        .where(and(eq(schema.job.id, job.id), eq(schema.job.orgId, job.org_id)));
     });
     return 'retry';
   }
