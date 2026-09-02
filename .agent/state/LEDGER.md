@@ -84,3 +84,4 @@
 2026-09-02T16:32:08Z | [P1][CI] repair Rust deployment image and add egress container smoke gate
 2026-09-02T16:38:08Z | [P1][CI] resolve parallel origin/main history without dropping tenant or queue hardening
 2026-09-02T16:48:26Z | [P1][CI] retain Hono runtime server dependency in production image
+2026-09-02T16:57:59Z | [P1][CI] use explicit IPv4 GET for Hono healthcheck
