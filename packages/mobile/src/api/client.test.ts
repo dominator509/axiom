@@ -56,8 +56,18 @@ describe('cookie store', () => {
         'set-cookie': 'axiom_session=abc123; Path=/; HttpOnly; SameSite=Lax',
       }),
     );
-    expect(getStoredCookie()).toContain('axiom_session=abc123');
-    expect(buildCookieHeader()).toBe('axiom_session=abc123; Path=/; HttpOnly; SameSite=Lax');
+    expect(getStoredCookie()).toBe('axiom_session=abc123');
+    expect(buildCookieHeader()).toBe('axiom_session=abc123');
+  });
+
+  it('keeps multiple cookie pairs while stripping response attributes', async () => {
+    await captureSetCookie(
+      new Headers({
+        'set-cookie':
+          'axiom_session=abc123; Path=/; HttpOnly, axiom_session_data=def456; Path=/; SameSite=Lax',
+      }),
+    );
+    expect(buildCookieHeader()).toBe('axiom_session=abc123; axiom_session_data=def456');
   });
 
   it('ignores responses without a Set-Cookie header', async () => {

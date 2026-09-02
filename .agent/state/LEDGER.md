@@ -91,3 +91,4 @@
 2026-09-02T17:51:06Z | [P1][WORKER] guard terminal job transitions by active lease owner
 2026-09-02T18:01:47Z | [P1][CONNECTOR] bound provider requests with finite transport deadlines
 2026-09-02T18:13:37Z | [P1][CI] require deployment readiness in container smoke test
+2026-09-02T18:22:16Z | [P1][MOBILE] normalize persisted Set-Cookie into valid request cookies

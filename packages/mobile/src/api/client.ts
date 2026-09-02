@@ -66,14 +66,21 @@ export async function clearPersistedCookie(): Promise<void> {
 
 /**
  * Capture a Set-Cookie response header into the in-memory cookie store.
- * A single header may carry multiple cookie pairs joined by commas; we store
- * it verbatim so the server's cookie attributes (Path, SameSite...) survive.
+ * Request Cookie headers may contain only name/value pairs. Strip response
+ * attributes (Path, HttpOnly, SameSite, Expires, ...) before persisting so a
+ * native fetch implementation never sends them back as fake cookies.
  */
 export async function captureSetCookie(headers: Headers): Promise<void> {
   const value = headers.get('set-cookie');
   if (value && value.trim().length > 0) {
-    storedCookie = value;
-    await saveSessionCookie(value);
+    const cookiePairs = value
+      .split(/,(?=\s*[^\s=;,]+=[^;,]*)/)
+      .map((cookie) => cookie.split(';', 1)[0]?.trim() ?? '')
+      .filter((cookie) => cookie.length > 0 && cookie.includes('='));
+    if (cookiePairs.length > 0) {
+      storedCookie = cookiePairs.join('; ');
+      await saveSessionCookie(storedCookie);
+    }
   }
 }
 
