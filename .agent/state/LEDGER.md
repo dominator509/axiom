@@ -86,3 +86,4 @@
 2026-09-02T16:48:26Z | [P1][CI] retain Hono runtime server dependency in production image
 2026-09-02T16:57:59Z | [P1][CI] use explicit IPv4 GET for Hono healthcheck
 2026-09-02T17:07:41Z | [P1][CI] probe dashboard login route over explicit IPv4 GET
+2026-09-02T17:21:01Z | [P1][CONNECTOR] align TikTok Direct Post uploads with ranged chunk contract

@@ -17,6 +17,8 @@ import type { Platform, PublishMode } from '@axiom/core';
 import { validatePublish } from './validation.js';
 
 const TIKTOK_API_BASE = 'https://open.tiktokapis.com/v2';
+const MIN_TIKTOK_CHUNK_SIZE = 5 * 1024 * 1024;
+const MAX_TIKTOK_CHUNK_SIZE = 64 * 1024 * 1024;
 
 interface TiktokInitResponse {
   data: {
@@ -110,11 +112,29 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       const videoSize = videoBuffer.byteLength;
       if (videoSize <= 0) throw new Error('TikTok video must not be empty');
       const requestedChunkSize = Number(options.chunkSize);
-      const chunkSize =
+      let chunkSize =
         Number.isSafeInteger(requestedChunkSize) && requestedChunkSize > 0
           ? requestedChunkSize
-          : videoSize;
-      const totalChunkCount = Math.ceil(videoSize / chunkSize);
+          : Math.min(videoSize, MAX_TIKTOK_CHUNK_SIZE);
+
+      // A file smaller than the provider's minimum is valid as the final (and
+      // only) chunk. For larger files, reject an invalid requested chunk size
+      // instead of sending metadata TikTok will reject after initialization.
+      if (videoSize <= MAX_TIKTOK_CHUNK_SIZE && chunkSize >= videoSize) {
+        chunkSize = videoSize;
+      } else if (
+        chunkSize < MIN_TIKTOK_CHUNK_SIZE ||
+        chunkSize > MAX_TIKTOK_CHUNK_SIZE
+      ) {
+        throw new Error(
+          `TikTok chunkSize must be between ${MIN_TIKTOK_CHUNK_SIZE} and ${MAX_TIKTOK_CHUNK_SIZE} bytes for videos larger than one final chunk`,
+        );
+      }
+
+      // TikTok's contract uses floor(video_size / chunk_size); the final
+      // chunk may contain the remainder and therefore be larger than the
+      // requested chunk size.
+      const totalChunkCount = Math.max(1, Math.floor(videoSize / chunkSize));
 
       // Step 1: Initialize the video upload. TikTok requires post_info,
       // including privacy_level, in this request alongside FILE_UPLOAD data.
@@ -154,20 +174,39 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       this.log('info', 'publish', `TikTok video init complete`, { publish_id });
 
       // Step 2: Upload the downloaded bytes to TikTok.
-      const uploadResp = await this.fetchImpl(upload_url, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'video/mp4',
-          'Content-Length': String(videoBuffer.byteLength),
-        },
-        body: videoBuffer,
-      });
+      const contentType = this.detectVideoMimeType(videoUrl, options.mimeType);
+      for (let chunkIndex = 0; chunkIndex < totalChunkCount; chunkIndex += 1) {
+        const start = chunkIndex * chunkSize;
+        // TikTok's final chunk may contain the remainder, so the number of
+        // PUTs must match total_chunk_count even when video_size is not an
+        // exact multiple of chunk_size.
+        const end = chunkIndex === totalChunkCount - 1
+          ? videoSize
+          : Math.min(start + chunkSize, videoSize);
+        const chunk = videoBuffer.slice(start, end);
+        const uploadResp = await this.fetchImpl(upload_url, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': contentType,
+            'Content-Length': String(chunk.byteLength),
+            'Content-Range': `bytes ${start}-${end - 1}/${videoSize}`,
+          },
+          body: chunk,
+        });
 
-      if (!uploadResp.ok) {
-        const uploadBody = await uploadResp.text().catch(() => '');
-        throw new Error(
-          `TikTok video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${uploadBody}`,
-        );
+        if (!uploadResp.ok) {
+          const uploadBody = await uploadResp.text().catch(() => '');
+          throw new Error(
+            `TikTok video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${uploadBody}`,
+          );
+        }
+
+        const expectedStatus = end === videoSize ? 201 : 206;
+        if (uploadResp.status !== expectedStatus) {
+          throw new Error(
+            `TikTok video upload returned unexpected status ${uploadResp.status}; expected ${expectedStatus}`,
+          );
+        }
       }
 
       this.log('info', 'publish', `TikTok video uploaded (${videoBuffer.byteLength} bytes)`);
@@ -244,6 +283,25 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       { publish_id: publishId },
       { 'Content-Type': 'application/json' },
     );
+  }
+
+  private detectVideoMimeType(url: string, configured: unknown): string {
+    if (
+      configured === 'video/mp4' ||
+      configured === 'video/quicktime' ||
+      configured === 'video/webm'
+    ) {
+      return configured;
+    }
+
+    try {
+      const extension = new URL(url).pathname.split('.').pop()?.toLowerCase();
+      if (extension === 'mov' || extension === 'qt') return 'video/quicktime';
+      if (extension === 'webm') return 'video/webm';
+    } catch {
+      // Fall back to TikTok's most common accepted video type.
+    }
+    return 'video/mp4';
   }
 
   private statusResult(publishId: string, response: TiktokStatusResponse): ConnectorPublishResult {

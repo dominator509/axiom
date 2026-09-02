@@ -1,7 +1,6 @@
 // ─── TikTok Connector — Vitest Suite ───
-// Covers: capability(), validate(), publish() 4-step flow
-// (init → video download → PUT upload → complete), fetchMetrics() via video/query,
-// and revoke() (liveness check + logical disconnect, no server-side revocation).
+// Covers: capability(), validate(), publish() init/download/ranged-upload/status
+// flow, fetchMetrics() via video/query, and revoke() via TikTok OAuth.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { TikTokConnector } from './tiktok.js';
@@ -120,7 +119,7 @@ describe('publish', () => {
       .fn()
       .mockResolvedValueOnce(new Response('mp4bytes', { status: 200 })) // 1: download source video
       .mockResolvedValueOnce(jsonResponse(INIT_OK)) // 2: init
-      .mockResolvedValueOnce(jsonResponse({}, 200)) // 3: PUT upload to upload_url
+      .mockResolvedValueOnce(new Response(null, { status: 201 })) // 3: final PUT upload
       .mockResolvedValueOnce(jsonResponse(STATUS_OK)); // 4: status
     vi.stubGlobal('fetch', fetchMock);
 
@@ -163,7 +162,7 @@ describe('publish', () => {
         brand_organic_toggle: false,
         is_aigc: false,
       },
-      source_info: { source: 'FILE_UPLOAD', video_size: 8, chunk_size: 500, total_chunk_count: 1 },
+      source_info: { source: 'FILE_UPLOAD', video_size: 8, chunk_size: 8, total_chunk_count: 1 },
     });
     expect((initInit.headers as Record<string, string>).Authorization).toBe('Bearer tt-token-123');
 
@@ -173,6 +172,7 @@ describe('publish', () => {
     expect(uploadInit.method).toBe('PUT');
     expect((uploadInit.headers as Record<string, string>)['Content-Type']).toBe('video/mp4');
     expect((uploadInit.headers as Record<string, string>)['Content-Length']).toBe('8');
+    expect((uploadInit.headers as Record<string, string>)['Content-Range']).toBe('bytes 0-7/8');
 
     // 4: status polling
     const [statusUrl, statusInit] = fetchMock.mock.calls[3] as [string, RequestInit];
@@ -180,12 +180,53 @@ describe('publish', () => {
     expect(JSON.parse(statusInit.body as string)).toEqual({ publish_id: 'pub-1' });
   });
 
+  it('uploads larger videos as provider-compliant ranged chunks', async () => {
+    const chunkSize = 5 * 1024 * 1024;
+    const videoSize = chunkSize * 2 + 1;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(new Uint8Array(videoSize), { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(INIT_OK))
+      .mockResolvedValueOnce(new Response(null, { status: 206 }))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
+      .mockResolvedValueOnce(jsonResponse(STATUS_OK));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new TikTokConnector(AUTH);
+    const result = await c.publish(input({ options: { chunkSize, privacyLevel: 'SELF_ONLY' } }));
+
+    expect(result.state).toBe('published');
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+
+    const initBody = JSON.parse(
+      (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
+    ) as { source_info: Record<string, number | string> };
+    expect(initBody.source_info).toEqual({
+      source: 'FILE_UPLOAD',
+      video_size: videoSize,
+      chunk_size: chunkSize,
+      total_chunk_count: 2,
+    });
+
+    const [, firstUpload] = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect((firstUpload.body as ArrayBuffer).byteLength).toBe(chunkSize);
+    expect((firstUpload.headers as Record<string, string>)['Content-Range']).toBe(
+      `bytes 0-${chunkSize - 1}/${videoSize}`,
+    );
+
+    const [, finalUpload] = fetchMock.mock.calls[3] as [string, RequestInit];
+    expect((finalUpload.body as ArrayBuffer).byteLength).toBe(chunkSize + 1);
+    expect((finalUpload.headers as Record<string, string>)['Content-Range']).toBe(
+      `bytes ${chunkSize}-${videoSize - 1}/${videoSize}`,
+    );
+  });
+
   it('applies defaults for upload options and privacy level', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
       .mockResolvedValueOnce(jsonResponse(INIT_OK))
-      .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
       .mockResolvedValueOnce(jsonResponse(STATUS_OK));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -213,7 +254,7 @@ describe('publish', () => {
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
       .mockResolvedValueOnce(jsonResponse(INIT_OK))
-      .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
       .mockResolvedValueOnce(jsonResponse(STATUS_OK));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -299,7 +340,7 @@ describe('publish', () => {
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
       .mockResolvedValueOnce(jsonResponse(INIT_OK))
-      .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
       .mockResolvedValueOnce(
         jsonResponse({ error: { code: 'missing_fields', message: 'title required' } }),
       );
@@ -317,7 +358,7 @@ describe('publish', () => {
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
       .mockResolvedValueOnce(jsonResponse(INIT_OK))
-      .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }))
       .mockResolvedValueOnce(jsonResponse({ data: { status: 'PROCESSING_UPLOAD' } }))
       .mockResolvedValueOnce(jsonResponse(STATUS_OK));
     vi.stubGlobal('fetch', fetchMock);
