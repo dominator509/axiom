@@ -29,7 +29,7 @@ export interface PrePostRunInput {
 export interface PrePostStageResult {
   input: ConnectorPublishInput;
   staged: boolean;
-  engine: string;
+  engine: 'rust-media-plane' | 'in-process' | 'unavailable';
   runId: string;
   scriptResults: Array<{ name: string; ok: boolean; error?: string }>;
 }
@@ -49,12 +49,27 @@ export function getPrePostHook(): PrePostHook {
 export async function mediaPlaneEngine(
   mediaPlaneUrl: string = DEFAULT_MEDIA_PLANE_URL,
 ): Promise<'rust-media-plane' | 'in-process'> {
+  let failure: string | undefined;
   try {
     const res = await fetch(`${mediaPlaneUrl}/health`, { signal: AbortSignal.timeout(2_000) });
     if (res.ok) return 'rust-media-plane';
-  } catch {
-    // plane down → fall back to in-process (honest degradation)
+    failure = `HTTP ${res.status}`;
+  } catch (err) {
+    failure = err instanceof Error ? err.message : String(err);
   }
+
+  // The blueprint makes the Rust media plane the mandatory isolation boundary
+  // for publishing. An in-process fallback is useful for local development
+  // only and must be explicitly enabled; allowing it by default would let a
+  // dependency outage bypass the declared isolation and ToS-compliance path.
+  const allowInProcessFallback =
+    process.env.NODE_ENV !== 'production' && process.env.AXIOM_ALLOW_IN_PROCESS_PREPOST === 'true';
+  if (!allowInProcessFallback) {
+    throw new Error(`Rust media plane unavailable (${failure ?? 'unknown failure'})`);
+  }
+
+  // This explicit development-only escape hatch is never selected by a
+  // production worker, even if its environment is mislabelled.
   return 'in-process';
 }
 
@@ -86,12 +101,11 @@ export async function runPrePostBefore(
   const hook = getPrePostHook();
   const startedAt = new Date();
 
-  const engine = await mediaPlaneEngine();
+  let engine: PrePostStageResult['engine'] = 'unavailable';
   const scriptResults: PrePostStageResult['scriptResults'] = [];
   let error: string | null = null;
   const output: Record<string, unknown> = { engine };
 
-  // Start from the real connector input shape (what will be published).
   let working: ConnectorPublishInput = {
     idempotencyKey: `${job.org_id}:${input.targetId}:${input.phase}`,
     caption: input.caption,
@@ -101,6 +115,9 @@ export async function runPrePostBefore(
   };
 
   try {
+    engine = await mediaPlaneEngine();
+    output.engine = engine;
+
     // 1. Rust media-plane staging call (isolated execution path).
     if (engine === 'rust-media-plane') {
       const staged = await stageMediaOnPlane(input);
@@ -136,6 +153,10 @@ export async function runPrePostBefore(
     startedAt,
     finishedAt: new Date(),
   });
+
+  if (error) {
+    throw new Error(`pre-post.before failed: ${error}`);
+  }
 
   return { input: working, staged: engine === 'rust-media-plane', engine, runId, scriptResults };
 }
@@ -209,7 +230,14 @@ async function stageMediaOnPlane(input: PrePostRunInput): Promise<Record<string,
       body: JSON.stringify({ video_path: firstMedia.replace(/^asset:\/\//, '') }),
       signal: AbortSignal.timeout(5_000),
     });
-    out.probe = probe.ok ? await probe.json() : { error: `probe ${probe.status}` };
+    if (!probe.ok) {
+      throw new Error(`media-plane probe failed: HTTP ${probe.status}`);
+    }
+    const probeResult = (await probe.json()) as { exists?: boolean };
+    if (probeResult.exists === false) {
+      throw new Error('media-plane probe reported that the input is missing');
+    }
+    out.probe = probeResult;
   }
 
   return out;
