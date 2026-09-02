@@ -25,7 +25,7 @@ import { fanvueAuthRouter } from './routes/fanvue-auth.js';
 import { threadsAuthRouter } from './routes/threads-auth.js';
 import { auth, requireAuth } from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
-import { asPlatform, enqueueJob, registerConnectors } from '@axiom/worker';
+import { asPlatform, enqueueJob, registerConnectors, resolveCapabilities } from '@axiom/worker';
 import { createMcpServer } from '@axiom/mcp-server';
 import {
   TelegramAdapter,
@@ -130,6 +130,20 @@ async function relayCommandExecutor(
           const score = (tos.scores ?? []).find((item) => item.platform === platform);
           if (score?.verdict === 'block') {
             throw new Error(`relay command: ToS block on ${platform} prevents approval`);
+          }
+        }
+        if (!bundle[0].assetId) {
+          for (const platform of platforms) {
+            try {
+              if (resolveCapabilities(platform).media.includes('text')) continue;
+            } catch {
+              throw new Error(
+                `relay command: cannot resolve ${platform} capabilities; media requirement is unknown`,
+              );
+            }
+            throw new Error(
+              `relay command: bundle has no media asset; ${platform} requires media before approval`,
+            );
           }
         }
 
@@ -295,10 +309,7 @@ app.get('/api/v1/ready', async (c) => {
     await checkDatabase();
     return c.json({ status: 'ok', dependencies: { postgres: 'ok' } });
   } catch {
-    return c.json(
-      { status: 'unavailable', dependencies: { postgres: 'unavailable' } },
-      503,
-    );
+    return c.json({ status: 'unavailable', dependencies: { postgres: 'unavailable' } }, 503);
   }
 });
 
@@ -507,12 +518,7 @@ export async function initializeRuntime(): Promise<void> {
         if (!context || context.channel !== channel || !context.sourceId) {
           throw new Error('relay command: missing or invalid provider source');
         }
-        const result = await commandRouter.processCommand(
-          cardId,
-          receivedAction,
-          {},
-          context,
-        );
+        const result = await commandRouter.processCommand(cardId, receivedAction, {}, context);
         if (!result.success) {
           throw new Error(result.error ?? 'relay command failed');
         }

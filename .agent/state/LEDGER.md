@@ -101,3 +101,4 @@
 2026-09-02T20:08:33Z | [P1][WORKER] persist failed pre-post audit runs outside rolled-back publish transactions
 2026-09-02T20:19:18Z | [P1][WORKER] isolate post-publish audit persistence from external side effects
 2026-09-02T20:32:46Z | [P1][LIFECYCLE] reject media-only approval and scheduling without a bundle asset
+2026-09-02T20:47:49Z | [P1][RELAY/API] reject media-less approvals across dashboard, schedule, and signed Relay commands
