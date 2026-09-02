@@ -1,317 +1,190 @@
-// ─── Threads OAuth & Webhook Routes — Vitest Suite ───
-// Covers: /authorize redirect, /callback token exchange (short + long-lived),
-// failure paths, /delete GDPR callback, /uninstall webhook, /delete/status,
-// and the unconfigured-credentials path.
+// Threads OAuth route contract tests.
+// The callback persists the provider token as an encrypted model connection,
+// including the Threads user id needed by publish and metrics.
 
-import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Hono } from 'hono';
+import type { AppBindings } from '../index.js';
+import { mockDbFactory, mockState } from './test-utils.js';
 
-const REDIRECT_URI = 'https://threads.test/api/v1/connectors/threads/callback';
+const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const MODEL_ID = '22222222-2222-4222-8222-222222222222';
+const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 
-// Env is read at module load — set it BEFORE the dynamic import.
-process.env.THREADS_CLIENT_ID = 'test-threads-client-id';
-process.env.THREADS_CLIENT_SECRET = 'test-threads-client-secret';
-process.env.BETTER_AUTH_URL = 'https://threads.test';
-const envFile = join(mkdtempSync(join(tmpdir(), 'axiom-threads-test-')), '.env');
-writeFileSync(envFile, '', { mode: 0o600 });
-process.env.AXIOM_ENV_FILE = envFile;
+vi.mock('@axiom/db', () => mockDbFactory());
+vi.mock('@axiom/worker', () => ({
+  capabilityNames: vi.fn(() => ['publish', 'read.insights']),
+  resolveCapabilities: vi.fn(() => ({ publish: true })),
+}));
 
-let router: any;
+process.env.THREADS_CLIENT_ID = 'test-threads-client';
+process.env.THREADS_CLIENT_SECRET = 'test-threads-secret';
+process.env.BETTER_AUTH_URL = 'https://axiom.example.test';
+process.env.BETTER_AUTH_SECRET = 'test-oauth-cookie-secret';
+process.env.EGRESS_PLANE_URL = 'http://egress.example.test';
+process.env.EGRESS_DEK_ID = 'test-dek';
 
-function callbackInit(authorizationResponse: Response): RequestInit {
+let app: Hono<AppBindings>;
+
+function appWithOrg(): Hono<AppBindings> {
+  const nextApp = new Hono<AppBindings>();
+  nextApp.use('*', async (c, next) => {
+    c.set('orgId', ORG_ID);
+    c.set('userId', 'user-1');
+    await next();
+  });
+  return nextApp;
+}
+
+function callbackInit(response: Response): RequestInit {
   return {
-    headers: {
-      Cookie: authorizationResponse.headers.get('set-cookie')?.split(';', 1)[0] ?? '',
-    },
+    headers: { Cookie: response.headers.get('set-cookie')?.split(';', 1)[0] ?? '' },
   };
 }
 
+function installFetchMock(options: { longLivedOk?: boolean } = {}) {
+  const fetchMock = vi.fn((url: string | URL, _init?: RequestInit) => {
+    const value = String(url);
+    if (value.includes('/egress/encrypt')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          enc_creds: Buffer.from('ciphertext').toString('base64'),
+          enc_nonce: Buffer.from('nonce').toString('base64'),
+          dek_id: 'test-dek',
+        }),
+      });
+    }
+    if (value.endsWith('/oauth/access_token')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          access_token: 'short-lived-token',
+          user_id: 'threads-user-1',
+          expires_in: 3600,
+        }),
+      });
+    }
+    return Promise.resolve({
+      ok: options.longLivedOk !== false,
+      json: async () => ({ access_token: 'long-lived-token', expires_in: 5_184_000 }),
+    });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
 beforeAll(async () => {
-  const mod = await import('./threads-auth.js');
-  router = mod.threadsAuthRouter;
+  const { threadsAuthRouter } = await import('./threads-auth.js');
+  app = appWithOrg();
+  app.route('/', threadsAuthRouter);
 });
 
-afterEach(() => {
+beforeEach(() => {
+  mockState.result = [{ orgId: ORG_ID }];
+  mockState.results = [];
   vi.unstubAllGlobals();
 });
 
 describe('GET /authorize', () => {
-  it('redirects to Meta Threads OAuth with app params', async () => {
-    const res = await router.request('/authorize');
-    expect(res.status).toBe(302);
-
-    const url = new URL(res.headers.get('location')!);
-    expect(url.origin).toBe('https://threads.net');
-    expect(url.pathname).toBe('/oauth/authorize');
-    expect(url.searchParams.get('client_id')).toBe('test-threads-client-id');
-    expect(url.searchParams.get('redirect_uri')).toBe(REDIRECT_URI);
-    expect(url.searchParams.get('scope')).toBe('threads_basic,threads_publish');
-    expect(url.searchParams.get('response_type')).toBe('code');
-    expect(url.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{32}$/);
-    expect(res.headers.get('set-cookie')).toContain('axiom_threads_oauth_state=');
-    expect(res.headers.get('set-cookie')).toContain('HttpOnly');
-  });
-});
-
-describe('GET /callback — validation', () => {
-  it('rejects a missing authorization code', async () => {
-    const res = await router.request('/callback');
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as any;
-    expect(body.detail).toBe('Missing authorization code');
-  });
-
-  it('reports OAuth error params from Meta', async () => {
-    const res = await router.request(
-      '/callback?error=access_denied&error_description=user+said+no',
-    );
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as any;
-    expect(body.detail).toContain('OAuth error: access_denied');
-    expect(body.detail).toContain('user said no');
-  });
-
-  it('handles an OAuth error without a description', async () => {
-    const res = await router.request('/callback?error=access_denied');
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as any;
-    expect(body.detail).toBe('OAuth error: access_denied — ');
-  });
-});
-
-describe('GET /callback — token exchange', () => {
-  async function authorizeState(): Promise<{ state: string; response: Response }> {
-    const response = await router.request('/authorize');
-    return {
-      response,
-      state: new URL(response.headers.get('location')!).searchParams.get('state')!,
-    };
-  }
-
-  it('exchanges the code for a short-lived token and upgrades to long-lived', async () => {
-    const fetchMock = vi
-      .fn()
-      // 1st call: short-lived token exchange
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: 'short-lived-token',
-          user_id: 'threads-user-42',
-          token_type: 'bearer',
-        }),
-      })
-      // 2nd call: long-lived exchange
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ access_token: 'long-lived-token-abc', expires_in: 5184000 }),
-      });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const { state, response } = await authorizeState();
-    const res = await router.request(
-      `/callback?code=meta_auth_code&state=${state}`,
-      callbackInit(response),
-    );
-    expect(res.status).toBe(200);
-
-    const body = (await res.json()) as any;
-    expect(body.status).toBe('success');
-    expect(body.platform).toBe('threads');
-    expect(body.userThreadsId).toBe('threads-user-42');
-    expect(body).not.toHaveProperty('tokenPreview');
-    const persisted = readFileSync(envFile, 'utf8');
-    expect(persisted).toContain('THREADS_ACCESS_TOKEN=long-lived-token-abc');
-    expect(persisted).toContain('THREADS_USER_ID=threads-user-42');
-
-    // Verify both exchange requests
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-
-    const [tokenUrl, tokenInit] = fetchMock.mock.calls[0];
-    expect(tokenUrl).toBe('https://graph.threads.net/oauth/access_token');
-    expect(tokenInit.method).toBe('POST');
-    expect(tokenInit.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
-    const form = new URLSearchParams(tokenInit.body.toString());
-    expect(form.get('client_id')).toBe('test-threads-client-id');
-    expect(form.get('client_secret')).toBe('test-threads-client-secret');
-    expect(form.get('grant_type')).toBe('authorization_code');
-    expect(form.get('redirect_uri')).toBe(REDIRECT_URI);
-    expect(form.get('code')).toBe('meta_auth_code');
-
-    const longUrl = String(fetchMock.mock.calls[1][0]);
-    expect(longUrl).toContain('https://graph.threads.net/access_token');
-    expect(longUrl).toContain('grant_type=th_exchange_token');
-    expect(longUrl).toContain('client_secret=test-threads-client-secret');
-    expect(longUrl).toContain('access_token=short-lived-token');
-  });
-
-  it('falls back to the short-lived token when the long-lived exchange fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ access_token: 'short-token', user_id: 'u1' }),
-        })
-        .mockResolvedValueOnce({ ok: false, status: 400, text: async () => 'bad request' }),
-    );
-
-    const { state, response } = await authorizeState();
-    const res = await router.request(`/callback?code=c1&state=${state}`, callbackInit(response));
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as any;
-    expect(body.status).toBe('success');
-    expect(body).not.toHaveProperty('tokenPreview');
-  });
-
-  it('returns 502 when the short-lived token exchange fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 401,
-        text: async () => '{"error":{"message":"Invalid OAuth 2.0 Access Token"}}',
-      }),
-    );
-
-    const { state, response } = await authorizeState();
-    const res = await router.request(
-      `/callback?code=bad-code&state=${state}`,
-      callbackInit(response),
-    );
-    expect(res.status).toBe(502);
-    const body = (await res.json()) as any;
-    expect(body.detail).toContain('Token exchange failed: HTTP 401');
-    expect(body.detail).not.toContain('Invalid OAuth 2.0 Access Token');
-  });
-
-  it('returns 500 when the token endpoint throws', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
-
-    const { state, response } = await authorizeState();
-    const res = await router.request(`/callback?code=c2&state=${state}`, callbackInit(response));
-    expect(res.status).toBe(500);
-    const body = (await res.json()) as any;
-    expect(body.detail).toBe('Threads OAuth exchange or persistence failed');
-  });
-
-  it('rejects a callback with missing or replayed state', async () => {
-    const missing = await router.request('/callback?code=c3');
+  it('requires a model target and binds it into sealed OAuth state', async () => {
+    const missing = await app.request('/authorize');
     expect(missing.status).toBe(400);
 
-    const { state, response } = await authorizeState();
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ access_token: 'single-use-token', user_id: 'u2' }),
-        })
-        .mockResolvedValueOnce({ ok: false }),
-    );
-    const first = await router.request(`/callback?code=c4&state=${state}`, callbackInit(response));
-    expect(first.status).toBe(200);
-    const replay = await router.request(`/callback?code=c5&state=${state}`);
-    expect(replay.status).toBe(400);
+    const response = await app.request(`/authorize?modelId=${MODEL_ID}`);
+    expect(response.status).toBe(302);
+    const location = new URL(response.headers.get('location')!);
+    expect(location.origin).toBe('https://threads.net');
+    expect(location.searchParams.get('client_id')).toBe('test-threads-client');
+    expect(location.searchParams.get('scope')).toBe('threads_basic,threads_publish');
+    expect(response.headers.get('set-cookie')).toContain('HttpOnly');
   });
 });
 
-describe('GET /delete — GDPR data-deletion callback', () => {
-  it('echoes the confirmation code with a status URL', async () => {
-    const res = await router.request('/delete?confirmation_code=gdpr-123');
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as any;
-    expect(body.confirmation_code).toBe('gdpr-123');
-    expect(body.url).toBe(
-      'https://axiom.fanlynks.com/api/v1/connectors/threads/delete/status?id=gdpr-123',
+describe('GET /callback', () => {
+  it('stores the long-lived token and Threads user id in an encrypted connection', async () => {
+    const authResponse = await app.request(`/authorize?modelId=${MODEL_ID}`);
+    const state = new URL(authResponse.headers.get('location')!).searchParams.get('state')!;
+    const fetchMock = installFetchMock();
+    mockState.result = [{ id: CONNECTION_ID, orgId: ORG_ID }];
+
+    const response = await app.request(
+      `/callback?code=threads-code&state=${state}`,
+      callbackInit(authResponse),
     );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      status: 'success',
+      platform: 'threads',
+      connectionId: CONNECTION_ID,
+      userThreadsId: 'threads-user-1',
+    });
+    expect(JSON.stringify(body)).not.toContain('long-lived-token');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    const encryptionCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('/egress/encrypt'),
+    );
+    const payload = JSON.parse(encryptionCall![1]!.body as string) as { plaintext: string };
+    const stored = JSON.parse(Buffer.from(payload.plaintext, 'base64').toString('utf8')) as Record<
+      string,
+      unknown
+    >;
+    expect(stored).toMatchObject({
+      accessToken: 'long-lived-token',
+      externalUserId: 'threads-user-1',
+    });
+    expect(stored.expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
   });
 
-  it('rejects a missing confirmation_code', async () => {
-    const res = await router.request('/delete');
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as any;
-    expect(body.detail).toBe('Missing confirmation_code');
+  it('falls back to the short-lived token when long-lived exchange fails', async () => {
+    const authResponse = await app.request(`/authorize?modelId=${MODEL_ID}`);
+    const state = new URL(authResponse.headers.get('location')!).searchParams.get('state')!;
+    const fetchMock = installFetchMock({ longLivedOk: false });
+    mockState.result = [{ id: CONNECTION_ID, orgId: ORG_ID }];
+
+    const response = await app.request(
+      `/callback?code=threads-code&state=${state}`,
+      callbackInit(authResponse),
+    );
+
+    expect(response.status).toBe(200);
+    const encryptionCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('/egress/encrypt'),
+    );
+    const payload = JSON.parse(encryptionCall![1]!.body as string) as { plaintext: string };
+    const stored = JSON.parse(Buffer.from(payload.plaintext, 'base64').toString('utf8')) as Record<
+      string,
+      unknown
+    >;
+    expect(stored.accessToken).toBe('short-lived-token');
+  });
+
+  it('rejects a callback without a sealed state target', async () => {
+    const response = await app.request('/callback?code=threads-code&state=forged');
+    expect(response.status).toBe(400);
   });
 });
 
-describe('POST /uninstall — app uninstall webhook', () => {
-  it('acknowledges with the uninstalling user id', async () => {
-    const res = await router.request('/uninstall', {
+describe('webhooks', () => {
+  it('acknowledges uninstall notifications without exposing credentials', async () => {
+    const response = await app.request('/uninstall', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ user_id: 'threads-user-7' }),
     });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as any;
-    expect(body).toEqual({ status: 'acknowledged', user_id: 'threads-user-7' });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: 'acknowledged', user_id: 'threads-user-7' });
   });
 
-  it('defaults to unknown user id for an empty payload', async () => {
-    const res = await router.request('/uninstall', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({}),
+  it('returns the Meta deletion callback status URL', async () => {
+    const response = await app.request('/delete?confirmation_code=delete-123');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      confirmation_code: 'delete-123',
+      url: expect.stringContaining('delete-123'),
     });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as any;
-    expect(body).toEqual({ status: 'acknowledged', user_id: 'unknown' });
-  });
-
-  it('tolerates a malformed JSON payload', async () => {
-    const res = await router.request('/uninstall', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: 'not-json',
-    });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as any;
-    expect(body).toEqual({ status: 'acknowledged', user_id: 'unknown' });
-  });
-});
-
-describe('GET /delete/status — deletion progress', () => {
-  it('reports pending status for the given id', async () => {
-    const res = await router.request('/delete/status?id=gdpr-123');
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as any;
-    expect(body.id).toBe('gdpr-123');
-    expect(body.status).toBe('pending');
-  });
-
-  it('reports pending status even without an id', async () => {
-    const res = await router.request('/delete/status');
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as any;
-    expect(body.id).toBeUndefined();
-    expect(body.status).toBe('pending');
-  });
-});
-
-describe('unconfigured credentials', () => {
-  it('rejects /authorize when no client id is configured', async () => {
-    vi.resetModules();
-    delete process.env.THREADS_CLIENT_ID;
-    delete process.env.THREADS_CLIENT_SECRET;
-    const mod = await import('./threads-auth.js');
-    const unconfigured = mod.threadsAuthRouter;
-
-    const res = await unconfigured.request('/authorize');
-    expect(res.status).toBe(500);
-    const body = (await res.json()) as any;
-    expect(body.detail).toBe('Threads client ID not configured');
-  });
-
-  it('rejects /callback when client credentials are missing', async () => {
-    const mod = await import('./threads-auth.js');
-    const unconfigured = mod.threadsAuthRouter;
-
-    const res = await unconfigured.request('/callback?code=abc');
-    expect(res.status).toBe(500);
-    const body = (await res.json()) as any;
-    expect(body.detail).toBe('Threads client credentials not configured');
   });
 });

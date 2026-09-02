@@ -8,9 +8,9 @@
 import { Hono } from 'hono';
 import { randomBytes } from 'node:crypto';
 import type { AppBindings } from '../index.js';
-import { persistEnvValues } from '../credentials.js';
-import { apiError, statusTitle } from './helpers.js';
+import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
 import { clearOAuthStateCookie, getOAuthStateCookie, setOAuthStateCookie } from './oauth-state.js';
+import { persistOAuthConnection } from './oauth-connection.js';
 
 const THREADS_APP_ID = process.env.THREADS_CLIENT_ID || '';
 const THREADS_APP_SECRET = process.env.THREADS_CLIENT_SECRET || '';
@@ -18,7 +18,6 @@ const REDIRECT_URI = new URL(
   '/api/v1/connectors/threads/callback',
   process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
 ).toString();
-const AXIOM_ENV_FILE = process.env.AXIOM_ENV_FILE || '/root/axiom/.env';
 const OAUTH_STATE_COOKIE = 'axiom_threads_oauth_state';
 const OAUTH_COOKIE_PATH = '/api/v1/connectors/threads';
 const OAUTH_COOKIE_SECRET = process.env.BETTER_AUTH_SECRET || THREADS_APP_SECRET;
@@ -28,13 +27,19 @@ const router = new Hono<AppBindings>();
 /**
  * Step 1: Redirect user to Meta OAuth authorization page.
  */
-router.get('/authorize', (c) => {
+router.get('/authorize', async (c) => {
   if (!THREADS_APP_ID) {
     return apiError(c, 500, statusTitle(500), 'Threads client ID not configured');
   }
   if (!THREADS_APP_SECRET) {
     return apiError(c, 500, statusTitle(500), 'Threads client credentials not configured');
   }
+  const orgId = requireOrg(c);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const modelId = c.req.query('modelId');
+  if (!modelId) return apiError(c, 400, statusTitle(400), 'modelId query required');
+  const ownsModel = await withOrgContext(orgId, (tx) => modelOrgId(tx, modelId));
+  if (ownsModel !== orgId) return apiError(c, 404, statusTitle(404), 'model not found');
 
   const authUrl = new URL('https://threads.net/oauth/authorize');
   authUrl.searchParams.set('client_id', THREADS_APP_ID);
@@ -45,7 +50,7 @@ router.get('/authorize', (c) => {
   setOAuthStateCookie(
     c,
     OAUTH_STATE_COOKIE,
-    { state, issuedAt: Date.now() },
+    { state, orgId, modelId, issuedAt: Date.now() },
     OAUTH_COOKIE_SECRET,
     OAUTH_COOKIE_PATH,
   );
@@ -79,6 +84,9 @@ router.get('/callback', async (c) => {
   if (!state || !pending || pending.state !== state) {
     return apiError(c, 400, statusTitle(400), 'Invalid or missing state (CSRF check failed)');
   }
+  if (!pending.orgId || !pending.modelId) {
+    return apiError(c, 400, statusTitle(400), 'OAuth state has no model connection target');
+  }
   clearOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_COOKIE_PATH);
 
   try {
@@ -100,14 +108,17 @@ router.get('/callback', async (c) => {
     }
 
     const tokenData = (await tokenResp.json()) as {
-      access_token: string;
-      user_id: string;
+      access_token?: string;
+      user_id?: string;
       token_type?: string;
       expires_in?: number;
     };
 
     const accessToken = tokenData.access_token;
     const threadsUserId = tokenData.user_id;
+    if (!accessToken || !threadsUserId) {
+      return apiError(c, 502, statusTitle(502), 'Token exchange returned incomplete credentials');
+    }
 
     // Exchange short-lived token for a long-lived token (60 days)
     const longLivedUrl = new URL('https://graph.threads.net/access_token');
@@ -117,29 +128,46 @@ router.get('/callback', async (c) => {
     const longLivedResp = await fetch(longLivedUrl);
 
     let finalToken = accessToken;
+    let expiresIn = typeof tokenData.expires_in === 'number' ? tokenData.expires_in : 3600;
     if (longLivedResp.ok) {
       const longLivedData = (await longLivedResp.json()) as {
-        access_token: string;
+        access_token?: string;
         expires_in?: number;
       };
-      finalToken = longLivedData.access_token;
+      if (longLivedData.access_token) finalToken = longLivedData.access_token;
+      if (typeof longLivedData.expires_in === 'number') expiresIn = longLivedData.expires_in;
     }
 
-    persistEnvValues(AXIOM_ENV_FILE, {
-      THREADS_ACCESS_TOKEN: finalToken,
-      THREADS_USER_ID: threadsUserId,
+    const connection = await persistOAuthConnection({
+      orgId: pending.orgId,
+      modelId: pending.modelId,
+      platform: 'threads',
+      displayName: `Threads ${threadsUserId}`,
+      credentials: {
+        accessToken: finalToken,
+        externalUserId: threadsUserId,
+        expiresAt: Math.floor(Date.now() / 1000) + expiresIn,
+      },
+      actorRef: 'oauth:threads',
     });
-    console.log(`Threads OAuth successful: user_id=${threadsUserId}; credentials persisted`);
+    if (!connection) return apiError(c, 404, statusTitle(404), 'model not found');
 
     return c.json({
       status: 'success',
       platform: 'threads',
       userThreadsId: threadsUserId,
-      message: 'Threads connected. Credentials stored in .env.',
+      connectionId: connection.id,
+      message: 'Threads connected.',
+      expiresIn,
     });
   } catch {
-    console.error('Threads OAuth exchange or persistence failed');
-    return apiError(c, 500, statusTitle(500), 'Threads OAuth exchange or persistence failed');
+    console.error('Threads OAuth exchange or encrypted connection persistence failed');
+    return apiError(
+      c,
+      502,
+      statusTitle(502),
+      'Threads OAuth exchange or connection persistence failed',
+    );
   }
 });
 

@@ -358,8 +358,9 @@ app.use('/api/v1/crash-reports/*', requireAuth);
 app.use('/api/v1/org-settings/*', requireAuth);
 // LLM requests can spend provider credits and reveal provider/runtime state.
 app.use('/api/v1/llm/*', requireAuth);
-// OAuth initiation and token refresh mutate deployment-wide credentials.
-// Provider callbacks remain public and are protected by one-time OAuth state.
+// OAuth initiation and token refresh are session-authenticated. The sealed
+// callback state carries the org/model target, so public provider callbacks
+// cannot attach credentials to another tenant or a deployment-wide .env file.
 app.use('/api/v1/connectors/fanvue/authorize', requireAuth);
 app.use('/api/v1/connectors/fanvue/refresh', requireAuth);
 app.use('/api/v1/connectors/threads/authorize', requireAuth);

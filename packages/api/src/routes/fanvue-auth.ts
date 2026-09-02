@@ -1,16 +1,20 @@
 // ─── Fanvue OAuth Routes (PKCE, per api.fanvue.com implementation guide) ───
 //   GET /authorize — generate PKCE verifier/challenge, redirect to Fanvue login
-//   GET /callback  — verify state, exchange code + verifier for tokens, persist to .env
-//   POST /refresh  — exchange the stored refresh token for a fresh access token
-//                    (Ory client_secret_basic), persist to .env
+//   GET /callback  — verify state, exchange code + verifier for tokens, persist
+//                    an encrypted org/model-scoped platform connection
+//   POST /refresh  — rotate the token for one org/model-scoped connection
 
 import { Hono } from 'hono';
 import { randomBytes, createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import type { AppBindings } from '../index.js';
-import { persistEnvValues } from '../credentials.js';
-import { apiError, statusTitle } from './helpers.js';
+import { connectorForConnection } from '@axiom/worker';
+import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
 import { clearOAuthStateCookie, getOAuthStateCookie, setOAuthStateCookie } from './oauth-state.js';
+import {
+  loadOAuthConnection,
+  persistOAuthConnection,
+  updateOAuthCredentials,
+} from './oauth-connection.js';
 
 const FANVUE_CLIENT_ID = process.env.FANVUE_CLIENT_ID || '';
 const FANVUE_CLIENT_SECRET = process.env.FANVUE_CLIENT_SECRET || '';
@@ -20,8 +24,6 @@ const FANVUE_REDIRECT_URI =
     '/api/v1/connectors/fanvue/callback',
     process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
   ).toString();
-const AXIOM_ENV_FILE = process.env.AXIOM_ENV_FILE || '/root/axiom/.env';
-
 const FANVUE_AUTH_URL = 'https://auth.fanvue.com/oauth2/auth';
 const FANVUE_TOKEN_URL = 'https://auth.fanvue.com/oauth2/token';
 // Default scopes per Fanvue docs: read:self, read:chat, plus the write scopes
@@ -59,25 +61,22 @@ function generateCodeChallenge(verifier: string): string {
   return base64URLEncode(createHash('sha256').update(verifier).digest());
 }
 
-function persistEnvToken(accessToken: string, refreshToken: string, expiresIn: number): void {
-  const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
-  persistEnvValues(AXIOM_ENV_FILE, {
-    FANVUE_ACCESS_TOKEN: accessToken,
-    FANVUE_REFRESH_TOKEN: refreshToken,
-    FANVUE_TOKEN_EXPIRES_AT: expiresAt,
-  });
-}
-
 /**
  * GET /authorize — start the OAuth flow: build PKCE challenge and redirect to Fanvue.
  */
-router.get('/authorize', (c) => {
+router.get('/authorize', async (c) => {
   if (!FANVUE_CLIENT_ID) {
     return apiError(c, 500, statusTitle(500), 'Fanvue client ID not configured');
   }
   if (!FANVUE_CLIENT_SECRET) {
     return apiError(c, 500, statusTitle(500), 'Fanvue client credentials not configured');
   }
+  const orgId = requireOrg(c);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const modelId = c.req.query('modelId');
+  if (!modelId) return apiError(c, 400, statusTitle(400), 'modelId query required');
+  const ownsModel = await withOrgContext(orgId, (tx) => modelOrgId(tx, modelId));
+  if (ownsModel !== orgId) return apiError(c, 404, statusTitle(404), 'model not found');
 
   const verifier = generateCodeVerifier();
   const challenge = generateCodeChallenge(verifier);
@@ -85,7 +84,7 @@ router.get('/authorize', (c) => {
   setOAuthStateCookie(
     c,
     OAUTH_STATE_COOKIE,
-    { state, verifier, issuedAt: Date.now() },
+    { state, verifier, orgId, modelId, issuedAt: Date.now() },
     OAUTH_COOKIE_SECRET,
     OAUTH_COOKIE_PATH,
   );
@@ -103,7 +102,8 @@ router.get('/authorize', (c) => {
 });
 
 /**
- * GET /callback — handle OAuth redirect from Fanvue, exchange code for tokens, persist them.
+ * GET /callback — handle OAuth redirect from Fanvue, exchange code for tokens,
+ * then persist an encrypted connection for the model bound to the sealed state.
  * Receives ?code=...&state=... from auth.fanvue.com
  */
 router.get('/callback', async (c) => {
@@ -122,6 +122,9 @@ router.get('/callback', async (c) => {
   const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_COOKIE_SECRET);
   if (!state || !pending || pending.state !== state || !pending.verifier) {
     return apiError(c, 400, statusTitle(400), 'Invalid or missing state (CSRF check failed)');
+  }
+  if (!pending.orgId || !pending.modelId) {
+    return apiError(c, 400, statusTitle(400), 'OAuth state has no model connection target');
   }
 
   clearOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_COOKIE_PATH);
@@ -163,96 +166,99 @@ router.get('/callback', async (c) => {
       console.error('Fanvue token exchange succeeded without an access token');
       return apiError(c, 502, statusTitle(502), 'Token exchange returned no access token');
     }
-    persistEnvToken(accessToken, refreshToken, expiresIn);
-    console.log('Fanvue tokens acquired and persisted to .env');
+
+    const expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
+    const externalUserId =
+      typeof tokens['user_id'] === 'string'
+        ? tokens['user_id']
+        : typeof tokens['user_uuid'] === 'string'
+          ? tokens['user_uuid']
+          : typeof tokens['sub'] === 'string'
+            ? tokens['sub']
+            : undefined;
+    const connection = await persistOAuthConnection({
+      orgId: pending.orgId,
+      modelId: pending.modelId,
+      platform: 'fanvue',
+      displayName: externalUserId ? `Fanvue ${externalUserId}` : 'Fanvue',
+      credentials: {
+        accessToken,
+        ...(refreshToken ? { refreshToken } : {}),
+        externalUserId,
+        expiresAt,
+        extra: { clientId: FANVUE_CLIENT_ID, clientSecret: FANVUE_CLIENT_SECRET },
+      },
+      actorRef: 'oauth:fanvue',
+    });
+    if (!connection) return apiError(c, 404, statusTitle(404), 'model not found');
 
     return c.json({
       success: true,
-      message: 'Fanvue connected. Tokens stored in .env.',
+      message: 'Fanvue connected.',
+      connectionId: connection.id,
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,
       expiresIn,
     });
-  } catch (err) {
-    console.error('Fanvue token exchange or persistence failed');
-    return apiError(c, 500, statusTitle(500), 'Token exchange or persistence failed');
+  } catch {
+    console.error('Fanvue token exchange or encrypted connection persistence failed');
+    return apiError(c, 502, statusTitle(502), 'Token exchange or connection persistence failed');
   }
 });
 
 /**
- * POST /refresh — exchange the stored refresh token for a fresh access token.
+ * POST /refresh?connectionId=... — exchange one connection's refresh token for
+ * a fresh access token and persist the rotated encrypted envelope.
  * Access tokens are short-lived (~1 hour), so this keeps the deployment live
  * without a browser round-trip. Uses client_secret_basic per the Ory token
  * endpoint (client_secret_post is rejected by the server).
  *
- * NOTE: Ory ROTATES the refresh token on every grant (the old one is revoked
- * immediately), so we read the token from the canonical .env file rather than
- * process.env (which goes stale after a previous refresh persisted a new one)
- * and persist the rotated token back.
  */
 router.post('/refresh', async (c) => {
   if (!FANVUE_CLIENT_ID || !FANVUE_CLIENT_SECRET) {
     return apiError(c, 500, statusTitle(500), 'Fanvue client credentials not configured');
   }
 
-  // Read the current refresh token from the canonical env file (rotation-safe).
-  let refreshToken = '';
-  try {
-    const env = readFileSync(AXIOM_ENV_FILE, 'utf8');
-    const match = env.split('\n').find((l) => l.startsWith('FANVUE_REFRESH_TOKEN='));
-    if (match) refreshToken = match.slice('FANVUE_REFRESH_TOKEN='.length).trim();
-  } catch {
-    refreshToken = '';
+  const orgId = requireOrg(c);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const connectionId = c.req.query('connectionId');
+  if (!connectionId) return apiError(c, 400, statusTitle(400), 'connectionId query required');
+
+  const connections = await loadOAuthConnection(orgId, connectionId);
+  const connection = connections[0];
+  if (!connection) return apiError(c, 404, statusTitle(404), 'connection not found');
+  if (connection.platform !== 'fanvue') {
+    return apiError(c, 400, statusTitle(400), 'connection is not a Fanvue account');
   }
-  if (!refreshToken) {
-    return apiError(c, 400, statusTitle(400), 'No refresh token stored — run the OAuth flow first');
-  }
 
   try {
-    const basicAuth = Buffer.from(`${FANVUE_CLIENT_ID}:${FANVUE_CLIENT_SECRET}`).toString('base64');
-
-    const resp = await fetch(FANVUE_TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${basicAuth}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      // NOTE: scope intentionally omitted — requesting scopes beyond the
-      // original authorization grant makes Ory reject the refresh (400).
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-      }),
-    });
-
-    const tokens: Record<string, unknown> = (await resp.json()) as Record<string, unknown>;
-
-    if (!resp.ok) {
-      console.error('Fanvue token refresh failed', { status: resp.status });
-      return apiError(c, 400, statusTitle(400), 'Token refresh failed');
+    const { connector } = await connectorForConnection(connection);
+    const refresh = (
+      connector as unknown as {
+        refreshAccessToken?: () => Promise<{ expiresAt: number }>;
+      }
+    ).refreshAccessToken;
+    if (!refresh) {
+      return apiError(c, 400, statusTitle(400), 'Fanvue connection has no refresh capability');
     }
+    await refresh.call(connector);
 
-    const accessToken = typeof tokens['access_token'] === 'string' ? tokens['access_token'] : '';
-    const newRefreshToken =
-      typeof tokens['refresh_token'] === 'string' ? tokens['refresh_token'] : refreshToken;
-    const expiresIn = typeof tokens['expires_in'] === 'number' ? tokens['expires_in'] : 3600;
-
-    if (!accessToken) {
-      console.error('Fanvue token refresh succeeded without an access token');
-      return apiError(c, 502, statusTitle(502), 'Refresh succeeded but no access_token returned');
-    }
-
-    persistEnvToken(accessToken, newRefreshToken, expiresIn);
-    console.log('Fanvue tokens refreshed and persisted to .env');
+    const saved = await updateOAuthCredentials(
+      orgId,
+      connectionId,
+      connector.auth,
+      c.get('userId') ?? 'system',
+    );
+    if (!saved) return apiError(c, 404, statusTitle(404), 'connection not found');
 
     return c.json({
       success: true,
-      message: 'Fanvue tokens refreshed.',
-      expiresIn,
+      message: 'Fanvue connection refreshed.',
+      expiresAt: connector.auth.expiresAt,
     });
   } catch {
-    console.error('Fanvue token refresh or persistence failed');
-    return apiError(c, 500, statusTitle(500), 'Token refresh or persistence failed');
+    console.error('Fanvue connection refresh or encrypted persistence failed');
+    return apiError(c, 502, statusTitle(502), 'Fanvue connection refresh failed');
   }
 });
 

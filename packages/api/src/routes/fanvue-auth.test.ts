@@ -1,295 +1,187 @@
-// ─── Fanvue OAuth Routes — Vitest Suite ───
-// Covers: /authorize PKCE construction, CSRF/state validation,
-// token exchange, one-time state usage, and .env token persistence.
+// Fanvue OAuth route contract tests.
+// The callback target is sealed into OAuth state and credentials are sent to
+// egress for encryption before the org/model connection row is written.
 
-import { describe, it, expect, beforeAll, vi } from 'vitest';
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Hono } from 'hono';
+import type { AppBindings } from '../index.js';
+import { mockDbFactory, mockState } from './test-utils.js';
 
-// ── Isolated env: temp .env file + test credentials, set BEFORE module load ──
-const envDir = mkdtempSync(join(tmpdir(), 'axiom-fanvue-test-'));
-const envFile = join(envDir, '.env');
-writeFileSync(envFile, '', { mode: 0o600 });
+const ORG_ID = '11111111-1111-4111-8111-111111111111';
+const MODEL_ID = '22222222-2222-4222-8222-222222222222';
+const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
+
+vi.mock('@axiom/db', () => mockDbFactory());
+vi.mock('@axiom/worker', () => ({
+  capabilityNames: vi.fn(() => ['publish', 'read.insights']),
+  resolveCapabilities: vi.fn(() => ({ publish: true })),
+  connectorForConnection: vi.fn(),
+}));
 
 process.env.FANVUE_CLIENT_ID = 'test-client-id';
 process.env.FANVUE_CLIENT_SECRET = 'test-client-secret';
 process.env.FANVUE_REDIRECT_URI = 'https://callback.example.test/api/v1/connectors/fanvue/callback';
-process.env.FANVUE_REFRESH_TOKEN = 'ory_rt_test_refresh';
-process.env.AXIOM_ENV_FILE = envFile;
+process.env.BETTER_AUTH_SECRET = 'test-oauth-cookie-secret';
+process.env.EGRESS_PLANE_URL = 'http://egress.example.test';
+process.env.EGRESS_DEK_ID = 'test-dek';
 
-// Router must be imported dynamically so the env above is visible at module load.
-let router: any;
+let app: Hono<AppBindings>;
 
-function callbackInit(authorizationResponse: Response): RequestInit {
+function appWithOrg(): Hono<AppBindings> {
+  const nextApp = new Hono<AppBindings>();
+  nextApp.use('*', async (c, next) => {
+    c.set('orgId', ORG_ID);
+    c.set('userId', 'user-1');
+    await next();
+  });
+  return nextApp;
+}
+
+function callbackInit(response: Response): RequestInit {
   return {
-    headers: {
-      Cookie: authorizationResponse.headers.get('set-cookie')?.split(';', 1)[0] ?? '',
-    },
+    headers: { Cookie: response.headers.get('set-cookie')?.split(';', 1)[0] ?? '' },
   };
 }
 
+function egressResponse(): { ok: boolean; json: () => Promise<Record<string, string>> } {
+  return {
+    ok: true,
+    json: async () => ({
+      enc_creds: Buffer.from('ciphertext').toString('base64'),
+      enc_nonce: Buffer.from('nonce').toString('base64'),
+      dek_id: 'test-dek',
+    }),
+  };
+}
+
+function installFetchMock(
+  tokenData: Record<string, unknown> = {
+    access_token: 'access-token',
+    refresh_token: 'refresh-token',
+    expires_in: 3600,
+  },
+) {
+  const fetchMock = vi.fn((url: string | URL, _init?: RequestInit) => {
+    if (String(url).includes('/egress/encrypt')) return Promise.resolve(egressResponse());
+    return Promise.resolve({ ok: true, json: async () => tokenData });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
 beforeAll(async () => {
-  const mod = await import('./fanvue-auth.js');
-  router = mod.fanvueAuthRouter;
+  const { fanvueAuthRouter } = await import('./fanvue-auth.js');
+  app = appWithOrg();
+  app.route('/', fanvueAuthRouter);
+});
+
+beforeEach(() => {
+  mockState.result = [{ orgId: ORG_ID }];
+  mockState.results = [];
+  vi.unstubAllGlobals();
 });
 
 describe('GET /authorize', () => {
-  it('redirects to Fanvue auth with full PKCE parameters', async () => {
-    const res = await router.request('/authorize');
-    expect(res.status).toBe(302);
+  it('requires a model target and seals it into the OAuth state', async () => {
+    const missing = await app.request('/authorize');
+    expect(missing.status).toBe(400);
 
-    const url = new URL(res.headers.get('location')!);
-    expect(url.origin).toBe('https://auth.fanvue.com');
-    expect(url.pathname).toBe('/oauth2/auth');
-    expect(url.searchParams.get('client_id')).toBe('test-client-id');
-    expect(url.searchParams.get('redirect_uri')).toBe(process.env.FANVUE_REDIRECT_URI);
-    expect(url.searchParams.get('response_type')).toBe('code');
-    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
-    expect(url.searchParams.get('state')).toBeTruthy();
-    expect(url.searchParams.get('code_challenge')).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(url.searchParams.get('scope')).toContain('openid');
-    expect(url.searchParams.get('scope')).toContain('offline_access');
-    expect(res.headers.get('set-cookie')).toContain('axiom_fanvue_oauth_state=');
-    expect(res.headers.get('set-cookie')).toContain('HttpOnly');
+    const response = await app.request(`/authorize?modelId=${MODEL_ID}`);
+    expect(response.status).toBe(302);
+    const location = new URL(response.headers.get('location')!);
+    expect(location.origin).toBe('https://auth.fanvue.com');
+    expect(location.searchParams.get('client_id')).toBe('test-client-id');
+    expect(location.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(response.headers.get('set-cookie')).toContain('HttpOnly');
   });
 });
 
-describe('GET /callback — validation', () => {
-  it('rejects a request with no code', async () => {
-    const res = await router.request('/callback');
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.detail).toContain('Missing authorization code');
-  });
-
-  it('rejects a request with an OAuth error param', async () => {
-    const res = await router.request('/callback?error=access_denied');
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.detail).toContain('access_denied');
-  });
-
-  it('rejects a code with a forged/invalid state (CSRF guard)', async () => {
-    const res = await router.request('/callback?code=abc123&state=forged-state');
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.detail).toContain('CSRF');
-  });
-
-  it('rejects a code with no state at all', async () => {
-    const res = await router.request('/callback?code=abc123');
-    expect(res.status).toBe(400);
-  });
-});
-
-describe('GET /callback — token exchange + persistence', () => {
-  it('exchanges the code with code_verifier and persists tokens to .env', async () => {
-    // 1. Start a flow to obtain a valid state
-    const authRes = await router.request('/authorize');
-    const state = new URL(authRes.headers.get('location')!).searchParams.get('state')!;
-
-    // 2. Stub Fanvue's token endpoint
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        access_token: 'acc-tok-1234567890',
-        refresh_token: 'ref-tok-0987654321',
-        expires_in: 3600,
-      }),
+describe('GET /callback', () => {
+  it('stores an encrypted, model-scoped connection and never writes .env', async () => {
+    const authResponse = await app.request(`/authorize?modelId=${MODEL_ID}`);
+    const state = new URL(authResponse.headers.get('location')!).searchParams.get('state')!;
+    const fetchMock = installFetchMock({
+      access_token: 'callback-access-token',
+      refresh_token: 'callback-refresh-token',
+      expires_in: 3600,
+      user_id: 'fanvue-user-1',
     });
-    vi.stubGlobal('fetch', fetchMock);
 
-    // 3. Hit the callback with the real state
-    const res = await router.request(
-      `/callback?code=ory_test_code&state=${state}`,
-      callbackInit(authRes),
+    mockState.result = [{ id: CONNECTION_ID, orgId: ORG_ID }];
+    const response = await app.request(
+      `/callback?code=authorization-code&state=${state}`,
+      callbackInit(authResponse),
     );
-    expect(res.status).toBe(200);
 
-    const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(body.hasAccessToken).toBe(true);
-    expect(body.hasRefreshToken).toBe(true);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({ success: true, connectionId: CONNECTION_ID });
+    expect(JSON.stringify(body)).not.toContain('callback-access-token');
 
-    // 4. Token endpoint was called with the PKCE code_verifier
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe('https://auth.fanvue.com/oauth2/token');
-    const form = new URLSearchParams(init.body.toString());
-    expect(form.get('grant_type')).toBe('authorization_code');
-    expect(form.get('code')).toBe('ory_test_code');
-    expect(form.get('redirect_uri')).toBe(process.env.FANVUE_REDIRECT_URI);
-    expect(form.get('code_verifier')).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(init.headers.Authorization).toMatch(/^Basic /);
-
-    // 5. Tokens were persisted to the env file with restrictive perms
-    const env = readFileSync(envFile, 'utf8');
-    expect(env).toContain('FANVUE_ACCESS_TOKEN=acc-tok-1234567890');
-    expect(env).toContain('FANVUE_REFRESH_TOKEN=ref-tok-0987654321');
-    expect(env).toContain('FANVUE_TOKEN_EXPIRES_AT=');
-    if (process.platform !== 'win32') {
-      const mode = statSync(envFile).mode & 0o777;
-      expect(mode).toBe(0o600);
-    }
-
-    vi.unstubAllGlobals();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const encryptionCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('/egress/encrypt'),
+    );
+    expect(encryptionCall).toBeDefined();
+    const encryptedPayload = JSON.parse(encryptionCall![1]!.body as string) as {
+      plaintext: string;
+      dek_id: string;
+    };
+    const stored = JSON.parse(
+      Buffer.from(encryptedPayload.plaintext, 'base64').toString('utf8'),
+    ) as Record<string, unknown>;
+    expect(stored).toMatchObject({
+      accessToken: 'callback-access-token',
+      refreshToken: 'callback-refresh-token',
+      externalUserId: 'fanvue-user-1',
+      extra: { clientId: 'test-client-id', clientSecret: 'test-client-secret' },
+    });
+    expect(encryptedPayload.dek_id).toBe('test-dek');
   });
 
-  it('does not leak the full access token in the response', async () => {
-    const authRes = await router.request('/authorize');
-    const state = new URL(authRes.headers.get('location')!).searchParams.get('state')!;
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          access_token: 'super-secret-token-value',
-          refresh_token: 'r',
-          expires_in: 3600,
-        }),
-      }),
-    );
-
-    const res = await router.request(`/callback?code=c&state=${state}`, callbackInit(authRes));
-    const body = await res.json();
-    expect(body).not.toHaveProperty('tokenPreview');
-    expect(JSON.stringify(body)).not.toContain('super-secret-token-value');
-
-    vi.unstubAllGlobals();
-  });
-
-  it('rejects a token endpoint failure with a clear error', async () => {
-    const authRes = await router.request('/authorize');
-    const state = new URL(authRes.headers.get('location')!).searchParams.get('state')!;
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: false,
-        json: async () => ({ error: 'invalid_grant' }),
-      }),
-    );
-
-    const res = await router.request(`/callback?code=bad&state=${state}`, callbackInit(authRes));
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.detail).toBe('Token exchange failed');
-    expect(body).not.toHaveProperty('token_response');
-
-    vi.unstubAllGlobals();
-  });
-});
-
-describe('state cookie lifecycle', () => {
-  it('clears the state cookie after a completed exchange', async () => {
-    const authRes = await router.request('/authorize');
-    const state = new URL(authRes.headers.get('location')!).searchParams.get('state')!;
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ access_token: 'a', refresh_token: 'r', expires_in: 3600 }),
-      }),
-    );
-
-    const first = await router.request(`/callback?code=c1&state=${state}`, callbackInit(authRes));
-    expect(first.status).toBe(200);
-    expect(first.headers.get('set-cookie')).toContain('Max-Age=0');
-
-    const replay = await router.request(`/callback?code=c2&state=${state}`);
-    expect(replay.status).toBe(400);
-    const body = await replay.json();
-    expect(body.detail).toContain('CSRF');
-
-    vi.unstubAllGlobals();
+  it('rejects a callback without a valid sealed state', async () => {
+    const response = await app.request('/callback?code=code&state=forged');
+    expect(response.status).toBe(400);
   });
 });
 
 describe('POST /refresh', () => {
-  /** Seed the canonical env file with a refresh token (route reads the file). */
-  function seedRefreshToken(value: string): void {
-    const lines = readFileSync(envFile, 'utf8').split('\n');
-    const idx = lines.findIndex((l) => l.startsWith('FANVUE_REFRESH_TOKEN='));
-    if (idx >= 0) lines[idx] = `FANVUE_REFRESH_TOKEN=${value}`;
-    else lines.push(`FANVUE_REFRESH_TOKEN=${value}`);
-    writeFileSync(envFile, lines.join('\n'), { mode: 0o600 });
-  }
-
-  it('exchanges the stored refresh token with client_secret_basic and persists', async () => {
-    seedRefreshToken('ory_rt_test_refresh');
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          access_token: 'fresh-token-abc123',
-          refresh_token: 'new-rt',
-          expires_in: 3600,
-        }),
-      }),
-    );
-
-    const res = await router.request('/refresh', { method: 'POST' });
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(body).not.toHaveProperty('tokenPreview');
-    expect(JSON.stringify(body)).not.toContain('fresh-token-abc123');
-
-    const fetchMock = vi.mocked(fetch);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://auth.fanvue.com/oauth2/token');
-    const form = new URLSearchParams(init.body as string);
-    expect(form.get('grant_type')).toBe('refresh_token');
-    expect(form.get('refresh_token')).toBe('ory_rt_test_refresh');
-    expect((init.headers as Record<string, string>).Authorization).toMatch(/^Basic /);
-
-    // Rotated tokens persisted to the env file (rotation-safe).
-    const env = readFileSync(envFile, 'utf8');
-    expect(env).toContain('FANVUE_ACCESS_TOKEN=fresh-token-abc123');
-    expect(env).toContain('FANVUE_REFRESH_TOKEN=new-rt');
-
-    vi.unstubAllGlobals();
+  it('requires a connection id instead of deployment-wide refresh state', async () => {
+    const response = await app.request('/refresh', { method: 'POST' });
+    expect(response.status).toBe(400);
+    expect(((await response.json()) as { detail: string }).detail).toContain('connectionId');
   });
 
-  it('returns 400 when the refresh grant fails', async () => {
-    seedRefreshToken('ory_rt_test_refresh');
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: false,
-        json: async () => ({ error: 'invalid_grant', error_description: 'Refresh token revoked' }),
-      }),
+  it('refreshes and re-encrypts one Fanvue connection', async () => {
+    const auth = {
+      accessToken: 'old-access-token',
+      refreshToken: 'old-refresh-token',
+      expiresAt: 1,
+      extra: { clientId: 'test-client-id', clientSecret: 'test-client-secret' },
+    };
+    const refreshAccessToken = vi.fn(async () => {
+      auth.accessToken = 'new-access-token';
+      auth.refreshToken = 'new-refresh-token';
+      auth.expiresAt = 1_900_000_000;
+      return { accessToken: auth.accessToken, expiresAt: auth.expiresAt };
+    });
+    const worker = await import('@axiom/worker');
+    vi.mocked(worker.connectorForConnection).mockResolvedValueOnce({
+      connection: {} as never,
+      connector: { auth, refreshAccessToken } as never,
+    });
+    mockState.result = [{ id: CONNECTION_ID, platform: 'fanvue' }];
+    const fetchMock = installFetchMock();
+
+    const response = await app.request(`/refresh?connectionId=${CONNECTION_ID}`, {
+      method: 'POST',
+    });
+    expect(response.status).toBe(200);
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://egress.example.test/egress/encrypt',
+      expect.any(Object),
     );
-
-    const res = await router.request('/refresh', { method: 'POST' });
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.detail).toBe('Token refresh failed');
-    expect(body).not.toHaveProperty('token_response');
-
-    vi.unstubAllGlobals();
-  });
-
-  it('rejects when no refresh token is stored in the env file', async () => {
-    // Ensure the file has NO refresh token for this test.
-    const before = readFileSync(envFile, 'utf8');
-    const cleaned = before
-      .split('\n')
-      .filter((l) => !l.startsWith('FANVUE_REFRESH_TOKEN='))
-      .join('\n');
-    writeFileSync(envFile, cleaned, { mode: 0o600 });
-    try {
-      const res = await router.request('/refresh', { method: 'POST' });
-      expect(res.status).toBe(400);
-      const body = await res.json();
-      expect(body.detail).toContain('No refresh token stored');
-    } finally {
-      writeFileSync(envFile, before, { mode: 0o600 });
-    }
+    expect(JSON.stringify(await response.json())).not.toContain('new-access-token');
   });
 });

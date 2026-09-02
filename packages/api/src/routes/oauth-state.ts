@@ -9,6 +9,9 @@ const IV_BYTES = 12;
 export type OAuthStatePayload = {
   state: string;
   verifier?: string;
+  /** The authenticated tenant target; required for connection callbacks. */
+  orgId?: string;
+  modelId?: string;
   issuedAt: number;
 };
 
@@ -47,7 +50,9 @@ function unseal(value: string, secret: string): OAuthStatePayload | null {
     if (
       typeof payload.state !== 'string' ||
       typeof payload.issuedAt !== 'number' ||
-      (payload.verifier !== undefined && typeof payload.verifier !== 'string')
+      (payload.verifier !== undefined && typeof payload.verifier !== 'string') ||
+      (payload.orgId !== undefined && typeof payload.orgId !== 'string') ||
+      (payload.modelId !== undefined && typeof payload.modelId !== 'string')
     ) {
       return null;
     }
