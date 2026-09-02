@@ -371,7 +371,10 @@ export function buildS3(task: TaskVariables): string {
 
   // Optional image caption
   if (task.imageCaption) {
-    if (!lines.some((l) => l.startsWith('[MEDIA]'))) {
+    // Media descriptions are stored with a leading newline for readability,
+    // so inspect the trimmed section marker rather than relying on the raw
+    // line prefix. Keep one canonical media section in the prompt.
+    if (!lines.some((l) => l.trim() === '[MEDIA]')) {
       lines.push(`\n[MEDIA]`);
     }
     lines.push(`Image: ${task.imageCaption}`);

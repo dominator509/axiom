@@ -262,13 +262,9 @@ describe('buildS3', () => {
     expect(s3.match(/\[MEDIA\]/g)?.length).toBe(1);
   });
 
-  it('duplicates the [MEDIA] header when both media and image caption are present (source quirk)', () => {
+  it('keeps one [MEDIA] header when both media and image caption are present', () => {
     const s3 = buildS3({ ...task, mediaDescriptions: ['clip 1'], imageCaption: 'cover photo' });
-    // SOURCE QUIRK: buildS3 checks `lines.some(l => l.startsWith('[MEDIA]'))`
-    // but the header is pushed as `\n[MEDIA]` (leading newline), so the guard
-    // never matches and a second [MEDIA] header is emitted. Asserting the
-    // real behavior here; source was left untouched per task constraints.
-    expect(s3.match(/\[MEDIA\]/g)?.length).toBe(2);
+    expect(s3.match(/\[MEDIA\]/g)?.length).toBe(1);
     expect(s3).toContain('Media 1: clip 1');
     expect(s3).toContain('Image: cover photo');
   });
