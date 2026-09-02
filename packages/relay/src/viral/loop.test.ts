@@ -134,13 +134,23 @@ describe('storeExemplar / getExemplarCount / retrieveExemplars', () => {
 });
 
 describe('embedFeatures', () => {
-  it('is an identity placeholder for the feature vector', () => {
+  it('returns a normalized copy for cosine comparison', () => {
     const loop = new ViralLoop();
     const input = new Float32Array([0.1, 0.2, 0.3]);
     const out = loop.embedFeatures(input);
-    expect(out).toBe(input);
-    // Identity — Float32 precision means exact decimal equality must compare
-    // against the same Float32-rounded values
-    expect(Array.from(out)).toEqual(Array.from(input));
+    expect(out).not.toBe(input);
+    expect(Array.from(input)).toEqual(
+      expect.arrayContaining([0.1, 0.2, 0.3].map((v) => expect.closeTo(v, 6))),
+    );
+    const norm = Math.sqrt(Array.from(out).reduce((sum, value) => sum + value * value, 0));
+    expect(norm).toBeCloseTo(1, 6);
+    expect(out[0]).toBeCloseTo(0.26726124, 6);
+    expect(out[1]).toBeCloseTo(0.5345225, 6);
+    expect(out[2]).toBeCloseTo(0.8017837, 6);
+  });
+
+  it('preserves an all-zero feature vector', () => {
+    const loop = new ViralLoop();
+    expect(Array.from(loop.embedFeatures(new Float32Array([0, 0])))).toEqual([0, 0]);
   });
 });

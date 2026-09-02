@@ -99,9 +99,19 @@ export class ViralLoop {
   }
 
   embedFeatures(features: Float32Array): Float32Array {
-    // Simple random projection as placeholder
-    // In production, this would use a sentence-transformer model
-    return features;
+    // The relay fallback receives an already-encoded feature vector. Normalize
+    // it before cosine comparison, matching the worker's pgvector contract;
+    // semantic feature encoding remains owned by the worker path.
+    const embedding = new Float32Array(features);
+    let norm = 0;
+    for (const value of embedding) norm += value * value;
+    if (norm === 0) return embedding;
+
+    const inverseNorm = 1 / Math.sqrt(norm);
+    for (let index = 0; index < embedding.length; index++) {
+      embedding[index] *= inverseNorm;
+    }
+    return embedding;
   }
 
   retrieveExemplars(platform: string, limit: number = 10): Exemplar[] {
