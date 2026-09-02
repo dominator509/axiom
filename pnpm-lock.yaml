@@ -94,6 +94,9 @@ importers:
       '@axiom/worker':
         specifier: workspace:*
         version: link:../worker
+      '@hono/node-server':
+        specifier: ^2.0.12
+        version: 2.0.12(hono@4.12.34)
       '@hono/zod-validator':
         specifier: ^0.4.0
         version: 0.4.3(hono@4.12.34)(zod@3.25.76)
@@ -107,9 +110,6 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     devDependencies:
-      '@hono/node-server':
-        specifier: ^2.0.12
-        version: 2.0.12(hono@4.12.34)
       '@types/node':
         specifier: ^22.9.0
         version: 22.20.1

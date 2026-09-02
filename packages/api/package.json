@@ -28,13 +28,13 @@
     "@axiom/relay": "workspace:^",
     "@axiom/worker": "workspace:*",
     "@axiom/mcp-server": "workspace:*",
+    "@hono/node-server": "^2.0.12",
     "@hono/zod-validator": "^0.4.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.6.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@hono/node-server": "^2.0.12",
     "@types/node": "^22.9.0",
     "typescript": "^5.6.0"
   }

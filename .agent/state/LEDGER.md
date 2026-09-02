@@ -83,3 +83,4 @@
 2026-09-02T16:16:22Z | [P1][DEPLOY] Align clean-bootstrap database configuration: compose mounts tracked migrations read-only, environment template and setup-dev provide MIGRATOR_DATABASE_URL/TEST_DATABASE_URL matching the dev Postgres service, and obsolete Compose version warning removed; compose config, shell syntax, and migration dry-run passed.
 2026-09-02T16:32:08Z | [P1][CI] repair Rust deployment image and add egress container smoke gate
 2026-09-02T16:38:08Z | [P1][CI] resolve parallel origin/main history without dropping tenant or queue hardening
+2026-09-02T16:48:26Z | [P1][CI] retain Hono runtime server dependency in production image
