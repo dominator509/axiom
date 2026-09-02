@@ -97,7 +97,7 @@ describe('workerTick with empty queue', () => {
 
 describe('processJob state transitions', () => {
   beforeEach(() => {
-    mockState.result = [];
+    mockState.result = [{ id: 'job-1', publishingEnabled: true }];
   });
 
   it('marks done on executor success', async () => {
@@ -133,6 +133,16 @@ describe('processJob state transitions', () => {
     });
     const outcome = await processJob(job, { 'test.park': executor }, 'w1', {});
     expect(outcome).toBe('parked');
+  });
+
+  it('surfaces lease loss instead of reporting a completed job', async () => {
+    mockState.result = [];
+    const job = makeJob({ kind: 'test.ok' });
+    const executor = vi.fn(async () => {});
+
+    await expect(processJob(job, { 'test.ok': executor }, 'w1', {})).rejects.toThrow(
+      'lease ownership lost before state transition',
+    );
   });
 
   it('throws for an unknown job kind', async () => {

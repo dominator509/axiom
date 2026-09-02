@@ -46,14 +46,33 @@ function ownedRunningJob(job: JobRow, workerId: string) {
   );
 }
 
+/**
+ * Apply a terminal job transition only while this worker still owns the
+ * running lease. Returning no rows means another worker reclaimed the job;
+ * surface that as an error so the surrounding transaction rolls back instead
+ * of reporting a successful execution that was not durably acknowledged.
+ */
+async function updateOwnedJob(
+  tx: any,
+  job: JobRow,
+  workerId: string,
+  values: Record<string, unknown>,
+): Promise<void> {
+  const rows = await tx
+    .update(schema.job)
+    .set(values)
+    .where(ownedRunningJob(job, workerId))
+    .returning({ id: schema.job.id });
+  if (!Array.isArray(rows) || rows.length !== 1) {
+    throw new Error(`worker: job ${job.id} lease ownership lost before state transition`);
+  }
+}
+
 /** Renew a claimed job's lease without holding the executor transaction open. */
 async function renewJobLease(job: JobRow, workerId: string): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
-    await tx
-      .update(schema.job)
-      .set({ lockedAt: new Date() })
-      .where(ownedRunningJob(job, workerId));
+    await tx.update(schema.job).set({ lockedAt: new Date() }).where(ownedRunningJob(job, workerId));
   });
 }
 
@@ -101,16 +120,13 @@ export async function processJob(
       await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
       const killSwitchEnabled = await readKillSwitch(tx, job.org_id);
       await executor({ tx, job, workerId, killSwitchEnabled });
-      await tx
-        .update(schema.job)
-        .set({
-          state: 'done',
-          completedAt: new Date(),
-          lastError: null,
-          lockedBy: null,
-          lockedAt: null,
-        })
-        .where(ownedRunningJob(job, workerId));
+      await updateOwnedJob(tx, job, workerId, {
+        state: 'done',
+        completedAt: new Date(),
+        lastError: null,
+        lockedBy: null,
+        lockedAt: null,
+      });
       return 'done' as const;
     });
     return result;
@@ -118,16 +134,13 @@ export async function processJob(
     if (err instanceof ParkJobError) {
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
-        await tx
-          .update(schema.job)
-          .set({
-            state: 'ready',
-            runAfter: new Date(Date.now() + err.delayMs),
-            lastError: err.message,
-            lockedBy: null,
-            lockedAt: null,
-          })
-          .where(ownedRunningJob(job, workerId));
+        await updateOwnedJob(tx, job, workerId, {
+          state: 'ready',
+          runAfter: new Date(Date.now() + err.delayMs),
+          lastError: err.message,
+          lockedBy: null,
+          lockedAt: null,
+        });
       });
       return 'parked';
     }
@@ -139,10 +152,12 @@ export async function processJob(
     if (attempts >= maxAttempts) {
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
-        await tx
-          .update(schema.job)
-          .set({ state: 'dead', lastError: message, lockedBy: null, lockedAt: null })
-          .where(ownedRunningJob(job, workerId));
+        await updateOwnedJob(tx, job, workerId, {
+          state: 'dead',
+          lastError: message,
+          lockedBy: null,
+          lockedAt: null,
+        });
       });
       return 'dead';
     }
@@ -150,17 +165,14 @@ export async function processJob(
     const delayMs = backoffDelayMs(attempts);
     await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
-      await tx
-        .update(schema.job)
-        .set({
-          state: 'ready',
-          attempts,
-          lastError: message,
-          runAfter: new Date(Date.now() + delayMs),
-          lockedBy: null,
-          lockedAt: null,
-        })
-        .where(ownedRunningJob(job, workerId));
+      await updateOwnedJob(tx, job, workerId, {
+        state: 'ready',
+        attempts,
+        lastError: message,
+        runAfter: new Date(Date.now() + delayMs),
+        lockedBy: null,
+        lockedAt: null,
+      });
     });
     return 'retry';
   } finally {
