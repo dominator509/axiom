@@ -3,6 +3,7 @@
 // (/api/* → API_ORIGIN). Cookies are forwarded so Better Auth sessions work.
 
 import { cookies } from 'next/headers';
+import { createIdempotencyKey } from './mutation';
 
 const API_BASE = process.env.API_ORIGIN ?? 'http://127.0.0.1:3001';
 
@@ -22,13 +23,21 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     .map((c) => `${c.name}=${c.value}`)
     .join('; ');
 
+  const headers = new Headers({
+    'content-type': 'application/json',
+    ...(cookieHeader ? { cookie: cookieHeader } : {}),
+    ...(init?.headers ?? {}),
+  });
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+  const isApiRequest = path === '/api/v1' || path.startsWith('/api/v1/');
+  if (isApiRequest && isMutation && !headers.has('Idempotency-Key')) {
+    headers.set('Idempotency-Key', createIdempotencyKey());
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(cookieHeader ? { cookie: cookieHeader } : {}),
-      ...(init?.headers ?? {}),
-    },
+    headers,
     cache: 'no-store',
   });
 
