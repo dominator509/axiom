@@ -23,6 +23,10 @@ export interface PrePostRunInput {
   modelId: string;
   caption: string;
   mediaUrls: string[];
+  /** Media kind used to select the matching Rust media-plane validation path. */
+  mediaKind?: 'image' | 'video';
+  /** Local media-plane path when it differs from the connector-facing URL. */
+  mediaPath?: string;
   hashtags: string[];
   phase: 'before' | 'after';
 }
@@ -254,8 +258,8 @@ export async function runPrePostAfter(
 }
 
 /**
- * Stage the media on the Rust media plane: probe the first media URL/path and
- * (for local files) apply a watermark pass. Returns what the plane reported.
+ * Validate the first media path on the Rust media plane using the endpoint for
+ * its actual kind. Returns the media-plane result for auditability.
  */
 async function stageMediaOnPlane(input: PrePostRunInput): Promise<Record<string, unknown>> {
   const mediaPlaneUrl = DEFAULT_MEDIA_PLANE_URL;
@@ -263,20 +267,42 @@ async function stageMediaOnPlane(input: PrePostRunInput): Promise<Record<string,
 
   const firstMedia = input.mediaUrls[0];
   if (firstMedia) {
-    const probe = await fetch(`${mediaPlaneUrl}/media/video/probe`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ video_path: firstMedia.replace(/^asset:\/\//, '') }),
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (!probe.ok) {
-      throw new Error(`media-plane probe failed: HTTP ${probe.status}`);
+    if (!input.mediaKind) {
+      throw new Error('media-plane validation requires mediaKind when media is present');
     }
-    const probeResult = (await probe.json()) as { exists?: boolean };
-    if (probeResult.exists === false) {
-      throw new Error('media-plane probe reported that the input is missing');
+
+    const mediaPath = (input.mediaPath ?? firstMedia).replace(/^asset:\/\//, '');
+    if (input.mediaKind === 'image') {
+      const hash = await fetch(`${mediaPlaneUrl}/media/compute-hash`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_path: mediaPath }),
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!hash.ok) {
+        throw new Error(`media-plane image validation failed: HTTP ${hash.status}`);
+      }
+      const hashResult = (await hash.json()) as { hash?: string };
+      if (!hashResult.hash) {
+        throw new Error('media-plane image validation returned no hash');
+      }
+      out.probe = { kind: 'image', ...hashResult };
+    } else {
+      const probe = await fetch(`${mediaPlaneUrl}/media/video/probe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video_path: mediaPath }),
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!probe.ok) {
+        throw new Error(`media-plane probe failed: HTTP ${probe.status}`);
+      }
+      const probeResult = (await probe.json()) as { exists?: boolean };
+      if (probeResult.exists === false) {
+        throw new Error('media-plane probe reported that the input is missing');
+      }
+      out.probe = { kind: 'video', ...probeResult };
     }
-    out.probe = probeResult;
   }
 
   return out;

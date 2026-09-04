@@ -17,6 +17,39 @@ import type { Executor, ExecutorContext } from './context.js';
 const KILL_SWITCH_PARK_MS = 60_000;
 const PENDING_PUBLISH_RETRY_MS = 60_000;
 
+type PublishAsset = {
+  id: string;
+  orgId: string;
+  modelId: string;
+  kind: string;
+  storageKey: string;
+};
+
+/**
+ * Keep media publication tenant- and model-scoped, and reject kinds for which
+ * the publish pipeline has no media-plane contract.
+ */
+export function validatePublishAsset(
+  asset: PublishAsset | undefined,
+  requestedAssetId: string | null,
+  orgId: string,
+  modelId: string,
+): 'image' | 'video' | undefined {
+  if (!requestedAssetId) return undefined;
+  if (
+    !asset ||
+    asset.id !== requestedAssetId ||
+    asset.orgId !== orgId ||
+    asset.modelId !== modelId
+  ) {
+    throw new Error(`publish.target: asset ${requestedAssetId} is not owned by model ${modelId}`);
+  }
+  if (asset.kind !== 'image' && asset.kind !== 'video') {
+    throw new Error(`publish.target: unsupported asset kind ${asset.kind}`);
+  }
+  return asset.kind;
+}
+
 export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const { tx, job, killSwitchEnabled } = ctx;
   const payload = (job.payload ?? {}) as { targetId?: string };
@@ -32,9 +65,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const targets = await tx
     .select()
     .from(schema.postTarget)
-    .where(
-      and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
-    )
+    .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)))
     .limit(1);
   if (targets.length === 0) throw new Error(`publish.target: target ${targetId} not found`);
   const target = targets[0];
@@ -49,10 +80,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     .select()
     .from(schema.contentBundle)
     .where(
-      and(
-        eq(schema.contentBundle.id, target.bundleId),
-        eq(schema.contentBundle.orgId, job.org_id),
-      ),
+      and(eq(schema.contentBundle.id, target.bundleId), eq(schema.contentBundle.orgId, job.org_id)),
     )
     .limit(1);
   if (bundles.length === 0) throw new Error(`publish.target: bundle ${target.bundleId} not found`);
@@ -94,9 +122,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
       await tx
         .update(schema.postTarget)
         .set({ state: 'published', remoteId: stored || null, error: null })
-        .where(
-          and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
-        );
+        .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
       return;
     }
   }
@@ -112,13 +138,32 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     await tx
       .update(schema.postTarget)
       .set({ connectionId: connection.id })
-      .where(
-        and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
-      );
+      .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
   }
   const caption = (bundle.captions as Record<string, string> | null)?.[platform] ?? '';
   const hashtags = (bundle.hashtags as string[] | null) ?? [];
-  const mediaUrls = bundle.assetId ? [`asset://${bundle.assetId}`] : [];
+  const assets = bundle.assetId
+    ? await tx
+        .select({
+          id: schema.asset.id,
+          orgId: schema.asset.orgId,
+          modelId: schema.asset.modelId,
+          kind: schema.asset.kind,
+          storageKey: schema.asset.storageKey,
+        })
+        .from(schema.asset)
+        .where(
+          and(
+            eq(schema.asset.id, bundle.assetId),
+            eq(schema.asset.orgId, job.org_id),
+            eq(schema.asset.modelId, model.id),
+          ),
+        )
+        .limit(1)
+    : [];
+  const asset = assets[0];
+  const mediaKind = validatePublishAsset(asset, bundle.assetId, job.org_id, model.id);
+  const mediaUrls = asset ? [`asset://${asset.id}`] : [];
 
   const input = {
     idempotencyKey: idemKeyHex ?? `${bundle.id}:${platform}`,
@@ -141,6 +186,8 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     modelId: model.id,
     caption,
     mediaUrls,
+    mediaKind,
+    mediaPath: asset?.storageKey,
     hashtags,
     phase: 'before' as const,
   };
@@ -171,9 +218,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     await tx
       .update(schema.postTarget)
       .set({ state: 'pending', remoteId: result.remoteId, error: result.error ?? null })
-      .where(
-        and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
-      );
+      .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
 
     // The current job already owns the canonical publish.target dedupe key.
     // Use the source job ID for the successor key so exactly one retry is
@@ -201,9 +246,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   await tx
     .update(schema.postTarget)
     .set({ state: 'published', remoteId: result.remoteId, error: null })
-    .where(
-      and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
-    );
+    .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
 
   if (idemKeyHex) {
     await tx

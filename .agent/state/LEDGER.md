@@ -109,3 +109,4 @@
 2026-09-02T22:06:53Z | [P2][LLM] keep one canonical media section when S3 includes descriptions and image caption; llm-gateway 244/244
 2026-09-02T22:12:25Z | [P2][TOS] require a real imagePath for ContentGenerator visual evaluation; fanvue-mcp 61/61
 2026-09-02T22:37:07Z | [P1][AUTH] OAuth callbacks now persist encrypted org/model-scoped Fanvue and Threads platform connections; API 278/278
+2026-09-04T17:11:13Z | [P1][WORKER] publish validates org/model-owned media assets and routes images through media-plane hash validation; worker 46/46

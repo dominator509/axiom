@@ -159,9 +159,60 @@ describe('runPrePostBefore', () => {
       runPrePostBefore({ ...context, tx: makeTx(transactionRows) } as never, {
         ...input,
         mediaUrls: ['asset://asset-1'],
+        mediaKind: 'video',
       }),
     ).rejects.toThrow('media-plane probe reported that the input is missing');
 
+    expect(rows[0]).toMatchObject({ status: 'failed', error: expect.any(String) });
+    expect(transactionRows).toEqual([]);
+  });
+
+  it('validates images through the image media-plane endpoint', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ hash: 'a'.repeat(64) }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    const rows: Array<Record<string, unknown>> = [];
+    const transactionRows: Array<Record<string, unknown>> = [];
+
+    const stage = await runPrePostBefore({ ...context, tx: makeTx(transactionRows) } as never, {
+      ...input,
+      mediaUrls: ['asset://asset-1'],
+      mediaKind: 'image',
+      mediaPath: 'models/model-1/image.jpg',
+    });
+
+    expect(stage.staged).toBe(true);
+    expect(stage.engine).toBe('rust-media-plane');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('http://127.0.0.1:8100/media/compute-hash');
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      image_path: 'models/model-1/image.jpg',
+    });
+    expect(transactionRows[0]).toMatchObject({ status: 'success' });
+    expect(rows).toEqual([]);
+  });
+
+  it('fails closed when media is present without an explicit kind', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));
+    const rows: Array<Record<string, unknown>> = [];
+    const transactionRows: Array<Record<string, unknown>> = [];
+    mockState.auditRows = rows;
+
+    await expect(
+      runPrePostBefore({ ...context, tx: makeTx(transactionRows) } as never, {
+        ...input,
+        mediaUrls: ['asset://asset-1'],
+      }),
+    ).rejects.toThrow('media-plane validation requires mediaKind');
     expect(rows[0]).toMatchObject({ status: 'failed', error: expect.any(String) });
     expect(transactionRows).toEqual([]);
   });
