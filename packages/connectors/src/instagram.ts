@@ -63,7 +63,17 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
   }
 
   async validate(input: ConnectorPublishInput): Promise<ValidationReport> {
-    return validatePublish(input, this.capability());
+    const report = validatePublish(input, this.capability());
+    if (input.options?.mediaType === 'story' && input.mediaUrls.length !== 1) {
+      report.valid = false;
+      report.tosVerdict = 'block';
+      report.errors.push({
+        field: 'mediaUrls',
+        message: 'Instagram stories require exactly one media URL.',
+        severity: 'error',
+      });
+    }
+    return report;
   }
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
@@ -74,6 +84,39 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
       }
 
       const accessToken = this.auth.accessToken;
+
+      // Stories use the same /media container flow, but must be explicitly
+      // marked STORIES and never receive carousel/feed-only fields.
+      if (input.options?.mediaType === 'story') {
+        if (input.mediaUrls.length !== 1) {
+          throw new Error('Instagram stories require exactly one media URL');
+        }
+
+        const mediaUrl = input.mediaUrls[0];
+        const mediaType = this.detectMediaType(mediaUrl);
+        const storyBody: Record<string, string> = {
+          media_type: 'STORIES',
+          access_token: accessToken,
+          ...(mediaType === 'video' ? { video_url: mediaUrl } : { image_url: mediaUrl }),
+        };
+        const storyContainer = await this.apiPost<IgMediaContainerResponse>(
+          `${IG_GRAPH_BASE}/${igUserId}/media`,
+          storyBody,
+          { 'Content-Type': 'application/json' },
+        );
+        const publishResp = await this.apiPost<IgPublishResponse>(
+          `${IG_GRAPH_BASE}/${igUserId}/media_publish`,
+          { creation_id: storyContainer.id, access_token: accessToken },
+          { 'Content-Type': 'application/json' },
+        );
+
+        return {
+          remoteId: publishResp.id,
+          state: 'published',
+          // Stories do not have a stable feed permalink.
+          postUrl: undefined,
+        };
+      }
 
       // Step 1: Create media containers for each media URL. For a carousel,
       // each child must be marked is_carousel_item and the parent below is
@@ -151,16 +194,11 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
-    const igUserId = this.auth.externalUserId;
-    if (!igUserId) {
-      throw new Error('Instagram externalUserId is required for metrics');
-    }
-
     const accessToken = this.auth.accessToken;
 
     const metrics = await this.apiGet<IgInsightsResponse>(
-      `${IG_GRAPH_BASE}/${igUserId}/media/${remoteId}/insights` +
-        `?metric=impressions,likes,comments,shares,saves` +
+      `${IG_GRAPH_BASE}/${remoteId}/insights` +
+        `?metric=impressions,likes,comments,shares,saved` +
         `&access_token=${accessToken}`,
     );
 
@@ -181,7 +219,7 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
         likes: result['likes'] ?? 0,
         comments: result['comments'] ?? 0,
         shares: result['shares'] ?? 0,
-        saves: result['saves'] ?? 0,
+        saves: result['saved'] ?? result['saves'] ?? 0,
       },
       raw: metrics as unknown as Record<string, unknown>,
     };

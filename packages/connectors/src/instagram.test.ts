@@ -101,6 +101,60 @@ describe('publish', () => {
     });
   });
 
+  it('publishes a story with an explicit STORIES container', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ id: 'story-container-1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'story-1' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new InstagramConnector(AUTH);
+    const result = await c.publish(
+      input({
+        idempotencyKey: 'ig-story',
+        options: { mediaType: 'story' },
+      }),
+    );
+
+    expect(result).toMatchObject({ remoteId: 'story-1', state: 'published' });
+    expect(result.postUrl).toBeUndefined();
+
+    const createInit = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(createInit[1].body as string)).toMatchObject({
+      media_type: 'STORIES',
+      image_url: 'https://cdn.example.com/photo.jpg',
+    });
+    expect(JSON.parse(createInit[1].body as string).caption).toBeUndefined();
+
+    const publishInit = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(publishInit[0]).toBe('https://graph.facebook.com/v22.0/ig-business-1/media_publish');
+    expect(JSON.parse(publishInit[1].body as string)).toMatchObject({
+      creation_id: 'story-container-1',
+    });
+  });
+
+  it('rejects multi-media story input before making a provider request', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const c = new InstagramConnector(AUTH);
+
+    const report = await c.validate(
+      input({
+        options: { mediaType: 'story' },
+        mediaUrls: ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.jpg'],
+      }),
+    );
+
+    expect(report.valid).toBe(false);
+    expect(report.tosVerdict).toBe('block');
+    expect(report.errors).toContainEqual({
+      field: 'mediaUrls',
+      message: 'Instagram stories require exactly one media URL.',
+      severity: 'error',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('fails fast when externalUserId is missing', async () => {
     vi.stubGlobal('fetch', vi.fn());
     const c = new InstagramConnector({ accessToken: 'ig-token' });
@@ -168,16 +222,25 @@ describe('fetchMetrics', () => {
     expect(metrics.raw).toEqual(insights);
 
     const [url] = vi.mocked(fetch).mock.calls[0] as [string];
-    expect(url).toContain('/ig-business-1/media/post-9/insights');
-    expect(url).toContain('metric=impressions,likes,comments,shares,saves');
+    expect(url).toContain('/v22.0/post-9/insights');
+    expect(url).toContain('metric=impressions,likes,comments,shares,saved');
     expect(url).toContain('access_token=ig-token');
   });
 
-  it('throws when externalUserId is missing', async () => {
+  it('fetches media insights without requiring the account id', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ data: [{ name: 'saved', period: 'lifetime', values: [{ value: 8 }] }] }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
     const c = new InstagramConnector({ accessToken: 'ig-token' });
-    await expect(c.fetchMetrics('post-9')).rejects.toThrow(
-      'externalUserId is required for metrics',
-    );
+    const metrics = await c.fetchMetrics('post-9');
+
+    expect(metrics.metrics.saves).toBe(8);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect((fetchMock.mock.calls[0] as [string])[0]).toContain('/v22.0/post-9/insights');
   });
 });
 
