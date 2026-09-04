@@ -392,6 +392,8 @@ app.use('/api/v1/org-settings', idempotency());
 app.use('/api/v1/digests/generate', idempotency());
 app.use('/api/v1/crash-reports', idempotency());
 app.use('/api/v1/crash-reports/*', idempotency());
+app.use('/api/v1/models/:modelId/linkbio', idempotency());
+app.use('/api/v1/models/:modelId/linkbio/*', idempotency());
 app.use('/api/v1/posts', idempotency());
 app.use('/api/v1/social-accounts', idempotency());
 app.use('/api/v1/connectors/fanvue/refresh', idempotency());

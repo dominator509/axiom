@@ -118,3 +118,4 @@
 2026-09-04T18:32:14Z | [P1][RELIABILITY] dashboard model creation and network configuration now use durable Idempotency-Key protection; model/network/middleware 36/36, dashboard mutation 2/2, typecheck, lint, and verify passed
 2026-09-04T18:43:59Z | [P1][MOBILE/RELIABILITY] mobile BFF mutations now generate stable Idempotency-Key values and retry only transport failures; API org-settings/digests/crash-reports middleware and mobile client tests passed; typecheck, lint, and verify passed
 2026-09-04T18:45:21Z | [P1][MOBILE/RELIABILITY] normalized mobile BFF path handling and documented the stable mutation retry contract; mobile client 16/16, typecheck, lint, formatting, and verify passed
+2026-09-04T18:55:34Z | [P1][RELIABILITY] native Link-in-Bio enable/disable routes now enforce the dashboard's durable Idempotency-Key contract; linkbio/middleware 25/25, typecheck, lint, and verify passed
