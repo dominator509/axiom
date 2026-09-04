@@ -74,7 +74,10 @@ export class PublishingTool {
         modelId: args.modelId,
         captions: args.post.text ? { [args.post.platform]: args.post.text } : {},
         hashtags: [],
-        state: 'generated',
+        // Autonomous publishing has already satisfied the approval gate.
+        // publish.target only accepts approved bundles, so leaving this as
+        // generated would enqueue a job that can never reach its connector.
+        state: isAutonomous ? 'approved' : 'generated',
       });
 
       if (!isAutonomous) return;

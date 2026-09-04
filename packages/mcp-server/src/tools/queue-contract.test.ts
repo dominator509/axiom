@@ -42,8 +42,7 @@ beforeEach(() => {
   enqueueJob.mockClear();
   withModelOrg.mockReset();
   withModelOrg.mockImplementation(
-    async (_modelId: string, fn: (tx: unknown, orgId: string) => unknown) =>
-      fn(makeTx(), ORG_ID),
+    async (_modelId: string, fn: (tx: unknown, orgId: string) => unknown) => fn(makeTx(), ORG_ID),
   );
 });
 
@@ -79,6 +78,7 @@ describe('MCP queue contracts', () => {
 
     expect(result).toMatchObject({ status: 'queued', requiresApproval: false });
     expect(inserted).toHaveLength(2);
+    expect(inserted[0]?.values).toMatchObject({ state: 'approved', modelId: MODEL_ID });
     expect(enqueueJob).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
