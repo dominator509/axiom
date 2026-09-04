@@ -125,3 +125,4 @@
 2026-09-04T19:49:34Z | [P1][MOBILE/RELIABILITY] preserve explicit Idempotency-Key headers in apiFetch instead of overwriting caller intent; mobile client 17/17, typecheck, lint, and formatting passed; hosted CI pending
 2026-09-04T19:57:21Z | [P1][CI] hosted GitHub Actions run #62 passed on release SHA a95b5c29a4eb00e35d21d22e3a97ea257b116b3f; all six matrix jobs green; mobile client 17/17 and local verification passed
 2026-09-04T20:00:19Z | [P1][MCP/RELIABILITY] autonomous publishing now persists approved bundles so publish.target can execute instead of rejecting generated bundles; queue contract 4/4, typecheck, lint, and formatting passed; hosted CI pending
+2026-09-04T20:20:34Z | [P1][CI] hosted GitHub Actions run #64 passed on release SHA 2501ca15c49119c52056172411e79df372c935d8; all six matrix jobs green, including deployment image build and container smoke tests
