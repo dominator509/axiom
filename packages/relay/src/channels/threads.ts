@@ -8,7 +8,7 @@
 
 import type { RelayCard, CardAction } from '../card.js';
 import { CardRenderer } from '../card.js';
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export interface ThreadsConfig {
   clientId: string;
@@ -63,8 +63,10 @@ export class ThreadsAdapter {
     const expected = createHmac('sha256', this.config.clientSecret)
       .update(payload, 'utf-8')
       .digest('hex');
+    const actual = signatureHeader.slice(7);
+    if (!/^[0-9a-f]{64}$/i.test(actual)) return false;
 
-    return signatureHeader.slice(7) === expected;
+    return timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'));
   }
 
   /** Handle incoming Meta webhook event (POST request) */
@@ -78,8 +80,9 @@ export class ThreadsAdapter {
       return { status: 400, body: 'Invalid object type' };
     }
 
-    // Validate signature if provided
-    if (signature && !this.validateSignature(rawBody, signature)) {
+    // Meta signs every delivery. Missing and invalid signatures are both
+    // rejected before any event is handed to an application handler.
+    if (!this.validateSignature(rawBody, signature)) {
       this.log('warn', 'invalid_signature', 'Webhook signature validation failed');
       return { status: 403, body: 'Invalid signature' };
     }

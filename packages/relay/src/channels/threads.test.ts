@@ -134,10 +134,10 @@ describe('handleWebhook', () => {
     debugSpy.mockRestore();
   });
 
-  it('accepts unsigned webhooks when no signature header is provided', async () => {
+  it('rejects unsigned webhooks when no signature header is provided', async () => {
     const payload = { object: 'threads', entry: [] };
     const res = await adapter.handleWebhook(payload, JSON.stringify(payload));
-    expect(res).toEqual({ status: 200, body: 'EVENT_RECEIVED' });
+    expect(res).toEqual({ status: 403, body: 'Invalid signature' });
   });
 
   it('ignores messaging events without error', async () => {
@@ -146,7 +146,8 @@ describe('handleWebhook', () => {
       object: 'threads',
       entry: [{ time: 1, id: 'u1', messaging: [{ sender: { id: 'x' }, message: { text: 'hi' } }] }],
     };
-    const res = await adapter.handleWebhook(payload, JSON.stringify(payload));
+    const raw = JSON.stringify(payload);
+    const res = await adapter.handleWebhook(payload, raw, signPayload(raw, 'threads-secret'));
     expect(res).toEqual({ status: 200, body: 'EVENT_RECEIVED' });
     expect(debugSpy).toHaveBeenCalledWith(expect.stringContaining('[message_received]'));
     debugSpy.mockRestore();
@@ -154,7 +155,8 @@ describe('handleWebhook', () => {
 
   it('handles entries with no changes and no messaging', async () => {
     const payload = { object: 'threads', entry: [{ time: 1, id: 'u1' }] };
-    const res = await adapter.handleWebhook(payload, JSON.stringify(payload));
+    const raw = JSON.stringify(payload);
+    const res = await adapter.handleWebhook(payload, raw, signPayload(raw, 'threads-secret'));
     expect(res).toEqual({ status: 200, body: 'EVENT_RECEIVED' });
   });
 });
