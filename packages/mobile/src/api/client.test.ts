@@ -158,6 +158,20 @@ describe('apiFetch', () => {
     expect(headers.get('Idempotency-Key')).toBe('mobile-intent-1');
   });
 
+  it('preserves an explicit Idempotency-Key header on BFF mutations', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true }));
+
+    await apiFetch<unknown>('/api/v1/org-settings', {
+      method: 'PATCH',
+      headers: { 'Idempotency-Key': 'header-intent-1' },
+      body: { viralSharing: true },
+      retries: 0,
+    });
+
+    const headers = (fetchMock.mock.calls[0]?.[1] as RequestInit).headers as Headers;
+    expect(headers.get('Idempotency-Key')).toBe('header-intent-1');
+  });
+
   it('throws ApiError with the RFC-7807 detail on non-2xx', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(

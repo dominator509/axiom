@@ -122,3 +122,4 @@
 2026-09-04T19:14:58Z | [P1][RELIABILITY] dashboard server-side API mutations now receive generated Idempotency-Key values while preserving caller keys; dashboard tests 3/3, typecheck, lint, and formatting passed; hosted CI pending
 2026-09-04T19:22:45Z | [P1][CI] hosted GitHub Actions run #59 passed on release SHA b62121400b798bb00e1bc0fd379a37f26e0a094f; all six matrix jobs green; preflight and verify passed
 2026-09-04T19:34:11Z | [P1][RELIABILITY] completed durable API idempotency coverage for remaining model, bundle, post, social revoke, egress, fan CRM, playbook, incident, and viral-ingest mutations; API 278/278, typecheck, lint, and formatting passed; hosted CI pending
+2026-09-04T19:49:34Z | [P1][MOBILE/RELIABILITY] preserve explicit Idempotency-Key headers in apiFetch instead of overwriting caller intent; mobile client 17/17, typecheck, lint, and formatting passed; hosted CI pending

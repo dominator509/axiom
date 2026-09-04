@@ -149,7 +149,7 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
   const method = options.method ?? 'GET';
   const isBffMutation = normalizedPath.startsWith('/api/v1/') && method !== 'GET';
   const idempotencyKey = isBffMutation
-    ? (options.idempotencyKey ?? createIdempotencyKey())
+    ? (options.idempotencyKey ?? headers.get('Idempotency-Key') ?? createIdempotencyKey())
     : undefined;
   if (idempotencyKey) headers.set('Idempotency-Key', idempotencyKey);
   const retries = isBffMutation ? Math.max(0, options.retries ?? 1) : 0;
