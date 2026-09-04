@@ -31,7 +31,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
-    variants: Array<{ styleLabel: string; caption: string; hashtags: string[] }>;
+    variants: Array<{ prompt: string; styleLabel: string; caption: string; hashtags: string[] }>;
     tosReport: {
       verdict: string;
       scores: Array<{ platform: string; verdict: string; score: number }>;
@@ -79,7 +79,12 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
 
   return (
     <div className="card">
-      <h2>Create content</h2>
+      <h2>Create content brief</h2>
+      <p style={{ color: 'var(--muted)', marginTop: 0 }}>
+        Creates five prompt/caption variants and a text-only ToS report. This release does not
+        render or store image/video files; attach an approved asset before publishing to a
+        media-only destination.
+      </p>
       <form onSubmit={onSubmit} className="stack" style={{ maxWidth: 640 }}>
         <div className="grid">
           <div>
@@ -145,7 +150,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
         <div>
           <button className="btn" type="submit" disabled={busy || platforms.length === 0}>
-            {busy ? 'Generating…' : 'Generate 5-shot bundle'}
+            {busy ? 'Generating…' : 'Generate content brief'}
           </button>
         </div>
       </form>
@@ -187,6 +192,9 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
           {result.variants.map((v, i) => (
             <div key={i} className="card" style={{ background: 'var(--panel2)' }}>
               <h3>{v.styleLabel}</h3>
+              <p className="mono" style={{ color: 'var(--muted)' }}>
+                {v.prompt}
+              </p>
               <p>{v.caption}</p>
               <p className="mono" style={{ color: 'var(--muted)' }}>
                 {v.hashtags.join(' ')}

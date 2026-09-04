@@ -1,6 +1,7 @@
 // ─── content.generate executor (L3.4 §2, L2.5) ───
 // Runs the Master Prompt Engine + optional LLM enrichment and persists a
-// content_bundle, then enqueues tos.scan. This is the async/queue path of the
+// text-only content brief, then enqueues tos.scan. Media generation and asset
+// storage are not part of this executor. This is the async/queue path of the
 // same pipeline the API exposes synchronously at POST /models/:id/generate.
 
 import { and, eq } from 'drizzle-orm';
@@ -72,12 +73,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   const models = await tx
     .select()
     .from(schema.modelProfile)
-    .where(
-      and(
-        eq(schema.modelProfile.id, modelId),
-        eq(schema.modelProfile.orgId, job.org_id),
-      ),
-    )
+    .where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, job.org_id)))
     .limit(1);
   if (models.length === 0) throw new Error(`content.generate: model ${modelId} not found`);
   const model = models[0];
@@ -165,10 +161,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
         updatedAt: new Date(),
       })
       .where(
-        and(
-          eq(schema.contentBundle.id, bundleId),
-          eq(schema.contentBundle.orgId, job.org_id),
-        ),
+        and(eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, job.org_id)),
       );
   }
 

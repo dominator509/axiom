@@ -112,3 +112,4 @@
 2026-09-04T17:11:13Z | [P1][WORKER] publish validates org/model-owned media assets and routes images through media-plane hash validation; worker 46/46
 2026-09-04T17:24:51Z | [P1][TOS] tos.scan now validates org/model-owned image assets through Rust vision and fails closed for unsupported media; worker 50/50
 2026-09-04T17:41:30Z | [P1][CONNECTORS] unsupported media types now fail closed before connector side effects; connectors 255/255
+2026-09-04T17:58:32Z | [P1][SURFACE] generation UI/MCP now truthfully expose the current text-only prompt/caption brief and show prompts; MCP manifest, typecheck, lint, and verify passed; local DB-backed MCP tests require PostgreSQL

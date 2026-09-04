@@ -2,8 +2,10 @@
 // POST /models/:id/generate — runs the Master Prompt Engine
 // (generatePhotoshootPrompts, TOKENKILLER S0-S3), optionally enriches via the
 // LLM gateway, evaluates text ToS rules per platform (LBI-11), and persists a
-// content_bundle. The operator then approves/revises/rejects via Relay or the
-// dashboard approvals tab.
+// text-only content_bundle. It does not create a media asset; the operator
+// must supply one separately before approving a media-only destination.
+// The operator then approves/revises/rejects via Relay or the dashboard
+// approvals tab.
 
 import { Hono } from 'hono';
 import { z } from 'zod';

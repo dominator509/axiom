@@ -85,6 +85,12 @@ describe('getManifest — descriptors', () => {
     expect(gen.tier).toBe(Tier.Operator);
   });
 
+  it('describes generation as a text brief until media generation is configured', () => {
+    const gen = getManifest(Tier.Operator, MODEL).find((t) => t.name === 'generation_photoshoot')!;
+    expect(gen.description).toContain('prompts and captions');
+    expect(gen.description).toContain('does not generate media assets');
+  });
+
   it('does not flag analytics or inbox as requiring approval', () => {
     const manifest = getManifest(Tier.Autonomous, MODEL);
     expect(manifest.find((t) => t.name === 'analytics_query')!.requiresApproval).toBe(false);
