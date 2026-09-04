@@ -130,6 +130,34 @@ describe('apiFetch', () => {
     expect((init.headers as Headers).get('Cookie')).toContain('axiom_session=sess-9');
   });
 
+  it('reuses one idempotency key across a BFF mutation network retry', async () => {
+    fetchMock
+      .mockRejectedValueOnce(new TypeError('connection reset'))
+      .mockResolvedValueOnce(jsonResponse({ success: true }));
+
+    await apiFetch<unknown>('/api/v1/digests/generate', { method: 'POST', body: {} });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const firstHeaders = (fetchMock.mock.calls[0]?.[1] as RequestInit).headers as Headers;
+    const secondHeaders = (fetchMock.mock.calls[1]?.[1] as RequestInit).headers as Headers;
+    expect(firstHeaders.get('Idempotency-Key')).toBeTruthy();
+    expect(secondHeaders.get('Idempotency-Key')).toBe(firstHeaders.get('Idempotency-Key'));
+  });
+
+  it('preserves an explicit BFF mutation intent key', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ success: true }));
+
+    await apiFetch<unknown>('/api/v1/org-settings', {
+      method: 'PATCH',
+      body: { viralSharing: true },
+      idempotencyKey: 'mobile-intent-1',
+      retries: 0,
+    });
+
+    const headers = (fetchMock.mock.calls[0]?.[1] as RequestInit).headers as Headers;
+    expect(headers.get('Idempotency-Key')).toBe('mobile-intent-1');
+  });
+
   it('throws ApiError with the RFC-7807 detail on non-2xx', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(

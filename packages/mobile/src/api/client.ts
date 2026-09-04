@@ -116,12 +116,23 @@ export interface ApiRequestOptions {
   body?: unknown;
   headers?: Record<string, string>;
   signal?: AbortSignal;
+  /** Reuse this key when resuming the same user intent after a lost response. */
+  idempotencyKey?: string;
+  /** Number of network-error retries for BFF mutations; all attempts reuse the key. */
+  retries?: number;
+}
+
+function createIdempotencyKey(): string {
+  const randomUuid = globalThis.crypto?.randomUUID;
+  if (typeof randomUuid === 'function') return randomUuid.call(globalThis.crypto);
+  return `axiom-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 /**
  * Fetch wrapper: resolves the base URL, attaches the stored session cookie,
  * JSON-encodes the body, captures Set-Cookie from the response, and throws
- * ApiError with a message from the body on non-2xx.
+ * ApiError with a message from the body on non-2xx. BFF mutations carry one
+ * stable idempotency key and retry transport failures with that same key.
  */
 export async function apiFetch<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const headers = new Headers(options.headers);
@@ -133,20 +144,36 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
     headers.set('Content-Type', 'application/json');
   }
 
-  const url = `${resolveBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const url = `${resolveBaseUrl()}${normalizedPath}`;
+  const method = options.method ?? 'GET';
+  const isBffMutation = normalizedPath.startsWith('/api/v1/') && method !== 'GET';
+  const idempotencyKey = isBffMutation
+    ? (options.idempotencyKey ?? createIdempotencyKey())
+    : undefined;
+  if (idempotencyKey) headers.set('Idempotency-Key', idempotencyKey);
+  const retries = isBffMutation ? Math.max(0, options.retries ?? 1) : 0;
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: options.method ?? 'GET',
-      headers,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-      signal: options.signal,
-    });
-  } catch (err) {
-    // Network-level failure (BFF down, DNS, CORS preflight) — not an ApiError.
-    throw new Error(`network error: ${err instanceof Error ? err.message : String(err)}`);
+  let res: Response | undefined;
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      res = await fetch(url, {
+        method,
+        headers,
+        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+        signal: options.signal,
+      });
+      break;
+    } catch (err) {
+      lastError = err;
+      if (options.signal?.aborted || attempt === retries) {
+        // Network-level failure (BFF down, DNS, CORS preflight) — not an ApiError.
+        throw new Error(`network error: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
   }
+  if (!res) throw new Error(`network error: ${String(lastError)}`);
 
   await captureSetCookie(res.headers);
 

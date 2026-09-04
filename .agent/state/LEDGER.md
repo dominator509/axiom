@@ -116,3 +116,5 @@
 2026-09-04T18:11:45Z | [P1][RELIABILITY] DLQ replay now uses durable Idempotency-Key protection end to end; API incident/insight 19/19, dashboard mutation 2/2, typecheck, lint, and verify passed
 2026-09-04T18:22:17Z | [P1][RELIABILITY] kill-switch enable/disable and contract alias now use durable Idempotency-Key protection; API/middleware 20/20, dashboard mutation 2/2, typecheck, lint, and verify passed
 2026-09-04T18:32:14Z | [P1][RELIABILITY] dashboard model creation and network configuration now use durable Idempotency-Key protection; model/network/middleware 36/36, dashboard mutation 2/2, typecheck, lint, and verify passed
+2026-09-04T18:43:59Z | [P1][MOBILE/RELIABILITY] mobile BFF mutations now generate stable Idempotency-Key values and retry only transport failures; API org-settings/digests/crash-reports middleware and mobile client tests passed; typecheck, lint, and verify passed
+2026-09-04T18:45:21Z | [P1][MOBILE/RELIABILITY] normalized mobile BFF path handling and documented the stable mutation retry contract; mobile client 16/16, typecheck, lint, formatting, and verify passed
