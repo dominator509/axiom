@@ -41,7 +41,8 @@ router.get('/incidents', async (c) => {
   });
 });
 
-// POST /incidents/:jobId/replay — reset a dead job back to ready (DLQ replay)
+// POST /incidents/:jobId/replay — reset a dead job back to ready (DLQ replay).
+// The mounted API middleware supplies durable request replay protection.
 router.post('/incidents/:jobId/replay', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');

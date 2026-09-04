@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { mutationFetch } from '@/lib/mutation';
 
 export default function ReplayButton({ jobId }: { jobId: string }) {
   const router = useRouter();
@@ -12,7 +13,7 @@ export default function ReplayButton({ jobId }: { jobId: string }) {
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch(`/api/v1/incidents/${jobId}/replay`, { method: 'POST' });
+      const res = await mutationFetch(`/api/v1/incidents/${jobId}/replay`, { method: 'POST' });
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
         setMsg(b?.error?.message ?? 'Replay failed');
