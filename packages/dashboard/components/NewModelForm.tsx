@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { mutationFetch } from '@/lib/mutation';
 
 export default function NewModelForm() {
   const router = useRouter();
@@ -30,7 +31,7 @@ export default function NewModelForm() {
     e.preventDefault();
     setError(null);
     try {
-      const res = await fetch('/api/v1/models', {
+      const res = await mutationFetch('/api/v1/models', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ displayName, handle, bio: bio || undefined }),

@@ -386,6 +386,8 @@ app.use('/api/v1/incidents/:jobId/replay', idempotency());
 app.use('/api/v1/killswitch/enable', idempotency());
 app.use('/api/v1/killswitch/disable', idempotency());
 app.use('/api/v1/kill-switch', idempotency());
+app.use('/api/v1/models', idempotency());
+app.use('/api/v1/models/:modelId/network', idempotency());
 app.use('/api/v1/posts', idempotency());
 app.use('/api/v1/social-accounts', idempotency());
 app.use('/api/v1/connectors/fanvue/refresh', idempotency());

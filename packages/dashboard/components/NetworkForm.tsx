@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { mutationFetch } from '@/lib/mutation';
 
 const MODES = ['direct', 'socks5', 'http', 'https', 'wireguard', 'vpn'] as const;
 
@@ -35,7 +36,7 @@ export default function NetworkForm({
       const body: Record<string, unknown> = { egressMode: mode };
       if (proxyAddr) body.proxyAddr = proxyAddr;
       if (expectedIp) body.expectedEgressIp = expectedIp;
-      const res = await fetch(`/api/v1/models/${modelId}/network`, {
+      const res = await mutationFetch(`/api/v1/models/${modelId}/network`, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),

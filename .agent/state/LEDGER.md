@@ -115,3 +115,4 @@
 2026-09-04T17:58:32Z | [P1][SURFACE] generation UI/MCP now truthfully expose the current text-only prompt/caption brief and show prompts; MCP manifest, typecheck, lint, and verify passed; local DB-backed MCP tests require PostgreSQL
 2026-09-04T18:11:45Z | [P1][RELIABILITY] DLQ replay now uses durable Idempotency-Key protection end to end; API incident/insight 19/19, dashboard mutation 2/2, typecheck, lint, and verify passed
 2026-09-04T18:22:17Z | [P1][RELIABILITY] kill-switch enable/disable and contract alias now use durable Idempotency-Key protection; API/middleware 20/20, dashboard mutation 2/2, typecheck, lint, and verify passed
+2026-09-04T18:32:14Z | [P1][RELIABILITY] dashboard model creation and network configuration now use durable Idempotency-Key protection; model/network/middleware 36/36, dashboard mutation 2/2, typecheck, lint, and verify passed
