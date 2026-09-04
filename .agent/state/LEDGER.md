@@ -114,3 +114,4 @@
 2026-09-04T17:41:30Z | [P1][CONNECTORS] unsupported media types now fail closed before connector side effects; connectors 255/255
 2026-09-04T17:58:32Z | [P1][SURFACE] generation UI/MCP now truthfully expose the current text-only prompt/caption brief and show prompts; MCP manifest, typecheck, lint, and verify passed; local DB-backed MCP tests require PostgreSQL
 2026-09-04T18:11:45Z | [P1][RELIABILITY] DLQ replay now uses durable Idempotency-Key protection end to end; API incident/insight 19/19, dashboard mutation 2/2, typecheck, lint, and verify passed
+2026-09-04T18:22:17Z | [P1][RELIABILITY] kill-switch enable/disable and contract alias now use durable Idempotency-Key protection; API/middleware 20/20, dashboard mutation 2/2, typecheck, lint, and verify passed

@@ -374,7 +374,7 @@ app.use('/api/v1/viral/exemplars', requireAuth);
 
 // L3.0: mutations that touch the outside world require Idempotency-Key
 // (generate, approve/revise/reject, schedule, connect, incident replay,
-// fanvue OAuth).
+// kill switch, fanvue OAuth).
 app.use('/api/v1/models/:modelId/generate', idempotency());
 app.use('/api/v1/models/:modelId/generate/*', idempotency());
 app.use('/api/v1/bundles/*/approve', idempotency());
@@ -383,6 +383,9 @@ app.use('/api/v1/bundles/*/reject', idempotency());
 // DLQ replay resets a durable job and requeues its side effect. Protect the
 // dashboard retry action with the same durable key/replay contract.
 app.use('/api/v1/incidents/:jobId/replay', idempotency());
+app.use('/api/v1/killswitch/enable', idempotency());
+app.use('/api/v1/killswitch/disable', idempotency());
+app.use('/api/v1/kill-switch', idempotency());
 app.use('/api/v1/posts', idempotency());
 app.use('/api/v1/social-accounts', idempotency());
 app.use('/api/v1/connectors/fanvue/refresh', idempotency());

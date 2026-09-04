@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { mutationFetch } from '@/lib/mutation';
 
 export default function KillSwitchControl({ enabled }: { enabled: boolean }) {
   const router = useRouter();
@@ -13,11 +14,14 @@ export default function KillSwitchControl({ enabled }: { enabled: boolean }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(enable ? '/api/v1/killswitch/enable' : '/api/v1/killswitch/disable', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        ...(enable ? { body: JSON.stringify({ reason: reason || undefined }) } : {}),
-      });
+      const res = await mutationFetch(
+        enable ? '/api/v1/killswitch/enable' : '/api/v1/killswitch/disable',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          ...(enable ? { body: JSON.stringify({ reason: reason || undefined }) } : {}),
+        },
+      );
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
         setError(b?.error?.message ?? 'Action failed');
