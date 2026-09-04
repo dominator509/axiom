@@ -129,3 +129,4 @@
 2026-09-04T20:43:15Z | [P1][CONNECTORS] align Instagram media insights with the current media resource contract and add explicit Stories container publishing; connectors 257/257, typecheck, and lint passed
 2026-09-04T20:48:17Z | [P1][WORKER] persist assisted connector skipped results as terminal post targets and reject non-published results with remote IDs; worker 51/51, typecheck, and lint passed
 2026-09-04T20:58:52Z | [P1][RELAY] require signed Threads webhook deliveries and compare HMACs in constant time; relay 257/257, typecheck, and lint passed
+2026-09-04T21:08:36Z | [P1][CI] local CI-shaped verification passed on relay webhook hardening; pnpm test 1386 passed, build, typecheck, lint, pnpm audit, cargo-audit, preflight, and verify all passed
