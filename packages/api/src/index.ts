@@ -372,17 +372,20 @@ app.use('/api/v1/relay/card', requireAuth);
 app.use('/api/v1/viral/ingest', requireAuth);
 app.use('/api/v1/viral/exemplars', requireAuth);
 
-// L3.0: mutations that touch the outside world require Idempotency-Key
-// (generate, approve/revise/reject, schedule, connect, incident replay,
-// kill switch, fanvue OAuth).
+// L3.0: durable mutations require Idempotency-Key. This reservation is
+// committed before the handler runs, so a lost response cannot repeat a DB,
+// queue, or provider-side effect when the caller retries its intent.
 app.use('/api/v1/models/:modelId/generate', idempotency());
 app.use('/api/v1/models/:modelId/generate/*', idempotency());
+app.use('/api/v1/models/:id', idempotency());
 app.use('/api/v1/bundles/*/approve', idempotency());
 app.use('/api/v1/bundles/*/revise', idempotency());
 app.use('/api/v1/bundles/*/reject', idempotency());
+app.use('/api/v1/bundles', idempotency());
 // DLQ replay resets a durable job and requeues its side effect. Protect the
 // dashboard retry action with the same durable key/replay contract.
 app.use('/api/v1/incidents/:jobId/replay', idempotency());
+app.use('/api/v1/incidents/report', idempotency());
 app.use('/api/v1/killswitch/enable', idempotency());
 app.use('/api/v1/killswitch/disable', idempotency());
 app.use('/api/v1/kill-switch', idempotency());
@@ -395,8 +398,19 @@ app.use('/api/v1/crash-reports/*', idempotency());
 app.use('/api/v1/models/:modelId/linkbio', idempotency());
 app.use('/api/v1/models/:modelId/linkbio/*', idempotency());
 app.use('/api/v1/posts', idempotency());
+app.use('/api/v1/posts/:id', idempotency());
 app.use('/api/v1/social-accounts', idempotency());
+app.use('/api/v1/social-accounts/:id', idempotency());
+app.use('/api/v1/egress', idempotency());
+app.use('/api/v1/egress/:id', idempotency());
+app.use('/api/v1/egress/plane/*', idempotency());
+app.use('/api/v1/models/:modelId/fans', idempotency());
+app.use('/api/v1/fans/:fanId/touchpoints', idempotency());
+app.use('/api/v1/custom-requests', idempotency());
+app.use('/api/v1/custom-requests/:id', idempotency());
+app.use('/api/v1/models/:modelId/playbook-score/record', idempotency());
 app.use('/api/v1/connectors/fanvue/refresh', idempotency());
+app.use('/api/v1/viral/ingest', idempotency());
 
 app.route('/api/v1/models', modelsRouter);
 app.route('/api/v1/bundles', bundlesRouter);
