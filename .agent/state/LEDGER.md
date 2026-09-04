@@ -110,3 +110,4 @@
 2026-09-02T22:12:25Z | [P2][TOS] require a real imagePath for ContentGenerator visual evaluation; fanvue-mcp 61/61
 2026-09-02T22:37:07Z | [P1][AUTH] OAuth callbacks now persist encrypted org/model-scoped Fanvue and Threads platform connections; API 278/278
 2026-09-04T17:11:13Z | [P1][WORKER] publish validates org/model-owned media assets and routes images through media-plane hash validation; worker 46/46
+2026-09-04T17:24:51Z | [P1][TOS] tos.scan now validates org/model-owned image assets through Rust vision and fails closed for unsupported media; worker 50/50
