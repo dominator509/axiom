@@ -95,15 +95,15 @@ describe('validate', () => {
     expect(report.tosVerdict).toBe('flag');
   });
 
-  it('warns when a media type is not supported (gif)', async () => {
+  it('blocks when a media type is not supported (gif)', async () => {
     const c = new FacebookConnector(AUTH);
     const report = await c.validate(input({ mediaUrls: ['https://cdn.example.com/anim.gif'] }));
-    expect(report.valid).toBe(true);
-    expect(report.warnings).toContainEqual({
+    expect(report.valid).toBe(false);
+    expect(report.errors).toContainEqual({
       field: 'mediaUrls[0]',
       message:
         'Media type "gif" is not in the connector\'s supported types (image, video, story, text).',
-      severity: 'warning',
+      severity: 'error',
     });
   });
 

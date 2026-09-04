@@ -82,16 +82,16 @@ describe('validatePublish', () => {
     );
   });
 
-  it('flags unsupported media types as warnings', () => {
+  it('blocks unsupported media types before a connector call', () => {
     // 'gif' is not in cap.media (['image','video'])
     const report = validatePublish(input({ mediaUrls: ['https://cdn.example.com/anim.gif'] }), cap);
-    expect(report.valid).toBe(true);
-    expect(report.tosVerdict).toBe('flag');
-    expect(report.warnings[0]).toMatchObject({
+    expect(report.valid).toBe(false);
+    expect(report.tosVerdict).toBe('block');
+    expect(report.errors[0]).toMatchObject({
       field: 'mediaUrls[0]',
-      severity: 'warning',
+      severity: 'error',
     });
-    expect(report.warnings[0].message).toContain('"gif"');
+    expect(report.errors[0].message).toContain('"gif"');
   });
 
   it('detects video extensions', () => {

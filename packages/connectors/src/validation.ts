@@ -84,12 +84,14 @@ export function validatePublish(
       const url = input.mediaUrls[i];
       const type = detectMediaType(url);
 
-      // Check that the media type is in the connector's supported list
+      // An unsupported media type cannot be safely published by this
+      // connector. Keep it in errors so callers that gate on `valid` fail
+      // closed before making an external side-effecting request.
       if (!cap.media.includes(type)) {
-        warnings.push({
+        errors.push({
           field: `mediaUrls[${i}]`,
           message: `Media type "${type}" is not in the connector's supported types (${cap.media.join(', ')}).`,
-          severity: 'warning',
+          severity: 'error',
         });
       }
 

@@ -95,16 +95,16 @@ describe('validate', () => {
     });
   });
 
-  it('warns for unsupported media types (image)', async () => {
+  it('blocks unsupported media types (image)', async () => {
     const c = new YouTubeConnector(AUTH);
     const report = await c.validate(input({ mediaUrls: ['https://cdn.example.com/photo.png'] }));
-    expect(report.valid).toBe(true);
-    expect(report.warnings).toContainEqual({
+    expect(report.valid).toBe(false);
+    expect(report.errors).toContainEqual({
       field: 'mediaUrls[0]',
       message: 'Media type "image" is not in the connector\'s supported types (video, short).',
-      severity: 'warning',
+      severity: 'error',
     });
-    expect(report.tosVerdict).toBe('flag');
+    expect(report.tosVerdict).toBe('block');
   });
 
   it('warns when the caption is empty', async () => {

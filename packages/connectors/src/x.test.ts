@@ -104,17 +104,17 @@ describe('validate', () => {
     });
   });
 
-  it('warns for unsupported media types (audio)', async () => {
+  it('blocks unsupported media types (audio)', async () => {
     const c = new XConnector(AUTH);
     const report = await c.validate(input({ mediaUrls: ['https://cdn.example.com/track.mp3'] }));
-    expect(report.valid).toBe(true);
-    expect(report.warnings).toContainEqual({
+    expect(report.valid).toBe(false);
+    expect(report.errors).toContainEqual({
       field: 'mediaUrls[0]',
       message:
         'Media type "audio" is not in the connector\'s supported types (image, video, text).',
-      severity: 'warning',
+      severity: 'error',
     });
-    expect(report.tosVerdict).toBe('flag');
+    expect(report.tosVerdict).toBe('block');
   });
 });
 
