@@ -17,6 +17,11 @@ import type { Executor, ExecutorContext } from './context.js';
 const KILL_SWITCH_PARK_MS = 60_000;
 const PENDING_PUBLISH_RETRY_MS = 60_000;
 
+/** Target states that must not be dispatched to a connector again. */
+export function isTerminalPublishTargetState(state: string): boolean {
+  return state === 'published' || state === 'skipped';
+}
+
 type PublishAsset = {
   id: string;
   orgId: string;
@@ -69,10 +74,12 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     .limit(1);
   if (targets.length === 0) throw new Error(`publish.target: target ${targetId} not found`);
   const target = targets[0];
-  if (target.state === 'published') {
+  if (isTerminalPublishTargetState(target.state)) {
     // Already published — idempotent re-run no-op (LBI-05). Some providers
     // confirm the side effect with a successful empty response (for example,
-    // Discord can return 204), so a null remote_id is still terminal.
+    // Discord can return 204), so a null remote_id is still terminal. An
+    // assisted connector's skipped handoff is also terminal: the operator
+    // must complete it manually rather than causing an automatic retry loop.
     return;
   }
 
@@ -235,7 +242,18 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     return;
   }
 
-  if (result.state === 'failed' || (result.state !== 'published' && !result.remoteId)) {
+  if (result.state === 'skipped') {
+    // Assisted connectors intentionally have no provider remote ID. Persist
+    // the handoff as terminal so the worker marks the job done and does not
+    // retry the same operator action as though it were a failed API call.
+    await tx
+      .update(schema.postTarget)
+      .set({ state: 'skipped', remoteId: result.remoteId, error: result.error ?? null })
+      .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
+    return;
+  }
+
+  if (result.state !== 'published') {
     throw new Error(`publish.target: connector publish failed: ${result.error ?? 'no remote_id'}`);
   }
 

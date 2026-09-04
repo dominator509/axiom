@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validatePublishAsset } from './publish.js';
+import { isTerminalPublishTargetState, validatePublishAsset } from './publish.js';
 
 const asset = {
   id: 'asset-1',
@@ -31,5 +31,14 @@ describe('validatePublishAsset', () => {
 
   it('allows text-only bundles without an asset', () => {
     expect(validatePublishAsset(undefined, null, 'org-1', 'model-1')).toBeUndefined();
+  });
+});
+
+describe('isTerminalPublishTargetState', () => {
+  it('treats published and assisted skipped targets as terminal', () => {
+    expect(isTerminalPublishTargetState('published')).toBe(true);
+    expect(isTerminalPublishTargetState('skipped')).toBe(true);
+    expect(isTerminalPublishTargetState('pending')).toBe(false);
+    expect(isTerminalPublishTargetState('failed')).toBe(false);
   });
 });

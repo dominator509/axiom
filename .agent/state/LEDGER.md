@@ -127,3 +127,4 @@
 2026-09-04T20:00:19Z | [P1][MCP/RELIABILITY] autonomous publishing now persists approved bundles so publish.target can execute instead of rejecting generated bundles; queue contract 4/4, typecheck, lint, and formatting passed; hosted CI pending
 2026-09-04T20:20:34Z | [P1][CI] hosted GitHub Actions run #64 passed on release SHA 2501ca15c49119c52056172411e79df372c935d8; all six matrix jobs green, including deployment image build and container smoke tests
 2026-09-04T20:43:15Z | [P1][CONNECTORS] align Instagram media insights with the current media resource contract and add explicit Stories container publishing; connectors 257/257, typecheck, and lint passed
+2026-09-04T20:48:17Z | [P1][WORKER] persist assisted connector skipped results as terminal post targets and reject non-published results with remote IDs; worker 51/51, typecheck, and lint passed
