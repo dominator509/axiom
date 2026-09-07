@@ -54,6 +54,7 @@ import {
 } from '@axiom/db';
 import { sql, eq, and } from 'drizzle-orm';
 import { withOrgContext, writeAudit } from './routes/helpers.js';
+import { relayCaptionUpdate, relayScheduledFor } from './relay-command-inputs.js';
 
 /**
  * Executes a verified relay command against real domain state (H-3).
@@ -97,6 +98,12 @@ async function relayCommandExecutor(
 
     let note: string | undefined;
 
+    if (action === 'change_price') {
+      throw new Error(
+        'relay command: change_price is unavailable because content bundles have no persisted price field',
+      );
+    }
+
     // Transition the bundle state per action (mirrors bundles.ts state machine).
     if (bundleId) {
       const bundle = await tx
@@ -107,7 +114,12 @@ async function relayCommandExecutor(
       if (bundle.length === 0) throw new Error(`relay command: bundle ${bundleId} not found`);
 
       const currentState = bundle[0].state as string;
-      if (action === 'approve' || action === 'approve_all' || action === 'publish_now') {
+      if (
+        action === 'approve' ||
+        action === 'approve_all' ||
+        action === 'publish_now' ||
+        (action === 'reschedule' && (currentState === 'generated' || currentState === 'hold'))
+      ) {
         if (currentState !== 'generated' && currentState !== 'hold') {
           throw new Error(
             `relay command: bundle is already ${currentState}; only generated or held bundles can be approved`,
@@ -160,11 +172,13 @@ async function relayCommandExecutor(
         }
 
         const rawSlot =
-          typeof params.slot === 'string'
-            ? params.slot
-            : typeof params.scheduledFor === 'string'
-              ? params.scheduledFor
-              : undefined;
+          action === 'reschedule'
+            ? relayScheduledFor(params, action).toISOString()
+            : typeof params.slot === 'string'
+              ? params.slot
+              : typeof params.scheduledFor === 'string'
+                ? params.scheduledFor
+                : undefined;
         const slot =
           action === 'publish_now'
             ? new Date()
@@ -221,7 +235,100 @@ async function relayCommandExecutor(
         note =
           action === 'publish_now'
             ? `bundle ${bundleId} → approved for immediate publish (${platforms.join(', ')})`
-            : `bundle ${bundleId} → approved (${platforms.join(', ')})`;
+            : action === 'reschedule'
+              ? `bundle ${bundleId} → approved for ${slot.toISOString()} (${platforms.join(', ')})`
+              : `bundle ${bundleId} → approved (${platforms.join(', ')})`;
+      } else if (action === 'edit_caption') {
+        if (currentState !== 'generated' && currentState !== 'hold' && currentState !== 'approved') {
+          throw new Error(
+            `relay command: bundle is already ${currentState}; caption edits are no longer allowed`,
+          );
+        }
+        const targets: Array<{ id: string; state: string }> = await tx
+          .select({ id: schema.postTarget.id, state: schema.postTarget.state })
+          .from(schema.postTarget)
+          .where(
+            and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)),
+          );
+        if (targets.some((target) => target.state !== 'pending')) {
+          throw new Error('relay command: caption edits are not allowed after publication begins');
+        }
+        const currentCaptions =
+          (bundle[0].captions as Record<string, string> | null) ?? {};
+        const update = relayCaptionUpdate(params, currentCaptions);
+        const transitioned = await tx
+          .update(schema.contentBundle)
+          .set({
+            captions: { ...currentCaptions, [update.platform]: update.caption },
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(schema.contentBundle.id, bundleId),
+              eq(schema.contentBundle.orgId, orgId),
+              eq(schema.contentBundle.state, currentState),
+            ),
+          )
+          .returning({ id: schema.contentBundle.id });
+        if (transitioned.length === 0) {
+          throw new Error('relay command: bundle changed while caption edit was being applied');
+        }
+        note = `bundle ${bundleId} → caption updated for ${update.platform}`;
+      } else if (action === 'reschedule') {
+        if (currentState !== 'approved') {
+          throw new Error(
+            `relay command: bundle is ${currentState}; reschedule requires an approved bundle`,
+          );
+        }
+        const scheduledFor = relayScheduledFor(params, action);
+        const targets: Array<{ id: string; platform: string; state: string }> = await tx
+          .select({ id: schema.postTarget.id, platform: schema.postTarget.platform, state: schema.postTarget.state })
+          .from(schema.postTarget)
+          .where(
+            and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)),
+          );
+        if (targets.length === 0) {
+          throw new Error('relay command: approved bundle has no publish targets to reschedule');
+        }
+        if (targets.some((target) => target.state !== 'pending')) {
+          throw new Error('relay command: reschedule is not allowed after publication begins');
+        }
+        for (const target of targets) {
+          const updated = await tx
+            .update(schema.postTarget)
+            .set({
+              scheduledFor,
+              idemKey: Buffer.from(`${bundleId}|${target.platform}|${scheduledFor.toISOString()}`),
+            })
+            .where(
+              and(
+                eq(schema.postTarget.id, target.id),
+                eq(schema.postTarget.orgId, orgId),
+                eq(schema.postTarget.state, 'pending'),
+              ),
+            )
+            .returning({ id: schema.postTarget.id });
+          if (updated.length === 0) {
+            throw new Error('relay command: target changed while rescheduling was being applied');
+          }
+          await enqueueJob(tx, {
+            orgId,
+            queue: 'publish',
+            kind: 'publish.target',
+            payload: { targetId: target.id },
+            runAfter: scheduledFor,
+            dedupeParts: ['publish.target', target.id],
+          });
+          await tx.execute(sql`
+            UPDATE job
+               SET run_after = ${scheduledFor}
+             WHERE org_id = ${orgId}
+               AND kind = 'publish.target'
+               AND state = 'ready'
+               AND payload ->> 'targetId' = ${target.id}
+          `);
+        }
+        note = `bundle ${bundleId} → rescheduled for ${scheduledFor.toISOString()}`;
       } else {
         const stateByAction: Partial<Record<CardAction, string>> = {
           reject: 'rejected',
@@ -576,7 +683,12 @@ export async function initializeRuntime(): Promise<void> {
         if (!context || context.channel !== channel || !context.sourceId) {
           throw new Error('relay command: missing or invalid provider source');
         }
-        const result = await commandRouter.processCommand(cardId, receivedAction, {}, context);
+        const result = await commandRouter.processCommand(
+          cardId,
+          receivedAction,
+          context?.params ?? {},
+          context,
+        );
         if (!result.success) {
           throw new Error(result.error ?? 'relay command failed');
         }

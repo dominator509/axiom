@@ -41,6 +41,8 @@ export function isCardAction(value: unknown): value is CardAction {
 export interface CommandContext {
   channel: string;
   sourceId: string;
+  /** Optional operator input collected after a parameterised card action. */
+  params?: Record<string, unknown>;
 }
 
 export interface CommandResult {
@@ -130,44 +132,22 @@ export class CommandRouter {
     token: string,
     expectedAction?: CardAction,
   ): { action: CardAction; cardId: string } | null {
-    if (typeof token !== 'string' || token.length === 0 || token.length > COMPACT_TOKEN_MAX_LENGTH) {
-      return null;
-    }
+    const command = this.decodeCommandToken(token, expectedAction);
+    if (!command || !this.consumeNonce(command.nonce)) return null;
+    return { action: command.action, cardId: command.cardId };
+  }
 
-    const parts = token.split('.');
-    if (parts.length !== 4) return null;
-    const [actionCode, encodedCardId, nonce, suppliedMac] = parts;
-    const action = ACTIONS_BY_CODE[actionCode];
-    if (
-      !action ||
-      (expectedAction && action !== expectedAction) ||
-      !encodedCardId ||
-      !nonce ||
-      !suppliedMac
-    ) {
-      return null;
-    }
-
-    const cardId = decodeCardId(encodedCardId);
-    if (!cardId) return null;
-
-    const expectedMac = this.compactMac(`${actionCode}.${encodedCardId}.${nonce}`);
-    const expectedBuf = Buffer.from(expectedMac, 'base64url');
-    const suppliedBuf = Buffer.from(suppliedMac, 'base64url');
-    if (
-      suppliedBuf.length !== expectedBuf.length ||
-      suppliedBuf.toString('base64url') !== suppliedMac
-    ) {
-      return null;
-    }
-    try {
-      if (!timingSafeEqual(expectedBuf, suppliedBuf)) return null;
-    } catch {
-      return null;
-    }
-
-    if (!this.consumeNonce(nonce)) return null;
-    return { action, cardId };
+  /**
+   * Validate a provider token without consuming it. Parameterised button
+   * actions use this to open a prompt/modal; the one-use token is consumed
+   * only after the operator submits the requested value.
+   */
+  peekCommandToken(
+    token: string,
+    expectedAction?: CardAction,
+  ): { action: CardAction; cardId: string } | null {
+    const command = this.decodeCommandToken(token, expectedAction);
+    return command ? { action: command.action, cardId: command.cardId } : null;
   }
 
   verifyCommand(signature: string, nonce: string, action: CardAction, cardId: string): boolean {
@@ -255,6 +235,49 @@ export class CommandRouter {
       .digest()
       .subarray(0, COMPACT_TOKEN_MAC_BYTES)
       .toString('base64url');
+  }
+
+  private decodeCommandToken(
+    token: string,
+    expectedAction?: CardAction,
+  ): { action: CardAction; cardId: string; nonce: string } | null {
+    if (typeof token !== 'string' || token.length === 0 || token.length > COMPACT_TOKEN_MAX_LENGTH) {
+      return null;
+    }
+
+    const parts = token.split('.');
+    if (parts.length !== 4) return null;
+    const [actionCode, encodedCardId, nonce, suppliedMac] = parts;
+    const action = ACTIONS_BY_CODE[actionCode];
+    if (
+      !action ||
+      (expectedAction && action !== expectedAction) ||
+      !encodedCardId ||
+      !nonce ||
+      !suppliedMac
+    ) {
+      return null;
+    }
+
+    const cardId = decodeCardId(encodedCardId);
+    if (!cardId) return null;
+
+    const expectedMac = this.compactMac(`${actionCode}.${encodedCardId}.${nonce}`);
+    const expectedBuf = Buffer.from(expectedMac, 'base64url');
+    const suppliedBuf = Buffer.from(suppliedMac, 'base64url');
+    if (
+      suppliedBuf.length !== expectedBuf.length ||
+      suppliedBuf.toString('base64url') !== suppliedMac
+    ) {
+      return null;
+    }
+    try {
+      if (!timingSafeEqual(expectedBuf, suppliedBuf)) return null;
+    } catch {
+      return null;
+    }
+
+    return { action, cardId, nonce };
   }
 
   private consumeNonce(nonce: string): boolean {

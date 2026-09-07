@@ -37,22 +37,20 @@ export class SignalAdapter {
     await execa(this.config.cliPath, ['send', '-a', this.config.account, chatId, body]);
   }
 
-  parseResponse(message: SignalMessage): { action: CardAction; bundleId: string } | null {
-    const text = message.text.trim().toLowerCase();
+  parseResponse(
+    message: SignalMessage,
+  ): { action: CardAction; bundleId: string; params?: Record<string, unknown> } | null {
+    const rawText = message.text.trim();
+    const [rawKeyword, ...rest] = rawText.split(/\s+/);
+    const keyword = rawKeyword?.toLowerCase() ?? '';
+    const normalizedText = rawText.toLowerCase();
     const actionMap: Record<string, CardAction> = {
-      '1': 'approve',
-      '2': 'approve_all',
-      '3': 'reject',
-      '4': 'edit_caption',
-      '5': 'change_price',
-      '6': 'reschedule',
-      '7': 'regenerate',
-      '8': 'revise',
-      '9': 'hold',
       approve: 'approve',
+      approve_all: 'approve_all',
       reject: 'reject',
       edit: 'edit_caption',
       schedule: 'reschedule',
+      reschedule: 'reschedule',
       regenerate: 'regenerate',
       revise: 'revise',
       hold: 'hold',
@@ -61,9 +59,15 @@ export class SignalAdapter {
       'publish now': 'publish_now',
     };
 
-    const cmd = actionMap[text];
+    const cmd = normalizedText === 'publish now' ? 'publish_now' : actionMap[keyword];
     if (!cmd) return null;
 
-    return { action: cmd, bundleId: '' };
+    const remainder = rest.join(' ').trim();
+    return {
+      action: cmd,
+      bundleId: '',
+      ...(cmd === 'edit_caption' && remainder ? { params: { caption: remainder } } : {}),
+      ...(cmd === 'reschedule' && remainder ? { params: { scheduledFor: remainder } } : {}),
+    };
   }
 }

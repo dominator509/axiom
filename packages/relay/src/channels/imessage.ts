@@ -49,22 +49,20 @@ export class IMessageAdapter {
     }
   }
 
-  parseResponse(response: IMessageResponse): { action: CardAction; bundleId: string } | null {
-    const text = response.text.trim().toLowerCase();
+  parseResponse(
+    response: IMessageResponse,
+  ): { action: CardAction; bundleId: string; params?: Record<string, unknown> } | null {
+    const rawText = response.text.trim();
+    const [rawKeyword, ...rest] = rawText.split(/\s+/);
+    const keyword = rawKeyword?.toLowerCase() ?? '';
+    const normalizedText = rawText.toLowerCase();
     const actionMap: Record<string, CardAction> = {
-      '1': 'approve',
-      '2': 'approve_all',
-      '3': 'reject',
-      '4': 'edit_caption',
-      '5': 'change_price',
-      '6': 'reschedule',
-      '7': 'regenerate',
-      '8': 'revise',
-      '9': 'hold',
       approve: 'approve',
+      approve_all: 'approve_all',
       reject: 'reject',
       edit: 'edit_caption',
       schedule: 'reschedule',
+      reschedule: 'reschedule',
       regenerate: 'regenerate',
       revise: 'revise',
       hold: 'hold',
@@ -73,9 +71,15 @@ export class IMessageAdapter {
       'publish now': 'publish_now',
     };
 
-    const cmd = actionMap[text];
+    const cmd = normalizedText === 'publish now' ? 'publish_now' : actionMap[keyword];
     if (!cmd) return null;
 
-    return { action: cmd, bundleId: '' };
+    const remainder = rest.join(' ').trim();
+    return {
+      action: cmd,
+      bundleId: '',
+      ...(cmd === 'edit_caption' && remainder ? { params: { caption: remainder } } : {}),
+      ...(cmd === 'reschedule' && remainder ? { params: { scheduledFor: remainder } } : {}),
+    };
   }
 }

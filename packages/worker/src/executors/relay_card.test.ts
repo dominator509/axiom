@@ -141,7 +141,6 @@ describe('relayCard', () => {
       approve: expect.any(String),
       approve_all: expect.any(String),
       edit_caption: expect.any(String),
-      change_price: expect.any(String),
       reschedule: expect.any(String),
       reject: expect.any(String),
       hold: expect.any(String),

@@ -50,7 +50,8 @@ describe('sendCard', () => {
     const body = JSON.parse(init.body);
     expect(body.chatGuid).toBe('chat-guid-1');
     expect(body.text).toContain('📦 Bundle: bundle-1');
-    expect(body.text).toContain('1. approve');
+    expect(body.text).toContain('approve');
+    expect(body.text).toContain('Actions (reply with keyword):');
   });
 
   it('throws when the API returns a non-ok response so the worker can retry', async () => {
@@ -68,27 +69,34 @@ describe('sendCard', () => {
 });
 
 describe('parseResponse', () => {
-  it.each([
-    ['1', 'approve'],
-    ['2', 'approve_all'],
-    ['3', 'reject'],
-    ['4', 'edit_caption'],
-    ['5', 'change_price'],
-    ['6', 'reschedule'],
-    ['7', 'regenerate'],
-    ['8', 'revise'],
-    ['9', 'hold'],
-  ] as const)('maps digit "%s" to action %s', (digit, action) => {
-    const res = adapter.parseResponse({ text: digit, chatId: 'c1' } as IMessageResponse);
-    expect(res).toEqual({ action, bundleId: '' });
+  it.each(['1', '2', '3', '4', '5', '6', '7', '8', '9'])(
+    'rejects ambiguous numeric command "%s"',
+    (digit) => {
+      expect(adapter.parseResponse({ text: digit, chatId: 'c1' })).toBeNull();
+    },
+  );
+
+  it('passes edit and schedule arguments as command parameters', () => {
+    expect(adapter.parseResponse({ text: 'edit Updated caption', chatId: 'c1' })).toEqual({
+      action: 'edit_caption',
+      bundleId: '',
+      params: { caption: 'Updated caption' },
+    });
+    expect(adapter.parseResponse({ text: 'schedule 2026-09-08T18:30:00Z', chatId: 'c1' })).toEqual({
+      action: 'reschedule',
+      bundleId: '',
+      params: { scheduledFor: '2026-09-08T18:30:00Z' },
+    });
   });
 
   it.each([
     ['approve', 'approve'],
+    ['approve_all', 'approve_all'],
     ['reject', 'reject'],
     ['edit', 'edit_caption'],
     ['EDIT', 'edit_caption'],
     ['schedule', 'reschedule'],
+    ['reschedule', 'reschedule'],
     ['regenerate', 'regenerate'],
     ['revise', 'revise'],
     ['hold', 'hold'],
@@ -104,9 +112,7 @@ describe('parseResponse', () => {
   it.each([
     ['10'],
     ['0'],
-    ['approve_all'],
     ['change_price'],
-    ['reschedule'],
     ['hello'],
     [''],
     ['!@#$'],

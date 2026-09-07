@@ -56,7 +56,8 @@ describe('sendCard', () => {
       '+15559998888',
       expect.stringContaining('📦 Bundle: bundle-1'),
     ]);
-    expect(args[4]).toContain('1. approve');
+    expect(args[4]).toContain('approve');
+    expect(args[4]).toContain('Actions (reply with keyword):');
   });
 
   it('propagates CLI failures', async () => {
@@ -68,26 +69,33 @@ describe('sendCard', () => {
 });
 
 describe('parseResponse', () => {
-  it.each([
-    ['1', 'approve'],
-    ['2', 'approve_all'],
-    ['3', 'reject'],
-    ['4', 'edit_caption'],
-    ['5', 'change_price'],
-    ['6', 'reschedule'],
-    ['7', 'regenerate'],
-    ['8', 'revise'],
-    ['9', 'hold'],
-  ] as const)('maps digit "%s" to action %s', (digit, action) => {
-    const res = adapter.parseResponse({ text: digit, source: 'x', timestamp: 1 } as SignalMessage);
-    expect(res).toEqual({ action, bundleId: '' });
+  it.each(['1', '2', '3', '4', '5', '6', '7', '8', '9'])(
+    'rejects ambiguous numeric command "%s"',
+    (digit) => {
+      expect(adapter.parseResponse({ text: digit, source: 'x', timestamp: 1 })).toBeNull();
+    },
+  );
+
+  it('passes edit and schedule arguments as command parameters', () => {
+    expect(
+      adapter.parseResponse({ text: 'edit Updated caption', source: 'x', timestamp: 1 }),
+    ).toEqual({ action: 'edit_caption', bundleId: '', params: { caption: 'Updated caption' } });
+    expect(
+      adapter.parseResponse({ text: 'schedule 2026-09-08T18:30:00Z', source: 'x', timestamp: 1 }),
+    ).toEqual({
+      action: 'reschedule',
+      bundleId: '',
+      params: { scheduledFor: '2026-09-08T18:30:00Z' },
+    });
   });
 
   it.each([
     ['approve', 'approve'],
+    ['approve_all', 'approve_all'],
     ['reject', 'reject'],
     ['edit', 'edit_caption'],
     ['Schedule', 'reschedule'],
+    ['reschedule', 'reschedule'],
     ['regenerate', 'regenerate'],
     ['revise', 'revise'],
     ['hold', 'hold'],
@@ -99,7 +107,7 @@ describe('parseResponse', () => {
     expect(res).toEqual({ action, bundleId: '' });
   });
 
-  it.each([['10'], ['0'], ['approve_all'], ['change_price'], ['reschedule'], ['banana'], ['']])(
+  it.each([['10'], ['0'], ['change_price'], ['banana'], ['']])(
     'returns null for unrecognized text "%s"',
     (text) => {
       expect(
