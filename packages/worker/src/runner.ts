@@ -3,7 +3,14 @@
 // WORKER_MAX_ATTEMPTS. Requires DATABASE_URL (via @axiom/db).
 
 import { registerConnectors } from './connectors.js';
+import { installRuntimeFailureHandlers } from '@axiom/core';
 import { runWorker } from './worker.js';
+
+installRuntimeFailureHandlers({
+  service: process.env.AXIOM_SERVICE_NAME ?? 'worker',
+  process,
+  write: (entry) => console.error(JSON.stringify(entry)),
+});
 
 // Register the real platform connectors before the loop starts so
 // publish.target / metrics.poll can dispatch (fail-closed when no token).
