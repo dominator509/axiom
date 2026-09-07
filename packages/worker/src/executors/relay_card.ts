@@ -63,7 +63,7 @@ export function assertRelayBindingDispatchable(
       }
       break;
     case 'imessage':
-      if (!env.BLUEBUBBLES_URL || !env.BLUEBUBBLES_API_KEY) {
+      if (!env.BLUEBUBBLES_URL || !(env.BLUEBUBBLES_PASSWORD ?? env.BLUEBUBBLES_API_KEY)) {
         throw new Error('relay.card: BlueBubbles env not configured');
       }
       break;
@@ -239,11 +239,11 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
       }
       case 'imessage': {
         const blueBubblesUrl = process.env.BLUEBUBBLES_URL;
-        const apiKey = process.env.BLUEBUBBLES_API_KEY;
-        if (!blueBubblesUrl || !apiKey) {
+        const password = process.env.BLUEBUBBLES_PASSWORD ?? process.env.BLUEBUBBLES_API_KEY;
+        if (!blueBubblesUrl || !password) {
           throw new Error('relay.card: BlueBubbles env not configured');
         }
-        const adapter = new IMessageAdapter({ blueBubblesUrl, apiKey });
+        const adapter = new IMessageAdapter({ blueBubblesUrl, password });
         await adapter.sendCard(chatRef, card);
         break;
       }

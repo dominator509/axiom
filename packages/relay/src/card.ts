@@ -165,20 +165,24 @@ export class CardRenderer {
         (v) => `  ${v.platform}: ${v.passed ? 'PASS' : 'FAIL'} (${(v.score * 100).toFixed(0)}%)`,
       ),
       '',
-      'Actions (reply with keyword):',
-      ...card.actions.map((action) => `  ${actionKeyword(action)}`),
+      card.actions.every((action) => Boolean(card.commandTokens?.[action]))
+        ? 'Actions (reply with the action and its signed token):'
+        : 'Actions (reply with keyword):',
+      ...card.actions.map((action) => `  ${actionKeyword(action, card.commandTokens?.[action])}`),
     ];
     return lines.join('\n');
   }
 }
 
-function actionKeyword(action: CardAction): string {
+function actionKeyword(action: CardAction, token?: string): string {
   switch (action) {
     case 'edit_caption':
-      return 'edit <new caption>';
+      return token ? `edit ${token} <new caption>` : 'edit <new caption>';
     case 'reschedule':
-      return 'schedule <future ISO-8601 timestamp>';
+      return token
+        ? `schedule ${token} <future ISO-8601 timestamp>`
+        : 'schedule <future ISO-8601 timestamp>';
     default:
-      return action;
+      return token ? `${action} ${token}` : action;
   }
 }
