@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isTerminalPublishTargetState, validatePublishAsset } from './publish.js';
+import {
+  assertProviderReadableMediaUrls,
+  isTerminalPublishTargetState,
+  validatePublishAsset,
+} from './publish.js';
 
 const asset = {
   id: 'asset-1',
@@ -40,5 +44,32 @@ describe('isTerminalPublishTargetState', () => {
     expect(isTerminalPublishTargetState('skipped')).toBe(true);
     expect(isTerminalPublishTargetState('pending')).toBe(false);
     expect(isTerminalPublishTargetState('failed')).toBe(false);
+  });
+});
+
+describe('assertProviderReadableMediaUrls', () => {
+  it('allows provider-facing HTTP(S) URLs and text-only posts', () => {
+    expect(() =>
+      assertProviderReadableMediaUrls([
+        'https://cdn.example.com/photo.jpg',
+        'http://cdn.example/video.mp4',
+      ]),
+    ).not.toThrow();
+    expect(() => assertProviderReadableMediaUrls([])).not.toThrow();
+  });
+
+  it('rejects internal asset references before connector dispatch', () => {
+    expect(() => assertProviderReadableMediaUrls(['asset://asset-1'], 'asset-1')).toThrow(
+      'media URL 0 is not provider-readable for asset asset-1; expected an http(s) URL',
+    );
+  });
+
+  it('rejects malformed and non-HTTP schemes', () => {
+    expect(() => assertProviderReadableMediaUrls(['not-a-url'])).toThrow(
+      'media URL 0 is not provider-readable',
+    );
+    expect(() => assertProviderReadableMediaUrls(['file:///var/media/photo.jpg'])).toThrow(
+      'expected an http(s) URL',
+    );
   });
 });

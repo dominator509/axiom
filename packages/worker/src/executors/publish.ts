@@ -55,6 +55,35 @@ export function validatePublishAsset(
   return asset.kind;
 }
 
+/**
+ * Connector media inputs are provider-facing URLs. `asset://` is an internal
+ * identifier used by the local media plane and must never cross the connector
+ * boundary; providers cannot dereference it and would otherwise fail after a
+ * potentially side-effecting request. The configured media delivery path is
+ * responsible for converting persisted assets to short-lived HTTP(S) URLs.
+ */
+export function assertProviderReadableMediaUrls(
+  mediaUrls: readonly string[],
+  assetId?: string | null,
+): void {
+  for (const [index, mediaUrl] of mediaUrls.entries()) {
+    let parsed: URL;
+    try {
+      parsed = new URL(mediaUrl);
+    } catch {
+      throw new Error(
+        `publish.target: media URL ${index} is not provider-readable${assetId ? ` for asset ${assetId}` : ''}`,
+      );
+    }
+
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error(
+        `publish.target: media URL ${index} is not provider-readable${assetId ? ` for asset ${assetId}` : ''}; expected an http(s) URL`,
+      );
+    }
+  }
+}
+
 export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const { tx, job, killSwitchEnabled } = ctx;
   const payload = (job.payload ?? {}) as { targetId?: string };
@@ -211,6 +240,11 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
       ...(target.state === 'pending' && target.remoteId ? { publishId: target.remoteId } : {}),
     },
   };
+
+  // The local media plane may use an asset:// identifier while validating the
+  // persisted object. Do not let that internal reference reach a provider;
+  // connectors require a fetchable delivery URL.
+  assertProviderReadableMediaUrls(stagedInput.mediaUrls, bundle.assetId);
 
   const validation = await connector.validate(stagedInput);
   if (!validation.valid) {
