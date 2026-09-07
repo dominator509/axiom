@@ -57,6 +57,7 @@ import {
 import { sql, eq, and } from 'drizzle-orm';
 import { withOrgContext, writeAudit } from './routes/helpers.js';
 import { relayCaptionUpdate, relayScheduledFor } from './relay-command-inputs.js';
+import { validateProductionRelayConfig } from './production-config.js';
 import { timingSafeEqual } from 'node:crypto';
 
 type InboundRelayAdapter = {
@@ -284,7 +285,11 @@ async function relayCommandExecutor(
               ? `bundle ${bundleId} → approved for ${slot.toISOString()} (${platforms.join(', ')})`
               : `bundle ${bundleId} → approved (${platforms.join(', ')})`;
       } else if (action === 'edit_caption') {
-        if (currentState !== 'generated' && currentState !== 'hold' && currentState !== 'approved') {
+        if (
+          currentState !== 'generated' &&
+          currentState !== 'hold' &&
+          currentState !== 'approved'
+        ) {
           throw new Error(
             `relay command: bundle is already ${currentState}; caption edits are no longer allowed`,
           );
@@ -292,14 +297,11 @@ async function relayCommandExecutor(
         const targets: Array<{ id: string; state: string }> = await tx
           .select({ id: schema.postTarget.id, state: schema.postTarget.state })
           .from(schema.postTarget)
-          .where(
-            and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)),
-          );
+          .where(and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)));
         if (targets.some((target) => target.state !== 'pending')) {
           throw new Error('relay command: caption edits are not allowed after publication begins');
         }
-        const currentCaptions =
-          (bundle[0].captions as Record<string, string> | null) ?? {};
+        const currentCaptions = (bundle[0].captions as Record<string, string> | null) ?? {};
         const update = relayCaptionUpdate(params, currentCaptions);
         const transitioned = await tx
           .update(schema.contentBundle)
@@ -327,11 +329,13 @@ async function relayCommandExecutor(
         }
         const scheduledFor = relayScheduledFor(params, action);
         const targets: Array<{ id: string; platform: string; state: string }> = await tx
-          .select({ id: schema.postTarget.id, platform: schema.postTarget.platform, state: schema.postTarget.state })
+          .select({
+            id: schema.postTarget.id,
+            platform: schema.postTarget.platform,
+            state: schema.postTarget.state,
+          })
           .from(schema.postTarget)
-          .where(
-            and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)),
-          );
+          .where(and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)));
         if (targets.length === 0) {
           throw new Error('relay command: approved bundle has no publish targets to reschedule');
         }
@@ -651,6 +655,7 @@ console.log('LLM gateway routes mounted');
 // ── Relay initialization ──────────────────────────────────────
 
 export function createRelayApp(): Hono {
+  validateProductionRelayConfig(process.env);
   const cardRenderer = new CardRenderer();
   const commandRouter = getRelayCommandRouter();
   const viralLoop = new ViralLoop();
@@ -710,8 +715,7 @@ export function createRelayApp(): Hono {
   }
 
   const blueBubblesUrl = process.env.BLUEBUBBLES_URL;
-  const blueBubblesPassword =
-    process.env.BLUEBUBBLES_PASSWORD ?? process.env.BLUEBUBBLES_API_KEY;
+  const blueBubblesPassword = process.env.BLUEBUBBLES_PASSWORD ?? process.env.BLUEBUBBLES_API_KEY;
   const blueBubblesWebhookSecret = process.env.BLUEBUBBLES_WEBHOOK_SECRET;
   if (blueBubblesUrl && blueBubblesPassword) {
     if (!blueBubblesWebhookSecret && process.env.NODE_ENV === 'production') {

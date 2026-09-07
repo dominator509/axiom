@@ -151,3 +151,4 @@
 2026-09-07T18:28:31Z | [P1][OBSERVABILITY] API onError now captures authenticated unhandled failures into the existing RLS-scoped crash_report sink with credential redaction; API 298/298, typecheck, lint, build, formatting, and diff checks passed
 2026-09-07T18:47:41Z | [P2][OBSERVABILITY] clarify L2.9 implementation boundary: internal API crash sink is shipped; GlitchTip/Sentry/Loki/Grafana/OTel agents and process-wide capture remain explicit runtime release gates
 2026-09-07T19:11:40Z | [P2][OBSERVABILITY] add shared secret-redacting process handlers for API and worker uncaught exceptions and unhandled rejections; core tests 3/3, typecheck, build, lint, formatting passed
+2026-09-07T19:31:38Z | [P2][RELAY/CONFIG] fail closed on partial production Discord, Signal, Threads, BlueBubbles, and Telegram webhook configuration; API 302/302, typecheck, build, lint, and formatting passed
