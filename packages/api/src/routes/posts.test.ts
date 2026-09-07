@@ -263,6 +263,32 @@ describe('PATCH /posts/:id', () => {
     expect(enqueueJob).not.toHaveBeenCalled();
   });
 
+  it('rejects retargeting a text-only bundle to a media-only platform', async () => {
+    mockState.results = [
+      [],
+      [
+        {
+          id: POST_ID,
+          orgId: ORG_ID,
+          bundleId: BUNDLE_ID,
+          platform: 'x',
+          scheduledFor: new Date('2026-08-10T12:00:00Z'),
+          state: 'pending',
+        },
+      ],
+      [{ assetId: null }],
+    ];
+
+    const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platform: 'instagram' }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain('requires media');
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
   it('rejects edits after the worker has started publication', async () => {
     mockState.result = [
       {

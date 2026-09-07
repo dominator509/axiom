@@ -32,6 +32,22 @@ const rescheduleSchema = z
     message: 'at least one editable field is required',
   });
 
+/**
+ * Keep every route that can create or retarget a publish target aligned with
+ * the connector media contract. Text-capable providers may publish from a
+ * text-only bundle; media-only providers must have an attached asset before a
+ * worker job is created.
+ */
+function mediaRequirementError(platform: Platform, hasAsset: boolean): string | null {
+  if (hasAsset) return null;
+  try {
+    if (resolveCapabilities(platform).media.includes('text')) return null;
+  } catch {
+    return `cannot resolve ${platform} capabilities; media requirement is unknown`;
+  }
+  return `bundle has no media asset; ${platform} requires media before scheduling`;
+}
+
 // GET /models/:id/calendar?from=...&to=... — scheduled posts in range
 router.get('/models/:modelId/calendar', async (c) => {
   const orgId = requireOrg(c);
@@ -112,22 +128,9 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
         error: `bundle must be approved before scheduling (current state: ${bundle.state})`,
       };
     }
-    if (!bundle.assetId) {
-      try {
-        if (!resolveCapabilities(platform).media.includes('text')) {
-          return {
-            status: 409 as const,
-            data: null,
-            error: `bundle has no media asset; ${platform} requires media before scheduling`,
-          };
-        }
-      } catch {
-        return {
-          status: 409 as const,
-          data: null,
-          error: `cannot resolve ${platform} capabilities; media requirement is unknown`,
-        };
-      }
+    const mediaError = mediaRequirementError(platform, Boolean(bundle.assetId));
+    if (mediaError) {
+      return { status: 409 as const, data: null, error: mediaError };
     }
 
     const [row] = await tx
@@ -173,7 +176,7 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
 
-  let platform: string | undefined;
+  let platform: Platform | undefined;
   if (body.platform !== undefined) {
     try {
       platform = asPlatform(body.platform);
@@ -202,6 +205,25 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
     const nextPlatform = platform ?? existing.platform;
     const nextScheduledFor = scheduledFor ?? existing.scheduledFor;
     const platformChanged = platform !== undefined && platform !== existing.platform;
+
+    if (platformChanged) {
+      const bundles = await tx
+        .select({ assetId: schema.contentBundle.assetId })
+        .from(schema.contentBundle)
+        .where(
+          and(
+            eq(schema.contentBundle.id, existing.bundleId),
+            eq(schema.contentBundle.orgId, orgId),
+          ),
+        )
+        .limit(1);
+      const bundle = bundles[0];
+      const mediaError = mediaRequirementError(nextPlatform as Platform, Boolean(bundle?.assetId));
+      if (mediaError) {
+        return { status: 409 as const, data: null, error: mediaError };
+      }
+    }
+
     const nextIdemKey = Buffer.from(
       `${existing.bundleId}|${nextPlatform}|${nextScheduledFor ? new Date(nextScheduledFor).toISOString() : ''}`,
     );
