@@ -84,6 +84,17 @@ export function assertProviderReadableMediaUrls(
   }
 }
 
+/**
+ * A connector with no declared metrics must not create a synthetic all-zero
+ * metric row. That row would look like real provider data to viral scoring.
+ */
+export function shouldEnqueueMetrics(
+  remoteId: string | null | undefined,
+  metrics: readonly string[],
+): boolean {
+  return Boolean(remoteId && metrics.length > 0);
+}
+
 export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const { tx, job, killSwitchEnabled } = ctx;
   const payload = (job.payload ?? {}) as { targetId?: string };
@@ -312,10 +323,11 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
       .onConflictDoNothing();
   }
 
-  // 5. Enqueue metrics.poll only when the provider returned a remote ID. A
-  // successful empty response is terminal, but there is no provider resource
-  // to query (Discord webhook execution with a 204 response is one example).
-  if (result.remoteId) {
+  // 5. Enqueue metrics.poll only when the provider returned a remote ID and
+  // declared metrics. A successful empty response is terminal, but there is
+  // no provider resource to query (Discord webhook execution with a 204
+  // response is one example).
+  if (shouldEnqueueMetrics(result.remoteId, connector.capability().metrics)) {
     const runAfter = new Date(Date.now() + 60_000); // first poll ~1 min after publish
     await enqueueJob(tx, {
       orgId: job.org_id,

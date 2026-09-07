@@ -49,7 +49,9 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
       publish: true,
       media: ['image' as MediaType, 'video' as MediaType],
       maxMediaBytes: 26_214_400, // 25 MB
-      maxMediaCount: 10,
+      // This connector sends one embed and therefore one media item. Do not
+      // advertise a larger count and silently discard the remaining URLs.
+      maxMediaCount: 1,
       caption: true,
       maxCaptionLength: 2_000,
       scheduling: 'internal' as const,
@@ -167,12 +169,7 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
       postId: _remoteId,
       platform: this.platform,
       collectedAt: new Date().toISOString(),
-      metrics: {
-        views: 0,
-        likes: 0,
-        comments: 0,
-        shares: 0,
-      },
+      metrics: {},
     };
   }
 

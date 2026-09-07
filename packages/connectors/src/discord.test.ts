@@ -39,6 +39,7 @@ describe('DiscordConnector', () => {
     expect(c.publishMode).toBe('link_share');
     const cap = c.capability();
     expect(cap.media).toEqual(['image', 'video']);
+    expect(cap.maxMediaCount).toBe(1);
     expect(cap.maxCaptionLength).toBe(2000);
     expect(cap.metrics).toEqual([]);
     expect(cap.refreshMetrics).toBe(false);
@@ -48,6 +49,13 @@ describe('DiscordConnector', () => {
     const c = new DiscordConnector(AUTH);
     expect((await c.validate(input())).valid).toBe(true);
     expect((await c.validate(input({ mediaUrls: [] }))).valid).toBe(false);
+    expect(
+      (
+        await c.validate(
+          input({ mediaUrls: ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.jpg'] }),
+        )
+      ).valid,
+    ).toBe(false);
   });
 });
 
@@ -179,7 +187,7 @@ describe('fetchMetrics', () => {
     const c = new DiscordConnector(AUTH);
     const metrics = await c.fetchMetrics('msg-1');
     expect(metrics.postId).toBe('msg-1');
-    expect(metrics.metrics).toEqual({ views: 0, likes: 0, comments: 0, shares: 0 });
+    expect(metrics.metrics).toEqual({});
   });
 });
 

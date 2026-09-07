@@ -20,9 +20,7 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
   const targets = await tx
     .select()
     .from(schema.postTarget)
-    .where(
-      and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
-    )
+    .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)))
     .limit(1);
   if (targets.length === 0) throw new Error(`metrics.poll: target ${targetId} not found`);
   const target = targets[0];
@@ -38,10 +36,7 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
     .select({ modelId: schema.contentBundle.modelId })
     .from(schema.contentBundle)
     .where(
-      and(
-        eq(schema.contentBundle.id, target.bundleId),
-        eq(schema.contentBundle.orgId, job.org_id),
-      ),
+      and(eq(schema.contentBundle.id, target.bundleId), eq(schema.contentBundle.orgId, job.org_id)),
     )
     .limit(1);
   if (bundles.length === 0) {
@@ -57,10 +52,13 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
     await tx
       .update(schema.postTarget)
       .set({ connectionId: connection.id })
-      .where(
-        and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)),
-      );
+      .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
   }
+
+  // A connector that declares no metrics is intentionally not a producer of
+  // post_metric rows. Treating its empty response as zero-valued provider data
+  // would poison engagement and viral scoring.
+  if (connector.capability().metrics.length === 0) return;
 
   const collected = await connector.fetchMetrics(target.remoteId, 'day');
   if (!collected)

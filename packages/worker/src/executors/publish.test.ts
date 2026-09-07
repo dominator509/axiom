@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertProviderReadableMediaUrls,
   isTerminalPublishTargetState,
+  shouldEnqueueMetrics,
   validatePublishAsset,
 } from './publish.js';
 
@@ -71,5 +72,13 @@ describe('assertProviderReadableMediaUrls', () => {
     expect(() => assertProviderReadableMediaUrls(['file:///var/media/photo.jpg'])).toThrow(
       'expected an http(s) URL',
     );
+  });
+});
+
+describe('shouldEnqueueMetrics', () => {
+  it('requires both a provider remote id and declared metrics', () => {
+    expect(shouldEnqueueMetrics('remote-1', ['likes'])).toBe(true);
+    expect(shouldEnqueueMetrics('remote-1', [])).toBe(false);
+    expect(shouldEnqueueMetrics(null, ['likes'])).toBe(false);
   });
 });

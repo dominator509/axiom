@@ -57,7 +57,7 @@ vi.mock('@axiom/relay', async () => {
   return { ...actual, TelegramAdapter: TestTelegramAdapter };
 });
 
-import { relayCard } from './relay_card.js';
+import { assertRelayBindingDispatchable, relayCard } from './relay_card.js';
 
 const JOB = {
   id: 'job-1',
@@ -90,6 +90,25 @@ beforeEach(() => {
 });
 
 describe('relayCard', () => {
+  it('preflights unsupported bindings before any provider dispatch', () => {
+    expect(() =>
+      assertRelayBindingDispatchable({
+        id: 'binding-1',
+        channel: 'threads',
+        chatRef: 'chat-1',
+      }),
+    ).toThrow("channel 'threads' dispatch not implemented");
+  });
+
+  it('preflights adapter configuration before any provider dispatch', () => {
+    expect(() =>
+      assertRelayBindingDispatchable(
+        { id: 'binding-1', channel: 'telegram', chatRef: 'chat-1' },
+        {},
+      ),
+    ).toThrow('TELEGRAM_BOT_TOKEN not configured');
+  });
+
   it('persists the card id, preserves safe ToS semantics, and sends it to Telegram', async () => {
     await relayCard({
       tx: makeChain(),
