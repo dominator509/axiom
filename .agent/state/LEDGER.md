@@ -148,3 +148,4 @@
 2026-09-07T17:24:18Z | [P2][CI] pin GitHub Actions to immutable signed release commits and restrict workflow permissions to contents:read; workflow formatting, shell syntax, diff check, and preflight passed
 2026-09-07T17:44:27Z | [P2][CI] pin the Rust toolchain action to the current stable commit so every external workflow action is immutable; workflow formatting, shell syntax, and preflight pending
 2026-09-07T18:05:32Z | [P1][AUDIT] incident.notify now computes the hash-chained audit row hash from the full incident payload instead of copying prev_hash; worker tests 62/62, typecheck, lint, formatting, and diff checks passed
+2026-09-07T18:28:31Z | [P1][OBSERVABILITY] API onError now captures authenticated unhandled failures into the existing RLS-scoped crash_report sink with credential redaction; API 298/298, typecheck, lint, build, formatting, and diff checks passed

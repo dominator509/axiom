@@ -11,6 +11,7 @@ import type { Context, Next } from 'hono';
 import { sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { db } from '@axiom/db';
+import { captureUnhandledApiError, describeCrash } from './crash-reporter.js';
 
 export interface ProblemDetails {
   type: string;
@@ -72,12 +73,14 @@ export async function correlationId(c: Context, next: Next): Promise<Response | 
 // RFC-7807 error envelope (Hono onError)
 // ---------------------------------------------------------------------------
 
-export function onError(err: Error, c: Context): Response {
+export async function onError(err: Error, c: Context): Promise<Response> {
   const correlationId = (c.get('correlationId') as string) ?? randomUUID();
   const status = 500;
   // Keep implementation details in server logs; public 5xx responses expose
   // only a stable message plus the correlation ID used to find that log.
-  console.error('Unhandled API error', { correlationId, error: err });
+  const details = describeCrash(err);
+  console.error('Unhandled API error', { correlationId, error: details.message });
+  await captureUnhandledApiError(c.get('orgId') as string | undefined, err, correlationId);
   const body = problem(
     status,
     'Internal Server Error',
