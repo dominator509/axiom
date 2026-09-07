@@ -1,6 +1,7 @@
 // ─── CardRenderer — Vitest Suite ───
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { CardRenderer, type BundleContent, type RelayCard } from './card.js';
+import { CommandRouter } from './commands.js';
 
 const renderer = new CardRenderer();
 
@@ -225,5 +226,24 @@ describe('toText', () => {
     const text = renderer.toText(makeCard({ caption: 'z'.repeat(300) }));
     expect(text).toContain('z'.repeat(200));
     expect(text).not.toContain('z'.repeat(201));
+  });
+
+  it('includes signed tokens when rendering an interactive plain-channel card', () => {
+    const router = new CommandRouter('card-test-secret');
+    const card = makeCard({
+      cardId: 'card-123',
+      actions: ['approve', 'edit_caption', 'reschedule'],
+      commandTokens: {
+        approve: router.createCommandToken('approve', 'card-123'),
+        edit_caption: router.createCommandToken('edit_caption', 'card-123'),
+        reschedule: router.createCommandToken('reschedule', 'card-123'),
+      },
+    });
+
+    const text = renderer.toText(card);
+    expect(text).toContain('Actions (reply with the action and its signed token):');
+    expect(text).toContain(`approve ${card.commandTokens?.approve}`);
+    expect(text).toContain(`edit ${card.commandTokens?.edit_caption} <new caption>`);
+    expect(text).toContain(`schedule ${card.commandTokens?.reschedule} <future ISO-8601 timestamp>`);
   });
 });

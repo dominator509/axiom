@@ -31,6 +31,8 @@ import { createMcpServer } from '@axiom/mcp-server';
 import {
   TelegramAdapter,
   DiscordAdapter,
+  SignalAdapter,
+  IMessageAdapter,
   ThreadsAdapter,
   createRelayRoutes,
   CardRenderer,
@@ -55,6 +57,49 @@ import {
 import { sql, eq, and } from 'drizzle-orm';
 import { withOrgContext, writeAudit } from './routes/helpers.js';
 import { relayCaptionUpdate, relayScheduledFor } from './relay-command-inputs.js';
+import { timingSafeEqual } from 'node:crypto';
+
+type InboundRelayAdapter = {
+  onCommand(
+    action: CardAction,
+    handler: (action: CardAction, cardId: string, context?: CommandContext) => Promise<void>,
+  ): void;
+};
+
+type InboundRelayChannel = 'telegram' | 'discord' | 'signal' | 'imessage';
+
+function registerRelayHandlers(
+  adapter: InboundRelayAdapter,
+  channel: InboundRelayChannel,
+  commandRouter: CommandRouter,
+): void {
+  for (const action of CARD_ACTIONS) {
+    adapter.onCommand(action, async (receivedAction, cardId, context) => {
+      if (!context || context.channel !== channel || !context.sourceId) {
+        throw new Error('relay command: missing or invalid provider source');
+      }
+      const result = await commandRouter.processCommand(
+        cardId,
+        receivedAction,
+        context.params ?? {},
+        context,
+      );
+      if (!result.success) {
+        throw new Error(result.error ?? 'relay command failed');
+      }
+    });
+  }
+}
+
+function matchesWebhookSecret(expected: string, supplied: string | undefined): boolean {
+  if (!supplied) return false;
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const suppliedBuffer = Buffer.from(supplied, 'utf8');
+  return (
+    expectedBuffer.length === suppliedBuffer.length &&
+    timingSafeEqual(expectedBuffer, suppliedBuffer)
+  );
+}
 
 /**
  * Executes a verified relay command against real domain state (H-3).
@@ -664,6 +709,44 @@ export function createRelayApp(): Hono {
     console.log('Threads adapter initialized');
   }
 
+  const blueBubblesUrl = process.env.BLUEBUBBLES_URL;
+  const blueBubblesPassword =
+    process.env.BLUEBUBBLES_PASSWORD ?? process.env.BLUEBUBBLES_API_KEY;
+  const blueBubblesWebhookSecret = process.env.BLUEBUBBLES_WEBHOOK_SECRET;
+  if (blueBubblesUrl && blueBubblesPassword) {
+    if (!blueBubblesWebhookSecret && process.env.NODE_ENV === 'production') {
+      throw new Error('BLUEBUBBLES_WEBHOOK_SECRET is required when iMessage is enabled');
+    }
+    if (blueBubblesWebhookSecret) {
+      const imessage = new IMessageAdapter(
+        { blueBubblesUrl, password: blueBubblesPassword },
+        commandRouter,
+      );
+      registerRelayHandlers(imessage, 'imessage', commandRouter);
+      relay.post('/webhooks/imessage', async (c) => {
+        if (!matchesWebhookSecret(blueBubblesWebhookSecret, c.req.header('X-Axiom-Relay-Secret'))) {
+          return c.json({ error: 'unauthorized' }, 401);
+        }
+        let payload: unknown;
+        try {
+          payload = await c.req.json();
+        } catch {
+          return c.json({ error: 'invalid JSON payload' }, 400);
+        }
+        try {
+          const handled = await imessage.handleWebhook(payload);
+          return c.json({ ok: true, handled });
+        } catch (error) {
+          console.error('iMessage relay webhook failed', error);
+          return c.json({ error: 'relay command failed' }, 500);
+        }
+      });
+      console.log('iMessage adapter initialized');
+    } else {
+      console.warn('iMessage adapter disabled: BLUEBUBBLES_WEBHOOK_SECRET is not configured');
+    }
+  }
+
   return relay;
 }
 
@@ -674,27 +757,6 @@ app.route('/', createRelayApp());
 /** Start adapters that perform external I/O. Called only by the server entrypoint. */
 export async function initializeRuntime(): Promise<void> {
   const commandRouter = getRelayCommandRouter();
-  const registerRelayHandlers = (
-    adapter: TelegramAdapter | DiscordAdapter,
-    channel: 'telegram' | 'discord',
-  ): void => {
-    for (const action of CARD_ACTIONS) {
-      adapter.onCommand(action, async (receivedAction, cardId, context) => {
-        if (!context || context.channel !== channel || !context.sourceId) {
-          throw new Error('relay command: missing or invalid provider source');
-        }
-        const result = await commandRouter.processCommand(
-          cardId,
-          receivedAction,
-          context?.params ?? {},
-          context,
-        );
-        if (!result.success) {
-          throw new Error(result.error ?? 'relay command failed');
-        }
-      });
-    }
-  };
 
   const discordToken = process.env.DISCORD_BOT_TOKEN;
   const discordClientId = process.env.DISCORD_APPLICATION_ID;
@@ -703,7 +765,7 @@ export async function initializeRuntime(): Promise<void> {
       { token: discordToken, clientId: discordClientId },
       commandRouter,
     );
-    registerRelayHandlers(discord, 'discord');
+    registerRelayHandlers(discord, 'discord', commandRouter);
     discord.registerInteractionHandler();
     await discord.login();
     console.log('Discord adapter initialized');
@@ -716,13 +778,25 @@ export async function initializeRuntime(): Promise<void> {
       { token: telegramToken, webhookUrl: telegramWebhookUrl },
       commandRouter,
     );
-    registerRelayHandlers(telegram, 'telegram');
+    registerRelayHandlers(telegram, 'telegram', commandRouter);
     if (telegramWebhookUrl) {
       await telegram.setWebhook(telegramWebhookUrl);
     } else {
       await telegram.startPolling();
     }
     console.log('Telegram adapter initialized');
+  }
+
+  const signalCliPath = process.env.SIGNAL_CLI_PATH;
+  const signalAccount = process.env.SIGNAL_ACCOUNT;
+  if (signalCliPath && signalAccount) {
+    const signal = new SignalAdapter(
+      { cliPath: signalCliPath, account: signalAccount },
+      commandRouter,
+    );
+    registerRelayHandlers(signal, 'signal', commandRouter);
+    signal.startReceiving();
+    console.log('Signal adapter initialized');
   }
 }
 

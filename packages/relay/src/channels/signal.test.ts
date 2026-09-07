@@ -1,7 +1,8 @@
 // ─── SignalAdapter — Vitest Suite ───
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SignalAdapter, type SignalMessage } from './signal.js';
+import { SignalAdapter, parseSignalNotification, type SignalMessage } from './signal.js';
 import type { RelayCard } from '../card.js';
+import { CommandRouter } from '../commands.js';
 
 vi.mock('execa', () => ({
   execa: vi.fn(),
@@ -25,8 +26,10 @@ afterEach(() => {
 });
 
 function makeCard(): RelayCard {
+  const signer = new CommandRouter('signal-test-secret');
+  const cardId = 'card-1';
   return {
-    cardId: 'card-1',
+    cardId,
     bundleId: 'bundle-1',
     mediaPreview: 'https://cdn.example/1.jpg',
     caption: 'Test caption',
@@ -35,6 +38,10 @@ function makeCard(): RelayCard {
     verdicts: [{ platform: 'tiktok', passed: true, score: 0.9, reason: 'ok' }],
     targetPlatforms: ['tiktok'],
     actions: ['approve', 'reject'],
+    commandTokens: {
+      approve: signer.createCommandToken('approve', cardId),
+      reject: signer.createCommandToken('reject', cardId),
+    },
     timestamp: 1_700_000_000_000,
     format: 'html',
   };
@@ -57,7 +64,7 @@ describe('sendCard', () => {
       expect.stringContaining('📦 Bundle: bundle-1'),
     ]);
     expect(args[4]).toContain('approve');
-    expect(args[4]).toContain('Actions (reply with keyword):');
+    expect(args[4]).toContain('Actions (reply with the action and its signed token):');
   });
 
   it('propagates CLI failures', async () => {
@@ -86,6 +93,19 @@ describe('parseResponse', () => {
       action: 'reschedule',
       bundleId: '',
       params: { scheduledFor: '2026-09-08T18:30:00Z' },
+    });
+  });
+
+  it('extracts signed tokens from plain commands without changing caption case', () => {
+    const router = new CommandRouter('signal-test-secret');
+    const token = router.createCommandToken('edit_caption', 'card-2');
+    expect(
+      adapter.parseResponse({ text: `edit ${token} Keep This Case`, source: 'x', timestamp: 1 }),
+    ).toEqual({
+      action: 'edit_caption',
+      bundleId: '',
+      commandToken: token,
+      params: { caption: 'Keep This Case' },
     });
   });
 
@@ -122,5 +142,69 @@ describe('onCommand', () => {
     const handler = vi.fn();
     adapter.onCommand('approve', handler);
     expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+describe('inbound JSON-RPC receive handling', () => {
+  it('normalizes a Signal receive notification, including group chat identity', () => {
+    expect(
+      parseSignalNotification({
+        method: 'receive',
+        params: {
+          envelope: {
+            source: '+15550002222',
+            timestamp: 123,
+            dataMessage: {
+              message: 'approve token',
+              groupInfo: { groupId: 'group-1' },
+            },
+          },
+        },
+      }),
+    ).toEqual({
+      source: '+15550002222',
+      chatId: 'group-1',
+      text: 'approve token',
+      timestamp: 123,
+    });
+    expect(
+      parseSignalNotification(
+        JSON.stringify({
+          params: {
+            envelope: {
+              source: '+15550002222',
+              dataMessage: { message: 'approve token' },
+            },
+          },
+        }),
+      ),
+    ).toMatchObject({ source: '+15550002222', text: 'approve token' });
+  });
+
+  it('verifies a signed token before invoking the domain handler', async () => {
+    const router = new CommandRouter('signal-test-secret');
+    const routedAdapter = new SignalAdapter(config, router);
+    const handler = vi.fn().mockResolvedValue(undefined);
+    routedAdapter.onCommand('approve', handler);
+    const token = router.createCommandToken('approve', 'card-3');
+
+    await expect(
+      routedAdapter.handleMessage({
+        source: '+15550002222',
+        text: `approve ${token}`,
+        timestamp: 1,
+      }),
+    ).resolves.toBe(true);
+    expect(handler).toHaveBeenCalledWith('approve', 'card-3', {
+      channel: 'signal',
+      sourceId: '+15550002222',
+    });
+    await expect(
+      routedAdapter.handleMessage({
+        source: '+15550002222',
+        text: `approve ${token}`,
+        timestamp: 2,
+      }),
+    ).resolves.toBe(false);
   });
 });
