@@ -25,6 +25,17 @@ describe('resolveAuthConfig', () => {
     ).toThrow('at least 32 characters');
   });
 
+  it('rejects a non-HTTPS production auth origin', () => {
+    expect(() =>
+      resolveAuthConfig({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://db.example/app',
+        BETTER_AUTH_SECRET: 'x'.repeat(32),
+        BETTER_AUTH_URL: 'http://app.example',
+      }),
+    ).toThrow('absolute HTTPS URL');
+  });
+
   it('accepts complete production configuration', () => {
     const config = resolveAuthConfig({
       NODE_ENV: 'production',

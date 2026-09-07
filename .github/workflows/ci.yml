@@ -295,7 +295,7 @@ jobs:
             --env API_HOST=0.0.0.0 \
             --env DATABASE_URL=postgresql://axiom:changeme@127.0.0.1:5432/axiom_test \
             --env BETTER_AUTH_SECRET="$ci_auth_value" \
-            --env BETTER_AUTH_URL=http://127.0.0.1:3001 \
+            --env BETTER_AUTH_URL=https://127.0.0.1:3001 \
             --env RELAY_SECRET="$ci_relay_value" \
             axiom-hono:ci
           docker run --detach --name axiom-dashboard-ci --network host \

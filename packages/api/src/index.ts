@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { resolveRelaySecret } from '@axiom/core';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
@@ -449,15 +450,8 @@ let relayCommandRouter: CommandRouter | undefined;
 
 function getRelayCommandRouter(): CommandRouter {
   if (!relayCommandRouter) {
-    const relaySecret = process.env.RELAY_SECRET;
-    if (process.env.NODE_ENV === 'production' && !relaySecret) {
-      throw new Error('RELAY_SECRET is required in production');
-    }
-    relayCommandRouter = new CommandRouter(
-      relaySecret || 'axiom-dev-secret',
-      5,
-      relayCommandExecutor,
-    );
+    const relaySecret = resolveRelaySecret(process.env);
+    relayCommandRouter = new CommandRouter(relaySecret, 5, relayCommandExecutor);
   }
   return relayCommandRouter;
 }

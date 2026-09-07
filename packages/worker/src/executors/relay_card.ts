@@ -4,6 +4,7 @@
 // adapter. Commands never publish directly — this is the operator-decision step.
 
 import { eq, and } from 'drizzle-orm';
+import { resolveRelaySecret } from '@axiom/core';
 import { schema } from '@axiom/db';
 import {
   CardRenderer,
@@ -145,11 +146,7 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
     // TypeScript because the DB transaction row is intentionally untyped.
     chatRef: binding.chatRef?.trim() ?? '',
   }));
-  const relaySecret = process.env.RELAY_SECRET;
-  if (process.env.NODE_ENV === 'production' && !relaySecret) {
-    throw new Error('relay.card: RELAY_SECRET is required in production');
-  }
-  const commandRouter = new CommandRouter(relaySecret || 'axiom-dev-secret');
+  const commandRouter = new CommandRouter(resolveRelaySecret(process.env));
 
   const tosReport = (bundle.tosReport as Record<string, unknown> | null) ?? {};
   const captions = (bundle.captions as Record<string, string> | null) ?? {};
