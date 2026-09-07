@@ -150,3 +150,4 @@
 2026-09-07T18:05:32Z | [P1][AUDIT] incident.notify now computes the hash-chained audit row hash from the full incident payload instead of copying prev_hash; worker tests 62/62, typecheck, lint, formatting, and diff checks passed
 2026-09-07T18:28:31Z | [P1][OBSERVABILITY] API onError now captures authenticated unhandled failures into the existing RLS-scoped crash_report sink with credential redaction; API 298/298, typecheck, lint, build, formatting, and diff checks passed
 2026-09-07T18:47:41Z | [P2][OBSERVABILITY] clarify L2.9 implementation boundary: internal API crash sink is shipped; GlitchTip/Sentry/Loki/Grafana/OTel agents and process-wide capture remain explicit runtime release gates
+2026-09-07T19:11:40Z | [P2][OBSERVABILITY] add shared secret-redacting process handlers for API and worker uncaught exceptions and unhandled rejections; core tests 3/3, typecheck, build, lint, formatting passed
