@@ -7,6 +7,9 @@ import {
   EmbedBuilder,
   Interaction,
   TextChannel,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
 } from 'discord.js';
 import type { RelayCard, CardAction } from '../card.js';
 import { CardRenderer } from '../card.js';
@@ -84,8 +87,20 @@ export class DiscordAdapter {
   }
 
   async handleInteraction(interaction: Interaction): Promise<void> {
+    if (
+      typeof (interaction as any).isModalSubmit === 'function' &&
+      (interaction as any).isModalSubmit()
+    ) {
+      await this.handleModalSubmit(interaction as any);
+      return;
+    }
     if (!interaction.isButton()) return;
     if (!this.commandRouter) return;
+    const pending = this.commandRouter.peekCommandToken(interaction.customId);
+    if (pending && isParameterizedAction(pending.action)) {
+      await interaction.showModal(createActionModal(pending.action, interaction.customId));
+      return;
+    }
     const command = this.commandRouter.verifyCommandToken(interaction.customId);
     if (!command) return;
     const sourceId = interaction.channelId;
@@ -95,6 +110,32 @@ export class DiscordAdapter {
     await handler(command.action, command.cardId, {
       channel: 'discord',
       sourceId,
+    });
+    await interaction.reply({ content: `Action processed`, ephemeral: true });
+  }
+
+  private async handleModalSubmit(interaction: any): Promise<void> {
+    if (!this.commandRouter) return;
+    const command = this.commandRouter.verifyCommandToken(interaction.customId);
+    if (!command || !isParameterizedAction(command.action)) return;
+    const sourceId = interaction.channelId;
+    if (!sourceId) return;
+    const handler = this.handlers.get(command.action);
+    if (!handler) return;
+
+    const params =
+      command.action === 'edit_caption'
+        ? {
+            caption: interaction.fields.getTextInputValue('caption'),
+            ...(interaction.fields.getTextInputValue('platform').trim()
+              ? { platform: interaction.fields.getTextInputValue('platform').trim() }
+              : {}),
+          }
+        : { scheduledFor: interaction.fields.getTextInputValue('scheduledFor') };
+    await handler(command.action, command.cardId, {
+      channel: 'discord',
+      sourceId,
+      params,
     });
     await interaction.reply({ content: `Action processed`, ephemeral: true });
   }
@@ -143,4 +184,41 @@ export class DiscordAdapter {
         return ButtonStyle.Primary;
     }
   }
+}
+
+function isParameterizedAction(action: CardAction): action is 'edit_caption' | 'reschedule' {
+  return action === 'edit_caption' || action === 'reschedule';
+}
+
+function createActionModal(
+  action: 'edit_caption' | 'reschedule',
+  token: string,
+): ModalBuilder {
+  const modal = new ModalBuilder()
+    .setCustomId(token)
+    .setTitle(action === 'edit_caption' ? 'Edit caption' : 'Reschedule publish');
+  if (action === 'edit_caption') {
+    const platform = new TextInputBuilder()
+      .setCustomId('platform')
+      .setLabel('Platform (optional when unambiguous)')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(false);
+    const caption = new TextInputBuilder()
+      .setCustomId('caption')
+      .setLabel('New caption')
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(true);
+    modal.addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(platform),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(caption),
+    );
+  } else {
+    const scheduledFor = new TextInputBuilder()
+      .setCustomId('scheduledFor')
+      .setLabel('Future ISO-8601 timestamp')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true);
+    modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(scheduledFor));
+  }
+  return modal;
 }

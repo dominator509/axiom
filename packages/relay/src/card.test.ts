@@ -83,7 +83,6 @@ describe('renderBundleCard', () => {
       'approve',
       'approve_all',
       'edit_caption',
-      'change_price',
       'reschedule',
       'reject',
       'hold',
@@ -104,7 +103,6 @@ describe('renderBundleCard', () => {
       'approve',
       'approve_all',
       'edit_caption',
-      'change_price',
       'reschedule',
       'reject',
       'hold',
@@ -211,15 +209,16 @@ describe('toEmbed', () => {
 });
 
 describe('toText', () => {
-  it('renders numbered actions and verdict lines', () => {
+  it('renders keyword actions and verdict lines', () => {
     const text = renderer.toText(makeCard());
     expect(text).toContain('📦 Bundle: bundle-123');
     expect(text).toContain('Preview: https://cdn.example/1.jpg');
     expect(text).toContain('tiktok: PASS (90%)');
     expect(text).toContain('instagram: FAIL (40%)');
-    expect(text).toContain('1. regenerate');
-    expect(text).toContain('2. revise');
-    expect(text).toContain('4. hold');
+    expect(text).toContain('Actions (reply with keyword):');
+    expect(text).toContain('regenerate');
+    expect(text).toContain('revise');
+    expect(text).toContain('hold');
   });
 
   it('truncates caption to 200 chars', () => {

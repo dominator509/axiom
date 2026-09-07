@@ -237,6 +237,72 @@ describe('setupCommands', () => {
       sourceId: 'chat-1',
     });
   });
+
+  it('passes caption and schedule arguments through slash commands', async () => {
+    const captured = new Map<string, (ctx: any) => Promise<void>>();
+    vi.spyOn(adapter.getBot(), 'command').mockImplementation(((
+      name: string,
+      fn: (ctx: any) => Promise<void>,
+    ) => {
+      captured.set(name, fn);
+      return adapter.getBot() as any;
+    }) as any);
+    const editHandler = vi.fn().mockResolvedValue(undefined);
+    const scheduleHandler = vi.fn().mockResolvedValue(undefined);
+    adapter.onCommand('edit_caption', editHandler);
+    adapter.onCommand('reschedule', scheduleHandler);
+    adapter.setupCommands();
+
+    const signer = new CommandRouter(COMMAND_SECRET);
+    const editToken = signer.createCommandToken('edit_caption', 'bundle-45');
+    await captured.get('edit')!({
+      match: `${editToken} Updated caption with spaces`,
+      chat: { id: 'chat-1' },
+    });
+    expect(editHandler).toHaveBeenCalledWith('edit_caption', 'bundle-45', {
+      channel: 'telegram',
+      sourceId: 'chat-1',
+      params: { caption: 'Updated caption with spaces' },
+    });
+
+    const scheduleToken = signer.createCommandToken('reschedule', 'bundle-46');
+    await captured.get('reschedule')!({
+      match: `${scheduleToken} 2026-09-08T18:30:00.000Z`,
+      chat: { id: 'chat-1' },
+    });
+    expect(scheduleHandler).toHaveBeenCalledWith('reschedule', 'bundle-46', {
+      channel: 'telegram',
+      sourceId: 'chat-1',
+      params: { scheduledFor: '2026-09-08T18:30:00.000Z' },
+    });
+  });
+
+  it('prompts for required values without consuming parameterised callback tokens', async () => {
+    const router = new CommandRouter(COMMAND_SECRET);
+    const promptedAdapter = new TelegramAdapter(config, router);
+    const token = router.createCommandToken('edit_caption', 'bundle-47');
+    const answerSpy = vi
+      .spyOn(promptedAdapter.getBot().api, 'answerCallbackQuery')
+      .mockResolvedValue(true as any);
+    const sendSpy = vi
+      .spyOn(promptedAdapter.getBot().api, 'sendMessage')
+      .mockResolvedValue({ message_id: 2 } as any);
+
+    await promptedAdapter.handleCallback({
+      id: 'cb-edit',
+      data: token,
+      message: { chat: { id: 'chat-1' } },
+    });
+
+    expect(answerSpy).toHaveBeenCalledWith('cb-edit', {
+      text: 'Send the requested value with the command below.',
+    });
+    expect(sendSpy).toHaveBeenCalledWith(
+      'chat-1',
+      `Edit this caption with:\n/edit ${token} <new caption>`,
+    );
+    expect(router.verifyCommandToken(token)).toEqual({ action: 'edit_caption', cardId: 'bundle-47' });
+  });
 });
 
 describe('startPolling / setWebhook', () => {

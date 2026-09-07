@@ -80,6 +80,59 @@ describe('construction / getClient / onCommand', () => {
       ephemeral: true,
     });
   });
+
+  it('opens a modal for parameterised actions without consuming the token', async () => {
+    const router = new CommandRouter(COMMAND_SECRET);
+    const modalAdapter = new DiscordAdapter(config, router);
+    const token = router.createCommandToken('edit_caption', 'bundle-modal');
+    const interaction = {
+      isModalSubmit: () => false,
+      isButton: () => true,
+      customId: token,
+      channelId: 'channel-1',
+      showModal: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await modalAdapter.handleInteraction(interaction as any);
+
+    expect(interaction.showModal).toHaveBeenCalledTimes(1);
+    expect(router.verifyCommandToken(token)).toEqual({
+      action: 'edit_caption',
+      cardId: 'bundle-modal',
+    });
+  });
+
+  it('submits modal values to the registered handler', async () => {
+    const router = new CommandRouter(COMMAND_SECRET);
+    const modalAdapter = new DiscordAdapter(config, router);
+    const handler = vi.fn().mockResolvedValue(undefined);
+    modalAdapter.onCommand('edit_caption', handler);
+    const token = router.createCommandToken('edit_caption', 'bundle-modal-submit');
+    const interaction = {
+      isModalSubmit: () => true,
+      isButton: () => false,
+      customId: token,
+      channelId: 'channel-1',
+      fields: {
+        getTextInputValue: vi.fn((id: string) =>
+          id === 'platform' ? 'instagram' : 'Updated caption',
+        ),
+      },
+      reply: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await modalAdapter.handleInteraction(interaction as any);
+
+    expect(handler).toHaveBeenCalledWith('edit_caption', 'bundle-modal-submit', {
+      channel: 'discord',
+      sourceId: 'channel-1',
+      params: { caption: 'Updated caption', platform: 'instagram' },
+    });
+    expect(interaction.reply).toHaveBeenCalledWith({
+      content: 'Action processed',
+      ephemeral: true,
+    });
+  });
 });
 
 describe('sendCard', () => {

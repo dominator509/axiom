@@ -89,6 +89,12 @@ describe('compact provider command tokens', () => {
     expect(router.verifyCommandToken(token)).toEqual({ action: 'publish_now', cardId: 'card-1' });
   });
 
+  it('peeks a parameterised token without consuming its one-use nonce', () => {
+    const token = router.createCommandToken('edit_caption', 'card-1');
+    expect(router.peekCommandToken(token)).toEqual({ action: 'edit_caption', cardId: 'card-1' });
+    expect(router.verifyCommandToken(token)).toEqual({ action: 'edit_caption', cardId: 'card-1' });
+  });
+
   it('rejects tampering and replay', () => {
     const token = router.createCommandToken('approve', 'card-1');
     const tampered = `${token.slice(0, -1)}${token.endsWith('a') ? 'b' : 'a'}`;
