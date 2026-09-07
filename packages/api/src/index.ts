@@ -107,7 +107,7 @@ async function relayCommandExecutor(
       if (bundle.length === 0) throw new Error(`relay command: bundle ${bundleId} not found`);
 
       const currentState = bundle[0].state as string;
-      if (action === 'approve' || action === 'approve_all') {
+      if (action === 'approve' || action === 'approve_all' || action === 'publish_now') {
         if (currentState !== 'generated' && currentState !== 'hold') {
           throw new Error(
             `relay command: bundle is already ${currentState}; only generated or held bundles can be approved`,
@@ -165,8 +165,16 @@ async function relayCommandExecutor(
             : typeof params.scheduledFor === 'string'
               ? params.scheduledFor
               : undefined;
-        const slot = rawSlot ? new Date(rawSlot) : new Date(Date.now() + 3600_000);
-        if (Number.isNaN(slot.getTime()) || slot.getTime() <= Date.now()) {
+        const slot =
+          action === 'publish_now'
+            ? new Date()
+            : rawSlot
+              ? new Date(rawSlot)
+              : new Date(Date.now() + 3600_000);
+        if (
+          action !== 'publish_now' &&
+          (Number.isNaN(slot.getTime()) || slot.getTime() <= Date.now())
+        ) {
           throw new Error('relay command: approval slot must be a valid future timestamp');
         }
 
@@ -210,7 +218,10 @@ async function relayCommandExecutor(
           });
         }
 
-        note = `bundle ${bundleId} → approved (${platforms.join(', ')})`;
+        note =
+          action === 'publish_now'
+            ? `bundle ${bundleId} → approved for immediate publish (${platforms.join(', ')})`
+            : `bundle ${bundleId} → approved (${platforms.join(', ')})`;
       } else {
         const stateByAction: Partial<Record<CardAction, string>> = {
           reject: 'rejected',

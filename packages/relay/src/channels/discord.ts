@@ -124,6 +124,7 @@ export class DiscordAdapter {
       regenerate: '🔄 Regenerate',
       revise: '🔧 Revise',
       hold: '⏸️ Hold',
+      publish_now: '🚀 Publish Now',
     };
     return labels[action];
   }
@@ -132,6 +133,7 @@ export class DiscordAdapter {
     switch (action) {
       case 'approve':
       case 'approve_all':
+      case 'publish_now':
         return ButtonStyle.Success;
       case 'reject':
         return ButtonStyle.Danger;

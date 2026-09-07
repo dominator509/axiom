@@ -8,7 +8,8 @@ export type CardAction =
   | 'reschedule'
   | 'regenerate'
   | 'revise'
-  | 'hold';
+  | 'hold'
+  | 'publish_now';
 
 export const CARD_ACTIONS: readonly CardAction[] = [
   'approve',
@@ -20,6 +21,8 @@ export const CARD_ACTIONS: readonly CardAction[] = [
   'regenerate',
   'revise',
   'hold',
+  // Append new actions so previously issued compact tokens keep their codes.
+  'publish_now',
 ];
 
 const ACTION_CODES: Record<CardAction, string> = Object.fromEntries(

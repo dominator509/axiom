@@ -145,6 +145,7 @@ describe('relayCard', () => {
       reschedule: expect.any(String),
       reject: expect.any(String),
       hold: expect.any(String),
+      publish_now: expect.any(String),
     });
     expect((mockState.sent[0].card.verdicts as Array<Record<string, unknown>>)[0]).toMatchObject({
       platform: 'instagram',

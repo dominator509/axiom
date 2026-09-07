@@ -85,6 +85,7 @@ export class TelegramAdapter {
       ['regenerate', 'regenerate'],
       ['revise', 'revise'],
       ['hold', 'hold'],
+      ['publish_now', 'publish_now'],
     ];
     for (const [name, action] of commands) {
       this.bot.command(name, async (ctx: Context) => {
@@ -147,6 +148,7 @@ export class TelegramAdapter {
       regenerate: '🔄 Regenerate',
       revise: '🔧 Revise',
       hold: '⏸️ Hold',
+      publish_now: '🚀 Publish Now',
     };
     return labels[action];
   }

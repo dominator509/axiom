@@ -32,7 +32,8 @@ export type CardAction =
   | 'reschedule'
   | 'regenerate'
   | 'revise'
-  | 'hold';
+  | 'hold'
+  | 'publish_now';
 
 export interface RelayCard {
   /** Persistent relay_card id; absent only for non-dispatch preview renders. */
@@ -69,7 +70,16 @@ export class CardRenderer {
     const allPassed = verdicts.every((v) => v.passed);
 
     const actions: CardAction[] = allPassed
-      ? ['approve', 'approve_all', 'edit_caption', 'change_price', 'reschedule', 'reject', 'hold']
+      ? [
+          'approve',
+          'approve_all',
+          'edit_caption',
+          'change_price',
+          'reschedule',
+          'reject',
+          'hold',
+          'publish_now',
+        ]
       : ['regenerate', 'revise', 'reject', 'hold'];
 
     return {

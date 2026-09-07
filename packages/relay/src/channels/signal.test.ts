@@ -91,6 +91,9 @@ describe('parseResponse', () => {
     ['regenerate', 'regenerate'],
     ['revise', 'revise'],
     ['hold', 'hold'],
+    ['go', 'publish_now'],
+    ['publish_now', 'publish_now'],
+    ['publish now', 'publish_now'],
   ] as const)('maps word "%s" to action %s', (word, action) => {
     const res = adapter.parseResponse({ text: word, source: 'x', timestamp: 1 } as SignalMessage);
     expect(res).toEqual({ action, bundleId: '' });

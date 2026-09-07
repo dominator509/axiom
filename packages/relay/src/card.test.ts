@@ -87,6 +87,7 @@ describe('renderBundleCard', () => {
       'reschedule',
       'reject',
       'hold',
+      'publish_now',
     ]);
   });
 
@@ -107,6 +108,7 @@ describe('renderBundleCard', () => {
       'reschedule',
       'reject',
       'hold',
+      'publish_now',
     ]);
     expect(card.price).toBeUndefined();
     expect(card.scheduleAt).toBeUndefined();
