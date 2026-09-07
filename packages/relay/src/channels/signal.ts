@@ -56,6 +56,9 @@ export class SignalAdapter {
       regenerate: 'regenerate',
       revise: 'revise',
       hold: 'hold',
+      go: 'publish_now',
+      publish_now: 'publish_now',
+      'publish now': 'publish_now',
     };
 
     const cmd = actionMap[text];

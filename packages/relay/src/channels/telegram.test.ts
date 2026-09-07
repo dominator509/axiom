@@ -177,7 +177,7 @@ describe('handleCallback', () => {
 });
 
 describe('setupCommands', () => {
-  it('registers all eight slash commands', () => {
+  it('registers all nine slash commands', () => {
     const commandSpy = vi
       .spyOn(adapter.getBot(), 'command')
       .mockImplementation(() => adapter.getBot() as any);
@@ -192,6 +192,7 @@ describe('setupCommands', () => {
       'regenerate',
       'revise',
       'hold',
+      'publish_now',
     ]);
   });
 

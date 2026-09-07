@@ -93,6 +93,9 @@ describe('parseResponse', () => {
     ['revise', 'revise'],
     ['hold', 'hold'],
     ['  hold  ', 'hold'],
+    ['go', 'publish_now'],
+    ['publish_now', 'publish_now'],
+    ['publish now', 'publish_now'],
   ] as const)('maps word "%s" to action %s', (word, action) => {
     const res = adapter.parseResponse({ text: word, chatId: 'c1' } as IMessageResponse);
     expect(res).toEqual({ action, bundleId: '' });

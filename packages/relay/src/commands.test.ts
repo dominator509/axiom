@@ -84,6 +84,11 @@ describe('compact provider command tokens', () => {
     expect(router.verifyCommandToken(token)).toEqual({ action: 'hold', cardId: 'card-1' });
   });
 
+  it('round-trips the appended publish-now action without changing prior action codes', () => {
+    const token = router.createCommandToken('publish_now', 'card-1');
+    expect(router.verifyCommandToken(token)).toEqual({ action: 'publish_now', cardId: 'card-1' });
+  });
+
   it('rejects tampering and replay', () => {
     const token = router.createCommandToken('approve', 'card-1');
     const tampered = `${token.slice(0, -1)}${token.endsWith('a') ? 'b' : 'a'}`;
