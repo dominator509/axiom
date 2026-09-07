@@ -146,3 +146,4 @@
 2026-09-07T16:29:53Z | [P1][RELAY/API] implement real caption edit and reschedule mutations, parameter collection, token peek semantics, and keyword-safe plain-channel actions; package tests/builds green
 2026-09-07T17:06:14Z | [P1][RELAY] wire signed Signal JSON-RPC and BlueBubbles webhook commands, tokenized plain-channel cards, and current BlueBubbles text-send contract; relay/API/worker gates green
 2026-09-07T17:24:18Z | [P2][CI] pin GitHub Actions to immutable signed release commits and restrict workflow permissions to contents:read; workflow formatting, shell syntax, diff check, and preflight passed
+2026-09-07T17:44:27Z | [P2][CI] pin the Rust toolchain action to the current stable commit so every external workflow action is immutable; workflow formatting, shell syntax, and preflight pending
