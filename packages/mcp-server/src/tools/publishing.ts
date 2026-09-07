@@ -1,8 +1,13 @@
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
+import { and, eq } from 'drizzle-orm';
 import { Tier, type AgentPermission, tierAtLeast } from '../auth.js';
 import { withModelOrg, schema } from '../org-context.js';
 import { enqueueJob } from '@axiom/worker';
+
+// content_bundle currently carries one asset_id. Keep the MCP contract aligned
+// with that persisted shape instead of silently dropping additional media IDs.
+const MEDIA_REQUIRED_PLATFORMS = new Set(['fanvue', 'instagram', 'telegram', 'discord']);
 
 /**
  * Input schema for publishing operations.
@@ -14,7 +19,10 @@ export const PublishingInputSchema = z.object({
   action: z.enum(['schedule', 'publish']),
   post: z.object({
     text: z.string().max(4000).optional(),
-    mediaIds: z.array(z.string().uuid()).optional(),
+    mediaIds: z
+      .array(z.string().uuid())
+      .max(1, 'publishing_post currently accepts one media asset per bundle')
+      .optional(),
     platform: z.enum(['fanvue', 'x', 'instagram', 'telegram', 'discord']),
     scheduledAt: z.string().datetime().optional(),
   }),
@@ -39,7 +47,7 @@ export type PublishingInput = z.infer<typeof PublishingInputSchema>;
 export class PublishingTool {
   name = 'publishing_post';
   description =
-    'Schedule or publish content posts to social platforms (Fanvue, X, Instagram, Telegram, Discord).';
+    'Schedule or publish content posts to social platforms (Fanvue, X, Instagram, Telegram, Discord). Pass one existing model-owned mediaId for media-only destinations.';
   inputSchema = PublishingInputSchema;
   tier: Tier = Tier.Manager;
 
@@ -63,15 +71,42 @@ export class PublishingTool {
     const isAutonomous = permission.tier === Tier.Autonomous;
     const needsApproval = !isAutonomous;
     const bundleId = uuidv4();
+    const mediaId = args.post.mediaIds?.[0] ?? null;
+
+    if (MEDIA_REQUIRED_PLATFORMS.has(args.post.platform) && !mediaId) {
+      throw new Error(`publishing_post: ${args.post.platform} requires at least one mediaId`);
+    }
 
     const scheduledFor = args.post.scheduledAt ? new Date(args.post.scheduledAt) : null;
 
     await withModelOrg(args.modelId, async (tx, orgId) => {
+      let assetId: string | null = null;
+      if (mediaId) {
+        const assets = await tx
+          .select({ id: schema.asset.id })
+          .from(schema.asset)
+          .where(
+            and(
+              eq(schema.asset.id, mediaId),
+              eq(schema.asset.orgId, orgId),
+              eq(schema.asset.modelId, args.modelId),
+            ),
+          )
+          .limit(1);
+        if (assets.length === 0) {
+          throw new Error(
+            `publishing_post: mediaId ${mediaId} is not owned by model ${args.modelId}`,
+          );
+        }
+        assetId = mediaId;
+      }
+
       // 1. content_bundle — the approval/review unit (state machine).
       await tx.insert(schema.contentBundle).values({
         id: bundleId,
         orgId,
         modelId: args.modelId,
+        assetId,
         captions: args.post.text ? { [args.post.platform]: args.post.text } : {},
         hashtags: [],
         // Autonomous publishing has already satisfied the approval gate.

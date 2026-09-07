@@ -147,7 +147,7 @@ describe('McpServer.callTool — success paths', () => {
     const result = await server.callTool('publishing_post', {
       modelId: MODEL,
       action: 'schedule',
-      post: { text: 'later post', platform: 'fanvue', scheduledAt: '2026-08-02T10:00:00Z' },
+      post: { text: 'later post', platform: 'x', scheduledAt: '2026-08-02T10:00:00Z' },
     });
     expect(result).toMatchObject({
       success: true,
