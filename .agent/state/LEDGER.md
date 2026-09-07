@@ -131,3 +131,4 @@
 2026-09-04T20:58:52Z | [P1][RELAY] require signed Threads webhook deliveries and compare HMACs in constant time; relay 257/257, typecheck, and lint passed
 2026-09-04T21:08:36Z | [P1][CI] local CI-shaped verification passed on relay webhook hardening; pnpm test 1386 passed, build, typecheck, lint, pnpm audit, cargo-audit, preflight, and verify all passed
 2026-09-07T11:58:10Z | [P1][WORKER] reject internal or non-HTTP(S) media references before connector dispatch; worker 54/54, repository typecheck, lint, build, and formatting checks passed
+2026-09-07T12:14:47Z | [P1][CI] hosted GitHub Actions run #69 passed on release SHA f6ebc52c5930d1835c22e3ee511ed5e3b2dafdf2; all six matrix jobs green, including privileged egress tests and deployment container smoke
