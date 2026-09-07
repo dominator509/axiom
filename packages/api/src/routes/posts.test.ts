@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
-vi.mock('@axiom/db', () => mockDbFactory({ postTarget: {}, contentBundle: {} }));
+vi.mock('@axiom/db', () => mockDbFactory({ postTarget: {}, contentBundle: {}, asset: {} }));
 vi.mock('@axiom/worker', () => ({
   enqueueJob: vi.fn(async () => ({ id: 'job-1' })),
   resolveCapabilities: vi.fn((platform: string) => ({
@@ -108,7 +108,8 @@ describe('POST /posts', () => {
     ];
     mockState.results = [
       [],
-      [{ id: BUNDLE_ID, orgId: ORG_ID, state: 'approved', assetId: 'asset-1' }],
+      [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'approved', assetId: 'asset-1' }],
+      [{ id: 'asset-1', kind: 'image' }],
       mockState.result,
     ];
     const res = await appWithOrg(ORG_ID).request('/posts', {
@@ -130,6 +131,36 @@ describe('POST /posts', () => {
         payload: { targetId: POST_ID },
       }),
     );
+  });
+
+  it('rejects scheduling when the bundle asset is not owned by its org and model', async () => {
+    mockState.results = [
+      [],
+      [
+        {
+          id: BUNDLE_ID,
+          orgId: ORG_ID,
+          modelId: MODEL_ID,
+          state: 'approved',
+          assetId: 'asset-missing',
+        },
+      ],
+      [],
+    ];
+
+    const res = await appWithOrg(ORG_ID).request('/posts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        bundleId: BUNDLE_ID,
+        platform: 'instagram',
+        scheduledFor: '2026-08-10T12:00:00Z',
+      }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain('unavailable or unsupported media asset');
+    expect(enqueueJob).not.toHaveBeenCalled();
   });
 
   it('rejects scheduling a media-only platform when the bundle has no asset', async () => {

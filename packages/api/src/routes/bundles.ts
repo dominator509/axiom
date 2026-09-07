@@ -169,6 +169,32 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
       }
     }
 
+    // The asset foreign key only proves that the referenced row exists; it
+    // does not enforce the bundle's org/model ownership. Validate the full
+    // publication asset contract before creating targets so approval cannot
+    // enqueue a job that the worker will inevitably reject later.
+    if (bundle.assetId) {
+      const assets = await tx
+        .select({ id: schema.asset.id, kind: schema.asset.kind })
+        .from(schema.asset)
+        .where(
+          and(
+            eq(schema.asset.id, bundle.assetId),
+            eq(schema.asset.orgId, orgId),
+            eq(schema.asset.modelId, bundle.modelId),
+          ),
+        )
+        .limit(1);
+      const asset = assets[0];
+      if (!asset || (asset.kind !== 'image' && asset.kind !== 'video')) {
+        return {
+          status: 409 as const,
+          error:
+            'bundle references an unavailable or unsupported media asset; approval cannot continue',
+        };
+      }
+    }
+
     // Create post_targets (per-platform), transition bundle → approved
     const slot = body.slot ? new Date(body.slot) : new Date(Date.now() + 3600_000);
     for (const platform of platforms) {

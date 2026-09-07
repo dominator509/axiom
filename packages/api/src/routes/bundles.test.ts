@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
-vi.mock('@axiom/db', () => mockDbFactory({ contentBundle: {}, postTarget: {} }));
+vi.mock('@axiom/db', () => mockDbFactory({ contentBundle: {}, postTarget: {}, asset: {} }));
 vi.mock('@axiom/worker', () => ({
   enqueueJob: vi.fn(async () => ({ id: 'job-1' })),
   resolveCapabilities: vi.fn((platform: string) => ({
@@ -161,6 +161,7 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
     mockState.results = [
       [],
       [generatedBundle],
+      [{ id: 'asset-1', kind: 'image' }],
       [{ id: BUNDLE_ID }],
       [{ id: BUNDLE_ID }],
       [approvedBundle],
@@ -184,6 +185,28 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
         dedupeParts: ['publish.target', BUNDLE_ID],
       }),
     );
+  });
+
+  it('rejects approval when the bundle asset is not owned by its org and model', async () => {
+    const generatedBundle = {
+      id: BUNDLE_ID,
+      orgId: ORG_ID,
+      modelId: MODEL_ID,
+      state: 'generated',
+      assetId: 'asset-missing',
+      tosReport: { verdict: 'pass', scores: [] },
+    };
+    mockState.results = [[], [generatedBundle], []];
+
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: ['instagram'] }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain('unavailable or unsupported media asset');
+    expect(enqueueJob).not.toHaveBeenCalled();
   });
 
   it('rejects approval when the ToS verdict is block (409)', async () => {

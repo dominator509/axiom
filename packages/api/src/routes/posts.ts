@@ -114,6 +114,7 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
       .select({
         id: schema.contentBundle.id,
         state: schema.contentBundle.state,
+        modelId: schema.contentBundle.modelId,
         assetId: schema.contentBundle.assetId,
       })
       .from(schema.contentBundle)
@@ -131,6 +132,29 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
     const mediaError = mediaRequirementError(platform, Boolean(bundle.assetId));
     if (mediaError) {
       return { status: 409 as const, data: null, error: mediaError };
+    }
+
+    if (bundle.assetId) {
+      const assets = await tx
+        .select({ id: schema.asset.id, kind: schema.asset.kind })
+        .from(schema.asset)
+        .where(
+          and(
+            eq(schema.asset.id, bundle.assetId),
+            eq(schema.asset.orgId, orgId),
+            eq(schema.asset.modelId, bundle.modelId),
+          ),
+        )
+        .limit(1);
+      const asset = assets[0];
+      if (!asset || (asset.kind !== 'image' && asset.kind !== 'video')) {
+        return {
+          status: 409 as const,
+          data: null,
+          error:
+            'bundle references an unavailable or unsupported media asset; scheduling cannot continue',
+        };
+      }
     }
 
     const [row] = await tx
@@ -208,7 +232,10 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
 
     if (platformChanged) {
       const bundles = await tx
-        .select({ assetId: schema.contentBundle.assetId })
+        .select({
+          modelId: schema.contentBundle.modelId,
+          assetId: schema.contentBundle.assetId,
+        })
         .from(schema.contentBundle)
         .where(
           and(
@@ -221,6 +248,28 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
       const mediaError = mediaRequirementError(nextPlatform as Platform, Boolean(bundle?.assetId));
       if (mediaError) {
         return { status: 409 as const, data: null, error: mediaError };
+      }
+      if (bundle?.assetId) {
+        const assets = await tx
+          .select({ id: schema.asset.id, kind: schema.asset.kind })
+          .from(schema.asset)
+          .where(
+            and(
+              eq(schema.asset.id, bundle.assetId),
+              eq(schema.asset.orgId, orgId),
+              eq(schema.asset.modelId, bundle.modelId),
+            ),
+          )
+          .limit(1);
+        const asset = assets[0];
+        if (!asset || (asset.kind !== 'image' && asset.kind !== 'video')) {
+          return {
+            status: 409 as const,
+            data: null,
+            error:
+              'bundle references an unavailable or unsupported media asset; retargeting cannot continue',
+          };
+        }
       }
     }
 
