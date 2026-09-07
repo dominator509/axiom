@@ -4,13 +4,13 @@
 // PATCH /api/v1/crash-reports/:id/resolve — mark an issue resolved
 
 import { Hono } from 'hono';
-import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { sql, eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
+import { recordCrashReport } from '../crash-reporter.js';
 
 const router = new Hono<AppBindings>();
 
@@ -26,15 +26,7 @@ const reportSchema = z.object({
   fingerprint: z.string().max(200).optional(),
 });
 
-/** Stable grouping key: service + message + first stack frame. */
-export function crashFingerprint(
-  service: string,
-  message: string,
-  stacktrace: Array<Record<string, unknown>>,
-): string {
-  const firstFrame = stacktrace[0]?.function ?? stacktrace[0]?.filename ?? '';
-  return createHash('sha256').update(`${service}|${message}|${firstFrame}`).digest('hex');
-}
+export { crashFingerprint } from '../crash-reporter.js';
 
 // POST /api/v1/crash-reports — capture; recurring fingerprint bumps count
 router.post('/crash-reports', async (c) => {
@@ -43,48 +35,21 @@ router.post('/crash-reports', async (c) => {
   const parsed = reportSchema.safeParse(await c.req.json().catch(() => ({})));
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'invalid crash report body');
   const body = parsed.data;
-  const fingerprint =
-    body.fingerprint ?? crashFingerprint(body.service, body.message, body.stacktrace);
-
-  const result = await withOrgContext(orgId, async (tx) => {
-    // Single ON CONFLICT upsert: recurring fingerprint bumps count + refresh;
-    // first sighting inserts. Grouping/dedup is the UNIQUE (org_id, fingerprint).
-    const rows = await tx
-      .insert(schema.crashReport)
-      .values({
-        orgId,
-        fingerprint,
-        eventId: body.eventId,
-        service: body.service,
-        release: body.release ?? 'unknown',
-        environment: body.environment ?? 'production',
-        message: body.message,
-        stacktrace: body.stacktrace,
-        correlationId: body.correlationId ?? null,
-        severity: body.severity,
-        status: 'open',
-        count: 1,
-      })
-      .onConflictDoUpdate({
-        target: [schema.crashReport.orgId, schema.crashReport.fingerprint],
-        set: {
-          count: sql`${schema.crashReport.count} + 1`,
-          lastSeen: new Date(),
-          status: 'open',
-          eventId: body.eventId,
-          message: body.message,
-          stacktrace: body.stacktrace,
-          correlationId: body.correlationId ?? null,
-          severity: body.severity,
-        },
-      })
-      .returning();
-    if (rows.length === 0) return { report: null as null, isNew: false };
-    return { report: rows[0], isNew: rows[0].count === 1 };
+  const report = await recordCrashReport({
+    orgId,
+    eventId: body.eventId,
+    service: body.service,
+    release: body.release,
+    environment: body.environment,
+    message: body.message,
+    stacktrace: body.stacktrace,
+    correlationId: body.correlationId,
+    severity: body.severity,
+    fingerprint: body.fingerprint,
   });
 
-  if (!result.report) return apiError(c, 500, statusTitle(500), 'crash report upsert failed');
-  return c.json({ success: true, isNew: result.isNew, data: result.report });
+  if (!report) return apiError(c, 500, statusTitle(500), 'crash report upsert failed');
+  return c.json({ success: true, isNew: report.count === 1, data: report });
 });
 
 // GET /api/v1/crash-reports — grouped issues, newest recurrence first
