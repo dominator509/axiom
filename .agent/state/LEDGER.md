@@ -145,3 +145,4 @@
 2026-09-07T15:51:02Z | [P1][RELAY/API] wire publish_now through signed card actions and all four control-channel adapters; immediate publishes enqueue the normal worker path with existing ToS, consent, capability, and tenant guards; focused relay/worker tests 135/135, package typechecks, lint, and build passed; full local workspace test requires PostgreSQL
 2026-09-07T16:29:53Z | [P1][RELAY/API] implement real caption edit and reschedule mutations, parameter collection, token peek semantics, and keyword-safe plain-channel actions; package tests/builds green
 2026-09-07T17:06:14Z | [P1][RELAY] wire signed Signal JSON-RPC and BlueBubbles webhook commands, tokenized plain-channel cards, and current BlueBubbles text-send contract; relay/API/worker gates green
+2026-09-07T17:24:18Z | [P2][CI] pin GitHub Actions to immutable signed release commits and restrict workflow permissions to contents:read; workflow formatting, shell syntax, diff check, and preflight passed
