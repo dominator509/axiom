@@ -7,7 +7,7 @@
 //  5. Enqueue metrics.poll for the published target (L2.8 §1).
 
 import { eq, and } from 'drizzle-orm';
-import { schema } from '@axiom/db';
+import { schema, getPublishingConsentStatus, consentRequirementMessage } from '@axiom/db';
 import { asPlatform, connectorForTarget } from '../connection.js';
 import { enqueueJob } from '../enqueue.js';
 import { ParkJobError } from './context.js';
@@ -199,6 +199,15 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     .limit(1);
   if (models.length === 0) throw new Error(`publish.target: model ${bundle.modelId} not found`);
   const model = models[0];
+
+  // Compliance interlock (LBI-12): re-check immediately before the first
+  // media-plane or provider call so records revoked after approval cannot
+  // publish. A missing/expired set remains retryable for operator repair and
+  // is surfaced through the normal DLQ/incident view.
+  const consent = await getPublishingConsentStatus(tx, job.org_id, model.id, target.platform);
+  if (!consent.ok) {
+    throw new Error(consentRequirementMessage(consent, target.platform));
+  }
 
   // 2. Idempotency ledger (L3.4 §4).
   const idemKeyHex = (target.idemKey as unknown as Buffer | null)

@@ -92,9 +92,14 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(sql.length).toBeGreaterThan(1000);
   });
 
-  it('is wrapped in a transaction', () => {
+  it('keeps historical wrappers while the runner owns the outer transaction', () => {
     expect(sql).toContain('BEGIN;');
-    expect(sql.trimEnd().endsWith('COMMIT;')).toBe(true);
+    expect(sql).toContain('COMMIT;');
+    const runner = readFileSync(new URL('../../../scripts/migrate.sh', import.meta.url), 'utf8');
+    expect(runner).toContain('--single-transaction');
+    expect(runner).toContain('stream_migration_without_transaction_control');
+    expect(runner).toContain('TO axiom_app;');
+    expect(runner).toContain("TO axiom_app'");
   });
 
   it('reclaims stale worker leases before selecting the next job', () => {
@@ -155,6 +160,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
         'consent_record',
         [
           'model_id UUID NOT NULL REFERENCES model_profile(id)',
+          'org_id uuid',
           'granted BOOLEAN NOT NULL',
           'expires_at TIMESTAMPTZ',
           'subject_ref text NOT NULL DEFAULT',
@@ -162,6 +168,8 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
           'CHECK (doc_kind IN',
           'sha256 bytea',
           'valid_from date NOT NULL DEFAULT CURRENT_DATE',
+          'consent_record_org_id_fkey',
+          'WITH CHECK (org_id = current_setting',
         ],
       ],
       [
@@ -519,7 +527,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
     // 29 in 0004 (job_pick + job_dedupe + 27 entity-table hot paths) — exact count.
-    expect(indexStatements).toHaveLength(68);
+    expect(indexStatements).toHaveLength(69);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(

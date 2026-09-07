@@ -23,6 +23,7 @@ import { crashReportsRouter } from './routes/crash-reports.js';
 import { orgSettingsRouter } from './routes/org-settings.js';
 import { fanvueAuthRouter } from './routes/fanvue-auth.js';
 import { threadsAuthRouter } from './routes/threads-auth.js';
+import { consentRouter } from './routes/consent.js';
 import { auth, requireAuth } from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { asPlatform, enqueueJob, registerConnectors, resolveCapabilities } from '@axiom/worker';
@@ -45,7 +46,12 @@ import {
 import { relayViralPersistence } from './relay-viral.js';
 import { relayIncidentPageHandler } from './relay-incidents.js';
 import { correlationId, onError, idempotency, rateLimit } from './contract.js';
-import { checkDatabase, schema } from '@axiom/db';
+import {
+  checkDatabase,
+  schema,
+  getPublishingConsentStatus,
+  consentRequirementMessage,
+} from '@axiom/db';
 import { sql, eq, and } from 'drizzle-orm';
 import { withOrgContext, writeAudit } from './routes/helpers.js';
 
@@ -130,6 +136,12 @@ async function relayCommandExecutor(
           const score = (tos.scores ?? []).find((item) => item.platform === platform);
           if (score?.verdict === 'block') {
             throw new Error(`relay command: ToS block on ${platform} prevents approval`);
+          }
+        }
+        for (const platform of platforms) {
+          const consent = await getPublishingConsentStatus(tx, orgId, bundle[0].modelId, platform);
+          if (!consent.ok) {
+            throw new Error(consentRequirementMessage(consent, platform));
           }
         }
         if (!bundle[0].assetId) {
@@ -355,6 +367,8 @@ app.use('/api/v1/killswitch/*', requireAuth);
 app.use('/api/v1/kill-switch/*', requireAuth);
 app.use('/api/v1/digests/*', requireAuth);
 app.use('/api/v1/crash-reports/*', requireAuth);
+app.use('/api/v1/models/:modelId/consent-records/*', requireAuth);
+app.use('/api/v1/models/:modelId/consent-status', requireAuth);
 app.use('/api/v1/org-settings/*', requireAuth);
 // LLM requests can spend provider credits and reveal provider/runtime state.
 app.use('/api/v1/llm/*', requireAuth);
@@ -395,6 +409,8 @@ app.use('/api/v1/org-settings', idempotency());
 app.use('/api/v1/digests/generate', idempotency());
 app.use('/api/v1/crash-reports', idempotency());
 app.use('/api/v1/crash-reports/*', idempotency());
+app.use('/api/v1/models/:modelId/consent-records', idempotency());
+app.use('/api/v1/models/:modelId/consent-records/*', idempotency());
 app.use('/api/v1/models/:modelId/linkbio', idempotency());
 app.use('/api/v1/models/:modelId/linkbio/*', idempotency());
 app.use('/api/v1/posts', idempotency());
@@ -431,6 +447,7 @@ app.route('/api/v1', auditRouter);
 app.route('/api/v1', incidentsRouter);
 app.route('/api/v1', digestsRouter);
 app.route('/api/v1', crashReportsRouter);
+app.route('/api/v1', consentRouter);
 app.route('/api/v1', orgSettingsRouter);
 
 // LLM gateway — unified multi-provider chat completions

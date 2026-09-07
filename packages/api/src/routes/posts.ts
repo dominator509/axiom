@@ -5,7 +5,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, gte, lte, sql } from 'drizzle-orm';
-import { schema } from '@axiom/db';
+import { schema, getPublishingConsentStatus, consentRequirementMessage } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import { asPlatform, enqueueJob, resolveCapabilities } from '@axiom/worker';
@@ -129,6 +129,14 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
         error: `bundle must be approved before scheduling (current state: ${bundle.state})`,
       };
     }
+    const consent = await getPublishingConsentStatus(tx, orgId, bundle.modelId, platform);
+    if (!consent.ok) {
+      return {
+        status: 409 as const,
+        data: null,
+        error: consentRequirementMessage(consent, platform),
+      };
+    }
     const mediaError = mediaRequirementError(platform, Boolean(bundle.assetId));
     if (mediaError) {
       return { status: 409 as const, data: null, error: mediaError };
@@ -226,50 +234,58 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
       };
     }
 
-    const nextPlatform = platform ?? existing.platform;
+    const nextPlatform = (platform ?? existing.platform) as Platform;
     const nextScheduledFor = scheduledFor ?? existing.scheduledFor;
     const platformChanged = platform !== undefined && platform !== existing.platform;
 
-    if (platformChanged) {
-      const bundles = await tx
-        .select({
-          modelId: schema.contentBundle.modelId,
-          assetId: schema.contentBundle.assetId,
-        })
-        .from(schema.contentBundle)
+    const bundles = await tx
+      .select({
+        modelId: schema.contentBundle.modelId,
+        assetId: schema.contentBundle.assetId,
+      })
+      .from(schema.contentBundle)
+      .where(
+        and(eq(schema.contentBundle.id, existing.bundleId), eq(schema.contentBundle.orgId, orgId)),
+      )
+      .limit(1);
+    const bundle = bundles[0];
+    if (!bundle) {
+      return { status: 409 as const, data: null, error: 'post bundle is unavailable' };
+    }
+
+    const consent = await getPublishingConsentStatus(tx, orgId, bundle.modelId, nextPlatform);
+    if (!consent.ok) {
+      return {
+        status: 409 as const,
+        data: null,
+        error: consentRequirementMessage(consent, nextPlatform),
+      };
+    }
+
+    const mediaError = mediaRequirementError(nextPlatform, Boolean(bundle.assetId));
+    if (mediaError) {
+      return { status: 409 as const, data: null, error: mediaError };
+    }
+    if (bundle.assetId) {
+      const assets = await tx
+        .select({ id: schema.asset.id, kind: schema.asset.kind })
+        .from(schema.asset)
         .where(
           and(
-            eq(schema.contentBundle.id, existing.bundleId),
-            eq(schema.contentBundle.orgId, orgId),
+            eq(schema.asset.id, bundle.assetId),
+            eq(schema.asset.orgId, orgId),
+            eq(schema.asset.modelId, bundle.modelId),
           ),
         )
         .limit(1);
-      const bundle = bundles[0];
-      const mediaError = mediaRequirementError(nextPlatform as Platform, Boolean(bundle?.assetId));
-      if (mediaError) {
-        return { status: 409 as const, data: null, error: mediaError };
-      }
-      if (bundle?.assetId) {
-        const assets = await tx
-          .select({ id: schema.asset.id, kind: schema.asset.kind })
-          .from(schema.asset)
-          .where(
-            and(
-              eq(schema.asset.id, bundle.assetId),
-              eq(schema.asset.orgId, orgId),
-              eq(schema.asset.modelId, bundle.modelId),
-            ),
-          )
-          .limit(1);
-        const asset = assets[0];
-        if (!asset || (asset.kind !== 'image' && asset.kind !== 'video')) {
-          return {
-            status: 409 as const,
-            data: null,
-            error:
-              'bundle references an unavailable or unsupported media asset; retargeting cannot continue',
-          };
-        }
+      const asset = assets[0];
+      if (!asset || (asset.kind !== 'image' && asset.kind !== 'video')) {
+        return {
+          status: 409 as const,
+          data: null,
+          error:
+            'bundle references an unavailable or unsupported media asset; retargeting cannot continue',
+        };
       }
     }
 

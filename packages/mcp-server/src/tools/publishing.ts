@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { and, eq } from 'drizzle-orm';
+import { consentRequirementMessage, getPublishingConsentStatus } from '@axiom/db';
 import { Tier, type AgentPermission, tierAtLeast } from '../auth.js';
 import { withModelOrg, schema } from '../org-context.js';
 import { enqueueJob } from '@axiom/worker';
@@ -80,6 +81,18 @@ export class PublishingTool {
     const scheduledFor = args.post.scheduledAt ? new Date(args.post.scheduledAt) : null;
 
     await withModelOrg(args.modelId, async (tx, orgId) => {
+      if (isAutonomous) {
+        const consent = await getPublishingConsentStatus(
+          tx,
+          orgId,
+          args.modelId,
+          args.post.platform,
+        );
+        if (!consent.ok) {
+          throw new Error(consentRequirementMessage(consent, args.post.platform));
+        }
+      }
+
       let assetId: string | null = null;
       if (mediaId) {
         const assets = await tx

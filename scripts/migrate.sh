@@ -98,7 +98,8 @@ stream_migration_without_transaction_control() {
     /^[[:space:]]*COMMIT[[:space:]]*;[[:space:]]*$/ { next }
     /^[[:space:]]*ROLLBACK[[:space:]]*;[[:space:]]*$/ { next }
     { print }
-  ' "$1"
+  ' "$1" \
+    | sed -e 's/TO axiom;/TO axiom_app;/g' -e "s/TO axiom'/TO axiom_app'/g"
 }
 
 if [ "$DRY_RUN" != true ]; then

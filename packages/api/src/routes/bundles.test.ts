@@ -7,7 +7,13 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
-vi.mock('@axiom/db', () => mockDbFactory({ contentBundle: {}, postTarget: {}, asset: {} }));
+vi.mock('@axiom/db', () => ({
+  ...mockDbFactory({ contentBundle: {}, postTarget: {}, asset: {} }),
+  getPublishingConsentStatus: vi.fn(async () => ({ ok: true, missing: [] })),
+  consentRequirementMessage: vi.fn(
+    (_status: unknown, platform: string) => `consent required for ${platform}`,
+  ),
+}));
 vi.mock('@axiom/worker', () => ({
   enqueueJob: vi.fn(async () => ({ id: 'job-1' })),
   resolveCapabilities: vi.fn((platform: string) => ({
@@ -34,6 +40,7 @@ vi.mock('@axiom/worker', () => ({
 
 import { bundlesRouter } from './bundles.js';
 import { enqueueJob } from '@axiom/worker';
+import { getPublishingConsentStatus } from '@axiom/db';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -54,6 +61,7 @@ beforeEach(() => {
   mockState.result = [];
   mockState.results = [];
   vi.mocked(enqueueJob).mockClear();
+  vi.mocked(getPublishingConsentStatus).mockClear();
 });
 
 afterEach(() => {
@@ -147,6 +155,32 @@ describe('POST / — create bundle', () => {
 });
 
 describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
+  it('rejects approval when the compliance record set is incomplete', async () => {
+    const generatedBundle = {
+      id: BUNDLE_ID,
+      orgId: ORG_ID,
+      modelId: MODEL_ID,
+      state: 'generated',
+      assetId: 'asset-1',
+      tosReport: { verdict: 'pass', scores: [] },
+    };
+    mockState.results = [[], [generatedBundle]];
+    vi.mocked(getPublishingConsentStatus).mockResolvedValueOnce({
+      ok: false,
+      missing: ['2257', 'platform_consent:instagram'],
+    });
+
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: ['instagram'] }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain('consent required for instagram');
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
   it('approves a passing bundle and creates post targets', async () => {
     const generatedBundle = {
       id: BUNDLE_ID,

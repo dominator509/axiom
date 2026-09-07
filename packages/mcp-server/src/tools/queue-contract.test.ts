@@ -8,6 +8,10 @@ const { enqueueJob, withModelOrg, inserted, assetRows } = vi.hoisted(() => ({
 }));
 
 vi.mock('@axiom/worker', () => ({ enqueueJob }));
+vi.mock('@axiom/db', () => ({
+  consentRequirementMessage: vi.fn(),
+  getPublishingConsentStatus: vi.fn(async () => ({ ok: true, missing: [] })),
+}));
 vi.mock('../org-context.js', () => ({
   schema: { asset: {}, contentBundle: {}, postTarget: {} },
   withModelOrg,

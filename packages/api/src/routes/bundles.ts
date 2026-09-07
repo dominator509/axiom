@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { sql, eq, and } from 'drizzle-orm';
-import { schema } from '@axiom/db';
+import { schema, getPublishingConsentStatus, consentRequirementMessage } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import {
   withOrgContext,
@@ -144,6 +144,16 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
         return {
           status: 409 as const,
           error: `ToS block on ${platform}: bundle cannot be approved for this platform`,
+        };
+      }
+    }
+
+    for (const platform of platforms) {
+      const consent = await getPublishingConsentStatus(tx, orgId, bundle.modelId, platform);
+      if (!consent.ok) {
+        return {
+          status: 409 as const,
+          error: consentRequirementMessage(consent, platform),
         };
       }
     }

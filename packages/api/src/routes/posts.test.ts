@@ -4,7 +4,13 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
-vi.mock('@axiom/db', () => mockDbFactory({ postTarget: {}, contentBundle: {}, asset: {} }));
+vi.mock('@axiom/db', () => ({
+  ...mockDbFactory({ postTarget: {}, contentBundle: {}, asset: {} }),
+  getPublishingConsentStatus: vi.fn(async () => ({ ok: true, missing: [] })),
+  consentRequirementMessage: vi.fn(
+    (_status: unknown, platform: string) => `consent required for ${platform}`,
+  ),
+}));
 vi.mock('@axiom/worker', () => ({
   enqueueJob: vi.fn(async () => ({ id: 'job-1' })),
   resolveCapabilities: vi.fn((platform: string) => ({
@@ -31,6 +37,7 @@ vi.mock('@axiom/worker', () => ({
 
 import { postsRouter } from './posts.js';
 import { enqueueJob } from '@axiom/worker';
+import { getPublishingConsentStatus } from '@axiom/db';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -52,6 +59,7 @@ beforeEach(() => {
   mockState.result = [];
   mockState.results = [];
   vi.mocked(enqueueJob).mockClear();
+  vi.mocked(getPublishingConsentStatus).mockClear();
 });
 
 afterEach(() => {
@@ -95,6 +103,36 @@ describe('GET /models/:modelId/calendar', () => {
 });
 
 describe('POST /posts', () => {
+  it('rejects scheduling when the compliance record set is incomplete', async () => {
+    mockState.result = [
+      {
+        id: BUNDLE_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        state: 'approved',
+        assetId: 'asset-1',
+      },
+    ];
+    vi.mocked(getPublishingConsentStatus).mockResolvedValueOnce({
+      ok: false,
+      missing: ['model_release'],
+    });
+
+    const res = await appWithOrg(ORG_ID).request('/posts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        bundleId: BUNDLE_ID,
+        platform: 'instagram',
+        scheduledFor: '2026-08-10T12:00:00Z',
+      }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain('consent required for instagram');
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
   it('schedules a post target (201)', async () => {
     mockState.result = [
       {
@@ -256,15 +294,21 @@ describe('PATCH /posts/:id', () => {
   });
 
   it('reschedules a post', async () => {
-    mockState.result = [
-      {
-        id: POST_ID,
-        orgId: ORG_ID,
-        bundleId: BUNDLE_ID,
-        platform: 'instagram',
-        scheduledFor: new Date('2026-08-12T12:00:00Z'),
-        state: 'pending',
-      },
+    const pendingPost = {
+      id: POST_ID,
+      orgId: ORG_ID,
+      bundleId: BUNDLE_ID,
+      platform: 'instagram',
+      scheduledFor: new Date('2026-08-12T12:00:00Z'),
+      state: 'pending',
+    };
+    mockState.result = [pendingPost];
+    mockState.results = [
+      [],
+      [pendingPost],
+      [{ modelId: MODEL_ID, assetId: 'asset-1' }],
+      [{ id: 'asset-1', kind: 'image' }],
+      [pendingPost],
     ];
     const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, {
       method: 'PATCH',

@@ -34,9 +34,9 @@ else
     echo "  [warn] No .env.example found — creating minimal .env"
     cat > .env <<-'EOF'
 # AXIOM — Local Development Environment
-DATABASE_URL=postgresql://axiom:changeme@localhost:5432/axiom
-MIGRATOR_DATABASE_URL=postgresql://axiom:changeme@localhost:5432/axiom
-TEST_DATABASE_URL=postgresql://axiom:changeme@localhost:5432/axiom_test
+DATABASE_URL=postgresql://axiom_app:changeme@localhost:5432/axiom
+MIGRATOR_DATABASE_URL=postgresql://axiom_migrator:changeme@localhost:5432/axiom
+TEST_DATABASE_URL=postgresql://axiom_app:changeme@localhost:5432/axiom_test
 EOF
     echo "  Created minimal .env"
   fi

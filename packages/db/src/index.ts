@@ -21,3 +21,11 @@ export async function checkDatabase(): Promise<void> {
 }
 
 export { schema };
+export {
+  REQUIRED_CONSENT_DOCUMENT_KINDS,
+  isCurrentConsentRecord,
+  evaluateConsentRecords,
+  getPublishingConsentStatus,
+  consentRequirementMessage,
+} from './compliance.js';
+export type { RequiredConsentDocumentKind, ConsentPolicyRow, ConsentStatus } from './compliance.js';
