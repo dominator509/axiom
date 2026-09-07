@@ -103,6 +103,7 @@ export class CardRenderer {
     return [
       `<b>📦 Bundle: ${card.bundleId}</b>`,
       '',
+      card.mediaPreview ? `<b>Preview:</b> ${card.mediaPreview}` : '',
       `<b>Caption:</b> ${card.caption.slice(0, 200)}`,
       '',
       `<b>ToS Verdicts:</b>`,
@@ -123,6 +124,7 @@ export class CardRenderer {
       title: `📦 Bundle: ${card.bundleId.slice(0, 8)}`,
       description: card.caption.slice(0, 400),
       color: card.verdicts.every((v) => v.passed) ? 0x00ff00 : 0xff0000,
+      ...(card.mediaPreview ? { image: { url: card.mediaPreview } } : {}),
       fields: [
         {
           name: 'ToS Verdicts',
@@ -146,6 +148,7 @@ export class CardRenderer {
   toText(card: RelayCard): string {
     const lines: string[] = [
       `📦 Bundle: ${card.bundleId}`,
+      ...(card.mediaPreview ? [`Preview: ${card.mediaPreview}`] : []),
       `Caption: ${card.caption.slice(0, 200)}`,
       '',
       'ToS Verdicts:',

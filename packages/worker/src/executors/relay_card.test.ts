@@ -41,9 +41,10 @@ vi.mock('drizzle-orm', () => ({
 
 vi.mock('@axiom/db', () => ({
   schema: {
-    contentBundle: { id: 'content_bundle.id' },
+    asset: { id: 'asset.id', orgId: 'asset.org_id', modelId: 'asset.model_id' },
+    contentBundle: { id: 'content_bundle.id', orgId: 'content_bundle.org_id' },
     relayBinding: { modelId: 'relay_binding.model_id', enabled: 'relay_binding.enabled' },
-    relayCard: { id: 'relay_card.id' },
+    relayCard: { id: 'relay_card.id', orgId: 'relay_card.org_id' },
   },
 }));
 
@@ -69,6 +70,7 @@ const JOB = {
 const BUNDLE = {
   id: 'bundle-1',
   modelId: 'model-1',
+  assetId: 'asset-1',
   hashtags: ['safe'],
   captions: { instagram: 'A safe caption' },
   tosReport: {
@@ -77,16 +79,26 @@ const BUNDLE = {
   },
 };
 
-beforeEach(() => {
-  mockState.results = [
-    [BUNDLE],
-    [{ id: 'binding-1', channel: 'telegram', chatRef: 'chat-1', modelId: 'model-1' }],
-    [{ id: 'card-1' }],
-    [],
+  beforeEach(() => {
+    mockState.results = [
+      [BUNDLE],
+      [
+        {
+          id: 'asset-1',
+          orgId: 'org-1',
+          modelId: 'model-1',
+          kind: 'image',
+          storageKey: 'models/model-1/image.jpg',
+        },
+      ],
+      [{ id: 'binding-1', channel: 'telegram', chatRef: 'chat-1', modelId: 'model-1' }],
+      [{ id: 'card-1' }],
+      [],
   ];
   mockState.sent = [];
   mockState.inserts = [];
   vi.stubEnv('TELEGRAM_BOT_TOKEN', 'test-token');
+  vi.stubEnv('AXIOM_ASSET_DELIVERY_BASE_URL', 'https://media.example.test/assets');
 });
 
 describe('relayCard', () => {
@@ -123,6 +135,7 @@ describe('relayCard', () => {
     expect(mockState.sent[0].card).toMatchObject({
       cardId: 'card-1',
       bundleId: 'bundle-1',
+      mediaPreview: 'https://media.example.test/assets/models/model-1/image.jpg',
     });
     expect(mockState.sent[0].card.commandTokens).toEqual({
       approve: expect.any(String),

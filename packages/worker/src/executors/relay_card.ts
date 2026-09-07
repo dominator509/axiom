@@ -15,6 +15,7 @@ import {
 } from '@axiom/relay';
 import type { BundleContent } from '@axiom/relay';
 import { ParkJobError } from './context.js';
+import { resolveProviderAssetUrl, validatePublishAsset } from './publish.js';
 import type { Executor, ExecutorContext } from './context.js';
 
 const NO_BINDING_PARK_MS = 5 * 60_000;
@@ -89,6 +90,33 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
     .limit(1);
   if (bundles.length === 0) throw new Error(`relay.card: bundle ${bundleId} not found`);
   const bundle = bundles[0];
+
+  // Approval cards must show the same provider-readable preview that the
+  // publish executor will use. Resolve it before inserting a relay card or
+  // calling an external channel so an invalid or cross-tenant asset fails
+  // closed without leaving a dispatchable pending card behind.
+  const assets = bundle.assetId
+    ? await tx
+        .select({
+          id: schema.asset.id,
+          orgId: schema.asset.orgId,
+          modelId: schema.asset.modelId,
+          kind: schema.asset.kind,
+          storageKey: schema.asset.storageKey,
+        })
+        .from(schema.asset)
+        .where(
+          and(
+            eq(schema.asset.id, bundle.assetId),
+            eq(schema.asset.orgId, job.org_id),
+            eq(schema.asset.modelId, bundle.modelId),
+          ),
+        )
+        .limit(1)
+    : [];
+  const asset = assets[0];
+  validatePublishAsset(asset, bundle.assetId, job.org_id, bundle.modelId);
+  const mediaUrls = asset ? [resolveProviderAssetUrl(asset)] : [];
 
   // Resolve the model's relay binding (which channel receives cards).
   const bindings = await tx
@@ -168,7 +196,7 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
     const content: BundleContent = {
       id: bundle.id,
       cardId: relayCardRow.id,
-      mediaUrls: [],
+      mediaUrls,
       caption: captions[channel] ?? captions['instagram'] ?? '',
       captionVariants: captions,
       hashtagSets: { [channel]: (bundle.hashtags as string[]) ?? [] },

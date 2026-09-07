@@ -125,6 +125,7 @@ describe('toHtml', () => {
   it('renders bundle id, caption, verdicts and hashtags', () => {
     const html = renderer.toHtml(makeCard());
     expect(html).toContain('📦 Bundle: bundle-123');
+    expect(html).toContain('<b>Preview:</b> https://cdn.example/1.jpg');
     expect(html).toContain('<b>Caption:</b> Summer drop is here 🔥');
     expect(html).toContain('tiktok:</b> ✅ PASS (90%)');
     expect(html).toContain('instagram:</b> ❌ FAIL (40%)');
@@ -172,6 +173,7 @@ describe('toEmbed', () => {
     expect(embed.title).toBe('📦 Bundle: bundle-1');
     expect(embed.description).toBe('Summer drop is here 🔥');
     expect(embed.color).toBe(0xff0000); // red — some verdict failed
+    expect(embed.image).toEqual({ url: 'https://cdn.example/1.jpg' });
     expect(embed.fields).toHaveLength(2);
     expect(embed.timestamp).toBe(new Date(1_700_000_000_000).toISOString());
   });
@@ -210,6 +212,7 @@ describe('toText', () => {
   it('renders numbered actions and verdict lines', () => {
     const text = renderer.toText(makeCard());
     expect(text).toContain('📦 Bundle: bundle-123');
+    expect(text).toContain('Preview: https://cdn.example/1.jpg');
     expect(text).toContain('tiktok: PASS (90%)');
     expect(text).toContain('instagram: FAIL (40%)');
     expect(text).toContain('1. regenerate');
