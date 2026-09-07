@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   assertProviderReadableMediaUrls,
   isTerminalPublishTargetState,
+  resolveProviderAssetUrl,
   shouldEnqueueMetrics,
   validatePublishAsset,
 } from './publish.js';
@@ -13,6 +14,10 @@ const asset = {
   kind: 'image',
   storageKey: 'models/model-1/image.jpg',
 };
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe('validatePublishAsset', () => {
   it('returns the supported media kind for a model-owned asset', () => {
@@ -71,6 +76,35 @@ describe('assertProviderReadableMediaUrls', () => {
     );
     expect(() => assertProviderReadableMediaUrls(['file:///var/media/photo.jpg'])).toThrow(
       'expected an http(s) URL',
+    );
+  });
+});
+
+describe('resolveProviderAssetUrl', () => {
+  it('maps a tenant-scoped storage key under the configured delivery base', () => {
+    vi.stubEnv('AXIOM_ASSET_DELIVERY_BASE_URL', 'https://media.example.test/assets');
+
+    expect(resolveProviderAssetUrl(asset)).toBe(
+      'https://media.example.test/assets/models/model-1/image.jpg',
+    );
+  });
+
+  it('requires an explicit delivery base instead of leaking an internal path', () => {
+    vi.stubEnv('AXIOM_ASSET_DELIVERY_BASE_URL', '');
+
+    expect(() => resolveProviderAssetUrl(asset)).toThrow(
+      'AXIOM_ASSET_DELIVERY_BASE_URL is required',
+    );
+  });
+
+  it('requires HTTPS in production and rejects traversal keys', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('AXIOM_ASSET_DELIVERY_BASE_URL', 'http://media.example.test/assets/');
+    expect(() => resolveProviderAssetUrl(asset)).toThrow('must use https in production');
+
+    vi.stubEnv('AXIOM_ASSET_DELIVERY_BASE_URL', 'https://media.example.test/assets/');
+    expect(() => resolveProviderAssetUrl({ ...asset, storageKey: '../private.jpg' })).toThrow(
+      'invalid storage key',
     );
   });
 });

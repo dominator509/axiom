@@ -56,6 +56,58 @@ export function validatePublishAsset(
 }
 
 /**
+ * Resolve the persisted local storage key into the provider-facing URL that
+ * social APIs can fetch. The Rust media plane continues to receive the local
+ * key through `mediaPath`; only the connector boundary gets this URL.
+ *
+ * The base URL is deliberately explicit. Falling back to an asset ID or a
+ * local path would either be unusable by providers or leak an internal path.
+ */
+export function resolveProviderAssetUrl(asset: Pick<PublishAsset, 'id' | 'storageKey'>): string {
+  const storageKey = asset.storageKey.trim().replaceAll('\\', '/');
+  if (!storageKey) {
+    throw new Error(`publish.target: asset ${asset.id} has no storage key`);
+  }
+
+  const segments = storageKey.split('/');
+  if (
+    storageKey.startsWith('/') ||
+    segments.some((segment) => segment.length === 0 || segment === '.' || segment === '..')
+  ) {
+    throw new Error(`publish.target: asset ${asset.id} has an invalid storage key`);
+  }
+
+  const configuredBase = process.env.AXIOM_ASSET_DELIVERY_BASE_URL?.trim();
+  if (!configuredBase) {
+    throw new Error(
+      `publish.target: asset ${asset.id} cannot be delivered; AXIOM_ASSET_DELIVERY_BASE_URL is required`,
+    );
+  }
+
+  let base: URL;
+  try {
+    base = new URL(configuredBase);
+  } catch {
+    throw new Error('publish.target: AXIOM_ASSET_DELIVERY_BASE_URL must be a valid http(s) URL');
+  }
+  if (base.protocol !== 'http:' && base.protocol !== 'https:') {
+    throw new Error('publish.target: AXIOM_ASSET_DELIVERY_BASE_URL must use http(s)');
+  }
+  if (process.env.NODE_ENV === 'production' && base.protocol !== 'https:') {
+    throw new Error('publish.target: AXIOM_ASSET_DELIVERY_BASE_URL must use https in production');
+  }
+  if (base.username || base.password || base.search || base.hash) {
+    throw new Error(
+      'publish.target: AXIOM_ASSET_DELIVERY_BASE_URL must not contain credentials, query, or fragment data',
+    );
+  }
+
+  if (!base.pathname.endsWith('/')) base.pathname += '/';
+  const encodedKey = segments.map((segment) => encodeURIComponent(segment)).join('/');
+  return new URL(encodedKey, base).toString();
+}
+
+/**
  * Connector media inputs are provider-facing URLs. `asset://` is an internal
  * identifier used by the local media plane and must never cross the connector
  * boundary; providers cannot dereference it and would otherwise fail after a
@@ -210,7 +262,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     : [];
   const asset = assets[0];
   const mediaKind = validatePublishAsset(asset, bundle.assetId, job.org_id, model.id);
-  const mediaUrls = asset ? [`asset://${asset.id}`] : [];
+  const mediaUrls = asset ? [resolveProviderAssetUrl(asset)] : [];
 
   const input = {
     idempotencyKey: idemKeyHex ?? `${bundle.id}:${platform}`,
@@ -252,9 +304,8 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     },
   };
 
-  // The local media plane may use an asset:// identifier while validating the
-  // persisted object. Do not let that internal reference reach a provider;
-  // connectors require a fetchable delivery URL.
+  // The media plane receives the persisted local path above, while connectors
+  // receive the provider-facing delivery URL resolved before staging.
   assertProviderReadableMediaUrls(stagedInput.mediaUrls, bundle.assetId);
 
   const validation = await connector.validate(stagedInput);
