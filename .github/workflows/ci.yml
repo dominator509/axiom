@@ -9,6 +9,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -34,16 +37,19 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        # v7.0.1, immutable release commit.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       # ── pnpm & Node.js setup (shared across all matrix slots) ──
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        # v6.1.0, immutable signed release commit.
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
         with:
           version: '9.14.0'
 
       - name: Setup Node.js v22 with pnpm cache
-        uses: actions/setup-node@v4
+        # v7.0.0, immutable release commit.
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '22'
           cache: 'pnpm'
