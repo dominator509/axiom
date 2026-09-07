@@ -61,7 +61,8 @@ jobs:
       # ── Rust toolchain (needed by test, lint, and build slots) ──
       - name: Setup Rust toolchain
         if: matrix.task == 'test' || matrix.task == 'lint' || matrix.task == 'build' || matrix.task == 'security'
-        uses: dtolnay/rust-toolchain@stable
+        # stable as of 2026-09-07, immutable commit pin.
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
           components: clippy
 
