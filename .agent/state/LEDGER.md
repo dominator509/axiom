@@ -226,3 +226,4 @@
 2026-09-08T21:33:41Z | [P1][CONNECTORS] gate Threads and Instagram media containers on provider-reported readiness before publish; local connector tests/typecheck/lint pass
 2026-09-08T22:25:14Z | P4 hardening: persisted MCP publish intent, fail-closed LLM egress/cache bounds, explicit deployment auth defaults, anonymous click rate limit, and authenticated Rust egress control plane
 2026-09-08T22:36:59Z | P0 security gate: refreshed Next.js 15.5.25, xmldom 0.9.12, js-yaml 3.15.2, and sharp 0.35.4 overrides; dependency audit now reports 0 unmitigated high/critical advisories
+2026-09-08T22:56:36Z | [P1][SECURITY/CRASH-REPORTING] redact quoted JSON credentials and credential-bearing query parameters before durable crash persistence; focused API tests 6/6, typecheck, lint, and diff checks passed

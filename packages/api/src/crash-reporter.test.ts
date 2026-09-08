@@ -30,6 +30,20 @@ describe('crash reporter', () => {
     expect(details.stacktrace[0]?.text).not.toContain('token-value');
   });
 
+  it('redacts quoted JSON credentials and credential-bearing URLs', () => {
+    const details = describeCrash(
+      new Error(
+        'provider response {"access_token":"json-secret","refresh_token":"refresh-secret"} https://provider.test/callback?access_token=query-secret&ok=true',
+      ),
+    );
+
+    expect(details.message).not.toContain('json-secret');
+    expect(details.message).not.toContain('refresh-secret');
+    expect(details.message).not.toContain('query-secret');
+    expect(details.message).toContain('"access_token":"[REDACTED]"');
+    expect(details.message).toContain('access_token=[REDACTED]');
+  });
+
   it('writes an org-scoped automatic crash report through the existing sink', async () => {
     mockState.results = [[], [{ id: 'crash-1', count: 1 }]];
     const { db } = await import('@axiom/db');

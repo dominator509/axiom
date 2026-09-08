@@ -41,7 +41,14 @@ export function redactCrashText(value: string): string {
   return value
     .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]')
     .replace(
-      /((?:authorization|access[_-]?token|refresh[_-]?token|api[_-]?key|secret|password)\s*[:=]\s*)[^\s,;]+/gi,
+      /((?:["']?(?:authorization|access[_-]?token|refresh[_-]?token|api[_-]?key|secret|password)["']?)\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;&}]+)/gi,
+      (_match, prefix: string, credential: string) => {
+        const quote = credential[0] === '"' || credential[0] === "'" ? credential[0] : '';
+        return `${prefix}${quote}[REDACTED]${quote}`;
+      },
+    )
+    .replace(
+      /([?&](?:authorization|access[_-]?token|refresh[_-]?token|api[_-]?key|secret|password)=)[^&#\s]*/gi,
       '$1[REDACTED]',
     );
 }
