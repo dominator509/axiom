@@ -211,3 +211,4 @@
 2026-09-08T17:29:54Z | [P1][API/KILLSWITCH] initialize missing org_settings before kill-switch mutations so new organizations cannot receive false success; API suite 321 tests, typecheck, formatting, and diff checks passed
 2026-09-08T17:42:38Z | [P2][API/BUNDLES] handle empty approval UPDATE RETURNING as a 409 conflict instead of dereferencing updated.length on an undefined row; API suite 322 tests, typecheck, formatting, and diff checks passed
 2026-09-08T17:59:23Z | [P1][API/QUEUE] cancel post targets transactionally before provider handoff, preserve unknown external outcomes, and make canceled targets terminal worker no-ops; API 324 tests, worker 64, core 10, typecheck, lint, API/worker build, formatting, and diff checks passed
+2026-09-08T18:17:37Z | [P1][API/QUEUE] gate bundle approval with compare-and-set before creating post targets or publish jobs; API 324 tests, typecheck, lint, build, Prettier, and diff checks passed

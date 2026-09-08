@@ -203,9 +203,9 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
       [],
       [generatedBundle],
       [{ id: 'asset-1', kind: 'image' }],
-      [{ id: BUNDLE_ID }],
-      [{ id: BUNDLE_ID }],
       [approvedBundle],
+      [{ id: BUNDLE_ID }],
+      [{ id: BUNDLE_ID }],
     ];
     const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
       method: 'POST',
@@ -237,13 +237,7 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
       assetId: 'asset-1',
       tosReport: passingTos('instagram'),
     };
-    mockState.results = [
-      [],
-      [generatedBundle],
-      [{ id: 'asset-1', kind: 'image' }],
-      [{ id: BUNDLE_ID }],
-      [],
-    ];
+    mockState.results = [[], [generatedBundle], [{ id: 'asset-1', kind: 'image' }], []];
 
     const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
       method: 'POST',
@@ -255,6 +249,7 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
     expect(((await res.json()) as any).detail).toContain(
       'bundle changed while approval was being applied',
     );
+    expect(enqueueJob).not.toHaveBeenCalled();
   });
 
   it('rejects approval when the bundle asset is not owned by its org and model', async () => {

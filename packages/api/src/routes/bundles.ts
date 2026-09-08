@@ -194,7 +194,24 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
       }
     }
 
-    // Create post_targets (per-platform), transition bundle → approved
+    // Claim the approval transition before creating any downstream work. The
+    // compare-and-set is the concurrency gate: if another operator changed
+    // the bundle after the initial read, return a conflict without leaving
+    // post targets or publish jobs behind in a transaction that did not win.
+    const [updated] = await tx
+      .update(schema.contentBundle)
+      .set({ state: 'approved', updatedAt: new Date() })
+      .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.state, bundle.state)))
+      .returning();
+    if (!updated) {
+      return {
+        status: 409 as const,
+        error: 'bundle changed while approval was being applied; retry the action',
+      };
+    }
+
+    // Create post_targets (per-platform) and durable publish jobs in the same
+    // transaction as the winning state transition.
     const slot = body.slot ? new Date(body.slot) : new Date(Date.now() + 3600_000);
     for (const platform of platforms) {
       const [target] = await tx
@@ -223,17 +240,6 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
         runAfter: slot,
         dedupeParts: ['publish.target', target.id],
       });
-    }
-    const [updated] = await tx
-      .update(schema.contentBundle)
-      .set({ state: 'approved', updatedAt: new Date() })
-      .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.state, bundle.state)))
-      .returning();
-    if (!updated) {
-      return {
-        status: 409 as const,
-        error: 'bundle changed while approval was being applied; retry the action',
-      };
     }
     await writeAudit(tx, orgId, userId, 'bundle.approve', id, {
       platforms,
