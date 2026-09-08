@@ -221,3 +221,4 @@
 2026-09-08T20:15:04Z | [P1][MCP] Enforce the organization global kill switch before CRM MCP tool dispatch; add RLS-scoped regression coverage.
 2026-09-08T20:25:14Z | [P1][MCP] Align capability-token default TTL with L2.11's 15-minute expiry boundary and cover it with regression assertions.
 2026-09-08T20:42:57Z | [P1][MCP/AUDIT] Rate-limit /api/mcp and reserve a hash-chained audit entry before every MCP tool dispatch; 2 focused audit tests, API 324/324, API and MCP builds/typechecks, lint, formatting, and diff checks passed; full local MCP DB suite requires PostgreSQL
+2026-09-08T20:59:04Z | [P1][GENERATION] Reuse RLS-scoped viral exemplar retrieval in queued content.generate worker and synchronous API so both paths inject TOKENKILLER S2; API F-83 regression, worker/API typecheck, build, lint, formatting, preflight, and diff checks passed; hosted CI pending

@@ -10,6 +10,7 @@ import {
   generatePhotoshootPrompts,
   buildS0,
   buildS1,
+  buildS2,
   buildS3,
   assemblePrompt,
   LLMGateway,
@@ -18,6 +19,7 @@ import {
 import type { Executor, ExecutorContext } from './context.js';
 import { enqueueJob } from '../enqueue.js';
 import { asPlatform } from '../connection.js';
+import { retrieveTopExemplars } from '../viral-retrieval.js';
 
 export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   const { tx, job } = ctx;
@@ -107,10 +109,11 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   if (payload.enrichWithLlm) {
     try {
       const gateway = new LLMGateway();
+      const exemplars = await retrieveTopExemplars(tx, job.org_id, modelId, platform, 3);
       const prompt = assemblePrompt({
         S0: buildS0(profile),
         S1: buildS1(platform as never),
-        S2: '',
+        S2: buildS2(exemplars),
         S3: buildS3({
           modelId,
           task: 'Write an engaging caption for the photoshoot, max 200 chars.',

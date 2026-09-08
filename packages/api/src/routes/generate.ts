@@ -22,11 +22,10 @@ import {
   buildS3,
   assemblePrompt,
   type ModelProfile as PromptModelProfile,
-  type ViralExemplar,
 } from '@axiom/llm-gateway';
 import { LLMGateway } from '@axiom/llm-gateway';
 import { PLATFORM_RULES, DEFAULT_PLATFORM_THRESHOLDS } from '@axiom/fanvue-mcp';
-import { asPlatform, enqueueJob } from '@axiom/worker';
+import { asPlatform, enqueueJob, retrieveTopExemplars } from '@axiom/worker';
 
 type PromptPlatform =
   | 'instagram'
@@ -42,89 +41,6 @@ type PromptPlatform =
   | 'fanvue';
 
 const router = new Hono<AppBindings>();
-
-/**
- * Retrieve the model's top-performing viral exemplars for S2 injection
- * (F-83, L2.8/L3.5). Real DB path: viral_exemplar rows ranked by label
- * (viral > strong > baseline > weak) then perf_score, scoped to model +
- * platform. `features` carries title/caption/hashtags captured at label time.
- */
-async function retrieveTopExemplars(
-  orgId: string,
-  modelId: string,
-  platform: string,
-  limit: number,
-): Promise<ViralExemplar[]> {
-  const labelOrder = ['viral', 'strong', 'baseline', 'weak'];
-
-  // F-86 (L2.8 §8): opt-in org-level cross-model sharing. When the org enables
-  // viral_sharing, generation may draw exemplars from ANY model in the same
-  // org (tenant-isolated by RLS — never across orgs); otherwise strict
-  // per-model scope.
-  const sharing = await withOrgContext(orgId, (tx) =>
-    tx
-      .select({ viralSharing: schema.orgSettings.viralSharing })
-      .from(schema.orgSettings)
-      .where(eq(schema.orgSettings.orgId, orgId))
-      .limit(1),
-  );
-  const shareAcrossModels = sharing[0]?.viralSharing ?? false;
-
-  const rows = await withOrgContext(orgId, (tx) =>
-    tx
-      .select({
-        id: schema.viralExemplar.id,
-        platform: schema.viralExemplar.platform,
-        label: schema.viralExemplar.label,
-        perfScore: schema.viralExemplar.perfScore,
-        features: schema.viralExemplar.features,
-      })
-      .from(schema.viralExemplar)
-      .where(
-        and(
-          eq(schema.viralExemplar.orgId, orgId),
-          ...(shareAcrossModels ? [] : [eq(schema.viralExemplar.modelId, modelId)]),
-          eq(schema.viralExemplar.platform, platform),
-        ),
-      )
-      .limit(50),
-  );
-
-  const sorted = rows.sort(
-    (
-      a: { label: string; perfScore: number | null },
-      b: { label: string; perfScore: number | null },
-    ) => {
-      const la = labelOrder.indexOf(a.label) === -1 ? 3 : labelOrder.indexOf(a.label);
-      const lb = labelOrder.indexOf(b.label) === -1 ? 3 : labelOrder.indexOf(b.label);
-      if (la !== lb) return la - lb;
-      return (b.perfScore ?? 0) - (a.perfScore ?? 0);
-    },
-  );
-
-  return sorted
-    .slice(0, limit)
-    .map(
-      (r: {
-        id: string;
-        platform: string;
-        label: string;
-        perfScore: number | null;
-        features: unknown;
-      }) => {
-        const f = (r.features ?? {}) as Record<string, unknown>;
-        return {
-          id: r.id,
-          platform: (r.platform as ViralExemplar['platform']) ?? 'instagram',
-          title: (f.title as string) ?? '',
-          caption: (f.caption as string) ?? '',
-          hashtags: Array.isArray(f.hashtags) ? (f.hashtags as string[]) : [],
-          viralLabel: (r.label as ViralExemplar['viralLabel']) ?? 'baseline',
-          aiNotes: (f.aiNotes as string | null) ?? null,
-        };
-      },
-    );
-}
 
 const generateSchema = z.object({
   style: z.string().min(1).max(100).default('studio'),
@@ -259,7 +175,7 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema), asy
         // F-83 exemplar injection: retrieve the model's best-performing
         // exemplars from the DB-backed viral memory (L2.8) and feed them
         // into the S2 segment so generation is guided by what worked.
-        const exemplars = await retrieveTopExemplars(orgId, modelId, promptPlatform, 3);
+        const exemplars = await retrieveTopExemplars(tx, orgId, modelId, promptPlatform, 3);
         const prompt = assemblePrompt({
           S0: buildS0(profile),
           S1: buildS1(promptPlatform),
