@@ -268,10 +268,21 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 function responseCacheKey(
   messages: Message[],
   model: string,
-  userId: string,
-  egress: boolean,
+  options: Pick<
+    Required<ChatOptions>,
+    'userId' | 'egress' | 'temperature' | 'maxTokens' | 'policy' | 'provider'
+  >,
 ): string {
-  return JSON.stringify({ userId, model, egress, messages });
+  return JSON.stringify({
+    userId: options.userId,
+    model,
+    egress: options.egress,
+    temperature: options.temperature,
+    maxTokens: options.maxTokens,
+    policy: options.policy,
+    provider: options.provider,
+    messages,
+  });
 }
 
 /** Get env var — case-insensitive lookup, prefers upper-case */
@@ -569,7 +580,7 @@ export class LLMGateway {
         const cost = calculateCost(provider, promptTokens, completionTokens);
 
         // Cache the result
-        const resultCacheKey = responseCacheKey(messages, model, options.userId, options.egress);
+        const resultCacheKey = responseCacheKey(messages, model, options);
         this.cache.set(resultCacheKey, {
           content,
           usage: { prompt: promptTokens, completion: completionTokens },
@@ -638,12 +649,7 @@ export class LLMGateway {
     // Check cache
     const requestedModel = requiredOptions.model || model || '';
     if (requestedModel) {
-      const resultCacheKey = responseCacheKey(
-        processedMessages,
-        requestedModel,
-        requiredOptions.userId,
-        requiredOptions.egress,
-      );
+      const resultCacheKey = responseCacheKey(processedMessages, requestedModel, requiredOptions);
       const cached = this.cache.get(resultCacheKey);
       if (cached !== null) {
         return {
@@ -870,8 +876,7 @@ export class LLMGateway {
           const streamCacheKey = responseCacheKey(
             processedMessages,
             resolvedModel,
-            requiredOptions.userId,
-            requiredOptions.egress,
+            requiredOptions,
           );
           cacheResponse(streamCacheKey, fullContent);
 

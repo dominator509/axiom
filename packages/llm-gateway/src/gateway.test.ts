@@ -171,6 +171,47 @@ describe('LLMGateway user-funded chat', () => {
     expect(transport.calls).toHaveLength(1);
   });
 
+  it('does not reuse a cached response across explicit providers', async () => {
+    const gw = gateway();
+    const first = await gw.chat(messages, {
+      provider: 'openai',
+      userId: 'user-1',
+      model: 'shared-model-name',
+    });
+    const second = await gw.chat(messages, {
+      provider: 'grok',
+      userId: 'user-1',
+      model: 'shared-model-name',
+    });
+
+    expect(first.cached).toBe(false);
+    expect(second.cached).toBe(false);
+    expect(second.provider).toBe('grok');
+    expect(transport.calls.map((call) => call.provider)).toEqual(['openai', 'grok']);
+  });
+
+  it('does not reuse a cached response across generation settings', async () => {
+    const gw = gateway();
+    const first = await gw.chat(messages, {
+      provider: 'vllm',
+      userId: 'user-1',
+      model: 'local-model',
+      temperature: 0.1,
+      maxTokens: 128,
+    });
+    const second = await gw.chat(messages, {
+      provider: 'vllm',
+      userId: 'user-1',
+      model: 'local-model',
+      temperature: 0.9,
+      maxTokens: 256,
+    });
+
+    expect(first.cached).toBe(false);
+    expect(second.cached).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('uses local vLLM first for the zero-cost policy', async () => {
     const result = await gateway().chat(messages, { policy: 'cost', userId: 'user-1' });
     expect(result).toMatchObject({ provider: 'vllm', cost: 0 });
