@@ -31,6 +31,20 @@ interface TiktokInitResponse {
   };
 }
 
+interface TiktokCreatorInfoResponse {
+  data: {
+    privacy_level_options?: string[];
+    comment_disabled?: boolean;
+    duet_disabled?: boolean;
+    stitch_disabled?: boolean;
+    max_video_post_duration_sec?: number;
+  };
+  error?: {
+    code: string;
+    message: string;
+  };
+}
+
 interface TiktokStatusResponse {
   data: {
     status: string;
@@ -135,12 +149,27 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       // requested chunk size.
       const totalChunkCount = Math.max(1, Math.floor(videoSize / chunkSize));
 
+      // TikTok requires privacy_level to be selected from the account's
+      // current creator-info response. Validate the default as well as an
+      // explicitly requested option before creating an upload session.
+      const creatorInfo = await this.fetchCreatorInfo();
+      const allowedPrivacyLevels = creatorInfo.data.privacy_level_options ?? [];
+      const privacyLevel =
+        typeof options.privacyLevel === 'string' && options.privacyLevel.trim().length > 0
+          ? options.privacyLevel
+          : 'SELF_ONLY';
+      if (!allowedPrivacyLevels.includes(privacyLevel)) {
+        throw new Error(
+          `TikTok privacy level ${privacyLevel} is not allowed for this account; allowed levels: ${allowedPrivacyLevels.join(', ') || 'none'}`,
+        );
+      }
+
       // Step 1: Initialize the video upload. TikTok requires post_info,
       // including privacy_level, in this request alongside FILE_UPLOAD data.
       const initPayload: Record<string, unknown> = {
         post_info: {
           title: input.caption,
-          privacy_level: (options.privacyLevel as string | undefined) ?? 'SELF_ONLY',
+          privacy_level: privacyLevel,
           disable_duet: options.disableDuet ?? false,
           disable_stitch: options.disableStitch ?? false,
           disable_comment: options.disableComment ?? false,
@@ -282,6 +311,23 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       { publish_id: publishId },
       { 'Content-Type': 'application/json' },
     );
+  }
+
+  private async fetchCreatorInfo(): Promise<TiktokCreatorInfoResponse> {
+    const response = await this.apiPost<TiktokCreatorInfoResponse>(
+      `${TIKTOK_API_BASE}/post/publish/creator_info/query/`,
+      undefined,
+      { 'Content-Type': 'application/json; charset=UTF-8' },
+    );
+    if (response.error && response.error.code !== 'ok') {
+      throw new Error(
+        `TikTok creator info query failed: ${response.error.code} — ${response.error.message}`,
+      );
+    }
+    if (!response.data || !Array.isArray(response.data.privacy_level_options)) {
+      throw new Error('TikTok creator info query returned no privacy_level_options');
+    }
+    return response;
   }
 
   private detectVideoMimeType(url: string, configured: unknown): string {

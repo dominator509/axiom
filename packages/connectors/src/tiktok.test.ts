@@ -1,5 +1,5 @@
 // ─── TikTok Connector — Vitest Suite ───
-// Covers: capability(), validate(), publish() init/download/ranged-upload/status
+// Covers: capability(), validate(), publish() creator-info/init/download/ranged-upload/status
 // flow, fetchMetrics() via video/query, and revoke() via TikTok OAuth.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -33,6 +33,16 @@ const INIT_OK = {
 
 const STATUS_OK = {
   data: { status: 'PUBLISH_COMPLETE', publicaly_available_post_id: [123456789] },
+};
+
+const CREATOR_INFO_OK = {
+  data: {
+    privacy_level_options: ['SELF_ONLY'],
+    comment_disabled: false,
+    duet_disabled: false,
+    stitch_disabled: false,
+    max_video_post_duration_sec: 300,
+  },
 };
 
 afterEach(() => {
@@ -114,13 +124,14 @@ describe('validate', () => {
 });
 
 describe('publish', () => {
-  it('runs download → init → PUT upload → status and returns the post id', async () => {
+  it('runs download → creator info → init → PUT upload → status and returns the post id', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response('mp4bytes', { status: 200 })) // 1: download source video
-      .mockResolvedValueOnce(jsonResponse(INIT_OK)) // 2: init
-      .mockResolvedValueOnce(new Response(null, { status: 201 })) // 3: final PUT upload
-      .mockResolvedValueOnce(jsonResponse(STATUS_OK)); // 4: status
+      .mockResolvedValueOnce(jsonResponse(CREATOR_INFO_OK)) // 2: creator info
+      .mockResolvedValueOnce(jsonResponse(INIT_OK)) // 3: init
+      .mockResolvedValueOnce(new Response(null, { status: 201 })) // 4: final PUT upload
+      .mockResolvedValueOnce(jsonResponse(STATUS_OK)); // 5: status
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new TikTokConnector(AUTH);
@@ -141,14 +152,20 @@ describe('publish', () => {
     expect(result.postUrl).toBe('https://www.tiktok.com/@testuser/video/123456789');
     expect(result.latencyMs).toEqual(expect.any(Number));
 
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
 
     // 1: source download
     const [downloadUrl] = fetchMock.mock.calls[0] as [string];
     expect(downloadUrl).toBe('https://cdn.example.com/video.mp4');
 
-    // 2: init
-    const [initUrl, initInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    // 2: creator info
+    const [creatorInfoUrl, creatorInfoInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(creatorInfoUrl).toBe('https://open.tiktokapis.com/v2/post/publish/creator_info/query/');
+    expect(creatorInfoInit.method).toBe('POST');
+    expect(creatorInfoInit.body).toBeUndefined();
+
+    // 3: init
+    const [initUrl, initInit] = fetchMock.mock.calls[2] as [string, RequestInit];
     expect(initUrl).toBe('https://open.tiktokapis.com/v2/post/publish/video/init/');
     expect(initInit.method).toBe('POST');
     expect(JSON.parse(initInit.body as string)).toEqual({
@@ -166,16 +183,16 @@ describe('publish', () => {
     });
     expect((initInit.headers as Record<string, string>).Authorization).toBe('Bearer tt-token-123');
 
-    // 3: PUT upload
-    const [uploadUrl, uploadInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+    // 4: PUT upload
+    const [uploadUrl, uploadInit] = fetchMock.mock.calls[3] as [string, RequestInit];
     expect(uploadUrl).toBe('https://upload.tiktokapis.com/v2/upload');
     expect(uploadInit.method).toBe('PUT');
     expect((uploadInit.headers as Record<string, string>)['Content-Type']).toBe('video/mp4');
     expect((uploadInit.headers as Record<string, string>)['Content-Length']).toBe('8');
     expect((uploadInit.headers as Record<string, string>)['Content-Range']).toBe('bytes 0-7/8');
 
-    // 4: status polling
-    const [statusUrl, statusInit] = fetchMock.mock.calls[3] as [string, RequestInit];
+    // 5: status polling
+    const [statusUrl, statusInit] = fetchMock.mock.calls[4] as [string, RequestInit];
     expect(statusUrl).toBe('https://open.tiktokapis.com/v2/post/publish/status/fetch/');
     expect(JSON.parse(statusInit.body as string)).toEqual({ publish_id: 'pub-1' });
   });
@@ -186,6 +203,7 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(new Uint8Array(videoSize), { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(CREATOR_INFO_OK))
       .mockResolvedValueOnce(jsonResponse(INIT_OK))
       .mockResolvedValueOnce(new Response(null, { status: 206 }))
       .mockResolvedValueOnce(new Response(null, { status: 201 }))
@@ -196,10 +214,10 @@ describe('publish', () => {
     const result = await c.publish(input({ options: { chunkSize, privacyLevel: 'SELF_ONLY' } }));
 
     expect(result.state).toBe('published');
-    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
 
     const initBody = JSON.parse(
-      (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
+      (fetchMock.mock.calls[2] as [string, RequestInit])[1].body as string,
     ) as { source_info: Record<string, number | string> };
     expect(initBody.source_info).toEqual({
       source: 'FILE_UPLOAD',
@@ -208,13 +226,13 @@ describe('publish', () => {
       total_chunk_count: 2,
     });
 
-    const [, firstUpload] = fetchMock.mock.calls[2] as [string, RequestInit];
+    const [, firstUpload] = fetchMock.mock.calls[3] as [string, RequestInit];
     expect((firstUpload.body as ArrayBuffer).byteLength).toBe(chunkSize);
     expect((firstUpload.headers as Record<string, string>)['Content-Range']).toBe(
       `bytes 0-${chunkSize - 1}/${videoSize}`,
     );
 
-    const [, finalUpload] = fetchMock.mock.calls[3] as [string, RequestInit];
+    const [, finalUpload] = fetchMock.mock.calls[4] as [string, RequestInit];
     expect((finalUpload.body as ArrayBuffer).byteLength).toBe(chunkSize + 1);
     expect((finalUpload.headers as Record<string, string>)['Content-Range']).toBe(
       `bytes ${chunkSize}-${videoSize - 1}/${videoSize}`,
@@ -225,6 +243,7 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(CREATOR_INFO_OK))
       .mockResolvedValueOnce(jsonResponse(INIT_OK))
       .mockResolvedValueOnce(new Response(null, { status: 201 }))
       .mockResolvedValueOnce(jsonResponse(STATUS_OK));
@@ -234,7 +253,7 @@ describe('publish', () => {
     await c.publish(input());
 
     const initBody = JSON.parse(
-      (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
+      (fetchMock.mock.calls[2] as [string, RequestInit])[1].body as string,
     ) as {
       post_info: { privacy_level: string; disable_duet: boolean };
       source_info: { video_size: number; chunk_size: number; total_chunk_count: number };
@@ -253,6 +272,7 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(CREATOR_INFO_OK))
       .mockResolvedValueOnce(jsonResponse(INIT_OK))
       .mockResolvedValueOnce(new Response(null, { status: 201 }))
       .mockResolvedValueOnce(jsonResponse(STATUS_OK));
@@ -261,6 +281,23 @@ describe('publish', () => {
     const c = new TikTokConnector({ accessToken: 'tt-token-123' });
     const result = await c.publish(input());
     expect(result.postUrl).toBe('https://www.tiktok.com/@user/video/123456789');
+  });
+
+  it('rejects a privacy level that creator info does not allow', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(CREATOR_INFO_OK));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new TikTokConnector(AUTH);
+    const result = await c.publish(input({ options: { privacyLevel: 'PUBLIC_TO_EVERYONE' } }));
+
+    expect(result.state).toBe('failed');
+    expect(result.error).toBe(
+      'TikTok privacy level PUBLIC_TO_EVERYONE is not allowed for this account; allowed levels: SELF_ONLY',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('returns a failed result when no video URL is provided', async () => {
@@ -279,6 +316,7 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(CREATOR_INFO_OK))
       .mockResolvedValueOnce(
         jsonResponse({ error: { code: 'bad_request', message: 'invalid payload' } }),
       );
@@ -295,6 +333,7 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(CREATOR_INFO_OK))
       .mockResolvedValueOnce(jsonResponse({ error: 'nope' }, 500));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -324,6 +363,7 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(CREATOR_INFO_OK))
       .mockResolvedValueOnce(jsonResponse(INIT_OK))
       .mockResolvedValueOnce(jsonResponse({ access_token: 'tiktok-secret' }, 413));
     vi.stubGlobal('fetch', fetchMock);
@@ -340,6 +380,7 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(CREATOR_INFO_OK))
       .mockResolvedValueOnce(jsonResponse(INIT_OK))
       .mockResolvedValueOnce(new Response(null, { status: 201 }))
       .mockResolvedValueOnce(
@@ -358,6 +399,7 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(CREATOR_INFO_OK))
       .mockResolvedValueOnce(jsonResponse(INIT_OK))
       .mockResolvedValueOnce(new Response(null, { status: 201 }))
       .mockResolvedValueOnce(jsonResponse({ data: { status: 'PROCESSING_UPLOAD' } }))
@@ -367,14 +409,14 @@ describe('publish', () => {
     const c = new TikTokConnector(AUTH);
     const first = await c.publish(input({ idempotencyKey: 'ttk-pending' }));
     expect(first).toMatchObject({ remoteId: 'pub-1', state: 'pending' });
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
 
     const second = await c.publish(
       input({ idempotencyKey: 'ttk-pending', options: { publishId: 'pub-1' } }),
     );
     expect(second).toMatchObject({ remoteId: '123456789', state: 'published' });
-    expect(fetchMock).toHaveBeenCalledTimes(5);
-    expect(fetchMock.mock.calls[4][0]).toBe(
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock.mock.calls[5][0]).toBe(
       'https://open.tiktokapis.com/v2/post/publish/status/fetch/',
     );
   });
