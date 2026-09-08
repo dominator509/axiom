@@ -215,6 +215,7 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
         const token = process.env.TELEGRAM_BOT_TOKEN;
         if (!token) throw new Error('relay.card: TELEGRAM_BOT_TOKEN not configured');
         const adapter = new TelegramAdapter({ token });
+        ctx.markExternalSideEffect?.();
         await adapter.sendCard(chatRef, card);
         break;
       }
@@ -223,6 +224,7 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
         const clientId = process.env.DISCORD_APPLICATION_ID;
         if (!token || !clientId) throw new Error('relay.card: Discord bot env not configured');
         const adapter = new DiscordAdapter({ token, clientId });
+        ctx.markExternalSideEffect?.();
         await adapter.sendCard(chatRef, card);
         break;
       }
@@ -231,6 +233,7 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
         const account = process.env.SIGNAL_ACCOUNT;
         if (!cliPath || !account) throw new Error('relay.card: Signal CLI env not configured');
         const adapter = new SignalAdapter({ cliPath, account });
+        ctx.markExternalSideEffect?.();
         await adapter.sendCard(chatRef, card);
         break;
       }
@@ -241,6 +244,7 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
           throw new Error('relay.card: BlueBubbles env not configured');
         }
         const adapter = new IMessageAdapter({ blueBubblesUrl, password });
+        ctx.markExternalSideEffect?.();
         await adapter.sendCard(chatRef, card);
         break;
       }

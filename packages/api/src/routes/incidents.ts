@@ -50,6 +50,20 @@ router.post('/incidents/:jobId/replay', async (c) => {
   const userId = c.get('userId') ?? 'system';
 
   const result = await withOrgContext(orgId, async (tx) => {
+    const existing = await tx
+      .select({ kind: schema.job.kind, lastError: schema.job.lastError })
+      .from(schema.job)
+      .where(and(eq(schema.job.id, jobId), eq(schema.job.orgId, orgId)))
+      .limit(1);
+    if (existing.length === 0) return { status: 404 as const, data: null };
+    if (existing[0].lastError?.startsWith('external-side-effect-unknown:')) {
+      return {
+        status: 409 as const,
+        data: null,
+        message: 'Provider outcome is unknown; reconcile the external side effect before replaying',
+      };
+    }
+
     const rows = await tx
       .update(schema.job)
       .set({
@@ -66,6 +80,9 @@ router.post('/incidents/:jobId/replay', async (c) => {
     return { status: 200 as const, data: rows[0] };
   });
   if (result.status === 404) return apiError(c, 404, statusTitle(404), 'job not found');
+  if (result.status === 409) {
+    return apiError(c, 409, statusTitle(409), result.message);
+  }
   return c.json({ success: true, data: result.data });
 });
 

@@ -111,6 +111,11 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     );
   });
 
+  it('dead-letters stale jobs that may have an unknown external side effect', () => {
+    expect(sql).toContain("kind IN ('publish.target', 'relay.card')");
+    expect(sql).toContain('external-side-effect-unknown: worker lease expired before completion');
+  });
+
   it('enables the required extensions', () => {
     expect(sql).toContain('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
     expect(sql).toContain('CREATE EXTENSION IF NOT EXISTS "vector";');

@@ -12,7 +12,11 @@ import { dlqReplay } from './dlq.js';
 import { digestWeekly } from './digest.js';
 
 export type { Executor, ExecutorContext } from './context.js';
-export { ParkJobError } from './context.js';
+export {
+  EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX,
+  ParkJobError,
+  isExternalSideEffectUnknown,
+} from './context.js';
 export {
   contentGenerate,
   tosScan,

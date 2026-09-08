@@ -79,21 +79,21 @@ const BUNDLE = {
   },
 };
 
-  beforeEach(() => {
-    mockState.results = [
-      [BUNDLE],
-      [
-        {
-          id: 'asset-1',
-          orgId: 'org-1',
-          modelId: 'model-1',
-          kind: 'image',
-          storageKey: 'models/model-1/image.jpg',
-        },
-      ],
-      [{ id: 'binding-1', channel: 'telegram', chatRef: 'chat-1', modelId: 'model-1' }],
-      [{ id: 'card-1' }],
-      [],
+beforeEach(() => {
+  mockState.results = [
+    [BUNDLE],
+    [
+      {
+        id: 'asset-1',
+        orgId: 'org-1',
+        modelId: 'model-1',
+        kind: 'image',
+        storageKey: 'models/model-1/image.jpg',
+      },
+    ],
+    [{ id: 'binding-1', channel: 'telegram', chatRef: 'chat-1', modelId: 'model-1' }],
+    [{ id: 'card-1' }],
+    [],
   ];
   mockState.sent = [];
   mockState.inserts = [];
@@ -122,14 +122,17 @@ describe('relayCard', () => {
   });
 
   it('persists the card id, preserves safe ToS semantics, and sends it to Telegram', async () => {
+    const markExternalSideEffect = vi.fn();
     await relayCard({
       tx: makeChain(),
       job: JOB,
       killSwitchEnabled: false,
       workerId: 'worker-1',
+      markExternalSideEffect,
     });
 
     expect(mockState.sent).toHaveLength(1);
+    expect(markExternalSideEffect).toHaveBeenCalledTimes(1);
     expect(mockState.sent[0].chatRef).toBe('chat-1');
     expect(mockState.inserts).toContainEqual(expect.objectContaining({ externalRef: 'chat-1' }));
     expect(mockState.sent[0].card).toMatchObject({

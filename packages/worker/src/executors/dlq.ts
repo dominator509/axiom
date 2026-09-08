@@ -4,6 +4,7 @@
 
 import { eq, and, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
+import { EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX, isExternalSideEffectUnknown } from './context.js';
 import type { Executor, ExecutorContext } from './context.js';
 
 export const dlqReplay: Executor = async (ctx: ExecutorContext) => {
@@ -11,6 +12,17 @@ export const dlqReplay: Executor = async (ctx: ExecutorContext) => {
   const payload = (job.payload ?? {}) as { jobId?: string };
   const jobId = payload.jobId;
   if (!jobId) throw new Error('dlq.replay: payload.jobId required');
+
+  const existing = await tx
+    .select({ lastError: schema.job.lastError })
+    .from(schema.job)
+    .where(and(eq(schema.job.id, jobId), eq(schema.job.orgId, job.org_id)))
+    .limit(1);
+  if (existing.length > 0 && isExternalSideEffectUnknown(existing[0].lastError)) {
+    throw new Error(
+      `${EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX} replay requires provider reconciliation before retry`,
+    );
+  }
 
   const rows = await tx
     .update(schema.job)

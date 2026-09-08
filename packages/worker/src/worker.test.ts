@@ -126,6 +126,17 @@ describe('processJob state transitions', () => {
     expect(outcome).toBe('dead');
   });
 
+  it('dead-letters instead of retrying after an external side effect starts', async () => {
+    const job = makeJob({ kind: 'test.external', attempts: 0, max_attempts: 3 });
+    const executor = vi.fn(async (ctx: { markExternalSideEffect?: () => void }) => {
+      ctx.markExternalSideEffect?.();
+      throw new Error('provider response lost');
+    });
+    const outcome = await processJob(job, { 'test.external': executor }, 'w1', {});
+    expect(outcome).toBe('dead');
+    expect(executor).toHaveBeenCalledTimes(1);
+  });
+
   it('parks the job on ParkJobError without consuming attempts', async () => {
     const job = makeJob({ kind: 'test.park', attempts: 0, max_attempts: 3 });
     const executor = vi.fn(async () => {

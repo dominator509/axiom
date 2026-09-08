@@ -324,6 +324,10 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     );
   }
 
+  // From this point onward the provider may have accepted the request. If
+  // local persistence fails after this call, the worker must not retry the
+  // target automatically because that can double-post.
+  ctx.markExternalSideEffect?.();
   const result = await connector.publish(stagedInput);
 
   if (result.state === 'pending') {

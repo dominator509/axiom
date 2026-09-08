@@ -82,4 +82,23 @@ describe('POST /incidents/:jobId/replay — DLQ replay', () => {
     const res = await appWithOrg(null).request('/incidents/j1/replay', { method: 'POST' });
     expect(res.status).toBe(401);
   });
+
+  it('blocks replay when a provider side effect has an unknown outcome', async () => {
+    mockState.result = [
+      {
+        id: 'j-unknown',
+        orgId: ORG_ID,
+        kind: 'publish.target',
+        state: 'dead',
+        lastError: 'external-side-effect-unknown: provider response lost',
+      },
+    ];
+    const res = await appWithOrg(ORG_ID).request('/incidents/j-unknown/replay', {
+      method: 'POST',
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      detail: expect.stringContaining('reconcile the external side effect'),
+    });
+  });
 });

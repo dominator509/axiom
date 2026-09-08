@@ -8,7 +8,7 @@ import { db, schema } from '@axiom/db';
 import { backoffDelayMs } from './backoff.js';
 import { claimNextJob } from './claim.js';
 import { defaultExecutors } from './executors/index.js';
-import { ParkJobError } from './executors/context.js';
+import { EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX, ParkJobError } from './executors/context.js';
 import type { Executor } from './executors/context.js';
 import type { JobRow } from './types.js';
 
@@ -112,6 +112,7 @@ export async function processJob(
   }
 
   const stopLeaseHeartbeat = startJobLeaseHeartbeat(job, workerId);
+  let externalSideEffectStarted = false;
   try {
     // claim_job set the org context only for ITS transaction; this executor
     // runs in a fresh txn, so set the org context from the claimed job first
@@ -119,7 +120,15 @@ export async function processJob(
     const result = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
       const killSwitchEnabled = await readKillSwitch(tx, job.org_id);
-      await executor({ tx, job, workerId, killSwitchEnabled });
+      await executor({
+        tx,
+        job,
+        workerId,
+        killSwitchEnabled,
+        markExternalSideEffect: () => {
+          externalSideEffectStarted = true;
+        },
+      });
       await updateOwnedJob(tx, job, workerId, {
         state: 'done',
         completedAt: new Date(),
@@ -131,6 +140,23 @@ export async function processJob(
     });
     return result;
   } catch (err) {
+    // Once provider I/O has started, a later failure has an unknown external
+    // outcome. Retrying would be unsafe: the provider may already have
+    // accepted the publish/card. Dead-letter it for reconciliation instead.
+    if (externalSideEffectStarted) {
+      const message = (err as Error).message ?? String(err);
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
+        await updateOwnedJob(tx, job, workerId, {
+          state: 'dead',
+          lastError: `${EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX} ${message}`,
+          lockedBy: null,
+          lockedAt: null,
+        });
+      });
+      return 'dead';
+    }
+
     if (err instanceof ParkJobError) {
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
