@@ -165,6 +165,22 @@ describe('cleanupExpiredNonces', () => {
     expect(router.verifyCommand(s2, n2, 'approve', 'b2')).toBe(false); // still stored → reuse rejected
     vi.useRealTimers();
   });
+
+  it('reclaims expired entries during normal verification', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+
+    const first = router.createCommandToken('approve', 'card-1');
+    expect(router.verifyCommandToken(first)).not.toBeNull();
+
+    vi.advanceTimersByTime(6 * 60 * 1000);
+    const second = router.createCommandToken('approve', 'card-2');
+    expect(router.verifyCommandToken(second)).not.toBeNull();
+
+    const nonces = (router as unknown as { nonces: Map<string, unknown> }).nonces;
+    expect(nonces.size).toBe(1);
+    vi.useRealTimers();
+  });
 });
 
 describe('processCommand / getAuditLog', () => {
