@@ -31,18 +31,18 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
   const app = new Hono() as Hono<{ Variables: { orgId?: string } }>;
   const logger = new Logger('relay-routes');
 
-  // POST /api/v1/relay/card - generate and send card
+  // POST /api/v1/relay/card - render an approval-card preview
   app.post('/api/v1/relay/card', async (c) => {
     try {
       const body = await c.req.json<BundleContent>();
       const card = deps.cardRenderer.renderBundleCard(body);
-      metricsRegistry.incrementCounter('relay_cards_sent', {
+      metricsRegistry.incrementCounter('relay_cards_rendered', {
         platforms: body.targetPlatforms.join(','),
       });
       return c.json({ success: true, card });
     } catch (err) {
-      logger.error('Failed to generate card', err as Error);
-      return c.json({ success: false, error: 'Failed to generate card' }, 500);
+      logger.error('Failed to render card preview', err as Error);
+      return c.json({ success: false, error: 'Failed to render card preview' }, 500);
     }
   });
 

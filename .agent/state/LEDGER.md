@@ -204,3 +204,4 @@
 2026-09-08T16:05:00Z | [P1][RELAY/DLQ] reject standalone in-memory DLQ replay instead of deleting the entry after logging its payload; relay 270/270, typecheck, formatting, and diff check passed
 2026-09-08T16:10:24Z | [P1][RELAY/VIRAL] require DB-backed ViralPersistence for relay ingest and exemplar routes instead of acknowledging process-local data; relay routes/index 30/30, API mount/persistence 22/22, typecheck, lint, formatting, and diff checks passed
 2026-09-08T16:25:38Z | [P1][RELAY/COMMAND] fail closed when CommandRouter has no durable executor instead of reporting process-local command success; relay 268/268, API mount 22/22, typecheck, lint, formatting, and diff checks passed
+2026-09-08T16:37:47Z | [P2][RELAY/OBSERVABILITY] rename the render-only relay-card metric and endpoint wording so preview rendering is not reported as provider delivery; relay routes 23/23, typecheck, formatting, and diff checks passed

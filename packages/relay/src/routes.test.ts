@@ -365,8 +365,8 @@ describe('GET /api/v1/metrics', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toContain('text/plain');
     const text = await res.text();
-    expect(text).toContain('# TYPE relay_cards_sent counter');
-    expect(text).toContain('relay_cards_sent{platforms="tiktok"}');
+    expect(text).toContain('# TYPE relay_cards_rendered counter');
+    expect(text).toContain('relay_cards_rendered{platforms="tiktok"}');
   });
 });
 
