@@ -24,6 +24,21 @@ describe('production relay configuration', () => {
         TELEGRAM_WEBHOOK_URL: 'https://example.test/telegram',
       }),
     ).toThrow('Telegram webhook configuration requires TELEGRAM_BOT_TOKEN');
+    expect(() =>
+      validateProductionRelayConfig({
+        ...production(),
+        TELEGRAM_BOT_TOKEN: 'bot-token',
+        TELEGRAM_WEBHOOK_URL: 'https://example.test/telegram',
+      }),
+    ).toThrow('Telegram webhook configuration requires TELEGRAM_WEBHOOK_SECRET');
+    expect(() =>
+      validateProductionRelayConfig({
+        ...production(),
+        TELEGRAM_BOT_TOKEN: 'bot-token',
+        TELEGRAM_WEBHOOK_URL: 'https://example.test/telegram',
+        TELEGRAM_WEBHOOK_SECRET: 'too-short',
+      }),
+    ).toThrow('TELEGRAM_WEBHOOK_SECRET must contain 32-256');
   });
 
   it('accepts complete integration configuration', () => {
@@ -42,6 +57,7 @@ describe('production relay configuration', () => {
         BLUEBUBBLES_WEBHOOK_SECRET: 'webhook-secret',
         TELEGRAM_BOT_TOKEN: 'bot-token',
         TELEGRAM_WEBHOOK_URL: 'https://example.test/telegram',
+        TELEGRAM_WEBHOOK_SECRET: 'telegram-webhook-secret-0123456789abcdef',
       }),
     ).not.toThrow();
   });

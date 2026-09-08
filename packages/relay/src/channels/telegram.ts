@@ -6,6 +6,7 @@ import { CommandRouter, type CommandContext } from '../commands.js';
 export interface TelegramConfig {
   token: string;
   webhookUrl?: string;
+  webhookSecret?: string;
 }
 
 type CommandHandler = (
@@ -19,12 +20,14 @@ export class TelegramAdapter {
   private renderer: CardRenderer;
   private handlers: Map<string, CommandHandler> = new Map();
   private commandRouter?: CommandRouter;
+  private webhookSecret?: string;
   private callbackHandlerRegistered = false;
 
   constructor(config: TelegramConfig, commandRouter?: CommandRouter) {
     this.bot = new Bot(config.token);
     this.renderer = new CardRenderer();
     this.commandRouter = commandRouter;
+    this.webhookSecret = config.webhookSecret;
   }
 
   getBot(): Bot {
@@ -123,9 +126,22 @@ export class TelegramAdapter {
   }
 
   async setWebhook(url: string): Promise<void> {
-    await this.bot.api.setWebhook(url);
+    // Webhook delivery calls bot.handleUpdate, which requires botInfo. Polling
+    // initializes grammY as part of bot.start(), but webhook mode has no such
+    // implicit initialization step.
+    await this.bot.init();
+    if (this.webhookSecret) {
+      await this.bot.api.setWebhook(url, { secret_token: this.webhookSecret });
+    } else {
+      await this.bot.api.setWebhook(url);
+    }
     this.setupCommands();
     this.registerCallbackHandler();
+  }
+
+  /** Process one provider-delivered webhook update after the API verifies it. */
+  async handleWebhook(update: Parameters<Bot['handleUpdate']>[0]): Promise<void> {
+    await this.bot.handleUpdate(update);
   }
 
   private registerCallbackHandler(): void {

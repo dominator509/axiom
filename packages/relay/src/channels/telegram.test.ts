@@ -5,7 +5,11 @@ import { TelegramAdapter } from './telegram.js';
 import type { RelayCard, CardAction } from '../card.js';
 import { CommandRouter } from '../commands.js';
 
-const config = { token: '123:test-token', webhookUrl: 'https://relay.example/webhook' };
+const config = {
+  token: '123:test-token',
+  webhookUrl: 'https://relay.example/webhook',
+  webhookSecret: 'telegram-webhook-secret',
+};
 const COMMAND_SECRET = 'telegram-test-secret';
 
 function makeCard(actions: CardAction[]): RelayCard {
@@ -321,8 +325,21 @@ describe('startPolling / setWebhook', () => {
       .spyOn(adapter.getBot(), 'command')
       .mockImplementation(() => adapter.getBot() as any);
     const webhookSpy = vi.spyOn(adapter.getBot().api, 'setWebhook').mockResolvedValue(true as any);
+    const initSpy = vi.spyOn(adapter.getBot(), 'init').mockResolvedValue();
     await adapter.setWebhook('https://relay.example/hook');
-    expect(webhookSpy).toHaveBeenCalledWith('https://relay.example/hook');
+    expect(initSpy).toHaveBeenCalledTimes(1);
+    expect(webhookSpy).toHaveBeenCalledWith('https://relay.example/hook', {
+      secret_token: 'telegram-webhook-secret',
+    });
     expect(commandSpy).toHaveBeenCalled();
+  });
+
+  it('forwards provider updates to grammy after the API verifies the webhook secret', async () => {
+    const update = { update_id: 1 } as any;
+    const handleUpdateSpy = vi.spyOn(adapter.getBot(), 'handleUpdate').mockResolvedValue(undefined);
+
+    await adapter.handleWebhook(update);
+
+    expect(handleUpdateSpy).toHaveBeenCalledWith(update);
   });
 });

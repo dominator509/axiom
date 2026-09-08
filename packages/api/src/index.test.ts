@@ -1,5 +1,5 @@
 // ─── @axiom/api app wiring — Vitest Suite ───
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 
 // The api index mounts the fanvue auth router which reads env at load time.
 process.env.FANVUE_CLIENT_ID = 'test-client-id';
@@ -8,10 +8,12 @@ process.env.BETTER_AUTH_SECRET = 'test-secret-0123456789abcdef';
 process.env.BETTER_AUTH_URL = 'http://127.0.0.1:3001';
 
 let app: any;
+let createRelayApp: (() => any) | undefined;
 
 beforeAll(async () => {
   const mod = await import('./index.js');
   app = mod.default;
+  createRelayApp = mod.createRelayApp;
   // initRelay mounts relay routes asynchronously on module load
   await new Promise((r) => setTimeout(r, 250));
 });
@@ -84,6 +86,59 @@ describe('relay routes mounted via initRelay', () => {
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(401);
+  });
+
+  it('mounts and authenticates Telegram webhook delivery when configured', async () => {
+    const previousToken = process.env.TELEGRAM_BOT_TOKEN;
+    const previousUrl = process.env.TELEGRAM_WEBHOOK_URL;
+    const previousSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    process.env.TELEGRAM_BOT_TOKEN = 'test-telegram-token';
+    process.env.TELEGRAM_WEBHOOK_URL = 'https://relay.example/webhooks/telegram';
+    process.env.TELEGRAM_WEBHOOK_SECRET = 'telegram-test-secret';
+
+    try {
+      const relayApp = createRelayApp!();
+      const relayModule = await import('@axiom/relay');
+      const handleWebhookSpy = vi
+        .spyOn(relayModule.TelegramAdapter.prototype, 'handleWebhook')
+        .mockResolvedValue(undefined);
+      const unauthorized = await relayApp.request('/webhooks/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ update_id: 1 }),
+      });
+      expect(unauthorized.status).toBe(401);
+
+      const invalidJson = await relayApp.request('/webhooks/telegram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Telegram-Bot-Api-Secret-Token': 'telegram-test-secret',
+        },
+        body: '{',
+      });
+      expect(invalidJson.status).toBe(400);
+
+      const accepted = await relayApp.request('/webhooks/telegram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Telegram-Bot-Api-Secret-Token': 'telegram-test-secret',
+        },
+        body: JSON.stringify({ update_id: 1 }),
+      });
+      expect(accepted.status).toBe(200);
+      expect(await accepted.json()).toEqual({ ok: true });
+      expect(handleWebhookSpy).toHaveBeenCalledWith({ update_id: 1 });
+      handleWebhookSpy.mockRestore();
+    } finally {
+      if (previousToken === undefined) delete process.env.TELEGRAM_BOT_TOKEN;
+      else process.env.TELEGRAM_BOT_TOKEN = previousToken;
+      if (previousUrl === undefined) delete process.env.TELEGRAM_WEBHOOK_URL;
+      else process.env.TELEGRAM_WEBHOOK_URL = previousUrl;
+      if (previousSecret === undefined) delete process.env.TELEGRAM_WEBHOOK_SECRET;
+      else process.env.TELEGRAM_WEBHOOK_SECRET = previousSecret;
+    }
   });
 });
 

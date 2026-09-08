@@ -31,7 +31,18 @@ export function validateProductionRelayConfig(env: NodeJS.ProcessEnv): void {
     env.BLUEBUBBLES_WEBHOOK_SECRET,
   ]);
 
-  if (env.TELEGRAM_WEBHOOK_URL?.trim() && !env.TELEGRAM_BOT_TOKEN?.trim()) {
-    throw new Error('Telegram webhook configuration requires TELEGRAM_BOT_TOKEN');
+  if (env.TELEGRAM_WEBHOOK_URL?.trim()) {
+    if (!env.TELEGRAM_BOT_TOKEN?.trim()) {
+      throw new Error('Telegram webhook configuration requires TELEGRAM_BOT_TOKEN');
+    }
+    const webhookSecret = env.TELEGRAM_WEBHOOK_SECRET?.trim();
+    if (!webhookSecret) {
+      throw new Error('Telegram webhook configuration requires TELEGRAM_WEBHOOK_SECRET');
+    }
+    if (!/^[A-Za-z0-9_-]{32,256}$/.test(webhookSecret)) {
+      throw new Error(
+        'TELEGRAM_WEBHOOK_SECRET must contain 32-256 letters, numbers, underscores, or hyphens',
+      );
+    }
   }
 }

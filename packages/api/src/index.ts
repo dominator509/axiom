@@ -70,6 +70,11 @@ type InboundRelayAdapter = {
 
 type InboundRelayChannel = 'telegram' | 'discord' | 'signal' | 'imessage';
 
+// Route construction creates the adapter without provider I/O. Runtime startup
+// reuses this instance so webhook delivery and outbound relay commands share the
+// same registered handlers and command router.
+let telegramRuntimeAdapter: TelegramAdapter | undefined;
+
 function registerRelayHandlers(
   adapter: InboundRelayAdapter,
   channel: InboundRelayChannel,
@@ -670,6 +675,55 @@ export function createRelayApp(): Hono {
     viralPersistence: relayViralPersistence,
   });
 
+  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+  const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.trim();
+  const telegramWebhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+  if (telegramToken) {
+    if (telegramWebhookUrl && !telegramWebhookSecret) {
+      throw new Error('Telegram webhook configuration requires TELEGRAM_WEBHOOK_SECRET');
+    }
+    const telegram = new TelegramAdapter(
+      {
+        token: telegramToken,
+        webhookUrl: telegramWebhookUrl,
+        webhookSecret: telegramWebhookSecret,
+      },
+      commandRouter,
+    );
+    registerRelayHandlers(telegram, 'telegram', commandRouter);
+    telegramRuntimeAdapter = telegram;
+
+    if (telegramWebhookUrl && telegramWebhookSecret) {
+      relay.post('/webhooks/telegram', async (c) => {
+        if (
+          !matchesWebhookSecret(
+            telegramWebhookSecret,
+            c.req.header('X-Telegram-Bot-Api-Secret-Token'),
+          )
+        ) {
+          return c.json({ error: 'unauthorized' }, 401);
+        }
+
+        let payload: unknown;
+        try {
+          payload = await c.req.json();
+        } catch {
+          return c.json({ error: 'invalid JSON payload' }, 400);
+        }
+        try {
+          await telegram.handleWebhook(
+            payload as Parameters<TelegramAdapter['handleWebhook']>[0],
+          );
+          return c.json({ ok: true });
+        } catch (error) {
+          console.error('Telegram relay webhook failed', error);
+          return c.json({ error: 'relay command failed' }, 500);
+        }
+      });
+      console.log('Telegram webhook route mounted at /webhooks/telegram');
+    }
+  }
+
   // Initialize Threads adapter if client ID configured
   const threadsClientId = process.env.THREADS_CLIENT_ID;
   const threadsClientSecret = process.env.THREADS_CLIENT_SECRET;
@@ -769,14 +823,9 @@ export async function initializeRuntime(): Promise<void> {
     console.log('Discord adapter initialized');
   }
 
-  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
-  if (telegramToken) {
-    const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
-    const telegram = new TelegramAdapter(
-      { token: telegramToken, webhookUrl: telegramWebhookUrl },
-      commandRouter,
-    );
-    registerRelayHandlers(telegram, 'telegram', commandRouter);
+  const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.trim();
+  if (telegramRuntimeAdapter) {
+    const telegram = telegramRuntimeAdapter;
     if (telegramWebhookUrl) {
       await telegram.setWebhook(telegramWebhookUrl);
     } else {
