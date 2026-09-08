@@ -229,7 +229,7 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
       .set({ state: 'approved', updatedAt: new Date() })
       .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.state, bundle.state)))
       .returning();
-    if (updated.length === 0) {
+    if (!updated) {
       return {
         status: 409 as const,
         error: 'bundle changed while approval was being applied; retry the action',

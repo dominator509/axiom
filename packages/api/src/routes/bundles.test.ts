@@ -228,6 +228,35 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
     );
   });
 
+  it('returns a conflict when the bundle changes before approval is committed', async () => {
+    const generatedBundle = {
+      id: BUNDLE_ID,
+      orgId: ORG_ID,
+      modelId: MODEL_ID,
+      state: 'generated',
+      assetId: 'asset-1',
+      tosReport: passingTos('instagram'),
+    };
+    mockState.results = [
+      [],
+      [generatedBundle],
+      [{ id: 'asset-1', kind: 'image' }],
+      [{ id: BUNDLE_ID }],
+      [],
+    ];
+
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: ['instagram'] }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain(
+      'bundle changed while approval was being applied',
+    );
+  });
+
   it('rejects approval when the bundle asset is not owned by its org and model', async () => {
     const generatedBundle = {
       id: BUNDLE_ID,
