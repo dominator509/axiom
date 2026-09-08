@@ -34,10 +34,7 @@ export class TelegramAdapter {
     return this.bot;
   }
 
-  onCommand(
-    action: CardAction,
-    handler: CommandHandler,
-  ): void {
+  onCommand(action: CardAction, handler: CommandHandler): void {
     this.handlers.set(action, handler);
   }
 
@@ -64,6 +61,9 @@ export class TelegramAdapter {
   }
 
   async handleCallback(callbackQuery: any): Promise<void> {
+    const callbackId = typeof callbackQuery?.id === 'string' ? callbackQuery.id : '';
+    if (!callbackId) return;
+
     const token = typeof callbackQuery?.data === 'string' ? callbackQuery.data : '';
     const sourceId = callbackQuery?.message?.chat?.id;
     const pending = this.commandRouter?.peekCommandToken(token);
@@ -79,16 +79,22 @@ export class TelegramAdapter {
       await this.bot.api.sendMessage(String(sourceId), parameterPrompt(pending.action, token));
       return;
     }
-    const processed = await this.dispatchToken(
+
+    // Telegram keeps showing a client-side progress indicator until the
+    // callback is acknowledged. A command handler can perform DB and
+    // provider work, so acknowledge a valid command before entering it.
+    const handler = pending ? this.handlers.get(pending.action) : undefined;
+    if (!handler || sourceId === undefined || sourceId === null) {
+      await this.bot.api.answerCallbackQuery(callbackId);
+      return;
+    }
+    await this.bot.api.answerCallbackQuery(callbackId, { text: 'Action received' });
+
+    await this.dispatchToken(
       token,
       undefined,
       sourceId === undefined || sourceId === null ? undefined : String(sourceId),
     );
-    if (processed) {
-      await this.bot.api.answerCallbackQuery(callbackQuery.id, {
-        text: `Action processed`,
-      });
-    }
   }
 
   setupCommands(): void {
@@ -193,10 +199,7 @@ function isParameterizedAction(action: CardAction): action is 'edit_caption' | '
   return action === 'edit_caption' || action === 'reschedule';
 }
 
-function commandParams(
-  action: CardAction,
-  remainder: string,
-): Record<string, unknown> {
+function commandParams(action: CardAction, remainder: string): Record<string, unknown> {
   if (!remainder) return {};
   if (action === 'edit_caption') return { caption: remainder };
   if (action === 'reschedule') return { scheduledFor: remainder };

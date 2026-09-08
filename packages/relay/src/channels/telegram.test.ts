@@ -50,11 +50,17 @@ describe('construction / getBot / onCommand', () => {
   });
 
   it('stores action handlers for callback queries', async () => {
-    const handler = vi.fn().mockResolvedValue(undefined);
+    const events: string[] = [];
+    const handler = vi.fn().mockImplementation(async () => {
+      events.push('handler');
+    });
     adapter.onCommand('approve', handler);
     const answerSpy = vi
       .spyOn(adapter.getBot().api, 'answerCallbackQuery')
-      .mockResolvedValue(true as any);
+      .mockImplementation(async () => {
+        events.push('ack');
+        return true as any;
+      });
 
     const token = new CommandRouter(COMMAND_SECRET).createCommandToken('approve', 'bundle-1');
     await adapter.handleCallback({
@@ -67,7 +73,8 @@ describe('construction / getBot / onCommand', () => {
       channel: 'telegram',
       sourceId: 'chat-1',
     });
-    expect(answerSpy).toHaveBeenCalledWith('cb-1', { text: 'Action processed' });
+    expect(answerSpy).toHaveBeenCalledWith('cb-1', { text: 'Action received' });
+    expect(events).toEqual(['ack', 'handler']);
   });
 });
 
@@ -142,8 +149,12 @@ describe('handleCallback', () => {
   it('ignores callbacks without data', async () => {
     const handler = vi.fn();
     adapter.onCommand('approve', handler);
+    const answerSpy = vi
+      .spyOn(adapter.getBot().api, 'answerCallbackQuery')
+      .mockResolvedValue(true as any);
     await adapter.handleCallback({ id: 'cb-1', data: undefined });
     expect(handler).not.toHaveBeenCalled();
+    expect(answerSpy).toHaveBeenCalledWith('cb-1');
   });
 
   it('ignores callbacks with no registered handler', async () => {
@@ -155,28 +166,36 @@ describe('handleCallback', () => {
       data: new CommandRouter(COMMAND_SECRET).createCommandToken('approve', 'bundle-1'),
       message: { chat: { id: 'chat-1' } },
     });
-    expect(answerSpy).not.toHaveBeenCalled();
+    expect(answerSpy).toHaveBeenCalledWith('cb-1');
   });
 
   it('handles malformed callback data without crashing', async () => {
     const handler = vi.fn();
     adapter.onCommand('approve', handler);
+    const answerSpy = vi
+      .spyOn(adapter.getBot().api, 'answerCallbackQuery')
+      .mockResolvedValue(true as any);
     await adapter.handleCallback({
       id: 'cb-1',
       data: 'garbage',
       message: { chat: { id: 'chat-1' } },
     });
     expect(handler).not.toHaveBeenCalled();
+    expect(answerSpy).toHaveBeenCalledWith('cb-1');
   });
 
   it('rejects a valid token when the provider supplies no source chat', async () => {
     const handler = vi.fn();
     adapter.onCommand('approve', handler);
+    const answerSpy = vi
+      .spyOn(adapter.getBot().api, 'answerCallbackQuery')
+      .mockResolvedValue(true as any);
     await adapter.handleCallback({
       id: 'cb-1',
       data: new CommandRouter(COMMAND_SECRET).createCommandToken('approve', 'bundle-1'),
     });
     expect(handler).not.toHaveBeenCalled();
+    expect(answerSpy).toHaveBeenCalledWith('cb-1');
   });
 });
 
@@ -305,7 +324,10 @@ describe('setupCommands', () => {
       'chat-1',
       `Edit this caption with:\n/edit ${token} <new caption>`,
     );
-    expect(router.verifyCommandToken(token)).toEqual({ action: 'edit_caption', cardId: 'bundle-47' });
+    expect(router.verifyCommandToken(token)).toEqual({
+      action: 'edit_caption',
+      cardId: 'bundle-47',
+    });
   });
 });
 
