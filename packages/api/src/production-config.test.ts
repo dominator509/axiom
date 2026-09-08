@@ -39,6 +39,18 @@ describe('production relay configuration', () => {
         TELEGRAM_WEBHOOK_SECRET: 'too-short',
       }),
     ).toThrow('TELEGRAM_WEBHOOK_SECRET must contain 32-256');
+    expect(() =>
+      validateProductionRelayConfig({
+        ...production(),
+        TELEGRAM_WEBHOOK_URL: 'http://example.test/telegram',
+      }),
+    ).toThrow('TELEGRAM_WEBHOOK_URL must be a valid HTTPS URL in production');
+    expect(() =>
+      validateProductionRelayConfig({
+        ...production(),
+        TELEGRAM_WEBHOOK_URL: 'not-a-url',
+      }),
+    ).toThrow('TELEGRAM_WEBHOOK_URL must be a valid HTTPS URL in production');
   });
 
   it('accepts complete integration configuration', () => {

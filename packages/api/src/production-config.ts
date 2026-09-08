@@ -32,6 +32,15 @@ export function validateProductionRelayConfig(env: NodeJS.ProcessEnv): void {
   ]);
 
   if (env.TELEGRAM_WEBHOOK_URL?.trim()) {
+    let webhookUrl: URL;
+    try {
+      webhookUrl = new URL(env.TELEGRAM_WEBHOOK_URL.trim());
+    } catch {
+      throw new Error('TELEGRAM_WEBHOOK_URL must be a valid HTTPS URL in production');
+    }
+    if (webhookUrl.protocol !== 'https:') {
+      throw new Error('TELEGRAM_WEBHOOK_URL must be a valid HTTPS URL in production');
+    }
     if (!env.TELEGRAM_BOT_TOKEN?.trim()) {
       throw new Error('Telegram webhook configuration requires TELEGRAM_BOT_TOKEN');
     }
