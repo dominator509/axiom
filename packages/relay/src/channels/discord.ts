@@ -114,11 +114,10 @@ export class DiscordAdapter {
     if (!sourceId) return;
     const handler = this.handlers.get(command.action);
     if (!handler) return;
-    await handler(command.action, command.cardId, {
+    await this.executeCommandInteraction(interaction, handler, command.action, command.cardId, {
       channel: 'discord',
       sourceId,
     });
-    await interaction.reply({ content: `Action processed`, ephemeral: true });
   }
 
   private async handleModalSubmit(interaction: any): Promise<void> {
@@ -139,12 +138,39 @@ export class DiscordAdapter {
               : {}),
           }
         : { scheduledFor: interaction.fields.getTextInputValue('scheduledFor') };
-    await handler(command.action, command.cardId, {
+    await this.executeCommandInteraction(interaction, handler, command.action, command.cardId, {
       channel: 'discord',
       sourceId,
       params,
     });
-    await interaction.reply({ content: `Action processed`, ephemeral: true });
+  }
+
+  private async executeCommandInteraction(
+    interaction: {
+      deferReply: (options: { ephemeral: boolean }) => Promise<unknown>;
+      editReply: (payload: { content: string }) => Promise<unknown>;
+    },
+    handler: CommandHandler,
+    action: CardAction,
+    cardId: string,
+    context: CommandContext,
+  ): Promise<void> {
+    // Discord requires an initial interaction acknowledgement within three
+    // seconds. Domain handlers may perform database and provider work, so
+    // acknowledge first and edit the deferred response when they finish.
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      await handler(action, cardId, context);
+      await interaction.editReply({ content: 'Action processed' });
+    } catch (error) {
+      try {
+        await interaction.editReply({ content: 'Action failed; please retry.' });
+      } catch {
+        // Preserve the original handler error for the process-level logger if
+        // Discord also rejects the follow-up response.
+      }
+      throw error;
+    }
   }
 
   async login(): Promise<void> {

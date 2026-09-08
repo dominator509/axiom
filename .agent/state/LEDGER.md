@@ -181,3 +181,4 @@
 2026-09-08T09:35:00Z | [P2][RELAY/CONFIG] require a valid HTTPS Telegram webhook URL in production, matching the provider contract; API 316/316, focused config 4/4, typecheck, lint, build, formatting, and diff passed
 2026-09-08T09:48:00Z | [P1][RELAY/DISCORD] fail closed when Discord card destinations are missing or non-sendable instead of marking delivery sent; relay 268/268, worker relay-card 3/3, typecheck, lint, build, formatting, and diff passed
 2026-09-08T10:02:38Z | [P1][SECURITY/REVOKE] fail closed on provider credential revocation failures and preserve local encrypted connections for retry; connectors 274/274, API social route 11/11, typecheck, lint, build, formatting, and diff passed
+2026-09-08T10:13:28Z | [P1][RELAY/DISCORD] acknowledge valid button and modal interactions before domain handlers to satisfy Discord's three-second response contract; relay 269/269, typecheck, lint, build, formatting, and diff passed

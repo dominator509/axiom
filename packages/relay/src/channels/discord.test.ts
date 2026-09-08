@@ -63,22 +63,52 @@ describe('construction / getClient / onCommand', () => {
 
   it('stores action handlers', async () => {
     const handler = vi.fn().mockResolvedValue(undefined);
+    const deferReply = vi.fn().mockResolvedValue(undefined);
+    const editReply = vi.fn().mockResolvedValue(undefined);
     adapter.onCommand('approve', handler);
     const interaction = {
       isButton: () => true,
       customId: new CommandRouter(COMMAND_SECRET).createCommandToken('approve', 'bundle-1'),
       channelId: 'channel-1',
-      reply: vi.fn().mockResolvedValue(undefined),
+      deferReply,
+      editReply,
     };
     await adapter.handleInteraction(interaction as any);
     expect(handler).toHaveBeenCalledWith('approve', 'bundle-1', {
       channel: 'discord',
       sourceId: 'channel-1',
     });
-    expect(interaction.reply).toHaveBeenCalledWith({
+    expect(deferReply).toHaveBeenCalledWith({ ephemeral: true });
+    expect(editReply).toHaveBeenCalledWith({
       content: 'Action processed',
-      ephemeral: true,
     });
+  });
+
+  it('acknowledges before the handler and reports handler failures', async () => {
+    const events: string[] = [];
+    const handler = vi.fn(async () => {
+      events.push('handler');
+      throw new Error('database unavailable');
+    });
+    const deferReply = vi.fn(async () => {
+      events.push('deferred');
+    });
+    const editReply = vi.fn(async (payload: { content: string }) => {
+      events.push(`edited:${payload.content}`);
+    });
+    adapter.onCommand('approve', handler);
+    const interaction = {
+      isButton: () => true,
+      customId: new CommandRouter(COMMAND_SECRET).createCommandToken('approve', 'bundle-1'),
+      channelId: 'channel-1',
+      deferReply,
+      editReply,
+    };
+
+    await expect(adapter.handleInteraction(interaction as any)).rejects.toThrow(
+      'database unavailable',
+    );
+    expect(events).toEqual(['deferred', 'handler', 'edited:Action failed; please retry.']);
   });
 
   it('opens a modal for parameterised actions without consuming the token', async () => {
@@ -118,7 +148,8 @@ describe('construction / getClient / onCommand', () => {
           id === 'platform' ? 'instagram' : 'Updated caption',
         ),
       },
-      reply: vi.fn().mockResolvedValue(undefined),
+      deferReply: vi.fn().mockResolvedValue(undefined),
+      editReply: vi.fn().mockResolvedValue(undefined),
     };
 
     await modalAdapter.handleInteraction(interaction as any);
@@ -128,9 +159,9 @@ describe('construction / getClient / onCommand', () => {
       sourceId: 'channel-1',
       params: { caption: 'Updated caption', platform: 'instagram' },
     });
-    expect(interaction.reply).toHaveBeenCalledWith({
+    expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+    expect(interaction.editReply).toHaveBeenCalledWith({
       content: 'Action processed',
-      ephemeral: true,
     });
   });
 });
