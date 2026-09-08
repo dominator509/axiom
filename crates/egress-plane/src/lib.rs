@@ -119,6 +119,85 @@ impl Config {
                 .map(std::path::PathBuf::from),
         }
     }
+
+    /// Production egress must not start as a partially configured control
+    /// plane. Without these values it cannot load durable model bindings,
+    /// decrypt credential envelopes, or authenticate callers, while its
+    /// liveness endpoint would otherwise still report success.
+    pub fn validate_production(&self) -> Result<(), String> {
+        let token = self
+            .auth_token
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| "EGRESS_PLANE_TOKEN is required in production".to_string())?;
+        if token.len() < 32 {
+            return Err("EGRESS_PLANE_TOKEN must be at least 32 characters in production".into());
+        }
+        if self
+            .database_url
+            .as_deref()
+            .is_none_or(|value| value.trim().is_empty())
+        {
+            return Err("EGRESS_DATABASE_URL or DATABASE_URL is required in production".into());
+        }
+        if self.dek.is_none() {
+            return Err("EGRESS_DEK must be a 32-byte hex key in production".into());
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod config_tests {
+    use super::Config;
+
+    fn production_config() -> Config {
+        Config {
+            kill_switch: "false".to_string(),
+            listen_addr: "0.0.0.0:9090".to_string(),
+            auth_token: Some("x".repeat(32)),
+            echo_url: "https://api.ipify.org".to_string(),
+            database_url: Some("postgresql://egress@db.example/axiom".to_string()),
+            dek: Some([0; 32]),
+            sidecar_bin: None,
+        }
+    }
+
+    #[test]
+    fn production_config_requires_all_control_plane_dependencies() {
+        let mut config = production_config();
+
+        config.auth_token = None;
+        assert_eq!(
+            config
+                .validate_production()
+                .expect_err("token must be required"),
+            "EGRESS_PLANE_TOKEN is required in production"
+        );
+
+        let mut config = production_config();
+        config.database_url = None;
+        assert_eq!(
+            config
+                .validate_production()
+                .expect_err("database must be required"),
+            "EGRESS_DATABASE_URL or DATABASE_URL is required in production"
+        );
+
+        let mut config = production_config();
+        config.dek = None;
+        assert_eq!(
+            config
+                .validate_production()
+                .expect_err("DEK must be required"),
+            "EGRESS_DEK must be a 32-byte hex key in production"
+        );
+    }
+
+    #[test]
+    fn production_config_accepts_complete_values() {
+        assert!(production_config().validate_production().is_ok());
+    }
 }
 
 // ---------------------------------------------------------------------------

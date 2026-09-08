@@ -60,6 +60,7 @@ COPY --from=builder /app/target/release/egress-plane /app/egress-plane
 # capability required by the declared netns/WireGuard boundary.
 USER 1001:1001
 
+ENV NODE_ENV=production
 ENV LISTEN_ADDR=0.0.0.0:9090
 EXPOSE 9090
 

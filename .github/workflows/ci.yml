@@ -308,7 +308,12 @@ jobs:
           psql -h 127.0.0.1 -U axiom -d axiom_test -v ON_ERROR_STOP=1 \
             -c "ALTER ROLE axiom_app WITH LOGIN PASSWORD 'axiom_app'"
 
-          docker run --detach --name axiom-egress-ci --network host --cap-add=NET_ADMIN axiom-egress-plane:ci
+          docker run --detach --name axiom-egress-ci --network host --cap-add=NET_ADMIN \
+            --env NODE_ENV=production \
+            --env EGRESS_DATABASE_URL=postgresql://axiom:changeme@127.0.0.1:5432/axiom_test \
+            --env EGRESS_PLANE_TOKEN=ci-egress-plane-token-012345678901234567890123 \
+            --env EGRESS_DEK=0000000000000000000000000000000000000000000000000000000000000000 \
+            axiom-egress-plane:ci
           docker run --detach --name axiom-hono-ci --network host \
             --env NODE_ENV=production \
             --env API_HOST=0.0.0.0 \

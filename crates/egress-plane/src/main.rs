@@ -27,14 +27,28 @@ async fn main() {
     }
 
     let config = Config::from_env();
+    let production = std::env::var("NODE_ENV")
+        .map(|value| value.eq_ignore_ascii_case("production"))
+        .unwrap_or(false);
+    if production {
+        if let Err(error) = config.validate_production() {
+            eprintln!("egress-plane production configuration invalid: {error}");
+            std::process::exit(1);
+        }
+    }
     let kill_switch = KillSwitch::from_env();
 
-    // Optional Postgres integration (loads model_network_configs + persists
-    // health). Falls back gracefully when DATABASE_URL is absent.
+    // Postgres loads model_network_configs and persists health. Development
+    // keeps the existing optional behavior; production has already validated
+    // the URL and must terminate if the connection cannot be established.
     let db = match &config.database_url {
         Some(url) => match egress_plane::db::connect(url).await {
             Ok(client) => Some(client),
             Err(e) => {
+                if production {
+                    eprintln!("egress-plane production database connection failed: {e}");
+                    std::process::exit(1);
+                }
                 warn!(error = %e, "DB integration disabled");
                 None
             }
