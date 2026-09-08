@@ -19,19 +19,6 @@
         Referrer-Policy "strict-origin-when-cross-origin"
     }
 
-    # ---- CORS headers for development ----
-    @cors_preflight {
-        method OPTIONS
-        header Origin *
-    }
-    handle @cors_preflight {
-        header Access-Control-Allow-Origin "*"
-        header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
-        header Access-Control-Max-Age "86400"
-        respond 204
-    }
-
     # ---- Static assets ----
     handle /assets/* {
         root * /app/packages/dashboard/public
@@ -55,10 +42,9 @@
             rewrite * {path}
         }
 
-        # CORS for API responses
-        header Access-Control-Allow-Origin "*"
-        header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+        # Credentialed CORS is owned by the Hono API. Do not add a wildcard
+        # response here: it conflicts with the API's origin allow-list and
+        # prevents browser clients from sending session/idempotency headers.
     }
 
     # ---- Next.js dashboard ----
@@ -95,18 +81,6 @@
 #         Strict-Transport-Security "max-age=31536000; includeSubDomains"
 #     }
 #
-#     # CORS (production may restrict to specific origin)
-#     @cors_preflight {
-#         method OPTIONS
-#         header Origin *
-#     }
-#     handle @cors_preflight {
-#         header Access-Control-Allow-Origin "https://your-domain.com"
-#         header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-#         header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
-#         header Access-Control-Max-Age "86400"
-#         respond 204
-#     }
 #
 #     # Static assets
 #     handle /assets/* {
@@ -127,9 +101,7 @@
 #             header_up X-Forwarded-For {remote_host}
 #             header_up X-Forwarded-Proto {scheme}
 #         }
-#         header Access-Control-Allow-Origin "https://your-domain.com"
-#         header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-#         header Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+#         # Credentialed CORS remains owned by the Hono API in production too.
 #     }
 #
 #     # Next.js dashboard

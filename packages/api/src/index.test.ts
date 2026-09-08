@@ -140,6 +140,29 @@ describe('relay routes mounted via initRelay', () => {
       else process.env.TELEGRAM_WEBHOOK_SECRET = previousSecret;
     }
   });
+
+  it('rejects malformed Threads webhook JSON without throwing', async () => {
+    const previousClientId = process.env.THREADS_CLIENT_ID;
+    const previousClientSecret = process.env.THREADS_CLIENT_SECRET;
+    process.env.THREADS_CLIENT_ID = 'test-threads-client-id';
+    process.env.THREADS_CLIENT_SECRET = 'test-threads-client-secret';
+
+    try {
+      const relayApp = createRelayApp!();
+      const response = await relayApp.request('/webhooks/threads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{',
+      });
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: 'invalid JSON payload' });
+    } finally {
+      if (previousClientId === undefined) delete process.env.THREADS_CLIENT_ID;
+      else process.env.THREADS_CLIENT_ID = previousClientId;
+      if (previousClientSecret === undefined) delete process.env.THREADS_CLIENT_SECRET;
+      else process.env.THREADS_CLIENT_SECRET = previousClientSecret;
+    }
+  });
 });
 
 describe('llm gateway routes mounted', () => {

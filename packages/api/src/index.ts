@@ -642,7 +642,7 @@ app.post('/api/mcp', async (c) => {
     const server = createMcpServer({ headers, params: body as Record<string, unknown> });
     const response = await server.handleRequest(body as never);
     return c.json(response);
-  } catch (err) {
+  } catch {
     return c.json(
       { jsonrpc: '2.0', error: { code: -32000, message: 'Authentication failed' }, id: null },
       401,
@@ -755,9 +755,18 @@ export function createRelayApp(): Hono {
 
     relay.post('/webhooks/threads', async (c) => {
       const rawBody = await c.req.text();
-      const payload = JSON.parse(rawBody);
+      let payload: unknown;
+      try {
+        payload = JSON.parse(rawBody);
+      } catch {
+        return c.json({ error: 'invalid JSON payload' }, 400);
+      }
       const signature = c.req.header('X-Hub-Signature-256') || undefined;
-      const result = await threads.handleWebhook(payload, rawBody, signature);
+      const result = await threads.handleWebhook(
+        payload as Parameters<ThreadsAdapter['handleWebhook']>[0],
+        rawBody,
+        signature,
+      );
       return c.body(result.body, result.status as 200 | 400 | 403);
     });
 
