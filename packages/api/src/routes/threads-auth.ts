@@ -19,13 +19,17 @@ import { persistOAuthConnection } from './oauth-connection.js';
 
 const THREADS_APP_ID = process.env.THREADS_CLIENT_ID || '';
 const THREADS_APP_SECRET = process.env.THREADS_CLIENT_SECRET || '';
-const REDIRECT_URI = new URL(
-  '/api/v1/connectors/threads/callback',
-  process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
-).toString();
+const APPLICATION_ORIGIN = process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001';
+const REDIRECT_URI = new URL('/api/v1/connectors/threads/callback', APPLICATION_ORIGIN).toString();
 const OAUTH_STATE_COOKIE = 'axiom_threads_oauth_state';
 const OAUTH_COOKIE_PATH = '/api/v1/connectors/threads';
 const OAUTH_STATE_KEY = resolveOAuthCookieSecret();
+
+function deletionStatusUrl(confirmationCode: string): string {
+  const url = new URL('/api/v1/connectors/threads/delete/status', APPLICATION_ORIGIN);
+  url.searchParams.set('id', confirmationCode);
+  return url.toString();
+}
 
 const router = new Hono<AppBindings>();
 
@@ -181,15 +185,14 @@ router.get('/callback', async (c) => {
  * when a user requests data deletion (GDPR). Echoes the code back
  * and provides a status URL.
  *
- * In Meta Dev Portal, set Delete Callback URL to:
- *   https://axiom.fanlynks.com/api/v1/connectors/threads/delete
+ * In Meta Dev Portal, set Delete Callback URL to the deployed
+ * BETTER_AUTH_URL origin plus /api/v1/connectors/threads/delete.
  */
 router.get('/delete', (c) => {
   const confirmationCode = c.req.query('confirmation_code');
   if (confirmationCode) {
-    const statusUrl = `https://axiom.fanlynks.com/api/v1/connectors/threads/delete/status?id=${confirmationCode}`;
     return c.json({
-      url: statusUrl,
+      url: deletionStatusUrl(confirmationCode),
       confirmation_code: confirmationCode,
     });
   }
@@ -199,8 +202,8 @@ router.get('/delete', (c) => {
 /**
  * Threads Uninstall webhook — Meta sends POST when a user removes the app.
  *
- * In Meta Dev Portal, set Uninstall Callback URL to:
- *   https://axiom.fanlynks.com/api/v1/connectors/threads/uninstall
+ * In Meta Dev Portal, set Uninstall Callback URL to the deployed
+ * BETTER_AUTH_URL origin plus /api/v1/connectors/threads/uninstall.
  */
 router.post('/uninstall', async (c) => {
   const payload = await c.req.json().catch(() => ({}));

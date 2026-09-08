@@ -184,7 +184,7 @@ describe('webhooks', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       confirmation_code: 'delete-123',
-      url: expect.stringContaining('delete-123'),
+      url: 'https://axiom.example.test/api/v1/connectors/threads/delete/status?id=delete-123',
     });
   });
 });
