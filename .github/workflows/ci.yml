@@ -73,6 +73,10 @@ jobs:
         if: matrix.task == 'typecheck'
         run: pnpm typecheck
 
+      - name: Run repository ship gate
+        if: matrix.task == 'typecheck'
+        run: sh scripts/verify.sh
+
       # ═══════════════════════════════════════════════════════════
       #  MATRIX TASK: lint
       # ═══════════════════════════════════════════════════════════
