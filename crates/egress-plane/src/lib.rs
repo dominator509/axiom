@@ -133,12 +133,11 @@ impl Config {
         if token.len() < 32 {
             return Err("EGRESS_PLANE_TOKEN must be at least 32 characters in production".into());
         }
-        if self
-            .database_url
-            .as_deref()
-            .is_none_or(|value| value.trim().is_empty())
-        {
-            return Err("EGRESS_DATABASE_URL or DATABASE_URL is required in production".into());
+        match self.database_url.as_deref() {
+            Some(value) if !value.trim().is_empty() => {}
+            _ => {
+                return Err("EGRESS_DATABASE_URL or DATABASE_URL is required in production".into())
+            }
         }
         if self.dek.is_none() {
             return Err("EGRESS_DEK must be a 32-byte hex key in production".into());
