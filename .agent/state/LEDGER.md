@@ -190,3 +190,4 @@
 2026-09-08T12:21:04Z | [P1][WORKER] surface handled retry/dead/park errors through WorkerStats.lastError; focused worker tests and typecheck pass
 2026-09-08T12:33:46Z | [P1][API/DLQ] make incident replay immediately claimable and clear stale worker lease fields; incidents 7/7, API 316/316, typecheck, lint, formatting, and diff checks passed
 2026-09-08T12:46:07Z | [P1][SECURITY/API] redact encrypted social connection envelopes from list and connect responses; API 316/316, typecheck, lint, formatting, and diff checks passed
+2026-09-08T12:57:22Z | [P1][SECURITY/EGRESS] redact encrypted network credentials from legacy model route and reject plaintext credential fields; API 317/317, typecheck, lint, formatting, and diff checks passed

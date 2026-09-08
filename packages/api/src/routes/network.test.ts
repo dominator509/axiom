@@ -44,6 +44,9 @@ describe('GET /:modelId/network', () => {
         lastEgressIp: '203.0.113.7',
         failCount: 0,
         lastError: null,
+        encCreds: new Uint8Array([1, 2, 3]),
+        encNonce: new Uint8Array([4, 5, 6]),
+        dekId: 'secret-dek-id',
       },
     ];
     const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`);
@@ -51,6 +54,9 @@ describe('GET /:modelId/network', () => {
     const body = (await res.json()) as any;
     expect(body.data.egressMode).toBe('wireguard');
     expect(body.data.healthy).toBe(true);
+    expect(body.data).not.toHaveProperty('encCreds');
+    expect(body.data).not.toHaveProperty('encNonce');
+    expect(body.data).not.toHaveProperty('dekId');
   });
 
   it('returns a direct-default shape when no config exists', async () => {
@@ -76,6 +82,9 @@ describe('PUT /:modelId/network', () => {
         modelId: MODEL_ID,
         egressMode: 'socks5',
         proxyAddr: '127.0.0.1:1080',
+        encCreds: new Uint8Array([1, 2, 3]),
+        encNonce: new Uint8Array([4, 5, 6]),
+        dekId: 'secret-dek-id',
       },
     ];
     const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`, {
@@ -86,6 +95,18 @@ describe('PUT /:modelId/network', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.egressMode).toBe('socks5');
+    expect(body.data).not.toHaveProperty('encCreds');
+    expect(body.data).not.toHaveProperty('encNonce');
+    expect(body.data).not.toHaveProperty('dekId');
+  });
+
+  it('rejects plaintext credential fields on the metadata route (400)', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ egressMode: 'socks5', proxyPassword: 'must-use-egress-route' }),
+    });
+    expect(res.status).toBe(400);
   });
 
   it('rejects an invalid egress mode (400)', async () => {
