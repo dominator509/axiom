@@ -16,7 +16,7 @@ vi.mock('./helpers.js', async (importOriginal) => {
 });
 
 import { auditRouter } from './audit.js';
-import { verifyAuditChain } from './helpers.js';
+import { verifyAuditChain, writeAudit } from './helpers.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -175,5 +175,47 @@ describe('GET /audit/verify — chain integrity', () => {
 describe('verifyAuditChain helper (direct)', () => {
   it('is exported and callable', () => {
     expect(typeof verifyAuditChain).toBe('function');
+  });
+});
+
+describe('writeAudit helper (direct)', () => {
+  it('locks the organization before reading the chain head', async () => {
+    const events: string[] = [];
+    const makeAwaitableChain = (value: unknown) => {
+      const target = (() => undefined) as unknown as (...args: unknown[]) => unknown;
+      const chain = new Proxy(target, {
+        get(_target, property: string | symbol) {
+          if (property === 'then') {
+            return (resolve: (value: unknown) => void, reject?: (error: unknown) => void) =>
+              Promise.resolve(value).then(resolve, reject);
+          }
+          return (..._args: unknown[]) => {
+            events.push(String(property));
+            return chain;
+          };
+        },
+      });
+      return chain;
+    };
+    const tx = {
+      execute: vi.fn(async () => {
+        events.push('execute');
+        return { rows: [] };
+      }),
+      select: vi.fn(() => {
+        events.push('select');
+        return makeAwaitableChain([]);
+      }),
+      insert: vi.fn(() => {
+        events.push('insert');
+        return makeAwaitableChain(undefined);
+      }),
+    };
+
+    await writeAudit(tx, ORG_ID, 'user-1', 'model.create', 'model-1', {});
+
+    expect(tx.execute).toHaveBeenCalledTimes(1);
+    expect(events.indexOf('execute')).toBeLessThan(events.indexOf('select'));
+    expect(events).toContain('insert');
   });
 });

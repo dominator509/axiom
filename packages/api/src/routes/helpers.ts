@@ -90,6 +90,12 @@ export async function writeAudit(
   target: string,
   detail: Record<string, unknown>,
 ): Promise<{ prevHash: Buffer; rowHash: Buffer }> {
+  // Serialize audit writers for one organization before reading the chain
+  // head. Without a transaction-scoped lock, concurrent mutations can both
+  // observe the same row_hash and append siblings with the same prev_hash,
+  // permanently forking the tamper-evident chain.
+  await tx.execute(sql`SELECT id FROM org WHERE id = ${orgId} FOR UPDATE`);
+
   // Latest chain head for this org
   const prev = await tx
     .select({ rowHash: schema.auditLog.rowHash })
