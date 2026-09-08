@@ -52,6 +52,16 @@ describe('TelegramConnector', () => {
     expect(bad.valid).toBe(false);
     expect(bad.errors[0]).toMatchObject({ field: 'mediaUrls', severity: 'error' });
   });
+
+  it('blocks media beyond the single link-share item', async () => {
+    const report = await new TelegramConnector(AUTH).validate(
+      input({
+        mediaUrls: ['https://fanvue.com/post/1', 'https://fanvue.com/post/2'],
+      }),
+    );
+    expect(report.valid).toBe(false);
+    expect(report.errors.some((error) => error.field === 'mediaUrls')).toBe(true);
+  });
 });
 
 describe('publish', () => {
@@ -78,6 +88,46 @@ describe('publish', () => {
     expect(body.text).toBe('New update is live\n\nhttps://fanvue.com/post/1\n\n#news #update');
     expect(body.parse_mode).toBe('HTML');
     expect(body.disable_web_page_preview).toBe(false);
+  });
+
+  it('escapes user content when Telegram HTML parsing is enabled', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        ok: true,
+        result: { message_id: 43, chat: { id: -100, type: 'channel' } },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await new TelegramConnector(AUTH).publish(
+      input({
+        caption: '<b>unsafe & untrusted</b>',
+        mediaUrls: ['https://fanvue.com/post/1?a=1&b=2'],
+        hashtags: ['<tag>'],
+      }),
+    );
+
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as {
+      text: string;
+    };
+    expect(body.text).toBe(
+      '&lt;b&gt;unsafe &amp; untrusted&lt;/b&gt;\n\nhttps://fanvue.com/post/1?a=1&amp;b=2\n\n#&lt;tag&gt;',
+    );
+  });
+
+  it('fails when Telegram returns an API-level error in an HTTP 200 response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ ok: false, error_code: 400, description: 'bad chat' })),
+    );
+
+    const result = await new TelegramConnector(AUTH).publish(input());
+    expect(result.state).toBe('failed');
+    expect(result.error).toContain('Telegram sendMessage rejected (400): bad chat');
   });
 
   it('falls back to @channel when externalUserId is missing', async () => {
@@ -136,5 +186,18 @@ describe('revoke', () => {
     expect(url).toBe('https://api.telegram.org/bot123:bot-token/logOut');
     expect(init.method).toBe('POST');
     expect(c.getLogs().some((l) => l.message === 'Telegram bot logged out')).toBe(true);
+  });
+
+  it('fails closed when logOut returns an API-level error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ ok: false, error_code: 401, description: 'invalid' })),
+    );
+
+    await expect(new TelegramConnector(AUTH).revoke()).rejects.toThrow(
+      'Telegram logOut rejected (401): invalid',
+    );
   });
 });
