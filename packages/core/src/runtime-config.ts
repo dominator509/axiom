@@ -5,6 +5,22 @@ export interface RelaySecretEnvironment {
   RELAY_SECRET?: string;
 }
 
+export interface DatabaseEnvironment {
+  NODE_ENV?: string;
+  DATABASE_URL?: string;
+}
+
+/**
+ * Prevent production services from silently falling back to a local/default
+ * PostgreSQL connection string. Development and test callers may omit the
+ * URL when they only exercise code that does not perform database I/O.
+ */
+export function requireProductionDatabaseUrl(env: DatabaseEnvironment): void {
+  if (env.NODE_ENV === 'production' && !env.DATABASE_URL?.trim()) {
+    throw new Error('DATABASE_URL is required in production');
+  }
+}
+
 /** Resolve the relay signing secret without allowing a weak production fallback. */
 export function resolveRelaySecret(env: RelaySecretEnvironment): string {
   const secret = env.RELAY_SECRET?.trim();
