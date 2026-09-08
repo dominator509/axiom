@@ -94,20 +94,19 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
 
         const mediaUrl = input.mediaUrls[0];
         const mediaType = this.detectMediaType(mediaUrl);
-        const storyBody: Record<string, string> = {
+        const storyParams: Record<string, string> = {
           media_type: 'STORIES',
           access_token: accessToken,
           ...(mediaType === 'video' ? { video_url: mediaUrl } : { image_url: mediaUrl }),
         };
         const storyContainer = await this.apiPost<IgMediaContainerResponse>(
-          `${IG_GRAPH_BASE}/${igUserId}/media`,
-          storyBody,
-          { 'Content-Type': 'application/json' },
+          this.graphUrl(`${IG_GRAPH_BASE}/${igUserId}/media`, storyParams),
         );
         const publishResp = await this.apiPost<IgPublishResponse>(
-          `${IG_GRAPH_BASE}/${igUserId}/media_publish`,
-          { creation_id: storyContainer.id, access_token: accessToken },
-          { 'Content-Type': 'application/json' },
+          this.graphUrl(`${IG_GRAPH_BASE}/${igUserId}/media_publish`, {
+            creation_id: storyContainer.id,
+            access_token: accessToken,
+          }),
         );
 
         return {
@@ -126,23 +125,21 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
       for (const mediaUrl of input.mediaUrls) {
         const mediaType = this.detectMediaType(mediaUrl);
 
-        const body: Record<string, string> = {
+        const params: Record<string, string> = {
           image_url: mediaUrl,
           access_token: accessToken,
         };
 
         if (mediaType === 'video') {
-          body.media_type = 'VIDEO';
-          body.video_url = mediaUrl;
-          delete body.image_url;
+          params.media_type = input.mediaUrls.length > 1 ? 'VIDEO' : 'REELS';
+          params.video_url = mediaUrl;
+          delete params.image_url;
         }
-        if (input.mediaUrls.length > 1) body.is_carousel_item = 'true';
-        else body.caption = input.caption;
+        if (input.mediaUrls.length > 1) params.is_carousel_item = 'true';
+        else params.caption = input.caption;
 
         const createResp = await this.apiPost<IgMediaContainerResponse>(
-          `${IG_GRAPH_BASE}/${igUserId}/media`,
-          body,
-          { 'Content-Type': 'application/json' },
+          this.graphUrl(`${IG_GRAPH_BASE}/${igUserId}/media`, params),
         );
 
         creationIds.push(createResp.id);
@@ -156,14 +153,12 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
         creationIds.length > 1
           ? (
               await this.apiPost<IgMediaContainerResponse>(
-                `${IG_GRAPH_BASE}/${igUserId}/media`,
-                {
+                this.graphUrl(`${IG_GRAPH_BASE}/${igUserId}/media`, {
                   media_type: 'CAROUSEL',
                   children: creationIds.join(','),
                   caption: input.caption,
                   access_token: accessToken,
-                },
-                { 'Content-Type': 'application/json' },
+                }),
               )
             ).id
           : creationIds[0];
@@ -172,9 +167,10 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
 
       // Step 2: Publish the single container (or carousel parent).
       const publishResp = await this.apiPost<IgPublishResponse>(
-        `${IG_GRAPH_BASE}/${igUserId}/media_publish`,
-        { creation_id: publishCreationId, access_token: accessToken },
-        { 'Content-Type': 'application/json' },
+        this.graphUrl(`${IG_GRAPH_BASE}/${igUserId}/media_publish`, {
+          creation_id: publishCreationId,
+          access_token: accessToken,
+        }),
       );
       const lastRemoteId = publishResp.id;
       this.log(
@@ -250,6 +246,11 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
     } catch {
       return 'image';
     }
+  }
+
+  private graphUrl(endpoint: string, params: Record<string, string>): string {
+    const query = new URLSearchParams(params).toString();
+    return `${endpoint}?${query}`;
   }
 }
 
