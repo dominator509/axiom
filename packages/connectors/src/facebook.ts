@@ -289,8 +289,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
   async revoke(): Promise<void> {
     const pageId = this.auth.externalUserId;
     if (!pageId) {
-      this.log('warn', 'revoke', 'No externalUserId set; skipping revoke');
-      return;
+      throw new Error('Facebook revoke requires externalUserId (Page ID)');
     }
 
     const accessToken = this.auth.accessToken;
@@ -307,10 +306,8 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      this.log(
-        'warn',
-        'revoke',
-        `Facebook permissions deletion warned: ${response.status} — ${redactProviderText(body)}`,
+      throw new Error(
+        `Facebook page permissions deletion failed: HTTP ${response.status} — ${redactProviderText(body)}`,
       );
     } else {
       const responseBody = await response.text();
@@ -322,23 +319,22 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
       });
     }
 
-    // Also attempt to revoke the user-level token
-    try {
-      const userTokenRevokeUrl = `${FB_GRAPH_BASE}/me/permissions?access_token=${encodeURIComponent(accessToken)}`;
-
-      const userResp = await this.fetchImpl(userTokenRevokeUrl, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (userResp.ok) {
-        this.log('info', 'revoke', 'Facebook user-level permissions also revoked');
-      }
-    } catch {
-      // Non-critical
+    // Also revoke the user-level token. A failure here must keep the local
+    // connection so the operator can retry instead of orphaning a live token.
+    const userTokenRevokeUrl = `${FB_GRAPH_BASE}/me/permissions?access_token=${encodeURIComponent(accessToken)}`;
+    const userResp = await this.fetchImpl(userTokenRevokeUrl, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!userResp.ok) {
+      const body = await userResp.text().catch(() => '');
+      throw new Error(
+        `Facebook user permissions deletion failed: HTTP ${userResp.status} — ${redactProviderText(body)}`,
+      );
     }
+    this.log('info', 'revoke', 'Facebook user-level permissions also revoked');
 
     // Clear cached auth data
     this.auth.accessToken = '';

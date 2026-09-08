@@ -208,32 +208,32 @@ describe('revoke', () => {
     expect(c.auth.expiresAt).toBe(0);
   });
 
-  it('skips when there is no webhook URL', async () => {
+  it('fails when there is no webhook URL', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const c = new DiscordConnector({ accessToken: 't' });
-    await expect(c.revoke()).resolves.toBeUndefined();
+    await expect(c.revoke()).rejects.toThrow('requires a webhook URL');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('skips when the webhook id cannot be parsed', async () => {
+  it('fails when the webhook id cannot be parsed', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const c = new DiscordConnector({
       accessToken: 't',
       extra: { webhookUrl: 'https://discord.com/api/not-a-webhook' },
     });
-    await expect(c.revoke()).resolves.toBeUndefined();
+    await expect(c.revoke()).rejects.toThrow('containing an ID and token');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('logs a warning but still clears auth when deletion fails', async () => {
+  it('retains auth when deletion fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 500)));
-    const c = new DiscordConnector(AUTH);
-    await c.revoke();
-    expect(c.auth.accessToken).toBe('');
-    expect(
-      c.getLogs().some((l) => l.level === 'warn' && l.message.includes('deletion warned')),
-    ).toBe(true);
+    const c = new DiscordConnector({
+      accessToken: 'discord-token-123',
+      extra: { webhookUrl: 'https://discord.com/api/webhooks/12345/secret-token' },
+    });
+    await expect(c.revoke()).rejects.toThrow('deletion failed: HTTP 500');
+    expect(c.auth.accessToken).toBe('discord-token-123');
   });
 });

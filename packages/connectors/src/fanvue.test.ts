@@ -477,13 +477,12 @@ describe('revoke', () => {
     expect(c.getLogs().some((l) => l.action === 'revoke')).toBe(true);
   });
 
-  it('logs a warning when no refresh credentials are available', async () => {
+  it('fails when no refresh credentials are available', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FanvueConnector(AUTH);
-    await c.revoke();
+    await expect(c.revoke()).rejects.toThrow('requires refresh token and client credentials');
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(c.getLogs().some((l) => l.action === 'revoke' && l.level === 'warn')).toBe(true);
   });
 });

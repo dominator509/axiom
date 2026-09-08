@@ -264,11 +264,11 @@ describe('revoke', () => {
     ).toBe(true);
   });
 
-  it('skips gracefully when externalUserId is missing', async () => {
+  it('fails when externalUserId is missing', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const c = new InstagramConnector({ accessToken: 'ig-token' });
-    await expect(c.revoke()).resolves.toBeUndefined();
+    await expect(c.revoke()).rejects.toThrow('requires externalUserId');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

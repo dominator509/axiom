@@ -488,17 +488,24 @@ describe('revoke', () => {
     expect(init.body).toBe('token=x-token-123&token_type_hint=access_token');
   });
 
-  it('warns but does not throw when revocation fails, and still clears auth', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: 'invalid_token' }, 400));
+  it('accepts a successful empty revoke response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new XConnector(AUTH);
     await expect(c.revoke()).resolves.toBeUndefined();
-
-    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('warned: 400'))).toBe(
-      true,
-    );
     expect(c.auth.accessToken).toBe('');
-    expect(c.auth.expiresAt).toBe(0);
+  });
+
+  it('retains auth when revocation fails', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: 'invalid_token' }, 400));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new XConnector({
+      accessToken: 'x-token-123',
+      extra: { clientId: 'x-client-1' },
+    });
+    await expect(c.revoke()).rejects.toThrow('token revocation failed: HTTP 400');
+    expect(c.auth.accessToken).toBe('x-token-123');
   });
 });

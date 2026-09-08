@@ -548,17 +548,15 @@ describe('revoke', () => {
     expect(c.auth.expiresAt).toBe(0);
   });
 
-  it('warns but does not throw when revocation fails, and still clears auth', async () => {
+  it('retains auth when revocation fails', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: 'invalid_grant' }, 400));
     vi.stubGlobal('fetch', fetchMock);
 
-    const c = new RedditConnector(AUTH);
-    await expect(c.revoke()).resolves.toBeUndefined();
-
-    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('warned: 400'))).toBe(
-      true,
-    );
-    expect(c.auth.accessToken).toBe('');
-    expect(c.auth.expiresAt).toBe(0);
+    const c = new RedditConnector({
+      accessToken: 'reddit-token-123',
+      extra: { clientId: 'client-1', clientSecret: 'secret-1' },
+    });
+    await expect(c.revoke()).rejects.toThrow('token revocation failed: HTTP 400');
+    expect(c.auth.accessToken).toBe('reddit-token-123');
   });
 });

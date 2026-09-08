@@ -178,8 +178,7 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
   async revoke(): Promise<void> {
     const webhookUrl = this.auth.extra?.webhookUrl as string | undefined;
     if (!webhookUrl) {
-      this.log('warn', 'revoke', 'No webhook URL set; skipping revoke');
-      return;
+      throw new Error('Discord revoke requires a webhook URL in auth.extra.webhookUrl');
     }
 
     // Delete Webhook with Token is the unauthenticated endpoint for an
@@ -188,13 +187,11 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
     try {
       webhook = new URL(webhookUrl);
     } catch {
-      this.log('warn', 'revoke', 'Could not parse webhook URL; skipping');
-      return;
+      throw new Error('Discord revoke requires a valid webhook URL');
     }
     const match = webhook.pathname.match(/\/webhooks\/(\d+)\/([^/]+)$/);
     if (!match) {
-      this.log('warn', 'revoke', 'Webhook URL does not contain an ID and token; skipping');
-      return;
+      throw new Error('Discord revoke requires a webhook URL containing an ID and token');
     }
 
     const webhookId = match[1];
@@ -210,10 +207,8 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      this.log(
-        'warn',
-        'revoke',
-        `Discord webhook deletion warned: HTTP ${response.status} — ${redactProviderText(body)}`,
+      throw new Error(
+        `Discord webhook deletion failed: HTTP ${response.status} — ${redactProviderText(body)}`,
       );
     } else {
       this.log('info', 'revoke', `Discord webhook ${webhookId} deleted successfully`);

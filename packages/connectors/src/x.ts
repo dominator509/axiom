@@ -179,17 +179,18 @@ export class XConnector extends BaseConnector implements SocialConnector {
       body: params.toString(),
     });
 
-    if (response.ok) {
-      const result = (await response.json()) as RevokeResponse;
-      this.log('info', 'revoke', `X OAuth 2.0 token revoked`, { revoked: result.revoked });
-    } else {
+    if (!response.ok) {
       const body = await response.text().catch(() => '');
-      this.log(
-        'warn',
-        'revoke',
-        `X token revocation warned: ${response.status} — ${redactProviderText(body)}`,
+      throw new Error(
+        `X token revocation failed: HTTP ${response.status} — ${redactProviderText(body)}`,
       );
     }
+
+    const responseBody = await response.text().catch(() => '');
+    const result: RevokeResponse = responseBody.trim()
+      ? (JSON.parse(responseBody) as RevokeResponse)
+      : { revoked: true };
+    this.log('info', 'revoke', `X OAuth 2.0 token revoked`, { revoked: result.revoked ?? true });
 
     // Clear cached auth data
     this.auth.accessToken = '';

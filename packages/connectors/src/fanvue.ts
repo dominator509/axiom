@@ -423,8 +423,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
   async revoke(): Promise<void> {
     if (!this.refreshToken || !this.clientId || !this.clientSecret) {
-      this.log('warn', 'revoke', 'Fanvue revoke skipped: no refresh token/client credentials');
-      return;
+      throw new Error('Fanvue revoke requires refresh token and client credentials');
     }
 
     const basic = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
@@ -442,8 +441,9 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
     if (!resp.ok) {
       const body = await resp.text().catch(() => '');
-      this.log('error', 'revoke', `HTTP ${resp.status}: ${redactProviderText(body)}`);
-      return;
+      throw new Error(
+        `Fanvue token revocation failed: HTTP ${resp.status} — ${redactProviderText(body)}`,
+      );
     }
 
     this.log('info', 'revoke', 'Fanvue refresh token revoked (Ory RFC 7009)');

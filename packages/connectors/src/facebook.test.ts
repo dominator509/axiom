@@ -397,34 +397,28 @@ describe('revoke', () => {
     expect(c.auth.expiresAt).toBe(0);
   });
 
-  it('warns and still clears auth when permission deletion fails', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ error: 'denied' }, 403))
-      .mockRejectedValueOnce(new TypeError('network down'));
+  it('retains auth when page permission deletion fails', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ error: 'denied' }, 403));
     vi.stubGlobal('fetch', fetchMock);
 
-    const c = new FacebookConnector(AUTH);
-    await expect(c.revoke()).resolves.toBeUndefined();
-
-    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('warned: 403'))).toBe(
-      true,
-    );
-    expect(c.auth.accessToken).toBe('');
-    expect(c.auth.expiresAt).toBe(0);
+    const c = new FacebookConnector({
+      accessToken: 'fb-token-123',
+      externalUserId: 'page-1',
+    });
+    await expect(c.revoke()).rejects.toThrow('page permissions deletion failed: HTTP 403');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(c.auth.accessToken).toBe('fb-token-123');
+    expect(c.auth.expiresAt).toBeUndefined();
   });
 
-  it('logs a warning and does not clear auth when no Page ID is set', async () => {
+  it('fails and does not clear auth when no Page ID is set', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FacebookConnector({ accessToken: 'fb-token-123' });
-    await c.revoke();
+    await expect(c.revoke()).rejects.toThrow('requires externalUserId');
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(
-      c.getLogs().some((l) => l.level === 'warn' && l.message.includes('skipping revoke')),
-    ).toBe(true);
     expect(c.auth.accessToken).toBe('fb-token-123');
   });
 });

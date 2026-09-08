@@ -170,11 +170,11 @@ describe('revoke', () => {
     expect(init.method).toBe('DELETE');
   });
 
-  it('skips when externalUserId is missing', async () => {
+  it('fails when externalUserId is missing', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const c = new ThreadsConnector({ accessToken: 't' });
-    await expect(c.revoke()).resolves.toBeUndefined();
+    await expect(c.revoke()).rejects.toThrow('requires externalUserId');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

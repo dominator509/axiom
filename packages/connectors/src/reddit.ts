@@ -300,10 +300,8 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
       this.log('info', 'revoke', `Reddit OAuth token revoked`);
     } else {
       const body = await response.text().catch(() => '');
-      this.log(
-        'warn',
-        'revoke',
-        `Reddit token revocation warned: ${response.status} — ${redactProviderText(body)}`,
+      throw new Error(
+        `Reddit token revocation failed: HTTP ${response.status} — ${redactProviderText(body)}`,
       );
     }
 

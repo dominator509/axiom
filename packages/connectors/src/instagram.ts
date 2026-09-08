@@ -228,8 +228,7 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
   async revoke(): Promise<void> {
     const igUserId = this.auth.externalUserId;
     if (!igUserId) {
-      this.log('warn', 'revoke', 'No externalUserId set; skipping revoke');
-      return;
+      throw new Error('Instagram revoke requires externalUserId (Instagram User ID)');
     }
 
     const accessToken = this.auth.accessToken;

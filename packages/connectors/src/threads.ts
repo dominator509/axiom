@@ -186,8 +186,7 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
   async revoke(): Promise<void> {
     const threadsUserId = this.auth.externalUserId;
     if (!threadsUserId) {
-      this.log('warn', 'revoke', 'No externalUserId set; skipping revoke');
-      return;
+      throw new Error('Threads revoke requires externalUserId (Threads User ID)');
     }
 
     const accessToken = this.auth.accessToken;

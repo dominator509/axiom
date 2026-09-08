@@ -226,12 +226,9 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      this.log(
-        'warn',
-        'revoke',
-        `YouTube token revocation warned: ${response.status} — ${redactProviderText(body)}`,
+      throw new Error(
+        `YouTube token revocation failed: HTTP ${response.status} — ${redactProviderText(body)}`,
       );
-      // Don't throw — token may already be revoked
     } else {
       this.log('info', 'revoke', `YouTube OAuth token revoked successfully`);
     }
