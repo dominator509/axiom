@@ -117,9 +117,8 @@ router.get('/', async (c) => {
         .where(eq(schema.modelNetworkConfigs.orgId, orgId)),
     );
     return c.json({ data: rows.map(sanitizeConfig), meta: { total: rows.length } });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 500, statusTitle(500), `egress config list failed: ${msg}`);
+  } catch {
+    return apiError(c, 500, statusTitle(500), 'egress config list failed');
   }
 });
 
@@ -140,9 +139,8 @@ router.get('/:id', async (c) => {
     );
     if (rows.length === 0) return apiError(c, 404, statusTitle(404), 'config not found');
     return c.json({ data: sanitizeConfig(rows[0]) });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 500, statusTitle(500), `egress config get failed: ${msg}`);
+  } catch {
+    return apiError(c, 500, statusTitle(500), 'egress config get failed');
   }
 });
 
@@ -210,9 +208,8 @@ router.post('/', zValidator('json', createEgressConfigSchema), async (c) => {
     });
     if (!inserted) return apiError(c, 404, statusTitle(404), 'model not found');
     return c.json({ data: sanitizeConfig(inserted[0]) }, 201);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 500, statusTitle(500), `egress config create failed: ${msg}`);
+  } catch {
+    return apiError(c, 500, statusTitle(500), 'egress config create failed');
   }
 });
 
@@ -276,9 +273,8 @@ router.patch('/:id', zValidator('json', updateEgressConfigSchema), async (c) => 
     });
     if (updated.length === 0) return apiError(c, 404, statusTitle(404), 'config not found');
     return c.json({ data: sanitizeConfig(updated[0]) });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 500, statusTitle(500), `egress config update failed: ${msg}`);
+  } catch {
+    return apiError(c, 500, statusTitle(500), 'egress config update failed');
   }
 });
 
@@ -298,9 +294,8 @@ router.delete('/:id', async (c) => {
     );
     if (deleted.length === 0) return apiError(c, 404, statusTitle(404), 'config not found');
     return c.json({ success: true });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 500, statusTitle(500), `egress config delete failed: ${msg}`);
+  } catch {
+    return apiError(c, 500, statusTitle(500), 'egress config delete failed');
   }
 });
 
@@ -337,9 +332,8 @@ router.post('/plane/bind', async (c) => {
       { data },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
     );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
+  } catch {
+    return apiError(c, 502, statusTitle(502), 'egress plane unreachable');
   }
 });
 
@@ -372,9 +366,8 @@ router.post('/plane/unbind', async (c) => {
       { data },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
     );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
+  } catch {
+    return apiError(c, 502, statusTitle(502), 'egress plane unreachable');
   }
 });
 
@@ -388,9 +381,8 @@ router.get('/plane/status', async (c) => {
     res = await fetch(`${EGRESS_PLANE_URL}/egress/status`, {
       signal: AbortSignal.timeout(3000),
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
+  } catch {
+    return apiError(c, 502, statusTitle(502), 'egress plane unreachable');
   }
 
   try {
@@ -416,17 +408,15 @@ router.get('/plane/status', async (c) => {
         typeof (model as Record<string, unknown>).model_id === 'string' &&
         allowedModelIds.has((model as Record<string, unknown>).model_id as string),
     );
-    const scopedData =
-      dataRecord
-        ? { ...dataRecord, count: models.length, models }
-        : { count: models.length, models };
+    const scopedData = dataRecord
+      ? { ...dataRecord, count: models.length, models }
+      : { count: models.length, models };
     return c.json(
       { data: scopedData },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
     );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 500, statusTitle(500), `egress status scope failed: ${msg}`);
+  } catch {
+    return apiError(c, 500, statusTitle(500), 'egress status scope failed');
   }
 });
 
@@ -442,9 +432,8 @@ router.post('/plane/sync', async (c) => {
       { data },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
     );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
+  } catch {
+    return apiError(c, 502, statusTitle(502), 'egress plane unreachable');
   }
 });
 
@@ -459,9 +448,8 @@ router.get('/plane/health', async (c) => {
       { data },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
     );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
+  } catch {
+    return apiError(c, 502, statusTitle(502), 'egress plane unreachable');
   }
 });
 
