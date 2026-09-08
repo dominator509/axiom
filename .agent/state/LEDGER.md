@@ -206,3 +206,4 @@
 2026-09-08T16:25:38Z | [P1][RELAY/COMMAND] fail closed when CommandRouter has no durable executor instead of reporting process-local command success; relay 268/268, API mount 22/22, typecheck, lint, formatting, and diff checks passed
 2026-09-08T16:37:47Z | [P2][RELAY/OBSERVABILITY] rename the render-only relay-card metric and endpoint wording so preview rendering is not reported as provider delivery; relay routes 23/23, typecheck, formatting, and diff checks passed
 2026-09-08T16:53:23Z | [P1][API/BOOT] require production DATABASE_URL before the API can bind a listening port, matching the worker startup guard; API 320/320, typecheck, formatting, and diff checks passed
+2026-09-08T17:05:26Z | [P2][WORKER/AUDIT] label the durable post-publish pre_post_run record with phase after instead of reusing the before-stage input; worker 64/64, typecheck, formatting, and diff checks passed

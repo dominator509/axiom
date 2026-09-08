@@ -381,7 +381,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   }
 
   // 3b. Post-publish hook (recorded in pre_post_run; fire-and-forget hooks).
-  await runPrePostAfter(ctx, prePostInput, result);
+  await runPrePostAfter(ctx, { ...prePostInput, phase: 'after' }, result);
 
   // 4. Mark published + write idempotency ledger in the SAME txn (L3.4 §4).
   await tx
