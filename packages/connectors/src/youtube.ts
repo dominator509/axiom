@@ -103,6 +103,26 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
         },
       };
 
+      // Download before opening the resumable session so the session metadata
+      // contains the actual byte count and MIME type. The worker does not
+      // have a videoSize option; sending an empty X-Upload-Content-Length
+      // header causes the provider contract to reject the session.
+      const videoResponse = await this.fetchImpl(videoUrl);
+      if (!videoResponse.ok) {
+        throw new Error(`Failed to download video from ${videoUrl}: ${videoResponse.status}`);
+      }
+
+      const videoBuffer = await videoResponse.arrayBuffer();
+      if (videoBuffer.byteLength === 0) {
+        throw new Error('YouTube video must not be empty');
+      }
+      const responseContentType = videoResponse.headers.get('content-type')?.split(';', 1)[0];
+      const uploadContentType =
+        responseContentType === 'application/octet-stream' ||
+        responseContentType?.startsWith('video/')
+          ? responseContentType
+          : 'video/*';
+
       // Step 1: Initiate resumable upload session
       const metadataJson = JSON.stringify(metadata);
 
@@ -113,8 +133,8 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
           headers: {
             Authorization: `Bearer ${this.auth.accessToken}`,
             'Content-Type': 'application/json; charset=UTF-8',
-            'X-Upload-Content-Length': String(input.options?.videoSize ?? ''),
-            'X-Upload-Content-Type': 'video/*',
+            'X-Upload-Content-Length': String(videoBuffer.byteLength),
+            'X-Upload-Content-Type': uploadContentType,
           },
           body: metadataJson,
         },
@@ -134,18 +154,10 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
 
       this.log('info', 'publish', `YouTube resumable upload session created`);
 
-      // Step 2: Download the video and upload it to the resumable URL
-      const videoResponse = await this.fetchImpl(videoUrl);
-      if (!videoResponse.ok) {
-        throw new Error(`Failed to download video from ${videoUrl}: ${videoResponse.status}`);
-      }
-
-      const videoBuffer = await videoResponse.arrayBuffer();
-
       const uploadResp = await this.fetchImpl(uploadUrl, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'video/*',
+          'Content-Type': uploadContentType,
           'Content-Length': String(videoBuffer.byteLength),
         },
         body: videoBuffer,
