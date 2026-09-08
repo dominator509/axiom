@@ -25,6 +25,7 @@ function appWithOrg(orgId: string | null) {
 
 beforeEach(() => {
   mockState.result = [];
+  mockState.updates = [];
 });
 
 afterEach(() => {
@@ -61,8 +62,18 @@ describe('GET /incidents — DLQ view', () => {
 
 describe('POST /incidents/:jobId/replay — DLQ replay', () => {
   it('resets a dead job back to ready', async () => {
+    const priorRunAfter = new Date(Date.now() + 60 * 60 * 1000);
     mockState.result = [
-      { id: 'j1', queue: 'publish', state: 'ready', attempts: 0, lastError: null },
+      {
+        id: 'j1',
+        queue: 'publish',
+        state: 'ready',
+        attempts: 0,
+        lastError: null,
+        runAfter: priorRunAfter,
+        lockedBy: 'old-worker',
+        lockedAt: priorRunAfter,
+      },
     ];
     const res = await appWithOrg(ORG_ID).request('/incidents/j1/replay', { method: 'POST' });
     expect(res.status).toBe(200);
@@ -70,6 +81,17 @@ describe('POST /incidents/:jobId/replay — DLQ replay', () => {
     expect(body.success).toBe(true);
     expect(body.data.state).toBe('ready');
     expect(body.data.attempts).toBe(0);
+    expect(mockState.updates).toContainEqual(
+      expect.objectContaining({
+        state: 'ready',
+        attempts: 0,
+        lastError: null,
+        lockedBy: null,
+        lockedAt: null,
+        startedAt: null,
+        completedAt: null,
+      }),
+    );
   });
 
   it('returns 404 when the job is not found (org-scoped)', async () => {

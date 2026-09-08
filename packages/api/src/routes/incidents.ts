@@ -70,6 +70,9 @@ router.post('/incidents/:jobId/replay', async (c) => {
         state: 'ready',
         attempts: 0,
         lastError: null,
+        runAfter: new Date(),
+        lockedBy: null,
+        lockedAt: null,
         startedAt: null,
         completedAt: null,
       })
