@@ -59,6 +59,7 @@ vi.mock('@axiom/relay', async () => {
 });
 
 import { assertRelayBindingDispatchable, relayCard } from './relay_card.js';
+import type { ExecutorContext } from './context.js';
 
 const JOB = {
   id: 'job-1',
@@ -123,16 +124,21 @@ describe('relayCard', () => {
 
   it('persists the card id, preserves safe ToS semantics, and sends it to Telegram', async () => {
     const markExternalSideEffect = vi.fn();
+    const persistSideEffectMarker = vi.fn(async (operation: (markerTx: any) => Promise<unknown>) =>
+      operation(makeChain()),
+    ) as unknown as NonNullable<ExecutorContext['persistSideEffectMarker']>;
     await relayCard({
       tx: makeChain(),
       job: JOB,
       killSwitchEnabled: false,
       workerId: 'worker-1',
       markExternalSideEffect,
+      persistSideEffectMarker,
     });
 
     expect(mockState.sent).toHaveLength(1);
     expect(markExternalSideEffect).toHaveBeenCalledTimes(1);
+    expect(persistSideEffectMarker).toHaveBeenCalledTimes(1);
     expect(mockState.sent[0].chatRef).toBe('chat-1');
     expect(mockState.inserts).toContainEqual(expect.objectContaining({ externalRef: 'chat-1' }));
     expect(mockState.sent[0].card).toMatchObject({

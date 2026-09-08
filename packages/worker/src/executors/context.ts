@@ -20,6 +20,12 @@ export interface ExecutorContext {
    * outcome that the provider may already have accepted.
    */
   markExternalSideEffect?: () => void;
+  /**
+   * Persist a provider-dispatch marker in a transaction that is independent
+   * of the executor transaction. This keeps the reconciliation anchor after
+   * a provider accepts a side effect but the executor transaction rolls back.
+   */
+  persistSideEffectMarker?: <T>(operation: (tx: any) => Promise<T>) => Promise<T>;
 }
 
 export type Executor = (ctx: ExecutorContext) => Promise<void>;

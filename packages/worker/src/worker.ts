@@ -128,6 +128,13 @@ export async function processJob(
         markExternalSideEffect: () => {
           externalSideEffectStarted = true;
         },
+        persistSideEffectMarker: async <T>(operation: (markerTx: any) => Promise<T>) =>
+          db.transaction(async (markerTx) => {
+            await markerTx.execute(
+              sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`,
+            );
+            return operation(markerTx);
+          }),
       });
       await updateOwnedJob(tx, job, workerId, {
         state: 'done',

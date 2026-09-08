@@ -175,19 +175,27 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
   const targetPlatforms = Object.keys(captions).length > 0 ? Object.keys(captions) : ['instagram'];
   const renderer = new CardRenderer();
   for (const { binding, channel, chatRef } of dispatchBindings) {
-    const [relayCardRow] = await tx
-      .insert(schema.relayCard)
-      .values({
-        orgId: job.org_id,
-        bundleId: bundle.id,
-        channel,
-        externalRef: chatRef,
-        state: 'pending',
-        title: `Bundle approval — ${bundle.id}`,
-        description: captions['instagram'] ?? Object.values(captions)[0] ?? '',
-        config: { targetPlatforms, tosScores },
-      })
-      .returning({ id: schema.relayCard.id });
+    // Commit the dispatch log before provider I/O. If the provider accepts the
+    // card and the executor transaction later rolls back, the pending row is
+    // still available to reconcile the unknown external outcome.
+    const persistSideEffectMarker: NonNullable<ExecutorContext['persistSideEffectMarker']> =
+      ctx.persistSideEffectMarker ??
+      (async <T>(operation: (markerTx: any) => Promise<T>): Promise<T> => operation(tx));
+    const [relayCardRow] = await persistSideEffectMarker<Array<{ id: string }>>((markerTx) =>
+      markerTx
+        .insert(schema.relayCard)
+        .values({
+          orgId: job.org_id,
+          bundleId: bundle.id,
+          channel,
+          externalRef: chatRef,
+          state: 'pending',
+          title: `Bundle approval — ${bundle.id}`,
+          description: captions['instagram'] ?? Object.values(captions)[0] ?? '',
+          config: { targetPlatforms, tosScores },
+        })
+        .returning({ id: schema.relayCard.id }),
+    );
     if (!relayCardRow?.id) throw new Error('relay.card: relay card insert returned no id');
 
     const content: BundleContent = {
