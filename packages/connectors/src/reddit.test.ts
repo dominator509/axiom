@@ -508,6 +508,21 @@ describe('fetchMetrics', () => {
 });
 
 describe('revoke', () => {
+  it('accepts Reddit’s successful empty revoke response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new RedditConnector({ ...AUTH, extra: { ...AUTH.extra } });
+    await expect(c.revoke()).resolves.toBeUndefined();
+
+    expect(
+      c.getLogs().some((l) => l.action === 'revoke' && l.message.includes('token revoked')),
+    ).toBe(true);
+    expect(c.auth.accessToken).toBe('');
+    expect(c.auth.refreshToken).toBeUndefined();
+    expect(c.auth.expiresAt).toBe(0);
+  });
+
   it('revokes the OAuth token with Basic credentials and clears auth data', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true }));
     vi.stubGlobal('fetch', fetchMock);

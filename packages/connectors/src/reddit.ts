@@ -64,10 +64,6 @@ interface RedditInfoResponse {
   };
 }
 
-interface RedditRevokeResponse {
-  success: boolean;
-}
-
 export class RedditConnector extends BaseConnector implements SocialConnector {
   constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
     super('reddit' as Platform, 'Reddit', 'api' as PublishMode, auth, fetchImpl);
@@ -298,8 +294,10 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
     });
 
     if (response.ok) {
-      const result = (await response.json()) as RedditRevokeResponse;
-      this.log('info', 'revoke', `Reddit OAuth token revoked`, { success: result.success });
+      // Reddit's revoke endpoint has no meaningful response body and may
+      // return 204. HTTP success is the contract; parsing JSON here turns a
+      // successful revoke into a client-side failure on an empty response.
+      this.log('info', 'revoke', `Reddit OAuth token revoked`);
     } else {
       const body = await response.text().catch(() => '');
       this.log(
