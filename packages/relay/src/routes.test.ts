@@ -331,7 +331,7 @@ describe('POST /api/v1/incidents/:id/replay', () => {
     expect(body).toEqual({ success: false });
   });
 
-  it('replays an enqueued DLQ entry successfully', async () => {
+  it('rejects replay when no durable executor is configured and preserves the entry', async () => {
     const entry = deps.incidentManager.enqueueDLQ({
       originalPayload: { postId: 'p9' },
       error: 'timeout',
@@ -339,10 +339,13 @@ describe('POST /api/v1/incidents/:id/replay', () => {
       maxRetries: 3,
     });
     const res = await app.request(`/api/v1/incidents/${entry.id}/replay`, { method: 'POST' });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(501);
     const body = (await res.json()) as any;
-    expect(body).toEqual({ success: true });
-    expect(deps.incidentManager.getDLQ()).toHaveLength(0);
+    expect(body).toEqual({
+      success: false,
+      error: 'DLQ replay requires the durable API job replay endpoint',
+    });
+    expect(deps.incidentManager.getDLQ()).toHaveLength(1);
   });
 });
 

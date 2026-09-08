@@ -156,17 +156,23 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
 
   // POST /api/v1/incidents/:id/replay - replay DLQ
   app.post('/api/v1/incidents/:id/replay', async (c) => {
-    try {
-      const dlqId = c.req.param('id');
-      const replayHandler = async (payload: unknown) => {
-        logger.info('Replaying DLQ payload', { payload });
-      };
-      const success = await deps.incidentManager.replayDLQ(dlqId, replayHandler);
-      return c.json({ success });
-    } catch (err) {
-      logger.error('Failed to replay DLQ', err as Error);
-      return c.json({ success: false, error: 'Failed to replay incident' }, 500);
+    const dlqId = c.req.param('id');
+    const entry = deps.incidentManager.getDLQ().find((candidate) => candidate.id === dlqId);
+    if (!entry) {
+      return c.json({ success: false });
     }
+
+    // The relay package has no durable executor callback. Removing an entry
+    // after merely logging its payload would falsely report a replay and lose
+    // the work. The API's DB-backed /incidents/:jobId/replay route owns real
+    // requeueing; standalone Relay callers must use that durable path.
+    return c.json(
+      {
+        success: false,
+        error: 'DLQ replay requires the durable API job replay endpoint',
+      },
+      501,
+    );
   });
 
   // GET /api/v1/metrics - Prometheus format
