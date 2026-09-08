@@ -208,3 +208,4 @@
 2026-09-08T16:53:23Z | [P1][API/BOOT] require production DATABASE_URL before the API can bind a listening port, matching the worker startup guard; API 320/320, typecheck, formatting, and diff checks passed
 2026-09-08T17:05:26Z | [P2][WORKER/AUDIT] label the durable post-publish pre_post_run record with phase after instead of reusing the before-stage input; worker 64/64, typecheck, formatting, and diff checks passed
 2026-09-08T17:17:36Z | [P1][SECURITY/PROBE] remove the tracked live-egress probe password and require operator-supplied LIVE_EGRESS_PROBE_PASSWORD; API typecheck, secret search, formatting, and diff checks passed
+2026-09-08T17:29:54Z | [P1][API/KILLSWITCH] initialize missing org_settings before kill-switch mutations so new organizations cannot receive false success; API suite 321 tests, typecheck, formatting, and diff checks passed
