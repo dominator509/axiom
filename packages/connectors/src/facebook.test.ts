@@ -383,6 +383,20 @@ describe('revoke', () => {
     ).toBe(true);
   });
 
+  it('accepts empty successful responses from both permission deletes', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new FacebookConnector(AUTH);
+    await expect(c.revoke()).resolves.toBeUndefined();
+    expect(c.auth.accessToken).toBe('');
+    expect(c.auth.refreshToken).toBeUndefined();
+    expect(c.auth.expiresAt).toBe(0);
+  });
+
   it('warns and still clears auth when permission deletion fails', async () => {
     const fetchMock = vi
       .fn()

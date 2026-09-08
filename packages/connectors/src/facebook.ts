@@ -313,7 +313,10 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
         `Facebook permissions deletion warned: ${response.status} — ${redactProviderText(body)}`,
       );
     } else {
-      const result = (await response.json()) as FbPermissionsResponse;
+      const responseBody = await response.text();
+      const result = responseBody.trim()
+        ? (JSON.parse(responseBody) as FbPermissionsResponse)
+        : { success: true };
       this.log('info', 'revoke', `Facebook permissions revoked for page ${pageId}`, {
         success: result.success,
       });
