@@ -171,13 +171,8 @@ describe('sendCard', () => {
     (channel as any).send = mockSend;
     vi.spyOn(adapter.getClient().channels, 'fetch').mockResolvedValue(channel);
 
-    const card = makeCard(
-      ['approve', 'reject', 'hold', 'edit_caption', 'change_price'],
-    );
-    await adapter.sendCard(
-      'channel-1',
-      card,
-    );
+    const card = makeCard(['approve', 'reject', 'hold', 'edit_caption', 'change_price']);
+    await adapter.sendCard('channel-1', card);
 
     const [payload] = mockSend.mock.calls[0];
     const row = payload.components[0] as ActionRowBuilder<ButtonBuilder>;
@@ -209,22 +204,32 @@ describe('sendCard', () => {
     });
   });
 
-  it('does not send when the resolved channel is not a TextChannel', async () => {
-    const mockSend = vi.fn();
-    // A DM channel is not a TextChannel — must not trigger a send
-    const dmChannel = { send: mockSend } as unknown as TextChannel;
-    (dmChannel as any).send = mockSend;
-    vi.spyOn(adapter.getClient().channels, 'fetch').mockResolvedValue(dmChannel);
+  it('fails closed when the resolved channel is not sendable', async () => {
+    const channel = {} as unknown as TextChannel;
+    vi.spyOn(adapter.getClient().channels, 'fetch').mockResolvedValue(channel);
 
-    await adapter.sendCard('channel-1', makeCard(['approve']));
-    expect(mockSend).not.toHaveBeenCalled();
+    await expect(adapter.sendCard('channel-1', makeCard(['approve']))).rejects.toThrow(
+      'Discord relay channel channel-1 is not sendable',
+    );
   });
 
-  it('does not send when fetch resolves to undefined', async () => {
+  it('sends through any resolved channel that exposes send', async () => {
+    const mockSend = vi.fn().mockResolvedValue({});
+    const threadLikeChannel = { send: mockSend } as unknown as TextChannel;
+    vi.spyOn(adapter.getClient().channels, 'fetch').mockResolvedValue(threadLikeChannel);
+
+    await adapter.sendCard('channel-1', makeCard(['approve']));
+
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when fetch resolves to undefined', async () => {
     const fetchSpy = vi
       .spyOn(adapter.getClient().channels, 'fetch')
       .mockResolvedValue(undefined as any);
-    await adapter.sendCard('missing', makeCard(['approve']));
+    await expect(adapter.sendCard('missing', makeCard(['approve']))).rejects.toThrow(
+      'Discord relay channel missing is not sendable',
+    );
     expect(fetchSpy).toHaveBeenCalledWith('missing');
   });
 

@@ -6,7 +6,6 @@ import {
   ButtonStyle,
   EmbedBuilder,
   Interaction,
-  TextChannel,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -33,7 +32,10 @@ export class DiscordAdapter {
   private commandRouter?: CommandRouter;
   private interactionHandlerRegistered = false;
 
-  constructor(private config: DiscordConfig, commandRouter?: CommandRouter) {
+  constructor(
+    private config: DiscordConfig,
+    commandRouter?: CommandRouter,
+  ) {
     this.client = new Client({
       intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
     });
@@ -45,10 +47,7 @@ export class DiscordAdapter {
     return this.client;
   }
 
-  onCommand(
-    action: CardAction,
-    handler: CommandHandler,
-  ): void {
+  onCommand(action: CardAction, handler: CommandHandler): void {
     this.handlers.set(action, handler);
   }
 
@@ -81,9 +80,17 @@ export class DiscordAdapter {
     }
 
     const channel = await this.client.channels.fetch(channelId);
-    if (channel instanceof TextChannel) {
-      await channel.send({ embeds: [embed], components: rows });
+    if (!channel || typeof (channel as { send?: unknown }).send !== 'function') {
+      throw new Error(`Discord relay channel ${channelId} is not sendable`);
     }
+
+    // Threads, news channels, and DMs can all be valid Discord destinations;
+    // the durable success state depends on the send promise, not on the
+    // concrete TextChannel class.
+    await (channel as { send: (payload: unknown) => Promise<unknown> }).send({
+      embeds: [embed],
+      components: rows,
+    });
   }
 
   async handleInteraction(interaction: Interaction): Promise<void> {
@@ -190,10 +197,7 @@ function isParameterizedAction(action: CardAction): action is 'edit_caption' | '
   return action === 'edit_caption' || action === 'reschedule';
 }
 
-function createActionModal(
-  action: 'edit_caption' | 'reschedule',
-  token: string,
-): ModalBuilder {
+function createActionModal(action: 'edit_caption' | 'reschedule', token: string): ModalBuilder {
   const modal = new ModalBuilder()
     .setCustomId(token)
     .setTitle(action === 'edit_caption' ? 'Edit caption' : 'Reschedule publish');
