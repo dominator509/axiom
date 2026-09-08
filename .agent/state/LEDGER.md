@@ -220,3 +220,4 @@
 2026-09-08T19:59:52Z | [P1][SECURITY/RBAC] load server-assigned auth_user roles into REST sessions and enforce owner-only network/egress/kill-switch/org controls plus operational mutation guards; auth 16/16, API 324/324, typecheck, lint, preflight, and verify passed; Windows standalone Next build blocked by symlink EPERM
 2026-09-08T20:15:04Z | [P1][MCP] Enforce the organization global kill switch before CRM MCP tool dispatch; add RLS-scoped regression coverage.
 2026-09-08T20:25:14Z | [P1][MCP] Align capability-token default TTL with L2.11's 15-minute expiry boundary and cover it with regression assertions.
+2026-09-08T20:42:57Z | [P1][MCP/AUDIT] Rate-limit /api/mcp and reserve a hash-chained audit entry before every MCP tool dispatch; 2 focused audit tests, API 324/324, API and MCP builds/typechecks, lint, formatting, and diff checks passed; full local MCP DB suite requires PostgreSQL

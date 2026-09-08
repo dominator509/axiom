@@ -31,6 +31,24 @@ export interface McpError {
 
 export type McpResponse = McpSuccess | McpError;
 
+/** Durable audit event emitted before an MCP tool executes. */
+export interface McpToolAuditEvent {
+  agentId: string;
+  modelId: string;
+  tier: Tier;
+  toolName: string;
+  requestId: string | number | null;
+}
+
+export interface McpServerOptions {
+  /**
+   * The API supplies the persistence-backed sink. Keeping the sink injected
+   * leaves the MCP package transport/domain focused while ensuring production
+   * dispatch cannot run before its audit reservation succeeds.
+   */
+  onToolCall?: (event: McpToolAuditEvent) => Promise<void> | void;
+}
+
 // ─── Server ─────────────────────────────────────────────────────────────────
 
 /**
@@ -47,11 +65,13 @@ export class McpServer {
   private readonly tier: Tier;
   private readonly modelId: string;
   private readonly permission: AgentPermission;
+  private readonly onToolCall?: McpServerOptions['onToolCall'];
 
-  constructor(permission: AgentPermission) {
+  constructor(permission: AgentPermission, options: McpServerOptions = {}) {
     this.permission = permission;
     this.tier = permission.tier;
     this.modelId = permission.modelId;
+    this.onToolCall = options.onToolCall;
   }
 
   /**
@@ -103,6 +123,7 @@ export class McpServer {
           const result = await this.callTool(
             params.name as string,
             (params.arguments ?? {}) as Record<string, unknown>,
+            id,
           );
           return this._respond(id, result);
         }
@@ -122,7 +143,19 @@ export class McpServer {
    * Call a specific tool by name with the given arguments.
    * Permission checks are delegated to the tool's handle() method.
    */
-  async callTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
+  async callTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    requestId: string | number | null = null,
+  ): Promise<unknown> {
+    await this.onToolCall?.({
+      agentId: this.permission.agentId,
+      modelId: this.modelId,
+      tier: this.tier,
+      toolName,
+      requestId,
+    });
+
     const tool = allTools[toolName];
     if (!tool) {
       throw new Error(`Unknown tool: ${toolName}`);
@@ -169,13 +202,17 @@ export class McpServer {
  *
  * @param request - The HTTP request (or simulated object) containing
  *   authentication credentials.
+ * @param options - Optional production hooks for durable request accounting.
  * @returns A new McpServer scoped to the authenticated agent's tier and model.
  * @throws If authentication fails.
  */
-export function createMcpServer(request: {
-  headers?: Record<string, string>;
-  params?: Record<string, unknown>;
-}): McpServer {
+export function createMcpServer(
+  request: {
+    headers?: Record<string, string>;
+    params?: Record<string, unknown>;
+  },
+  options: McpServerOptions = {},
+): McpServer {
   const permission = authenticateAgent(request);
-  return new McpServer(permission);
+  return new McpServer(permission, options);
 }

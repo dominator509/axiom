@@ -1,4 +1,5 @@
 export { McpServer, createMcpServer } from './server.js';
+export type { McpServerOptions, McpToolAuditEvent } from './server.js';
 export { Tier, TierResolution, authenticateAgent, createCapabilityToken } from './auth.js';
 export type { AgentPermission } from './auth.js';
 export { getManifest } from './manifest.js';

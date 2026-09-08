@@ -28,7 +28,7 @@ import { consentRouter } from './routes/consent.js';
 import { auth, requireAuth, requireMutationRole, requireRole } from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { asPlatform, enqueueJob, registerConnectors, resolveCapabilities } from '@axiom/worker';
-import { createMcpServer, isModelKillSwitchEnabled } from '@axiom/mcp-server';
+import { createMcpServer, isModelKillSwitchEnabled, withModelOrg } from '@axiom/mcp-server';
 import {
   TelegramAdapter,
   DiscordAdapter,
@@ -482,6 +482,9 @@ app.use('*', secureHeaders());
 // L3.0 contract: correlation_id on every request, then per-token rate limits.
 app.use('*', correlationId);
 app.use('/api/v1/*', rateLimit());
+// MCP is an authenticated agent surface, but it is outside the REST prefix;
+// apply the same per-credential bucket before JSON-RPC dispatch.
+app.use('/api/mcp', rateLimit());
 app.onError(onError);
 
 // Health check
@@ -694,7 +697,20 @@ app.post('/api/mcp', async (c) => {
   }
   let server: ReturnType<typeof createMcpServer>;
   try {
-    server = createMcpServer({ headers, params: body as Record<string, unknown> });
+    server = createMcpServer(
+      { headers, params: body as Record<string, unknown> },
+      {
+        onToolCall: async ({ agentId, modelId, tier, toolName, requestId }) => {
+          await withModelOrg(modelId, async (tx, orgId) => {
+            await writeAudit(tx, orgId, `mcp:${agentId}`, 'mcp.tool.call', toolName, {
+              modelId,
+              tier,
+              requestId,
+            });
+          });
+        },
+      },
+    );
   } catch {
     return c.json(
       { jsonrpc: '2.0', error: { code: -32000, message: 'Authentication failed' }, id: null },
@@ -714,7 +730,11 @@ app.post('/api/mcp', async (c) => {
     return c.json(response);
   } catch {
     return c.json(
-      { jsonrpc: '2.0', error: { code: -32603, message: 'MCP service unavailable' }, id: requestId },
+      {
+        jsonrpc: '2.0',
+        error: { code: -32603, message: 'MCP service unavailable' },
+        id: requestId,
+      },
       503,
     );
   }

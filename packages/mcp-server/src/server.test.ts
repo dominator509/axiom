@@ -1,6 +1,12 @@
 // ─── McpServer: JSON-RPC dispatch / createMcpServer — Vitest Suite ───
 import { describe, it, expect } from 'vitest';
-import { McpServer, createMcpServer, type McpRequest, type McpResponse } from './server.js';
+import {
+  McpServer,
+  createMcpServer,
+  type McpRequest,
+  type McpResponse,
+  type McpToolAuditEvent,
+} from './server.js';
 import { Tier, createCapabilityToken, authenticateAgent, type AgentPermission } from './auth.js';
 
 // A model that exists in the live DB — the tools are DB-backed (H-2), so the
@@ -43,6 +49,56 @@ describe('McpServer.handleRequest — protocol surface', () => {
       id: 1,
     });
     expect(res).toEqual({ jsonrpc: '2.0', result: { status: 'pong' }, id: 1 });
+  });
+
+  it('runs the injected audit hook before a tool call', async () => {
+    const events: McpToolAuditEvent[] = [];
+    const server = new McpServer(permissionFor(Tier.Viewer), {
+      onToolCall: (event) => {
+        events.push(event);
+      },
+    });
+
+    const response = await server.handleRequest({
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: { name: 'audit_probe', arguments: {} },
+      id: 'audit-1',
+    });
+
+    expect(response).toMatchObject({
+      error: { code: -32603, message: 'Internal error' },
+      id: 'audit-1',
+    });
+    expect(events).toEqual([
+      {
+        agentId: 'agent-1',
+        modelId: MODEL,
+        tier: Tier.Viewer,
+        toolName: 'audit_probe',
+        requestId: 'audit-1',
+      },
+    ]);
+  });
+
+  it('fails closed when the audit hook cannot reserve the call', async () => {
+    const server = new McpServer(permissionFor(Tier.Viewer), {
+      onToolCall: () => {
+        throw new Error('audit unavailable');
+      },
+    });
+
+    const response = await server.handleRequest({
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: { name: 'analytics_query', arguments: { modelId: MODEL } },
+      id: 'audit-2',
+    });
+
+    expect(response).toMatchObject({
+      error: { code: -32603, message: 'Internal error' },
+      id: 'audit-2',
+    });
   });
 
   it('lists tools for listTools and tools/list', async () => {
