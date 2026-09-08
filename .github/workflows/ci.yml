@@ -301,6 +301,7 @@ jobs:
 
           ci_auth_value='ci-authentication-value-012345678901'
           ci_relay_value='ci-relay-value-012345678901234567'
+          ci_egress_value='ci-egress-plane-012345678901234567890123'
 
           export MIGRATOR_DATABASE_URL=postgresql://axiom:changeme@127.0.0.1:5432/axiom_test
           export PGPASSWORD=changeme
@@ -311,7 +312,7 @@ jobs:
           docker run --detach --name axiom-egress-ci --network host --cap-add=NET_ADMIN \
             --env NODE_ENV=production \
             --env EGRESS_DATABASE_URL=postgresql://axiom:changeme@127.0.0.1:5432/axiom_test \
-            --env EGRESS_PLANE_TOKEN=ci-egress-plane-token-012345678901234567890123 \
+            --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
             --env EGRESS_DEK=0000000000000000000000000000000000000000000000000000000000000000 \
             axiom-egress-plane:ci
           docker run --detach --name axiom-hono-ci --network host \

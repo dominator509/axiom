@@ -232,3 +232,4 @@
 2026-09-08T23:26:16Z | [P1][CI/CD] hosted GitHub Actions run 34290035962 (commit 9a4ce7c5d630f62e488bf2edd5fa2593443d4dfc) passed typecheck, lint, test, build, security, and container jobs; PR #14 remains open and unmerged
 2026-09-08T23:33:32Z | [P1][SECURITY/EGRESS] production egress boot now fails closed when token, database URL, DEK, or initial PostgreSQL connection is unavailable; cargo test -p egress-plane passed (34 unit, 9 integration)
 2026-09-08T23:37:25Z | [P1][CI/CD] hosted run 34291230341 caught Rust MSRV 1.81 incompatibility in egress config; replaced Option::is_none_or with an MSRV-safe match; local clippy and cargo test -p egress-plane pass
+2026-09-08T23:44:24Z | [P1][CI/CD] removed the CI-only egress token literal from tracked workflow data; hosted run 34291500880 passed dependency checks and failed only the hardcoded-secret scan; explicit Git Bash scan now passes that gate
