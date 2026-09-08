@@ -233,7 +233,9 @@ export class XConnector extends BaseConnector implements SocialConnector {
 
     if (!initResp.ok) {
       const initBody = await initResp.text().catch(() => '');
-      throw new Error(`X media INIT failed: HTTP ${initResp.status} — ${initBody}`);
+      throw new Error(
+        `X media INIT failed: HTTP ${initResp.status} — ${redactProviderText(initBody)}`,
+      );
     }
 
     const initData = (await initResp.json()) as MediaInitResponse;
@@ -266,7 +268,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
       if (!appendResp.ok) {
         const appendBody = await appendResp.text().catch(() => '');
         throw new Error(
-          `X media APPEND failed at segment ${segmentIndex}: HTTP ${appendResp.status} — ${appendBody}`,
+          `X media APPEND failed at segment ${segmentIndex}: HTTP ${appendResp.status} — ${redactProviderText(appendBody)}`,
         );
       }
 
@@ -290,7 +292,9 @@ export class XConnector extends BaseConnector implements SocialConnector {
 
     if (!finalizeResp.ok) {
       const finalizeBody = await finalizeResp.text().catch(() => '');
-      throw new Error(`X media FINALIZE failed: HTTP ${finalizeResp.status} — ${finalizeBody}`);
+      throw new Error(
+        `X media FINALIZE failed: HTTP ${finalizeResp.status} — ${redactProviderText(finalizeBody)}`,
+      );
     }
 
     const finalizeData = (await finalizeResp.json()) as MediaFinalizeResponse;

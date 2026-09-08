@@ -325,7 +325,7 @@ describe('publish', () => {
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
       .mockResolvedValueOnce(jsonResponse(INIT_OK))
-      .mockResolvedValueOnce(jsonResponse({ error: 'quota' }, 413));
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'tiktok-secret' }, 413));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new TikTokConnector(AUTH);
@@ -333,6 +333,7 @@ describe('publish', () => {
 
     expect(result.state).toBe('failed');
     expect(result.error).toContain('TikTok video upload failed: 413');
+    expect(result.error).not.toContain('tiktok-secret');
   });
 
   it('returns a failed result when status polling reports an API error', async () => {

@@ -296,7 +296,7 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
-      .mockResolvedValueOnce(jsonResponse({ error: { message: 'denied' } }, 403));
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'youtube-secret' }, 403));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new YouTubeConnector(AUTH);
@@ -304,6 +304,7 @@ describe('publish', () => {
 
     expect(result.state).toBe('failed');
     expect(result.error).toContain('YouTube resumable upload init failed: 403');
+    expect(result.error).not.toContain('youtube-secret');
   });
 
   it('returns a failed result when no Location header is returned', async () => {
@@ -338,7 +339,7 @@ describe('publish', () => {
       .fn()
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
       .mockResolvedValueOnce(initResponse('https://upload.googleapis.com/up'))
-      .mockResolvedValueOnce(jsonResponse({ error: 'quota' }, 503));
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'youtube-secret' }, 503));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new YouTubeConnector(AUTH);
@@ -346,6 +347,7 @@ describe('publish', () => {
 
     expect(result.state).toBe('failed');
     expect(result.error).toContain('YouTube video upload failed: 503');
+    expect(result.error).not.toContain('youtube-secret');
   });
 
   it('returns a failed result on network errors', async () => {

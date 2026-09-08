@@ -194,3 +194,4 @@
 2026-09-08T13:12:34Z | [P1][CONNECTOR/TIKTOK] remove unsupported follower-gain metric from TikTok capability and output; connectors 274/274, worker 64/64, typecheck, lint, formatting, and diff checks passed
 2026-09-08T13:25:18Z | [P1][CONNECTOR/REDDIT] remove unsupported share-count metric from Reddit capability and output; connectors 274/274, worker 64/64, typecheck, lint, formatting, and diff checks passed
 2026-09-08T13:51:00Z | [P1][SECURITY/API] stop exposing raw database/network exception text from egress routes; egress 25/25, typecheck, formatting, and diff checks passed
+2026-09-08T14:09:51Z | [P1][SECURITY/CONNECTORS] redact provider response bodies from YouTube, TikTok, and X upload errors before durable worker failure storage; connectors 274/274, typecheck, lint, formatting, verify, and diff checks passed

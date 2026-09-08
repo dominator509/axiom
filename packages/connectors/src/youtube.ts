@@ -143,7 +143,7 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
       if (!initResponse.ok) {
         const initBody = await initResponse.text().catch(() => '');
         throw new Error(
-          `YouTube resumable upload init failed: ${initResponse.status} — ${initBody}`,
+          `YouTube resumable upload init failed: ${initResponse.status} — ${redactProviderText(initBody)}`,
         );
       }
 
@@ -166,7 +166,7 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
       if (!uploadResp.ok) {
         const uploadBody = await uploadResp.text().catch(() => '');
         throw new Error(
-          `YouTube video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${uploadBody}`,
+          `YouTube video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${redactProviderText(uploadBody)}`,
         );
       }
 

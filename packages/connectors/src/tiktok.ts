@@ -195,7 +195,7 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
         if (!uploadResp.ok) {
           const uploadBody = await uploadResp.text().catch(() => '');
           throw new Error(
-            `TikTok video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${uploadBody}`,
+            `TikTok video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${redactProviderText(uploadBody)}`,
           );
         }
 

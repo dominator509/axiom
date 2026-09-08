@@ -324,7 +324,7 @@ describe('publish', () => {
       .mockResolvedValueOnce(
         new Response('data', { status: 200, headers: { 'Content-Type': 'image/jpeg' } }),
       )
-      .mockResolvedValueOnce(jsonResponse({ error: 'no' }, 500));
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'x-secret' }, 500));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new XConnector(AUTH);
@@ -332,6 +332,7 @@ describe('publish', () => {
 
     expect(result.state).toBe('failed');
     expect(result.error).toContain('X media INIT failed: HTTP 500');
+    expect(result.error).not.toContain('x-secret');
   });
 
   it('returns a failed result when a media APPEND fails', async () => {
@@ -341,7 +342,7 @@ describe('publish', () => {
         new Response('data', { status: 200, headers: { 'Content-Type': 'image/jpeg' } }),
       )
       .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: 4 }))
-      .mockResolvedValueOnce(jsonResponse({ error: 'too big' }, 413));
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'x-secret' }, 413));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new XConnector(AUTH);
@@ -349,6 +350,7 @@ describe('publish', () => {
 
     expect(result.state).toBe('failed');
     expect(result.error).toContain('X media APPEND failed at segment 0: HTTP 413');
+    expect(result.error).not.toContain('x-secret');
   });
 
   it('returns a failed result when the media FINALIZE fails', async () => {
@@ -359,7 +361,7 @@ describe('publish', () => {
       )
       .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: 4 }))
       .mockResolvedValueOnce(jsonResponse({}))
-      .mockResolvedValueOnce(jsonResponse({ error: 'nope' }, 500));
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'x-secret' }, 500));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new XConnector(AUTH);
@@ -367,6 +369,7 @@ describe('publish', () => {
 
     expect(result.state).toBe('failed');
     expect(result.error).toContain('X media FINALIZE failed: HTTP 500');
+    expect(result.error).not.toContain('x-secret');
   });
 
   it('returns a failed result when the tweet creation fails', async () => {
