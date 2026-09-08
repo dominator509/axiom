@@ -329,6 +329,13 @@ describe('apiDelete', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok');
   });
 
+  it('accepts a successful empty response such as HTTP 204', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+    const c = new TestConnector({ accessToken: 'tok' });
+    await expect(c.del('https://api.example.com/v1/things/1')).resolves.toBeUndefined();
+  });
+
   it('throws on non-ok responses', async () => {
     vi.stubGlobal(
       'fetch',

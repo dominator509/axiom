@@ -346,6 +346,8 @@ export abstract class BaseConnector implements SocialConnector {
       throw new Error(`API DELETE ${safeUrl} failed: ${response.status} ${response.statusText}`);
     }
 
-    return response.json() as Promise<T>;
+    const responseBody = await response.text();
+    if (responseBody.trim().length === 0) return undefined as T;
+    return JSON.parse(responseBody) as T;
   }
 }
