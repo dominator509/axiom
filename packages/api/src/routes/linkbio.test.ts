@@ -170,7 +170,13 @@ describe('GET /models/:modelId/linkbio/analytics', () => {
 
 describe('POST /linkbio/clicks', () => {
   it('records a click (200)', async () => {
-    mockState.result = [{ id: PROVIDER_ID, enabled: true }];
+    mockState.result = [
+      {
+        id: PROVIDER_ID,
+        enabled: true,
+        config: { links: [{ label: 'Fanvue', url: 'https://fanvue.com/luna' }] },
+      },
+    ];
     const res = await appWithOrg(ORG_ID).request('/linkbio/clicks', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -183,6 +189,22 @@ describe('POST /linkbio/clicks', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.success).toBe(true);
+  });
+
+  it('rejects a target that is not configured for the provider', async () => {
+    mockState.result = [
+      {
+        id: PROVIDER_ID,
+        enabled: true,
+        config: { links: [{ label: 'Fanvue', url: 'https://fanvue.com/luna' }] },
+      },
+    ];
+    const res = await appWithOrg(ORG_ID).request('/linkbio/clicks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ providerId: PROVIDER_ID, target: 'https://attacker.example' }),
+    });
+    expect(res.status).toBe(400);
   });
 
   it('rejects clicks for a provider outside the organization', async () => {

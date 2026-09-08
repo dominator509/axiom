@@ -326,8 +326,8 @@ router.post(
     'json',
     z.object({
       providerId: z.string().uuid(),
-      target: z.string().min(1),
-      source: z.string().optional(),
+      target: z.string().min(1).max(2048),
+      source: z.string().max(120).optional(),
     }),
   ),
   async (c) => {
@@ -337,7 +337,7 @@ router.post(
 
     const recorded = await withOrgContext(orgId, async (tx) => {
       const providers = await tx
-        .select({ id: schema.linkbioProvider.id })
+        .select({ id: schema.linkbioProvider.id, config: schema.linkbioProvider.config })
         .from(schema.linkbioProvider)
         .where(
           and(
@@ -347,7 +347,11 @@ router.post(
           ),
         )
         .limit(1);
-      if (providers.length === 0) return false;
+      if (providers.length === 0) return { ok: false as const, reason: 'provider' as const };
+      const provider = providers[0];
+      if (!nativeLinks(provider.config).some((link) => link.url === body.target)) {
+        return { ok: false as const, reason: 'target' as const };
+      }
       await tx.insert(schema.linkbioClick).values({
         orgId,
         providerId: body.providerId,
@@ -355,9 +359,13 @@ router.post(
         source: body.source ?? null,
         ts: new Date(),
       });
-      return true;
+      return { ok: true as const };
     });
-    if (!recorded) return apiError(c, 404, statusTitle(404), 'provider not enabled');
+    if (!recorded.ok) {
+      return recorded.reason === 'target'
+        ? apiError(c, 400, statusTitle(400), 'target is not configured for this provider')
+        : apiError(c, 404, statusTitle(404), 'provider not enabled');
+    }
     return c.json({ success: true });
   },
 );
