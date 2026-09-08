@@ -251,6 +251,7 @@ jobs:
         run: |
           docker build --file infra/Dockerfile.hono --tag axiom-hono:ci .
           docker build --file infra/Dockerfile.next --tag axiom-dashboard:ci .
+          docker build --file infra/Dockerfile.worker --tag axiom-worker:ci .
           docker build --file infra/Dockerfile.rust --tag axiom-egress-plane:ci .
 
       - name: Smoke-test deployment containers
@@ -259,7 +260,7 @@ jobs:
           set -euo pipefail
 
           cleanup() {
-            docker rm --force axiom-egress-ci axiom-hono-ci axiom-dashboard-ci >/dev/null 2>&1 || true
+            docker rm --force axiom-egress-ci axiom-hono-ci axiom-dashboard-ci axiom-worker-ci >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
 
@@ -293,6 +294,12 @@ jobs:
           ci_auth_value='ci-authentication-value-012345678901'
           ci_relay_value='ci-relay-value-012345678901234567'
 
+          export MIGRATOR_DATABASE_URL=postgresql://axiom:changeme@127.0.0.1:5432/axiom_test
+          export PGPASSWORD=changeme
+          pnpm migrate
+          psql -h 127.0.0.1 -U axiom -d axiom_test -v ON_ERROR_STOP=1 \
+            -c "ALTER ROLE axiom_app WITH LOGIN PASSWORD 'axiom_app'"
+
           docker run --detach --name axiom-egress-ci --network host --cap-add=NET_ADMIN axiom-egress-plane:ci
           docker run --detach --name axiom-hono-ci --network host \
             --env NODE_ENV=production \
@@ -307,10 +314,17 @@ jobs:
             --env PORT=3000 \
             --env HOSTNAME=0.0.0.0 \
             axiom-dashboard:ci
+          docker run --detach --name axiom-worker-ci --network host \
+            --env NODE_ENV=production \
+            --env DATABASE_URL=postgresql://axiom_app:axiom_app@127.0.0.1:5432/axiom_test \
+            --env RELAY_SECRET="$ci_relay_value" \
+            --env AXIOM_SERVICE_NAME=worker-ci \
+            axiom-worker:ci
 
           wait_for_health axiom-egress-ci
           wait_for_health axiom-hono-ci
           wait_for_health axiom-dashboard-ci
+          wait_for_health axiom-worker-ci
 
           # Liveness only proves that the Hono process is serving HTTP. The
           # readiness endpoint performs the real database dependency check;
