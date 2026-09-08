@@ -157,18 +157,16 @@ describe('McpServer.callTool — success paths', () => {
     });
   });
 
-  it('executes network_configure for an autonomous agent', async () => {
+  it('fails closed when network configuration has no durable approval executor', async () => {
     const server = makeServer(Tier.Autonomous);
-    const result = await server.callTool('network_configure', {
-      modelId: MODEL,
-      config: { crossPosting: true, autoReplyThreshold: 0.8, repostCadenceHours: 12 },
-    });
-    expect(result).toMatchObject({
-      success: true,
-      requiresApproval: true,
-      status: 'pending_approval',
-      config: { crossPosting: true, autoReplyThreshold: 0.8, repostCadenceHours: 12 },
-    });
+    await expect(
+      server.callTool('network_configure', {
+        modelId: MODEL,
+        config: { crossPosting: true, autoReplyThreshold: 0.8, repostCadenceHours: 12 },
+      }),
+    ).rejects.toThrow(
+      'Network configuration is unavailable: no durable dashboard/Relay approval executor is configured',
+    );
   });
 
   it('validates inbox reply requirements through the server', async () => {

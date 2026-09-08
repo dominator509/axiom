@@ -213,3 +213,4 @@
 2026-09-08T17:59:23Z | [P1][API/QUEUE] cancel post targets transactionally before provider handoff, preserve unknown external outcomes, and make canceled targets terminal worker no-ops; API 324 tests, worker 64, core 10, typecheck, lint, API/worker build, formatting, and diff checks passed
 2026-09-08T18:17:37Z | [P1][API/QUEUE] gate bundle approval with compare-and-set before creating post targets or publish jobs; API 324 tests, typecheck, lint, build, Prettier, and diff checks passed
 2026-09-08T18:28:37Z | [P1][MCP/DELIVERY] fail closed for inbox replies until a real provider delivery worker exists; focused inbox tests 2/2, typecheck, lint, build, Prettier, and diff checks passed; full local MCP suite requires PostgreSQL
+2026-09-08T18:41:08Z | [P1][MCP/NETWORK] fail closed on network_configure because no durable dashboard/Relay approval executor consumes pending changes; focused regression 1/1, typecheck, lint, build, Prettier, and diff checks passed
