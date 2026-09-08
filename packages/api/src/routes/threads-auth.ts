@@ -9,7 +9,12 @@ import { Hono } from 'hono';
 import { randomBytes } from 'node:crypto';
 import type { AppBindings } from '../index.js';
 import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
-import { clearOAuthStateCookie, getOAuthStateCookie, setOAuthStateCookie } from './oauth-state.js';
+import {
+  clearOAuthStateCookie,
+  getOAuthStateCookie,
+  resolveOAuthCookieSecret,
+  setOAuthStateCookie,
+} from './oauth-state.js';
 import { persistOAuthConnection } from './oauth-connection.js';
 
 const THREADS_APP_ID = process.env.THREADS_CLIENT_ID || '';
@@ -20,7 +25,7 @@ const REDIRECT_URI = new URL(
 ).toString();
 const OAUTH_STATE_COOKIE = 'axiom_threads_oauth_state';
 const OAUTH_COOKIE_PATH = '/api/v1/connectors/threads';
-const OAUTH_COOKIE_SECRET = process.env.BETTER_AUTH_SECRET || THREADS_APP_SECRET;
+const OAUTH_STATE_KEY = resolveOAuthCookieSecret();
 
 const router = new Hono<AppBindings>();
 
@@ -51,7 +56,7 @@ router.get('/authorize', async (c) => {
     c,
     OAUTH_STATE_COOKIE,
     { state, orgId, modelId, issuedAt: Date.now() },
-    OAUTH_COOKIE_SECRET,
+    OAUTH_STATE_KEY,
     OAUTH_COOKIE_PATH,
   );
   authUrl.searchParams.set('state', state);
@@ -80,7 +85,7 @@ router.get('/callback', async (c) => {
     return apiError(c, 500, statusTitle(500), 'Threads client credentials not configured');
   }
 
-  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_COOKIE_SECRET);
+  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_STATE_KEY);
   if (!state || !pending || pending.state !== state) {
     return apiError(c, 400, statusTitle(400), 'Invalid or missing state (CSRF check failed)');
   }

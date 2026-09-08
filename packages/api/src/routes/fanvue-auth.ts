@@ -9,7 +9,12 @@ import { randomBytes, createHash } from 'node:crypto';
 import type { AppBindings } from '../index.js';
 import { connectorForConnection } from '@axiom/worker';
 import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
-import { clearOAuthStateCookie, getOAuthStateCookie, setOAuthStateCookie } from './oauth-state.js';
+import {
+  clearOAuthStateCookie,
+  getOAuthStateCookie,
+  resolveOAuthCookieSecret,
+  setOAuthStateCookie,
+} from './oauth-state.js';
 import {
   loadOAuthConnection,
   persistOAuthConnection,
@@ -45,7 +50,7 @@ const FANVUE_SCOPES = [
 
 const OAUTH_STATE_COOKIE = 'axiom_fanvue_oauth_state';
 const OAUTH_COOKIE_PATH = '/api/v1/connectors/fanvue';
-const OAUTH_COOKIE_SECRET = process.env.BETTER_AUTH_SECRET || FANVUE_CLIENT_SECRET;
+const OAUTH_STATE_KEY = resolveOAuthCookieSecret();
 
 const router = new Hono<AppBindings>();
 
@@ -85,7 +90,7 @@ router.get('/authorize', async (c) => {
     c,
     OAUTH_STATE_COOKIE,
     { state, verifier, orgId, modelId, issuedAt: Date.now() },
-    OAUTH_COOKIE_SECRET,
+    OAUTH_STATE_KEY,
     OAUTH_COOKIE_PATH,
   );
 
@@ -119,7 +124,7 @@ router.get('/callback', async (c) => {
     return apiError(c, 400, statusTitle(400), 'Missing authorization code');
   }
 
-  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_COOKIE_SECRET);
+  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_STATE_KEY);
   if (!state || !pending || pending.state !== state || !pending.verifier) {
     return apiError(c, 400, statusTitle(400), 'Invalid or missing state (CSRF check failed)');
   }

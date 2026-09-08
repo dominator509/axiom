@@ -6,6 +6,22 @@ const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const OAUTH_STATE_MAX_AGE_SECONDS = OAUTH_STATE_TTL_MS / 1000;
 const IV_BYTES = 12;
 
+/**
+ * Resolve the secret used to seal OAuth state cookies. Provider client
+ * secrets are not interchangeable with the application auth secret: using
+ * one as a fallback would couple CSRF protection to an optional connector
+ * and could silently weaken the boundary when auth configuration is wrong.
+ */
+export function resolveOAuthCookieSecret(
+  env: Partial<Pick<NodeJS.ProcessEnv, 'BETTER_AUTH_SECRET' | 'NODE_ENV'>> = process.env,
+): string {
+  const secret = env.BETTER_AUTH_SECRET?.trim();
+  if (env.NODE_ENV === 'production' && (!secret || secret.length < 32)) {
+    throw new Error('BETTER_AUTH_SECRET must be at least 32 characters in production');
+  }
+  return secret ?? 'axiom-dev-secret-change-me';
+}
+
 export type OAuthStatePayload = {
   state: string;
   verifier?: string;
