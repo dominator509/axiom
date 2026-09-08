@@ -3,7 +3,7 @@
 // WORKER_MAX_ATTEMPTS. Requires DATABASE_URL (via @axiom/db).
 
 import { registerConnectors } from './connectors.js';
-import { installRuntimeFailureHandlers } from '@axiom/core';
+import { installRuntimeFailureHandlers, resolveRelaySecret } from '@axiom/core';
 import { runWorker } from './worker.js';
 
 installRuntimeFailureHandlers({
@@ -11,6 +11,12 @@ installRuntimeFailureHandlers({
   process,
   write: (entry) => console.error(JSON.stringify(entry)),
 });
+
+// Validate deployment-wide relay configuration before the worker can claim
+// any job. Relay executors validate again at the side-effect boundary, but a
+// production worker with a weak secret must fail during boot rather than
+// appear healthy while processing unrelated queue work.
+resolveRelaySecret(process.env);
 
 // Register the real platform connectors before the loop starts so
 // publish.target / metrics.poll can dispatch (fail-closed when no token).
