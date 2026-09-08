@@ -28,7 +28,7 @@ import { consentRouter } from './routes/consent.js';
 import { auth, requireAuth, requireMutationRole, requireRole } from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { asPlatform, enqueueJob, registerConnectors, resolveCapabilities } from '@axiom/worker';
-import { createMcpServer } from '@axiom/mcp-server';
+import { createMcpServer, isModelKillSwitchEnabled } from '@axiom/mcp-server';
 import {
   TelegramAdapter,
   DiscordAdapter,
@@ -692,14 +692,30 @@ app.post('/api/mcp', async (c) => {
   } catch {
     // empty body → params fallback only
   }
+  let server: ReturnType<typeof createMcpServer>;
   try {
-    const server = createMcpServer({ headers, params: body as Record<string, unknown> });
-    const response = await server.handleRequest(body as never);
-    return c.json(response);
+    server = createMcpServer({ headers, params: body as Record<string, unknown> });
   } catch {
     return c.json(
       { jsonrpc: '2.0', error: { code: -32000, message: 'Authentication failed' }, id: null },
       401,
+    );
+  }
+  const requestId =
+    typeof body.id === 'string' || typeof body.id === 'number' || body.id === null ? body.id : null;
+  try {
+    if (await isModelKillSwitchEnabled(server.getModelId())) {
+      return c.json(
+        { jsonrpc: '2.0', error: { code: -32003, message: 'MCP surface disabled' }, id: requestId },
+        423,
+      );
+    }
+    const response = await server.handleRequest(body as never);
+    return c.json(response);
+  } catch {
+    return c.json(
+      { jsonrpc: '2.0', error: { code: -32603, message: 'MCP service unavailable' }, id: requestId },
+      503,
     );
   }
 });
