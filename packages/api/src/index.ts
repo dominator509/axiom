@@ -58,6 +58,7 @@ import {
 import { sql, eq, and } from 'drizzle-orm';
 import { withOrgContext, writeAudit } from './routes/helpers.js';
 import { relayCaptionUpdate, relayScheduledFor } from './relay-command-inputs.js';
+import { relayCommandAlreadyRecorded } from './relay-command-guard.js';
 import { validateProductionRelayConfig } from './production-config.js';
 import { timingSafeEqual } from 'node:crypto';
 
@@ -135,10 +136,16 @@ async function relayCommandExecutor(
 
   return withOrgContext(orgId, async (tx) => {
     const relayCards = await tx
-      .select({ channel: schema.relayCard.channel, externalRef: schema.relayCard.externalRef })
+      .select({
+        channel: schema.relayCard.channel,
+        externalRef: schema.relayCard.externalRef,
+      })
       .from(schema.relayCard)
       .where(and(eq(schema.relayCard.id, cardId), eq(schema.relayCard.orgId, orgId)))
-      .limit(1);
+      .limit(1)
+      // Serialize callbacks for one card so the durable command check below
+      // closes the race between duplicate provider deliveries.
+      .for('update');
     const relayCard = relayCards[0];
     if (!relayCard) throw new Error(`relay command: card ${cardId} not found`);
     if (
@@ -146,6 +153,13 @@ async function relayCommandExecutor(
       (context.channel !== relayCard.channel || context.sourceId !== relayCard.externalRef)
     ) {
       throw new Error('relay command: source is not bound to this relay card');
+    }
+
+    if (await relayCommandAlreadyRecorded(tx, orgId, cardId, action)) {
+      // Provider callbacks may be replayed after an API restart. The durable
+      // ledger makes the signed command one-use across processes; report a
+      // successful no-op so the provider does not retry the same delivery.
+      return `relay command ${action} already processed`;
     }
 
     let note: string | undefined;
