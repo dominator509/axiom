@@ -67,7 +67,10 @@ export class TelegramConnector extends BaseConnector implements SocialConnector 
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
     return this.idempotentPublish(input, async () => {
-      const channelId = this.auth.externalUserId || '@channel';
+      const channelId = this.auth.externalUserId?.trim();
+      if (!channelId) {
+        throw new Error('Telegram externalUserId (channel ID or username) is required');
+      }
       const linkUrl = input.mediaUrls[0];
       const caption = input.caption || '';
       if (!linkUrl) throw new Error('Telegram requires a media URL for link sharing');

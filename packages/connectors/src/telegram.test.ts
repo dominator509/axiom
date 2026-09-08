@@ -130,21 +130,30 @@ describe('publish', () => {
     expect(result.error).toContain('Telegram sendMessage rejected (400): bad chat');
   });
 
-  it('falls back to @channel when externalUserId is missing', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse({ ok: true, result: { message_id: 7, chat: { id: -100, type: 'channel' } } }),
-      );
+  it('fails closed when externalUserId is missing', async () => {
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new TelegramConnector({ accessToken: '123:bot-token' });
-    await c.publish(input({ hashtags: undefined }));
-    const body = JSON.parse(
-      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
-    ) as Record<string, string>;
-    expect(body.chat_id).toBe('@channel');
-    expect(body.text).toBe('New update is live\n\nhttps://fanvue.com/post/1');
+    const result = await c.publish(input({ hashtags: undefined }));
+
+    expect(result.state).toBe('failed');
+    expect(result.error).toBe('Telegram externalUserId (channel ID or username) is required');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when externalUserId is only whitespace', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await new TelegramConnector({
+      accessToken: '123:bot-token',
+      externalUserId: '   ',
+    }).publish(input());
+
+    expect(result.state).toBe('failed');
+    expect(result.error).toBe('Telegram externalUserId (channel ID or username) is required');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('returns failed when the API rejects', async () => {
