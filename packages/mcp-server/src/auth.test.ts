@@ -5,7 +5,9 @@ import {
   tierAtLeast,
   createCapabilityToken,
   validateToken,
+  validateTokenAsync,
   revokeToken,
+  revokeTokenDurably,
   authenticateAgent,
   resolveHighestTier,
   TierResolution,
@@ -94,6 +96,35 @@ describe('createCapabilityToken / validateToken', () => {
     revokeToken(token);
     expect(validateToken(token)).toBeNull();
   });
+
+  it('binds tokens to the active signing key id', () => {
+    const previousKid = process.env.MCP_TOKEN_KID;
+    try {
+      process.env.MCP_TOKEN_KID = 'kid-a';
+      const token = createCapabilityToken(MODEL, Tier.Viewer, 'agent-kid');
+      expect(validateToken(token)).not.toBeNull();
+
+      process.env.MCP_TOKEN_KID = 'kid-b';
+      expect(validateToken(token)).toBeNull();
+    } finally {
+      if (previousKid === undefined) delete process.env.MCP_TOKEN_KID;
+      else process.env.MCP_TOKEN_KID = previousKid;
+    }
+  });
+
+  it('supports durable revocation shared across API instances', async () => {
+    const token = createCapabilityToken(MODEL, Tier.Manager, 'agent-durable');
+    const durableRevocations = new Set<string>();
+
+    await revokeTokenDurably(token, async ({ tokenId }) => {
+      durableRevocations.add(tokenId);
+    });
+
+    const permission = await validateTokenAsync(token, async (tokenId) =>
+      durableRevocations.has(tokenId),
+    );
+    expect(permission).toBeNull();
+  });
 });
 
 describe('authenticateAgent', () => {
@@ -146,9 +177,7 @@ describe('authenticateAgent', () => {
       authenticateAgent({ headers: { authorization: 'Bearer not-a-real-token' } }),
     ).toThrow('Authentication failed: invalid or expired token');
     const expired = createCapabilityToken(MODEL, Tier.Viewer, 'agent-9', -1);
-    expect(() =>
-      authenticateAgent({ headers: { authorization: `Bearer ${expired}` } }),
-    ).toThrow(
+    expect(() => authenticateAgent({ headers: { authorization: `Bearer ${expired}` } })).toThrow(
       'Authentication failed: invalid or expired token',
     );
   });

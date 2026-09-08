@@ -44,19 +44,28 @@ export interface AgentPermission {
   expiresAt: string | null;
 }
 
+export type TokenRevocationChecker = (tokenId: string) => Promise<boolean>;
+
+export type TokenRevocationWriter = (input: {
+  tokenId: string;
+  expiresAt: string;
+}) => Promise<void>;
+
 // ─── Capability state ──────────────────────────────────────────────────────
 // Tokens are signed and self-contained so they remain valid across process
-// restarts and multiple API instances. Only hashes are retained locally for
-// best-effort revocation and highest-tier introspection; short expiries remain
-// the durable revocation boundary.
+// restarts and multiple API instances. Local state is only a fast-path cache;
+// the mounted API uses the async verifier backed by the durable revocation
+// denylist.
 
 const issuedTokens = new Map<string, AgentPermission>();
 const revokedTokenHashes = new Set<string>();
 const DEFAULT_CAPABILITY_TTL_MS = 15 * 60_000;
 
-interface CapabilityPayload extends AgentPermission {
+interface CapabilityPayload extends Omit<AgentPermission, 'expiresAt'> {
   version: 1;
   tokenId: string;
+  kid: string;
+  expiresAt: string;
 }
 
 // ─── Token helpers ──────────────────────────────────────────────────────────
@@ -65,11 +74,19 @@ interface CapabilityPayload extends AgentPermission {
  * Generate a cryptographically random capability token.
  * Returns a hex-encoded 32-byte string.
  */
-function signingSecret(): string {
+function signingKey(): { kid: string; secret: string } {
   const secret = process.env.BETTER_AUTH_SECRET;
-  if (secret && Buffer.byteLength(secret) >= 32) return secret;
-  if (process.env.NODE_ENV === 'test') return 'axiom-mcp-test-signing-key-32-bytes-minimum';
-  throw new Error('BETTER_AUTH_SECRET (32+ bytes) is required for MCP token signing');
+  const resolvedSecret =
+    secret && Buffer.byteLength(secret) >= 32
+      ? secret
+      : process.env.NODE_ENV === 'test'
+        ? 'axiom-mcp-test-signing-key-32-bytes-minimum'
+        : null;
+  if (!resolvedSecret) {
+    throw new Error('BETTER_AUTH_SECRET (32+ bytes) is required for MCP token signing');
+  }
+  const kid = process.env.MCP_TOKEN_KID?.trim() || 'default';
+  return { kid, secret: resolvedSecret };
 }
 
 function tokenHash(token: string): string {
@@ -78,14 +95,17 @@ function tokenHash(token: string): string {
 
 function signPayload(payload: CapabilityPayload): string {
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const signature = createHmac('sha256', signingSecret()).update(`v1.${encoded}`).digest('base64url');
+  const signature = createHmac('sha256', signingKey().secret)
+    .update(`v1.${encoded}`)
+    .digest('base64url');
   return `v1.${encoded}.${signature}`;
 }
 
 function decodeToken(token: string): CapabilityPayload | null {
   const [version, encoded, suppliedSignature, extra] = token.split('.');
   if (version !== 'v1' || !encoded || !suppliedSignature || extra) return null;
-  const expected = createHmac('sha256', signingSecret()).update(`v1.${encoded}`).digest();
+  const key = signingKey();
+  const expected = createHmac('sha256', key.secret).update(`v1.${encoded}`).digest();
   let supplied: Buffer;
   try {
     supplied = Buffer.from(suppliedSignature, 'base64url');
@@ -94,10 +114,13 @@ function decodeToken(token: string): CapabilityPayload | null {
   }
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return null;
   try {
-    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as CapabilityPayload;
+    const payload = JSON.parse(
+      Buffer.from(encoded, 'base64url').toString('utf8'),
+    ) as CapabilityPayload;
     if (
       payload.version !== 1 ||
       !payload.tokenId ||
+      payload.kid !== key.kid ||
       !payload.agentId ||
       !payload.modelId ||
       !Object.values(Tier).includes(payload.tier) ||
@@ -123,10 +146,12 @@ export function createCapabilityToken(
   agentId: string,
   ttlMs: number = DEFAULT_CAPABILITY_TTL_MS,
 ): string {
+  const { kid } = signingKey();
   const expiresAt = new Date(Date.now() + ttlMs).toISOString();
   const payload: CapabilityPayload = {
     version: 1,
     tokenId: randomBytes(16).toString('hex'),
+    kid,
     agentId,
     modelId,
     tier,
@@ -144,6 +169,11 @@ export function createCapabilityToken(
  * is unknown, expired, or malformed.
  */
 export function validateToken(token: string): AgentPermission | null {
+  const permission = resolveToken(token);
+  return permission;
+}
+
+function resolveToken(token: string): CapabilityPayload | null {
   const hash = tokenHash(token);
   if (revokedTokenHashes.has(hash)) return null;
   const permission = decodeToken(token);
@@ -160,12 +190,38 @@ export function validateToken(token: string): AgentPermission | null {
 }
 
 /**
+ * Validate a token against the durable revocation source used by production
+ * API instances. The synchronous validator remains available for pure local
+ * callers, but it must not be used by the mounted HTTP transport.
+ */
+export async function validateTokenAsync(
+  token: string,
+  isRevoked: TokenRevocationChecker,
+): Promise<AgentPermission | null> {
+  const permission = resolveToken(token);
+  if (!permission) return null;
+  if (await isRevoked(permission.tokenId)) return null;
+  return permission;
+}
+
+/**
  * Revoke a token so it can no longer be used.
  */
 export function revokeToken(token: string): void {
   const hash = tokenHash(token);
   issuedTokens.delete(hash);
   revokedTokenHashes.add(hash);
+}
+
+/** Persist a revocation and invalidate this process's fast-path cache. */
+export async function revokeTokenDurably(
+  token: string,
+  persist: TokenRevocationWriter,
+): Promise<void> {
+  const payload = decodeToken(token);
+  revokeToken(token);
+  if (!payload) return;
+  await persist({ tokenId: payload.tokenId, expiresAt: payload.expiresAt });
 }
 
 /**
@@ -183,12 +239,7 @@ export function authenticateAgent(request: {
   headers?: Record<string, string>;
   params?: Record<string, unknown>;
 }): AgentPermission {
-  // Try bearer token from headers first
-  let token: string | undefined;
-  const authHeader = request.headers?.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.slice(7).trim();
-  }
+  const token = bearerToken(request);
   if (!token) {
     throw new Error('Authentication required: no token provided');
   }
@@ -197,6 +248,34 @@ export function authenticateAgent(request: {
     throw new Error('Authentication failed: invalid or expired token');
   }
   return permission;
+}
+
+/** Authenticate through a durable revocation checker. */
+export async function authenticateAgentAsync(
+  request: {
+    headers?: Record<string, string>;
+    params?: Record<string, unknown>;
+  },
+  isRevoked: TokenRevocationChecker,
+): Promise<AgentPermission> {
+  const token = bearerToken(request);
+  if (!token) {
+    throw new Error('Authentication required: no token provided');
+  }
+  const permission = await validateTokenAsync(token, isRevoked);
+  if (!permission) {
+    throw new Error('Authentication failed: invalid or expired token');
+  }
+  return permission;
+}
+
+function bearerToken(request: {
+  headers?: Record<string, string>;
+  params?: Record<string, unknown>;
+}): string | undefined {
+  const authHeader = request.headers?.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) return authHeader.slice(7).trim();
+  return undefined;
 }
 
 /**
@@ -258,6 +337,10 @@ export class TierResolution {
    */
   revoke(token: string): void {
     revokeToken(token);
+  }
+
+  async revokeDurably(token: string, persist: TokenRevocationWriter): Promise<void> {
+    await revokeTokenDurably(token, persist);
   }
 
   /**

@@ -28,7 +28,7 @@ import { consentRouter } from './routes/consent.js';
 import { auth, requireAuth, requireMutationRole, requireRole } from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { asPlatform, enqueueJob, registerConnectors, resolveCapabilities } from '@axiom/worker';
-import { createMcpServer, isModelKillSwitchEnabled, withModelOrg } from '@axiom/mcp-server';
+import { createMcpServerAsync, isModelKillSwitchEnabled, withModelOrg } from '@axiom/mcp-server';
 import {
   TelegramAdapter,
   DiscordAdapter,
@@ -50,6 +50,7 @@ import { relayIncidentPageHandler } from './relay-incidents.js';
 import { correlationId, onError, idempotency, rateLimit } from './contract.js';
 import {
   checkDatabase,
+  db,
   schema,
   getPublishingConsentStatus,
   consentRequirementMessage,
@@ -695,11 +696,17 @@ app.post('/api/mcp', async (c) => {
   } catch {
     // empty body → params fallback only
   }
-  let server: ReturnType<typeof createMcpServer>;
+  let server: Awaited<ReturnType<typeof createMcpServerAsync>>;
   try {
-    server = createMcpServer(
+    server = await createMcpServerAsync(
       { headers, params: body as Record<string, unknown> },
       {
+        isTokenRevoked: async (tokenId) => {
+          const result = await db.execute(
+            sql`SELECT 1 FROM mcp_token_revocation WHERE token_id = ${tokenId} LIMIT 1`,
+          );
+          return ((result?.rows ?? []) as unknown[]).length > 0;
+        },
         onToolCall: async ({ agentId, modelId, tier, toolName, requestId }) => {
           await withModelOrg(modelId, async (tx, orgId) => {
             await writeAudit(tx, orgId, `mcp:${agentId}`, 'mcp.tool.call', toolName, {

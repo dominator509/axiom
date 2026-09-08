@@ -1,4 +1,11 @@
-import { Tier, type AgentPermission, authenticateAgent, tierAtLeast } from './auth.js';
+import {
+  Tier,
+  type AgentPermission,
+  authenticateAgent,
+  authenticateAgentAsync,
+  tierAtLeast,
+  type TokenRevocationChecker,
+} from './auth.js';
 import { getManifest, allTools, type ToolDescriptor } from './manifest.js';
 
 // ─── MCP Protocol types ─────────────────────────────────────────────────────
@@ -47,6 +54,8 @@ export interface McpServerOptions {
    * dispatch cannot run before its audit reservation succeeds.
    */
   onToolCall?: (event: McpToolAuditEvent) => Promise<void> | void;
+  /** Durable denylist lookup used by the production HTTP transport. */
+  isTokenRevoked?: TokenRevocationChecker;
 }
 
 // ─── Server ─────────────────────────────────────────────────────────────────
@@ -214,5 +223,17 @@ export function createMcpServer(
   options: McpServerOptions = {},
 ): McpServer {
   const permission = authenticateAgent(request);
+  return new McpServer(permission, options);
+}
+
+/** Async factory for transports that must enforce cross-instance revocation. */
+export async function createMcpServerAsync(
+  request: {
+    headers?: Record<string, string>;
+    params?: Record<string, unknown>;
+  },
+  options: McpServerOptions & { isTokenRevoked: TokenRevocationChecker },
+): Promise<McpServer> {
+  const permission = await authenticateAgentAsync(request, options.isTokenRevoked);
   return new McpServer(permission, options);
 }

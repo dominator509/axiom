@@ -61,6 +61,7 @@ const TS_TO_SQL: Record<string, string> = {
   relayBinding: 'relay_binding',
   agentPermission: 'agent_permission',
   crashReport: 'crash_report',
+  mcpTokenRevocation: 'mcp_token_revocation',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -172,6 +173,14 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
         ],
       ],
       ['model_profile', ['handle TEXT NOT NULL', 'bio TEXT']],
+      [
+        'mcp_token_revocation',
+        [
+          'token_id TEXT PRIMARY KEY',
+          'revoked_at TIMESTAMPTZ NOT NULL',
+          'expires_at TIMESTAMPTZ NOT NULL',
+        ],
+      ],
       [
         'consent_record',
         [
@@ -496,7 +505,15 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // Auth identity tables are cross-tenant (session lookup happens before org
     // context exists) — excluded from the RLS sweep. All other tables are
     // org-scoped and must be RLS-protected (LBI-02).
-    const nonTenant = new Set(['auth_user', 'auth_session', 'auth_account', 'auth_verification']);
+    const nonTenant = new Set([
+      'auth_user',
+      'auth_session',
+      'auth_account',
+      'auth_verification',
+      // The denylist is deliberately global so every API instance can reject
+      // a revoked capability before model/org resolution.
+      'mcp_token_revocation',
+    ]);
     // 0000/0001 emit literal ALTER statements; 0002 emits the same statements
     // through a DO block with format('...', t) — both patterns are valid.
     const doBlockTables = new Set([
@@ -542,8 +559,9 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 15 tables in 0000 (org_id + key lookup) + 1 in 0001 (org_id) +
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
-    // 29 in 0004 (job_pick + job_dedupe + 27 entity-table hot paths) — exact count.
-    expect(indexStatements).toHaveLength(69);
+    // 29 in 0004 (job_pick + job_dedupe + 27 entity-table hot paths) + 1
+    // durable MCP revocation expiry index — exact count.
+    expect(indexStatements).toHaveLength(70);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(

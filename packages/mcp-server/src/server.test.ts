@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   McpServer,
   createMcpServer,
+  createMcpServerAsync,
   type McpRequest,
   type McpResponse,
   type McpToolAuditEvent,
@@ -38,6 +39,16 @@ describe('McpServer construction', () => {
         .map((t) => t.name),
     ).toEqual(['analytics_query']);
     expect(makeServer(Tier.Autonomous).listTools()).toHaveLength(5);
+  });
+
+  it('async factory enforces the durable revocation checker', async () => {
+    const token = createCapabilityToken(MODEL, Tier.Viewer, 'agent-revoked');
+    await expect(
+      createMcpServerAsync(
+        { headers: { authorization: `Bearer ${token}` } },
+        { isTokenRevoked: async () => true },
+      ),
+    ).rejects.toThrow('Authentication failed: invalid or expired token');
   });
 });
 

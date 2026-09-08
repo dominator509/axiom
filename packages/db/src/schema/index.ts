@@ -43,6 +43,7 @@ import { linkbioAnalytics, linkbioAnalyticsRelations } from './linkbio_analytics
 import { relayBinding, relayBindingRelations } from './relay_binding.js';
 import { agentPermission, agentPermissionRelations } from './agent_permission.js';
 import { crashReport, crashReportRelations } from './crash_report.js';
+import { mcpTokenRevocation } from './mcp_token_revocation.js';
 
 export { org, orgRelations };
 export { appUser, appUserRelations };
@@ -89,6 +90,7 @@ export { linkbioAnalytics, linkbioAnalyticsRelations };
 export { relayBinding, relayBindingRelations };
 export { agentPermission, agentPermissionRelations };
 export { crashReport, crashReportRelations };
+export { mcpTokenRevocation };
 
 export const allRelations = [
   orgRelations,
