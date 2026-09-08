@@ -12,6 +12,23 @@ interface ProviderRow {
   enabled: boolean;
   isPrimary: boolean;
   clicks?: number;
+  config?: Record<string, unknown> | null;
+}
+
+interface NativeLink {
+  label: string;
+  url: string;
+}
+
+function readLinks(config: Record<string, unknown> | null | undefined): NativeLink[] {
+  if (!config || !Array.isArray(config.links)) return [];
+  return config.links.flatMap((value) => {
+    if (!value || typeof value !== 'object') return [];
+    const record = value as Record<string, unknown>;
+    return typeof record.label === 'string' && typeof record.url === 'string'
+      ? [{ label: record.label, url: record.url }]
+      : [];
+  });
 }
 
 export default function LinkbioPanel({
@@ -25,6 +42,10 @@ export default function LinkbioPanel({
   const [kind, setKind] = useState<(typeof KINDS)[number]>('native');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const activeNative = providers.find((provider) => provider.kind === 'native' && provider.enabled);
+  const [links, setLinks] = useState<NativeLink[]>(() => readLinks(activeNative?.config));
+  const [label, setLabel] = useState('');
+  const [url, setUrl] = useState('');
 
   async function enable() {
     setBusy(true);
@@ -58,6 +79,49 @@ export default function LinkbioPanel({
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
         setError(b?.error?.message ?? 'Disable failed');
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError('Network error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function addLink() {
+    const nextLabel = label.trim();
+    const nextUrl = url.trim();
+    if (!nextLabel || !nextUrl) {
+      setError('A link label and URL are required');
+      return;
+    }
+    try {
+      const parsed = new URL(nextUrl);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error();
+    } catch {
+      setError('Links must use an http(s) URL');
+      return;
+    }
+    setLinks((current) => [...current, { label: nextLabel, url: nextUrl }]);
+    setLabel('');
+    setUrl('');
+    setError(null);
+  }
+
+  async function saveLinks() {
+    if (!activeNative) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await mutationFetch(`/api/v1/models/${modelId}/linkbio`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'native', config: { links } }),
+      });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        setError(b?.error?.message ?? 'Saving links failed');
         return;
       }
       router.refresh();
@@ -103,6 +167,41 @@ export default function LinkbioPanel({
               ))}
           </tbody>
         </table>
+      )}
+      {activeNative && (
+        <div className="stack" style={{ marginTop: 12 }}>
+          <h4 style={{ margin: 0 }}>Native page links</h4>
+          {links.length === 0 ? (
+            <p style={{ color: 'var(--muted)', margin: 0 }}>No links configured.</p>
+          ) : (
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {links.map((link, index) => (
+                <li key={`${link.url}-${index}`}>
+                  {link.label} — {link.url}{' '}
+                  <button
+                    className="btn danger"
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setLinks((current) => current.filter((_, i) => i !== index))}
+                    style={{ padding: '2px 8px', fontSize: 11 }}
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="row">
+            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label" />
+            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
+            <button className="btn" type="button" disabled={busy} onClick={addLink}>
+              Add link
+            </button>
+            <button className="btn" type="button" disabled={busy} onClick={saveLinks}>
+              Save links
+            </button>
+          </div>
+        </div>
       )}
       <div className="row">
         <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>

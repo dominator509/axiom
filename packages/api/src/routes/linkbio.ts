@@ -7,11 +7,19 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { sql, eq, and, desc } from 'drizzle-orm';
-import { schema } from '@axiom/db';
+import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, modelOrgId, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
+import {
+  withOrgContext,
+  modelOrgId,
+  requireOrg,
+  writeAudit,
+  apiError,
+  statusTitle,
+} from './helpers.js';
 
 const router = new Hono<AppBindings>();
+const publicRouter = new Hono<AppBindings>();
 
 const PROVIDER_KINDS = ['native'] as const;
 
@@ -20,6 +28,146 @@ const enableSchema = z.object({
   config: z.record(z.string(), z.unknown()).default({}),
   isPrimary: z.boolean().optional(),
 });
+
+type NativeLink = { label: string; url: string };
+
+function nativeLinks(config: unknown): NativeLink[] {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return [];
+  const links = (config as Record<string, unknown>).links;
+  if (!Array.isArray(links)) return [];
+
+  return links.flatMap((entry): NativeLink[] => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return [];
+    const record = entry as Record<string, unknown>;
+    const label = typeof record.label === 'string' ? record.label.trim() : '';
+    const url = typeof record.url === 'string' ? record.url.trim() : '';
+    if (!label || label.length > 120 || !url || url.length > 2048) return [];
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return [];
+    } catch {
+      return [];
+    }
+    return [{ label, url }];
+  });
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>'"]/g,
+    (character) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character] ??
+      character,
+  );
+}
+
+type PublicNativePage = {
+  orgId: string;
+  model: {
+    id: string;
+    displayName: string;
+    handle: string;
+    avatarUrl: string | null;
+    bio: string | null;
+  };
+  provider: { id: string; config: unknown };
+  links: NativeLink[];
+};
+
+/** Resolve a public model through the existing SECURITY DEFINER org resolver. */
+async function withPublicModel<T>(
+  modelId: string,
+  fn: (tx: any, orgId: string) => Promise<T>,
+): Promise<T | null> {
+  return db.transaction(async (tx) => {
+    const result = await tx.execute(sql`SELECT resolve_model_org(${modelId}::uuid) AS org_id`);
+    const orgId = (result?.rows?.[0] as { org_id?: string } | undefined)?.org_id;
+    if (!orgId) return null;
+    await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
+    return fn(tx, orgId);
+  });
+}
+
+async function loadPublicNativePage(
+  tx: any,
+  orgId: string,
+  modelId: string,
+): Promise<PublicNativePage | null> {
+  const models = await tx
+    .select({
+      id: schema.modelProfile.id,
+      displayName: schema.modelProfile.displayName,
+      handle: schema.modelProfile.handle,
+      avatarUrl: schema.modelProfile.avatarUrl,
+      bio: schema.modelProfile.bio,
+    })
+    .from(schema.modelProfile)
+    .where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.isActive, true)))
+    .limit(1);
+  const model = models[0];
+  if (!model) return null;
+
+  const providers = await tx
+    .select({
+      id: schema.linkbioProvider.id,
+      config: schema.linkbioProvider.config,
+    })
+    .from(schema.linkbioProvider)
+    .where(
+      and(
+        eq(schema.linkbioProvider.orgId, orgId),
+        eq(schema.linkbioProvider.modelId, modelId),
+        eq(schema.linkbioProvider.kind, 'native'),
+        eq(schema.linkbioProvider.enabled, true),
+      ),
+    )
+    .limit(1);
+  const provider = providers[0];
+  if (!provider) return null;
+
+  return {
+    orgId,
+    model,
+    provider,
+    links: nativeLinks(provider.config),
+  };
+}
+
+function renderNativePage(page: PublicNativePage): string {
+  const links =
+    page.links.length > 0
+      ? page.links
+          .map((link) => {
+            const href = `/linkbio/${encodeURIComponent(page.model.id)}/click/${encodeURIComponent(page.provider.id)}?target=${encodeURIComponent(link.url)}`;
+            return `<a class="link" href="${href}">${escapeHtml(link.label)}</a>`;
+          })
+          .join('')
+      : '<p class="empty">No links have been configured yet.</p>';
+  const avatar = page.model.avatarUrl
+    ? `<img class="avatar" src="${escapeHtml(page.model.avatarUrl)}" alt="" />`
+    : '';
+  const bio = page.model.bio ? `<p class="bio">${escapeHtml(page.model.bio)}</p>` : '';
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(page.model.displayName)} — links</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #111827; color: #f9fafb; }
+      main { width: min(92vw, 480px); padding: 40px 20px; text-align: center; }
+      .avatar { width: 88px; height: 88px; object-fit: cover; border-radius: 50%; margin-bottom: 16px; }
+      h1 { margin: 0; font-size: 28px; } .handle, .bio, .empty { color: #cbd5e1; }
+      .bio { white-space: pre-wrap; } .links { display: grid; gap: 12px; margin-top: 28px; }
+      .link { display: block; padding: 15px 18px; border-radius: 12px; color: #111827; background: #f9fafb; text-decoration: none; font-weight: 650; }
+      .link:hover { background: #dbeafe; } footer { margin-top: 32px; color: #94a3b8; font-size: 12px; }
+    </style>
+  </head>
+  <body><main>${avatar}<h1>${escapeHtml(page.model.displayName)}</h1><p class="handle">@${escapeHtml(page.model.handle)}</p>${bio}<section class="links">${links}</section><footer>Powered by AXIOM</footer></main></body>
+</html>`;
+}
 
 // GET /models/:id/linkbio — active providers + primary
 router.get('/models/:modelId/linkbio', async (c) => {
@@ -214,4 +362,60 @@ router.post(
   },
 );
 
+// ── Public Native provider ─────────────────────────────────────────────────
+// The dashboard owns provider configuration, but visitors must not need an
+// operator session to view the page or record a click. The model→org lookup
+// uses the existing SECURITY DEFINER resolver, then every domain query runs
+// under FORCE-RLS context.
+publicRouter.get('/:modelId', async (c) => {
+  const modelId = c.req.param('modelId');
+  const page = await withPublicModel(modelId, (tx, orgId) =>
+    loadPublicNativePage(tx, orgId, modelId),
+  );
+  if (!page) return c.text('Not Found', 404);
+  c.header('Cache-Control', 'no-store');
+  c.header(
+    'Content-Security-Policy',
+    "default-src 'none'; img-src https: http:; style-src 'unsafe-inline'; base-uri 'none'",
+  );
+  return c.html(renderNativePage(page));
+});
+
+publicRouter.get('/:modelId/click/:providerId', async (c) => {
+  const modelId = c.req.param('modelId');
+  const providerId = c.req.param('providerId');
+  const target = c.req.query('target')?.trim() ?? '';
+  const source = c.req.query('source')?.trim().slice(0, 120) || null;
+
+  const destination = await withPublicModel(modelId, async (tx, orgId) => {
+    const page = await loadPublicNativePage(tx, orgId, modelId);
+    if (!page || page.provider.id !== providerId) return null;
+    const link = page.links.find((candidate) => candidate.url === target);
+    if (!link) return null;
+
+    await tx.insert(schema.linkbioClick).values({
+      orgId,
+      providerId,
+      target: link.url,
+      source,
+      ts: new Date(),
+    });
+    await tx.insert(schema.linkbioAnalytics).values({
+      orgId,
+      providerId,
+      kind: 'click',
+      source,
+      referrer: c.req.header('referer')?.slice(0, 2048) ?? null,
+      device: c.req.header('user-agent')?.slice(0, 512) ?? null,
+      ts: new Date(),
+      createdAt: new Date(),
+    });
+    return link.url;
+  });
+
+  if (!destination) return c.text('Not Found', 404);
+  return c.redirect(destination, 302);
+});
+
 export { router as linkbioRouter };
+export { publicRouter as publicLinkbioRouter };

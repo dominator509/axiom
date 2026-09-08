@@ -11,7 +11,7 @@ import { killswitchRouter } from './routes/killswitch.js';
 import { egressRouter } from './routes/egress.js';
 import { networkRouter } from './routes/network.js';
 import { postsRouter } from './routes/posts.js';
-import { linkbioRouter } from './routes/linkbio.js';
+import { linkbioRouter, publicLinkbioRouter } from './routes/linkbio.js';
 import { fansRouter } from './routes/fans.js';
 import { analyticsRouter } from './routes/analytics.js';
 import { viralRouter } from './routes/viral.js';
@@ -503,6 +503,10 @@ app.get('/api/v1/openapi.json', (c) => {
   );
 });
 
+// Public Native Link-in-Bio page and click redirects. Operator CRUD remains
+// under /api/v1 and is session-authenticated below.
+app.route('/linkbio', publicLinkbioRouter);
+
 // ── Better Auth — mounted at /api/auth/* (replaces the 501 placeholder) ──
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));
 console.log('Better Auth mounted at /api/auth/*');
@@ -711,9 +715,7 @@ export function createRelayApp(): Hono {
           return c.json({ error: 'invalid JSON payload' }, 400);
         }
         try {
-          await telegram.handleWebhook(
-            payload as Parameters<TelegramAdapter['handleWebhook']>[0],
-          );
+          await telegram.handleWebhook(payload as Parameters<TelegramAdapter['handleWebhook']>[0]);
           return c.json({ ok: true });
         } catch (error) {
           console.error('Telegram relay webhook failed', error);

@@ -6,7 +6,7 @@ import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ linkbioProvider: {}, linkbioClick: {} }));
 
-import { linkbioRouter } from './linkbio.js';
+import { linkbioRouter, publicLinkbioRouter } from './linkbio.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -23,8 +23,15 @@ function appWithOrg(orgId: string | null) {
   return app;
 }
 
+function publicApp() {
+  const app = new Hono<AppBindings>();
+  app.route('/', publicLinkbioRouter);
+  return app;
+}
+
 beforeEach(() => {
   mockState.result = [];
+  mockState.results = [];
 });
 
 afterEach(() => {
@@ -195,5 +202,48 @@ describe('POST /linkbio/clicks', () => {
       body: JSON.stringify({ providerId: 'not-a-uuid', target: 'x' }),
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('public Native Link-in-Bio page', () => {
+  const model = {
+    id: MODEL_ID,
+    displayName: 'Luna Vex',
+    handle: 'luna.vex',
+    avatarUrl: null,
+    bio: 'Official links',
+  };
+  const provider = {
+    id: PROVIDER_ID,
+    config: { links: [{ label: 'Fanvue', url: 'https://fanvue.example/luna' }] },
+  };
+
+  it('serves the configured page without an operator session', async () => {
+    mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider]];
+    const res = await publicApp().request(`/${MODEL_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-security-policy')).toContain("default-src 'none'");
+    const html = await res.text();
+    expect(html).toContain('Luna Vex');
+    expect(html).toContain('Fanvue');
+    expect(html).toContain(`/click/${PROVIDER_ID}`);
+  });
+
+  it('records only configured links before redirecting the visitor', async () => {
+    mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider], [], []];
+    const res = await publicApp().request(
+      `/${MODEL_ID}/click/${PROVIDER_ID}?target=${encodeURIComponent(provider.config.links[0].url)}`,
+      { headers: { referer: 'https://social.example/post', 'user-agent': 'test-browser' } },
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(provider.config.links[0].url);
+  });
+
+  it('rejects a tampered target instead of becoming an open redirect', async () => {
+    mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider]];
+    const res = await publicApp().request(
+      `/${MODEL_ID}/click/${PROVIDER_ID}?target=${encodeURIComponent('https://attacker.example')}`,
+    );
+    expect(res.status).toBe(404);
   });
 });
