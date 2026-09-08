@@ -14,7 +14,7 @@ function buildDeps(overrides: Partial<RelayDependencies> = {}): RelayDependencie
   const viralLoop = new ViralLoop();
   return {
     cardRenderer: new CardRenderer(),
-    commandRouter: new CommandRouter('route-secret', 5),
+    commandRouter: new CommandRouter('route-secret', 5, async () => undefined),
     bandit: new Bandit(),
     incidentManager: new IncidentManager(),
     healthRegistry: new HealthCheckRegistry(),

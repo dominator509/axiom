@@ -76,7 +76,6 @@ export class CommandRouter {
   private nonces: Map<string, NonceEntry> = new Map();
   private ttlMs: number;
   private nextNonceCleanupAt = 0;
-  private auditLog: CommandResult[] = [];
   private executor?: CommandExecutor;
 
   constructor(secret: string, ttlMinutes: number = 5, executor?: CommandExecutor) {
@@ -201,28 +200,28 @@ export class CommandRouter {
       timestamp: Date.now(),
     };
 
+    if (!this.executor) {
+      // A verified token is not a durable domain mutation. Without the API's
+      // DB-backed executor, reporting success would acknowledge a command
+      // that was never applied and would be lost on process restart.
+      return {
+        ...result,
+        success: false,
+        error: 'relay command executor not configured',
+      };
+    }
+
     try {
-      if (this.executor) {
-        const note = context
-          ? await this.executor(action, cardId, params, context)
-          : await this.executor(action, cardId, params);
-        result.error = note ?? undefined;
-      } else {
-        // No executor injected (e.g. unit tests): record the command in the
-        // in-memory audit log. Production wiring always injects the DB
-        // executor (see packages/api/src/index.ts initRelay).
-        this.auditLog.push(result);
-      }
+      const note = context
+        ? await this.executor(action, cardId, params, context)
+        : await this.executor(action, cardId, params);
+      result.error = note ?? undefined;
     } catch (err) {
       result.success = false;
       result.error = err instanceof Error ? err.message : String(err);
     }
 
     return result;
-  }
-
-  getAuditLog(): CommandResult[] {
-    return [...this.auditLog];
   }
 
   cleanupExpiredNonces(now: number = Date.now()): void {
