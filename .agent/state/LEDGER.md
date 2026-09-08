@@ -196,3 +196,4 @@
 2026-09-08T13:51:00Z | [P1][SECURITY/API] stop exposing raw database/network exception text from egress routes; egress 25/25, typecheck, formatting, and diff checks passed
 2026-09-08T14:09:51Z | [P1][SECURITY/CONNECTORS] redact provider response bodies from YouTube, TikTok, and X upload errors before durable worker failure storage; connectors 274/274, typecheck, lint, formatting, verify, and diff checks passed
 2026-09-08T14:22:55Z | [P1][CONNECTOR/TELEGRAM] fail closed when the configured channel identifier is missing or blank instead of publishing to the implicit @channel destination; connectors 275/275, typecheck, lint, build, formatting, diff, and verify checks passed
+2026-09-08T14:38:46Z | [P1][AUTH] remove Better Auth's no-op email verification sender so unsupported verification fails closed instead of reporting successful delivery; auth 12/12, typecheck, lint, formatting, diff, and verify checks passed

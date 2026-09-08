@@ -33,12 +33,9 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 8,
   },
-  emailVerification: {
-    sendVerificationEmail: async () => {
-      // Email transport is out of scope for the self-hosted dashboard; sign-up
-      // auto-verifies when EMAIL_AUTO_VERIFY is set (dev/self-host default).
-    },
-  },
+  // Leave email verification unconfigured until a real delivery transport is
+  // available. Better Auth then fails closed instead of reporting that a
+  // verification email was sent when no message was delivered.
   advanced: {
     cookiePrefix: 'axiom',
     defaultCookieAttributes: {

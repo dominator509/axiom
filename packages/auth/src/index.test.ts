@@ -35,6 +35,10 @@ describe('better-auth configuration', () => {
     expect(auth.options?.emailAndPassword?.minPasswordLength).toBe(8);
   });
 
+  it('does not advertise a successful email-verification transport without one', () => {
+    expect(auth.options?.emailVerification?.sendVerificationEmail).toBeUndefined();
+  });
+
   it('uses a server-assigned orgId additionalField (not the org plugin)', () => {
     const fields = auth.options?.user?.additionalFields ?? {};
     expect(fields.orgId).toBeDefined();
