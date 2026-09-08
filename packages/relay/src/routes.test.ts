@@ -11,13 +11,26 @@ import { createRelayRoutes, type RelayDependencies } from './routes.js';
 import type { ViralPersistence } from './viral/persistence.js';
 
 function buildDeps(overrides: Partial<RelayDependencies> = {}): RelayDependencies {
+  const viralLoop = new ViralLoop();
   return {
     cardRenderer: new CardRenderer(),
     commandRouter: new CommandRouter('route-secret', 5),
-    viralLoop: new ViralLoop(),
     bandit: new Bandit(),
     incidentManager: new IncidentManager(),
     healthRegistry: new HealthCheckRegistry(),
+    // Explicit test-only persistence keeps the route tests deterministic
+    // without allowing the production route factory to use an in-memory
+    // fallback.
+    viralPersistence: {
+      persist: async ({ postId, metrics }) => {
+        viralLoop.ingestMetrics(postId, metrics);
+        const label = viralLoop.labelPost(postId);
+        viralLoop.storeExemplar(postId, label);
+        return { label };
+      },
+      listExemplars: async ({ platform, limit }) =>
+        viralLoop.retrieveExemplars(platform, limit).map((exemplar) => ({ ...exemplar })),
+    },
     ...overrides,
   };
 }
@@ -229,8 +242,6 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
       metrics: expect.objectContaining({ postId: 'db1', engagementRate: 0.05 }),
       orgId: undefined,
     });
-    // The in-memory loop must NOT be touched when persistence is injected.
-    expect(localDeps.viralLoop.getExemplarCount()).toBe(0);
   });
 
   it('passes the authenticated orgId from the request context', async () => {
@@ -296,7 +307,6 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
     const body = (await res.json()) as any;
     expect(body.success).toBe(false);
     expect(body.error).toBe('Failed to ingest metrics');
-    expect(localDeps.viralLoop.getExemplarCount()).toBe(0);
   });
 });
 

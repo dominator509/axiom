@@ -88,10 +88,13 @@ describe('constructed instances work through the barrel', () => {
     const app = relay.createRelayRoutes({
       cardRenderer: new relay.CardRenderer(),
       commandRouter: new relay.CommandRouter('s'),
-      viralLoop: new relay.ViralLoop(),
       bandit: new relay.Bandit(),
       incidentManager: new relay.IncidentManager(),
       healthRegistry: new relay.HealthCheckRegistry(),
+      viralPersistence: {
+        persist: async () => ({ label: 'baseline' }),
+        listExemplars: async () => [],
+      },
     });
     expect(typeof app.request).toBe('function');
   });

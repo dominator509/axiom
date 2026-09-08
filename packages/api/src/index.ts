@@ -38,7 +38,6 @@ import {
   createRelayRoutes,
   CardRenderer,
   CommandRouter,
-  ViralLoop,
   Bandit,
   IncidentManager,
   HealthCheckRegistry,
@@ -665,7 +664,6 @@ export function createRelayApp(): Hono {
   validateProductionRelayConfig(process.env);
   const cardRenderer = new CardRenderer();
   const commandRouter = getRelayCommandRouter();
-  const viralLoop = new ViralLoop();
   const bandit = new Bandit();
   const incidentManager = new IncidentManager();
   // F-78 (L2.9): sev-1 / crash-loop incidents auto-page into the Relay —
@@ -676,7 +674,6 @@ export function createRelayApp(): Hono {
   const relay = createRelayRoutes({
     cardRenderer,
     commandRouter,
-    viralLoop,
     bandit,
     incidentManager,
     healthRegistry,

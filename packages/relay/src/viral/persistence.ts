@@ -1,8 +1,8 @@
 // ─── Viral persistence hook (M-7) ───
 // The relay package stays persistence-free; the API process injects a
 // DB-backed implementation (see packages/api/src/relay-viral.ts), mirroring
-// the CommandExecutor injection for relay commands. When the hook is absent
-// (unit tests / standalone), routes fall back to the in-memory ViralLoop.
+// the CommandExecutor injection for relay commands. Routes do not fall back
+// to the in-memory ViralLoop because that would acknowledge non-durable data.
 
 import type { PostMetrics, ViralLabel } from './loop.js';
 

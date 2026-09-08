@@ -5,23 +5,23 @@ import { IncidentManager } from './observability/incidents.js';
 import { HealthCheckRegistry } from './observability/health.js';
 import { CardRenderer, type BundleContent } from './card.js';
 import { CommandRouter, isCardAction } from './commands.js';
-import { ViralLoop, type PostMetrics } from './viral/loop.js';
+import type { PostMetrics } from './viral/loop.js';
 import { Bandit } from './viral/bandit.js';
 import type { ViralPersistence } from './viral/persistence.js';
 
 export interface RelayDependencies {
   cardRenderer: CardRenderer;
   commandRouter: CommandRouter;
-  viralLoop: ViralLoop;
   bandit: Bandit;
   incidentManager: IncidentManager;
   healthRegistry: HealthCheckRegistry;
   /**
-   * Optional DB-backed viral persistence, injected by the API process
-   * (M-7). When present, /viral/ingest and /viral/exemplars persist to
-   * post_metric / viral_exemplar instead of the in-memory loop.
+   * DB-backed viral persistence, injected by the API process (M-7).
+   * /viral/ingest and /viral/exemplars must use post_metric /
+   * viral_exemplar; an in-memory fallback would acknowledge data that is
+   * lost when the process restarts.
    */
-  viralPersistence?: ViralPersistence;
+  viralPersistence: ViralPersistence;
 }
 
 export function createRelayRoutes(deps: RelayDependencies): Hono {
@@ -92,20 +92,12 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
       }>();
       // Authenticated org (set by the API's requireAuth middleware when the
       // relay app is mounted at '/' — Hono shares context variables across
-      // the merged app). Fall back to the body only for standalone/tests.
+      // the merged app).
       const orgId = (c.get('orgId') as string | undefined) ?? undefined;
-      if (deps.viralPersistence) {
-        // DB-backed path (M-7): persist to post_metric + enqueue viral.label.
-        const result = await deps.viralPersistence.persist({ postId, metrics, orgId });
-        metricsRegistry.incrementCounter('generation_count');
-        return c.json({ success: true, label: result.label });
-      }
-      // In-memory fallback (tests / standalone relay).
-      deps.viralLoop.ingestMetrics(postId, metrics);
-      const label = deps.viralLoop.labelPost(postId);
-      deps.viralLoop.storeExemplar(postId, label);
+      // DB-backed path (M-7): persist to post_metric + enqueue viral.label.
+      const result = await deps.viralPersistence.persist({ postId, metrics, orgId });
       metricsRegistry.incrementCounter('generation_count');
-      return c.json({ success: true, label });
+      return c.json({ success: true, label: result.label });
     } catch (err) {
       logger.error('Failed to ingest metrics', err as Error);
       return c.json({ success: false, error: 'Failed to ingest metrics' }, 500);
@@ -117,13 +109,9 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
     try {
       const platform = c.req.query('platform') ?? 'all';
       const limit = parseInt(c.req.query('limit') ?? '10', 10);
-      if (deps.viralPersistence) {
-        // DB-backed path (M-7): read from viral_exemplar.
-        const orgId = (c.get('orgId') as string | undefined) ?? c.req.query('orgId') ?? undefined;
-        const exemplars = await deps.viralPersistence.listExemplars({ platform, limit, orgId });
-        return c.json({ success: true, exemplars });
-      }
-      const exemplars = deps.viralLoop.retrieveExemplars(platform, limit);
+      // DB-backed path (M-7): read from viral_exemplar.
+      const orgId = (c.get('orgId') as string | undefined) ?? c.req.query('orgId') ?? undefined;
+      const exemplars = await deps.viralPersistence.listExemplars({ platform, limit, orgId });
       return c.json({ success: true, exemplars });
     } catch (err) {
       logger.error('Failed to retrieve exemplars', err as Error);

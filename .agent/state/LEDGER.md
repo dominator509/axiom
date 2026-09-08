@@ -202,3 +202,4 @@
 2026-09-08T15:31:00Z | [P1][RELAY/THREADS] fail closed on unsupported Threads card delivery and polling instead of resolving as if an operator channel were active; Threads adapter 17/17, relay typecheck, formatting, and diff check passed
 2026-09-08T15:42:00Z | [P1][WORKER/BOOT] require DATABASE_URL in production before the worker can claim jobs, preventing a live-but-idle process from hiding database misconfiguration; core runtime-config 4/4, worker typecheck, formatting, and diff check passed
 2026-09-08T16:05:00Z | [P1][RELAY/DLQ] reject standalone in-memory DLQ replay instead of deleting the entry after logging its payload; relay 270/270, typecheck, formatting, and diff check passed
+2026-09-08T16:10:24Z | [P1][RELAY/VIRAL] require DB-backed ViralPersistence for relay ingest and exemplar routes instead of acknowledging process-local data; relay routes/index 30/30, API mount/persistence 22/22, typecheck, lint, formatting, and diff checks passed
