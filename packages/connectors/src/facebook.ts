@@ -1,7 +1,7 @@
 // ─── Facebook Connector ───
 // Uses the Facebook Graph API v22.0 for publishing, metrics, and app permissions management.
 
-import { BaseConnector } from './base.js';
+import { BaseConnector, redactProviderText } from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -205,7 +205,9 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
     const resp = await this.fetchImpl(insightsUrl);
     if (!resp.ok) {
       const body = await resp.text().catch(() => '');
-      throw new Error(`Facebook metrics fetch failed: HTTP ${resp.status} — ${body}`);
+      throw new Error(
+        `Facebook metrics fetch failed: HTTP ${resp.status} — ${redactProviderText(body)}`,
+      );
     }
 
     const insights = (await resp.json()) as FbInsightsResponse;
@@ -298,7 +300,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
       this.log(
         'warn',
         'revoke',
-        `Facebook permissions deletion warned: ${response.status} — ${body}`,
+        `Facebook permissions deletion warned: ${response.status} — ${redactProviderText(body)}`,
       );
     } else {
       const result = (await response.json()) as FbPermissionsResponse;

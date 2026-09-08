@@ -1,7 +1,7 @@
 // ─── YouTube Connector ───
 // Uses the YouTube Data API v3 with resumable uploads, shorts detection, and OAuth management.
 
-import { BaseConnector } from './base.js';
+import { BaseConnector, redactProviderText } from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -226,7 +226,11 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      this.log('warn', 'revoke', `YouTube token revocation warned: ${response.status} — ${body}`);
+      this.log(
+        'warn',
+        'revoke',
+        `YouTube token revocation warned: ${response.status} — ${redactProviderText(body)}`,
+      );
       // Don't throw — token may already be revoked
     } else {
       this.log('info', 'revoke', `YouTube OAuth token revoked successfully`);

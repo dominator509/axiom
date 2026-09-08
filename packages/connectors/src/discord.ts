@@ -2,7 +2,7 @@
 // Uses Discord webhooks for link-sharing posts. Discord does not expose
 // post-level metrics via webhooks, so fetchMetrics returns an empty set.
 
-import { BaseConnector } from './base.js';
+import { BaseConnector, redactProviderText } from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -133,7 +133,9 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
 
       if (!response.ok) {
         const body = await response.text().catch(() => '');
-        throw new Error(`Discord webhook failed: HTTP ${response.status} — ${body}`);
+        throw new Error(
+          `Discord webhook failed: HTTP ${response.status} — ${redactProviderText(body)}`,
+        );
       }
 
       const responseBody = await response.text().catch(() => '');
@@ -211,7 +213,7 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
       this.log(
         'warn',
         'revoke',
-        `Discord webhook deletion warned: HTTP ${response.status} — ${body}`,
+        `Discord webhook deletion warned: HTTP ${response.status} — ${redactProviderText(body)}`,
       );
     } else {
       this.log('info', 'revoke', `Discord webhook ${webhookId} deleted successfully`);

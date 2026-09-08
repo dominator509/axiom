@@ -25,6 +25,48 @@ export const COMMON_METRICS: MetricName[] = ['likes', 'comments', 'shares', 'vie
 
 /** Maximum log entries kept per connector */
 const MAX_LOG = 100;
+const MAX_PROVIDER_ERROR_LENGTH = 1_024;
+const SENSITIVE_QUERY_KEYS = new Set([
+  'access_token',
+  'refresh_token',
+  'client_secret',
+  'api_key',
+  'apikey',
+  'password',
+  'secret',
+  'token',
+]);
+
+/** Redact credential-bearing query parameters before a provider URL is logged. */
+export function redactProviderUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    for (const key of url.searchParams.keys()) {
+      if (SENSITIVE_QUERY_KEYS.has(key.toLowerCase())) {
+        url.searchParams.set(key, '[REDACTED]');
+      }
+    }
+    if (url.username) url.username = '[REDACTED]';
+    if (url.password) url.password = '[REDACTED]';
+    return url.toString();
+  } catch {
+    return rawUrl.replace(
+      /([?&](?:access_token|refresh_token|client_secret|api[_-]?key|apikey|password|secret|token)=)[^&\s]*/gi,
+      '$1[REDACTED]',
+    );
+  }
+}
+
+/** Bound and redact provider text before it reaches logs or durable errors. */
+export function redactProviderText(rawText: string): string {
+  return rawText
+    .replace(/Bearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]')
+    .replace(
+      /(["']?(?:access_token|refresh_token|client_secret|api[_-]?key|apikey|password|secret|token)["']?\s*[:=]\s*["']?)[^"'\s,}&]+/gi,
+      '$1[REDACTED]',
+    )
+    .slice(0, MAX_PROVIDER_ERROR_LENGTH);
+}
 
 /**
  * Bound every provider request so a stalled upstream cannot occupy a worker
@@ -71,9 +113,7 @@ export abstract class BaseConnector implements SocialConnector {
     const transport = fetchImpl;
     this.fetchImpl = (input, init) => {
       const timeoutSignal = AbortSignal.timeout(CONNECTOR_REQUEST_TIMEOUT_MS);
-      const signal = init?.signal
-        ? AbortSignal.any([init.signal, timeoutSignal])
-        : timeoutSignal;
+      const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
       return transport(input, { ...init, signal });
     };
   }
@@ -159,7 +199,7 @@ export abstract class BaseConnector implements SocialConnector {
       return result;
     } catch (err: unknown) {
       const elapsed = Date.now() - start;
-      const errorMsg = err instanceof Error ? err.message : String(err);
+      const errorMsg = redactProviderText(err instanceof Error ? err.message : String(err));
       this.recordIdempotency(input.idempotencyKey, null, 'failed');
 
       return {
@@ -215,8 +255,11 @@ export abstract class BaseConnector implements SocialConnector {
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      this.log('error', 'apiGet', `HTTP ${response.status}: ${body}`, { url });
-      throw new Error(`API GET ${url} failed: ${response.status} ${response.statusText}`);
+      const safeUrl = redactProviderUrl(url);
+      this.log('error', 'apiGet', `HTTP ${response.status}: ${redactProviderText(body)}`, {
+        url: safeUrl,
+      });
+      throw new Error(`API GET ${safeUrl} failed: ${response.status} ${response.statusText}`);
     }
 
     return response.json() as Promise<T>;
@@ -242,8 +285,11 @@ export abstract class BaseConnector implements SocialConnector {
 
     if (!response.ok) {
       const responseBody = await response.text().catch(() => '');
-      this.log('error', 'apiPost', `HTTP ${response.status}: ${responseBody}`, { url });
-      throw new Error(`API POST ${url} failed: ${response.status} ${response.statusText}`);
+      const safeUrl = redactProviderUrl(url);
+      this.log('error', 'apiPost', `HTTP ${response.status}: ${redactProviderText(responseBody)}`, {
+        url: safeUrl,
+      });
+      throw new Error(`API POST ${safeUrl} failed: ${response.status} ${response.statusText}`);
     }
 
     return response.json() as Promise<T>;
@@ -268,8 +314,11 @@ export abstract class BaseConnector implements SocialConnector {
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      this.log('error', 'apiUpload', `HTTP ${response.status}: ${body}`, { url });
-      throw new Error(`API Upload to ${url} failed: ${response.status} ${response.statusText}`);
+      const safeUrl = redactProviderUrl(url);
+      this.log('error', 'apiUpload', `HTTP ${response.status}: ${redactProviderText(body)}`, {
+        url: safeUrl,
+      });
+      throw new Error(`API Upload to ${safeUrl} failed: ${response.status} ${response.statusText}`);
     }
 
     return response.json() as Promise<T>;
@@ -290,8 +339,11 @@ export abstract class BaseConnector implements SocialConnector {
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      this.log('error', 'apiDelete', `HTTP ${response.status}: ${body}`, { url });
-      throw new Error(`API DELETE ${url} failed: ${response.status} ${response.statusText}`);
+      const safeUrl = redactProviderUrl(url);
+      this.log('error', 'apiDelete', `HTTP ${response.status}: ${redactProviderText(body)}`, {
+        url: safeUrl,
+      });
+      throw new Error(`API DELETE ${safeUrl} failed: ${response.status} ${response.statusText}`);
     }
 
     return response.json() as Promise<T>;

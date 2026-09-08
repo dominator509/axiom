@@ -6,7 +6,7 @@
 // Token refresh (Ory client_secret_basic) is supported when refresh
 // credentials are supplied, so short-lived (1h) access tokens stay valid.
 
-import { BaseConnector } from './base.js';
+import { BaseConnector, redactProviderText, redactProviderUrl } from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -127,7 +127,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
     if (!resp.ok) {
       const body = await resp.text().catch(() => '');
-      this.log('error', 'refresh', `HTTP ${resp.status}: ${body}`);
+      this.log('error', 'refresh', `HTTP ${resp.status}: ${redactProviderText(body)}`);
       throw new Error(`Fanvue token refresh failed: ${resp.status} ${resp.statusText}`);
     }
 
@@ -196,7 +196,9 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
     if (!response.ok) {
       const responseBody = await response.text().catch(() => '');
-      this.log('error', method, `HTTP ${response.status}: ${responseBody}`, { path });
+      this.log('error', method, `HTTP ${response.status}: ${redactProviderText(responseBody)}`, {
+        path: redactProviderUrl(path),
+      });
       throw new Error(
         `Fanvue API ${method} ${path} failed: ${response.status} ${response.statusText}`,
       );
@@ -220,7 +222,9 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
   private async downloadMedia(url: string): Promise<Uint8Array> {
     const resp = await this.fetchImpl(url, { method: 'GET' });
     if (!resp.ok) {
-      throw new Error(`Fanvue media download failed: ${resp.status} ${resp.statusText} (${url})`);
+      throw new Error(
+        `Fanvue media download failed: ${resp.status} ${resp.statusText} (${redactProviderUrl(url)})`,
+      );
     }
 
     const contentLength = resp.headers.get('content-length');
@@ -317,7 +321,9 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
       });
       if (!putRes.ok) {
         const body = await putRes.text().catch(() => '');
-        throw new Error(`Fanvue part ${partNumber} upload failed: ${putRes.status} ${body}`);
+        throw new Error(
+          `Fanvue part ${partNumber} upload failed: ${putRes.status} ${redactProviderText(body)}`,
+        );
       }
       const etag = putRes.headers.get('etag') || '';
       completed.push({ partNumber, etag });
@@ -436,7 +442,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
     if (!resp.ok) {
       const body = await resp.text().catch(() => '');
-      this.log('error', 'revoke', `HTTP ${resp.status}: ${body}`);
+      this.log('error', 'revoke', `HTTP ${resp.status}: ${redactProviderText(body)}`);
       return;
     }
 

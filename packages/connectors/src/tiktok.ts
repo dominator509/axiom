@@ -1,7 +1,7 @@
 // ─── TikTok Connector ───
 // Uses the TikTok Content Posting API v2 for uploads, metrics, and OAuth management.
 
-import { BaseConnector } from './base.js';
+import { BaseConnector, redactProviderText } from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -122,10 +122,7 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       // instead of sending metadata TikTok will reject after initialization.
       if (videoSize <= MAX_TIKTOK_CHUNK_SIZE && chunkSize >= videoSize) {
         chunkSize = videoSize;
-      } else if (
-        chunkSize < MIN_TIKTOK_CHUNK_SIZE ||
-        chunkSize > MAX_TIKTOK_CHUNK_SIZE
-      ) {
+      } else if (chunkSize < MIN_TIKTOK_CHUNK_SIZE || chunkSize > MAX_TIKTOK_CHUNK_SIZE) {
         throw new Error(
           `TikTok chunkSize must be between ${MIN_TIKTOK_CHUNK_SIZE} and ${MAX_TIKTOK_CHUNK_SIZE} bytes for videos larger than one final chunk`,
         );
@@ -180,9 +177,8 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
         // TikTok's final chunk may contain the remainder, so the number of
         // PUTs must match total_chunk_count even when video_size is not an
         // exact multiple of chunk_size.
-        const end = chunkIndex === totalChunkCount - 1
-          ? videoSize
-          : Math.min(start + chunkSize, videoSize);
+        const end =
+          chunkIndex === totalChunkCount - 1 ? videoSize : Math.min(start + chunkSize, videoSize);
         const chunk = videoBuffer.slice(start, end);
         const uploadResp = await this.fetchImpl(upload_url, {
           method: 'PUT',
@@ -268,7 +264,9 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
     });
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      throw new Error(`TikTok token revoke failed: ${response.status} — ${body}`);
+      throw new Error(
+        `TikTok token revoke failed: ${response.status} — ${redactProviderText(body)}`,
+      );
     }
 
     this.auth.accessToken = '';

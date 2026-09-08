@@ -3,7 +3,12 @@
 // logging with MAX_LOG cap, and the HTTP helpers (apiGet/apiPost/apiUpload/apiDelete).
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { BaseConnector, CONNECTOR_REQUEST_TIMEOUT_MS } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_REQUEST_TIMEOUT_MS,
+  redactProviderText,
+  redactProviderUrl,
+} from './base.js';
 import type {
   ConnectorAuth,
   ConnectorPublishInput,
@@ -174,6 +179,15 @@ describe('logging', () => {
       platform: 'x',
     });
     expect(logs[0].timestamp).toBeTruthy();
+  });
+
+  it('redacts provider credentials from URLs and error text', () => {
+    expect(redactProviderUrl('https://graph.example.test/post?access_token=secret&fields=id')).toBe(
+      'https://graph.example.test/post?access_token=%5BREDACTED%5D&fields=id',
+    );
+    expect(redactProviderText('Bearer secret access_token=another-secret detail=bad')).toBe(
+      'Bearer [REDACTED] access_token=[REDACTED] detail=bad',
+    );
   });
 
   it('caps log history at MAX_LOG (100) entries', () => {

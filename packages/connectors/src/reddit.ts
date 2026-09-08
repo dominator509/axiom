@@ -1,7 +1,7 @@
 // ─── Reddit Connector ───
 // Uses the Reddit API (OAuth 2.0) for publishing, metrics, and token management.
 
-import { BaseConnector } from './base.js';
+import { BaseConnector, redactProviderText } from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -185,7 +185,9 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
 
       if (!submitResp.ok) {
         const submitBody = await submitResp.text().catch(() => '');
-        throw new Error(`Reddit submit failed: HTTP ${submitResp.status} — ${submitBody}`);
+        throw new Error(
+          `Reddit submit failed: HTTP ${submitResp.status} — ${redactProviderText(submitBody)}`,
+        );
       }
 
       const submitData = (await submitResp.json()) as RedditSubmitResponse;
@@ -233,7 +235,9 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
 
     if (!resp.ok) {
       const body = await resp.text().catch(() => '');
-      throw new Error(`Reddit info fetch failed: HTTP ${resp.status} — ${body}`);
+      throw new Error(
+        `Reddit info fetch failed: HTTP ${resp.status} — ${redactProviderText(body)}`,
+      );
     }
 
     const data = (await resp.json()) as RedditInfoResponse;
@@ -298,7 +302,11 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
       this.log('info', 'revoke', `Reddit OAuth token revoked`, { success: result.success });
     } else {
       const body = await response.text().catch(() => '');
-      this.log('warn', 'revoke', `Reddit token revocation warned: ${response.status} — ${body}`);
+      this.log(
+        'warn',
+        'revoke',
+        `Reddit token revocation warned: ${response.status} — ${redactProviderText(body)}`,
+      );
     }
 
     // Clear cached auth data

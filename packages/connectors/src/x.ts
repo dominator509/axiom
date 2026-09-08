@@ -1,7 +1,7 @@
 // ─── X (Twitter) Connector ───
 // Uses the Twitter API v2 for publishing, metrics, and OAuth 2.0 management.
 
-import { BaseConnector } from './base.js';
+import { BaseConnector, redactProviderText } from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -131,7 +131,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
 
     if (!resp.ok) {
       const body = await resp.text().catch(() => '');
-      throw new Error(`X metrics fetch failed: HTTP ${resp.status} — ${body}`);
+      throw new Error(`X metrics fetch failed: HTTP ${resp.status} — ${redactProviderText(body)}`);
     }
 
     const data = (await resp.json()) as TweetMetricsResponse;
@@ -184,7 +184,11 @@ export class XConnector extends BaseConnector implements SocialConnector {
       this.log('info', 'revoke', `X OAuth 2.0 token revoked`, { revoked: result.revoked });
     } else {
       const body = await response.text().catch(() => '');
-      this.log('warn', 'revoke', `X token revocation warned: ${response.status} — ${body}`);
+      this.log(
+        'warn',
+        'revoke',
+        `X token revocation warned: ${response.status} — ${redactProviderText(body)}`,
+      );
     }
 
     // Clear cached auth data
