@@ -78,31 +78,39 @@ describe('publish', () => {
 
     // Container creation calls come first (both)
     const create1 = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(create1[0]).toBe('https://graph.threads.net/v1.0/threads-user-1/threads');
-    expect(JSON.parse(create1[1].body as string)).toMatchObject({
-      media_type: 'IMAGE',
-      image_url: 'https://cdn.example.com/a.jpg',
-      is_carousel_item: true,
-    });
+    const create1Url = new URL(create1[0]);
+    expect(create1Url.origin + create1Url.pathname).toBe(
+      'https://graph.threads.net/v1.0/threads-user-1/threads',
+    );
+    expect(create1[1].body).toBeUndefined();
+    expect(create1Url.searchParams.get('media_type')).toBe('IMAGE');
+    expect(create1Url.searchParams.get('image_url')).toBe('https://cdn.example.com/a.jpg');
+    expect(create1Url.searchParams.get('is_carousel_item')).toBe('true');
 
     const create2 = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(JSON.parse(create2[1].body as string)).toMatchObject({
-      media_type: 'VIDEO',
-      video_url: 'https://cdn.example.com/b.mp4',
-      is_carousel_item: true,
-    });
+    const create2Url = new URL(create2[0]);
+    expect(create2[1].body).toBeUndefined();
+    expect(create2Url.searchParams.get('media_type')).toBe('VIDEO');
+    expect(create2Url.searchParams.get('video_url')).toBe('https://cdn.example.com/b.mp4');
+    expect(create2Url.searchParams.get('is_carousel_item')).toBe('true');
 
     const parent = fetchMock.mock.calls[2] as [string, RequestInit];
-    expect(parent[0]).toBe('https://graph.threads.net/v1.0/threads-user-1/threads');
-    expect(JSON.parse(parent[1].body as string)).toMatchObject({
-      media_type: 'CAROUSEL_ALBUM',
-      text: 'Hello Threads',
-      children: 'c1,c2',
-    });
+    const parentUrl = new URL(parent[0]);
+    expect(parentUrl.origin + parentUrl.pathname).toBe(
+      'https://graph.threads.net/v1.0/threads-user-1/threads',
+    );
+    expect(parent[1].body).toBeUndefined();
+    expect(parentUrl.searchParams.get('media_type')).toBe('CAROUSEL');
+    expect(parentUrl.searchParams.get('text')).toBe('Hello Threads');
+    expect(parentUrl.searchParams.get('children')).toBe('c1,c2');
 
     const publish = fetchMock.mock.calls[3] as [string, RequestInit];
-    expect(publish[0]).toBe('https://graph.threads.net/v1.0/threads-user-1/threads_publish');
-    expect(JSON.parse(publish[1].body as string)).toMatchObject({ creation_id: 'parent-1' });
+    const publishUrl = new URL(publish[0]);
+    expect(publishUrl.origin + publishUrl.pathname).toBe(
+      'https://graph.threads.net/v1.0/threads-user-1/threads_publish',
+    );
+    expect(publish[1].body).toBeUndefined();
+    expect(publishUrl.searchParams.get('creation_id')).toBe('parent-1');
   });
 
   it('fails fast when externalUserId is missing', async () => {

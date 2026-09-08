@@ -96,7 +96,9 @@ describe('GET /authorize', () => {
     const location = new URL(response.headers.get('location')!);
     expect(location.origin).toBe('https://threads.net');
     expect(location.searchParams.get('client_id')).toBe('test-threads-client');
-    expect(location.searchParams.get('scope')).toBe('threads_basic,threads_publish');
+    expect(location.searchParams.get('scope')).toBe(
+      'threads_basic,threads_content_publish,threads_manage_insights',
+    );
     expect(response.headers.get('set-cookie')).toContain('HttpOnly');
   });
 });

@@ -273,17 +273,18 @@ export abstract class BaseConnector implements SocialConnector {
    */
   protected async apiPost<T>(
     url: string,
-    body: unknown,
+    body?: unknown,
     headers?: Record<string, string>,
   ): Promise<T> {
+    const requestHeaders: Record<string, string> = {
+      Authorization: `Bearer ${this.auth.accessToken}`,
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...headers,
+    };
     const response = await this.fetchImpl(url, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.auth.accessToken}`,
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      body: JSON.stringify(body),
+      headers: requestHeaders,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
 
     if (!response.ok) {

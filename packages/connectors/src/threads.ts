@@ -78,17 +78,15 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
       for (const mediaUrl of input.mediaUrls) {
         const mediaType = this.detectMediaType(mediaUrl);
 
-        const body: Record<string, string | boolean> = {
+        const params: Record<string, string> = {
           media_type: mediaType === 'video' ? 'VIDEO' : 'IMAGE',
           ...(mediaType === 'video' ? { video_url: mediaUrl } : { image_url: mediaUrl }),
           access_token: accessToken,
         };
-        if (input.mediaUrls.length > 1) body.is_carousel_item = true;
+        if (input.mediaUrls.length > 1) params.is_carousel_item = 'true';
 
         const createResp = await this.apiPost<ThreadsMediaContainerResponse>(
-          `${THREADS_GRAPH_BASE}/${threadsUserId}/threads`,
-          body,
-          { 'Content-Type': 'application/json' },
+          graphUrl(`${THREADS_GRAPH_BASE}/${threadsUserId}/threads`, params),
         );
 
         creationIds.push(createResp.id);
@@ -102,14 +100,12 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
         creationIds.length > 1
           ? (
               await this.apiPost<ThreadsMediaContainerResponse>(
-                `${THREADS_GRAPH_BASE}/${threadsUserId}/threads`,
-                {
-                  media_type: 'CAROUSEL_ALBUM',
+                graphUrl(`${THREADS_GRAPH_BASE}/${threadsUserId}/threads`, {
+                  media_type: 'CAROUSEL',
                   text: input.caption,
                   children: creationIds.join(','),
                   access_token: accessToken,
-                },
-                { 'Content-Type': 'application/json' },
+                }),
               )
             ).id
           : creationIds[0];
@@ -118,9 +114,10 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
 
       // Step 2: Publish the single container (or carousel parent).
       const publishResp = await this.apiPost<ThreadsPublishResponse>(
-        `${THREADS_GRAPH_BASE}/${threadsUserId}/threads_publish`,
-        { creation_id: publishCreationId, access_token: accessToken },
-        { 'Content-Type': 'application/json' },
+        graphUrl(`${THREADS_GRAPH_BASE}/${threadsUserId}/threads_publish`, {
+          creation_id: publishCreationId,
+          access_token: accessToken,
+        }),
       );
       const lastRemoteId = publishResp.id;
 
@@ -209,6 +206,12 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
       return 'image';
     }
   }
+}
+
+function graphUrl(endpoint: string, params: Record<string, string>): string {
+  const url = new URL(endpoint);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  return url.toString();
 }
 
 export default ThreadsConnector;
