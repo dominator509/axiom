@@ -138,6 +138,9 @@ export async function processJob(
       });
       return 'done' as const;
     });
+    // Keep the claimed row's local snapshot aligned with the durable state so
+    // workerTick can report a useful outcome to the long-running loop.
+    job.last_error = null;
     return result;
   } catch (err) {
     // Once provider I/O has started, a later failure has an unknown external
@@ -145,6 +148,7 @@ export async function processJob(
     // accepted the publish/card. Dead-letter it for reconciliation instead.
     if (externalSideEffectStarted) {
       const message = (err as Error).message ?? String(err);
+      job.last_error = `${EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX} ${message}`;
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
         await updateOwnedJob(tx, job, workerId, {
@@ -158,6 +162,7 @@ export async function processJob(
     }
 
     if (err instanceof ParkJobError) {
+      job.last_error = err.message;
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
         await updateOwnedJob(tx, job, workerId, {
@@ -172,6 +177,7 @@ export async function processJob(
     }
 
     const message = (err as Error).message ?? String(err);
+    job.last_error = message;
     const attempts = (job.attempts ?? 0) + 1;
     const maxAttempts = opts.maxAttempts ?? job.max_attempts ?? 3;
 
@@ -241,6 +247,9 @@ export async function workerTick(opts: WorkerOptions = {}): Promise<WorkerStats>
   else if (outcome === 'retry') stats.failed = 1;
   else if (outcome === 'dead') stats.dead = 1;
   else stats.parked = 1;
+  if (outcome !== 'done') {
+    stats.lastError = claimed.last_error ?? `job ${claimed.id} ended with ${outcome}`;
+  }
 
   return stats;
 }

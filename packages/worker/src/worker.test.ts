@@ -3,15 +3,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ─── Chainable transaction mock (mirrors api test-utils pattern) ───
 // NOTE: vi.mock factories are hoisted above imports, so all state referenced
 // by the factory must be defined inside the factory itself.
-const mockState: { result: unknown } = { result: [] };
+const mockState: { result: unknown; executeResult?: unknown } = { result: [] };
 
-function makeChain(): any {
+function makeChain(result = mockState.result): any {
   const handler = {
     get(_t: unknown, prop: string | symbol) {
       if (prop === 'then') {
         return (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => {
-          Promise.resolve(mockState.result).then(resolve, reject);
+          Promise.resolve(result).then(resolve, reject);
         };
+      }
+      if (prop === 'execute') {
+        return () => makeChain(mockState.executeResult ?? mockState.result);
       }
       return () => makeChain();
     },
@@ -92,6 +95,24 @@ describe('workerTick with empty queue', () => {
     const stats = await workerTick({ pollIntervalMs: 5 });
     expect(stats.emptyPolls).toBe(1);
     expect(stats.claimed).toBe(0);
+  });
+
+  it('reports the handled job error for the long-running loop', async () => {
+    const job = makeJob({ kind: 'test.fail' });
+    mockState.result = [job];
+    mockState.executeResult = { rows: [job] };
+
+    const stats = await workerTick({
+      executors: {
+        'test.fail': async () => {
+          throw new Error('provider timeout');
+        },
+      },
+    });
+
+    expect(stats.claimed).toBe(1);
+    expect(stats.failed).toBe(1);
+    expect(stats.lastError).toBe('provider timeout');
   });
 });
 
