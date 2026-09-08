@@ -4,6 +4,10 @@
 //   GET  /callback — exchange code for token
 //   GET  /delete — Meta data-deletion callback
 //   POST /uninstall — Meta app-uninstall callback
+//
+// The callbacks stay fail-closed until a durable provider-lifecycle processor
+// exists. Returning success without deleting local data would falsely satisfy
+// Meta's contract and leave a remote account connected in AXIOM.
 
 import { Hono } from 'hono';
 import { randomBytes } from 'node:crypto';
@@ -207,24 +211,37 @@ router.get('/delete', (c) => {
  *
  * In Meta Dev Portal, set Uninstall Callback URL to the deployed
  * BETTER_AUTH_URL origin plus /api/v1/connectors/threads/uninstall.
+ *
+ * AXIOM does not yet have a durable provider-lifecycle processor that can
+ * resolve the encrypted connection by provider user id and revoke it. Do not
+ * acknowledge this callback as handled; a successful response would make the
+ * provider stop retrying while leaving the local connection active.
  */
-router.post('/uninstall', async (c) => {
-  const payload = await c.req.json().catch(() => ({}));
-  const userId = (payload as Record<string, unknown>)?.user_id || 'unknown';
-  console.log(`[Threads] User uninstalled app: user_id=${userId}`);
-  return c.json({ status: 'acknowledged', user_id: userId });
-});
+router.post('/uninstall', (c) =>
+  apiError(
+    c,
+    503,
+    statusTitle(503),
+    'Threads uninstall processing is unavailable; no local connection was changed',
+  ),
+);
 
 /**
  * Deletion status check — user-facing endpoint to check GDPR deletion progress.
+ *
+ * A durable deletion record/processor is not present, so this endpoint must
+ * not report a permanently pending request as if work had been accepted.
  */
 router.get('/delete/status', (c) => {
   const id = c.req.query('id');
-  return c.json({
-    id,
-    status: 'pending',
-    message: 'Deletion request received and is being processed.',
-  });
+  if (!id) return apiError(c, 400, statusTitle(400), 'id query required');
+  return apiError(
+    c,
+    503,
+    statusTitle(503),
+    'Threads data-deletion processing is unavailable; no deletion was confirmed',
+    { id },
+  );
 });
 
 export { router as threadsAuthRouter };

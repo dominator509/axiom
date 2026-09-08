@@ -171,14 +171,17 @@ describe('GET /callback', () => {
 });
 
 describe('webhooks', () => {
-  it('acknowledges uninstall notifications without exposing credentials', async () => {
+  it('fails closed instead of acknowledging an uninstall without a processor', async () => {
     const response = await app.request('/uninstall', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ user_id: 'threads-user-7' }),
     });
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: 'acknowledged', user_id: 'threads-user-7' });
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      status: 503,
+      detail: 'Threads uninstall processing is unavailable; no local connection was changed',
+    });
   });
 
   it('returns the Meta deletion callback status URL', async () => {
@@ -188,5 +191,20 @@ describe('webhooks', () => {
       confirmation_code: 'delete-123',
       url: 'https://axiom.example.test/api/v1/connectors/threads/delete/status?id=delete-123',
     });
+  });
+
+  it('fails closed instead of reporting deletion as permanently pending', async () => {
+    const response = await app.request('/delete/status?id=delete-123');
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      status: 503,
+      detail: 'Threads data-deletion processing is unavailable; no deletion was confirmed',
+      id: 'delete-123',
+    });
+  });
+
+  it('requires a deletion status identifier', async () => {
+    const response = await app.request('/delete/status');
+    expect(response.status).toBe(400);
   });
 });
