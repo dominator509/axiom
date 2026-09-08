@@ -5,6 +5,12 @@ import { modelProfile } from './model_profile.js';
 import { asset } from './asset.js';
 import { postTarget } from './post_target.js';
 
+export type ContentBundlePublishIntent = {
+  action: 'schedule' | 'publish';
+  platform: string;
+  scheduledAt: string | null;
+};
+
 export const contentBundle = pgTable('content_bundle', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: uuid('org_id')
@@ -17,6 +23,7 @@ export const contentBundle = pgTable('content_bundle', {
   captions: jsonb('captions').$type<Record<string, string>>().default({}),
   hashtags: jsonb('hashtags').$type<string[]>().default([]),
   tosReport: jsonb('tos_report').$type<Record<string, unknown>>(),
+  publishIntent: jsonb('publish_intent').$type<ContentBundlePublishIntent>(),
   state: text('state').notNull().default('generated'),
   createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

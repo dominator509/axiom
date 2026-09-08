@@ -8,6 +8,9 @@ import { capabilityNames, resolveCapabilities } from '@axiom/worker';
 import { modelOrgId, withOrgContext, writeAudit } from './helpers.js';
 
 const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? 'http://127.0.0.1:3000';
+const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
+  ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
+  : {};
 const EGRESS_DEK_ID = process.env.EGRESS_DEK_ID ?? 'egress-dek';
 
 export type OAuthPlatform = 'fanvue' | 'threads';
@@ -41,7 +44,7 @@ export async function encryptOAuthCredentials(
 ): Promise<EncryptedCredentialEnvelope> {
   const response = await fetch(`${EGRESS_PLANE_URL}/egress/encrypt`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
     body: JSON.stringify({
       plaintext: Buffer.from(JSON.stringify(credentials), 'utf8').toString('base64'),
       dek_id: EGRESS_DEK_ID,

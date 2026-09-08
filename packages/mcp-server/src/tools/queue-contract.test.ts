@@ -90,7 +90,15 @@ describe('MCP queue contracts', () => {
 
     expect(result).toMatchObject({ status: 'pending_approval', requiresApproval: true });
     expect(inserted).toHaveLength(1);
-    expect(inserted[0]?.values).toMatchObject({ state: 'generated', modelId: MODEL_ID });
+    expect(inserted[0]?.values).toMatchObject({
+      state: 'generated',
+      modelId: MODEL_ID,
+      publishIntent: {
+        action: 'publish',
+        platform: 'x',
+        scheduledAt: null,
+      },
+    });
     expect(enqueueJob).not.toHaveBeenCalled();
   });
 
@@ -160,6 +168,13 @@ describe('MCP queue contracts', () => {
 
     expect(result).toMatchObject({ status: 'pending_approval', requiresApproval: true });
     expect(inserted).toHaveLength(1);
+    expect(inserted[0]?.values).toMatchObject({
+      publishIntent: {
+        action: 'schedule',
+        platform: 'fanvue',
+        scheduledAt: '2026-08-02T10:00:00Z',
+      },
+    });
     expect(enqueueJob).not.toHaveBeenCalled();
   });
 

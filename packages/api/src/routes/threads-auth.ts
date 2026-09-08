@@ -27,7 +27,9 @@ const APPLICATION_ORIGIN = process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001
 const REDIRECT_URI = new URL('/api/v1/connectors/threads/callback', APPLICATION_ORIGIN).toString();
 const OAUTH_STATE_COOKIE = 'axiom_threads_oauth_state';
 const OAUTH_COOKIE_PATH = '/api/v1/connectors/threads';
-const OAUTH_STATE_KEY = resolveOAuthCookieSecret();
+// Resolve on request so build-time OpenAPI generation can import the route
+// without requiring runtime deployment secrets.
+const oauthStateKey = () => resolveOAuthCookieSecret();
 
 function deletionStatusUrl(confirmationCode: string): string {
   const url = new URL('/api/v1/connectors/threads/delete/status', APPLICATION_ORIGIN);
@@ -67,7 +69,7 @@ router.get('/authorize', async (c) => {
     c,
     OAUTH_STATE_COOKIE,
     { state, orgId, modelId, issuedAt: Date.now() },
-    OAUTH_STATE_KEY,
+    oauthStateKey(),
     OAUTH_COOKIE_PATH,
   );
   authUrl.searchParams.set('state', state);
@@ -96,7 +98,7 @@ router.get('/callback', async (c) => {
     return apiError(c, 500, statusTitle(500), 'Threads client credentials not configured');
   }
 
-  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_STATE_KEY);
+  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, oauthStateKey());
   if (!state || !pending || pending.state !== state) {
     return apiError(c, 400, statusTitle(400), 'Invalid or missing state (CSRF check failed)');
   }

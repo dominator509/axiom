@@ -50,7 +50,9 @@ const FANVUE_SCOPES = [
 
 const OAUTH_STATE_COOKIE = 'axiom_fanvue_oauth_state';
 const OAUTH_COOKIE_PATH = '/api/v1/connectors/fanvue';
-const OAUTH_STATE_KEY = resolveOAuthCookieSecret();
+// Resolve on request so build-time OpenAPI generation can import the route
+// without requiring runtime deployment secrets.
+const oauthStateKey = () => resolveOAuthCookieSecret();
 
 const router = new Hono<AppBindings>();
 
@@ -90,7 +92,7 @@ router.get('/authorize', async (c) => {
     c,
     OAUTH_STATE_COOKIE,
     { state, verifier, orgId, modelId, issuedAt: Date.now() },
-    OAUTH_STATE_KEY,
+    oauthStateKey(),
     OAUTH_COOKIE_PATH,
   );
 
@@ -124,7 +126,7 @@ router.get('/callback', async (c) => {
     return apiError(c, 400, statusTitle(400), 'Missing authorization code');
   }
 
-  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_STATE_KEY);
+  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, oauthStateKey());
   if (!state || !pending || pending.state !== state || !pending.verifier) {
     return apiError(c, 400, statusTitle(400), 'Invalid or missing state (CSRF check failed)');
   }

@@ -16,6 +16,9 @@ import { apiError, modelOrgId, statusTitle } from './helpers.js';
 const router = new Hono<AppBindings>();
 
 const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? 'http://127.0.0.1:3000';
+const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
+  ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
+  : {};
 const EGRESS_MODES = ['direct', 'socks5', 'http', 'https', 'wireguard', 'vpn'] as const;
 const EGRESS_DEK_ID = process.env.EGRESS_DEK_ID ?? 'egress-dek';
 
@@ -56,7 +59,7 @@ async function encryptCreds(
   try {
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/encrypt`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
       body: JSON.stringify({
         plaintext: Buffer.from(plaintext, 'utf8').toString('base64'),
         dek_id: EGRESS_DEK_ID,
@@ -321,7 +324,7 @@ router.post('/plane/bind', async (c) => {
     }
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/bind`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
       // The authenticated request context is authoritative. Put org_id last
       // so a caller cannot smuggle another tenant into the plane payload.
       body: JSON.stringify({ ...payload, org_id: orgId }),
@@ -357,7 +360,7 @@ router.post('/plane/unbind', async (c) => {
     }
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/unbind`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
       body: JSON.stringify({ ...payload, org_id: orgId }),
       signal: AbortSignal.timeout(10000),
     });
@@ -379,6 +382,7 @@ router.get('/plane/status', async (c) => {
   let res: Response;
   try {
     res = await fetch(`${EGRESS_PLANE_URL}/egress/status`, {
+      headers: EGRESS_PLANE_HEADERS,
       signal: AbortSignal.timeout(3000),
     });
   } catch {
@@ -425,6 +429,7 @@ router.post('/plane/sync', async (c) => {
   try {
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/sync`, {
       method: 'POST',
+      headers: EGRESS_PLANE_HEADERS,
       signal: AbortSignal.timeout(30000),
     });
     const data = await res.json().catch(() => ({}));
@@ -441,6 +446,7 @@ router.post('/plane/sync', async (c) => {
 router.get('/plane/health', async (c) => {
   try {
     const res = await fetch(`${EGRESS_PLANE_URL}/health`, {
+      headers: EGRESS_PLANE_HEADERS,
       signal: AbortSignal.timeout(2000),
     });
     const data = await res.json().catch(() => ({}));

@@ -17,9 +17,17 @@ import {
   apiError,
   statusTitle,
 } from './helpers.js';
+import { rateLimit } from '../contract.js';
 
 const router = new Hono<AppBindings>();
 const publicRouter = new Hono<AppBindings>();
+
+// Public click telemetry is intentionally unauthenticated, so it needs its
+// own anonymous bucket rather than relying on the authenticated /api/v1 gate.
+publicRouter.use(
+  '/:modelId/click/:providerId',
+  rateLimit({ capacity: 60, refillPerSec: 1, maxBuckets: 100_000 }),
+);
 
 const PROVIDER_KINDS = ['native'] as const;
 

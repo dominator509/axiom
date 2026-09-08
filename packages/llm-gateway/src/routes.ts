@@ -62,15 +62,16 @@ const chatBodySchema = z.object({
     .array(
       z.object({
         role: z.enum(['system', 'user', 'assistant']),
-        content: z.string(),
+        content: z.string().max(16_000),
       }),
     )
-    .min(1, 'at least one message is required'),
-  model: z.string().optional(),
+    .min(1, 'at least one message is required')
+    .max(64),
+  model: z.string().max(200).optional(),
   temperature: z.number().min(0).max(2).optional(),
-  maxTokens: z.number().int().positive().optional(),
+  maxTokens: z.number().int().positive().max(8192).optional(),
   policy: z.enum(['cost', 'latency', 'quality']).optional(),
-  provider: z.string().optional(),
+  provider: z.string().max(64).optional(),
   stream: z.boolean().optional(),
   /** Route through the model's bound egress sidecar (L2.6). */
   egress: z.boolean().optional(),
@@ -199,6 +200,7 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
       provider,
       egress,
       userId: c.get('userId'),
+      signal: c.req.raw.signal,
     });
 
     return new Response(

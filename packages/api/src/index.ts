@@ -71,6 +71,25 @@ type InboundRelayAdapter = {
 
 type InboundRelayChannel = 'telegram' | 'discord' | 'signal' | 'imessage';
 
+type PublishIntent = {
+  action: 'schedule' | 'publish';
+  platform: string;
+  scheduledAt: string | null;
+};
+
+function parsePublishIntent(value: unknown): PublishIntent | null {
+  if (!value || typeof value !== 'object') return null;
+  const intent = value as Record<string, unknown>;
+  if (intent.action !== 'schedule' && intent.action !== 'publish') return null;
+  if (typeof intent.platform !== 'string' || intent.platform.length === 0) return null;
+  if (intent.scheduledAt !== null && typeof intent.scheduledAt !== 'string') return null;
+  return {
+    action: intent.action,
+    platform: intent.platform,
+    scheduledAt: intent.scheduledAt,
+  };
+}
+
 // Route construction creates the adapter without provider I/O. Runtime startup
 // reuses this instance so webhook delivery and outbound relay commands share the
 // same registered handlers and command router.
@@ -193,8 +212,13 @@ async function relayCommandExecutor(
         }
 
         const captions = (bundle[0].captions as Record<string, string> | null) ?? {};
+        const publishIntent = parsePublishIntent(bundle[0].publishIntent);
         const requestedPlatforms =
-          Object.keys(captions).length > 0 ? Object.keys(captions) : ['instagram'];
+          Object.keys(captions).length > 0
+            ? Object.keys(captions)
+            : publishIntent?.platform
+              ? [publishIntent.platform]
+              : ['instagram'];
         const platforms = requestedPlatforms.map((value) => {
           try {
             return asPlatform(value);
@@ -235,14 +259,18 @@ async function relayCommandExecutor(
               : typeof params.scheduledFor === 'string'
                 ? params.scheduledFor
                 : undefined;
+        const immediateIntent = !rawSlot && publishIntent?.action === 'publish';
         const slot =
-          action === 'publish_now'
+          action === 'publish_now' || immediateIntent
             ? new Date()
             : rawSlot
               ? new Date(rawSlot)
-              : new Date(Date.now() + 3600_000);
+              : publishIntent?.scheduledAt
+                ? new Date(publishIntent.scheduledAt)
+                : new Date(Date.now() + 3600_000);
         if (
           action !== 'publish_now' &&
+          !immediateIntent &&
           (Number.isNaN(slot.getTime()) || slot.getTime() <= Date.now())
         ) {
           throw new Error('relay command: approval slot must be a valid future timestamp');
@@ -825,8 +853,10 @@ export function createRelayApp(): Hono {
   const threadsClientId = process.env.THREADS_CLIENT_ID;
   const threadsClientSecret = process.env.THREADS_CLIENT_SECRET;
   const configuredThreadsVerifyToken = process.env.THREADS_WEBHOOK_VERIFY_TOKEN;
+  const environment = (process.env.AXIOM_ENV ?? process.env.NODE_ENV)?.trim();
+  const localDevelopment = environment === 'development' || environment === 'test';
   if (
-    process.env.NODE_ENV === 'production' &&
+    !localDevelopment &&
     threadsClientId &&
     threadsClientSecret &&
     !configuredThreadsVerifyToken

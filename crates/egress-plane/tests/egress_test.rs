@@ -36,6 +36,7 @@ fn test_config(echo_url: String) -> egress_plane::Config {
     egress_plane::Config {
         kill_switch: "false".to_string(),
         listen_addr: "127.0.0.1:0".to_string(),
+        auth_token: None,
         echo_url,
         database_url: None,
         dek: None,
@@ -70,6 +71,42 @@ async fn start_test_server_with_base(echo_url: String, base_octet: u16) -> Strin
 
 async fn start_test_server(echo_url: String) -> String {
     start_test_server_with_base(echo_url, 1).await
+}
+
+#[tokio::test]
+async fn test_non_loopback_control_plane_requires_token() {
+    let kill_switch = egress_plane::killswitch::KillSwitch::new(false);
+    let mut config = test_config("https://example.invalid/ip".to_string());
+    config.listen_addr = "0.0.0.0:9090".to_string();
+    let state = Arc::new(egress_plane::AppState {
+        config,
+        kill_switch,
+        db: Mutex::new(None),
+        registry: Mutex::new(egress_plane::Registry::new()),
+    });
+    let app = egress_plane::build_router_for_test(state);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("serve");
+    });
+
+    let client = reqwest::Client::new();
+    let health = client
+        .get(format!("http://{addr}/health"))
+        .send()
+        .await
+        .expect("health");
+    assert_eq!(health.status(), 200);
+
+    let status = client
+        .get(format!("http://{addr}/egress/status"))
+        .send()
+        .await
+        .expect("status");
+    assert_eq!(status.status(), 503);
 }
 
 /// Find a free TCP port by binding :0 and dropping the listener.

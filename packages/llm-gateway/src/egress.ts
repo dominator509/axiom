@@ -9,6 +9,9 @@
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
 
 const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? 'http://127.0.0.1:3000';
+const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
+  ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
+  : {};
 
 interface EgressStatusModel {
   model_id?: string;
@@ -33,6 +36,7 @@ export async function resolveEgressProxy(modelId: string): Promise<string | null
   let proxy: string | null = null;
   try {
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/status`, {
+      headers: EGRESS_PLANE_HEADERS,
       signal: AbortSignal.timeout(1500),
     });
     if (res.ok) {
@@ -43,7 +47,8 @@ export async function resolveEgressProxy(modelId: string): Promise<string | null
       }
     }
   } catch {
-    // Egress plane unreachable — degrade to direct (documented opt-out).
+    // Egress plane unreachable — return null so callers requiring model-bound
+    // routing fail closed instead of silently using the host route.
     proxy = null;
   }
   cache.set(modelId, { proxy, at: Date.now() });

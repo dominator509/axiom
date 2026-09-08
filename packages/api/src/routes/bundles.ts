@@ -39,6 +39,25 @@ const reviseBundleSchema = z.object({
   instructions: z.string().min(1).max(2000),
 });
 
+type PublishIntent = {
+  action: 'schedule' | 'publish';
+  platform: string;
+  scheduledAt: string | null;
+};
+
+function parsePublishIntent(value: unknown): PublishIntent | null {
+  if (!value || typeof value !== 'object') return null;
+  const intent = value as Record<string, unknown>;
+  if (intent.action !== 'schedule' && intent.action !== 'publish') return null;
+  if (typeof intent.platform !== 'string' || intent.platform.length === 0) return null;
+  if (intent.scheduledAt !== null && typeof intent.scheduledAt !== 'string') return null;
+  return {
+    action: intent.action,
+    platform: intent.platform,
+    scheduledAt: intent.scheduledAt,
+  };
+}
+
 // GET /api/v1/bundles/:id — bundle detail + variants + ToS scores
 router.get('/:id', async (c) => {
   const orgId = requireOrg(c);
@@ -194,6 +213,28 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
       }
     }
 
+    // MCP-created bundles keep their requested timing until approval. An
+    // explicit dashboard slot always wins; otherwise publish requests become
+    // immediate on approval and scheduled requests use their persisted slot.
+    const publishIntent = parsePublishIntent(bundle.publishIntent);
+    const immediateIntent = !body.slot && publishIntent?.action === 'publish';
+    const slot = body.slot
+      ? new Date(body.slot)
+      : immediateIntent
+        ? new Date()
+        : publishIntent?.scheduledAt
+          ? new Date(publishIntent.scheduledAt)
+          : new Date(Date.now() + 3600_000);
+    if (
+      !immediateIntent &&
+      (Number.isNaN(slot.getTime()) || slot.getTime() <= Date.now())
+    ) {
+      return {
+        status: 400 as const,
+        error: 'approval slot must be a valid future timestamp',
+      };
+    }
+
     // Claim the approval transition before creating any downstream work. The
     // compare-and-set is the concurrency gate: if another operator changed
     // the bundle after the initial read, return a conflict without leaving
@@ -212,7 +253,6 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
 
     // Create post_targets (per-platform) and durable publish jobs in the same
     // transaction as the winning state transition.
-    const slot = body.slot ? new Date(body.slot) : new Date(Date.now() + 3600_000);
     for (const platform of platforms) {
       const [target] = await tx
         .insert(schema.postTarget)
@@ -249,6 +289,7 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
   });
 
   if (result.status === 404) return apiError(c, 404, statusTitle(404), 'bundle not found');
+  if (result.status === 400) return apiError(c, 400, statusTitle(400), result.error ?? 'invalid slot');
   if (result.status === 409) return apiError(c, 409, statusTitle(409), result.error ?? 'conflict');
   return c.json({ data: result.data });
 });

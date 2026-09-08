@@ -21,6 +21,9 @@ import {
 const router = new Hono<AppBindings>();
 
 const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? 'http://127.0.0.1:3000';
+const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
+  ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
+  : {};
 
 const networkSchema = z
   .object({
@@ -219,6 +222,7 @@ router.get('/:modelId/network/health', async (c) => {
   if (rows.length > 0) {
     try {
       const res = await fetch(`${EGRESS_PLANE_URL}/egress/status`, {
+        headers: EGRESS_PLANE_HEADERS,
         signal: AbortSignal.timeout(3000),
       });
       if (res.ok) {

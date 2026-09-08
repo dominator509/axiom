@@ -7,7 +7,11 @@ export interface AuthRuntimeConfig {
 
 /** Resolve auth configuration while allowing explicit local-development defaults. */
 export function resolveAuthConfig(env: NodeJS.ProcessEnv): AuthRuntimeConfig {
-  const production = env.NODE_ENV === 'production';
+  const environment = (env.AXIOM_ENV ?? env.NODE_ENV)?.trim();
+  const localDevelopment = environment === 'development' || environment === 'test';
+  // Unknown or missing environments fail closed like production. Only an
+  // explicit development/test mode may use local defaults.
+  const production = !localDevelopment;
   const databaseUrl = env.DATABASE_URL;
   const secret = env.BETTER_AUTH_SECRET;
   const baseURL = env.BETTER_AUTH_URL?.trim();

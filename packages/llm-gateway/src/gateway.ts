@@ -265,8 +265,13 @@ function calculateCost(
 /** Sleep helper */
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function responseCacheKey(messages: Message[], model: string, userId: string): string {
-  return JSON.stringify({ userId, model, messages });
+function responseCacheKey(
+  messages: Message[],
+  model: string,
+  userId: string,
+  egress: boolean,
+): string {
+  return JSON.stringify({ userId, model, egress, messages });
 }
 
 /** Get env var — case-insensitive lookup, prefers upper-case */
@@ -479,12 +484,15 @@ export class LLMGateway {
 
   /**
    * Resolve a fetch implementation bound to the model's egress sidecar
-   * (L2.6). Returns undefined when the model has no healthy bound egress —
-   * callers then use the global fetch (direct route).
+   * (L2.6). A requested model-bound route is a hard precondition; callers
+   * must never silently fall back to the host route.
    */
-  private async resolveEgressFetch(model: string): Promise<typeof fetch | undefined> {
+  private async resolveEgressFetch(model: string): Promise<typeof fetch> {
     const proxy = await resolveEgressProxy(model);
-    return proxy ? buildEgressFetch(proxy) : undefined;
+    if (!proxy) {
+      throw new ProviderError('Model egress binding is unavailable', 503, 'vllm');
+    }
+    return buildEgressFetch(proxy);
   }
 
   /** Call a single provider with retry + exponential backoff */
@@ -561,7 +569,7 @@ export class LLMGateway {
         const cost = calculateCost(provider, promptTokens, completionTokens);
 
         // Cache the result
-        const resultCacheKey = responseCacheKey(messages, model, options.userId);
+        const resultCacheKey = responseCacheKey(messages, model, options.userId, options.egress);
         this.cache.set(resultCacheKey, {
           content,
           usage: { prompt: promptTokens, completion: completionTokens },
@@ -634,6 +642,7 @@ export class LLMGateway {
         processedMessages,
         requestedModel,
         requiredOptions.userId,
+        requiredOptions.egress,
       );
       const cached = this.cache.get(resultCacheKey);
       if (cached !== null) {
@@ -862,6 +871,7 @@ export class LLMGateway {
             processedMessages,
             resolvedModel,
             requiredOptions.userId,
+            requiredOptions.egress,
           );
           cacheResponse(streamCacheKey, fullContent);
 

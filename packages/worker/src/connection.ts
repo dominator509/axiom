@@ -10,6 +10,9 @@ import {
 import type { Platform } from '@axiom/core';
 
 const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? 'http://127.0.0.1:3000';
+const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
+  ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
+  : {};
 
 type PlatformConnectionRow = InferSelectModel<typeof schema.platformConnection>;
 
@@ -115,7 +118,7 @@ export async function resolvePlatformConnection(
 export async function decryptConnectorAuth(connection: PlatformConnectionRow): Promise<ConnectorAuth> {
   const response = await fetch(`${EGRESS_PLANE_URL}/egress/decrypt`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
     body: JSON.stringify({
       enc_token: Buffer.from(connection.encToken as Uint8Array).toString('base64'),
       enc_nonce: Buffer.from(connection.encNonce as Uint8Array).toString('base64'),

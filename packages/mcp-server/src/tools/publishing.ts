@@ -105,6 +105,11 @@ export class PublishingTool {
         assetId,
         captions: args.post.text ? { [args.post.platform]: args.post.text } : {},
         hashtags: [],
+        publishIntent: {
+          action: args.action,
+          platform: args.post.platform,
+          scheduledAt: args.post.scheduledAt ?? null,
+        },
         state: 'generated',
       });
     });

@@ -14,6 +14,8 @@ import { authUser, authSession, authAccount, authVerification } from '@axiom/db/
 import { resolveAuthConfig } from './config.js';
 
 const runtimeConfig = resolveAuthConfig(process.env);
+const environment = (process.env.AXIOM_ENV ?? process.env.NODE_ENV)?.trim();
+const localDevelopment = environment === 'development' || environment === 'test';
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -42,7 +44,7 @@ export const auth = betterAuth({
     defaultCookieAttributes: {
       sameSite: 'lax',
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: !localDevelopment,
     },
   },
   user: {

@@ -1,7 +1,8 @@
 use axum::{
-    extract::State,
+    extract::{Request, State},
     http::StatusCode,
-    response::IntoResponse,
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
@@ -86,6 +87,8 @@ impl IntoResponse for EgressError {
 pub struct Config {
     pub kill_switch: String,
     pub listen_addr: String,
+    /// Shared secret required for non-loopback control-plane requests.
+    pub auth_token: Option<String>,
     /// Echo endpoint that reports the caller's egress IP.
     pub echo_url: String,
     pub database_url: Option<String>,
@@ -101,6 +104,10 @@ impl Config {
             kill_switch: std::env::var("KILL_SWITCH").unwrap_or_else(|_| "false".to_string()),
             listen_addr: std::env::var("LISTEN_ADDR")
                 .unwrap_or_else(|_| "127.0.0.1:3000".to_string()),
+            auth_token: std::env::var("EGRESS_PLANE_TOKEN")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
             echo_url: std::env::var("EGRESS_ECHO_URL")
                 .unwrap_or_else(|_| "https://api.ipify.org".to_string()),
             database_url: std::env::var("EGRESS_DATABASE_URL")
@@ -1135,7 +1142,68 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/kill-switch/drain", post(kill_switch_drain))
         .route("/kill-switch/status", get(kill_switch_status))
         .route("/kill-switch/disable", post(kill_switch_disable))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_control_plane_auth,
+        ))
         .with_state(state)
+}
+
+/// Require the shared plane token whenever the control plane is reachable
+/// beyond loopback. A missing token is tolerated only for local development
+/// and tests; a non-loopback deployment fails closed with 503.
+async fn require_control_plane_auth(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if request.uri().path() == "/health" {
+        return next.run(request).await;
+    }
+
+    let Some(expected) = state.config.auth_token.as_deref() else {
+        if is_loopback_listener(&state.config.listen_addr) {
+            return next.run(request).await;
+        }
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "EGRESS_PLANE_TOKEN is not configured" })),
+        )
+            .into_response();
+    };
+
+    let supplied = request
+        .headers()
+        .get("x-egress-plane-token")
+        .and_then(|value| value.to_str().ok());
+    if supplied.is_some_and(|value| constant_time_token_eq(expected, value)) {
+        next.run(request).await
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "invalid egress plane token" })),
+        )
+            .into_response()
+    }
+}
+
+fn is_loopback_listener(listen_addr: &str) -> bool {
+    listen_addr
+        .parse::<std::net::SocketAddr>()
+        .map(|addr| addr.ip().is_loopback())
+        .unwrap_or_else(|_| listen_addr.starts_with("127.") || listen_addr.starts_with("[::1]"))
+}
+
+fn constant_time_token_eq(expected: &str, supplied: &str) -> bool {
+    let expected = expected.as_bytes();
+    let supplied = supplied.as_bytes();
+    let mut difference = expected.len() ^ supplied.len();
+    for index in 0..expected.len().max(supplied.len()) {
+        difference |= usize::from(
+            expected.get(index).copied().unwrap_or(0) ^ supplied.get(index).copied().unwrap_or(0),
+        );
+    }
+    difference == 0
 }
 
 /// Build a test router (used by integration tests).

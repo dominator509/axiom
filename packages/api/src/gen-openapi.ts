@@ -89,6 +89,10 @@ const isMain =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMain) {
+  // Route registration imports runtime auth modules. Mark this process as an
+  // explicit build-time/test environment so schema generation does not need
+  // deployment secrets or a live database; serving code still fails closed.
+  process.env.AXIOM_ENV = 'test';
   // Import the built app — module init mounts all routers.
   const { default: app } = await import('./index.js');
   const doc = buildOpenApi((app.routes ?? []) as RouteEntry[]);
