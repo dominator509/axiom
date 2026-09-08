@@ -152,3 +152,4 @@
 2026-09-07T18:47:41Z | [P2][OBSERVABILITY] clarify L2.9 implementation boundary: internal API crash sink is shipped; GlitchTip/Sentry/Loki/Grafana/OTel agents and process-wide capture remain explicit runtime release gates
 2026-09-07T19:11:40Z | [P2][OBSERVABILITY] add shared secret-redacting process handlers for API and worker uncaught exceptions and unhandled rejections; core tests 3/3, typecheck, build, lint, formatting passed
 2026-09-07T19:31:38Z | [P2][RELAY/CONFIG] fail closed on partial production Discord, Signal, Threads, BlueBubbles, and Telegram webhook configuration; API 302/302, typecheck, build, lint, and formatting passed
+2026-09-07T19:51:35Z | [P2][SECURITY/CONFIG] require 32-character production RELAY_SECRET, HTTPS-only production BETTER_AUTH_URL, and update CI container origin; core 4/4, auth 11/11, API 302/302, worker 62/62, typecheck, build, lint, formatting passed

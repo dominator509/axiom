@@ -5,6 +5,7 @@ import {
   redactRuntimeText,
   type RuntimeFailureEvent,
 } from './runtime-errors.js';
+import { resolveRelaySecret } from './runtime-config.js';
 
 describe('runtime failure handling', () => {
   it('redacts credentials from process-level error text', () => {
@@ -54,5 +55,15 @@ describe('runtime failure handling', () => {
       service: 'worker',
       error: { message: 'Error: Bearer [REDACTED]' },
     });
+  });
+
+  it('uses a development fallback but rejects weak production relay secrets', () => {
+    expect(resolveRelaySecret({ NODE_ENV: 'test' })).toBe('axiom-dev-secret');
+    expect(() => resolveRelaySecret({ NODE_ENV: 'production', RELAY_SECRET: 'too-short' })).toThrow(
+      'RELAY_SECRET must be at least 32 characters in production',
+    );
+    expect(resolveRelaySecret({ NODE_ENV: 'production', RELAY_SECRET: 'x'.repeat(32) })).toBe(
+      'x'.repeat(32),
+    );
   });
 });
