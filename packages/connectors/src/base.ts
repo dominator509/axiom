@@ -14,12 +14,6 @@ import type {
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
 
-/**
- * In-memory idempotency ledger (would be backed by DB in production).
- * Maps `${platform}:${idempotencyKey}` -> IdempotencyEntry.
- */
-const idempotencyLedger = new Map<string, IdempotencyEntry>();
-
 /** Default metric names available to all platforms */
 export const COMMON_METRICS: MetricName[] = ['likes', 'comments', 'shares', 'views', 'impressions'];
 
@@ -99,6 +93,15 @@ export abstract class BaseConnector implements SocialConnector {
 
   protected logHistory: LogEntry[] = [];
 
+  /**
+   * Connector-local idempotency is only a convenience for repeated calls on
+   * the same instance. Durable publish idempotency belongs to the worker's
+   * database ledger; sharing this cache across connector instances could turn
+   * a post-commit retry into a false skipped result after a transaction
+   * rollback.
+   */
+  private readonly idempotencyLedger = new Map<string, IdempotencyEntry>();
+
   constructor(
     platform: Platform,
     displayName: string,
@@ -133,7 +136,7 @@ export abstract class BaseConnector implements SocialConnector {
    * Returns existing entry if already published/skipped, null if fresh.
    */
   protected checkIdempotency(key: string): IdempotencyEntry | undefined {
-    const entry = idempotencyLedger.get(`${this.platform}:${key}`);
+    const entry = this.idempotencyLedger.get(`${this.platform}:${key}`);
     return entry;
   }
 
@@ -145,7 +148,7 @@ export abstract class BaseConnector implements SocialConnector {
     remoteId: string | null,
     state: 'published' | 'pending' | 'failed' | 'skipped',
   ): void {
-    idempotencyLedger.set(`${this.platform}:${key}`, {
+    this.idempotencyLedger.set(`${this.platform}:${key}`, {
       idempotencyKey: key,
       platform: this.platform,
       remoteId,

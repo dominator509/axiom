@@ -148,6 +148,18 @@ describe('idempotency', () => {
     expect(result).toEqual({ remoteId: null, state: 'skipped', error: 'Previously skipped' });
   });
 
+  it('does not carry a published result across connector instances', async () => {
+    const key = 'instance-isolation-key';
+    const first = new TestConnector();
+    await first.publish(input({ idempotencyKey: key }));
+
+    const second = new TestConnector();
+    const result = await second.publish(input({ idempotencyKey: key }));
+
+    expect(result.state).toBe('published');
+    expect(result.remoteId).toBe('r1');
+  });
+
   it('retries a previously failed publish', async () => {
     const c = new TestConnector();
     c.recordIdem('key-1', null, 'failed');
