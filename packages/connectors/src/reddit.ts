@@ -78,7 +78,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
       caption: true,
       maxCaptionLength: 40_000,
       scheduling: 'internal' as const,
-      metrics: ['views', 'likes', 'comments', 'shares'],
+      metrics: ['views', 'likes', 'comments'],
       refreshMetrics: true,
     };
   }
@@ -256,7 +256,6 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
         views,
         likes: Math.max(likes, 0),
         comments: post.num_comments ?? 0,
-        shares: 0, // Reddit doesn't expose share count via API
       },
       raw: {
         ups: post.ups,

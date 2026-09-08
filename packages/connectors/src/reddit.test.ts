@@ -56,7 +56,7 @@ describe('RedditConnector basics', () => {
     expect(cap.caption).toBe(true);
     expect(cap.maxCaptionLength).toBe(40_000);
     expect(cap.scheduling).toBe('internal');
-    expect(cap.metrics).toEqual(['views', 'likes', 'comments', 'shares']);
+    expect(cap.metrics).toEqual(['views', 'likes', 'comments']);
     expect(cap.refreshMetrics).toBe(true);
   });
 
@@ -423,7 +423,7 @@ describe('fetchMetrics', () => {
 
     expect(metrics.postId).toBe('abc123');
     expect(metrics.platform).toBe('reddit');
-    expect(metrics.metrics).toEqual({ views: 100, likes: 8, comments: 5, shares: 0 });
+    expect(metrics.metrics).toEqual({ views: 100, likes: 8, comments: 5 });
     expect(metrics.raw).toMatchObject({ ups: 10, downvotes: 2, score: 8 });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
