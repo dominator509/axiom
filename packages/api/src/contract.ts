@@ -296,10 +296,38 @@ export function idempotency(required = true) {
       });
     }
 
-    // Execute only after durable ownership is established.
-    await next();
+    // Execute only after durable ownership is established. If a downstream
+    // handler throws outside its route-level ProblemError boundary, convert
+    // the exception through the same sanitized error boundary used by the
+    // application. The reservation must still be completed: leaving it in
+    // `pending` would make every retry return 409 until the 24-hour TTL,
+    // while clearing it would permit an unsafe re-execution after a possible
+    // outside-world side effect.
+    let res: Response;
+    try {
+      await next();
+      res = c.res;
+      // Hono may catch a downstream exception inside its composed dispatcher
+      // and return its default plain-text 500 instead of rejecting `next()`.
+      // Detect that path as well. The production app's onError already emits
+      // our problem+json response, so only replace non-contract responses to
+      // avoid recording duplicate crash reports.
+      if (
+        c.error &&
+        !res.headers.get('Content-Type')?.toLowerCase().startsWith('application/problem+json')
+      ) {
+        res = await onError(c.error, c);
+      }
+    } catch (err: unknown) {
+      res = await onError(err instanceof Error ? err : new Error(String(err)), c);
+    }
 
-    const res = c.res;
+    // Preserve the normalized response when Hono had already installed its
+    // default error response on the context. The middleware returns void
+    // after completion, so the context response is what the outer dispatcher
+    // ultimately sends to the client.
+    c.res = res;
+
     if (!res) {
       return idempotencyResponse(c, 503, 'Service Unavailable', 'Mutation response unavailable');
     }

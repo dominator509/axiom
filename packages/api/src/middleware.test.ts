@@ -181,6 +181,67 @@ describe('idempotency middleware (durable, M-2)', () => {
     expect(getCalls()).toBe(0);
   });
 
+  it('stores the sanitized 500 when the protected handler throws', async () => {
+    const app = makeApp();
+    let calls = 0;
+    app.post('/mutate', idempotency(), async () => {
+      calls += 1;
+      throw new Error('provider request failed');
+    });
+
+    const headers = { 'Idempotency-Key': 'key-uncaught' };
+    const requestHashValue = requestHash();
+    mockState.results = [
+      [],
+      [
+        {
+          id: 'row-uncaught',
+          state: 'pending',
+          request_hash: requestHashValue,
+          owner_token: 'owner-uncaught',
+          status: null,
+          response_body: null,
+          expires_at: new Date(Date.now() + 86_400_000),
+        },
+      ],
+      [],
+      [],
+      [],
+      [{ id: 'row-uncaught' }],
+    ];
+
+    const first = await app.request('/mutate', { method: 'POST', headers });
+    expect(first.status).toBe(500);
+    expect(first.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
+    expect(calls).toBe(1);
+
+    mockState.results = [
+      [],
+      [],
+      [
+        {
+          id: 'row-uncaught',
+          state: 'completed',
+          request_hash: requestHashValue,
+          owner_token: null,
+          status: 500,
+          response_body: {
+            type: 'about:blank',
+            title: 'Internal Server Error',
+            status: 500,
+            detail: 'An internal error occurred',
+            correlation_id: 'corr-uncaught',
+          },
+          expires_at: new Date(Date.now() + 86_400_000),
+        },
+      ],
+    ];
+
+    const second = await app.request('/mutate', { method: 'POST', headers });
+    expect(second.status).toBe(500);
+    expect(calls).toBe(1);
+  });
+
   it('rejects reuse of a key with a different request body', async () => {
     const app = makeApp();
     const getCalls = countedRoute(app);
