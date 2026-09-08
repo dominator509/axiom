@@ -18,6 +18,11 @@ for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
   if (m && !(m[1] in process.env)) process.env[m[1]] = m[2];
 }
 
+const probeProxyPassword = process.env.LIVE_EGRESS_PROBE_PASSWORD;
+if (!probeProxyPassword) {
+  throw new Error('LIVE_EGRESS_PROBE_PASSWORD is required for the live egress probe');
+}
+
 const { egressRouter } = await import('../routes/egress.js');
 
 const ORG_ID = '00000000-0000-0000-0000-000000000000';
@@ -42,7 +47,7 @@ async function main() {
       egressMode: 'socks5',
       proxyAddr: '127.0.0.1:1080',
       proxyUsername: 'liveprobe',
-      proxyPassword: 'live-s3cret',
+      proxyPassword: probeProxyPassword,
       expectedEgressIp: '203.0.113.7',
     }),
   });
