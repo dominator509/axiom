@@ -41,7 +41,7 @@ export type McpResponse = McpSuccess | McpError;
  *   Viewer      → analytics_query
  *   Operator    → + inbox_manage, generation_photoshoot
  *   Manager     → + publishing_post (requires approval)
- *   Autonomous  → + publishing_post (no approval), network_configure
+ *   Autonomous  → + publishing_post (requires approval), network_configure
  */
 export class McpServer {
   private readonly tier: Tier;

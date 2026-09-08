@@ -78,7 +78,7 @@ describe('MCP queue contracts', () => {
     );
   });
 
-  it('enqueues publish.target with the returned target ID for Autonomous calls', async () => {
+  it('stops Autonomous publishing at the generated bundle until approval', async () => {
     const result = await new PublishingTool().handle(
       {
         modelId: MODEL_ID,
@@ -88,18 +88,10 @@ describe('MCP queue contracts', () => {
       permission(Tier.Autonomous),
     );
 
-    expect(result).toMatchObject({ status: 'queued', requiresApproval: false });
-    expect(inserted).toHaveLength(2);
-    expect(inserted[0]?.values).toMatchObject({ state: 'approved', modelId: MODEL_ID });
-    expect(enqueueJob).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        queue: 'publish',
-        kind: 'publish.target',
-        payload: { targetId: TARGET_ID },
-        dedupeParts: ['publish.target', TARGET_ID],
-      }),
-    );
+    expect(result).toMatchObject({ status: 'pending_approval', requiresApproval: true });
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]?.values).toMatchObject({ state: 'generated', modelId: MODEL_ID });
+    expect(enqueueJob).not.toHaveBeenCalled();
   });
 
   it('persists one owned mediaId on the content bundle', async () => {
@@ -114,7 +106,7 @@ describe('MCP queue contracts', () => {
       permission(Tier.Autonomous),
     );
 
-    expect(inserted[0]?.values).toMatchObject({ assetId: ASSET_ID, state: 'approved' });
+    expect(inserted[0]?.values).toMatchObject({ assetId: ASSET_ID, state: 'generated' });
   });
 
   it('rejects an unowned mediaId before creating a bundle', async () => {

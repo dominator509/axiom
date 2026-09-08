@@ -43,18 +43,11 @@ export function getManifest(tier: Tier, _modelId: string): ToolDescriptor[] {
   for (const tool of Object.values(allTools)) {
     if (!tierAtLeast(tier, tool.tier)) continue;
 
-    // For publishing: approval is dynamic based on tier
-    let requiresApproval = tool.requiresApproval;
-    if (tool.name === 'publishing_post') {
-      // PublishingTool: Manager requires approval, Autonomous does not
-      requiresApproval = tier !== Tier.Autonomous;
-    }
-
     manifest.push({
       name: tool.name,
       description: tool.description,
       inputSchema: tool.inputSchema._def ?? {},
-      requiresApproval,
+      requiresApproval: tool.requiresApproval,
       tier: tool.tier,
     });
   }

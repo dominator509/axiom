@@ -7,6 +7,7 @@
 //  5. Enqueue metrics.poll for the published target (L2.8 §1).
 
 import { eq, and } from 'drizzle-orm';
+import { tosReportPassesForPlatforms } from '@axiom/core';
 import { schema, getPublishingConsentStatus, consentRequirementMessage } from '@axiom/db';
 import { asPlatform, connectorForTarget } from '../connection.js';
 import { enqueueJob } from '../enqueue.js';
@@ -191,6 +192,15 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   if (bundle.state !== 'approved') {
     throw new Error(
       `publish.target: bundle ${target.bundleId} is ${bundle.state}; publishing requires approved state`,
+    );
+  }
+
+  // Defense-in-depth for every producer of post_targets, including MCP and
+  // operator tooling: no connector call is allowed without a complete,
+  // passing ToS report for the exact destination.
+  if (!tosReportPassesForPlatforms(bundle.tosReport, [target.platform])) {
+    throw new Error(
+      `publish.target: ToS check unavailable or not passing for ${target.platform}; refusing provider dispatch`,
     );
   }
 

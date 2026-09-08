@@ -56,7 +56,7 @@ import {
   consentRequirementMessage,
 } from '@axiom/db';
 import { sql, eq, and } from 'drizzle-orm';
-import { withOrgContext, writeAudit } from './routes/helpers.js';
+import { tosApprovalFailure, withOrgContext, writeAudit } from './routes/helpers.js';
 import { relayCaptionUpdate, relayScheduledFor } from './relay-command-inputs.js';
 import { relayCommandAlreadyRecorded } from './relay-command-guard.js';
 import { validateProductionRelayConfig } from './production-config.js';
@@ -192,14 +192,6 @@ async function relayCommandExecutor(
           );
         }
 
-        const tos = (bundle[0].tosReport ?? {}) as {
-          verdict?: string;
-          scores?: Array<{ platform: string; verdict: string }>;
-        };
-        if (tos.verdict === 'block') {
-          throw new Error('relay command: ToS block prevents approval');
-        }
-
         const captions = (bundle[0].captions as Record<string, string> | null) ?? {};
         const requestedPlatforms =
           Object.keys(captions).length > 0 ? Object.keys(captions) : ['instagram'];
@@ -210,11 +202,9 @@ async function relayCommandExecutor(
             throw new Error(`relay command: unsupported target platform '${value}'`);
           }
         });
-        for (const platform of platforms) {
-          const score = (tos.scores ?? []).find((item) => item.platform === platform);
-          if (score?.verdict === 'block') {
-            throw new Error(`relay command: ToS block on ${platform} prevents approval`);
-          }
+        const tosFailure = tosApprovalFailure(bundle[0].tosReport, platforms);
+        if (tosFailure) {
+          throw new Error(`relay command: ${tosFailure}`);
         }
         for (const platform of platforms) {
           const consent = await getPublishingConsentStatus(tx, orgId, bundle[0].modelId, platform);

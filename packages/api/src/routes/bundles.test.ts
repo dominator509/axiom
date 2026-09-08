@@ -46,6 +46,13 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 const BUNDLE_ID = '33333333-3333-4333-8333-333333333333';
 
+function passingTos(...platforms: string[]) {
+  return {
+    verdict: 'pass',
+    scores: platforms.map((platform) => ({ platform, verdict: 'pass' })),
+  };
+}
+
 function appWithOrg(orgId: string | null) {
   const app = new Hono<AppBindings>();
   app.use('*', async (c, next) => {
@@ -162,7 +169,7 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
       modelId: MODEL_ID,
       state: 'generated',
       assetId: 'asset-1',
-      tosReport: { verdict: 'pass', scores: [] },
+      tosReport: passingTos('instagram'),
     };
     mockState.results = [[], [generatedBundle]];
     vi.mocked(getPublishingConsentStatus).mockResolvedValueOnce({
@@ -188,7 +195,7 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
       modelId: MODEL_ID,
       state: 'generated',
       assetId: 'asset-1',
-      tosReport: { verdict: 'pass', scores: [] },
+      tosReport: passingTos('instagram', 'x'),
     };
     const approvedBundle = { ...generatedBundle, state: 'approved' };
     mockState.result = [approvedBundle];
@@ -228,7 +235,7 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
       modelId: MODEL_ID,
       state: 'generated',
       assetId: 'asset-missing',
-      tosReport: { verdict: 'pass', scores: [] },
+      tosReport: passingTos('instagram'),
     };
     mockState.results = [[], [generatedBundle], []];
 
@@ -261,6 +268,26 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
     expect(res.status).toBe(409);
   });
 
+  it('rejects approval when the ToS report is missing or incomplete (409)', async () => {
+    mockState.result = [
+      {
+        id: BUNDLE_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        state: 'generated',
+        tosReport: { verdict: 'pass', scores: [] },
+      },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: ['instagram'] }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain('ToS check unavailable');
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
   it('rejects media-only approval when the bundle has no asset', async () => {
     mockState.result = [
       {
@@ -269,7 +296,7 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
         modelId: MODEL_ID,
         state: 'generated',
         assetId: null,
-        tosReport: { verdict: 'pass', scores: [] },
+        tosReport: passingTos('instagram'),
       },
     ];
     const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
@@ -289,7 +316,7 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
         orgId: ORG_ID,
         modelId: MODEL_ID,
         state: 'approved',
-        tosReport: { verdict: 'pass', scores: [] },
+        tosReport: passingTos('instagram'),
       },
     ];
     const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {

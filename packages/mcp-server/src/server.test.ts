@@ -126,7 +126,7 @@ describe('McpServer.callTool — success paths', () => {
     expect(result.bundleId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it('executes publishing_post for an autonomous agent without approval', async () => {
+  it('routes autonomous publishing through the approval gate', async () => {
     const server = makeServer(Tier.Autonomous);
     const result = await server.callTool('publishing_post', {
       modelId: MODEL,
@@ -135,10 +135,10 @@ describe('McpServer.callTool — success paths', () => {
     });
     expect(result).toMatchObject({
       success: true,
-      requiresApproval: false,
+      requiresApproval: true,
       action: 'publish',
       platform: 'x',
-      status: 'queued',
+      status: 'pending_approval',
     });
   });
 

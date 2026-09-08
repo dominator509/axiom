@@ -1,7 +1,7 @@
 // ─── Content bundles (F-36/F-37, L3.0) — real DB CRUD + lifecycle ───
 // state machine: generated/hold → approved → scheduled → publishing → published
 // approve/revise/reject transitions are audited (LBI-08) and ToS-gated
-// (LBI-11: a block verdict prevents approval).
+// (LBI-11: only a complete passing report can reach approval).
 
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -16,6 +16,7 @@ import {
   writeAudit,
   apiError,
   statusTitle,
+  tosApprovalFailure,
 } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 import { asPlatform, enqueueJob, resolveCapabilities } from '@axiom/worker';
@@ -27,7 +28,6 @@ const createBundleSchema = z.object({
   modelId: z.string().uuid(),
   captions: z.record(z.string(), z.string()).default({}),
   hashtags: z.array(z.string()).default([]),
-  tosReport: z.record(z.string(), z.unknown()).optional(),
 });
 
 const approveBundleSchema = z.object({
@@ -72,7 +72,9 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
         modelId: body.modelId,
         captions: body.captions,
         hashtags: body.hashtags,
-        tosReport: body.tosReport ?? null,
+        // Compliance reports are produced by the trusted generation/worker
+        // path. Never accept a browser-supplied report as an approval input.
+        tosReport: null,
         state: 'generated',
       })
       .returning();
@@ -130,23 +132,10 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
       };
     }
 
-    // ToS gate: a block verdict cannot be approved (LBI-11)
-    const tos = (bundle.tosReport ?? {}) as {
-      verdict?: string;
-      scores?: Array<{ platform: string; verdict: string }>;
-    };
-    if (tos.verdict === 'block') {
-      return { status: 409 as const, error: 'ToS block: bundle cannot be approved' };
-    }
-    for (const platform of platforms) {
-      const score = (tos.scores ?? []).find((s) => s.platform === platform);
-      if (score?.verdict === 'block') {
-        return {
-          status: 409 as const,
-          error: `ToS block on ${platform}: bundle cannot be approved for this platform`,
-        };
-      }
-    }
+    // ToS gate: every requested destination needs exactly one trusted passing
+    // score. Missing, review, block, and malformed reports all fail closed.
+    const tosFailure = tosApprovalFailure(bundle.tosReport, platforms);
+    if (tosFailure) return { status: 409 as const, error: tosFailure };
 
     for (const platform of platforms) {
       const consent = await getPublishingConsentStatus(tx, orgId, bundle.modelId, platform);

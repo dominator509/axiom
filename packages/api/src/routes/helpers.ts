@@ -6,6 +6,7 @@
 import { sql } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
+import { tosReportPassesForPlatforms } from '@axiom/core';
 import { db, schema } from '@axiom/db';
 import { problem, problemResponse } from '../contract.js';
 
@@ -64,6 +65,25 @@ export function requireOrg(c: Context): string | null {
   const orgId = c.get('orgId') as string | undefined;
   if (!orgId) return null;
   return orgId;
+}
+
+/**
+ * Return a safe, non-sensitive approval error when a bundle has no complete
+ * passing ToS report for every requested destination. Approval callers must
+ * use the same strict check so missing or malformed compliance data cannot be
+ * interpreted as a pass by one entry point and a block by another.
+ */
+export function tosApprovalFailure(report: unknown, platforms: readonly string[]): string | null {
+  if (isRecord(report) && report.verdict === 'block') {
+    return 'ToS block: bundle cannot be approved';
+  }
+  return tosReportPassesForPlatforms(report, platforms)
+    ? null
+    : 'ToS check unavailable or not passing: bundle cannot be approved';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Resolve a model's owning org — used to scope nested model resources. */
