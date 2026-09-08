@@ -157,6 +157,14 @@ jobs:
           ON CONFLICT (id) DO NOTHING;
           SQL
 
+      - name: Verify runtime egress resolver crosses RLS safely
+        if: matrix.task == 'test'
+        env:
+          PGPASSWORD: axiom_app
+        run: |
+          psql -h localhost -U axiom_app -d axiom_test -v ON_ERROR_STOP=1 \
+            -c "SELECT count(*) FROM load_model_network_configs();"
+
       - name: Run JS/TS tests
         if: matrix.task == 'test'
         env:

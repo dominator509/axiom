@@ -116,6 +116,17 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(sql).toContain('external-side-effect-unknown: worker lease expired before completion');
   });
 
+  it('locks the trusted cross-org egress resolver to the runtime and migrator roles', () => {
+    expect(sql).toContain('CREATE OR REPLACE FUNCTION load_model_network_configs()');
+    expect(sql).toContain('RETURNS SETOF public.model_network_configs');
+    expect(sql).toContain('SECURITY DEFINER');
+    expect(sql).toContain('REVOKE ALL ON FUNCTION load_model_network_configs() FROM PUBLIC;');
+    expect(sql).toContain('GRANT EXECUTE ON FUNCTION load_model_network_configs() TO axiom_app;');
+    expect(sql).toContain(
+      'GRANT EXECUTE ON FUNCTION load_model_network_configs() TO axiom_migrator;',
+    );
+  });
+
   it('enables the required extensions', () => {
     expect(sql).toContain('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
     expect(sql).toContain('CREATE EXTENSION IF NOT EXISTS "vector";');
