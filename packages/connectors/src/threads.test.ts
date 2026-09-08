@@ -62,8 +62,11 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ id: 'c1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'c1', status: 'FINISHED' }))
       .mockResolvedValueOnce(jsonResponse({ id: 'c2' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'c2', status: 'FINISHED' }))
       .mockResolvedValueOnce(jsonResponse({ id: 'parent-1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'parent-1', status: 'FINISHED' }))
       .mockResolvedValueOnce(jsonResponse({ id: 'p1' }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -87,14 +90,14 @@ describe('publish', () => {
     expect(create1Url.searchParams.get('image_url')).toBe('https://cdn.example.com/a.jpg');
     expect(create1Url.searchParams.get('is_carousel_item')).toBe('true');
 
-    const create2 = fetchMock.mock.calls[1] as [string, RequestInit];
+    const create2 = fetchMock.mock.calls[2] as [string, RequestInit];
     const create2Url = new URL(create2[0]);
     expect(create2[1].body).toBeUndefined();
     expect(create2Url.searchParams.get('media_type')).toBe('VIDEO');
     expect(create2Url.searchParams.get('video_url')).toBe('https://cdn.example.com/b.mp4');
     expect(create2Url.searchParams.get('is_carousel_item')).toBe('true');
 
-    const parent = fetchMock.mock.calls[2] as [string, RequestInit];
+    const parent = fetchMock.mock.calls[4] as [string, RequestInit];
     const parentUrl = new URL(parent[0]);
     expect(parentUrl.origin + parentUrl.pathname).toBe(
       'https://graph.threads.net/v1.0/threads-user-1/threads',
@@ -104,7 +107,7 @@ describe('publish', () => {
     expect(parentUrl.searchParams.get('text')).toBe('Hello Threads');
     expect(parentUrl.searchParams.get('children')).toBe('c1,c2');
 
-    const publish = fetchMock.mock.calls[3] as [string, RequestInit];
+    const publish = fetchMock.mock.calls[6] as [string, RequestInit];
     const publishUrl = new URL(publish[0]);
     expect(publishUrl.origin + publishUrl.pathname).toBe(
       'https://graph.threads.net/v1.0/threads-user-1/threads_publish',

@@ -18,9 +18,17 @@ import type { Platform, PublishMode } from '@axiom/core';
 import { validatePublish } from './validation.js';
 
 const THREADS_GRAPH_BASE = 'https://graph.threads.net/v1.0';
+const CONTAINER_POLL_INTERVAL_MS = 60_000;
+const CONTAINER_POLL_ATTEMPTS = 5;
 
 interface ThreadsMediaContainerResponse {
   id: string;
+}
+
+interface ThreadsContainerStatusResponse {
+  id: string;
+  status?: 'EXPIRED' | 'ERROR' | 'FINISHED' | 'IN_PROGRESS' | 'PUBLISHED';
+  error_message?: string;
 }
 
 interface ThreadsPublishResponse {
@@ -90,6 +98,7 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
         );
 
         creationIds.push(createResp.id);
+        await this.waitForContainerReady(createResp.id);
         this.log('info', 'publish', `Created Threads media container ${createResp.id}`, {
           mediaUrl,
           mediaType,
@@ -111,6 +120,7 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
           : creationIds[0];
 
       if (!publishCreationId) throw new Error('Threads did not return a publish container ID');
+      if (creationIds.length > 1) await this.waitForContainerReady(publishCreationId);
 
       // Step 2: Publish the single container (or carousel parent).
       const publishResp = await this.apiPost<ThreadsPublishResponse>(
@@ -205,6 +215,34 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
     } catch {
       return 'image';
     }
+  }
+
+  /**
+   * Threads media uploads are asynchronous. Publishing a container before
+   * Meta reports FINISHED is rejected for media and can strand a carousel.
+   * Meta recommends polling no more than once per minute for up to five
+   * minutes, so keep that provider contract explicit here.
+   */
+  private async waitForContainerReady(containerId: string): Promise<void> {
+    for (let attempt = 0; attempt < CONTAINER_POLL_ATTEMPTS; attempt++) {
+      const status = await this.apiGet<ThreadsContainerStatusResponse>(
+        `${THREADS_GRAPH_BASE}/${containerId}?fields=status`,
+      );
+
+      if (status.status === 'FINISHED' || status.status === 'PUBLISHED') return;
+
+      if (status.status === 'ERROR' || status.status === 'EXPIRED') {
+        throw new Error(
+          `Threads container ${containerId} processing ${status.status.toLowerCase()}: ${redactProviderText(status.error_message ?? 'unknown provider error')}`,
+        );
+      }
+
+      if (attempt < CONTAINER_POLL_ATTEMPTS - 1) {
+        await new Promise((resolve) => setTimeout(resolve, CONTAINER_POLL_INTERVAL_MS));
+      }
+    }
+
+    throw new Error(`Threads container ${containerId} processing timed out`);
   }
 }
 

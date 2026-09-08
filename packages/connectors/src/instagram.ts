@@ -17,9 +17,17 @@ import type { Platform, PublishMode } from '@axiom/core';
 import { validatePublish } from './validation.js';
 
 const IG_GRAPH_BASE = 'https://graph.facebook.com/v22.0';
+const CONTAINER_POLL_INTERVAL_MS = 60_000;
+const CONTAINER_POLL_ATTEMPTS = 5;
 
 interface IgMediaContainerResponse {
   id: string;
+}
+
+interface IgContainerStatusResponse {
+  id: string;
+  status_code?: 'EXPIRED' | 'ERROR' | 'FINISHED' | 'IN_PROGRESS' | 'PUBLISHED';
+  status?: string;
 }
 
 interface IgPublishResponse {
@@ -102,6 +110,7 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
         const storyContainer = await this.apiPost<IgMediaContainerResponse>(
           this.graphUrl(`${IG_GRAPH_BASE}/${igUserId}/media`, storyParams),
         );
+        await this.waitForContainerReady(storyContainer.id);
         const publishResp = await this.apiPost<IgPublishResponse>(
           this.graphUrl(`${IG_GRAPH_BASE}/${igUserId}/media_publish`, {
             creation_id: storyContainer.id,
@@ -143,6 +152,7 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
         );
 
         creationIds.push(createResp.id);
+        await this.waitForContainerReady(createResp.id);
         this.log('info', 'publish', `Created media container ${createResp.id}`, {
           mediaUrl,
           mediaType,
@@ -164,6 +174,7 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
           : creationIds[0];
 
       if (!publishCreationId) throw new Error('Instagram did not return a publish container ID');
+      if (creationIds.length > 1) await this.waitForContainerReady(publishCreationId);
 
       // Step 2: Publish the single container (or carousel parent).
       const publishResp = await this.apiPost<IgPublishResponse>(
@@ -251,6 +262,33 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
   private graphUrl(endpoint: string, params: Record<string, string>): string {
     const query = new URLSearchParams(params).toString();
     return `${endpoint}?${query}`;
+  }
+
+  /**
+   * Instagram media containers are processed asynchronously. The provider
+   * requires status_code=FINISHED before media_publish, including carousel
+   * children and the carousel parent itself.
+   */
+  private async waitForContainerReady(containerId: string): Promise<void> {
+    for (let attempt = 0; attempt < CONTAINER_POLL_ATTEMPTS; attempt++) {
+      const status = await this.apiGet<IgContainerStatusResponse>(
+        `${IG_GRAPH_BASE}/${containerId}?fields=status_code,status`,
+      );
+
+      if (status.status_code === 'FINISHED' || status.status_code === 'PUBLISHED') return;
+
+      if (status.status_code === 'ERROR' || status.status_code === 'EXPIRED') {
+        throw new Error(
+          `Instagram container ${containerId} processing ${status.status_code.toLowerCase()}: ${status.status ?? 'unknown provider error'}`,
+        );
+      }
+
+      if (attempt < CONTAINER_POLL_ATTEMPTS - 1) {
+        await new Promise((resolve) => setTimeout(resolve, CONTAINER_POLL_INTERVAL_MS));
+      }
+    }
+
+    throw new Error(`Instagram container ${containerId} processing timed out`);
   }
 }
 
