@@ -19,11 +19,13 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
+import { validatePublish } from './validation.js';
 
 const FANVUE_API_BASE = 'https://api.fanvue.com';
 const FANVUE_API_VERSION = '2025-06-26';
 const FANVUE_TOKEN_URL = 'https://auth.fanvue.com/oauth2/token';
 const FANVUE_REVOKE_URL = 'https://auth.fanvue.com/oauth2/revoke';
+const FANVUE_MAX_MEDIA_BYTES = 1_610_612_736;
 
 /** Media type allowed by the upload session API. */
 type FanvueMediaType = 'image' | 'video' | 'audio' | 'document';
@@ -86,7 +88,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     return {
       publish: true,
       media: ['image' as MediaType, 'video' as MediaType, 'audio' as MediaType],
-      maxMediaBytes: 1_610_612_736, // 1.5 GiB — API limit (sizeBytes <= 1610612736)
+      maxMediaBytes: FANVUE_MAX_MEDIA_BYTES, // 1.5 GiB — API limit (sizeBytes <= 1610612736)
       maxMediaCount: 10,
       caption: true,
       maxCaptionLength: 5000, // text max length per API reference
@@ -214,14 +216,66 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     return 'image';
   }
 
-  /** Download remote media bytes (bounded) for the multipart upload. */
+  /** Download remote media bytes with the declared Fanvue size bound. */
   private async downloadMedia(url: string): Promise<Uint8Array> {
     const resp = await this.fetchImpl(url, { method: 'GET' });
     if (!resp.ok) {
       throw new Error(`Fanvue media download failed: ${resp.status} ${resp.statusText} (${url})`);
     }
-    const buffer = await resp.arrayBuffer();
-    return new Uint8Array(buffer);
+
+    const contentLength = resp.headers.get('content-length');
+    if (contentLength) {
+      const declaredLength = Number(contentLength);
+      if (!Number.isSafeInteger(declaredLength) || declaredLength < 0) {
+        throw new Error('Fanvue media download returned an invalid content length');
+      }
+      if (declaredLength > FANVUE_MAX_MEDIA_BYTES) {
+        throw new Error(
+          `Fanvue media exceeds the maximum supported size of ${FANVUE_MAX_MEDIA_BYTES} bytes`,
+        );
+      }
+    }
+
+    // Read incrementally so a missing or dishonest Content-Length cannot turn
+    // a provider-readable URL into an unbounded allocation.
+    if (!resp.body) {
+      const buffer = await resp.arrayBuffer();
+      if (buffer.byteLength > FANVUE_MAX_MEDIA_BYTES) {
+        throw new Error(
+          `Fanvue media exceeds the maximum supported size of ${FANVUE_MAX_MEDIA_BYTES} bytes`,
+        );
+      }
+      return new Uint8Array(buffer);
+    }
+
+    const reader = resp.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        total += value.byteLength;
+        if (total > FANVUE_MAX_MEDIA_BYTES) {
+          await reader.cancel();
+          throw new Error(
+            `Fanvue media exceeds the maximum supported size of ${FANVUE_MAX_MEDIA_BYTES} bytes`,
+          );
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    const result = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return result;
   }
 
   /**
@@ -280,30 +334,27 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
   // ── Connector interface ──
 
   async validate(input: ConnectorPublishInput): Promise<ValidationReport> {
-    const errors = [];
+    const report = validatePublish(input, this.capability());
 
     if (!input.mediaUrls || input.mediaUrls.length === 0) {
-      errors.push({
+      report.errors.push({
         field: 'mediaUrls',
         message: 'Fanvue requires at least one media file',
         severity: 'error' as const,
       });
     }
-    if (!input.caption) {
-      errors.push({
+    if (!input.caption?.trim()) {
+      report.warnings = report.warnings.filter((warning) => warning.field !== 'caption');
+      report.errors.push({
         field: 'caption',
         message: 'Fanvue posts require a caption',
         severity: 'error' as const,
       });
     }
 
-    return {
-      valid: errors.length === 0,
-      errors,
-      warnings: [],
-      infos: [],
-      tosVerdict: 'pass' as const,
-    };
+    report.valid = report.errors.length === 0;
+    report.tosVerdict = report.valid ? (report.warnings.length > 0 ? 'flag' : 'pass') : 'block';
+    return report;
   }
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {

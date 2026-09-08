@@ -27,6 +27,7 @@ const EXT_MAP: Record<string, MediaType> = {
   m4v: 'video',
   gif: 'gif',
   mp3: 'audio',
+  m4a: 'audio',
   ogg: 'audio',
   wav: 'audio',
   aac: 'audio',
