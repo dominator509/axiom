@@ -75,7 +75,9 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       caption: true,
       maxCaptionLength: 2_200,
       scheduling: 'internal' as const,
-      metrics: ['views', 'likes', 'comments', 'shares', 'follows'],
+      // TikTok's video-level query exposes engagement counts, but not
+      // follower gains attributable to an individual video.
+      metrics: ['views', 'likes', 'comments', 'shares'],
       refreshMetrics: true,
     };
   }
@@ -240,7 +242,6 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
         likes: stats.like_count ?? 0,
         comments: stats.comment_count ?? 0,
         shares: stats.share_count ?? 0,
-        follows: 0, // TikTok's video-level API does not expose follower gains per video
       },
       raw: { statistics: stats },
     };

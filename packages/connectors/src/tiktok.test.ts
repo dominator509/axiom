@@ -50,7 +50,7 @@ describe('TikTokConnector basics', () => {
     expect(cap.caption).toBe(true);
     expect(cap.maxCaptionLength).toBe(2_200);
     expect(cap.scheduling).toBe('internal');
-    expect(cap.metrics).toEqual(['views', 'likes', 'comments', 'shares', 'follows']);
+    expect(cap.metrics).toEqual(['views', 'likes', 'comments', 'shares']);
     expect(cap.refreshMetrics).toBe(true);
   });
 
@@ -408,7 +408,7 @@ describe('fetchMetrics', () => {
 
     expect(metrics.postId).toBe('vid-1');
     expect(metrics.platform).toBe('tiktok');
-    expect(metrics.metrics).toEqual({ views: 100, likes: 5, comments: 2, shares: 1, follows: 0 });
+    expect(metrics.metrics).toEqual({ views: 100, likes: 5, comments: 2, shares: 1 });
     expect(metrics.raw).toEqual({
       statistics: { view_count: 100, like_count: 5, comment_count: 2, share_count: 1 },
     });
