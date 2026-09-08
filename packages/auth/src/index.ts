@@ -8,6 +8,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import type { Context, Next } from 'hono';
 import { randomUUID } from 'node:crypto';
 
+import type { UserRole } from '@axiom/core';
 import { db } from '@axiom/db';
 import { authUser, authSession, authAccount, authVerification } from '@axiom/db/schema';
 import { resolveAuthConfig } from './config.js';
@@ -67,6 +68,7 @@ export const auth = betterAuth({
 export async function getSessionFromRequest(c: Context): Promise<{
   userId: string;
   orgId: string | null;
+  role: UserRole | null;
 } | null> {
   try {
     const session = await auth.api.getSession({
@@ -74,7 +76,16 @@ export async function getSessionFromRequest(c: Context): Promise<{
     });
     if (!session?.user?.id) return null;
     const orgId = (session.user as unknown as { orgId?: string | null }).orgId ?? null;
-    return { userId: session.user.id, orgId };
+    const role = (session.user as unknown as { role?: unknown }).role;
+    const validRole: UserRole | null =
+      role === 'owner' ||
+      role === 'manager' ||
+      role === 'operator' ||
+      role === 'analyst' ||
+      role === 'agent'
+        ? role
+        : null;
+    return { userId: session.user.id, orgId, role: validRole };
   } catch {
     return null;
   }
@@ -82,12 +93,13 @@ export async function getSessionFromRequest(c: Context): Promise<{
 
 /**
  * Hono middleware: require an authenticated session, set userId + orgId in
- * the context. Routes that read c.get('orgId') get the session's org.
- * Requests without a valid session → 401.
+ * the context. Routes that read c.get('orgId') get the session's org and
+ * c.get('role') gets the server-assigned role. Requests without a valid
+ * session → 401.
  */
 export async function requireAuth(
   c: Context<{
-    Variables: { userId: string; orgId: string };
+    Variables: { userId: string; orgId: string; role: UserRole | null };
   }>,
   next: Next,
 ): Promise<Response | void> {
@@ -116,13 +128,73 @@ export async function requireAuth(
   }
   c.set('userId', session.userId);
   c.set('orgId', session.orgId ?? '');
+  c.set('role', session.role);
   return await next();
+}
+
+/**
+ * Hono middleware for REST role checks.
+ *
+ * Roles are read from the Better Auth user record and are never accepted from
+ * request input. A missing/invalid role fails closed with 403 so an auth
+ * session cannot silently gain a privileged mutation path.
+ */
+export function requireRole(...allowed: UserRole[]) {
+  return async function roleMiddleware(
+    c: Context<{
+      Variables: { userId: string; orgId: string; role: UserRole | null };
+    }>,
+    next: Next,
+  ): Promise<Response | void> {
+    const role = c.get('role');
+    if (role && allowed.includes(role)) return await next();
+
+    const incoming = c.req.header('X-Correlation-ID');
+    const correlationId =
+      incoming && /^[A-Za-z0-9-]{8,64}$/.test(incoming) ? incoming : randomUUID();
+    return new Response(
+      JSON.stringify({
+        type: 'about:blank',
+        title: 'Forbidden',
+        status: 403,
+        detail: 'insufficient role for this operation',
+        correlation_id: correlationId,
+      }),
+      {
+        status: 403,
+        headers: {
+          'Content-Type': 'application/problem+json; charset=UTF-8',
+          'X-Correlation-ID': correlationId,
+        },
+      },
+    );
+  };
+}
+
+/**
+ * Apply a role check only to state-changing requests in a mixed read/write
+ * route group. Read-only requests remain available to every authenticated
+ * role; mutation routes must explicitly name the permitted human roles.
+ */
+export function requireMutationRole(...allowed: UserRole[]) {
+  const check = requireRole(...allowed);
+  return async function mutationRoleMiddleware(
+    c: Context<{
+      Variables: { userId: string; orgId: string; role: UserRole | null };
+    }>,
+    next: Next,
+  ): Promise<Response | void> {
+    if (c.req.method === 'GET' || c.req.method === 'HEAD' || c.req.method === 'OPTIONS') {
+      return await next();
+    }
+    return await check(c, next);
+  };
 }
 
 /** Hono middleware: best-effort auth — sets context when present, else 401. */
 export async function optionalAuth(
   c: Context<{
-    Variables: { userId: string; orgId: string };
+    Variables: { userId: string; orgId: string; role: UserRole | null };
   }>,
   next: Next,
 ): Promise<Response | void> {

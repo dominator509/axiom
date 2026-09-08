@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { resolveRelaySecret } from '@axiom/core';
+import { resolveRelaySecret, type UserRole } from '@axiom/core';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
@@ -25,7 +25,7 @@ import { orgSettingsRouter } from './routes/org-settings.js';
 import { fanvueAuthRouter } from './routes/fanvue-auth.js';
 import { threadsAuthRouter } from './routes/threads-auth.js';
 import { consentRouter } from './routes/consent.js';
-import { auth, requireAuth } from '@axiom/auth';
+import { auth, requireAuth, requireMutationRole, requireRole } from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { asPlatform, enqueueJob, registerConnectors, resolveCapabilities } from '@axiom/worker';
 import { createMcpServer } from '@axiom/mcp-server';
@@ -451,6 +451,7 @@ export type AppBindings = {
   Variables: {
     userId: string;
     orgId: string;
+    role: UserRole | null;
   };
 };
 
@@ -558,6 +559,56 @@ app.use('/api/v1/relay/card', requireAuth);
 // orgId comes from the auth context, never from the request body.
 app.use('/api/v1/viral/ingest', requireAuth);
 app.use('/api/v1/viral/exemplars', requireAuth);
+
+// REST role enforcement (L3.0 / L1.0). The session role is loaded from the
+// server-owned auth_user.role field by requireAuth; it is never accepted from
+// request input. Read routes remain available to authenticated roles, while
+// mutation groups name the operational roles that may change state.
+const operationalMutation = requireMutationRole('owner', 'manager', 'operator');
+const ownerOnly = requireRole('owner');
+
+app.use('/api/v1/models', operationalMutation);
+app.use('/api/v1/models/*', operationalMutation);
+app.use('/api/v1/bundles', operationalMutation);
+app.use('/api/v1/bundles/*', operationalMutation);
+app.use('/api/v1/social-accounts', operationalMutation);
+app.use('/api/v1/social-accounts/*', operationalMutation);
+app.use('/api/v1/posts', operationalMutation);
+app.use('/api/v1/posts/*', operationalMutation);
+app.use('/api/v1/models/:modelId/linkbio', operationalMutation);
+app.use('/api/v1/models/:modelId/linkbio/*', operationalMutation);
+app.use('/api/v1/models/:modelId/fans/*', operationalMutation);
+app.use('/api/v1/fans/*', operationalMutation);
+app.use('/api/v1/custom-requests', operationalMutation);
+app.use('/api/v1/custom-requests/*', operationalMutation);
+app.use('/api/v1/models/:modelId/custom-requests/*', operationalMutation);
+app.use('/api/v1/models/:modelId/generate', operationalMutation);
+app.use('/api/v1/models/:modelId/generate/*', operationalMutation);
+app.use('/api/v1/models/:modelId/consent-records', operationalMutation);
+app.use('/api/v1/models/:modelId/consent-records/*', operationalMutation);
+app.use('/api/v1/models/:modelId/playbook-score/record', operationalMutation);
+app.use('/api/v1/incidents', operationalMutation);
+app.use('/api/v1/incidents/*', operationalMutation);
+app.use('/api/v1/digests/generate', operationalMutation);
+app.use('/api/v1/llm/*', operationalMutation);
+app.use('/api/v1/connectors/fanvue/*', operationalMutation);
+app.use('/api/v1/connectors/threads/*', operationalMutation);
+app.use('/api/v1/relay/card', operationalMutation);
+app.use('/api/v1/viral/ingest', operationalMutation);
+app.use('/api/v1/viral/exemplars', operationalMutation);
+
+// Network and deployment controls are owner-only, including read access to
+// the sensitive egress state and kill-switch/org control surfaces.
+app.use('/api/v1/egress', ownerOnly);
+app.use('/api/v1/egress/*', ownerOnly);
+app.use('/api/v1/models/:modelId/network', ownerOnly);
+app.use('/api/v1/models/:modelId/network/*', ownerOnly);
+app.use('/api/v1/killswitch', ownerOnly);
+app.use('/api/v1/killswitch/*', ownerOnly);
+app.use('/api/v1/kill-switch', ownerOnly);
+app.use('/api/v1/kill-switch/*', ownerOnly);
+app.use('/api/v1/org-settings', ownerOnly);
+app.use('/api/v1/org-settings/*', ownerOnly);
 
 // L3.0: durable mutations require Idempotency-Key. This reservation is
 // committed before the handler runs, so a lost response cannot repeat a DB,
