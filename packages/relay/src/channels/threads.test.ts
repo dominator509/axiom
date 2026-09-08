@@ -162,12 +162,11 @@ describe('handleWebhook', () => {
 });
 
 describe('onCommand / sendCard / startPolling', () => {
-  it('stores handlers and logs unsupported card delivery', async () => {
+  it('stores handlers and rejects unsupported card delivery', async () => {
     const handler = vi.fn();
     adapter.onCommand('approve', handler);
     expect(handler).not.toHaveBeenCalled(); // handler only invoked externally
 
-    const infoSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const card: RelayCard = {
       bundleId: 'bundle-1',
       mediaPreview: '',
@@ -180,18 +179,14 @@ describe('onCommand / sendCard / startPolling', () => {
       timestamp: 1,
       format: 'html',
     };
-    await adapter.sendCard('user-1', card);
-    expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('[send_card_unsupported]'));
-    expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('bundle-1'));
-    infoSpy.mockRestore();
+    await expect(adapter.sendCard('user-1', card)).rejects.toThrow(
+      'Threads card delivery is not supported',
+    );
   });
 
-  it('logs polling configuration', async () => {
-    const infoSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    await adapter.startPolling('user-123456', 'access-token-123', 30_000);
-    expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('[polling_configured]'));
-    expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('30000ms'));
-    expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('token length: 16'));
-    infoSpy.mockRestore();
+  it('rejects unimplemented polling instead of claiming it is active', async () => {
+    await expect(adapter.startPolling('user-123456', 'access-token-123', 30_000)).rejects.toThrow(
+      'Threads polling is not implemented',
+    );
   });
 });
