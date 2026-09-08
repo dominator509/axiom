@@ -48,7 +48,7 @@ describe('tierAtLeast', () => {
 });
 
 describe('createCapabilityToken / validateToken', () => {
-  it('creates a signed v1 token with a future expiry (default 1h)', () => {
+  it('creates a signed v1 token with a future expiry no more than 15 minutes away', () => {
     const token = createCapabilityToken(MODEL, Tier.Manager, 'agent-1');
     expect(token).toMatch(/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
     const perm = validateToken(token);
@@ -58,7 +58,9 @@ describe('createCapabilityToken / validateToken', () => {
     expect(perm!.agentId).toBe('agent-1');
     expect(perm).not.toHaveProperty('token');
     expect(perm!.scopes).toEqual([]);
-    expect(Date.parse(perm!.expiresAt!)).toBeGreaterThan(Date.now());
+    const remaining = Date.parse(perm!.expiresAt!) - Date.now();
+    expect(remaining).toBeGreaterThan(0);
+    expect(remaining).toBeLessThanOrEqual(15 * 60_000);
   });
 
   it('produces unique tokens on each call', () => {

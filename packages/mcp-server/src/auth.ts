@@ -52,6 +52,7 @@ export interface AgentPermission {
 
 const issuedTokens = new Map<string, AgentPermission>();
 const revokedTokenHashes = new Set<string>();
+const DEFAULT_CAPABILITY_TTL_MS = 15 * 60_000;
 
 interface CapabilityPayload extends AgentPermission {
   version: 1;
@@ -120,7 +121,7 @@ export function createCapabilityToken(
   modelId: string,
   tier: Tier,
   agentId: string,
-  ttlMs: number = 3600_000, // default 1 hour
+  ttlMs: number = DEFAULT_CAPABILITY_TTL_MS,
 ): string {
   const expiresAt = new Date(Date.now() + ttlMs).toISOString();
   const payload: CapabilityPayload = {

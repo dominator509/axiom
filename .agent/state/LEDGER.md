@@ -219,3 +219,4 @@
 2026-09-08T19:38:17Z | [P1][RELAY/WORKER] commit relay dispatch markers before provider I/O so unknown external outcomes retain a durable reconciliation anchor; worker 64/64, worker build, typecheck, lint, formatting, diff, preflight, and verify passed; full local matrix remains PostgreSQL-dependent in mcp-server
 2026-09-08T19:59:52Z | [P1][SECURITY/RBAC] load server-assigned auth_user roles into REST sessions and enforce owner-only network/egress/kill-switch/org controls plus operational mutation guards; auth 16/16, API 324/324, typecheck, lint, preflight, and verify passed; Windows standalone Next build blocked by symlink EPERM
 2026-09-08T20:15:04Z | [P1][MCP] Enforce the organization global kill switch before CRM MCP tool dispatch; add RLS-scoped regression coverage.
+2026-09-08T20:25:14Z | [P1][MCP] Align capability-token default TTL with L2.11's 15-minute expiry boundary and cover it with regression assertions.
