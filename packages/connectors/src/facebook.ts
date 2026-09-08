@@ -59,7 +59,10 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
         'text' as MediaType,
       ],
       maxMediaBytes: 4_294_967_296, // 4 GB
-      maxMediaCount: 10,
+      // This connector publishes one Page post per request. Publishing a
+      // list here would make the implementation emit several independent
+      // posts while returning only the last remote ID.
+      maxMediaCount: 1,
       caption: true,
       maxCaptionLength: 63_206,
       scheduling: 'native' as const,
@@ -83,6 +86,13 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
       const caption = input.caption;
       const mediaUrls = input.mediaUrls;
       const link = input.options?.link as string | undefined;
+
+      // Keep the provider boundary fail-closed even when a caller bypasses
+      // validate(). A multi-media bundle must never silently fan out into
+      // multiple Facebook posts with an incomplete durable result.
+      if (mediaUrls.length > 1) {
+        throw new Error('Facebook supports at most one media item per publish request');
+      }
 
       // ── Text-only post (with optional link) ──
       if (mediaUrls.length === 0) {

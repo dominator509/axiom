@@ -39,7 +39,7 @@ describe('FacebookConnector basics', () => {
     expect(cap.publish).toBe(true);
     expect(cap.media).toEqual(['image', 'video', 'story', 'text']);
     expect(cap.maxMediaBytes).toBe(4_294_967_296);
-    expect(cap.maxMediaCount).toBe(10);
+    expect(cap.maxMediaCount).toBe(1);
     expect(cap.caption).toBe(true);
     expect(cap.maxCaptionLength).toBe(63_206);
     expect(cap.scheduling).toBe('native');
@@ -107,14 +107,14 @@ describe('validate', () => {
     });
   });
 
-  it('errors when more than maxMediaCount media items are provided', async () => {
+  it('errors when more than one media item is provided', async () => {
     const c = new FacebookConnector(AUTH);
-    const urls = Array.from({ length: 11 }, (_, i) => `https://cdn.example.com/p${i}.jpg`);
+    const urls = ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.jpg'];
     const report = await c.validate(input({ mediaUrls: urls }));
     expect(report.valid).toBe(false);
     expect(report.errors).toContainEqual({
       field: 'mediaUrls',
-      message: 'Maximum of 10 media items allowed (got 11).',
+      message: 'Maximum of 1 media items allowed (got 2).',
       severity: 'error',
     });
   });
@@ -204,11 +204,8 @@ describe('publish', () => {
     });
   });
 
-  it('uploads every media item in order and returns the last remoteId', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ id: 'photo-1' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'vid-1' }));
+  it('fails closed instead of turning a multi-media bundle into multiple posts', async () => {
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FacebookConnector(AUTH);
@@ -216,10 +213,10 @@ describe('publish', () => {
       input({ mediaUrls: ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.mp4'] }),
     );
 
-    expect(result.remoteId).toBe('vid-1');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect((fetchMock.mock.calls[0] as [string])[0]).toContain('/photos');
-    expect((fetchMock.mock.calls[1] as [string])[0]).toContain('/videos');
+    expect(result.state).toBe('failed');
+    expect(result.remoteId).toBeNull();
+    expect(result.error).toBe('Facebook supports at most one media item per publish request');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('falls back to the photo id when post_id is missing', async () => {
