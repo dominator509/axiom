@@ -20,7 +20,7 @@ const PENDING_PUBLISH_RETRY_MS = 60_000;
 
 /** Target states that must not be dispatched to a connector again. */
 export function isTerminalPublishTargetState(state: string): boolean {
-  return state === 'published' || state === 'skipped';
+  return state === 'published' || state === 'skipped' || state === 'canceled';
 }
 
 type PublishAsset = {

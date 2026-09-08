@@ -4,11 +4,16 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, isNull } from 'drizzle-orm';
 import { schema, getPublishingConsentStatus, consentRequirementMessage } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
-import { asPlatform, enqueueJob, resolveCapabilities } from '@axiom/worker';
+import {
+  asPlatform,
+  enqueueJob,
+  resolveCapabilities,
+  EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX,
+} from '@axiom/worker';
 import type { Platform } from '@axiom/core';
 
 const router = new Hono<AppBindings>();
@@ -346,7 +351,7 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
   return c.json({ data: result.data });
 });
 
-// DELETE /posts/:id — unschedule
+// DELETE /posts/:id — cancel a pending target before provider handoff
 router.delete('/posts/:id', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
@@ -354,17 +359,81 @@ router.delete('/posts/:id', async (c) => {
   const userId = c.get('userId') ?? 'system';
 
   const result = await withOrgContext(orgId, async (tx) => {
-    const rows = await tx
-      .delete(schema.postTarget)
+    // Serialize cancellation with publish.target's FOR UPDATE read. A target
+    // remains pending while a provider call is in flight, so the remote ID is
+    // part of the handoff boundary: once present, cancellation is too late.
+    const currentRows = await tx
+      .select({
+        id: schema.postTarget.id,
+        state: schema.postTarget.state,
+        remoteId: schema.postTarget.remoteId,
+      })
+      .from(schema.postTarget)
       .where(and(eq(schema.postTarget.id, id), eq(schema.postTarget.orgId, orgId)))
-      .returning({ id: schema.postTarget.id });
+      .limit(1)
+      .for('update');
+    const current = currentRows[0];
+    if (!current) return { status: 404 as const, data: null };
+    if (current.state !== 'pending' || current.remoteId) {
+      return {
+        status: 409 as const,
+        data: null,
+        error: `post cannot be unscheduled after publication begins (current state: ${current.state})`,
+      };
+    }
+
+    // A worker can dead-letter after provider I/O when the external outcome
+    // is unknown. Keep the target pending in that case so cancellation cannot
+    // erase the reconciliation signal or turn a possible publish into a
+    // silent no-op.
+    const unknownOutcomeJobs = await tx
+      .select({ id: schema.job.id })
+      .from(schema.job)
+      .where(
+        and(
+          eq(schema.job.orgId, orgId),
+          eq(schema.job.kind, 'publish.target'),
+          eq(schema.job.state, 'dead'),
+          sql`(${schema.job.payload} ->> 'targetId') = ${id}`,
+          sql`${schema.job.lastError} LIKE ${`${EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX}%`}`,
+        ),
+      )
+      .limit(1);
+    if (unknownOutcomeJobs.length > 0) {
+      return {
+        status: 409 as const,
+        data: null,
+        error: 'post provider outcome is unknown; reconcile the dead job before unscheduling',
+      };
+    }
+
+    const rows = await tx
+      .update(schema.postTarget)
+      .set({ state: 'canceled', error: 'unscheduled by operator' })
+      .where(
+        and(
+          eq(schema.postTarget.id, id),
+          eq(schema.postTarget.orgId, orgId),
+          eq(schema.postTarget.state, 'pending'),
+          isNull(schema.postTarget.remoteId),
+        ),
+      )
+      .returning({ id: schema.postTarget.id, state: schema.postTarget.state });
+    if (rows.length === 0) {
+      return {
+        status: 409 as const,
+        data: null,
+        error: 'post changed while unscheduling was being applied; retry the action',
+      };
+    }
     if (rows.length > 0) {
       await writeAudit(tx, orgId, userId, 'post.unschedule', id, {});
     }
-    return rows;
+    return { status: 200 as const, data: rows[0] };
   });
-  if (result.length === 0) return apiError(c, 404, statusTitle(404), 'post not found');
-  return c.json({ success: true, data: result[0] });
+  if (result.status === 404) return apiError(c, 404, statusTitle(404), 'post not found');
+  if (result.status === 409) return apiError(c, 409, statusTitle(409), result.error);
+  return c.json({ success: true, data: result.data });
 });
 
 export { router as postsRouter };

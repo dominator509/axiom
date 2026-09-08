@@ -45,9 +45,10 @@ describe('validatePublishAsset', () => {
 });
 
 describe('isTerminalPublishTargetState', () => {
-  it('treats published and assisted skipped targets as terminal', () => {
+  it('treats published, assisted skipped, and canceled targets as terminal', () => {
     expect(isTerminalPublishTargetState('published')).toBe(true);
     expect(isTerminalPublishTargetState('skipped')).toBe(true);
+    expect(isTerminalPublishTargetState('canceled')).toBe(true);
     expect(isTerminalPublishTargetState('pending')).toBe(false);
     expect(isTerminalPublishTargetState('failed')).toBe(false);
   });

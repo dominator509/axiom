@@ -11,7 +11,7 @@ export { claimNextJob } from './claim.js';
 export type { ClaimResult } from './claim.js';
 export { defaultExecutors } from './executors/index.js';
 export type { Executor, ExecutorContext } from './executors/context.js';
-export { ParkJobError } from './executors/context.js';
+export { ParkJobError, EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX } from './executors/context.js';
 export { labelForZ, scoreTargetEngagement } from './executors/viral.js';
 export type { ViralMetricSample, ViralScore } from './executors/viral.js';
 export { runWorker, workerTick, processJob, readKillSwitch } from './worker.js';

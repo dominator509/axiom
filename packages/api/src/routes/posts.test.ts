@@ -5,13 +5,19 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => ({
-  ...mockDbFactory({ postTarget: {}, contentBundle: {}, asset: {} }),
+  ...mockDbFactory({
+    postTarget: {},
+    contentBundle: {},
+    asset: {},
+    job: { id: {}, orgId: {}, kind: {}, state: {}, payload: {}, lastError: {} },
+  }),
   getPublishingConsentStatus: vi.fn(async () => ({ ok: true, missing: [] })),
   consentRequirementMessage: vi.fn(
     (_status: unknown, platform: string) => `consent required for ${platform}`,
   ),
 }));
 vi.mock('@axiom/worker', () => ({
+  EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX: 'external-side-effect-unknown:',
   enqueueJob: vi.fn(async () => ({ id: 'job-1' })),
   resolveCapabilities: vi.fn((platform: string) => ({
     media: platform === 'x' || platform === 'reddit' ? ['text'] : ['image'],
@@ -404,12 +410,40 @@ describe('PATCH /posts/:id', () => {
 });
 
 describe('DELETE /posts/:id', () => {
-  it('unschedules a post (200)', async () => {
-    mockState.result = [{ id: POST_ID }];
+  it('cancels a pending post before provider handoff (200)', async () => {
+    mockState.results = [
+      [],
+      [{ id: POST_ID, state: 'pending', remoteId: null }],
+      [],
+      [{ id: POST_ID, state: 'canceled' }],
+    ];
     const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, { method: 'DELETE' });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.success).toBe(true);
+    expect(body.data).toMatchObject({ id: POST_ID, state: 'canceled' });
+  });
+
+  it('rejects cancellation after provider handoff has started (409)', async () => {
+    mockState.results = [[], [{ id: POST_ID, state: 'pending', remoteId: 'provider-publish-id' }]];
+    const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, { method: 'DELETE' });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain(
+      'post cannot be unscheduled after publication begins',
+    );
+  });
+
+  it('preserves a pending target when a prior provider outcome is unknown (409)', async () => {
+    mockState.results = [
+      [],
+      [{ id: POST_ID, state: 'pending', remoteId: null }],
+      [{ id: 'dead-job' }],
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, { method: 'DELETE' });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain(
+      'provider outcome is unknown; reconcile the dead job',
+    );
   });
 
   it('returns 404 when the post is not in the org', async () => {
