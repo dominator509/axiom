@@ -92,8 +92,11 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
       }>();
       // Authenticated org (set by the API's requireAuth middleware when the
       // relay app is mounted at '/' — Hono shares context variables across
-      // the merged app).
-      const orgId = (c.get('orgId') as string | undefined) ?? undefined;
+      // the merged app). Never accept tenant identity from request input.
+      const orgId = authenticatedOrgId(c);
+      if (!orgId) {
+        return c.json({ success: false, error: 'Authenticated organization required' }, 401);
+      }
       // DB-backed path (M-7): persist to post_metric + enqueue viral.label.
       const result = await deps.viralPersistence.persist({ postId, metrics, orgId });
       metricsRegistry.incrementCounter('generation_count');
@@ -110,7 +113,10 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
       const platform = c.req.query('platform') ?? 'all';
       const limit = parseInt(c.req.query('limit') ?? '10', 10);
       // DB-backed path (M-7): read from viral_exemplar.
-      const orgId = (c.get('orgId') as string | undefined) ?? c.req.query('orgId') ?? undefined;
+      const orgId = authenticatedOrgId(c);
+      if (!orgId) {
+        return c.json({ success: false, error: 'Authenticated organization required' }, 401);
+      }
       const exemplars = await deps.viralPersistence.listExemplars({ platform, limit, orgId });
       return c.json({ success: true, exemplars });
     } catch (err) {
@@ -179,6 +185,11 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
   });
 
   return app as unknown as Hono;
+}
+
+function authenticatedOrgId(c: { get(name: string): unknown }): string | undefined {
+  const orgId = c.get('orgId');
+  return typeof orgId === 'string' && orgId.length > 0 ? orgId : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

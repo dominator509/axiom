@@ -35,12 +35,25 @@ function buildDeps(overrides: Partial<RelayDependencies> = {}): RelayDependencie
   };
 }
 
+function withOrgContext(routeApp: ReturnType<typeof createRelayRoutes>, orgId = 'test-org') {
+  const parent = new Hono<{ Variables: { orgId?: string } }>();
+  parent.use('*', async (c, next) => {
+    c.set('orgId', orgId);
+    await next();
+  });
+  parent.route('/', routeApp);
+  return parent;
+}
+
 let deps: RelayDependencies;
-let app: ReturnType<typeof createRelayRoutes>;
+// The parent test harness adds the auth variable before routing into the
+// factory's standalone Hono app, so retain the harness's inferred type while
+// the production factory remains environment-typed.
+let app: ReturnType<typeof withOrgContext>;
 
 beforeAll(() => {
   deps = buildDeps();
-  app = createRelayRoutes(deps);
+  app = withOrgContext(createRelayRoutes(deps));
 });
 
 afterAll(() => {
@@ -226,7 +239,7 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
     const listExemplars = vi.fn(async () => [{ label: 'viral', platform: 'tiktok' }]);
     const persistence: ViralPersistence = { persist, listExemplars };
     const localDeps = buildDeps({ viralPersistence: persistence });
-    const localApp = createRelayRoutes(localDeps);
+    const localApp = withOrgContext(createRelayRoutes(localDeps), 'org-123');
 
     const res = await localApp.request('/api/v1/viral/ingest', {
       method: 'POST',
@@ -240,7 +253,7 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
     expect(persist).toHaveBeenCalledWith({
       postId: 'db1',
       metrics: expect.objectContaining({ postId: 'db1', engagementRate: 0.05 }),
-      orgId: undefined,
+      orgId: 'org-123',
     });
   });
 
@@ -279,13 +292,25 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
     ]);
     const persistence: ViralPersistence = { persist: vi.fn(), listExemplars };
     const localDeps = buildDeps({ viralPersistence: persistence });
-    const localApp = createRelayRoutes(localDeps);
+    const localApp = withOrgContext(createRelayRoutes(localDeps), 'org-123');
 
     const res = await localApp.request('/api/v1/viral/exemplars?platform=tiktok&limit=3');
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.exemplars).toEqual([{ label: 'strong', platform: 'tiktok', perfScore: 1.2 }]);
-    expect(listExemplars).toHaveBeenCalledWith({ platform: 'tiktok', limit: 3, orgId: undefined });
+    expect(listExemplars).toHaveBeenCalledWith({ platform: 'tiktok', limit: 3, orgId: 'org-123' });
+  });
+
+  it('rejects a tenant query parameter without an authenticated org context', async () => {
+    const listExemplars = vi.fn(async () => []);
+    const localApp = createRelayRoutes(
+      buildDeps({ viralPersistence: { persist: vi.fn(), listExemplars } }),
+    );
+
+    const res = await localApp.request('/api/v1/viral/exemplars?orgId=attacker-org');
+
+    expect(res.status).toBe(401);
+    expect(listExemplars).not.toHaveBeenCalled();
   });
 
   it('returns 500 when persistence throws (fail closed, no silent in-memory fallback)', async () => {
@@ -296,7 +321,7 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
       listExemplars: async () => [],
     };
     const localDeps = buildDeps({ viralPersistence: persistence });
-    const localApp = createRelayRoutes(localDeps);
+    const localApp = withOrgContext(createRelayRoutes(localDeps), 'org-123');
 
     const res = await localApp.request('/api/v1/viral/ingest', {
       method: 'POST',
