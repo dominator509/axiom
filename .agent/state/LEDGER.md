@@ -295,3 +295,4 @@
 2026-09-09T21:05:27Z | [P1][EGRESS/RECONCILIATION] Reconcile persisted egress bindings on sync and rebind: tear down deleted/direct/changed/kill-switched namespaces, release subnet reservations, and detect encrypted credential rotation; egress-plane tests 47/47, clippy, format, diff, and verify passed
 2026-09-09T21:16:45Z | [P1][EGRESS/KILLSWITCH] Reject and tear down bindings that race kill-switch drain at final registry install; egress-plane tests 48/48, clippy, format, diff, and verify passed
 2026-09-09T21:29:39Z | [P1][WORKER/LEASE] Fail closed on lost job leases: verify heartbeat row ownership, reject side-effect markers after lease loss, and leave recovery to stale-lease reclamation; worker tests 76/76, typecheck, lint, format, diff, and verify passed
+2026-09-09T21:41:55Z | [P1][API/IDEMPOTENCY] Preserve RFC-7807 content type and correlation header when replaying stored mutation failures; API suite 335/335, typecheck, lint, format, diff, and verify passed

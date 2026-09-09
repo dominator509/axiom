@@ -39,9 +39,7 @@ function makeApp(
 }
 
 /** A route that records every execution (to prove replay skips it). */
-function countedRoute(
-  app: MiddlewareTestApp,
-) {
+function countedRoute(app: MiddlewareTestApp) {
   let calls = 0;
   app.post('/mutate', idempotency(), async (c) => {
     calls += 1;
@@ -247,6 +245,8 @@ describe('idempotency middleware (durable, M-2)', () => {
 
     const second = await app.request('/mutate', { method: 'POST', headers });
     expect(second.status).toBe(500);
+    expect(second.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
+    expect(second.headers.get('X-Correlation-ID')).toBe('corr-uncaught');
     expect(calls).toBe(1);
   });
 

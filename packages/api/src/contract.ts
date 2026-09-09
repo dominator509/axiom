@@ -138,6 +138,18 @@ interface IdempotencyRow {
   expires_at: Date;
 }
 
+function isProblemDetails(value: unknown): value is ProblemDetails {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    record.type === 'about:blank' &&
+    typeof record.title === 'string' &&
+    typeof record.status === 'number' &&
+    typeof record.detail === 'string' &&
+    typeof record.correlation_id === 'string'
+  );
+}
+
 function queryRows<T>(result: unknown): T[] {
   if (Array.isArray(result)) return result as T[];
   return ((result as { rows?: T[] } | null)?.rows ?? []) as T[];
@@ -291,9 +303,17 @@ export function idempotency(required = true) {
           'Stored idempotency response is invalid',
         );
       }
+      const headers = new Headers({ 'Content-Type': 'application/json' });
+      if (isProblemDetails(reservation.row.response_body)) {
+        headers.set('Content-Type', 'application/problem+json; charset=UTF-8');
+        headers.set('X-Correlation-ID', reservation.row.response_body.correlation_id);
+      } else {
+        const correlationId = c.get('correlationId') as string | undefined;
+        if (correlationId) headers.set('X-Correlation-ID', correlationId);
+      }
       return new Response(JSON.stringify(reservation.row.response_body), {
         status: reservation.row.status,
-        headers: { 'Content-Type': 'application/json' },
+        headers,
       });
     }
 
