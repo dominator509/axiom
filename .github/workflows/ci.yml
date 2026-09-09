@@ -212,7 +212,20 @@ jobs:
       - name: Install privileged egress test dependencies
         if: matrix.task == 'test'
         run: |
-          sudo apt-get update
+          # The hosted runner image may carry an unrelated Google Chrome APT
+          # source whose rotating index can briefly fail hash verification.
+          # Retry once with only that source disabled; all required packages
+          # come from the Ubuntu repositories, and other APT failures remain
+          # fatal.
+          if ! sudo apt-get update; then
+            for source in /etc/apt/sources.list.d/*; do
+              if [ -f "$source" ] && sudo grep -q -- 'dl.google.com/linux/chrome' "$source"; then
+                echo "Disabling transient Google Chrome source: $source"
+                sudo mv "$source" "${source}.disabled"
+              fi
+            done
+            sudo apt-get update
+          fi
           sudo apt-get install --no-install-recommends -y iproute2 iptables wireguard-tools
           command -v ip
           command -v iptables
