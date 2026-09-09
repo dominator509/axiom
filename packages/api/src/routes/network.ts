@@ -170,7 +170,12 @@ router.put('/:modelId/network', zValidator('json', networkSchema), async (c) => 
       [row] = await tx
         .update(schema.modelNetworkConfigs)
         .set({ ...body, updatedAt: new Date() })
-        .where(eq(schema.modelNetworkConfigs.id, existing[0].id))
+        .where(
+          and(
+            eq(schema.modelNetworkConfigs.id, existing[0].id),
+            eq(schema.modelNetworkConfigs.orgId, orgId),
+          ),
+        )
         .returning();
     } else {
       [row] = await tx

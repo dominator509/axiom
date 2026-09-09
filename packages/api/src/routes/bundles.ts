@@ -252,7 +252,13 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
     const [updated] = await tx
       .update(schema.contentBundle)
       .set({ state: 'approved', updatedAt: new Date() })
-      .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.state, bundle.state)))
+      .where(
+        and(
+          eq(schema.contentBundle.id, id),
+          eq(schema.contentBundle.orgId, orgId),
+          eq(schema.contentBundle.state, bundle.state),
+        ),
+      )
       .returning();
     if (!updated) {
       return {
