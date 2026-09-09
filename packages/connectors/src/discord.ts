@@ -15,7 +15,7 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
-import { validatePublish } from './validation.js';
+import { mediaTypeHint, validatePublish } from './validation.js';
 
 const DISCORD_API_BASE = 'https://discord.com/api';
 
@@ -103,7 +103,7 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
       // Attach the first media as thumbnail/image
       if (mediaUrls.length > 0) {
         const firstMedia = mediaUrls[0];
-        const mediaType = this.detectMediaType(firstMedia);
+        const mediaType = this.detectMediaType(firstMedia, mediaTypeHint(input));
 
         if (mediaType === 'video') {
           embed.video = { url: firstMedia };
@@ -221,7 +221,10 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
   }
 
   /** Detect media type from URL extension */
-  private detectMediaType(url: string): 'image' | 'video' {
+  private detectMediaType(url: string, declared?: MediaType): 'image' | 'video' {
+    if (declared === 'video') return 'video';
+    if (declared === 'image') return 'image';
+
     try {
       const pathname = new URL(url).pathname;
       const ext = pathname.split('.').pop()?.toLowerCase() ?? '';

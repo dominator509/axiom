@@ -14,7 +14,7 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
-import { validatePublish } from './validation.js';
+import { mediaTypeHint, validatePublish } from './validation.js';
 
 const REDDIT_API_BASE = 'https://oauth.reddit.com';
 const REDDIT_OAUTH_REVOKE = 'https://www.reddit.com/api/v1/revoke_token';
@@ -104,7 +104,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
 
       if (mediaUrls.length > 0) {
         const mediaUrl = mediaUrls[0];
-        const mediaType = this.detectMediaType(mediaUrl);
+        const mediaType = this.detectMediaType(mediaUrl, mediaTypeHint(input));
 
         if (mediaType === 'video') {
           kind = 'video';
@@ -393,7 +393,10 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
   }
 
   /** Detect media type from URL extension */
-  private detectMediaType(url: string): 'image' | 'video' {
+  private detectMediaType(url: string, declared?: MediaType): 'image' | 'video' {
+    if (declared === 'video') return 'video';
+    if (declared === 'image') return 'image';
+
     try {
       const pathname = new URL(url).pathname;
       const ext = pathname.split('.').pop()?.toLowerCase() ?? '';

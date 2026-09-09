@@ -85,12 +85,17 @@ function toConnectorInput(
   mutated: Record<string, unknown>,
 ): ConnectorPublishInput {
   const { job } = ctx;
+  const mutatedOptions = (mutated.options as Record<string, unknown>) ?? {};
   return {
     idempotencyKey: `${job.org_id}:${input.targetId}:${input.phase}`,
     caption: (mutated.caption as string) ?? input.caption,
     mediaUrls: (mutated.mediaUrls as string[]) ?? input.mediaUrls,
     hashtags: (mutated.hashtags as string[]) ?? input.hashtags,
-    options: { modelId: input.modelId, ...((mutated.options as Record<string, unknown>) ?? {}) },
+    options: {
+      ...mutatedOptions,
+      modelId: input.modelId,
+      ...(input.mediaKind ? { mediaType: input.mediaKind } : {}),
+    },
   };
 }
 
@@ -116,7 +121,10 @@ export async function runPrePostBefore(
     caption: input.caption,
     mediaUrls: input.mediaUrls,
     hashtags: input.hashtags,
-    options: { modelId: input.modelId },
+    options: {
+      modelId: input.modelId,
+      ...(input.mediaKind ? { mediaType: input.mediaKind } : {}),
+    },
   };
 
   try {

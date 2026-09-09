@@ -200,6 +200,19 @@ describe('runPrePostBefore', () => {
     expect(rows).toEqual([]);
   });
 
+  it('carries the authoritative media kind into the connector input', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));
+    const transactionRows: Array<Record<string, unknown>> = [];
+
+    const stage = await runPrePostBefore({ ...context, tx: makeTx(transactionRows) } as never, {
+      ...input,
+      mediaKind: 'video',
+    });
+
+    expect(stage.input.options).toMatchObject({ modelId: 'model-1', mediaType: 'video' });
+  });
+
   it('fails closed when media is present without an explicit kind', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));

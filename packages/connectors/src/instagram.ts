@@ -14,7 +14,7 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
-import { validatePublish } from './validation.js';
+import { mediaTypeHint, validatePublish } from './validation.js';
 
 const IG_GRAPH_BASE = 'https://graph.facebook.com/v22.0';
 const CONTAINER_POLL_INTERVAL_MS = 60_000;
@@ -101,7 +101,7 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
         }
 
         const mediaUrl = input.mediaUrls[0];
-        const mediaType = this.detectMediaType(mediaUrl);
+        const mediaType = this.detectMediaType(mediaUrl, mediaTypeHint(input));
         const storyParams: Record<string, string> = {
           media_type: 'STORIES',
           access_token: accessToken,
@@ -132,7 +132,7 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
       const creationIds: string[] = [];
 
       for (const mediaUrl of input.mediaUrls) {
-        const mediaType = this.detectMediaType(mediaUrl);
+        const mediaType = this.detectMediaType(mediaUrl, mediaTypeHint(input));
 
         const params: Record<string, string> = {
           image_url: mediaUrl,
@@ -248,7 +248,10 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
   }
 
   /** Detect media type from URL extension */
-  private detectMediaType(url: string): 'image' | 'video' {
+  private detectMediaType(url: string, declared?: MediaType): 'image' | 'video' {
+    if (declared === 'video') return 'video';
+    if (declared === 'image') return 'image';
+
     try {
       const pathname = new URL(url).pathname;
       const ext = pathname.split('.').pop()?.toLowerCase() ?? '';

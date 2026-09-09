@@ -15,7 +15,7 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
-import { validatePublish } from './validation.js';
+import { mediaTypeHint, validatePublish } from './validation.js';
 
 const THREADS_GRAPH_BASE = 'https://graph.threads.net/v1.0';
 const CONTAINER_POLL_INTERVAL_MS = 60_000;
@@ -84,7 +84,7 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
       const creationIds: string[] = [];
 
       for (const mediaUrl of input.mediaUrls) {
-        const mediaType = this.detectMediaType(mediaUrl);
+        const mediaType = this.detectMediaType(mediaUrl, mediaTypeHint(input));
 
         const params: Record<string, string> = {
           media_type: mediaType === 'video' ? 'VIDEO' : 'IMAGE',
@@ -206,7 +206,10 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
   }
 
   /** Detect media type from URL extension */
-  private detectMediaType(url: string): 'image' | 'video' {
+  private detectMediaType(url: string, declared?: MediaType): 'image' | 'video' {
+    if (declared === 'video') return 'video';
+    if (declared === 'image') return 'image';
+
     try {
       const pathname = new URL(url).pathname;
       const ext = pathname.split('.').pop()?.toLowerCase() ?? '';

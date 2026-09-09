@@ -14,7 +14,7 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
-import { validatePublish } from './validation.js';
+import { mediaTypeHint, validatePublish } from './validation.js';
 
 const FB_GRAPH_BASE = 'https://graph.facebook.com/v22.0';
 
@@ -125,7 +125,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
       let lastRemoteId: string | null = null;
 
       for (const mediaUrl of mediaUrls) {
-        const mediaType = this.detectMediaType(mediaUrl);
+        const mediaType = this.detectMediaType(mediaUrl, mediaTypeHint(input));
 
         if (mediaType === 'video') {
           // POST /{page-id}/videos
@@ -343,7 +343,10 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
   }
 
   /** Detect media type from URL extension */
-  private detectMediaType(url: string): 'image' | 'video' | 'story' {
+  private detectMediaType(url: string, declared?: MediaType): 'image' | 'video' | 'story' {
+    if (declared === 'video') return 'video';
+    if (declared === 'image') return 'image';
+
     try {
       const pathname = new URL(url).pathname;
       const ext = pathname.split('.').pop()?.toLowerCase() ?? '';

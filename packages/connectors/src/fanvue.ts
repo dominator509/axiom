@@ -19,7 +19,7 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
-import { validatePublish } from './validation.js';
+import { mediaTypeHint, validatePublish } from './validation.js';
 
 const FANVUE_API_BASE = 'https://api.fanvue.com';
 const FANVUE_API_VERSION = '2025-06-26';
@@ -210,7 +210,9 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
   }
 
   /** Determine media type from a URL path extension (defaults to image). */
-  private mediaTypeFromUrl(url: string): FanvueMediaType {
+  private mediaTypeFromUrl(url: string, declared?: MediaType): FanvueMediaType {
+    if (declared === 'image' || declared === 'video' || declared === 'audio') return declared;
+
     const path = url.split('?')[0].toLowerCase();
     if (/\.(mp4|mov|avi|webm|mkv)$/.test(path)) return 'video';
     if (/\.(mp3|wav|m4a|aac|flac)$/.test(path)) return 'audio';
@@ -286,12 +288,16 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
    * Upload one remote media URL via the documented multipart flow and return
    * the mediaUuid. Requires the creator uuid for the presigned part URLs.
    */
-  private async uploadMedia(url: string, creatorUuid: string): Promise<string> {
+  private async uploadMedia(
+    url: string,
+    creatorUuid: string,
+    declaredMediaType?: MediaType,
+  ): Promise<string> {
     const bytes = await this.downloadMedia(url);
 
     const name = url.split('/').pop()?.split('?')[0] || 'media';
     const filename = name.length <= 255 ? name : name.slice(-255);
-    const mediaType = this.mediaTypeFromUrl(url);
+    const mediaType = this.mediaTypeFromUrl(url, declaredMediaType);
 
     const session = await this.fanvueRequest<FanvueUploadSession>('POST', '/media/uploads', {
       name: filename,
@@ -375,8 +381,9 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
       // 1. Upload each media URL → mediaUuid list.
       const mediaUuids: string[] = [];
+      const declaredMediaType = mediaTypeHint(input);
       for (const mediaUrl of input.mediaUrls) {
-        const mediaUuid = await this.uploadMedia(mediaUrl, creatorUuid);
+        const mediaUuid = await this.uploadMedia(mediaUrl, creatorUuid, declaredMediaType);
         mediaUuids.push(mediaUuid);
       }
 

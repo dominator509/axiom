@@ -38,9 +38,28 @@ const EXT_MAP: Record<string, MediaType> = {
 const DEFAULT_MEDIA_TYPE: MediaType = 'image';
 
 /**
+ * Return a media type supplied by the authoritative publish boundary.
+ *
+ * Delivery URLs are often signed object paths without a filename extension,
+ * so URL-only inference cannot reliably distinguish images from videos. Keep
+ * the hint deliberately narrow: these are concrete media types, not provider
+ * modes such as stories or carousels.
+ */
+export function mediaTypeHint(
+  input: Pick<ConnectorPublishInput, 'options'>,
+): Extract<MediaType, 'image' | 'video' | 'gif' | 'audio'> | undefined {
+  const value = input.options?.mediaType;
+  return value === 'image' || value === 'video' || value === 'gif' || value === 'audio'
+    ? value
+    : undefined;
+}
+
+/**
  * Infer the MediaType from a URL by its file extension.
  */
-function detectMediaType(url: string): MediaType {
+function detectMediaType(url: string, declared?: MediaType): MediaType {
+  if (declared) return declared;
+
   try {
     const pathname = new URL(url).pathname;
     const ext = pathname.split('.').pop()?.toLowerCase() ?? '';
@@ -80,10 +99,12 @@ export function validatePublish(
       });
     }
   } else {
+    const declaredMediaType = mediaTypeHint(input);
+
     // Cap the number of checked items to the actual URL count
     for (let i = 0; i < input.mediaUrls.length; i++) {
       const url = input.mediaUrls[i];
-      const type = detectMediaType(url);
+      const type = detectMediaType(url, declaredMediaType);
 
       // An unsupported media type cannot be safely published by this
       // connector. Keep it in errors so callers that gate on `valid` fail
