@@ -40,6 +40,17 @@ describe('VisionEngineClient', () => {
     expect(url).toBe('http://vision-engine:8101/vision/tos-classify');
   });
 
+  it('sends the configured internal bearer token to the vision service', async () => {
+    vi.stubEnv('AXIOM_VISION_AUTH_TOKEN', 'test-internal-token');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(rustTosBody())));
+
+    const client = new VisionEngineClient({ baseUrl: 'http://vision-engine:8101' });
+    await client.callTosClassify('/var/media/img.png');
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] as unknown as [string, RequestInit];
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer test-internal-token');
+  });
+
   it('calls the Rust engine with image_path and maps the real response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(rustTosBody())));
     const client = new VisionEngineClient({ baseUrl: 'http://engine.test' });

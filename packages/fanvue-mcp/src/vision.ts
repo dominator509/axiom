@@ -40,6 +40,8 @@ export interface VisionCallOptions {
 export interface VisionEngineConfig {
   /** Base URL of the Rust vision engine */
   baseUrl: string;
+  /** Shared internal bearer token for a non-loopback vision service. */
+  authToken?: string;
   /** Request timeout in milliseconds */
   timeoutMs: number;
   /** Explicit development/test escape hatch. Production defaults fail closed. */
@@ -57,6 +59,12 @@ function configuredVisionBaseUrl(): string {
     .map((value) => value?.trim())
     .find((value): value is string => Boolean(value));
   return configured ?? DEFAULT_CONFIG.baseUrl;
+}
+
+function configuredVisionAuthToken(): string | undefined {
+  return [process.env.AXIOM_VISION_AUTH_TOKEN, process.env.VISION_ENGINE_AUTH_TOKEN]
+    .map((value) => value?.trim())
+    .find((value): value is string => Boolean(value));
 }
 
 // ─── Local Heuristic Fallback ───
@@ -148,7 +156,10 @@ async function postJson<T>(url: string, body: unknown, config: VisionEngineConfi
   try {
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(config.authToken ? { Authorization: `Bearer ${config.authToken}` } : {}),
+      },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -172,6 +183,7 @@ export class VisionEngineClient {
     this.config = {
       ...DEFAULT_CONFIG,
       baseUrl: configuredVisionBaseUrl(),
+      authToken: configuredVisionAuthToken(),
       ...config,
     };
   }

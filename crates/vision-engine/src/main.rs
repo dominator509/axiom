@@ -1,7 +1,9 @@
 use axum::{
-    extract::Json,
-    http::StatusCode,
+    extract::{Json, Request},
+    http::{header, StatusCode},
+    middleware::{self, Next},
     response::IntoResponse,
+    response::Response,
     routing::{get, post},
     Router,
 };
@@ -12,6 +14,9 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use thiserror::Error;
+
+const VISION_AUTH_TOKEN_ENV: &str = "AXIOM_VISION_AUTH_TOKEN";
+const LEGACY_VISION_AUTH_TOKEN_ENV: &str = "VISION_ENGINE_AUTH_TOKEN";
 
 // ---------------------------------------------------------------------------
 // Errors
@@ -407,9 +412,7 @@ struct Evaluation {
 
 fn evaluate(path: &str, request_override: &Option<String>) -> Result<Evaluation, VisionError> {
     let image_path = resolve_image_path(path)?;
-    let image_path = image_path
-        .to_str()
-        .ok_or(VisionError::InvalidPath)?;
+    let image_path = image_path.to_str().ok_or(VisionError::InvalidPath)?;
     let metrics = compute_metrics(image_path)?;
     let mut reasons: Vec<String> = Vec::new();
     let mut needs_review = false;
@@ -574,6 +577,74 @@ async fn nsfw_detect(
     }))
 }
 
+/// Protect inference routes when the service crosses a process or container
+/// boundary. Loopback development remains credential-free, but production
+/// deployments that bind beyond loopback must configure this token.
+async fn require_internal_auth(request: Request, next: Next) -> Response {
+    let Some(expected) = configured_auth_token() else {
+        return next.run(request).await;
+    };
+
+    let authorized = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| bearer_token_authorized(Some(value), &expected));
+
+    if authorized {
+        next.run(request).await
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, "Bearer")],
+            "vision engine authentication required",
+        )
+            .into_response()
+    }
+}
+
+fn configured_auth_token() -> Option<String> {
+    [VISION_AUTH_TOKEN_ENV, LEGACY_VISION_AUTH_TOKEN_ENV]
+        .into_iter()
+        .filter_map(|name| std::env::var(name).ok())
+        .map(|value| value.trim().to_string())
+        .find(|value| !value.is_empty())
+}
+
+fn bearer_token_authorized(header_value: Option<&str>, expected: &str) -> bool {
+    header_value
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .is_some_and(|provided| provided == expected)
+}
+
+fn non_loopback_without_auth(addr: &str, auth_token: Option<&str>) -> bool {
+    let is_loopback = addr
+        .parse::<std::net::SocketAddr>()
+        .map(|socket| socket.ip().is_loopback())
+        .unwrap_or(false);
+    !is_loopback
+        && auth_token
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+}
+
+fn validate_bind_security(addr: &str) {
+    assert!(
+        !non_loopback_without_auth(addr, configured_auth_token().as_deref()),
+        "vision-engine refuses non-loopback bind addresses without {VISION_AUTH_TOKEN_ENV}"
+    );
+}
+
+fn build_app() -> Router {
+    let protected_routes = Router::new()
+        .route("/vision/tos-classify", post(tos_classify))
+        .route("/vision/nsfw-detect", post(nsfw_detect))
+        .layer(middleware::from_fn(require_internal_auth));
+    Router::new()
+        .route("/health", get(health))
+        .merge(protected_routes)
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -596,12 +667,11 @@ async fn main() {
         Err(e) => tracing::error!("vision engine: model load error: {e}"),
     }
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/vision/tos-classify", post(tos_classify))
-        .route("/vision/nsfw-detect", post(nsfw_detect));
-
     let addr = std::env::var("AXIOM_VISION_ADDR").unwrap_or_else(|_| "127.0.0.1:8101".to_string());
+    validate_bind_security(&addr);
+
+    let app = build_app();
+
     tracing::info!("Vision Engine listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(addr)
@@ -618,8 +688,12 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{body::Body, http::Request as HttpRequest};
+    use serde_json::json;
     use std::sync::{Mutex, OnceLock};
+    use tower::ServiceExt;
 
+    static AUTH_ENV_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
     static OVERRIDE_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
     fn test_media_path(name: &str) -> PathBuf {
@@ -652,7 +726,7 @@ mod tests {
         let pixels = preprocess("/tmp/preprocess-white.png").unwrap();
         assert_eq!(pixels.len(), 3 * 224 * 224);
         let r = pixels[0];
-        let g = pixels[1 * 224 * 224];
+        let g = pixels[224 * 224];
         let b = pixels[2 * 224 * 224];
         assert!((r - 1.0).abs() < 1e-3);
         assert!((g - 1.0).abs() < 1e-3);
@@ -791,5 +865,96 @@ mod tests {
             Err(VisionError::InvalidPath)
         ));
         let _ = std::fs::remove_file(outside);
+    }
+
+    #[test]
+    fn non_loopback_vision_bind_requires_authentication() {
+        assert!(non_loopback_without_auth("0.0.0.0:8101", None));
+        assert!(non_loopback_without_auth("vision-engine:8101", None));
+        assert!(!non_loopback_without_auth("127.0.0.1:8101", None));
+        assert!(!non_loopback_without_auth(
+            "0.0.0.0:8101",
+            Some("internal-token")
+        ));
+        assert!(non_loopback_without_auth("0.0.0.0:8101", Some("  ")));
+    }
+
+    #[test]
+    fn inference_auth_requires_the_exact_bearer_token() {
+        assert!(bearer_token_authorized(
+            Some("Bearer internal-token"),
+            "internal-token"
+        ));
+        assert!(!bearer_token_authorized(None, "internal-token"));
+        assert!(!bearer_token_authorized(
+            Some("Bearer wrong-token"),
+            "internal-token"
+        ));
+        assert!(!bearer_token_authorized(
+            Some("Basic internal-token"),
+            "internal-token"
+        ));
+    }
+
+    #[tokio::test]
+    async fn inference_routes_require_auth_but_health_remains_public() {
+        let _guard = AUTH_ENV_LOCK
+            .get_or_init(|| tokio::sync::Mutex::new(()))
+            .lock()
+            .await;
+        let previous = std::env::var_os(VISION_AUTH_TOKEN_ENV);
+        let previous_legacy = std::env::var_os(LEGACY_VISION_AUTH_TOKEN_ENV);
+        unsafe {
+            std::env::set_var(VISION_AUTH_TOKEN_ENV, "internal-token");
+            std::env::remove_var(LEGACY_VISION_AUTH_TOKEN_ENV);
+        }
+
+        let body = serde_json::to_vec(&json!({"image_path": "missing.png"})).unwrap();
+        let request = |authorization: Option<&str>| {
+            let mut builder = HttpRequest::builder()
+                .method("POST")
+                .uri("/vision/tos-classify")
+                .header("Content-Type", "application/json");
+            if let Some(value) = authorization {
+                builder = builder.header("Authorization", value);
+            }
+            builder.body(Body::from(body.clone())).unwrap()
+        };
+
+        let unauthorized_response = build_app().clone().oneshot(request(None)).await.unwrap();
+        assert_eq!(unauthorized_response.status(), StatusCode::UNAUTHORIZED);
+        let wrong_token_response = build_app()
+            .clone()
+            .oneshot(request(Some("Bearer wrong-token")))
+            .await
+            .unwrap();
+        assert_eq!(wrong_token_response.status(), StatusCode::UNAUTHORIZED);
+        let authorized_response = build_app()
+            .clone()
+            .oneshot(request(Some("Bearer internal-token")))
+            .await
+            .unwrap();
+        assert_ne!(authorized_response.status(), StatusCode::UNAUTHORIZED);
+        let health_response = build_app()
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(health_response.status(), StatusCode::UNAUTHORIZED);
+
+        unsafe {
+            match previous {
+                Some(value) => std::env::set_var(VISION_AUTH_TOKEN_ENV, value),
+                None => std::env::remove_var(VISION_AUTH_TOKEN_ENV),
+            }
+            match previous_legacy {
+                Some(value) => std::env::set_var(LEGACY_VISION_AUTH_TOKEN_ENV, value),
+                None => std::env::remove_var(LEGACY_VISION_AUTH_TOKEN_ENV),
+            }
+        }
     }
 }
