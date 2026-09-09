@@ -48,18 +48,30 @@ echo ""
 # 2. Check file permissions — no world-writable files
 # ------------------------------------------------------------------
 echo "--- Check 2: File permissions (no world-writable files) ---"
-WORLD_WRITABLE=$(find . \
-  \( -path './node_modules' -o -path './.git' -o -path './target' -o -path './.turbo' -o -path './var' \) -prune -o \
-  -type f -perm -o+w -print 2>/dev/null || true)
-if [ -n "$WORLD_WRITABLE" ]; then
-  echo "  [FAIL] World-writable files found:"
-  echo "$WORLD_WRITABLE" | while IFS= read -r f; do
-    echo "    $f"
-  done
-  EXIT_CODE=1
-else
-  echo "  [PASS] No world-writable files found"
-fi
+HOST_OS=$(uname -s 2>/dev/null || echo unknown)
+case "$HOST_OS" in
+  MINGW*|MSYS*|CYGWIN*)
+    # Git Bash emulates POSIX mode bits from Windows ACLs and commonly reports
+    # every file as world-writable. A mode-bit scan there is not evidence about
+    # the NTFS ACL; keep the Linux check fail-closed and leave Windows ACL
+    # review to the host security baseline.
+    echo "  [skip] POSIX world-writable mode check is not meaningful on Windows/NTFS"
+    ;;
+  *)
+    WORLD_WRITABLE=$(find . \
+      \( -path './node_modules' -o -path './.git' -o -path './target' -o -path './.turbo' -o -path './var' \) -prune -o \
+      -type f -perm -o+w -print 2>/dev/null || true)
+    if [ -n "$WORLD_WRITABLE" ]; then
+      echo "  [FAIL] World-writable files found:"
+      echo "$WORLD_WRITABLE" | while IFS= read -r f; do
+        echo "    $f"
+      done
+      EXIT_CODE=1
+    else
+      echo "  [PASS] No world-writable files found"
+    fi
+    ;;
+esac
 echo ""
 
 # ------------------------------------------------------------------
