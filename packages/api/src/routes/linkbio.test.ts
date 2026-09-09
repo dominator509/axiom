@@ -217,6 +217,26 @@ describe('POST /linkbio/clicks', () => {
     expect(res.status).toBe(404);
   });
 
+  it('rejects enabled legacy external providers instead of treating them as native', async () => {
+    mockState.result = [
+      {
+        id: PROVIDER_ID,
+        kind: 'linktree',
+        enabled: true,
+        config: { links: [{ label: 'External', url: 'https://linktree.example/luna' }] },
+      },
+    ];
+    const res = await appWithOrg(ORG_ID).request('/linkbio/clicks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        providerId: PROVIDER_ID,
+        target: 'https://linktree.example/luna',
+      }),
+    });
+    expect(res.status).toBe(404);
+  });
+
   it('rejects a bad providerId (400)', async () => {
     const res = await appWithOrg(ORG_ID).request('/linkbio/clicks', {
       method: 'POST',

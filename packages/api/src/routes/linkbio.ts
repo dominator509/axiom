@@ -351,6 +351,7 @@ router.post(
           and(
             eq(schema.linkbioProvider.id, body.providerId),
             eq(schema.linkbioProvider.orgId, orgId),
+            eq(schema.linkbioProvider.kind, 'native'),
             eq(schema.linkbioProvider.enabled, true),
           ),
         )
