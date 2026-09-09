@@ -173,6 +173,11 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
     }),
   );
   const targetPlatforms = Object.keys(captions).length > 0 ? Object.keys(captions) : ['instagram'];
+  const primaryPlatform = targetPlatforms[0] ?? 'instagram';
+  const primaryCaption = captions[primaryPlatform] ?? Object.values(captions)[0] ?? '';
+  const hashtagSets = Object.fromEntries(
+    targetPlatforms.map((platform) => [platform, (bundle.hashtags as string[]) ?? []]),
+  );
   const renderer = new CardRenderer();
   for (const { binding, channel, chatRef } of dispatchBindings) {
     // Commit the dispatch log before provider I/O. If the provider accepts the
@@ -202,9 +207,12 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
       id: bundle.id,
       cardId: relayCardRow.id,
       mediaUrls,
-      caption: captions[channel] ?? captions['instagram'] ?? '',
+      // Relay channel names are transport bindings, not target-platform keys.
+      // Use the selected platform caption so a TikTok-only (or any
+      // non-Instagram-only) bundle is not rendered as an empty approval card.
+      caption: captions[channel] ?? captions[primaryPlatform] ?? primaryCaption,
       captionVariants: captions,
-      hashtagSets: { [channel]: (bundle.hashtags as string[]) ?? [] },
+      hashtagSets,
       tosScores,
       targetPlatforms,
     };

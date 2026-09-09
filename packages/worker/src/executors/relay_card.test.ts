@@ -209,4 +209,28 @@ describe('relayCard', () => {
     expect(markExternalSideEffect).toHaveBeenCalledTimes(1);
     expect(mockState.sent[0]?.chatRef).toBe('channel-1');
   });
+
+  it('uses the target-platform caption when the relay channel is not a platform key', async () => {
+    mockState.results[0] = [
+      {
+        ...BUNDLE,
+        captions: { tiktok: 'TikTok-only caption' },
+        hashtags: ['dance'],
+      },
+    ];
+
+    await relayCard({
+      tx: makeChain(),
+      job: JOB,
+      killSwitchEnabled: false,
+      workerId: 'worker-1',
+    });
+
+    expect(mockState.sent[0]?.card).toMatchObject({
+      caption: 'TikTok-only caption',
+      captionVariants: { tiktok: 'TikTok-only caption' },
+      hashtagSets: { tiktok: ['dance'] },
+      targetPlatforms: ['tiktok'],
+    });
+  });
 });
