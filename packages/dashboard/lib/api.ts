@@ -6,6 +6,33 @@ import { cookies } from 'next/headers';
 import { createIdempotencyKey } from './mutation';
 
 const API_BASE = process.env.API_ORIGIN ?? 'http://127.0.0.1:3001';
+export const DEFAULT_SERVER_REQUEST_TIMEOUT_MS = 10_000;
+
+function createRequestSignal(
+  parentSignal: AbortSignal | null | undefined,
+  timeoutMs: number,
+): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort(new Error(`server API request timed out after ${timeoutMs}ms`));
+  }, timeoutMs);
+  const forwardAbort = () => controller.abort(parentSignal?.reason);
+  if (parentSignal) {
+    if (parentSignal.aborted) {
+      controller.abort(parentSignal.reason);
+    } else {
+      parentSignal.addEventListener('abort', forwardAbort, { once: true });
+    }
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      parentSignal?.removeEventListener('abort', forwardAbort);
+    },
+  };
+}
 
 export class ApiError extends Error {
   constructor(
@@ -35,22 +62,28 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     headers.set('Idempotency-Key', createIdempotencyKey());
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers,
-    cache: 'no-store',
-  });
+  const requestSignal = createRequestSignal(init?.signal, DEFAULT_SERVER_REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers,
+      cache: 'no-store',
+      signal: requestSignal.signal,
+    });
 
-  if (!res.ok) {
-    let body: unknown = null;
-    try {
-      body = await res.json();
-    } catch {
-      body = await res.text();
+    if (!res.ok) {
+      let body: unknown = null;
+      try {
+        body = await res.json();
+      } catch {
+        body = await res.text();
+      }
+      throw new ApiError(res.status, body);
     }
-    throw new ApiError(res.status, body);
+    return (await res.json()) as T;
+  } finally {
+    requestSignal.cleanup();
   }
-  return (await res.json()) as T;
 }
 
 export interface ModelProfile {
@@ -230,15 +263,19 @@ export async function getSession() {
     .getAll()
     .map((c) => `${c.name}=${c.value}`)
     .join('; ');
+  const requestSignal = createRequestSignal(undefined, DEFAULT_SERVER_REQUEST_TIMEOUT_MS);
   try {
     const res = await fetch(`${API_BASE}/api/auth/get-session`, {
       headers: cookieHeader ? { cookie: cookieHeader } : {},
       cache: 'no-store',
+      signal: requestSignal.signal,
     });
     if (!res.ok) return null;
     const body = (await res.json()) as { user?: { id: string } } | null;
     return body?.user ? body : null;
   } catch {
     return null;
+  } finally {
+    requestSignal.cleanup();
   }
 }
