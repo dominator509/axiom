@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { and, eq } from 'drizzle-orm';
 import { Tier, type AgentPermission, tierAtLeast } from '../auth.js';
 import { withModelOrg, schema } from '../org-context.js';
+import { enqueueJob } from '@axiom/worker';
 
 // content_bundle currently carries one asset_id. Keep the MCP contract aligned
 // with that persisted shape instead of silently dropping additional media IDs.
@@ -111,6 +112,14 @@ export class PublishingTool {
           scheduledAt: args.post.scheduledAt ?? null,
         },
         state: 'generated',
+      });
+      await enqueueJob(tx, {
+        orgId,
+        queue: 'tos',
+        kind: 'tos.scan',
+        payload: { bundleId },
+        runAfter: new Date(),
+        dedupeParts: ['tos.scan', bundleId],
       });
     });
 

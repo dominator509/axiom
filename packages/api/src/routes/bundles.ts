@@ -7,7 +7,12 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { sql, eq, and } from 'drizzle-orm';
-import { schema, getPublishingConsentStatus, consentRequirementMessage } from '@axiom/db';
+import {
+  schema,
+  getPublishingConsentStatus,
+  consentRequirementMessage,
+  getTosScanState,
+} from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import {
   withOrgContext,
@@ -213,6 +218,19 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
             'bundle references an unavailable or unsupported media asset; approval cannot continue',
         };
       }
+    }
+
+    const tosScanState = await getTosScanState(tx, orgId, id);
+    if (tosScanState !== 'completed') {
+      return {
+        status: 409 as const,
+        error:
+          tosScanState === 'pending'
+            ? 'ToS scan is still running; approval must wait for the scan to complete'
+            : tosScanState === 'failed'
+              ? 'ToS scan failed; approval is blocked until a successful scan is available'
+              : 'ToS scan is missing; approval is blocked until the bundle is scanned',
+      };
     }
 
     // MCP-created bundles keep their requested timing until approval. An

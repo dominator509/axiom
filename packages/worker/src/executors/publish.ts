@@ -8,7 +8,12 @@
 
 import { eq, and } from 'drizzle-orm';
 import { tosReportPassesForPlatforms } from '@axiom/core';
-import { schema, getPublishingConsentStatus, consentRequirementMessage } from '@axiom/db';
+import {
+  schema,
+  getPublishingConsentStatus,
+  consentRequirementMessage,
+  getTosScanState,
+} from '@axiom/db';
 import { asPlatform, connectorForTarget } from '../connection.js';
 import { enqueueJob } from '../enqueue.js';
 import { ParkJobError } from './context.js';
@@ -216,6 +221,19 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   if (bundle.state !== 'approved') {
     throw new Error(
       `publish.target: bundle ${target.bundleId} is ${bundle.state}; publishing requires approved state`,
+    );
+  }
+
+  const tosScanState = await getTosScanState(tx, job.org_id, target.bundleId);
+  if (tosScanState === 'pending') {
+    throw new ParkJobError(
+      `publish.target: ToS scan for bundle ${target.bundleId} is still running`,
+      PENDING_PUBLISH_RETRY_MS,
+    );
+  }
+  if (tosScanState !== 'completed') {
+    throw new Error(
+      `publish.target: ToS scan for bundle ${target.bundleId} is ${tosScanState}; refusing provider dispatch`,
     );
   }
 

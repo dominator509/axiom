@@ -60,6 +60,7 @@ import {
   schema,
   getPublishingConsentStatus,
   consentRequirementMessage,
+  getTosScanState,
 } from '@axiom/db';
 import { sql, eq, and } from 'drizzle-orm';
 import {
@@ -244,6 +245,16 @@ async function relayCommandExecutor(
         const tosFailure = tosApprovalFailure(bundle[0].tosReport, platforms);
         if (tosFailure) {
           throw new Error(`relay command: ${tosFailure}`);
+        }
+        const tosScanState = await getTosScanState(tx, orgId, bundleId);
+        if (tosScanState !== 'completed') {
+          throw new Error(
+            tosScanState === 'pending'
+              ? 'relay command: ToS scan is still running; approval must wait for completion'
+              : tosScanState === 'failed'
+                ? 'relay command: ToS scan failed; approval is blocked'
+                : 'relay command: ToS scan is missing; approval is blocked',
+          );
         }
         for (const platform of platforms) {
           const consent = await getPublishingConsentStatus(tx, orgId, bundle[0].modelId, platform);

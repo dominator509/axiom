@@ -10,6 +10,7 @@ import { mockState, mockDbFactory } from './test-utils.js';
 vi.mock('@axiom/db', () => ({
   ...mockDbFactory({ contentBundle: {}, postTarget: {}, asset: {}, platformConnection: {} }),
   getPublishingConsentStatus: vi.fn(async () => ({ ok: true, missing: [] })),
+  getTosScanState: vi.fn(async () => 'completed'),
   consentRequirementMessage: vi.fn(
     (_status: unknown, platform: string) => `consent required for ${platform}`,
   ),
@@ -40,7 +41,7 @@ vi.mock('@axiom/worker', () => ({
 
 import { bundlesRouter } from './bundles.js';
 import { enqueueJob } from '@axiom/worker';
-import { getPublishingConsentStatus } from '@axiom/db';
+import { getPublishingConsentStatus, getTosScanState } from '@axiom/db';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -71,6 +72,7 @@ beforeEach(() => {
   mockState.results = [];
   vi.mocked(enqueueJob).mockClear();
   vi.mocked(getPublishingConsentStatus).mockClear();
+  vi.mocked(getTosScanState).mockReset().mockResolvedValue('completed');
 });
 
 afterEach(() => {
@@ -235,6 +237,29 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
         dedupeParts: ['publish.target', BUNDLE_ID],
       }),
     );
+  });
+
+  it('blocks approval until the queued ToS scan has completed', async () => {
+    const generatedBundle = {
+      id: BUNDLE_ID,
+      orgId: ORG_ID,
+      modelId: MODEL_ID,
+      state: 'generated',
+      assetId: 'asset-1',
+      tosReport: passingTos('instagram'),
+    };
+    vi.mocked(getTosScanState).mockResolvedValue('pending');
+    mockState.results = [[], [generatedBundle], [{ id: 'asset-1', kind: 'image' }]];
+
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: ['instagram'] }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain('ToS scan is still running');
+    expect(enqueueJob).not.toHaveBeenCalled();
   });
 
   it('returns a conflict when the bundle changes before approval is committed', async () => {

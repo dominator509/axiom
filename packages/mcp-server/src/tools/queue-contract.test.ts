@@ -99,7 +99,16 @@ describe('MCP queue contracts', () => {
         scheduledAt: null,
       },
     });
-    expect(enqueueJob).not.toHaveBeenCalled();
+    expect(enqueueJob).toHaveBeenCalledTimes(1);
+    expect(enqueueJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        queue: 'tos',
+        kind: 'tos.scan',
+        payload: { bundleId: expect.any(String) },
+        dedupeParts: ['tos.scan', expect.any(String)],
+      }),
+    );
   });
 
   it('persists one owned mediaId on the content bundle', async () => {
@@ -155,7 +164,7 @@ describe('MCP queue contracts', () => {
     ).toBe(false);
   });
 
-  it('does not create a publish target or enqueue a job before Manager approval', async () => {
+  it('does not create a publish target before Manager approval', async () => {
     assetRows.push({ id: ASSET_ID });
     const result = await new PublishingTool().handle(
       {
@@ -175,7 +184,11 @@ describe('MCP queue contracts', () => {
         scheduledAt: '2026-08-02T10:00:00Z',
       },
     });
-    expect(enqueueJob).not.toHaveBeenCalled();
+    expect(enqueueJob).toHaveBeenCalledTimes(1);
+    expect(enqueueJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ queue: 'tos', kind: 'tos.scan' }),
+    );
   });
 
   it('does not advertise an unsupported OnlyFans connector', () => {
