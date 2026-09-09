@@ -1,0 +1,31 @@
+1. pnpm build
+Executed `pnpm install && pnpm build`
+Status: COMPLETED (exit code 0)
+
+2. pnpm typecheck
+Executed `pnpm typecheck`
+Status: COMPLETED (exit code 0)
+
+3. cargo build --workspace
+Executed `cargo build --workspace`
+Status: COMPLETED (exit code 0)
+
+4. cargo test --workspace
+Executed `cargo test --workspace`
+Status: COMPLETED (exit code 0)
+
+5. pnpm test
+Executed `pnpm test`
+Status: FAILED (exit code 1) due to database connectivity issue (ECONNREFUSED ::1:5432). PostgreSQL is missing. Logged as NOT_RUNNABLE_ENV.
+
+6. sh scripts/preflight.sh
+Executed `sh scripts/preflight.sh`
+Status: FAILED (exit code 1) due to missing `psql` and `ufw`. Logged as NOT_RUNNABLE_ENV.
+
+7. sh scripts/lint.sh
+Executed `sh scripts/lint.sh`
+Status: FAILED (exit code 1) due to lint errors/warnings.
+
+8. sh scripts/verify.sh
+Executed `sh scripts/verify.sh`
+Status: FAILED (exit code 1) due to preflight failing.

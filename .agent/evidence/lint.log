@@ -1,0 +1,481 @@
+=== [lint] Running eslint across all declared packages ===
+
+> axiom-fanvue-crm@0.1.0 lint /app
+> turbo run lint
+
+• turbo 2.10.7
+
+   • Packages in scope: @axiom/api, @axiom/auth, @axiom/connectors, @axiom/core, @axiom/dashboard, @axiom/db, @axiom/fanvue-mcp, @axiom/llm-gateway, @axiom/mcp-server, @axiom/mobile, @axiom/relay, @axiom/worker
+   • Running lint in 12 packages
+   • Remote caching disabled
+
+@axiom/mcp-server:lint: cache hit, replaying logs f7cd52800c620edd
+@axiom/mcp-server:lint:
+@axiom/mcp-server:lint: > @axiom/mcp-server@0.1.0 lint /app/packages/mcp-server
+@axiom/mcp-server:lint: > eslint src/
+@axiom/mcp-server:lint:
+@axiom/mcp-server:lint:
+@axiom/mcp-server:lint: /app/packages/mcp-server/src/org-context.ts
+@axiom/mcp-server:lint:   25:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/mcp-server:lint:
+@axiom/mcp-server:lint: ✖ 1 problem (0 errors, 1 warning)
+@axiom/mcp-server:lint:
+@axiom/core:lint: cache hit, replaying logs 2e456b020bd59657
+@axiom/core:lint:
+@axiom/core:lint: > @axiom/core@0.1.0 lint /app/packages/core
+@axiom/core:lint: > eslint src/
+@axiom/core:lint:
+@axiom/fanvue-mcp:lint: cache hit, replaying logs 0f55db4d16a67910
+@axiom/fanvue-mcp:lint:
+@axiom/fanvue-mcp:lint: > @axiom/fanvue-mcp@0.1.0 lint /app/packages/fanvue-mcp
+@axiom/fanvue-mcp:lint: > eslint src/
+@axiom/fanvue-mcp:lint:
+@axiom/mobile:lint: cache hit, replaying logs aa5b86dc4a250dc7
+@axiom/mobile:lint:
+@axiom/mobile:lint: > @axiom/mobile@0.1.0 lint /app/packages/mobile
+@axiom/mobile:lint: > eslint src/ index.ts
+@axiom/mobile:lint:
+@axiom/worker:lint: cache hit, replaying logs 4415f480f37a0f98
+@axiom/worker:lint:
+@axiom/worker:lint: > @axiom/worker@0.1.0 lint /app/packages/worker
+@axiom/worker:lint: > eslint src/
+@axiom/worker:lint:
+@axiom/worker:lint:
+@axiom/worker:lint: /app/packages/worker/src/claim.ts
+@axiom/worker:lint:   20:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/worker:lint:
+@axiom/worker:lint: /app/packages/worker/src/connection.ts
+@axiom/worker:lint:    74:7  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/worker:lint:   190:7  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/worker:lint:
+@axiom/worker:lint: /app/packages/worker/src/enqueue.ts
+@axiom/worker:lint:   25:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/worker:lint:
+@axiom/worker:lint: /app/packages/worker/src/executors/context.ts
+@axiom/worker:lint:   10:7  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/worker:lint:
+@axiom/worker:lint: /app/packages/worker/src/executors/digest.test.ts
+@axiom/worker:lint:   11:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/worker:lint:
+@axiom/worker:lint: /app/packages/worker/src/executors/relay_card.test.ts
+@axiom/worker:lint:   13:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/worker:lint:   68:6   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/worker:lint:
+@axiom/worker:lint: /app/packages/worker/src/executors/tos.test.ts
+@axiom/worker:lint:    9:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/worker:lint:   70:6   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/worker:lint:
+@axiom/worker:lint: /app/packages/worker/src/worker.test.ts
+@axiom/worker:lint:   8:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/worker:lint:
+@axiom/worker:lint: /app/packages/worker/src/worker.ts
+@axiom/worker:lint:   56:7   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/worker:lint:   89:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/worker:lint:
+@axiom/worker:lint: ✖ 13 problems (0 errors, 13 warnings)
+@axiom/worker:lint:
+@axiom/llm-gateway:lint: cache hit, replaying logs e9daae1e05a8c53e
+@axiom/llm-gateway:lint:
+@axiom/llm-gateway:lint: > @axiom/llm-gateway@0.1.0 lint /app/packages/llm-gateway
+@axiom/llm-gateway:lint: > eslint src/
+@axiom/llm-gateway:lint:
+@axiom/llm-gateway:lint:
+@axiom/llm-gateway:lint: /app/packages/llm-gateway/src/gateway.ts
+@axiom/llm-gateway:lint:   737:26  warning  '_tk' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:
+@axiom/llm-gateway:lint: /app/packages/llm-gateway/src/providers/anthropic.test.ts
+@axiom/llm-gateway:lint:   129:24  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:   140:24  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:   310:24  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:
+@axiom/llm-gateway:lint: /app/packages/llm-gateway/src/providers/openai.test.ts
+@axiom/llm-gateway:lint:   139:22  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:   149:24  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:   161:24  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:   353:22  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:   365:24  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:   376:24  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:
+@axiom/llm-gateway:lint: /app/packages/llm-gateway/src/providers/other.test.ts
+@axiom/llm-gateway:lint:   126:24  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:   133:22  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:   144:24  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:   222:24  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:   411:24  warning  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/llm-gateway:lint:
+@axiom/llm-gateway:lint: ✖ 15 problems (0 errors, 15 warnings)
+@axiom/llm-gateway:lint:
+@axiom/relay:lint: cache hit, replaying logs 6668c3d3a95146c7
+@axiom/relay:lint:
+@axiom/relay:lint: > @axiom/relay@0.0.0 lint /app/packages/relay
+@axiom/relay:lint: > eslint .
+@axiom/relay:lint:
+@axiom/relay:lint:
+@axiom/relay:lint: /app/packages/relay/src/channels/discord.test.ts
+@axiom/relay:lint:    73:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:    96:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   124:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   150:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   171:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   216:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/db:lint: cache hit, replaying logs 9bf5763b5274558d
+@axiom/relay:lint:   226:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   241:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/dashboard:lint: cache hit, replaying logs 3b30f14021e5ab9d
+@axiom/db:lint:
+@axiom/db:lint: > @axiom/db@0.1.0 lint /app/packages/db
+@axiom/db:lint: > eslint src/
+@axiom/db:lint:
+@axiom/db:lint:
+@axiom/db:lint: /app/packages/db/src/compliance.ts
+@axiom/db:lint:   91:7  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/db:lint:
+@axiom/db:lint: /app/packages/db/src/migrations.test.ts
+@axiom/db:lint:     7:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/db:lint:     8:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/db:lint:   128:58  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/db:lint:
+@axiom/db:lint: /app/packages/db/src/schema.test.ts
+@axiom/db:lint:     8:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/db:lint:    86:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   254:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   264:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   276:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   287:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:
+@axiom/relay:lint: /app/packages/relay/src/channels/discord.ts
+@axiom/relay:lint:    58:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:    91:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:    92:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:    94:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   117:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:
+@axiom/relay:lint: /app/packages/relay/src/channels/signal.test.ts
+@axiom/relay:lint:   52:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:
+@axiom/relay:lint: /app/packages/relay/src/channels/telegram.test.ts
+@axiom/relay:lint:    53:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:    82:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:    88:87  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   108:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   122:77  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/dashboard:lint:
+@axiom/dashboard:lint: > @axiom/dashboard@0.1.0 lint /app/packages/dashboard
+@axiom/dashboard:lint: > eslint app/ components/ lib/
+@axiom/dashboard:lint:
+@axiom/db:lint:    92:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/db:lint:    93:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/db:lint:    98:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/db:lint:   111:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/db:lint:
+@axiom/db:lint: ✖ 10 problems (0 errors, 10 warnings)
+@axiom/db:lint:
+@axiom/relay:lint:   148:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   183:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   200:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   203:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   206:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   207:11  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   242:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   245:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   248:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   249:11  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   286:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   289:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   312:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   322:53  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   323:95  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:
+@axiom/relay:lint: /app/packages/relay/src/channels/telegram.ts
+@axiom/relay:lint:   63:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:
+@axiom/relay:lint: /app/packages/relay/src/observability/logging.test.ts
+@axiom/relay:lint:   5:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   6:16  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:
+@axiom/relay:lint: /app/packages/relay/src/routes.test.ts
+@axiom/relay:lint:    77:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:    86:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:    93:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   111:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   125:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   151:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   163:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   179:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   197:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   205:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   225:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   275:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   296:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   311:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   330:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint: cache hit, replaying logs 9a82ab43c8b050bf
+@axiom/api:lint:
+@axiom/api:lint: > @axiom/api@0.1.0 lint /app/packages/api
+@axiom/api:lint: > eslint src/
+@axiom/api:lint:
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/contract.test.ts
+@axiom/api:lint:    24:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    37:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   229:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   247:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/auth:lint: cache hit, replaying logs e422b4ab2614134c
+@axiom/relay:lint:   343:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   364:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint:   380:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/index.test.ts
+@axiom/api:lint:   10:10  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/index.ts
+@axiom/auth:lint:
+@axiom/auth:lint: > @axiom/auth@0.1.0 lint /app/packages/auth
+@axiom/auth:lint: > eslint src/
+@axiom/auth:lint:
+@axiom/auth:lint:
+@axiom/auth:lint: /app/packages/auth/src/index.test.ts
+@axiom/relay:lint:
+@axiom/api:lint:   636:12  warning  'err' is defined but never used  @typescript-eslint/no-unused-vars
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/middleware.test.ts
+@axiom/api:lint:    80:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   131:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   258:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/relay-viral.ts
+@axiom/api:lint:   29:7  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   57:7  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/analytics.test.ts
+@axiom/api:lint:   41:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   62:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   72:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/relay:lint: ✖ 59 problems (0 errors, 59 warnings)
+@axiom/relay:lint:
+@axiom/auth:lint:   13:11  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/auth:lint:
+@axiom/auth:lint: ✖ 1 problem (0 errors, 1 warning)
+@axiom/auth:lint:
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/audit.test.ts
+@axiom/api:lint:    50:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    86:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   132:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   164:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/bundles.test.ts
+@axiom/api:lint:    77:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/connectors:lint: cache hit, replaying logs 44523f45cfba136e
+@axiom/api:lint:    85:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   100:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   123:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   180:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   209:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/connectors:lint:
+@axiom/connectors:lint: > @axiom/connectors@0.1.0 lint /app/packages/connectors
+@axiom/connectors:lint: > eslint src/
+@axiom/connectors:lint:
+@axiom/api:lint:   242:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   281:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   345:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   378:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/consent.test.ts
+@axiom/api:lint:    77:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    92:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   108:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/crash-reports.test.ts
+@axiom/api:lint:    89:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   105:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   123:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   132:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   144:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/digests.test.ts
+@axiom/api:lint:   56:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   81:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   90:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/egress.test.ts
+@axiom/api:lint:    17:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   126:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   194:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   233:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   264:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   349:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   374:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   395:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   422:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   509:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   518:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/egress.ts
+@axiom/api:lint:    45:58  warning  Unexpected any. Specify a different type       @typescript-eslint/no-explicit-any
+@axiom/api:lint:   103:30  warning  Unexpected any. Specify a different type       @typescript-eslint/no-explicit-any
+@axiom/api:lint:   104:11  warning  'encCreds' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/api:lint:   104:21  warning  'encNonce' is assigned a value but never used  @typescript-eslint/no-unused-vars
+@axiom/api:lint:   104:31  warning  'dekId' is assigned a value but never used     @typescript-eslint/no-unused-vars
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/fans.test.ts
+@axiom/api:lint:    53:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    69:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    97:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   144:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   166:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   192:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   227:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   257:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/generate.test.ts
+@axiom/api:lint:   97:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/helpers.ts
+@axiom/api:lint:    54:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    70:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    86:7   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   133:7   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/incidents.test.ts
+@axiom/api:lint:   42:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   52:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   69:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/insights.test.ts
+@axiom/api:lint:    29:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    66:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    76:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    92:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   101:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   112:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   124:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   135:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   142:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   178:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   191:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   202:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/killswitch.test.ts
+@axiom/api:lint:    48:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    64:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    81:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   107:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   129:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   150:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/killswitch.ts
+@axiom/api:lint:   19:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/linkbio.test.ts
+@axiom/api:lint:    49:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    58:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    83:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   133:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   158:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   177:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/models.test.ts
+@axiom/api:lint:    46:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    55:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    73:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    94:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   156:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   184:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/network.test.ts
+@axiom/api:lint:    51:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    59:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    87:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   140:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   168:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/org-settings.test.ts
+@axiom/api:lint:   52:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   81:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/playbook.test.ts
+@axiom/api:lint:   13:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   57:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   71:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   89:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/playbook.ts
+@axiom/api:lint:   25:7  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/posts.test.ts
+@axiom/api:lint:    85:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    93:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   132:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   163:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   200:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   216:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   319:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   363:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   411:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/social.test.ts
+@axiom/api:lint:    77:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    85:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   123:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   172:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   183:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/test-utils.ts
+@axiom/api:lint:   10:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/routes/viral.test.ts
+@axiom/api:lint:   41:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   55:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: /app/packages/api/src/scripts/live-egress-probe.ts
+@axiom/api:lint:    28:9   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    50:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    63:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    65:82  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    70:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    75:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    86:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:    98:75  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   106:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   111:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:   120:84  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+@axiom/api:lint:
+@axiom/api:lint: ✖ 142 problems (0 errors, 142 warnings)
+@axiom/api:lint:
+
+ Tasks:    12 successful, 12 total
+Cached:    12 cached, 12 total
+  Time:    268ms >>> FULL TURBO
+
+
+=== [lint] Running prettier --check ===
+Checking formatting...
+[warn] packages/api/src/routes/egress.test.ts
+[warn] packages/api/src/routes/egress.ts
+[warn] packages/api/src/routes/fans.ts
+[warn] packages/api/src/routes/linkbio.ts
+[warn] packages/api/src/routes/network.ts
+[warn] packages/api/src/routes/playbook.ts
+[warn] packages/api/src/routes/social.ts
+[warn] packages/connectors/src/base.ts
+[warn] packages/connectors/src/tiktok.ts
+[warn] packages/mcp-server/src/auth.test.ts
+[warn] packages/mcp-server/src/auth.ts
+[warn] packages/mcp-server/src/tools/inbox.test.ts
+[warn] packages/mcp-server/src/tools/inbox.ts
+[warn] packages/relay/src/card.test.ts
+[warn] packages/relay/src/card.ts
+[warn] packages/relay/src/channels/discord.test.ts
+[warn] packages/relay/src/channels/discord.ts
+[warn] packages/relay/src/channels/imessage.test.ts
+[warn] packages/relay/src/channels/imessage.ts
+[warn] packages/relay/src/channels/signal.ts
+[warn] packages/relay/src/channels/telegram.test.ts
+[warn] packages/relay/src/channels/telegram.ts
+[warn] packages/relay/src/commands.ts
+[warn] packages/worker/src/connection.test.ts
+[warn] packages/worker/src/connection.ts
+[warn] packages/worker/src/executors/relay_card.test.ts
+[warn] eslint.config.mjs
+[warn] Code style issues found in 27 files. Run Prettier with --write to fix.

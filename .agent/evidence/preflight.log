@@ -1,0 +1,15 @@
+AXIOM FanvueCRM — Preflight Check
+==================================
+  FOUND: node (/usr/bin/node)
+  FOUND: pnpm (/home/jules/.nvm/versions/node/v22.22.1/bin/pnpm)
+  FOUND: rustc (/home/jules/.cargo/bin/rustc)
+  FOUND: cargo (/home/jules/.cargo/bin/cargo)
+  FOUND: git (/usr/bin/git)
+  MISSING: psql
+  MISSING: ufw
+  FOUND: docker (/usr/bin/docker)
+  FOUND: Blueprint pack
+  FOUND: .agent/markers/
+  FOUND: .agent/state/
+  FOUND: .agent/execplans/
+preflight: fail — missing items above
