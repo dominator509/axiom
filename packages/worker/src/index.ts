@@ -10,6 +10,11 @@ export { embedFeatures } from './embedding.js';
 export { claimNextJob } from './claim.js';
 export type { ClaimResult } from './claim.js';
 export { defaultExecutors } from './executors/index.js';
+export {
+  METRICS_POLL_INTERVAL_MS,
+  metricsPollDedupeParts,
+  nextMetricsPollAt,
+} from './executors/metrics.js';
 export type { Executor, ExecutorContext } from './executors/context.js';
 export { ParkJobError, EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX } from './executors/context.js';
 export { labelForZ, latestMetricSamples, scoreTargetEngagement } from './executors/viral.js';

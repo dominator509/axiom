@@ -10,6 +10,16 @@ import { ParkJobError } from './context.js';
 import type { Executor, ExecutorContext } from './context.js';
 
 const RATE_BUCKET_PARK_MS = 30_000;
+export const METRICS_POLL_INTERVAL_MS = 15 * 60_000;
+
+export function nextMetricsPollAt(now = new Date()): Date {
+  return new Date(now.getTime() + METRICS_POLL_INTERVAL_MS);
+}
+
+export function metricsPollDedupeParts(targetId: string, runAt: Date): string[] {
+  const cadenceBucket = Math.floor(runAt.getTime() / METRICS_POLL_INTERVAL_MS);
+  return ['metrics.poll', targetId, String(cadenceBucket)];
+}
 
 export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
   const { tx, job } = ctx;
@@ -98,5 +108,20 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
     // A later metrics poll should create its own label refresh, while a
     // retry of this exact poll must not create duplicate label jobs.
     dedupeParts: ['viral.label', targetId, job.id],
+  });
+
+  // Keep the measure → label loop alive. The initial poll is enqueued by the
+  // publish executor; every successful poll owns the next cadence slot. A
+  // time-bucketed dedupe key collapses duplicate schedulers without merging
+  // distinct future polls.
+  const nextRunAt = nextMetricsPollAt();
+  await enqueueJob(tx, {
+    orgId: job.org_id,
+    queue: 'metrics',
+    kind: 'metrics.poll',
+    payload: { targetId },
+    runAfter: nextRunAt,
+    maxAttempts: job.max_attempts,
+    dedupeParts: metricsPollDedupeParts(targetId, nextRunAt),
   });
 };
