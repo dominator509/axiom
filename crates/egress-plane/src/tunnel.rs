@@ -169,7 +169,13 @@ pub fn bring_up_tunnel(
     // the peer is (re)applied while the interface is up, so add them
     // explicitly. Each comma/space-separated CIDR gets a route via the tunnel.
     for cidr in spec.allowed_ips.split([',', ' ']).filter(|c| !c.is_empty()) {
-        let _ = exec(&["ip", "route", "add", cidr, "dev", TUNNEL_IFACE]);
+        match exec(&["ip", "route", "add", cidr, "dev", TUNNEL_IFACE]) {
+            Ok(_) => {}
+            Err(error) if error.to_string().contains("File exists") => {
+                warn!(netns = %ns, cidr, "Tunnel route already exists");
+            }
+            Err(error) => return Err(error),
+        }
     }
 
     info!(netns = %ns, iface = %TUNNEL_IFACE, endpoint = %spec.endpoint, "WireGuard tunnel up");
