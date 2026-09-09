@@ -4,7 +4,7 @@
 // playbook_score for trend tracking.
 
 import { Hono } from 'hono';
-import { sql, eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, gte } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import {
@@ -18,6 +18,13 @@ import {
 import { calculateCourseAdherence } from '@axiom/llm-gateway';
 
 const router = new Hono<AppBindings>();
+
+export const PLAYBOOK_WINDOW_DAYS = 30;
+const PLAYBOOK_WINDOW_MS = PLAYBOOK_WINDOW_DAYS * 86_400_000;
+
+export function playbookWindowStart(now = new Date()): Date {
+  return new Date(now.getTime() - PLAYBOOK_WINDOW_MS);
+}
 
 /**
  * Derive the four Course-Adherence inputs (all 0–1) from real published
@@ -43,6 +50,7 @@ async function deriveAdherenceInputs(
   postCount30d: number;
   scheduleCount30d: number;
 }> {
+  const windowStart = playbookWindowStart();
   const targets = await tx
     .select({
       platform: schema.postTarget.platform,
@@ -55,14 +63,20 @@ async function deriveAdherenceInputs(
       and(
         eq(schema.contentBundle.modelId, modelId),
         eq(schema.contentBundle.orgId, orgId),
-        sql`${schema.postTarget.scheduledFor} >= now() - interval '30 days'`,
+        gte(schema.postTarget.scheduledFor, windowStart),
       ),
     );
 
-  const published = targets.filter((t: { state?: string | null }) => t.state === 'published');
-  const scheduleCount30d = targets.length;
+  const recentTargets = targets.filter((target: { scheduledFor?: Date | string | null }) => {
+    const scheduledFor = target.scheduledFor ? new Date(target.scheduledFor) : null;
+    return (
+      scheduledFor !== null && !Number.isNaN(scheduledFor.getTime()) && scheduledFor >= windowStart
+    );
+  });
+  const published = recentTargets.filter((t: { state?: string | null }) => t.state === 'published');
+  const scheduleCount30d = recentTargets.length;
   const postCount30d = published.length;
-  const cadencePerDay = scheduleCount30d > 0 ? scheduleCount30d / 30 : 0;
+  const cadencePerDay = scheduleCount30d > 0 ? scheduleCount30d / PLAYBOOK_WINDOW_DAYS : 0;
 
   // Cadence regularity: distinct days with any scheduled post / 30
   const activeDays = new Set(
@@ -71,11 +85,15 @@ async function deriveAdherenceInputs(
       .filter((d: Date | string | null | undefined): d is Date | string => d != null)
       .map((d: Date | string) => new Date(d).toISOString().slice(0, 10)),
   ).size;
-  const personaConsistency = Math.min(activeDays / 30, 1);
+  const personaConsistency = Math.min(activeDays / PLAYBOOK_WINDOW_DAYS, 1);
 
   // ToS pass share — inspect each published post's bundle ToS verdict
   const publishedBundles = await tx
-    .select({ tosReport: schema.contentBundle.tosReport })
+    .select({
+      tosReport: schema.contentBundle.tosReport,
+      scheduledFor: schema.postTarget.scheduledFor,
+      state: schema.postTarget.state,
+    })
     .from(schema.contentBundle)
     .innerJoin(schema.postTarget, eq(schema.postTarget.bundleId, schema.contentBundle.id))
     .where(
@@ -83,9 +101,19 @@ async function deriveAdherenceInputs(
         eq(schema.contentBundle.modelId, modelId),
         eq(schema.contentBundle.orgId, orgId),
         eq(schema.postTarget.state, 'published'),
+        gte(schema.postTarget.scheduledFor, windowStart),
       ),
     );
   const reports = publishedBundles
+    .filter((bundle: { scheduledFor?: Date | string | null; state?: string | null }) => {
+      const scheduledFor = bundle.scheduledFor ? new Date(bundle.scheduledFor) : null;
+      return (
+        bundle.state === 'published' &&
+        scheduledFor !== null &&
+        !Number.isNaN(scheduledFor.getTime()) &&
+        scheduledFor >= windowStart
+      );
+    })
     .map((b: { tosReport?: unknown }) => (b.tosReport ?? {}) as { verdict?: string })
     .filter((r: { verdict?: string }) => r.verdict != null);
   const platformRuleCompliance =
@@ -99,14 +127,43 @@ async function deriveAdherenceInputs(
       postTargetId: schema.postMetric.postTargetId,
       collectedAt: schema.postMetric.collectedAt,
       rate: schema.postMetric.engagementRate,
+      scheduledFor: schema.postTarget.scheduledFor,
+      state: schema.postTarget.state,
     })
     .from(schema.postMetric)
     .innerJoin(schema.postTarget, eq(schema.postTarget.id, schema.postMetric.postTargetId))
     .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.postTarget.bundleId))
-    .where(and(eq(schema.contentBundle.modelId, modelId), eq(schema.contentBundle.orgId, orgId)))
+    .where(
+      and(
+        eq(schema.contentBundle.modelId, modelId),
+        eq(schema.contentBundle.orgId, orgId),
+        eq(schema.postTarget.state, 'published'),
+        gte(schema.postTarget.scheduledFor, windowStart),
+        gte(schema.postMetric.collectedAt, windowStart),
+      ),
+    )
     .orderBy(desc(schema.postMetric.collectedAt));
+  const recentMetricRows = metricRows.filter(
+    (row: {
+      scheduledFor?: Date | string | null;
+      collectedAt?: Date | string | null;
+      state?: string | null;
+    }) => {
+      const scheduledFor = row.scheduledFor ? new Date(row.scheduledFor) : null;
+      const collectedAt = row.collectedAt ? new Date(row.collectedAt) : null;
+      return (
+        row.state === 'published' &&
+        scheduledFor !== null &&
+        !Number.isNaN(scheduledFor.getTime()) &&
+        scheduledFor >= windowStart &&
+        collectedAt !== null &&
+        !Number.isNaN(collectedAt.getTime()) &&
+        collectedAt >= windowStart
+      );
+    },
+  );
   const seenMetricTargets = new Set<string>();
-  const latestMetricRows = metricRows.filter((row: { postTargetId: string }) => {
+  const latestMetricRows = recentMetricRows.filter((row: { postTargetId: string }) => {
     if (seenMetricTargets.has(row.postTargetId)) return false;
     seenMetricTargets.add(row.postTargetId);
     return true;
