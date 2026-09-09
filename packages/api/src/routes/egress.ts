@@ -1,6 +1,6 @@
 // ─── Egress config management (L2.6) — Vitest-backed API routes ───
 // Real DB-backed CRUD for model_network_configs (org-scoped via RLS
-// app.current_org_id) + proxy endpoints to the egress-plane (:3000) for
+// app.current_org_id) + proxy endpoints to the egress-plane (:9090) for
 // bind/unbind/status/sync. Credentials never enter the API process in
 // plaintext: the API calls the plane's /egress/encrypt to get an envelope
 // and stores enc_creds/enc_nonce/dek_id.
@@ -9,13 +9,14 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, sql } from 'drizzle-orm';
+import { DEFAULT_EGRESS_PLANE_URL } from '@axiom/core';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { apiError, modelOrgId, statusTitle } from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
-const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? 'http://127.0.0.1:3000';
+const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
 const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
   ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
   : {};

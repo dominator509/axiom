@@ -322,6 +322,8 @@ jobs:
             --env BETTER_AUTH_SECRET="$ci_auth_value" \
             --env BETTER_AUTH_URL=https://127.0.0.1:3001 \
             --env RELAY_SECRET="$ci_relay_value" \
+            --env EGRESS_PLANE_URL=http://127.0.0.1:9090 \
+            --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
             axiom-hono:ci
           docker run --detach --name axiom-dashboard-ci --network host \
             --env NODE_ENV=production \
@@ -332,6 +334,8 @@ jobs:
             --env NODE_ENV=production \
             --env DATABASE_URL=postgresql://axiom_app:axiom_app@127.0.0.1:5432/axiom_test \
             --env RELAY_SECRET="$ci_relay_value" \
+            --env EGRESS_PLANE_URL=http://127.0.0.1:9090 \
+            --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
             --env AXIOM_SERVICE_NAME=worker-ci \
             axiom-worker:ci
 
@@ -339,6 +343,11 @@ jobs:
           wait_for_health axiom-hono-ci
           wait_for_health axiom-dashboard-ci
           wait_for_health axiom-worker-ci
+
+          curl --fail --silent --show-error \
+            -H "x-egress-plane-token: $ci_egress_value" \
+            http://127.0.0.1:9090/kill-switch/status >/dev/null
+          echo "axiom-egress-ci: authenticated control-plane probe passed"
 
           # Liveness only proves that the Hono process is serving HTTP. The
           # readiness endpoint performs the real database dependency check;

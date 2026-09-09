@@ -1,6 +1,6 @@
 // Live end-to-end probe for the egress config API (L2.6 M6).
 // Mounts the REAL egress router with org context middleware against the
-// REAL axiom_dev DB + REAL egress plane (:3000), then exercises:
+// REAL axiom_dev DB + REAL egress plane (:9090), then exercises:
 //   create (with creds -> plane encrypt) -> list -> get -> update ->
 //   plane bind/status -> delete
 // Run from packages/api with the repo .env loaded (dotenv resolves ../../../.env).

@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { requireProductionDatabaseUrl, resolveRelaySecret } from './runtime-config.js';
+import {
+  DEFAULT_EGRESS_PLANE_URL,
+  requireProductionDatabaseUrl,
+  resolveRelaySecret,
+} from './runtime-config.js';
 
 describe('production runtime configuration', () => {
+  it('uses the Rust egress control-plane listener by default', () => {
+    expect(DEFAULT_EGRESS_PLANE_URL).toBe('http://127.0.0.1:9090');
+  });
+
   it('does not require a database URL outside production', () => {
     expect(() => requireProductionDatabaseUrl({ NODE_ENV: 'development' })).not.toThrow();
     expect(() => requireProductionDatabaseUrl({ NODE_ENV: 'test' })).not.toThrow();

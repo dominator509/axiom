@@ -4,7 +4,7 @@ use tracing_subscriber::EnvFilter;
 
 use egress_plane::killswitch::KillSwitch;
 use egress_plane::proxy;
-use egress_plane::{build_router, AppState, Config, Registry};
+use egress_plane::{build_router, AppState, Config, Registry, CONTROL_PLANE_LISTEN_ADDR};
 
 #[tokio::main]
 async fn main() {
@@ -87,8 +87,9 @@ async fn main() {
 
 async fn run_healthcheck() {
     let url = std::env::var("HEALTHCHECK_URL").unwrap_or_else(|_| {
-        let listen = std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "127.0.0.1:3000".into());
-        let port = listen.rsplit(':').next().unwrap_or("3000");
+        let listen =
+            std::env::var("LISTEN_ADDR").unwrap_or_else(|_| CONTROL_PLANE_LISTEN_ADDR.to_string());
+        let port = listen.rsplit(':').next().unwrap_or("9090");
         format!("http://127.0.0.1:{port}/health")
     });
     let result = reqwest::Client::new()

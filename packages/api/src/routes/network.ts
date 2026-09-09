@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and } from 'drizzle-orm';
 import type { InferSelectModel } from 'drizzle-orm';
+import { DEFAULT_EGRESS_PLANE_URL } from '@axiom/core';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import {
@@ -20,7 +21,7 @@ import {
 
 const router = new Hono<AppBindings>();
 
-const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? 'http://127.0.0.1:3000';
+const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
 const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
   ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
   : {};

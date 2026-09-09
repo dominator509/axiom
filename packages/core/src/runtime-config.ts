@@ -10,6 +10,9 @@ export interface DatabaseEnvironment {
   DATABASE_URL?: string;
 }
 
+/** Default control-plane URL shared by every Node-side egress caller. */
+export const DEFAULT_EGRESS_PLANE_URL = 'http://127.0.0.1:9090';
+
 /**
  * Prevent production services from silently falling back to a local/default
  * PostgreSQL connection string. Development and test callers may omit the

@@ -1,14 +1,15 @@
 // Egress-aware fetch for the LLM gateway (L2.6).
 //
-// When a model profile has a bound egress (see egress-plane :3000), the
+// When a model profile has a bound egress (see egress-plane :9090), the
 // gateway routes that model's provider calls through the model's sidecar
 // proxy — the same fail-closed namespace the egress-plane built. The client
 // factory is namespace-scoped: a model WITHOUT a healthy bound egress gets
 // the plain global fetch (direct egress, explicit opt-in).
 
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
+import { DEFAULT_EGRESS_PLANE_URL } from '@axiom/core';
 
-const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? 'http://127.0.0.1:3000';
+const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
 const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
   ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
   : {};

@@ -2,14 +2,10 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { InferSelectModel } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
-import {
-  createConnector,
-  type ConnectorAuth,
-  type SocialConnector,
-} from '@axiom/connectors';
-import type { Platform } from '@axiom/core';
+import { createConnector, type ConnectorAuth, type SocialConnector } from '@axiom/connectors';
+import { DEFAULT_EGRESS_PLANE_URL, type Platform } from '@axiom/core';
 
-const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? 'http://127.0.0.1:3000';
+const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
 const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
   ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
   : {};
@@ -115,7 +111,9 @@ export async function resolvePlatformConnection(
  * fields, so provider identifiers and connector-specific values remain in
  * the same encrypted envelope as the token.
  */
-export async function decryptConnectorAuth(connection: PlatformConnectionRow): Promise<ConnectorAuth> {
+export async function decryptConnectorAuth(
+  connection: PlatformConnectionRow,
+): Promise<ConnectorAuth> {
   const response = await fetch(`${EGRESS_PLANE_URL}/egress/decrypt`, {
     method: 'POST',
     headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
@@ -175,7 +173,8 @@ export function parseConnectorAuth(plaintext: string): ConnectorAuth {
   if (typeof record.refreshToken === 'string') auth.refreshToken = record.refreshToken;
   else if (typeof record.refresh_token === 'string') auth.refreshToken = record.refresh_token;
   if (typeof record.externalUserId === 'string') auth.externalUserId = record.externalUserId;
-  else if (typeof record.external_user_id === 'string') auth.externalUserId = record.external_user_id;
+  else if (typeof record.external_user_id === 'string')
+    auth.externalUserId = record.external_user_id;
   if (typeof record.expiresAt === 'number') auth.expiresAt = record.expiresAt;
   else if (typeof record.expires_at === 'number') auth.expiresAt = record.expires_at;
   if (record.extra && typeof record.extra === 'object' && !Array.isArray(record.extra)) {

@@ -31,6 +31,8 @@ use proxy::{ProxyKind, Upstream};
 
 /// Port the sidecar proxy listens on INSIDE the model netns.
 pub const SIDECAR_PORT: u16 = 8080;
+/// Control-plane listener used by the container image and local callers.
+pub const CONTROL_PLANE_LISTEN_ADDR: &str = "0.0.0.0:9090";
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -103,7 +105,7 @@ impl Config {
         Self {
             kill_switch: std::env::var("KILL_SWITCH").unwrap_or_else(|_| "false".to_string()),
             listen_addr: std::env::var("LISTEN_ADDR")
-                .unwrap_or_else(|_| "127.0.0.1:3000".to_string()),
+                .unwrap_or_else(|_| CONTROL_PLANE_LISTEN_ADDR.to_string()),
             auth_token: std::env::var("EGRESS_PLANE_TOKEN")
                 .ok()
                 .map(|value| value.trim().to_string())
@@ -148,12 +150,12 @@ impl Config {
 
 #[cfg(test)]
 mod config_tests {
-    use super::Config;
+    use super::{Config, CONTROL_PLANE_LISTEN_ADDR};
 
     fn production_config() -> Config {
         Config {
             kill_switch: "false".to_string(),
-            listen_addr: "0.0.0.0:9090".to_string(),
+            listen_addr: CONTROL_PLANE_LISTEN_ADDR.to_string(),
             auth_token: Some("x".repeat(32)),
             echo_url: "https://api.ipify.org".to_string(),
             database_url: Some("postgresql://egress@db.example/axiom".to_string()),
