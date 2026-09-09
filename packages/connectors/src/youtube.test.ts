@@ -47,7 +47,7 @@ describe('YouTubeConnector basics', () => {
     const cap = c.capability();
     expect(cap.publish).toBe(true);
     expect(cap.media).toEqual(['video', 'short']);
-    expect(cap.maxMediaBytes).toBe(274_877_906_944);
+    expect(cap.maxMediaBytes).toBe(536_870_912);
     expect(cap.maxMediaCount).toBe(1);
     expect(cap.caption).toBe(true);
     expect(cap.maxCaptionLength).toBe(5_000);

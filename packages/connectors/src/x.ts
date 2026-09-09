@@ -1,7 +1,7 @@
 // ─── X (Twitter) Connector ───
 // Uses the Twitter API v2 for publishing, metrics, and OAuth 2.0 management.
 
-import { BaseConnector, redactProviderText } from './base.js';
+import { BaseConnector, readResponseBytes, redactProviderText } from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -19,6 +19,7 @@ import { validatePublish } from './validation.js';
 const TWITTER_UPLOAD_BASE = 'https://upload.twitter.com/1.1';
 const TWITTER_API_BASE = 'https://api.twitter.com/2';
 const TWITTER_OAUTH_REVOKE = 'https://api.twitter.com/2/oauth2/revoke';
+const X_MAX_MEDIA_BYTES = 536_870_912;
 
 interface MediaInitResponse {
   media_id_string: string;
@@ -68,7 +69,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
     return {
       publish: true,
       media: ['image' as MediaType, 'video' as MediaType, 'text' as MediaType],
-      maxMediaBytes: 536_870_912, // 512 MB
+      maxMediaBytes: X_MAX_MEDIA_BYTES,
       maxMediaCount: 4,
       caption: true,
       maxCaptionLength: 4_000,
@@ -210,7 +211,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
       throw new Error(`Failed to download media from ${mediaUrl}: ${mediaResponse.status}`);
     }
 
-    const mediaBuffer = await mediaResponse.arrayBuffer();
+    const mediaBuffer = await readResponseBytes(mediaResponse, X_MAX_MEDIA_BYTES, 'X media');
     const totalBytes = mediaBuffer.byteLength;
     const contentType = mediaResponse.headers.get('content-type') ?? 'application/octet-stream';
 

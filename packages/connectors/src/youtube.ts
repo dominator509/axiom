@@ -1,7 +1,7 @@
 // ─── YouTube Connector ───
 // Uses the YouTube Data API v3 with resumable uploads, shorts detection, and OAuth management.
 
-import { BaseConnector, redactProviderText } from './base.js';
+import { BaseConnector, readResponseBytes, redactProviderText } from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -18,6 +18,10 @@ import { validatePublish } from './validation.js';
 
 const YT_API_BASE = 'https://www.googleapis.com';
 const YT_UPLOAD_BASE = 'https://www.googleapis.com/upload/youtube/v3';
+// This implementation buffers the source before opening the resumable upload
+// session; advertise and enforce the actual bounded implementation limit
+// instead of the provider's much larger theoretical maximum.
+const YOUTUBE_MAX_BUFFERED_MEDIA_BYTES = 536_870_912;
 
 interface YtVideoResponse {
   id: string;
@@ -53,7 +57,7 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
     return {
       publish: true,
       media: ['video' as MediaType, 'short' as MediaType],
-      maxMediaBytes: 274_877_906_944, // 256 GB
+      maxMediaBytes: YOUTUBE_MAX_BUFFERED_MEDIA_BYTES,
       maxMediaCount: 1,
       caption: true,
       maxCaptionLength: 5_000,
@@ -112,7 +116,11 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
         throw new Error(`Failed to download video from ${videoUrl}: ${videoResponse.status}`);
       }
 
-      const videoBuffer = await videoResponse.arrayBuffer();
+      const videoBuffer = await readResponseBytes(
+        videoResponse,
+        YOUTUBE_MAX_BUFFERED_MEDIA_BYTES,
+        'YouTube video',
+      );
       if (videoBuffer.byteLength === 0) {
         throw new Error('YouTube video must not be empty');
       }

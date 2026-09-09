@@ -1,7 +1,7 @@
 // ─── TikTok Connector ───
 // Uses the TikTok Content Posting API v2 for uploads, metrics, and OAuth management.
 
-import { BaseConnector, redactProviderText } from './base.js';
+import { BaseConnector, readResponseBytes, redactProviderText } from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -17,6 +17,7 @@ import type { Platform, PublishMode } from '@axiom/core';
 import { validatePublish } from './validation.js';
 
 const TIKTOK_API_BASE = 'https://open.tiktokapis.com/v2';
+const TIKTOK_MAX_MEDIA_BYTES = 524_288_000;
 const MIN_TIKTOK_CHUNK_SIZE = 5 * 1024 * 1024;
 const MAX_TIKTOK_CHUNK_SIZE = 64 * 1024 * 1024;
 
@@ -84,7 +85,7 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
     return {
       publish: true,
       media: ['video' as MediaType, 'short' as MediaType],
-      maxMediaBytes: 524_288_000, // 500 MB
+      maxMediaBytes: TIKTOK_MAX_MEDIA_BYTES,
       maxMediaCount: 1,
       caption: true,
       maxCaptionLength: 2_200,
@@ -124,7 +125,11 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       if (!videoResponse.ok) {
         throw new Error(`Failed to download video from ${videoUrl}: ${videoResponse.status}`);
       }
-      const videoBuffer = await videoResponse.arrayBuffer();
+      const videoBuffer = await readResponseBytes(
+        videoResponse,
+        TIKTOK_MAX_MEDIA_BYTES,
+        'TikTok video',
+      );
       const videoSize = videoBuffer.byteLength;
       if (videoSize <= 0) throw new Error('TikTok video must not be empty');
       const requestedChunkSize = Number(options.chunkSize);

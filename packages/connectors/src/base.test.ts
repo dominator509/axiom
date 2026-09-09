@@ -6,6 +6,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   BaseConnector,
   CONNECTOR_REQUEST_TIMEOUT_MS,
+  readResponseBytes,
   redactProviderText,
   redactProviderUrl,
 } from './base.js';
@@ -396,5 +397,18 @@ describe('provider request deadline', () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
     expect(init.signal?.aborted).toBe(false);
     expect(CONNECTOR_REQUEST_TIMEOUT_MS).toBe(5 * 60_000);
+  });
+});
+
+describe('bounded media reads', () => {
+  it('reads a response incrementally up to the configured limit', async () => {
+    const bytes = await readResponseBytes(new Response('123456'), 6, 'media');
+    expect(new TextDecoder().decode(bytes)).toBe('123456');
+  });
+
+  it('rejects streamed content that exceeds the configured limit', async () => {
+    await expect(readResponseBytes(new Response('1234567'), 6, 'media')).rejects.toThrow(
+      'media exceeds the maximum supported size of 6 bytes',
+    );
   });
 });
