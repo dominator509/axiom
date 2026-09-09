@@ -618,6 +618,9 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    static OVERRIDE_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
     fn test_media_path(name: &str) -> PathBuf {
         let root = media_root().expect("media root");
@@ -701,6 +704,12 @@ mod tests {
 
     #[test]
     fn resolve_override_reads_environment_when_no_request_override() {
+        let _guard = OVERRIDE_ENV_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("override environment lock should not be poisoned");
+        let previous = std::env::var_os(OVERRIDE_ENV);
+
         // Guard: set a known env value, ensure it wins when no request override.
         unsafe {
             std::env::set_var(OVERRIDE_ENV, "block");
@@ -718,7 +727,10 @@ mod tests {
         assert_eq!(resolved.0, "pass");
         assert_eq!(resolved.1, "request");
         unsafe {
-            std::env::remove_var(OVERRIDE_ENV);
+            match previous {
+                Some(value) => std::env::set_var(OVERRIDE_ENV, value),
+                None => std::env::remove_var(OVERRIDE_ENV),
+            }
         }
     }
 
@@ -753,6 +765,11 @@ mod tests {
 
     #[test]
     fn evaluate_without_override_uses_heuristic_when_model_absent() {
+        let _guard = OVERRIDE_ENV_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("override environment lock should not be poisoned");
+
         // No model file is guaranteed in the unit-test environment, and no
         // override → heuristic path must still produce a sane verdict.
         let img = image::RgbImage::from_pixel(64, 64, image::Rgb([200, 200, 200]));

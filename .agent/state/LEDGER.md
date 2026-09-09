@@ -243,3 +243,4 @@
 2026-09-09T01:28:20Z | [P1][LINKBIO/BOUNDARY] restrict authenticated click telemetry to native providers so legacy external rows cannot be interpreted as active native integrations; API typecheck and diff check passed, clean-install hosted validation pending
 2026-09-09T01:32:40Z | [P1][LINKBIO/TEST] make native-kind enforcement explicit at the click telemetry boundary and cover the legacy external-row regression with a correctly shaped fixture; hosted run 193 identified the mock-fixture mismatch before release
 2026-09-09T01:37:20Z | [P1][LINKBIO/TEST] complete the native click fixture update for the existing configured-target regression; hosted run 194 identified the remaining fixture omission, route behavior remains intentionally fail closed
+2026-09-09T01:45:28Z | [P1][CI/TEST] serialize vision-engine environment-override tests and restore prior process state; hosted run 195 exposed the parallel-test race, targeted cargo test now passes 10/10
