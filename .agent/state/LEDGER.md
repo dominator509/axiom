@@ -269,3 +269,4 @@
 2026-09-09T08:19:29Z | [P2][DASHBOARD/RESILIENCE] Bound browser mutation attempts to a 30-second deadline while preserving caller aborts and stable idempotency retries; dashboard tests 5/5, typecheck, lint, formatting, diff checks, and verify passed
 2026-09-09T14:52:57Z | [P2][DASHBOARD/RESILIENCE] Bound server-side dashboard API and auth-session fetches to finite deadlines with fail-closed timeout coverage; dashboard tests 8/8, typecheck, lint, formatting, diff checks, and verify passed
 2026-09-09T15:05:00Z | [P2][DASHBOARD/RESILIENCE] Bound login, sign-out, and kill-switch browser fetches with caller cancellation and finite deadlines; dashboard tests 10/10, typecheck, lint, formatting, diff checks, and verify passed
+2026-09-09T15:24:34Z | [P2][AUTH/RESILIENCE] Bound Fanvue and Threads model-egress OAuth token exchanges to 30-second abort deadlines; route tests 332/332, API typecheck/lint/build, formatting, diff check, and verify gate passed

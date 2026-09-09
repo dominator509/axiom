@@ -33,6 +33,7 @@ const FANVUE_REDIRECT_URI =
   ).toString();
 const FANVUE_AUTH_URL = 'https://auth.fanvue.com/oauth2/auth';
 const FANVUE_TOKEN_URL = 'https://auth.fanvue.com/oauth2/token';
+const OAUTH_REQUEST_TIMEOUT_MS = 30_000;
 // Default scopes per Fanvue docs: read:self, read:chat, plus the write scopes
 // the publish/upload/metrics paths require (write:post, write:media, read:post,
 // read:insights, read:fan). The connector's publish() needs write:post +
@@ -168,6 +169,7 @@ router.get('/callback', async (c) => {
         redirect_uri: FANVUE_REDIRECT_URI,
         code_verifier: pending.verifier,
       }),
+      signal: AbortSignal.timeout(OAUTH_REQUEST_TIMEOUT_MS),
     });
 
     const tokens: Record<string, unknown> = (await resp.json()) as Record<string, unknown>;

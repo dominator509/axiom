@@ -130,6 +130,10 @@ describe('GET /callback', () => {
     const egress = await import('@axiom/llm-gateway');
     expect(egress.resolveEgressProxy).toHaveBeenCalledWith(MODEL_ID);
     expect(egress.buildEgressFetch).toHaveBeenCalledWith('http://10.240.1.1:8080');
+    const tokenExchangeCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('auth.fanvue.com/oauth2/token'),
+    );
+    expect(tokenExchangeCall?.[1]?.signal).toBeInstanceOf(AbortSignal);
     const encryptionCall = fetchMock.mock.calls.find(([url]) =>
       String(url).includes('/egress/encrypt'),
     );

@@ -31,6 +31,7 @@ const APPLICATION_ORIGIN = normalizeAuthOrigin(
 const REDIRECT_URI = new URL('/api/v1/connectors/threads/callback', APPLICATION_ORIGIN).toString();
 const OAUTH_STATE_COOKIE = 'axiom_threads_oauth_state';
 const OAUTH_COOKIE_PATH = '/api/v1/connectors/threads';
+const OAUTH_REQUEST_TIMEOUT_MS = 30_000;
 // Resolve on request so build-time OpenAPI generation can import the route
 // without requiring runtime deployment secrets.
 const oauthStateKey = () => resolveOAuthCookieSecret();
@@ -134,6 +135,7 @@ router.get('/callback', async (c) => {
         redirect_uri: REDIRECT_URI,
         code,
       }),
+      signal: AbortSignal.timeout(OAUTH_REQUEST_TIMEOUT_MS),
     });
 
     if (!tokenResp.ok) {
@@ -158,7 +160,9 @@ router.get('/callback', async (c) => {
     longLivedUrl.searchParams.set('grant_type', 'th_exchange_token');
     longLivedUrl.searchParams.set('client_secret', THREADS_APP_SECRET);
     longLivedUrl.searchParams.set('access_token', accessToken);
-    const longLivedResp = await egressFetch(longLivedUrl);
+    const longLivedResp = await egressFetch(longLivedUrl, {
+      signal: AbortSignal.timeout(OAUTH_REQUEST_TIMEOUT_MS),
+    });
 
     let finalToken = accessToken;
     let expiresIn = typeof tokenData.expires_in === 'number' ? tokenData.expires_in : 3600;
