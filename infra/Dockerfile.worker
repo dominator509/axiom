@@ -52,8 +52,8 @@ RUN cd packages/core && /app/node_modules/.bin/tsc -b --force tsconfig.json && c
     cd packages/db && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
     cd packages/connectors && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
     cd packages/relay && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
-    cd packages/llm-gateway && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
     cd packages/fanvue-mcp && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
+    cd packages/llm-gateway && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
     cd packages/worker && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app
 RUN pnpm --filter=@axiom/worker --prod deploy /app/pruned
 RUN cp -r packages/worker/dist /app/pruned/dist
