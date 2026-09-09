@@ -12,6 +12,7 @@
 import { Hono } from 'hono';
 import { randomBytes } from 'node:crypto';
 import type { AppBindings } from '../index.js';
+import { normalizeAuthOrigin } from '@axiom/auth';
 import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
 import {
   clearOAuthStateCookie,
@@ -23,7 +24,9 @@ import { persistOAuthConnection } from './oauth-connection.js';
 
 const THREADS_APP_ID = process.env.THREADS_CLIENT_ID || '';
 const THREADS_APP_SECRET = process.env.THREADS_CLIENT_SECRET || '';
-const APPLICATION_ORIGIN = process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001';
+const APPLICATION_ORIGIN = normalizeAuthOrigin(
+  process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
+);
 const REDIRECT_URI = new URL('/api/v1/connectors/threads/callback', APPLICATION_ORIGIN).toString();
 const OAUTH_STATE_COOKIE = 'axiom_threads_oauth_state';
 const OAUTH_COOKIE_PATH = '/api/v1/connectors/threads';

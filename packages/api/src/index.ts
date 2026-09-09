@@ -25,7 +25,13 @@ import { orgSettingsRouter } from './routes/org-settings.js';
 import { fanvueAuthRouter } from './routes/fanvue-auth.js';
 import { threadsAuthRouter } from './routes/threads-auth.js';
 import { consentRouter } from './routes/consent.js';
-import { auth, requireAuth, requireMutationRole, requireRole } from '@axiom/auth';
+import {
+  auth,
+  normalizeAuthOrigin,
+  requireAuth,
+  requireMutationRole,
+  requireRole,
+} from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { asPlatform, enqueueJob, registerConnectors, resolveCapabilities } from '@axiom/worker';
 import { createMcpServerAsync, isModelKillSwitchEnabled, withModelOrg } from '@axiom/mcp-server';
@@ -502,7 +508,7 @@ const app = new Hono<AppBindings>();
 app.use(
   '*',
   cors({
-    origin: process.env.BETTER_AUTH_URL ?? 'http://127.0.0.1:3001',
+    origin: normalizeAuthOrigin(process.env.BETTER_AUTH_URL ?? 'http://127.0.0.1:3001'),
     credentials: true,
   }),
 );

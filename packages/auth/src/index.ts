@@ -13,6 +13,8 @@ import { db } from '@axiom/db';
 import { authUser, authSession, authAccount, authVerification } from '@axiom/db/schema';
 import { resolveAuthConfig } from './config.js';
 
+export { normalizeAuthOrigin, resolveAuthConfig } from './config.js';
+
 const runtimeConfig = resolveAuthConfig(process.env);
 const environment = (process.env.AXIOM_ENV ?? process.env.NODE_ENV)?.trim();
 const localDevelopment = environment === 'development' || environment === 'test';

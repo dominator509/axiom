@@ -7,6 +7,7 @@
 import { Hono } from 'hono';
 import { randomBytes, createHash } from 'node:crypto';
 import type { AppBindings } from '../index.js';
+import { normalizeAuthOrigin } from '@axiom/auth';
 import { connectorForConnection } from '@axiom/worker';
 import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
 import {
@@ -27,7 +28,7 @@ const FANVUE_REDIRECT_URI =
   process.env.FANVUE_REDIRECT_URI ||
   new URL(
     '/api/v1/connectors/fanvue/callback',
-    process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
+    normalizeAuthOrigin(process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001'),
   ).toString();
 const FANVUE_AUTH_URL = 'https://auth.fanvue.com/oauth2/auth';
 const FANVUE_TOKEN_URL = 'https://auth.fanvue.com/oauth2/token';
