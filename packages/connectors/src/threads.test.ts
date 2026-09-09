@@ -174,6 +174,29 @@ describe('fetchMetrics', () => {
     );
   });
 
+  it('maps aggregate insight metrics returned in total_value', async () => {
+    const data = {
+      data: [
+        { name: 'likes', period: 'lifetime', total_value: { value: 14 } },
+        { name: 'replies', period: 'lifetime', total_value: { value: 3 } },
+        { name: 'reposts', period: 'lifetime', total_value: { value: 2 } },
+        { name: 'quotes', period: 'lifetime', total_value: { value: 1 } },
+      ],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(data)));
+
+    const metrics = await new ThreadsConnector(AUTH).fetchMetrics('p1');
+
+    expect(metrics.metrics).toEqual({
+      impressions: 0,
+      likes: 14,
+      comments: 3,
+      shares: 0,
+      reposts: 2,
+      quotes: 1,
+    });
+  });
+
   it('throws when the metrics fetch fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 500)));
     const c = new ThreadsConnector(AUTH);

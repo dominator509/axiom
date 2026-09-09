@@ -39,7 +39,8 @@ interface ThreadsInsightsResponse {
   data: Array<{
     name: string;
     period: string;
-    values: Array<{ value: number }>;
+    values?: Array<{ value: number }>;
+    total_value?: { value: number };
   }>;
 }
 
@@ -172,8 +173,13 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
     const result: Partial<Record<string, number>> = {};
 
     for (const item of data.data) {
-      if (item.values && item.values.length > 0) {
-        result[item.name] = item.values[0].value;
+      // Threads returns time-series metrics in values[], but engagement
+      // metrics such as likes/replies/reposts/quotes may be returned as a
+      // lifetime aggregate in total_value.value. Preserve either documented
+      // response shape instead of silently normalizing the latter to zero.
+      const value = item.total_value?.value ?? item.values?.[0]?.value;
+      if (typeof value === 'number') {
+        result[item.name] = value;
       }
     }
 
