@@ -35,8 +35,8 @@ export async function withModelOrg<T>(
  * Return whether the model's organization has disabled the MCP surface.
  *
  * The check deliberately runs through the same model-to-org resolver and RLS
- * transaction as MCP tools. A missing settings row preserves the database
- * default (publishing enabled); an explicit false is the only disabled state.
+ * transaction as MCP tools. Missing or malformed settings fail closed and
+ * disable the MCP surface until an explicit enabled state is present.
  */
 export async function isModelKillSwitchEnabled(modelId: string): Promise<boolean> {
   return withModelOrg(modelId, async (tx, orgId) => {
@@ -44,7 +44,7 @@ export async function isModelKillSwitchEnabled(modelId: string): Promise<boolean
       sql`SELECT publishing_enabled FROM org_settings WHERE org_id = ${orgId} LIMIT 1`,
     );
     const rows = (result?.rows ?? []) as Array<{ publishing_enabled: boolean | null }>;
-    return rows[0]?.publishing_enabled === false;
+    return rows.length === 0 || rows[0]?.publishing_enabled !== true;
   });
 }
 

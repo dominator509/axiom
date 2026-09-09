@@ -39,10 +39,10 @@ describe('isModelKillSwitchEnabled', () => {
     expect(txExecute).toHaveBeenCalledTimes(2);
   });
 
-  it('preserves the enabled default when settings are absent', async () => {
+  it('fails closed when settings are absent', async () => {
     txExecute.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
 
-    await expect(isModelKillSwitchEnabled(MODEL)).resolves.toBe(false);
+    await expect(isModelKillSwitchEnabled(MODEL)).resolves.toBe(true);
     expect(txExecute).toHaveBeenCalledTimes(2);
   });
 });

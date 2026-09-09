@@ -92,8 +92,9 @@ export async function readKillSwitch(tx: any, orgId: string): Promise<boolean> {
     .from(schema.orgSettings)
     .where(sql`${schema.orgSettings.orgId} = ${orgId}`)
     .limit(1);
-  if (rows.length === 0) return false; // default: publishing enabled
-  return !rows[0].publishingEnabled;
+  // A missing or malformed safety record must halt publishing until an
+  // operator has explicitly established the desired state.
+  return rows.length === 0 || rows[0]?.publishingEnabled !== true;
 }
 
 /**

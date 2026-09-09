@@ -56,7 +56,7 @@ vi.mock('@axiom/db', () => {
   };
 });
 
-import { workerTick, processJob } from './worker.js';
+import { readKillSwitch, workerTick, processJob } from './worker.js';
 import { defaultExecutors } from './executors/index.js';
 import { ParkJobError } from './executors/context.js';
 import type { JobRow } from './types.js';
@@ -113,6 +113,25 @@ describe('workerTick with empty queue', () => {
     expect(stats.claimed).toBe(1);
     expect(stats.failed).toBe(1);
     expect(stats.lastError).toBe('provider timeout');
+  });
+});
+
+describe('readKillSwitch', () => {
+  beforeEach(() => {
+    mockState.executeResult = undefined;
+  });
+
+  it('fails closed when the organization has no settings row', async () => {
+    mockState.result = [];
+    await expect(readKillSwitch(makeChain(), 'org-1')).resolves.toBe(true);
+  });
+
+  it('allows publishing only when settings explicitly enable it', async () => {
+    mockState.result = [{ publishingEnabled: true }];
+    await expect(readKillSwitch(makeChain(), 'org-1')).resolves.toBe(false);
+
+    mockState.result = [{ publishingEnabled: false }];
+    await expect(readKillSwitch(makeChain(), 'org-1')).resolves.toBe(true);
   });
 });
 
