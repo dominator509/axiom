@@ -206,10 +206,11 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
     }
 
     const accessToken = this.auth.accessToken;
+    const postNodeId = remoteId.startsWith(`${pageId}_`) ? remoteId : `${pageId}_${remoteId}`;
 
     // Get insights for the post
     const insightsUrl =
-      `${FB_GRAPH_BASE}/${pageId}_${remoteId}/insights` +
+      `${FB_GRAPH_BASE}/${postNodeId}/insights` +
       `?metric=impressions,likes,comments,shares&access_token=${accessToken}`;
 
     const resp = await this.fetchImpl(insightsUrl);
@@ -239,7 +240,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
     // Fallback: fetch post reactions/comments counts directly
     if (likes === 0 || comments === 0) {
       try {
-        const postUrl = `${FB_GRAPH_BASE}/${pageId}_${remoteId}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0),shares&access_token=${accessToken}`;
+        const postUrl = `${FB_GRAPH_BASE}/${postNodeId}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0),shares&access_token=${accessToken}`;
 
         const postResp = await this.fetchImpl(postUrl);
         if (postResp.ok) {

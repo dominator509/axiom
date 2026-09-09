@@ -332,6 +332,24 @@ describe('fetchMetrics', () => {
     );
   });
 
+  it('does not double-prefix a Page post ID already returned in compound form', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        data: [{ name: 'impressions', period: 'lifetime', values: [{ value: 100 }] }],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new FacebookConnector(AUTH);
+    await c.fetchMetrics('page-1_post-1');
+
+    const [url] = fetchMock.mock.calls[0] as [string];
+    expect(url).toBe(
+      'https://graph.facebook.com/v22.0/page-1_post-1/insights' +
+        '?metric=impressions,likes,comments,shares&access_token=fb-token-123',
+    );
+  });
+
   it('throws when the insights endpoint fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 500)));
     const c = new FacebookConnector(AUTH);
