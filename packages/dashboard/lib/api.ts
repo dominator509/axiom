@@ -86,6 +86,16 @@ export interface PostTarget {
   error: string | null;
 }
 
+export interface SocialConnection {
+  id: string;
+  modelId: string;
+  platform: string;
+  displayName: string;
+  capabilities: string[];
+  status: string;
+  connectedAt: string;
+}
+
 export interface FanContact {
   id: string;
   modelId: string;
@@ -164,7 +174,10 @@ export const api = {
         `/api/v1/bundles${modelId || state ? `?${new URLSearchParams({ ...(modelId ? { modelId } : {}), ...(state ? { state } : {}) })}` : ''}`,
       ),
     get: (id: string) => apiFetch<{ data: ContentBundle }>(`/api/v1/bundles/${id}`),
-    approve: (id: string, body: { platforms: string[]; slot?: string }) =>
+    approve: (
+      id: string,
+      body: { platforms: string[]; slot?: string; connectionIds?: Record<string, string> },
+    ) =>
       apiFetch<{ data: ContentBundle }>(`/api/v1/bundles/${id}/approve`, {
         method: 'POST',
         body: JSON.stringify(body),
@@ -203,9 +216,7 @@ export const api = {
   },
   social: {
     list: (modelId: string) =>
-      apiFetch<{ data: Array<Record<string, unknown>> }>(
-        `/api/v1/social-accounts?modelId=${modelId}`,
-      ),
+      apiFetch<{ data: SocialConnection[] }>(`/api/v1/social-accounts?modelId=${modelId}`),
   },
   llm: {
     providers: () => apiFetch<{ providers: string[] }>('/api/v1/llm/providers'),

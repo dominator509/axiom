@@ -62,8 +62,17 @@ import {
   consentRequirementMessage,
 } from '@axiom/db';
 import { sql, eq, and } from 'drizzle-orm';
-import { tosApprovalFailure, withOrgContext, writeAudit } from './routes/helpers.js';
-import { relayCaptionUpdate, relayScheduledFor } from './relay-command-inputs.js';
+import {
+  resolvePublishConnections,
+  tosApprovalFailure,
+  withOrgContext,
+  writeAudit,
+} from './routes/helpers.js';
+import {
+  relayCaptionUpdate,
+  relayConnectionIds,
+  relayScheduledFor,
+} from './relay-command-inputs.js';
 import { relayCommandAlreadyRecorded } from './relay-command-guard.js';
 import { validateProductionRelayConfig } from './production-config.js';
 import { timingSafeEqual } from 'node:crypto';
@@ -282,6 +291,17 @@ async function relayCommandExecutor(
           throw new Error('relay command: approval slot must be a valid future timestamp');
         }
 
+        const connectionResolution = await resolvePublishConnections(
+          tx,
+          orgId,
+          bundle[0].modelId,
+          platforms,
+          relayConnectionIds(params),
+        );
+        if ('error' in connectionResolution) {
+          throw new Error(`relay command: ${connectionResolution.error}`);
+        }
+
         const transitioned = await tx
           .update(schema.contentBundle)
           .set({ state: 'approved', updatedAt: new Date() })
@@ -304,6 +324,7 @@ async function relayCommandExecutor(
               orgId,
               bundleId,
               platform,
+              connectionId: connectionResolution.connections.get(platform),
               scheduledFor: slot,
               state: 'pending',
               remoteId: null,

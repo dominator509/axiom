@@ -8,7 +8,7 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => ({
-  ...mockDbFactory({ contentBundle: {}, postTarget: {}, asset: {} }),
+  ...mockDbFactory({ contentBundle: {}, postTarget: {}, asset: {}, platformConnection: {} }),
   getPublishingConsentStatus: vi.fn(async () => ({ ok: true, missing: [] })),
   consentRequirementMessage: vi.fn(
     (_status: unknown, platform: string) => `consent required for ${platform}`,
@@ -45,6 +45,8 @@ import { getPublishingConsentStatus } from '@axiom/db';
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 const BUNDLE_ID = '33333333-3333-4333-8333-333333333333';
+const INSTAGRAM_CONNECTION_ID = '44444444-4444-4444-8444-444444444444';
+const X_CONNECTION_ID = '55555555-5555-4555-8555-555555555555';
 
 function passingTos(...platforms: string[]) {
   return {
@@ -203,6 +205,10 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
       [],
       [generatedBundle],
       [{ id: 'asset-1', kind: 'image' }],
+      [
+        { id: INSTAGRAM_CONNECTION_ID, platform: 'instagram' },
+        { id: X_CONNECTION_ID, platform: 'x' },
+      ],
       [approvedBundle],
       [{ id: BUNDLE_ID }],
       [{ id: BUNDLE_ID }],
@@ -210,7 +216,10 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
     const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ platforms: ['instagram', 'x'] }),
+      body: JSON.stringify({
+        platforms: ['instagram', 'x'],
+        connectionIds: { instagram: INSTAGRAM_CONNECTION_ID, x: X_CONNECTION_ID },
+      }),
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
@@ -237,7 +246,13 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
       assetId: 'asset-1',
       tosReport: passingTos('instagram'),
     };
-    mockState.results = [[], [generatedBundle], [{ id: 'asset-1', kind: 'image' }], []];
+    mockState.results = [
+      [],
+      [generatedBundle],
+      [{ id: 'asset-1', kind: 'image' }],
+      [{ id: INSTAGRAM_CONNECTION_ID, platform: 'instagram' }],
+      [],
+    ];
 
     const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
       method: 'POST',
@@ -249,6 +264,36 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
     expect(((await res.json()) as any).detail).toContain(
       'bundle changed while approval was being applied',
     );
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it('rejects approval when the selected platform has ambiguous accounts', async () => {
+    const generatedBundle = {
+      id: BUNDLE_ID,
+      orgId: ORG_ID,
+      modelId: MODEL_ID,
+      state: 'generated',
+      assetId: 'asset-1',
+      tosReport: passingTos('instagram'),
+    };
+    mockState.results = [
+      [],
+      [generatedBundle],
+      [{ id: 'asset-1', kind: 'image' }],
+      [
+        { id: INSTAGRAM_CONNECTION_ID, platform: 'instagram' },
+        { id: X_CONNECTION_ID, platform: 'instagram' },
+      ],
+    ];
+
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: ['instagram'] }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain('multiple connected instagram accounts');
     expect(enqueueJob).not.toHaveBeenCalled();
   });
 

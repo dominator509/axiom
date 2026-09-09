@@ -3,7 +3,7 @@
 // Every dashboard route uses these so tenant isolation and auditability are
 // enforced in one place, defense-in-depth on top of Postgres RLS.
 
-import { sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
 import { tosReportPassesForPlatforms } from '@axiom/core';
@@ -65,6 +65,66 @@ export function requireOrg(c: Context): string | null {
   const orgId = c.get('orgId') as string | undefined;
   if (!orgId) return null;
   return orgId;
+}
+
+export type PublishConnectionResolution = { connections: Map<string, string> } | { error: string };
+
+/**
+ * Resolve the account each new publish target will use before the target and
+ * its worker job are committed. A target without a connection_id is only
+ * safe when there is exactly one connected account for that model/platform;
+ * silently choosing an account would publish to the wrong tenant account.
+ */
+export async function resolvePublishConnections(
+  tx: any,
+  orgId: string,
+  modelId: string,
+  platforms: readonly string[],
+  requestedConnectionIds: Record<string, string> = {},
+): Promise<PublishConnectionResolution> {
+  if (platforms.length === 0) return { connections: new Map() };
+
+  const rows = await tx
+    .select({
+      id: schema.platformConnection.id,
+      platform: schema.platformConnection.platform,
+    })
+    .from(schema.platformConnection)
+    .where(
+      and(
+        eq(schema.platformConnection.orgId, orgId),
+        eq(schema.platformConnection.modelId, modelId),
+        inArray(schema.platformConnection.platform, [...platforms]),
+        inArray(schema.platformConnection.status, ['connected', 'active']),
+      ),
+    )
+    .orderBy(schema.platformConnection.connectedAt);
+
+  const resolved = new Map<string, string>();
+  for (const platform of platforms) {
+    const candidates = rows.filter((row: { platform: string }) => row.platform === platform);
+    const requestedId = requestedConnectionIds[platform];
+    if (requestedId) {
+      const selected = candidates.find((row: { id: string }) => row.id === requestedId);
+      if (!selected) {
+        return {
+          error: `selected ${platform} connection is unavailable or not connected`,
+        };
+      }
+      resolved.set(platform, selected.id);
+      continue;
+    }
+    if (candidates.length === 0) {
+      return { error: `no connected ${platform} account is available for this model` };
+    }
+    if (candidates.length > 1) {
+      return {
+        error: `multiple connected ${platform} accounts are available; select a connectionId`,
+      };
+    }
+    resolved.set(platform, candidates[0].id);
+  }
+  return { connections: resolved };
 }
 
 /**

@@ -9,6 +9,7 @@ vi.mock('@axiom/db', () => ({
     postTarget: {},
     contentBundle: {},
     asset: {},
+    platformConnection: {},
     job: { id: {}, orgId: {}, kind: {}, state: {}, payload: {}, lastError: {} },
   }),
   getPublishingConsentStatus: vi.fn(async () => ({ ok: true, missing: [] })),
@@ -49,6 +50,8 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 const BUNDLE_ID = '33333333-3333-4333-8333-333333333333';
 const POST_ID = '44444444-4444-4444-8444-444444444444';
+const CONNECTION_ID = '55555555-5555-4555-8555-555555555555';
+const SECOND_CONNECTION_ID = '66666666-6666-4666-8666-666666666666';
 
 function appWithOrg(orgId: string | null) {
   const app = new Hono<AppBindings>();
@@ -154,6 +157,7 @@ describe('POST /posts', () => {
       [],
       [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'approved', assetId: 'asset-1' }],
       [{ id: 'asset-1', kind: 'image' }],
+      [{ id: CONNECTION_ID, platform: 'instagram' }],
       mockState.result,
     ];
     const res = await appWithOrg(ORG_ID).request('/posts', {
@@ -162,6 +166,7 @@ describe('POST /posts', () => {
       body: JSON.stringify({
         bundleId: BUNDLE_ID,
         platform: 'instagram',
+        connectionId: CONNECTION_ID,
         scheduledFor: '2026-08-10T12:00:00Z',
       }),
     });
@@ -314,6 +319,7 @@ describe('PATCH /posts/:id', () => {
       [pendingPost],
       [{ modelId: MODEL_ID, assetId: 'asset-1' }],
       [{ id: 'asset-1', kind: 'image' }],
+      [{ id: CONNECTION_ID, platform: 'instagram' }],
       [pendingPost],
     ];
     const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, {
@@ -341,6 +347,32 @@ describe('PATCH /posts/:id', () => {
       body: JSON.stringify({ platform: 'onlyfans' }),
     });
     expect(res.status).toBe(400);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it('rejects scheduling when multiple accounts require an explicit selection', async () => {
+    mockState.results = [
+      [],
+      [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'approved', assetId: 'asset-1' }],
+      [{ id: 'asset-1', kind: 'image' }],
+      [
+        { id: CONNECTION_ID, platform: 'instagram' },
+        { id: SECOND_CONNECTION_ID, platform: 'instagram' },
+      ],
+    ];
+
+    const res = await appWithOrg(ORG_ID).request('/posts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        bundleId: BUNDLE_ID,
+        platform: 'instagram',
+        scheduledFor: '2026-08-10T12:00:00Z',
+      }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain('multiple connected instagram accounts');
     expect(enqueueJob).not.toHaveBeenCalled();
   });
 

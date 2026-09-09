@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutationFetch } from '@/lib/mutation';
+import type { SocialConnection } from '@/lib/api';
 
 const PLATFORMS = [
   'instagram',
@@ -21,19 +22,41 @@ const PLATFORMS = [
 export default function ApproveButtons({
   bundleId,
   tosBlocked,
+  connections,
 }: {
   bundleId: string;
   tosBlocked: boolean;
+  connections: SocialConnection[];
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>(['instagram']);
+  const [connectionIds, setConnectionIds] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      connections
+        .filter((connection) => connection.status === 'connected' || connection.status === 'active')
+        .map((connection) => [connection.platform, connection.id]),
+    ),
+  );
   const [slot, setSlot] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function toggle(p: string) {
-    setSelected((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
+    setSelected((prev) => {
+      if (prev.includes(p)) return prev.filter((x) => x !== p);
+      if (!connectionIds[p]) {
+        const first = connections.find(
+          (connection) =>
+            connection.platform === p &&
+            (connection.status === 'connected' || connection.status === 'active'),
+        );
+        if (first) setConnectionIds((current) => ({ ...current, [p]: first.id }));
+      }
+      return [...prev, p];
+    });
   }
+
+  const selectedWithoutConnection = selected.filter((platform) => !connectionIds[platform]);
 
   async function act(action: 'approve' | 'revise' | 'reject') {
     setBusy(true);
@@ -44,7 +67,15 @@ export default function ApproveButtons({
         res = await mutationFetch(`/api/v1/bundles/${bundleId}/approve`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ platforms: selected, slot: slot || undefined }),
+          body: JSON.stringify({
+            platforms: selected,
+            slot: slot || undefined,
+            connectionIds: Object.fromEntries(
+              selected
+                .filter((platform) => connectionIds[platform])
+                .map((platform) => [platform, connectionIds[platform]]),
+            ),
+          }),
         });
       } else if (action === 'revise') {
         res = await mutationFetch(`/api/v1/bundles/${bundleId}/revise`, {
@@ -94,12 +125,45 @@ export default function ApproveButtons({
           />
         </label>
       </div>
+      {selected.map((platform) => {
+        const available = connections.filter(
+          (connection) =>
+            connection.platform === platform &&
+            (connection.status === 'connected' || connection.status === 'active'),
+        );
+        return (
+          <label key={platform} style={{ margin: 0 }}>
+            {platform} account
+            <select
+              value={connectionIds[platform] ?? ''}
+              onChange={(event) =>
+                setConnectionIds((current) => ({ ...current, [platform]: event.target.value }))
+              }
+              style={{ marginLeft: 8, width: 'auto' }}
+            >
+              <option value="">Select a connected account</option>
+              {available.map((connection) => (
+                <option key={connection.id} value={connection.id}>
+                  {connection.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+        );
+      })}
+      {selectedWithoutConnection.length > 0 && (
+        <p style={{ color: 'var(--bad)', margin: 0 }}>
+          Connect or select an account for: {selectedWithoutConnection.join(', ')}
+        </p>
+      )}
       {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
       <div className="row">
         <button
           className="btn"
           type="button"
-          disabled={busy || tosBlocked}
+          disabled={
+            busy || tosBlocked || selected.length === 0 || selectedWithoutConnection.length > 0
+          }
           onClick={() => act('approve')}
         >
           {tosBlocked ? 'Blocked by ToS' : 'Approve'}

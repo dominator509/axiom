@@ -17,6 +17,7 @@ import {
   apiError,
   statusTitle,
   tosApprovalFailure,
+  resolvePublishConnections,
 } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 import { asPlatform, enqueueJob, resolveCapabilities } from '@axiom/worker';
@@ -33,6 +34,7 @@ const createBundleSchema = z.object({
 const approveBundleSchema = z.object({
   platforms: z.array(z.string().min(1)).min(1),
   slot: z.string().datetime().optional(),
+  connectionIds: z.record(z.string().min(1), z.string().uuid()).default({}),
 });
 
 const reviseBundleSchema = z.object({
@@ -225,14 +227,22 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
         : publishIntent?.scheduledAt
           ? new Date(publishIntent.scheduledAt)
           : new Date(Date.now() + 3600_000);
-    if (
-      !immediateIntent &&
-      (Number.isNaN(slot.getTime()) || slot.getTime() <= Date.now())
-    ) {
+    if (!immediateIntent && (Number.isNaN(slot.getTime()) || slot.getTime() <= Date.now())) {
       return {
         status: 400 as const,
         error: 'approval slot must be a valid future timestamp',
       };
+    }
+
+    const connectionResolution = await resolvePublishConnections(
+      tx,
+      orgId,
+      bundle.modelId,
+      platforms,
+      body.connectionIds,
+    );
+    if ('error' in connectionResolution) {
+      return { status: 409 as const, error: connectionResolution.error };
     }
 
     // Claim the approval transition before creating any downstream work. The
@@ -260,6 +270,7 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
           orgId,
           bundleId: id,
           platform,
+          connectionId: connectionResolution.connections.get(platform),
           scheduledFor: slot,
           state: 'pending',
           remoteId: null,
@@ -283,13 +294,17 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
     }
     await writeAudit(tx, orgId, userId, 'bundle.approve', id, {
       platforms,
+      connectionIds: Object.fromEntries(
+        platforms.map((platform) => [platform, connectionResolution.connections.get(platform)]),
+      ),
       slot: slot.toISOString(),
     });
     return { status: 200 as const, data: updated };
   });
 
   if (result.status === 404) return apiError(c, 404, statusTitle(404), 'bundle not found');
-  if (result.status === 400) return apiError(c, 400, statusTitle(400), result.error ?? 'invalid slot');
+  if (result.status === 400)
+    return apiError(c, 400, statusTitle(400), result.error ?? 'invalid slot');
   if (result.status === 409) return apiError(c, 409, statusTitle(409), result.error ?? 'conflict');
   return c.json({ data: result.data });
 });

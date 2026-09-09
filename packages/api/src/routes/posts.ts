@@ -7,7 +7,14 @@ import { zValidator } from '@hono/zod-validator';
 import { eq, and, gte, lte, sql, isNull } from 'drizzle-orm';
 import { schema, getPublishingConsentStatus, consentRequirementMessage } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
+import {
+  withOrgContext,
+  requireOrg,
+  writeAudit,
+  apiError,
+  statusTitle,
+  resolvePublishConnections,
+} from './helpers.js';
 import {
   asPlatform,
   enqueueJob,
@@ -21,6 +28,7 @@ const router = new Hono<AppBindings>();
 const schedulePostSchema = z.object({
   bundleId: z.string().uuid(),
   platform: z.string().min(1).max(50),
+  connectionId: z.string().uuid().optional(),
   scheduledFor: z.string().datetime(),
 });
 
@@ -31,11 +39,18 @@ const rescheduleSchema = z
   .object({
     scheduledFor: z.string().datetime().optional(),
     platform: z.string().min(1).max(50).optional(),
+    connectionId: z.string().uuid().optional(),
   })
   .strict()
-  .refine((value) => value.scheduledFor !== undefined || value.platform !== undefined, {
-    message: 'at least one editable field is required',
-  });
+  .refine(
+    (value) =>
+      value.scheduledFor !== undefined ||
+      value.platform !== undefined ||
+      value.connectionId !== undefined,
+    {
+      message: 'at least one editable field is required',
+    },
+  );
 
 /**
  * Keep every route that can create or retarget a publish target aligned with
@@ -170,12 +185,24 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
       }
     }
 
+    const connectionResolution = await resolvePublishConnections(
+      tx,
+      orgId,
+      bundle.modelId,
+      [platform],
+      body.connectionId ? { [platform]: body.connectionId } : {},
+    );
+    if ('error' in connectionResolution) {
+      return { status: 409 as const, data: null, error: connectionResolution.error };
+    }
+
     const [row] = await tx
       .insert(schema.postTarget)
       .values({
         orgId,
         bundleId: body.bundleId,
         platform,
+        connectionId: connectionResolution.connections.get(platform),
         scheduledFor,
         state: 'pending',
         idemKey: Buffer.from(`${body.bundleId}|${platform}|${scheduledFor.toISOString()}`),
@@ -184,6 +211,7 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
     await writeAudit(tx, orgId, userId, 'post.schedule', row.id, {
       bundleId: body.bundleId,
       platform,
+      connectionId: connectionResolution.connections.get(platform),
       scheduledFor: scheduledFor.toISOString(),
     });
 
@@ -294,6 +322,19 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
       }
     }
 
+    const requestedConnectionId =
+      body.connectionId ?? (platformChanged ? undefined : (existing.connectionId ?? undefined));
+    const connectionResolution = await resolvePublishConnections(
+      tx,
+      orgId,
+      bundle.modelId,
+      [nextPlatform],
+      requestedConnectionId ? { [nextPlatform]: requestedConnectionId } : {},
+    );
+    if ('error' in connectionResolution) {
+      return { status: 409 as const, data: null, error: connectionResolution.error };
+    }
+
     const nextIdemKey = Buffer.from(
       `${existing.bundleId}|${nextPlatform}|${nextScheduledFor ? new Date(nextScheduledFor).toISOString() : ''}`,
     );
@@ -301,7 +342,8 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
       .update(schema.postTarget)
       .set({
         ...(scheduledFor ? { scheduledFor } : {}),
-        ...(platform ? { platform, ...(platformChanged ? { connectionId: null } : {}) } : {}),
+        ...(platform ? { platform } : {}),
+        connectionId: connectionResolution.connections.get(nextPlatform),
         idemKey: nextIdemKey,
       })
       .where(
@@ -319,7 +361,7 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
         error: 'post changed while the edit was being applied; retry the action',
       };
     }
-    if (scheduledFor || platform) {
+    if (scheduledFor || platform || body.connectionId) {
       // Keep the durable worker handoff aligned with the edited target. The
       // dedupe key makes this a no-op when the original job is still present;
       // the UPDATE fixes its run time when it is ready, and enqueue repairs a

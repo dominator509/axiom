@@ -6,9 +6,15 @@ export const dynamic = 'force-dynamic';
 export default async function ApprovalsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let bundles: Awaited<ReturnType<typeof api.bundles.list>>['data'] = [];
+  let connections: Awaited<ReturnType<typeof api.social.list>>['data'] = [];
   let error: string | null = null;
   try {
-    bundles = (await api.bundles.list(id, 'generated')).data;
+    const [bundleResult, connectionResult] = await Promise.all([
+      api.bundles.list(id, 'generated'),
+      api.social.list(id),
+    ]);
+    bundles = bundleResult.data;
+    connections = connectionResult.data;
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
@@ -64,7 +70,11 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ id: 
               </div>
             </div>
             <div style={{ marginTop: 12 }}>
-              <ApproveButtons bundleId={b.id} tosBlocked={b.tosReport?.verdict === 'block'} />
+              <ApproveButtons
+                bundleId={b.id}
+                tosBlocked={b.tosReport?.verdict === 'block'}
+                connections={connections}
+              />
             </div>
           </div>
         ))}
