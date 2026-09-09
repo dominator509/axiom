@@ -180,6 +180,32 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
   );
   const renderer = new CardRenderer();
   for (const { binding, channel, chatRef } of dispatchBindings) {
+    // A pending relay row is durable evidence that an earlier worker may
+    // already have handed this exact card to the provider. The provider does
+    // not expose a portable idempotency key across Telegram, Discord, Signal,
+    // and BlueBubbles, so a retry cannot safely send the card again. Leave the
+    // row available for operator reconciliation and dead-letter the job rather
+    // than creating a duplicate approval prompt.
+    const unresolvedRelayCard = await tx
+      .select({ id: schema.relayCard.id })
+      .from(schema.relayCard)
+      .where(
+        and(
+          eq(schema.relayCard.orgId, job.org_id),
+          eq(schema.relayCard.bundleId, bundle.id),
+          eq(schema.relayCard.channel, channel),
+          eq(schema.relayCard.externalRef, chatRef),
+          eq(schema.relayCard.state, 'pending'),
+        ),
+      )
+      .limit(1);
+    if (unresolvedRelayCard.length > 0) {
+      ctx.markExternalSideEffect?.();
+      throw new Error(
+        `relay.card: unresolved dispatch marker ${unresolvedRelayCard[0].id}; provider reconciliation required before retry`,
+      );
+    }
+
     // Commit the dispatch log before provider I/O. If the provider accepts the
     // card and the executor transaction later rolls back, the pending row is
     // still available to reconcile the unknown external outcome.

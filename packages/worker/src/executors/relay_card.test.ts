@@ -46,7 +46,14 @@ vi.mock('@axiom/db', () => ({
     asset: { id: 'asset.id', orgId: 'asset.org_id', modelId: 'asset.model_id' },
     contentBundle: { id: 'content_bundle.id', orgId: 'content_bundle.org_id' },
     relayBinding: { modelId: 'relay_binding.model_id', enabled: 'relay_binding.enabled' },
-    relayCard: { id: 'relay_card.id', orgId: 'relay_card.org_id' },
+    relayCard: {
+      id: 'relay_card.id',
+      orgId: 'relay_card.org_id',
+      bundleId: 'relay_card.bundle_id',
+      channel: 'relay_card.channel',
+      externalRef: 'relay_card.external_ref',
+      state: 'relay_card.state',
+    },
   },
 }));
 
@@ -112,6 +119,7 @@ beforeEach(() => {
       },
     ],
     [{ id: 'binding-1', channel: 'telegram', chatRef: 'chat-1', modelId: 'model-1' }],
+    [],
     [{ id: 'card-1' }],
     [],
   ];
@@ -141,6 +149,26 @@ describe('relayCard', () => {
         {},
       ),
     ).toThrow('TELEGRAM_BOT_TOKEN not configured');
+  });
+
+  it('fails closed instead of duplicating a card with an unresolved dispatch marker', async () => {
+    mockState.results[3] = [{ id: 'pending-card-1' }];
+    const markExternalSideEffect = vi.fn();
+
+    await expect(
+      relayCard({
+        tx: makeChain(),
+        job: JOB,
+        killSwitchEnabled: false,
+        workerId: 'worker-1',
+        markExternalSideEffect,
+      }),
+    ).rejects.toThrow(
+      'relay.card: unresolved dispatch marker pending-card-1; provider reconciliation required before retry',
+    );
+
+    expect(markExternalSideEffect).toHaveBeenCalledTimes(1);
+    expect(mockState.sent).toHaveLength(0);
   });
 
   it('persists the card id, preserves safe ToS semantics, and sends it to Telegram', async () => {
