@@ -7,6 +7,7 @@
 // Wire order in index.ts: correlation → rate limit → idempotency → routes.
 
 import { createHash, randomUUID } from 'node:crypto';
+import { BlockList, isIP } from 'node:net';
 import type { Context, Next } from 'hono';
 import { sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
@@ -384,6 +385,39 @@ const RATE_BUCKETS = new Map<string, Bucket>();
 const DEFAULT_CAPACITY = 60; // 60 requests
 const DEFAULT_REFILL = 10; // 10 req/sec sustained
 
+// The API normally sits behind Caddy, which overwrites X-Forwarded-For with
+// the client address before forwarding. A direct client must not be able to
+// rotate that header to evade anonymous limits, so only transport peers in a
+// private/loopback network may delegate the client identity to that header.
+const TRUSTED_PROXY_NETWORKS = new BlockList();
+for (const [address, prefix, family] of [
+  ['127.0.0.0', 8, 'ipv4'],
+  ['10.0.0.0', 8, 'ipv4'],
+  ['172.16.0.0', 12, 'ipv4'],
+  ['192.168.0.0', 16, 'ipv4'],
+  ['::1', 128, 'ipv6'],
+  ['fc00::', 7, 'ipv6'],
+  ['fe80::', 10, 'ipv6'],
+] as const) {
+  TRUSTED_PROXY_NETWORKS.addSubnet(address, prefix, family);
+}
+
+type NodeIncomingBinding = { socket?: { remoteAddress?: string } };
+
+function transportPeerAddress(c: Context): string | undefined {
+  const incoming = (c.env as { incoming?: NodeIncomingBinding } | undefined)?.incoming;
+  return incoming?.socket?.remoteAddress;
+}
+
+function isTrustedProxyAddress(address: string | undefined): boolean {
+  if (!address) return false;
+  const normalized = address.replace(/^::ffff:/i, '');
+  const family = isIP(normalized);
+  if (family === 4) return TRUSTED_PROXY_NETWORKS.check(normalized, 'ipv4');
+  if (family === 6) return TRUSTED_PROXY_NETWORKS.check(normalized, 'ipv6');
+  return false;
+}
+
 function getBucket(
   key: string,
   capacity: number,
@@ -424,12 +458,19 @@ export function rateLimit(
   return async (c: Context, next: Next): Promise<Response | void> => {
     const credential = c.req.header('Authorization')?.replace(/^Bearer\s+/i, '');
     const apiKey = c.req.header('X-API-Key');
-    const forwardedFor = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+    const peerAddress = transportPeerAddress(c);
+    const forwardedFor = c.req
+      .header('x-forwarded-for')
+      ?.split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .at(-1);
+    const clientAddress = isTrustedProxyAddress(peerAddress) ? forwardedFor : peerAddress;
     const source = credential
       ? `bearer:${credential}`
       : apiKey
         ? `api-key:${apiKey}`
-        : `ip:${forwardedFor || 'anonymous'}`;
+        : `ip:${clientAddress || 'anonymous'}`;
     // Retain only an irreversible fingerprint, never a live credential.
     const bucketKey = createHash('sha256').update(source).digest('base64url');
     const bucket = getBucket(bucketKey, capacity, refillPerSec, maxBuckets);

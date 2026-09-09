@@ -16,10 +16,18 @@ import { idempotency, rateLimit, correlationId } from './contract.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 
+type MiddlewareTestApp = Hono<{
+  Bindings: { incoming?: { socket?: { remoteAddress?: string } } };
+  Variables: { orgId: string; userId: string; correlationId?: string };
+}>;
+
 function makeApp(
   opts: { rate?: { capacity?: number; refillPerSec?: number; maxBuckets?: number } } = {},
 ) {
-  const app = new Hono<{ Variables: { orgId: string; userId: string; correlationId?: string } }>();
+  const app = new Hono<{
+    Bindings: { incoming?: { socket?: { remoteAddress?: string } } };
+    Variables: { orgId: string; userId: string; correlationId?: string };
+  }>();
   app.use('*', correlationId);
   app.use('*', async (c, next) => {
     // Production sets orgId via requireAuth before idempotency runs.
@@ -32,7 +40,7 @@ function makeApp(
 
 /** A route that records every execution (to prove replay skips it). */
 function countedRoute(
-  app: Hono<{ Variables: { orgId: string; userId: string; correlationId?: string } }>,
+  app: MiddlewareTestApp,
 ) {
   let calls = 0;
   app.post('/mutate', idempotency(), async (c) => {
@@ -334,6 +342,52 @@ describe('rateLimit middleware (L3.0)', () => {
       headers: { Authorization: 'Bearer cardinality-a' },
     });
     expect(replayOldest.status).toBe(200);
+  });
+
+  it('does not trust a spoofed forwarding header from a direct peer', async () => {
+    const app = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
+    app.get('/x', (c) => c.json({ ok: true }));
+    const directPeer = { incoming: { socket: { remoteAddress: '203.0.113.10' } } };
+
+    const first = await app.request(
+      '/x',
+      { headers: { 'X-Forwarded-For': 'spoofed-client-a' } },
+      directPeer,
+    );
+    const second = await app.request(
+      '/x',
+      { headers: { 'X-Forwarded-For': 'spoofed-client-b' } },
+      directPeer,
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  it('uses the forwarded client address only behind a trusted proxy peer', async () => {
+    const app = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
+    app.get('/x', (c) => c.json({ ok: true }));
+    const trustedProxy = { incoming: { socket: { remoteAddress: '127.0.0.1' } } };
+
+    const clientA = await app.request(
+      '/x',
+      { headers: { 'X-Forwarded-For': '198.51.100.10' } },
+      trustedProxy,
+    );
+    const clientB = await app.request(
+      '/x',
+      { headers: { 'X-Forwarded-For': '198.51.100.11' } },
+      trustedProxy,
+    );
+    const clientAReplay = await app.request(
+      '/x',
+      { headers: { 'X-Forwarded-For': '198.51.100.10' } },
+      trustedProxy,
+    );
+
+    expect(clientA.status).toBe(200);
+    expect(clientB.status).toBe(200);
+    expect(clientAReplay.status).toBe(429);
   });
 });
 
