@@ -26,6 +26,22 @@ for dockerfile in infra/Dockerfile.hono infra/Dockerfile.next infra/Dockerfile.r
   fi
 done
 
+compose_file="infra/docker-compose.yml"
+if [ ! -f "$compose_file" ]; then
+  echo "container-base-pins: missing $compose_file"
+  status=1
+elif awk '
+  /^[[:space:]]*image:[[:space:]]/ && $0 !~ /@sha256:[0-9a-f]{64}/ {
+    print FILENAME ":" FNR ": " $0
+    bad = 1
+  }
+  END { exit bad }
+' "$compose_file"; then
+  echo "container-base-pins: $compose_file ok"
+else
+  status=1
+fi
+
 if [ "$status" -ne 0 ]; then
   echo "container-base-pins: floating or invalid base image reference detected"
   exit 1

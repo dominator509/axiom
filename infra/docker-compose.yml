@@ -7,7 +7,8 @@ volumes:
 
 services:
   postgres:
-    image: timescale/timescaledb:2.29.2-pg16
+    # timescale/timescaledb:2.29.2-pg16 manifest digest (resolved 2026-09-09).
+    image: timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a
     container_name: axiom-postgres
     restart: unless-stopped
     environment:
@@ -15,12 +16,12 @@ services:
       POSTGRES_PASSWORD: changeme
       POSTGRES_DB: axiom
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ../packages/db/migrations:/migrations:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U axiom -d axiom"]
+      test: ['CMD-SHELL', 'pg_isready -U axiom -d axiom']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,14 +30,15 @@ services:
       - axiom-net
 
   pgadmin:
-    image: dpage/pgadmin4:latest
+    # dpage/pgadmin4:latest manifest digest (resolved 2026-09-09).
+    image: dpage/pgadmin4:latest@sha256:2f4ce946ddf8360680d7eff4eaba1d91859eb6b4003e6623bad5c63a322c2f4d
     container_name: axiom-pgadmin
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@axiom.local
       PGADMIN_DEFAULT_PASSWORD: changeme
     ports:
-      - "5050:80"
+      - '5050:80'
     depends_on:
       postgres:
         condition: service_healthy
