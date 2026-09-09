@@ -45,6 +45,16 @@ describe('better-auth mounted at /api/auth/*', () => {
     const res = await app.request('/api/auth/get-session');
     expect([200, 401]).toContain(res.status);
   });
+
+  it('rate-limits repeated anonymous auth requests', async () => {
+    const headers = { 'X-Forwarded-For': 'auth-rate-limit-test' };
+    let last: Response | undefined;
+    for (let attempt = 0; attempt < 21; attempt += 1) {
+      last = await app.request('/api/auth/get-session', { headers });
+    }
+    expect(last?.status).toBe(429);
+    expect(last?.headers.get('Retry-After')).toBeTruthy();
+  });
 });
 
 describe('mounted route groups', () => {
