@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { fetchWithTimeout } from '@/lib/request';
 
 export default function LoginForm() {
   const router = useRouter();
@@ -15,7 +16,7 @@ export default function LoginForm() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/sign-in/email', {
+      const res = await fetchWithTimeout('/api/auth/sign-in/email', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ email, password }),

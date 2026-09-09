@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { fetchWithTimeout } from '@/lib/request';
 
 export default function SignOutButton() {
   const router = useRouter();
@@ -11,11 +12,15 @@ export default function SignOutButton() {
     if (busy) return;
     setBusy(true);
     try {
-      await fetch('/api/auth/sign-out', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: '{}',
-      });
+      await fetchWithTimeout(
+        '/api/auth/sign-out',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+        },
+        10_000,
+      );
     } finally {
       router.push('/login');
       router.refresh();
