@@ -83,13 +83,27 @@ type ParsedLine = {
 const require = createRequire(import.meta.url);
 const PACKAGE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
-const API_KEY_ENV_NAMES = [
-  'OPENAI_API_KEY',
-  'CODEX_API_KEY',
-  'ANTHROPIC_API_KEY',
-  'CLAUDE_CODE_OAUTH_TOKEN',
-  'XAI_API_KEY',
-  'GROK_API_KEY',
+const CHILD_ENVIRONMENT_KEYS = [
+  'PATH',
+  'Path',
+  'HOME',
+  'USERPROFILE',
+  'HOMEDRIVE',
+  'HOMEPATH',
+  'APPDATA',
+  'LOCALAPPDATA',
+  'XDG_CONFIG_HOME',
+  'XDG_CACHE_HOME',
+  'TMPDIR',
+  'TMP',
+  'TEMP',
+  'SystemRoot',
+  'WINDIR',
+  'LANG',
+  'LC_ALL',
+  'TERM',
+  'SSL_CERT_FILE',
+  'SSL_CERT_DIR',
 ] as const;
 
 function packageRoot(name: string): string {
@@ -132,12 +146,17 @@ function profileRoot(userId: string, provider: SubscriptionProvider): string {
   return root;
 }
 
-function oauthOnlyEnvironment(provider: SubscriptionProvider, userId: string): NodeJS.ProcessEnv {
-  const env = { ...process.env };
-  for (const name of API_KEY_ENV_NAMES) {
-    delete env[name];
-    delete env[name.toLowerCase()];
+function childEnvironment(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const name of CHILD_ENVIRONMENT_KEYS) {
+    const value = process.env[name];
+    if (value !== undefined) env[name] = value;
   }
+  return env;
+}
+
+function oauthOnlyEnvironment(provider: SubscriptionProvider, userId: string): NodeJS.ProcessEnv {
+  const env = childEnvironment();
   const root = profileRoot(userId, provider);
   if (provider === 'openai') env.CODEX_HOME = root;
   if (provider === 'grok') env.GROK_HOME = root;
@@ -632,7 +651,11 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
     return runAuthConnect(provider, userId, signal);
   }
 
-  async disconnect(provider: SubscriptionProvider, userId: string, signal?: AbortSignal): Promise<void> {
+  async disconnect(
+    provider: SubscriptionProvider,
+    userId: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
     const result = await runAuthCommand(provider, userId, 'disconnect', signal);
     if (result.exitCode !== 0) {
       throw new ProviderError(

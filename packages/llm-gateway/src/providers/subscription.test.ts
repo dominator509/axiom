@@ -78,4 +78,23 @@ describe('official subscription auth command lifecycle', () => {
     await rejection;
     expect(child.kill).toHaveBeenCalledTimes(1);
   });
+
+  it('passes only runtime environment to provider subprocesses', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child);
+    vi.stubEnv('PATH', 'trusted-path');
+    vi.stubEnv('DATABASE_URL', 'postgresql://should-not-cross-the-boundary');
+    vi.stubEnv('AXIOM_INTERNAL_SECRET', 'should-not-cross-the-boundary');
+    vi.stubEnv('OPENAI_API_KEY', 'should-not-cross-the-boundary');
+
+    const pending = transport.status('openai', 'user-1');
+    const options = spawnMock.mock.calls.at(-1)?.[2] as { env?: NodeJS.ProcessEnv };
+    expect(options.env?.PATH).toBe('trusted-path');
+    expect(options.env).not.toHaveProperty('DATABASE_URL');
+    expect(options.env).not.toHaveProperty('AXIOM_INTERNAL_SECRET');
+    expect(options.env).not.toHaveProperty('OPENAI_API_KEY');
+
+    child.emit('exit', 0);
+    await expect(pending).resolves.toMatchObject({ provider: 'openai', connected: true });
+  });
 });
