@@ -173,6 +173,7 @@ describe('POST /linkbio/clicks', () => {
     mockState.result = [
       {
         id: PROVIDER_ID,
+        kind: 'native',
         enabled: true,
         config: { links: [{ label: 'Fanvue', url: 'https://fanvue.com/luna' }] },
       },

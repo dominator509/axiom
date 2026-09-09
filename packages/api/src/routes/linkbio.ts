@@ -345,7 +345,11 @@ router.post(
 
     const recorded = await withOrgContext(orgId, async (tx) => {
       const providers = await tx
-        .select({ id: schema.linkbioProvider.id, config: schema.linkbioProvider.config })
+        .select({
+          id: schema.linkbioProvider.id,
+          kind: schema.linkbioProvider.kind,
+          config: schema.linkbioProvider.config,
+        })
         .from(schema.linkbioProvider)
         .where(
           and(
@@ -358,6 +362,7 @@ router.post(
         .limit(1);
       if (providers.length === 0) return { ok: false as const, reason: 'provider' as const };
       const provider = providers[0];
+      if (provider.kind !== 'native') return { ok: false as const, reason: 'provider' as const };
       if (!nativeLinks(provider.config).some((link) => link.url === body.target)) {
         return { ok: false as const, reason: 'target' as const };
       }
