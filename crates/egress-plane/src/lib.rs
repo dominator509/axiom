@@ -313,8 +313,19 @@ fn replace_bound(
     state: &Arc<AppState>,
     model_id: String,
     bound: BoundEgress,
-) -> Option<BoundEgress> {
+) -> Result<Option<BoundEgress>, EgressError> {
     let mut registry = state.registry.lock().unwrap();
+    // kill_switch_drain flips the atomic flag before taking this same
+    // registry lock. Checking it here closes the interval between the
+    // expensive namespace setup/probe and the final registry install: a bind
+    // that raced with drain is torn down instead of becoming live afterward.
+    if state.kill_switch.is_enabled() {
+        drop(registry);
+        let _ = teardown_bound(bound);
+        return Err(EgressError::KillSwitch(
+            "egress blocked by kill-switch".to_string(),
+        ));
+    }
     let previous = registry.bounds.insert(model_id, bound);
     if let Some(existing) = previous.as_ref() {
         if let Some(octet) = bound_octet(existing) {
@@ -323,7 +334,7 @@ fn replace_bound(
         registry.unbinds_total += 1;
     }
     registry.binds_total += 1;
-    previous
+    Ok(previous)
 }
 
 fn bound_octet(bound: &BoundEgress) -> Option<u16> {
@@ -438,6 +449,16 @@ mod registry_tests {
 
         persisted.expected_egress_ip = Some("203.0.113.10".to_string());
         assert!(!same_binding_config(&current, &persisted));
+    }
+
+    #[test]
+    fn replacement_is_rejected_when_kill_switch_is_enabled() {
+        let state = state();
+        state.kill_switch.set_enabled(true);
+
+        let result = replace_bound(&state, "model-1".to_string(), bound());
+        assert!(matches!(result, Err(EgressError::KillSwitch(_))));
+        assert!(state.registry.lock().unwrap().bounds.is_empty());
     }
 }
 
@@ -826,7 +847,11 @@ pub async fn egress_bind(
     let mode = bound.config.mode.as_str().to_string();
     let health_snapshot = bound.health.clone();
 
-    if let Some(previous) = replace_bound(&state, model_id.clone(), bound) {
+    let previous = match replace_bound(&state, model_id.clone(), bound) {
+        Ok(previous) => previous,
+        Err(error) => return Err(error),
+    };
+    if let Some(previous) = previous {
         // This is only expected if a concurrent bind won the registry race;
         // retain the newest fully-probed binding and clean up the old one.
         let _ = teardown_bound(previous);
@@ -1371,8 +1396,16 @@ pub async fn egress_sync(
                 b.config.enc_creds = cfg.enc_creds.clone();
                 b.config.enc_nonce = cfg.enc_nonce.clone();
                 b.config.dek_id = cfg.dek_id.clone();
-                if let Some(previous) = replace_bound(&state, cfg.model_id.clone(), b) {
-                    let _ = teardown_bound(previous);
+                match replace_bound(&state, cfg.model_id.clone(), b) {
+                    Ok(Some(previous)) => {
+                        let _ = teardown_bound(previous);
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        skipped += 1;
+                        warn!(model_id = %cfg.model_id, error = %e, "sync bind raced with kill-switch");
+                        continue;
+                    }
                 }
                 bound += 1;
             }
