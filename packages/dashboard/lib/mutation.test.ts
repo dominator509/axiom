@@ -20,6 +20,61 @@ describe('mutationFetch', () => {
     expect(secondHeaders.get('Idempotency-Key')).toBe(firstHeaders.get('Idempotency-Key'));
   });
 
+  it('aborts a hung mutation at the configured timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), {
+            once: true,
+          });
+        });
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const request = mutationFetch(
+        '/api/v1/mutate',
+        { method: 'POST' },
+        { retries: 0, timeoutMs: 25 },
+      );
+      const outcome = request.then(
+        () => null,
+        (error: unknown) => error,
+      );
+      await vi.advanceTimersByTimeAsync(25);
+
+      await expect(outcome).resolves.toMatchObject({ message: 'aborted' });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('propagates a caller abort to the in-flight attempt', async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('caller aborted')), {
+          once: true,
+        });
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const request = mutationFetch(
+      '/api/v1/mutate',
+      { method: 'POST', signal: controller.signal },
+      { retries: 0, timeoutMs: 1_000 },
+    );
+    const outcome = request.then(
+      () => null,
+      (error: unknown) => error,
+    );
+    controller.abort();
+
+    await expect(outcome).resolves.toMatchObject({ message: 'caller aborted' });
+  });
+
   it('preserves an explicit intent key', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);

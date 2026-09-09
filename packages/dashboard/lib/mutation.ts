@@ -7,13 +7,49 @@ export interface MutationOptions {
   retries?: number;
   /** Supply a key when resuming an already-created user intent. */
   idempotencyKey?: string;
+  /** Maximum time allowed for each network attempt. */
+  timeoutMs?: number;
 }
+
+export const DEFAULT_MUTATION_TIMEOUT_MS = 30_000;
 
 export function createIdempotencyKey(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
   return `axiom-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function createAttemptSignal(
+  parentSignal: AbortSignal | null | undefined,
+  timeoutMs: number,
+): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort(new Error(`mutation timed out after ${timeoutMs}ms`));
+  }, timeoutMs);
+  const forwardAbort = () => controller.abort(parentSignal?.reason);
+  if (parentSignal) {
+    if (parentSignal.aborted) {
+      controller.abort(parentSignal.reason);
+    } else {
+      parentSignal.addEventListener('abort', forwardAbort, { once: true });
+    }
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      parentSignal?.removeEventListener('abort', forwardAbort);
+    },
+  };
+}
+
+function validateTimeout(timeoutMs: number): void {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new TypeError('timeoutMs must be a positive finite number');
+  }
 }
 
 /**
@@ -27,16 +63,21 @@ export async function mutationFetch(
 ): Promise<Response> {
   const idempotencyKey = options.idempotencyKey ?? createIdempotencyKey();
   const retries = Math.max(0, options.retries ?? 1);
+  const timeoutMs = options.timeoutMs ?? DEFAULT_MUTATION_TIMEOUT_MS;
+  validateTimeout(timeoutMs);
   const headers = new Headers(init.headers);
   headers.set('Idempotency-Key', idempotencyKey);
 
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const attemptSignal = createAttemptSignal(init.signal, timeoutMs);
     try {
-      return await fetch(input, { ...init, headers });
+      return await fetch(input, { ...init, headers, signal: attemptSignal.signal });
     } catch (error) {
       lastError = error;
       if (attempt === retries) throw error;
+    } finally {
+      attemptSignal.cleanup();
     }
   }
 
