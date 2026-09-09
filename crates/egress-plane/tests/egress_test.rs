@@ -610,6 +610,7 @@ async fn test_wireguard_tunnel_mode_full_chain() {
     let priv_client = wg_genkey();
     let pub_host = wg_pubkey(&priv_host);
     let pub_client = wg_pubkey(&priv_client);
+    let preshared_key = wg_genpsk();
 
     // Host wg interface.
     let _ = Command::new("ip")
@@ -644,7 +645,10 @@ async fn test_wireguard_tunnel_mode_full_chain() {
     let _ = Command::new("bash")
         .args([
             "-c",
-            &format!("printf '%s' '{}' > /tmp/wg_peer_host_test", pub_client),
+            &format!(
+                "printf '%s' '{}' > /tmp/wg_peer_host_test && printf '%s' '{}' > /tmp/wg_psk_host_test",
+                pub_client, preshared_key
+            ),
         ])
         .status();
     assert!(Command::new("wg")
@@ -653,6 +657,8 @@ async fn test_wireguard_tunnel_mode_full_chain() {
             "wg-host-test",
             "peer",
             &pub_client,
+            "preshared-key",
+            "/tmp/wg_psk_host_test",
             "allowed-ips",
             "10.0.0.2/32"
         ])
@@ -682,6 +688,7 @@ async fn test_wireguard_tunnel_mode_full_chain() {
                 "wg_endpoint": "10.240.20.1:51820",
                 "wg_allowed_ips": "0.0.0.0/0",
                 "wg_private_key": priv_client,
+                "wg_preshared_key": preshared_key,
                 "wg_persistent_keepalive": 25,
                 "iface_addr": "10.0.0.2/32",
                 "expected_egress_ip": echo_ip
@@ -731,7 +738,12 @@ async fn test_wireguard_tunnel_mode_full_chain() {
         .args(["link", "del", "wg-host-test"])
         .output();
     let _ = Command::new("rm")
-        .args(["-f", "/tmp/wg_priv_host_test", "/tmp/wg_peer_host_test"])
+        .args([
+            "-f",
+            "/tmp/wg_priv_host_test",
+            "/tmp/wg_peer_host_test",
+            "/tmp/wg_psk_host_test",
+        ])
         .status();
 }
 
@@ -741,6 +753,15 @@ fn wg_genkey() -> String {
         .arg("genkey")
         .output()
         .expect("wg genkey");
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+#[cfg(target_os = "linux")]
+fn wg_genpsk() -> String {
+    let out = Command::new("wg")
+        .arg("genpsk")
+        .output()
+        .expect("wg genpsk");
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 

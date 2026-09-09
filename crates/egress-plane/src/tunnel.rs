@@ -9,8 +9,13 @@
 //! tunnel config (self-hosted WG-based VPN provider configs). Both modes are
 //! enforced identically by the namespace routing.
 
-use std::io;
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::PathBuf;
 use tracing::{info, instrument, warn};
+use uuid::Uuid;
 
 use crate::config::NetworkConfig;
 
@@ -26,6 +31,37 @@ pub struct TunnelSpec {
     pub endpoint: String,
     pub allowed_ips: String,
     pub keepalive: Option<i32>,
+}
+
+/// A short-lived WireGuard secret file. `wg set` accepts a file path instead
+/// of exposing the key in argv, but the file must be private and must remain
+/// present until the command has consumed it.
+struct SecretFile {
+    path: PathBuf,
+}
+
+impl SecretFile {
+    fn create(label: &str, contents: &str) -> io::Result<Self> {
+        let path = std::env::temp_dir().join(format!("axiom-wg-{label}-{}", Uuid::new_v4()));
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        options.mode(0o600);
+
+        let mut file = options.open(&path)?;
+        if let Err(error) = file.write_all(contents.as_bytes()) {
+            drop(file);
+            let _ = fs::remove_file(&path);
+            return Err(error);
+        }
+        Ok(Self { path })
+    }
+}
+
+impl Drop for SecretFile {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
 }
 
 impl TunnelSpec {
@@ -87,20 +123,22 @@ pub fn bring_up_tunnel(
     // Configure the private key. wg-quick uses a file; `wg set` accepts the
     // key on stdin. Use the file-based form to avoid the key appearing in
     // process argv (it would be visible in /proc).
-    let key_file = format!("/tmp/wg_priv_{}", ns);
-    std::fs::write(&key_file, private_key.as_bytes())?;
+    let key_file = SecretFile::create("private", private_key)?;
+    let psk_file = preshared_key
+        .map(|key| SecretFile::create("preshared", key))
+        .transpose()?;
     let mut args: Vec<String> = vec![
         "wg".into(),
         "set".into(),
         TUNNEL_IFACE.into(),
         "private-key".into(),
-        key_file.clone(),
+        key_file.path.to_string_lossy().into_owned(),
     ];
-    if let Some(psk) = preshared_key {
-        let psk_file = format!("/tmp/wg_psk_{}", ns);
-        std::fs::write(&psk_file, psk.as_bytes())?;
-        args.extend(["preshared-key".into(), psk_file.clone()]);
-        let _ = std::fs::remove_file(&psk_file);
+    if let Some(psk_file) = &psk_file {
+        args.extend([
+            "preshared-key".into(),
+            psk_file.path.to_string_lossy().into_owned(),
+        ]);
     }
     args.extend([
         "peer".into(),
@@ -115,8 +153,7 @@ pub fn bring_up_tunnel(
         args.extend(["persistent-keepalive".into(), ks]);
     }
     let arg_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    let _ = exec(&arg_refs);
-    let _ = std::fs::remove_file(&key_file);
+    exec(&arg_refs)?;
 
     // Assign the tunnel address and bring it up.
     exec(&[
@@ -170,6 +207,8 @@ pub fn tunnel_has_handshake(ns: &str) -> bool {
 mod tests {
     use super::*;
     use crate::config::{EgressMode, NetworkConfig};
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
 
     fn base_cfg() -> NetworkConfig {
         NetworkConfig {
@@ -223,5 +262,21 @@ mod tests {
             "10.7.0.2/32"
         )
         .is_err());
+    }
+
+    #[test]
+    fn secret_files_are_private_and_removed_after_use() {
+        let path;
+        {
+            let secret = SecretFile::create("test", "not-for-logs").unwrap();
+            path = secret.path.clone();
+            assert_eq!(fs::read_to_string(&path).unwrap(), "not-for-logs");
+            #[cfg(unix)]
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+        assert!(!path.exists());
     }
 }
