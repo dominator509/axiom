@@ -291,3 +291,4 @@
 2026-09-09T20:03:49Z | [P1][METRICS/LOOP] Reschedule successful metrics.poll jobs into deduplicated 15-minute cadence slots so the viral measure-label loop continues beyond the first sample; worker suite 75/75, API relay-viral 7/7, worker build/lint/format and diff checks passed
 2026-09-09T20:16:50Z | [P1][ANALYTICS/CONSISTENCY] Normalize MCP analytics and playbook adherence to latest cumulative provider snapshot per target; focused tests 3/3 and 6/6, typechecks, formatting, lint, diff checks, and verify passed
 2026-09-09T20:32:02Z | [P2][PLAYBOOK/CORRECTNESS] Restrict adherence ToS and cumulative metric inputs to published targets within the declared 30-day window; API suite 335/335, typecheck, build, formatting, diff checks, and verify passed
+2026-09-09T20:45:23Z | [P1][TENANT/ANALYTICS] Add explicit post_target organization predicates to API and MCP metric joins; focused analytics/playbook/MCP tests, typechecks, lint, diff checks, and verify passed

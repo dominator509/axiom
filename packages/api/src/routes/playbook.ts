@@ -63,6 +63,7 @@ async function deriveAdherenceInputs(
       and(
         eq(schema.contentBundle.modelId, modelId),
         eq(schema.contentBundle.orgId, orgId),
+        eq(schema.postTarget.orgId, orgId),
         gte(schema.postTarget.scheduledFor, windowStart),
       ),
     );
@@ -100,6 +101,7 @@ async function deriveAdherenceInputs(
       and(
         eq(schema.contentBundle.modelId, modelId),
         eq(schema.contentBundle.orgId, orgId),
+        eq(schema.postTarget.orgId, orgId),
         eq(schema.postTarget.state, 'published'),
         gte(schema.postTarget.scheduledFor, windowStart),
       ),
@@ -137,6 +139,7 @@ async function deriveAdherenceInputs(
       and(
         eq(schema.contentBundle.modelId, modelId),
         eq(schema.contentBundle.orgId, orgId),
+        eq(schema.postTarget.orgId, orgId),
         eq(schema.postTarget.state, 'published'),
         gte(schema.postTarget.scheduledFor, windowStart),
         gte(schema.postMetric.collectedAt, windowStart),

@@ -127,6 +127,7 @@ router.get('/models/:modelId/analytics', async (c) => {
         and(
           eq(schema.contentBundle.orgId, orgId),
           eq(schema.contentBundle.modelId, modelId),
+          eq(schema.postTarget.orgId, orgId),
           gte(schema.postMetric.collectedAt, since),
         ),
       );

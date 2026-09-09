@@ -62,6 +62,7 @@ export class AnalyticsTool {
       const conditions = [
         eq(schema.contentBundle.orgId, orgId),
         eq(schema.contentBundle.modelId, args.modelId),
+        eq(schema.postTarget.orgId, orgId),
       ];
       if (args.dateFrom)
         conditions.push(gte(schema.postMetric.collectedAt, new Date(args.dateFrom)));
