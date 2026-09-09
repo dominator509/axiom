@@ -232,8 +232,18 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
         const clientId = process.env.DISCORD_APPLICATION_ID;
         if (!token || !clientId) throw new Error('relay.card: Discord bot env not configured');
         const adapter = new DiscordAdapter({ token, clientId });
-        ctx.markExternalSideEffect?.();
-        await adapter.sendCard(chatRef, card);
+        // Worker relay jobs construct a short-lived adapter instead of using
+        // the API process's long-lived gateway client. Authenticate that
+        // client before resolving the channel, then tear it down after the
+        // one-shot send so the worker neither dispatches anonymously nor
+        // leaks a gateway connection per job.
+        try {
+          await adapter.login();
+          ctx.markExternalSideEffect?.();
+          await adapter.sendCard(chatRef, card);
+        } finally {
+          adapter.getClient().destroy();
+        }
         break;
       }
       case 'signal': {

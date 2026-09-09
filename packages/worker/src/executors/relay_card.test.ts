@@ -8,6 +8,8 @@ const mockState = vi.hoisted(() => ({
   results: [] as unknown[],
   sent: [] as Array<{ chatRef: string; card: Record<string, unknown> }>,
   inserts: [] as unknown[],
+  discordLogins: 0,
+  discordDestroys: 0,
 }));
 
 function makeChain(): any {
@@ -55,7 +57,24 @@ vi.mock('@axiom/relay', async () => {
       mockState.sent.push({ chatRef, card });
     }
   }
-  return { ...actual, TelegramAdapter: TestTelegramAdapter };
+  class TestDiscordAdapter {
+    async login(): Promise<void> {
+      mockState.discordLogins += 1;
+    }
+
+    getClient(): { destroy: () => void } {
+      return { destroy: () => mockState.discordDestroys++ };
+    }
+
+    async sendCard(chatRef: string, card: Record<string, unknown>): Promise<void> {
+      mockState.sent.push({ chatRef, card });
+    }
+  }
+  return {
+    ...actual,
+    TelegramAdapter: TestTelegramAdapter,
+    DiscordAdapter: TestDiscordAdapter,
+  };
 });
 
 import { assertRelayBindingDispatchable, relayCard } from './relay_card.js';
@@ -98,6 +117,8 @@ beforeEach(() => {
   ];
   mockState.sent = [];
   mockState.inserts = [];
+  mockState.discordLogins = 0;
+  mockState.discordDestroys = 0;
   vi.stubEnv('TELEGRAM_BOT_TOKEN', 'test-token');
   vi.stubEnv('AXIOM_ASSET_DELIVERY_BASE_URL', 'https://media.example.test/assets');
 });
@@ -160,5 +181,32 @@ describe('relayCard', () => {
       passed: true,
       score: 1,
     });
+  });
+
+  it('authenticates and closes a one-shot Discord gateway around card delivery', async () => {
+    mockState.results[2] = [
+      { id: 'binding-1', channel: 'discord', chatRef: 'channel-1', modelId: 'model-1' },
+    ];
+    vi.stubEnv('DISCORD_BOT_TOKEN', 'discord-token');
+    vi.stubEnv('DISCORD_APPLICATION_ID', 'discord-client');
+
+    const markExternalSideEffect = vi.fn();
+    const persistSideEffectMarker = vi.fn(async (operation: (markerTx: any) => Promise<unknown>) =>
+      operation(makeChain()),
+    ) as unknown as NonNullable<ExecutorContext['persistSideEffectMarker']>;
+
+    await relayCard({
+      tx: makeChain(),
+      job: JOB,
+      killSwitchEnabled: false,
+      workerId: 'worker-1',
+      markExternalSideEffect,
+      persistSideEffectMarker,
+    });
+
+    expect(mockState.discordLogins).toBe(1);
+    expect(mockState.discordDestroys).toBe(1);
+    expect(markExternalSideEffect).toHaveBeenCalledTimes(1);
+    expect(mockState.sent[0]?.chatRef).toBe('channel-1');
   });
 });
