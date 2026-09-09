@@ -52,6 +52,13 @@ const DEFAULT_CONFIG: VisionEngineConfig = {
   allowLocalFallback: false,
 };
 
+function configuredVisionBaseUrl(): string {
+  const configured = [process.env.VISION_ENGINE_URL, process.env.AXIOM_VISION_URL]
+    .map((value) => value?.trim())
+    .find((value): value is string => Boolean(value));
+  return configured ?? DEFAULT_CONFIG.baseUrl;
+}
+
 // ─── Local Heuristic Fallback ───
 
 /**
@@ -162,7 +169,11 @@ export class VisionEngineClient {
   private config: VisionEngineConfig;
 
   constructor(config?: Partial<VisionEngineConfig>) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    this.config = {
+      ...DEFAULT_CONFIG,
+      baseUrl: configuredVisionBaseUrl(),
+      ...config,
+    };
   }
 
   /**

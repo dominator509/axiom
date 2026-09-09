@@ -296,3 +296,4 @@
 2026-09-09T21:16:45Z | [P1][EGRESS/KILLSWITCH] Reject and tear down bindings that race kill-switch drain at final registry install; egress-plane tests 48/48, clippy, format, diff, and verify passed
 2026-09-09T21:29:39Z | [P1][WORKER/LEASE] Fail closed on lost job leases: verify heartbeat row ownership, reject side-effect markers after lease loss, and leave recovery to stale-lease reclamation; worker tests 76/76, typecheck, lint, format, diff, and verify passed
 2026-09-09T21:41:55Z | [P1][API/IDEMPOTENCY] Preserve RFC-7807 content type and correlation header when replaying stored mutation failures; API suite 335/335, typecheck, lint, format, diff, and verify passed
+2026-09-09T22:02:44Z | [P1][VISION/DEPLOYMENT] Resolve the Rust vision sidecar from VISION_ENGINE_URL or AXIOM_VISION_URL instead of hard-coded loopback; fanvue-mcp tests 63/63, typecheck, lint, format, and diff checks pass

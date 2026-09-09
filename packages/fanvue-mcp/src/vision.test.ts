@@ -23,9 +23,23 @@ function rustTosBody(over: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 describe('VisionEngineClient', () => {
+  it('uses the deployment-configured vision service for the default client', async () => {
+    vi.stubEnv('VISION_ENGINE_URL', 'http://vision-engine:8101');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(rustTosBody())));
+
+    const client = new VisionEngineClient();
+    await client.callTosClassify('/var/media/img.png');
+
+    const [url] = vi.mocked(fetch).mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('http://vision-engine:8101/vision/tos-classify');
+  });
+
   it('calls the Rust engine with image_path and maps the real response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(rustTosBody())));
     const client = new VisionEngineClient({ baseUrl: 'http://engine.test' });
