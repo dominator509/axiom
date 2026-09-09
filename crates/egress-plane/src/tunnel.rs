@@ -134,6 +134,7 @@ pub fn bring_up_tunnel(
         "private-key".into(),
         key_file.path.to_string_lossy().into_owned(),
     ];
+    args.extend(["peer".into(), spec.peer_pubkey.clone()]);
     if let Some(psk_file) = &psk_file {
         args.extend([
             "preshared-key".into(),
@@ -141,8 +142,6 @@ pub fn bring_up_tunnel(
         ]);
     }
     args.extend([
-        "peer".into(),
-        spec.peer_pubkey.clone(),
         "endpoint".into(),
         spec.endpoint.clone(),
         "allowed-ips".into(),
