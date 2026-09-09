@@ -37,9 +37,12 @@ export class AnalyticsTool {
       );
     }
 
-    const data = await withModelOrg(args.modelId, async (tx) => {
+    const data = await withModelOrg(args.modelId, async (tx, orgId) => {
       // Join post_metric → post_target → content_bundle to scope to the model.
-      const conditions = [eq(schema.contentBundle.modelId, args.modelId)];
+      const conditions = [
+        eq(schema.contentBundle.orgId, orgId),
+        eq(schema.contentBundle.modelId, args.modelId),
+      ];
       if (args.dateFrom)
         conditions.push(gte(schema.postMetric.collectedAt, new Date(args.dateFrom)));
       if (args.dateTo) conditions.push(lte(schema.postMetric.collectedAt, new Date(args.dateTo)));
@@ -80,11 +83,32 @@ export class AnalyticsTool {
         summary.views > 0
           ? ((summary.likes + summary.comments + summary.shares) / summary.views) * 100
           : 0;
+      const roundedEngagementRate = Math.round(engagementRate * 100) / 100;
+
+      let selectedValue: number | null = null;
+      switch (args.metric) {
+        case 'views':
+          selectedValue = summary.views;
+          break;
+        case 'likes':
+          selectedValue = summary.likes;
+          break;
+        case 'shares':
+          selectedValue = summary.shares;
+          break;
+        case 'comments':
+          selectedValue = summary.comments;
+          break;
+        case 'engagement_rate':
+          selectedValue = roundedEngagementRate;
+          break;
+      }
 
       return {
         metric: args.metric ?? 'all',
+        selected: args.metric ? { metric: args.metric, value: selectedValue } : null,
         dateRange: { from: args.dateFrom ?? 'all', to: args.dateTo ?? 'all' },
-        summary: { ...summary, engagementRate: Math.round(engagementRate * 100) / 100 },
+        summary: { ...summary, engagementRate: roundedEngagementRate },
         periods: rows.length,
       };
     });
