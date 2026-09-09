@@ -337,10 +337,19 @@ describe('startPolling / setWebhook', () => {
     const commandSpy = vi
       .spyOn(adapter.getBot(), 'command')
       .mockImplementation(() => adapter.getBot() as any);
-    const startSpy = vi.spyOn(adapter.getBot(), 'start').mockResolvedValue();
+    const startSpy = vi.spyOn(adapter.getBot(), 'start').mockImplementation(async (options) => {
+      await options?.onStart?.({} as never);
+    });
     await adapter.startPolling();
     expect(commandSpy).toHaveBeenCalled();
     expect(startSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails startup when grammY cannot initialize polling', async () => {
+    const error = new Error('Telegram unauthorized');
+    vi.spyOn(adapter.getBot(), 'start').mockRejectedValue(error);
+
+    await expect(adapter.startPolling()).rejects.toThrow('Telegram unauthorized');
   });
 
   it('setWebhook calls the API and registers commands', async () => {

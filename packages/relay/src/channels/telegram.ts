@@ -132,7 +132,42 @@ export class TelegramAdapter {
   async startPolling(): Promise<void> {
     this.setupCommands();
     this.registerCallbackHandler();
-    this.bot.start();
+
+    // grammY's start promise intentionally stays pending for the lifetime of
+    // long polling. Wait only for its onStart callback so initializeRuntime
+    // can fail closed on invalid credentials or a failed deleteWebhook call
+    // without blocking API startup on the polling loop itself.
+    let resolveStartup!: () => void;
+    let rejectStartup!: (reason?: unknown) => void;
+    let startupComplete = false;
+    const startup = new Promise<void>((resolve, reject) => {
+      resolveStartup = resolve;
+      rejectStartup = reject;
+    });
+
+    let polling: Promise<void>;
+    try {
+      polling = this.bot.start({
+        onStart: () => {
+          startupComplete = true;
+          resolveStartup();
+        },
+      });
+    } catch (error) {
+      rejectStartup(error);
+      await startup;
+      return;
+    }
+
+    void polling.catch((error) => {
+      if (!startupComplete) {
+        rejectStartup(error);
+        return;
+      }
+      console.error('Telegram long polling stopped', error);
+    });
+
+    await startup;
   }
 
   async setWebhook(url: string): Promise<void> {
