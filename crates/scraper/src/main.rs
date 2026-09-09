@@ -1,13 +1,19 @@
 use axum::{
-    extract::Json,
-    http::StatusCode,
+    extract::{Json, Request},
+    http::{header, StatusCode},
+    middleware::{self, Next},
     response::IntoResponse,
+    response::Response,
     routing::{get, post},
     Router,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{info, instrument, warn};
+
+const SCRAPER_AUTH_TOKEN_ENV: &str = "AXIOM_SCRAPER_AUTH_TOKEN";
+const MAX_PROFILE_BODY_BYTES: usize = 2 * 1024 * 1024;
+const MAX_COMPETITOR_PLATFORMS: usize = 10;
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -153,6 +159,8 @@ async fn scrape_competitor(
         req.brand_name, req.industry, req.platforms
     );
 
+    validate_competitor_platforms(&req.platforms)?;
+
     let mut results = Vec::with_capacity(req.platforms.len());
 
     for platform in &req.platforms {
@@ -227,8 +235,43 @@ async fn fetch_page(url: &str) -> Result<String, ScraperError> {
             url
         )));
     }
-    let text = resp.text().await?;
-    Ok(text)
+    if resp
+        .content_length()
+        .map(|length| length > MAX_PROFILE_BODY_BYTES as u64)
+        .unwrap_or(false)
+    {
+        return Err(ScraperError::Parse(format!(
+            "profile response exceeds {MAX_PROFILE_BODY_BYTES} bytes"
+        )));
+    }
+
+    let mut body = Vec::new();
+    let mut resp = resp;
+    while let Some(chunk) = resp.chunk().await? {
+        append_limited_body(&mut body, &chunk)?;
+    }
+
+    String::from_utf8(body)
+        .map_err(|_| ScraperError::Parse("profile response is not valid UTF-8".to_string()))
+}
+
+fn validate_competitor_platforms(platforms: &[String]) -> Result<(), ScraperError> {
+    if platforms.is_empty() || platforms.len() > MAX_COMPETITOR_PLATFORMS {
+        return Err(ScraperError::Parse(format!(
+            "platforms must contain between 1 and {MAX_COMPETITOR_PLATFORMS} entries"
+        )));
+    }
+    Ok(())
+}
+
+fn append_limited_body(body: &mut Vec<u8>, chunk: &[u8]) -> Result<(), ScraperError> {
+    if body.len().saturating_add(chunk.len()) > MAX_PROFILE_BODY_BYTES {
+        return Err(ScraperError::Parse(format!(
+            "profile response exceeds {MAX_PROFILE_BODY_BYTES} bytes"
+        )));
+    }
+    body.extend_from_slice(chunk);
+    Ok(())
 }
 
 fn is_allowed_profile_host(host: Option<&str>) -> bool {
@@ -499,6 +542,75 @@ fn chrono_now_iso() -> String {
     )
 }
 
+/// Protect scrape routes when the sidecar crosses a process or container
+/// boundary. Loopback development remains credential-free, but non-loopback
+/// deployments must configure this token before they start listening.
+async fn require_internal_auth(request: Request, next: Next) -> Response {
+    let Some(expected) = configured_auth_token() else {
+        return next.run(request).await;
+    };
+
+    let authorized = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| bearer_token_authorized(Some(value), &expected))
+        .unwrap_or(false);
+
+    if authorized {
+        next.run(request).await
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, "Bearer")],
+            "scraper authentication required",
+        )
+            .into_response()
+    }
+}
+
+fn configured_auth_token() -> Option<String> {
+    std::env::var(SCRAPER_AUTH_TOKEN_ENV)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn bearer_token_authorized(header_value: Option<&str>, expected: &str) -> bool {
+    header_value
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(|provided| provided == expected)
+        .unwrap_or(false)
+}
+
+fn non_loopback_without_auth(addr: &str, auth_token: Option<&str>) -> bool {
+    let is_loopback = addr
+        .parse::<std::net::SocketAddr>()
+        .map(|socket| socket.ip().is_loopback())
+        .unwrap_or(false);
+    !is_loopback
+        && auth_token
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+}
+
+fn validate_bind_security(addr: &str) {
+    assert!(
+        !non_loopback_without_auth(addr, configured_auth_token().as_deref()),
+        "social-scraper refuses non-loopback bind addresses without {SCRAPER_AUTH_TOKEN_ENV}"
+    );
+}
+
+fn build_app() -> Router {
+    let protected_routes = Router::new()
+        .route("/scrape/social", post(scrape_social))
+        .route("/scrape/competitor", post(scrape_competitor))
+        .layer(middleware::from_fn(require_internal_auth));
+    Router::new()
+        .route("/health", get(health))
+        .merge(protected_routes)
+}
+
 fn is_leap(year: i64) -> bool {
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
@@ -516,16 +628,12 @@ async fn main() {
         )
         .init();
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/scrape/social", post(scrape_social))
-        .route("/scrape/competitor", post(scrape_competitor));
-
     let addr = std::env::var("AXIOM_SCRAPER_ADDR").unwrap_or_else(|_| "127.0.0.1:8102".to_string());
+    validate_bind_security(&addr);
     info!("scraper listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, build_app()).await.unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -535,6 +643,11 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::{body::Body, http::Request as HttpRequest};
+    use std::sync::OnceLock;
+    use tower::ServiceExt;
+
+    static AUTH_ENV_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 
     const INSTAGRAM_HTML: &str = r#"<html><head>
       <title>NASA (@nasa) • Instagram photos and videos</title>
@@ -638,5 +751,113 @@ mod tests {
         assert!(!is_allowed_profile_host(Some(
             "instagram.com.attacker.example"
         )));
+    }
+
+    #[test]
+    fn non_loopback_scraper_bind_requires_authentication() {
+        assert!(non_loopback_without_auth("0.0.0.0:8102", None));
+        assert!(non_loopback_without_auth("scraper:8102", None));
+        assert!(!non_loopback_without_auth("127.0.0.1:8102", None));
+        assert!(!non_loopback_without_auth(
+            "0.0.0.0:8102",
+            Some("internal-token")
+        ));
+        assert!(non_loopback_without_auth("0.0.0.0:8102", Some("  ")));
+    }
+
+    #[test]
+    fn scraper_auth_requires_the_exact_bearer_token() {
+        assert!(bearer_token_authorized(
+            Some("Bearer internal-token"),
+            "internal-token"
+        ));
+        assert!(!bearer_token_authorized(None, "internal-token"));
+        assert!(!bearer_token_authorized(
+            Some("Bearer wrong-token"),
+            "internal-token"
+        ));
+        assert!(!bearer_token_authorized(
+            Some("Basic internal-token"),
+            "internal-token"
+        ));
+    }
+
+    #[tokio::test]
+    async fn scrape_routes_require_auth_but_health_remains_public() {
+        let _guard = AUTH_ENV_LOCK
+            .get_or_init(|| tokio::sync::Mutex::new(()))
+            .lock()
+            .await;
+        let previous = std::env::var_os(SCRAPER_AUTH_TOKEN_ENV);
+        unsafe {
+            std::env::set_var(SCRAPER_AUTH_TOKEN_ENV, "internal-token");
+        }
+
+        let body = serde_json::to_vec(&serde_json::json!({
+            "platform": "instagram",
+            "profile_url": "https://instagram.com/nasa"
+        }))
+        .unwrap();
+        let request = |authorization: Option<&str>| {
+            let mut builder = HttpRequest::builder()
+                .method("POST")
+                .uri("/scrape/social")
+                .header("Content-Type", "application/json");
+            if let Some(value) = authorization {
+                builder = builder.header("Authorization", value);
+            }
+            builder.body(Body::from(body.clone())).unwrap()
+        };
+
+        let unauthorized_response = build_app().clone().oneshot(request(None)).await.unwrap();
+        assert_eq!(unauthorized_response.status(), StatusCode::UNAUTHORIZED);
+        let wrong_token_response = build_app()
+            .clone()
+            .oneshot(request(Some("Bearer wrong-token")))
+            .await
+            .unwrap();
+        assert_eq!(wrong_token_response.status(), StatusCode::UNAUTHORIZED);
+        let authorized_response = build_app()
+            .clone()
+            .oneshot(request(Some("Bearer internal-token")))
+            .await
+            .unwrap();
+        assert_ne!(authorized_response.status(), StatusCode::UNAUTHORIZED);
+        let health_response = build_app()
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(health_response.status(), StatusCode::UNAUTHORIZED);
+
+        unsafe {
+            match previous {
+                Some(value) => std::env::set_var(SCRAPER_AUTH_TOKEN_ENV, value),
+                None => std::env::remove_var(SCRAPER_AUTH_TOKEN_ENV),
+            }
+        }
+    }
+
+    #[test]
+    fn competitor_platform_count_is_bounded() {
+        assert!(validate_competitor_platforms(&[]).is_err());
+        assert!(validate_competitor_platforms(&["instagram".to_string()]).is_ok());
+        assert!(validate_competitor_platforms(&vec![
+            "instagram".to_string();
+            MAX_COMPETITOR_PLATFORMS + 1
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn profile_body_limit_rejects_oversize_responses() {
+        let mut body = Vec::new();
+        append_limited_body(&mut body, &vec![b'a'; MAX_PROFILE_BODY_BYTES]).unwrap();
+        assert_eq!(body.len(), MAX_PROFILE_BODY_BYTES);
+        assert!(append_limited_body(&mut body, b"x").is_err());
     }
 }
