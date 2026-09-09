@@ -31,6 +31,13 @@ const SENSITIVE_QUERY_KEYS = new Set([
   'token',
 ]);
 
+/** Parse a successful provider response without treating an empty body as a failure. */
+async function parseSuccessfulJson<T>(response: Response): Promise<T> {
+  const body = await response.text();
+  if (body.trim().length === 0) return undefined as T;
+  return JSON.parse(body) as T;
+}
+
 /** Redact credential-bearing query parameters before a provider URL is logged. */
 export function redactProviderUrl(rawUrl: string): string {
   try {
@@ -265,7 +272,7 @@ export abstract class BaseConnector implements SocialConnector {
       throw new Error(`API GET ${safeUrl} failed: ${response.status} ${response.statusText}`);
     }
 
-    return response.json() as Promise<T>;
+    return parseSuccessfulJson<T>(response);
   }
 
   /**
@@ -296,7 +303,7 @@ export abstract class BaseConnector implements SocialConnector {
       throw new Error(`API POST ${safeUrl} failed: ${response.status} ${response.statusText}`);
     }
 
-    return response.json() as Promise<T>;
+    return parseSuccessfulJson<T>(response);
   }
 
   /**
@@ -325,7 +332,7 @@ export abstract class BaseConnector implements SocialConnector {
       throw new Error(`API Upload to ${safeUrl} failed: ${response.status} ${response.statusText}`);
     }
 
-    return response.json() as Promise<T>;
+    return parseSuccessfulJson<T>(response);
   }
 
   /**

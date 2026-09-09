@@ -246,6 +246,13 @@ describe('apiGet', () => {
     expect(errorLogs).toHaveLength(1);
   });
 
+  it('accepts a successful empty response such as HTTP 204', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+    const c = new TestConnector({ accessToken: 'tok' });
+    await expect(c.get('https://api.example.com/v1/things')).resolves.toBeUndefined();
+  });
+
   it('propagates network errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network down')));
     const c = new TestConnector();
@@ -279,6 +286,13 @@ describe('apiPost', () => {
     await expect(c.post('https://api.example.com/v1/create', {})).rejects.toThrow(
       'API POST https://api.example.com/v1/create failed: 400 Bad Request',
     );
+  });
+
+  it('accepts a successful empty response such as HTTP 204', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+    const c = new TestConnector({ accessToken: 'tok' });
+    await expect(c.post('https://api.example.com/v1/create', {})).resolves.toBeUndefined();
   });
 
   it('propagates network errors', async () => {
@@ -321,6 +335,14 @@ describe('apiUpload', () => {
     await expect(c.upload('https://api.example.com/v1/upload', fd)).rejects.toThrow(
       'API Upload to https://api.example.com/v1/upload failed: 503 Unavailable',
     );
+  });
+
+  it('accepts a successful empty response such as HTTP 204', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+    const c = new TestConnector({ accessToken: 'tok' });
+    const fd = new FormData();
+    await expect(c.upload('https://api.example.com/v1/upload', fd)).resolves.toBeUndefined();
   });
 });
 
