@@ -262,3 +262,4 @@
 2026-09-09T06:43:52Z | [P1][AUDIT/CONCURRENCY] Serialize worker incident audit-chain appends on the org row and order chain heads deterministically; incident and audit route tests, worker typecheck, lint, and diff checks passed
 2026-09-09T06:56:26Z | [P2][RELAY/RESILIENCE] Bound Signal CLI sends and BlueBubbles sends to 30 seconds so provider hangs cannot strand worker jobs; relay channel tests 70/70, typecheck, lint, formatting, and diff checks passed
 2026-09-09T07:07:32Z | [P2][RELAY/RESILIENCE] Bound grammY Telegram API requests to 60 seconds while preserving 30-second long polling; Telegram relay tests 17/17, typecheck, lint, formatting, and diff checks passed
+2026-09-09T07:21:53Z | [P2][MOBILE/AUTH] Added restart/bootstrap regression coverage proving persisted secure-session cookies are restored before get-session and expired cookies fail closed; mobile auth tests 2/2, typecheck, lint, formatting, and diff checks passed
