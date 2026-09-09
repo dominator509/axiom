@@ -129,21 +129,9 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
   };
   const embedding = embedFeatures(features);
 
-  // Upsert exemplar keyed by (model_id, bundle_id, platform) — re-labeling an
-  // existing exemplar is idempotent.
-  const existing = await tx
-    .select({ id: schema.viralExemplar.id })
-    .from(schema.viralExemplar)
-    .where(
-      and(
-        eq(schema.viralExemplar.orgId, job.org_id),
-        eq(schema.viralExemplar.modelId, bundle.modelId),
-        eq(schema.viralExemplar.bundleId, bundle.id),
-        eq(schema.viralExemplar.platform, target.platform),
-      ),
-    )
-    .limit(1);
-
+  // Atomically upsert the exemplar keyed by (org, model, bundle, platform).
+  // The unique constraint is the concurrency guard; a select-then-insert
+  // would allow concurrent metrics polls to create duplicate S2 context.
   const exemplarValues = {
     orgId: job.org_id,
     modelId: bundle.modelId,
@@ -155,19 +143,23 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     label,
   };
 
-  if (existing.length > 0) {
-    await tx
-      .update(schema.viralExemplar)
-      .set(exemplarValues)
-      .where(
-        and(
-          eq(schema.viralExemplar.id, existing[0].id),
-          eq(schema.viralExemplar.orgId, job.org_id),
-        ),
-      );
-  } else {
-    await tx.insert(schema.viralExemplar).values(exemplarValues);
-  }
+  await tx
+    .insert(schema.viralExemplar)
+    .values(exemplarValues)
+    .onConflictDoUpdate({
+      target: [
+        schema.viralExemplar.orgId,
+        schema.viralExemplar.modelId,
+        schema.viralExemplar.bundleId,
+        schema.viralExemplar.platform,
+      ],
+      set: {
+        features: exemplarValues.features,
+        embedding: exemplarValues.embedding,
+        perfScore: exemplarValues.perfScore,
+        label: exemplarValues.label,
+      },
+    });
 
   // Recipe + embedding (L2.8 F-81/F-82).
   const [recipe] = await tx

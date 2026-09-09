@@ -117,6 +117,12 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(sql).toContain('external-side-effect-unknown: worker lease expired before completion');
   });
 
+  it('enforces the viral exemplar identity used by the worker upsert', () => {
+    expect(sql).toContain('viral_exemplar_identity');
+    expect(sql).toContain('UNIQUE (org_id, model_id, bundle_id, platform)');
+    expect(sql).toContain('deduplicate before applying 0022');
+  });
+
   it('locks the trusted cross-org egress resolver to the runtime and migrator roles', () => {
     expect(sql).toContain('CREATE OR REPLACE FUNCTION load_model_network_configs()');
     expect(sql).toContain('RETURNS SETOF public.model_network_configs');
