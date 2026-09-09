@@ -34,7 +34,7 @@ export class LightningProvider implements BaseProvider {
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       temperature: options?.temperature,
       max_tokens: options?.maxTokens,
-    });
+    }, options?.signal, options?.fetchImpl ?? fetch);
     return {
       content: res.choices[0]?.message?.content ?? '',
       model: res.model ?? this.model,
@@ -57,7 +57,7 @@ export class LightningProvider implements BaseProvider {
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
         temperature: options?.temperature,
         max_tokens: options?.maxTokens,
-      })) {
+      }, options?.signal, options?.fetchImpl ?? fetch)) {
         yield { type: 'delta', content: delta };
       }
     } catch (err) {

@@ -49,6 +49,7 @@ export class VLLMProvider implements BaseProvider {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: options?.signal,
     });
 
     if (!res.ok) {
@@ -101,6 +102,7 @@ export class VLLMProvider implements BaseProvider {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: options?.signal,
     });
 
     if (!res.ok) {

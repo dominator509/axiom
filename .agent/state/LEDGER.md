@@ -273,3 +273,4 @@
 2026-09-09T15:38:37Z | [P2][CI/CONTAINERS] Pin all deployment Dockerfile base images to current multi-architecture manifest digests and add an immutable-base lint gate; base-pin check, shell syntax, workflow formatting, typecheck, lint, diff check, and verify gate passed
 2026-09-09T15:50:49Z | [P2][CI/CONTAINERS] Pin Compose PostgreSQL and pgAdmin service images to immutable manifest digests and extend the base-image gate to Compose; Compose config, base-pin check, typecheck, lint, formatting, diff check, and verify gate passed
 2026-09-09T16:10:41Z | [P2][CONNECTORS] Normalize Threads post-insights total_value aggregates alongside values time-series responses; add regression coverage; connector suite/typecheck/lint pass
+2026-09-09T16:28:03Z | [P2][LLM] Propagate ProviderOptions abort signals through all class-based provider chat and stream transports; add seven-provider regression coverage; gateway suite/typecheck/lint/build pass

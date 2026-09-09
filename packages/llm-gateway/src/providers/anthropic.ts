@@ -113,6 +113,7 @@ export class AnthropicProvider implements BaseProvider {
         'anthropic-version': this.apiVersion,
       },
       body: JSON.stringify(body),
+      signal: options?.signal,
     });
 
     if (!res.ok) {
@@ -162,6 +163,7 @@ export class AnthropicProvider implements BaseProvider {
         'anthropic-version': this.apiVersion,
       },
       body: JSON.stringify(body),
+      signal: options?.signal,
     });
 
     if (!res.ok) {

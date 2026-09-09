@@ -32,7 +32,7 @@ export class GoogleProvider implements BaseProvider {
         top_p: options?.topP,
         stop: options?.stop,
       },
-      undefined,
+      options?.signal,
       options?.fetchImpl ?? fetch,
     );
     return {
@@ -62,7 +62,7 @@ export class GoogleProvider implements BaseProvider {
           top_p: options?.topP,
           stop: options?.stop,
         },
-        undefined,
+        options?.signal,
         options?.fetchImpl ?? fetch,
       )) {
         yield { type: 'delta', content: delta };

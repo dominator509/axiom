@@ -28,7 +28,7 @@ export class MistralProvider implements BaseProvider {
         temperature: options?.temperature,
         max_tokens: options?.maxTokens,
       },
-      undefined,
+      options?.signal,
       options?.fetchImpl ?? fetch,
     );
     return {
@@ -56,7 +56,7 @@ export class MistralProvider implements BaseProvider {
           temperature: options?.temperature,
           max_tokens: options?.maxTokens,
         },
-        undefined,
+        options?.signal,
         options?.fetchImpl ?? fetch,
       )) {
         yield { type: 'delta', content: delta };
