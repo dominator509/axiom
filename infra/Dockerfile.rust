@@ -6,7 +6,8 @@
 # ------------------------------------------------------------------------------
 # Stage 1: Builder
 # ------------------------------------------------------------------------------
-FROM rust:1.97-slim-bookworm AS builder
+# rust:1.97-slim-bookworm manifest digest (resolved 2026-09-09).
+FROM rust:1.97-slim-bookworm@sha256:2775a09d208ff0d7c1f50490c45b62db929e87ba1dcbc3f2132ac71a704bcdd3 AS builder
 
 # Install build dependencies needed by native Rust crates
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -38,7 +39,8 @@ RUN cargo build --locked --release --package egress-plane
 # ------------------------------------------------------------------------------
 # Stage 2: Runtime
 # ------------------------------------------------------------------------------
-FROM debian:bookworm-slim AS runner
+# debian:bookworm-slim manifest digest (resolved 2026-09-09).
+FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS runner
 
 # The egress plane owns Linux namespace and firewall setup. Keep the image
 # minimal, but ship the tools its production code invokes at runtime.

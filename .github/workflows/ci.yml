@@ -89,6 +89,10 @@ jobs:
         run: |
           find scripts/ -maxdepth 1 -name '*.sh' -type f -print -exec sh -n {} \; && echo "Shell syntax: ok"
 
+      - name: Verify deployment base images are immutable
+        if: matrix.task == 'lint'
+        run: sh scripts/check-container-base-pins.sh
+
       - name: Rust clippy check
         if: matrix.task == 'lint'
         run: |
