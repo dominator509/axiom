@@ -269,6 +269,10 @@ jobs:
         if: matrix.task == 'security'
         run: pnpm security-check
 
+      - name: Run dependency advisory gate
+        if: matrix.task == 'security'
+        run: pnpm audit:dependencies
+
       # ───────────────────────────────────────────────────────────────────────
       #  MATRIX TASK: container
       # ───────────────────────────────────────────────────────────────────────
