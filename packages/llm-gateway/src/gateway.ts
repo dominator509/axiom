@@ -433,12 +433,12 @@ export class LLMGateway {
     }));
   }
 
-  async getSubscriptionStatus(provider: string, userId: string) {
+  async getSubscriptionStatus(provider: string, userId: string, signal?: AbortSignal) {
     const config = this.providers.get(provider);
     if (!config?.subscriptionSupported) {
       throw new ProviderError('Provider has no subscription transport', 404, provider);
     }
-    return this.subscriptionTransport.status(provider as SubscriptionProvider, userId);
+    return this.subscriptionTransport.status(provider as SubscriptionProvider, userId, signal);
   }
 
   connectSubscription(
@@ -453,12 +453,12 @@ export class LLMGateway {
     return this.subscriptionTransport.connect(provider as SubscriptionProvider, userId, signal);
   }
 
-  async disconnectSubscription(provider: string, userId: string): Promise<void> {
+  async disconnectSubscription(provider: string, userId: string, signal?: AbortSignal): Promise<void> {
     const config = this.providers.get(provider);
     if (!config?.subscriptionSupported) {
       throw new ProviderError('Provider has no subscription transport', 404, provider);
     }
-    await this.subscriptionTransport.disconnect(provider as SubscriptionProvider, userId);
+    await this.subscriptionTransport.disconnect(provider as SubscriptionProvider, userId, signal);
   }
 
   /** Select a provider based on policy and availability */

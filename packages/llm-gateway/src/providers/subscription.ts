@@ -52,13 +52,17 @@ export interface SubscriptionTransport {
   readonly providers: ReadonlySet<SubscriptionProvider>;
   chat(request: SubscriptionRequest): Promise<SubscriptionResult>;
   stream(request: SubscriptionRequest): AsyncIterable<string>;
-  status(provider: SubscriptionProvider, userId: string): Promise<SubscriptionConnectionStatus>;
+  status(
+    provider: SubscriptionProvider,
+    userId: string,
+    signal?: AbortSignal,
+  ): Promise<SubscriptionConnectionStatus>;
   connect(
     provider: SubscriptionProvider,
     userId: string,
     signal?: AbortSignal,
   ): AsyncIterable<string>;
-  disconnect(provider: SubscriptionProvider, userId: string): Promise<void>;
+  disconnect(provider: SubscriptionProvider, userId: string, signal?: AbortSignal): Promise<void>;
 }
 
 type CommandSpec = {
@@ -375,7 +379,9 @@ async function runAuthCommand(
   provider: SubscriptionProvider,
   userId: string,
   operation: 'status' | 'disconnect',
+  signal?: AbortSignal,
 ): Promise<{ exitCode: number | null; output: string }> {
+  if (signal?.aborted) throw new DOMException('Subscription command aborted', 'AbortError');
   const spec = authCommand(provider, userId, operation);
   const child = spawn(spec.command, spec.args, {
     env: spec.env,
@@ -388,11 +394,43 @@ async function runAuthCommand(
   child.stderr.setEncoding('utf8');
   child.stdout.on('data', (chunk: string) => output.push(chunk));
   child.stderr.on('data', (chunk: string) => output.push(chunk));
-  const exitCode = await new Promise<number | null>((resolveExit, rejectExit) => {
+  const exitPromise = new Promise<number | null>((resolveExit, rejectExit) => {
     child.once('error', rejectExit);
     child.once('exit', resolveExit);
   });
-  return { exitCode, output: sanitizedDiagnostic(output.join('')) };
+  const timeoutMs = Number(process.env.AXIOM_LLM_TRANSPORT_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let abort: (() => void) | undefined;
+  let timedOut = false;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+      reject(new ProviderError('Subscription command timed out', 504, provider));
+    }, timeoutMs);
+    timer.unref();
+  });
+  const abortPromise = signal
+    ? new Promise<never>((_, reject) => {
+        abort = () => {
+          child.kill();
+          reject(new DOMException('Subscription command aborted', 'AbortError'));
+        };
+        signal.addEventListener('abort', abort, { once: true });
+        if (signal.aborted) abort();
+      })
+    : undefined;
+  try {
+    const exitCode = await Promise.race(
+      abortPromise ? [exitPromise, timeoutPromise, abortPromise] : [exitPromise, timeoutPromise],
+    );
+    if (timedOut) throw new ProviderError('Subscription command timed out', 504, provider);
+    if (signal?.aborted) throw new DOMException('Subscription command aborted', 'AbortError');
+    return { exitCode, output: sanitizedDiagnostic(output.join('')) };
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (abort) signal?.removeEventListener('abort', abort);
+  }
 }
 
 async function* runAuthConnect(
@@ -575,11 +613,12 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
   async status(
     provider: SubscriptionProvider,
     userId: string,
+    signal?: AbortSignal,
   ): Promise<SubscriptionConnectionStatus> {
     if (provider === 'grok') {
       return { provider, connected: existsSync(join(profileRoot(userId, provider), 'auth.json')) };
     }
-    const result = await runAuthCommand(provider, userId, 'status');
+    const result = await runAuthCommand(provider, userId, 'status', signal);
     const disconnected =
       /(not logged|not authenticated|logged.?in.?false|authenticated.?false)/i.test(result.output);
     return { provider, connected: result.exitCode === 0 && !disconnected };
@@ -593,8 +632,8 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
     return runAuthConnect(provider, userId, signal);
   }
 
-  async disconnect(provider: SubscriptionProvider, userId: string): Promise<void> {
-    const result = await runAuthCommand(provider, userId, 'disconnect');
+  async disconnect(provider: SubscriptionProvider, userId: string, signal?: AbortSignal): Promise<void> {
+    const result = await runAuthCommand(provider, userId, 'disconnect', signal);
     if (result.exitCode !== 0) {
       throw new ProviderError(
         result.output || 'Subscription logout failed',

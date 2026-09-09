@@ -239,9 +239,16 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
     const parsed = subscriptionProviderSchema.safeParse(c.req.param('provider'));
     if (!parsed.success) return problemResponse(c, 404, 'Unsupported subscription provider');
     try {
-      return c.json(await gateway.getSubscriptionStatus(parsed.data, c.get('userId')));
+      return c.json(
+        await gateway.getSubscriptionStatus(parsed.data, c.get('userId'), c.req.raw.signal),
+      );
     } catch (err) {
-      const status = (err instanceof ProviderError ? err.status : 502) as 401 | 404 | 502 | 503;
+      const status = (err instanceof ProviderError ? err.status : 502) as
+        | 401
+        | 404
+        | 502
+        | 503
+        | 504;
       return problemResponse(c, status, 'Unable to read subscription status');
     }
   });
@@ -282,10 +289,15 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
     const parsed = subscriptionProviderSchema.safeParse(c.req.param('provider'));
     if (!parsed.success) return problemResponse(c, 404, 'Unsupported subscription provider');
     try {
-      await gateway.disconnectSubscription(parsed.data, c.get('userId'));
+      await gateway.disconnectSubscription(parsed.data, c.get('userId'), c.req.raw.signal);
       return c.json({ provider: parsed.data, connected: false });
     } catch (err) {
-      const status = (err instanceof ProviderError ? err.status : 502) as 401 | 404 | 502 | 503;
+      const status = (err instanceof ProviderError ? err.status : 502) as
+        | 401
+        | 404
+        | 502
+        | 503
+        | 504;
       return problemResponse(c, status, 'Unable to disconnect subscription');
     }
   });

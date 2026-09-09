@@ -358,7 +358,11 @@ describe('createRouter — subscription OAuth lifecycle', () => {
     const res = await authenticatedApp(gateway).request('/subscriptions/grok');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ provider: 'grok', connected: true });
-    expect(gateway.getSubscriptionStatus).toHaveBeenCalledWith('grok', 'user-route-test');
+    expect(gateway.getSubscriptionStatus).toHaveBeenCalledWith(
+      'grok',
+      'user-route-test',
+      expect.any(AbortSignal),
+    );
   });
 
   it('streams provider login instructions without caching', async () => {
@@ -383,7 +387,11 @@ describe('createRouter — subscription OAuth lifecycle', () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ provider: 'anthropic', connected: false });
-    expect(gateway.disconnectSubscription).toHaveBeenCalledWith('anthropic', 'user-route-test');
+    expect(gateway.disconnectSubscription).toHaveBeenCalledWith(
+      'anthropic',
+      'user-route-test',
+      expect.any(AbortSignal),
+    );
   });
 
   it('rejects providers without a qualifying subscription transport', async () => {
