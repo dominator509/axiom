@@ -196,6 +196,36 @@ describe('processJob state transitions', () => {
     );
   });
 
+  it('fails closed when a heartbeat loses lease ownership', async () => {
+    vi.useFakeTimers();
+    try {
+      mockState.result = [{ id: 'job-1', publishingEnabled: true }];
+      let releaseExecutor!: () => void;
+      let markExternalSideEffect!: () => void;
+      const executor = vi.fn(async (ctx: { markExternalSideEffect?: () => void }) => {
+        markExternalSideEffect = ctx.markExternalSideEffect!;
+        await new Promise<void>((resolve) => {
+          releaseExecutor = resolve;
+        });
+      });
+      const job = makeJob({ kind: 'test.heartbeat' });
+      const processing = processJob(job, { 'test.heartbeat': executor }, 'w1', {});
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(markExternalSideEffect).toBeTypeOf('function');
+
+      // The next renewal observes that the row is no longer owned by w1.
+      mockState.result = [];
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+      expect(() => markExternalSideEffect()).toThrow('lease ownership lost during execution');
+
+      releaseExecutor();
+      await expect(processing).rejects.toThrow('lease ownership lost during execution');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('throws for an unknown job kind', async () => {
     const job = makeJob({ kind: 'unknown.kind' });
     await expect(processJob(job, defaultExecutors, 'w1', {})).rejects.toThrow(/no executor/);

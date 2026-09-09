@@ -37,6 +37,17 @@ export interface WorkerStats {
 
 const JOB_LEASE_HEARTBEAT_MS = 5 * 60_000;
 
+class JobLeaseLostError extends Error {
+  constructor(jobId: string) {
+    super(`worker: job ${jobId} lease ownership lost during execution`);
+    this.name = 'JobLeaseLostError';
+  }
+}
+
+interface LeaseState {
+  lost: JobLeaseLostError | null;
+}
+
 function ownedRunningJob(job: JobRow, workerId: string) {
   return and(
     eq(schema.job.id, job.id),
@@ -72,13 +83,23 @@ async function updateOwnedJob(
 async function renewJobLease(job: JobRow, workerId: string): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
-    await tx.update(schema.job).set({ lockedAt: new Date() }).where(ownedRunningJob(job, workerId));
+    const rows = await tx
+      .update(schema.job)
+      .set({ lockedAt: new Date() })
+      .where(ownedRunningJob(job, workerId))
+      .returning({ id: schema.job.id });
+    if (!Array.isArray(rows) || rows.length !== 1) {
+      throw new JobLeaseLostError(job.id);
+    }
   });
 }
 
-function startJobLeaseHeartbeat(job: JobRow, workerId: string): () => void {
+function startJobLeaseHeartbeat(job: JobRow, workerId: string, leaseState: LeaseState): () => void {
   const timer = setInterval(() => {
     void renewJobLease(job, workerId).catch((err: unknown) => {
+      if (!leaseState.lost) {
+        leaseState.lost = err instanceof JobLeaseLostError ? err : new JobLeaseLostError(job.id);
+      }
       console.error('[worker] job lease renewal failed:', (err as Error).message ?? String(err));
     });
   }, JOB_LEASE_HEARTBEAT_MS);
@@ -112,7 +133,8 @@ export async function processJob(
     throw new Error(`worker: no executor for kind '${job.kind}'`);
   }
 
-  const stopLeaseHeartbeat = startJobLeaseHeartbeat(job, workerId);
+  const leaseState: LeaseState = { lost: null };
+  const stopLeaseHeartbeat = startJobLeaseHeartbeat(job, workerId, leaseState);
   let externalSideEffectStarted = false;
   try {
     // claim_job set the org context only for ITS transaction; this executor
@@ -127,16 +149,20 @@ export async function processJob(
         workerId,
         killSwitchEnabled,
         markExternalSideEffect: () => {
+          if (leaseState.lost) throw leaseState.lost;
           externalSideEffectStarted = true;
         },
-        persistSideEffectMarker: async <T>(operation: (markerTx: any) => Promise<T>) =>
-          db.transaction(async (markerTx) => {
+        persistSideEffectMarker: async <T>(operation: (markerTx: any) => Promise<T>) => {
+          if (leaseState.lost) throw leaseState.lost;
+          return db.transaction(async (markerTx) => {
             await markerTx.execute(
               sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`,
             );
             return operation(markerTx);
-          }),
+          });
+        },
       });
+      if (leaseState.lost) throw leaseState.lost;
       await updateOwnedJob(tx, job, workerId, {
         state: 'done',
         completedAt: new Date(),
@@ -151,6 +177,14 @@ export async function processJob(
     job.last_error = null;
     return result;
   } catch (err) {
+    // A lost lease means another worker may own the row, or may reclaim it
+    // once the stale-lease window expires. Do not mutate it from this worker;
+    // leaving it running lets the database recovery path decide the next
+    // state without risking a conflicting retry or dead-letter transition.
+    if (err instanceof JobLeaseLostError || leaseState.lost) {
+      throw leaseState.lost ?? err;
+    }
+
     // Once provider I/O has started, a later failure has an unknown external
     // outcome. Retrying would be unsafe: the provider may already have
     // accepted the publish/card. Dead-letter it for reconciliation instead.
