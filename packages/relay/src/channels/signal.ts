@@ -3,6 +3,8 @@ import type { RelayCard, CardAction } from '../card.js';
 import { CardRenderer } from '../card.js';
 import { CommandRouter, type CommandContext } from '../commands.js';
 
+const SIGNAL_SEND_TIMEOUT_MS = 30_000;
+
 export interface SignalConfig {
   cliPath: string;
   account: string;
@@ -58,7 +60,9 @@ export class SignalAdapter {
     }
     const body = this.renderer.toText(card);
 
-    await execa(this.config.cliPath, ['send', '-a', this.config.account, chatId, body]);
+    await execa(this.config.cliPath, ['send', '-a', this.config.account, chatId, body], {
+      timeout: SIGNAL_SEND_TIMEOUT_MS,
+    });
   }
 
   /**

@@ -260,3 +260,4 @@
 2026-09-09T06:12:54Z | [P1][CI/SECURITY] Make the world-writable mode check platform-aware: skip POSIX mode bits on Windows/NTFS to avoid false positives while retaining the fail-closed Linux check; sh syntax, dependency audit, and diff checks passed. Local cargo-audit remains blocked by the read-only RustSec advisory-cache lock.
 2026-09-09T06:31:12Z | [P1][SAFETY] Fail closed when worker and MCP kill-switch state is missing or malformed; added regression coverage
 2026-09-09T06:43:52Z | [P1][AUDIT/CONCURRENCY] Serialize worker incident audit-chain appends on the org row and order chain heads deterministically; incident and audit route tests, worker typecheck, lint, and diff checks passed
+2026-09-09T06:56:26Z | [P2][RELAY/RESILIENCE] Bound Signal CLI sends and BlueBubbles sends to 30 seconds so provider hangs cannot strand worker jobs; relay channel tests 70/70, typecheck, lint, formatting, and diff checks passed

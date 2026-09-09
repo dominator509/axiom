@@ -54,7 +54,11 @@ describe('sendCard', () => {
     await adapter.sendCard('+15559998888', makeCard());
 
     expect(mockedExeca).toHaveBeenCalledTimes(1);
-    const [cliPath, args] = mockedExeca.mock.calls[0] as unknown as [string, string[]];
+    const [cliPath, args, options] = mockedExeca.mock.calls[0] as unknown as [
+      string,
+      string[],
+      { timeout?: number },
+    ];
     expect(cliPath).toBe('/usr/bin/signal-cli');
     expect(args).toEqual([
       'send',
@@ -65,6 +69,7 @@ describe('sendCard', () => {
     ]);
     expect(args[4]).toContain('approve');
     expect(args[4]).toContain('Actions (reply with the action and its signed token):');
+    expect(options).toEqual({ timeout: 30_000 });
   });
 
   it('propagates CLI failures', async () => {
