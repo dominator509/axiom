@@ -289,6 +289,158 @@ pub struct AppState {
     pub registry: Mutex<Registry>,
 }
 
+/// Remove a bound egress from the in-memory registry and release the subnet
+/// reservation that belongs to it. The caller must tear down the returned
+/// kernel/process resources before starting a replacement with the same model
+/// namespace.
+fn take_bound(state: &Arc<AppState>, model_id: &str) -> Option<BoundEgress> {
+    let mut registry = state.registry.lock().unwrap();
+    let bound = registry.bounds.remove(model_id);
+    if let Some(existing) = bound.as_ref() {
+        if let Some(octet) = bound_octet(existing) {
+            registry.release_octet(octet);
+        }
+        registry.unbinds_total += 1;
+    }
+    bound
+}
+
+/// Replace the registry entry after a new binding has been fully created and
+/// probed. A previous entry is returned for teardown by the caller; replacing
+/// it here also prevents an async caller from publishing a new registry state
+/// without releasing the old subnet reservation.
+fn replace_bound(
+    state: &Arc<AppState>,
+    model_id: String,
+    bound: BoundEgress,
+) -> Option<BoundEgress> {
+    let mut registry = state.registry.lock().unwrap();
+    let previous = registry.bounds.insert(model_id, bound);
+    if let Some(existing) = previous.as_ref() {
+        if let Some(octet) = bound_octet(existing) {
+            registry.release_octet(octet);
+        }
+        registry.unbinds_total += 1;
+    }
+    registry.binds_total += 1;
+    previous
+}
+
+fn bound_octet(bound: &BoundEgress) -> Option<u16> {
+    bound
+        .host_ip
+        .split('.')
+        .nth(2)
+        .and_then(|s| s.parse::<u16>().ok())
+}
+
+fn same_binding_config(bound: &BoundEgress, persisted: &NetworkConfig) -> bool {
+    let current = &bound.config;
+    current.model_id == persisted.model_id
+        && current.org_id == persisted.org_id
+        && current.mode == persisted.mode
+        && current.proxy_addr == persisted.proxy_addr
+        && current.wg_public_key == persisted.wg_public_key
+        && current.wg_endpoint == persisted.wg_endpoint
+        && current.wg_allowed_ips == persisted.wg_allowed_ips
+        && current.wg_persistent_keepalive == persisted.wg_persistent_keepalive
+        && current.expected_egress_ip == persisted.expected_egress_ip
+        && current.failover_proxy_addrs == persisted.failover_proxy_addrs
+        && current.enc_creds == persisted.enc_creds
+        && current.enc_nonce == persisted.enc_nonce
+        && current.dek_id == persisted.dek_id
+}
+
+#[cfg(test)]
+mod registry_tests {
+    use super::*;
+
+    fn network_config() -> NetworkConfig {
+        NetworkConfig {
+            model_id: "model-1".to_string(),
+            org_id: "org-1".to_string(),
+            mode: EgressMode::Direct,
+            proxy_addr: None,
+            wg_public_key: None,
+            wg_endpoint: None,
+            wg_allowed_ips: None,
+            wg_persistent_keepalive: None,
+            expected_egress_ip: None,
+            failover_proxy_addrs: Vec::new(),
+            enc_creds: None,
+            enc_nonce: None,
+            dek_id: None,
+        }
+    }
+
+    fn bound() -> BoundEgress {
+        BoundEgress {
+            config: network_config(),
+            ns: String::new(),
+            veth_host: String::new(),
+            host_ip: "10.240.7.2".to_string(),
+            ns_ip: String::new(),
+            child: None,
+            upstream: Upstream::Direct,
+            health: HealthState::default(),
+            failover_index: 0,
+        }
+    }
+
+    fn state() -> Arc<AppState> {
+        Arc::new(AppState {
+            config: Config {
+                kill_switch: "false".to_string(),
+                listen_addr: "127.0.0.1:0".to_string(),
+                auth_token: None,
+                echo_url: "https://example.invalid/ip".to_string(),
+                database_url: None,
+                dek: None,
+                sidecar_bin: None,
+            },
+            kill_switch: KillSwitch::new(false),
+            db: Mutex::new(None),
+            registry: Mutex::new(Registry::new()),
+        })
+    }
+
+    #[test]
+    fn taking_bound_releases_subnet_and_counts_replacement_cleanup() {
+        let state = state();
+        {
+            let mut registry = state.registry.lock().unwrap();
+            registry.used_octets.push(7);
+            registry.bounds.insert("model-1".to_string(), bound());
+        }
+
+        let removed = take_bound(&state, "model-1").expect("binding should exist");
+        assert_eq!(bound_octet(&removed), Some(7));
+
+        let registry = state.registry.lock().unwrap();
+        assert!(registry.bounds.is_empty());
+        assert!(registry.used_octets.is_empty());
+        assert_eq!(registry.unbinds_total, 1);
+    }
+
+    #[test]
+    fn persisted_binding_comparison_detects_credential_rotation() {
+        let mut current = bound();
+        let mut persisted = network_config();
+        persisted.enc_creds = Some(vec![1, 2, 3]);
+        persisted.enc_nonce = Some(vec![4, 5, 6]);
+        persisted.dek_id = Some("rotated-key".to_string());
+        assert!(!same_binding_config(&current, &persisted));
+
+        current.config.enc_creds = persisted.enc_creds.clone();
+        current.config.enc_nonce = persisted.enc_nonce.clone();
+        current.config.dek_id = persisted.dek_id.clone();
+        assert!(same_binding_config(&current, &persisted));
+
+        persisted.expected_egress_ip = Some("203.0.113.10".to_string());
+        assert!(!same_binding_config(&current, &persisted));
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Request / Response types
 // ---------------------------------------------------------------------------
@@ -650,6 +802,20 @@ pub async fn egress_bind(
     Json(body): Json<BindRequest>,
 ) -> Result<impl IntoResponse, EgressError> {
     let correlation_id = Uuid::new_v4().to_string();
+
+    // Validate before removing a live binding. Rebinding uses the model's
+    // deterministic namespace name, so the previous namespace must be torn
+    // down before a replacement can be created without a name collision.
+    resolve_config(&body).await?;
+    if state.kill_switch.is_enabled() {
+        return Err(EgressError::KillSwitch(
+            "egress blocked by kill-switch".to_string(),
+        ));
+    }
+    if let Some(previous) = take_bound(&state, &body.model_id) {
+        let _ = teardown_bound(previous);
+    }
+
     let mut bound = bind_egress(&state, &body).await?;
 
     // First health probe (fail-closed: a dead egress is reported as unhealthy,
@@ -660,13 +826,10 @@ pub async fn egress_bind(
     let mode = bound.config.mode.as_str().to_string();
     let health_snapshot = bound.health.clone();
 
-    {
-        let mut reg = state.registry.lock().unwrap();
-        if let Some(prev) = reg.bounds.remove(&model_id) {
-            let _ = teardown_bound(prev);
-        }
-        reg.binds_total += 1;
-        reg.bounds.insert(model_id.clone(), bound);
+    if let Some(previous) = replace_bound(&state, model_id.clone(), bound) {
+        // This is only expected if a concurrent bind won the registry race;
+        // retain the newest fully-probed binding and clean up the old one.
+        let _ = teardown_bound(previous);
     }
 
     // Persist health to Postgres when connected (take/replace: no lock held
@@ -742,22 +905,10 @@ pub async fn egress_unbind(
     Json(body): Json<UnbindRequest>,
 ) -> Result<impl IntoResponse, EgressError> {
     let correlation_id = Uuid::new_v4().to_string();
-    let removed = {
-        let mut reg = state.registry.lock().unwrap();
-        reg.unbinds_total += 1;
-        reg.bounds.remove(&body.model_id)
-    };
+    let removed = take_bound(&state, &body.model_id);
     match removed {
         Some(bound) => {
-            let octet = bound
-                .host_ip
-                .split('.')
-                .nth(2)
-                .and_then(|s| s.parse::<u16>().ok());
             let _ = teardown_bound(bound);
-            if let Some(o) = octet {
-                state.registry.lock().unwrap().release_octet(o);
-            }
             Ok((
                 StatusCode::OK,
                 Json(serde_json::json!({
@@ -1138,16 +1289,57 @@ pub async fn egress_sync(
         }
     };
     *state.db.lock().unwrap() = client;
+    // Reconcile the complete persisted set, not just additions. Removed
+    // rows, direct-mode rows, and kill-switch activation must all tear down a
+    // previously isolated binding; otherwise deleted credentials and network
+    // namespaces remain live after a sync.
+    let configs_by_model: HashMap<String, NetworkConfig> = configs
+        .into_iter()
+        .map(|cfg| (cfg.model_id.clone(), cfg))
+        .collect();
+    let kill_switch_enabled = state.kill_switch.is_enabled();
+    let stale_models: Vec<String> = {
+        let registry = state.registry.lock().unwrap();
+        registry
+            .bounds
+            .iter()
+            .filter_map(|(model_id, current)| {
+                let keep = !kill_switch_enabled
+                    && configs_by_model.get(model_id).is_some_and(|persisted| {
+                        persisted.mode != EgressMode::Direct
+                            && same_binding_config(current, persisted)
+                    });
+                (!keep).then(|| model_id.clone())
+            })
+            .collect()
+    };
+    for model_id in stale_models {
+        if let Some(previous) = take_bound(&state, &model_id) {
+            let _ = teardown_bound(previous);
+        }
+    }
+
     let mut bound = 0usize;
     let mut skipped = 0usize;
-    for cfg in configs {
-        if state.kill_switch.is_enabled() {
+    for cfg in configs_by_model.into_values() {
+        if kill_switch_enabled {
             skipped += 1;
             continue;
         }
-        // Skip direct-mode rows (no isolation to enforce).
+        // Direct mode is an explicit no-isolation choice and never needs a
+        // sidecar binding. Any prior isolated binding was removed above.
         if cfg.mode == EgressMode::Direct {
             skipped += 1;
+            continue;
+        }
+        let already_bound = state
+            .registry
+            .lock()
+            .unwrap()
+            .bounds
+            .contains_key(&cfg.model_id);
+        if already_bound {
+            bound += 1;
             continue;
         }
         let creds = db::decrypt_creds(&cfg, state.config.dek.as_ref().map(|d| d.as_slice()))
@@ -1173,13 +1365,15 @@ pub async fn egress_sync(
         match bind_egress(&state, &req).await {
             Ok(mut b) => {
                 probe_bound(&state, &mut b).await;
-                state.registry.lock().unwrap().binds_total += 1;
-                state
-                    .registry
-                    .lock()
-                    .unwrap()
-                    .bounds
-                    .insert(cfg.model_id.clone(), b);
+                // Keep only the encrypted envelope identity in the live
+                // binding so a later sync notices credential rotation without
+                // retaining decrypted material in the registry.
+                b.config.enc_creds = cfg.enc_creds.clone();
+                b.config.enc_nonce = cfg.enc_nonce.clone();
+                b.config.dek_id = cfg.dek_id.clone();
+                if let Some(previous) = replace_bound(&state, cfg.model_id.clone(), b) {
+                    let _ = teardown_bound(previous);
+                }
                 bound += 1;
             }
             Err(e) => {

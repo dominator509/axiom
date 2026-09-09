@@ -384,7 +384,7 @@ async fn test_encrypt_endpoint_rejects_bad_dek() {
         .json(&serde_json::json!({
             "plaintext": base64::engine::general_purpose::STANDARD.encode(b"x"),
             "dek_id": "test-dek",
-            "dek": base64::engine::general_purpose::STANDARD.encode(&[0u8; 16])
+            "dek": base64::engine::general_purpose::STANDARD.encode([0u8; 16])
         }))
         .send()
         .await
