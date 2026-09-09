@@ -12,13 +12,13 @@ const testState = vi.hoisted(() => {
       modelId: 'content_bundle.model_id',
     },
     postMetric: {
+      postTargetId: 'post_metric.post_target_id',
       collectedAt: 'post_metric.collected_at',
       views: 'post_metric.views',
       likes: 'post_metric.likes',
       shares: 'post_metric.shares',
       comments: 'post_metric.comments',
       engagementRate: 'post_metric.engagement_rate',
-      postTargetId: 'post_metric.post_target_id',
     },
     postTarget: { id: 'post_target.id', bundleId: 'post_target.bundle_id' },
   };
@@ -28,6 +28,7 @@ const testState = vi.hoisted(() => {
     from(...args: unknown[]): Query;
     innerJoin(...args: unknown[]): Query;
     where(...args: unknown[]): Query;
+    orderBy(...args: unknown[]): Query;
     then<TResult = unknown>(
       onfulfilled?: ((value: unknown) => TResult | PromiseLike<TResult>) | null,
       onrejected?: ((reason: unknown) => TResult | PromiseLike<TResult>) | null,
@@ -50,6 +51,10 @@ const testState = vi.hoisted(() => {
     state.operations.push({ method: 'where', value });
     return tx;
   };
+  tx.orderBy = (value: unknown) => {
+    state.operations.push({ method: 'orderBy', value });
+    return tx;
+  };
   tx.then = (resolve, reject) =>
     Promise.resolve(state.rows).then(resolve ?? undefined, reject ?? undefined);
 
@@ -58,6 +63,7 @@ const testState = vi.hoisted(() => {
 
 vi.mock('drizzle-orm', () => ({
   and: (...conditions: unknown[]) => ({ op: 'and', conditions }),
+  desc: (column: unknown) => ({ op: 'desc', column }),
   eq: (column: unknown, value: unknown) => ({ op: 'eq', column, value }),
   gte: (column: unknown, value: unknown) => ({ op: 'gte', column, value }),
   lte: (column: unknown, value: unknown) => ({ op: 'lte', column, value }),
@@ -100,8 +106,24 @@ describe('AnalyticsTool', () => {
 
   it('returns the requested metric value and keeps the aggregate summary', async () => {
     testState.state.rows = [
-      { views: 100, likes: 10, shares: 2, comments: 8, engagementRate: 0.2 },
-      { views: 50, likes: 5, shares: 1, comments: 4, engagementRate: 0.2 },
+      {
+        postTargetId: 'target-1',
+        collectedAt: '2026-09-09T12:00:00.000Z',
+        views: 100,
+        likes: 10,
+        shares: 2,
+        comments: 8,
+        engagementRate: 0.2,
+      },
+      {
+        postTargetId: 'target-2',
+        collectedAt: '2026-09-09T11:00:00.000Z',
+        views: 50,
+        likes: 5,
+        shares: 1,
+        comments: 4,
+        engagementRate: 0.2,
+      },
     ];
 
     const result = (await new AnalyticsTool().handle(
@@ -126,6 +148,37 @@ describe('AnalyticsTool', () => {
         { column: testState.schema.contentBundle.modelId, value: MODEL_ID },
       ]),
     );
+  });
+
+  it('does not sum older cumulative snapshots for the same target', async () => {
+    testState.state.rows = [
+      {
+        postTargetId: 'target-1',
+        collectedAt: '2026-09-09T12:00:00.000Z',
+        views: 120,
+        likes: 12,
+        shares: 2,
+        comments: 6,
+        engagementRate: 0.167,
+      },
+      {
+        postTargetId: 'target-1',
+        collectedAt: '2026-09-09T11:00:00.000Z',
+        views: 100,
+        likes: 10,
+        shares: 1,
+        comments: 5,
+        engagementRate: 0.16,
+      },
+    ];
+
+    const result = (await new AnalyticsTool().handle(
+      { modelId: MODEL_ID, metric: 'views' },
+      permission,
+    )) as { data: { selected: { value: number }; periods: number } };
+
+    expect(result.data.selected.value).toBe(120);
+    expect(result.data.periods).toBe(1);
   });
 
   it('returns null selection when no metric is requested', async () => {

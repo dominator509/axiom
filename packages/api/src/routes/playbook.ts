@@ -7,7 +7,14 @@ import { Hono } from 'hono';
 import { sql, eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, modelOrgId, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
+import {
+  withOrgContext,
+  modelOrgId,
+  requireOrg,
+  writeAudit,
+  apiError,
+  statusTitle,
+} from './helpers.js';
 import { calculateCourseAdherence } from '@axiom/llm-gateway';
 
 const router = new Hono<AppBindings>();
@@ -87,15 +94,30 @@ async function deriveAdherenceInputs(
       : 0.5;
 
   // Engagement vs 5% baseline (neutral when no metrics yet)
-  const metrics = await tx
+  const metricRows = await tx
     .select({
-      rate: sql<number>`coalesce(avg(${schema.postMetric.engagementRate}),0)`,
+      postTargetId: schema.postMetric.postTargetId,
+      collectedAt: schema.postMetric.collectedAt,
+      rate: schema.postMetric.engagementRate,
     })
     .from(schema.postMetric)
     .innerJoin(schema.postTarget, eq(schema.postTarget.id, schema.postMetric.postTargetId))
     .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.postTarget.bundleId))
-    .where(and(eq(schema.contentBundle.modelId, modelId), eq(schema.contentBundle.orgId, orgId)));
-  const avgRate = metrics[0]?.rate ?? 0;
+    .where(and(eq(schema.contentBundle.modelId, modelId), eq(schema.contentBundle.orgId, orgId)))
+    .orderBy(desc(schema.postMetric.collectedAt));
+  const seenMetricTargets = new Set<string>();
+  const latestMetricRows = metricRows.filter((row: { postTargetId: string }) => {
+    if (seenMetricTargets.has(row.postTargetId)) return false;
+    seenMetricTargets.add(row.postTargetId);
+    return true;
+  });
+  const avgRate =
+    latestMetricRows.length > 0
+      ? latestMetricRows.reduce(
+          (sum: number, row: { rate: number }) => sum + Number(row.rate ?? 0),
+          0,
+        ) / latestMetricRows.length
+      : 0;
   const exemplarSimilarity = Math.min(avgRate / 0.05, 1);
 
   // Scheduled → published conversion

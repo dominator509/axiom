@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, lte } from 'drizzle-orm';
 import { Tier, type AgentPermission, tierAtLeast } from '../auth.js';
 import { withModelOrg, schema } from '../org-context.js';
 
@@ -14,6 +14,26 @@ export const AnalyticsInputSchema = z.object({
 });
 
 export type AnalyticsInput = z.infer<typeof AnalyticsInputSchema>;
+
+type MetricRow = {
+  postTargetId: string;
+  collectedAt: Date | string;
+  views: number | null;
+  likes: number | null;
+  shares: number | null;
+  comments: number | null;
+  engagementRate: number | null;
+};
+
+/** Provider metrics are cumulative snapshots; keep the newest row per post. */
+export function latestMetricRows(rows: MetricRow[]): MetricRow[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (seen.has(row.postTargetId)) return false;
+    seen.add(row.postTargetId);
+    return true;
+  });
+}
 
 /**
  * Analytics tool — retrieves model performance metrics from post_metric.
@@ -49,6 +69,8 @@ export class AnalyticsTool {
 
       const rows = await tx
         .select({
+          postTargetId: schema.postMetric.postTargetId,
+          collectedAt: schema.postMetric.collectedAt,
           views: schema.postMetric.views,
           likes: schema.postMetric.likes,
           shares: schema.postMetric.shares,
@@ -58,16 +80,11 @@ export class AnalyticsTool {
         .from(schema.postMetric)
         .innerJoin(schema.postTarget, eq(schema.postMetric.postTargetId, schema.postTarget.id))
         .innerJoin(schema.contentBundle, eq(schema.postTarget.bundleId, schema.contentBundle.id))
-        .where(and(...conditions));
+        .where(and(...conditions))
+        .orderBy(desc(schema.postMetric.collectedAt));
 
-      type MetricRow = {
-        views: number | null;
-        likes: number | null;
-        shares: number | null;
-        comments: number | null;
-        engagementRate: number | null;
-      };
-      const summary = rows.reduce(
+      const latestRows = latestMetricRows(rows as MetricRow[]);
+      const summary = latestRows.reduce(
         (
           acc: { views: number; likes: number; shares: number; comments: number },
           r: MetricRow,
@@ -109,7 +126,7 @@ export class AnalyticsTool {
         selected: args.metric ? { metric: args.metric, value: selectedValue } : null,
         dateRange: { from: args.dateFrom ?? 'all', to: args.dateTo ?? 'all' },
         summary: { ...summary, engagementRate: roundedEngagementRate },
-        periods: rows.length,
+        periods: latestRows.length,
       };
     });
 
