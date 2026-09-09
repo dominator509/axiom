@@ -4,7 +4,7 @@
 // same binding resolution as relay.card.
 
 import { createHash } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { Executor, ExecutorContext } from './context.js';
 
@@ -15,11 +15,15 @@ export const incidentNotify: Executor = async (ctx: ExecutorContext) => {
 
   const actorRef = `worker:${ctx.workerId}`;
   const now = new Date();
+  // Serialize this worker-side append with API audit writers. Without the
+  // org-row lock, concurrent writers can observe one chain head and append
+  // siblings with the same prev_hash, permanently forking the audit chain.
+  await tx.execute(sql`SELECT id FROM org WHERE id = ${job.org_id} FOR UPDATE`);
   const prev = await tx
     .select({ rowHash: schema.auditLog.rowHash })
     .from(schema.auditLog)
     .where(eq(schema.auditLog.orgId, job.org_id))
-    .orderBy(schema.auditLog.ts, 'desc')
+    .orderBy(desc(schema.auditLog.ts), desc(schema.auditLog.id))
     .limit(1);
   const prevHash: Buffer =
     prev.length > 0 ? Buffer.from(prev[0].rowHash as Uint8Array) : Buffer.alloc(32);
