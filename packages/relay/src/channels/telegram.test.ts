@@ -47,6 +47,7 @@ describe('construction / getBot / onCommand', () => {
   it('constructs a grammy Bot and exposes it', () => {
     const bot = adapter.getBot();
     expect(bot).toBeDefined();
+    expect(bot.api.options?.timeoutSeconds).toBe(60);
   });
 
   it('stores action handlers for callback queries', async () => {

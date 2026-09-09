@@ -3,6 +3,8 @@ import type { RelayCard, CardAction } from '../card.js';
 import { CardRenderer } from '../card.js';
 import { CommandRouter, type CommandContext } from '../commands.js';
 
+const TELEGRAM_API_TIMEOUT_SECONDS = 60;
+
 export interface TelegramConfig {
   token: string;
   webhookUrl?: string;
@@ -24,7 +26,9 @@ export class TelegramAdapter {
   private callbackHandlerRegistered = false;
 
   constructor(config: TelegramConfig, commandRouter?: CommandRouter) {
-    this.bot = new Bot(config.token);
+    this.bot = new Bot(config.token, {
+      client: { timeoutSeconds: TELEGRAM_API_TIMEOUT_SECONDS },
+    });
     this.renderer = new CardRenderer();
     this.commandRouter = commandRouter;
     this.webhookSecret = config.webhookSecret;
