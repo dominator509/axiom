@@ -283,3 +283,4 @@
 2026-09-09T18:04:59Z | [P1][TENANT-ISOLATION] Add explicit organization predicates to bundle approval and model network-config update compare-and-set mutations; API suite 332/332 and typecheck pass
 2026-09-09T18:18:24Z | [P2][MCP/ANALYTICS] Honor analytics metric selectors with an explicit selected value, scope the aggregate query by organization, and add regression coverage; focused MCP tests 2/2, typecheck, lint, formatting, and diff checks pass
 2026-09-09T18:30:15Z | [P1][CONNECTORS/FACEBOOK] Preserve already compound Page post IDs when building insights and fallback-node URLs; connector suite 285/285, typecheck, lint, formatting, and diff checks pass
+2026-09-09T18:49:33Z | [P1][PUBLISH/RETRY-SAFETY] Persist publish.dispatch markers before provider I/O, block recovered jobs on unresolved crash markers, and distinguish provider-pending results; worker suite 71/71, typecheck, lint, formatting, diff check, and verify gate pass

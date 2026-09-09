@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   assertProviderReadableMediaUrls,
   isTerminalPublishTargetState,
+  publishDispatchMarkerValues,
   resolveProviderAssetUrl,
   shouldEnqueueMetrics,
   validatePublishAsset,
@@ -115,5 +116,23 @@ describe('shouldEnqueueMetrics', () => {
     expect(shouldEnqueueMetrics('remote-1', ['likes'])).toBe(true);
     expect(shouldEnqueueMetrics('remote-1', [])).toBe(false);
     expect(shouldEnqueueMetrics(null, ['likes'])).toBe(false);
+  });
+});
+
+describe('publishDispatchMarkerValues', () => {
+  it('keeps the durable reconciliation marker free of publish content and secrets', () => {
+    const startedAt = new Date('2026-09-09T19:00:00.000Z');
+
+    expect(
+      publishDispatchMarkerValues('org-1', 'model-1', 'target-1', 'instagram', 'idem-1', startedAt),
+    ).toEqual({
+      orgId: 'org-1',
+      modelId: 'model-1',
+      targetId: 'target-1',
+      script: 'publish.dispatch',
+      status: 'pending',
+      input: { platform: 'instagram', idempotencyKey: 'idem-1' },
+      startedAt,
+    });
   });
 });
