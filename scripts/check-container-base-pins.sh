@@ -6,7 +6,7 @@ PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 status=0
-for dockerfile in infra/Dockerfile.hono infra/Dockerfile.next infra/Dockerfile.rust infra/Dockerfile.worker; do
+for dockerfile in infra/Dockerfile.hono infra/Dockerfile.next infra/Dockerfile.rust infra/Dockerfile.vision infra/Dockerfile.scraper infra/Dockerfile.worker; do
   if [ ! -f "$dockerfile" ]; then
     echo "container-base-pins: missing $dockerfile"
     status=1

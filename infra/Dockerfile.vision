@@ -1,0 +1,68 @@
+# =============================================================================
+# Dockerfile.vision — self-hosted vision sidecar
+# Multi-stage: builder → runner
+# =============================================================================
+
+# ------------------------------------------------------------------------------
+# Stage 1: Builder
+# ------------------------------------------------------------------------------
+# rust:1.97-slim-trixie manifest digest (resolved 2026-09-09). Trixie is
+# required because the pinned ONNX Runtime artifact uses glibc 2.38 symbols.
+FROM rust:1.97-slim-trixie@sha256:8e8cf8f7fd54a2d23d5a743b3a03f56e26b6c774276c33fa0595111704ebb15c AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    g++ \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates/egress-plane/Cargo.toml ./crates/egress-plane/Cargo.toml
+COPY crates/media-plane/Cargo.toml ./crates/media-plane/Cargo.toml
+COPY crates/vision-engine/Cargo.toml ./crates/vision-engine/Cargo.toml
+COPY crates/scraper/Cargo.toml ./crates/scraper/Cargo.toml
+COPY crates/egress-plane/src ./crates/egress-plane/src
+COPY crates/media-plane/src ./crates/media-plane/src
+COPY crates/vision-engine/src ./crates/vision-engine/src
+COPY crates/scraper/src ./crates/scraper/src
+
+# Build the real model-serving binary. The ort crate downloads its pinned
+# ONNX Runtime artifact during this reproducible locked build.
+RUN cargo build --locked --release --package vision-engine
+
+# ------------------------------------------------------------------------------
+# Stage 2: Runtime
+# ------------------------------------------------------------------------------
+# debian:trixie-slim manifest digest (resolved 2026-09-09).
+FROM debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132 AS runner
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    libgomp1 \
+    libstdc++6 \
+    && groupadd --system --gid 1001 vision \
+    && useradd --system --uid 1001 --gid 1001 --home-dir /nonexistent --no-create-home vision \
+    && mkdir -p /opt/axiom/models \
+    && chown -R vision:vision /opt/axiom \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /app/target/release/vision-engine /app/vision-engine
+
+USER 1001:1001
+
+ENV NODE_ENV=production
+ENV AXIOM_VISION_ADDR=0.0.0.0:8101
+ENV AXIOM_VISION_MODEL=/opt/axiom/models/nsfw-vit.onnx
+EXPOSE 8101
+
+# /health is deliberately readiness-aware: it returns 503 until the verified
+# model artifact is mounted and loaded.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD curl --fail --silent --show-error http://127.0.0.1:8101/health >/dev/null
+
+ENTRYPOINT ["/app/vision-engine"]
