@@ -133,6 +133,21 @@ describe('LLMGateway user-funded chat', () => {
     expect(transport.calls).toHaveLength(1);
   });
 
+  it('does not fall back after a provider aborts with a custom error', async () => {
+    const controller = new AbortController();
+    vi.spyOn(transport, 'chat').mockImplementation(async (request) => {
+      transport.calls.push(request);
+      controller.abort(new Error('caller cancelled'));
+      throw new Error('caller cancelled');
+    });
+
+    await expect(
+      gateway().chat(messages, { policy: 'quality', userId: 'user-1', signal: controller.signal }),
+    ).rejects.toThrow('caller cancelled');
+    expect(transport.calls).toHaveLength(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('does not silently fall back after an explicit provider failure', async () => {
     transport.failures.set('grok', new Error('weekly allowance exhausted'));
     await expect(gateway().chat(messages, { provider: 'grok', userId: 'user-1' })).rejects.toThrow(
@@ -254,6 +269,28 @@ describe('LLMGateway subscription streaming', () => {
       for await (const chunk of stream) void chunk;
     };
     await expect(consume()).rejects.toThrow('Authenticated user is required');
+  });
+
+  it('does not fall back after a streaming provider aborts with a custom error', async () => {
+    const controller = new AbortController();
+    vi.spyOn(transport, 'stream').mockImplementation(async function* (request) {
+      transport.calls.push(request);
+      controller.abort(new Error('caller cancelled'));
+      yield* [];
+      throw new Error('caller cancelled');
+    });
+
+    const stream = await gateway().chatStream(messages, {
+      policy: 'quality',
+      userId: 'user-1',
+      signal: controller.signal,
+    });
+    const consume = async () => {
+      for await (const chunk of stream) void chunk;
+    };
+    await expect(consume()).rejects.toThrow('caller cancelled');
+    expect(transport.calls).toHaveLength(1);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

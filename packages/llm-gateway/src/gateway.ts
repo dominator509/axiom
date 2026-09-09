@@ -262,8 +262,44 @@ function calculateCost(
   );
 }
 
-/** Sleep helper */
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** Preserve caller cancellation across retry and provider-fallback boundaries. */
+function abortReason(signal?: AbortSignal): Error {
+  if (signal?.reason instanceof Error) return signal.reason;
+  if (signal?.reason !== undefined) {
+    return new DOMException(String(signal.reason), 'AbortError');
+  }
+  return new DOMException('Operation aborted', 'AbortError');
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortReason(signal);
+}
+
+function isAbortLike(error: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) return true;
+  const name = error instanceof Error ? error.name : '';
+  return name === 'AbortError' || name === 'TimeoutError';
+}
+
+/** Abortable retry backoff. */
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortReason(signal));
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      reject(abortReason(signal));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 
 function responseCacheKey(
   messages: Message[],
@@ -516,6 +552,7 @@ export class LLMGateway {
     // provider accepted the turn could consume the user's allowance twice.
     const maxRetries = provider.subscriptionSupported ? 0 : 3;
     let lastError: Error | null = null;
+    throwIfAborted(options.signal);
     // Egress: route through the model's bound sidecar when requested.
     const egressFetchImpl =
       options.egress && provider.name === 'vllm'
@@ -523,12 +560,13 @@ export class LLMGateway {
         : undefined;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      if (attempt > 0) {
-        const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
-        await sleep(delay);
-      }
-
       try {
+        if (attempt > 0) {
+          const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
+          await sleep(delay, options.signal);
+        }
+        throwIfAborted(options.signal);
+
         // Rate limit check
         if (!this.checkRateLimit(provider.name)) {
           throw new Error(`Rate limit exceeded for ${provider.name}`);
@@ -601,7 +639,7 @@ export class LLMGateway {
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         this.failureCount++;
-        if (err instanceof DOMException && err.name === 'AbortError') {
+        if (isAbortLike(err, options.signal)) {
           throw err; // Don't retry aborted requests
         }
         // On last attempt, don't continue
@@ -673,6 +711,7 @@ export class LLMGateway {
     const chainErrors: Array<{ provider: string; error: Error }> = [];
     for (const provider of chain) {
       try {
+        throwIfAborted(options.signal);
         const result = await this.callProvider(provider, processedMessages, requiredOptions);
 
         // Run pipeline after-hooks
@@ -695,6 +734,7 @@ export class LLMGateway {
           latency: pipelineResult.latency,
         };
       } catch (err) {
+        if (isAbortLike(err, options.signal)) throw err;
         const error = err instanceof Error ? err : new Error(String(err));
         chainErrors.push({ provider: provider.name, error });
         // Continue to fallback
@@ -823,6 +863,7 @@ export class LLMGateway {
 
       for (const provider of chain) {
         try {
+          throwIfAborted(requiredOptions.signal);
           // Rate limit check
           if (!checkRateLimit(provider.name)) {
             throw new Error(`Rate limit exceeded for ${provider.name}`);
@@ -882,11 +923,9 @@ export class LLMGateway {
 
           return; // Success — stop iterating fallback chain
         } catch (err) {
+          if (isAbortLike(err, requiredOptions.signal)) throw err;
           lastError = err instanceof Error ? err : new Error(String(err));
           recordFailure();
-          if (err instanceof DOMException && err.name === 'AbortError') {
-            throw err;
-          }
           // Continue to next provider in chain
         }
       }
