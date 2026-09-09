@@ -24,7 +24,7 @@ import {
   type ModelProfile as PromptModelProfile,
 } from '@axiom/llm-gateway';
 import { LLMGateway } from '@axiom/llm-gateway';
-import { PLATFORM_RULES, DEFAULT_PLATFORM_THRESHOLDS } from '@axiom/fanvue-mcp';
+import { evaluateTextToS } from '@axiom/fanvue-mcp';
 import { asPlatform, enqueueJob, retrieveTopExemplars } from '@axiom/worker';
 
 type PromptPlatform =
@@ -53,56 +53,6 @@ const generateSchema = z.object({
   enrichWithLlm: z.boolean().default(false),
   model: z.string().max(100).optional(),
 });
-
-interface TextToSResult {
-  verdict: 'pass' | 'review' | 'block';
-  scores: Array<{
-    platform: string;
-    score: number;
-    threshold: number;
-    verdict: string;
-    reasons: string[];
-  }>;
-  reasons: string[];
-}
-
-/** Text-only ToS check (caption keywords, length, hashtag count) per platform. */
-function evaluateTextToS(caption: string, hashtags: string[], platforms: string[]): TextToSResult {
-  const scores: TextToSResult['scores'] = [];
-  const allReasons = new Set<string>();
-  for (const platform of platforms) {
-    const rule = PLATFORM_RULES[platform as keyof typeof PLATFORM_RULES];
-    const threshold =
-      DEFAULT_PLATFORM_THRESHOLDS[platform as keyof typeof DEFAULT_PLATFORM_THRESHOLDS] ?? 70;
-    if (!rule) {
-      scores.push({ platform, score: 0, threshold, verdict: 'pass', reasons: [] });
-      continue;
-    }
-    const reasons: string[] = [];
-    const captionLower = caption.toLowerCase();
-    const blocked = rule.blockedKeywords.filter((kw) => captionLower.includes(kw.toLowerCase()));
-    if (blocked.length > 0)
-      reasons.push(`Caption contains blocked keywords: ${blocked.join(', ')}`);
-    if (caption.length > rule.maxCaptionLength) {
-      reasons.push(`Caption exceeds ${rule.maxCaptionLength} chars (${caption.length})`);
-    }
-    if (hashtags.length > rule.maxHashtags) {
-      reasons.push(`Hashtags (${hashtags.length}) exceed limit (${rule.maxHashtags})`);
-    }
-    const score = blocked.length * 15;
-    const verdict: string =
-      score >= threshold + 15 ? 'block' : score >= threshold ? 'review' : 'pass';
-    reasons.forEach((r) => allReasons.add(r));
-    scores.push({ platform, score: Math.min(score, 100), threshold, verdict, reasons });
-  }
-  const hasBlock = scores.some((s) => s.verdict === 'block');
-  const hasReview = scores.some((s) => s.verdict === 'review');
-  return {
-    verdict: hasBlock ? 'block' : hasReview ? 'review' : 'pass',
-    scores,
-    reasons: Array.from(allReasons),
-  };
-}
 
 // POST /models/:id/generate
 router.post('/models/:modelId/generate', zValidator('json', generateSchema), async (c) => {

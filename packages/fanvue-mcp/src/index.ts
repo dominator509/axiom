@@ -12,12 +12,18 @@ export type {
   ReplyResult,
 } from './client.js';
 
-export { ToSEngine, DEFAULT_PLATFORM_THRESHOLDS, PLATFORM_RULES } from './tos-engine.js';
+export {
+  ToSEngine,
+  DEFAULT_PLATFORM_THRESHOLDS,
+  PLATFORM_RULES,
+  evaluateTextToS,
+} from './tos-engine.js';
 export type {
   PlatformScore,
   EvaluationResult,
   ImageClassification,
   PlatformRule,
+  TextToSResult,
 } from './tos-engine.js';
 
 export { PrePostHook } from './prepost.js';

@@ -7,68 +7,14 @@
 import { and, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import {
+  evaluateTextToS,
   PLATFORM_RULES,
-  DEFAULT_PLATFORM_THRESHOLDS,
   ToSEngine,
   type EvaluationResult,
 } from '@axiom/fanvue-mcp';
 import type { Platform } from '@axiom/core';
 import type { Executor, ExecutorContext } from './context.js';
 import { enqueueJob } from '../enqueue.js';
-
-export function evaluateTextToS(
-  caption: string,
-  hashtags: string[],
-  platforms: string[],
-): {
-  verdict: 'pass' | 'review' | 'block';
-  scores: Array<{
-    platform: string;
-    score: number;
-    threshold: number;
-    verdict: string;
-    reasons: string[];
-  }>;
-  reasons: string[];
-} {
-  const scores: Array<{
-    platform: string;
-    score: number;
-    threshold: number;
-    verdict: string;
-    reasons: string[];
-  }> = [];
-  const allReasons = new Set<string>();
-  for (const platform of platforms) {
-    const rule = PLATFORM_RULES[platform as keyof typeof PLATFORM_RULES];
-    const threshold =
-      DEFAULT_PLATFORM_THRESHOLDS[platform as keyof typeof DEFAULT_PLATFORM_THRESHOLDS] ?? 70;
-    if (!rule) {
-      scores.push({ platform, score: 0, threshold, verdict: 'pass', reasons: [] });
-      continue;
-    }
-    const reasons: string[] = [];
-    const captionLower = caption.toLowerCase();
-    const blocked = rule.blockedKeywords.filter((kw) => captionLower.includes(kw.toLowerCase()));
-    if (blocked.length > 0)
-      reasons.push(`Caption contains blocked keywords: ${blocked.join(', ')}`);
-    if (caption.length > rule.maxCaptionLength)
-      reasons.push(`Caption exceeds ${rule.maxCaptionLength} chars (${caption.length})`);
-    if (hashtags.length > rule.maxHashtags)
-      reasons.push(`Hashtags (${hashtags.length}) exceed limit (${rule.maxHashtags})`);
-    const score = blocked.length * 15;
-    const verdict = score >= threshold + 15 ? 'block' : score >= threshold ? 'review' : 'pass';
-    reasons.forEach((r) => allReasons.add(r));
-    scores.push({ platform, score: Math.min(score, 100), threshold, verdict, reasons });
-  }
-  const hasBlock = scores.some((s) => s.verdict === 'block');
-  const hasReview = scores.some((s) => s.verdict === 'review');
-  return {
-    verdict: hasBlock ? 'block' : hasReview ? 'review' : 'pass',
-    scores,
-    reasons: Array.from(allReasons),
-  };
-}
 
 type ToSAsset = {
   kind: string;
@@ -150,7 +96,7 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
     }
     report = await evaluateMediaToS(asset, captions[platforms[0]] ?? '', hashtags, platforms);
   } else {
-    report = evaluateTextToS(captions[platforms[0]] ?? '', hashtags, platforms);
+    report = evaluateTextToS(captions[platforms[0]] ?? '', hashtags, asToSPlatforms(platforms));
   }
 
   await tx

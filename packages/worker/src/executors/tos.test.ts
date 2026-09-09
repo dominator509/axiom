@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockState = vi.hoisted(() => ({
   results: [] as unknown[],
   evaluate: vi.fn(),
+  textEvaluate: vi.fn(),
   enqueue: vi.fn(),
 }));
 
@@ -49,6 +50,7 @@ vi.mock('@axiom/db', () => ({
 vi.mock('@axiom/fanvue-mcp', () => ({
   DEFAULT_PLATFORM_THRESHOLDS: { instagram: 70 },
   PLATFORM_RULES: { instagram: { blockedKeywords: [], maxHashtags: 30, maxCaptionLength: 2200 } },
+  evaluateTextToS: (...args: unknown[]) => mockState.textEvaluate(...args),
   ToSEngine: class {
     evaluate(asset: unknown, platforms: unknown) {
       return mockState.evaluate(asset, platforms);
@@ -86,7 +88,9 @@ const REPORT = {
 beforeEach(() => {
   mockState.results = [];
   mockState.evaluate.mockReset();
+  mockState.textEvaluate.mockReset();
   mockState.evaluate.mockResolvedValue(REPORT);
+  mockState.textEvaluate.mockReturnValue(REPORT);
   mockState.enqueue.mockReset();
   mockState.enqueue.mockResolvedValue({ id: 'relay-job-1' });
 });
@@ -169,5 +173,24 @@ describe('tosScan', () => {
       tosScan({ tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1' }),
     ).rejects.toThrow('asset asset-1 not found or not owned by model model-1');
     expect(mockState.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('uses the shared text ToS evaluator for text-only bundles', async () => {
+    mockState.results = [
+      [
+        {
+          id: 'bundle-1',
+          modelId: 'model-1',
+          assetId: null,
+          captions: { instagram: 'A safe caption' },
+          hashtags: [],
+        },
+      ],
+      [],
+    ];
+
+    await tosScan({ tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1' });
+
+    expect(mockState.textEvaluate).toHaveBeenCalledWith('A safe caption', [], ['instagram']);
   });
 });
