@@ -18,6 +18,18 @@ export interface ViralMetricSample {
   engagementRate: number;
 }
 
+export interface TimestampedViralMetricSample extends ViralMetricSample {
+  collectedAt?: Date | string | null;
+}
+
+interface ViralHistorySample extends TimestampedViralMetricSample {
+  views: number;
+  likes: number;
+  shares: number;
+  comments: number;
+  collectedAt: Date;
+}
+
 export interface ViralScore<T extends ViralMetricSample = ViralMetricSample> {
   own: T;
   mean: number;
@@ -30,6 +42,20 @@ export function labelForZ(z: number): 'viral' | 'strong' | 'baseline' | 'weak' {
   if (z >= LABEL_THRESHOLDS.strong) return 'strong';
   if (z >= LABEL_THRESHOLDS.baseline) return 'baseline';
   return 'weak';
+}
+
+/**
+ * Keep the newest observation for each target from a newest-first snapshot
+ * query. Provider metrics are cumulative; scoring every poll would weight
+ * frequently-polled posts more heavily than other posts.
+ */
+export function latestMetricSamples<T extends TimestampedViralMetricSample>(history: T[]): T[] {
+  const seen = new Set<string>();
+  return history.filter((sample) => {
+    if (seen.has(sample.postTargetId)) return false;
+    seen.add(sample.postTargetId);
+    return true;
+  });
 }
 
 /** Score the requested target against the complete model/platform window. */
@@ -80,7 +106,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
 
   // 1. Trailing window of this model+platform's performance (L3.5 §1.1: 72h default).
   const windowStart = new Date(Date.now() - 72 * 3600_000);
-  const history = await tx
+  const historyRows = (await tx
     .select({
       postTargetId: schema.postMetric.postTargetId,
       views: schema.postMetric.views,
@@ -88,6 +114,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
       shares: schema.postMetric.shares,
       comments: schema.postMetric.comments,
       engagementRate: schema.postMetric.engagementRate,
+      collectedAt: schema.postMetric.collectedAt,
     })
     .from(schema.postMetric)
     .innerJoin(schema.postTarget, eq(schema.postTarget.id, schema.postMetric.postTargetId))
@@ -101,7 +128,8 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
         gte(schema.postMetric.collectedAt, windowStart),
       ),
     )
-    .orderBy(desc(schema.postMetric.collectedAt));
+    .orderBy(desc(schema.postMetric.collectedAt))) as ViralHistorySample[];
+  const history = latestMetricSamples(historyRows);
 
   // 2. Perf score: z-score of the target's own engagement against the window.
   let score: ViralScore<(typeof history)[number]>;

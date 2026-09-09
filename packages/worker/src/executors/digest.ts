@@ -26,33 +26,54 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
   const { tx, job } = ctx;
   const since = new Date(Date.now() - 7 * 24 * 3600_000);
 
-  // 1. 7-day aggregates from the metrics hypertable.
+  // 1. 7-day aggregates from the metrics hypertable. Provider metrics are
+  // cumulative snapshots, so retain only the newest observation per target;
+  // summing every poll would count the same views/likes repeatedly.
   const aggRows = await tx.execute(sql`
+    WITH latest_metrics AS (
+      SELECT DISTINCT ON (pm.post_target_id)
+        pm.post_target_id,
+        pm.views,
+        pm.likes,
+        pm.shares,
+        pm.comments,
+        pm.engagement_rate
+      FROM post_metric pm
+      JOIN post_target pt ON pt.id = pm.post_target_id
+      JOIN content_bundle cb ON cb.id = pt.bundle_id
+      WHERE cb.org_id = ${job.org_id}
+        AND pt.org_id = ${job.org_id}
+        AND pm.collected_at >= ${since}
+      ORDER BY pm.post_target_id, pm.collected_at DESC
+    )
     SELECT count(*)::int AS posts,
-           coalesce(sum(pm.views), 0)::bigint AS views,
-           coalesce(sum(pm.likes), 0)::bigint AS likes,
-           coalesce(sum(pm.shares), 0)::bigint AS shares,
-           coalesce(sum(pm.comments), 0)::bigint AS comments,
-           coalesce(avg(pm.engagement_rate), 0)::float8 AS avg_engagement
-    FROM post_metric pm
-    JOIN post_target pt ON pt.id = pm.post_target_id
-    JOIN content_bundle cb ON cb.id = pt.bundle_id
-    WHERE cb.org_id = ${job.org_id}
-      AND pt.org_id = ${job.org_id}
-      AND pm.collected_at >= ${since}
+           coalesce(sum(views), 0)::bigint AS views,
+           coalesce(sum(likes), 0)::bigint AS likes,
+           coalesce(sum(shares), 0)::bigint AS shares,
+           coalesce(sum(comments), 0)::bigint AS comments,
+           coalesce(avg(engagement_rate), 0)::float8 AS avg_engagement
+    FROM latest_metrics
   `);
   const agg = Array.isArray(aggRows) ? aggRows[0] : (aggRows as { rows: unknown[] }).rows?.[0];
 
   // 2. Top platform by views over the window.
   const topRows = await tx.execute(sql`
-    SELECT pm.platform, sum(pm.views)::bigint AS views
-    FROM post_metric pm
-    JOIN post_target pt ON pt.id = pm.post_target_id
-    JOIN content_bundle cb ON cb.id = pt.bundle_id
-    WHERE cb.org_id = ${job.org_id}
-      AND pt.org_id = ${job.org_id}
-      AND pm.collected_at >= ${since}
-    GROUP BY pm.platform
+    WITH latest_metrics AS (
+      SELECT DISTINCT ON (pm.post_target_id)
+        pm.post_target_id,
+        pm.platform,
+        pm.views
+      FROM post_metric pm
+      JOIN post_target pt ON pt.id = pm.post_target_id
+      JOIN content_bundle cb ON cb.id = pt.bundle_id
+      WHERE cb.org_id = ${job.org_id}
+        AND pt.org_id = ${job.org_id}
+        AND pm.collected_at >= ${since}
+      ORDER BY pm.post_target_id, pm.collected_at DESC
+    )
+    SELECT platform, sum(views)::bigint AS views
+    FROM latest_metrics
+    GROUP BY platform
     ORDER BY views DESC
     LIMIT 1
   `);

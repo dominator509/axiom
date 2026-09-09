@@ -12,8 +12,12 @@ export type { ClaimResult } from './claim.js';
 export { defaultExecutors } from './executors/index.js';
 export type { Executor, ExecutorContext } from './executors/context.js';
 export { ParkJobError, EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX } from './executors/context.js';
-export { labelForZ, scoreTargetEngagement } from './executors/viral.js';
-export type { ViralMetricSample, ViralScore } from './executors/viral.js';
+export { labelForZ, latestMetricSamples, scoreTargetEngagement } from './executors/viral.js';
+export type {
+  TimestampedViralMetricSample,
+  ViralMetricSample,
+  ViralScore,
+} from './executors/viral.js';
 export { retrieveTopExemplars } from './viral-retrieval.js';
 export { runWorker, workerTick, processJob, readKillSwitch } from './worker.js';
 export type { WorkerOptions, WorkerStats } from './worker.js';
