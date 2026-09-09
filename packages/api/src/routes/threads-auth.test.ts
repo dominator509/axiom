@@ -12,6 +12,14 @@ const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 
 vi.mock('@axiom/db', () => mockDbFactory());
+vi.mock('@axiom/llm-gateway', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@axiom/llm-gateway')>();
+  return {
+    ...actual,
+    resolveEgressProxy: vi.fn(async () => 'http://10.240.1.1:8080'),
+    buildEgressFetch: vi.fn(() => globalThis.fetch),
+  };
+});
 vi.mock('@axiom/worker', () => ({
   capabilityNames: vi.fn(() => ['publish', 'read.insights']),
   resolveCapabilities: vi.fn(() => ({ publish: true })),
@@ -125,6 +133,9 @@ describe('GET /callback', () => {
     });
     expect(JSON.stringify(body)).not.toContain('long-lived-token');
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    const egress = await import('@axiom/llm-gateway');
+    expect(egress.resolveEgressProxy).toHaveBeenCalledWith(MODEL_ID);
+    expect(egress.buildEgressFetch).toHaveBeenCalledWith('http://10.240.1.1:8080');
 
     const encryptionCall = fetchMock.mock.calls.find(([url]) =>
       String(url).includes('/egress/encrypt'),

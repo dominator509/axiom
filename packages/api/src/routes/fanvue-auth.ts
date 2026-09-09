@@ -8,6 +8,7 @@ import { Hono } from 'hono';
 import { randomBytes, createHash } from 'node:crypto';
 import type { AppBindings } from '../index.js';
 import { normalizeAuthOrigin } from '@axiom/auth';
+import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
 import { connectorForConnection } from '@axiom/worker';
 import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
 import {
@@ -144,8 +145,18 @@ router.get('/callback', async (c) => {
   try {
     // Exchange the auth code for tokens (client_secret_basic per Fanvue docs)
     const basicAuth = Buffer.from(`${FANVUE_CLIENT_ID}:${FANVUE_CLIENT_SECRET}`).toString('base64');
+    const egressProxy = await resolveEgressProxy(pending.modelId);
+    if (!egressProxy) {
+      return apiError(
+        c,
+        503,
+        statusTitle(503),
+        'Fanvue token exchange unavailable: model egress binding is unhealthy',
+      );
+    }
+    const egressFetch = buildEgressFetch(egressProxy);
 
-    const resp = await fetch(FANVUE_TOKEN_URL, {
+    const resp = await egressFetch(FANVUE_TOKEN_URL, {
       method: 'POST',
       headers: {
         Authorization: `Basic ${basicAuth}`,

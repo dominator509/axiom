@@ -13,6 +13,7 @@ import { Hono } from 'hono';
 import { randomBytes } from 'node:crypto';
 import type { AppBindings } from '../index.js';
 import { normalizeAuthOrigin } from '@axiom/auth';
+import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
 import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
 import {
   clearOAuthStateCookie,
@@ -111,8 +112,19 @@ router.get('/callback', async (c) => {
   clearOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_COOKIE_PATH);
 
   try {
+    const egressProxy = await resolveEgressProxy(pending.modelId);
+    if (!egressProxy) {
+      return apiError(
+        c,
+        503,
+        statusTitle(503),
+        'Threads token exchange unavailable: model egress binding is unhealthy',
+      );
+    }
+    const egressFetch = buildEgressFetch(egressProxy);
+
     // Exchange authorization code for a short-lived access token
-    const tokenResp = await fetch('https://graph.threads.net/oauth/access_token', {
+    const tokenResp = await egressFetch('https://graph.threads.net/oauth/access_token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -146,7 +158,7 @@ router.get('/callback', async (c) => {
     longLivedUrl.searchParams.set('grant_type', 'th_exchange_token');
     longLivedUrl.searchParams.set('client_secret', THREADS_APP_SECRET);
     longLivedUrl.searchParams.set('access_token', accessToken);
-    const longLivedResp = await fetch(longLivedUrl);
+    const longLivedResp = await egressFetch(longLivedUrl);
 
     let finalToken = accessToken;
     let expiresIn = typeof tokenData.expires_in === 'number' ? tokenData.expires_in : 3600;
