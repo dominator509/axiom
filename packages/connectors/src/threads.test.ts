@@ -116,6 +116,21 @@ describe('publish', () => {
     expect(publishUrl.searchParams.get('creation_id')).toBe('parent-1');
   });
 
+  it('sends the caption on a single-media container', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ id: 'c1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'c1', status: 'FINISHED' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'p1' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await new ThreadsConnector(AUTH).publish(input());
+
+    expect(result).toMatchObject({ state: 'published', remoteId: 'p1' });
+    const [createUrl] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(new URL(createUrl).searchParams.get('text')).toBe('Hello Threads');
+  });
+
   it('fails fast when externalUserId is missing', async () => {
     vi.stubGlobal('fetch', vi.fn());
     const c = new ThreadsConnector({ accessToken: 'threads-token' });

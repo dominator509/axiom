@@ -90,6 +90,9 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
           media_type: mediaType === 'video' ? 'VIDEO' : 'IMAGE',
           ...(mediaType === 'video' ? { video_url: mediaUrl } : { image_url: mediaUrl }),
           access_token: accessToken,
+          // Threads calls the caption `text` on a single media container.
+          // Carousel captions belong to the parent container below.
+          ...(input.mediaUrls.length === 1 && input.caption ? { text: input.caption } : {}),
         };
         if (input.mediaUrls.length > 1) params.is_carousel_item = 'true';
 
