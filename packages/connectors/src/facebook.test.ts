@@ -299,11 +299,13 @@ describe('fetchMetrics', () => {
     expect(metrics.collectedAt).toBeTruthy();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url] = fetchMock.mock.calls[0] as [string];
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(
       'https://graph.facebook.com/v22.0/page-1_post-1/insights' +
-        '?metric=impressions,likes,comments,shares&access_token=fb-token-123',
+        '?metric=impressions,likes,comments,shares',
     );
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer fb-token-123');
+    expect(url).not.toContain('fb-token-123');
   });
 
   it('falls back to post fields when insights are missing likes and comments', async () => {
@@ -324,12 +326,16 @@ describe('fetchMetrics', () => {
 
     expect(metrics.metrics).toEqual({ impressions: 0, likes: 9, comments: 4, shares: 2 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    const [fallbackUrl] = fetchMock.mock.calls[1] as [string];
+    const [fallbackUrl, fallbackInit] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(fallbackUrl).toBe(
       'https://graph.facebook.com/v22.0/page-1_post-1' +
         '?fields=likes.summary(true).limit(0),comments.summary(true).limit(0),shares' +
-        '&access_token=fb-token-123',
+        '',
     );
+    expect((fallbackInit.headers as Record<string, string>).Authorization).toBe(
+      'Bearer fb-token-123',
+    );
+    expect(fallbackUrl).not.toContain('fb-token-123');
   });
 
   it('does not double-prefix a Page post ID already returned in compound form', async () => {
@@ -343,11 +349,12 @@ describe('fetchMetrics', () => {
     const c = new FacebookConnector(AUTH);
     await c.fetchMetrics('page-1_post-1');
 
-    const [url] = fetchMock.mock.calls[0] as [string];
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(
       'https://graph.facebook.com/v22.0/page-1_post-1/insights' +
-        '?metric=impressions,likes,comments,shares&access_token=fb-token-123',
+        '?metric=impressions,likes,comments,shares',
     );
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer fb-token-123');
   });
 
   it('throws when the insights endpoint fails', async () => {
@@ -382,16 +389,14 @@ describe('revoke', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const [pageUrl, pageInit] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(pageUrl).toBe(
-      'https://graph.facebook.com/v22.0/page-1/permissions?access_token=fb-token-123',
-    );
+    expect(pageUrl).toBe('https://graph.facebook.com/v22.0/page-1/permissions');
     expect(pageInit.method).toBe('DELETE');
+    expect((pageInit.headers as Record<string, string>).Authorization).toBe('Bearer fb-token-123');
 
     const [userUrl, userInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(userUrl).toBe(
-      'https://graph.facebook.com/v22.0/me/permissions?access_token=fb-token-123',
-    );
+    expect(userUrl).toBe('https://graph.facebook.com/v22.0/me/permissions');
     expect(userInit.method).toBe('DELETE');
+    expect((userInit.headers as Record<string, string>).Authorization).toBe('Bearer fb-token-123');
 
     expect(c.auth.accessToken).toBe('');
     expect(c.auth.refreshToken).toBeUndefined();

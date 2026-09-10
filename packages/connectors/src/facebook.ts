@@ -220,9 +220,11 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
     // Get insights for the post
     const insightsUrl =
       `${FB_GRAPH_BASE}/${postNodeId}/insights` +
-      `?metric=impressions,likes,comments,shares&access_token=${accessToken}`;
+      '?metric=impressions,likes,comments,shares';
 
-    const resp = await this.fetchImpl(insightsUrl);
+    const resp = await this.fetchImpl(insightsUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
     if (!resp.ok) {
       const body = await readResponseText(
         resp,
@@ -253,9 +255,11 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
     // Fallback: fetch post reactions/comments counts directly
     if (likes === 0 || comments === 0) {
       try {
-        const postUrl = `${FB_GRAPH_BASE}/${postNodeId}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0),shares&access_token=${accessToken}`;
+        const postUrl = `${FB_GRAPH_BASE}/${postNodeId}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0),shares`;
 
-        const postResp = await this.fetchImpl(postUrl);
+        const postResp = await this.fetchImpl(postUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
         if (postResp.ok) {
           const postData = await readResponseJson<{
             likes?: { summary?: { total_count?: number } };
@@ -309,11 +313,12 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
     const accessToken = this.auth.accessToken;
 
     // Revoke: DELETE /{page-id}/permissions removes all app permissions
-    const revokeUrl = `${FB_GRAPH_BASE}/${pageId}/permissions?access_token=${encodeURIComponent(accessToken)}`;
+    const revokeUrl = `${FB_GRAPH_BASE}/${pageId}/permissions`;
 
     const response = await this.fetchImpl(revokeUrl, {
       method: 'DELETE',
       headers: {
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
     });
@@ -343,10 +348,11 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
 
     // Also revoke the user-level token. A failure here must keep the local
     // connection so the operator can retry instead of orphaning a live token.
-    const userTokenRevokeUrl = `${FB_GRAPH_BASE}/me/permissions?access_token=${encodeURIComponent(accessToken)}`;
+    const userTokenRevokeUrl = `${FB_GRAPH_BASE}/me/permissions`;
     const userResp = await this.fetchImpl(userTokenRevokeUrl, {
       method: 'DELETE',
       headers: {
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
     });

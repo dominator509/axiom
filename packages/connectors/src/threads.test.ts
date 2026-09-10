@@ -169,10 +169,11 @@ describe('fetchMetrics', () => {
       quotes: 0,
     });
 
-    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     expect(url).toBe(
-      'https://graph.threads.net/v1.0/p1/insights?metric=views,likes,replies,reposts,quotes,shares&access_token=threads-token',
+      'https://graph.threads.net/v1.0/p1/insights?metric=views,likes,replies,reposts,quotes,shares',
     );
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer threads-token');
   });
 
   it('maps aggregate insight metrics returned in total_value', async () => {
@@ -214,10 +215,9 @@ describe('revoke', () => {
     await c.revoke();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(
-      'https://graph.threads.net/v1.0/threads-user-1/permissions?access_token=threads-token',
-    );
+    expect(url).toBe('https://graph.threads.net/v1.0/threads-user-1/permissions');
     expect(init.method).toBe('DELETE');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer threads-token');
   });
 
   it('fails when externalUserId is missing', async () => {

@@ -418,11 +418,12 @@ describe('revoke', () => {
     await c.revoke();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://oauth2.googleapis.com/revoke?token=yt-token-123');
+    expect(url).toBe('https://oauth2.googleapis.com/revoke');
     expect(init.method).toBe('POST');
     expect((init.headers as Record<string, string>)['Content-Type']).toBe(
       'application/x-www-form-urlencoded',
     );
+    expect(init.body).toEqual(new URLSearchParams({ token: 'yt-token-123' }));
 
     expect(
       c.getLogs().some((l) => l.action === 'revoke' && l.message.includes('revoked successfully')),

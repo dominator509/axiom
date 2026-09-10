@@ -240,13 +240,14 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
     const token = this.auth.accessToken;
 
     // Revoke the OAuth token at Google's revocation endpoint
-    const revokeUrl = `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`;
+    const revokeUrl = 'https://oauth2.googleapis.com/revoke';
 
     const response = await this.fetchImpl(revokeUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
+      body: new URLSearchParams({ token }),
     });
 
     if (!response.ok) {

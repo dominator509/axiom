@@ -232,10 +232,11 @@ describe('fetchMetrics', () => {
     });
     expect(metrics.raw).toEqual(insights);
 
-    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/v22.0/post-9/insights');
     expect(url).toContain('metric=impressions,likes,comments,shares,saved');
-    expect(url).toContain('access_token=ig-token');
+    expect(url).not.toContain('access_token=');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer ig-token');
   });
 
   it('fetches media insights without requiring the account id', async () => {
@@ -264,10 +265,9 @@ describe('revoke', () => {
     await c.revoke();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(
-      'https://graph.facebook.com/v22.0/ig-business-1/permissions?delegation&access_token=ig-token',
-    );
+    expect(url).toBe('https://graph.facebook.com/v22.0/ig-business-1/permissions?delegation');
     expect(init.method).toBe('DELETE');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer ig-token');
     expect(
       c
         .getLogs()

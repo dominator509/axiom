@@ -165,10 +165,11 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
 
     const metricsUrl =
       `${THREADS_GRAPH_BASE}/${remoteId}/insights` +
-      `?metric=views,likes,replies,reposts,quotes,shares` +
-      `&access_token=${accessToken}`;
+      '?metric=views,likes,replies,reposts,quotes,shares';
 
-    const resp = await this.fetchImpl(metricsUrl);
+    const resp = await this.fetchImpl(metricsUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
     if (!resp.ok) {
       const body = await readResponseText(
         resp,
@@ -217,10 +218,8 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
       throw new Error('Threads revoke requires externalUserId (Threads User ID)');
     }
 
-    const accessToken = this.auth.accessToken;
-
     await this.apiDelete<ThreadsPermissionsResponse>(
-      `${THREADS_GRAPH_BASE}/${threadsUserId}/permissions?access_token=${accessToken}`,
+      `${THREADS_GRAPH_BASE}/${threadsUserId}/permissions`,
     );
 
     this.log('info', 'revoke', `Revoked Threads permissions for user ${threadsUserId}`);

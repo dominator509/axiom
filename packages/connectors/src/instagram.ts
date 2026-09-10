@@ -203,12 +203,9 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
-    const accessToken = this.auth.accessToken;
-
     const metrics = await this.apiGet<IgInsightsResponse>(
       `${IG_GRAPH_BASE}/${remoteId}/insights` +
-        `?metric=impressions,likes,comments,shares,saved` +
-        `&access_token=${accessToken}`,
+        '?metric=impressions,likes,comments,shares,saved',
     );
 
     const result: Partial<Record<string, number>> = {};
@@ -240,11 +237,7 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
       throw new Error('Instagram revoke requires externalUserId (Instagram User ID)');
     }
 
-    const accessToken = this.auth.accessToken;
-
-    await this.apiDelete<IgPermissionsResponse>(
-      `${IG_GRAPH_BASE}/${igUserId}/permissions?delegation&access_token=${accessToken}`,
-    );
+    await this.apiDelete<IgPermissionsResponse>(`${IG_GRAPH_BASE}/${igUserId}/permissions?delegation`);
 
     this.log('info', 'revoke', `Revoked Instagram permissions for user ${igUserId}`);
   }
