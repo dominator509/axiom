@@ -123,6 +123,14 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(sql).toContain('deduplicate before applying 0022');
   });
 
+  it('serializes concurrent pending relay-card dispatch markers', () => {
+    expect(sql).toContain('relay_card_pending_dispatch_unique');
+    expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS relay_card_pending_dispatch_unique');
+    expect(sql).toContain('ON relay_card (org_id, bundle_id, channel, external_ref)');
+    expect(sql).toContain("WHERE state = 'pending';");
+    expect(sql).toContain('deduplicate before applying 0023');
+  });
+
   it('locks the trusted cross-org egress resolver to the runtime and migrator roles', () => {
     expect(sql).toContain('CREATE OR REPLACE FUNCTION load_model_network_configs()');
     expect(sql).toContain('RETURNS SETOF public.model_network_configs');

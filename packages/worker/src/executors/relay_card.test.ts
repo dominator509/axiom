@@ -171,6 +171,29 @@ describe('relayCard', () => {
     expect(mockState.sent).toHaveLength(0);
   });
 
+  it('fails closed when a concurrent job wins the pending-marker insert race', async () => {
+    // The pending-dispatch partial unique index turns the losing insert into
+    // an empty RETURNING result. Treat that as an unknown provider outcome so
+    // the worker dead-letters for reconciliation instead of retrying freely.
+    mockState.results[4] = [];
+    const markExternalSideEffect = vi.fn();
+
+    await expect(
+      relayCard({
+        tx: makeChain(),
+        job: JOB,
+        killSwitchEnabled: false,
+        workerId: 'worker-1',
+        markExternalSideEffect,
+      }),
+    ).rejects.toThrow(
+      'relay.card: concurrent dispatch marker already exists for bundle-1/telegram/chat-1; provider reconciliation required before retry',
+    );
+
+    expect(markExternalSideEffect).toHaveBeenCalledTimes(1);
+    expect(mockState.sent).toHaveLength(0);
+  });
+
   it('persists the card id, preserves safe ToS semantics, and sends it to Telegram', async () => {
     const markExternalSideEffect = vi.fn();
     const persistSideEffectMarker = vi.fn(async (operation: (markerTx: any) => Promise<unknown>) =>

@@ -225,9 +225,18 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
           description: captions['instagram'] ?? Object.values(captions)[0] ?? '',
           config: { targetPlatforms, tosScores },
         })
+        // The pending-dispatch partial unique index is the concurrency guard
+        // for jobs that race after the read above. A losing insert must not
+        // proceed without its own durable marker.
+        .onConflictDoNothing()
         .returning({ id: schema.relayCard.id }),
     );
-    if (!relayCardRow?.id) throw new Error('relay.card: relay card insert returned no id');
+    if (!relayCardRow?.id) {
+      ctx.markExternalSideEffect?.();
+      throw new Error(
+        `relay.card: concurrent dispatch marker already exists for ${bundle.id}/${channel}/${chatRef}; provider reconciliation required before retry`,
+      );
+    }
 
     const content: BundleContent = {
       id: bundle.id,
