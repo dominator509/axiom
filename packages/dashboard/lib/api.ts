@@ -294,7 +294,9 @@ export async function getSession() {
       signal: requestSignal.signal,
     });
     if (!res.ok) return null;
-    const body = await readBoundedResponseJson<{ user?: { id: string } } | null>(res);
+    const body = await readBoundedResponseJson<{
+      user?: { id: string; email?: string; orgId?: string | null; role?: string };
+    } | null>(res);
     return body?.user ? body : null;
   } catch {
     return null;

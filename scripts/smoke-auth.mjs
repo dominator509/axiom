@@ -76,6 +76,9 @@ assert.ok(!data.user.orgId, 'public signup cannot assign an organization');
 assert.equal(data.user.role, 'operator', 'ordinary signup retains the database default role');
 const unassigned = await request('/api/v1/models', { headers: { cookie } });
 assert.equal(unassigned.status, 401, 'unassigned identities cannot read tenant data');
+const workspace = await request('/', { headers: { cookie } });
+assert.equal(workspace.status, 200, 'unassigned identity gets an actionable dashboard response');
+assert.match(await workspace.text(), /Workspace access pending/);
 const signout = await request('/api/auth/sign-out', {
   method: 'POST',
   headers: { ...headers, cookie },
@@ -86,5 +89,5 @@ const revoked = await request('/api/auth/get-session', { headers: { cookie } });
 assert.equal(revoked.status, 200, 'revoked session lookup status');
 assert.equal(await revoked.json(), null, 'old session must no longer authenticate');
 console.log(
-  'auth smoke: login, anonymous/unassigned denial, signup privilege rejection, signin, HttpOnly session restore and revocation passed',
+  'auth smoke: login, anonymous/unassigned denial, access-pending dashboard, signup privilege rejection, signin, HttpOnly session restore and revocation passed',
 );
