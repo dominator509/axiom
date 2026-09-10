@@ -186,6 +186,20 @@ describe('inbound JSON-RPC receive handling', () => {
     ).toMatchObject({ source: '+15550002222', text: 'approve token' });
   });
 
+  it('rejects oversized JSON-RPC notifications before parsing', () => {
+    const oversized = JSON.stringify({
+      params: {
+        envelope: {
+          source: '+15550002222',
+          dataMessage: { message: 'x'.repeat(256 * 1024) },
+        },
+      },
+    });
+
+    expect(Buffer.byteLength(oversized, 'utf8')).toBeGreaterThan(256 * 1024);
+    expect(parseSignalNotification(oversized)).toBeNull();
+  });
+
   it('verifies a signed token before invoking the domain handler', async () => {
     const router = new CommandRouter('signal-test-secret');
     const routedAdapter = new SignalAdapter(config, router);

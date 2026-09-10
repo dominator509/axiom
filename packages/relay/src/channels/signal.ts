@@ -4,6 +4,7 @@ import { CardRenderer } from '../card.js';
 import { CommandRouter, type CommandContext } from '../commands.js';
 
 const SIGNAL_SEND_TIMEOUT_MS = 30_000;
+const SIGNAL_NOTIFICATION_MAX_BYTES = 256 * 1024;
 
 export interface SignalConfig {
   cliPath: string;
@@ -179,6 +180,7 @@ export function parseSignalNotification(value: unknown): SignalMessage | null {
   const parsedValue =
     typeof value === 'string'
       ? (() => {
+          if (Buffer.byteLength(value, 'utf8') > SIGNAL_NOTIFICATION_MAX_BYTES) return null;
           try {
             return JSON.parse(value);
           } catch {
