@@ -14,6 +14,12 @@ describe('dashboard API origin', () => {
     );
   });
 
+  it('fails closed when AXIOM_ENV selects production', () => {
+    expect(() =>
+      resolveApiOrigin({ AXIOM_ENV: 'production', NODE_ENV: 'development', API_ORIGIN: '' }),
+    ).toThrow('API_ORIGIN is required in production');
+  });
+
   it('allows the loopback default only outside production', () => {
     expect(resolveApiOrigin({ NODE_ENV: 'development', API_ORIGIN: undefined })).toBe(
       'http://127.0.0.1:3001',

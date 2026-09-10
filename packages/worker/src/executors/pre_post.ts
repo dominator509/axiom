@@ -8,7 +8,12 @@
 import { db, schema } from '@axiom/db';
 import { sql } from 'drizzle-orm';
 import { PrePostHook } from '@axiom/fanvue-mcp';
-import { readBoundedResponseJson, type Platform, type PublishResult } from '@axiom/core';
+import {
+  isProductionEnvironment,
+  readBoundedResponseJson,
+  type Platform,
+  type PublishResult,
+} from '@axiom/core';
 import type { ConnectorPublishInput } from '@axiom/connectors';
 import type { ExecutorContext } from './context.js';
 
@@ -68,7 +73,7 @@ export async function mediaPlaneEngine(
   // only and must be explicitly enabled; allowing it by default would let a
   // dependency outage bypass the declared isolation and ToS-compliance path.
   const allowInProcessFallback =
-    process.env.NODE_ENV !== 'production' && process.env.AXIOM_ALLOW_IN_PROCESS_PREPOST === 'true';
+    !isProductionEnvironment(process.env) && process.env.AXIOM_ALLOW_IN_PROCESS_PREPOST === 'true';
   if (!allowInProcessFallback) {
     throw new Error(`Rust media plane unavailable (${failure ?? 'unknown failure'})`);
   }

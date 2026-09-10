@@ -7,7 +7,7 @@
 //  5. Enqueue metrics.poll for the published target (L2.8 §1).
 
 import { eq, and } from 'drizzle-orm';
-import { tosReportPassesForPlatforms } from '@axiom/core';
+import { isProductionEnvironment, tosReportPassesForPlatforms } from '@axiom/core';
 import {
   schema,
   getPublishingConsentStatus,
@@ -99,7 +99,7 @@ export function resolveProviderAssetUrl(asset: Pick<PublishAsset, 'id' | 'storag
   if (base.protocol !== 'http:' && base.protocol !== 'https:') {
     throw new Error('publish.target: AXIOM_ASSET_DELIVERY_BASE_URL must use http(s)');
   }
-  if (process.env.NODE_ENV === 'production' && base.protocol !== 'https:') {
+  if (isProductionEnvironment(process.env) && base.protocol !== 'https:') {
     throw new Error('publish.target: AXIOM_ASSET_DELIVERY_BASE_URL must use https in production');
   }
   if (base.username || base.password || base.search || base.hash) {

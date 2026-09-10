@@ -323,3 +323,4 @@
 2026-09-10T06:35:00Z | [P1][API/IDEMPOTENCY-BOUNDARY] Cap Idempotency-Key headers at 256 UTF-8 bytes before hashing, database reservation, or handler execution; add fail-closed middleware coverage
 2026-09-10T07:05:00Z | [P1][CONNECTORS/CAPABILITIES] Align Instagram, YouTube, Facebook, and Threads scheduling declarations with the implemented Postgres-worker scheduling path; remove false schedule.native claims and update capability/spec regression coverage
 2026-09-10T06:29:35Z | [P1][CONNECTOR/X] Align X media composition and upload contracts: support GIF media categories, enforce homogeneous post media and provider byte ceilings before upload initialization, and add regression coverage/docs
+2026-09-10T06:45:37Z | [P1][RUNTIME] Unified AXIOM_ENV production guards across core, API, worker, and dashboard; local verify passed; hosted CI pending

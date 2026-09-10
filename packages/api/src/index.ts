@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { resolveRelaySecret, type UserRole } from '@axiom/core';
+import { isProductionEnvironment, resolveRelaySecret, type UserRole } from '@axiom/core';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
@@ -990,7 +990,7 @@ export function createRelayApp(): Hono {
   const blueBubblesPassword = process.env.BLUEBUBBLES_PASSWORD ?? process.env.BLUEBUBBLES_API_KEY;
   const blueBubblesWebhookSecret = process.env.BLUEBUBBLES_WEBHOOK_SECRET;
   if (blueBubblesUrl && blueBubblesPassword) {
-    if (!blueBubblesWebhookSecret && process.env.NODE_ENV === 'production') {
+    if (!blueBubblesWebhookSecret && isProductionEnvironment(process.env)) {
       throw new Error('BLUEBUBBLES_WEBHOOK_SECRET is required when iMessage is enabled');
     }
     if (blueBubblesWebhookSecret) {

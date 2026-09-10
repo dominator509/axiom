@@ -1,6 +1,9 @@
+import { isProductionEnvironment } from '@axiom/core';
+
 const LOCAL_API_ORIGIN = 'http://127.0.0.1:3001';
 
 type ApiOriginEnvironment = {
+  AXIOM_ENV?: string;
   API_ORIGIN?: string;
   NODE_ENV?: string;
 };
@@ -14,7 +17,7 @@ type ApiOriginEnvironment = {
 export function resolveApiOrigin(env: ApiOriginEnvironment = process.env): string {
   const configured = env.API_ORIGIN?.trim();
   if (!configured) {
-    if (env.NODE_ENV === 'production') {
+    if (isProductionEnvironment(env)) {
       throw new Error('API_ORIGIN is required in production');
     }
     return LOCAL_API_ORIGIN;

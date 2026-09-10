@@ -2,6 +2,8 @@
 // A partially configured adapter must fail startup instead of silently
 // removing an operator control surface from an otherwise healthy API.
 
+import { isProductionEnvironment } from '@axiom/core';
+
 type ConfigValue = string | undefined;
 
 function requireComplete(label: string, values: Array<ConfigValue>): void {
@@ -16,7 +18,7 @@ function requireComplete(label: string, values: Array<ConfigValue>): void {
  * environments may intentionally enable adapters incrementally.
  */
 export function validateProductionRelayConfig(env: NodeJS.ProcessEnv): void {
-  if (env.NODE_ENV !== 'production') return;
+  if (!isProductionEnvironment(env)) return;
 
   requireComplete('Discord', [env.DISCORD_BOT_TOKEN, env.DISCORD_APPLICATION_ID]);
   requireComplete('Signal', [env.SIGNAL_CLI_PATH, env.SIGNAL_ACCOUNT]);
