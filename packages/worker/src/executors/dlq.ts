@@ -17,7 +17,8 @@ export const dlqReplay: Executor = async (ctx: ExecutorContext) => {
     .select({ lastError: schema.job.lastError })
     .from(schema.job)
     .where(and(eq(schema.job.id, jobId), eq(schema.job.orgId, job.org_id)))
-    .limit(1);
+    .limit(1)
+    .for('update');
   if (existing.length > 0 && isExternalSideEffectUnknown(existing[0].lastError)) {
     throw new Error(
       `${EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX} replay requires provider reconciliation before retry`,

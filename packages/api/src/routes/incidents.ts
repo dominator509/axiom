@@ -51,11 +51,21 @@ router.post('/incidents/:jobId/replay', async (c) => {
 
   const result = await withOrgContext(orgId, async (tx) => {
     const existing = await tx
-      .select({ kind: schema.job.kind, lastError: schema.job.lastError })
+      .select({ state: schema.job.state, lastError: schema.job.lastError })
       .from(schema.job)
       .where(and(eq(schema.job.id, jobId), eq(schema.job.orgId, orgId)))
-      .limit(1);
+      .limit(1)
+      .for('update');
     if (existing.length === 0) return { status: 404 as const, data: null };
+    // Keep the eligibility check and reset under the same row lock. A replay
+    // must never steal an active lease or erase a worker's unknown outcome.
+    if (!['dead', 'failed'].includes(existing[0].state)) {
+      return {
+        status: 409 as const,
+        data: null,
+        message: 'Only dead or failed jobs can be replayed',
+      };
+    }
     if (existing[0].lastError?.startsWith('external-side-effect-unknown:')) {
       return {
         status: 409 as const,
@@ -76,7 +86,13 @@ router.post('/incidents/:jobId/replay', async (c) => {
         startedAt: null,
         completedAt: null,
       })
-      .where(and(eq(schema.job.id, jobId), eq(schema.job.orgId, orgId)))
+      .where(
+        and(
+          eq(schema.job.id, jobId),
+          eq(schema.job.orgId, orgId),
+          sql`${schema.job.state} IN ('dead', 'failed')`,
+        ),
+      )
       .returning();
     if (rows.length === 0) return { status: 404 as const, data: null };
     await writeAudit(tx, orgId, userId, 'incident.replay', jobId, {});

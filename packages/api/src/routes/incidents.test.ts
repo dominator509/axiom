@@ -25,6 +25,7 @@ function appWithOrg(orgId: string | null) {
 
 beforeEach(() => {
   mockState.result = [];
+  mockState.results = [];
   mockState.updates = [];
 });
 
@@ -63,6 +64,7 @@ describe('GET /incidents — DLQ view', () => {
 describe('POST /incidents/:jobId/replay — DLQ replay', () => {
   it('resets a dead job back to ready', async () => {
     const priorRunAfter = new Date(Date.now() + 60 * 60 * 1000);
+    mockState.results = [[], [{ id: 'j1', state: 'dead', lastError: null }]];
     mockState.result = [
       {
         id: 'j1',
@@ -100,6 +102,16 @@ describe('POST /incidents/:jobId/replay — DLQ replay', () => {
     expect(res.status).toBe(404);
   });
 
+  it.each(['ready', 'running', 'done'])('refuses to reset a %s job', async (state) => {
+    mockState.result = [{ id: 'j-active', state, lastError: null }];
+    const res = await appWithOrg(ORG_ID).request('/incidents/j-active/replay', {
+      method: 'POST',
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ detail: 'Only dead or failed jobs can be replayed' });
+    expect(mockState.updates).toHaveLength(0);
+  });
+
   it('rejects without org context (401)', async () => {
     const res = await appWithOrg(null).request('/incidents/j1/replay', { method: 'POST' });
     expect(res.status).toBe(401);
@@ -122,5 +134,6 @@ describe('POST /incidents/:jobId/replay — DLQ replay', () => {
     expect(await res.json()).toMatchObject({
       detail: expect.stringContaining('reconcile the external side effect'),
     });
+    expect(mockState.updates).toHaveLength(0);
   });
 });
