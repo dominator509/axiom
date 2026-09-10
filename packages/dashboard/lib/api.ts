@@ -183,7 +183,11 @@ export interface NetworkConfig {
 
 export const api = {
   models: {
-    list: () => apiFetch<{ data: ModelProfile[]; meta: { total: number } }>('/api/v1/models'),
+    list: (cursor?: string) => apiFetch<{
+      data: ModelProfile[];
+      meta: { total: number; limit: number; next_cursor: string | null };
+    }>(`/api/v1/models${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
+    count: () => apiFetch<{ data: { count: number } }>('/api/v1/models/stats/count'),
     get: (id: string) => apiFetch<{ data: ModelProfile }>(`/api/v1/models/${id}`),
     create: (body: { displayName: string; handle: string; bio?: string }) =>
       apiFetch<{ data: ModelProfile }>('/api/v1/models', {
