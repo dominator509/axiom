@@ -367,7 +367,7 @@ jobs:
           docker run --detach --name axiom-hono-ci --network host \
             --env NODE_ENV=production \
             --env API_HOST=0.0.0.0 \
-            --env DATABASE_URL=postgresql://axiom:changeme@127.0.0.1:5432/axiom_test \
+            --env DATABASE_URL=postgresql://axiom_app:axiom_app@127.0.0.1:5432/axiom_test \
             --env BETTER_AUTH_SECRET="$ci_auth_value" \
             --env BETTER_AUTH_URL=https://127.0.0.1:3001 \
             --env RELAY_SECRET="$ci_relay_value" \
@@ -396,6 +396,10 @@ jobs:
           wait_for_health axiom-hono-ci
           wait_for_health axiom-dashboard-ci
           wait_for_health axiom-worker-ci
+
+          # Exercise real identity persistence through the dashboard rewrite,
+          # with the API running as the non-owner application database role.
+          node scripts/smoke-auth.mjs http://127.0.0.1:3000 https://127.0.0.1:3001
 
           # Vision readiness is model-backed. The CI image intentionally does
           # not bundle the 343 MB external model artifact; verify that the
