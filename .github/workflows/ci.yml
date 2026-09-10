@@ -8,6 +8,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # The CI runner uses host networking for the dashboard/API smoke fixture.
+  # Production deployments must provide their real service origin explicitly.
+  API_ORIGIN: http://127.0.0.1:3001
 
 permissions:
   contents: read
