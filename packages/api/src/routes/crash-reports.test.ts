@@ -76,6 +76,15 @@ describe('POST /crash-reports', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects an oversized body before parsing it', async () => {
+    const res = await appWithOrg(ORG_ID).request('/crash-reports', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: `{"eventId":"evt-1","service":"api","message":"${'x'.repeat(262_144)}"}`,
+    });
+    expect(res.status).toBe(413);
+  });
+
   it('captures a new crash (count 1 → isNew true)', async () => {
     mockState.result = [
       { id: 'crash-1', orgId: ORG_ID, fingerprint: 'abc', count: 1, status: 'open' },

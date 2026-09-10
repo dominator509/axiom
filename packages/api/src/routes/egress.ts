@@ -13,6 +13,7 @@ import { DEFAULT_EGRESS_PLANE_URL } from '@axiom/core';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { apiError, modelOrgId, statusTitle } from './helpers.js';
+import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 
 const router = new Hono<AppBindings>();
 
@@ -308,8 +309,15 @@ router.delete('/:id', async (c) => {
 // POST /plane/bind — forward a bind request to the egress plane
 router.post('/plane/bind', async (c) => {
   const orgId = c.get('orgId');
-  const body = await c.req.json().catch(() => ({}));
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  let body: unknown = {};
+  try {
+    body = await readBoundedJson(c.req.raw);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return apiError(c, 413, statusTitle(413), 'egress bind body too large');
+    }
+  }
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return apiError(c, 400, statusTitle(400), 'request body must be an object');
   }
@@ -344,8 +352,15 @@ router.post('/plane/bind', async (c) => {
 // POST /plane/unbind — forward an unbind request
 router.post('/plane/unbind', async (c) => {
   const orgId = c.get('orgId');
-  const body = await c.req.json().catch(() => ({}));
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  let body: unknown = {};
+  try {
+    body = await readBoundedJson(c.req.raw);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return apiError(c, 413, statusTitle(413), 'egress unbind body too large');
+    }
+  }
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return apiError(c, 400, statusTitle(400), 'request body must be an object');
   }
