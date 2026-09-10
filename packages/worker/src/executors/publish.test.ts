@@ -3,6 +3,7 @@ import {
   assertProviderReadableMediaUrls,
   isTerminalPublishTargetState,
   publishDispatchMarkerValues,
+  publishTarget,
   resolveProviderAssetUrl,
   shouldEnqueueMetrics,
   validatePublishAsset,
@@ -18,6 +19,61 @@ const asset = {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.useRealTimers();
+});
+
+describe('publish schedule handoff', () => {
+  it('parks an already-claimed job when its locked target was postponed', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-10T18:00:00Z'));
+    const target = {
+      id: 'target-1',
+      state: 'pending',
+      remoteId: null,
+      scheduledFor: new Date('2026-09-10T19:00:00Z'),
+    };
+    const query = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      for: vi.fn().mockResolvedValue([target]),
+    };
+    const tx = { select: vi.fn().mockReturnValue(query) };
+    const markExternalSideEffect = vi.fn();
+    const persistSideEffectMarker = vi.fn();
+    await expect(
+      publishTarget({
+        tx,
+        job: {
+          id: 'job-1',
+          org_id: 'org-1',
+          queue: 'publish',
+          kind: 'publish.target',
+          payload: { targetId: target.id },
+          state: 'running',
+          attempts: 0,
+          max_attempts: 8,
+          last_error: null,
+          run_after: new Date(),
+          locked_by: 'worker-1',
+          locked_at: new Date(),
+          dedupe_key: null,
+          scheduled_for: null,
+          started_at: new Date(),
+          completed_at: null,
+          created_at: new Date(),
+        },
+        workerId: 'worker-1',
+        killSwitchEnabled: false,
+        markExternalSideEffect,
+        persistSideEffectMarker,
+      }),
+    ).rejects.toMatchObject({ name: 'ParkJobError', delayMs: 3_600_000 });
+    expect(query.for).toHaveBeenCalledWith('update');
+    expect(tx.select).toHaveBeenCalledTimes(1);
+    expect(markExternalSideEffect).not.toHaveBeenCalled();
+    expect(persistSideEffectMarker).not.toHaveBeenCalled();
+  });
 });
 
 describe('validatePublishAsset', () => {

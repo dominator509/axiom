@@ -67,6 +67,7 @@ function appWithOrg(orgId: string | null) {
 beforeEach(() => {
   mockState.result = [];
   mockState.results = [];
+  mockState.updates = [];
   vi.mocked(enqueueJob).mockClear();
   vi.mocked(getPublishingConsentStatus).mockClear();
 });
@@ -317,6 +318,8 @@ describe('PATCH /posts/:id', () => {
     mockState.results = [
       [],
       [pendingPost],
+      [], // no unknown-outcome job
+      [], // no unresolved dispatch marker
       [{ modelId: MODEL_ID, assetId: 'asset-1' }],
       [{ id: 'asset-1', kind: 'image' }],
       [{ id: CONNECTION_ID, platform: 'instagram' }],
@@ -389,6 +392,8 @@ describe('PATCH /posts/:id', () => {
           state: 'pending',
         },
       ],
+      [],
+      [],
       [{ assetId: null }],
     ];
 
@@ -447,6 +452,7 @@ describe('DELETE /posts/:id', () => {
       [],
       [{ id: POST_ID, state: 'pending', remoteId: null }],
       [],
+      [],
       [{ id: POST_ID, state: 'canceled' }],
     ];
     const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, { method: 'DELETE' });
@@ -481,5 +487,46 @@ describe('DELETE /posts/:id', () => {
   it('returns 404 when the post is not in the org', async () => {
     const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, { method: 'DELETE' });
     expect(res.status).toBe(404);
+  });
+});
+
+describe('provider handoff guards', () => {
+  it.each(['PATCH', 'DELETE'])(
+    'blocks %s after a crash before dead-letter persistence',
+    async (method) => {
+      mockState.results = [
+        [],
+        [{ id: POST_ID, state: 'pending', remoteId: null }],
+        [], // worker has not yet recorded its dead job
+        [{ id: 'durable-dispatch-marker' }],
+      ];
+      const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, {
+        method,
+        ...(method === 'PATCH'
+          ? {
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ scheduledFor: '2026-08-12T12:00:00Z' }),
+            }
+          : {}),
+      });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({
+        detail: expect.stringContaining('dispatch marker'),
+      });
+      expect(mockState.updates).toHaveLength(0);
+      expect(enqueueJob).not.toHaveBeenCalled();
+    },
+  );
+
+  it('blocks retargeting an asynchronous post with a provider ID', async () => {
+    mockState.results = [[], [{ id: POST_ID, state: 'pending', remoteId: 'provider-id' }]];
+    const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platform: 'tiktok' }),
+    });
+    expect(res.status).toBe(409);
+    expect(mockState.updates).toHaveLength(0);
+    expect(enqueueJob).not.toHaveBeenCalled();
   });
 });

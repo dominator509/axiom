@@ -209,6 +209,16 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     return;
   }
 
+  // The job may have been claimed before an operator postponed the target.
+  // Recheck the authoritative schedule under its lock before provider I/O;
+  // updating only a ready job's run_after cannot cover that claim race.
+  if (!target.remoteId && target.scheduledFor) {
+    const delayMs = new Date(target.scheduledFor).getTime() - Date.now();
+    if (delayMs > 0) {
+      throw new ParkJobError('publish.target: target rescheduled into the future', delayMs);
+    }
+  }
+
   const bundles = await tx
     .select()
     .from(schema.contentBundle)

@@ -25,6 +25,43 @@ import type { Platform } from '@axiom/core';
 
 const router = new Hono<AppBindings>();
 
+// Call while holding the target FOR UPDATE lock, which serializes against
+// publish.target. The independent dispatch marker survives a worker rollback
+// before the worker has had a chance to record its dead-letter outcome.
+async function hasUnknownPublishOutcome(
+  tx: any,
+  orgId: string,
+  targetId: string,
+): Promise<boolean> {
+  const jobs = await tx
+    .select({ id: schema.job.id })
+    .from(schema.job)
+    .where(
+      and(
+        eq(schema.job.orgId, orgId),
+        eq(schema.job.kind, 'publish.target'),
+        eq(schema.job.state, 'dead'),
+        sql`(${schema.job.payload} ->> 'targetId') = ${targetId}`,
+        sql`${schema.job.lastError} LIKE ${`${EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX}%`}`,
+      ),
+    )
+    .limit(1);
+  if (jobs.length > 0) return true;
+  const markers = await tx
+    .select({ id: schema.prePostRun.id })
+    .from(schema.prePostRun)
+    .where(
+      and(
+        eq(schema.prePostRun.orgId, orgId),
+        eq(schema.prePostRun.targetId, targetId),
+        eq(schema.prePostRun.script, 'publish.dispatch'),
+        eq(schema.prePostRun.status, 'pending'),
+      ),
+    )
+    .limit(1);
+  return markers.length > 0;
+}
+
 const schedulePostSchema = z.object({
   bundleId: z.string().uuid(),
   platform: z.string().min(1).max(50),
@@ -256,14 +293,24 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
       .select()
       .from(schema.postTarget)
       .where(and(eq(schema.postTarget.id, id), eq(schema.postTarget.orgId, orgId)))
-      .limit(1);
+      .limit(1)
+      .for('update');
     const existing = existingRows[0];
     if (!existing) return { status: 404 as const, data: null };
-    if (existing.state !== 'pending') {
+    if (existing.state !== 'pending' || existing.remoteId) {
       return {
         status: 409 as const,
         data: null,
         error: `post cannot be edited after publication begins (current state: ${existing.state})`,
+      };
+    }
+
+    if (await hasUnknownPublishOutcome(tx, orgId, id)) {
+      return {
+        status: 409 as const,
+        data: null,
+        error:
+          'post provider outcome is unknown; reconcile the dead job or dispatch marker before editing',
       };
     }
 
@@ -424,28 +471,12 @@ router.delete('/posts/:id', async (c) => {
       };
     }
 
-    // A worker can dead-letter after provider I/O when the external outcome
-    // is unknown. Keep the target pending in that case so cancellation cannot
-    // erase the reconciliation signal or turn a possible publish into a
-    // silent no-op.
-    const unknownOutcomeJobs = await tx
-      .select({ id: schema.job.id })
-      .from(schema.job)
-      .where(
-        and(
-          eq(schema.job.orgId, orgId),
-          eq(schema.job.kind, 'publish.target'),
-          eq(schema.job.state, 'dead'),
-          sql`(${schema.job.payload} ->> 'targetId') = ${id}`,
-          sql`${schema.job.lastError} LIKE ${`${EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX}%`}`,
-        ),
-      )
-      .limit(1);
-    if (unknownOutcomeJobs.length > 0) {
+    if (await hasUnknownPublishOutcome(tx, orgId, id)) {
       return {
         status: 409 as const,
         data: null,
-        error: 'post provider outcome is unknown; reconcile the dead job before unscheduling',
+        error:
+          'post provider outcome is unknown; reconcile the dead job or dispatch marker before unscheduling',
       };
     }
 
