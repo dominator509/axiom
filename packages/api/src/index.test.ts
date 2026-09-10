@@ -215,3 +215,41 @@ describe('llm gateway routes mounted', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('MCP transport body limits', () => {
+  it('rejects an oversized JSON-RPC body before authentication work', async () => {
+    const response = await app.request('/api/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': 'mcp-body-limit-test',
+      },
+      body: `{"payload":"${'x'.repeat(262_144)}"}`,
+    });
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({
+      jsonrpc: '2.0',
+      error: { code: -32000, message: 'Request body too large' },
+      id: null,
+    });
+  });
+
+  it('returns a JSON-RPC parse error for malformed bodies', async () => {
+    const response = await app.request('/api/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': 'mcp-parse-error-test',
+      },
+      body: '{',
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      jsonrpc: '2.0',
+      error: { code: -32700, message: 'Parse error' },
+      id: null,
+    });
+  });
+});

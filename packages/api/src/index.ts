@@ -79,6 +79,8 @@ import { validateProductionRelayConfig } from './production-config.js';
 import { readBoundedJson, readBoundedText, RequestBodyTooLargeError } from './webhook-body.js';
 import { timingSafeEqual } from 'node:crypto';
 
+const MCP_MAX_BODY_BYTES = 256 * 1024;
+
 type InboundRelayAdapter = {
   onCommand(
     action: CardAction,
@@ -765,9 +767,25 @@ app.post('/api/mcp', async (c) => {
   if (authHeader) headers.authorization = authHeader;
   let body: Record<string, unknown> = {};
   try {
-    body = await c.req.json();
-  } catch {
-    // empty body → params fallback only
+    const parsed = await readBoundedJson<unknown>(c.req.raw, MCP_MAX_BODY_BYTES);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return c.json(
+        { jsonrpc: '2.0', error: { code: -32600, message: 'Invalid request' }, id: null },
+        400,
+      );
+    }
+    body = parsed as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return c.json(
+        { jsonrpc: '2.0', error: { code: -32000, message: 'Request body too large' }, id: null },
+        413,
+      );
+    }
+    return c.json(
+      { jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' }, id: null },
+      400,
+    );
   }
   let server: Awaited<ReturnType<typeof createMcpServerAsync>>;
   try {
