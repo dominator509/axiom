@@ -32,6 +32,7 @@ import {
   type ViralExemplar,
 } from './prompts.js';
 import { cacheKey } from './cache.js';
+import { appendBoundedProviderContent } from './bounded-provider-response.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -909,7 +910,7 @@ export class LLMGateway {
           recordRequest();
           let fullContent = '';
           for await (const chunk of stream) {
-            fullContent += chunk;
+            fullContent = appendBoundedProviderContent(fullContent, chunk);
             yield chunk;
           }
 

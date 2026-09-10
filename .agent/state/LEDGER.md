@@ -319,3 +319,4 @@
 2026-09-10T04:32:00Z | [P1][RELAY/SIGNAL] Reject oversized signal-cli JSON-RPC notifications before JSON parsing with the existing 256 KiB relay boundary; added regression coverage
 2026-09-10T05:00:00Z | [P1][LLM/SUBSCRIPTION-BOUNDARY] Cap provider subscription CLI JSON lines, completion stdout, and auth diagnostics before parsing or retention; add fail-closed oversized-output regression coverage
 2026-09-10T05:35:00Z | [P1][MEDIA-PLANE/BOUNDARY] Bound media-plane JSON requests and image decode dimensions/allocation, and stream file hashing instead of buffering whole assets; media-plane tests 7/7, clippy, format, and diff checks pass
+2026-09-10T06:05:00Z | [P1][LLM/STREAM-BOUNDARY] Bound active vLLM SSE streams by total bytes and line size, and bound gateway completion accumulation before caching; added split/oversize regression coverage; local JS toolchain unavailable, hosted CI required

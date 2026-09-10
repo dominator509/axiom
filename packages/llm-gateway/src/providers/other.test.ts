@@ -22,6 +22,7 @@ import {
 } from './deepseek.js';
 import { callGrok, streamGrok, GROK_BASE_URL, type GrokCompletionRequest } from './grok.js';
 import { ProviderError } from './types.js';
+import { LLM_PROVIDER_SSE_LINE_MAX_BYTES } from '../bounded-provider-response.js';
 
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -263,6 +264,20 @@ describe('callVLLM / streamVLLM', () => {
     const chunks: string[] = [];
     for await (const c of streamVLLM(req)) chunks.push(c);
     expect(chunks).toEqual(['l']);
+  });
+
+  it('rejects an oversized SSE line before parsing it', async () => {
+    fetchMock.mockResolvedValueOnce(
+      sseResponse([`data: ${'x'.repeat(LLM_PROVIDER_SSE_LINE_MAX_BYTES)}`]),
+    );
+    const p = new VLLMProvider();
+    const err = await (async () => {
+      for await (const _ of p.chatStream([{ role: 'user', content: 'hi' }])) {
+        /* drain */
+      }
+    })().catch((e) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toContain('vLLM stream line exceeds the maximum supported size');
   });
 });
 

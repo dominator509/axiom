@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  LLM_PROVIDER_SSE_LINE_MAX_BYTES,
+  LLM_PROVIDER_STREAM_MAX_BYTES,
   LLM_PROVIDER_JSON_MAX_BYTES,
+  readBoundedProviderSseLines,
   readBoundedProviderText,
   readProviderErrorText,
   readProviderJson,
@@ -29,4 +32,40 @@ describe('bounded provider responses', () => {
       'text exceeds the maximum supported size of 5 bytes',
     );
   });
+
+  it('splits SSE lines across reads and flushes a final unterminated line', async () => {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: first\ndata: sec'));
+        controller.enqueue(encoder.encode('ond'));
+        controller.close();
+      },
+    });
+
+    const lines: string[] = [];
+    for await (const line of readBoundedProviderSseLines(body)) lines.push(line);
+    expect(lines).toEqual(['data: first', 'data: second']);
+  });
+
+  it('rejects an oversized SSE line before JSON parsing', async () => {
+    const body = new Response(`data: ${'x'.repeat(LLM_PROVIDER_SSE_LINE_MAX_BYTES)}`).body;
+    await expect(readAllSseLines(body!)).rejects.toThrow(
+      `provider SSE stream line exceeds the maximum supported size of ${LLM_PROVIDER_SSE_LINE_MAX_BYTES} bytes`,
+    );
+  });
+
+  it('rejects an oversized total SSE stream', async () => {
+    const line = `data: ${'x'.repeat(900 * 1024)}`;
+    const body = new Response(`${line}\n${line}\n${line}\n${line}\n${line}`).body;
+    await expect(readAllSseLines(body!)).rejects.toThrow(
+      `provider SSE stream exceeds the maximum supported size of ${LLM_PROVIDER_STREAM_MAX_BYTES} bytes`,
+    );
+  });
 });
+
+async function readAllSseLines(body: ReadableStream<Uint8Array>): Promise<string[]> {
+  const lines: string[] = [];
+  for await (const line of readBoundedProviderSseLines(body)) lines.push(line);
+  return lines;
+}

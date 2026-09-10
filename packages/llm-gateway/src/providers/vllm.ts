@@ -6,7 +6,12 @@ import type {
   BaseProvider,
 } from './types.js';
 import { ProviderError } from './types.js';
-import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
+import {
+  appendBoundedProviderContent,
+  readBoundedProviderSseLines,
+  readProviderErrorText,
+  readProviderJson,
+} from '../bounded-provider-response.js';
 
 // vLLM is a local model server — zero marginal cost
 const COST_PER_CHAT = 0;
@@ -116,27 +121,66 @@ export class VLLMProvider implements BaseProvider {
       );
     }
 
-    const reader = res.body?.getReader();
-    if (!reader) throw new ProviderError('vLLM stream body is null', 0, this.name);
+    const streamBody = res.body;
+    if (!streamBody) throw new ProviderError('vLLM stream body is null', 0, this.name);
 
-    const decoder = new TextDecoder();
-    let buffer = '';
     let fullContent = '';
 
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    for await (const line of readBoundedProviderSseLines(streamBody, 'vLLM stream')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
+      if (trimmed === 'data: [DONE]') {
+        const pt = estimateTokens(JSON.stringify(messages));
+        const ct = estimateTokens(fullContent);
+        yield {
+          type: 'done',
+          content: fullContent,
+          usage: { promptTokens: pt, completionTokens: ct, totalTokens: pt + ct },
+          cost: COST_PER_CHAT,
+        };
+        return;
+      }
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
+      if (trimmed.startsWith('data: ')) {
+        try {
+          const parsed = JSON.parse(trimmed.slice(6)) as {
+            choices?: Array<{
+              delta?: { content?: string };
+              finish_reason?: string;
+            }>;
+            usage?: {
+              prompt_tokens: number;
+              completion_tokens: number;
+              total_tokens: number;
+            };
+          };
 
-          if (trimmed === 'data: [DONE]') {
+          if (parsed.usage) {
+            const pt = parsed.usage.prompt_tokens;
+            const ct = parsed.usage.completion_tokens;
+            yield {
+              type: 'done',
+              content: fullContent,
+              usage: {
+                promptTokens: pt,
+                completionTokens: ct,
+                totalTokens: parsed.usage.total_tokens,
+              },
+              cost: COST_PER_CHAT,
+            };
+            return;
+          }
+
+          const delta = parsed.choices?.[0]?.delta?.content;
+          const finishReason = parsed.choices?.[0]?.finish_reason;
+
+          if (delta) {
+            fullContent = appendBoundedProviderContent(fullContent, delta);
+            yield { type: 'delta', content: delta };
+          }
+
+          if (finishReason && finishReason !== 'null') {
             const pt = estimateTokens(JSON.stringify(messages));
             const ct = estimateTokens(fullContent);
             yield {
@@ -147,75 +191,24 @@ export class VLLMProvider implements BaseProvider {
             };
             return;
           }
-
-          if (trimmed.startsWith('data: ')) {
-            try {
-              const parsed = JSON.parse(trimmed.slice(6)) as {
-                choices?: Array<{
-                  delta?: { content?: string };
-                  finish_reason?: string;
-                }>;
-                usage?: {
-                  prompt_tokens: number;
-                  completion_tokens: number;
-                  total_tokens: number;
-                };
-              };
-
-              if (parsed.usage) {
-                const pt = parsed.usage.prompt_tokens;
-                const ct = parsed.usage.completion_tokens;
-                yield {
-                  type: 'done',
-                  content: fullContent,
-                  usage: {
-                    promptTokens: pt,
-                    completionTokens: ct,
-                    totalTokens: parsed.usage.total_tokens,
-                  },
-                  cost: COST_PER_CHAT,
-                };
-                return;
-              }
-
-              const delta = parsed.choices?.[0]?.delta?.content;
-              const finishReason = parsed.choices?.[0]?.finish_reason;
-
-              if (delta) {
-                fullContent += delta;
-                yield { type: 'delta', content: delta };
-              }
-
-              if (finishReason && finishReason !== 'null') {
-                const pt = estimateTokens(JSON.stringify(messages));
-                const ct = estimateTokens(fullContent);
-                yield {
-                  type: 'done',
-                  content: fullContent,
-                  usage: { promptTokens: pt, completionTokens: ct, totalTokens: pt + ct },
-                  cost: COST_PER_CHAT,
-                };
-                return;
-              }
-            } catch {
-              // skip malformed JSON
-            }
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('maximum supported size')) {
+            throw error;
           }
+          // skip malformed JSON
         }
       }
-
-      // Stream ended without done signal
-      const pt = estimateTokens(JSON.stringify(messages));
-      const ct = estimateTokens(fullContent);
-      yield {
-        type: 'done',
-        content: fullContent,
-        usage: { promptTokens: pt, completionTokens: ct, totalTokens: pt + ct },
-        cost: COST_PER_CHAT,
-      };
-    } finally {
-      reader.releaseLock();
     }
+
+    // Stream ended without done signal
+    const pt = estimateTokens(JSON.stringify(messages));
+    const ct = estimateTokens(fullContent);
+    yield {
+      type: 'done',
+      content: fullContent,
+      usage: { promptTokens: pt, completionTokens: ct, totalTokens: pt + ct },
+      cost: COST_PER_CHAT,
+    };
   }
 }
 
@@ -284,33 +277,19 @@ export async function* streamVLLM(
     const text = await readProviderErrorText(res);
     throw new ProviderError(`vLLM stream error ${res.status}: ${text}`, res.status, 'vllm', text);
   }
-  const reader = res.body?.getReader();
-  if (!reader) throw new ProviderError('vLLM stream body is null', 0, 'vllm');
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed === 'data: [DONE]') continue;
-        if (trimmed.startsWith('data: ')) {
-          try {
-            const parsed = JSON.parse(trimmed.slice(6));
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) yield delta;
-          } catch {
-            // skip malformed lines
-          }
-        }
+  const streamBody = res.body;
+  if (!streamBody) throw new ProviderError('vLLM stream body is null', 0, 'vllm');
+  for await (const line of readBoundedProviderSseLines(streamBody, 'vLLM stream')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed === 'data: [DONE]') continue;
+    if (trimmed.startsWith('data: ')) {
+      try {
+        const parsed = JSON.parse(trimmed.slice(6));
+        const delta = parsed.choices?.[0]?.delta?.content;
+        if (delta) yield delta;
+      } catch {
+        // skip malformed lines
       }
     }
-  } finally {
-    reader.releaseLock();
   }
 }
