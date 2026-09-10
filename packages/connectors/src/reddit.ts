@@ -1,7 +1,13 @@
 // ─── Reddit Connector ───
 // Uses the Reddit API (OAuth 2.0) for publishing, metrics, and token management.
 
-import { BaseConnector, redactProviderText } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  readResponseJson,
+  readResponseText,
+  redactProviderText,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -180,13 +186,17 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
       });
 
       if (!submitResp.ok) {
-        const submitBody = await submitResp.text().catch(() => '');
+        const submitBody = await readResponseText(
+          submitResp,
+          CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+          'provider error response',
+        ).catch(() => '');
         throw new Error(
           `Reddit submit failed: HTTP ${submitResp.status} — ${redactProviderText(submitBody)}`,
         );
       }
 
-      const submitData = (await submitResp.json()) as RedditSubmitResponse;
+      const submitData = await readResponseJson<RedditSubmitResponse>(submitResp);
 
       if (submitData.json.errors && submitData.json.errors.length > 0) {
         const errorMessages = submitData.json.errors.map((e) => e.join(': ')).join('; ');
@@ -230,13 +240,17 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
     });
 
     if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
+      const body = await readResponseText(
+        resp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(
         `Reddit info fetch failed: HTTP ${resp.status} — ${redactProviderText(body)}`,
       );
     }
 
-    const data = (await resp.json()) as RedditInfoResponse;
+    const data = await readResponseJson<RedditInfoResponse>(resp);
 
     if (!data.data?.children || data.data.children.length === 0) {
       throw new Error(`Reddit post ${remoteId} not found`);
@@ -298,7 +312,11 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
       // successful revoke into a client-side failure on an empty response.
       this.log('info', 'revoke', `Reddit OAuth token revoked`);
     } else {
-      const body = await response.text().catch(() => '');
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(
         `Reddit token revocation failed: HTTP ${response.status} — ${redactProviderText(body)}`,
       );
@@ -336,7 +354,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
         return violations;
       }
 
-      const rulesData = (await resp.json()) as RedditAboutRulesResponse;
+      const rulesData = await readResponseJson<RedditAboutRulesResponse>(resp);
       const rules = rulesData.rules ?? [];
 
       for (const rule of rules) {

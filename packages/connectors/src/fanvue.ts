@@ -6,7 +6,15 @@
 // Token refresh (Ory client_secret_basic) is supported when refresh
 // credentials are supplied, so short-lived (1h) access tokens stay valid.
 
-import { BaseConnector, redactProviderText, redactProviderUrl } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+  readResponseJson,
+  readResponseText,
+  redactProviderText,
+  redactProviderUrl,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -126,12 +134,16 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     });
 
     if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
+      const body = await readResponseText(
+        resp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       this.log('error', 'refresh', `HTTP ${resp.status}: ${redactProviderText(body)}`);
       throw new Error(`Fanvue token refresh failed: ${resp.status} ${resp.statusText}`);
     }
 
-    const tokens: Record<string, unknown> = (await resp.json()) as Record<string, unknown>;
+    const tokens = await readResponseJson<Record<string, unknown>>(resp);
     const accessToken = typeof tokens['access_token'] === 'string' ? tokens['access_token'] : '';
     const expiresIn = typeof tokens['expires_in'] === 'number' ? tokens['expires_in'] : 3600;
     if (!accessToken) {
@@ -195,7 +207,11 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     });
 
     if (!response.ok) {
-      const responseBody = await response.text().catch(() => '');
+      const responseBody = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       this.log('error', method, `HTTP ${response.status}: ${redactProviderText(responseBody)}`, {
         path: redactProviderUrl(path),
       });
@@ -205,8 +221,14 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     }
 
     if (response.status === 204) return undefined as T;
-    if (rawText) return (await response.text()) as T;
-    return response.json() as Promise<T>;
+    if (rawText) {
+      return (await readResponseText(
+        response,
+        CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+        'provider text response',
+      )) as T;
+    }
+    return readResponseJson<T>(response);
   }
 
   /** Determine media type from a URL path extension (defaults to image). */
@@ -326,7 +348,11 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
         body: partBytes,
       });
       if (!putRes.ok) {
-        const body = await putRes.text().catch(() => '');
+        const body = await readResponseText(
+          putRes,
+          CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+          'provider error response',
+        ).catch(() => '');
         throw new Error(
           `Fanvue part ${partNumber} upload failed: ${putRes.status} ${redactProviderText(body)}`,
         );
@@ -447,7 +473,11 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     });
 
     if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
+      const body = await readResponseText(
+        resp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(
         `Fanvue token revocation failed: HTTP ${resp.status} — ${redactProviderText(body)}`,
       );

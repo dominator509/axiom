@@ -1,7 +1,13 @@
 // ─── TikTok Connector ───
 // Uses the TikTok Content Posting API v2 for uploads, metrics, and OAuth management.
 
-import { BaseConnector, readResponseBytes, redactProviderText } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  readResponseBytes,
+  readResponseText,
+  redactProviderText,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -227,7 +233,11 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
         });
 
         if (!uploadResp.ok) {
-          const uploadBody = await uploadResp.text().catch(() => '');
+          const uploadBody = await readResponseText(
+            uploadResp,
+            CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+            'provider error response',
+          ).catch(() => '');
           throw new Error(
             `TikTok video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${redactProviderText(uploadBody)}`,
           );
@@ -298,7 +308,11 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       }),
     });
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(
         `TikTok token revoke failed: ${response.status} — ${redactProviderText(body)}`,
       );

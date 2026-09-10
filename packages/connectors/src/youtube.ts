@@ -1,7 +1,14 @@
 // ─── YouTube Connector ───
 // Uses the YouTube Data API v3 with resumable uploads, shorts detection, and OAuth management.
 
-import { BaseConnector, readResponseBytes, redactProviderText } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  readResponseBytes,
+  readResponseJson,
+  readResponseText,
+  redactProviderText,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -149,7 +156,11 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
       );
 
       if (!initResponse.ok) {
-        const initBody = await initResponse.text().catch(() => '');
+        const initBody = await readResponseText(
+          initResponse,
+          CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+          'provider error response',
+        ).catch(() => '');
         throw new Error(
           `YouTube resumable upload init failed: ${initResponse.status} — ${redactProviderText(initBody)}`,
         );
@@ -172,13 +183,17 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
       });
 
       if (!uploadResp.ok) {
-        const uploadBody = await uploadResp.text().catch(() => '');
+        const uploadBody = await readResponseText(
+          uploadResp,
+          CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+          'provider error response',
+        ).catch(() => '');
         throw new Error(
           `YouTube video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${redactProviderText(uploadBody)}`,
         );
       }
 
-      const videoData = (await uploadResp.json()) as YtVideoResponse;
+      const videoData = await readResponseJson<YtVideoResponse>(uploadResp);
       const remoteId = videoData.id;
 
       this.log('info', 'publish', `YouTube video published`, { remoteId });
@@ -233,7 +248,11 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(
         `YouTube token revocation failed: HTTP ${response.status} — ${redactProviderText(body)}`,
       );

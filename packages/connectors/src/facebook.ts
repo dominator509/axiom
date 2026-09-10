@@ -1,7 +1,14 @@
 // ─── Facebook Connector ───
 // Uses the Facebook Graph API v22.0 for publishing, metrics, and app permissions management.
 
-import { BaseConnector, redactProviderText } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+  readResponseJson,
+  readResponseText,
+  redactProviderText,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -215,13 +222,17 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
 
     const resp = await this.fetchImpl(insightsUrl);
     if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
+      const body = await readResponseText(
+        resp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(
         `Facebook metrics fetch failed: HTTP ${resp.status} — ${redactProviderText(body)}`,
       );
     }
 
-    const insights = (await resp.json()) as FbInsightsResponse;
+    const insights = await readResponseJson<FbInsightsResponse>(resp);
 
     const result: Partial<Record<string, number>> = {};
 
@@ -244,11 +255,11 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
 
         const postResp = await this.fetchImpl(postUrl);
         if (postResp.ok) {
-          const postData = (await postResp.json()) as {
+          const postData = await readResponseJson<{
             likes?: { summary?: { total_count?: number } };
             comments?: { summary?: { total_count?: number } };
             shares?: { count?: number };
-          };
+          }>(postResp);
 
           if (postData.likes?.summary?.total_count != null) {
             likes = postData.likes.summary.total_count;
@@ -306,12 +317,20 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(
         `Facebook page permissions deletion failed: HTTP ${response.status} — ${redactProviderText(body)}`,
       );
     } else {
-      const responseBody = await response.text();
+      const responseBody = await readResponseText(
+        response,
+        CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+        'provider JSON response',
+      );
       const result = responseBody.trim()
         ? (JSON.parse(responseBody) as FbPermissionsResponse)
         : { success: true };
@@ -330,7 +349,11 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
       },
     });
     if (!userResp.ok) {
-      const body = await userResp.text().catch(() => '');
+      const body = await readResponseText(
+        userResp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(
         `Facebook user permissions deletion failed: HTTP ${userResp.status} — ${redactProviderText(body)}`,
       );

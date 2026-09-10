@@ -1,7 +1,15 @@
 // ─── X (Twitter) Connector ───
 // Uses the Twitter API v2 for publishing, metrics, and OAuth 2.0 management.
 
-import { BaseConnector, readResponseBytes, redactProviderText } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+  readResponseBytes,
+  readResponseJson,
+  readResponseText,
+  redactProviderText,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -131,11 +139,15 @@ export class XConnector extends BaseConnector implements SocialConnector {
     });
 
     if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
+      const body = await readResponseText(
+        resp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(`X metrics fetch failed: HTTP ${resp.status} — ${redactProviderText(body)}`);
     }
 
-    const data = (await resp.json()) as TweetMetricsResponse;
+    const data = await readResponseJson<TweetMetricsResponse>(resp);
 
     if (!data.data) {
       throw new Error(`X tweet ${remoteId} not found`);
@@ -181,13 +193,21 @@ export class XConnector extends BaseConnector implements SocialConnector {
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(
         `X token revocation failed: HTTP ${response.status} — ${redactProviderText(body)}`,
       );
     }
 
-    const responseBody = await response.text().catch(() => '');
+    const responseBody = await readResponseText(
+      response,
+      CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+      'provider JSON response',
+    ).catch(() => '');
     const result: RevokeResponse = responseBody.trim()
       ? (JSON.parse(responseBody) as RevokeResponse)
       : { revoked: true };
@@ -233,13 +253,17 @@ export class XConnector extends BaseConnector implements SocialConnector {
     });
 
     if (!initResp.ok) {
-      const initBody = await initResp.text().catch(() => '');
+      const initBody = await readResponseText(
+        initResp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(
         `X media INIT failed: HTTP ${initResp.status} — ${redactProviderText(initBody)}`,
       );
     }
 
-    const initData = (await initResp.json()) as MediaInitResponse;
+    const initData = await readResponseJson<MediaInitResponse>(initResp);
     const mediaId = initData.media_id_string;
 
     this.log('info', 'uploadMedia', `Media INIT complete`, { mediaId, totalBytes });
@@ -267,7 +291,11 @@ export class XConnector extends BaseConnector implements SocialConnector {
       });
 
       if (!appendResp.ok) {
-        const appendBody = await appendResp.text().catch(() => '');
+        const appendBody = await readResponseText(
+          appendResp,
+          CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+          'provider error response',
+        ).catch(() => '');
         throw new Error(
           `X media APPEND failed at segment ${segmentIndex}: HTTP ${appendResp.status} — ${redactProviderText(appendBody)}`,
         );
@@ -292,13 +320,17 @@ export class XConnector extends BaseConnector implements SocialConnector {
     });
 
     if (!finalizeResp.ok) {
-      const finalizeBody = await finalizeResp.text().catch(() => '');
+      const finalizeBody = await readResponseText(
+        finalizeResp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(
         `X media FINALIZE failed: HTTP ${finalizeResp.status} — ${redactProviderText(finalizeBody)}`,
       );
     }
 
-    const finalizeData = (await finalizeResp.json()) as MediaFinalizeResponse;
+    const finalizeData = await readResponseJson<MediaFinalizeResponse>(finalizeResp);
 
     // For videos, wait for processing to complete
     if (mediaType.startsWith('video/') && finalizeData.processing_state === 'pending') {
@@ -334,13 +366,13 @@ export class XConnector extends BaseConnector implements SocialConnector {
         continue;
       }
 
-      const statusData = (await statusResp.json()) as {
+      const statusData = await readResponseJson<{
         processing_info?: {
           state: 'pending' | 'in_progress' | 'succeeded' | 'failed';
           progress_percent?: number;
           error?: { code: number; name: string; message: string };
         };
-      };
+      }>(statusResp);
 
       const info = statusData.processing_info;
 

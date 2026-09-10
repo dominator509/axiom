@@ -2,7 +2,13 @@
 // Uses Discord webhooks for link-sharing posts. Discord does not expose
 // post-level metrics via webhooks, so fetchMetrics returns an empty set.
 
-import { BaseConnector, redactProviderText } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+  readResponseText,
+  redactProviderText,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -132,13 +138,21 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
       });
 
       if (!response.ok) {
-        const body = await response.text().catch(() => '');
+        const body = await readResponseText(
+          response,
+          CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+          'provider error response',
+        ).catch(() => '');
         throw new Error(
           `Discord webhook failed: HTTP ${response.status} — ${redactProviderText(body)}`,
         );
       }
 
-      const responseBody = await response.text().catch(() => '');
+      const responseBody = await readResponseText(
+        response,
+        CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+        'provider JSON response',
+      ).catch(() => '');
       let result: Partial<DiscordWebhookResponse> = {};
       if (responseBody.trim().length > 0) {
         result = JSON.parse(responseBody) as DiscordWebhookResponse;
@@ -206,7 +220,11 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
     );
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(
         `Discord webhook deletion failed: HTTP ${response.status} — ${redactProviderText(body)}`,
       );

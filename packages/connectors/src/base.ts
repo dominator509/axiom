@@ -22,7 +22,7 @@ const MAX_LOG = 100;
 const MAX_PROVIDER_ERROR_LENGTH = 1_024;
 /** Provider JSON responses are expected to be small, paginated envelopes. */
 export const CONNECTOR_MAX_JSON_RESPONSE_BYTES = 1 * 1024 * 1024;
-const CONNECTOR_MAX_ERROR_RESPONSE_BYTES = 64 * 1024;
+export const CONNECTOR_MAX_ERROR_RESPONSE_BYTES = 64 * 1024;
 const SENSITIVE_QUERY_KEYS = new Set([
   'access_token',
   'refresh_token',
@@ -114,6 +114,13 @@ export async function readResponseText(
 ): Promise<string> {
   const bytes = await readResponseBytes(response, maxBytes, label);
   return new TextDecoder().decode(bytes);
+}
+
+/** Parse a bounded provider JSON response body. */
+export async function readResponseJson<T>(response: Response): Promise<T> {
+  return JSON.parse(
+    await readResponseText(response, CONNECTOR_MAX_JSON_RESPONSE_BYTES, 'provider JSON response'),
+  ) as T;
 }
 
 /** Redact credential-bearing query parameters before a provider URL is logged. */

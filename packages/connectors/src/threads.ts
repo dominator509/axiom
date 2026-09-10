@@ -2,7 +2,13 @@
 // Uses the Threads Publishing API (Meta Graph API v1.0) for publishing,
 // metrics, and auth management.
 
-import { BaseConnector, redactProviderText } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  readResponseJson,
+  readResponseText,
+  redactProviderText,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -162,13 +168,17 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
 
     const resp = await this.fetchImpl(metricsUrl);
     if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
+      const body = await readResponseText(
+        resp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       throw new Error(
         `Threads metrics fetch failed: HTTP ${resp.status} — ${redactProviderText(body)}`,
       );
     }
 
-    const data = (await resp.json()) as ThreadsInsightsResponse;
+    const data = await readResponseJson<ThreadsInsightsResponse>(resp);
 
     const result: Partial<Record<string, number>> = {};
 
