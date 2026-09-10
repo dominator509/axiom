@@ -1,10 +1,13 @@
 // ─── Link-in-bio (F-48..F-53) — Vitest Suite ───
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
-vi.mock('@axiom/db', () => mockDbFactory({ linkbioProvider: {}, linkbioClick: {} }));
+vi.mock('@axiom/db', () =>
+  mockDbFactory({ linkbioProvider: {}, linkbioClick: {}, shortLink: {}, linkbioAnalytics: {} }),
+);
 
 import { linkbioRouter, publicLinkbioRouter } from './linkbio.js';
 
@@ -111,7 +114,9 @@ describe('POST /models/:modelId/linkbio', () => {
       body: JSON.stringify({ kind: 'native', isPrimary: true, config: {} }),
     });
     expect(res.status).toBe(201);
-    expect(mockState.conflictUpdates.at(-1)).toEqual(
+    expect(
+      mockState.conflictUpdates.find((update: any) => update.set?.isPrimary !== undefined),
+    ).toEqual(
       expect.objectContaining({
         set: expect.objectContaining({ enabled: true, isPrimary: true }),
       }),
@@ -296,24 +301,30 @@ describe('public Native Link-in-Bio page', () => {
     const html = await res.text();
     expect(html).toContain('Luna Vex');
     expect(html).toContain('Fanvue');
-    expect(html).toContain(`/click/${PROVIDER_ID}`);
+    expect(html).toContain('/s/');
+    expect(html).not.toContain(provider.config.links[0].url);
   });
 
   it('records only configured links before redirecting the visitor', async () => {
-    mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider], [], []];
-    const res = await publicApp().request(
-      `/${MODEL_ID}/click/${PROVIDER_ID}?target=${encodeURIComponent(provider.config.links[0].url)}`,
-      { headers: { referer: 'https://social.example/post', 'user-agent': 'test-browser' } },
-    );
+    mockState.result = [{ id: 'short-link-id' }];
+    mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider]];
+    const digest = createHash('sha256')
+      .update(`${MODEL_ID}:0:${provider.config.links[0].url}`)
+      .digest('hex')
+      .slice(0, 16);
+    const slug = `lb-22222222-1-${digest}`;
+    const res = await publicApp().request(`/${MODEL_ID}/s/${slug}`, {
+      headers: { referer: 'https://social.example/post', 'user-agent': 'test-browser' },
+    });
     expect(res.status).toBe(302);
-    expect(res.headers.get('location')).toBe(provider.config.links[0].url);
+    expect(res.headers.get('location')).toContain(`${provider.config.links[0].url}?`);
+    expect(res.headers.get('location')).toContain('utm_source=axiom');
+    expect(mockState.updates).toHaveLength(1);
   });
 
   it('rejects a tampered target instead of becoming an open redirect', async () => {
     mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider]];
-    const res = await publicApp().request(
-      `/${MODEL_ID}/click/${PROVIDER_ID}?target=${encodeURIComponent('https://attacker.example')}`,
-    );
+    const res = await publicApp().request(`/${MODEL_ID}/s/not-a-configured-short-link`);
     expect(res.status).toBe(404);
   });
 });

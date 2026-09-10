@@ -7,6 +7,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { sql, eq, and, desc } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import {
@@ -37,7 +38,11 @@ const enableSchema = z.object({
   isPrimary: z.boolean().optional(),
 });
 
-type NativeLink = { label: string; url: string };
+type NativeLink = { label: string; url: string; utm: Record<string, string> };
+type PublicNativeLink = NativeLink & { slug: string };
+
+const UTM_KEY = /^utm_[a-z][a-z0-9_]{0,31}$/;
+const MAX_UTM_VALUE_LENGTH = 120;
 
 function nativeLinks(config: unknown): NativeLink[] {
   if (!config || typeof config !== 'object' || Array.isArray(config)) return [];
@@ -56,8 +61,71 @@ function nativeLinks(config: unknown): NativeLink[] {
     } catch {
       return [];
     }
-    return [{ label, url }];
+    const utm =
+      record.utm && typeof record.utm === 'object' && !Array.isArray(record.utm)
+        ? Object.fromEntries(
+            Object.entries(record.utm).flatMap(([key, value]) =>
+              UTM_KEY.test(key) &&
+              typeof value === 'string' &&
+              value.trim().length > 0 &&
+              value.length <= MAX_UTM_VALUE_LENGTH
+                ? [[key, value.trim()]]
+                : [],
+            ),
+          )
+        : {};
+    return [{ label, url, utm }];
   });
+}
+
+function nativeShortLinkSlug(modelId: string, link: NativeLink, index: number): string {
+  const digest = createHash('sha256')
+    .update(`${modelId}:${index}:${link.url}`)
+    .digest('hex')
+    .slice(0, 16);
+  return `lb-${modelId.replaceAll('-', '').slice(0, 8)}-${index + 1}-${digest}`;
+}
+
+function nativeShortLinkUtm(link: NativeLink, index: number): Record<string, string> {
+  return {
+    utm_source: 'axiom',
+    utm_medium: 'linkbio',
+    utm_content: `native-${index + 1}`,
+    ...link.utm,
+  };
+}
+
+async function syncNativeShortLinks(
+  tx: any,
+  orgId: string,
+  modelId: string,
+  links: NativeLink[],
+  updateExisting = true,
+): Promise<PublicNativeLink[]> {
+  const publicLinks: PublicNativeLink[] = [];
+  for (const [index, link] of links.entries()) {
+    const slug = nativeShortLinkSlug(modelId, link, index);
+    const utm = nativeShortLinkUtm(link, index);
+    const insert = tx.insert(schema.shortLink).values({
+      orgId,
+      modelId,
+      slug,
+      targetUrl: link.url,
+      utm,
+    });
+    if (updateExisting) {
+      await insert.onConflictDoUpdate({
+        target: [schema.shortLink.orgId, schema.shortLink.slug],
+        set: { targetUrl: link.url, utm },
+      });
+    } else {
+      await insert.onConflictDoNothing({
+        target: [schema.shortLink.orgId, schema.shortLink.slug],
+      });
+    }
+    publicLinks.push({ ...link, slug });
+  }
+  return publicLinks;
 }
 
 function escapeHtml(value: string): string {
@@ -79,7 +147,7 @@ type PublicNativePage = {
     bio: string | null;
   };
   provider: { id: string; config: unknown };
-  links: NativeLink[];
+  links: PublicNativeLink[];
 };
 
 /** Resolve a public model through the existing SECURITY DEFINER org resolver. */
@@ -133,11 +201,13 @@ async function loadPublicNativePage(
   const provider = providers[0];
   if (!provider) return null;
 
+  const links = await syncNativeShortLinks(tx, orgId, modelId, nativeLinks(provider.config), false);
+
   return {
     orgId,
     model,
     provider,
-    links: nativeLinks(provider.config),
+    links,
   };
 }
 
@@ -146,7 +216,7 @@ function renderNativePage(page: PublicNativePage): string {
     page.links.length > 0
       ? page.links
           .map((link) => {
-            const href = `/linkbio/${encodeURIComponent(page.model.id)}/click/${encodeURIComponent(page.provider.id)}?target=${encodeURIComponent(link.url)}`;
+            const href = `/linkbio/${encodeURIComponent(page.model.id)}/s/${encodeURIComponent(link.slug)}`;
             return `<a class="link" href="${href}">${escapeHtml(link.label)}</a>`;
           })
           .join('')
@@ -241,6 +311,7 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
         },
       })
       .returning();
+    await syncNativeShortLinks(tx, orgId, modelId, nativeLinks(body.config));
     await writeAudit(tx, orgId, userId, 'linkbio.enable', modelId, { kind: body.kind });
     return row;
   });
@@ -389,6 +460,55 @@ router.post(
   },
 );
 
+async function recordNativeShortLinkClick(
+  tx: any,
+  orgId: string,
+  modelId: string,
+  page: PublicNativePage,
+  link: PublicNativeLink,
+  source: string | null,
+  referrer: string | null,
+  device: string | null,
+): Promise<string | null> {
+  const index = page.links.indexOf(link);
+  const updated = await tx
+    .update(schema.shortLink)
+    .set({ clicks: sql`${schema.shortLink.clicks} + 1` })
+    .where(
+      and(
+        eq(schema.shortLink.orgId, orgId),
+        eq(schema.shortLink.modelId, modelId),
+        eq(schema.shortLink.slug, link.slug),
+      ),
+    )
+    .returning({ id: schema.shortLink.id });
+  if (!Array.isArray(updated) || updated.length === 0) return null;
+
+  const target = new URL(link.url);
+  for (const [key, value] of Object.entries(nativeShortLinkUtm(link, index))) {
+    target.searchParams.set(key, value);
+  }
+  await tx.insert(schema.linkbioClick).values({
+    orgId,
+    providerId: page.provider.id,
+    target: link.url,
+    source,
+    ts: new Date(),
+  });
+  await tx.insert(schema.linkbioAnalytics).values({
+    orgId,
+    providerId: page.provider.id,
+    kind: 'click',
+    source,
+    referrer,
+    device,
+    utmSource: nativeShortLinkUtm(link, index).utm_source,
+    ts: new Date(),
+    createdAt: new Date(),
+  });
+  return target.toString();
+}
+
 // ── Public Native provider ─────────────────────────────────────────────────
 // The dashboard owns provider configuration, but visitors must not need an
 // operator session to view the page or record a click. The model→org lookup
@@ -408,36 +528,26 @@ publicRouter.get('/:modelId', async (c) => {
   return c.html(renderNativePage(page));
 });
 
-publicRouter.get('/:modelId/click/:providerId', async (c) => {
+publicRouter.get('/:modelId/s/:slug', async (c) => {
   const modelId = c.req.param('modelId');
-  const providerId = c.req.param('providerId');
-  const target = c.req.query('target')?.trim() ?? '';
+  const slug = c.req.param('slug');
   const source = c.req.query('source')?.trim().slice(0, 120) || null;
 
   const destination = await withPublicModel(modelId, async (tx, orgId) => {
     const page = await loadPublicNativePage(tx, orgId, modelId);
-    if (!page || page.provider.id !== providerId) return null;
-    const link = page.links.find((candidate) => candidate.url === target);
+    if (!page) return null;
+    const link = page.links.find((candidate) => candidate.slug === slug);
     if (!link) return null;
-
-    await tx.insert(schema.linkbioClick).values({
+    return recordNativeShortLinkClick(
+      tx,
       orgId,
-      providerId,
-      target: link.url,
+      modelId,
+      page,
+      link,
       source,
-      ts: new Date(),
-    });
-    await tx.insert(schema.linkbioAnalytics).values({
-      orgId,
-      providerId,
-      kind: 'click',
-      source,
-      referrer: c.req.header('referer')?.slice(0, 2048) ?? null,
-      device: c.req.header('user-agent')?.slice(0, 512) ?? null,
-      ts: new Date(),
-      createdAt: new Date(),
-    });
-    return link.url;
+      c.req.header('referer')?.slice(0, 2048) ?? null,
+      c.req.header('user-agent')?.slice(0, 512) ?? null,
+    );
   });
 
   if (!destination) return c.text('Not Found', 404);

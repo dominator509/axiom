@@ -19,6 +19,7 @@ interface ProviderRow {
 interface NativeLink {
   label: string;
   url: string;
+  utm?: Record<string, string>;
 }
 
 function readLinks(config: Record<string, unknown> | null | undefined): NativeLink[] {
@@ -26,9 +27,16 @@ function readLinks(config: Record<string, unknown> | null | undefined): NativeLi
   return config.links.flatMap((value) => {
     if (!value || typeof value !== 'object') return [];
     const record = value as Record<string, unknown>;
-    return typeof record.label === 'string' && typeof record.url === 'string'
-      ? [{ label: record.label, url: record.url }]
-      : [];
+    if (typeof record.label !== 'string' || typeof record.url !== 'string') return [];
+    const utm =
+      record.utm && typeof record.utm === 'object' && !Array.isArray(record.utm)
+        ? Object.fromEntries(
+            Object.entries(record.utm).filter(([, value]) => typeof value === 'string') as Array<
+              [string, string]
+            >,
+          )
+        : undefined;
+    return [{ label: record.label, url: record.url, ...(utm ? { utm } : {}) }];
   });
 }
 
