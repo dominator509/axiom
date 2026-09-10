@@ -155,6 +155,33 @@ COMMIT;
   const portfolioHtml = await portfolio.text();
   assert.match(portfolioHtml, /HTTP smoke profile/);
   assert.doesNotMatch(portfolioHtml, /Other tenant private profile/);
+  const generationHeaders = { ...headers, cookie, 'Idempotency-Key': randomUUID() };
+  const generationBody = JSON.stringify({ platforms: ['telegram'], enrichWithLlm: false });
+  const generationPath = `/api/v1/models/${createdBody.data.id}/generate`;
+  const generated = await request(generationPath, { method: 'POST', headers: generationHeaders, body: generationBody });
+  assert.equal(generated.status, 201, 'Credential-free prompt generation must persist a bundle');
+  const generation = (await generated.json()).data;
+  assert.ok(generation.bundle?.id);
+  assert.equal(generation.variants?.length, 5);
+  assert.ok(generation.variants.every((variant) => variant.prompt && variant.caption));
+  assert.ok(['pass', 'review', 'block'].includes(generation.tosReport?.verdict));
+  assert.equal(generation.tosReport.scores[0]?.platform, 'telegram');
+  const generatedReplay = await request(generationPath, { method: 'POST', headers: generationHeaders, body: generationBody });
+  assert.equal(generatedReplay.status, 201);
+  assert.equal((await generatedReplay.json()).data?.bundle?.id, generation.bundle.id);
+  const persisted = await request(`/api/v1/bundles/${generation.bundle.id}`, { headers: { cookie } });
+  assert.equal(persisted.status, 200);
+  assert.equal((await persisted.json()).data?.modelId, createdBody.data.id);
+  const queuedScan = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_org=${orgId}`, '-v', `fixture_bundle=${generation.bundle.id}`,
+  ], {
+    encoding: 'utf8', timeout: 10_000,
+    input: `SELECT count(*) FROM job WHERE org_id = :'fixture_org' AND kind = 'tos.scan' AND payload->>'bundleId' = :'fixture_bundle';`,
+  });
+  assert.equal(queuedScan.status, 0, 'ToS job verification must execute successfully');
+  assert.equal(queuedScan.stdout.trim(), '1', 'Generation replay must leave exactly one durable ToS scan job');
+  console.log('generation smoke: five real prompt/caption variants, text ToS report, persisted bundle, same-bundle replay and one durable scan job passed');
   console.log('tenant smoke: assigned operator, required idempotency, single profile after replay, changed-payload conflict, cross-tenant read/write denial, cursor/count isolation and dashboard rendering passed');
 }
 const signout = await request('/api/auth/sign-out', {

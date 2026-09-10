@@ -777,7 +777,8 @@ app.use('/api/v1/org-settings/*', ownerOnly);
 // L3.0: durable mutations require Idempotency-Key. This reservation is
 // committed before the handler runs, so a lost response cannot repeat a DB,
 // queue, or provider-side effect when the caller retries its intent.
-app.use('/api/v1/models/:modelId/generate', idempotency());
+// Hono's wildcard includes the base path; register once to avoid hashing and
+// reserving the same generation request twice.
 app.use('/api/v1/models/:modelId/generate/*', idempotency());
 app.use('/api/v1/models/:id', idempotency());
 app.use('/api/v1/bundles/*/approve', idempotency());
