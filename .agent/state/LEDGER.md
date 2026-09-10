@@ -327,3 +327,4 @@
 2026-09-10T06:49:29Z | [P1][RUNTIME] Kept dashboard API-origin production selector self-contained so Next config loads before workspace package entrypoints are built; verify passed
 2026-09-10T07:12:42Z | [P1][CONNECTORS/SECRETS] Move Meta and Google OAuth credentials out of provider URLs into Authorization headers or form bodies; connector regression tests added; hosted CI pending
 2026-09-10T07:29:04Z | [P1][FANVUE-MCP/SECRETS] Stop fabricating a 2099 token expiry; preserve only disclosed expiry metadata, require HTTPS and credential-free MCP endpoints in production, and add regression coverage; hosted CI pending
+2026-09-10T07:41:00Z | [P1][FANVUE-MCP/CI] Hosted CI run 34450203985 (#281) passed all six jobs, including Fanvue MCP tests, clean-install typecheck, security, build, and container smoke; local preflight/ALL_DONE/verify also passed
