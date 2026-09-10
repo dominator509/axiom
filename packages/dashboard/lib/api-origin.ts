@@ -1,5 +1,3 @@
-import { isProductionEnvironment } from '@axiom/core';
-
 const LOCAL_API_ORIGIN = 'http://127.0.0.1:3001';
 
 type ApiOriginEnvironment = {
@@ -7,6 +5,15 @@ type ApiOriginEnvironment = {
   API_ORIGIN?: string;
   NODE_ENV?: string;
 };
+
+// Keep this resolver self-contained because Next evaluates next.config.ts
+// before workspace package entrypoints are guaranteed to be built. The
+// selector mirrors @axiom/core: AXIOM_ENV is authoritative and unknown or
+// missing values fail closed as production-like.
+function isProductionEnvironment(env: ApiOriginEnvironment): boolean {
+  const environment = (env.AXIOM_ENV ?? env.NODE_ENV)?.trim();
+  return environment !== 'development' && environment !== 'test';
+}
 
 /**
  * Resolve the server-side API origin used by Next rewrites and RSC requests.
