@@ -24,10 +24,12 @@ export default function ApproveButtons({
   bundleId,
   tosBlocked,
   connections,
+  revisionId,
 }: {
   bundleId: string;
   tosBlocked: boolean;
   connections: SocialConnection[];
+  revisionId?: string;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>(['instagram']);
@@ -39,6 +41,8 @@ export default function ApproveButtons({
     ),
   );
   const [slot, setSlot] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,8 +64,13 @@ export default function ApproveButtons({
   const selectedWithoutConnection = selected.filter((platform) => !connectionIds[platform]);
 
   async function act(action: 'approve' | 'revise' | 'reject') {
+    if (action === 'revise' && !instructions.trim()) {
+      setError('Enter caption revision instructions.');
+      return;
+    }
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       let res: Response;
       if (action === 'approve') {
@@ -70,6 +79,7 @@ export default function ApproveButtons({
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             platforms: selected,
+            revisionId,
             slot: slot || undefined,
             connectionIds: Object.fromEntries(
               selected
@@ -82,7 +92,7 @@ export default function ApproveButtons({
         res = await mutationFetch(`/api/v1/bundles/${bundleId}/revise`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ instructions: 'Revise per operator' }),
+          body: JSON.stringify({ instructions: instructions.trim() }),
         });
       } else {
         res = await mutationFetch(`/api/v1/bundles/${bundleId}/reject`, { method: 'POST' });
@@ -92,6 +102,10 @@ export default function ApproveButtons({
         setError(b?.error?.message ?? 'Action failed');
         return;
       }
+      if (action === 'revise')
+        setNotice(
+          'Caption revision queued. Approval requires a fresh ToS scan. Media and hashtags are unchanged.',
+        );
       router.refresh();
     } catch {
       setError('Network error');
@@ -158,6 +172,17 @@ export default function ApproveButtons({
         </p>
       )}
       {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
+      {notice && <p role="status">{notice}</p>}
+      <label>
+        Caption revision instructions
+        <textarea
+          value={instructions}
+          maxLength={2000}
+          disabled={busy}
+          onChange={(event) => setInstructions(event.target.value)}
+          placeholder="Describe how the captions should change"
+        />
+      </label>
       <div className="row">
         <button
           className="btn"
@@ -172,10 +197,10 @@ export default function ApproveButtons({
         <button
           className="btn secondary"
           type="button"
-          disabled={busy}
+          disabled={busy || !instructions.trim()}
           onClick={() => act('revise')}
         >
-          Revise
+          Revise captions
         </button>
         <button className="btn danger" type="button" disabled={busy} onClick={() => act('reject')}>
           Reject

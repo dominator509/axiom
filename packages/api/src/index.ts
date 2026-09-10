@@ -11,6 +11,7 @@ import { killswitchRouter } from './routes/killswitch.js';
 import { egressRouter } from './routes/egress.js';
 import { networkRouter } from './routes/network.js';
 import { postsRouter, hasUnknownPublishOutcome } from './routes/posts.js';
+import { queueBundleRevision } from './bundle-revision.js';
 import { linkbioRouter, publicLinkbioRouter } from './routes/linkbio.js';
 import { fansRouter } from './routes/fans.js';
 import { analyticsRouter } from './routes/analytics.js';
@@ -177,6 +178,7 @@ export async function relayCommandExecutor(
       .select({
         channel: schema.relayCard.channel,
         externalRef: schema.relayCard.externalRef,
+        config: schema.relayCard.config,
       })
       .from(schema.relayCard)
       .where(and(eq(schema.relayCard.id, cardId), eq(schema.relayCard.orgId, orgId)))
@@ -214,10 +216,16 @@ export async function relayCommandExecutor(
         .select()
         .from(schema.contentBundle)
         .where(and(eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, orgId)))
-        .limit(1);
+        .limit(1)
+        .for('update');
       if (bundle.length === 0) throw new Error(`relay command: bundle ${bundleId} not found`);
 
       const currentState = bundle[0].state as string;
+      if ((relayCard.config?.revisionId ?? null) !== (bundle[0].tosReport?.revisionId ?? null)) {
+        throw new Error(
+          'relay command: this card is superseded; use the card for the latest revision',
+        );
+      }
       if (
         action === 'approve' ||
         action === 'approve_all' ||
@@ -474,12 +482,31 @@ export async function relayCommandExecutor(
           `);
         }
         note = `bundle ${bundleId} → rescheduled for ${scheduledFor.toISOString()}`;
+      } else if (action === 'revise' || action === 'regenerate') {
+        if (currentState !== 'generated' && currentState !== 'hold') {
+          throw new Error(
+            `relay command: bundle is already ${currentState}; revision requires a generated or held bundle`,
+          );
+        }
+        const supplied = params.instructions;
+        if (
+          supplied !== undefined &&
+          (typeof supplied !== 'string' || !supplied.trim() || supplied.trim().length > 2000)
+        ) {
+          throw new Error('relay command: revision instructions must contain 1 to 2000 characters');
+        }
+        const instructions =
+          typeof supplied === 'string'
+            ? supplied.trim()
+            : action === 'revise'
+              ? 'Revise the caption to comply with the platform ToS rules while preserving its intent.'
+              : 'Write a distinct new caption for the same content and platform, following the ToS rules.';
+        await queueBundleRevision(tx, orgId, bundleId, currentState, instructions);
+        note = `bundle ${bundleId} → caption revision queued; fresh ToS review required`;
       } else {
         const stateByAction: Partial<Record<CardAction, string>> = {
           reject: 'rejected',
           hold: 'hold',
-          revise: 'generated',
-          regenerate: 'generated',
         };
         const nextState = stateByAction[action];
         if (nextState && currentState !== 'generated' && currentState !== 'hold') {

@@ -223,7 +223,7 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
           state: 'pending',
           title: `Bundle approval — ${bundle.id}`,
           description: captions['instagram'] ?? Object.values(captions)[0] ?? '',
-          config: { targetPlatforms, tosScores },
+          config: { targetPlatforms, tosScores, revisionId: tosReport.revisionId ?? null },
         })
         // The pending-dispatch partial unique index is the concurrency guard
         // for jobs that race after the read above. A losing insert must not

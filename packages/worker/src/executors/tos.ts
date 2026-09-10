@@ -68,9 +68,15 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
     .where(
       and(eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, ctx.job.org_id)),
     )
-    .limit(1);
+    .limit(1)
+    .for('update');
   if (bundles.length === 0) throw new Error(`tos.scan: bundle ${bundleId} not found`);
   const bundle = bundles[0];
+  if (bundle.state === 'revising') {
+    throw new Error(
+      'tos.scan: caption revision is still pending; refusing to scan superseded content',
+    );
+  }
 
   const captions = (bundle.captions as Record<string, string> | null) ?? {};
   const hashtags = (bundle.hashtags as string[] | null) ?? [];
@@ -131,7 +137,15 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
 
   await tx
     .update(schema.contentBundle)
-    .set({ tosReport: report, updatedAt: new Date() })
+    .set({
+      tosReport: {
+        ...report,
+        ...(typeof bundle.tosReport?.revisionId === 'string'
+          ? { revisionId: bundle.tosReport.revisionId }
+          : {}),
+      },
+      updatedAt: new Date(),
+    })
     .where(
       and(eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, ctx.job.org_id)),
     );

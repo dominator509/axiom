@@ -96,6 +96,8 @@ export interface TaskVariables {
   talkingPoints?: string[];
   mediaDescriptions?: string[];
   imageCaption?: string;
+  task?: string;
+  context?: string;
   [key: string]: unknown;
 }
 
@@ -243,6 +245,12 @@ export function buildS3(task: TaskVariables): string {
   lines.push(`Angle: ${task.angle ?? 'default'}`);
   lines.push(`Emoji style: ${task.emojiStyle ?? 'moderate'}`);
   lines.push(`CTA: ${task.cta ?? 'engagement'}`);
+  if (typeof task.task === 'string' && task.task) {
+    lines.push(`Instruction: ${task.task}`);
+  }
+  if (typeof task.context === 'string' && task.context) {
+    lines.push(`Context: ${task.context}`);
+  }
 
   if (task.talkingPoints && task.talkingPoints.length > 0) {
     lines.push(`Talking points: ${task.talkingPoints.join(' | ')}`);

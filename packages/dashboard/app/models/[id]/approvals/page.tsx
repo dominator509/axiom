@@ -9,11 +9,12 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ id: 
   let connections: Awaited<ReturnType<typeof api.social.list>>['data'] = [];
   let error: string | null = null;
   try {
-    const [bundleResult, connectionResult] = await Promise.all([
+    const [bundleResult, connectionResult, revisingResult] = await Promise.all([
       api.bundles.list(id, 'generated'),
       api.social.list(id),
+      api.bundles.list(id, 'revising'),
     ]);
-    bundles = bundleResult.data;
+    bundles = [...bundleResult.data, ...revisingResult.data];
     connections = connectionResult.data;
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
@@ -70,11 +71,19 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ id: 
               </div>
             </div>
             <div style={{ marginTop: 12 }}>
-              <ApproveButtons
-                bundleId={b.id}
-                tosBlocked={b.tosReport?.verdict === 'block'}
-                connections={connections}
-              />
+              {b.state === 'revising' ? (
+                <p role="status">
+                  Caption revision pending. Refresh after generation and ToS scanning complete. If
+                  processing fails, inspect the generation job in Incidents.
+                </p>
+              ) : (
+                <ApproveButtons
+                  bundleId={b.id}
+                  tosBlocked={b.tosReport?.verdict !== 'pass'}
+                  revisionId={b.tosReport?.revisionId}
+                  connections={connections}
+                />
+              )}
             </div>
           </div>
         ))}

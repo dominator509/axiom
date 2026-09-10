@@ -44,7 +44,53 @@ const reschedule = () =>
   );
 
 describe('relay reschedule provider boundary', () => {
+  it('rejects an old card after the bundle is revised', async () => {
+    mockState.results[5] = [
+      { id: bundleId, state: 'approved', tosReport: { revisionId: 'new-revision' } },
+    ];
+    await expect(reschedule()).rejects.toThrow('card is superseded');
+    expect(mockState.updates).toHaveLength(0);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it.each(['revise', 'regenerate'] as const)(
+    'queues real generation for relay %s',
+    async (action) => {
+      mockState.results[5] = [{ id: bundleId, state: 'generated' }];
+      mockState.results[6] = [{ id: bundleId, state: 'revising' }];
+      await expect(
+        relayCommandExecutor(
+          action,
+          cardId,
+          { instructions: 'Use a warmer tone' },
+          { channel: 'telegram', sourceId: 'chat-1' },
+        ),
+      ).resolves.toContain('revision queued');
+      expect(mockState.updates).toContainEqual(expect.objectContaining({ state: 'revising' }));
+      expect(enqueueJob).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          kind: 'content.generate',
+          payload: {
+            bundleId,
+            revision: {
+              id: expect.any(String),
+              instructions: 'Use a warmer tone',
+              userId: undefined,
+            },
+          },
+        }),
+      );
+    },
+  );
+
   it('reschedules a target that has not reached the provider', async () => {
+    mockState.results[3] = [
+      { channel: 'telegram', externalRef: 'chat-1', config: { revisionId: 'revision-1' } },
+    ];
+    mockState.results[5] = [
+      { id: bundleId, state: 'approved', tosReport: { revisionId: 'revision-1' } },
+    ];
     mockState.results.push([], [], [{ id: target.id }]);
     await expect(reschedule()).resolves.toContain('rescheduled for');
     expect(mockState.updates).toContainEqual(

@@ -134,6 +134,35 @@ describe('evaluateMediaToS', () => {
 });
 
 describe('tosScan', () => {
+  it('preserves the revision identity through the scan', async () => {
+    mockState.results = [
+      [
+        {
+          id: 'bundle-1',
+          modelId: 'model-1',
+          state: 'generated',
+          captions: { instagram: 'Safe' },
+          hashtags: [],
+          tosReport: { revisionId: 'revision-1' },
+        },
+      ],
+      [],
+    ];
+    await tosScan({ tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1' });
+    expect(mockState.updates).toEqual([
+      expect.objectContaining({
+        tosReport: { ...REPORT, revisionId: 'revision-1' },
+      }),
+    ]);
+  });
+  it('does not replace a pending revision marker with an obsolete scan', async () => {
+    mockState.results = [[{ id: 'bundle-1', state: 'revising' }]];
+    await expect(
+      tosScan({ tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1' }),
+    ).rejects.toThrow('revision is still pending');
+    expect(mockState.updates).toHaveLength(0);
+    expect(mockState.enqueue).not.toHaveBeenCalled();
+  });
   it('preserves a review verdict from a later destination', async () => {
     const { evaluateTextToS } =
       await vi.importActual<typeof import('@axiom/fanvue-mcp')>('@axiom/fanvue-mcp');

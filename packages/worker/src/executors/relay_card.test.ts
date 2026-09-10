@@ -195,6 +195,9 @@ describe('relayCard', () => {
   });
 
   it('persists the card id, preserves safe ToS semantics, and sends it to Telegram', async () => {
+    mockState.results[0] = [
+      { ...BUNDLE, tosReport: { ...BUNDLE.tosReport, revisionId: 'revision-1' } },
+    ];
     const markExternalSideEffect = vi.fn();
     const persistSideEffectMarker = vi.fn(async (operation: (markerTx: any) => Promise<unknown>) =>
       operation(makeChain()),
@@ -213,6 +216,9 @@ describe('relayCard', () => {
     expect(persistSideEffectMarker).toHaveBeenCalledTimes(1);
     expect(mockState.sent[0].chatRef).toBe('chat-1');
     expect(mockState.inserts).toContainEqual(expect.objectContaining({ externalRef: 'chat-1' }));
+    expect(mockState.inserts).toContainEqual(
+      expect.objectContaining({ config: expect.objectContaining({ revisionId: 'revision-1' }) }),
+    );
     expect(mockState.sent[0].card).toMatchObject({
       cardId: 'card-1',
       bundleId: 'bundle-1',

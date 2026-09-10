@@ -27,6 +27,7 @@ import {
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 import { asPlatform, enqueueJob, resolveCapabilities } from '@axiom/worker';
 import type { Platform } from '@axiom/core';
+import { queueBundleRevision } from '../bundle-revision.js';
 
 const router = new Hono<AppBindings>();
 
@@ -37,13 +38,14 @@ const createBundleSchema = z.object({
 });
 
 const approveBundleSchema = z.object({
+  revisionId: z.string().uuid().optional(),
   platforms: z.array(z.string().min(1)).min(1),
   slot: z.string().datetime().optional(),
   connectionIds: z.record(z.string().min(1), z.string().uuid()).default({}),
 });
 
 const reviseBundleSchema = z.object({
-  instructions: z.string().min(1).max(2000),
+  instructions: z.string().trim().min(1).max(2000),
 });
 
 type PublishIntent = {
@@ -148,9 +150,16 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
       .select()
       .from(schema.contentBundle)
       .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.orgId, orgId)))
-      .limit(1);
+      .limit(1)
+      .for('update');
     if (rows.length === 0) return { status: 404 as const, data: null };
     const bundle = rows[0];
+    if ((bundle.tosReport?.revisionId ?? null) !== (body.revisionId ?? null)) {
+      return {
+        status: 409 as const,
+        error: 'bundle revision changed; refresh and review the latest content before approval',
+      };
+    }
     if (bundle.state !== 'generated' && bundle.state !== 'hold') {
       return {
         status: 409 as const,
@@ -333,7 +342,7 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
   return c.json({ data: result.data });
 });
 
-// POST /api/v1/bundles/:id/revise — return to generated with instructions
+// POST /api/v1/bundles/:id/revise — queue caption revision and a fresh ToS scan
 router.post('/:id/revise', zValidator('json', reviseBundleSchema), async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
@@ -346,7 +355,8 @@ router.post('/:id/revise', zValidator('json', reviseBundleSchema), async (c) => 
       .select({ id: schema.contentBundle.id, state: schema.contentBundle.state })
       .from(schema.contentBundle)
       .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.orgId, orgId)))
-      .limit(1);
+      .limit(1)
+      .for('update');
     if (current.length === 0) return { status: 404 as const, data: null };
     if (current[0].state !== 'generated' && current[0].state !== 'hold') {
       return {
@@ -355,27 +365,18 @@ router.post('/:id/revise', zValidator('json', reviseBundleSchema), async (c) => 
       };
     }
 
-    const rows = await tx
-      .update(schema.contentBundle)
-      .set({ state: 'generated', updatedAt: new Date() })
-      .where(
-        and(
-          eq(schema.contentBundle.id, id),
-          eq(schema.contentBundle.orgId, orgId),
-          eq(schema.contentBundle.state, current[0].state),
-        ),
-      )
-      .returning();
-    if (rows.length === 0) {
-      return {
-        status: 409 as const,
-        error: 'bundle changed while revision was being applied; retry the action',
-      };
-    }
+    const revised = await queueBundleRevision(
+      tx,
+      orgId,
+      id,
+      current[0].state,
+      body.instructions,
+      userId,
+    );
     await writeAudit(tx, orgId, userId, 'bundle.revise', id, {
       instructions: body.instructions,
     });
-    return { status: 200 as const, data: rows[0] };
+    return { status: 200 as const, data: revised };
   });
   if (result.status === 404) return apiError(c, 404, statusTitle(404), 'bundle not found');
   if (result.status === 409) return apiError(c, 409, statusTitle(409), result.error ?? 'conflict');

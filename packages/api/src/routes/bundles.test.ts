@@ -68,6 +68,7 @@ function appWithOrg(orgId: string | null) {
 }
 
 beforeEach(() => {
+  mockState.updates = [];
   mockState.result = [];
   mockState.results = [];
   vi.mocked(enqueueJob).mockClear();
@@ -192,52 +193,56 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
     expect(enqueueJob).not.toHaveBeenCalled();
   });
 
-  it('approves a passing bundle and creates post targets', async () => {
-    const generatedBundle = {
-      id: BUNDLE_ID,
-      orgId: ORG_ID,
-      modelId: MODEL_ID,
-      state: 'generated',
-      assetId: 'asset-1',
-      tosReport: passingTos('instagram', 'x'),
-    };
-    const approvedBundle = { ...generatedBundle, state: 'approved' };
-    mockState.result = [approvedBundle];
-    mockState.results = [
-      [],
-      [generatedBundle],
-      [{ id: 'asset-1', kind: 'image' }],
-      [
-        { id: INSTAGRAM_CONNECTION_ID, platform: 'instagram' },
-        { id: X_CONNECTION_ID, platform: 'x' },
-      ],
-      [approvedBundle],
-      [{ id: BUNDLE_ID }],
-      [{ id: BUNDLE_ID }],
-    ];
-    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        platforms: ['instagram', 'x'],
-        connectionIds: { instagram: INSTAGRAM_CONNECTION_ID, x: X_CONNECTION_ID },
-      }),
-    });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as any;
-    expect(body.data.state).toBe('approved');
-    expect(enqueueJob).toHaveBeenCalledTimes(2);
-    expect(enqueueJob).toHaveBeenNthCalledWith(
-      1,
-      expect.anything(),
-      expect.objectContaining({
-        queue: 'publish',
-        kind: 'publish.target',
-        runAfter: expect.any(Date),
-        dedupeParts: ['publish.target', BUNDLE_ID],
-      }),
-    );
-  });
+  it.each([undefined, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'])(
+    'approves a reviewed passing bundle and creates post targets (revision %s)',
+    async (revisionId) => {
+      const generatedBundle = {
+        id: BUNDLE_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        state: 'generated',
+        assetId: 'asset-1',
+        tosReport: { ...passingTos('instagram', 'x'), revisionId },
+      };
+      const approvedBundle = { ...generatedBundle, state: 'approved' };
+      mockState.result = [approvedBundle];
+      mockState.results = [
+        [],
+        [generatedBundle],
+        [{ id: 'asset-1', kind: 'image' }],
+        [
+          { id: INSTAGRAM_CONNECTION_ID, platform: 'instagram' },
+          { id: X_CONNECTION_ID, platform: 'x' },
+        ],
+        [approvedBundle],
+        [{ id: BUNDLE_ID }],
+        [{ id: BUNDLE_ID }],
+      ];
+      const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          platforms: ['instagram', 'x'],
+          revisionId,
+          connectionIds: { instagram: INSTAGRAM_CONNECTION_ID, x: X_CONNECTION_ID },
+        }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as any;
+      expect(body.data.state).toBe('approved');
+      expect(enqueueJob).toHaveBeenCalledTimes(2);
+      expect(enqueueJob).toHaveBeenNthCalledWith(
+        1,
+        expect.anything(),
+        expect.objectContaining({
+          queue: 'publish',
+          kind: 'publish.target',
+          runAfter: expect.any(Date),
+          dedupeParts: ['publish.target', BUNDLE_ID],
+        }),
+      );
+    },
+  );
 
   it('blocks approval until the queued ToS scan has completed', async () => {
     const generatedBundle = {
@@ -454,9 +459,47 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
   });
 });
 
-describe('POST /:id/revise — return to generated', () => {
+describe('POST /:id/revise — queue generation', () => {
+  it.each(['approved', 'revising', 'published'])(
+    'does not enqueue revision in %s state',
+    async (state) => {
+      mockState.results = [[], [{ id: BUNDLE_ID, state }]];
+      const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/revise`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ instructions: 'Make it warmer' }),
+      });
+      expect(res.status).toBe(409);
+      expect(enqueueJob).not.toHaveBeenCalled();
+      expect(mockState.updates).toHaveLength(0);
+    },
+  );
+  it('rejects approval for a revision the operator has not reviewed', async () => {
+    mockState.results = [
+      [],
+      [
+        {
+          id: BUNDLE_ID,
+          state: 'generated',
+          tosReport: { ...passingTos('x'), revisionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+        },
+      ],
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: ['x'] }),
+    });
+    expect(res.status).toBe(409);
+    expect(mockState.updates).toHaveLength(0);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
   it('revises a bundle with instructions', async () => {
-    mockState.result = [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated' }];
+    mockState.results = [
+      [],
+      [{ id: BUNDLE_ID, state: 'generated' }],
+      [{ id: BUNDLE_ID, state: 'revising' }],
+    ];
     const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/revise`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -464,7 +507,24 @@ describe('POST /:id/revise — return to generated', () => {
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.data.state).toBe('generated');
+    expect(body.data.state).toBe('revising');
+    expect(mockState.updates).toContainEqual(
+      expect.objectContaining({
+        state: 'revising',
+        tosReport: expect.objectContaining({ verdict: 'pending', revisionId: expect.any(String) }),
+      }),
+    );
+    expect(enqueueJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        queue: 'content',
+        kind: 'content.generate',
+        payload: {
+          bundleId: BUNDLE_ID,
+          revision: { id: expect.any(String), instructions: 'make it warmer', userId: 'user-1' },
+        },
+      }),
+    );
   });
 
   it('rejects missing instructions (400)', async () => {

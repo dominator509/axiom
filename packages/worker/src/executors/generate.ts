@@ -37,9 +37,10 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
     platform?: string;
     enrichWithLlm?: boolean;
     model?: string;
+    revision?: { id: string; instructions: string; userId?: string };
   };
   let modelId = payload.modelId;
-  let existingBundle: { id: string; modelId: string } | undefined;
+  let existingBundle: typeof schema.contentBundle.$inferSelect | undefined;
 
   // MCP requests allocate the bundle before queueing so callers can receive a
   // durable identifier immediately. Reuse that row instead of creating a
@@ -47,7 +48,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   // idempotent across the tool -> queue -> executor boundary.
   if (payload.bundleId) {
     const bundles = await tx
-      .select({ id: schema.contentBundle.id, modelId: schema.contentBundle.modelId })
+      .select()
       .from(schema.contentBundle)
       .where(
         and(
@@ -55,7 +56,8 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
           eq(schema.contentBundle.orgId, job.org_id),
         ),
       )
-      .limit(1);
+      .limit(1)
+      .for('update');
     if (bundles.length === 0) {
       throw new Error('content.generate: bundle ' + payload.bundleId + ' not found');
     }
@@ -64,6 +66,25 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
       throw new Error('content.generate: bundle lookup returned no row');
     }
     existingBundle = bundle;
+    if (payload.revision) {
+      const revision = payload.revision;
+      if (
+        typeof revision.id !== 'string' ||
+        typeof revision.instructions !== 'string' ||
+        !revision.instructions.trim() ||
+        revision.instructions.length > 2000 ||
+        (revision.userId !== undefined && typeof revision.userId !== 'string')
+      ) {
+        throw new Error('content.generate: invalid revision request');
+      }
+      if (bundle.state !== 'revising' || bundle.tosReport?.revisionId !== revision.id) {
+        throw new Error(
+          'content.generate: stale revision; bundle is no longer awaiting this request',
+        );
+      }
+    } else if (bundle.state !== 'generated' || bundle.tosReport?.revisionId) {
+      throw new Error('content.generate: existing bundle is no longer awaiting generation');
+    }
     if (modelId && modelId !== bundle.modelId) {
       throw new Error('content.generate: bundle/model mismatch');
     }
@@ -71,6 +92,8 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   }
 
   if (!modelId) throw new Error('content.generate: payload.modelId required');
+  if (payload.revision && !existingBundle)
+    throw new Error('content.generate: revision requires a bundle');
 
   const models = await tx
     .select()
@@ -93,6 +116,73 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
     avatarUrl: model.avatarUrl ?? null,
     bio: model.bio ?? null,
   };
+
+  if (payload.revision && existingBundle) {
+    const currentCaptions = existingBundle.captions ?? {};
+    const platforms = Object.keys(currentCaptions).map(asPlatform);
+    if (platforms.length === 0)
+      throw new Error('content.generate: revision has no target captions');
+    const captions: Record<string, string> = {};
+    const gateway = new LLMGateway();
+    for (const target of platforms) {
+      const original = currentCaptions[target];
+      if (typeof original !== 'string') throw new Error('content.generate: invalid source caption');
+      const exemplars = await retrieveTopExemplars(tx, job.org_id, modelId, target, 3);
+      const prompt = assemblePrompt({
+        S0: buildS0(profile),
+        S1: buildS1(target),
+        S2: buildS2(exemplars),
+        S3: buildS3({
+          modelId,
+          platform: target,
+          task: 'Revise the supplied caption according to the operator instructions. Return only the revised caption, without commentary. Preserve the depicted content; do not claim the media was changed.',
+          context: JSON.stringify({
+            caption: original,
+            hashtags: existingBundle.hashtags,
+            instructions: payload.revision.instructions,
+          }),
+        }),
+      });
+      // Unlike optional enrichment, a requested revision must not silently
+      // fall back to unchanged text. Errors roll back and use normal job retry.
+      const result = await gateway.chat(
+        [
+          { role: 'system', content: prompt },
+          { role: 'user', content: payload.revision.instructions },
+        ],
+        { model: payload.model, userId: payload.revision.userId },
+      );
+      const caption = result.content.trim();
+      if (!caption || caption.length > 32000)
+        throw new Error('content.generate: invalid revised caption');
+      captions[target] = caption;
+    }
+    if (platforms.every((target) => captions[target] === currentCaptions[target])) {
+      throw new Error('content.generate: provider returned unchanged captions');
+    }
+    await tx
+      .update(schema.contentBundle)
+      .set({
+        captions,
+        tosReport: { verdict: 'pending', revisionId: payload.revision.id },
+        state: 'generated',
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.contentBundle.id, existingBundle.id),
+          eq(schema.contentBundle.orgId, job.org_id),
+        ),
+      );
+    await enqueueJob(tx, {
+      orgId: job.org_id,
+      queue: 'tos',
+      kind: 'tos.scan',
+      payload: { bundleId: existingBundle.id },
+      dedupeParts: ['tos.scan', existingBundle.id, payload.revision.id],
+    });
+    return;
+  }
 
   const variants = generatePhotoshootPrompts({
     modelName: model.displayName,

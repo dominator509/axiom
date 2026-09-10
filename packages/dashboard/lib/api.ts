@@ -115,7 +115,11 @@ export interface ContentBundle {
   modelId: string;
   captions: Record<string, string>;
   hashtags: string[];
-  tosReport: { verdict: string; scores: Array<{ platform: string; verdict: string }> } | null;
+  tosReport: {
+    verdict: string;
+    revisionId?: string;
+    scores: Array<{ platform: string; verdict: string }>;
+  } | null;
   state: string;
   createdAt: string;
 }
@@ -220,7 +224,12 @@ export const api = {
     get: (id: string) => apiFetch<{ data: ContentBundle }>(`/api/v1/bundles/${id}`),
     approve: (
       id: string,
-      body: { platforms: string[]; slot?: string; connectionIds?: Record<string, string> },
+      body: {
+        platforms: string[];
+        slot?: string;
+        connectionIds?: Record<string, string>;
+        revisionId?: string;
+      },
     ) =>
       apiFetch<{ data: ContentBundle }>(`/api/v1/bundles/${id}/approve`, {
         method: 'POST',
