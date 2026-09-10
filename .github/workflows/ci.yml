@@ -117,6 +117,8 @@ jobs:
           PGPASSWORD: changeme
         run: |
           pnpm migrate
+          # Rehearse reruns: existing checksums must skip DDL rather than replay it.
+          pnpm migrate
           psql -h localhost -U axiom -d axiom_test -v ON_ERROR_STOP=1 <<'SQL'
           ALTER ROLE axiom_app WITH LOGIN PASSWORD 'axiom_app';
           INSERT INTO org (id, name, slug)

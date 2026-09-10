@@ -103,7 +103,7 @@ stream_migration_without_transaction_control() {
 }
 
 if [ "$DRY_RUN" != true ]; then
-  psql -X -v ON_ERROR_STOP=1 "$MIGRATOR_DATABASE_URL" <<'SQL'
+  psql -X -v ON_ERROR_STOP=1 -d "$MIGRATOR_DATABASE_URL" <<'SQL'
 CREATE TABLE IF NOT EXISTS public.axiom_schema_migrations (
   migration_name text PRIMARY KEY,
   checksum_sha256 text NOT NULL,
@@ -127,7 +127,10 @@ for f in "$@"; do
     echo "  [dry-run] checksum=$checksum"
     echo ""
   else
-    recorded=$(psql -X -v ON_ERROR_STOP=1 -Atq "$MIGRATOR_DATABASE_URL" \
+    # Native Windows psql does not parse options after a positional database
+    # URL. Use -d so -c is honored on every supported host; otherwise a ledger
+    # lookup can silently read empty stdin and appear to find no applied row.
+    recorded=$(psql -X -v ON_ERROR_STOP=1 -Atq -d "$MIGRATOR_DATABASE_URL" \
       -c "SELECT checksum_sha256 FROM public.axiom_schema_migrations WHERE migration_name = '$name'")
     if [ -n "$recorded" ]; then
       if [ "$recorded" != "$checksum" ]; then
@@ -138,7 +141,7 @@ for f in "$@"; do
       continue
     fi
     if [ "$BASELINE" = true ]; then
-      psql -X -v ON_ERROR_STOP=1 "$MIGRATOR_DATABASE_URL" \
+      psql -X -v ON_ERROR_STOP=1 -d "$MIGRATOR_DATABASE_URL" \
         -c "INSERT INTO public.axiom_schema_migrations (migration_name, checksum_sha256) VALUES ('$name', '$checksum')"
       echo "  -> baselined"
       continue
@@ -147,7 +150,7 @@ for f in "$@"; do
       stream_migration_without_transaction_control "$f"
       printf '%s\n' "INSERT INTO public.axiom_schema_migrations (migration_name, checksum_sha256) VALUES ('$name', '$checksum');"
     } | psql -X --echo-errors -v ON_ERROR_STOP=1 --single-transaction \
-      "$MIGRATOR_DATABASE_URL"
+      -d "$MIGRATOR_DATABASE_URL"
     echo "  -> done"
     echo ""
   fi

@@ -101,6 +101,9 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(runner).toContain('stream_migration_without_transaction_control');
     expect(runner).toContain('TO axiom_app;');
     expect(runner).toContain("TO axiom_app'");
+    // Database selection must be an option, not a positional argument before
+    // -c: native Windows psql otherwise silently ignores the ledger query.
+    expect(runner.match(/-d "\$MIGRATOR_DATABASE_URL"/g)).toHaveLength(4);
   });
 
   it('reclaims stale worker leases before selecting the next job', () => {
