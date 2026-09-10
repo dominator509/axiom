@@ -177,6 +177,21 @@ describe('POST /api/v1/relay/command', () => {
     const body = (await res.json()) as any;
     expect(body.success).toBe(false);
   });
+
+  it('rejects an oversized body before signature verification', async () => {
+    const res = await postJson('/api/v1/relay/command', {
+      signature: 'deadbeef',
+      nonce: 'n1',
+      action: 'approve',
+      cardId: 'bundle-1',
+      payload: 'x'.repeat(262_144),
+    });
+    expect(res.status).toBe(413);
+    await expect(res.json()).resolves.toMatchObject({
+      success: false,
+      error: 'Request body too large',
+    });
+  });
 });
 
 describe('POST /api/v1/viral/ingest', () => {

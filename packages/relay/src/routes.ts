@@ -8,6 +8,7 @@ import { CommandRouter, isCardAction } from './commands.js';
 import type { PostMetrics } from './viral/loop.js';
 import { Bandit } from './viral/bandit.js';
 import type { ViralPersistence } from './viral/persistence.js';
+import { readBoundedJson, RequestBodyTooLargeError } from './request-body.js';
 
 export interface RelayDependencies {
   cardRenderer: CardRenderer;
@@ -34,13 +35,16 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
   // POST /api/v1/relay/card - render an approval-card preview
   app.post('/api/v1/relay/card', async (c) => {
     try {
-      const body = await c.req.json<BundleContent>();
+      const body = await readBoundedJson<BundleContent>(c.req.raw);
       const card = deps.cardRenderer.renderBundleCard(body);
       metricsRegistry.incrementCounter('relay_cards_rendered', {
         platforms: body.targetPlatforms.join(','),
       });
       return c.json({ success: true, card });
     } catch (err) {
+      if (err instanceof RequestBodyTooLargeError) {
+        return c.json({ success: false, error: 'Request body too large' }, 413);
+      }
       logger.error('Failed to render card preview', err as Error);
       return c.json({ success: false, error: 'Failed to render card preview' }, 500);
     }
@@ -50,8 +54,11 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
   app.post('/api/v1/relay/command', async (c) => {
     let body: unknown;
     try {
-      body = await c.req.json();
-    } catch {
+      body = await readBoundedJson(c.req.raw);
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        return c.json({ success: false, error: 'Request body too large' }, 413);
+      }
       return c.json({ success: false, error: 'Invalid command request body' }, 400);
     }
 
@@ -86,10 +93,10 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
   // POST /api/v1/viral/ingest - ingest metrics
   app.post('/api/v1/viral/ingest', async (c) => {
     try {
-      const { postId, metrics } = await c.req.json<{
+      const { postId, metrics } = await readBoundedJson<{
         postId: string;
         metrics: PostMetrics;
-      }>();
+      }>(c.req.raw);
       // Authenticated org (set by the API's requireAuth middleware when the
       // relay app is mounted at '/' — Hono shares context variables across
       // the merged app). Never accept tenant identity from request input.
@@ -102,6 +109,9 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
       metricsRegistry.incrementCounter('generation_count');
       return c.json({ success: true, label: result.label });
     } catch (err) {
+      if (err instanceof RequestBodyTooLargeError) {
+        return c.json({ success: false, error: 'Request body too large' }, 413);
+      }
       logger.error('Failed to ingest metrics', err as Error);
       return c.json({ success: false, error: 'Failed to ingest metrics' }, 500);
     }
@@ -128,11 +138,11 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
   // POST /api/v1/incidents/report - report incident
   app.post('/api/v1/incidents/report', async (c) => {
     try {
-      const { severity, message, source } = await c.req.json<{
+      const { severity, message, source } = await readBoundedJson<{
         severity: 'sev-1' | 'sev-2' | 'sev-3' | 'sev-4';
         message: string;
         source: string;
-      }>();
+      }>(c.req.raw);
       const incident = deps.incidentManager.reportIncident(
         severity,
         message,
@@ -143,6 +153,9 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
       );
       return c.json({ success: true, incident });
     } catch (err) {
+      if (err instanceof RequestBodyTooLargeError) {
+        return c.json({ success: false, error: 'Request body too large' }, 413);
+      }
       logger.error('Failed to report incident', err as Error);
       return c.json({ success: false, error: 'Failed to report incident' }, 500);
     }
