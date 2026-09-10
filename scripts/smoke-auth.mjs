@@ -2,7 +2,8 @@
 // synthetic user; database teardown removes it. This does not claim browser
 // cookie/TLS coverage: CI supplies the configured HTTPS Origin over loopback.
 import assert from 'node:assert/strict';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 
 function loopbackOrigin(input) {
   const url = new URL(input);
@@ -20,6 +21,16 @@ function loopbackOrigin(input) {
 
 const base = loopbackOrigin(process.argv[2] ?? 'http://127.0.0.1:3002');
 const origin = loopbackOrigin(process.argv[3] ?? base);
+const tenantFixture = process.argv[4] === '--tenant-fixture';
+let fixtureDatabase;
+if (tenantFixture) {
+  assert.equal(process.env.CI, 'true', 'Tenant fixture requires explicit CI mode');
+  fixtureDatabase = new URL(process.env.MIGRATOR_DATABASE_URL ?? '');
+  assert.ok(['postgres:', 'postgresql:'].includes(fixtureDatabase.protocol));
+  assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(fixtureDatabase.hostname));
+  assert.equal(fixtureDatabase.pathname, '/axiom_test', 'Only the disposable test database is allowed');
+  assert.ok(!fixtureDatabase.search && !fixtureDatabase.hash, 'Database options are not allowed');
+}
 async function request(path, init = {}) {
   return fetch(`${base}${path}`, {
     ...init,
@@ -79,6 +90,46 @@ assert.equal(unassigned.status, 401, 'unassigned identities cannot read tenant d
 const workspace = await request('/', { headers: { cookie } });
 assert.equal(workspace.status, 200, 'unassigned identity gets an actionable dashboard response');
 assert.match(await workspace.text(), /Workspace access pending/);
+if (tenantFixture) {
+  // Test-only administrative fixture, never a production provisioning path.
+  // Bind variables through psql quoting; do not print credentials or SQL errors.
+  const orgId = randomUUID();
+  const fixture = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href,
+    '-v', 'ON_ERROR_STOP=1', '-v', `fixture_email=${email}`, '-v', `fixture_org=${orgId}`,
+  ], {
+    encoding: 'utf8', timeout: 10_000,
+    input: `BEGIN;
+INSERT INTO org (id, name, slug) VALUES (:'fixture_org', 'Disposable HTTP smoke', :'fixture_org');
+UPDATE auth_user SET org_id = :'fixture_org' WHERE email = :'fixture_email' AND org_id IS NULL;
+SELECT count(*) FROM auth_user WHERE email = :'fixture_email' AND org_id = :'fixture_org' AND role = 'operator';
+COMMIT;
+`,
+  });
+  assert.equal(fixture.status, 0, 'Disposable tenant fixture must apply successfully');
+  assert.equal(fixture.stdout.trim(), '1', 'Fixture must assign exactly the synthetic operator');
+  const assigned = await request('/api/auth/get-session', { headers: { cookie } });
+  assert.equal(assigned.status, 200);
+  assert.equal((await assigned.json())?.user?.orgId, orgId);
+  const modelBody = JSON.stringify({ displayName: 'HTTP smoke profile', handle: `ci-${randomBytes(8).toString('hex')}` });
+  const missingKey = await request('/api/v1/models', { method: 'POST', headers: { ...headers, cookie }, body: modelBody });
+  assert.equal(missingKey.status, 400, 'Profile creation must require an idempotency key');
+  const mutationHeaders = { ...headers, cookie, 'Idempotency-Key': randomUUID() };
+  const created = await request('/api/v1/models', { method: 'POST', headers: mutationHeaders, body: modelBody });
+  assert.equal(created.status, 201, 'Assigned runtime-role operator can create a profile');
+  const createdBody = await created.json();
+  assert.ok(createdBody.data?.id);
+  const replayed = await request('/api/v1/models', { method: 'POST', headers: mutationHeaders, body: modelBody });
+  assert.equal(replayed.status, 201, 'Profile replay preserves the original response');
+  assert.equal((await replayed.json())?.data?.id, createdBody.data.id, 'Replay must not create another profile');
+  const count = await request('/api/v1/models/stats/count', { headers: { cookie } });
+  assert.equal(count.status, 200);
+  assert.equal((await count.json())?.data?.count, 1, 'Fresh tenant has exactly one profile after replay');
+  const portfolio = await request('/', { headers: { cookie } });
+  assert.equal(portfolio.status, 200);
+  assert.match(await portfolio.text(), /HTTP smoke profile/);
+  console.log('tenant smoke: assigned operator, required idempotency, single profile after replay, tenant count and dashboard rendering passed');
+}
 const signout = await request('/api/auth/sign-out', {
   method: 'POST',
   headers: { ...headers, cookie },
