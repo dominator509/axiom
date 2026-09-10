@@ -559,6 +559,47 @@ describe('POST /:id/revise — queue generation', () => {
   });
 });
 
+describe.each(['revise', 'reject'])('versioned %s requests', (action) => {
+  const revisionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  it.each([undefined, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'])(
+    'rejects missing or stale review versions (%s) before any mutation',
+    async (supplied) => {
+      mockState.results = [[], [{ id: BUNDLE_ID, state: 'generated', tosReport: { revisionId } }]];
+      const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/${action}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ instructions: 'Make it warmer', revisionId: supplied }),
+      });
+      expect(res.status).toBe(409);
+      expect(mockState.updates).toHaveLength(0);
+      expect(enqueueJob).not.toHaveBeenCalled();
+    },
+  );
+  it.each(['generated', 'hold'])('accepts the reviewed version in %s state', async (state) => {
+    mockState.results = [
+      [],
+      [{ id: BUNDLE_ID, state, tosReport: { revisionId } }],
+      [{ id: BUNDLE_ID, state: action === 'revise' ? 'revising' : 'rejected' }],
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/${action}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ instructions: 'Make it warmer', revisionId }),
+    });
+    expect(res.status).toBe(200);
+    expect(mockState.updates.length).toBeGreaterThan(0);
+  });
+  it('rejects malformed revision IDs before database mutation', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/${action}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ instructions: 'Make it warmer', revisionId: 'bad' }),
+    });
+    expect(res.status).toBe(400);
+    expect(mockState.updates).toHaveLength(0);
+  });
+});
+
 describe('POST /:id/reject', () => {
   it('rejects a bundle', async () => {
     mockState.results = [

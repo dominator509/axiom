@@ -45,8 +45,11 @@ const approveBundleSchema = z.object({
 });
 
 const reviseBundleSchema = z.object({
+  revisionId: z.string().uuid().optional(),
   instructions: z.string().trim().min(1).max(2000),
 });
+
+const rejectBundleSchema = z.object({ revisionId: z.string().uuid().optional() });
 
 type PublishIntent = {
   action: 'schedule' | 'publish';
@@ -352,12 +355,22 @@ router.post('/:id/revise', zValidator('json', reviseBundleSchema), async (c) => 
 
   const result = await withOrgContext(orgId, async (tx) => {
     const current = await tx
-      .select({ id: schema.contentBundle.id, state: schema.contentBundle.state })
+      .select({
+        id: schema.contentBundle.id,
+        state: schema.contentBundle.state,
+        tosReport: schema.contentBundle.tosReport,
+      })
       .from(schema.contentBundle)
       .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.orgId, orgId)))
       .limit(1)
       .for('update');
     if (current.length === 0) return { status: 404 as const, data: null };
+    if ((current[0].tosReport?.revisionId ?? null) !== (body.revisionId ?? null)) {
+      return {
+        status: 409 as const,
+        error: 'bundle revision changed; refresh and review the latest content before revision',
+      };
+    }
     if (current[0].state !== 'generated' && current[0].state !== 'hold') {
       return {
         status: 409 as const,
@@ -384,19 +397,31 @@ router.post('/:id/revise', zValidator('json', reviseBundleSchema), async (c) => 
 });
 
 // POST /api/v1/bundles/:id/reject
-router.post('/:id/reject', async (c) => {
+router.post('/:id/reject', zValidator('json', rejectBundleSchema), async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
+  const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
 
   const result = await withOrgContext(orgId, async (tx) => {
     const current = await tx
-      .select({ id: schema.contentBundle.id, state: schema.contentBundle.state })
+      .select({
+        id: schema.contentBundle.id,
+        state: schema.contentBundle.state,
+        tosReport: schema.contentBundle.tosReport,
+      })
       .from(schema.contentBundle)
       .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.orgId, orgId)))
-      .limit(1);
+      .limit(1)
+      .for('update');
     if (current.length === 0) return { status: 404 as const, data: null };
+    if ((current[0].tosReport?.revisionId ?? null) !== (body.revisionId ?? null)) {
+      return {
+        status: 409 as const,
+        error: 'bundle revision changed; refresh and review the latest content before rejection',
+      };
+    }
     if (current[0].state !== 'generated' && current[0].state !== 'hold') {
       return {
         status: 409 as const,

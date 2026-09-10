@@ -111,10 +111,14 @@ export default function ApproveButtons({
         res = await mutationFetch(`/api/v1/bundles/${bundleId}/revise`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ instructions: instructions.trim() }),
+          body: JSON.stringify({ instructions: instructions.trim(), revisionId }),
         });
       } else {
-        res = await mutationFetch(`/api/v1/bundles/${bundleId}/reject`, { method: 'POST' });
+        res = await mutationFetch(`/api/v1/bundles/${bundleId}/reject`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ revisionId }),
+        });
       }
       if (!res.ok) {
         const b = await readDashboardError(res);

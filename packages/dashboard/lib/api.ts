@@ -235,13 +235,16 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-    revise: (id: string, instructions: string) =>
+    revise: (id: string, instructions: string, revisionId?: string) =>
       apiFetch<{ data: ContentBundle }>(`/api/v1/bundles/${id}/revise`, {
         method: 'POST',
-        body: JSON.stringify({ instructions }),
+        body: JSON.stringify({ instructions, revisionId }),
       }),
-    reject: (id: string) =>
-      apiFetch<{ data: ContentBundle }>(`/api/v1/bundles/${id}/reject`, { method: 'POST' }),
+    reject: (id: string, revisionId?: string) =>
+      apiFetch<{ data: ContentBundle }>(`/api/v1/bundles/${id}/reject`, {
+        method: 'POST',
+        body: JSON.stringify({ revisionId }),
+      }),
   },
   killswitch: {
     get: () => apiFetch<{ data: KillSwitchState }>('/api/v1/killswitch'),

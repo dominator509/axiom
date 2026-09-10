@@ -39,6 +39,20 @@ describe('dashboard server API client', () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it.each(['revise', 'reject'] as const)(
+    'echoes the reviewed version for %s mutations',
+    async (action) => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: {} })));
+      vi.stubGlobal('fetch', fetchMock);
+      const revisionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      if (action === 'revise') await api.bundles.revise('bundle', 'Make it warmer', revisionId);
+      else await api.bundles.reject('bundle', revisionId);
+      const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+      expect(JSON.parse(String(init.body)).revisionId).toBe(revisionId);
+      expect(new Headers(init.headers).get('Idempotency-Key')).toBeTruthy();
+    },
+  );
+
   it('aborts a hung server API request at the default deadline', async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
