@@ -83,6 +83,15 @@ type ParsedLine = {
 const require = createRequire(import.meta.url);
 const PACKAGE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
+// Provider CLIs are untrusted subprocess boundaries. Keep one malformed or
+// newline-free JSON record from becoming an unbounded allocation, and cap the
+// total stream retained by one completion. Valid output beyond these limits is
+// rejected rather than truncated so callers never receive a misleading
+// partial completion.
+const SUBSCRIPTION_JSON_LINE_MAX_BYTES = 1 * 1024 * 1024;
+const SUBSCRIPTION_STDOUT_MAX_BYTES = 4 * 1024 * 1024;
+const SUBSCRIPTION_AUTH_OUTPUT_MAX_BYTES = 64 * 1024;
+const SUBSCRIPTION_AUTH_LINE_MAX_BYTES = 64 * 1024;
 const CHILD_ENVIRONMENT_KEYS = [
   'PATH',
   'Path',
@@ -409,10 +418,22 @@ async function runAuthCommand(
     windowsHide: true,
   });
   const output: string[] = [];
+  let outputBytes = 0;
+  let outputLimitExceeded = false;
+  const appendOutput = (chunk: string) => {
+    if (outputLimitExceeded) return;
+    outputBytes += Buffer.byteLength(chunk, 'utf8');
+    if (outputBytes > SUBSCRIPTION_AUTH_OUTPUT_MAX_BYTES) {
+      outputLimitExceeded = true;
+      child.kill();
+      return;
+    }
+    output.push(chunk);
+  };
   child.stdout.setEncoding('utf8');
   child.stderr.setEncoding('utf8');
-  child.stdout.on('data', (chunk: string) => output.push(chunk));
-  child.stderr.on('data', (chunk: string) => output.push(chunk));
+  child.stdout.on('data', appendOutput);
+  child.stderr.on('data', appendOutput);
   const exitPromise = new Promise<number | null>((resolveExit, rejectExit) => {
     child.once('error', rejectExit);
     child.once('exit', resolveExit);
@@ -445,6 +466,9 @@ async function runAuthCommand(
     );
     if (timedOut) throw new ProviderError('Subscription command timed out', 504, provider);
     if (signal?.aborted) throw new DOMException('Subscription command aborted', 'AbortError');
+    if (outputLimitExceeded) {
+      throw new ProviderError('Subscription command output exceeded its limit', 502, provider);
+    }
     return { exitCode, output: sanitizedDiagnostic(output.join('')) };
   } finally {
     if (timer) clearTimeout(timer);
@@ -486,7 +510,17 @@ async function* runAuthConnect(
   child.stderr.once('end', closeCombined);
   const lines = createInterface({ input: combined, crlfDelay: Infinity });
   let output = '';
+  let outputLimitError: ProviderError | undefined;
   for await (const line of lines) {
+    if (Buffer.byteLength(line, 'utf8') > SUBSCRIPTION_AUTH_LINE_MAX_BYTES) {
+      outputLimitError = new ProviderError(
+        'Subscription login output line exceeded its limit',
+        502,
+        provider,
+      );
+      child.kill();
+      break;
+    }
     const safeLine = sanitizedDiagnostic(line);
     if (safeLine) {
       output = `${output}\n${safeLine}`.slice(-2000);
@@ -497,6 +531,7 @@ async function* runAuthConnect(
   clearTimeout(timer);
   signal?.removeEventListener('abort', abort);
   if (signal?.aborted) throw new DOMException('Subscription login aborted', 'AbortError');
+  if (outputLimitError) throw outputLimitError;
   if (exitCode !== 0) {
     throw new ProviderError(
       output || 'Subscription login failed',
@@ -549,13 +584,30 @@ async function* runSubscription(request: SubscriptionRequest): AsyncIterable<{
     else child.stdin.end();
 
     let buffer = '';
+    let stdoutBytes = 0;
     child.stdout.setEncoding('utf8');
     for await (const chunk of child.stdout) {
-      buffer += String(chunk);
+      const text = String(chunk);
+      stdoutBytes += Buffer.byteLength(text, 'utf8');
+      if (stdoutBytes > SUBSCRIPTION_STDOUT_MAX_BYTES) {
+        throw new ProviderError(
+          'Subscription transport output exceeded its limit',
+          502,
+          request.provider,
+        );
+      }
+      buffer += text;
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() || '';
       for (const line of lines) {
         if (!line.trim()) continue;
+        if (Buffer.byteLength(line, 'utf8') > SUBSCRIPTION_JSON_LINE_MAX_BYTES) {
+          throw new ProviderError(
+            'Subscription transport JSON line exceeded its limit',
+            502,
+            request.provider,
+          );
+        }
         const parsed = parseJsonLine(request.provider, line);
         if (parsed.fatal) fatal = parsed.fatal;
         if (parsed.usage) yield { usage: parsed.usage };
@@ -563,6 +615,13 @@ async function* runSubscription(request: SubscriptionRequest): AsyncIterable<{
       }
     }
     if (buffer.trim()) {
+      if (Buffer.byteLength(buffer, 'utf8') > SUBSCRIPTION_JSON_LINE_MAX_BYTES) {
+        throw new ProviderError(
+          'Subscription transport JSON line exceeded its limit',
+          502,
+          request.provider,
+        );
+      }
       const parsed = parseJsonLine(request.provider, buffer);
       if (parsed.fatal) fatal = parsed.fatal;
       if (parsed.usage) yield { usage: parsed.usage };

@@ -317,3 +317,4 @@
 2026-09-10T04:05:04Z | [P1][HTTP/TESTS] Replaced OAuth transport test doubles with real Response bodies so bounded service readers exercise production streaming contracts; hosted run 34435501314 exposed four fixture failures after lint/typecheck passed
 2026-09-10T04:18:00Z | [P1][MCP/AUTH] Reject oversized capability tokens before hashing, HMAC verification, or JSON parsing; added validation and bearer-auth regression coverage
 2026-09-10T04:32:00Z | [P1][RELAY/SIGNAL] Reject oversized signal-cli JSON-RPC notifications before JSON parsing with the existing 256 KiB relay boundary; added regression coverage
+2026-09-10T05:00:00Z | [P1][LLM/SUBSCRIPTION-BOUNDARY] Cap provider subscription CLI JSON lines, completion stdout, and auth diagnostics before parsing or retention; add fail-closed oversized-output regression coverage

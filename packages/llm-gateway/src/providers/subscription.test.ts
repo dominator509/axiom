@@ -97,4 +97,31 @@ describe('official subscription auth command lifecycle', () => {
     child.emit('exit', 0);
     await expect(pending).resolves.toMatchObject({ provider: 'openai', connected: true });
   });
+
+  it('rejects an oversized newline-free subscription response before parsing', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child);
+
+    const pending = transport.chat({
+      provider: 'openai',
+      userId: 'user-1',
+      model: 'openai-default',
+      messages: [{ role: 'user', content: 'hello' }],
+    });
+    child.stdout.end('x'.repeat(1024 * 1024 + 1));
+
+    await expect(pending).rejects.toMatchObject({ status: 502 });
+    expect(child.kill).toHaveBeenCalled();
+  });
+
+  it('rejects oversized authentication command output before returning status', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child);
+
+    const pending = transport.status('openai', 'user-1');
+    child.stderr.end('x'.repeat(64 * 1024 + 1));
+
+    await expect(pending).rejects.toMatchObject({ status: 502 });
+    expect(child.kill).toHaveBeenCalled();
+  });
 });
