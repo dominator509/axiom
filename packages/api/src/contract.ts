@@ -134,6 +134,8 @@ export function handleProblem(fn: (c: Context) => Promise<Response> | Response) 
 
 const IDEM_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 const IDEMPOTENCY_MAX_BODY_BYTES = 256 * 1024;
+/** Opaque client keys are persisted and hashed; keep that header bounded. */
+export const IDEMPOTENCY_KEY_MAX_BYTES = 256;
 
 interface IdempotencyRow {
   id: string;
@@ -213,6 +215,14 @@ export function idempotency(required = true) {
         );
       }
       return await next();
+    }
+    if (Buffer.byteLength(key, 'utf8') > IDEMPOTENCY_KEY_MAX_BYTES) {
+      return idempotencyResponse(
+        c,
+        400,
+        'Bad Request',
+        `Idempotency-Key header exceeds the maximum size of ${IDEMPOTENCY_KEY_MAX_BYTES} bytes`,
+      );
     }
 
     const route = c.req.path;

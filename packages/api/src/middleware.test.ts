@@ -12,7 +12,12 @@ import { mockState, mockDbFactory } from './routes/test-utils.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ apiIdempotency: {} }));
 
-import { idempotency, rateLimit, correlationId } from './contract.js';
+import {
+  idempotency,
+  IDEMPOTENCY_KEY_MAX_BYTES,
+  rateLimit,
+  correlationId,
+} from './contract.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -88,6 +93,25 @@ describe('idempotency middleware (durable, M-2)', () => {
     expect(body.title).toBe('Bad Request');
     expect(body.detail).toContain('Idempotency-Key');
     expect(calls).toBe(0); // rejected before the handler ran
+  });
+
+  it('rejects an oversized Idempotency-Key before hashing or reserving it', async () => {
+    const app = makeApp();
+    let calls = 0;
+    app.post('/mutate', idempotency(), async (c) => {
+      calls += 1;
+      return c.json({ data: { ok: true } }, 201);
+    });
+
+    const res = await app.request('/mutate', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'x'.repeat(IDEMPOTENCY_KEY_MAX_BYTES + 1) },
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
+    expect(((await res.json()) as { detail: string }).detail).toContain('Idempotency-Key');
+    expect(calls).toBe(0);
   });
 
   it('bounds declared mutation bodies before hashing or handler execution', async () => {
