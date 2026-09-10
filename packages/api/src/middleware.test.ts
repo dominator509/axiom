@@ -170,6 +170,10 @@ describe('idempotency middleware (durable, M-2)', () => {
 
   it('replays the bounded body to downstream Hono parsers', async () => {
     const app = makeApp();
+    app.use('*', async (c, next) => {
+      await next();
+      c.header('X-After-Idempotency', 'present');
+    });
     const body = '{"value":"ok"}';
     let parsed: unknown;
     app.post('/mutate', idempotency(), async (c) => {
@@ -204,6 +208,8 @@ describe('idempotency middleware (durable, M-2)', () => {
 
     expect(res.status).toBe(201);
     expect(parsed).toEqual({ value: 'ok' });
+    expect(res.headers.get('X-After-Idempotency')).toBe('present');
+    await expect(res.json()).resolves.toEqual({ data: { ok: true } });
   });
 
   it('executes once, then replays the stored response without re-execution', async () => {

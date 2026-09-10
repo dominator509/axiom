@@ -385,12 +385,6 @@ export function idempotency(required = true) {
       res = await onError(err instanceof Error ? err : new Error(String(err)), c);
     }
 
-    // Preserve the normalized response when Hono had already installed its
-    // default error response on the context. The middleware returns void
-    // after completion, so the context response is what the outer dispatcher
-    // ultimately sends to the client.
-    c.res = res;
-
     if (!res) {
       return idempotencyResponse(c, 503, 'Service Unavailable', 'Mutation response unavailable');
     }
@@ -400,6 +394,11 @@ export function idempotency(required = true) {
     } catch {
       return idempotencyResponse(c, 503, 'Service Unavailable', 'Mutation response was not JSON');
     }
+    // Publish the response only AFTER cloning it for persistence. Hono's
+    // setter wraps its body stream; cloning after that would tee the original
+    // and leave the context holding a disturbed stream, breaking outer CORS
+    // header writes and turning a completed mutation into an HTTP 500.
+    c.res = res;
     try {
       const completed = await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);

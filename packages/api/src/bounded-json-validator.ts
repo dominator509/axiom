@@ -38,7 +38,18 @@ export function boundedJsonValidator<
     const contentType = c.req.header('Content-Type');
     if (contentType && JSON_CONTENT_TYPE.test(contentType)) {
       try {
-        const text = await readBoundedText(c.req.raw, API_JSON_MAX_BODY_BYTES);
+        // Idempotency hashes the raw stream before route validation and caches
+        // its exact bytes. Never reread that exhausted stream or overwrite the
+        // text cache with an empty body. Reapply this validator's own size and
+        // Content-Length checks to the cached bytes as well.
+        const source = c.req.bodyCache.arrayBuffer
+          ? new Request(c.req.url, {
+              method: 'POST',
+              headers: c.req.raw.headers,
+              body: await c.req.arrayBuffer(),
+            })
+          : c.req.raw;
+        const text = await readBoundedText(source, API_JSON_MAX_BODY_BYTES);
         // Hono's runtime body cache stores the pending parser promise even
         // though its public type is declared as the resolved string value.
         c.req.bodyCache.text = Promise.resolve(text) as unknown as string;
