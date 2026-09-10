@@ -21,7 +21,7 @@ const reportSchema = z.object({
   release: z.string().max(100).optional(),
   environment: z.string().max(50).optional(),
   message: z.string().max(2000).default(''),
-  stacktrace: z.array(z.record(z.string(), z.unknown())).default([]),
+  stacktrace: z.array(z.record(z.string(), z.unknown())).max(50).default([]),
   correlationId: z.string().max(100).optional(),
   severity: z.enum(['sev-1', 'sev-2', 'sev-3', 'sev-4']).default('sev-3'),
   fingerprint: z.string().max(200).optional(),

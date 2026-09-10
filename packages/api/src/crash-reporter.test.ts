@@ -4,7 +4,12 @@ import { mockDbFactory, mockState } from './routes/test-utils.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ crashReport: {} }));
 
-import { captureUnhandledApiError, describeCrash, recordCrashReport } from './crash-reporter.js';
+import {
+  captureUnhandledApiError,
+  describeCrash,
+  redactCrashValue,
+  recordCrashReport,
+} from './crash-reporter.js';
 import { correlationId, onError } from './contract.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -42,6 +47,33 @@ describe('crash reporter', () => {
     expect(details.message).not.toContain('query-secret');
     expect(details.message).toContain('"access_token":"[REDACTED]"');
     expect(details.message).toContain('access_token=[REDACTED]');
+  });
+
+  it('redacts credentials from client-supplied structured crash details', () => {
+    const value = redactCrashValue({
+      authorization: 'Bearer client-secret',
+      nested: {
+        access_token: 'access-secret',
+        note: 'request failed token=query-secret',
+      },
+    }) as Record<string, unknown>;
+
+    expect(value.authorization).toBe('[REDACTED]');
+    expect((value.nested as Record<string, unknown>).access_token).toBe('[REDACTED]');
+    expect((value.nested as Record<string, unknown>).note).toContain('token=[REDACTED]');
+    expect(JSON.stringify(value)).not.toContain('client-secret');
+    expect(JSON.stringify(value)).not.toContain('access-secret');
+    expect(JSON.stringify(value)).not.toContain('query-secret');
+  });
+
+  it('bounds nested crash collections and object depth', () => {
+    const value = redactCrashValue({
+      frames: Array.from({ length: 60 }, (_, index) => ({ index })),
+      deep: { a: { b: { c: { d: { e: { f: { g: { h: 'secret' } } } } } } } },
+    }) as Record<string, unknown>;
+
+    expect((value.frames as unknown[]).length).toBe(50);
+    expect(JSON.stringify(value)).toContain('[TRUNCATED]');
   });
 
   it('writes an org-scoped automatic crash report through the existing sink', async () => {
