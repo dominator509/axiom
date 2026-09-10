@@ -37,8 +37,22 @@ export function groupRoutes(routes: RouteEntry[]): Record<string, Record<string,
     // Skip Hono middleware registrations (auth guards mounted via app.use)
     // — they show up as 'all' and are not OpenAPI operations.
     if (method === 'options' || method === 'all') continue;
-    if (!paths[r.path]) paths[r.path] = {};
-    paths[r.path][method] = {
+    // Wildcard forwarding mounts (such as Better Auth) are not concrete API
+    // operations and cannot be represented as OpenAPI path templates.
+    if (r.path.includes('*')) continue;
+    const parameterNames: string[] = [];
+    const path = r.path.replace(/:([A-Za-z_][A-Za-z0-9_]*)/g, (_match, name: string) => {
+      if (!parameterNames.includes(name)) parameterNames.push(name);
+      return `{${name}}`;
+    });
+    const pathParameters = parameterNames.map((name) => ({
+      name,
+      in: 'path',
+      required: true,
+      schema: { type: 'string' },
+    }));
+    if (!paths[path]) paths[path] = {};
+    paths[path][method] = {
       summary: `${method.toUpperCase()} ${r.path}`,
       security: [{ bearerAuth: [] }],
       responses: {
@@ -47,13 +61,14 @@ export function groupRoutes(routes: RouteEntry[]): Record<string, Record<string,
         '401': { description: 'Unauthorized' },
         '500': { description: 'Internal error' },
       },
-      parameters:
-        method === 'get'
+      parameters: [
+        ...pathParameters,
+        ...(method === 'get'
           ? [
               {
                 name: 'limit',
                 in: 'query',
-                schema: { type: 'integer', minimum: 1, maximum: 100 },
+                schema: { type: 'integer', minimum: 1, maximum: 200, default: 50 },
                 description: 'Page size (keyset pagination)',
               },
               {
@@ -63,7 +78,8 @@ export function groupRoutes(routes: RouteEntry[]): Record<string, Record<string,
                 description: 'Opaque keyset cursor',
               },
             ]
-          : [],
+          : []),
+      ],
     };
   }
   return paths;
@@ -78,7 +94,9 @@ export function buildOpenApi(routes: RouteEntry[]): Record<string, unknown> {
       description:
         'Multi-tenant CRM for operating Fanvue talent profiles. All /api/v1 routes enforce session auth (bearer), org RLS isolation, rate limits and audit. Mutations that touch platforms require an Idempotency-Key header. Errors are RFC-7807 problem+json with correlation_id.',
     },
-    servers: [{ url: 'https://crm.<domain>/api/v1', description: 'Production' }],
+    // Mounted routes already include their full prefixes, including /api/v1.
+    // Resolve against the serving origin rather than inventing a deployment host.
+    servers: [{ url: '/', description: 'Current serving origin' }],
     paths: groupRoutes(routes),
     components: { securitySchemes: SECURITY_SCHEMES },
   };
