@@ -83,6 +83,10 @@ describe('createCapabilityToken / validateToken', () => {
     expect(validateToken('deadbeef'.repeat(8))).toBeNull();
   });
 
+  it('rejects capability tokens above the authorization-header budget', () => {
+    expect(validateToken('x'.repeat(4 * 1024 + 1))).toBeNull();
+  });
+
   it('returns null and deletes expired tokens', () => {
     const token = createCapabilityToken(MODEL, Tier.Viewer, 'agent-3', -1000);
     expect(validateToken(token)).toBeNull();
@@ -180,6 +184,12 @@ describe('authenticateAgent', () => {
     expect(() => authenticateAgent({ headers: { authorization: `Bearer ${expired}` } })).toThrow(
       'Authentication failed: invalid or expired token',
     );
+  });
+
+  it('fails closed for an oversized bearer token', () => {
+    expect(() =>
+      authenticateAgent({ headers: { authorization: `Bearer ${'x'.repeat(4 * 1024 + 1)}` } }),
+    ).toThrow('Authentication failed: invalid or expired token');
   });
 });
 

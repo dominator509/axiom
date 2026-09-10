@@ -60,6 +60,11 @@ export type TokenRevocationWriter = (input: {
 const issuedTokens = new Map<string, AgentPermission>();
 const revokedTokenHashes = new Set<string>();
 const DEFAULT_CAPABILITY_TTL_MS = 15 * 60_000;
+// Capability tokens are delivered in an Authorization header. Keep malformed
+// or hostile headers from reaching hashing, HMAC verification, or JSON parsing.
+// Normal AXIOM tokens contain UUIDs and short agent identifiers, so 4 KiB leaves
+// ample room for legitimate credentials without accepting unbounded input.
+const MAX_CAPABILITY_TOKEN_BYTES = 4 * 1024;
 
 interface CapabilityPayload extends Omit<AgentPermission, 'expiresAt'> {
   version: 1;
@@ -102,6 +107,8 @@ function signPayload(payload: CapabilityPayload): string {
 }
 
 function decodeToken(token: string): CapabilityPayload | null {
+  if (Buffer.byteLength(token, 'utf8') > MAX_CAPABILITY_TOKEN_BYTES) return null;
+
   const [version, encoded, suppliedSignature, extra] = token.split('.');
   if (version !== 'v1' || !encoded || !suppliedSignature || extra) return null;
   const key = signingKey();
@@ -174,6 +181,8 @@ export function validateToken(token: string): AgentPermission | null {
 }
 
 function resolveToken(token: string): CapabilityPayload | null {
+  if (Buffer.byteLength(token, 'utf8') > MAX_CAPABILITY_TOKEN_BYTES) return null;
+
   const hash = tokenHash(token);
   if (revokedTokenHashes.has(hash)) return null;
   const permission = decodeToken(token);
