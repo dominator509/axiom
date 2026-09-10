@@ -68,7 +68,9 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
       maxMediaCount: 1,
       caption: true,
       maxCaptionLength: 5_000,
-      scheduling: 'native' as const,
+      // The worker owns the scheduled slot; the upload path does not send a
+      // future publishAt value to YouTube.
+      scheduling: 'internal' as const,
       metrics: ['views', 'likes', 'comments'],
       refreshMetrics: true,
     };

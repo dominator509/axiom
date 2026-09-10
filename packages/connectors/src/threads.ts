@@ -67,7 +67,9 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
       maxMediaCount: 20,
       caption: true,
       maxCaptionLength: 500,
-      scheduling: 'native' as const,
+      // The worker owns the scheduled slot; Threads containers are created
+      // and published immediately when the job runs.
+      scheduling: 'internal' as const,
       metrics: ['impressions', 'likes', 'comments', 'shares', 'reposts', 'quotes'],
       refreshMetrics: true,
     };

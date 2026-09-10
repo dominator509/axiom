@@ -24,7 +24,7 @@ vi.mock('@axiom/worker', () => ({
     'publish',
     'publish.image',
     'publish.carousel',
-    'schedule.native',
+    'schedule.internal',
     'read.insights',
   ]),
   connectorForConnection: vi.fn(async () => ({

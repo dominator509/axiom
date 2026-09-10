@@ -42,7 +42,7 @@ describe('FacebookConnector basics', () => {
     expect(cap.maxMediaCount).toBe(1);
     expect(cap.caption).toBe(true);
     expect(cap.maxCaptionLength).toBe(63_206);
-    expect(cap.scheduling).toBe('native');
+    expect(cap.scheduling).toBe('internal');
     expect(cap.metrics).toEqual(['impressions', 'likes', 'comments', 'shares']);
     expect(cap.refreshMetrics).toBe(true);
   });

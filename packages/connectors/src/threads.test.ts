@@ -38,6 +38,7 @@ describe('ThreadsConnector', () => {
     expect(cap.media).toEqual(['image', 'video', 'carousel']);
     expect(cap.maxMediaCount).toBe(20);
     expect(cap.maxCaptionLength).toBe(500);
+    expect(cap.scheduling).toBe('internal');
     expect(cap.metrics).toEqual([
       'impressions',
       'likes',

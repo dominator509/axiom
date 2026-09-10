@@ -51,7 +51,7 @@ describe('YouTubeConnector basics', () => {
     expect(cap.maxMediaCount).toBe(1);
     expect(cap.caption).toBe(true);
     expect(cap.maxCaptionLength).toBe(5_000);
-    expect(cap.scheduling).toBe('native');
+    expect(cap.scheduling).toBe('internal');
     expect(cap.metrics).toEqual(['views', 'likes', 'comments']);
     expect(cap.refreshMetrics).toBe(true);
   });

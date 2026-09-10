@@ -64,7 +64,9 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
       maxMediaCount: 10,
       caption: true,
       maxCaptionLength: 2_200,
-      scheduling: 'native' as const,
+      // The worker owns the scheduled slot and invokes this connector when
+      // it is due; this connector does not send a provider-side schedule.
+      scheduling: 'internal' as const,
       metrics: ['impressions', 'likes', 'comments', 'shares', 'saves'],
       refreshMetrics: true,
     };

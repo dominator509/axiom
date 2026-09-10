@@ -37,7 +37,7 @@ describe('InstagramConnector', () => {
     expect(cap.media).toEqual(['image', 'video', 'carousel', 'story']);
     expect(cap.maxMediaCount).toBe(10);
     expect(cap.maxCaptionLength).toBe(2200);
-    expect(cap.scheduling).toBe('native');
+    expect(cap.scheduling).toBe('internal');
     expect(cap.metrics).toEqual(['impressions', 'likes', 'comments', 'shares', 'saves']);
   });
 

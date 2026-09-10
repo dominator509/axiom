@@ -72,7 +72,9 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
       maxMediaCount: 1,
       caption: true,
       maxCaptionLength: 63_206,
-      scheduling: 'native' as const,
+      // The worker owns the scheduled slot; this connector publishes when
+      // the job is due and does not request a provider-side schedule.
+      scheduling: 'internal' as const,
       metrics: ['impressions', 'likes', 'comments', 'shares'],
       refreshMetrics: true,
     };
