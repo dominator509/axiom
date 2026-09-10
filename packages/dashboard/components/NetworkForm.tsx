@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutationFetch } from '@/lib/mutation';
+import { readDashboardError } from '@/lib/response';
 
 const MODES = ['direct', 'socks5', 'http', 'https', 'wireguard', 'vpn'] as const;
 
@@ -42,7 +43,7 @@ export default function NetworkForm({
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
+        const b = await readDashboardError(res);
         setError(b?.error?.message ?? 'Save failed');
         return;
       }

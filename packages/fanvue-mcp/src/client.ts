@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { readBoundedResponseErrorText, readBoundedResponseJson } from '@axiom/core';
 
 // ─── Credential Schema ───
 // Fanvue uses OAuth 2.0 (no API keys). The MCP server is authorized through
@@ -281,7 +282,7 @@ export class FanvueMcpClient {
 
     let payload: McpJsonRpcResponse;
     try {
-      payload = (await response.json()) as McpJsonRpcResponse;
+      payload = await readBoundedResponseJson<McpJsonRpcResponse>(response);
     } catch {
       throw new FanvueMcpError(
         'BAD_RESPONSE',
@@ -406,7 +407,7 @@ export class FanvueMcpClient {
       );
     }
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
+      const body = await readBoundedResponseErrorText(response);
       throw new FanvueMcpError(
         'UPLOAD_FAILED',
         `Fanvue image PUT failed: ${response.status} ${response.statusText}`,
@@ -500,7 +501,7 @@ export class FanvueMcpClient {
         body,
       );
     }
-    return response.json() as Promise<T>;
+    return readBoundedResponseJson<T>(response);
   }
 
   private async restPost<T>(path: string, body: unknown): Promise<T> {
@@ -530,7 +531,7 @@ export class FanvueMcpClient {
         body,
       );
     }
-    return response.json() as Promise<T>;
+    return readBoundedResponseJson<T>(response);
   }
 
   /** GET /insights/earnings/summary (documented; read:insights scope). */
@@ -565,7 +566,7 @@ export class FanvueMcpClient {
    */
   private async safeJson(response: Response): Promise<unknown | null> {
     try {
-      return await response.json();
+      return await readBoundedResponseJson(response);
     } catch {
       return null;
     }

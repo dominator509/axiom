@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@axiom/auth": "workspace:*",
+    "@axiom/core": "workspace:*",
     "next": "^15.5.24",
     "react": "^19.0.8",
     "react-dom": "^19.0.8"

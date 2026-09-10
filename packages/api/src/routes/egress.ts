@@ -9,7 +9,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { eq, and, sql } from 'drizzle-orm';
-import { DEFAULT_EGRESS_PLANE_URL } from '@axiom/core';
+import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson } from '@axiom/core';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { apiError, modelOrgId, statusTitle } from './helpers.js';
@@ -69,11 +69,11 @@ async function encryptCreds(
       signal: AbortSignal.timeout(2000),
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as {
+    const body = await readBoundedResponseJson<{
       enc_creds?: string;
       enc_nonce?: string;
       dek_id?: string;
-    };
+    }>(res);
     if (!body.enc_creds || !body.enc_nonce) return null;
     return {
       encCreds: new Uint8Array(Buffer.from(body.enc_creds, 'base64')),
@@ -339,7 +339,7 @@ router.post('/plane/bind', async (c) => {
       body: JSON.stringify({ ...payload, org_id: orgId }),
       signal: AbortSignal.timeout(10000),
     });
-    const data = await res.json().catch(() => ({}));
+    const data = await readBoundedResponseJson(res).catch(() => ({}));
     return c.json(
       { data },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
@@ -380,7 +380,7 @@ router.post('/plane/unbind', async (c) => {
       body: JSON.stringify({ ...payload, org_id: orgId }),
       signal: AbortSignal.timeout(10000),
     });
-    const data = await res.json().catch(() => ({}));
+    const data = await readBoundedResponseJson(res).catch(() => ({}));
     return c.json(
       { data },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
@@ -406,7 +406,7 @@ router.get('/plane/status', async (c) => {
   }
 
   try {
-    const data = (await res.json().catch(() => ({}))) as unknown;
+    const data = (await readBoundedResponseJson(res).catch(() => ({}))) as unknown;
     const dataRecord =
       typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : null;
     const rows = await withOrgContext(orgId, (tx) =>
@@ -448,7 +448,7 @@ router.post('/plane/sync', async (c) => {
       headers: EGRESS_PLANE_HEADERS,
       signal: AbortSignal.timeout(30000),
     });
-    const data = await res.json().catch(() => ({}));
+    const data = await readBoundedResponseJson(res).catch(() => ({}));
     return c.json(
       { data },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
@@ -465,7 +465,7 @@ router.get('/plane/health', async (c) => {
       headers: EGRESS_PLANE_HEADERS,
       signal: AbortSignal.timeout(2000),
     });
-    const data = await res.json().catch(() => ({}));
+    const data = await readBoundedResponseJson(res).catch(() => ({}));
     return c.json(
       { data },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,

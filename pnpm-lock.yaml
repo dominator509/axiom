@@ -176,6 +176,9 @@ importers:
       '@axiom/auth':
         specifier: workspace:*
         version: link:../auth
+      '@axiom/core':
+        specifier: workspace:*
+        version: link:../core
       next:
         specifier: ^15.5.24
         version: 15.5.25(@babel/core@7.29.7)(@types/node@22.20.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -328,6 +331,9 @@ importers:
       '@axiom/api':
         specifier: workspace:*
         version: link:../api
+      '@axiom/core':
+        specifier: workspace:*
+        version: link:../core
       '@babel/runtime':
         specifier: ^8.0.0
         version: 8.0.0

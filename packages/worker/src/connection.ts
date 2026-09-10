@@ -3,7 +3,7 @@ import type { InferSelectModel } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
 import { createConnector, type ConnectorAuth, type SocialConnector } from '@axiom/connectors';
-import { DEFAULT_EGRESS_PLANE_URL, type Platform } from '@axiom/core';
+import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson, type Platform } from '@axiom/core';
 
 const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
 const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
@@ -132,7 +132,7 @@ export async function decryptConnectorAuth(
     throw new Error(`connection credential decrypt failed: HTTP ${response.status}`);
   }
 
-  const body = (await response.json()) as { plaintext?: string };
+  const body = await readBoundedResponseJson<{ plaintext?: string }>(response);
   if (!body.plaintext) throw new Error('connection credential decrypt returned no plaintext');
 
   const plaintext = Buffer.from(body.plaintext, 'base64').toString('utf8');

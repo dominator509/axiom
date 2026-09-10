@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutationFetch } from '@/lib/mutation';
+import { readDashboardError, readDashboardJson } from '@/lib/response';
 
 const PLATFORMS = [
   'instagram',
@@ -63,11 +64,11 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         }),
       });
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
+        const b = await readDashboardError(res);
         setError(b?.error?.message ?? 'Generation failed');
         return;
       }
-      const body = await res.json();
+      const body = await readDashboardJson<{ data: typeof result }>(res);
       setResult(body.data);
       router.refresh();
     } catch {

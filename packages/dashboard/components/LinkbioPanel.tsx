@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutationFetch } from '@/lib/mutation';
+import { readDashboardError } from '@/lib/response';
 
 const KINDS = ['native'] as const;
 
@@ -57,7 +58,7 @@ export default function LinkbioPanel({
         body: JSON.stringify({ kind, config: {} }),
       });
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
+        const b = await readDashboardError(res);
         setError(b?.error?.message ?? 'Enable failed');
         return;
       }
@@ -77,7 +78,7 @@ export default function LinkbioPanel({
         method: 'DELETE',
       });
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
+        const b = await readDashboardError(res);
         setError(b?.error?.message ?? 'Disable failed');
         return;
       }
@@ -120,7 +121,7 @@ export default function LinkbioPanel({
         body: JSON.stringify({ kind: 'native', config: { links } }),
       });
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
+        const b = await readDashboardError(res);
         setError(b?.error?.message ?? 'Saving links failed');
         return;
       }

@@ -3,7 +3,7 @@
 // the database or the deployment .env file in plaintext.
 
 import { and, eq } from 'drizzle-orm';
-import { DEFAULT_EGRESS_PLANE_URL } from '@axiom/core';
+import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson } from '@axiom/core';
 import { schema } from '@axiom/db';
 import { capabilityNames, resolveCapabilities } from '@axiom/worker';
 import { modelOrgId, withOrgContext, writeAudit } from './helpers.js';
@@ -55,11 +55,11 @@ export async function encryptOAuthCredentials(
 
   if (!response.ok) throw new Error('egress credential encryption failed');
 
-  const body = (await response.json()) as {
+  const body = await readBoundedResponseJson<{
     enc_creds?: string;
     enc_nonce?: string;
     dek_id?: string;
-  };
+  }>(response);
   if (!body.enc_creds || !body.enc_nonce) {
     throw new Error('egress credential encryption returned an incomplete envelope');
   }

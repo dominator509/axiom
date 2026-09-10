@@ -7,7 +7,7 @@
 // the plain global fetch (direct egress, explicit opt-in).
 
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
-import { DEFAULT_EGRESS_PLANE_URL } from '@axiom/core';
+import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson } from '@axiom/core';
 
 const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
 const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
@@ -41,7 +41,7 @@ export async function resolveEgressProxy(modelId: string): Promise<string | null
       signal: AbortSignal.timeout(1500),
     });
     if (res.ok) {
-      const status = (await res.json()) as EgressStatus;
+      const status = await readBoundedResponseJson<EgressStatus>(res);
       const model = status.models?.find((m) => m.model_id === modelId);
       if (model?.healthy && model.host_ip) {
         proxy = `http://${model.host_ip}:8080`;

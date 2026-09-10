@@ -1,5 +1,7 @@
 // ─── Response Types ───
 
+import { readBoundedResponseJson } from '@axiom/core';
+
 export type OverrideVerdict = 'pass' | 'review' | 'block';
 
 export interface TosClassifyResult {
@@ -168,7 +170,7 @@ async function postJson<T>(url: string, body: unknown, config: VisionEngineConfi
       throw new Error(`Vision engine returned ${response.status}: ${response.statusText}`);
     }
 
-    return (await response.json()) as T;
+    return await readBoundedResponseJson<T>(response);
   } finally {
     clearTimeout(timer);
   }

@@ -8,7 +8,7 @@
 import { db, schema } from '@axiom/db';
 import { sql } from 'drizzle-orm';
 import { PrePostHook } from '@axiom/fanvue-mcp';
-import type { Platform, PublishResult } from '@axiom/core';
+import { readBoundedResponseJson, type Platform, type PublishResult } from '@axiom/core';
 import type { ConnectorPublishInput } from '@axiom/connectors';
 import type { ExecutorContext } from './context.js';
 
@@ -290,7 +290,7 @@ async function stageMediaOnPlane(input: PrePostRunInput): Promise<Record<string,
       if (!hash.ok) {
         throw new Error(`media-plane image validation failed: HTTP ${hash.status}`);
       }
-      const hashResult = (await hash.json()) as { hash?: string };
+      const hashResult = await readBoundedResponseJson<{ hash?: string }>(hash);
       if (!hashResult.hash) {
         throw new Error('media-plane image validation returned no hash');
       }
@@ -305,7 +305,7 @@ async function stageMediaOnPlane(input: PrePostRunInput): Promise<Record<string,
       if (!probe.ok) {
         throw new Error(`media-plane probe failed: HTTP ${probe.status}`);
       }
-      const probeResult = (await probe.json()) as { exists?: boolean };
+      const probeResult = await readBoundedResponseJson<{ exists?: boolean }>(probe);
       if (probeResult.exists === false) {
         throw new Error('media-plane probe reported that the input is missing');
       }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readBoundedResponseJson } from '@axiom/core';
 import { resolveApiOrigin } from './lib/api-origin';
 
 const API_ORIGIN = resolveApiOrigin();
@@ -20,7 +21,7 @@ export async function middleware(request: NextRequest) {
       signal: controller.signal,
     });
     if (response.ok) {
-      const session = (await response.json()) as { user?: unknown } | null;
+      const session = await readBoundedResponseJson<{ user?: unknown } | null>(response);
       authenticated = Boolean(session?.user);
     }
   } catch {

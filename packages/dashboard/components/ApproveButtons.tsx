@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutationFetch } from '@/lib/mutation';
+import { readDashboardError } from '@/lib/response';
 import type { SocialConnection } from '@/lib/api';
 
 const PLATFORMS = [
@@ -87,7 +88,7 @@ export default function ApproveButtons({
         res = await mutationFetch(`/api/v1/bundles/${bundleId}/reject`, { method: 'POST' });
       }
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
+        const b = await readDashboardError(res);
         setError(b?.error?.message ?? 'Action failed');
         return;
       }

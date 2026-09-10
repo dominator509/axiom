@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutationFetch } from '@/lib/mutation';
+import { readDashboardError } from '@/lib/response';
 
 export default function NewModelForm() {
   const router = useRouter();
@@ -37,7 +38,7 @@ export default function NewModelForm() {
         body: JSON.stringify({ displayName, handle, bio: bio || undefined }),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
+        const body = await readDashboardError(res);
         setError(body?.error?.message ?? 'Create failed');
         return;
       }

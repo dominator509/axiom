@@ -14,6 +14,7 @@ import { randomBytes } from 'node:crypto';
 import type { AppBindings } from '../index.js';
 import { normalizeAuthOrigin } from '@axiom/auth';
 import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
+import { readBoundedResponseJson } from '@axiom/core';
 import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
 import {
   clearOAuthStateCookie,
@@ -142,12 +143,12 @@ router.get('/callback', async (c) => {
       return apiError(c, 502, statusTitle(502), `Token exchange failed: HTTP ${tokenResp.status}`);
     }
 
-    const tokenData = (await tokenResp.json()) as {
+    const tokenData = await readBoundedResponseJson<{
       access_token?: string;
       user_id?: string;
       token_type?: string;
       expires_in?: number;
-    };
+    }>(tokenResp);
 
     const accessToken = tokenData.access_token;
     const threadsUserId = tokenData.user_id;
@@ -167,10 +168,10 @@ router.get('/callback', async (c) => {
     let finalToken = accessToken;
     let expiresIn = typeof tokenData.expires_in === 'number' ? tokenData.expires_in : 3600;
     if (longLivedResp.ok) {
-      const longLivedData = (await longLivedResp.json()) as {
+      const longLivedData = await readBoundedResponseJson<{
         access_token?: string;
         expires_in?: number;
-      };
+      }>(longLivedResp);
       if (longLivedData.access_token) finalToken = longLivedData.access_token;
       if (typeof longLivedData.expires_in === 'number') expiresIn = longLivedData.expires_in;
     }

@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { eq, and } from 'drizzle-orm';
 import type { InferSelectModel } from 'drizzle-orm';
-import { DEFAULT_EGRESS_PLANE_URL } from '@axiom/core';
+import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson } from '@axiom/core';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import {
@@ -232,7 +232,7 @@ router.get('/:modelId/network/health', async (c) => {
         signal: AbortSignal.timeout(3000),
       });
       if (res.ok) {
-        const status = (await res.json()) as { models?: unknown };
+        const status = await readBoundedResponseJson<{ models?: unknown }>(res);
         if (Array.isArray(status.models)) {
           const model = status.models.find(
             (entry: unknown): entry is Record<string, unknown> =>

@@ -6,6 +6,7 @@
 // Run from packages/api with the repo .env loaded (dotenv resolves ../../../.env).
 
 import { Hono } from 'hono';
+import { readBoundedResponseJson } from '@axiom/core';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -52,7 +53,7 @@ async function main() {
     }),
   });
   results.push(`create: ${createRes.status}`);
-  const created = (await createRes.json()) as any;
+  const created = await readBoundedResponseJson<any>(createRes);
   if (createRes.status !== 201) {
     console.log(results.join('\n'));
     console.log(JSON.stringify(created, null, 2));
@@ -65,14 +66,14 @@ async function main() {
 
   // 2. List — row must be visible under the org context
   const listRes = await app.request('/');
-  const list = (await listRes.json()) as any;
+  const list = await readBoundedResponseJson<any>(listRes);
   results.push(
     `list: ${listRes.status} total=${list.meta.total} match=${list.data.some((r: any) => r.id === configId)}`,
   );
 
   // 3. Get single
   const getRes = await app.request(`/${configId}`);
-  const got = (await getRes.json()) as any;
+  const got = await readBoundedResponseJson<any>(getRes);
   results.push(`get: ${getRes.status} mode=${got.data?.egressMode}`);
 
   // 4. Verify the envelope is really stored encrypted in Postgres (not plaintext)
@@ -100,7 +101,9 @@ async function main() {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ egressMode: 'http', proxyAddr: '127.0.0.1:8080' }),
   });
-  results.push(`update: ${updRes.status} mode=${((await updRes.json()) as any).data?.egressMode}`);
+  results.push(
+    `update: ${updRes.status} mode=${(await readBoundedResponseJson<any>(updRes)).data?.egressMode}`,
+  );
 
   // 6. Plane proxy: bind this model through the API
   const bindRes = await app.request('/plane/bind', {
@@ -108,12 +111,12 @@ async function main() {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ model_id: MODEL_ID, mode: 'http', proxy_addr: '127.0.0.1:8080' }),
   });
-  const bind = (await bindRes.json()) as any;
+  const bind = await readBoundedResponseJson<any>(bindRes);
   results.push(`plane/bind: ${bindRes.status} ${JSON.stringify(bind.data ?? bind.error ?? {})}`);
 
   // 7. Plane proxy: status
   const statusRes = await app.request('/plane/status');
-  const status = (await statusRes.json()) as any;
+  const status = await readBoundedResponseJson<any>(statusRes);
   results.push(`plane/status: ${statusRes.status} count=${status.data?.count}`);
 
   // 8. Plane proxy: health
@@ -122,7 +125,9 @@ async function main() {
 
   // 9. Cleanup: delete the config
   const delRes = await app.request(`/${configId}`, { method: 'DELETE' });
-  results.push(`delete: ${delRes.status} ${JSON.stringify((await delRes.json()) as any)}`);
+  results.push(
+    `delete: ${delRes.status} ${JSON.stringify(await readBoundedResponseJson<any>(delRes))}`,
+  );
 
   console.log(results.join('\n'));
 }

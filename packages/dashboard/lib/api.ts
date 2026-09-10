@@ -3,6 +3,11 @@
 // (/api/* → API_ORIGIN). Cookies are forwarded so Better Auth sessions work.
 
 import { cookies } from 'next/headers';
+import {
+  AXIOM_ERROR_RESPONSE_MAX_BYTES,
+  readBoundedResponseJson,
+  readBoundedResponseText,
+} from '@axiom/core';
 import { createIdempotencyKey } from './mutation';
 import { resolveApiOrigin } from './api-origin';
 
@@ -73,15 +78,20 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     });
 
     if (!res.ok) {
-      let body: unknown = null;
+      const raw = await readBoundedResponseText(
+        res,
+        AXIOM_ERROR_RESPONSE_MAX_BYTES,
+        'dashboard API error response',
+      );
+      let body: unknown = raw;
       try {
-        body = await res.json();
+        body = JSON.parse(raw) as unknown;
       } catch {
-        body = await res.text();
+        // Keep the bounded plain-text body.
       }
       throw new ApiError(res.status, body);
     }
-    return (await res.json()) as T;
+    return await readBoundedResponseJson<T>(res);
   } finally {
     requestSignal.cleanup();
   }
@@ -272,7 +282,7 @@ export async function getSession() {
       signal: requestSignal.signal,
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as { user?: { id: string } } | null;
+    const body = await readBoundedResponseJson<{ user?: { id: string } } | null>(res);
     return body?.user ? body : null;
   } catch {
     return null;

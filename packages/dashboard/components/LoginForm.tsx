@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchWithTimeout } from '@/lib/request';
+import { readDashboardError } from '@/lib/response';
 
 export default function LoginForm() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function LoginForm() {
         body: JSON.stringify({ email, password }),
       });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
+        const body = await readDashboardError(res);
         setError(body?.message ?? 'Sign-in failed');
         return;
       }

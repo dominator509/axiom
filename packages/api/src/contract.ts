@@ -11,6 +11,7 @@ import { BlockList, isIP } from 'node:net';
 import type { Context, Next } from 'hono';
 import { sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
+import { readBoundedResponseJson } from '@axiom/core';
 import { db } from '@axiom/db';
 import { captureUnhandledApiError, describeCrash } from './crash-reporter.js';
 import {
@@ -385,7 +386,7 @@ export function idempotency(required = true) {
     }
     let body: unknown;
     try {
-      body = await res.clone().json();
+      body = await readBoundedResponseJson(res.clone());
     } catch {
       return idempotencyResponse(c, 503, 'Service Unavailable', 'Mutation response was not JSON');
     }

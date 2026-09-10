@@ -10,6 +10,7 @@ import type { AppBindings } from '../index.js';
 import { normalizeAuthOrigin } from '@axiom/auth';
 import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
 import { connectorForConnection } from '@axiom/worker';
+import { readBoundedResponseJson } from '@axiom/core';
 import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
 import {
   clearOAuthStateCookie,
@@ -172,7 +173,7 @@ router.get('/callback', async (c) => {
       signal: AbortSignal.timeout(OAUTH_REQUEST_TIMEOUT_MS),
     });
 
-    const tokens: Record<string, unknown> = (await resp.json()) as Record<string, unknown>;
+    const tokens = await readBoundedResponseJson<Record<string, unknown>>(resp);
 
     if (!resp.ok) {
       console.error('Fanvue token exchange failed', { status: resp.status });

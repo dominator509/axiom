@@ -13,6 +13,7 @@
 
 declare const process: { env: Record<string, string | undefined> } | undefined;
 
+import { AXIOM_JSON_RESPONSE_MAX_BYTES, readBoundedResponseText } from '@axiom/core';
 import { loadSessionCookie, removeSessionCookie, saveSessionCookie } from './storage';
 
 export const DEFAULT_API_BASE_URL = 'http://localhost:3001';
@@ -214,7 +215,11 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
 
   await captureSetCookie(res.headers);
 
-  const raw = await res.text();
+  const raw = await readBoundedResponseText(
+    res,
+    AXIOM_JSON_RESPONSE_MAX_BYTES,
+    'mobile API response',
+  );
   let body: unknown = null;
   if (raw.length > 0) {
     try {
