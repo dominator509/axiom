@@ -94,13 +94,18 @@ if (tenantFixture) {
   // Test-only administrative fixture, never a production provisioning path.
   // Bind variables through psql quoting; do not print credentials or SQL errors.
   const orgId = randomUUID();
+  const otherOrgId = randomUUID();
+  const otherModelId = randomUUID();
   const fixture = spawnSync('psql', [
     '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href,
     '-v', 'ON_ERROR_STOP=1', '-v', `fixture_email=${email}`, '-v', `fixture_org=${orgId}`,
+    '-v', `other_org=${otherOrgId}`, '-v', `other_model=${otherModelId}`,
   ], {
     encoding: 'utf8', timeout: 10_000,
     input: `BEGIN;
 INSERT INTO org (id, name, slug) VALUES (:'fixture_org', 'Disposable HTTP smoke', :'fixture_org');
+INSERT INTO org (id, name, slug) VALUES (:'other_org', 'Other disposable tenant', :'other_org');
+INSERT INTO model_profile (id, org_id, display_name, handle) VALUES (:'other_model', :'other_org', 'Other tenant private profile', :'other_model');
 UPDATE auth_user SET org_id = :'fixture_org' WHERE email = :'fixture_email' AND org_id IS NULL;
 SELECT count(*) FROM auth_user WHERE email = :'fixture_email' AND org_id = :'fixture_org' AND role = 'operator';
 COMMIT;
@@ -122,13 +127,35 @@ COMMIT;
   const replayed = await request('/api/v1/models', { method: 'POST', headers: mutationHeaders, body: modelBody });
   assert.equal(replayed.status, 201, 'Profile replay preserves the original response');
   assert.equal((await replayed.json())?.data?.id, createdBody.data.id, 'Replay must not create another profile');
+  const changed = await request('/api/v1/models', {
+    method: 'POST', headers: mutationHeaders,
+    body: JSON.stringify({ ...JSON.parse(modelBody), displayName: 'Changed intent' }),
+  });
+  assert.equal(changed.status, 409, 'Same key with a changed payload must conflict');
+  const privateProfile = await request(`/api/v1/models/${otherModelId}`, { headers: { cookie } });
+  assert.equal(privateProfile.status, 404, 'Another tenant profile must not be readable');
+  const privateUpdate = await request(`/api/v1/models/${otherModelId}`, {
+    method: 'PATCH', headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
+    body: JSON.stringify({ displayName: 'Unauthorized change' }),
+  });
+  assert.equal(privateUpdate.status, 404, 'Another tenant profile must not be writable');
+  const page = await request('/api/v1/models?limit=1', { headers: { cookie } });
+  assert.equal(page.status, 200);
+  const pageBody = await page.json();
+  assert.deepEqual(pageBody.data.map((model) => model.id), [createdBody.data.id]);
+  assert.ok(pageBody.meta.next_cursor, 'Full page must supply an opaque cursor');
+  const nextPage = await request(`/api/v1/models?${new URLSearchParams({ limit: '1', cursor: pageBody.meta.next_cursor })}`, { headers: { cookie } });
+  assert.equal(nextPage.status, 200);
+  assert.deepEqual((await nextPage.json()).data, [], 'Cursor must advance past the only tenant profile');
   const count = await request('/api/v1/models/stats/count', { headers: { cookie } });
   assert.equal(count.status, 200);
   assert.equal((await count.json())?.data?.count, 1, 'Fresh tenant has exactly one profile after replay');
   const portfolio = await request('/', { headers: { cookie } });
   assert.equal(portfolio.status, 200);
-  assert.match(await portfolio.text(), /HTTP smoke profile/);
-  console.log('tenant smoke: assigned operator, required idempotency, single profile after replay, tenant count and dashboard rendering passed');
+  const portfolioHtml = await portfolio.text();
+  assert.match(portfolioHtml, /HTTP smoke profile/);
+  assert.doesNotMatch(portfolioHtml, /Other tenant private profile/);
+  console.log('tenant smoke: assigned operator, required idempotency, single profile after replay, changed-payload conflict, cross-tenant read/write denial, cursor/count isolation and dashboard rendering passed');
 }
 const signout = await request('/api/auth/sign-out', {
   method: 'POST',
