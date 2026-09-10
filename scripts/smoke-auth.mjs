@@ -36,6 +36,19 @@ assert.equal(denied.status, 401, 'anonymous API requests must be denied');
 const email = `ci-${randomBytes(12).toString('hex')}@example.invalid`;
 const password = randomBytes(24).toString('base64url');
 const headers = { 'content-type': 'application/json', origin };
+const injectedSignup = await request('/api/auth/sign-up/email', {
+  method: 'POST',
+  headers,
+  body: JSON.stringify({
+    email,
+    password,
+    name: 'Disposable CI Operator',
+    // Deliberate privilege-injection attempt: reject the entire request.
+    orgId: '11111111-1111-4111-8111-111111111111',
+    role: 'owner',
+  }),
+});
+assert.equal(injectedSignup.status, 400, 'signup must reject server-assigned privilege fields');
 const signup = await request('/api/auth/sign-up/email', {
   method: 'POST',
   headers,
@@ -59,6 +72,10 @@ const session = await request('/api/auth/get-session', { headers: { cookie } });
 assert.equal(session.status, 200, 'session lookup status');
 const data = await session.json();
 assert.equal(data?.user?.email, email, 'session must restore the signed-in user');
+assert.ok(!data.user.orgId, 'public signup cannot assign an organization');
+assert.equal(data.user.role, 'operator', 'ordinary signup retains the database default role');
+const unassigned = await request('/api/v1/models', { headers: { cookie } });
+assert.equal(unassigned.status, 401, 'unassigned identities cannot read tenant data');
 const signout = await request('/api/auth/sign-out', {
   method: 'POST',
   headers: { ...headers, cookie },
@@ -69,5 +86,5 @@ const revoked = await request('/api/auth/get-session', { headers: { cookie } });
 assert.equal(revoked.status, 200, 'revoked session lookup status');
 assert.equal(await revoked.json(), null, 'old session must no longer authenticate');
 console.log(
-  'auth smoke: login, anonymous denial, signup/signin, HttpOnly session restore and revocation passed',
+  'auth smoke: login, anonymous/unassigned denial, signup privilege rejection, signin, HttpOnly session restore and revocation passed',
 );
