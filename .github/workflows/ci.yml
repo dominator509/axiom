@@ -399,7 +399,7 @@ jobs:
 
           # Exercise real identity persistence through the dashboard rewrite,
           # with the API running as the non-owner application database role.
-          node scripts/smoke-auth.mjs http://127.0.0.1:3000 https://127.0.0.1:3001 --tenant-fixture
+          node scripts/smoke-auth.mjs http://127.0.0.1:3000 https://127.0.0.1:3001 --tenant-fixture --wait-for-tos
 
           # Vision readiness is model-backed. The CI image intentionally does
           # not bundle the 343 MB external model artifact; verify that the

@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
 
 function loopbackOrigin(input) {
   const url = new URL(input);
@@ -22,6 +23,8 @@ function loopbackOrigin(input) {
 const base = loopbackOrigin(process.argv[2] ?? 'http://127.0.0.1:3002');
 const origin = loopbackOrigin(process.argv[3] ?? base);
 const tenantFixture = process.argv[4] === '--tenant-fixture';
+const waitForToS = process.argv[5] === '--wait-for-tos';
+assert.ok(!waitForToS || tenantFixture, 'Worker handoff probe requires the disposable tenant fixture');
 let fixtureDatabase;
 if (tenantFixture) {
   assert.equal(process.env.CI, 'true', 'Tenant fixture requires explicit CI mode');
@@ -181,6 +184,27 @@ COMMIT;
   });
   assert.equal(queuedScan.status, 0, 'ToS job verification must execute successfully');
   assert.equal(queuedScan.stdout.trim(), '1', 'Generation replay must leave exactly one durable ToS scan job');
+  if (waitForToS) {
+    const deadline = Date.now() + 20_000;
+    let completed = false;
+    while (Date.now() < deadline) {
+      const handoff = spawnSync('psql', [
+        '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+        '-v', `fixture_org=${orgId}`, '-v', `fixture_bundle=${generation.bundle.id}`,
+      ], {
+        encoding: 'utf8', timeout: 2000,
+        input: `SELECT state FROM job WHERE org_id = :'fixture_org' AND kind = 'tos.scan' AND payload->>'bundleId' = :'fixture_bundle';
+SELECT count(*) FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' AND payload->>'bundleId' = :'fixture_bundle';`,
+      });
+      assert.equal(handoff.status, 0, 'Worker handoff verification must execute successfully');
+      const [scanState, relayCount] = handoff.stdout.trim().split(/\r?\n/);
+      assert.notEqual(scanState, 'dead', 'ToS scan must not dead-letter');
+      if (scanState === 'done' && relayCount === '1') { completed = true; break; }
+      await delay(300);
+    }
+    assert.ok(completed, 'Worker must complete the ToS scan and persist one Relay handoff within 20 seconds');
+    console.log('worker smoke: real ToS job completed and one Relay card job persisted (external delivery not asserted)');
+  }
   console.log('generation smoke: five real prompt/caption variants, text ToS report, persisted bundle, same-bundle replay and one durable scan job passed');
   console.log('tenant smoke: assigned operator, required idempotency, single profile after replay, changed-payload conflict, cross-tenant read/write denial, cursor/count isolation and dashboard rendering passed');
 }
