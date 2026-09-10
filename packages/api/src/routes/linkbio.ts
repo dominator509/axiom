@@ -33,7 +33,8 @@ const PROVIDER_KINDS = ['native'] as const;
 
 const enableSchema = z.object({
   kind: z.enum(PROVIDER_KINDS),
-  config: z.record(z.string(), z.unknown()).default({}),
+  // Omission toggles availability without replacing the saved page contents.
+  config: z.record(z.string(), z.unknown()).optional(),
   isPrimary: z.boolean().optional(),
 });
 
@@ -294,7 +295,7 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
         kind: body.kind,
         enabled: true,
         isPrimary: body.isPrimary ?? false,
-        config: body.config,
+        config: body.config ?? {},
       })
       .onConflictDoUpdate({
         target: [
@@ -304,13 +305,13 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
         ],
         set: {
           enabled: true,
-          config: body.config,
+          ...(body.config === undefined ? {} : { config: body.config }),
           updatedAt: new Date(),
           ...(body.isPrimary === undefined ? {} : { isPrimary: body.isPrimary }),
         },
       })
       .returning();
-    await syncNativeShortLinks(tx, orgId, modelId, nativeLinks(body.config));
+    await syncNativeShortLinks(tx, orgId, modelId, nativeLinks(row.config));
     await writeAudit(tx, orgId, userId, 'linkbio.enable', modelId, { kind: body.kind });
     return row;
   });

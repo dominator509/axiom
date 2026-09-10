@@ -75,6 +75,28 @@ describe('GET /models/:modelId/linkbio', () => {
 });
 
 describe('POST /models/:modelId/linkbio', () => {
+  it('preserves stored configuration when re-enabling without a config payload', async () => {
+    mockState.result = [{ id: PROVIDER_ID, orgId: ORG_ID, modelId: MODEL_ID,
+      kind: 'native', enabled: true, config: { theme: 'saved' } }];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'native' }),
+    });
+    expect(res.status).toBe(201);
+    expect(mockState.conflictUpdates[0]).not.toHaveProperty('set.config');
+  });
+
+  it('still allows an explicit empty configuration to replace stored configuration', async () => {
+    mockState.result = [{ id: PROVIDER_ID, orgId: ORG_ID, modelId: MODEL_ID,
+      kind: 'native', enabled: true, config: {} }];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'native', config: {} }),
+    });
+    expect(res.status).toBe(201);
+    expect(mockState.conflictUpdates[0]).toHaveProperty('set.config', {});
+  });
+
   it('enables a provider (201)', async () => {
     mockState.result = [
       {

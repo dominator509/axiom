@@ -51,19 +51,21 @@ export default function LinkbioPanel({
   const [kind, setKind] = useState<(typeof KINDS)[number]>('native');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const activeNative = providers.find((provider) => provider.kind === 'native' && provider.enabled);
-  const [links, setLinks] = useState<NativeLink[]>(() => readLinks(activeNative?.config));
+  const native = providers.find((provider) => provider.kind === 'native');
+  const activeNative = native?.enabled ? native : undefined;
+  const [links, setLinks] = useState<NativeLink[]>(() => readLinks(native?.config));
   const [label, setLabel] = useState('');
   const [url, setUrl] = useState('');
 
   async function enable() {
+    if (activeNative || busy) return;
     setBusy(true);
     setError(null);
     try {
       const res = await mutationFetch(`/api/v1/models/${modelId}/linkbio`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ kind, config: {} }),
+        body: JSON.stringify({ kind }),
       });
       if (!res.ok) {
         const b = await readDashboardError(res);
@@ -212,7 +214,7 @@ export default function LinkbioPanel({
           </div>
         </div>
       )}
-      <div className="row">
+      {!activeNative && <div className="row">
         <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
           {KINDS.filter((k) => !providers.some((p) => p.kind === k && p.enabled)).map((k) => (
             <option key={k} value={k}>
@@ -223,7 +225,7 @@ export default function LinkbioPanel({
         <button className="btn" type="button" disabled={busy} onClick={enable}>
           Enable native page
         </button>
-      </div>
+      </div>}
       {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
     </div>
   );
