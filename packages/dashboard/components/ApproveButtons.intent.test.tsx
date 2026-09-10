@@ -24,7 +24,7 @@ beforeEach(() => {
   hooks.refs = [];
   hooks.refresh.mockReset();
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 function buttons(revisionId = 'revision-a') {
   hooks.stateIndex = 0;
@@ -42,6 +42,49 @@ function key(fetch: ReturnType<typeof vi.fn>, index: number) {
 }
 
 describe('review action intent', () => {
+  it('can recover an unchanged scheduled approval after its slot has passed', async () => {
+    const slot = new Date(2030, 0, 15, 12, 0);
+    vi.spyOn(Date, 'now').mockReturnValue(slot.getTime() - 60_000);
+    hooks.values[2] = '2030-01-15T12:00';
+    const fetch = vi.fn().mockRejectedValue(new Error('response lost'));
+    vi.stubGlobal('fetch', fetch);
+    await buttons()[0]();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    vi.mocked(Date.now).mockReturnValue(slot.getTime() + 60_000);
+    fetch.mockResolvedValue(new Response('{}'));
+    await buttons()[0]();
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(key(fetch, 2)).toBe(key(fetch, 0));
+    expect(fetch.mock.calls[2][1].body).toBe(fetch.mock.calls[0][1].body);
+    expect(hooks.refresh).toHaveBeenCalledOnce();
+  });
+
+  it('still rejects a past slot when the reviewed revision changes after a lost response', async () => {
+    const slot = new Date(2030, 0, 15, 12, 0);
+    vi.spyOn(Date, 'now').mockReturnValue(slot.getTime() - 60_000);
+    hooks.values[2] = '2030-01-15T12:00';
+    const fetch = vi.fn().mockRejectedValue(new Error('response lost'));
+    vi.stubGlobal('fetch', fetch);
+    await buttons('revision-a')[0]();
+    vi.mocked(Date.now).mockReturnValue(slot.getTime() + 60_000);
+    await buttons('revision-b')[0]();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(hooks.values[6]).toContain('future');
+  });
+
+  it('does not retain the expired-slot exception after confirmed success', async () => {
+    const slot = new Date(2030, 0, 15, 12, 0);
+    vi.spyOn(Date, 'now').mockReturnValue(slot.getTime() - 60_000);
+    hooks.values[2] = '2030-01-15T12:00';
+    const fetch = vi.fn().mockResolvedValue(new Response('{}'));
+    vi.stubGlobal('fetch', fetch);
+    await buttons()[0]();
+    vi.mocked(Date.now).mockReturnValue(slot.getTime() + 60_000);
+    await buttons()[0]();
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(hooks.values[6]).toContain('future');
+  });
+
   it.each([0, 1, 2])('retains the key after exhausted transport retries for action %s', async (index) => {
     const fetch = vi.fn().mockRejectedValue(new Error('response lost'));
     vi.stubGlobal('fetch', fetch);

@@ -55,7 +55,13 @@ export default function ApproveButtons({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
-  const intent = useRef<{ path: string; body: string; key: string } | null>(null);
+  const intent = useRef<{
+    path: string;
+    body: string;
+    key: string;
+    approvalInput?: string;
+    scheduledSlot?: string;
+  } | null>(null);
 
   function toggle(p: string) {
     setSelected((prev) => {
@@ -78,10 +84,18 @@ export default function ApproveButtons({
   async function act(action: 'approve' | 'revise' | 'reject') {
     if (inFlight.current) return;
     if (action === 'approve' && (tosBlocked || selected.length === 0 || selectedWithoutConnection.length > 0)) return;
+    const approvalInput = action === 'approve'
+      ? JSON.stringify({ bundleId, revisionId, selected, connectionIds, slot })
+      : undefined;
     let scheduledSlot: string | undefined;
     if (action === 'approve') {
       try {
-        scheduledSlot = approvalSlot(slot);
+        // A previously submitted request may have succeeded before its response
+        // was lost. Recover that exact request even if its slot has since passed;
+        // changed inputs remain new intents and must still use a future slot.
+        scheduledSlot = intent.current && intent.current.approvalInput === approvalInput
+          ? intent.current.scheduledSlot
+          : approvalSlot(slot);
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'Choose a valid schedule.');
         return;
@@ -99,7 +113,7 @@ export default function ApproveButtons({
       const send = (body: string) => {
         const path = `/api/v1/bundles/${bundleId}/${action}`;
         if (intent.current?.path !== path || intent.current.body !== body) {
-          intent.current = { path, body, key: createIdempotencyKey() };
+          intent.current = { path, body, key: createIdempotencyKey(), approvalInput, scheduledSlot };
         }
         return mutationFetch(path, {
           method: 'POST', headers: { 'content-type': 'application/json' }, body,
