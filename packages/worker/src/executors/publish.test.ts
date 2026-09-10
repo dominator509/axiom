@@ -23,26 +23,27 @@ afterEach(() => {
 });
 
 describe('publish schedule handoff', () => {
-  it('parks an already-claimed job when its locked target was postponed', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-09-10T18:00:00Z'));
-    const target = {
-      id: 'target-1',
-      state: 'pending',
-      remoteId: null,
-      scheduledFor: new Date('2026-09-10T19:00:00Z'),
-    };
-    const query = {
-      from: vi.fn().mockReturnThis(),
-      where: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
-      for: vi.fn().mockResolvedValue([target]),
-    };
-    const tx = { select: vi.fn().mockReturnValue(query) };
-    const markExternalSideEffect = vi.fn();
-    const persistSideEffectMarker = vi.fn();
-    await expect(
-      publishTarget({
+  it.each(['pending', 'canceled'])(
+    'honors the locked target state for an already-claimed job: %s',
+    async (state) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-09-10T18:00:00Z'));
+      const target = {
+        id: 'target-1',
+        state,
+        remoteId: null,
+        scheduledFor: new Date('2026-09-10T19:00:00Z'),
+      };
+      const query = {
+        from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        for: vi.fn().mockResolvedValue([target]),
+      };
+      const tx = { select: vi.fn().mockReturnValue(query) };
+      const markExternalSideEffect = vi.fn();
+      const persistSideEffectMarker = vi.fn();
+      const result = publishTarget({
         tx,
         job: {
           id: 'job-1',
@@ -67,13 +68,18 @@ describe('publish schedule handoff', () => {
         killSwitchEnabled: false,
         markExternalSideEffect,
         persistSideEffectMarker,
-      }),
-    ).rejects.toMatchObject({ name: 'ParkJobError', delayMs: 3_600_000 });
-    expect(query.for).toHaveBeenCalledWith('update');
-    expect(tx.select).toHaveBeenCalledTimes(1);
-    expect(markExternalSideEffect).not.toHaveBeenCalled();
-    expect(persistSideEffectMarker).not.toHaveBeenCalled();
-  });
+      });
+      if (state === 'canceled') {
+        await expect(result).resolves.toBeUndefined();
+      } else {
+        await expect(result).rejects.toMatchObject({ name: 'ParkJobError', delayMs: 3_600_000 });
+      }
+      expect(query.for).toHaveBeenCalledWith('update');
+      expect(tx.select).toHaveBeenCalledTimes(1);
+      expect(markExternalSideEffect).not.toHaveBeenCalled();
+      expect(persistSideEffectMarker).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('validatePublishAsset', () => {

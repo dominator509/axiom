@@ -43,6 +43,87 @@ const reschedule = () =>
     { channel: 'telegram', sourceId: 'chat-1' },
   );
 
+const editCaption = () =>
+  relayCommandExecutor(
+    'edit_caption',
+    cardId,
+    { platform: 'instagram', caption: 'Updated caption' },
+    { channel: 'telegram', sourceId: 'chat-1' },
+  );
+
+describe('relay caption edit approval boundary', () => {
+  it.each(['generated', 'hold', 'approved'])(
+    'invalidates old approval and queues fresh ToS from %s',
+    async (state) => {
+      mockState.results[5] = [
+        {
+          id: bundleId,
+          state,
+          captions: { instagram: 'Original', threads: 'Preserve this' },
+          tosReport: { verdict: 'pass' },
+        },
+      ];
+      mockState.results.push([], [], [{ id: bundleId }]);
+      await expect(editCaption()).resolves.toContain('fresh ToS scan and approval required');
+      expect(mockState.updates).toEqual([
+        expect.objectContaining({
+          state: 'generated',
+          captions: { instagram: 'Updated caption', threads: 'Preserve this' },
+          tosReport: { verdict: 'pending', revisionId: expect.any(String) },
+        }),
+        { state: 'canceled', error: 'caption edited; fresh approval required' },
+      ]);
+      const version = (mockState.updates[0] as { tosReport: { revisionId: string } }).tosReport
+        .revisionId;
+      expect(enqueueJob).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          kind: 'tos.scan',
+          payload: { bundleId },
+          dedupeParts: ['tos.scan', bundleId, version],
+        }),
+      );
+    },
+  );
+
+  it.each(['job', 'marker'])(
+    'rejects unknown provider outcomes in the %s before any mutation',
+    async (source) => {
+      mockState.results.push(
+        ...(source === 'job' ? [[{ id: 'unknown-job' }]] : [[], [{ id: 'dispatch-marker' }]]),
+      );
+      await expect(editCaption()).rejects.toThrow('provider outcome is unknown');
+      expect(mockState.updates).toHaveLength(0);
+      expect(enqueueJob).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { ...target, remoteId: 'provider-id' },
+    { ...target, state: 'published' },
+  ])('rejects a target that reached publication', async (published) => {
+    mockState.results[6] = [published];
+    await expect(editCaption()).rejects.toThrow('publication begins');
+    expect(mockState.updates).toHaveLength(0);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it('checks every destination before editing the bundle', async () => {
+    mockState.results[6] = [target, { ...target, id: 'target-2' }];
+    mockState.results.push([], [], [], [{ id: 'second-target-unknown' }]);
+    await expect(editCaption()).rejects.toThrow('provider outcome is unknown');
+    expect(mockState.updates).toHaveLength(0);
+  });
+
+  it('allows a later edit when previous targets were safely canceled', async () => {
+    mockState.results[5] = [{ id: bundleId, state: 'generated' }];
+    mockState.results[6] = [{ ...target, state: 'canceled' }];
+    mockState.results.push([], [], [{ id: bundleId }]);
+    await expect(editCaption()).resolves.toContain('fresh ToS scan');
+    expect(enqueueJob).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('relay reschedule provider boundary', () => {
   it('rejects an old card after the bundle is revised', async () => {
     mockState.results[5] = [

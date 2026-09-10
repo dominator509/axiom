@@ -78,7 +78,7 @@ import {
 import { relayCommandAlreadyRecorded } from './relay-command-guard.js';
 import { validateProductionRelayConfig } from './production-config.js';
 import { readBoundedJson, readBoundedText, RequestBodyTooLargeError } from './webhook-body.js';
-import { timingSafeEqual } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 
 const MCP_MAX_BODY_BYTES = 256 * 1024;
 
@@ -381,19 +381,40 @@ export async function relayCommandExecutor(
             `relay command: bundle is already ${currentState}; caption edits are no longer allowed`,
           );
         }
-        const targets: Array<{ id: string; state: string }> = await tx
-          .select({ id: schema.postTarget.id, state: schema.postTarget.state })
+        const targets: Array<{ id: string; state: string; remoteId: string | null }> = await tx
+          .select({
+            id: schema.postTarget.id,
+            state: schema.postTarget.state,
+            remoteId: schema.postTarget.remoteId,
+          })
           .from(schema.postTarget)
-          .where(and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)));
-        if (targets.some((target) => target.state !== 'pending')) {
+          .where(and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)))
+          .orderBy(schema.postTarget.id)
+          .for('update');
+        if (
+          targets.some(
+            (target) =>
+              (target.state !== 'pending' && target.state !== 'canceled') || target.remoteId,
+          )
+        ) {
           throw new Error('relay command: caption edits are not allowed after publication begins');
+        }
+        for (const target of targets) {
+          if (await hasUnknownPublishOutcome(tx, orgId, target.id)) {
+            throw new Error(
+              'relay command: provider outcome is unknown; reconcile before editing captions',
+            );
+          }
         }
         const currentCaptions = (bundle[0].captions as Record<string, string> | null) ?? {};
         const update = relayCaptionUpdate(params, currentCaptions);
+        const revisionId = randomUUID();
         const transitioned = await tx
           .update(schema.contentBundle)
           .set({
             captions: { ...currentCaptions, [update.platform]: update.caption },
+            state: 'generated',
+            tosReport: { verdict: 'pending', revisionId },
             updatedAt: new Date(),
           })
           .where(
@@ -407,7 +428,27 @@ export async function relayCommandExecutor(
         if (transitioned.length === 0) {
           throw new Error('relay command: bundle changed while caption edit was being applied');
         }
-        note = `bundle ${bundleId} → caption updated for ${update.platform}`;
+        // Existing scheduled jobs may already be claimed. The target lock
+        // serializes with publish.target; its terminal-state guard makes a
+        // canceled target a no-op even for jobs claimed before this edit.
+        await tx
+          .update(schema.postTarget)
+          .set({ state: 'canceled', error: 'caption edited; fresh approval required' })
+          .where(
+            and(
+              eq(schema.postTarget.bundleId, bundleId),
+              eq(schema.postTarget.orgId, orgId),
+              eq(schema.postTarget.state, 'pending'),
+            ),
+          );
+        await enqueueJob(tx, {
+          orgId,
+          queue: 'tos',
+          kind: 'tos.scan',
+          payload: { bundleId },
+          dedupeParts: ['tos.scan', bundleId, revisionId],
+        });
+        note = `bundle ${bundleId} → caption updated for ${update.platform}; fresh ToS scan and approval required`;
       } else if (action === 'reschedule') {
         if (currentState !== 'approved') {
           throw new Error(
