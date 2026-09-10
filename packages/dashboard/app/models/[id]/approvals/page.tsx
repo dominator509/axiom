@@ -9,12 +9,13 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ id: 
   let connections: Awaited<ReturnType<typeof api.social.list>>['data'] = [];
   let error: string | null = null;
   try {
-    const [bundleResult, connectionResult, revisingResult] = await Promise.all([
+    const [bundleResult, connectionResult, revisingResult, heldResult] = await Promise.all([
       api.bundles.list(id, 'generated'),
       api.social.list(id),
       api.bundles.list(id, 'revising'),
+      api.bundles.list(id, 'hold'),
     ]);
-    bundles = [...bundleResult.data, ...revisingResult.data];
+    bundles = [...bundleResult.data, ...revisingResult.data, ...heldResult.data];
     connections = connectionResult.data;
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
@@ -34,7 +35,7 @@ export default async function ApprovalsPage({ params }: { params: Promise<{ id: 
       {bundles.length === 0 && !error && (
         <div className="card">
           <p style={{ color: 'var(--muted)', margin: 0 }}>
-            No generated bundles awaiting approval. Run Generation to create one.
+            No bundles awaiting review. Run Generation to create one.
           </p>
         </div>
       )}
