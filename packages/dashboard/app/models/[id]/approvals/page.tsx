@@ -114,7 +114,9 @@ export default async function ApprovalsPage({
                 </p>
               ) : (
                 <ApproveButtons
+                  key={`${b.id}:${b.tosReport?.revisionId ?? 'initial'}`}
                   bundleId={b.id}
+                  platforms={Object.keys(b.captions ?? {})}
                   tosBlocked={b.tosReport?.verdict !== 'pass'}
                   revisionId={b.tosReport?.revisionId}
                   connections={connections}

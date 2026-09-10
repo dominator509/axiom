@@ -26,19 +26,27 @@ export default function ApproveButtons({
   tosBlocked,
   connections,
   revisionId,
+  platforms,
 }: {
   bundleId: string;
   tosBlocked: boolean;
   connections: SocialConnection[];
   revisionId?: string;
+  platforms: string[];
 }) {
   const router = useRouter();
-  const [selected, setSelected] = useState<string[]>(['instagram']);
+  const availablePlatforms = PLATFORMS.filter((platform) => platforms.includes(platform));
+  const [selected, setSelected] = useState<string[]>(() => availablePlatforms.slice(0, 1));
   const [connectionIds, setConnectionIds] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      connections
-        .filter((connection) => connection.status === 'connected' || connection.status === 'active')
-        .map((connection) => [connection.platform, connection.id]),
+      availablePlatforms.flatMap((platform) => {
+        const candidates = connections.filter(
+          (connection) =>
+            connection.platform === platform &&
+            (connection.status === 'connected' || connection.status === 'active'),
+        );
+        return candidates.length === 1 ? [[platform, candidates[0].id]] : [];
+      }),
     ),
   );
   const [slot, setSlot] = useState('');
@@ -51,12 +59,13 @@ export default function ApproveButtons({
     setSelected((prev) => {
       if (prev.includes(p)) return prev.filter((x) => x !== p);
       if (!connectionIds[p]) {
-        const first = connections.find(
+        const candidates = connections.filter(
           (connection) =>
             connection.platform === p &&
             (connection.status === 'connected' || connection.status === 'active'),
         );
-        if (first) setConnectionIds((current) => ({ ...current, [p]: first.id }));
+        if (candidates.length === 1)
+          setConnectionIds((current) => ({ ...current, [p]: candidates[0].id }));
       }
       return [...prev, p];
     });
@@ -127,7 +136,7 @@ export default function ApproveButtons({
   return (
     <div className="stack">
       <div className="row" style={{ flexWrap: 'wrap' }}>
-        {PLATFORMS.map((p) => (
+        {availablePlatforms.map((p) => (
           <button
             key={p}
             type="button"
@@ -139,6 +148,9 @@ export default function ApproveButtons({
           </button>
         ))}
       </div>
+      {availablePlatforms.length === 0 && (
+        <p role="status">No supported publishing destinations in this bundle.</p>
+      )}
       <div className="row">
         <label style={{ margin: 0 }}>
           Slot (your local time)
