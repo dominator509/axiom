@@ -1,5 +1,7 @@
 // DeepSeek provider — https://api-docs.deepseek.com/api/create-chat-completion
 
+import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
+
 export const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1';
 
 export interface DeepSeekCompletionRequest {
@@ -42,10 +44,10 @@ export async function callDeepSeek(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new Error(`DeepSeek API error ${res.status}: ${text}`);
   }
-  return res.json() as Promise<DeepSeekCompletionResponse>;
+  return readProviderJson<DeepSeekCompletionResponse>(res);
 }
 
 export async function* streamDeepSeek(
@@ -64,7 +66,7 @@ export async function* streamDeepSeek(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new Error(`DeepSeek stream error ${res.status}: ${text}`);
   }
   const reader = res.body?.getReader();

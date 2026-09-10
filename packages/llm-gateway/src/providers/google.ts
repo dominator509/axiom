@@ -10,6 +10,7 @@ import type {
   BaseProvider,
 } from './types.js';
 import { ProviderError } from './types.js';
+import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
 
 export const GOOGLE_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -196,10 +197,10 @@ export async function callGoogle(
     },
   );
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new Error(`Gemini API error ${res.status}: ${text}`);
   }
-  const data = (await res.json()) as GoogleGenerateResponse;
+  const data = await readProviderJson<GoogleGenerateResponse>(res);
   return toOpenAICompat(data, body.model);
 }
 
@@ -227,7 +228,7 @@ export async function* streamGoogle(
     },
   );
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new Error(`Gemini stream error ${res.status}: ${text}`);
   }
   const reader = res.body?.getReader();

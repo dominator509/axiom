@@ -6,6 +6,7 @@ import type {
   BaseProvider,
 } from './types.js';
 import { ProviderError } from './types.js';
+import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
 
 // Anthropic Claude pricing (USD per 1M tokens)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -117,7 +118,7 @@ export class AnthropicProvider implements BaseProvider {
     });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
+      const text = await readProviderErrorText(res);
       throw new ProviderError(
         `Anthropic API error ${res.status}: ${text}`,
         res.status,
@@ -126,7 +127,7 @@ export class AnthropicProvider implements BaseProvider {
       );
     }
 
-    const data = (await res.json()) as AnthropicMessageResponse;
+    const data = await readProviderJson<AnthropicMessageResponse>(res);
 
     const content = data.content
       .filter((block) => block.type === 'text')
@@ -167,7 +168,7 @@ export class AnthropicProvider implements BaseProvider {
     });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
+      const text = await readProviderErrorText(res);
       throw new ProviderError(
         `Anthropic stream error ${res.status}: ${text}`,
         res.status,
@@ -316,7 +317,7 @@ export async function callAnthropic(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new ProviderError(
       `Anthropic API error ${res.status}: ${text}`,
       res.status,
@@ -324,7 +325,7 @@ export async function callAnthropic(
       text,
     );
   }
-  return res.json() as Promise<AnthropicMessageResponse>;
+  return readProviderJson<AnthropicMessageResponse>(res);
 }
 
 export async function* streamAnthropic(
@@ -344,7 +345,7 @@ export async function* streamAnthropic(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new ProviderError(
       `Anthropic stream error ${res.status}: ${text}`,
       res.status,

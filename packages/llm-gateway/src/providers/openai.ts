@@ -6,6 +6,7 @@ import type {
   BaseProvider,
 } from './types.js';
 import { ProviderError } from './types.js';
+import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
 
 // Known model pricing (USD per 1M tokens)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -78,7 +79,7 @@ export class OpenAIProvider implements BaseProvider {
     });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
+      const text = await readProviderErrorText(res);
       throw new ProviderError(
         `OpenAI API error ${res.status}: ${text}`,
         res.status,
@@ -87,7 +88,7 @@ export class OpenAIProvider implements BaseProvider {
       );
     }
 
-    const data = (await res.json()) as {
+    const data = await readProviderJson<{
       model: string;
       choices: Array<{
         message: { role: string; content: string | null };
@@ -98,7 +99,7 @@ export class OpenAIProvider implements BaseProvider {
         completion_tokens: number;
         total_tokens: number;
       };
-    };
+    }>(res);
 
     const content = data.choices?.[0]?.message?.content ?? '';
     const usage = {
@@ -140,7 +141,7 @@ export class OpenAIProvider implements BaseProvider {
     });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
+      const text = await readProviderErrorText(res);
       throw new ProviderError(
         `OpenAI stream error ${res.status}: ${text}`,
         res.status,
@@ -306,10 +307,10 @@ export async function callOpenAI(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new ProviderError(`OpenAI API error ${res.status}: ${text}`, res.status, 'openai', text);
   }
-  return res.json() as Promise<OpenAICompletionResponse>;
+  return readProviderJson<OpenAICompletionResponse>(res);
 }
 
 export async function* streamOpenAI(
@@ -329,7 +330,7 @@ export async function* streamOpenAI(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new ProviderError(
       `OpenAI stream error ${res.status}: ${text}`,
       res.status,

@@ -6,6 +6,7 @@ import type {
   BaseProvider,
 } from './types.js';
 import { ProviderError } from './types.js';
+import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
 
 // vLLM is a local model server — zero marginal cost
 const COST_PER_CHAT = 0;
@@ -53,11 +54,11 @@ export class VLLMProvider implements BaseProvider {
     });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
+      const text = await readProviderErrorText(res);
       throw new ProviderError(`vLLM API error ${res.status}: ${text}`, res.status, this.name, text);
     }
 
-    const data = (await res.json()) as {
+    const data = await readProviderJson<{
       model: string;
       choices: Array<{
         message: { role: string; content: string | null };
@@ -68,7 +69,7 @@ export class VLLMProvider implements BaseProvider {
         completion_tokens: number;
         total_tokens: number;
       };
-    };
+    }>(res);
 
     const content = data.choices?.[0]?.message?.content ?? '';
     const usage = {
@@ -106,7 +107,7 @@ export class VLLMProvider implements BaseProvider {
     });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
+      const text = await readProviderErrorText(res);
       throw new ProviderError(
         `vLLM stream error ${res.status}: ${text}`,
         res.status,
@@ -261,10 +262,10 @@ export async function callVLLM(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new ProviderError(`vLLM API error ${res.status}: ${text}`, res.status, 'vllm', text);
   }
-  return res.json() as Promise<VLLMCompletionResponse>;
+  return readProviderJson<VLLMCompletionResponse>(res);
 }
 
 export async function* streamVLLM(
@@ -280,7 +281,7 @@ export async function* streamVLLM(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new ProviderError(`vLLM stream error ${res.status}: ${text}`, res.status, 'vllm', text);
   }
   const reader = res.body?.getReader();
