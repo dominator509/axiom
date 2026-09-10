@@ -3,6 +3,7 @@ import {
   InvalidContentLengthError,
   RELAY_WEBHOOK_MAX_BODY_BYTES,
   RequestBodyTooLargeError,
+  readBoundedBytes,
   readBoundedJson,
   readBoundedText,
 } from './webhook-body.js';
@@ -12,6 +13,15 @@ describe('bounded webhook bodies', () => {
     await expect(
       readBoundedJson(new Request('https://example.test', { body: '{"ok":true}', method: 'POST' })),
     ).resolves.toEqual({ ok: true });
+  });
+
+  it('preserves the exact bytes for callers that hash the body', async () => {
+    const bytes = new Uint8Array([0, 1, 2, 255]);
+    const request = new Request('https://example.test', {
+      method: 'POST',
+      body: bytes,
+    });
+    await expect(readBoundedBytes(request)).resolves.toEqual(bytes);
   });
 
   it('rejects a declared body larger than the limit before reading it', async () => {

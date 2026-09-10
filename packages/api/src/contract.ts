@@ -13,6 +13,11 @@ import { sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { db } from '@axiom/db';
 import { captureUnhandledApiError, describeCrash } from './crash-reporter.js';
+import {
+  readBoundedBytes,
+  InvalidContentLengthError,
+  RequestBodyTooLargeError,
+} from './webhook-body.js';
 
 export interface ProblemDetails {
   type: string;
@@ -127,6 +132,7 @@ export function handleProblem(fn: (c: Context) => Promise<Response> | Response) 
 // ---------------------------------------------------------------------------
 
 const IDEM_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const IDEMPOTENCY_MAX_BODY_BYTES = 256 * 1024;
 
 interface IdempotencyRow {
   id: string;
@@ -214,7 +220,32 @@ export function idempotency(required = true) {
       return idempotencyResponse(c, 503, 'Service Unavailable', 'Idempotency store unavailable');
     }
 
-    const requestBytes = Buffer.from(await c.req.raw.clone().arrayBuffer());
+    let requestBytes: Uint8Array;
+    try {
+      requestBytes = await readBoundedBytes(c.req.raw, IDEMPOTENCY_MAX_BODY_BYTES);
+      // The idempotency middleware consumes the raw stream to hash it. Cache
+      // an independent ArrayBuffer so downstream Hono JSON/form parsers read
+      // the exact same bytes without reopening an unbounded raw stream.
+      c.req.bodyCache.arrayBuffer = Promise.resolve(
+        requestBytes.slice().buffer,
+      ) as unknown as ArrayBuffer;
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        const correlationId = (c.get('correlationId') as string) ?? randomUUID();
+        return problemResponse(
+          problem(413, 'Payload Too Large', 'request body exceeds the maximum size', correlationId),
+          413,
+        );
+      }
+      if (error instanceof InvalidContentLengthError) {
+        const correlationId = (c.get('correlationId') as string) ?? randomUUID();
+        return problemResponse(
+          problem(400, 'Bad Request', 'invalid Content-Length header', correlationId),
+          400,
+        );
+      }
+      throw error;
+    }
     // Include the query string in the fingerprint. Some mutating routes use
     // query parameters for resource identity (for example, modelId on the
     // social-account connect route); omitting it could replay a response for

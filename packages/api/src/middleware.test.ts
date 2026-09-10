@@ -90,6 +90,98 @@ describe('idempotency middleware (durable, M-2)', () => {
     expect(calls).toBe(0); // rejected before the handler ran
   });
 
+  it('bounds declared mutation bodies before hashing or handler execution', async () => {
+    const app = makeApp();
+    let calls = 0;
+    app.post('/mutate', idempotency(), async (c) => {
+      calls += 1;
+      await c.req.json();
+      return c.json({ data: { ok: true } }, 201);
+    });
+
+    const res = await app.request('/mutate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': String(256 * 1024 + 1),
+        'Idempotency-Key': 'oversized-declared',
+      },
+      body: '{}',
+    });
+
+    expect(res.status).toBe(413);
+    expect(res.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
+    expect(calls).toBe(0);
+  });
+
+  it('bounds chunked mutation bodies before hashing or handler execution', async () => {
+    const app = makeApp();
+    let calls = 0;
+    app.post('/mutate', idempotency(), async (c) => {
+      calls += 1;
+      await c.req.json();
+      return c.json({ data: { ok: true } }, 201);
+    });
+
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(256 * 1024 + 1));
+        controller.close();
+      },
+    });
+    const request = new Request('http://localhost/mutate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'oversized-chunked',
+      },
+      body: stream,
+      duplex: 'half',
+    } as RequestInit);
+
+    const res = await app.fetch(request);
+    expect(res.status).toBe(413);
+    expect(calls).toBe(0);
+  });
+
+  it('replays the bounded body to downstream Hono parsers', async () => {
+    const app = makeApp();
+    const body = '{"value":"ok"}';
+    let parsed: unknown;
+    app.post('/mutate', idempotency(), async (c) => {
+      parsed = await c.req.json();
+      return c.json({ data: { ok: true } }, 201);
+    });
+    mockState.results = [
+      [],
+      [
+        {
+          id: 'row-body-cache',
+          state: 'pending',
+          request_hash: requestHash(body, 'application/json'),
+          owner_token: 'owner-body-cache',
+          status: null,
+          response_body: null,
+          expires_at: new Date(Date.now() + 86_400_000),
+        },
+      ],
+      [],
+      [{ id: 'row-body-cache' }],
+    ];
+
+    const res = await app.request('/mutate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'body-cache',
+      },
+      body,
+    });
+
+    expect(res.status).toBe(201);
+    expect(parsed).toEqual({ value: 'ok' });
+  });
+
   it('executes once, then replays the stored response without re-execution', async () => {
     const app = makeApp();
     const getCalls = countedRoute(app);

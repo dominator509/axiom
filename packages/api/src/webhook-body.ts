@@ -16,13 +16,14 @@ export class InvalidContentLengthError extends Error {
 }
 
 /**
- * Read a request body incrementally so chunked requests cannot bypass the
- * webhook size ceiling before JSON parsing or signature verification.
+ * Read a request body incrementally and return the exact bytes consumed.
+ * Keeping this primitive byte-oriented lets callers hash or replay the body
+ * without decoding arbitrary content as UTF-8 first.
  */
-export async function readBoundedText(
+export async function readBoundedBytes(
   request: Request,
   maxBytes = RELAY_WEBHOOK_MAX_BODY_BYTES,
-): Promise<string> {
+): Promise<Uint8Array> {
   const contentLength = request.headers.get('content-length');
   if (contentLength !== null) {
     const declaredLength = Number(contentLength);
@@ -34,7 +35,7 @@ export async function readBoundedText(
     }
   }
 
-  if (!request.body) return '';
+  if (!request.body) return new Uint8Array(0);
 
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -61,6 +62,18 @@ export async function readBoundedText(
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
+  return bytes;
+}
+
+/**
+ * Read a request body incrementally so chunked requests cannot bypass the
+ * webhook size ceiling before JSON parsing or signature verification.
+ */
+export async function readBoundedText(
+  request: Request,
+  maxBytes = RELAY_WEBHOOK_MAX_BODY_BYTES,
+): Promise<string> {
+  const bytes = await readBoundedBytes(request, maxBytes);
   return new TextDecoder().decode(bytes);
 }
 
