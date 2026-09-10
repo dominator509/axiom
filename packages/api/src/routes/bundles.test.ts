@@ -167,6 +167,16 @@ describe('POST / — create bundle', () => {
 });
 
 describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
+  it('rejects an unqualified datetime-local slot before mutation', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: ['x'], slot: '2030-07-10T18:30' }),
+    });
+    expect(res.status).toBe(400);
+    expect(mockState.updates).toHaveLength(0);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
   it('rejects approval when the compliance record set is incomplete', async () => {
     const generatedBundle = {
       id: BUNDLE_ID,
@@ -196,6 +206,7 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
   it.each([undefined, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'])(
     'approves a reviewed passing bundle and creates post targets (revision %s)',
     async (revisionId) => {
+      const slot = revisionId ? new Date(Date.now() + 3_600_000).toISOString() : undefined;
       const generatedBundle = {
         id: BUNDLE_ID,
         orgId: ORG_ID,
@@ -224,6 +235,7 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
         body: JSON.stringify({
           platforms: ['instagram', 'x'],
           revisionId,
+          slot,
           connectionIds: { instagram: INSTAGRAM_CONNECTION_ID, x: X_CONNECTION_ID },
         }),
       });
@@ -237,7 +249,7 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
         expect.objectContaining({
           queue: 'publish',
           kind: 'publish.target',
-          runAfter: expect.any(Date),
+          runAfter: slot ? new Date(slot) : expect.any(Date),
           dedupeParts: ['publish.target', BUNDLE_ID],
         }),
       );

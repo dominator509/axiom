@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutationFetch } from '@/lib/mutation';
 import { readDashboardError } from '@/lib/response';
+import { approvalSlot } from '@/lib/schedule';
 import type { SocialConnection } from '@/lib/api';
 
 const PLATFORMS = [
@@ -64,6 +65,15 @@ export default function ApproveButtons({
   const selectedWithoutConnection = selected.filter((platform) => !connectionIds[platform]);
 
   async function act(action: 'approve' | 'revise' | 'reject') {
+    let scheduledSlot: string | undefined;
+    if (action === 'approve') {
+      try {
+        scheduledSlot = approvalSlot(slot);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'Choose a valid schedule.');
+        return;
+      }
+    }
     if (action === 'revise' && !instructions.trim()) {
       setError('Enter caption revision instructions.');
       return;
@@ -80,7 +90,7 @@ export default function ApproveButtons({
           body: JSON.stringify({
             platforms: selected,
             revisionId,
-            slot: slot || undefined,
+            slot: scheduledSlot,
             connectionIds: Object.fromEntries(
               selected
                 .filter((platform) => connectionIds[platform])
@@ -131,7 +141,10 @@ export default function ApproveButtons({
       </div>
       <div className="row">
         <label style={{ margin: 0 }}>
-          Slot
+          Slot (your local time)
+          <small style={{ display: 'block' }}>
+            During a repeated daylight-saving hour, the first occurrence is used.
+          </small>
           <input
             type="datetime-local"
             value={slot}
