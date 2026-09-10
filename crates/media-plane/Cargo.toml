@@ -14,3 +14,6 @@ thiserror.workspace = true
 axum = { workspace = true, features = ["json"] }
 image = { workspace = true, features = ["png", "jpeg"] }
 sha2.workspace = true
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }

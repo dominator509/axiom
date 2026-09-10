@@ -1,6 +1,7 @@
 use axum::{
-    extract::{DefaultBodyLimit, Json},
-    http::StatusCode,
+    extract::{DefaultBodyLimit, Json, Request},
+    http::{header, StatusCode},
+    middleware::{self, Next},
     response::IntoResponse,
     routing::{get, post},
     Router,
@@ -13,6 +14,8 @@ use thiserror::Error;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tracing::info;
+
+const MEDIA_AUTH_TOKEN_ENV: &str = "AXIOM_MEDIA_AUTH_TOKEN";
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -613,6 +616,82 @@ async fn video_probe(
     }))
 }
 
+/// Protect media operations when the service crosses a process or container
+/// boundary. Health remains public for Docker readiness checks; non-loopback
+/// deployments must configure the internal bearer token before binding.
+async fn require_internal_auth(request: Request, next: Next) -> axum::response::Response {
+    let Some(expected) = configured_auth_token() else {
+        return next.run(request).await;
+    };
+
+    let authorized = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| bearer_token_authorized(value, &expected));
+
+    if authorized {
+        next.run(request).await
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, "Bearer")],
+            "media plane authentication required",
+        )
+            .into_response()
+    }
+}
+
+fn configured_auth_token() -> Option<String> {
+    std::env::var(MEDIA_AUTH_TOKEN_ENV)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn bearer_token_authorized(header_value: &str, expected: &str) -> bool {
+    header_value
+        .strip_prefix("Bearer ")
+        .is_some_and(|provided| provided == expected)
+}
+
+fn non_loopback_without_auth(addr: &str, auth_token: Option<&str>) -> bool {
+    let is_loopback = addr
+        .parse::<std::net::SocketAddr>()
+        .map(|socket| socket.ip().is_loopback())
+        .unwrap_or(false);
+    !is_loopback
+        && auth_token
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+}
+
+fn validate_bind_security(addr: &str) {
+    assert!(
+        !non_loopback_without_auth(addr, configured_auth_token().as_deref()),
+        "media-plane refuses non-loopback bind addresses without {MEDIA_AUTH_TOKEN_ENV}"
+    );
+}
+
+fn build_app() -> Router {
+    let protected_routes = Router::new()
+        .route("/media/transcode", post(transcode))
+        .route("/media/watermark", post(watermark))
+        .route("/media/resize", post(resize))
+        .route("/media/clip", post(clip))
+        .route("/media/compute-hash", post(compute_hash))
+        .route("/media/video/transcode", post(video_transcode))
+        .route("/media/video/watermark", post(video_watermark))
+        .route("/media/video/clip", post(video_clip))
+        .route("/media/video/probe", post(video_probe))
+        .layer(middleware::from_fn(require_internal_auth));
+
+    Router::new()
+        .route("/health", get(health))
+        .merge(protected_routes)
+        .layer(DefaultBodyLimit::max(MEDIA_REQUEST_MAX_BYTES))
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -626,30 +705,14 @@ async fn main() {
         )
         .init();
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/media/transcode", post(transcode))
-        .route("/media/watermark", post(watermark))
-        .route("/media/resize", post(resize))
-        .route("/media/clip", post(clip))
-        .route("/media/compute-hash", post(compute_hash))
-        .route("/media/video/transcode", post(video_transcode))
-        .route("/media/video/watermark", post(video_watermark))
-        .route("/media/video/clip", post(video_clip))
-        .route("/media/video/probe", post(video_probe))
-        .layer(DefaultBodyLimit::max(MEDIA_REQUEST_MAX_BYTES));
-
     let addr = std::env::var("AXIOM_MEDIA_ADDR").unwrap_or_else(|_| "127.0.0.1:8100".to_string());
     let socket_addr: std::net::SocketAddr =
         addr.parse().expect("AXIOM_MEDIA_ADDR must be host:port");
-    assert!(
-        socket_addr.ip().is_loopback(),
-        "media-plane refuses non-loopback bind addresses"
-    );
+    validate_bind_security(&addr);
     info!("media-plane listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(socket_addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, build_app()).await.unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -723,6 +786,76 @@ mod tests {
         let result = tokio_test_block_on(video_probe(Json(req)));
         let resp = result.unwrap().0;
         assert!(!resp.exists);
+    }
+
+    #[test]
+    fn non_loopback_bind_requires_authentication() {
+        assert!(non_loopback_without_auth("0.0.0.0:8100", None));
+        assert!(!non_loopback_without_auth(
+            "0.0.0.0:8100",
+            Some("internal-token")
+        ));
+        assert!(!non_loopback_without_auth("127.0.0.1:8100", None));
+    }
+
+    #[test]
+    fn bearer_auth_requires_exact_scheme_and_token() {
+        assert!(bearer_token_authorized(
+            "Bearer internal-token",
+            "internal-token"
+        ));
+        assert!(!bearer_token_authorized(
+            "bearer internal-token",
+            "internal-token"
+        ));
+        assert!(!bearer_token_authorized("Bearer wrong", "internal-token"));
+    }
+
+    #[tokio::test]
+    async fn media_routes_are_protected_while_health_remains_public() {
+        use axum::{body::Body, http::Request as HttpRequest};
+        use tower::ServiceExt;
+
+        std::env::set_var(MEDIA_AUTH_TOKEN_ENV, "internal-token");
+
+        let unauthorized = build_app()
+            .oneshot(
+                HttpRequest::builder()
+                    .method("POST")
+                    .uri("/media/video/probe")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+
+        let health = build_app()
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(health.status(), StatusCode::OK);
+
+        let authorized = build_app()
+            .oneshot(
+                HttpRequest::builder()
+                    .method("POST")
+                    .uri("/media/video/probe")
+                    .header(header::AUTHORIZATION, "Bearer internal-token")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"video_path":"missing.mp4"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(authorized.status(), StatusCode::OK);
+
+        std::env::remove_var(MEDIA_AUTH_TOKEN_ENV);
     }
 
     /// Minimal synchronous block_on for the async helpers under test.

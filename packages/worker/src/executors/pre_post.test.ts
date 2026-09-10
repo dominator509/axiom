@@ -95,6 +95,19 @@ describe('mediaPlaneEngine', () => {
 
     await expect(mediaPlaneEngine('http://media.test')).resolves.toBe('in-process');
   });
+
+  it('sends the configured bearer token to the media plane', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('MEDIA_PLANE_AUTH_TOKEN', 'internal-token');
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(mediaPlaneEngine('http://media.test')).resolves.toBe('rust-media-plane');
+
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      headers: { Authorization: 'Bearer internal-token' },
+    });
+  });
 });
 
 describe('runPrePostBefore', () => {

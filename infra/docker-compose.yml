@@ -4,6 +4,7 @@ networks:
 
 volumes:
   pgdata:
+  media-data:
 
 services:
   postgres:
@@ -46,6 +47,29 @@ services:
       - axiom-net
     profiles:
       - tools
+
+  media-plane:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.media
+    container_name: axiom-media-plane
+    restart: unless-stopped
+    environment:
+      AXIOM_MEDIA_ADDR: 0.0.0.0:8100
+      # The process refuses non-loopback operation without this value.
+      AXIOM_MEDIA_AUTH_TOKEN: ${AXIOM_MEDIA_AUTH_TOKEN:-}
+    volumes:
+      - media-data:/app/var/media
+    ports:
+      - '127.0.0.1:8100:8100'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', '--silent', '--show-error', 'http://127.0.0.1:8100/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - axiom-net
 
   vision-engine:
     build:

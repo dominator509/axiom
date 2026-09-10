@@ -286,6 +286,7 @@ jobs:
           docker build --build-arg API_ORIGIN=http://127.0.0.1:3001 --file infra/Dockerfile.next --tag axiom-dashboard:ci .
           docker build --file infra/Dockerfile.worker --tag axiom-worker:ci .
           docker build --file infra/Dockerfile.rust --tag axiom-egress-plane:ci .
+          docker build --file infra/Dockerfile.media --tag axiom-media-plane:ci .
           docker build --file infra/Dockerfile.vision --tag axiom-vision-engine:ci .
           docker build --file infra/Dockerfile.scraper --tag axiom-scraper:ci .
 
@@ -295,7 +296,7 @@ jobs:
           set -euo pipefail
 
           cleanup() {
-            docker rm --force axiom-egress-ci axiom-vision-ci axiom-scraper-ci axiom-hono-ci axiom-dashboard-ci axiom-worker-ci >/dev/null 2>&1 || true
+            docker rm --force axiom-egress-ci axiom-media-ci axiom-vision-ci axiom-scraper-ci axiom-hono-ci axiom-dashboard-ci axiom-worker-ci >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
 
@@ -329,6 +330,7 @@ jobs:
           ci_auth_value='ci-authentication-value-012345678901'
           ci_relay_value='ci-relay-value-012345678901234567'
           ci_egress_value='ci-egress-plane-012345678901234567890123'
+          ci_media_value='ci-media-plane-012345678901234567890123'
           ci_vision_value='ci-vision-sidecar-012345678901234567890123'
           ci_scraper_value='ci-scraper-sidecar-012345678901234567890123'
 
@@ -344,6 +346,11 @@ jobs:
             --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
             --env EGRESS_DEK=0000000000000000000000000000000000000000000000000000000000000000 \
             axiom-egress-plane:ci
+          docker run --detach --name axiom-media-ci --network host \
+            --env NODE_ENV=production \
+            --env AXIOM_MEDIA_ADDR=0.0.0.0:8100 \
+            --env AXIOM_MEDIA_AUTH_TOKEN="$ci_media_value" \
+            axiom-media-plane:ci
           docker run --detach --name axiom-vision-ci --network host \
             --env NODE_ENV=production \
             --env AXIOM_VISION_ADDR=0.0.0.0:8101 \
@@ -376,10 +383,13 @@ jobs:
             --env RELAY_SECRET="$ci_relay_value" \
             --env EGRESS_PLANE_URL=http://127.0.0.1:9090 \
             --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
+            --env MEDIA_PLANE_URL=http://127.0.0.1:8100 \
+            --env MEDIA_PLANE_AUTH_TOKEN="$ci_media_value" \
             --env AXIOM_SERVICE_NAME=worker-ci \
             axiom-worker:ci
 
           wait_for_health axiom-egress-ci
+          wait_for_health axiom-media-ci
           wait_for_health axiom-scraper-ci
           wait_for_health axiom-hono-ci
           wait_for_health axiom-dashboard-ci
@@ -409,6 +419,20 @@ jobs:
             -H "x-egress-plane-token: $ci_egress_value" \
             http://127.0.0.1:9090/kill-switch/status >/dev/null
           echo "axiom-egress-ci: authenticated control-plane probe passed"
+
+          if [ "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request POST http://127.0.0.1:8100/media/video/probe \
+            --header 'content-type: application/json' \
+            --data '{"video_path":"missing.mp4"}')" != "401" ]; then
+            echo "axiom-media-ci: unauthenticated media route was not rejected"
+            exit 1
+          fi
+          curl --fail --silent --show-error \
+            --request POST http://127.0.0.1:8100/media/video/probe \
+            --header "authorization: Bearer $ci_media_value" \
+            --header 'content-type: application/json' \
+            --data '{"video_path":"missing.mp4"}' >/dev/null
+          echo "axiom-media-ci: authenticated media boundary probe passed"
 
           # Liveness only proves that the Hono process is serving HTTP. The
           # readiness endpoint performs the real database dependency check;

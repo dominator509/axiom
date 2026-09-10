@@ -17,9 +17,16 @@ import {
 import type { ConnectorPublishInput } from '@axiom/connectors';
 import type { ExecutorContext } from './context.js';
 
-const DEFAULT_MEDIA_PLANE_URL = process.env.AXIOM_MEDIA_ADDR
-  ? `http://${process.env.AXIOM_MEDIA_ADDR}`
-  : (process.env.MEDIA_PLANE_URL ?? 'http://127.0.0.1:8100');
+function defaultMediaPlaneUrl(): string {
+  return process.env.AXIOM_MEDIA_ADDR
+    ? `http://${process.env.AXIOM_MEDIA_ADDR}`
+    : (process.env.MEDIA_PLANE_URL ?? 'http://127.0.0.1:8100');
+}
+
+function mediaPlaneHeaders(): Record<string, string> {
+  const token = process.env.MEDIA_PLANE_AUTH_TOKEN?.trim();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 export interface PrePostRunInput {
   targetId: string;
@@ -57,11 +64,14 @@ export function getPrePostHook(): PrePostHook {
  * Returns the engine label actually used.
  */
 export async function mediaPlaneEngine(
-  mediaPlaneUrl: string = DEFAULT_MEDIA_PLANE_URL,
+  mediaPlaneUrl: string = defaultMediaPlaneUrl(),
 ): Promise<'rust-media-plane' | 'in-process'> {
   let failure: string | undefined;
   try {
-    const res = await fetch(`${mediaPlaneUrl}/health`, { signal: AbortSignal.timeout(2_000) });
+    const res = await fetch(`${mediaPlaneUrl}/health`, {
+      headers: mediaPlaneHeaders(),
+      signal: AbortSignal.timeout(2_000),
+    });
     if (res.ok) return 'rust-media-plane';
     failure = `HTTP ${res.status}`;
   } catch (err) {
@@ -275,7 +285,8 @@ export async function runPrePostAfter(
  * its actual kind. Returns the media-plane result for auditability.
  */
 async function stageMediaOnPlane(input: PrePostRunInput): Promise<Record<string, unknown>> {
-  const mediaPlaneUrl = DEFAULT_MEDIA_PLANE_URL;
+  const mediaPlaneUrl = defaultMediaPlaneUrl();
+  const headers = { 'Content-Type': 'application/json', ...mediaPlaneHeaders() };
   const out: Record<string, unknown> = {};
 
   const firstMedia = input.mediaUrls[0];
@@ -288,7 +299,7 @@ async function stageMediaOnPlane(input: PrePostRunInput): Promise<Record<string,
     if (input.mediaKind === 'image') {
       const hash = await fetch(`${mediaPlaneUrl}/media/compute-hash`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ image_path: mediaPath }),
         signal: AbortSignal.timeout(5_000),
       });
@@ -303,7 +314,7 @@ async function stageMediaOnPlane(input: PrePostRunInput): Promise<Record<string,
     } else {
       const probe = await fetch(`${mediaPlaneUrl}/media/video/probe`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ video_path: mediaPath }),
         signal: AbortSignal.timeout(5_000),
       });
