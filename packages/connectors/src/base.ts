@@ -20,6 +20,9 @@ export const COMMON_METRICS: MetricName[] = ['likes', 'comments', 'shares', 'vie
 /** Maximum log entries kept per connector */
 const MAX_LOG = 100;
 const MAX_PROVIDER_ERROR_LENGTH = 1_024;
+/** Provider JSON responses are expected to be small, paginated envelopes. */
+export const CONNECTOR_MAX_JSON_RESPONSE_BYTES = 1 * 1024 * 1024;
+const CONNECTOR_MAX_ERROR_RESPONSE_BYTES = 64 * 1024;
 const SENSITIVE_QUERY_KEYS = new Set([
   'access_token',
   'refresh_token',
@@ -33,7 +36,11 @@ const SENSITIVE_QUERY_KEYS = new Set([
 
 /** Parse a successful provider response without treating an empty body as a failure. */
 async function parseSuccessfulJson<T>(response: Response): Promise<T> {
-  const body = await response.text();
+  const body = await readResponseText(
+    response,
+    CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+    'provider JSON response',
+  );
   if (body.trim().length === 0) return undefined as T;
   return JSON.parse(body) as T;
 }
@@ -93,6 +100,20 @@ export async function readResponseBytes(
     offset += chunk.byteLength;
   }
   return result;
+}
+
+/**
+ * Read provider text with a hard byte ceiling. This is used for both JSON
+ * envelopes and error payloads so a provider cannot exhaust connector memory
+ * through a response body that omits or falsifies Content-Length.
+ */
+export async function readResponseText(
+  response: Response,
+  maxBytes: number,
+  label: string,
+): Promise<string> {
+  const bytes = await readResponseBytes(response, maxBytes, label);
+  return new TextDecoder().decode(bytes);
 }
 
 /** Redact credential-bearing query parameters before a provider URL is logged. */
@@ -321,7 +342,11 @@ export abstract class BaseConnector implements SocialConnector {
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       const safeUrl = redactProviderUrl(url);
       this.log('error', 'apiGet', `HTTP ${response.status}: ${redactProviderText(body)}`, {
         url: safeUrl,
@@ -352,7 +377,11 @@ export abstract class BaseConnector implements SocialConnector {
     });
 
     if (!response.ok) {
-      const responseBody = await response.text().catch(() => '');
+      const responseBody = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       const safeUrl = redactProviderUrl(url);
       this.log('error', 'apiPost', `HTTP ${response.status}: ${redactProviderText(responseBody)}`, {
         url: safeUrl,
@@ -381,7 +410,11 @@ export abstract class BaseConnector implements SocialConnector {
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       const safeUrl = redactProviderUrl(url);
       this.log('error', 'apiUpload', `HTTP ${response.status}: ${redactProviderText(body)}`, {
         url: safeUrl,
@@ -406,7 +439,11 @@ export abstract class BaseConnector implements SocialConnector {
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
       const safeUrl = redactProviderUrl(url);
       this.log('error', 'apiDelete', `HTTP ${response.status}: ${redactProviderText(body)}`, {
         url: safeUrl,
@@ -414,7 +451,11 @@ export abstract class BaseConnector implements SocialConnector {
       throw new Error(`API DELETE ${safeUrl} failed: ${response.status} ${response.statusText}`);
     }
 
-    const responseBody = await response.text();
+    const responseBody = await readResponseText(
+      response,
+      CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+      'provider JSON response',
+    );
     if (responseBody.trim().length === 0) return undefined as T;
     return JSON.parse(responseBody) as T;
   }

@@ -6,7 +6,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   BaseConnector,
   CONNECTOR_REQUEST_TIMEOUT_MS,
+  CONNECTOR_MAX_JSON_RESPONSE_BYTES,
   readResponseBytes,
+  readResponseText,
   redactProviderText,
   redactProviderUrl,
 } from './base.js';
@@ -254,6 +256,17 @@ describe('apiGet', () => {
     await expect(c.get('https://api.example.com/v1/things')).resolves.toBeUndefined();
   });
 
+  it('rejects a successful response that exceeds the JSON body ceiling', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('x'.repeat(CONNECTOR_MAX_JSON_RESPONSE_BYTES + 1))),
+    );
+    const c = new TestConnector();
+    await expect(c.get('https://api.example.com/v1/things')).rejects.toThrow(
+      'provider JSON response exceeds the maximum supported size of 1048576 bytes',
+    );
+  });
+
   it('propagates network errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network down')));
     const c = new TestConnector();
@@ -409,6 +422,13 @@ describe('bounded media reads', () => {
   it('rejects streamed content that exceeds the configured limit', async () => {
     await expect(readResponseBytes(new Response('1234567'), 6, 'media')).rejects.toThrow(
       'media exceeds the maximum supported size of 6 bytes',
+    );
+  });
+
+  it('reads bounded text without allocating beyond the configured limit', async () => {
+    await expect(readResponseText(new Response('hello'), 5, 'text')).resolves.toBe('hello');
+    await expect(readResponseText(new Response('hello!'), 5, 'text')).rejects.toThrow(
+      'text exceeds the maximum supported size of 5 bytes',
     );
   });
 });
