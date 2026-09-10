@@ -154,3 +154,5 @@
 2026-09-07T19:31:38Z | [P2][RELAY/CONFIG] fail closed on partial production Discord, Signal, Threads, BlueBubbles, and Telegram webhook configuration; API 302/302, typecheck, build, lint, and formatting passed
 2026-09-07T19:51:35Z | [P2][SECURITY/CONFIG] require 32-character production RELAY_SECRET, HTTPS-only production BETTER_AUTH_URL, and update CI container origin; core 4/4, auth 11/11, API 302/302, worker 62/62, typecheck, build, lint, formatting passed
 2026-09-08T03:34:41Z | [P2][SECURITY/BOOT] validate RELAY_SECRET during worker startup and remove provider-client-secret OAuth cookie fallbacks; API 305/305, worker 62/62, typecheck, lint, and API build passed; Windows dashboard standalone build remains blocked by symlink EPERM
+P0-P4 VERIFICATION: Performed full verification pass. Preflight missing psql and ufw. Unit tests partially failed due to DB missing. Cargo and TS checks pass. Logged evidence in .agent/evidence/.
+2026-09-09T16:05:37Z | P0-P4 VERIFICATION: Recorded all results and NOT_RUNNABLE_ENV issues in evidence logs.

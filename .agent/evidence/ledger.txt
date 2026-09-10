@@ -1,0 +1,2 @@
+NOT_RUNNABLE_ENV(Missing psql, ufw, etc. preventing some checks from passing, test environment does not match full deployment requirements)
+TESTS_DB_FAIL(Tests requiring PostgreSQL connection failed with ECONNREFUSED ::1:5432)
