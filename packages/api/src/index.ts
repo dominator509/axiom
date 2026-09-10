@@ -778,7 +778,7 @@ app.use('/api/v1/org-settings/*', ownerOnly);
 // committed before the handler runs, so a lost response cannot repeat a DB,
 // queue, or provider-side effect when the caller retries its intent.
 // Hono's wildcard includes the base path; register once to avoid hashing and
-// reserving the same generation request twice.
+// reserving the same request twice.
 app.use('/api/v1/models/:modelId/generate/*', idempotency());
 app.use('/api/v1/models/:id', idempotency());
 app.use('/api/v1/bundles/*/approve', idempotency());
@@ -796,11 +796,8 @@ app.use('/api/v1/models', idempotency());
 app.use('/api/v1/models/:modelId/network', idempotency());
 app.use('/api/v1/org-settings', idempotency());
 app.use('/api/v1/digests/generate', idempotency());
-app.use('/api/v1/crash-reports', idempotency());
 app.use('/api/v1/crash-reports/*', idempotency());
-app.use('/api/v1/models/:modelId/consent-records', idempotency());
 app.use('/api/v1/models/:modelId/consent-records/*', idempotency());
-app.use('/api/v1/models/:modelId/linkbio', idempotency());
 app.use('/api/v1/models/:modelId/linkbio/*', idempotency());
 app.use('/api/v1/posts', idempotency());
 app.use('/api/v1/posts/:id', idempotency());
@@ -808,7 +805,9 @@ app.use('/api/v1/social-accounts', idempotency());
 app.use('/api/v1/social-accounts/:id', idempotency());
 app.use('/api/v1/egress', idempotency());
 app.use('/api/v1/egress/:id', idempotency());
-app.use('/api/v1/egress/plane/*', idempotency());
+app.use('/api/v1/egress/plane/bind', idempotency());
+app.use('/api/v1/egress/plane/unbind', idempotency());
+app.use('/api/v1/egress/plane/sync', idempotency());
 app.use('/api/v1/models/:modelId/fans', idempotency());
 app.use('/api/v1/fans/:fanId/touchpoints', idempotency());
 app.use('/api/v1/custom-requests', idempotency());

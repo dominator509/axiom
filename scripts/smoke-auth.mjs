@@ -206,6 +206,37 @@ SELECT count(*) FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' A
     console.log('worker smoke: real ToS job completed and one Relay card job persisted (external delivery not asserted)');
   }
   console.log('generation smoke: five real prompt/caption variants, text ToS report, persisted bundle, same-bundle replay and one durable scan job passed');
+  const linkbioPath = `/api/v1/models/${createdBody.data.id}/linkbio`;
+  const linkbioConfig = { links: [{ label: 'Disposable saved link', url: 'https://example.invalid/smoke' }] };
+  const linkbioHeaders = { ...headers, cookie, 'Idempotency-Key': randomUUID() };
+  const linkbioBody = JSON.stringify({ kind: 'native', config: linkbioConfig });
+  const enabled = await request(linkbioPath, { method: 'POST', headers: linkbioHeaders, body: linkbioBody });
+  assert.equal(enabled.status, 201, 'Native page creation must pass real middleware composition');
+  const provider = (await enabled.json()).data;
+  assert.deepEqual(provider.config, linkbioConfig);
+  const enabledReplay = await request(linkbioPath, { method: 'POST', headers: linkbioHeaders, body: linkbioBody });
+  assert.equal(enabledReplay.status, 201);
+  assert.equal((await enabledReplay.json()).data.id, provider.id, 'Native page replay preserves provider identity');
+  const disabled = await request(`${linkbioPath}/native`, {
+    method: 'DELETE', headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
+  });
+  assert.equal(disabled.status, 200);
+  const disabledProvider = (await disabled.json()).data;
+  assert.equal(disabledProvider.enabled, false);
+  assert.deepEqual(disabledProvider.config, linkbioConfig, 'Disable must retain saved links');
+  const reenabled = await request(linkbioPath, {
+    method: 'POST', headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
+    body: JSON.stringify({ kind: 'native' }),
+  });
+  assert.equal(reenabled.status, 201);
+  const restoredProvider = (await reenabled.json()).data;
+  assert.equal(restoredProvider.id, provider.id);
+  assert.equal(restoredProvider.enabled, true);
+  assert.deepEqual(restoredProvider.config, linkbioConfig, 'Re-enable must preserve stored configuration');
+  const providerList = await request(linkbioPath, { headers: { cookie } });
+  assert.equal(providerList.status, 200);
+  assert.equal((await providerList.json()).data.providers.length, 1, 'Lifecycle must not duplicate providers');
+  console.log('linkbio smoke: native creation, same-ID replay, disable and re-enable with preserved links passed (no external URL fetched)');
   console.log('tenant smoke: assigned operator, required idempotency, single profile after replay, changed-payload conflict, cross-tenant read/write denial, cursor/count isolation and dashboard rendering passed');
 }
 const signout = await request('/api/auth/sign-out', {

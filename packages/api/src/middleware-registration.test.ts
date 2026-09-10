@@ -17,6 +17,12 @@ describe('application idempotency registration', () => {
     '/api/v1/bundles/bundle/approve',
     '/api/v1/bundles/bundle/revise',
     '/api/v1/bundles/bundle/reject',
+    ...paths.flatMap((pattern) => {
+      const concrete = pattern.replace(/:[^/]+/g, 'fixture');
+      return concrete.endsWith('/*')
+        ? [concrete.slice(0, -2), concrete.replaceAll('*', 'child')]
+        : [concrete.replaceAll('*', 'fixture')];
+    }),
   ])('runs exactly one idempotency layer for %s', async (path) => {
     expect(paths.length).toBeGreaterThan(0);
     const app = new Hono();
