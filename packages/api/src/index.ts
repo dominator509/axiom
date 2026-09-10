@@ -76,6 +76,7 @@ import {
 } from './relay-command-inputs.js';
 import { relayCommandAlreadyRecorded } from './relay-command-guard.js';
 import { validateProductionRelayConfig } from './production-config.js';
+import { readBoundedJson, readBoundedText, RequestBodyTooLargeError } from './webhook-body.js';
 import { timingSafeEqual } from 'node:crypto';
 
 type InboundRelayAdapter = {
@@ -845,6 +846,10 @@ export function createRelayApp(): Hono {
     healthRegistry,
     viralPersistence: relayViralPersistence,
   });
+  // Provider webhooks are public transport surfaces. Apply the same
+  // transport-aware limiter used by the REST API before any body parsing or
+  // signature work, so a valid secret is not an unlimited memory/CPU budget.
+  relay.use('/webhooks/*', rateLimit({ capacity: 120, refillPerSec: 2, maxBuckets: 100_000 }));
 
   const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
   const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.trim();
@@ -877,9 +882,17 @@ export function createRelayApp(): Hono {
 
         let payload: unknown;
         try {
-          payload = await c.req.json();
-        } catch {
-          return c.json({ error: 'invalid JSON payload' }, 400);
+          payload = await readBoundedJson(c.req.raw);
+        } catch (error) {
+          return c.json(
+            {
+              error:
+                error instanceof RequestBodyTooLargeError
+                  ? 'payload too large'
+                  : 'invalid JSON payload',
+            },
+            error instanceof RequestBodyTooLargeError ? 413 : 400,
+          );
         }
         try {
           await telegram.handleWebhook(payload as Parameters<TelegramAdapter['handleWebhook']>[0]);
@@ -923,7 +936,20 @@ export function createRelayApp(): Hono {
     });
 
     relay.post('/webhooks/threads', async (c) => {
-      const rawBody = await c.req.text();
+      let rawBody: string;
+      try {
+        rawBody = await readBoundedText(c.req.raw);
+      } catch (error) {
+        return c.json(
+          {
+            error:
+              error instanceof RequestBodyTooLargeError
+                ? 'payload too large'
+                : 'invalid request body',
+          },
+          error instanceof RequestBodyTooLargeError ? 413 : 400,
+        );
+      }
       let payload: unknown;
       try {
         payload = JSON.parse(rawBody);
@@ -961,9 +987,17 @@ export function createRelayApp(): Hono {
         }
         let payload: unknown;
         try {
-          payload = await c.req.json();
-        } catch {
-          return c.json({ error: 'invalid JSON payload' }, 400);
+          payload = await readBoundedJson(c.req.raw);
+        } catch (error) {
+          return c.json(
+            {
+              error:
+                error instanceof RequestBodyTooLargeError
+                  ? 'payload too large'
+                  : 'invalid JSON payload',
+            },
+            error instanceof RequestBodyTooLargeError ? 413 : 400,
+          );
         }
         try {
           const handled = await imessage.handleWebhook(payload);

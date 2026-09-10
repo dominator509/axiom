@@ -140,6 +140,18 @@ describe('relay routes mounted via initRelay', () => {
       expect(accepted.status).toBe(200);
       expect(await accepted.json()).toEqual({ ok: true });
       expect(handleWebhookSpy).toHaveBeenCalledWith({ update_id: 1 });
+
+      const oversized = await relayApp.request('/webhooks/telegram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Telegram-Bot-Api-Secret-Token': 'telegram-test-secret',
+        },
+        body: `{"payload":"${'x'.repeat(262_144)}"}`,
+      });
+      expect(oversized.status).toBe(413);
+      expect(await oversized.json()).toEqual({ error: 'payload too large' });
+
       handleWebhookSpy.mockRestore();
     } finally {
       if (previousToken === undefined) delete process.env.TELEGRAM_BOT_TOKEN;
@@ -166,6 +178,14 @@ describe('relay routes mounted via initRelay', () => {
       });
       expect(response.status).toBe(400);
       await expect(response.json()).resolves.toEqual({ error: 'invalid JSON payload' });
+
+      const oversized = await relayApp.request('/webhooks/threads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: `{"payload":"${'x'.repeat(262_144)}"}`,
+      });
+      expect(oversized.status).toBe(413);
+      await expect(oversized.json()).resolves.toEqual({ error: 'payload too large' });
     } finally {
       if (previousClientId === undefined) delete process.env.THREADS_CLIENT_ID;
       else process.env.THREADS_CLIENT_ID = previousClientId;
