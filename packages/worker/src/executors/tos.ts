@@ -74,8 +74,22 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
 
   const captions = (bundle.captions as Record<string, string> | null) ?? {};
   const hashtags = (bundle.hashtags as string[] | null) ?? [];
-  const platforms = Object.keys(captions).length > 0 ? Object.keys(captions) : ['instagram'];
-  let report: EvaluationResult | ReturnType<typeof evaluateTextToS>;
+  const platforms = asToSPlatforms(Object.keys(captions));
+  if (platforms.length === 0) throw new Error('tos.scan: bundle has no target captions');
+  // Each destination must be checked against the caption it will publish.
+  // Group identical captions to avoid repeated visual inference when platforms
+  // share content, without applying the first caption to unrelated targets.
+  const captionGroups = new Map<string, Platform[]>();
+  for (const platform of platforms) {
+    const caption = captions[platform];
+    if (typeof caption !== 'string') {
+      throw new Error(`tos.scan: invalid caption for '${platform}'`);
+    }
+    const group = captionGroups.get(caption) ?? [];
+    group.push(platform);
+    captionGroups.set(caption, group);
+  }
+  let asset: ToSAsset | undefined;
   if (bundle.assetId) {
     const assets = await tx
       .select({ kind: schema.asset.kind, storageKey: schema.asset.storageKey })
@@ -88,16 +102,32 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
         ),
       )
       .limit(1);
-    const asset = assets[0];
+    asset = assets[0];
     if (!asset) {
       throw new Error(
         `tos.scan: asset ${bundle.assetId} not found or not owned by model ${bundle.modelId}`,
       );
     }
-    report = await evaluateMediaToS(asset, captions[platforms[0]] ?? '', hashtags, platforms);
-  } else {
-    report = evaluateTextToS(captions[platforms[0]] ?? '', hashtags, asToSPlatforms(platforms));
   }
+
+  const reports: EvaluationResult[] = [];
+  for (const [caption, targets] of captionGroups) {
+    reports.push(
+      asset
+        ? await evaluateMediaToS(asset, caption, hashtags, targets)
+        : evaluateTextToS(caption, hashtags, targets),
+    );
+  }
+  const scores = reports.flatMap((result) => result.scores);
+  const report: EvaluationResult = {
+    verdict: reports.some((result) => result.verdict === 'block')
+      ? 'block'
+      : reports.some((result) => result.verdict === 'review')
+        ? 'review'
+        : 'pass',
+    scores,
+    reasons: [...new Set(reports.flatMap((result) => result.reasons))],
+  };
 
   await tx
     .update(schema.contentBundle)
