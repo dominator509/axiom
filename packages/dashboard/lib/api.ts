@@ -217,9 +217,9 @@ export const api = {
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio/analytics`),
   },
   bundles: {
-    list: (modelId?: string, state?: string) =>
-      apiFetch<{ data: ContentBundle[] }>(
-        `/api/v1/bundles${modelId || state ? `?${new URLSearchParams({ ...(modelId ? { modelId } : {}), ...(state ? { state } : {}) })}` : ''}`,
+    list: (modelId?: string, state?: string, cursor?: string) =>
+      apiFetch<{ data: ContentBundle[]; meta: { next_cursor: string | null } }>(
+        `/api/v1/bundles${modelId || state || cursor ? `?${new URLSearchParams({ ...(modelId ? { modelId } : {}), ...(state ? { state } : {}), ...(cursor ? { cursor } : {}) })}` : ''}`,
       ),
     get: (id: string) => apiFetch<{ data: ContentBundle }>(`/api/v1/bundles/${id}`),
     approve: (
