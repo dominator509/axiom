@@ -39,7 +39,7 @@ describe('XConnector basics', () => {
     const c = new XConnector(AUTH);
     const cap = c.capability();
     expect(cap.publish).toBe(true);
-    expect(cap.media).toEqual(['image', 'video', 'text']);
+    expect(cap.media).toEqual(['image', 'video', 'gif', 'text']);
     expect(cap.maxMediaBytes).toBe(536_870_912);
     expect(cap.maxMediaCount).toBe(4);
     expect(cap.caption).toBe(true);
@@ -104,6 +104,68 @@ describe('validate', () => {
     });
   });
 
+  it('rejects multiple videos before uploading any media', async () => {
+    const c = new XConnector(AUTH);
+    const report = await c.validate(
+      input({
+        mediaUrls: ['https://cdn.example.com/one.mp4', 'https://cdn.example.com/two.mp4'],
+      }),
+    );
+    expect(report.valid).toBe(false);
+    expect(report.errors).toContainEqual({
+      field: 'mediaUrls',
+      message:
+        'X posts allow up to four images, one GIF, or one video; media types cannot be mixed.',
+      severity: 'error',
+    });
+  });
+
+  it('rejects mixed image and video media before uploading any media', async () => {
+    const c = new XConnector(AUTH);
+    const report = await c.validate(
+      input({
+        mediaUrls: ['https://cdn.example.com/one.jpg', 'https://cdn.example.com/two.mp4'],
+      }),
+    );
+    expect(report.valid).toBe(false);
+    expect(report.tosVerdict).toBe('block');
+  });
+
+  it('publish refuses an invalid media composition before provider I/O', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new XConnector(AUTH);
+    const result = await c.publish(
+      input({
+        mediaUrls: ['https://cdn.example.com/one.jpg', 'https://cdn.example.com/two.mp4'],
+      }),
+    );
+
+    expect(result.state).toBe('failed');
+    expect(result.error).toContain('media types cannot be mixed');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects multiple GIFs before uploading any media', async () => {
+    const c = new XConnector(AUTH);
+    const report = await c.validate(
+      input({
+        mediaUrls: ['https://cdn.example.com/one.gif', 'https://cdn.example.com/two.gif'],
+      }),
+    );
+    expect(report.valid).toBe(false);
+    expect(report.errors.at(-1)?.message).toBe(
+      'X posts allow up to four images, one GIF, or one video; media types cannot be mixed.',
+    );
+  });
+
+  it('accepts a single GIF', async () => {
+    const c = new XConnector(AUTH);
+    const report = await c.validate(input({ mediaUrls: ['https://cdn.example.com/post.gif'] }));
+    expect(report.valid).toBe(true);
+  });
+
   it('blocks unsupported media types (audio)', async () => {
     const c = new XConnector(AUTH);
     const report = await c.validate(input({ mediaUrls: ['https://cdn.example.com/track.mp3'] }));
@@ -111,7 +173,7 @@ describe('validate', () => {
     expect(report.errors).toContainEqual({
       field: 'mediaUrls[0]',
       message:
-        'Media type "audio" is not in the connector\'s supported types (image, video, text).',
+        'Media type "audio" is not in the connector\'s supported types (image, video, gif, text).',
       severity: 'error',
     });
     expect(report.tosVerdict).toBe('block');
@@ -154,6 +216,7 @@ describe('publish', () => {
     const initForm = initInit.body as FormData;
     expect(initForm.get('command')).toBe('INIT');
     expect(initForm.get('media_type')).toBe('image/jpeg');
+    expect(initForm.get('media_category')).toBe('tweet_image');
     expect(initForm.get('total_bytes')).toBe('8');
     expect((initInit.headers as Record<string, string>).Authorization).toBe('Bearer x-token-123');
 
@@ -196,12 +259,53 @@ describe('publish', () => {
     expect(JSON.parse(init.body as string)).toEqual({ text: 'Hello from X' });
   });
 
+  it('uploads a GIF with the GIF media category', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response('gifdata', { status: 200, headers: { 'Content-Type': 'image/gif' } }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ media_id_string: 'gif-1', media_id: 1, size: 7, expires_after_secs: 3600 }),
+      )
+      .mockResolvedValueOnce(jsonResponse({}))
+      .mockResolvedValueOnce(jsonResponse({ media_id_string: 'gif-1', media_id: 1, size: 7 }))
+      .mockResolvedValueOnce(jsonResponse({ data: { id: 'tweet-gif', text: 'Hello from X' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new XConnector(AUTH);
+    const result = await c.publish(input({ mediaUrls: ['https://cdn.example.com/post.gif'] }));
+
+    expect(result.state).toBe('published');
+    const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const form = init.body as FormData;
+    expect(form.get('media_type')).toBe('image/gif');
+    expect(form.get('media_category')).toBe('tweet_gif');
+  });
+
+  it('rejects an oversized image before allocating or initializing an upload', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('x', {
+        status: 200,
+        headers: { 'Content-Type': 'image/jpeg', 'Content-Length': '5000001' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new XConnector(AUTH);
+    const result = await c.publish(input({ mediaUrls: ['https://cdn.example.com/large.jpg'] }));
+
+    expect(result.state).toBe('failed');
+    expect(result.error).toContain('maximum supported size of 5000000 bytes');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('splits large files into multiple APPEND segments', async () => {
     const big = 'a'.repeat(5 * 1024 * 1024 + 1); // > 5 MB chunk size
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
-        new Response(big, { status: 200, headers: { 'Content-Type': 'image/jpeg' } }),
+        new Response(big, { status: 200, headers: { 'Content-Type': 'video/mp4' } }),
       )
       .mockResolvedValueOnce(jsonResponse({ media_id_string: 'm1', media_id: 1, size: big.length }))
       .mockResolvedValueOnce(jsonResponse({})) // APPEND 0
@@ -211,7 +315,7 @@ describe('publish', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new XConnector(AUTH);
-    const result = await c.publish(input({ mediaUrls: ['https://cdn.example.com/big.jpg'] }));
+    const result = await c.publish(input({ mediaUrls: ['https://cdn.example.com/big.mp4'] }));
 
     expect(result.state).toBe('published');
     expect(fetchMock).toHaveBeenCalledTimes(6);
@@ -256,6 +360,11 @@ describe('publish', () => {
       expect(result.state).toBe('published');
       expect(result.remoteId).toBe('tweet-1');
       expect(fetchMock).toHaveBeenCalledTimes(7);
+
+      const [, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+      const initForm = init.body as FormData;
+      expect(initForm.get('media_type')).toBe('video/mp4');
+      expect(initForm.get('media_category')).toBe('tweet_video');
 
       const status1Url = (fetchMock.mock.calls[4] as [string])[0];
       const status2Url = (fetchMock.mock.calls[5] as [string])[0];

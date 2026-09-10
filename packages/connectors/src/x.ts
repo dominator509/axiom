@@ -22,12 +22,43 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
-import { validatePublish } from './validation.js';
+import { mediaTypeHint, validatePublish } from './validation.js';
 
 const TWITTER_UPLOAD_BASE = 'https://upload.twitter.com/1.1';
 const TWITTER_API_BASE = 'https://api.twitter.com/2';
 const TWITTER_OAUTH_REVOKE = 'https://api.twitter.com/2/oauth2/revoke';
-const X_MAX_MEDIA_BYTES = 536_870_912;
+const X_IMAGE_MAX_BYTES = 5_000_000;
+const X_GIF_MAX_BYTES = 15_000_000;
+const X_VIDEO_MAX_BYTES = 536_870_912;
+const X_MAX_MEDIA_BYTES = X_VIDEO_MAX_BYTES;
+
+type XMediaKind = 'image' | 'gif' | 'video';
+
+/**
+ * X accepts a homogeneous media set on a post. The shared capability shape
+ * can express the overall count, but not the provider rule that a post may
+ * contain either up to four images, one GIF, or one video. Keep this constraint at the
+ * connector boundary so invalid inputs are rejected before media uploads.
+ */
+function inferXMediaKind(
+  url: string,
+  declared?: ReturnType<typeof mediaTypeHint>,
+): XMediaKind {
+  if (declared === 'video') return 'video';
+  if (declared === 'gif') return 'gif';
+  if (declared === 'image') return 'image';
+
+  try {
+    const extension = new URL(url).pathname.split('.').pop()?.toLowerCase();
+    if (extension === 'gif') return 'gif';
+    return extension && ['mp4', 'mov', 'webm', 'avi', 'mkv', 'm4v'].includes(extension)
+      ? 'video'
+      : 'image';
+  } catch {
+    // The common validator already treats an unknown URL extension as image.
+    return 'image';
+  }
+}
 
 interface MediaInitResponse {
   media_id_string: string;
@@ -76,7 +107,12 @@ export class XConnector extends BaseConnector implements SocialConnector {
   capability(): ConnectorCapability {
     return {
       publish: true,
-      media: ['image' as MediaType, 'video' as MediaType, 'text' as MediaType],
+      media: [
+        'image' as MediaType,
+        'video' as MediaType,
+        'gif' as MediaType,
+        'text' as MediaType,
+      ],
       maxMediaBytes: X_MAX_MEDIA_BYTES,
       maxMediaCount: 4,
       caption: true,
@@ -88,11 +124,36 @@ export class XConnector extends BaseConnector implements SocialConnector {
   }
 
   async validate(input: ConnectorPublishInput): Promise<ValidationReport> {
-    return validatePublish(input, this.capability());
+    const report = validatePublish(input, this.capability());
+    if (input.mediaUrls.length > 1) {
+      const declared = mediaTypeHint(input);
+      const mediaKinds = input.mediaUrls.map((url) => inferXMediaKind(url, declared));
+      const containsVideo = mediaKinds.includes('video');
+      const containsGif = mediaKinds.includes('gif');
+
+      if (containsVideo || containsGif) {
+        report.valid = false;
+        report.tosVerdict = 'block';
+        report.errors.push({
+          field: 'mediaUrls',
+          message:
+            'X posts allow up to four images, one GIF, or one video; media types cannot be mixed.',
+          severity: 'error',
+        });
+      }
+    }
+    return report;
   }
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
     return this.idempotentPublish(input, async () => {
+      const validation = await this.validate(input);
+      if (!validation.valid) {
+        throw new Error(
+          `X publish validation failed: ${validation.errors.map((error) => error.message).join('; ')}`,
+        );
+      }
+
       const mediaIds: string[] = [];
 
       // Step 1: Upload each media file via chunked upload (INIT → APPEND → FINALIZE)
@@ -231,17 +292,44 @@ export class XConnector extends BaseConnector implements SocialConnector {
       throw new Error(`Failed to download media from ${mediaUrl}: ${mediaResponse.status}`);
     }
 
-    const mediaBuffer = await readResponseBytes(mediaResponse, X_MAX_MEDIA_BYTES, 'X media');
-    const totalBytes = mediaBuffer.byteLength;
     const contentType = mediaResponse.headers.get('content-type') ?? 'application/octet-stream';
+    const normalizedContentType = contentType.split(';', 1)[0]?.trim().toLowerCase();
+    const mediaKind = inferXMediaKind(
+      mediaUrl,
+      normalizedContentType?.startsWith('video/')
+        ? 'video'
+        : normalizedContentType === 'image/gif'
+          ? 'gif'
+          : undefined,
+    );
+    const maxBytes =
+      mediaKind === 'video'
+        ? X_VIDEO_MAX_BYTES
+        : mediaKind === 'gif'
+          ? X_GIF_MAX_BYTES
+          : X_IMAGE_MAX_BYTES;
+    const mediaBuffer = await readResponseBytes(mediaResponse, maxBytes, 'X media');
+    const totalBytes = mediaBuffer.byteLength;
 
     // Detect media type for the upload
-    const mediaType = contentType.startsWith('video/') ? 'video/mp4' : 'image/jpeg';
+    const mediaType =
+      mediaKind === 'video'
+        ? normalizedContentType?.startsWith('video/')
+          ? normalizedContentType
+          : 'video/mp4'
+        : mediaKind === 'gif'
+          ? 'image/gif'
+          : normalizedContentType?.startsWith('image/')
+            ? normalizedContentType
+            : 'image/jpeg';
+    const mediaCategory =
+      mediaKind === 'video' ? 'tweet_video' : mediaKind === 'gif' ? 'tweet_gif' : 'tweet_image';
 
     // STEP 1: INIT — allocate a media ID
     const initFormData = new FormData();
     initFormData.append('command', 'INIT');
     initFormData.append('media_type', mediaType);
+    initFormData.append('media_category', mediaCategory);
     initFormData.append('total_bytes', String(totalBytes));
 
     const initResp = await this.fetchImpl(`${TWITTER_UPLOAD_BASE}/media/upload.json`, {
@@ -333,7 +421,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
     const finalizeData = await readResponseJson<MediaFinalizeResponse>(finalizeResp);
 
     // For videos, wait for processing to complete
-    if (mediaType.startsWith('video/') && finalizeData.processing_state === 'pending') {
+    if (mediaKind === 'video' && finalizeData.processing_state === 'pending') {
       await this.pollMediaProcessing(mediaId);
     }
 
