@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { mutationFetch } from '@/lib/mutation';
+import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError } from '@/lib/response';
 import { approvalSlot } from '@/lib/schedule';
 import type { SocialConnection } from '@/lib/api';
@@ -54,6 +54,8 @@ export default function ApproveButtons({
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const intent = useRef<{ path: string; body: string; key: string } | null>(null);
 
   function toggle(p: string) {
     setSelected((prev) => {
@@ -74,6 +76,8 @@ export default function ApproveButtons({
   const selectedWithoutConnection = selected.filter((platform) => !connectionIds[platform]);
 
   async function act(action: 'approve' | 'revise' | 'reject') {
+    if (inFlight.current) return;
+    if (action === 'approve' && (tosBlocked || selected.length === 0 || selectedWithoutConnection.length > 0)) return;
     let scheduledSlot: string | undefined;
     if (action === 'approve') {
       try {
@@ -87,16 +91,23 @@ export default function ApproveButtons({
       setError('Enter caption revision instructions.');
       return;
     }
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     setNotice(null);
     try {
+      const send = (body: string) => {
+        const path = `/api/v1/bundles/${bundleId}/${action}`;
+        if (intent.current?.path !== path || intent.current.body !== body) {
+          intent.current = { path, body, key: createIdempotencyKey() };
+        }
+        return mutationFetch(path, {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body,
+        }, { idempotencyKey: intent.current.key });
+      };
       let res: Response;
       if (action === 'approve') {
-        res = await mutationFetch(`/api/v1/bundles/${bundleId}/approve`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
+        res = await send(JSON.stringify({
             platforms: selected,
             revisionId,
             slot: scheduledSlot,
@@ -105,34 +116,27 @@ export default function ApproveButtons({
                 .filter((platform) => connectionIds[platform])
                 .map((platform) => [platform, connectionIds[platform]]),
             ),
-          }),
-        });
+          }));
       } else if (action === 'revise') {
-        res = await mutationFetch(`/api/v1/bundles/${bundleId}/revise`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ instructions: instructions.trim(), revisionId }),
-        });
+        res = await send(JSON.stringify({ instructions: instructions.trim(), revisionId }));
       } else {
-        res = await mutationFetch(`/api/v1/bundles/${bundleId}/reject`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ revisionId }),
-        });
+        res = await send(JSON.stringify({ revisionId }));
       }
       if (!res.ok) {
         const b = await readDashboardError(res);
         setError(b?.error?.message ?? 'Action failed');
         return;
       }
+      intent.current = null;
       if (action === 'revise')
         setNotice(
           'Caption revision queued. Approval requires a fresh ToS scan. Media and hashtags are unchanged.',
         );
       router.refresh();
     } catch {
-      setError('Network error');
+      setError('Action could not be confirmed. Retry the unchanged action to check the same request.');
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -144,6 +148,7 @@ export default function ApproveButtons({
           <button
             key={p}
             type="button"
+            disabled={busy}
             className={`btn ${selected.includes(p) ? '' : 'secondary'}`}
             style={{ padding: '4px 10px', fontSize: 12 }}
             onClick={() => toggle(p)}
@@ -163,6 +168,7 @@ export default function ApproveButtons({
           </small>
           <input
             type="datetime-local"
+            disabled={busy}
             value={slot}
             onChange={(e) => setSlot(e.target.value)}
             style={{ marginLeft: 8, width: 'auto' }}
@@ -179,6 +185,7 @@ export default function ApproveButtons({
           <label key={platform} style={{ margin: 0 }}>
             {platform} account
             <select
+              disabled={busy}
               value={connectionIds[platform] ?? ''}
               onChange={(event) =>
                 setConnectionIds((current) => ({ ...current, [platform]: event.target.value }))
@@ -200,7 +207,7 @@ export default function ApproveButtons({
           Connect or select an account for: {selectedWithoutConnection.join(', ')}
         </p>
       )}
-      {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
+      {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
       {notice && <p role="status">{notice}</p>}
       <label>
         Caption revision instructions
