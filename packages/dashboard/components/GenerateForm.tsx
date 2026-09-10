@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { mutationFetch } from '@/lib/mutation';
+import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 
 const PLATFORMS = [
@@ -38,6 +38,8 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
       scores: Array<{ platform: string; verdict: string; score: number }>;
     };
   } | null>(null);
+  const inFlight = useRef(false);
+  const intent = useRef<{ modelId: string; body: string; key: string } | null>(null);
 
   function togglePlatform(p: string) {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
@@ -45,24 +47,23 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (inFlight.current || platforms.length === 0) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     setResult(null);
     try {
+      const requestBody = JSON.stringify({
+        style, outfit, location, mood, lighting, aspectRatio, platforms, enrichWithLlm: enrich,
+      });
+      if (intent.current?.modelId !== modelId || intent.current.body !== requestBody) {
+        intent.current = { modelId, body: requestBody, key: createIdempotencyKey() };
+      }
       const res = await mutationFetch(`/api/v1/models/${modelId}/generate`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          style,
-          outfit,
-          location,
-          mood,
-          lighting,
-          aspectRatio,
-          platforms,
-          enrichWithLlm: enrich,
-        }),
-      });
+        body: requestBody,
+      }, { idempotencyKey: intent.current.key });
       if (!res.ok) {
         const b = await readDashboardError(res);
         setError(b?.error?.message ?? 'Generation failed');
@@ -70,10 +71,12 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
       }
       const body = await readDashboardJson<{ data: typeof result }>(res);
       setResult(body.data);
+      intent.current = null;
       router.refresh();
     } catch {
-      setError('Network error');
+      setError('Generation could not be confirmed. Retry the unchanged brief to check the same request.');
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -87,6 +90,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         media-only destination.
       </p>
       <form onSubmit={onSubmit} className="stack" style={{ maxWidth: 640 }}>
+        <fieldset disabled={busy} className="stack" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <div className="grid">
           <div>
             <label htmlFor="style">Style</label>
@@ -148,12 +152,13 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
           />
           Enrich captions via LLM gateway (optional, live provider call)
         </label>
-        {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
+        {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
         <div>
           <button className="btn" type="submit" disabled={busy || platforms.length === 0}>
             {busy ? 'Generating…' : 'Generate content brief'}
           </button>
         </div>
+        </fieldset>
       </form>
 
       {result && (
