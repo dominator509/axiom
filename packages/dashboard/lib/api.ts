@@ -4,8 +4,9 @@
 
 import { cookies } from 'next/headers';
 import { createIdempotencyKey } from './mutation';
+import { resolveApiOrigin } from './api-origin';
 
-const API_BASE = process.env.API_ORIGIN ?? 'http://127.0.0.1:3001';
+const API_BASE = resolveApiOrigin();
 export const DEFAULT_SERVER_REQUEST_TIMEOUT_MS = 10_000;
 
 function createRequestSignal(

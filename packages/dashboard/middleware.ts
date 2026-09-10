@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveApiOrigin } from './lib/api-origin';
 
-const API_ORIGIN = process.env.API_ORIGIN ?? 'http://127.0.0.1:3001';
+const API_ORIGIN = resolveApiOrigin();
 export const SESSION_REQUEST_TIMEOUT_MS = 3_000;
 
 export async function middleware(request: NextRequest) {

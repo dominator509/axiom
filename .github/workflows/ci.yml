@@ -280,7 +280,7 @@ jobs:
         if: matrix.task == 'container'
         run: |
           docker build --file infra/Dockerfile.hono --tag axiom-hono:ci .
-          docker build --file infra/Dockerfile.next --tag axiom-dashboard:ci .
+          docker build --build-arg API_ORIGIN=http://127.0.0.1:3001 --file infra/Dockerfile.next --tag axiom-dashboard:ci .
           docker build --file infra/Dockerfile.worker --tag axiom-worker:ci .
           docker build --file infra/Dockerfile.rust --tag axiom-egress-plane:ci .
           docker build --file infra/Dockerfile.vision --tag axiom-vision-engine:ci .
