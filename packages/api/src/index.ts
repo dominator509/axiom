@@ -10,7 +10,7 @@ import { socialRouter } from './routes/social.js';
 import { killswitchRouter } from './routes/killswitch.js';
 import { egressRouter } from './routes/egress.js';
 import { networkRouter } from './routes/network.js';
-import { postsRouter } from './routes/posts.js';
+import { postsRouter, hasUnknownPublishOutcome } from './routes/posts.js';
 import { linkbioRouter, publicLinkbioRouter } from './routes/linkbio.js';
 import { fansRouter } from './routes/fans.js';
 import { analyticsRouter } from './routes/analytics.js';
@@ -154,7 +154,7 @@ function matchesWebhookSecret(expected: string, supplied: string | undefined): b
  * (HTTP signed commands carry no session; provider callbacks additionally
  * carry a channel identity that must match the persisted card binding).
  */
-async function relayCommandExecutor(
+export async function relayCommandExecutor(
   action: CardAction,
   cardId: string,
   params: Record<string, unknown>,
@@ -407,19 +407,36 @@ async function relayCommandExecutor(
           );
         }
         const scheduledFor = relayScheduledFor(params, action);
-        const targets: Array<{ id: string; platform: string; state: string }> = await tx
+        const targets: Array<{
+          id: string;
+          platform: string;
+          state: string;
+          remoteId: string | null;
+        }> = await tx
           .select({
             id: schema.postTarget.id,
             platform: schema.postTarget.platform,
             state: schema.postTarget.state,
+            remoteId: schema.postTarget.remoteId,
           })
           .from(schema.postTarget)
-          .where(and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)));
+          .where(and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)))
+          // Match dashboard/worker lock ownership and order multiple targets
+          // consistently when commands from different relay cards race.
+          .orderBy(schema.postTarget.id)
+          .for('update');
         if (targets.length === 0) {
           throw new Error('relay command: approved bundle has no publish targets to reschedule');
         }
-        if (targets.some((target) => target.state !== 'pending')) {
+        if (targets.some((target) => target.state !== 'pending' || target.remoteId)) {
           throw new Error('relay command: reschedule is not allowed after publication begins');
+        }
+        for (const target of targets) {
+          if (await hasUnknownPublishOutcome(tx, orgId, target.id)) {
+            throw new Error(
+              'relay command: provider outcome is unknown; reconcile before rescheduling',
+            );
+          }
         }
         for (const target of targets) {
           const updated = await tx

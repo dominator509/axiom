@@ -28,7 +28,7 @@ const router = new Hono<AppBindings>();
 // Call while holding the target FOR UPDATE lock, which serializes against
 // publish.target. The independent dispatch marker survives a worker rollback
 // before the worker has had a chance to record its dead-letter outcome.
-async function hasUnknownPublishOutcome(
+export async function hasUnknownPublishOutcome(
   tx: any,
   orgId: string,
   targetId: string,
