@@ -383,6 +383,42 @@ skip('M-9 live DB — worker viral executor writes exemplars (L3.5)', () => {
   });
 });
 
+skip('Relay dispatch marker identity', () => {
+  it('rejects a second pending marker but permits a new review after completion', async () => {
+    await setOrg(orgId);
+    const bundleId = randomUUID();
+    await q(`INSERT INTO content_bundle (id, org_id, model_id) VALUES ($1, $2, $3)`, [
+      bundleId,
+      orgId,
+      modelId,
+    ]);
+    const reserve = (destination: string) =>
+      q(
+        `INSERT INTO relay_card (org_id, bundle_id, channel, external_ref, state)
+         VALUES ($1, $2, 'telegram', $3, 'pending')
+         ON CONFLICT DO NOTHING RETURNING id`,
+        [orgId, bundleId, destination],
+      );
+
+    const first = await reserve('review-room');
+    expect(first.rows).toHaveLength(1);
+    expect((await reserve('review-room')).rows).toHaveLength(0);
+    // Fan-out to another destination must remain possible.
+    expect((await reserve('other-room')).rows).toHaveLength(1);
+
+    await q(`UPDATE relay_card SET state = 'sent' WHERE id = $1`, [first.rows[0].id]);
+    const nextReview = await reserve('review-room');
+    expect(nextReview.rows).toHaveLength(1);
+    expect(nextReview.rows[0].id).not.toBe(first.rows[0].id);
+    const history = await q(
+      `SELECT state FROM relay_card WHERE org_id = $1 AND bundle_id = $2
+         AND external_ref = 'review-room' ORDER BY state`,
+      [orgId, bundleId],
+    );
+    expect(history.rows).toEqual([{ state: 'pending' }, { state: 'sent' }]);
+  });
+});
+
 // Guard: if DATABASE_URL was set, at least ensure the suite is discoverable.
 it('live-DB suite is wired into the db test run', () => {
   expect(true).toBe(true);
