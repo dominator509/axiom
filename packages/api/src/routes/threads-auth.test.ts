@@ -50,33 +50,40 @@ function callbackInit(response: Response): RequestInit {
   };
 }
 
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
 function installFetchMock(options: { longLivedOk?: boolean } = {}) {
   const fetchMock = vi.fn((url: string | URL, _init?: RequestInit) => {
     const value = String(url);
     if (value.includes('/egress/encrypt')) {
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
+      return Promise.resolve(
+        jsonResponse({
           enc_creds: Buffer.from('ciphertext').toString('base64'),
           enc_nonce: Buffer.from('nonce').toString('base64'),
           dek_id: 'test-dek',
         }),
-      });
+      );
     }
     if (value.endsWith('/oauth/access_token')) {
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
+      return Promise.resolve(
+        jsonResponse({
           access_token: 'short-lived-token',
           user_id: 'threads-user-1',
           expires_in: 3600,
         }),
-      });
+      );
     }
-    return Promise.resolve({
-      ok: options.longLivedOk !== false,
-      json: async () => ({ access_token: 'long-lived-token', expires_in: 5_184_000 }),
-    });
+    return Promise.resolve(
+      jsonResponse(
+        { access_token: 'long-lived-token', expires_in: 5_184_000 },
+        options.longLivedOk !== false ? 200 : 400,
+      ),
+    );
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;

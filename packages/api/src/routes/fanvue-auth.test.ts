@@ -51,15 +51,19 @@ function callbackInit(response: Response): RequestInit {
   };
 }
 
-function egressResponse(): { ok: boolean; json: () => Promise<Record<string, string>> } {
-  return {
-    ok: true,
-    json: async () => ({
-      enc_creds: Buffer.from('ciphertext').toString('base64'),
-      enc_nonce: Buffer.from('nonce').toString('base64'),
-      dek_id: 'test-dek',
-    }),
-  };
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function egressResponse(): Response {
+  return jsonResponse({
+    enc_creds: Buffer.from('ciphertext').toString('base64'),
+    enc_nonce: Buffer.from('nonce').toString('base64'),
+    dek_id: 'test-dek',
+  });
 }
 
 function installFetchMock(
@@ -71,7 +75,7 @@ function installFetchMock(
 ) {
   const fetchMock = vi.fn((url: string | URL, _init?: RequestInit) => {
     if (String(url).includes('/egress/encrypt')) return Promise.resolve(egressResponse());
-    return Promise.resolve({ ok: true, json: async () => tokenData });
+    return Promise.resolve(jsonResponse(tokenData));
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
