@@ -233,7 +233,12 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
           schema.linkbioProvider.modelId,
           schema.linkbioProvider.kind,
         ],
-        set: { enabled: true, config: body.config, updatedAt: new Date() },
+        set: {
+          enabled: true,
+          config: body.config,
+          updatedAt: new Date(),
+          ...(body.isPrimary === undefined ? {} : { isPrimary: body.isPrimary }),
+        },
       })
       .returning();
     await writeAudit(tx, orgId, userId, 'linkbio.enable', modelId, { kind: body.kind });

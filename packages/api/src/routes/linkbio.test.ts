@@ -32,6 +32,8 @@ function publicApp() {
 beforeEach(() => {
   mockState.result = [];
   mockState.results = [];
+  mockState.updates = [];
+  mockState.conflictUpdates = [];
 });
 
 afterEach(() => {
@@ -90,6 +92,30 @@ describe('POST /models/:modelId/linkbio', () => {
     const body = (await res.json()) as any;
     expect(body.data.kind).toBe('native');
     expect(body.data.enabled).toBe(true);
+  });
+
+  it('persists an explicit primary-provider selection when re-enabling', async () => {
+    mockState.result = [
+      {
+        id: PROVIDER_ID,
+        orgId: ORG_ID,
+        modelId: MODEL_ID,
+        kind: 'native',
+        enabled: true,
+        isPrimary: true,
+      },
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'native', isPrimary: true, config: {} }),
+    });
+    expect(res.status).toBe(201);
+    expect(mockState.conflictUpdates.at(-1)).toEqual(
+      expect.objectContaining({
+        set: expect.objectContaining({ enabled: true, isPrimary: true }),
+      }),
+    );
   });
 
   it('rejects an unknown provider kind (400)', async () => {
