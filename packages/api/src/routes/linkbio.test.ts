@@ -327,4 +327,17 @@ describe('public Native Link-in-Bio page', () => {
     const res = await publicApp().request(`/${MODEL_ID}/s/not-a-configured-short-link`);
     expect(res.status).toBe(404);
   });
+
+  it('rate-limits the unauthenticated page and redirect surface', async () => {
+    const headers = { 'X-API-Key': 'linkbio-rate-limit-regression' };
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 61; attempt += 1) {
+      const res = await publicApp().request(`/${MODEL_ID}/s/not-a-configured-short-link`, {
+        headers,
+      });
+      statuses.push(res.status);
+    }
+    expect(statuses.slice(0, 60).every((status) => status === 404)).toBe(true);
+    expect(statuses[60]).toBe(429);
+  });
 });

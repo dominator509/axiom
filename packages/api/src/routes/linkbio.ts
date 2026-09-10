@@ -23,12 +23,11 @@ import { rateLimit } from '../contract.js';
 const router = new Hono<AppBindings>();
 const publicRouter = new Hono<AppBindings>();
 
-// Public click telemetry is intentionally unauthenticated, so it needs its
-// own anonymous bucket rather than relying on the authenticated /api/v1 gate.
-publicRouter.use(
-  '/:modelId/click/:providerId',
-  rateLimit({ capacity: 60, refillPerSec: 1, maxBuckets: 100_000 }),
-);
+// Every Native page and redirect is intentionally unauthenticated. The page
+// loader may provision missing short-link rows for older provider records and
+// the redirect increments click/analytics state, so protect the whole public
+// surface rather than only the legacy click endpoint.
+publicRouter.use('*', rateLimit({ capacity: 60, refillPerSec: 1, maxBuckets: 100_000 }));
 
 const PROVIDER_KINDS = ['native'] as const;
 
