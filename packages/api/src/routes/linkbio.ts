@@ -5,7 +5,7 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { zValidator } from '@hono/zod-validator';
+import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { sql, eq, and, desc } from 'drizzle-orm';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';

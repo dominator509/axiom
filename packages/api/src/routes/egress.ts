@@ -7,7 +7,7 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { zValidator } from '@hono/zod-validator';
+import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { eq, and, sql } from 'drizzle-orm';
 import { DEFAULT_EGRESS_PLANE_URL } from '@axiom/core';
 import { db, schema } from '@axiom/db';

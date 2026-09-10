@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { randomUUID } from 'node:crypto';
+import { boundedJsonBody } from './bounded-json-body.js';
 import type { LLMGateway } from './gateway.js';
 import { ProviderError } from './providers/types.js';
 import { PLATFORMS } from './prompts.js';
@@ -130,6 +131,7 @@ const tokenkillerBodySchema = chatBodySchema.extend({
 
 export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
   const router = new Hono<GatewayEnv>();
+  router.use('*', boundedJsonBody);
 
   // POST /chat — non-streaming completion
   router.post('/chat', zValidator('json', chatBodySchema), async (c) => {
@@ -244,11 +246,7 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
       );
     } catch (err) {
       const status = (err instanceof ProviderError ? err.status : 502) as
-        | 401
-        | 404
-        | 502
-        | 503
-        | 504;
+        401 | 404 | 502 | 503 | 504;
       return problemResponse(c, status, 'Unable to read subscription status');
     }
   });
@@ -293,11 +291,7 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
       return c.json({ provider: parsed.data, connected: false });
     } catch (err) {
       const status = (err instanceof ProviderError ? err.status : 502) as
-        | 401
-        | 404
-        | 502
-        | 503
-        | 504;
+        401 | 404 | 502 | 503 | 504;
       return problemResponse(c, status, 'Unable to disconnect subscription');
     }
   });

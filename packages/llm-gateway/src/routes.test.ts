@@ -77,6 +77,22 @@ const validBody = {
 };
 
 describe('createRouter — POST /chat', () => {
+  it('rejects an oversized JSON body before provider work', async () => {
+    const gateway = makeGatewayStub();
+    const app = createRouter(gateway);
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'x'.repeat(262_144) }],
+      }),
+    });
+
+    expect(res.status).toBe(413);
+    await expect(res.json()).resolves.toEqual({ error: 'payload too large' });
+    expect(gateway.chat).not.toHaveBeenCalled();
+  });
+
   // POST /chat — non-streaming completion
   it('returns a structured JSON error when the provider call fails', async () => {
     const gateway = makeGatewayStub();
