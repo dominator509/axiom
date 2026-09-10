@@ -3,6 +3,7 @@ import {
   DEFAULT_EGRESS_PLANE_URL,
   isProductionEnvironment,
   requireProductionDatabaseUrl,
+  requireProductionMediaPlaneConfig,
   resolveRelaySecret,
 } from './runtime-config.js';
 
@@ -46,6 +47,56 @@ describe('production runtime configuration', () => {
         NODE_ENV: 'production',
         DATABASE_URL: 'postgresql://axiom_app@db.example/axiom',
       }),
+    ).not.toThrow();
+  });
+
+  it('requires an explicit media-plane URL in production', () => {
+    expect(() => requireProductionMediaPlaneConfig({ NODE_ENV: 'production' })).toThrow(
+      'MEDIA_PLANE_URL is required in production',
+    );
+    expect(() =>
+      requireProductionMediaPlaneConfig({
+        NODE_ENV: 'production',
+        MEDIA_PLANE_URL: 'media-plane:8100',
+      }),
+    ).toThrow('MEDIA_PLANE_URL must be an absolute HTTP(S) URL without credentials or query');
+  });
+
+  it('requires a bearer token for a non-loopback media plane', () => {
+    expect(() =>
+      requireProductionMediaPlaneConfig({
+        NODE_ENV: 'production',
+        MEDIA_PLANE_URL: 'http://media-plane:8100',
+      }),
+    ).toThrow('MEDIA_PLANE_AUTH_TOKEN is required for a non-loopback media plane');
+    expect(() =>
+      requireProductionMediaPlaneConfig({
+        NODE_ENV: 'production',
+        MEDIA_PLANE_URL: 'http://media-plane:8100',
+        MEDIA_PLANE_AUTH_TOKEN: 'internal-token',
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects media-plane base URLs with a path or query', () => {
+    expect(() =>
+      requireProductionMediaPlaneConfig({
+        NODE_ENV: 'production',
+        MEDIA_PLANE_URL: 'http://media-plane:8100/media',
+        MEDIA_PLANE_AUTH_TOKEN: 'internal-token',
+      }),
+    ).toThrow('MEDIA_PLANE_URL must be an absolute HTTP(S) URL without credentials or query');
+  });
+
+  it('allows loopback media-plane development contracts without a token', () => {
+    expect(() =>
+      requireProductionMediaPlaneConfig({
+        NODE_ENV: 'production',
+        MEDIA_PLANE_URL: 'http://127.0.0.1:8100',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      requireProductionMediaPlaneConfig({ NODE_ENV: 'development' }),
     ).not.toThrow();
   });
 

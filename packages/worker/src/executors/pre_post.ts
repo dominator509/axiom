@@ -18,9 +18,7 @@ import type { ConnectorPublishInput } from '@axiom/connectors';
 import type { ExecutorContext } from './context.js';
 
 function defaultMediaPlaneUrl(): string {
-  return process.env.AXIOM_MEDIA_ADDR
-    ? `http://${process.env.AXIOM_MEDIA_ADDR}`
-    : (process.env.MEDIA_PLANE_URL ?? 'http://127.0.0.1:8100');
+  return process.env.MEDIA_PLANE_URL ?? 'http://127.0.0.1:8100';
 }
 
 function mediaPlaneHeaders(): Record<string, string> {

@@ -6,6 +6,7 @@ import { registerConnectors } from './connectors.js';
 import {
   installRuntimeFailureHandlers,
   requireProductionDatabaseUrl,
+  requireProductionMediaPlaneConfig,
   resolveRelaySecret,
 } from '@axiom/core';
 import { runWorker } from './worker.js';
@@ -21,6 +22,7 @@ installRuntimeFailureHandlers({
 // production worker with a weak secret must fail during boot rather than
 // appear healthy while processing unrelated queue work.
 requireProductionDatabaseUrl(process.env);
+requireProductionMediaPlaneConfig(process.env);
 resolveRelaySecret(process.env);
 
 // Register the real platform connectors before the loop starts so
