@@ -823,7 +823,7 @@ app.route('/api/v1/connectors/fanvue', fanvueAuthRouter);
 app.route('/api/v1/connectors/threads', threadsAuthRouter);
 app.route('/api/v1', killswitchRouter);
 app.route('/api/v1/egress', egressRouter);
-app.route('/api/v1', networkRouter);
+app.route('/api/v1/models', networkRouter);
 app.route('/api/v1', postsRouter);
 app.route('/api/v1', linkbioRouter);
 app.route('/api/v1', fansRouter);

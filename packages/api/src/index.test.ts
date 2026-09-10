@@ -58,6 +58,14 @@ describe('better-auth mounted at /api/auth/*', () => {
 });
 
 describe('mounted route groups', () => {
+  it('mounts network handlers at the documented model-scoped paths', () => {
+    const routes = app.routes.map((route: { method: string; path: string }) => `${route.method} ${route.path}`);
+    expect(routes).toContain('GET /api/v1/models/:modelId/network');
+    expect(routes).toContain('PUT /api/v1/models/:modelId/network');
+    expect(routes).toContain('GET /api/v1/models/:modelId/network/health');
+    expect(routes).not.toContain('PUT /api/v1/:modelId/network');
+  });
+
   it('models list without a session returns 401 (auth-gated)', async () => {
     const res = await app.request('/api/v1/models');
     expect(res.status).toBe(401);

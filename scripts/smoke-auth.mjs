@@ -238,6 +238,29 @@ SELECT count(*) FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' A
   assert.equal((await providerList.json()).data.providers.length, 1, 'Lifecycle must not duplicate providers');
   console.log('linkbio smoke: native creation, same-ID replay, disable and re-enable with preserved links passed (no external URL fetched)');
   const networkPath = `/api/v1/models/${createdBody.data.id}/network`;
+  const operatorNetworkRead = await request(networkPath, { headers: { cookie } });
+  assert.equal(operatorNetworkRead.status, 403, 'Network metadata is owner-only, including reads');
+  const operatorNetworkWrite = await request(networkPath, {
+    method: 'PUT', headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
+    body: JSON.stringify({ egressMode: 'direct', proxyAddr: null, expectedEgressIp: null }),
+  });
+  assert.equal(operatorNetworkWrite.status, 403, 'An ordinary operator cannot change network settings');
+  // Test-only owner assignment, scoped to this freshly created fixture identity.
+  // The production signup and authorization paths remain unchanged.
+  const ownerFixture = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_org=${orgId}`, '-v', `fixture_email=${email}`,
+  ], {
+    encoding: 'utf8', timeout: 10_000,
+    input: `WITH assigned AS (
+UPDATE auth_user SET role = 'owner' WHERE email = :'fixture_email' AND org_id = :'fixture_org' AND role = 'operator' RETURNING id
+) SELECT count(*) FROM assigned;`,
+  });
+  assert.equal(ownerFixture.status, 0, 'Disposable owner fixture must apply successfully');
+  assert.equal(ownerFixture.stdout.trim(), '1', 'Only the synthetic operator may be assigned ownership');
+  const ownerSession = await request('/api/auth/get-session', { headers: { cookie } });
+  assert.equal(ownerSession.status, 200);
+  assert.equal((await ownerSession.json()).user.role, 'owner', 'Session must reflect the server-assigned role');
   for (const values of [
     { proxyAddr: '127.0.0.1:1080', expectedEgressIp: '203.0.113.7' },
     { proxyAddr: null, expectedEgressIp: null },
@@ -253,7 +276,7 @@ SELECT count(*) FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' A
     assert.equal(network.proxyAddr, values.proxyAddr, 'Proxy metadata must reflect the saved value, including clearing');
     assert.equal(network.expectedEgressIp, values.expectedEgressIp, 'Expected IP metadata must reflect the saved value, including clearing');
   }
-  console.log('network smoke: synthetic metadata saved and cleared through runtime API (no plane binding or egress claim)');
+  console.log('network smoke: operator read/write denial, fixture-owner metadata save and clear passed (no plane binding or egress claim)');
   console.log('tenant smoke: assigned operator, required idempotency, single profile after replay, changed-payload conflict, cross-tenant read/write denial, cursor/count isolation and dashboard rendering passed');
 }
 const signout = await request('/api/auth/sign-out', {
