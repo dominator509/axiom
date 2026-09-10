@@ -34,9 +34,11 @@ export default function NetworkForm({
     setError(null);
     setDone(false);
     try {
-      const body: Record<string, unknown> = { egressMode: mode };
-      if (proxyAddr) body.proxyAddr = proxyAddr;
-      if (expectedIp) body.expectedEgressIp = expectedIp;
+      const body = {
+        egressMode: mode,
+        proxyAddr: proxyAddr.trim() || null,
+        expectedEgressIp: expectedIp.trim() || null,
+      };
       const res = await mutationFetch(`/api/v1/models/${modelId}/network`, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },

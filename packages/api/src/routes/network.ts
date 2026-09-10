@@ -30,12 +30,12 @@ const networkSchema = z
   .object({
     egressMode: z.enum(['direct', 'socks5', 'http', 'https', 'wireguard', 'vpn']).default('direct'),
     proxyType: z.string().max(20).optional(),
-    proxyAddr: z.string().max(500).optional(),
+    proxyAddr: z.string().max(500).nullable().optional(),
     wgPublicKey: z.string().max(200).optional(),
     wgEndpoint: z.string().max(500).optional(),
     wgAllowedIps: z.string().max(1000).optional(),
     wgPersistentKeepalive: z.number().int().min(0).max(65535).optional(),
-    expectedEgressIp: z.string().max(100).optional(),
+    expectedEgressIp: z.string().max(100).nullable().optional(),
     failoverProxyAddrs: z.array(z.string().max(500)).optional(),
   })
   .strict();

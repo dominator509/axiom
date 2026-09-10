@@ -237,6 +237,23 @@ SELECT count(*) FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' A
   assert.equal(providerList.status, 200);
   assert.equal((await providerList.json()).data.providers.length, 1, 'Lifecycle must not duplicate providers');
   console.log('linkbio smoke: native creation, same-ID replay, disable and re-enable with preserved links passed (no external URL fetched)');
+  const networkPath = `/api/v1/models/${createdBody.data.id}/network`;
+  for (const values of [
+    { proxyAddr: '127.0.0.1:1080', expectedEgressIp: '203.0.113.7' },
+    { proxyAddr: null, expectedEgressIp: null },
+  ]) {
+    const savedNetwork = await request(networkPath, {
+      method: 'PUT', headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
+      body: JSON.stringify({ egressMode: 'direct', ...values }),
+    });
+    assert.equal(savedNetwork.status, 200, 'Network metadata save must succeed');
+    const networkRead = await request(networkPath, { headers: { cookie } });
+    assert.equal(networkRead.status, 200);
+    const network = (await networkRead.json()).data;
+    assert.equal(network.proxyAddr, values.proxyAddr, 'Proxy metadata must reflect the saved value, including clearing');
+    assert.equal(network.expectedEgressIp, values.expectedEgressIp, 'Expected IP metadata must reflect the saved value, including clearing');
+  }
+  console.log('network smoke: synthetic metadata saved and cleared through runtime API (no plane binding or egress claim)');
   console.log('tenant smoke: assigned operator, required idempotency, single profile after replay, changed-payload conflict, cross-tenant read/write denial, cursor/count isolation and dashboard rendering passed');
 }
 const signout = await request('/api/auth/sign-out', {

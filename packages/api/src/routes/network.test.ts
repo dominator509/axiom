@@ -74,6 +74,29 @@ describe('GET /:modelId/network', () => {
 });
 
 describe('PUT /:modelId/network', () => {
+  it('accepts explicit null to clear saved proxy and expected IP fields', async () => {
+    mockState.result = [{ id: 'cfg-1', orgId: ORG_ID, modelId: MODEL_ID }];
+    mockState.updates = [];
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`, {
+      method: 'PUT', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ egressMode: 'direct', proxyAddr: null, expectedEgressIp: null }),
+    });
+    expect(res.status).toBe(200);
+    expect(mockState.updates).toContainEqual(expect.objectContaining({ proxyAddr: null, expectedEgressIp: null }));
+  });
+
+  it('does not clear omitted proxy or expected IP fields', async () => {
+    mockState.result = [{ id: 'cfg-1', orgId: ORG_ID, modelId: MODEL_ID }];
+    mockState.updates = [];
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`, {
+      method: 'PUT', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ egressMode: 'direct' }),
+    });
+    expect(res.status).toBe(200);
+    expect(mockState.updates[0]).not.toHaveProperty('proxyAddr');
+    expect(mockState.updates[0]).not.toHaveProperty('expectedEgressIp');
+  });
+
   it('updates an existing config', async () => {
     mockState.result = [
       {
