@@ -3,12 +3,9 @@
 // Features: policy-based provider selection, fallback chains, rate limiting,
 // exponential-backoff retry, response caching, streaming, and pipeline transforms.
 
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { resolveEgressProxy, buildEgressFetch } from './egress.js';
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+// Library imports must not load dotenv or mutate the host process environment.
+// Runtime configuration belongs to the service launcher/deployment boundary.
 import { v4 as uuid } from 'uuid';
 import { callVLLM, streamVLLM, VLLM_BASE_URL } from './providers/vllm.js';
 import {

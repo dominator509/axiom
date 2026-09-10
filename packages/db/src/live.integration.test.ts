@@ -21,6 +21,30 @@ const DATABASE_URL = process.env.DATABASE_URL;
 
 const skip = !DATABASE_URL ? describe.skip : describe;
 
+skip('authentication runtime privileges', () => {
+  it('allows the application role to persist authentication without schema ownership', async () => {
+    const result = await q(`
+      SELECT table_name,
+        has_table_privilege('axiom_app', table_name, 'SELECT') AS can_select,
+        has_table_privilege('axiom_app', table_name, 'INSERT') AS can_insert,
+        has_table_privilege('axiom_app', table_name, 'UPDATE') AS can_update,
+        has_table_privilege('axiom_app', table_name, 'DELETE') AS can_delete,
+        has_table_privilege('axiom_app', table_name, 'TRUNCATE') AS can_truncate
+      FROM unnest(ARRAY['auth_user','auth_session','auth_account','auth_verification']) AS table_name
+    `);
+    expect(result.rows).toHaveLength(4);
+    for (const row of result.rows) {
+      expect(row).toMatchObject({
+        can_select: true,
+        can_insert: true,
+        can_update: true,
+        can_delete: true,
+        can_truncate: false,
+      });
+    }
+  });
+});
+
 // ── Fixture: one throwaway org + model, wrapped in a rollback txn ──
 
 let client: pg.Client;
