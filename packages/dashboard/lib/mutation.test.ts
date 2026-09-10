@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mutationFetch } from './mutation';
 
 describe('mutationFetch', () => {
   beforeEach(() => vi.restoreAllMocks());
+  afterEach(() => vi.unstubAllGlobals());
 
   it('reuses one idempotency key across a network retry', async () => {
     const fetchMock = vi
@@ -83,5 +84,34 @@ describe('mutationFetch', () => {
 
     const headers = (fetchMock.mock.calls[0]?.[1] as RequestInit).headers as Headers;
     expect(headers.get('Idempotency-Key')).toBe('intent-1');
+  });
+
+  it('does not dispatch a caller-cancelled request', async () => {
+    const controller = new AbortController();
+    controller.abort(new Error('cancelled before dispatch'));
+    const fetchMock = vi.fn().mockRejectedValue(controller.signal.reason);
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(mutationFetch('/api/v1/mutate', { signal: controller.signal }))
+      .rejects.toThrow('cancelled before dispatch');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not retry after caller cancellation with the default retry policy', async () => {
+    const controller = new AbortController();
+    const fetchMock = vi.fn().mockImplementation(() => {
+      controller.abort(new Error('cancelled during dispatch'));
+      return Promise.reject(controller.signal.reason);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(mutationFetch('/api/v1/mutate', { signal: controller.signal }))
+      .rejects.toThrow('cancelled during dispatch');
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each([NaN, Infinity, -1, 0.5])('rejects invalid retry budget %s before dispatch', async (retries) => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}'));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(mutationFetch('/api/v1/mutate', {}, { retries })).rejects.toThrow('retries');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

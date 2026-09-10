@@ -3,7 +3,7 @@
 // key, so a lost response cannot turn one click into multiple mutations.
 
 export interface MutationOptions {
-  /** Number of network-error retries; all attempts reuse the same key. */
+  /** Non-negative integer number of network-error retries; all attempts reuse the same key. */
   retries?: number;
   /** Supply a key when resuming an already-created user intent. */
   idempotencyKey?: string;
@@ -54,7 +54,8 @@ function validateTimeout(timeoutMs: number): void {
 
 /**
  * Send a browser mutation with a stable Idempotency-Key. Only transport
- * failures are retried; HTTP responses are returned to the caller unchanged.
+ * failures are retried; caller cancellation is terminal and HTTP responses
+ * are returned to the caller unchanged.
  */
 export async function mutationFetch(
   input: RequestInfo | URL,
@@ -62,7 +63,10 @@ export async function mutationFetch(
   options: MutationOptions = {},
 ): Promise<Response> {
   const idempotencyKey = options.idempotencyKey ?? createIdempotencyKey();
-  const retries = Math.max(0, options.retries ?? 1);
+  const retries = options.retries ?? 1;
+  if (!Number.isSafeInteger(retries) || retries < 0) {
+    throw new TypeError('retries must be a non-negative safe integer');
+  }
   const timeoutMs = options.timeoutMs ?? DEFAULT_MUTATION_TIMEOUT_MS;
   validateTimeout(timeoutMs);
   const headers = new Headers(init.headers);
@@ -70,12 +74,13 @@ export async function mutationFetch(
 
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
+    init.signal?.throwIfAborted();
     const attemptSignal = createAttemptSignal(init.signal, timeoutMs);
     try {
       return await fetch(input, { ...init, headers, signal: attemptSignal.signal });
     } catch (error) {
       lastError = error;
-      if (attempt === retries) throw error;
+      if (init.signal?.aborted || attempt === retries) throw error;
     } finally {
       attemptSignal.cleanup();
     }
