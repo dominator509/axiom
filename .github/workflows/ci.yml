@@ -206,6 +206,13 @@ jobs:
             fi
           done
 
+      - name: Grok CLI sealed-image guard
+        if: matrix.task == 'test'
+        run: |
+          cargo fmt --manifest-path infra/grok-cli/input-guard/Cargo.toml --check
+          cargo clippy --locked --manifest-path infra/grok-cli/input-guard/Cargo.toml --all-targets -- -D warnings
+          cargo test --locked --manifest-path infra/grok-cli/input-guard/Cargo.toml
+
       - name: RLS coverage check — verify ENABLE ROW LEVEL SECURITY policies
         if: matrix.task == 'test'
         run: |
@@ -277,6 +284,10 @@ jobs:
       - name: Run repository security gates
         if: matrix.task == 'security'
         run: pnpm security-check
+
+      - name: Audit Grok CLI input guard dependencies
+        if: matrix.task == 'security'
+        run: cargo audit --file infra/grok-cli/input-guard/Cargo.lock
 
       - name: Run dependency advisory gate
         if: matrix.task == 'security'
