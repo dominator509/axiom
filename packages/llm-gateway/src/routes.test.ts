@@ -397,6 +397,51 @@ describe('createRouter — subscription OAuth lifecycle', () => {
     );
   });
 
+  it.each([false, true])('aborts a cancelled login reader without writing a late result (error=%s)', async (fail) => {
+    const gateway = makeGatewayStub();
+    let loginSignal: AbortSignal | undefined;
+    let finished = false;
+    gateway.connectSubscription = vi.fn((_provider, _userId, signal) => (async function* () {
+      loginSignal = signal;
+      try {
+        yield 'Continue in your browser';
+        await new Promise<void>((resolve) => {
+          if (signal?.aborted) resolve();
+          else signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+        if (fail) throw new Error('late provider error');
+      } finally { finished = true; }
+    })());
+    const res = await authenticatedApp(gateway).request('/subscriptions/grok/login', { method: 'POST' });
+    const reader = res.body!.getReader();
+    expect((await reader.read()).done).toBe(false);
+    await reader.cancel();
+    expect(loginSignal?.aborted).toBe(true);
+    await vi.waitFor(() => expect(finished).toBe(true));
+  });
+
+  it('forwards request abort and never reports the interrupted login as connected', async () => {
+    const gateway = makeGatewayStub();
+    const request = new AbortController();
+    let loginSignal: AbortSignal | undefined;
+    gateway.connectSubscription = vi.fn((_provider, _userId, signal) => (async function* () {
+      loginSignal = signal;
+      yield 'Continue in your browser';
+      await new Promise<void>((resolve) => {
+        if (signal?.aborted) resolve();
+        else signal?.addEventListener('abort', () => resolve(), { once: true });
+      });
+    })());
+    const res = await authenticatedApp(gateway).request('/subscriptions/grok/login', {
+      method: 'POST', signal: request.signal,
+    });
+    const reader = res.body!.getReader();
+    expect((await reader.read()).done).toBe(false);
+    request.abort();
+    expect(loginSignal?.aborted).toBe(true);
+    expect((await reader.read()).done).toBe(true);
+  });
+
   it('disconnects only the authenticated user profile', async () => {
     const gateway = makeGatewayStub();
     const res = await authenticatedApp(gateway).request('/subscriptions/anthropic', {

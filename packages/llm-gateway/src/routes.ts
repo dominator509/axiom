@@ -254,23 +254,31 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
   router.post('/subscriptions/:provider/login', async (c) => {
     const parsed = subscriptionProviderSchema.safeParse(c.req.param('provider'));
     if (!parsed.success) return problemResponse(c, 404, 'Unsupported subscription provider');
-    const events = gateway.connectSubscription(parsed.data, c.get('userId'), c.req.raw.signal);
+    const cancellation = new AbortController();
+    const signal = AbortSignal.any([c.req.raw.signal, cancellation.signal]);
+    const events = gateway.connectSubscription(parsed.data, c.get('userId'), signal);
+    let cancelled = false;
     return new Response(
       new ReadableStream({
         async start(controller) {
           const encoder = new TextEncoder();
           try {
             for await (const message of events) {
+              if (signal.aborted) break;
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ message })}\n\n`));
             }
-            controller.enqueue(encoder.encode('event: connected\ndata: {}\n\n'));
+            if (!signal.aborted) controller.enqueue(encoder.encode('event: connected\ndata: {}\n\n'));
           } catch {
-            controller.enqueue(
+            if (!signal.aborted) controller.enqueue(
               encoder.encode('event: error\ndata: Subscription login did not complete\n\n'),
             );
           } finally {
-            controller.close();
+            if (!cancelled) controller.close();
           }
+        },
+        cancel() {
+          cancelled = true;
+          cancellation.abort();
         },
       }),
       {
