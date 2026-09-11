@@ -288,6 +288,32 @@ export async function relayCommandExecutor(
           }
         }
 
+        if (bundle[0].assetId) {
+          const assets = await tx
+            .select({ id: schema.asset.id, orgId: schema.asset.orgId, modelId: schema.asset.modelId, kind: schema.asset.kind })
+            .from(schema.asset)
+            .where(and(
+              eq(schema.asset.id, bundle[0].assetId),
+              eq(schema.asset.orgId, orgId),
+              eq(schema.asset.modelId, bundle[0].modelId),
+            ))
+            .limit(1);
+          const asset = assets[0];
+          if (!asset || asset.id !== bundle[0].assetId || asset.orgId !== orgId ||
+              asset.modelId !== bundle[0].modelId || (asset.kind !== 'image' && asset.kind !== 'video')) {
+            throw new Error('relay command: bundle references an unavailable or unsupported media asset; approval cannot continue');
+          }
+          for (const platform of platforms) {
+            let supported: boolean;
+            try {
+              supported = resolveCapabilities(platform).media.includes(asset.kind);
+            } catch {
+              throw new Error(`relay command: cannot resolve ${platform} capabilities; media support is unknown`);
+            }
+            if (!supported) throw new Error(`relay command: ${platform} does not support ${asset.kind} assets; approval cannot continue`);
+          }
+        }
+
         const rawSlot =
           action === 'reschedule'
             ? relayScheduledFor(params, action).toISOString()
