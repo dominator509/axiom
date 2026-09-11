@@ -217,6 +217,18 @@ SELECT count(*) FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' A
   const enabledReplay = await request(linkbioPath, { method: 'POST', headers: linkbioHeaders, body: linkbioBody });
   assert.equal(enabledReplay.status, 201);
   assert.equal((await enabledReplay.json()).data.id, provider.id, 'Native page replay preserves provider identity');
+  const publicPath = `/linkbio/${createdBody.data.id}`;
+  const publicPage = await request(publicPath);
+  assert.equal(publicPage.status, 200, 'Native page must be reachable without an operator session through the public origin');
+  const publicHtml = await publicPage.text();
+  assert.match(publicHtml, /Disposable saved link/);
+  const clickPath = publicHtml.match(/href="(\/linkbio\/[^" ]+\/s\/[^" ]+)"/)?.[1];
+  assert.ok(clickPath, 'Native page must expose a first-party tracked link');
+  const click = await fetch(new URL(clickPath, base), { redirect: 'manual', signal: AbortSignal.timeout(10_000) });
+  assert.equal(click.status, 302, 'Public click must return a redirect without authentication');
+  const destination = new URL(click.headers.get('location'));
+  assert.equal(destination.origin, 'https://example.invalid');
+  assert.equal(destination.pathname, '/smoke');
   const disabled = await request(`${linkbioPath}/native`, {
     method: 'DELETE', headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
   });
@@ -224,6 +236,7 @@ SELECT count(*) FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' A
   const disabledProvider = (await disabled.json()).data;
   assert.equal(disabledProvider.enabled, false);
   assert.deepEqual(disabledProvider.config, linkbioConfig, 'Disable must retain saved links');
+  assert.equal((await request(publicPath)).status, 404, 'Disabled Native page must no longer be publicly served');
   const reenabled = await request(linkbioPath, {
     method: 'POST', headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
     body: JSON.stringify({ kind: 'native' }),
@@ -233,6 +246,7 @@ SELECT count(*) FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' A
   assert.equal(restoredProvider.id, provider.id);
   assert.equal(restoredProvider.enabled, true);
   assert.deepEqual(restoredProvider.config, linkbioConfig, 'Re-enable must preserve stored configuration');
+  assert.equal((await request(publicPath)).status, 200, 'Re-enabled Native page must be public again');
   const invalidLinks = await request(linkbioPath, {
     method: 'POST', headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
     body: JSON.stringify({ kind: 'native', config: { links: [{ label: 'x'.repeat(121), url: 'https://example.invalid' }] } }),
@@ -243,7 +257,7 @@ SELECT count(*) FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' A
   const savedProviders = (await providerList.json()).data.providers;
   assert.equal(savedProviders.length, 1, 'Lifecycle must not duplicate providers');
   assert.deepEqual(savedProviders[0].config, linkbioConfig, 'Rejected link edits must leave saved content unchanged');
-  console.log('linkbio smoke: native creation, same-ID replay, disable and re-enable with preserved links passed (no external URL fetched)');
+  console.log('linkbio smoke: native creation, same-ID replay, anonymous page and tracked redirect, disable/404 and re-enable with preserved links passed (no external URL fetched)');
   const networkPath = `/api/v1/models/${createdBody.data.id}/network`;
   const operatorNetworkRead = await request(networkPath, { headers: { cookie } });
   assert.equal(operatorNetworkRead.status, 403, 'Network metadata is owner-only, including reads');

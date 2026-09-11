@@ -6,6 +6,11 @@ const API_ORIGIN = resolveApiOrigin();
 export const SESSION_REQUEST_TIMEOUT_MS = 3_000;
 
 export async function middleware(request: NextRequest) {
+  // This namespace is served by the API's intentionally public Native page
+  // router. Keep the private /models/:id/linkbio editor behind session auth.
+  if (request.nextUrl.pathname === '/linkbio' || request.nextUrl.pathname.startsWith('/linkbio/')) {
+    return NextResponse.next();
+  }
   const isLogin = request.nextUrl.pathname === '/login';
   const cookie = request.headers.get('cookie') ?? '';
   let authenticated = false;

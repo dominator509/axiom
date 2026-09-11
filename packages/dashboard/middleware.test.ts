@@ -21,7 +21,20 @@ function requestFor(pathname: string): NextRequest {
 describe('dashboard auth middleware', () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     vi.useRealTimers();
+  });
+
+  it.each(['/linkbio', '/linkbio/model', '/linkbio/model/s/slug'])('forwards public Native routes without session lookup: %s', async (path) => {
+    const fetch = vi.fn().mockResolvedValue(new Response('null'));
+    vi.stubGlobal('fetch', fetch);
+    expect(await middleware(requestFor(path))).toEqual({ type: 'next' });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each(['/linkbioprivate', '/models/model/linkbio'])('keeps private or lookalike routes authenticated: %s', async (path) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('null')));
+    expect(await middleware(requestFor(path))).toEqual({ type: 'redirect', url: 'http://dashboard.test/login' });
   });
 
   it('fails closed and redirects when session bootstrap hangs', async () => {

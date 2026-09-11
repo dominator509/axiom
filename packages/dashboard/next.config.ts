@@ -14,6 +14,10 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
+        source: '/linkbio/:path*',
+        destination: `${API_ORIGIN}/linkbio/:path*`,
+      },
+      {
         source: '/api/:path*',
         destination: `${API_ORIGIN}/api/:path*`,
       },
