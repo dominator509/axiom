@@ -346,3 +346,35 @@ selection, not exploitability of private-key operations in the deployed mode.
 The remaining unsoundness warnings, runtime call-path assessment and any
 necessary upgrades/rebuilds remain open. No advisory suppression or installed
 binary replacement has been made on the strength of this assessment.
+
+### XML dependency candidate verified (2026-09-11)
+
+The companion lock patch now selects `wayland-scanner 0.31.11`, removing the
+last `quick-xml 0.39.4` copy and retaining `quick-xml 0.41.0`. A precise Cargo
+update preview and offline update agreed on that change. Review of the patch
+delta found only the scanner version/checksum, old XML removal, unambiguous XML
+dependency names, and resulting hunk offsets; existing sealed-input changes
+were preserved. Reverse patch applicability and whitespace checks pass.
+
+The complete patched CLI built with `cargo build --locked --offline -p
+xai-grok-pager-bin --bin xai-grok-pager` in 7m53s. Its candidate SHA-256 is
+`649c1a79d457a1fcf909195a45de63772d9da71b3ec120e3b1f99e2758f9c0e0`;
+it reports version 1.0.24 in a read-only, network-disabled container without
+credential mounts. **This candidate is not installed.** The installed binary
+and hashes documented above remain unchanged.
+
+`cargo test -p wayland-scanner` from the Grok workspace cannot run that external
+crate's dev-dependencies. Running `cargo test --locked --offline` in the
+published scanner crate instead passes all five parsing/client/server/interface
+tests once Rust 1.94.0's `rustfmt` component is added to the disposable test
+container. One upstream documentation test remains ignored. The original three
+test failures were missing-formatter failures; no test was weakened or skipped
+to obtain the five passes.
+
+A refreshed `cargo audit --file var/grok-source-37949780/Cargo.lock --no-yanked
+--json` against advisory DB commit `b50980aad8b8f14f77e25a97b32dd94bf008b0af`
+reports neither XML advisory for the candidate's 1,346 dependencies. It still
+exits 1 for RSA RUSTSEC-2023-0071 and reports ten unmaintained plus ten unsoundness
+warnings. This focused check excludes registry-yank verification and is not a
+clean full CLI security gate. No advisory exceptions were added. No account
+login, runtime replacement, or provider generation was performed for this work.

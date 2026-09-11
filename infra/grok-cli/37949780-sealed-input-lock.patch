@@ -1,5 +1,5 @@
 diff --git a/Cargo.lock b/Cargo.lock
-index d09ffc8..4d92cf0 100644
+index d09ffc8..8c613e7 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -309,7 +309,7 @@ dependencies = [
@@ -174,6 +174,15 @@ index d09ffc8..4d92cf0 100644
   "chrono",
   "getrandom 0.2.16",
   "http 1.4.0",
+@@ -7217,7 +7215,7 @@ dependencies = [
+  "fast-float2",
+  "libc",
+  "log",
+- "quick-xml 0.41.0",
++ "quick-xml",
+  "serde",
+  "serde_json",
+  "thiserror 2.0.18",
 @@ -7406,7 +7404,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
  dependencies = [
@@ -192,6 +201,24 @@ index d09ffc8..4d92cf0 100644
   "itertools 0.14.0",
   "prost",
   "prost-types",
+@@ -7541,7 +7539,7 @@ dependencies = [
+  "office_oxide",
+  "phf 0.14.0",
+  "qcms",
+- "quick-xml 0.41.0",
++ "quick-xml",
+  "regex",
+  "rustybuzz",
+  "serde",
+@@ -7936,7 +7934,7 @@ checksum = "7da1d65da6dd5d1e44199ac0f58712d241c0f439f80adea8924d832384087f85"
+ dependencies = [
+  "base64 0.22.1",
+  "indexmap",
+- "quick-xml 0.41.0",
++ "quick-xml",
+  "serde",
+  "time",
+ ]
 @@ -8260,8 +8258,8 @@ version = "0.14.1"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "ac6c3320f9abac597dcbc668774ef006702672474aad53c6d596b62e487b40b1"
@@ -212,7 +239,23 @@ index d09ffc8..4d92cf0 100644
   "proc-macro2",
   "quote",
   "syn 2.0.117",
-@@ -8444,7 +8442,7 @@ dependencies = [
+@@ -8412,15 +8410,6 @@ version = "2.0.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
+ 
+-[[package]]
+-name = "quick-xml"
+-version = "0.39.4"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "cdcc8dd4e2f670d309a5f0e83fe36dfdc05af317008fea29144da1a2ac858e5e"
+-dependencies = [
+- "memchr",
+-]
+-
+ [[package]]
+ name = "quick-xml"
+ version = "0.41.0"
+@@ -8444,7 +8433,7 @@ dependencies = [
   "quinn-udp",
   "rustc-hash 2.1.1",
   "rustls",
@@ -221,7 +264,7 @@ index d09ffc8..4d92cf0 100644
   "thiserror 2.0.18",
   "tokio",
   "tracing",
-@@ -8482,9 +8480,9 @@ dependencies = [
+@@ -8482,9 +8471,9 @@ dependencies = [
   "cfg_aliases 0.2.1",
   "libc",
   "once_cell",
@@ -233,7 +276,7 @@ index d09ffc8..4d92cf0 100644
  ]
  
  [[package]]
-@@ -9167,7 +9165,7 @@ dependencies = [
+@@ -9167,7 +9156,7 @@ dependencies = [
   "errno",
   "libc",
   "linux-raw-sys 0.4.15",
@@ -242,7 +285,7 @@ index d09ffc8..4d92cf0 100644
  ]
  
  [[package]]
-@@ -9180,7 +9178,7 @@ dependencies = [
+@@ -9180,7 +9169,7 @@ dependencies = [
   "errno",
   "libc",
   "linux-raw-sys 0.12.1",
@@ -251,7 +294,7 @@ index d09ffc8..4d92cf0 100644
  ]
  
  [[package]]
-@@ -9250,7 +9248,7 @@ dependencies = [
+@@ -9250,7 +9239,7 @@ dependencies = [
   "security-framework",
   "security-framework-sys",
   "webpki-root-certs",
@@ -260,7 +303,7 @@ index d09ffc8..4d92cf0 100644
  ]
  
  [[package]]
-@@ -10223,16 +10221,6 @@ version = "0.3.2"
+@@ -10223,16 +10212,6 @@ version = "0.3.2"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "b7c388c1b5e93756d0c740965c41e8822f866621d41acbdf6336a6a168f8840c"
  
@@ -277,7 +320,7 @@ index d09ffc8..4d92cf0 100644
  [[package]]
  name = "socket2"
  version = "0.6.4"
-@@ -10240,7 +10228,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -10240,7 +10219,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "52d1cfed4120b4d927bf7c0f86d2087a4a7d6027c906d9f9d525a80573b9be51"
  dependencies = [
   "libc",
@@ -286,7 +329,7 @@ index d09ffc8..4d92cf0 100644
  ]
  
  [[package]]
-@@ -10435,7 +10423,7 @@ version = "0.26.4"
+@@ -10435,7 +10414,7 @@ version = "0.26.4"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
  dependencies = [
@@ -295,7 +338,7 @@ index d09ffc8..4d92cf0 100644
   "proc-macro2",
   "quote",
   "rustversion",
-@@ -10448,7 +10436,7 @@ version = "0.27.2"
+@@ -10448,7 +10427,7 @@ version = "0.27.2"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "7695ce3845ea4b33927c055a39dc438a45b059f7c1b3d91d38d10355fb8cbca7"
  dependencies = [
@@ -304,7 +347,7 @@ index d09ffc8..4d92cf0 100644
   "proc-macro2",
   "quote",
   "syn 2.0.117",
-@@ -10460,7 +10448,7 @@ version = "0.28.0"
+@@ -10460,7 +10439,7 @@ version = "0.28.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "ab85eea0270ee17587ed4156089e10b9e6880ee688791d45a905f5b1ca36f664"
  dependencies = [
@@ -313,7 +356,7 @@ index d09ffc8..4d92cf0 100644
   "proc-macro2",
   "quote",
   "syn 2.0.117",
-@@ -10645,7 +10633,7 @@ dependencies = [
+@@ -10645,7 +10624,7 @@ dependencies = [
   "getrandom 0.4.1",
   "once_cell",
   "rustix 1.1.4",
@@ -322,7 +365,7 @@ index d09ffc8..4d92cf0 100644
  ]
  
  [[package]]
-@@ -11013,7 +11001,7 @@ dependencies = [
+@@ -11013,7 +10992,7 @@ dependencies = [
   "parking_lot",
   "pin-project-lite",
   "signal-hook-registry",
@@ -331,7 +374,7 @@ index d09ffc8..4d92cf0 100644
   "tokio-macros",
   "windows-sys 0.61.2",
  ]
-@@ -11194,7 +11182,7 @@ dependencies = [
+@@ -11194,7 +11173,7 @@ dependencies = [
   "percent-encoding",
   "pin-project",
   "rustls-native-certs",
@@ -340,7 +383,7 @@ index d09ffc8..4d92cf0 100644
   "sync_wrapper",
   "tokio",
   "tokio-rustls",
-@@ -11640,7 +11628,7 @@ version = "0.6.2"
+@@ -11640,7 +11619,7 @@ version = "0.6.2"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "fa7b026f540b148b81043c720889dbb942b08659aa8a43f624ac4f04dbfc1861"
  dependencies = [
@@ -349,7 +392,7 @@ index d09ffc8..4d92cf0 100644
   "log",
   "proc-macro2",
   "quote",
-@@ -11685,7 +11673,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
+@@ -11685,7 +11664,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
  dependencies = [
   "memoffset",
   "tempfile",
@@ -358,7 +401,23 @@ index d09ffc8..4d92cf0 100644
  ]
  
  [[package]]
-@@ -12494,7 +12482,7 @@ version = "0.1.11"
+@@ -12267,12 +12246,12 @@ dependencies = [
+ 
+ [[package]]
+ name = "wayland-scanner"
+-version = "0.31.10"
++version = "0.31.11"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9c324a910fd86ebdc364a3e61ec1f11737d3b1d6c273c0239ee8ff4bc0d24b4a"
++checksum = "338e30461b3a2b67d70eb30a6d89f8e0c93a833e07d2ae89085cd070c4a00ac0"
+ dependencies = [
+  "proc-macro2",
+- "quick-xml 0.39.4",
++ "quick-xml",
+  "quote",
+ ]
+ 
+@@ -12494,7 +12473,7 @@ version = "0.1.11"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
  dependencies = [
@@ -367,7 +426,7 @@ index d09ffc8..4d92cf0 100644
  ]
  
  [[package]]
-@@ -13107,7 +13095,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -13107,7 +13086,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "ea61de684c3ea68cb082b7a88508a8b27fcc8b797d738bfc99a82facf1d752dc"
  dependencies = [
   "anyhow",
@@ -376,7 +435,7 @@ index d09ffc8..4d92cf0 100644
   "wit-parser",
  ]
  
-@@ -13118,7 +13106,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -13118,7 +13097,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "b7c566e0f4b284dd6561c786d9cb0142da491f46a9fbed79ea69cdad5db17f21"
  dependencies = [
   "anyhow",
@@ -385,7 +444,7 @@ index d09ffc8..4d92cf0 100644
   "indexmap",
   "prettyplease",
   "syn 2.0.117",
-@@ -14198,6 +14186,7 @@ name = "xai-grok-pager-bin"
+@@ -14198,6 +14177,7 @@ name = "xai-grok-pager-bin"
  version = "1.0.24"
  dependencies = [
   "anyhow",
@@ -393,7 +452,7 @@ index d09ffc8..4d92cf0 100644
   "clap",
   "cryptify",
   "dunce",
-@@ -14860,6 +14849,7 @@ dependencies = [
+@@ -14860,6 +14840,7 @@ dependencies = [
   "async-openai",
   "async-stream",
   "async-trait",
@@ -401,3 +460,12 @@ index d09ffc8..4d92cf0 100644
   "base64 0.22.1",
   "chrono",
   "command-fds",
+@@ -14886,7 +14867,7 @@ dependencies = [
+  "pdf_oxide",
+  "pretty_assertions",
+  "pulldown-cmark",
+- "quick-xml 0.41.0",
++ "quick-xml",
+  "regex",
+  "reqwest 0.12.24",
+  "schemars 1.0.4",
