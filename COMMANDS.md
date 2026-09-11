@@ -13,6 +13,10 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/probe-live-grok-media.mjs --authorized-live-once <user-id> <run-id> image` — Linux-only, explicitly authorized single real Grok image request; exclusive dispatch marker, no retry, no DB writes or publication
+- `node scripts/probe-live-grok-media.mjs --authorized-live-once <user-id> <run-id> video <scanned-image-sha256>` — one real six-second video request bound to the independently scanned source image; failed/uncertain dispatch must be reconciled before another attempt
+- `node scripts/rehearse-vision.mjs --generated-image <sha256>` — classify the content-hashed JPEG in ignored `var/live-grok-probe` with the pinned model in a network-disabled container; does not persist a bundle ToS verdict or establish model accuracy
+- `node scripts/rehearse-vision.mjs --isolated-fixture` — verify both pinned vision inference routes and authorization/path boundaries on the existing local fixture
 - `node scripts/test-login-stream-compression.mjs` — verify actual dashboard gzip buffering and immediate delivery with no-transform on a credential-free loopback SSE fixture
 - `node scripts/provision-local-grok-user.mjs --inspect <email>` — inspect only the explicitly identified local recovery account; never reads credential fields
 - `node scripts/provision-local-grok-user.mjs --rehearse <email> <expected-user-id>` — rehearse isolated operator-workspace assignment and audit insertion, then roll back
