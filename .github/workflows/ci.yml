@@ -225,7 +225,7 @@ jobs:
             exit 1
           fi
 
-      - name: Install privileged egress test dependencies
+      - name: Install runtime rehearsal dependencies
         if: matrix.task == 'test'
         run: |
           # The hosted runner image may carry an unrelated Google Chrome APT
@@ -242,11 +242,19 @@ jobs:
             done
             sudo apt-get update
           fi
-          sudo apt-get install --no-install-recommends -y iproute2 iptables wireguard-tools bubblewrap
+          sudo apt-get install --no-install-recommends -y iproute2 iptables wireguard-tools bubblewrap ffmpeg
           command -v ip
           command -v iptables
           command -v wg
           sudo ip netns list
+        shell: bash
+
+      - name: Rehearse real video frame extraction
+        if: matrix.task == 'test'
+        run: |
+          command -v ffmpeg
+          command -v ffprobe
+          cargo test --locked -p media-plane video_frames::tests::real_ffmpeg_short_clip_coverage_and_cache -- --exact --ignored
         shell: bash
 
       - name: Run privileged egress integration tests

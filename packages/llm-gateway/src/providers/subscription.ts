@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { ProviderError } from './types.js';
 import { GrokMediaResult, type GrokMediaArtifact, type GrokMediaKind } from './grok-media.js';
 import { grokSandboxCommand } from './grok-sandbox.js';
+import { waitForLinuxProcessGroup } from './subscription-process.js';
 
 export interface GrokMediaRequest {
   userId: string;
@@ -625,7 +626,7 @@ async function* runSubscription(request: SubscriptionRequest, control?: {
   const stop = (error?: Error) => {
     terminalError ??= error;
     resolveStopped();
-    if (!child || closed || stopping) return;
+    if (!child || stopping || (closed && process.platform !== 'linux')) return;
     stopping = true;
     // Stop the owned process tree, including CLI launch wrappers. Killing only
     // codex.js bypasses its signal forwarding and leaves its native child alive.
@@ -640,7 +641,10 @@ async function* runSubscription(request: SubscriptionRequest, control?: {
         killer.once('close', code => { clearTimeout(killDeadline); resolveTree(code === 0); });
       });
     } else if (child.pid) {
-      try { process.kill(-child.pid, 'SIGKILL'); }
+      try {
+        process.kill(-child.pid, 'SIGKILL');
+        if (process.platform === 'linux') treeTermination = waitForLinuxProcessGroup(child.pid);
+      }
       catch (error) {
         treeTermination = Promise.resolve((error as NodeJS.ErrnoException).code === 'ESRCH');
       }
@@ -658,7 +662,7 @@ async function* runSubscription(request: SubscriptionRequest, control?: {
   let terminationPromise: Promise<void> | undefined;
   const stopAndWait = () => terminationPromise ??= (async () => {
     if (!child) return;
-    if (!closed) stop();
+    stop();
     let closeTimer: ReturnType<typeof setTimeout> | undefined;
     const confirmed = await Promise.race([
       Promise.all([exitPromise!, treeTermination]).then(([, treeStopped]) => treeStopped),
