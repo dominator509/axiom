@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 // Real PostgreSQL fault injection, restricted to a fresh database in the
 // labeled agent-owned fixture. Never reads or modifies axiom-postgres.
@@ -55,16 +55,29 @@ try {
     'Schema changes must roll back with the failed ledger write');
   assert.equal(sql('SELECT count(*) FROM public.axiom_schema_migrations'), '0');
   sql('DROP TRIGGER reject_probe_ledger ON public.axiom_schema_migrations');
+  put('packages/db/migrations/0000_probe.sql', migration.replace('COMMIT;',
+    "DO $$ BEGIN RAISE EXCEPTION 'AXIOM_EXPECTED_BODY_FAILURE'; END $$;\nCOMMIT;"));
+  const bodyFailure = run();
+  assert.notEqual(bodyFailure.status, 0, 'Migration-body fault must fail the runner');
+  assert.ok(bodyFailure.stderr?.includes('AXIOM_EXPECTED_BODY_FAILURE'),
+    'Runner must reach the injected migration-body failure');
+  assert.equal(sql("SELECT to_regclass('public.atomicity_probe') IS NULL"), 't',
+    'DDL before a migration-body failure must roll back');
+  assert.equal(sql('SELECT count(*) FROM public.axiom_schema_migrations'), '0',
+    'Failed migration body must not receive a ledger entry');
+  put('packages/db/migrations/0000_probe.sql', migration);
   assert.equal(run().status, 0, 'Migration must succeed once the ledger fault is removed');
   assert.equal(sql('SELECT count(*) FROM atomicity_probe WHERE id = 1'), '1');
   assert.equal(sql('SELECT count(*) FROM public.axiom_schema_migrations'), '1');
+  assert.equal(sql("SELECT checksum_sha256 FROM public.axiom_schema_migrations WHERE migration_name = '0000_probe.sql'"),
+    createHash('sha256').update(migration).digest('hex'), 'Ledger must identify the exact migration bytes');
   assert.equal(run().status, 0, 'Recorded migration must be safely skipped on rerun');
   put('packages/db/migrations/0000_probe.sql', `${migration}-- checksum drift\n`);
   const drift = run();
   assert.notEqual(drift.status, 0, 'Checksum drift must fail');
   assert.ok(drift.stdout?.includes('checksum mismatch'), 'Expected checksum rejection');
   assert.equal(sql('SELECT count(*) FROM atomicity_probe'), '1');
-  console.log('migration atomicity: ledger fault rolled back DDL; success, rerun and checksum rejection passed');
+  console.log('migration atomicity: ledger and body faults rolled back DDL; exact checksum, success, rerun and drift rejection passed');
 } finally {
   if (created) exec('dropdb', '-U', 'axiom', '--force', database);
   if (directory && /^\/tmp\/axiom-migrate\.[A-Za-z0-9]+$/.test(directory)) {
