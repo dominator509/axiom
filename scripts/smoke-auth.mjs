@@ -204,6 +204,46 @@ SELECT count(*) FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' A
     }
     assert.ok(completed, 'Worker must complete the ToS scan and persist one Relay handoff within 20 seconds');
     console.log('worker smoke: real ToS job completed and one Relay card job persisted (external delivery not asserted)');
+    // Continue through a real operator decision after the asynchronous scan.
+    // Re-read its revision rather than using the pre-worker generation response.
+    const reviewed = await request(`/api/v1/bundles/${generation.bundle.id}`, { headers: { cookie } });
+    assert.equal(reviewed.status, 200);
+    const reviewedBundle = (await reviewed.json()).data;
+    const rejectionPath = `/api/v1/bundles/${generation.bundle.id}/reject`;
+    const rejectionBody = JSON.stringify({ revisionId: reviewedBundle.tosReport?.revisionId });
+    const rejectionHeaders = { ...headers, cookie, 'Idempotency-Key': randomUUID() };
+    const unkeyedRejection = await request(rejectionPath, {
+      method: 'POST', headers: { ...headers, cookie }, body: rejectionBody,
+    });
+    assert.equal(unkeyedRejection.status, 400, 'Rejection must require an idempotency key');
+    const rejected = await request(rejectionPath, {
+      method: 'POST', headers: rejectionHeaders, body: rejectionBody,
+    });
+    assert.equal(rejected.status, 200, 'Operator can reject the scanned bundle');
+    const rejection = await rejected.json();
+    assert.equal(rejection.data?.state, 'rejected');
+    const rejectionReplay = await request(rejectionPath, {
+      method: 'POST', headers: rejectionHeaders, body: rejectionBody,
+    });
+    assert.equal(rejectionReplay.status, 200, 'Same-intent retry must recover the successful rejection');
+    assert.deepEqual(await rejectionReplay.json(), rejection, 'Replay must preserve the original response');
+    const repeatedRejection = await request(rejectionPath, {
+      method: 'POST', headers: { ...rejectionHeaders, 'Idempotency-Key': randomUUID() }, body: rejectionBody,
+    });
+    assert.equal(repeatedRejection.status, 409, 'A new rejection intent cannot transition an already rejected bundle');
+    const rejectionEvidence = spawnSync('psql', [
+      '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+      '-v', `fixture_org=${orgId}`, '-v', `fixture_bundle=${generation.bundle.id}`,
+    ], {
+      encoding: 'utf8', timeout: 10_000,
+      input: `SELECT state FROM content_bundle WHERE org_id = :'fixture_org' AND id = :'fixture_bundle';
+SELECT count(*) FROM audit_log WHERE org_id = :'fixture_org' AND action = 'bundle.reject' AND target = :'fixture_bundle';
+SELECT count(*) FROM post_target WHERE org_id = :'fixture_org' AND bundle_id = :'fixture_bundle';`,
+    });
+    assert.equal(rejectionEvidence.status, 0, 'Rejection evidence must be readable');
+    assert.deepEqual(rejectionEvidence.stdout.trim().split(/\r?\n/), ['rejected', '1', '0'],
+      'Rejection and retries must persist one decision audit and no publish targets');
+    console.log('decision smoke: generated/scanned bundle rejected, exact-response replay, new-intent conflict, one audit and no publish targets passed');
   }
   console.log('generation smoke: five real prompt/caption variants, text ToS report, persisted bundle, same-bundle replay and one durable scan job passed');
   const linkbioPath = `/api/v1/models/${createdBody.data.id}/linkbio`;
