@@ -438,9 +438,14 @@ import without changing assertions or production code. The offline Linux rerun
 compiled the shell test harness in 7m47s and passed all 14 normalization-cache
 tests, including concurrent deduplication, error recovery and byte-budget eviction.
 All four image-bridge tests also passed, including replacement/original-output
-handling and rejection of only the producing run. The full CLI rebuild remains
-in progress; these tests do not establish live generation or installed-runtime
-acceptance.
+handling and rejection of only the producing run. The full locked, offline CLI
+rebuild subsequently passed in 13m38s. Its SHA-256 is
+`bba4609ee594ec14e611da027bb88bb0eab952fdbc6b83bb138862a6600f9a34`.
+Using the existing native Linux Node 22.23.2 runtime, both plain CLI startup and
+sealed-image launcher handoff passed the existing bubblewrap smoke with networking
+disabled and empty credentials. The generic Node wrapper resolved to Windows and
+failed before the smoke; using the native Linux executable resolved that tooling
+error. These checks do not establish authenticated media generation or deployment.
 The binary hash recorded in the AWS-LC section predates this dependency update
 and must not be represented as built from this newer lockfile. No updated binary
 has been installed or used with a real account.
