@@ -21,11 +21,17 @@ export function grokSandboxCommand(input: {
   requestRoot: string;
   credentialRoot: string;
   args: string[];
+  imageLauncher?: { executable: string; byteLength: number };
 }): GrokSandboxCommand {
   if (platform() !== 'linux' || !existsSync('/usr/bin/bwrap')) {
     throw new ProviderError('Grok media requires the Linux CLI isolation runtime', 503, 'grok');
   }
-  for (const path of [input.executable, input.requestRoot, input.credentialRoot]) {
+  if (input.imageLauncher && (!Number.isSafeInteger(input.imageLauncher.byteLength)
+    || input.imageLauncher.byteLength < 12 || input.imageLauncher.byteLength > 20 * 1024 * 1024)) {
+    throw new ProviderError('Invalid isolated image transfer length', 400, 'grok');
+  }
+  for (const path of [input.executable, input.requestRoot, input.credentialRoot,
+    ...(input.imageLauncher ? [input.imageLauncher.executable] : [])]) {
     if (!isAbsolute(path) || realpathSync(path) !== resolve(path)) {
       throw new ProviderError('Unsafe Grok isolation path', 503, 'grok');
     }
@@ -40,6 +46,7 @@ export function grokSandboxCommand(input: {
   for (const path of ['/lib', '/lib64', '/usr/lib', '/etc/ssl/certs', '/etc/resolv.conf']) {
     if (existsSync(path)) args.push('--ro-bind', path, path);
   }
+  if (input.imageLauncher) args.push('--ro-bind', input.imageLauncher.executable, '/grok-input-launch');
   args.push(
     '--ro-bind', input.executable, '/grok',
     '--bind', input.credentialRoot, '/credentials',
@@ -51,7 +58,11 @@ export function grokSandboxCommand(input: {
     '--setenv', 'GROK_DISABLE_AUTOUPDATER', '1',
     '--setenv', 'NO_COLOR', '1', '--setenv', 'CI', '1',
     '--setenv', 'TMPDIR', '/tmp',
-    '--chdir', input.requestRoot, '--', '/grok', ...input.args,
+    '--chdir', input.requestRoot, '--',
+    ...(input.imageLauncher
+      ? ['/grok-input-launch', String(input.imageLauncher.byteLength), '--']
+      : ['/grok']),
+    ...input.args,
   );
   return { command: '/usr/bin/bwrap', args, env: {}, cwd: input.requestRoot };
 }

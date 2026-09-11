@@ -242,7 +242,7 @@ jobs:
             done
             sudo apt-get update
           fi
-          sudo apt-get install --no-install-recommends -y iproute2 iptables wireguard-tools
+          sudo apt-get install --no-install-recommends -y iproute2 iptables wireguard-tools bubblewrap
           command -v ip
           command -v iptables
           command -v wg
@@ -255,6 +255,16 @@ jobs:
           sudo -E env "PATH=$PATH" cargo test \
             --manifest-path crates/egress-plane/Cargo.toml \
             --test egress_test -- --ignored --test-threads=1
+        shell: bash
+
+      - name: Rehearse isolated Grok image descriptor handoff
+        if: matrix.task == 'test'
+        run: |
+          cargo build --locked --manifest-path infra/grok-cli/input-guard/Cargo.toml --bins --examples
+          pnpm --filter @axiom/llm-gateway build
+          # Hosted Ubuntu can restrict unprivileged user namespaces. This is
+          # a synthetic privileged fixture, not production/rootless acceptance.
+          sudo "$(command -v node)" scripts/rehearse-grok-handoff.mjs --isolated-fixture
         shell: bash
 
       # ═══════════════════════════════════════════════════════════

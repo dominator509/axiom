@@ -10,10 +10,44 @@ use std::io::{self, Write};
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::fs::FileExt;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 
 pub const IMAGE_REFERENCE: &str = "axiom-input://image";
 pub const MAX_IMAGE_BYTES: usize = 20 * 1024 * 1024;
 const SEALS: i32 = libc::F_SEAL_WRITE | libc::F_SEAL_GROW | libc::F_SEAL_SHRINK | libc::F_SEAL_SEAL;
+static INHERITED: OnceLock<Result<AuthorizedImage, ()>> = OnceLock::new();
+
+/// Call at the very start of the dedicated patched CLI, before threads or
+/// plugins. Both success and failure are cached, so reuse of FD 3 cannot grant
+/// a new capability. A process without the explicit launcher protocol never
+/// inspects or closes an ambient FD 3.
+pub fn initialize_inherited_image() -> io::Result<()> {
+    let image = INHERITED.get_or_init(|| {
+        if std::env::var("AXIOM_GROK_INPUT_PROTOCOL").as_deref() != Ok("sealed-v1") {
+            return Err(());
+        }
+        // SAFETY: fcntl rejects invalid descriptors; duplicate owns a new FD.
+        let duplicate = unsafe { libc::fcntl(3, libc::F_DUPFD_CLOEXEC, 4) };
+        if duplicate < 0 {
+            return Err(());
+        }
+        // SAFETY: the launch protocol transfers ownership of reserved FD 3.
+        unsafe {
+            libc::close(3);
+        }
+        // SAFETY: successful F_DUPFD_CLOEXEC returns a uniquely owned FD.
+        AuthorizedImage::new(unsafe { File::from_raw_fd(duplicate) }).map_err(|_| ())
+    });
+    image.as_ref().map(|_| ()).map_err(|_| denied())
+}
+
+/// Resolver entry point. Never lazily initializes after runtime startup.
+pub fn read_inherited_image(reference: &str) -> io::Result<Vec<u8>> {
+    match INHERITED.get() {
+        Some(Ok(image)) => image.read_once(reference),
+        _ => Err(denied()),
+    }
+}
 
 fn denied() -> io::Error {
     io::Error::new(
@@ -55,6 +89,7 @@ pub struct AuthorizedImage {
     file: File,
     length: usize,
     used: AtomicBool,
+    owner_pid: u32,
 }
 
 impl AuthorizedImage {
@@ -77,12 +112,13 @@ impl AuthorizedImage {
             file,
             length: length as usize,
             used: AtomicBool::new(false),
+            owner_pid: std::process::id(),
         })
     }
 
     pub fn read_once(&self, reference: &str) -> io::Result<Vec<u8>> {
         // No normalization, URL fetch, path resolution, or file open here.
-        if reference != IMAGE_REFERENCE {
+        if reference != IMAGE_REFERENCE || std::process::id() != self.owner_pid {
             return Err(denied());
         }
         if self

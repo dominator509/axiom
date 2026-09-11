@@ -43,4 +43,16 @@ describe('Grok Linux request filesystem boundary', () => {
     canonical.mockReturnValue(resolve('/fixture/other-user'));
     expect(() => grokSandboxCommand(input)).toThrow('Unsafe Grok isolation path');
   });
+  it('binds a sealing launcher inside the sandbox with an exact transfer length', () => {
+    canonical.mockImplementation(path => resolve(path));
+    const launcher = resolve('/fixture/launcher');
+    const command = grokSandboxCommand({ ...input, imageLauncher: { executable: launcher, byteLength: 128 } });
+    expect(command.args).toContain(launcher);
+    expect(command.args.slice(-6)).toEqual(['--', '/grok-input-launch', '128', '--', '--tools', 'image_to_video']);
+    expect(command.env).toEqual({});
+  });
+  it.each([0, 11, 20 * 1024 * 1024 + 1, 12.5, NaN])('rejects invalid binary transfer length %s', byteLength => {
+    expect(() => grokSandboxCommand({ ...input, imageLauncher: { executable: input.executable, byteLength } }))
+      .toThrow('Invalid isolated image transfer length');
+  });
 });

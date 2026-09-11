@@ -1,0 +1,88 @@
+diff --git a/crates/codegen/xai-grok-pager-bin/Cargo.toml b/crates/codegen/xai-grok-pager-bin/Cargo.toml
+index 8858b8b..2fd83f0 100644
+--- a/crates/codegen/xai-grok-pager-bin/Cargo.toml
++++ b/crates/codegen/xai-grok-pager-bin/Cargo.toml
+@@ -16,6 +16,7 @@ name = "xai-grok-pager"
+ path = "src/main.rs"
+ 
+ [dependencies]
++axiom-grok-input-guard = { path = "../../../../../infra/grok-cli/input-guard" }
+ # The pager library (all application logic + the public API main.rs drives).
+ xai-grok-pager = { path = "../xai-grok-pager" }
+ # Optional scrollback-native render mode, wired in via the fn-pointer seam.
+diff --git a/crates/codegen/xai-grok-pager-bin/src/main.rs b/crates/codegen/xai-grok-pager-bin/src/main.rs
+index 5f449a2..012b4a3 100644
+--- a/crates/codegen/xai-grok-pager-bin/src/main.rs
++++ b/crates/codegen/xai-grok-pager-bin/src/main.rs
+@@ -1970,6 +1970,12 @@ fn dispatch_doctor_if_requested(args: &PagerArgs) -> bool {
+     true
+ }
+ fn main() {
++    if std::env::var("AXIOM_GROK_INPUT_PROTOCOL").as_deref() == Ok("sealed-v1")
++        && axiom_grok_input_guard::initialize_inherited_image().is_err()
++    {
++        eprintln!("AXIOM source image capability unavailable");
++        std::process::exit(1);
++    }
+     xai_grok_version::set_full_version(env!("VERSION_WITH_COMMIT"));
+     xai_grok_telemetry::startup::mark_process_start();
+     if let Some(code) = xai_grok_pager::app::mermaid_worker::maybe_run_render_subprocess() {
+diff --git a/crates/codegen/xai-grok-tools/Cargo.toml b/crates/codegen/xai-grok-tools/Cargo.toml
+index 61d5a9a..341f1fe 100644
+--- a/crates/codegen/xai-grok-tools/Cargo.toml
++++ b/crates/codegen/xai-grok-tools/Cargo.toml
+@@ -6,6 +6,7 @@ version = "0.1.220-alpha.4"
+ description = "Grok tools library"
+ 
+ [dependencies]
++axiom-grok-input-guard = { path = "../../../../../infra/grok-cli/input-guard" }
+ anyhow = { workspace = true }
+ arc-swap = { workspace = true }
+ xai-dirs = { workspace = true }
+diff --git a/crates/codegen/xai-grok-tools/src/implementations/grok_build/video_gen/mod.rs b/crates/codegen/xai-grok-tools/src/implementations/grok_build/video_gen/mod.rs
+index 6f24bfa..b70d224 100644
+--- a/crates/codegen/xai-grok-tools/src/implementations/grok_build/video_gen/mod.rs
++++ b/crates/codegen/xai-grok-tools/src/implementations/grok_build/video_gen/mod.rs
+@@ -860,39 +860,10 @@ struct VideoGenVideoInfo {
+ }
+ 
+ async fn resolve_image_reference(value: &str) -> Result<String, xai_tool_runtime::ToolError> {
+-    let value = value.trim();
+-    if value.is_empty() {
+-        return Err(xai_tool_runtime::ToolError::invalid_arguments(
+-            "image reference must not be empty",
+-        ));
+-    }
+-
+-    if value.starts_with("data:image/") {
+-        let comma = value.find(',').ok_or_else(|| {
+-            xai_tool_runtime::ToolError::invalid_arguments("malformed data URL in image reference")
+-        })?;
+-        if !value[..comma].contains(";base64") {
+-            return Err(xai_tool_runtime::ToolError::invalid_arguments(
+-                "image references only support base64 data URLs",
+-            ));
+-        }
+-        return Ok(value.to_owned());
+-    }
+-
+-    if value.starts_with("https://") {
+-        return Ok(value.to_owned());
+-    }
+-
+-    let raw_bytes = tokio::fs::read(value).await.map_err(|e| {
+-        xai_tool_runtime::ToolError::invalid_arguments(format!(
+-            "image reference not readable: {value} ({e})"
+-        ))
++    // Dedicated AXIOM CLI build: no path, URL, data URL or unguarded fallback.
++    let raw_bytes = axiom_grok_input_guard::read_inherited_image(value).map_err(|_| {
++        xai_tool_runtime::ToolError::invalid_arguments("AXIOM source image capability unavailable")
+     })?;
+-    if raw_bytes.is_empty() {
+-        return Err(xai_tool_runtime::ToolError::invalid_arguments(
+-            "image reference contained no data",
+-        ));
+-    }
+ 
+     let (_w, _h, mime) =
+         crate::util::image_validate::validate_image_bytes(&raw_bytes).map_err(|e| {
