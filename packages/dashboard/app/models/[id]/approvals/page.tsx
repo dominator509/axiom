@@ -1,5 +1,7 @@
 import { api } from '@/lib/api';
 import ApproveButtons from '@/components/ApproveButtons';
+import BundleMedia from '@/components/BundleMedia';
+import VideoReview from '@/components/VideoReview';
 
 export const dynamic = 'force-dynamic';
 
@@ -88,7 +90,7 @@ export default async function ApprovalsPage({
                     className={`badge ${b.tosReport.verdict === 'pass' ? 'good' : b.tosReport.verdict === 'review' ? 'warn' : 'bad'}`}
                     style={{ marginLeft: 8 }}
                   >
-                    ToS: {b.tosReport.verdict}
+                    ToS: {b.tosReport.verdict}{b.tosReport.decisionSource === 'human-review' ? ' (operator reviewed)' : ''}
                   </span>
                 )}
               </div>
@@ -97,6 +99,7 @@ export default async function ApprovalsPage({
               </span>
             </div>
             <div className="stack" style={{ marginTop: 10 }}>
+              {b.assetId && <BundleMedia key={b.assetId} bundleId={b.id} />}
               {Object.entries(b.captions ?? {}).map(([platform, caption]) => (
                 <div key={platform}>
                   <strong>{platform}:</strong> {caption}
@@ -107,6 +110,10 @@ export default async function ApprovalsPage({
               </div>
             </div>
             <div style={{ marginTop: 12 }}>
+              {b.state !== 'revising' && b.assetId && b.tosReport?.verdict === 'review' && b.tosReport.videoScan?.scanId && (
+                <VideoReview key={b.tosReport.videoScan.scanId} bundleId={b.id}
+                  scanId={b.tosReport.videoScan.scanId} platforms={Object.keys(b.captions ?? {})} />
+              )}
               {b.state === 'revising' ? (
                 <p role="status">
                   Caption revision pending. Refresh after generation and ToS scanning complete. If

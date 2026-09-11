@@ -296,6 +296,7 @@ describe('official subscription auth command lifecycle', () => {
   });
 
   it.each(['chat', 'stream'] as const)('uses a tool-free Grok agent for %s and preserves text output', async (operation) => {
+    vi.stubEnv('AXIOM_GROK_CLI', '/opt/axiom/patched-grok');
     const child = fakeChild();
     spawnMock.mockReturnValue(child);
     const request = {
@@ -309,7 +310,8 @@ describe('official subscription auth command lifecycle', () => {
         for await (const chunk of transport.stream(request)) text += chunk;
         return text;
       })();
-    const [, args, options] = spawnMock.mock.calls.at(-1)! as [string, string[], { env: NodeJS.ProcessEnv }];
+    const [command, args, options] = spawnMock.mock.calls.at(-1)! as [string, string[], { env: NodeJS.ProcessEnv }];
+    expect(command).toBe('/opt/axiom/patched-grok');
     // Inspect the launch policy, not the prompt's promise not to call tools.
     child.stdout.end(JSON.stringify({ type: 'stream_event', event: {
       type: 'content_block_delta', delta: { text: 'Plain response' },
@@ -344,11 +346,15 @@ describe('official subscription auth command lifecycle', () => {
     expect(child.kill).toHaveBeenCalled();
   });
 
-  it.each(['image'] as const)('runs only the requested %s tool and returns a validated artifact', async (mediaKind) => {
+  it.each(['image', 'video'] as const)('runs only the requested %s tool and returns a validated artifact', async (mediaKind) => {
     const kind: 'image' | 'video' = mediaKind as 'image' | 'video';
     const child = fakeChild();
+    const transferred: Buffer[] = [];
+    child.stdin.on('data', chunk => transferred.push(Buffer.from(chunk)));
     spawnMock.mockReturnValue(child);
     vi.stubEnv('XAI_API_KEY', 'must-not-be-inherited');
+    vi.stubEnv('AXIOM_GROK_VIDEO_CLI', '/opt/axiom/grok-video');
+    vi.stubEnv('AXIOM_GROK_IMAGE_LAUNCHER', '/opt/axiom/grok-image-launch');
     const credentials = join(subscriptionHome, createHash('sha256').update('user-1').digest('hex'), 'grok', 'credentials');
     mkdirSync(credentials, { recursive: true });
     writeFileSync(join(credentials, 'auth.json'), '{}');
@@ -370,7 +376,16 @@ describe('official subscription auth command lifecycle', () => {
     const promptFile = args[args.indexOf('--prompt-file') + 1]!;
     const input = JSON.parse(readFileSync(promptFile, 'utf8').split('\n')[1]!);
     expect(input.prompt).toBe('A landscape');
-    if (kind === 'video') expect(existsSync(input.image)).toBe(true);
+    if (kind === 'video') {
+      expect(input.image).toBe('axiom-input://image');
+      expect(Buffer.concat(transferred)).toEqual(Buffer.from([255, 216, 255, ...Array(13).fill(0)]));
+      expect(sandboxMock).toHaveBeenCalledWith(expect.objectContaining({
+        executable: '/opt/axiom/grok-video',
+        imageLauncher: { executable: '/opt/axiom/grok-image-launch', byteLength: 16 },
+      }));
+    } else {
+      expect(Buffer.concat(transferred)).toHaveLength(0);
+    }
     const directory = join(options.env.GROK_HOME!, 'sessions', session, kind === 'image' ? 'images' : 'videos');
     mkdirSync(directory, { recursive: true });
     const path = join(directory, kind === 'image' ? '1.jpg' : '1.mp4');
@@ -384,7 +399,6 @@ describe('official subscription auth command lifecycle', () => {
     child.emit('exit', 0);
     await expect(pending).resolves.toMatchObject({ path, mimeType: kind === 'image' ? 'image/jpeg' : 'video/mp4' });
     expect(existsSync(promptFile)).toBe(false);
-    if (kind === 'video') expect(existsSync(input.image)).toBe(false);
     expect(spawnMock).toHaveBeenCalledTimes(1);
     expect(spawnMock.mock.calls[0]?.[0]).toBe('/usr/bin/bwrap');
     expect(sandboxMock).toHaveBeenCalledWith(expect.objectContaining({ credentialRoot: credentials }));
@@ -392,11 +406,13 @@ describe('official subscription auth command lifecycle', () => {
   });
 
   it('does not use a legacy full-profile credential for media', async () => {
+    const beforeDispatch = vi.fn();
     const profile = join(subscriptionHome, createHash('sha256').update('user-1').digest('hex'), 'grok');
     mkdirSync(profile, { recursive: true });
     writeFileSync(join(profile, 'auth.json'), '{}');
-    await expect(transport.generateMedia({ kind: 'image', userId: 'user-1', prompt: 'Landscape' }))
+    await expect(transport.generateMedia({ kind: 'image', userId: 'user-1', prompt: 'Landscape' }, beforeDispatch))
       .rejects.toMatchObject({ status: 401 });
+    expect(beforeDispatch).not.toHaveBeenCalled();
     expect(spawnMock).not.toHaveBeenCalled();
   });
 
@@ -414,7 +430,7 @@ describe('official subscription auth command lifecycle', () => {
     expect(spawnMock).not.toHaveBeenCalled();
   });
 
-  it('keeps valid video requests fail-closed until pre-read input enforcement exists', async () => {
+  it('requires installation of the dedicated video runtime before launching', async () => {
     await expect(transport.generateMedia({ kind: 'video', userId: 'user-1', prompt: 'Landscape',
       image: Buffer.from([255, 216, 255, ...Array(13).fill(0)]),
     })).rejects.toMatchObject({ status: 503 });
@@ -423,14 +439,31 @@ describe('official subscription auth command lifecycle', () => {
   });
 
   it('never falls back to an unsandboxed image launch', async () => {
+    const beforeDispatch = vi.fn();
     const credentials = join(subscriptionHome, createHash('sha256').update('user-1').digest('hex'), 'grok', 'credentials');
     mkdirSync(credentials, { recursive: true });
     writeFileSync(join(credentials, '.active'), '');
     writeFileSync(join(credentials, 'auth.json'), '{}');
     sandboxMock.mockImplementation(() => { throw new Error('namespace unavailable'); });
-    await expect(transport.generateMedia({ kind: 'image', userId: 'user-1', prompt: 'Landscape' }))
+    await expect(transport.generateMedia({ kind: 'image', userId: 'user-1', prompt: 'Landscape' }, beforeDispatch))
       .rejects.toThrow('namespace unavailable');
+    expect(beforeDispatch).not.toHaveBeenCalled();
     expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('does not launch a prepared subprocess when durable dispatch is refused', async () => {
+    const credentials = join(subscriptionHome, createHash('sha256').update('user-1').digest('hex'), 'grok', 'credentials');
+    mkdirSync(credentials, { recursive: true });
+    writeFileSync(join(credentials, '.active'), '');
+    writeFileSync(join(credentials, 'auth.json'), '{}');
+    sandboxMock.mockImplementation(input => ({ command: '/usr/bin/bwrap', args: input.args, env: {}, cwd: input.requestRoot }));
+    const beforeDispatch = vi.fn(async () => { throw new Error('existing dispatch'); });
+    await expect(transport.generateMedia({ kind: 'image', userId: 'user-1', prompt: 'Landscape' }, beforeDispatch))
+      .rejects.toThrow('existing dispatch');
+    expect(beforeDispatch).toHaveBeenCalledOnce();
+    expect(spawnMock).not.toHaveBeenCalled();
+    const args = sandboxMock.mock.calls[0]![0].args as string[];
+    expect(existsSync(args[args.indexOf('--prompt-file') + 1]!)).toBe(false);
   });
 
   it('preserves the legacy login after a failed reconnect', async () => {

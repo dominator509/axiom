@@ -10,7 +10,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc, inArray } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
@@ -42,6 +42,19 @@ type PromptPlatform =
 
 const router = new Hono<AppBindings>();
 
+router.get('/models/:modelId/media-source-images', async (c) => {
+  const orgId = requireOrg(c);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const modelId = c.req.param('modelId');
+  const data = await withOrgContext(orgId, async tx => tx.select({
+    id: schema.asset.id, fileName: schema.asset.fileName,
+  }).from(schema.asset).where(and(
+    eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
+    eq(schema.asset.kind, 'image'), inArray(schema.asset.mimeType, ['image/jpeg', 'image/png']),
+  )).orderBy(desc(schema.asset.createdAt), desc(schema.asset.id)).limit(100));
+  return c.json({ data });
+});
+
 const generateSchema = z.object({
   style: z.string().min(1).max(100).default('studio'),
   outfit: z.string().min(1).max(100).default('summer dress'),
@@ -52,6 +65,12 @@ const generateSchema = z.object({
   platforms: z.array(z.string().min(1).max(30)).min(1).default(['instagram']),
   enrichWithLlm: z.boolean().default(false),
   model: z.string().max(100).optional(),
+  media: z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('image'), prompt: z.string().trim().min(1).max(4000),
+      aspectRatio: z.enum(['auto', '1:1', '16:9', '9:16', '4:5', '3:2', '2:3']).default('auto') }).strict(),
+    z.object({ kind: z.literal('video'), prompt: z.string().trim().min(1).max(4000),
+      sourceAssetId: z.string().uuid(), duration: z.union([z.literal(6), z.literal(10)]).default(6) }).strict(),
+  ]).optional(),
 });
 
 // POST /models/:id/generate
@@ -95,6 +114,14 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema), asy
       .limit(1);
     if (models.length === 0) return { status: 404 as const, data: null };
     const model = models[0];
+    if (body.media?.kind === 'video') {
+      const [source] = await tx.select().from(schema.asset).where(and(
+        eq(schema.asset.id, body.media.sourceAssetId), eq(schema.asset.orgId, orgId),
+        eq(schema.asset.modelId, modelId),
+      )).limit(1);
+      if (!source || source.kind !== 'image' || !['image/jpeg', 'image/png'].includes(source.mimeType))
+        return { status: 400 as const, data: null };
+    }
 
     const promptPlatform = (platforms[0] ?? 'instagram') as PromptPlatform;
     const profile: PromptModelProfile = {
@@ -165,7 +192,7 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema), asy
       tosScores.push(...evalResult.scores);
       evalResult.reasons.forEach((r) => allReasons.add(r));
     }
-    const tosReport = {
+    const textReport = {
       verdict: tosScores.some((s) => s.verdict === 'block')
         ? 'block'
         : tosScores.some((s) => s.verdict === 'review')
@@ -174,6 +201,11 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema), asy
       scores: tosScores,
       reasons: Array.from(allReasons),
     };
+
+    // A text scan cannot certify media that has not been generated yet.
+    const tosReport = body.media
+      ? { verdict: 'pending', scores: [], reasons: ['Media generation and visual ToS scan pending'] }
+      : textReport;
 
     // 4. Persist the bundle
     const [bundle] = await tx
@@ -198,19 +230,22 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema), asy
     // Enqueue in the SAME transaction as the bundle (L3.4 §1).
     await enqueueJob(tx, {
       orgId,
-      queue: 'tos',
-      kind: 'tos.scan',
-      payload: { bundleId: bundle.id },
-      dedupeParts: ['tos.scan', bundle.id],
+      queue: body.media ? 'content' : 'tos',
+      kind: body.media ? 'media.generate' : 'tos.scan',
+      payload: body.media
+        ? { ...body.media, bundleId: bundle.id, userId }
+        : { bundleId: bundle.id },
+      dedupeParts: [body.media ? 'media.generate' : 'tos.scan', bundle.id],
     });
 
     return {
       status: 201 as const,
-      data: { bundle, variants, tosReport },
+      data: { bundle, variants, tosReport, ...(body.media ? { mediaGeneration: 'queued' } : {}) },
     };
   });
 
   if (result.status === 404) return apiError(c, 404, statusTitle(404), 'model not found');
+  if (result.status === 400) return apiError(c, 400, statusTitle(400), 'source image must belong to this model and organization');
   return c.json({ data: result.data }, 201);
 });
 

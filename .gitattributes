@@ -1,3 +1,4 @@
 *.sh text eol=lf
+packages/db/migrations/*.sql text eol=lf
 # Unified patches use a single space for empty context lines; preserve it.
 infra/grok-cli/*.patch text eol=lf whitespace=-blank-at-eol

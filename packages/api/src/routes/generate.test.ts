@@ -8,6 +8,10 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ modelProfile: {}, contentBundle: {} }));
+const mediaQueue = vi.hoisted(() => vi.fn(async () => ({ id: 'queued-job' })));
+vi.mock('@axiom/worker', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()), enqueueJob: mediaQueue,
+}));
 
 // Mock the LLM gateway so the enrich path is deterministic in tests.
 vi.mock('@axiom/llm-gateway', async (importOriginal) => {
@@ -60,6 +64,8 @@ function appWithOrg(orgId: string | null, userId = 'user-1') {
 
 beforeEach(() => {
   mockState.result = [];
+  mockState.results = [];
+  mediaQueue.mockClear();
   capturedOptions = null;
 });
 
@@ -79,6 +85,39 @@ const validBody = {
 };
 
 describe('POST /models/:id/generate', () => {
+  it('queues media under the authenticated identity and leaves visual ToS pending', async () => {
+    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
+    const res = await appWithOrg(ORG_ID, 'operator-1').request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, userId: 'attacker-selected-profile', media: { kind: 'image', prompt: 'A landscape' } }),
+    });
+    expect(res.status).toBe(201);
+    expect(mediaQueue).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      kind: 'media.generate', queue: 'content',
+      payload: { bundleId: MODEL_ID, userId: 'operator-1', kind: 'image', prompt: 'A landscape', aspectRatio: 'auto' },
+    }));
+    const body = await res.json() as any;
+    expect(body.data.mediaGeneration).toBe('queued');
+    expect(body.data.tosReport.verdict).toBe('pending');
+  });
+  it('refuses video whose source image is unavailable in the model scope', async () => {
+    // withOrgContext executes set_config before the model and asset lookups.
+    mockState.results = [[], [{ id: MODEL_ID, orgId: ORG_ID }], []];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, media: { kind: 'video', prompt: 'Animate this', sourceAssetId: MODEL_ID } }),
+    });
+    expect(res.status).toBe(400);
+    expect(mediaQueue).not.toHaveBeenCalled();
+  });
+  it('requires a source asset for video', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, media: { kind: 'video', prompt: 'Animate this' } }),
+    });
+    expect(res.status).toBe(400);
+    expect(mediaQueue).not.toHaveBeenCalled();
+  });
   it.each(['user-1', 'user-2'])('uses authenticated subscription identity for %s, not request-body identity', async (userId) => {
     mockState.result = [{
       id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna Vex', handle: 'lunavex',

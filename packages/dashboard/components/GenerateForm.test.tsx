@@ -14,6 +14,7 @@ vi.mock('react', async (original) => ({
     return [hooks.values[index], (value: unknown) => { hooks.values[index] = value; }];
   },
   useRef: (initial: unknown) => hooks.refs[hooks.refIndex++] ??= { current: initial },
+  useEffect: () => {},
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
 import GenerateForm from './GenerateForm';
@@ -36,6 +37,33 @@ function key(fetch: ReturnType<typeof vi.fn>, index: number) {
 }
 
 describe('generation intent', () => {
+  it.each(['image', 'video'])('submits the %s media contract with the same retry key', async kind => {
+    submit(); // Initialize the controlled hook state.
+    hooks.values[11] = kind;
+    hooks.values[12] = 'A landscape';
+    hooks.values[13] = '11111111-1111-4111-8111-111111111111';
+    hooks.values[14] = 10;
+    const fetch = vi.fn().mockRejectedValue(new Error('response lost'));
+    vi.stubGlobal('fetch', fetch);
+    await submit()();
+    fetch.mockResolvedValue(response());
+    await submit()();
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(body.media).toEqual(kind === 'image'
+      ? { kind, prompt: 'A landscape', aspectRatio: '4:5' }
+      : { kind, prompt: 'A landscape', sourceAssetId: hooks.values[13], duration: 10 });
+    expect(body).not.toHaveProperty('userId');
+    expect(key(fetch, 2)).toBe(key(fetch, 0));
+  });
+  it('does not submit video without a selected source image', async () => {
+    submit();
+    hooks.values[11] = 'video';
+    hooks.values[12] = 'Animate this';
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await submit()();
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it('reuses the same model and payload key after lost responses', async () => {
     const fetch = vi.fn().mockRejectedValue(new Error('response lost'));
     vi.stubGlobal('fetch', fetch);

@@ -810,6 +810,7 @@ app.use('/api/v1/models/:id', idempotency());
 app.use('/api/v1/bundles/*/approve', idempotency());
 app.use('/api/v1/bundles/*/revise', idempotency());
 app.use('/api/v1/bundles/*/reject', idempotency());
+app.use('/api/v1/bundles/*/video-review', idempotency());
 app.use('/api/v1/bundles', idempotency());
 // DLQ replay resets a durable job and requeues its side effect. Protect the
 // dashboard retry action with the same durable key/replay contract.

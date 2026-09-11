@@ -19,4 +19,6 @@ ENV RUSTUP_TOOLCHAIN=1.94.0
 ENV CARGO_HTTP_MULTIPLEXING=false
 ENV CARGO_TARGET_DIR=/build-target
 WORKDIR /axiom/var/grok-source-37949780
+# jemalloc's native build invokes make directly (cmake alone is insufficient).
+RUN apt-get update && apt-get install --no-install-recommends -y make
 CMD ["cargo", "check", "--locked", "-p", "xai-grok-tools"]

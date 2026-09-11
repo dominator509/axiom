@@ -2,6 +2,7 @@
 
 import type { Executor } from './context.js';
 import { contentGenerate } from './generate.js';
+import { mediaGenerate } from './media_generate.js';
 import { tosScan } from './tos.js';
 import { relayCard } from './relay_card.js';
 import { publishTarget } from './publish.js';
@@ -31,6 +32,7 @@ export {
 
 export const defaultExecutors: Record<string, Executor> = {
   'content.generate': contentGenerate,
+  'media.generate': mediaGenerate,
   'tos.scan': tosScan,
   'relay.card': relayCard,
   'publish.target': publishTarget,

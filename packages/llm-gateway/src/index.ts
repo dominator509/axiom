@@ -59,3 +59,5 @@ export type {
 // Paid API providers remain internal compatibility code and are intentionally
 // absent from the public package surface.
 export { VLLMProvider } from './providers/vllm.js';
+export { OfficialSubscriptionTransport } from './providers/subscription.js';
+export type { GrokMediaRequest } from './providers/subscription.js';

@@ -91,6 +91,7 @@ export { relayBinding, relayBindingRelations };
 export { agentPermission, agentPermissionRelations };
 export { crashReport, crashReportRelations };
 export { mcpTokenRevocation };
+export { mediaGenerationAttempt } from './media_generation_attempt.js';
 
 export const allRelations = [
   orgRelations,

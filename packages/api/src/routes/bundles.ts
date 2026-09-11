@@ -28,6 +28,8 @@ import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 import { asPlatform, enqueueJob, resolveCapabilities } from '@axiom/worker';
 import type { Platform } from '@axiom/core';
 import { queueBundleRevision } from '../bundle-revision.js';
+import { assetPreview } from '../asset-preview.js';
+import { reviewedVideoReport, videoReviewRequest } from '../video-review.js';
 
 const router = new Hono<AppBindings>();
 
@@ -85,6 +87,71 @@ router.get('/:id', async (c) => {
   );
   if (rows.length === 0) return apiError(c, 404, statusTitle(404), 'bundle not found');
   return c.json({ data: rows[0] });
+});
+
+// Authenticated browser media delivery; no storage path is returned to clients.
+router.get('/:id/media', async (c) => {
+  const orgId = requireOrg(c);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const id = z.string().uuid().safeParse(c.req.param('id'));
+  if (!id.success) return apiError(c, 400, statusTitle(400), 'invalid bundle id');
+  const asset = await withOrgContext(orgId, async (tx) => {
+    const [bundle] = await tx.select().from(schema.contentBundle)
+      .where(and(eq(schema.contentBundle.id, id.data), eq(schema.contentBundle.orgId, orgId))).limit(1);
+    if (!bundle?.assetId || bundle.orgId !== orgId) return null;
+    const [row] = await tx.select().from(schema.asset).where(and(
+      eq(schema.asset.id, bundle.assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, bundle.modelId),
+    )).limit(1);
+    return row?.orgId === orgId && row.modelId === bundle.modelId && row.id === bundle.assetId ? row : null;
+  });
+  if (!asset) return apiError(c, 404, statusTitle(404), 'media unavailable');
+  try {
+    return await assetPreview(asset, c.req.raw, process.env.AXIOM_MEDIA_ROOT ?? 'var/media');
+  } catch {
+    // Filesystem errors must never reveal paths or asset metadata.
+    return apiError(c, 404, statusTitle(404), 'media unavailable');
+  }
+});
+
+// Separate, explicit compliance decision. This neither schedules nor publishes.
+router.post('/:id/video-review', zValidator('json', videoReviewRequest), async (c) => {
+  const orgId = requireOrg(c);
+  const userId = c.get('userId');
+  if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authentication required');
+  const id = z.string().uuid().safeParse(c.req.param('id'));
+  if (!id.success) return apiError(c, 400, statusTitle(400), 'invalid bundle id');
+  const input = c.req.valid('json');
+  const result = await withOrgContext(orgId, async (tx) => {
+    const [bundle] = await tx.select().from(schema.contentBundle).where(and(
+      eq(schema.contentBundle.id, id.data), eq(schema.contentBundle.orgId, orgId),
+    )).limit(1).for('update');
+    if (!bundle || bundle.orgId !== orgId) return { status: 404 as const, error: 'bundle not found' };
+    if (!['generated', 'hold'].includes(bundle.state) || !bundle.assetId
+      || await getTosScanState(tx, orgId, bundle.id) !== 'completed')
+      return { status: 409 as const, error: 'A completed video scan on a reviewable bundle is required' };
+    const [asset] = await tx.select().from(schema.asset).where(and(
+      eq(schema.asset.id, bundle.assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, bundle.modelId),
+    )).limit(1).for('share');
+    if (!asset || asset.id !== bundle.assetId || asset.orgId !== orgId || asset.modelId !== bundle.modelId
+      || asset.kind !== 'video' || asset.mimeType !== 'video/mp4')
+      return { status: 409 as const, error: 'Video asset unavailable' };
+    let report;
+    try {
+      report = reviewedVideoReport(bundle, Buffer.from(asset.sha256).toString('hex'), input, userId, new Date());
+      // Confirm that the bytes still match the scan, without delivering a body.
+      await assetPreview(asset, new Request('http://internal/media', { method: 'HEAD', signal: c.req.raw.signal }),
+        process.env.AXIOM_MEDIA_ROOT ?? 'var/media');
+    } catch {
+      return { status: 409 as const, error: 'Video review could not be accepted: refresh and check the current scan and media' };
+    }
+    await tx.update(schema.contentBundle).set({ tosReport: report, updatedAt: new Date() }).where(and(
+      eq(schema.contentBundle.id, bundle.id), eq(schema.contentBundle.orgId, orgId),
+    ));
+    await writeAudit(tx, orgId, userId, 'bundle.video-review', bundle.id, report.humanReview);
+    return { status: 200 as const, data: { id: bundle.id, tosReport: report } };
+  });
+  if (result.status !== 200) return apiError(c, result.status, statusTitle(result.status), result.error);
+  return c.json({ data: result.data });
 });
 
 // POST /api/v1/bundles — create a generated bundle (from generator pipeline)

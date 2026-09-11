@@ -1,9 +1,14 @@
-# Grok OAuth media CLI integration (not enabled)
+# Grok OAuth media CLI integration (live acceptance pending)
 
 The source-image patch targets exactly `xai-org/grok-build` commit
 `37949780c144e37df692e3d669051a21fec24f20`. It is a candidate patch, not a
-verified distributable CLI. AXIOM continues to reject video generation with 503
-before launching a provider process.
+verified distributable CLI. Video transport now requires explicit installation
+configuration: `AXIOM_GROK_VIDEO_CLI` must name this dedicated patched executable
+and `AXIOM_GROK_IMAGE_LAUNCHER` the built sealed-input launcher, both absolute
+Linux paths. Missing configuration returns 503; there is no stock-CLI fallback.
+Transport wiring tests are not evidence of a real generated video.
+Set `AXIOM_GROK_CLI` to the same patched executable for login, status, image
+generation and text operations; otherwise those operations use the stock path.
 
 ## Source layout and patch
 
@@ -17,6 +22,8 @@ git -C var/grok-source-37949780 apply --check ../../infra/grok-cli/37949780-seal
 git -C var/grok-source-37949780 apply ../../infra/grok-cli/37949780-sealed-input.patch
 git -C var/grok-source-37949780 apply --check ../../infra/grok-cli/37949780-sealed-input-lock.patch
 git -C var/grok-source-37949780 apply ../../infra/grok-cli/37949780-sealed-input-lock.patch
+git -C var/grok-source-37949780 apply --check ../../infra/grok-cli/37949780-bounded-image.patch
+git -C var/grok-source-37949780 apply ../../infra/grok-cli/37949780-bounded-image.patch
 ```
 
 The companion lock patch records Cargo's resolved graph, including the guard,
@@ -27,6 +34,21 @@ must use `--locked`; do not silently re-resolve it as part of a release build.
 ## Isolated build tooling
 
 `Dockerfile.build` is an x86_64 Linux build environment, not a deployment image.
+
+The installed runtime is currently a Linux host installation, not a verified
+production worker-container integration. The worker runner image is Alpine;
+the patched CLI build is glibc-based and also requires the bubblewrap sandbox.
+Do not assume that copying the binary into that image is sufficient. Deployment
+must provide the verified runtime/launcher and sandbox, the per-user credential
+home, and the same private media directory to worker, API, media plane and vision
+engine (read-only for API/vision where practical, compatible service UIDs).
+The development Compose file currently mounts its media volume only into the
+media and vision sidecars. End-to-end container generation is still unverified.
+
+Media job dispatch is committed only after local transport preparation succeeds,
+immediately before the subprocess launch. Missing credentials or sandbox setup
+does not create an uncertain paid-attempt marker. Once committed, that marker
+still prevents automatic repetition after an unknown provider outcome.
 It uses the upstream Rust 1.94.0 pin and protoc 29.3 archive/checksum from the
 pinned `bin/protoc`. The supported `PROTOC` override avoids dependence on the
 dotslash launcher or host checkout line endings. Debian build packages remain
@@ -47,7 +69,28 @@ The patch initializes the inherited capability before CLI runtime setup and
 replaces the image-to-video resolver's file, HTTPS and data-URL handling with
 `read_inherited_image`. Missing capability fails closed; model input can only
 name `axiom-input://image`. Existing full image validation then runs on the
-snapshot. It still needs explicit decoded-image resource bounds.
+snapshot. The separate bounded-image candidate patch adds an AXIOM-only
+validator without changing the generic upstream validator. It accepts static
+PNG/JPEG up to 20 MiB encoded, 8,192 pixels per side and 16,000,000 pixels total,
+with a 256 MiB best-effort decoder allocation budget. These are application
+policy, not provider limits or a process-wide memory/CPU guarantee. Animated
+PNG and trailing bytes after PNG IEND are rejected; bytes are not silently
+normalized. Full corruption validation remains required after the bounded
+header probe. The actual patched `xai-grok-image` crate compiled and passed all
+46 tests, including six AXIOM-specific regressions for valid bit depths,
+dimension/pixel boundaries, allocation exhaustion, corruption, unsupported
+formats and PNG animation/trailing bytes. Independent review identified a
+remaining JPEG Extended XMP CPU-amplification path before decoder dimension
+limits. An offline, one-CPU, 512 MiB, 15-second-bounded reproducer against the
+actual tested library confirmed acceptance of repeated empty Extended XMP
+segments: 1,000/2,000/4,000 segments took approximately 106/318/1,234 ms for
+80/159/317 kB inputs, versus under 1 ms for the ordinary JPEG. These are local
+debug-build observations, not production performance guarantees. The candidate
+now includes a linear JPEG marker prevalidation before decoder construction,
+limiting APP/comment metadata to 512 segments and 2 MiB across all scans. The
+repeated-XMP regression now fails before decoder reassembly, while ordinary
+JPEG remains accepted; all 47 actual image-crate tests pass. Full CLI and
+deployment verification remain open.
 
 This is a dedicated single-image AXIOM binary, not a drop-in upstream CLI:
 `reference_to_video` shares this resolver and multiple image references will
@@ -65,13 +108,30 @@ checkout. The initial WSL attempt failed during dependency downloads with TLS
 errors. No TLS verification was disabled. A subsequent Docker attempt using
 upstream Rust 1.94.0 reached compilation, then failed on missing protoc (and the
 CRLF dotslash wrapper). The build tooling above addresses that prerequisite;
-the full CLI build, binary digest and actual resolver execution remain unverified.
-The final tooling image built successfully as
+these were historical build failures, not the current build result.
+The initial tooling image built successfully as
 `sha256:3ac685f0b531aa9ccb7c23c787bac090c4e587d07be3aaad2264cd930f212922`.
 The read-only-source `cargo check --locked -p xai-grok-tools` completed
 successfully in 19m14s. This verifies compilation of the patched resolver and
 guard, not execution. The separate `cargo build --locked -p xai-grok-pager-bin
---bin xai-grok-pager` is running; no completed CLI binary is claimed yet.
+--bin xai-grok-pager` subsequently completed in 12m18s after the corrections below.
+
+The first full-binary build failed with compiler output I/O errors after the
+Windows C: volume filled. Only its disposable compiler-output directory was
+removed; source, dependency cache, credentials and database data were preserved.
+The retry uses the same read-only source and locked dependencies, with compiler
+output on `F:/AXIOM-build-cache/grok-37949780-20260911`. This is a local build
+location, not a deployment prerequisite. That retry
+subsequently failed because jemalloc invokes `make`, which was absent. The
+build recipe now installs it explicitly; the updated tooling image built
+successfully. After the image-validator tests passed, the full CLI build was
+restarted with the updated tooling and bounded-image candidate.
+
+Hosted run `34607243164` completed successfully for AXIOM commit
+`8523c594b7f4515da6a613bd2e35b263306a813a`: test, security, build, container,
+typecheck and lint all passed, including the real Linux synthetic handoff
+fixture. PR #14 remains open with review required. These application checks do
+not build the patched upstream CLI or verify a live OAuth media generation.
 
 Completion subprocess cancellation now targets the owned POSIX process group
 or Windows process tree, and waits for confirmed closure before prompt cleanup.
@@ -86,6 +146,138 @@ outside this completion-runner change.
 The separately locked input guard and real Linux launch/exec fixture are tested
 independently. They do not establish OAuth refresh, tenant/source authorization,
 provider spending/outcome handling, or the asset/ToS/Relay lifecycle. In
-particular, no caller currently supplies the new sandbox `imageLauncher` option
-from the production generation path. Do not remove the video gate based on the
-synthetic fixture or green application CI.
+particular, the transport now supplies the sandbox `imageLauncher` option,
+copies the authorized input buffer, transfers it through stdin and exposes
+only `axiom-input://image` in the prompt. No source-image file is created.
+All 323 gateway tests and typechecking pass, including image/video command
+wiring. The installed binary must include all three patches above; the stock
+upstream CLI is not safe for this configuration. The earlier full binary was
+observed on disk and ran `--version` successfully offline as 1.0.24; a rebuild
+including JPEG metadata bounds completed successfully in 12m18s. The final
+binary starts offline as 1.0.24 and rejects missing sealed input before runtime
+startup. These smoke checks used no credentials or network access. API/asset/ToS/worker integration,
+authenticated real generation remain unverified.
+
+## Local runtime and frame-scan evidence (2026-09-11)
+
+The final CLI SHA-256 is
+`5d9f09f7406253d1397a0dcbc963ac4dff90df72988efc6ec36fe712e600f638`.
+The freshly built Linux launcher SHA-256 is
+`0e5555e9814495d3af920478b662e7c0ac63ddd10d841782ef088d5ee423f722`.
+Both were installed into a private versioned WSL directory using
+`scripts/install-grok-runtime.sh`. The installer refuses an existing destination
+and checks the supplied CLI hash before installing; it does not access credentials.
+`scripts/rehearse-grok-installed-runtime.mjs` passed for both the actual CLI and
+the actual launcher/CLI pair inside bubblewrap with networking disabled and an
+empty credential directory. This proves startup and sealed transfer, not execution
+of the provider's media tool or OAuth authentication. Node 22.23.2 is now
+installed in a private AXIOM WSL runtime directory. The initial nvm binary
+download failed with a TLS record error; a Windows download from the official
+Node release site was checked against its SHA-256 list before installation by
+`scripts/install-node-runtime.sh`. No TLS verification was disabled and system
+Node defaults were not replaced. The current compiled API imports successfully
+under this Node 22 runtime with an empty credential environment. This import
+check is not an authenticated server/database readiness check.
+
+The media plane now exposes authenticated `POST /media/video/frames` for MP4
+clips up to 12 seconds/256 MiB/16 million pixels. A private snapshot is hashed,
+probed and decoded with deadlines, restricted protocols and one concurrent
+extraction. Its versioned policy samples at 2fps into bounded 512-pixel PNGs.
+Complete frame sets are retained under `var/media/tos-video-v1/<source-hash>`
+for audit/retries; retention/garbage collection remains an operational requirement.
+The worker verifies source hash/coverage and classifies every returned frame.
+Any block survives aggregation; otherwise sampled videos require human review
+of the full video and audio. This is not full-frame or audio classification.
+The filter follows the [official FFmpeg fps documentation](https://ffmpeg.org/ffmpeg-filters.html#fps).
+
+Executed evidence: real FFmpeg 6s/10s fixtures produced 12/20 decodable frames,
+cache reuse passed and corrupt MP4 was rejected. Eleven Rust unit tests and
+Clippy with warnings denied passed; the real FFmpeg test is explicitly invoked
+with `cargo test -p media-plane real_ffmpeg_short_clip_coverage_and_cache -- --ignored`.
+Worker ToS/media generation tests passed 30, API generation tests 12, dashboard
+form tests 7 and subscription lifecycle tests 32 (with Windows process-control
+permission). The image aspect ratio now reaches the worker/provider request.
+These are not live vision-model, browser approval, migrated database or real
+Grok generation acceptance results. No real credential has been connected yet.
+
+The frame inference boundary was subsequently exercised with the pinned real
+ONNX model in `axiom-vision-engine:rehearsal-45f96d5`: all 12 frames of the 6s
+fixture and all 20 frames of the 10s fixture passed inference-contract checks
+through both classification endpoints, without overrides, in network-disabled
+containers. This proves model execution, not classifier accuracy or the final
+worker/database/dashboard journey. Invoke `scripts/rehearse-vision.mjs
+--isolated-fixture <fixture-source-sha256>` after the real FFmpeg test to repeat
+it. Current API dependency builds passed. The worker's authorized roles now
+match the API (`owner`, `manager`, `operator`); all eight media-worker tests pass.
+
+## Recovered local database boundary
+
+The existing `axiom-recovery-postgres` container was stopped. Its persisted
+volume and loopback port matched the saved application connection; starting
+that same container restored access without replacing credentials or data.
+The local runtime account is neither superuser nor BYPASSRLS. The scoped
+`scripts/start-local-grok-api.mjs` launcher brings up the existing API using
+DB/auth/Grok configuration only; unrelated social adapters and workers remain
+stopped. The actual dashboard sign-in page was rendered in the browser.
+
+Read-only inventory via `scripts/check-local-runtime.mjs --schema-shape` checked
+47 current schema tables. The recovered DB lacks `mcp_token_revocation`,
+`media_generation_attempt`, `consent_record.org_id` and
+`content_bundle.publish_intent`. The migration checksum ledger is absent.
+`--migration-contracts` additionally found the old `claim_job` body does not
+match 0018, `load_model_network_configs` is absent, and the expected consent,
+viral-exemplar and pending-relay identity indexes are absent. Existing resolver
+functions do revoke PUBLIC execution and have BYPASSRLS owners; authentication
+tables grant the runtime role all four required CRUD operations. No configured
+`MIGRATOR_DATABASE_URL` is present. This is evidence of an upgrade gap, not
+permission to infer a baseline or blindly replay the historical migration set.
+Back up and rehearse the upgrade against a copy before mutating this database.
+
+`scripts/rehearse-media-attempt.mjs --isolated-fixture` passed the new 0025
+migration's actual PostgreSQL forced-RLS, cross-tenant access, protected dispatch
+fields, duplicate suppression, rollback persistence and completion-update
+contracts in a fresh disposable DB. It supplies only the org foreign-key
+prerequisite, so it does not establish a successful full recovered-schema
+upgrade. Its disposable DB was removed; the recovered schema was unchanged.
+
+The recovered source was subsequently backed up through existing owner socket
+access, with a checksum-verified owner-only copy preserved outside the container.
+`scripts/rehearse-recovery-upgrade.mjs --restore-copy` restored that archive into
+an access-restricted new database: 45 public tables, 394 rows, application-role
+CONNECT denied. `scripts/upgrade-recovery-copy.mjs --rehearsal-copy` applied
+0014–0025 on that copy only. All 12 migrations passed, preserving existing table
+row counts and satisfying consent backfill, identity-index and dispatch-RLS
+checks. This does not establish value-by-value preservation, complete schema
+conformance, or a valid historical checksum baseline. The original recovered
+database has not been upgraded; the private rehearsal copy is retained.
+
+`scripts/compare-recovery-schema.mjs --rehearsal-copy` subsequently built a
+fresh reference from all 26 migrations in the labeled CI fixture and compared
+`scripts/schema-contract.sql` metadata. No differences remained in 47 table RLS
+flags, 468 exact column types/defaults/nullability definitions, 135 indexes,
+163 constraints, 42 policies, four application function bodies/security
+properties, table grants or per-column update grants. Enum, view and
+non-internal-trigger sets were also equal (empty). Temporary reference DBs were
+removed. Extension-owned functions/internal schemas and data-value fingerprints
+are outside this comparison; it is not a live workflow or production readiness
+claim. The original recovery database was unchanged at this checkpoint.
+
+## Guarded recovery cutover completed locally
+
+`scripts/guarded-recovery-upgrade.mjs` was rehearsed on a fresh restored copy,
+then run against the configured original recovery DB. It captures fingerprints
+of every existing table's original column values under write-blocking locks,
+applies 0014–0025 in one transaction, verifies metadata against the reconciled
+reference and validates data preservation/consent backfill before recording all
+26 migration checksums and committing. The first copy attempt rolled back due
+to a verifier record-variable collision; the corrected copy and original runs
+passed. Post-commit read-only inventory found no missing current tables/columns;
+the runtime role remains neither superuser nor BYPASSRLS. Backups are retained.
+
+Migration files are now pinned LF in `.gitattributes`. Fourteen Windows checkout
+files were mechanically normalized to their existing Git blob bytes before the
+original baseline was recorded; no historical SQL content changed. This keeps
+the existing byte-based checksum algorithm portable to Linux checkouts.
+The earlier rehearsal copy contains pre-normalization checksums and must not
+be used as a deployment baseline. Publishing workers remain stopped and real
+Grok authorization/generation/dashboard approval acceptance is still pending.

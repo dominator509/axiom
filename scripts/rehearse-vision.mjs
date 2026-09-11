@@ -7,11 +7,21 @@ import { setTimeout } from 'node:timers/promises';
 
 assert.equal(process.argv[2], '--isolated-fixture', 'Pass --isolated-fixture explicitly');
 const model = fileURLToPath(new URL('../var/models/nsfw-vit.onnx', import.meta.url));
-const media = fileURLToPath(new URL('../crates/vision-engine/var/media', import.meta.url));
+const videoHash = process.argv[3];
+if (videoHash) assert.match(videoHash, /^[0-9a-f]{64}$/);
+const media = fileURLToPath(new URL(videoHash
+  ? '../crates/media-plane/var/media' : '../crates/vision-engine/var/media', import.meta.url));
 assert.equal(createHash('sha256').update(readFileSync(model)).digest('hex'),
   '2605f68c77b9262e51afa0ff022971c7a8dabcfa51f55c78321b711b889b0e93');
 // This synthetic PNG is produced by the existing vision-engine unit tests.
-assert.ok(readFileSync(`${media}/no-override-test.png`).length > 0);
+const framePaths = videoHash
+  ? JSON.parse(readFileSync(`${media}/tos-video-v1/${videoHash}/manifest.json`, 'utf8')).frames
+  : ['no-override-test.png'];
+assert.ok(Array.isArray(framePaths) && framePaths.length > 0 && framePaths.length <= 25);
+for (const [index, frame] of framePaths.entries()) {
+  if (videoHash) assert.equal(frame, `tos-video-v1/${videoHash}/frame-${String(index + 1).padStart(3, '0')}.png`);
+  assert.ok(readFileSync(`${media}/${frame}`).length > 0);
+}
 const image = 'axiom-vision-engine:rehearsal-45f96d5';
 const name = `axiom-vision-probe-${randomBytes(8).toString('hex')}`;
 const token = randomBytes(32).toString('hex');
@@ -51,7 +61,8 @@ try {
   }
   assert.equal(health.status, 200, 'Pinned model must become ready');
   assert.equal(JSON.parse(health.body).model_loaded, true);
-  const body = { image_path: 'no-override-test.png' };
+  for (const imagePath of framePaths) {
+  const body = { image_path: imagePath };
   for (const path of ['/vision/tos-classify', '/vision/nsfw-detect']) {
     assert.equal(request(path, body, false).status, 401);
     assert.equal(request(path, { image_path: '/etc/passwd' }).status, 400);
@@ -66,6 +77,8 @@ try {
     assert.ok(Math.abs(result.probabilities.reduce((sum, p) => sum + p, 0) - 1) < 1e-6);
     assert.ok(Math.abs(result.nsfw_score - [1, 3, 4].reduce((sum, i) => sum + result.probabilities[i], 0)) < 1e-6);
   }
+  }
+  console.log(`vision rehearsal: classified ${framePaths.length} real image/frame files without overrides`);
   console.log('vision rehearsal: pinned ONNX model ready; both inference routes model-backed; auth and path boundaries passed (not accuracy validation)');
 } finally {
   if (created) assert.equal(docker(['rm', '--force', name]).status, 0, 'Remove only the probe container');

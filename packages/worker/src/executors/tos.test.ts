@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
   results: [] as unknown[],
@@ -102,8 +102,59 @@ beforeEach(() => {
   mockState.enqueue.mockReset();
   mockState.enqueue.mockResolvedValue({ id: 'relay-job-1' });
 });
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe('evaluateMediaToS', () => {
+  const video = { kind: 'video', storageKey: 'generated/clip.mp4', sha256: Buffer.alloc(32, 1) };
+  const frame = (index: number) => `tos-video-v1/${video.sha256.toString('hex')}/frame-${String(index).padStart(3, '0')}.png`;
+  function extraction(overrides = {}) {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      policy: 'sampled-2fps-v1', source_sha256: video.sha256.toString('hex'), duration_seconds: 1,
+      frames: [frame(1), frame(2)], ...overrides,
+    })));
+    vi.stubGlobal('fetch', fetcher);
+    return fetcher;
+  }
+  it('classifies every extracted frame and requires full-video human review', async () => {
+    vi.stubEnv('MEDIA_PLANE_AUTH_TOKEN', 'internal-test-token');
+    const fetcher = extraction();
+    const report = await evaluateMediaToS(video, 'Safe', [], ['instagram']);
+    expect(report.verdict).toBe('review');
+    expect(report.scores[0].verdict).toBe('review');
+    expect(report.videoCoverage).toEqual({ policy: 'sampled-2fps-v1',
+      assetSha256: video.sha256.toString('hex'), durationSeconds: 1, frameCount: 2,
+      automatedScores: REPORT.scores });
+    expect(report.reasons.join(' ')).toContain('2 frames');
+    expect(mockState.evaluate).toHaveBeenCalledTimes(2);
+    expect(mockState.evaluate).toHaveBeenNthCalledWith(2, { imageData: frame(2), caption: 'Safe', hashtags: [] }, ['instagram']);
+    expect(fetcher).toHaveBeenCalledWith(expect.stringContaining('/media/video/frames'), expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: 'Bearer internal-test-token' }),
+    }));
+  });
+  it('preserves a block and the highest score from a later frame', async () => {
+    extraction();
+    mockState.evaluate.mockResolvedValueOnce(REPORT).mockResolvedValueOnce({
+      verdict: 'block', reasons: ['Unsafe frame'],
+      scores: [{ ...REPORT.scores[0], score: 99, verdict: 'block', reasons: ['Unsafe frame'] }],
+    });
+    const report = await evaluateMediaToS(video, 'Safe', [], ['instagram']);
+    expect(report.verdict).toBe('block');
+    expect(report.scores[0].score).toBe(99);
+    expect(report.videoCoverage?.automatedScores[0].verdict).toBe('block');
+  });
+  it.each([
+    { frames: [] }, { frames: [frame(1), frame(1)] }, { frames: ['../../private'] },
+    { source_sha256: 'wrong' }, { duration_seconds: 30 }, { policy: 'unknown' },
+  ])('rejects invalid extraction evidence before inference: %s', async overrides => {
+    extraction(overrides);
+    await expect(evaluateMediaToS(video, 'Safe', [], ['instagram'])).rejects.toThrow('coverage');
+    expect(mockState.evaluate).not.toHaveBeenCalled();
+  });
+  it('does not produce a verdict after partial inference failure', async () => {
+    extraction();
+    mockState.evaluate.mockResolvedValueOnce(REPORT).mockRejectedValueOnce(new Error('vision unavailable'));
+    await expect(evaluateMediaToS(video, 'Safe', [], ['instagram'])).rejects.toThrow('vision unavailable');
+  });
   it('sends an image storage key to the local vision ToS engine', async () => {
     await expect(
       evaluateMediaToS(
@@ -123,17 +174,47 @@ describe('evaluateMediaToS', () => {
   it('fails closed when no visual classifier contract exists for the asset kind', async () => {
     await expect(
       evaluateMediaToS(
-        { kind: 'video', storageKey: 'models/model-1/video.mp4' },
+        { kind: 'audio', storageKey: 'models/model-1/audio.mp3' },
         'caption',
         [],
         ['instagram'],
       ),
-    ).rejects.toThrow('visual ToS classification is unavailable for video assets');
+    ).rejects.toThrow('visual ToS classification is unavailable for audio assets');
     expect(mockState.evaluate).not.toHaveBeenCalled();
   });
 });
 
 describe('tosScan', () => {
+  it('binds video machine evidence to a fresh scan and content digest on every scan', async () => {
+    const hash = Buffer.alloc(32, 1).toString('hex');
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify({
+      policy: 'sampled-2fps-v1', source_sha256: hash, duration_seconds: 1,
+      frames: [1, 2].map(n => `tos-video-v1/${hash}/frame-${String(n).padStart(3, '0')}.png`),
+    }))));
+    const bundle = { id: 'bundle-1', modelId: 'model-1', assetId: 'asset-1',
+      captions: { instagram: 'Safe' }, hashtags: [],
+      tosReport: { revisionId: 'retained-caption-revision', videoScan: { scanId: 'stale-scan' } } };
+    const run = async (caption: string) => {
+      mockState.results = [[{ ...bundle, captions: { instagram: caption } }],
+        [{ kind: 'video', storageKey: 'clip.mp4', sha256: Buffer.from(hash, 'hex') }], []];
+      await tosScan({ tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1' });
+      return (mockState.updates.at(-1) as { tosReport: {
+        verdict: string; revisionId: string;
+        videoScan: { scanId: string; contentDigest: string; assetSha256: string; automatedScores: unknown[] };
+      } }).tosReport;
+    };
+    const first = await run('Safe');
+    const repeated = await run('Safe');
+    const changed = await run('Changed caption');
+    expect(first.verdict).toBe('review');
+    expect(first.revisionId).toBe('retained-caption-revision');
+    expect(first.videoScan.assetSha256).toBe(hash);
+    expect(first.videoScan.automatedScores).toEqual(REPORT.scores);
+    expect(first.videoScan.scanId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(first.videoScan.scanId).not.toBe(repeated.videoScan.scanId);
+    expect(first.videoScan.contentDigest).toBe(repeated.videoScan.contentDigest);
+    expect(first.videoScan.contentDigest).not.toBe(changed.videoScan.contentDigest);
+  });
   it('preserves the revision identity through the scan', async () => {
     mockState.results = [
       [

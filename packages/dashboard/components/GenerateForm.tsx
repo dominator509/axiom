@@ -1,9 +1,10 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import GenerationProgress from './GenerationProgress';
 
 const PLATFORMS = [
   'instagram',
@@ -32,14 +33,41 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
+    bundle?: { id: string };
+    mediaGeneration?: 'queued';
     variants: Array<{ prompt: string; styleLabel: string; caption: string; hashtags: string[] }>;
     tosReport: {
       verdict: string;
       scores: Array<{ platform: string; verdict: string; score: number }>;
     };
   } | null>(null);
+  const [mediaKind, setMediaKind] = useState<'brief' | 'image' | 'video'>('brief');
+  const [mediaPrompt, setMediaPrompt] = useState('');
+  const [sourceAssetId, setSourceAssetId] = useState('');
+  const [duration, setDuration] = useState<6 | 10>(6);
+  const [sourceImages, setSourceImages] = useState<Array<{ id: string; fileName: string }>>([]);
+  const [sourceError, setSourceError] = useState<string | null>(null);
   const inFlight = useRef(false);
   const intent = useRef<{ modelId: string; body: string; key: string } | null>(null);
+
+  useEffect(() => {
+    setSourceAssetId('');
+    setSourceImages([]);
+    setSourceError(null);
+    if (mediaKind !== 'video') return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(`/api/v1/models/${modelId}/media-source-images`, { signal: controller.signal });
+        if (!response.ok) throw new Error('Source images unavailable');
+        const body = await readDashboardJson<{ data: Array<{ id: string; fileName: string }> }>(response);
+        if (!controller.signal.aborted) setSourceImages(body.data);
+      } catch {
+        if (!controller.signal.aborted) setSourceError('Could not load source images. Switch away from video and back to retry.');
+      }
+    })();
+    return () => controller.abort();
+  }, [modelId, mediaKind]);
 
   function togglePlatform(p: string) {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
@@ -47,7 +75,9 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (inFlight.current || platforms.length === 0) return;
+    if (inFlight.current || platforms.length === 0
+      || (mediaKind !== 'brief' && !mediaPrompt.trim())
+      || (mediaKind === 'video' && !sourceAssetId)) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -55,6 +85,11 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
     try {
       const requestBody = JSON.stringify({
         style, outfit, location, mood, lighting, aspectRatio, platforms, enrichWithLlm: enrich,
+        ...(mediaKind === 'brief' ? {} : { media: {
+          kind: mediaKind, prompt: mediaPrompt.trim(),
+          ...(mediaKind === 'image' ? { aspectRatio } : {}),
+          ...(mediaKind === 'video' ? { sourceAssetId, duration } : {}),
+        } }),
       });
       if (intent.current?.modelId !== modelId || intent.current.body !== requestBody) {
         intent.current = { modelId, body: requestBody, key: createIdempotencyKey() };
@@ -85,12 +120,34 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
     <div className="card">
       <h2>Create content brief</h2>
       <p style={{ color: 'var(--muted)', marginTop: 0 }}>
-        Creates five prompt/caption variants and a text-only ToS report. This release does not
-        render or store image/video files; attach an approved asset before publishing to a
-        media-only destination.
+        Create a text brief or queue Grok image/video generation using your connected subscription.
+        Media remains pending until generation and visual ToS checks finish. Provider usage may be charged.
       </p>
       <form onSubmit={onSubmit} className="stack" style={{ maxWidth: 640 }}>
         <fieldset disabled={busy} className="stack" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+        <label htmlFor="mediaKind">Output</label>
+        <select id="mediaKind" value={mediaKind} onChange={e => setMediaKind(e.target.value as 'brief' | 'image' | 'video')}>
+          <option value="brief">Text brief only</option>
+          <option value="image">Grok image</option>
+          <option value="video">Grok image-to-video</option>
+        </select>
+        {mediaKind !== 'brief' && <>
+          <label htmlFor="mediaPrompt">Media prompt</label>
+          <textarea id="mediaPrompt" required maxLength={4000} value={mediaPrompt} onChange={e => setMediaPrompt(e.target.value)} />
+        </>}
+        {mediaKind === 'video' && <>
+          <label htmlFor="sourceAsset">Source image (latest 100 for this model)</label>
+          <select id="sourceAsset" required value={sourceAssetId} onChange={e => setSourceAssetId(e.target.value)}>
+            <option value="">Select a stored image</option>
+            {sourceImages.map(image => <option key={image.id} value={image.id}>{image.fileName}</option>)}
+          </select>
+          {sourceError && <p role="alert">{sourceError}</p>}
+          {!sourceError && sourceImages.length === 0 && <p>Generate or import a source image for this model first.</p>}
+          <label htmlFor="videoDuration">Video duration</label>
+          <select id="videoDuration" value={duration} onChange={e => setDuration(Number(e.target.value) as 6 | 10)}>
+            <option value={6}>6 seconds</option><option value={10}>10 seconds</option>
+          </select>
+        </>}
         <div className="grid">
           <div>
             <label htmlFor="style">Style</label>
@@ -155,7 +212,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
         <div>
           <button className="btn" type="submit" disabled={busy || platforms.length === 0}>
-            {busy ? 'Generating…' : 'Generate content brief'}
+            {busy ? 'Generating…' : mediaKind === 'brief' ? 'Generate content brief' : 'Queue Grok generation'}
           </button>
         </div>
         </fieldset>
@@ -163,8 +220,11 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
 
       {result && (
         <div style={{ marginTop: 20 }}>
+          {result.mediaGeneration === 'queued' && result.bundle?.id && (
+            <GenerationProgress key={result.bundle.id} bundleId={result.bundle.id} modelId={modelId} />
+          )}
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <h3>ToS report</h3>
+            <h3>{result.mediaGeneration === 'queued' ? 'Initial ToS report (before media generation)' : 'ToS report'}</h3>
             <span
               className={`badge ${result.tosReport.verdict === 'pass' ? 'good' : result.tosReport.verdict === 'review' ? 'warn' : 'bad'}`}
             >

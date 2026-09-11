@@ -14,6 +14,7 @@ function transport(
   verdict = 'pass',
   failHeld = false,
   next: Record<string, string> = {},
+  assetId?: string,
 ) {
   const fetchMock = vi.fn(async (input: string | URL | Request) => {
     const url = new URL(String(input));
@@ -42,6 +43,7 @@ function transport(
             {
               id: '11111111-1111-4111-8111-111111111111',
               modelId: 'model-under-review',
+              assetId,
               state,
               captions: { instagram: 'Caption awaiting operator review' },
               hashtags: [],
@@ -71,6 +73,12 @@ async function renderPage(query: Record<string, string | string[] | undefined> =
 }
 
 describe('approval review queue', () => {
+  it('mounts a media preview when a generated asset is attached', async () => {
+    transport('generated', 'review', false, {}, 'attached-asset');
+    const html = await renderPage();
+    expect(html).toContain('Loading media preview');
+    expect(html).toContain('Blocked by ToS');
+  });
   it.each(['hold', 'generated'])('renders %s bundles with review controls', async (state) => {
     const fetchMock = transport(state);
     const html = await renderPage();

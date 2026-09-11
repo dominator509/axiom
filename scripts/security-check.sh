@@ -29,7 +29,8 @@ SECRET_PATTERNS='(SECRET|API_KEY|PASSWORD|PRIVATE_KEY|TOKEN|CREDENTIALS)[[:space
 
 # Only run if git is available and there are tracked files
 if command -v git &>/dev/null && git rev-parse --git-dir &>/dev/null; then
-  MATCHES=$(git grep -InE "$SECRET_PATTERNS" -- ':!.env' ':!.env.*' ':!*.test.*' ':!*test*' 2>/dev/null || true)
+  # Report filenames only: a scanner must not leak a credential into CI logs.
+  MATCHES=$(git grep -IlE "$SECRET_PATTERNS" -- ':!.env' ':!.env.*' ':!*.test.*' ':!*test*' 2>/dev/null || true)
   if [ -n "$MATCHES" ]; then
     echo "  [FAIL] Potential secrets detected in tracked files:"
     echo "$MATCHES" | while IFS= read -r line; do
@@ -111,10 +112,19 @@ echo ""
 echo "--- Check 5: cargo audit ---"
 if [ -f "Cargo.lock" ] || [ -f "Cargo.toml" ]; then
   if command -v cargo-audit &>/dev/null; then
-    cargo audit 2>&1 || {
+    if AUDIT_OUTPUT=$(cargo audit 2>&1); then
+      printf '%s\n' "$AUDIT_OUTPUT"
+      # cargo-audit can return success after registry/yank checks time out.
+      # Missing upstream evidence is not a completed security scan.
+      if printf '%s\n' "$AUDIT_OUTPUT" | grep -q '^error:'; then
+        echo "  [FAIL] cargo audit could not complete all registry checks"
+        EXIT_CODE=1
+      fi
+    else
+      printf '%s\n' "$AUDIT_OUTPUT"
       echo "  [FAIL] cargo audit found issues"
       EXIT_CODE=1
-    }
+    fi
   else
     echo "  [FAIL] cargo-audit is required when Rust manifests are present"
     EXIT_CODE=1

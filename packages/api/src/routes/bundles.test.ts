@@ -4,6 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
+import { createHash } from 'node:crypto';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
@@ -41,6 +42,8 @@ vi.mock('@axiom/worker', () => ({
 }));
 
 import { bundlesRouter } from './bundles.js';
+import { assetPreview } from '../asset-preview.js';
+vi.mock('../asset-preview.js', () => ({ assetPreview: vi.fn() }));
 import { enqueueJob, resolveCapabilities } from '@axiom/worker';
 import { getPublishingConsentStatus, getTosScanState } from '@axiom/db';
 
@@ -49,6 +52,97 @@ const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 const BUNDLE_ID = '33333333-3333-4333-8333-333333333333';
 const INSTAGRAM_CONNECTION_ID = '44444444-4444-4444-8444-444444444444';
 const X_CONNECTION_ID = '55555555-5555-4555-8555-555555555555';
+
+describe('bundle media preview authorization', () => {
+  it('requires organization context', async () => {
+    const response = await appWithOrg(null).request(`/${BUNDLE_ID}/media`);
+    expect(response.status).toBe(401);
+    expect(assetPreview).not.toHaveBeenCalled();
+  });
+  it('rejects invalid identifiers before storage access', async () => {
+    const response = await appWithOrg(ORG_ID).request('/bad-id/media');
+    expect(response.status).toBe(400);
+    expect(assetPreview).not.toHaveBeenCalled();
+  });
+  it.each([
+    { rows: [] },
+    { rows: [{ id: 'asset-1', orgId: 'another-org', modelId: MODEL_ID }] },
+    { rows: [{ id: 'asset-1', orgId: ORG_ID, modelId: 'another-model' }] },
+    { rows: [{ id: 'another-asset', orgId: ORG_ID, modelId: MODEL_ID }] },
+  ])('does not serve missing or mismatched assets', async ({ rows }) => {
+    mockState.results = [[], [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, assetId: 'asset-1' }], rows];
+    const response = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/media`);
+    expect(response.status).toBe(404);
+    expect(assetPreview).not.toHaveBeenCalled();
+  });
+  it('serves a matching asset and suppresses filesystem error details', async () => {
+    const row = { id: 'asset-1', orgId: ORG_ID, modelId: MODEL_ID };
+    const results = () => [[], [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, assetId: row.id }], [row]];
+    mockState.results = results();
+    vi.mocked(assetPreview).mockResolvedValue(new Response(null, { headers: { 'content-type': 'video/mp4' } }));
+    expect((await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/media`, { method: 'HEAD' })).status).toBe(200);
+    expect(assetPreview).toHaveBeenCalledOnce();
+    mockState.results = results();
+    vi.mocked(assetPreview).mockRejectedValue(new Error('private/storage/path'));
+    const response = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/media`);
+    expect(response.status).toBe(404);
+    expect(await response.text()).not.toContain('private/storage/path');
+  });
+});
+
+describe('explicit video review route', () => {
+  function fixture() {
+    const hash = '01'.repeat(32);
+    const scanId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const bundle = { id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated', assetId: 'asset-1',
+      captions: { instagram: 'Safe' }, hashtags: [] };
+    const contentDigest = createHash('sha256').update(JSON.stringify({ bundleId: bundle.id, assetId: bundle.assetId,
+      assetSha256: hash, captions: Object.entries(bundle.captions), hashtags: bundle.hashtags })).digest('hex');
+    const score = { platform: 'instagram', score: 0, threshold: 20, verdict: 'review', reasons: [] };
+    return { bundle: { ...bundle, tosReport: { verdict: 'review', scores: [score], videoScan: {
+      policy: 'sampled-2fps-v1', scanId, contentDigest, assetSha256: hash, durationSeconds: 6, frameCount: 12,
+      automatedScores: [{ ...score, verdict: 'pass' }],
+    } } },
+      asset: { id: 'asset-1', orgId: ORG_ID, modelId: MODEL_ID, kind: 'video', mimeType: 'video/mp4', sha256: Buffer.from(hash, 'hex') },
+      input: { scanId, platforms: ['instagram'], fullVideoAndAudioReviewed: true, reason: 'Reviewed all video and audio' } };
+  }
+  const request = (input: unknown, orgId: string | null = ORG_ID) => appWithOrg(orgId).request(`/${BUNDLE_ID}/video-review`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+  });
+  it('records an explicit human decision without scheduling or publishing', async () => {
+    const { bundle, asset, input } = fixture();
+    mockState.results = [[], [bundle], [asset]];
+    vi.mocked(assetPreview).mockResolvedValue(new Response(null));
+    const response = await request(input);
+    expect(response.status).toBe(200);
+    expect(mockState.updates[0]).toMatchObject({ tosReport: { decisionSource: 'human-review', verdict: 'pass',
+      humanReview: { actorId: 'user-1', scanId: input.scanId } } });
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+  it.each(['pending-scan', 'wrong-model', 'blocked', 'changed-scan', 'missing-file', 'already-approved'])(
+    'rejects %s without updating compliance', async failure => {
+      const { bundle, asset, input } = fixture();
+      if (failure === 'pending-scan') vi.mocked(getTosScanState).mockResolvedValue('pending');
+      if (failure === 'wrong-model') asset.modelId = 'other-model';
+      if (failure === 'blocked') bundle.tosReport.verdict = 'block';
+      if (failure === 'changed-scan') input.scanId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+      if (failure === 'already-approved') bundle.state = 'approved';
+      mockState.results = [[], [bundle], [asset]];
+      if (failure === 'missing-file') vi.mocked(assetPreview).mockRejectedValue(new Error('Private filesystem path'));
+      else vi.mocked(assetPreview).mockResolvedValue(new Response(null));
+      const response = await request(input);
+      expect(response.status).toBe(409);
+      expect(await response.text()).not.toContain('Private filesystem path');
+      expect(mockState.updates).toHaveLength(0);
+      expect(enqueueJob).not.toHaveBeenCalled();
+    });
+  it('requires authentication and explicit attestation', async () => {
+    const { input } = fixture();
+    expect((await request(input, null)).status).toBe(401);
+    expect((await request({ ...input, fullVideoAndAudioReviewed: false })).status).toBe(400);
+    expect(mockState.updates).toHaveLength(0);
+  });
+});
 
 function passingTos(...platforms: string[]) {
   return {
@@ -69,6 +163,7 @@ function appWithOrg(orgId: string | null) {
 }
 
 beforeEach(() => {
+  vi.mocked(assetPreview).mockReset();
   mockState.updates = [];
   mockState.result = [];
   mockState.results = [];

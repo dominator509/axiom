@@ -141,7 +141,7 @@ function executableFor(provider: SubscriptionProvider): { command: string; prefi
   }
   if (provider === 'grok') {
     return {
-      command: join(homedir(), '.grok', 'bin', process.platform === 'win32' ? 'grok.exe' : 'grok'),
+      command: process.env.AXIOM_GROK_CLI || join(homedir(), '.grok', 'bin', process.platform === 'win32' ? 'grok.exe' : 'grok'),
       prefix: [],
     };
   }
@@ -604,6 +604,7 @@ async function* runSubscription(request: SubscriptionRequest, control?: {
   spec: CommandSpec;
   onLine: (line: string) => void;
   onStopped?: () => void;
+  imageBytes?: Buffer;
 }): AsyncIterable<{
   text?: string;
   usage?: Partial<SubscriptionUsage>;
@@ -698,7 +699,8 @@ async function* runSubscription(request: SubscriptionRequest, control?: {
     timer.unref();
 
     if (!terminalError) {
-      if (spec.prompt) child.stdin.end(spec.prompt, 'utf8');
+      if (control?.imageBytes) child.stdin.end(control.imageBytes);
+      else if (spec.prompt) child.stdin.end(spec.prompt, 'utf8');
       else child.stdin.end();
     }
 
@@ -805,7 +807,7 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
 
   /** Real official-CLI media transport; not advertised by API/UI until the
    * asset/ToS/worker lifecycle is wired. Never retries a generation implicitly. */
-  async generateMedia(request: GrokMediaRequest): Promise<GrokMediaArtifact> {
+  async generateMedia(request: GrokMediaRequest, beforeDispatch?: () => Promise<void>): Promise<GrokMediaArtifact> {
     if (request.signal?.aborted) throw new DOMException('Subscription request aborted', 'AbortError');
     if (!request.prompt?.trim() || request.prompt.length > 4000
       || !['image', 'video'].includes(request.kind)
@@ -824,13 +826,14 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
     } else if (request.image || request.duration !== undefined) {
       throw new ProviderError('Image generation does not accept video inputs', 400, 'grok');
     }
-    // OS isolation protects other profiles, not files needed by this same
-    // process. Upstream video reads model-selected paths before validation;
-    // credentials and devices therefore remain reachable. No video launch
-    // until a mandatory pre-read argument boundary is independently verified.
-    if (!['image'].includes(request.kind)) {
-      throw new ProviderError('Grok video requires a verified source-image argument boundary', 503, 'grok');
+    // Only the dedicated sealed-input build supports video. Never substitute
+    // the stock CLI, whose model-selected file references are not constrained.
+    const videoExecutable = process.env.AXIOM_GROK_VIDEO_CLI;
+    const imageLauncher = process.env.AXIOM_GROK_IMAGE_LAUNCHER;
+    if (request.kind === 'video' && (!videoExecutable || !imageLauncher)) {
+      throw new ProviderError('Install the sealed-input Grok video CLI and image launcher', 503, 'grok');
     }
+    const imageBytes = inputExtension ? Buffer.from(request.image!) : undefined;
     const profile = profileRoot(request.userId, 'grok');
     const credentials = join(profile, 'credentials');
     if (!existsSync(join(credentials, '.active')) || !existsSync(join(credentials, 'auth.json'))) {
@@ -847,17 +850,15 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
     };
     const spec = buildCommand(base);
     const tool = request.kind === 'image' ? 'image_gen' : 'image_to_video';
-    const inputPath = inputExtension ? join(requestRoot, `${sessionId}.${inputExtension}`) : undefined;
     let safeToCleanup = true;
     try {
       // Replace the legacy prompt location before entering the isolated mount.
       rmSync(spec.promptFile!, { force: true });
       spec.promptFile = join(requestRoot, 'intent.prompt');
       spec.args[spec.args.indexOf('--prompt-file') + 1] = spec.promptFile;
-      if (inputPath) writeFileSync(inputPath, request.image!, { mode: 0o600, flag: 'wx' });
       const input = request.kind === 'image'
         ? { prompt: request.prompt, aspect_ratio: request.aspectRatio ?? 'auto' }
-        : { prompt: request.prompt, image: inputPath, duration: request.duration ?? 6, resolution_name: '480p' };
+        : { prompt: request.prompt, image: 'axiom-input://image', duration: request.duration ?? 6, resolution_name: '480p' };
       writeFileSync(spec.promptFile!, `Call ${tool} exactly once with the following JSON arguments. Do not use another tool, retry, or describe a result without a successful tool response.\n${JSON.stringify(input)}`, { mode: 0o600 });
       // Use the stock media registry, but allow only this one media tool.
       // Both MCP meta-tools remain explicitly denied by buildCommand.
@@ -869,12 +870,19 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
       spec.args[spec.args.indexOf('--max-turns') + 1] = '2';
       spec.args.push('--session-id', sessionId, '--always-approve');
       Object.assign(spec, grokSandboxCommand({
-        executable: spec.command, requestRoot, credentialRoot: credentials, args: spec.args,
+        executable: imageBytes ? videoExecutable! : spec.command,
+        requestRoot, credentialRoot: credentials, args: spec.args,
+        ...(imageBytes ? { imageLauncher: { executable: imageLauncher!, byteLength: imageBytes.length } } : {}),
       }));
       const result = new GrokMediaResult(request.kind);
+      // Preparation failures (missing login, unsupported runtime, invalid input)
+      // must not be mistaken for an uncertain paid request. The worker commits
+      // its one-shot marker here, before any subprocess can contact the provider.
+      if (request.signal?.aborted) throw new DOMException('Subscription request aborted', 'AbortError');
+      if (beforeDispatch) await beforeDispatch();
       safeToCleanup = false;
       for await (const _event of runSubscription(base, {
-        spec, onLine: line => result.accept(line), onStopped: () => { safeToCleanup = true; },
+        spec, imageBytes, onLine: line => result.accept(line), onStopped: () => { safeToCleanup = true; },
       })) {
         // Text alone never establishes media success.
         void _event;
@@ -882,7 +890,6 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
       return await result.artifact(requestRoot, sessionId);
     } finally {
       if (safeToCleanup) {
-        if (inputPath) rmSync(inputPath, { force: true });
         if (spec.promptFile) rmSync(spec.promptFile, { force: true });
       }
     }

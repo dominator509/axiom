@@ -16,6 +16,7 @@ use tokio::process::Command;
 use tracing::info;
 
 const MEDIA_AUTH_TOKEN_ENV: &str = "AXIOM_MEDIA_AUTH_TOKEN";
+mod video_frames;
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -684,6 +685,7 @@ fn build_app() -> Router {
         .route("/media/video/watermark", post(video_watermark))
         .route("/media/video/clip", post(video_clip))
         .route("/media/video/probe", post(video_probe))
+        .route("/media/video/frames", post(video_frames::extract))
         .layer(middleware::from_fn(require_internal_auth));
 
     Router::new()

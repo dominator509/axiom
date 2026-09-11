@@ -110,12 +110,15 @@ export interface ModelProfile {
 }
 
 export interface ContentBundle {
+  assetId?: string | null;
   id: string;
   orgId: string;
   modelId: string;
   captions: Record<string, string>;
   hashtags: string[];
   tosReport: {
+    decisionSource?: string;
+    videoScan?: { scanId: string };
     verdict: string;
     revisionId?: string;
     scores: Array<{ platform: string; verdict: string }>;

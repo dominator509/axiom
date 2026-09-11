@@ -237,6 +237,7 @@ describe('default executor registry', () => {
     expect(Object.keys(defaultExecutors).sort()).toEqual(
       [
         'content.generate',
+        'media.generate',
         'tos.scan',
         'relay.card',
         'publish.target',

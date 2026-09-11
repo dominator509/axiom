@@ -293,7 +293,9 @@ jobs:
 
       - name: Run repository security gates
         if: matrix.task == 'security'
-        run: pnpm security-check
+        run: |
+          node scripts/test-security-gate.mjs
+          pnpm security-check
 
       - name: Audit Grok CLI input guard dependencies
         if: matrix.task == 'security'
