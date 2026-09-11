@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GrokLoginAttempts } from './grok-login-attempts.js';
+import { ProviderError } from './providers/types.js';
 
 afterEach(() => vi.useRealTimers());
 function fixture(connected = true) {
@@ -17,6 +18,20 @@ function fixture(connected = true) {
   return { gateway, finish: () => finish(), signal: () => signal };
 }
 describe('Grok login attempt ownership', () => {
+  it('refuses a replacement when transport termination is unconfirmed', async () => {
+    const f = fixture();
+    f.gateway.connectSubscription.mockImplementation(() => (async function* () {
+      yield 'Provider instructions';
+      throw new ProviderError('Subscription login termination could not be confirmed', 503, 'grok');
+    })());
+    const attempts = new GrokLoginAttempts(f.gateway);
+    const first = attempts.start('one');
+    await vi.waitFor(() => expect(attempts.get('one', first.id).state).toBe('failed'));
+    expect(attempts.isRunning('one')).toBe(true);
+    expect(attempts.start('one').id).toBe(first.id);
+    expect(f.gateway.connectSubscription).toHaveBeenCalledTimes(1);
+    expect(attempts.get('one', first.id).messages).toEqual([]);
+  });
   it('survives the initiating observation and deduplicates concurrent starts', async () => {
     const f = fixture(); const attempts = new GrokLoginAttempts(f.gateway);
     const first = attempts.start('one');

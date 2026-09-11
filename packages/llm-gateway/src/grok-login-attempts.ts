@@ -54,7 +54,7 @@ export class GrokLoginAttempts {
   cancel(userId: string, id: string) {
     this.get(userId, id);
     const attempt = this.attempts.get(userId)!;
-    if (!attempt.settled) {
+    if (!attempt.settled && attempt.state !== 'failed') {
       attempt.state = 'cancelling';
       attempt.messages = [];
       attempt.controller.abort();
@@ -67,6 +67,7 @@ export class GrokLoginAttempts {
   }
   private async run(userId: string, attempt: Attempt) {
     let timedOut = false;
+    let terminationUnconfirmed = false;
     const timer = setTimeout(() => {
       timedOut = true;
       attempt.state = 'cancelling';
@@ -86,14 +87,19 @@ export class GrokLoginAttempts {
       const status = await this.gateway.getSubscriptionStatus('grok', userId, attempt.controller.signal);
       attempt.controller.signal.throwIfAborted();
       attempt.state = status.connected ? 'completed' : 'failed';
-    } catch {
-      attempt.state = timedOut ? 'timed_out' : attempt.controller.signal.aborted ? 'cancelled' : 'failed';
+    } catch (error) {
+      terminationUnconfirmed = error instanceof ProviderError && error.status === 503
+        && error.message === 'Subscription login termination could not be confirmed';
+      attempt.state = terminationUnconfirmed ? 'failed'
+        : timedOut ? 'timed_out' : attempt.controller.signal.aborted ? 'cancelled' : 'failed';
     } finally {
       clearTimeout(timer);
       attempt.controller.abort();
       attempt.messages = [];
-      attempt.settled = true;
-      attempt.expiresAt = Date.now() + 600_000;
+      // Retain the slot when the transport cannot prove process termination.
+      // Restart/reconciliation by the operator is required; never overlap logins.
+      attempt.settled = !terminationUnconfirmed;
+      attempt.expiresAt = terminationUnconfirmed ? Infinity : Date.now() + 600_000;
     }
   }
 }
