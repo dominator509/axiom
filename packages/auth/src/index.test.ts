@@ -6,6 +6,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { Hono } from 'hono';
+import { getCookies } from 'better-auth/cookies';
 import type { UserRole } from '@axiom/core';
 
 // The auth module creates a pg.Pool at import time but does not connect until
@@ -58,6 +59,20 @@ describe('better-auth configuration', () => {
   it('uses a hardened cookie prefix and lax sameSite', () => {
     expect(auth.options?.advanced?.cookiePrefix).toBe('axiom');
     expect(auth.options?.advanced?.defaultCookieAttributes?.sameSite).toBe('lax');
+  });
+
+  it.each([
+    ['https://phone.usw3.devtunnels.ms', true],
+    ['https://app.example', true],
+    ['http://127.0.0.1:3002', false],
+  ])('keeps real cookie names and Secure attributes consistent for %s', (baseURL, secure) => {
+    const cookies = getCookies({ ...auth.options, baseURL });
+    for (const cookie of Object.values(cookies)) {
+      expect(cookie.attributes.secure).toBe(secure);
+      expect(cookie.name.startsWith('__Secure-')).toBe(secure);
+      expect(cookie.attributes.httpOnly).toBe(true);
+      expect(cookie.attributes.sameSite).toBe('lax');
+    }
   });
 
   it('exposes the runtime context and error codes', () => {

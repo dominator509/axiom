@@ -303,6 +303,7 @@ jobs:
         if: matrix.task == 'security'
         run: |
           node scripts/test-security-gate.mjs
+          node scripts/test-local-grok-origin.mjs
           pnpm security-check
 
       - name: Audit Grok CLI input guard dependencies

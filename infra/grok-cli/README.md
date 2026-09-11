@@ -281,3 +281,52 @@ the existing byte-based checksum algorithm portable to Linux checkouts.
 The earlier rehearsal copy contains pre-normalization checksums and must not
 be used as a deployment baseline. Publishing workers remain stopped and real
 Grok authorization/generation/dashboard approval acceptance is still pending.
+
+### Temporary phone access
+
+The scoped Linux launcher accepts one optional exact HTTPS Microsoft Dev
+Tunnels origin. Omit it for loopback-only login configuration. Wildcards,
+credentials, ports, non-root paths, query strings and fragments are rejected
+before URL normalization. `node scripts/test-local-grok-origin.mjs` exercises
+this boundary without loading credentials or starting the API.
+
+This argument does not create a tunnel or grant access. Remote operation
+requires explicit operator consent to transit login/session traffic through
+Microsoft, an owner-only tunnel ACL, and a bounded tunnel lifetime. Preserve
+the caller's Origin header and configure the exact tunnel URL; never use
+anonymous access or a wildcard trusted origin. Serve the built dashboard,
+keep both local listeners on loopback, and leave publishing workers stopped.
+GitHub tunnel authentication is separate from AXIOM and Grok authentication.
+
+### Full CLI advisory assessment (2026-09-11, incomplete)
+
+AXIOM's root/guard audit does not cover the pinned upstream CLI lockfile.
+An explicit audit of that lockfile (1,347 dependencies) reported three
+vulnerability advisories plus 20 maintenance/unsoundness warnings. Registry
+yank checks also timed out; this was not a completed clean scan.
+
+- `quick-xml 0.39.4`: RUSTSEC-2026-0194 and RUSTSEC-2026-0195. The lockfile's
+  consumer is `wayland-scanner 0.31.10`; the direct Grok tools dependency is
+  already `quick-xml 0.41.0`. Downloaded scanner source uses a plain `Reader`
+  in compile-time procedural macros opening protocol files, not `NsReader`
+  or a generated-media input. This distinguishes build-input exposure from
+  runtime media exposure; it does not waive the duplicate-attribute advisory.
+  [Namespace advisory](https://rustsec.org/advisories/RUSTSEC-2026-0195)
+  explicitly distinguishes plain readers from namespace resolution.
+- `rsa 0.9.10`: RUSTSEC-2023-0071 concerns observable private-key operations.
+  The login crate's direct RSA dependency is test-only, but `jsonwebtoken`
+  also selects RSA through its crypto provider. Inspected production OIDC
+  code verifies provider signatures using public keys. This is not proof
+  that every selected runtime path is unaffected.
+  [RSA advisory](https://rustsec.org/advisories/RUSTSEC-2023-0071).
+
+The selected Linux `xai-grok-pager-bin` dependency-tree checks completed with
+`--locked --offline --edges normal,build` in the existing M94 build image.
+They confirm the old XML version enters through the Wayland scanner procedural
+macro and clipboard dependencies. RSA remains selected through `jsonwebtoken`
+by both `xai-grok-login` and `gcloud-auth`/`gcloud-storage`/`xai-file-utils`;
+it cannot be dismissed as a test-only dependency. This graph establishes
+selection, not exploitability of private-key operations in the deployed mode.
+The remaining unsoundness warnings, runtime call-path assessment and any
+necessary upgrades/rebuilds remain open. No advisory suppression or installed
+binary replacement has been made on the strength of this assessment.

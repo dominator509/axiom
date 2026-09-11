@@ -6,8 +6,12 @@ import { parseEnv } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { localGrokOrigin } from './local-grok-origin.mjs';
 if (process.platform !== 'linux' || Number(process.versions.node.split('.')[0]) < 22)
   throw new Error('Use the installed Linux Node >=22 runtime');
+// Optional exact HTTPS origin for the explicitly authorized private phone tunnel.
+// Never accept a wildcard or rewrite arbitrary caller Origin headers as trusted.
+const publicOrigin = localGrokOrigin(process.argv.slice(2));
 loadEnvFile(new URL('../.env', import.meta.url));
 const runtime = parseEnv(readFileSync(new URL('../var/grok-runtime.env', import.meta.url), 'utf8'));
 if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
@@ -20,7 +24,7 @@ const child = spawn(process.execPath, [fileURLToPath(new URL('../packages/api/di
     PATH: '/usr/local/bin:/usr/bin:/bin', HOME: process.env.HOME,
     NODE_ENV: 'development', AXIOM_ENV: 'development',
     API_HOST: '127.0.0.1', API_PORT: '3001',
-    BETTER_AUTH_URL: 'http://127.0.0.1:3002',
+    BETTER_AUTH_URL: publicOrigin,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET || randomBytes(32).toString('hex'),
     DATABASE_URL: process.env.DATABASE_URL,
     AXIOM_SUBSCRIPTION_HOME: '/home/doministic/.local/share/axiom-subscriptions',

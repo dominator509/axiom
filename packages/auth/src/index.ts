@@ -16,8 +16,6 @@ import { resolveAuthConfig } from './config.js';
 export { normalizeAuthOrigin, resolveAuthConfig } from './config.js';
 
 const runtimeConfig = resolveAuthConfig(process.env);
-const environment = (process.env.AXIOM_ENV ?? process.env.NODE_ENV)?.trim();
-const localDevelopment = environment === 'development' || environment === 'test';
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -46,7 +44,8 @@ export const auth = betterAuth({
     defaultCookieAttributes: {
       sameSite: 'lax',
       httpOnly: true,
-      secure: !localDevelopment,
+      // Better Auth derives Secure and its cookie-name prefix together from
+      // the configured baseURL, including HTTPS development tunnels.
     },
   },
   user: {

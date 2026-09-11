@@ -13,6 +13,7 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/test-local-grok-origin.mjs` — validate exact private phone-tunnel origins without loading credentials or starting services
 - `sh scripts/preflight.sh` — pre-flight gate (MUST print "preflight: ok")
 - `sh scripts/verify.sh` — full verification gate (MUST print "verify: ok")
 - `sh scripts/lint.sh` — lint all code
