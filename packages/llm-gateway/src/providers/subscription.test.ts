@@ -89,6 +89,36 @@ describe('official subscription auth command lifecycle', () => {
     expect(child.kill).toHaveBeenCalledTimes(1);
   });
 
+  it('never launches a login for an already cancelled request', async () => {
+    const controller = new AbortController(); controller.abort();
+    const iterator = transport.connect('grok', 'user-1', controller.signal)[Symbol.asyncIterator]();
+    await expect(iterator.next()).rejects.toMatchObject({ name: 'AbortError' });
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('bounds login output before waiting for a newline or timeout', async () => {
+    const child = fakeChild(); spawnMock.mockReturnValue(child);
+    const iterator = transport.connect('grok', 'user-1')[Symbol.asyncIterator]();
+    const pending = iterator.next();
+    const rejection = expect(pending).rejects.toMatchObject({ status: 502 });
+    child.stdout.write('x'.repeat(1024 * 1024));
+    expect(child.kill).toHaveBeenCalledOnce();
+    await rejection;
+  });
+
+  it('counts login stdout and stderr against one shared raw-byte budget', async () => {
+    const child = fakeChild(); spawnMock.mockReturnValue(child);
+    const iterator = transport.connect('grok', 'user-1')[Symbol.asyncIterator]();
+    const pending = iterator.next();
+    const rejection = expect(pending).rejects.toMatchObject({ status: 502 });
+    child.stdout.write('x'.repeat(32768));
+    child.stderr.write('y'.repeat(32768));
+    expect(child.kill).not.toHaveBeenCalled();
+    child.stderr.write('z');
+    expect(child.kill).toHaveBeenCalledOnce();
+    await rejection;
+  });
+
   it('passes only runtime environment to provider subprocesses', async () => {
     const child = fakeChild();
     spawnMock.mockReturnValue(child);

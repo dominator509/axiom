@@ -13,7 +13,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } 
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import { PassThrough } from 'node:stream';
+import { Transform } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { ProviderError } from './types.js';
 import { GrokMediaResult, type GrokMediaArtifact, type GrokMediaKind } from './grok-media.js';
@@ -530,6 +530,7 @@ async function* runAuthConnect(
   userId: string,
   signal?: AbortSignal,
 ): AsyncIterable<string> {
+  if (signal?.aborted) throw new DOMException('Subscription login aborted', 'AbortError');
   const spec = authCommand(provider, userId, 'connect');
   const child = spawn(spec.command, spec.args, {
     env: spec.env,
@@ -547,7 +548,23 @@ async function* runAuthConnect(
   const timer = setTimeout(() => child.kill(), timeoutMs);
   timer.unref();
 
-  const combined = new PassThrough();
+  let outputBytes = 0;
+  let outputLimitError: ProviderError | undefined;
+  // Cap raw bytes before readline can buffer an arbitrarily long line.
+  // Count both streams together, including diagnostic lines filtered later.
+  const combined = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      if (outputLimitError) { callback(); return; }
+      outputBytes += chunk.byteLength;
+      if (outputBytes > SUBSCRIPTION_AUTH_OUTPUT_MAX_BYTES) {
+        outputLimitError = new ProviderError('Subscription login output exceeded its limit', 502, provider);
+        child.kill();
+        callback();
+        return;
+      }
+      callback(null, chunk);
+    },
+  });
   let openStreams = 2;
   const closeCombined = () => {
     openStreams -= 1;
@@ -559,8 +576,8 @@ async function* runAuthConnect(
   child.stderr.once('end', closeCombined);
   const lines = createInterface({ input: combined, crlfDelay: Infinity });
   let output = '';
-  let outputLimitError: ProviderError | undefined;
   for await (const line of lines) {
+    if (outputLimitError) break;
     if (Buffer.byteLength(line, 'utf8') > SUBSCRIPTION_AUTH_LINE_MAX_BYTES) {
       outputLimitError = new ProviderError(
         'Subscription login output line exceeded its limit',
