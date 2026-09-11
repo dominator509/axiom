@@ -142,7 +142,9 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema), asy
             { role: 'system', content: prompt },
             { role: 'user', content: variants[0].prompt },
           ],
-          { model: body.model },
+          // The subscription profile is selected from authenticated context,
+          // never from request JSON or the audit-only 'system' fallback.
+          { model: body.model, userId: c.get('userId') },
         );
         enrichedCaption = chat.content.trim();
       } catch (err) {
