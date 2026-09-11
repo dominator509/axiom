@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import GenerationProgress from './GenerationProgress';
+import GrokConnection from './GrokConnection';
 
 const PLATFORMS = [
   'instagram',
@@ -123,6 +124,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         Create a text brief or queue Grok image/video generation using your connected subscription.
         Media remains pending until generation and visual ToS checks finish. Provider usage may be charged.
       </p>
+      <GrokConnection />
       <form onSubmit={onSubmit} className="stack" style={{ maxWidth: 640 }}>
         <fieldset disabled={busy} className="stack" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <label htmlFor="mediaKind">Output</label>

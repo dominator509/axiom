@@ -26,7 +26,7 @@ function submit(modelId = 'model-a') {
   hooks.stateIndex = 0;
   hooks.refIndex = 0;
   const element = GenerateForm({ modelId });
-  const handler = element.props.children[2].props.onSubmit as (event: FormEvent) => Promise<void>;
+  const handler = element.props.children.find((child: { type?: unknown }) => child?.type === 'form').props.onSubmit as (event: FormEvent) => Promise<void>;
   return () => handler({ preventDefault: vi.fn() } as unknown as FormEvent);
 }
 function response() {
