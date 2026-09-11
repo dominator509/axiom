@@ -34,6 +34,17 @@ try {
     const child = spawnSync(spec.command, spec.args, { env: spec.env, input: Buffer.alloc(128, 0x42),
       stdio: extraFd ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'],
       encoding: 'utf8', timeout: 10000, maxBuffer: 65536 });
+    if (child.status !== 0) {
+      const mountFlags = spawnSync('/usr/bin/findmnt', ['--noheadings', '--output', 'VFS-OPTIONS', '--target', fixture],
+        { encoding: 'utf8', timeout: 2000, maxBuffer: 4096 });
+      console.error(`synthetic fixture VFS flags: ${(mountFlags.stdout ?? '').trim()}`);
+      const identityArgs = spec.args.slice(0, spec.args.indexOf('--') + 1);
+      const launcherMount = identityArgs.findIndex((arg, i) => arg === '--ro-bind' && identityArgs[i + 1] === launcher);
+      identityArgs[launcherMount + 1] = '/usr/bin/id';
+      identityArgs.push('/grok-input-launch');
+      const identity = spawnSync(spec.command, identityArgs, { env: spec.env, encoding: 'utf8', timeout: 2000, maxBuffer: 4096 });
+      console.error(`synthetic namespace identity: ${(identity.stdout ?? '').trim()} ${(identity.stderr ?? '').trim()}`);
+    }
     // This fixture mounts only empty credentials and synthetic bytes. Include
     // bounded setup diagnostics so CI failures are actionable; production
     // provider stderr remains private.
