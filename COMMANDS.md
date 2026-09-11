@@ -13,6 +13,9 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/provision-local-grok-user.mjs --inspect <email>` — inspect only the explicitly identified local recovery account; never reads credential fields
+- `node scripts/provision-local-grok-user.mjs --rehearse <email> <expected-user-id>` — rehearse isolated operator-workspace assignment and audit insertion, then roll back
+- `node scripts/provision-local-grok-user.mjs --assign <email> <expected-user-id>` — explicitly authorized local assignment only, after inspection and rehearsal; refuses already-assigned accounts and never grants recovered-tenant access
 - `node scripts/test-local-grok-origin.mjs` — validate exact private phone-tunnel origins without loading credentials or starting services
 - `sh scripts/preflight.sh` — pre-flight gate (MUST print "preflight: ok")
 - `sh scripts/verify.sh` — full verification gate (MUST print "verify: ok")
