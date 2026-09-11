@@ -97,6 +97,10 @@ jobs:
         if: matrix.task == 'lint'
         run: sh scripts/check-container-base-pins.sh
 
+      - name: Verify development database bindings
+        if: matrix.task == 'lint'
+        run: node scripts/check-dev-db-bindings.mjs
+
       - name: Rust clippy check
         if: matrix.task == 'lint'
         run: |

@@ -17,7 +17,8 @@ services:
       POSTGRES_PASSWORD: changeme
       POSTGRES_DB: axiom
     ports:
-      - '5432:5432'
+      # Development credentials must not expose PostgreSQL to the host LAN.
+      - '127.0.0.1:5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ../packages/db/migrations:/migrations:ro
@@ -39,7 +40,7 @@ services:
       PGADMIN_DEFAULT_EMAIL: admin@axiom.local
       PGADMIN_DEFAULT_PASSWORD: changeme
     ports:
-      - '5050:80'
+      - '127.0.0.1:5050:80'
     depends_on:
       postgres:
         condition: service_healthy
