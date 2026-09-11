@@ -276,7 +276,10 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
       {
         headers: {
           'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-store',
+          // Compression proxies can otherwise buffer the short device-code
+          // instructions until the login ends, preventing user authorization.
+          'Cache-Control': 'no-store, no-transform',
+          'X-Accel-Buffering': 'no',
           Connection: 'keep-alive',
         },
       },

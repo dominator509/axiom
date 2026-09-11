@@ -22,6 +22,7 @@ describe('dashboard auth middleware', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.useRealTimers();
   });
 
@@ -56,6 +57,14 @@ describe('dashboard auth middleware', () => {
     await expect(result).resolves.toEqual({
       type: 'redirect',
       url: 'http://dashboard.test/login',
+    });
+  });
+
+  it.each([false, true])('uses the configured HTTPS origin behind a loopback proxy (authenticated=%s)', async authenticated => {
+    vi.stubEnv('BETTER_AUTH_URL', 'https://phone.devtunnels.ms');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(authenticated ? '{"user":{"id":"test"}}' : 'null')));
+    expect(await middleware(requestFor(authenticated ? '/login' : '/connections/grok'))).toEqual({
+      type: 'redirect', url: `https://phone.devtunnels.ms${authenticated ? '/' : '/login'}`,
     });
   });
 });

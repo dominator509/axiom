@@ -387,7 +387,8 @@ describe('createRouter — subscription OAuth lifecycle', () => {
       method: 'POST',
     });
     expect(res.status).toBe(200);
-    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(res.headers.get('cache-control')).toBe('no-store, no-transform');
+    expect(res.headers.get('x-accel-buffering')).toBe('no');
     expect(await res.text()).toContain('event: connected');
     expect(gateway.connectSubscription).toHaveBeenCalledWith(
       'openai',

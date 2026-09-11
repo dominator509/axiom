@@ -290,6 +290,11 @@ credentials, ports, non-root paths, query strings and fragments are rejected
 before URL normalization. `node scripts/test-local-grok-origin.mjs` exercises
 this boundary without loading credentials or starting the API.
 
+Set the dashboard server's `BETTER_AUTH_URL` to that same exact public origin
+when behind the tunnel. Its authentication middleware uses this configured
+origin for redirects instead of the internal loopback request URL. Caller
+`Host` or `X-Forwarded-Host` headers must not become configuration authority.
+
 This argument does not create a tunnel or grant access. Remote operation
 requires explicit operator consent to transit login/session traffic through
 Microsoft, an owner-only tunnel ACL, and a bounded tunnel lifetime. Preserve

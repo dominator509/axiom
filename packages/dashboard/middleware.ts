@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readBoundedResponseJson } from '@axiom/core';
 import { resolveApiOrigin } from './lib/api-origin';
+import { authRedirectUrl } from './lib/auth-redirect';
 
 const API_ORIGIN = resolveApiOrigin();
 export const SESSION_REQUEST_TIMEOUT_MS = 3_000;
@@ -35,8 +36,8 @@ export async function middleware(request: NextRequest) {
     clearTimeout(timer);
   }
 
-  if (!authenticated && !isLogin) return NextResponse.redirect(new URL('/login', request.url));
-  if (authenticated && isLogin) return NextResponse.redirect(new URL('/', request.url));
+  if (!authenticated && !isLogin) return NextResponse.redirect(authRedirectUrl('/login', request.url, process.env.BETTER_AUTH_URL));
+  if (authenticated && isLogin) return NextResponse.redirect(authRedirectUrl('/', request.url, process.env.BETTER_AUTH_URL));
   return NextResponse.next();
 }
 

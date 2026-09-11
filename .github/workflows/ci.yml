@@ -304,6 +304,7 @@ jobs:
         run: |
           node scripts/test-security-gate.mjs
           node scripts/test-local-grok-origin.mjs
+          node scripts/test-login-stream-compression.mjs
           pnpm security-check
 
       - name: Audit Grok CLI input guard dependencies
