@@ -95,9 +95,14 @@ const rescheduleSchema = z
  * text-only bundle; media-only providers must have an attached asset before a
  * worker job is created.
  */
-function mediaRequirementError(platform: Platform, hasAsset: boolean): string | null {
-  if (hasAsset) return null;
+function mediaRequirementError(platform: Platform, hasAsset: boolean, kind?: 'image' | 'video'): string | null {
+  // Presence is checked before loading; compatibility requires the owned row.
+  if (hasAsset && !kind) return null;
   try {
+    if (kind) {
+      return resolveCapabilities(platform).media.includes(kind)
+        ? null : `${platform} does not support ${kind} assets; scheduling cannot continue`;
+    }
     if (resolveCapabilities(platform).media.includes('text')) return null;
   } catch {
     return `cannot resolve ${platform} capabilities; media requirement is unknown`;
@@ -220,6 +225,8 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
             'bundle references an unavailable or unsupported media asset; scheduling cannot continue',
         };
       }
+      const compatibilityError = mediaRequirementError(platform, true, asset.kind);
+      if (compatibilityError) return { status: 409 as const, data: null, error: compatibilityError };
     }
 
     const connectionResolution = await resolvePublishConnections(
@@ -367,6 +374,8 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
             'bundle references an unavailable or unsupported media asset; retargeting cannot continue',
         };
       }
+      const compatibilityError = mediaRequirementError(nextPlatform, true, asset.kind);
+      if (compatibilityError) return { status: 409 as const, data: null, error: compatibilityError };
     }
 
     const requestedConnectionId =

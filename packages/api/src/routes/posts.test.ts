@@ -21,7 +21,8 @@ vi.mock('@axiom/worker', () => ({
   EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX: 'external-side-effect-unknown:',
   enqueueJob: vi.fn(async () => ({ id: 'job-1' })),
   resolveCapabilities: vi.fn((platform: string) => ({
-    media: platform === 'x' || platform === 'reddit' ? ['text'] : ['image'],
+    media: platform === 'youtube' || platform === 'tiktok' ? ['video', 'short']
+      : platform === 'x' || platform === 'reddit' ? ['text', 'image', 'video'] : ['image'],
   })),
   asPlatform: vi.fn((platform: string) => {
     const supported = [
@@ -113,6 +114,21 @@ describe('GET /models/:modelId/calendar', () => {
 });
 
 describe('POST /posts', () => {
+  it.each(['POST', 'PATCH'])('rejects unsupported image destinations via %s before mutation', async (method) => {
+    const bundle = { id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'approved', assetId: 'asset-1' };
+    mockState.results = method === 'POST'
+      ? [[], [bundle], [{ id: 'asset-1', kind: 'image' }]]
+      : [[], [{ id: POST_ID, orgId: ORG_ID, bundleId: BUNDLE_ID, platform: 'instagram', state: 'pending' }], [], [], [bundle], [{ id: 'asset-1', kind: 'image' }]];
+    const res = await appWithOrg(ORG_ID).request(method === 'POST' ? '/posts' : `/posts/${POST_ID}`, {
+      method, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...(method === 'POST' ? { bundleId: BUNDLE_ID } : {}), platform: 'youtube', scheduledFor: '2030-08-10T12:00:00Z' }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { detail: string }).detail).toContain('youtube does not support image assets');
+    expect(mockState.updates).toHaveLength(0);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
   it('rejects scheduling when the compliance record set is incomplete', async () => {
     mockState.result = [
       {
