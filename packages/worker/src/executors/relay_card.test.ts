@@ -133,6 +133,28 @@ beforeEach(() => {
 });
 
 describe('relayCard', () => {
+  it.each([undefined, 'old-revision'])(
+    'retires a card queued for revision %s after the bundle changes', async (revisionId) => {
+      mockState.results[0] = [{ ...BUNDLE, tosReport: { ...BUNDLE.tosReport, revisionId: 'new-revision' } }];
+      await relayCard({
+        tx: makeChain(), job: { ...JOB, payload: { bundleId: BUNDLE.id, revisionId } },
+        killSwitchEnabled: false, workerId: 'worker-1',
+      });
+      expect(mockState.sent).toHaveLength(0);
+      expect(mockState.inserts).toHaveLength(0);
+    },
+  );
+
+  it('parks a matching revision until its ToS scan is complete', async () => {
+    mockState.results[0] = [{ ...BUNDLE, tosReport: { verdict: 'pending', revisionId: 'revision-1' } }];
+    await expect(relayCard({
+      tx: makeChain(), job: { ...JOB, payload: { bundleId: BUNDLE.id, revisionId: 'revision-1' } },
+      killSwitchEnabled: false, workerId: 'worker-1',
+    })).rejects.toThrow('ToS scan pending');
+    expect(mockState.sent).toHaveLength(0);
+    expect(mockState.inserts).toHaveLength(0);
+  });
+
   it.each(['generated', 'hold'])('still dispatches actionable %s bundles', async (state) => {
     mockState.results[0] = [{ ...BUNDLE, state }];
     await relayCard({ tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1' });
@@ -247,7 +269,7 @@ describe('relayCard', () => {
     ) as unknown as NonNullable<ExecutorContext['persistSideEffectMarker']>;
     await relayCard({
       tx: makeChain(),
-      job: JOB,
+      job: { ...JOB, payload: { bundleId: BUNDLE.id, revisionId: 'revision-1' } },
       killSwitchEnabled: false,
       workerId: 'worker-1',
       markExternalSideEffect,

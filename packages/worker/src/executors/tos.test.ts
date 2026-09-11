@@ -154,6 +154,9 @@ describe('tosScan', () => {
         tosReport: { ...REPORT, revisionId: 'revision-1' },
       }),
     ]);
+    expect(mockState.enqueue).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      kind: 'relay.card', payload: { bundleId: 'bundle-1', revisionId: 'revision-1' },
+    }));
   });
   it('does not replace a pending revision marker with an obsolete scan', async () => {
     mockState.results = [[{ id: 'bundle-1', state: 'revising' }]];
@@ -338,7 +341,7 @@ describe('tosScan', () => {
     );
     expect(mockState.enqueue).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ kind: 'relay.card', payload: { bundleId: 'bundle-1' } }),
+      expect.objectContaining({ kind: 'relay.card', payload: { bundleId: 'bundle-1', revisionId: null } }),
     );
   });
 

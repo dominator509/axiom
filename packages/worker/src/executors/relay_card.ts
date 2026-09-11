@@ -75,7 +75,7 @@ export function assertRelayBindingDispatchable(
 
 export const relayCard: Executor = async (ctx: ExecutorContext) => {
   const { tx, job, killSwitchEnabled } = ctx;
-  const payload = (job.payload ?? {}) as { bundleId?: string; channel?: string };
+  const payload = (job.payload ?? {}) as { bundleId?: string; channel?: string; revisionId?: string | null };
   const bundleId = payload.bundleId;
   if (!bundleId) throw new Error('relay.card: payload.bundleId required');
 
@@ -106,10 +106,19 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
       throw new Error('relay.card: unknown bundle lifecycle state; refusing dispatch');
   }
 
+  const tosReport = (bundle.tosReport as Record<string, unknown> | null) ?? {};
+  // Unversioned jobs belong to the initial revision. They must not pick up a
+  // later caption revision merely because delivery was delayed. Its completed
+  // scan produces a new card job with an explicit revision identity.
+  if ((payload.revisionId ?? null) !== (tosReport.revisionId ?? null)) return;
+
   // Kill switch gates every actionable card before any provider work. Obsolete
   // jobs above can finish even while killed: they perform no outbound I/O.
   if (killSwitchEnabled) {
     throw new ParkJobError('relay.card: kill switch enabled — parked', 60_000);
+  }
+  if (tosReport.verdict === 'pending') {
+    throw new ParkJobError('relay.card: ToS scan pending — parked', 60_000);
   }
 
   // Approval cards must show the same provider-readable preview that the
@@ -168,7 +177,6 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
   }));
   const commandRouter = new CommandRouter(resolveRelaySecret(process.env));
 
-  const tosReport = (bundle.tosReport as Record<string, unknown> | null) ?? {};
   const captions = (bundle.captions as Record<string, string> | null) ?? {};
   const scores =
     (tosReport.scores as Array<{

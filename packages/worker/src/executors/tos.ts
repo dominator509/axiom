@@ -155,7 +155,10 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
     orgId: ctx.job.org_id,
     queue: 'relay',
     kind: 'relay.card',
-    payload: { bundleId },
+    payload: {
+      bundleId,
+      revisionId: typeof bundle.tosReport?.revisionId === 'string' ? bundle.tosReport.revisionId : null,
+    },
     runAfter: new Date(),
     maxAttempts: ctx.job.max_attempts,
     // A revised bundle has a new ToS job and therefore gets a new relay card;
