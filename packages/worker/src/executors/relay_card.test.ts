@@ -8,6 +8,7 @@ const mockState = vi.hoisted(() => ({
   results: [] as unknown[],
   sent: [] as Array<{ chatRef: string; card: Record<string, unknown> }>,
   inserts: [] as unknown[],
+  lockModes: [] as string[],
   discordLogins: 0,
   discordDestroys: 0,
 }));
@@ -24,6 +25,12 @@ function makeChain(): any {
       if (prop === 'values') {
         return (value: unknown) => {
           mockState.inserts.push(value);
+          return makeChain();
+        };
+      }
+      if (prop === 'for') {
+        return (mode: string) => {
+          mockState.lockModes.push(mode);
           return makeChain();
         };
       }
@@ -126,6 +133,7 @@ beforeEach(() => {
   ];
   mockState.sent = [];
   mockState.inserts = [];
+  mockState.lockModes = [];
   mockState.discordLogins = 0;
   mockState.discordDestroys = 0;
   vi.stubEnv('TELEGRAM_BOT_TOKEN', 'test-token');
@@ -133,6 +141,11 @@ beforeEach(() => {
 });
 
 describe('relayCard', () => {
+  it('locks the bundle without blocking the independent card marker FK', async () => {
+    await relayCard({ tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1' });
+    expect(mockState.lockModes).toEqual(['no key update']);
+    expect(mockState.sent).toHaveLength(1);
+  });
   it.each([undefined, 'old-revision'])(
     'retires a card queued for revision %s after the bundle changes', async (revisionId) => {
       mockState.results[0] = [{ ...BUNDLE, tosReport: { ...BUNDLE.tosReport, revisionId: 'new-revision' } }];

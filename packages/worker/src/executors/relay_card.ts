@@ -83,7 +83,11 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
     .select()
     .from(schema.contentBundle)
     .where(and(eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, job.org_id)))
-    .limit(1);
+    .limit(1)
+    // Keep revision/state stable through dispatch. NO KEY UPDATE still permits
+    // the independent marker transaction's foreign-key KEY SHARE lock; UPDATE
+    // would block our own marker while we wait for its commit.
+    .for('no key update');
   if (bundles.length === 0) throw new Error(`relay.card: bundle ${bundleId} not found`);
   const bundle = bundles[0];
 
