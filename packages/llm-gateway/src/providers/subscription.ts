@@ -438,7 +438,9 @@ function authCommand(
     },
     grok: {
       status: ['inspect', '--json'],
-      connect: ['login', '--oauth', '--device-auth'],
+      // Device login is the remote/phone flow; --oauth selects an exclusive
+      // browser-based transport in the pinned CLI and must not be combined.
+      connect: ['login', '--device-auth'],
       disconnect: ['logout'],
     },
   };

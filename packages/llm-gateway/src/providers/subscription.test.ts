@@ -485,6 +485,8 @@ describe('official subscription auth command lifecycle', () => {
     spawnMock.mockReturnValue(child);
     const pending = (async () => { for await (const line of transport.connect('grok', 'user-1')) void line; })();
     const options = spawnMock.mock.calls[0]?.[2] as { env: NodeJS.ProcessEnv };
+    // Installed pinned CLI declares --oauth and --device-auth mutually exclusive.
+    expect(spawnMock.mock.calls[0]?.[1]).toEqual(['login', '--device-auth']);
     expect(options.env.GROK_AUTH_PATH).toBe(join(profile, 'credentials', 'auth.json'));
     expect(existsSync(join(profile, 'credentials', '.active'))).toBe(false);
     writeFileSync(options.env.GROK_AUTH_PATH!, '{}');
