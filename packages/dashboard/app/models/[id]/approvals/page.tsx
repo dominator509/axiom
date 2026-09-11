@@ -2,6 +2,7 @@ import { api } from '@/lib/api';
 import ApproveButtons from '@/components/ApproveButtons';
 import BundleMedia from '@/components/BundleMedia';
 import VideoReview from '@/components/VideoReview';
+import SavedGenerationRetry from '@/components/SavedGenerationRetry';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,6 +111,8 @@ export default async function ApprovalsPage({
               </div>
             </div>
             <div style={{ marginTop: 12 }}>
+              {b.state !== 'revising' && (b.state === 'hold' || (b.assetId && ['block', 'review'].includes(b.tosReport?.verdict ?? '')))
+                && <SavedGenerationRetry key={b.id} modelId={id} bundleId={b.id} blocked={b.tosReport?.verdict === 'block'} />}
               {b.state !== 'revising' && b.assetId && b.tosReport?.verdict === 'review' && b.tosReport.videoScan?.scanId && (
                 <VideoReview key={b.tosReport.videoScan.scanId} bundleId={b.id}
                   scanId={b.tosReport.videoScan.scanId} platforms={Object.keys(b.captions ?? {})} />

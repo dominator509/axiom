@@ -73,11 +73,18 @@ async function renderPage(query: Record<string, string | string[] | undefined> =
 }
 
 describe('approval review queue', () => {
+  it.each([['generated', 'pass'], ['generated', 'pending'], ['revising', 'block']])(
+    'does not offer media retry for %s/%s', async (state, verdict) => {
+      transport(state, verdict, false, {}, 'attached-asset');
+      expect(await renderPage()).not.toContain('Grok generation retry options');
+    });
   it('mounts a media preview when a generated asset is attached', async () => {
     transport('generated', 'review', false, {}, 'attached-asset');
     const html = await renderPage();
     expect(html).toContain('Loading media preview');
     expect(html).toContain('Blocked by ToS');
+    expect(html).toContain('Grok generation retry options');
+    expect(html).toContain('Available only for bundles generated through your Grok account');
   });
   it.each(['hold', 'generated'])('renders %s bundles with review controls', async (state) => {
     const fetchMock = transport(state);
