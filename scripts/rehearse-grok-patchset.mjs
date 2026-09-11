@@ -10,7 +10,7 @@ assert.equal(process.argv[2], '--isolated-fixture', 'Explicit --isolated-fixture
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const source = join(repo, 'var/grok-source-37949780');
 const base = '37949780c144e37df692e3d669051a21fec24f20';
-const patches = ['sealed-input', 'sealed-input-lock', 'bounded-image', 'aws-lc'];
+const patches = ['sealed-input', 'sealed-input-lock', 'bounded-image', 'aws-lc', 'test-compat'];
 const fixture = mkdtempSync(join(tmpdir(), 'axiom-grok-patchset-'));
 const env = { ...process.env, GIT_INDEX_FILE: join(fixture, 'index') };
 function git(...args) {

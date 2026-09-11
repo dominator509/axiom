@@ -6,6 +6,7 @@
 - `cargo build --workspace` — build Rust crates
 
 ## Test Commands
+- `cargo test --locked --manifest-path infra/grok-cli/event-listener-regression/Cargo.toml` — patched dependency thread-safety and legitimate-use regression tests; the separate baseline manifest intentionally fails its compile-fail tests
 - `pnpm test` — run all TS tests
 - `pnpm test:unit` — unit tests
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture` — local full build/test matrix using a fresh database in the existing labeled CI container on loopback port 55432; requires host process-control access and Docker, removes only the disposable database afterward, never loads `.env`

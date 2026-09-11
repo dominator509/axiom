@@ -26,6 +26,8 @@ git -C var/grok-source-37949780 apply --check ../../infra/grok-cli/37949780-boun
 git -C var/grok-source-37949780 apply ../../infra/grok-cli/37949780-bounded-image.patch
 git -C var/grok-source-37949780 apply --check ../../infra/grok-cli/37949780-aws-lc.patch
 git -C var/grok-source-37949780 apply ../../infra/grok-cli/37949780-aws-lc.patch
+git -C var/grok-source-37949780 apply --check ../../infra/grok-cli/37949780-test-compat.patch
+git -C var/grok-source-37949780 apply ../../infra/grok-cli/37949780-test-compat.patch
 ```
 
 The companion lock patch records Cargo's resolved graph, including the guard,
@@ -411,3 +413,34 @@ patches to a temporary index seeded from the exact upstream commit, then compare
 Git-normalized blobs with the candidate checkout. This passed for all 14 affected
 files. It preserves the real index and worktree, removes only its fresh temporary
 index directory, and does not build, install, authenticate or generate media.
+
+### Event-listener candidate update (validation in progress)
+
+The lock patch now selects `event-listener 5.4.2` instead of 5.4.1 to address
+RUSTSEC-2026-0221. Precise offline resolution changes that package and six
+dependent references, preserving 1,329 package records. The release removes
+its concurrent-queue edge and also changes the no-std backend; it is not merely
+a two-line trait-bound edit. The inspected Grok callers use unit-tagged events;
+an externally exploitable Grok path was not established.
+
+The standalone [regression package](event-listener-regression/README.md) proves
+the forbidden cross-thread traits and public macro transfer compiled on the
+old release and are rejected on the patched one, while legitimate use passes.
+The five packaged patches reconstruct all 15 affected candidate files, including
+the test-only compatibility import described below. A local audit
+with `--no-fetch --no-yanked` no longer reports RUSTSEC-2026-0221; it still fails
+on test RSA and reports nine unsoundness and ten maintenance warnings. This is
+not a clean full advisory or yanked-dependency gate.
+
+The first Grok normalization-cache test build failed on an upstream image-bridge
+test missing `use base64::Engine`. The fifth, test-only patch supplies that trait
+import without changing assertions or production code. The offline Linux rerun
+compiled the shell test harness in 7m47s and passed all 14 normalization-cache
+tests, including concurrent deduplication, error recovery and byte-budget eviction.
+All four image-bridge tests also passed, including replacement/original-output
+handling and rejection of only the producing run. The full CLI rebuild remains
+in progress; these tests do not establish live generation or installed-runtime
+acceptance.
+The binary hash recorded in the AWS-LC section predates this dependency update
+and must not be represented as built from this newer lockfile. No updated binary
+has been installed or used with a real account.
