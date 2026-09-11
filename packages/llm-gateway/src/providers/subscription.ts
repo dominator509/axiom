@@ -936,6 +936,8 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
     if (provider === 'grok') {
       const profile = profileRoot(userId, provider);
       const credentials = join(profile, 'credentials');
+      // Local-presence signal only: this neither validates tokens nor proves
+      // provider entitlements. Callers must not label it live verification.
       return { provider, connected: existsSync(join(
         existsSync(join(credentials, '.active')) ? credentials : profile, 'auth.json',
       )) };

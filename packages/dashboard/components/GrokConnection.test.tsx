@@ -24,8 +24,14 @@ it('performs no automatic login or status request on rendering', () => {
 it('shows connected only after login confirmation and clears login instructions', async () => {
   hooks.connect.mockImplementation(async (_signal, message) => { message('<script>not executable</script>'); });
   buttons()[1].props.onClick();
-  await vi.waitFor(() => expect(hooks.values[0]).toBe('Grok account connected'));
+  await vi.waitFor(() => expect(hooks.values[0]).toBe('Grok login completed. Generation access has not yet been verified.'));
   expect(hooks.values[1]).toBe(''); expect(hooks.connect).toHaveBeenCalledOnce();
+});
+it('does not describe a local credential-file check as provider verification', async () => {
+  hooks.status.mockResolvedValue(true);
+  buttons()[0].props.onClick();
+  await vi.waitFor(() => expect(hooks.values[0]).toBe('Grok credential file found. Provider access has not yet been verified.'));
+  expect(hooks.connect).not.toHaveBeenCalled();
 });
 it('suppresses concurrent starts and aborts observation without claiming connection', async () => {
   let finish!: () => void;

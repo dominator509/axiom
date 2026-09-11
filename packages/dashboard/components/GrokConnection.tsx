@@ -22,7 +22,11 @@ export default function GrokConnection() {
       });
       const connected = login || await grokConnectionStatus(controller.signal);
       if (active.current === controller && !controller.signal.aborted) {
-        setStatus(connected ? 'Grok account connected' : 'Grok account not connected');
+        setStatus(connected
+          ? login
+            ? 'Grok login completed. Generation access has not yet been verified.'
+            : 'Grok credential file found. Provider access has not yet been verified.'
+          : 'No saved Grok credential file found');
         if (connected) setInstructions('');
       }
     } catch {
