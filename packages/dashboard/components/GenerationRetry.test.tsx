@@ -23,6 +23,23 @@ it('requires explicit charge acknowledgement and never dispatches on render', ()
   render()[4].props.onClick();
   expect(hooks.fetch).not.toHaveBeenCalled();
 });
+it('unlocks a stalled response and reconciles using the original intent', async () => {
+  vi.useFakeTimers();
+  try {
+    hooks.fetch.mockResolvedValueOnce(new Response(new ReadableStream()))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { bundle: { id: '11111111-1111-4111-8111-111111111111' } } })));
+    render()[3].props.children[0].props.onChange({ target: { checked: true } });
+    render()[4].props.onClick();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(hooks.values[3]).toBe(false);
+    expect(hooks.values[4]).toContain('outcome unconfirmed');
+    render()[4].props.onClick();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(queued).toHaveBeenCalledOnce();
+    expect(hooks.fetch.mock.calls[1]).toEqual(hooks.fetch.mock.calls[0]);
+    expect(hooks.key).toHaveBeenCalledOnce();
+  } finally { vi.useRealTimers(); }
+});
 it('blocks an unchanged moderation retry even if the event is invoked directly', () => {
   render(true)[3].props.children[0].props.onChange({ target: { checked: true } });
   render(true)[4].props.onClick();

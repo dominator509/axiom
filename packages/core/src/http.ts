@@ -13,9 +13,13 @@ export async function readBoundedResponseBytes(
   response: Response,
   maxBytes: number,
   label: string,
+  timeoutMs?: number,
 ): Promise<Uint8Array> {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
     throw new RangeError(`${label} maximum size must be a non-negative safe integer`);
+  }
+  if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
+    throw new RangeError(`${label} timeout must be a positive finite number`);
   }
 
   const contentLength = response.headers.get('content-length');
@@ -38,21 +42,31 @@ export async function readBoundedResponseBytes(
   }
 
   const reader = response.body.getReader();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = timeoutMs === undefined ? undefined : new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${label} body timed out after ${timeoutMs}ms`));
+      // A stalled transport's cancellation promise must not delay the deadline.
+      void reader.cancel().catch(() => undefined);
+    }, timeoutMs);
+  });
   const chunks: Uint8Array[] = [];
   let total = 0;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const read = reader.read();
+      const { done, value } = await (deadline ? Promise.race([read, deadline]) : read);
       if (done) break;
       if (!value) continue;
       total += value.byteLength;
       if (total > maxBytes) {
-        await reader.cancel();
+        void reader.cancel().catch(() => undefined);
         throw new Error(`${label} exceeds the maximum supported size of ${maxBytes} bytes`);
       }
       chunks.push(value);
     }
   } finally {
+    clearTimeout(timer);
     reader.releaseLock();
   }
 
@@ -69,14 +83,15 @@ export async function readBoundedResponseText(
   response: Response,
   maxBytes: number,
   label: string,
+  timeoutMs?: number,
 ): Promise<string> {
-  const bytes = await readBoundedResponseBytes(response, maxBytes, label);
+  const bytes = await readBoundedResponseBytes(response, maxBytes, label, timeoutMs);
   return new TextDecoder().decode(bytes);
 }
 
-export async function readBoundedResponseJson<T>(response: Response): Promise<T> {
+export async function readBoundedResponseJson<T>(response: Response, timeoutMs?: number): Promise<T> {
   return JSON.parse(
-    await readBoundedResponseText(response, AXIOM_JSON_RESPONSE_MAX_BYTES, 'service JSON response'),
+    await readBoundedResponseText(response, AXIOM_JSON_RESPONSE_MAX_BYTES, 'service JSON response', timeoutMs),
   ) as T;
 }
 

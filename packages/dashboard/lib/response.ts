@@ -8,7 +8,7 @@ export interface DashboardErrorBody {
 
 /** Parse a dashboard response without allowing an unbounded body allocation. */
 export function readDashboardJson<T>(response: Response): Promise<T> {
-  return readBoundedResponseJson<T>(response);
+  return readBoundedResponseJson<T>(response, 30_000);
 }
 
 /** Read an error envelope while keeping malformed/oversized responses safe. */

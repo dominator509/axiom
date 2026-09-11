@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   AXIOM_JSON_RESPONSE_MAX_BYTES,
   readBoundedResponseBytes,
@@ -6,6 +6,27 @@ import {
 } from './http.js';
 
 describe('bounded HTTP response readers', () => {
+  it('bounds a stalled body even when transport cancellation never settles', async () => {
+    vi.useFakeTimers();
+    try {
+      const cancel = vi.fn(() => new Promise<void>(() => undefined));
+      const response = new Response(new ReadableStream({ cancel }));
+      const outcome = readBoundedResponseJson(response, 25).catch(error => error);
+      await vi.advanceTimersByTimeAsync(25);
+      expect(await outcome).toMatchObject({ message: 'service JSON response body timed out after 25ms' });
+      expect(cancel).toHaveBeenCalledOnce();
+      expect(response.body?.locked).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('clears the deadline after a complete body', async () => {
+    vi.useFakeTimers();
+    try {
+      await expect(readBoundedResponseJson(new Response('{"ok":true}'), 25)).resolves.toEqual({ ok: true });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
   it('parses a normal JSON response', async () => {
     const response = new Response(JSON.stringify({ status: 'ok' }), {
       headers: { 'content-type': 'application/json' },
