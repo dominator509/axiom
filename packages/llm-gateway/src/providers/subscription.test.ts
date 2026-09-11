@@ -118,6 +118,80 @@ describe('official subscription auth command lifecycle', () => {
     await rejection;
   });
 
+  it('cleans up a login when its consumer returns early', async () => {
+    const child = fakeChild(); spawnMock.mockReturnValue(child);
+    const controller = new AbortController();
+    const iterator = transport.connect('grok', 'user-1', controller.signal)[Symbol.asyncIterator]();
+    const next = iterator.next();
+    child.stdout.write('Login instructions\n');
+    await next;
+    await iterator.return?.();
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+    expect(vi.getTimerCount()).toBe(0);
+    controller.abort();
+    expect(child.kill).toHaveBeenCalledOnce();
+    const profile = createHash('sha256').update('user-1').digest('hex');
+    expect(existsSync(join(subscriptionHome, profile, 'grok', 'credentials', '.active'))).toBe(false);
+  });
+
+  it('handles login spawn failure immediately while output streams remain open', async () => {
+    const child = fakeChild(); spawnMock.mockReturnValue(child);
+    const iterator = transport.connect('grok', 'user-1')[Symbol.asyncIterator]();
+    const rejection = expect(iterator.next()).rejects.toMatchObject({ status: 503 });
+    child.emit('error', new Error('synthetic spawn failure'));
+    await rejection;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([false, true])('bounds unconfirmed login termination (stdout EOF=%s)', async (eof) => {
+    const child = fakeChild(); spawnMock.mockReturnValue(child);
+    child.kill.mockImplementation(() => true);
+    const iterator = transport.connect('grok', 'user-1')[Symbol.asyncIterator]();
+    const rejection = expect(iterator.next()).rejects.toMatchObject({ status: 503 });
+    if (eof) { child.stdout.end(); child.stderr.end(); }
+    await vi.advanceTimersByTimeAsync(2026);
+    await rejection;
+    expect(child.kill).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(['abort', 'return'] as const)('stops a real SIGTERM-resistant login wrapper tree on %s', async (action) => {
+    vi.useRealTimers();
+    vi.stubEnv('AXIOM_LLM_TRANSPORT_TIMEOUT_MS', '5000');
+    const { spawn } = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    let realChild: ReturnType<typeof spawn> | undefined;
+    let nativePid: number | undefined;
+    spawnMock.mockImplementation((command, args, options) => {
+      if (String(command).endsWith('taskkill.exe')) return spawn(command, args, options);
+      const native = `process.on('SIGTERM',()=>{}); process.stdout.write(String(process.pid)+'\\n'); setInterval(()=>{},1000);`;
+      const wrapper = `require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(native)}],{stdio:'inherit'}); process.on('SIGTERM',()=>{}); setInterval(()=>{},1000);`;
+      realChild = spawn(process.execPath, ['-e', wrapper], options);
+      return realChild;
+    });
+    const controller = new AbortController();
+    const iterator = transport.connect('grok', 'user-1', controller.signal)[Symbol.asyncIterator]();
+    try {
+      nativePid = Number((await iterator.next()).value);
+      expect(nativePid).toBeGreaterThan(0);
+      const wrapperPid = realChild!.pid!;
+      if (action === 'abort') {
+        controller.abort();
+        await expect(iterator.next()).rejects.toMatchObject({ name: 'AbortError' });
+      } else await iterator.return?.();
+      expect(() => process.kill(wrapperPid, 0)).toThrow();
+      if (process.platform === 'linux') {
+        let state = '';
+        try { state = readFileSync(`/proc/${nativePid}/stat`, 'utf8').split(') ')[1]![0]!; }
+        catch { /* already reaped */ }
+        expect(['', 'Z']).toContain(state);
+      } else expect(() => process.kill(nativePid!, 0)).toThrow();
+    } finally {
+      realChild?.kill('SIGKILL');
+      if (nativePid) { try { process.kill(nativePid, 'SIGKILL'); } catch { /* already gone */ } }
+      await iterator.return?.();
+    }
+  });
+
   it('counts login stdout and stderr against one shared raw-byte budget', async () => {
     const child = fakeChild(); spawnMock.mockReturnValue(child);
     const iterator = transport.connect('grok', 'user-1')[Symbol.asyncIterator]();

@@ -537,33 +537,24 @@ async function* runAuthConnect(
     cwd: PACKAGE_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    detached: process.platform !== 'win32',
   });
-  const exitPromise = new Promise<number | null>((resolveExit, rejectExit) => {
-    child.once('error', rejectExit);
-    child.once('exit', resolveExit);
-  });
-  const abort = () => child.kill();
-  signal?.addEventListener('abort', abort, { once: true });
-  const timeoutMs = Number(process.env.AXIOM_LLM_TRANSPORT_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
-  let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    child.kill();
-  }, timeoutMs);
-  timer.unref();
-
+  let closed = false;
+  let stopping = false;
+  let terminalError: Error | undefined;
+  let treeTermination = Promise.resolve(true);
+  let resolveStopped!: () => void;
+  const stopped = new Promise<void>(resolve => { resolveStopped = resolve; });
   let outputBytes = 0;
-  let outputLimitError: ProviderError | undefined;
   // Cap raw bytes before readline can buffer an arbitrarily long line.
   // Count both streams together, including diagnostic lines filtered later.
   const combined = new Transform({
     transform(chunk: Buffer, _encoding, callback) {
-      if (outputLimitError) { callback(); return; }
+      if (terminalError) { callback(); return; }
       outputBytes += chunk.byteLength;
       if (outputBytes > SUBSCRIPTION_AUTH_OUTPUT_MAX_BYTES) {
-        outputLimitError = new ProviderError('Subscription login output exceeded its limit', 502, provider);
-        child.kill();
         callback();
+        stop(new ProviderError('Subscription login output exceeded its limit', 502, provider));
         return;
       }
       callback(null, chunk);
@@ -572,48 +563,104 @@ async function* runAuthConnect(
   let openStreams = 2;
   const closeCombined = () => {
     openStreams -= 1;
-    if (openStreams === 0) combined.end();
+    if (openStreams === 0 && !combined.writableEnded) combined.end();
   };
+  const lines = createInterface({ input: combined, crlfDelay: Infinity });
+  const stop = (error?: Error) => {
+    terminalError ??= error;
+    resolveStopped();
+    if (stopping) return;
+    stopping = true;
+    // Match completion cancellation: own a POSIX group or stop the Windows
+    // wrapper tree, then verify closure before reporting any successful login.
+    if (!closed || process.platform === 'linux') {
+      if (child.pid && process.platform === 'win32') {
+        const killer = spawn(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'taskkill.exe'),
+          ['/PID', String(child.pid), '/T', '/F'], {
+            windowsHide: true, stdio: 'ignore', env: { SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' },
+          });
+        treeTermination = new Promise(resolveTree => {
+          const deadline = setTimeout(() => { killer.kill('SIGKILL'); resolveTree(false); }, 2000);
+          killer.once('error', () => { clearTimeout(deadline); resolveTree(false); });
+          killer.once('close', code => { clearTimeout(deadline); resolveTree(code === 0); });
+        });
+      } else if (child.pid) {
+        try {
+          process.kill(-child.pid, 'SIGKILL');
+          if (process.platform === 'linux') treeTermination = waitForLinuxProcessGroup(child.pid);
+        } catch (error) {
+          treeTermination = Promise.resolve((error as NodeJS.ErrnoException).code === 'ESRCH');
+        }
+      } else if (!closed) child.kill('SIGKILL');
+    }
+    child.stdout.unpipe(combined);
+    child.stderr.unpipe(combined);
+    child.stdout.destroy();
+    child.stderr.destroy();
+    lines.close();
+    combined.destroy();
+  };
+  const exitPromise = new Promise<number | null>(resolveExit => {
+    // Do not leave a rejecting promise unobserved while waiting for a line.
+    child.once('error', () => stop(new ProviderError('Subscription login could not start', 503, provider)));
+    child.once('close', code => { closed = true; resolveExit(code); });
+  });
+  let terminationPromise: Promise<void> | undefined;
+  const stopAndWait = () => terminationPromise ??= (async () => {
+    stop();
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    const confirmed = await Promise.race([
+      Promise.all([exitPromise, treeTermination]).then(([, treeStopped]) => treeStopped),
+      new Promise<false>(resolve => { deadline = setTimeout(() => resolve(false), 2000); }),
+    ]);
+    if (deadline) clearTimeout(deadline);
+    if (!confirmed) throw new ProviderError('Subscription login termination could not be confirmed', 503, provider);
+  })();
+  const abort = () => stop(new DOMException('Subscription login aborted', 'AbortError'));
+  const configuredTimeout = Number(process.env.AXIOM_LLM_TRANSPORT_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? Math.min(configuredTimeout, 2_147_483_647) : DEFAULT_TIMEOUT_MS;
+  const timer = setTimeout(() => stop(new ProviderError('Subscription login timed out', 504, provider)), timeoutMs);
+  timer.unref();
+  signal?.addEventListener('abort', abort, { once: true });
   child.stdout.pipe(combined, { end: false });
   child.stderr.pipe(combined, { end: false });
   child.stdout.once('end', closeCombined);
   child.stderr.once('end', closeCombined);
-  const lines = createInterface({ input: combined, crlfDelay: Infinity });
-  let output = '';
-  for await (const line of lines) {
-    if (outputLimitError) break;
-    if (Buffer.byteLength(line, 'utf8') > SUBSCRIPTION_AUTH_LINE_MAX_BYTES) {
-      outputLimitError = new ProviderError(
-        'Subscription login output line exceeded its limit',
-        502,
-        provider,
+  try {
+    if (signal?.aborted) abort();
+    let output = '';
+    for await (const line of lines) {
+      if (terminalError) break;
+      if (Buffer.byteLength(line, 'utf8') > SUBSCRIPTION_AUTH_LINE_MAX_BYTES) {
+        throw new ProviderError('Subscription login output line exceeded its limit', 502, provider);
+      }
+      const safeLine = sanitizedDiagnostic(line);
+      if (safeLine) {
+        output = `${output}\n${safeLine}`.slice(-2000);
+        yield safeLine;
+      }
+    }
+    if (terminalError) throw terminalError;
+    const exitCode = await Promise.race([exitPromise, stopped.then(() => null)]);
+    if (terminalError) throw terminalError;
+    if (exitCode !== 0) {
+      throw new ProviderError(
+        output || 'Subscription login failed', statusForFailure(output), provider,
       );
-      child.kill();
-      break;
     }
-    const safeLine = sanitizedDiagnostic(line);
-    if (safeLine) {
-      output = `${output}\n${safeLine}`.slice(-2000);
-      yield safeLine;
+    await stopAndWait();
+    if (terminalError) throw terminalError;
+    if (provider === 'grok') {
+      // A cancelled reconnect must not hide a working legacy session.
+      writeFileSync(join(profileRoot(userId, provider), 'credentials', '.active'), '', { mode: 0o600 });
     }
-  }
-  const exitCode = await exitPromise;
-  clearTimeout(timer);
-  signal?.removeEventListener('abort', abort);
-  if (signal?.aborted) throw new DOMException('Subscription login aborted', 'AbortError');
-  if (outputLimitError) throw outputLimitError;
-  if (timedOut) throw new ProviderError('Subscription login timed out', 504, provider);
-  if (exitCode !== 0) {
-    throw new ProviderError(
-      output || 'Subscription login failed',
-      statusForFailure(output),
-      provider,
-    );
-  }
-  if (provider === 'grok') {
-    // Activate only after a completed login. A cancelled reconnect must not
-    // hide a working legacy session merely because its directory was created.
-    writeFileSync(join(profileRoot(userId, provider), 'credentials', '.active'), '', { mode: 0o600 });
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
+    child.stdout.removeListener('end', closeCombined);
+    child.stderr.removeListener('end', closeCombined);
+    await stopAndWait();
   }
 }
 
