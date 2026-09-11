@@ -61,6 +61,40 @@ try {
   assert.deepEqual(fingerprints(destination), before, 'Restored table data differs');
   assert.equal(sql(destination, policyQuery), policies, 'Restored RLS metadata differs');
   checkIsolation(destination);
+  // Exercise write policies only on the disposable restored copy. Every
+  // transaction rolls back, including the positive own-tenant update.
+  for (const [index, tenant] of tenants.entries()) {
+    const foreign = tenants[1 - index].id;
+    sql(destination, `BEGIN; SET LOCAL ROLE axiom_app;
+      SET LOCAL app.current_org_id = '${tenant.id}';
+      DO $rehearsal$
+      DECLARE affected bigint;
+      BEGIN
+        UPDATE model_profile SET bio = 'restore policy probe' WHERE org_id = '${tenant.id}';
+        GET DIAGNOSTICS affected = ROW_COUNT;
+        IF affected <> ${tenant.count} THEN RAISE EXCEPTION 'Own-tenant update count differs'; END IF;
+        UPDATE model_profile SET bio = 'foreign restore probe' WHERE org_id = '${foreign}';
+        GET DIAGNOSTICS affected = ROW_COUNT;
+        IF affected <> 0 THEN RAISE EXCEPTION 'Foreign update was allowed'; END IF;
+        DELETE FROM model_profile WHERE org_id = '${foreign}';
+        GET DIAGNOSTICS affected = ROW_COUNT;
+        IF affected <> 0 THEN RAISE EXCEPTION 'Foreign delete was allowed'; END IF;
+        BEGIN
+          INSERT INTO model_profile (org_id, display_name, handle)
+            VALUES ('${foreign}', 'Restore probe', 'restore-${randomUUID()}');
+          RAISE EXCEPTION 'Foreign insert was allowed';
+        EXCEPTION WHEN insufficient_privilege THEN NULL;
+        END;
+        BEGIN
+          UPDATE model_profile SET org_id = '${foreign}' WHERE org_id = '${tenant.id}';
+          RAISE EXCEPTION 'Tenant reassignment was allowed';
+        EXCEPTION WHEN insufficient_privilege THEN NULL;
+        END;
+      END $rehearsal$;
+      ROLLBACK;`);
+  }
+  assert.deepEqual(fingerprints(destination), before, 'Write probes must leave restored data unchanged');
+  console.log('restored application role: own-tenant updates allowed; cross-tenant writes denied; probes rolled back');
   console.log('restored application role: own-tenant reads preserved; foreign and unknown tenant reads return zero');
   console.log(`logical restore: ${tables.length} public table fingerprints and RLS metadata preserved in ${((Date.now() - started) / 1000).toFixed(1)}s; no provider or production recovery claim`);
 } finally {
