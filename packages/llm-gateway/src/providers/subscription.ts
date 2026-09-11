@@ -168,7 +168,11 @@ function oauthOnlyEnvironment(provider: SubscriptionProvider, userId: string): N
   const env = childEnvironment();
   const root = profileRoot(userId, provider);
   if (provider === 'openai') env.CODEX_HOME = root;
-  if (provider === 'grok') env.GROK_HOME = root;
+  if (provider === 'grok') {
+    env.GROK_HOME = root;
+    env.GROK_MEMORY = '0';
+    env.GROK_DISABLE_AUTOUPDATER = '1';
+  }
   if (provider === 'anthropic') {
     env.CLAUDE_CONFIG_DIR = root;
     env.ANTHROPIC_CONFIG_DIR = root;
@@ -277,10 +281,27 @@ function buildCommand(request: SubscriptionRequest): CommandSpec {
       '--output-format',
       'streaming-messages-json',
       '--include-partial-messages',
+      // An empty --tools list means inherit, not deny-all. Use a curated
+      // empty registry with optional tool injection disabled instead.
+      // Contract: xai-org/grok-build 37949780, AgentDefinition + AgentBuilder.
+      '--agents',
+      JSON.stringify({
+        'axiom-text': {
+          description: 'AXIOM text-only completion without tool execution',
+          toolConfig: { tools: [] },
+          injectDefaultTools: false,
+          discoverSkills: false,
+          inheritSkills: false,
+          agentsMd: false,
+          mcpInheritance: 'none',
+        },
+      }),
+      '--agent',
+      'axiom-text',
       '--tools',
       '',
       '--disallowed-tools',
-      'Bash,Edit,Write,Read,Grep,WebFetch,WebSearch,Agent,MCPTool',
+      'run_terminal_cmd,read_file,search_replace,write_file,grep,web_fetch,web_search,x_search,search_tool,use_tool,Agent',
       '--disable-web-search',
       '--no-subagents',
       '--no-plan',
