@@ -233,9 +233,16 @@ SELECT count(*) FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' A
   assert.equal(restoredProvider.id, provider.id);
   assert.equal(restoredProvider.enabled, true);
   assert.deepEqual(restoredProvider.config, linkbioConfig, 'Re-enable must preserve stored configuration');
+  const invalidLinks = await request(linkbioPath, {
+    method: 'POST', headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
+    body: JSON.stringify({ kind: 'native', config: { links: [{ label: 'x'.repeat(121), url: 'https://example.invalid' }] } }),
+  });
+  assert.equal(invalidLinks.status, 400, 'Unrenderable links must be rejected before replacing saved content');
   const providerList = await request(linkbioPath, { headers: { cookie } });
   assert.equal(providerList.status, 200);
-  assert.equal((await providerList.json()).data.providers.length, 1, 'Lifecycle must not duplicate providers');
+  const savedProviders = (await providerList.json()).data.providers;
+  assert.equal(savedProviders.length, 1, 'Lifecycle must not duplicate providers');
+  assert.deepEqual(savedProviders[0].config, linkbioConfig, 'Rejected link edits must leave saved content unchanged');
   console.log('linkbio smoke: native creation, same-ID replay, disable and re-enable with preserved links passed (no external URL fetched)');
   const networkPath = `/api/v1/models/${createdBody.data.id}/network`;
   const operatorNetworkRead = await request(networkPath, { headers: { cookie } });

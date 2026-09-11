@@ -30,19 +30,27 @@ const publicRouter = new Hono<AppBindings>();
 publicRouter.use('*', rateLimit({ capacity: 60, refillPerSec: 1, maxBuckets: 100_000 }));
 
 const PROVIDER_KINDS = ['native'] as const;
+const UTM_KEY = /^utm_[a-z][a-z0-9_]{0,31}$/;
+const MAX_UTM_VALUE_LENGTH = 120;
+
+const nativeLinkInput = z.object({
+  label: z.string().trim().min(1).max(120),
+  url: z.string().trim().min(1).max(2048).refine((value) => {
+    try { return ['http:', 'https:'].includes(new URL(value).protocol); }
+    catch { return false; }
+  }, 'Links must use an http(s) URL'),
+  utm: z.record(z.string().regex(UTM_KEY), z.string().max(MAX_UTM_VALUE_LENGTH).trim().min(1)).optional(),
+}).passthrough();
 
 const enableSchema = z.object({
   kind: z.enum(PROVIDER_KINDS),
   // Omission toggles availability without replacing the saved page contents.
-  config: z.record(z.string(), z.unknown()).optional(),
+  config: z.object({ links: z.array(nativeLinkInput).optional() }).passthrough().optional(),
   isPrimary: z.boolean().optional(),
 });
 
 type NativeLink = { label: string; url: string; utm: Record<string, string> };
 type PublicNativeLink = NativeLink & { slug: string };
-
-const UTM_KEY = /^utm_[a-z][a-z0-9_]{0,31}$/;
-const MAX_UTM_VALUE_LENGTH = 120;
 
 function nativeLinks(config: unknown): NativeLink[] {
   if (!config || typeof config !== 'object' || Array.isArray(config)) return [];

@@ -75,6 +75,37 @@ describe('GET /models/:modelId/linkbio', () => {
 });
 
 describe('POST /models/:modelId/linkbio', () => {
+  it.each([
+    null, 'not-an-array', [null], [{ label: '', url: 'https://example.com' }],
+    [{ label: 'x'.repeat(121), url: 'https://example.com' }],
+    [{ label: 'Valid', url: 'https://example.com/'.padEnd(2049, 'x') }],
+    [{ label: 'Valid', url: 'not-a-url' }],
+    [{ label: 'Valid', url: 'ftp://example.com/file' }],
+    [{ label: 'Valid', url: 'https://example.com', utm: { source: 'invalid-key' } }],
+    [{ label: 'Valid', url: 'https://example.com', utm: { utm_source: 'x'.repeat(121) } }],
+  ])('rejects malformed links before any persistence: %j', async (links) => {
+    mockState.result = [{ id: PROVIDER_ID, orgId: ORG_ID, modelId: MODEL_ID }];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'native', config: { links } }),
+    });
+    expect(res.status).toBe(400);
+    expect(mockState.conflictUpdates).toEqual([]);
+  });
+
+  it('accepts an empty link list and exact renderer limits without stripping other config', async () => {
+    for (const links of [[], [{ label: 'x'.repeat(120), url: 'https://example.com/'.padEnd(2048, 'x'), utm: { utm_source: 'x'.repeat(120) } }]]) {
+      mockState.conflictUpdates = [];
+      mockState.result = [{ id: PROVIDER_ID, orgId: ORG_ID, modelId: MODEL_ID, config: { links } }];
+      const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'native', config: { links, metadata: { keep: true } } }),
+      });
+      expect(res.status).toBe(201);
+      expect(mockState.conflictUpdates[0]).toHaveProperty('set.config', { links, metadata: { keep: true } });
+    }
+  });
+
   it('preserves stored configuration when re-enabling without a config payload', async () => {
     mockState.result = [{ id: PROVIDER_ID, orgId: ORG_ID, modelId: MODEL_ID,
       kind: 'native', enabled: true, config: { theme: 'saved' } }];
