@@ -243,7 +243,28 @@ SELECT count(*) FROM post_target WHERE org_id = :'fixture_org' AND bundle_id = :
     assert.equal(rejectionEvidence.status, 0, 'Rejection evidence must be readable');
     assert.deepEqual(rejectionEvidence.stdout.trim().split(/\r?\n/), ['rejected', '1', '0'],
       'Rejection and retries must persist one decision audit and no publish targets');
+    // The fixture has no external bindings. Bring its parked card forward so
+    // the real worker must retire obsolete work rather than park it forever.
+    let retiredCard = false;
+    const retirementDeadline = Date.now() + 20_000;
+    while (Date.now() < retirementDeadline) {
+      const retirement = spawnSync('psql', [
+        '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+        '-v', `fixture_org=${orgId}`, '-v', `fixture_bundle=${generation.bundle.id}`,
+      ], {
+        encoding: 'utf8', timeout: 2000,
+        input: `UPDATE job SET run_after = now() WHERE org_id = :'fixture_org' AND kind = 'relay.card' AND payload->>'bundleId' = :'fixture_bundle' AND state = 'ready';
+SELECT state FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' AND payload->>'bundleId' = :'fixture_bundle';`,
+      });
+      assert.equal(retirement.status, 0, 'Obsolete card verification must execute successfully');
+      const state = retirement.stdout.trim();
+      assert.notEqual(state, 'dead', 'Obsolete card must complete rather than dead-letter');
+      if (state === 'done') { retiredCard = true; break; }
+      await delay(300);
+    }
+    assert.ok(retiredCard, 'Worker must retire the rejected bundle card within 20 seconds');
     console.log('decision smoke: generated/scanned bundle rejected, exact-response replay, new-intent conflict, one audit and no publish targets passed');
+    console.log('relay lifecycle smoke: real worker retired rejected bundle card without a configured external binding');
   }
   console.log('generation smoke: five real prompt/caption variants, text ToS report, persisted bundle, same-bundle replay and one durable scan job passed');
   const linkbioPath = `/api/v1/models/${createdBody.data.id}/linkbio`;

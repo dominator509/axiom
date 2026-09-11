@@ -92,6 +92,25 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
   if (bundles.length === 0) throw new Error(`relay.card: bundle ${bundleId} not found`);
   const bundle = bundles[0];
 
+  // A parked card can outlive the operator's dashboard decision. Do not send
+  // another approval request for content that has left the decision stage.
+  // Revision completion enqueues a fresh scan/card, so the old card job can
+  // also finish while caption revision is in progress.
+  switch (bundle.state) {
+    case 'generated':
+    case 'hold':
+      break;
+    case 'approved':
+    case 'scheduled':
+    case 'publishing':
+    case 'published':
+    case 'rejected':
+    case 'revising':
+      return;
+    default:
+      throw new Error('relay.card: unknown bundle lifecycle state; refusing dispatch');
+  }
+
   // Approval cards must show the same provider-readable preview that the
   // publish executor will use. Resolve it before inserting a relay card or
   // calling an external channel so an invalid or cross-tenant asset fails

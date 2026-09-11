@@ -96,6 +96,7 @@ const JOB = {
 
 const BUNDLE = {
   id: 'bundle-1',
+  state: 'generated',
   modelId: 'model-1',
   assetId: 'asset-1',
   hashtags: ['safe'],
@@ -132,6 +133,38 @@ beforeEach(() => {
 });
 
 describe('relayCard', () => {
+  it.each(['generated', 'hold'])('still dispatches actionable %s bundles', async (state) => {
+    mockState.results[0] = [{ ...BUNDLE, state }];
+    await relayCard({ tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1' });
+    expect(mockState.sent).toHaveLength(1);
+  });
+
+  it.each([undefined, null, 'unknown'])('refuses an unknown lifecycle state (%s)', async (state) => {
+    mockState.results[0] = [{ ...BUNDLE, state }];
+    await expect(relayCard({
+      tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1',
+    })).rejects.toThrow('unknown bundle lifecycle state');
+    expect(mockState.sent).toHaveLength(0);
+    expect(mockState.inserts).toHaveLength(0);
+  });
+
+  it.each(['approved', 'scheduled', 'publishing', 'published', 'rejected', 'revising'])(
+    'finishes obsolete approval-card work for a %s bundle without dispatch', async (state) => {
+      mockState.results[0] = [{ ...BUNDLE, state }];
+      const markExternalSideEffect = vi.fn();
+      const persistSideEffectMarker = vi.fn(async (operation) => operation(makeChain()));
+      await relayCard({
+        tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1',
+        markExternalSideEffect, persistSideEffectMarker,
+      });
+      expect(mockState.sent).toHaveLength(0);
+      expect(mockState.inserts).toHaveLength(0);
+      expect(markExternalSideEffect).not.toHaveBeenCalled();
+      expect(persistSideEffectMarker).not.toHaveBeenCalled();
+      expect(mockState.results).toHaveLength(5);
+    },
+  );
+
   it('preflights unsupported bindings before any provider dispatch', () => {
     expect(() =>
       assertRelayBindingDispatchable({
