@@ -58,6 +58,31 @@ describe('better-auth mounted at /api/auth/*', () => {
 });
 
 describe('mounted route groups', () => {
+  // Mirror the server client's existing operations, not just router-local paths.
+  // Normalize parameter names: :id and :modelId describe the same URL shape.
+  it.each([
+    ['GET', '/models'], ['POST', '/models'], ['GET', '/models/stats/count'],
+    ['GET', '/models/:id'], ['GET', '/models/:id/network'],
+    ['GET', '/models/:id/network/health'], ['PUT', '/models/:id/network'],
+    ['GET', '/models/:id/calendar'], ['GET', '/models/:id/fans'],
+    ['GET', '/models/:id/custom-requests'], ['GET', '/models/:id/analytics'],
+    ['GET', '/models/:id/viral'], ['GET', '/models/:id/playbook-score'],
+    ['POST', '/models/:id/generate'], ['GET', '/models/:id/linkbio'],
+    ['POST', '/models/:id/linkbio'], ['DELETE', '/models/:id/linkbio/:kind'],
+    ['GET', '/models/:id/linkbio/analytics'], ['GET', '/bundles'],
+    ['GET', '/bundles/:id'], ['POST', '/bundles/:id/approve'],
+    ['POST', '/bundles/:id/revise'], ['POST', '/bundles/:id/reject'],
+    ['GET', '/killswitch'], ['POST', '/killswitch/enable'], ['POST', '/killswitch/disable'],
+    ['GET', '/audit'], ['GET', '/audit/verify'], ['GET', '/incidents'],
+    ['POST', '/incidents/:id/replay'], ['GET', '/social-accounts'], ['GET', '/llm/providers'],
+  ])('mounts the dashboard contract %s %s', (method, path) => {
+    const normalize = (value: string) => value.replace(/:[^/]+/g, ':param');
+    const paths = app.routes
+      .filter((route: { method: string }) => route.method === method)
+      .map((route: { path: string }) => normalize(route.path));
+    expect(paths).toContain(normalize(`/api/v1${path}`));
+  });
+
   it('mounts network handlers at the documented model-scoped paths', () => {
     const routes = app.routes.map((route: { method: string; path: string }) => `${route.method} ${route.path}`);
     expect(routes).toContain('GET /api/v1/models/:modelId/network');
