@@ -449,3 +449,38 @@ error. These checks do not establish authenticated media generation or deploymen
 The binary hash recorded in the AWS-LC section predates this dependency update
 and must not be represented as built from this newer lockfile. No updated binary
 has been installed or used with a real account.
+
+### RNG candidate update (validation in progress)
+
+The lock patch selects `rand 0.8.6` and `0.10.1` for RUSTSEC-2026-0097,
+retaining the existing `0.9.5` copy. Only the two affected package versions,
+checksums and dependent references changed in the candidate lock graph.
+Inspected candidate features do not enable the vulnerable logging callback;
+this is preventive dependency hardening, not a confirmed exploitable Grok path.
+
+The [RNG regression package](rand-regression/README.md) checks that reseeding
+cannot synchronously invoke a logger. The vulnerable baseline fails; the patched
+default Linux run passes two tests. A separate, explicit test-only syscall
+backend forces real thread-local RNG entropy failures and passes three tests
+(the child probe is invoked by the parent). Default libc entropy could not be
+reliably faulted by syscall denial alone, so the failure-injection result is not
+a default-backend claim. Production compiler flags are unchanged.
+
+The patched versions panic on reseed failure rather than continuing with the
+previous RNG state. Gateway real-child tests require rejection even if an image
+or video artifact was reported before exit 101; the gateway suite passes all
+353 tests. Typecheck passes; lint has zero errors and 16 existing warnings.
+Host and Linux all-feature Clippy pass with warnings denied, and formatting
+passes. The Linux image initially lacked Clippy; it was installed only inside
+the disposable lint container.
+
+`check-grok-rand-contract.mjs` verifies both offline and network-fetch paths
+against SHA-256-pinned upstream source. It binds shipped RNG versions/checksums
+to the harness, rejects a reverted patch and checksum drift, and preserves the
+real index. All five packaged patches reconstruct the 15 candidate files.
+CI runs this binding check and both Linux regression modes; YAML parsing passes.
+
+The full locked offline CLI rebuild is still in progress. Older candidate hashes
+above predate this RNG change. No updated runtime has been installed and no
+provider call or privacy change was made. Other CLI advisories, installed-runtime
+acceptance, and real video/dashboard acceptance remain open.

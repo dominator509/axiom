@@ -521,6 +521,57 @@ describe('official subscription auth command lifecycle', () => {
     expect(options.env.GROK_HOME).toContain('media-requests');
   });
 
+  it.each(['image', 'video'] as const)('rejects %s media after a real child panic exit without retrying', async kind => {
+    vi.useRealTimers();
+    vi.stubEnv('AXIOM_LLM_TRANSPORT_TIMEOUT_MS', '10000');
+    vi.stubEnv('AXIOM_GROK_VIDEO_CLI', '/opt/axiom/grok-video');
+    vi.stubEnv('AXIOM_GROK_IMAGE_LAUNCHER', '/opt/axiom/grok-image-launch');
+    const credentials = join(subscriptionHome, createHash('sha256').update('user-1').digest('hex'), 'grok', 'credentials');
+    mkdirSync(credentials, { recursive: true });
+    writeFileSync(join(credentials, '.active'), '');
+    writeFileSync(join(credentials, 'auth.json'), '{}');
+    sandboxMock.mockImplementation(input => ({ command: '/usr/bin/bwrap', args: input.args,
+      env: { GROK_HOME: input.requestRoot }, cwd: input.requestRoot }));
+    const { spawn } = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    let child: ReturnType<typeof spawn> | undefined;
+    let promptFile: string | undefined;
+    let launches = 0;
+    spawnMock.mockImplementation((command, args, options) => {
+      if (String(command).endsWith('taskkill.exe')) return spawn(command, args, options);
+      launches++;
+      promptFile = args[args.indexOf('--prompt-file') + 1];
+      const session = args[args.indexOf('--session-id') + 1];
+      const directory = join(options.env.GROK_HOME, 'sessions', session, kind === 'image' ? 'images' : 'videos');
+      mkdirSync(directory, { recursive: true });
+      const path = join(directory, kind === 'image' ? '1.jpg' : '1.mp4');
+      writeFileSync(path, kind === 'image' ? Buffer.from([255, 216, 255, ...Array(13).fill(0)])
+        : Buffer.from([0, 0, 0, 16, ...Buffer.from('ftypisom'), 0, 0, 0, 0]));
+      const tool = kind === 'image' ? 'image_gen' : 'image_to_video';
+      const output = [
+        { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'call-1', name: tool }] } },
+        { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'call-1', is_error: false,
+          content: JSON.stringify({ type: kind === 'image' ? 'ImageGen' : 'ImageToVideo', path }) }] } },
+      ].map(event => JSON.stringify(event)).join('\n') + '\n';
+      const script = `process.stdout.write(${JSON.stringify(output)}, () => {
+        process.stderr.write('Reseeding RNG failed: injected entropy failure\\n', () => process.exit(101));
+      });`;
+      child = spawn(process.execPath, ['-e', script], options);
+      return child;
+    });
+    const beforeDispatch = vi.fn(async () => {});
+    try {
+      await expect(transport.generateMedia({ kind, userId: 'user-1', prompt: 'A landscape',
+        ...(kind === 'video' ? { image: Buffer.from([255, 216, 255, ...Array(13).fill(0)]) } : {}),
+      }, beforeDispatch)).rejects.toMatchObject({ status: 502 });
+      expect(child?.exitCode).toBe(101);
+      expect(beforeDispatch).toHaveBeenCalledOnce();
+      expect(launches).toBe(1);
+      expect(existsSync(promptFile!)).toBe(false);
+    } finally {
+      if (child && child.exitCode === null) child.kill('SIGKILL');
+    }
+  }, 15000);
+
   it('does not use a legacy full-profile credential for media', async () => {
     const beforeDispatch = vi.fn();
     const profile = join(subscriptionHome, createHash('sha256').update('user-1').digest('hex'), 'grok');

@@ -217,6 +217,12 @@ jobs:
         if: matrix.task == 'test'
         run: cargo test --locked --manifest-path infra/grok-cli/event-listener-regression/Cargo.toml
 
+      - name: Grok RNG logging-boundary regression
+        if: matrix.task == 'test'
+        run: |
+          node scripts/check-grok-rand-contract.mjs --fetch-upstream
+          sh infra/grok-cli/rand-regression/test-linux.sh
+
       - name: RLS coverage check — verify ENABLE ROW LEVEL SECURITY policies
         if: matrix.task == 'test'
         run: |

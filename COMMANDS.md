@@ -6,6 +6,8 @@
 - `cargo build --workspace` — build Rust crates
 
 ## Test Commands
+- `sh infra/grok-cli/rand-regression/test-linux.sh` — default RNG regression plus explicit test-only syscall-backend entropy failure injection on Linux; accepts `--offline`
+- `cargo test --locked --manifest-path infra/grok-cli/rand-regression/Cargo.toml` — RNG logging callback regression; separate vulnerable baseline intentionally fails and must not replace the normal CI gate
 - `cargo test --locked --manifest-path infra/grok-cli/event-listener-regression/Cargo.toml` — patched dependency thread-safety and legitimate-use regression tests; the separate baseline manifest intentionally fails its compile-fail tests
 - `pnpm test` — run all TS tests
 - `pnpm test:unit` — unit tests
@@ -14,6 +16,7 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/check-grok-rand-contract.mjs --fetch-upstream` — verify shipped RNG lock patch against hash-pinned upstream and harness checksums, including reverted-patch negative control; use `--local-source var/grok-source-37949780` for offline source
 - `node scripts/rehearse-grok-patchset.mjs --isolated-fixture` — apply all pinned Grok patches to a temporary Git index and compare every resulting file with the tested candidate; no credentials, build or upstream checkout edits
 - `node scripts/probe-live-grok-media.mjs --authorized-live-once <user-id> <run-id> image` — Linux-only, explicitly authorized single real Grok image request; exclusive dispatch marker, no retry, no DB writes or publication
 - `node scripts/probe-live-grok-media.mjs --authorized-live-once <user-id> <run-id> video <scanned-image-sha256>` — one real six-second video request bound to the independently scanned source image; failed/uncertain dispatch must be reconciled before another attempt
