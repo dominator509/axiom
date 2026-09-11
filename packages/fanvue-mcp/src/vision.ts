@@ -151,6 +151,15 @@ interface RustNsfwDetectResponse {
 
 // ─── HTTP Helpers ───
 
+class InvalidVisionScoreError extends Error {}
+
+function normalizedVisionScore(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+    throw new InvalidVisionScoreError('Vision engine returned invalid nsfw_score');
+  }
+  return Math.round(value * 1000) / 1000;
+}
+
 async function postJson<T>(url: string, body: unknown, config: VisionEngineConfig): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
@@ -210,7 +219,7 @@ export class VisionEngineClient {
       );
 
       return {
-        score: Math.round(result.nsfw_score * 1000) / 1000,
+        score: normalizedVisionScore(result?.nsfw_score),
         category: result.verdict === 'pass' ? null : result.verdict,
         explanation: result.reasons.join('; ') || 'no violations detected',
         source: 'rust_engine',
@@ -218,7 +227,7 @@ export class VisionEngineClient {
         overrideSource: result.override_source,
       };
     } catch (err) {
-      if (!this.config.allowLocalFallback) throw err;
+      if (err instanceof InvalidVisionScoreError || !this.config.allowLocalFallback) throw err;
       console.warn(
         `[VisionEngine] Rust engine unreachable, falling back to local heuristic: ${err instanceof Error ? err.message : String(err)}`,
       );
@@ -246,17 +255,18 @@ export class VisionEngineClient {
       );
 
       // Categories = labels whose probability clears a 0.1 floor.
+      const score = normalizedVisionScore(result?.nsfw_score);
       const categories = result.labels.filter((_label, i) => (result.probabilities[i] ?? 0) > 0.1);
 
       return {
-        score: Math.round(result.nsfw_score * 1000) / 1000,
+        score,
         categories,
         source: 'rust_engine',
         overridden: result.overridden,
         overrideSource: result.override_source,
       };
     } catch (err) {
-      if (!this.config.allowLocalFallback) throw err;
+      if (err instanceof InvalidVisionScoreError || !this.config.allowLocalFallback) throw err;
       console.warn(
         `[VisionEngine] Rust engine unreachable, falling back to local heuristic: ${err instanceof Error ? err.message : String(err)}`,
       );

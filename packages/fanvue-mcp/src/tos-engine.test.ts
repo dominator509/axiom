@@ -80,6 +80,12 @@ describe('classifyImage', () => {
 });
 
 describe('evaluate', () => {
+  it.each([null, undefined])('does not produce a passing report from missing score case %#', async (score) => {
+    stubVision(0, null, { nsfw_score: score });
+    await expect(new ToSEngine().evaluate({ imageData: 'image.png' }, ['tiktok']))
+      .rejects.toThrow('invalid nsfw_score');
+  });
+
   it('passes clean content under the threshold', async () => {
     stubVision(0.01, null);
     const engine = new ToSEngine();
