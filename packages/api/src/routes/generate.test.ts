@@ -50,6 +50,7 @@ import { generateRouter } from './generate.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
+const BUNDLE_ID = '33333333-3333-4333-8333-333333333333';
 
 function appWithOrg(orgId: string | null, userId = 'user-1') {
   const app = new Hono<AppBindings>();
@@ -247,5 +248,58 @@ describe('POST /models/:id/generate', () => {
     expect(capturedSegments!.S2).toContain('Golden hour beach reel');
     expect(capturedSegments!.S2).toContain('Sunset swims hit different');
     expect(capturedSegments!.S2).toContain('high save rate');
+  });
+});
+
+describe('explicit media retry', () => {
+  const previous = { id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'hold', assetId: null,
+    captions: { instagram: 'Studio' }, hashtags: [], tosReport: { verdict: 'pending' } };
+  const job = { id: 'job-1', state: 'dead', lockedBy: null, lockedAt: null, lastError: null,
+    payload: { userId: 'user-1', kind: 'image', prompt: 'A landscape', aspectRatio: '1:1' } };
+  const request = (body: object = { acknowledgeUsage: true }) => appWithOrg(ORG_ID).request(
+    `/models/${MODEL_ID}/generate/${BUNDLE_ID}/retry`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+    });
+  it('queues a fresh scan-bound bundle only for confirmed pre-dispatch failure', async () => {
+    mockState.results = [[], [previous], [job], [], [{ id: MODEL_ID }]];
+    expect((await request()).status).toBe(201);
+    expect(mediaQueue).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      payload: { kind: 'image', prompt: 'A landscape', aspectRatio: '1:1', userId: 'user-1', bundleId: MODEL_ID },
+      dedupeParts: ['media.generate', MODEL_ID],
+    }));
+    expect(mockState.updates).toContainEqual(expect.objectContaining({ state: 'rejected' }));
+  });
+  it.each(['dispatched', 'failed', 'unknown'])('refuses a retained %s attempt', async state => {
+    mockState.results = [[], [previous], [job], [{ state }]];
+    expect((await request()).status).toBe(409);
+    expect(mediaQueue).not.toHaveBeenCalled();
+  });
+  it.each([
+    { ...job, state: 'running' }, { ...job, lockedBy: 'worker' },
+    { ...job, lastError: 'external-side-effect-unknown: failure' },
+    { ...job, payload: { ...job.payload, userId: 'another-user' } },
+  ])('rejects active, uncertain, or another operator requests', async unsafe => {
+    mockState.results = [[], [previous], [unsafe], []];
+    expect((await request()).status).toBe(409);
+    expect(mediaQueue).not.toHaveBeenCalled();
+  });
+  it('requires edits for blocked media and never reuses its asset', async () => {
+    const blocked = { ...previous, assetId: 'asset-1', tosReport: { verdict: 'block' } };
+    mockState.results = [[], [blocked], [{ ...job, state: 'done' }], [{ state: 'completed', assetId: 'asset-1' }]];
+    expect((await request()).status).toBe(409);
+    mockState.results = [[], [blocked], [{ ...job, state: 'done' }], [{ state: 'completed', assetId: 'asset-1' }], [{ id: MODEL_ID }]];
+    expect((await request({ acknowledgeUsage: true, prompt: 'A ceramic vase in a studio' })).status).toBe(201);
+    expect(mediaQueue).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      payload: expect.objectContaining({ prompt: 'A ceramic vase in a studio' }),
+    }));
+  });
+  it('rejects already superseded bundles', async () => {
+    mockState.results = [[], [{ ...previous, state: 'rejected' }]];
+    expect((await request()).status).toBe(409);
+    expect(mediaQueue).not.toHaveBeenCalled();
+  });
+  it('requires explicit usage acknowledgement', async () => {
+    expect((await request({})).status).toBe(400);
+    expect(mediaQueue).not.toHaveBeenCalled();
   });
 });

@@ -10,7 +10,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
@@ -71,6 +71,68 @@ const generateSchema = z.object({
     z.object({ kind: z.literal('video'), prompt: z.string().trim().min(1).max(4000),
       sourceAssetId: z.string().uuid(), duration: z.union([z.literal(6), z.literal(10)]).default(6) }).strict(),
   ]).optional(),
+});
+
+// Explicit user intent, never an automatic provider retry. Keep old evidence
+// intact and reject the superseded bundle so concurrent clicks cannot fork it.
+router.post('/models/:modelId/generate/:bundleId/retry', zValidator('json', z.object({
+  prompt: z.string().trim().min(1).max(4000).optional(),
+  acknowledgeUsage: z.literal(true),
+}).strict()), async c => {
+  const orgId = requireOrg(c);
+  const userId = c.get('userId');
+  if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'Authenticated operator required');
+  const { modelId, bundleId } = c.req.param();
+  if (!z.string().uuid().safeParse(bundleId).success || !z.string().uuid().safeParse(modelId).success)
+    return apiError(c, 400, statusTitle(400), 'Invalid model or bundle');
+  const body = c.req.valid('json');
+  const result = await withOrgContext(orgId, async tx => {
+    const [bundle] = await tx.select().from(schema.contentBundle).where(and(
+      eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, orgId),
+      eq(schema.contentBundle.modelId, modelId),
+    )).limit(1).for('update');
+    if (!bundle) return null;
+    if (!['generated', 'hold'].includes(bundle.state)) return false;
+    const [job] = await tx.select().from(schema.job).where(and(
+      eq(schema.job.orgId, orgId), eq(schema.job.kind, 'media.generate'),
+      sql`${schema.job.payload}->>'bundleId' = ${bundleId}`,
+    )).orderBy(desc(schema.job.createdAt), desc(schema.job.id)).limit(1).for('update');
+    if (!job || job.payload?.userId !== userId || job.lockedBy || job.lockedAt) return false;
+    const media = generateSchema.shape.media.safeParse(job.payload && {
+      kind: job.payload.kind, prompt: body.prompt ?? job.payload.prompt,
+      ...(job.payload.kind === 'image' ? { aspectRatio: job.payload.aspectRatio } : {
+        sourceAssetId: job.payload.sourceAssetId, duration: job.payload.duration,
+      }),
+    });
+    if (!media.success || !media.data) return false;
+    const [attempt] = await tx.select().from(schema.mediaGenerationAttempt).where(and(
+      eq(schema.mediaGenerationAttempt.jobId, job.id), eq(schema.mediaGenerationAttempt.orgId, orgId),
+    )).limit(1);
+    const preDispatchFailure = !bundle.assetId && !attempt && ['dead', 'failed'].includes(job.state)
+      && !job.lastError?.startsWith('external-side-effect-unknown:');
+    const scannedOutput = job.state === 'done' && bundle.assetId && attempt?.state === 'completed'
+      && attempt.assetId === bundle.assetId && ['block', 'review'].includes(String(bundle.tosReport?.verdict));
+    if (!preDispatchFailure && !scannedOutput) return false;
+    // A moderation block requires a substantive, operator-reviewed change.
+    if (bundle.tosReport?.verdict === 'block' && (!body.prompt || body.prompt === job.payload?.prompt)) return false;
+    const [next] = await tx.insert(schema.contentBundle).values({
+      orgId, modelId, captions: bundle.captions, hashtags: bundle.hashtags,
+      state: 'generated', tosReport: { verdict: 'pending', reasons: ['New media and fresh ToS scan required'] },
+    }).returning();
+    await tx.update(schema.contentBundle).set({ state: 'rejected', updatedAt: new Date() })
+      .where(and(eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, orgId)));
+    await enqueueJob(tx, { orgId, queue: 'content', kind: 'media.generate',
+      payload: { ...media.data, userId, bundleId: next.id },
+      dedupeParts: ['media.generate', next.id] });
+    await writeAudit(tx, orgId, userId, 'bundle.media-retry', next.id, {
+      previousBundleId: bundleId, previousJobId: job.id, promptModified: body.prompt !== undefined,
+    });
+    return next;
+  });
+  if (result === null) return apiError(c, 404, statusTitle(404), 'Bundle not found');
+  if (result === false) return apiError(c, 409, statusTitle(409),
+    'Retry unavailable: reconcile active or uncertain provider outcomes first. Blocked content requires an edited prompt. Privacy, storage and account errors require configuration changes.');
+  return c.json({ data: { bundle: result, mediaGeneration: 'queued' } }, 201);
 });
 
 // POST /models/:id/generate
