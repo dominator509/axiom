@@ -298,6 +298,17 @@ anonymous access or a wildcard trusted origin. Serve the built dashboard,
 keep both local listeners on loopback, and leave publishing workers stopped.
 GitHub tunnel authentication is separate from AXIOM and Grok authentication.
 
+For explicitly authorized first-time local onboarding, set
+`AXIOM_ENABLE_LOCAL_SIGNUP=1` on the dashboard server to show the account
+creation toggle on `/login`. It uses the existing Better Auth signup API;
+it does not assign an organization or elevate a role. This is a UI switch,
+not an API signup authorization control. Keep the private tunnel owner-only.
+The user chooses their password privately; the operator then assigns the
+verified new identity to an appropriate isolated workspace. Do not grant
+access to recovered tenants merely to connect Grok. Once assigned, visit
+`/connections/grok` to connect without creating a model or generating media.
+Omit the switch after onboarding to hide the first-time UI again.
+
 ### Full CLI advisory assessment (2026-09-11, incomplete)
 
 AXIOM's root/guard audit does not cover the pinned upstream CLI lockfile.
