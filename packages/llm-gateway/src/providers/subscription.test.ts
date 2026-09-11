@@ -26,6 +26,11 @@ function fakeChild(): FakeChild {
   child.stdin = new PassThrough();
   child.stdout = new PassThrough();
   child.stderr = new PassThrough();
+  child.once('exit', (code) => {
+    child.stdout.end();
+    child.stderr.end();
+    child.emit('close', code);
+  });
   child.kill = vi.fn(() => {
     child.emit('exit', null);
     return true;
@@ -117,6 +122,177 @@ describe('official subscription auth command lifecycle', () => {
 
     await expect(pending).rejects.toMatchObject({ status: 502 });
     expect(child.kill).toHaveBeenCalled();
+  });
+
+  const completionRequest = () => ({
+    provider: 'grok' as const, userId: 'user-1', model: 'grok-default',
+    messages: [{ role: 'user' as const, content: 'hello' }],
+  });
+
+  it('does not spawn an already cancelled completion', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(transport.chat({ ...completionRequest(), signal: controller.signal }))
+      .rejects.toMatchObject({ name: 'AbortError' });
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it.each(['abort', 'timeout'] as const)('stops a completion on %s and waits for close', async (reason) => {
+    const child = fakeChild();
+    child.kill.mockImplementation(() => true);
+    spawnMock.mockReturnValue(child);
+    const controller = new AbortController();
+    const pending = transport.chat({ ...completionRequest(), signal: controller.signal });
+    const rejection = expect(pending).rejects.toMatchObject(reason === 'abort'
+      ? { name: 'AbortError' } : { status: 504 });
+    if (reason === 'abort') controller.abort();
+    else await vi.advanceTimersByTimeAsync(25);
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+    let settled = false;
+    void pending.catch(() => { settled = true; });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(settled).toBe(false);
+    child.emit('close', null);
+    await rejection;
+  });
+
+  it('fails closed when termination cannot be confirmed', async () => {
+    const child = fakeChild();
+    child.kill.mockImplementation(() => true);
+    spawnMock.mockReturnValue(child);
+    const pending = transport.chat(completionRequest());
+    const rejection = expect(pending).rejects.toMatchObject({ status: 503 });
+    await vi.advanceTimersByTimeAsync(2026);
+    await rejection;
+  });
+
+  it.each(['abort', 'timeout'] as const)('bounds unconfirmed termination after stdout EOF on %s', async reason => {
+    const child = fakeChild();
+    child.kill.mockImplementation(() => true);
+    spawnMock.mockReturnValue(child);
+    const controller = new AbortController();
+    const pending = transport.chat({ ...completionRequest(), signal: controller.signal });
+    const rejection = expect(pending).rejects.toMatchObject({ status: 503 });
+    child.stdout.end();
+    await vi.advanceTimersByTimeAsync(1);
+    if (reason === 'abort') controller.abort();
+    await vi.advanceTimersByTimeAsync(2026);
+    await rejection;
+  });
+
+  it('handles stdin errors without unhandled EPIPE', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child);
+    const pending = transport.chat(completionRequest());
+    child.stdin.emit('error', new Error('EPIPE'));
+    await expect(pending).rejects.toMatchObject({ status: 502 });
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+  });
+
+  it('handles spawn errors while stdout is open', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child);
+    const pending = transport.chat(completionRequest());
+    child.emit('error', new Error('ENOENT'));
+    await expect(pending).rejects.toMatchObject({ status: 503 });
+  });
+
+  it('rejects an unfinished oversized line without waiting for EOF', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child);
+    const pending = transport.chat(completionRequest());
+    child.stdout.write('x'.repeat(1024 * 1024 + 1));
+    await expect(pending).rejects.toMatchObject({ status: 502 });
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+  });
+
+  it('terminates on a fatal provider record without waiting for EOF', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child);
+    const pending = transport.chat(completionRequest());
+    child.stdout.write(JSON.stringify({ type: 'error', message: 'quota exceeded' }) + '\n');
+    await expect(pending).rejects.toMatchObject({ status: 402 });
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+  });
+
+  it('preserves the fatal error without a trailing newline', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child);
+    const pending = transport.chat(completionRequest());
+    child.stdout.end(JSON.stringify({ type: 'error', message: 'quota exceeded' }));
+    await expect(pending).rejects.toMatchObject({ status: 402 });
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+  });
+
+  it.each([false, true])('terminates real SIGTERM-resistant completion tree (wrapper=%s) before prompt cleanup', async wrapped => {
+    vi.useRealTimers();
+    vi.stubEnv('AXIOM_LLM_TRANSPORT_TIMEOUT_MS', '5000');
+    const { spawn } = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    let realChild: ReturnType<typeof spawn> | undefined;
+    let promptFile: string | undefined;
+    let nativePid: number | undefined;
+    spawnMock.mockImplementation((_command, args, options) => {
+      if (String(_command).endsWith('taskkill.exe')) return spawn(_command, args, options);
+      promptFile = args[args.indexOf('--prompt-file') + 1];
+      const nativeScript = `
+        process.on('SIGTERM', () => {});
+        process.stdout.write(JSON.stringify({type:'stream_event',event:{
+          type:'content_block_delta',delta:{text:String(process.pid)}}})+'\\n');
+        setInterval(() => {}, 1000);
+      `;
+      const script = wrapped ? `
+        require('node:child_process').spawn(process.execPath, ['-e', ${JSON.stringify(nativeScript)}], {stdio:'inherit'});
+        process.on('SIGTERM', () => {});
+        setInterval(() => {}, 1000);
+      ` : nativeScript;
+      realChild = spawn(process.execPath, ['-e', script], options);
+      return realChild;
+    });
+    const controller = new AbortController();
+    const stream = transport.stream({ ...completionRequest(), signal: controller.signal })[Symbol.asyncIterator]();
+    try {
+      nativePid = Number((await stream.next()).value);
+      expect(nativePid).toBeGreaterThan(0);
+      expect(existsSync(promptFile!)).toBe(true);
+      const pid = realChild!.pid!;
+      controller.abort();
+      await expect(stream.next()).rejects.toMatchObject({ name: 'AbortError' });
+      expect(() => process.kill(pid, 0)).toThrow();
+      if (process.platform === 'linux') {
+        // A killed orphan can briefly remain as a zombie awaiting init reaping;
+        // it has no executing code or open file descriptors.
+        let state = '';
+        try { state = readFileSync(`/proc/${nativePid}/stat`, 'utf8').split(') ')[1]![0]!; }
+        catch { /* already reaped */ }
+        expect(['', 'Z']).toContain(state);
+      } else {
+        expect(() => process.kill(nativePid!, 0)).toThrow();
+      }
+      expect(existsSync(promptFile!)).toBe(false);
+    } finally {
+      realChild?.kill('SIGKILL');
+      if (nativePid) { try { process.kill(nativePid, 'SIGKILL'); } catch { /* already gone */ } }
+      await stream.return?.();
+    }
+  });
+
+  it('retains media prompt when subprocess termination is unconfirmed', async () => {
+    const credentials = join(subscriptionHome, createHash('sha256').update('user-1').digest('hex'), 'grok', 'credentials');
+    mkdirSync(credentials, { recursive: true });
+    writeFileSync(join(credentials, 'auth.json'), '{}');
+    writeFileSync(join(credentials, '.active'), '');
+    const child = fakeChild();
+    child.kill.mockImplementation(() => true);
+    spawnMock.mockReturnValue(child);
+    sandboxMock.mockImplementation(input => ({ command: '/usr/bin/bwrap', args: input.args,
+      env: {}, cwd: input.requestRoot }));
+    const pending = transport.generateMedia({ kind: 'image', userId: 'user-1', prompt: 'Landscape' });
+    const rejection = expect(pending).rejects.toMatchObject({ status: 503 });
+    const args = spawnMock.mock.calls[0]![1] as string[];
+    const promptFile = args[args.indexOf('--prompt-file') + 1]!;
+    await vi.advanceTimersByTimeAsync(2026);
+    await rejection;
+    expect(existsSync(promptFile)).toBe(true);
   });
 
   it.each(['chat', 'stream'] as const)('uses a tool-free Grok agent for %s and preserves text output', async (operation) => {

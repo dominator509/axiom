@@ -22,8 +22,10 @@ try {
   const launcher = join(fixture, 'image-launcher');
   await copyFile(builtProbe, executable);
   await copyFile(builtLauncher, launcher);
-  await chmod(executable, 0o500);
-  await chmod(launcher, 0o500);
+  // Public fixture binaries carry no request material. Keep standard executable
+  // access across user-namespace mappings; their containing directory is private.
+  await chmod(executable, 0o555);
+  await chmod(launcher, 0o555);
   const requestRoot = join(fixture, 'request');
   const credentialRoot = join(fixture, 'credentials');
   await mkdir(requestRoot, { mode: 0o700 });

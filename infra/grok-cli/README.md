@@ -68,8 +68,20 @@ CRLF dotslash wrapper). The build tooling above addresses that prerequisite;
 the full CLI build, binary digest and actual resolver execution remain unverified.
 The final tooling image built successfully as
 `sha256:3ac685f0b531aa9ccb7c23c787bac090c4e587d07be3aaad2264cd930f212922`.
-The read-only-source `--locked` check is still running with isolated caches;
-download retries are not a completed build result.
+The read-only-source `cargo check --locked -p xai-grok-tools` completed
+successfully in 19m14s. This verifies compilation of the patched resolver and
+guard, not execution. The separate `cargo build --locked -p xai-grok-pager-bin
+--bin xai-grok-pager` is running; no completed CLI binary is claimed yet.
+
+Completion subprocess cancellation now targets the owned POSIX process group
+or Windows process tree, and waits for confirmed closure before prompt cleanup.
+If termination cannot be confirmed within the deadline, it reports 503 and
+retains the prompt. Tests exercise a real wrapper/native-child pair on both
+platforms. This is not a hostile-native-code sandbox: subprocesses deliberately
+escaping the owned process group require stronger OS containment. Grok media
+still requires bubblewrap, and remote provider cancellation is not implied.
+The separate OAuth login command lifecycle and artifact-retention policy remain
+outside this completion-runner change.
 
 The separately locked input guard and real Linux launch/exec fixture are tested
 independently. They do not establish OAuth refresh, tenant/source authorization,

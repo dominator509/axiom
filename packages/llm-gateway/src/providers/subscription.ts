@@ -603,17 +603,73 @@ function statusForFailure(message: string): number {
 async function* runSubscription(request: SubscriptionRequest, control?: {
   spec: CommandSpec;
   onLine: (line: string) => void;
+  onStopped?: () => void;
 }): AsyncIterable<{
   text?: string;
   usage?: Partial<SubscriptionUsage>;
 }> {
+  if (request.signal?.aborted) throw new DOMException('Subscription request aborted', 'AbortError');
   const spec = control?.spec ?? buildCommand(request);
   let child: ChildProcessWithoutNullStreams | undefined;
   let stderr = '';
   let fatal = '';
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const abort = () => child?.kill();
-  const timeoutMs = Number(process.env.AXIOM_LLM_TRANSPORT_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  let closed = false;
+  let exitPromise: Promise<number | null> | undefined;
+  let terminalError: Error | undefined;
+  let stopping = false;
+  let treeTermination = Promise.resolve(true);
+  let resolveStopped!: () => void;
+  const stopped = new Promise<void>(resolve => { resolveStopped = resolve; });
+  const stop = (error?: Error) => {
+    terminalError ??= error;
+    resolveStopped();
+    if (!child || closed || stopping) return;
+    stopping = true;
+    // Stop the owned process tree, including CLI launch wrappers. Killing only
+    // codex.js bypasses its signal forwarding and leaves its native child alive.
+    if (child.pid && process.platform === 'win32') {
+      const killer = spawn(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'taskkill.exe'),
+        ['/PID', String(child.pid), '/T', '/F'], {
+          windowsHide: true, stdio: 'ignore', env: { SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' },
+        });
+      treeTermination = new Promise(resolveTree => {
+        const killDeadline = setTimeout(() => { killer.kill('SIGKILL'); resolveTree(false); }, 2000);
+        killer.once('error', () => { clearTimeout(killDeadline); resolveTree(false); });
+        killer.once('close', code => { clearTimeout(killDeadline); resolveTree(code === 0); });
+      });
+    } else if (child.pid) {
+      try { process.kill(-child.pid, 'SIGKILL'); }
+      catch (error) {
+        treeTermination = Promise.resolve((error as NodeJS.ErrnoException).code === 'ESRCH');
+      }
+    } else {
+      child.kill('SIGKILL');
+    }
+    child.stdin.destroy();
+    child.stdout.destroy();
+    child.stderr.destroy();
+  };
+  const abort = () => stop(new DOMException('Subscription request aborted', 'AbortError'));
+  const configuredTimeout = Number(process.env.AXIOM_LLM_TRANSPORT_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? Math.min(configuredTimeout, 2_147_483_647) : DEFAULT_TIMEOUT_MS;
+  let terminationPromise: Promise<void> | undefined;
+  const stopAndWait = () => terminationPromise ??= (async () => {
+    if (!child) return;
+    if (!closed) stop();
+    let closeTimer: ReturnType<typeof setTimeout> | undefined;
+    const confirmed = await Promise.race([
+      Promise.all([exitPromise!, treeTermination]).then(([, treeStopped]) => treeStopped),
+      new Promise<false>(resolveClose => { closeTimer = setTimeout(() => resolveClose(false), 2000); }),
+    ]);
+    if (closeTimer) clearTimeout(closeTimer);
+    if (!confirmed) {
+      // Cleanup is not safe without confirmed closure, even if the original
+      // request failed for a different reason. Retain its prompt and fail closed.
+      throw new ProviderError('Subscription process termination could not be confirmed', 503, request.provider);
+    }
+  })();
 
   try {
     child = spawn(spec.command, spec.args, {
@@ -621,22 +677,30 @@ async function* runSubscription(request: SubscriptionRequest, control?: {
       cwd: spec.cwd ?? PACKAGE_DIR,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
+      // A new POSIX session gives cancellation an owned process group. On
+      // Windows taskkill /T targets the live wrapper and its descendants.
+      detached: process.platform !== 'win32',
     });
-    const exitPromise = new Promise<number | null>((resolveExit, rejectExit) => {
-      child!.once('error', rejectExit);
-      child!.once('exit', (code) => resolveExit(code));
+    exitPromise = new Promise<number | null>((resolveExit) => {
+      // Observe errors immediately, even while stdout is still being consumed.
+      child!.once('error', (error) => stop(error));
+      child!.once('close', (code) => { closed = true; resolveExit(code); });
     });
+    child.stdin.on('error', () => stop(new ProviderError('Subscription input transfer failed', 502, request.provider)));
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (chunk: string) => {
       stderr = (stderr + chunk).slice(-8192);
     });
 
     request.signal?.addEventListener('abort', abort, { once: true });
-    timer = setTimeout(() => child?.kill(), timeoutMs);
+    if (request.signal?.aborted) abort();
+    timer = setTimeout(() => stop(new ProviderError('Subscription request timed out', 504, request.provider)), timeoutMs);
     timer.unref();
 
-    if (spec.prompt) child.stdin.end(spec.prompt, 'utf8');
-    else child.stdin.end();
+    if (!terminalError) {
+      if (spec.prompt) child.stdin.end(spec.prompt, 'utf8');
+      else child.stdin.end();
+    }
 
     let buffer = '';
     let stdoutBytes = 0;
@@ -654,6 +718,9 @@ async function* runSubscription(request: SubscriptionRequest, control?: {
       buffer += text;
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() || '';
+      if (Buffer.byteLength(buffer, 'utf8') > SUBSCRIPTION_JSON_LINE_MAX_BYTES) {
+        throw new ProviderError('Subscription transport JSON line exceeded its limit', 502, request.provider);
+      }
       for (const line of lines) {
         if (!line.trim()) continue;
         if (Buffer.byteLength(line, 'utf8') > SUBSCRIPTION_JSON_LINE_MAX_BYTES) {
@@ -665,7 +732,11 @@ async function* runSubscription(request: SubscriptionRequest, control?: {
         }
         const parsed = parseJsonLine(request.provider, line);
         control?.onLine(line);
-        if (parsed.fatal) fatal = parsed.fatal;
+        if (parsed.fatal) {
+          fatal = parsed.fatal;
+          const diagnostic = sanitizedDiagnostic(fatal);
+          throw new ProviderError(diagnostic || 'Subscription transport failed', statusForFailure(diagnostic), request.provider);
+        }
         if (parsed.usage) yield { usage: parsed.usage };
         for (const text of parsed.chunks) yield { text };
       }
@@ -680,12 +751,21 @@ async function* runSubscription(request: SubscriptionRequest, control?: {
       }
       const parsed = parseJsonLine(request.provider, buffer);
       control?.onLine(buffer);
-      if (parsed.fatal) fatal = parsed.fatal;
+      if (parsed.fatal) {
+        fatal = parsed.fatal;
+        const diagnostic = sanitizedDiagnostic(fatal);
+        throw new ProviderError(diagnostic || 'Subscription transport failed', statusForFailure(diagnostic), request.provider);
+      }
       if (parsed.usage) yield { usage: parsed.usage };
       for (const text of parsed.chunks) yield { text };
     }
 
-    const exitCode = await exitPromise;
+    if (terminalError) throw terminalError;
+    const exitCode = await Promise.race([
+      exitPromise,
+      stopped.then(async () => { await stopAndWait(); return null; }),
+    ]);
+    if (terminalError) throw terminalError;
     clearTimeout(timer);
     request.signal?.removeEventListener('abort', abort);
 
@@ -702,8 +782,10 @@ async function* runSubscription(request: SubscriptionRequest, control?: {
   } catch (error) {
     if (request.signal?.aborted)
       throw new DOMException('Subscription request aborted', 'AbortError');
-    if (error instanceof ProviderError) throw error;
-    const message = sanitizedDiagnostic(error instanceof Error ? error.message : String(error));
+    if (terminalError instanceof ProviderError) throw terminalError;
+    const failure = terminalError ?? error;
+    if (failure instanceof ProviderError) throw failure;
+    const message = sanitizedDiagnostic(failure instanceof Error ? failure.message : String(failure));
     throw new ProviderError(
       message || 'Subscription transport failed',
       statusForFailure(message),
@@ -712,7 +794,8 @@ async function* runSubscription(request: SubscriptionRequest, control?: {
   } finally {
     if (timer) clearTimeout(timer);
     request.signal?.removeEventListener('abort', abort);
-    child?.kill();
+    await stopAndWait();
+    control?.onStopped?.();
     if (spec.promptFile && existsSync(spec.promptFile)) rmSync(spec.promptFile, { force: true });
   }
 }
@@ -765,6 +848,7 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
     const spec = buildCommand(base);
     const tool = request.kind === 'image' ? 'image_gen' : 'image_to_video';
     const inputPath = inputExtension ? join(requestRoot, `${sessionId}.${inputExtension}`) : undefined;
+    let safeToCleanup = true;
     try {
       // Replace the legacy prompt location before entering the isolated mount.
       rmSync(spec.promptFile!, { force: true });
@@ -788,14 +872,19 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
         executable: spec.command, requestRoot, credentialRoot: credentials, args: spec.args,
       }));
       const result = new GrokMediaResult(request.kind);
-      for await (const _event of runSubscription(base, { spec, onLine: line => result.accept(line) })) {
+      safeToCleanup = false;
+      for await (const _event of runSubscription(base, {
+        spec, onLine: line => result.accept(line), onStopped: () => { safeToCleanup = true; },
+      })) {
         // Text alone never establishes media success.
         void _event;
       }
       return await result.artifact(requestRoot, sessionId);
     } finally {
-      if (inputPath) rmSync(inputPath, { force: true });
-      if (spec.promptFile) rmSync(spec.promptFile, { force: true });
+      if (safeToCleanup) {
+        if (inputPath) rmSync(inputPath, { force: true });
+        if (spec.promptFile) rmSync(spec.promptFile, { force: true });
+      }
     }
   }
 
