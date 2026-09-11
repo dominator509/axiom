@@ -554,7 +554,9 @@ async fn tos_classify(
 async fn nsfw_detect(
     Json(req): Json<ImagePathRequest>,
 ) -> Result<Json<NsfwDetectResponse>, VisionError> {
-    let metrics = compute_metrics(&req.image_path)?;
+    let resolved = resolve_image_path(&req.image_path)?;
+    let resolved = resolved.to_str().ok_or(VisionError::InvalidPath)?;
+    let metrics = compute_metrics(resolved)?;
     let ev = evaluate(&req.image_path, &req.override_verdict)?;
 
     Ok(Json(NsfwDetectResponse {
@@ -853,6 +855,25 @@ mod tests {
         assert!(!ev.overridden);
         assert!(matches!(ev.engine.as_str(), "onnx-vit" | "heuristic"));
         assert!(matches!(ev.verdict.as_str(), "pass" | "review" | "block"));
+    }
+
+    #[tokio::test]
+    async fn nsfw_detect_resolves_relative_media_paths() {
+        let path = test_media_path("nsfw-relative-test.png");
+        image::RgbImage::from_pixel(64, 64, image::Rgb([200, 200, 200]))
+            .save(&path)
+            .unwrap();
+        for supplied in ["nsfw-relative-test.png", path.to_str().unwrap()] {
+            let Json(response) = nsfw_detect(Json(ImagePathRequest {
+                image_path: supplied.to_string(),
+                override_verdict: Some("block".to_string()),
+            }))
+            .await
+            .unwrap();
+            assert_eq!(response.analysis.dimensions.width, 64);
+            assert_eq!(response.analysis.dimensions.height, 64);
+            assert_eq!(response.engine, "override");
+        }
     }
 
     #[test]
