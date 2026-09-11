@@ -9,13 +9,26 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { ProviderError } from './types.js';
+import { GrokMediaResult, type GrokMediaArtifact, type GrokMediaKind } from './grok-media.js';
+import { grokSandboxCommand } from './grok-sandbox.js';
+
+export interface GrokMediaRequest {
+  userId: string;
+  kind: GrokMediaKind;
+  prompt: string;
+  aspectRatio?: 'auto' | '1:1' | '16:9' | '9:16' | '4:5' | '3:2' | '2:3';
+  /** Required for image-to-video; bytes supplied by the authorized caller. */
+  image?: Buffer;
+  duration?: 6 | 10;
+  signal?: AbortSignal;
+}
 
 export type SubscriptionProvider = 'openai' | 'anthropic' | 'grok';
 
@@ -170,6 +183,10 @@ function oauthOnlyEnvironment(provider: SubscriptionProvider, userId: string): N
   if (provider === 'openai') env.CODEX_HOME = root;
   if (provider === 'grok') {
     env.GROK_HOME = root;
+    // New logins use a dedicated directory. Do not read/copy/migrate existing
+    // token values; legacy text profiles continue to work until reconnected.
+    const credentialFile = join(root, 'credentials', 'auth.json');
+    if (existsSync(join(dirname(credentialFile), '.active'))) env.GROK_AUTH_PATH = credentialFile;
     env.GROK_MEMORY = '0';
     env.GROK_DISABLE_AUTOUPDATER = '1';
   }
@@ -402,6 +419,11 @@ function authCommand(
   const executable = executableFor(provider);
   const env = oauthOnlyEnvironment(provider, userId);
   env.CI = '0';
+  if (provider === 'grok' && operation === 'connect') {
+    const credentials = join(profileRoot(userId, provider), 'credentials');
+    mkdirSync(credentials, { recursive: true, mode: 0o700 });
+    env.GROK_AUTH_PATH = join(credentials, 'auth.json');
+  }
   const commandArgs: Record<SubscriptionProvider, Record<typeof operation, string[]>> = {
     openai: {
       status: ['login', 'status'],
@@ -563,6 +585,11 @@ async function* runAuthConnect(
       provider,
     );
   }
+  if (provider === 'grok') {
+    // Activate only after a completed login. A cancelled reconnect must not
+    // hide a working legacy session merely because its directory was created.
+    writeFileSync(join(profileRoot(userId, provider), 'credentials', '.active'), '', { mode: 0o600 });
+  }
 }
 
 function statusForFailure(message: string): number {
@@ -573,14 +600,19 @@ function statusForFailure(message: string): number {
   return 502;
 }
 
-async function* runSubscription(request: SubscriptionRequest): AsyncIterable<{
+async function* runSubscription(request: SubscriptionRequest, control?: {
+  spec: CommandSpec;
+  onLine: (line: string) => void;
+}): AsyncIterable<{
   text?: string;
   usage?: Partial<SubscriptionUsage>;
 }> {
-  const spec = buildCommand(request);
+  const spec = control?.spec ?? buildCommand(request);
   let child: ChildProcessWithoutNullStreams | undefined;
   let stderr = '';
   let fatal = '';
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const abort = () => child?.kill();
   const timeoutMs = Number(process.env.AXIOM_LLM_TRANSPORT_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
 
   try {
@@ -599,9 +631,8 @@ async function* runSubscription(request: SubscriptionRequest): AsyncIterable<{
       stderr = (stderr + chunk).slice(-8192);
     });
 
-    const abort = () => child?.kill();
     request.signal?.addEventListener('abort', abort, { once: true });
-    const timer = setTimeout(() => child?.kill(), timeoutMs);
+    timer = setTimeout(() => child?.kill(), timeoutMs);
     timer.unref();
 
     if (spec.prompt) child.stdin.end(spec.prompt, 'utf8');
@@ -633,6 +664,7 @@ async function* runSubscription(request: SubscriptionRequest): AsyncIterable<{
           );
         }
         const parsed = parseJsonLine(request.provider, line);
+        control?.onLine(line);
         if (parsed.fatal) fatal = parsed.fatal;
         if (parsed.usage) yield { usage: parsed.usage };
         for (const text of parsed.chunks) yield { text };
@@ -647,6 +679,7 @@ async function* runSubscription(request: SubscriptionRequest): AsyncIterable<{
         );
       }
       const parsed = parseJsonLine(request.provider, buffer);
+      control?.onLine(buffer);
       if (parsed.fatal) fatal = parsed.fatal;
       if (parsed.usage) yield { usage: parsed.usage };
       for (const text of parsed.chunks) yield { text };
@@ -677,6 +710,8 @@ async function* runSubscription(request: SubscriptionRequest): AsyncIterable<{
       request.provider,
     );
   } finally {
+    if (timer) clearTimeout(timer);
+    request.signal?.removeEventListener('abort', abort);
     child?.kill();
     if (spec.promptFile && existsSync(spec.promptFile)) rmSync(spec.promptFile, { force: true });
   }
@@ -684,6 +719,85 @@ async function* runSubscription(request: SubscriptionRequest): AsyncIterable<{
 
 export class OfficialSubscriptionTransport implements SubscriptionTransport {
   readonly providers = new Set<SubscriptionProvider>(['openai', 'anthropic', 'grok']);
+
+  /** Real official-CLI media transport; not advertised by API/UI until the
+   * asset/ToS/worker lifecycle is wired. Never retries a generation implicitly. */
+  async generateMedia(request: GrokMediaRequest): Promise<GrokMediaArtifact> {
+    if (request.signal?.aborted) throw new DOMException('Subscription request aborted', 'AbortError');
+    if (!request.prompt?.trim() || request.prompt.length > 4000
+      || !['image', 'video'].includes(request.kind)
+      || !['auto', '1:1', '16:9', '9:16', '4:5', '3:2', '2:3'].includes(request.aspectRatio ?? 'auto')) {
+      throw new ProviderError('Invalid Grok media request', 400, 'grok');
+    }
+    let inputExtension: 'jpg' | 'png' | undefined;
+    if (request.kind === 'video') {
+      if (!Buffer.isBuffer(request.image) || request.image.length < 12
+        || request.image.length > 20 * 1024 * 1024 || ![6, 10].includes(request.duration ?? 6)) {
+        throw new ProviderError('Video requires a bounded source image and a supported duration', 400, 'grok');
+      }
+      if (request.image.subarray(0, 3).equals(Buffer.from([255, 216, 255]))) inputExtension = 'jpg';
+      else if (request.image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) inputExtension = 'png';
+      else throw new ProviderError('Unsupported source image format', 400, 'grok');
+    } else if (request.image || request.duration !== undefined) {
+      throw new ProviderError('Image generation does not accept video inputs', 400, 'grok');
+    }
+    // OS isolation protects other profiles, not files needed by this same
+    // process. Upstream video reads model-selected paths before validation;
+    // credentials and devices therefore remain reachable. No video launch
+    // until a mandatory pre-read argument boundary is independently verified.
+    if (!['image'].includes(request.kind)) {
+      throw new ProviderError('Grok video requires a verified source-image argument boundary', 503, 'grok');
+    }
+    const profile = profileRoot(request.userId, 'grok');
+    const credentials = join(profile, 'credentials');
+    if (!existsSync(join(credentials, '.active')) || !existsSync(join(credentials, 'auth.json'))) {
+      throw new ProviderError('Reconnect Grok OAuth before using isolated media generation', 401, 'grok');
+    }
+    // No request may inherit the persistent profile's sessions/config/files.
+    const requests = join(profile, 'media-requests');
+    mkdirSync(requests, { recursive: true, mode: 0o700 });
+    const requestRoot = mkdtempSync(join(requests, 'request-'));
+    const sessionId = randomUUID();
+    const base: SubscriptionRequest = {
+      provider: 'grok', userId: request.userId, model: 'grok-default',
+      messages: [], signal: request.signal,
+    };
+    const spec = buildCommand(base);
+    const tool = request.kind === 'image' ? 'image_gen' : 'image_to_video';
+    const inputPath = inputExtension ? join(requestRoot, `${sessionId}.${inputExtension}`) : undefined;
+    try {
+      // Replace the legacy prompt location before entering the isolated mount.
+      rmSync(spec.promptFile!, { force: true });
+      spec.promptFile = join(requestRoot, 'intent.prompt');
+      spec.args[spec.args.indexOf('--prompt-file') + 1] = spec.promptFile;
+      if (inputPath) writeFileSync(inputPath, request.image!, { mode: 0o600, flag: 'wx' });
+      const input = request.kind === 'image'
+        ? { prompt: request.prompt, aspect_ratio: request.aspectRatio ?? 'auto' }
+        : { prompt: request.prompt, image: inputPath, duration: request.duration ?? 6, resolution_name: '480p' };
+      writeFileSync(spec.promptFile!, `Call ${tool} exactly once with the following JSON arguments. Do not use another tool, retry, or describe a result without a successful tool response.\n${JSON.stringify(input)}`, { mode: 0o600 });
+      // Use the stock media registry, but allow only this one media tool.
+      // Both MCP meta-tools remain explicitly denied by buildCommand.
+      for (const flag of ['--agents', '--agent']) {
+        const index = spec.args.indexOf(flag);
+        spec.args.splice(index, 2);
+      }
+      spec.args[spec.args.indexOf('--tools') + 1] = tool;
+      spec.args[spec.args.indexOf('--max-turns') + 1] = '2';
+      spec.args.push('--session-id', sessionId, '--always-approve');
+      Object.assign(spec, grokSandboxCommand({
+        executable: spec.command, requestRoot, credentialRoot: credentials, args: spec.args,
+      }));
+      const result = new GrokMediaResult(request.kind);
+      for await (const _event of runSubscription(base, { spec, onLine: line => result.accept(line) })) {
+        // Text alone never establishes media success.
+        void _event;
+      }
+      return await result.artifact(requestRoot, sessionId);
+    } finally {
+      if (inputPath) rmSync(inputPath, { force: true });
+      if (spec.promptFile) rmSync(spec.promptFile, { force: true });
+    }
+  }
 
   async chat(request: SubscriptionRequest): Promise<SubscriptionResult> {
     let content = '';
@@ -718,7 +832,11 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
     signal?: AbortSignal,
   ): Promise<SubscriptionConnectionStatus> {
     if (provider === 'grok') {
-      return { provider, connected: existsSync(join(profileRoot(userId, provider), 'auth.json')) };
+      const profile = profileRoot(userId, provider);
+      const credentials = join(profile, 'credentials');
+      return { provider, connected: existsSync(join(
+        existsSync(join(credentials, '.active')) ? credentials : profile, 'auth.json',
+      )) };
     }
     const result = await runAuthCommand(provider, userId, 'status', signal);
     const disconnected =
@@ -746,6 +864,13 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
         statusForFailure(result.output),
         provider,
       );
+    }
+    if (provider === 'grok') {
+      const profile = profileRoot(userId, provider);
+      const credentials = join(profile, 'credentials');
+      // Grok can leave an empty auth store after logout. Remove only the
+      // selected local store; never reactivate the preserved legacy file.
+      rmSync(join(existsSync(join(credentials, '.active')) ? credentials : profile, 'auth.json'), { force: true });
     }
   }
 }
