@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,11 +10,20 @@ assert.equal(process.argv[2], '--isolated-fixture');
 assert.equal(process.platform, 'linux');
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
 const build = join(repo, 'infra/grok-cli/input-guard/target/debug');
-const executable = await realpath(join(build, 'examples/handoff_probe'));
-const launcher = await realpath(join(build, 'axiom-grok-image-launch'));
+const builtProbe = await realpath(join(build, 'examples/handoff_probe'));
+const builtLauncher = await realpath(join(build, 'axiom-grok-image-launch'));
 const parent = await realpath(tmpdir());
 const fixture = await mkdtemp(join(parent, 'axiom-grok-handoff-'));
 try {
+  // A privileged hosted fixture cannot traverse the runner-owned checkout
+  // after bubblewrap drops capabilities. Own only these synthetic executables
+  // inside the fresh private fixture; never relax permissions on host homes.
+  const executable = join(fixture, 'handoff-probe');
+  const launcher = join(fixture, 'image-launcher');
+  await copyFile(builtProbe, executable);
+  await copyFile(builtLauncher, launcher);
+  await chmod(executable, 0o500);
+  await chmod(launcher, 0o500);
   const requestRoot = join(fixture, 'request');
   const credentialRoot = join(fixture, 'credentials');
   await mkdir(requestRoot, { mode: 0o700 });

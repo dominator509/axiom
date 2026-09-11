@@ -15,7 +15,33 @@ AXIOM repository. Its two relative Cargo dependencies point back to
 git -C var/grok-source-37949780 rev-parse HEAD
 git -C var/grok-source-37949780 apply --check ../../infra/grok-cli/37949780-sealed-input.patch
 git -C var/grok-source-37949780 apply ../../infra/grok-cli/37949780-sealed-input.patch
+git -C var/grok-source-37949780 apply --check ../../infra/grok-cli/37949780-sealed-input-lock.patch
+git -C var/grok-source-37949780 apply ../../infra/grok-cli/37949780-sealed-input-lock.patch
 ```
+
+The companion lock patch records Cargo's resolved graph, including the guard,
+libc 0.2.189, and reconciled dependency edges from the published upstream lock.
+It is intentionally separate from the resolver code patch. Subsequent checks
+must use `--locked`; do not silently re-resolve it as part of a release build.
+
+## Isolated build tooling
+
+`Dockerfile.build` is an x86_64 Linux build environment, not a deployment image.
+It uses the upstream Rust 1.94.0 pin and protoc 29.3 archive/checksum from the
+pinned `bin/protoc`. The supported `PROTOC` override avoids dependence on the
+dotslash launcher or host checkout line endings. Debian build packages remain
+repository-resolved; this is not yet a bit-for-bit reproducible release recipe.
+
+```sh
+docker build -f infra/grok-cli/Dockerfile.build -t axiom-grok-build:local infra/grok-cli
+```
+
+Mount only the pinned patched source at `/axiom/var/grok-source-37949780` and
+the guard read-only at `/axiom/infra/grok-cli/input-guard`. Keep build output at
+`/build-target` and dependency cache separate from any user credential store.
+The default command checks `xai-grok-tools --locked`; it does not link the CLI
+binary, perform login, or call a provider. Never mount the application root or
+any real credential directory into this build container.
 
 The patch initializes the inherited capability before CLI runtime setup and
 replaces the image-to-video resolver's file, HTTPS and data-URL handling with
@@ -35,13 +61,15 @@ does not currently build or distribute that modified upstream binary.
 ## Evidence and remaining boundary
 
 The patch's reverse applicability was checked against the modified pinned
-checkout. The local upstream compile attempt did **not** reach compilation:
-crates.io dependency downloads failed with TLS errors. No TLS verification was
-disabled. The changed upstream dependency lock, full CLI build, binary digest
-and actual resolver execution remain unverified. The upstream toolchain pin is
-1.94.0; the unsuccessful WSL check used 1.96.0, not an equivalent release proof.
-A subsequent disposable Docker attempt uses the upstream 1.94.0 pin; it is still
-fetching dependencies at this milestone and supplies no completed build evidence.
+checkout. The initial WSL attempt failed during dependency downloads with TLS
+errors. No TLS verification was disabled. A subsequent Docker attempt using
+upstream Rust 1.94.0 reached compilation, then failed on missing protoc (and the
+CRLF dotslash wrapper). The build tooling above addresses that prerequisite;
+the full CLI build, binary digest and actual resolver execution remain unverified.
+The final tooling image built successfully as
+`sha256:3ac685f0b531aa9ccb7c23c787bac090c4e587d07be3aaad2264cd930f212922`.
+The read-only-source `--locked` check is still running with isolated caches;
+download retries are not a completed build result.
 
 The separately locked input guard and real Linux launch/exec fixture are tested
 independently. They do not establish OAuth refresh, tenant/source authorization,
