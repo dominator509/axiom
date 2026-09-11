@@ -97,7 +97,7 @@ jobs:
         if: matrix.task == 'lint'
         run: sh scripts/check-container-base-pins.sh
 
-      - name: Verify development database bindings
+      - name: Verify development database bindings and media mounts
         if: matrix.task == 'lint'
         run: node scripts/check-dev-db-bindings.mjs
 

@@ -22,3 +22,13 @@ for (const [name, published, target] of [['postgres', '5432', 5432], ['pgadmin',
   assert.ok(Object.hasOwn(service.networks, 'axiom-net'), `${name}: preserve internal service access`);
 }
 console.log('development database bindings: loopback-only; local ports and internal network preserved');
+const mediaMount = config.services['media-plane'].volumes.find(mount => mount.target === '/app/var/media');
+const visionMount = config.services['vision-engine'].volumes.find(mount => mount.target === '/app/var/media');
+assert.ok(mediaMount, 'Media plane needs its persisted media directory');
+assert.ok(visionMount, 'Vision engine must read the same persisted media directory');
+assert.equal(mediaMount.type, 'volume');
+assert.equal(visionMount.type, 'volume');
+assert.equal(visionMount.source, mediaMount.source, 'Vision must consume media-plane assets');
+assert.equal(Boolean(mediaMount.read_only), false, 'Media plane must retain write access');
+assert.equal(visionMount.read_only, true, 'Vision must not mutate source assets');
+console.log('media/vision mounts: shared asset volume; vision read-only');
