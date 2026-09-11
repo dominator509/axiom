@@ -148,13 +148,14 @@ describe('relayCard', () => {
     expect(mockState.inserts).toHaveLength(0);
   });
 
-  it.each(['approved', 'scheduled', 'publishing', 'published', 'rejected', 'revising'])(
-    'finishes obsolete approval-card work for a %s bundle without dispatch', async (state) => {
+  it.each(['approved', 'scheduled', 'publishing', 'published', 'rejected', 'revising']
+    .flatMap((state) => [false, true].map((killSwitchEnabled) => [state, killSwitchEnabled] as const)))(
+    'finishes obsolete approval-card work for a %s bundle (kill switch %s) without dispatch', async (state, killSwitchEnabled) => {
       mockState.results[0] = [{ ...BUNDLE, state }];
       const markExternalSideEffect = vi.fn();
       const persistSideEffectMarker = vi.fn(async (operation) => operation(makeChain()));
       await relayCard({
-        tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1',
+        tx: makeChain(), job: JOB, killSwitchEnabled, workerId: 'worker-1',
         markExternalSideEffect, persistSideEffectMarker,
       });
       expect(mockState.sent).toHaveLength(0);
@@ -164,6 +165,15 @@ describe('relayCard', () => {
       expect(mockState.results).toHaveLength(5);
     },
   );
+
+  it.each(['generated', 'hold'])('parks actionable %s cards when killed', async (state) => {
+    mockState.results[0] = [{ ...BUNDLE, state }];
+    await expect(relayCard({
+      tx: makeChain(), job: JOB, killSwitchEnabled: true, workerId: 'worker-1',
+    })).rejects.toThrow('kill switch enabled');
+    expect(mockState.sent).toHaveLength(0);
+    expect(mockState.inserts).toHaveLength(0);
+  });
 
   it('preflights unsupported bindings before any provider dispatch', () => {
     expect(() =>

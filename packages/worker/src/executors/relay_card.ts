@@ -79,11 +79,6 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
   const bundleId = payload.bundleId;
   if (!bundleId) throw new Error('relay.card: payload.bundleId required');
 
-  // Kill switch also gates card dispatch (L3.4 §5: every *.card worker).
-  if (killSwitchEnabled) {
-    throw new ParkJobError('relay.card: kill switch enabled — parked', 60_000);
-  }
-
   const bundles = await tx
     .select()
     .from(schema.contentBundle)
@@ -109,6 +104,12 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
       return;
     default:
       throw new Error('relay.card: unknown bundle lifecycle state; refusing dispatch');
+  }
+
+  // Kill switch gates every actionable card before any provider work. Obsolete
+  // jobs above can finish even while killed: they perform no outbound I/O.
+  if (killSwitchEnabled) {
+    throw new ParkJobError('relay.card: kill switch enabled — parked', 60_000);
   }
 
   // Approval cards must show the same provider-readable preview that the
