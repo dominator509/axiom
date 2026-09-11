@@ -96,6 +96,18 @@ describe('official subscription auth command lifecycle', () => {
     expect(spawnMock).not.toHaveBeenCalled();
   });
 
+  it.each([null, 0])('reports a login timeout even when termination exits with %s', async (exitCode) => {
+    const child = fakeChild(); spawnMock.mockReturnValue(child);
+    child.kill.mockImplementation(() => { child.emit('exit', exitCode); return true; });
+    const iterator = transport.connect('grok', 'user-1')[Symbol.asyncIterator]();
+    const rejection = expect(iterator.next()).rejects.toMatchObject({ status: 504 });
+    await vi.advanceTimersByTimeAsync(25);
+    await rejection;
+    expect(child.kill).toHaveBeenCalledOnce();
+    const profile = createHash('sha256').update('user-1').digest('hex');
+    expect(existsSync(join(subscriptionHome, profile, 'grok', 'credentials', '.active'))).toBe(false);
+  });
+
   it('bounds login output before waiting for a newline or timeout', async () => {
     const child = fakeChild(); spawnMock.mockReturnValue(child);
     const iterator = transport.connect('grok', 'user-1')[Symbol.asyncIterator]();

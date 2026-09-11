@@ -545,7 +545,11 @@ async function* runAuthConnect(
   const abort = () => child.kill();
   signal?.addEventListener('abort', abort, { once: true });
   const timeoutMs = Number(process.env.AXIOM_LLM_TRANSPORT_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
-  const timer = setTimeout(() => child.kill(), timeoutMs);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    child.kill();
+  }, timeoutMs);
   timer.unref();
 
   let outputBytes = 0;
@@ -598,6 +602,7 @@ async function* runAuthConnect(
   signal?.removeEventListener('abort', abort);
   if (signal?.aborted) throw new DOMException('Subscription login aborted', 'AbortError');
   if (outputLimitError) throw outputLimitError;
+  if (timedOut) throw new ProviderError('Subscription login timed out', 504, provider);
   if (exitCode !== 0) {
     throw new ProviderError(
       output || 'Subscription login failed',
