@@ -13,6 +13,7 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/rehearse-grok-patchset.mjs --isolated-fixture` — apply all pinned Grok patches to a temporary Git index and compare every resulting file with the tested candidate; no credentials, build or upstream checkout edits
 - `node scripts/probe-live-grok-media.mjs --authorized-live-once <user-id> <run-id> image` — Linux-only, explicitly authorized single real Grok image request; exclusive dispatch marker, no retry, no DB writes or publication
 - `node scripts/probe-live-grok-media.mjs --authorized-live-once <user-id> <run-id> video <scanned-image-sha256>` — one real six-second video request bound to the independently scanned source image; failed/uncertain dispatch must be reconciled before another attempt
 - `node scripts/rehearse-vision.mjs --generated-image <sha256>` — classify the content-hashed JPEG in ignored `var/live-grok-probe` with the pinned model in a network-disabled container; does not persist a bundle ToS verdict or establish model accuracy

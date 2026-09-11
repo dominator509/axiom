@@ -24,6 +24,8 @@ git -C var/grok-source-37949780 apply --check ../../infra/grok-cli/37949780-seal
 git -C var/grok-source-37949780 apply ../../infra/grok-cli/37949780-sealed-input-lock.patch
 git -C var/grok-source-37949780 apply --check ../../infra/grok-cli/37949780-bounded-image.patch
 git -C var/grok-source-37949780 apply ../../infra/grok-cli/37949780-bounded-image.patch
+git -C var/grok-source-37949780 apply --check ../../infra/grok-cli/37949780-aws-lc.patch
+git -C var/grok-source-37949780 apply ../../infra/grok-cli/37949780-aws-lc.patch
 ```
 
 The companion lock patch records Cargo's resolved graph, including the guard,
@@ -150,7 +152,7 @@ particular, the transport now supplies the sandbox `imageLauncher` option,
 copies the authorized input buffer, transfers it through stdin and exposes
 only `axiom-input://image` in the prompt. No source-image file is created.
 All 323 gateway tests and typechecking pass, including image/video command
-wiring. The installed binary must include all three patches above; the stock
+wiring. The installed binary must include all four patches above; the stock
 upstream CLI is not safe for this configuration. The earlier full binary was
 observed on disk and ran `--version` successfully offline as 1.0.24; a rebuild
 including JPEG metadata bounds completed successfully in 12m18s. The final
@@ -378,3 +380,34 @@ exits 1 for RSA RUSTSEC-2023-0071 and reports ten unmaintained plus ten unsoundn
 warnings. This focused check excludes registry-yank verification and is not a
 clean full CLI security gate. No advisory exceptions were added. No account
 login, runtime replacement, or provider generation was performed for this work.
+
+### AWS-LC candidate packaging (2026-09-11)
+
+The fourth patch selects `jsonwebtoken`'s AWS-LC provider and updates the
+production initialization plus the test helpers to use that provider. The
+companion lock patch now matches this tested graph. This is dependency
+hardening, not proof that the earlier OIDC public-key verification path exposed
+private-key timing attacks. Signature algorithms, issuer/audience/nonce checks,
+credential storage and authorization semantics are unchanged by this patch.
+
+The current full CLI candidate SHA-256 is
+`d20e06ff044ffd514754c5e2c4fdbb0486ab4ad3755a81e4d8536211fb37418d`,
+superseding the earlier XML-only candidate above. Its full build and offline
+version smoke passed; it remains **uninstalled**. A fresh offline
+`cargo test --locked --offline -p xai-grok-login --lib` completed with
+460 passed, zero failed and one ignored after an 8m11s rebuild. The 17.29s test
+execution includes local synthetic login/refresh contracts, not the user's
+live account. No credentials were mounted into that build/test container.
+
+The selected Linux CLI's `cargo tree --locked --offline -p xai-grok-pager-bin
+--edges normal,build --invert rsa` reports no matching package. RSA remains a
+login dev-dependency for test key generation and is not removed from the whole
+lockfile. Prior maintenance/unsoundness warnings, full advisory assessment,
+runtime sandbox deployment, and real video generation remain open. No advisory
+waiver or privacy-setting change is implied.
+
+Run `node scripts/rehearse-grok-patchset.mjs --isolated-fixture` to apply all four
+patches to a temporary index seeded from the exact upstream commit, then compare
+Git-normalized blobs with the candidate checkout. This passed for all 14 affected
+files. It preserves the real index and worktree, removes only its fresh temporary
+index directory, and does not build, install, authenticate or generate media.
