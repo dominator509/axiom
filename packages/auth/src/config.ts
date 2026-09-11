@@ -44,7 +44,8 @@ export function resolveAuthConfig(env: NodeJS.ProcessEnv): AuthRuntimeConfig {
   const baseURL = env.BETTER_AUTH_URL?.trim();
 
   if (production && !databaseUrl) throw new Error('DATABASE_URL is required in production');
-  if (production && (!secret || secret.length < 32)) {
+  // Padding must not satisfy the minimum, but do not rewrite valid key bytes.
+  if (production && (!secret || secret.trim().length < 32)) {
     throw new Error('BETTER_AUTH_SECRET must be at least 32 characters in production');
   }
   if (production && !baseURL) throw new Error('BETTER_AUTH_URL is required in production');
