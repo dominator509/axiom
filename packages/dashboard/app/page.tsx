@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function HomePage({ searchParams }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
-} = {}) {
+}) {
   const query = await searchParams;
   const cursor = typeof query?.cursor === 'string' ? query.cursor : undefined;
   let models: Awaited<ReturnType<typeof api.models.list>>['data'] = [];

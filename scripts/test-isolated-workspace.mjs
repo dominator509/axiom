@@ -43,7 +43,8 @@ try {
   const args = process.platform === 'win32' ? ['/d', '/s', '/c', 'pnpm.cmd test'] : ['test'];
   const code = await new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd: new URL('../', import.meta.url), stdio: 'inherit', windowsHide: true,
-      env: { ...process.env, DATABASE_URL: url, TEST_DATABASE_URL: url, API_ORIGIN: 'http://127.0.0.1:3001' } });
+      env: { ...process.env, DATABASE_URL: url, TEST_DATABASE_URL: url, API_ORIGIN: 'http://127.0.0.1:3001',
+        AXIOM_ISOLATED_VALIDATION: '1' } });
     child.on('error', reject);
     child.on('exit', code => resolve(code ?? 1));
   });

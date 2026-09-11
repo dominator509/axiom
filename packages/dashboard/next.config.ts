@@ -9,8 +9,9 @@ import { resolveApiOrigin } from './lib/api-origin';
 const API_ORIGIN = resolveApiOrigin();
 
 const nextConfig: NextConfig = {
-  // Keep local validation builds from overwriting a running dev server's files.
-  distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
+  // Rehearsals must not overwrite either a running dev or production server.
+  distDir: process.env.AXIOM_ISOLATED_VALIDATION === '1' ? '.next-rehearsal'
+    : process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   output: 'standalone',
   reactStrictMode: true,
   async rewrites() {

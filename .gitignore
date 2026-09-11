@@ -42,3 +42,4 @@ target/
 /var/
 /crates/media-plane/var/
 **/.next-dev/
+**/.next-rehearsal/
