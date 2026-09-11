@@ -67,7 +67,7 @@ describe('mounted route groups', () => {
     ['GET', '/models/:id/calendar'], ['GET', '/models/:id/fans'],
     ['GET', '/models/:id/custom-requests'], ['GET', '/models/:id/analytics'],
     ['GET', '/models/:id/viral'], ['GET', '/models/:id/playbook-score'],
-    ['POST', '/models/:id/generate'], ['GET', '/models/:id/linkbio'],
+    ['POST', '/models/:id/generate'], ['POST', '/models/:id/generate/:bundleId/retry'], ['GET', '/models/:id/linkbio'],
     ['POST', '/models/:id/linkbio'], ['DELETE', '/models/:id/linkbio/:kind'],
     ['GET', '/models/:id/linkbio/analytics'], ['GET', '/bundles'],
     ['GET', '/bundles/:id'], ['POST', '/bundles/:id/approve'],
@@ -96,6 +96,13 @@ describe('mounted route groups', () => {
     expect(res.status).toBe(401);
     expect(res.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
     expect(res.headers.get('X-Correlation-ID')).toMatch(/^[A-Za-z0-9-]{8,64}$/);
+  });
+
+  it('media retry requires a session before processing its body', async () => {
+    const res = await app.request('/api/v1/models/22222222-2222-4222-8222-222222222222/generate/33333333-3333-4333-8333-333333333333/retry', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{malformed',
+    });
+    expect(res.status).toBe(401);
   });
 
   it('fanvue authorize requires an authenticated operator session', async () => {
