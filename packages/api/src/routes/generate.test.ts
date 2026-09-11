@@ -295,7 +295,9 @@ describe('explicit media retry', () => {
   });
   it('rejects already superseded bundles', async () => {
     mockState.results = [[], [{ ...previous, state: 'rejected' }]];
-    expect((await request()).status).toBe(409);
+    const response = await request();
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'MEDIA_RETRY_NOT_QUEUED' });
     expect(mediaQueue).not.toHaveBeenCalled();
   });
   it('requires explicit usage acknowledgement', async () => {

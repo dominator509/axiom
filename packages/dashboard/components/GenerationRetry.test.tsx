@@ -60,3 +60,12 @@ it('retains the intent on an in-progress 409 and displays RFC7807 detail', async
   expect(hooks.key).toHaveBeenCalledOnce();
   expect(hooks.fetch.mock.calls[1]).toEqual(hooks.fetch.mock.calls[0]);
 });
+it('unlocks edits only after a confirmed no-dispatch eligibility rejection', async () => {
+  hooks.fetch.mockResolvedValue(new Response(JSON.stringify({
+    detail: 'A changed prompt is required', code: 'MEDIA_RETRY_NOT_QUEUED',
+  }), { status: 409 }));
+  render()[3].props.children[0].props.onChange({ target: { checked: true } });
+  render()[4].props.onClick();
+  await vi.waitFor(() => expect(hooks.values[3]).toBe(false));
+  expect(render()[1].props.disabled).toBe(false);
+});

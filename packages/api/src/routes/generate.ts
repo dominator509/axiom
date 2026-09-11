@@ -131,7 +131,8 @@ router.post('/models/:modelId/generate/:bundleId/retry', zValidator('json', z.ob
   });
   if (result === null) return apiError(c, 404, statusTitle(404), 'Bundle not found');
   if (result === false) return apiError(c, 409, statusTitle(409),
-    'Retry unavailable: reconcile active or uncertain provider outcomes first. Blocked content requires an edited prompt. Privacy, storage and account errors require configuration changes.');
+    'Retry unavailable: reconcile active or uncertain provider outcomes first. Blocked content requires an edited prompt. Privacy, storage and account errors require configuration changes.',
+    { code: 'MEDIA_RETRY_NOT_QUEUED' });
   return c.json({ data: { bundle: result, mediaGeneration: 'queued' } }, 201);
 });
 

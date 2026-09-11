@@ -33,8 +33,9 @@ export default function GenerationRetry({ modelId, bundleId, blocked, onQueued }
         setError(typeof message === 'string' ? message : 'Retry not accepted. Check Incidents before submitting again.');
         // A conflict may be an in-flight reservation, not a rejected intent.
         // Keep its key for reconciliation; likewise timeouts/rate limits.
-        if (response.status >= 400 && response.status < 500
-          && ![408, 409, 429].includes(response.status)) intent.current = null;
+        if ((response.status === 409 && failure.code === 'MEDIA_RETRY_NOT_QUEUED')
+          || (response.status >= 400 && response.status < 500
+            && ![408, 409, 429].includes(response.status))) intent.current = null;
         return;
       }
       const result = await readDashboardJson<{ data: { bundle: { id: string } } }>(response);
