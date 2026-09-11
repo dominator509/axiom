@@ -1,47 +1,76 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { connectGrok, grokConnectionStatus } from './grok-connection';
-
-afterEach(() => vi.unstubAllGlobals());
+import { cancelGrok, connectGrok, grokConnectionStatus, resumeGrok } from './grok-connection';
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+const id = '11111111-1111-4111-8111-111111111111';
 const signal = () => new AbortController().signal;
-function events(chunks: string[]) {
-  return new Response(new ReadableStream({ start(controller) {
-    for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
-    controller.close();
-  } }), { headers: { 'Content-Type': 'text/event-stream' } });
-}
-it('uses same-origin authenticated login once and verifies status after the terminal event', async () => {
-  const fetcher = vi.fn().mockResolvedValueOnce(events(['data: {"message":"Visit Grok"}\n', '\nevent: connected\ndata: {}\n\n']))
+const state = (value = 'pending', messages: unknown[] = ['Visit provider']) => ({ id, state: value, messages });
+it('starts once, polls the same attempt and verifies saved credentials', async () => {
+  vi.useFakeTimers();
+  const fetcher = vi.fn().mockResolvedValueOnce(Response.json(state()))
+    .mockResolvedValueOnce(Response.json(state('completed', [])))
     .mockResolvedValueOnce(Response.json({ provider: 'grok', connected: true }));
   vi.stubGlobal('fetch', fetcher);
   const message = vi.fn();
-  await connectGrok(signal(), message);
-  expect(message).toHaveBeenCalledWith('Visit Grok');
-  expect(fetcher).toHaveBeenCalledTimes(2);
-  expect(fetcher.mock.calls[0]).toEqual(['/api/v1/llm/subscriptions/grok/login', expect.objectContaining({ method: 'POST', credentials: 'same-origin', redirect: 'error' })]);
-  expect(fetcher.mock.calls[1][0]).toBe('/api/v1/llm/subscriptions/grok');
+  const running = connectGrok(signal(), message);
+  await vi.advanceTimersByTimeAsync(1600);
+  await running;
+  expect(message).toHaveBeenCalledWith('Visit provider');
+  expect(fetcher.mock.calls[0]).toEqual(['/api/v1/llm/subscriptions/grok/login-attempt', expect.objectContaining({ method: 'POST', credentials: 'same-origin', redirect: 'error' })]);
+  expect(fetcher.mock.calls[1][0]).toContain(id);
+  expect(fetcher.mock.calls.filter(c => c[1].method === 'POST')).toHaveLength(1);
 });
-it.each(['data: {"message":"instructions"}\n\n', 'event: error\ndata: failure\n\n'])('never treats incomplete or error streams as connected', async body => {
-  const fetcher = vi.fn().mockResolvedValue(events([body])); vi.stubGlobal('fetch', fetcher);
-  await expect(connectGrok(signal(), () => {})).rejects.toThrow();
+it('resumes after reload using GET only', async () => {
+  const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ attempt: state('completed', []) }))
+    .mockResolvedValueOnce(Response.json({ provider: 'grok', connected: true }));
+  vi.stubGlobal('fetch', fetcher);
+  expect(await resumeGrok(signal(), () => {}, () => {})).toBe(true);
+  expect(fetcher.mock.calls.every(c => c[1].method === 'GET')).toBe(true);
+});
+it('cancelling observation never sends a remote cancel or another POST', async () => {
+  vi.useFakeTimers();
+  const fetcher = vi.fn().mockResolvedValue(Response.json(state()));
+  vi.stubGlobal('fetch', fetcher);
+  const controller = new AbortController();
+  const running = connectGrok(controller.signal, () => {});
+  const rejected = expect(running).rejects.toMatchObject({ name: 'AbortError' });
+  await vi.advanceTimersByTimeAsync(1);
+  controller.abort();
+  await rejected;
   expect(fetcher).toHaveBeenCalledTimes(1);
 });
-it('rejects a terminal event when status is disconnected', async () => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(events(['event: connected\ndata: {}\n\n']))
+it('only explicit cancellation deletes the exact attempt', async () => {
+  const fetcher = vi.fn().mockResolvedValue(Response.json(state('cancelling', [])));
+  vi.stubGlobal('fetch', fetcher);
+  expect((await cancelGrok(id, signal())).state).toBe('cancelling');
+  expect(fetcher.mock.calls[0]).toEqual(['/api/v1/llm/subscriptions/grok/login-attempt/' + id, expect.objectContaining({ method: 'DELETE' })]);
+});
+it.each(['failed', 'cancelled', 'timed_out'])('does not report %s as successful login', async terminal => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(state(terminal, []))));
+  await expect(connectGrok(signal(), () => {})).rejects.toThrow();
+});
+it('does not accept CLI completion without a saved credential', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(Response.json(state('completed', [])))
     .mockResolvedValueOnce(Response.json({ provider: 'grok', connected: false })));
   await expect(connectGrok(signal(), () => {})).rejects.toThrow('could not be confirmed');
 });
-it.each(['x'.repeat(65537), 'data: {"message":123}\n\n', 'data: invalid\n\n'])('rejects oversized or malformed provider output', async body => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(events([body])));
+it.each([null, {}, state('unknown'), state('pending', [123]), state('pending', ['x'.repeat(16385)])])('rejects malformed attempt data', async body => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(body)));
   await expect(connectGrok(signal(), () => {})).rejects.toThrow();
 });
-it('rejects authentication errors and unexpected status shapes', async () => {
+it('never retries transport failure', async () => {
+  const fetcher = vi.fn().mockRejectedValue(new Error('offline')); vi.stubGlobal('fetch', fetcher);
+  await expect(connectGrok(signal(), () => {})).rejects.toThrow();
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+it('rejects authentication errors and invalid status', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(new Response('denied', { status: 401 }))
     .mockResolvedValueOnce(Response.json({ provider: 'other', connected: true })));
   await expect(connectGrok(signal(), () => {})).rejects.toThrow();
   await expect(grokConnectionStatus(signal())).rejects.toThrow();
 });
-it('does not accept an already cancelled login', async () => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(events(['event: connected\ndata: {}\n\n'])));
+it('does not start an already aborted request', async () => {
+  const fetcher = vi.fn(); vi.stubGlobal('fetch', fetcher);
   const controller = new AbortController(); controller.abort();
   await expect(connectGrok(controller.signal, () => {})).rejects.toMatchObject({ name: 'AbortError' });
+  expect(fetcher).not.toHaveBeenCalled();
 });

@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], refs: [] as { current: unknown }[], i: 0, r: 0,
-  connect: vi.fn(), status: vi.fn() }));
+  connect: vi.fn(), status: vi.fn(), cancel: vi.fn() }));
 vi.mock('react', async original => ({ ...await original<typeof import('react')>(),
   useEffect: vi.fn(),
+  useCallback: (callback: unknown) => callback,
   useState: (initial: unknown) => {
     const i = hooks.i++;
     if (!(i in hooks.values)) hooks.values[i] = initial;
@@ -12,9 +13,9 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
   },
   useRef: (initial: unknown) => hooks.refs[hooks.r++] ??= { current: initial },
 }));
-vi.mock('@/lib/grok-connection', () => ({ connectGrok: hooks.connect, grokConnectionStatus: hooks.status }));
+vi.mock('@/lib/grok-connection', () => ({ connectGrok: hooks.connect, resumeGrok: hooks.status, cancelGrok: hooks.cancel }));
 import GrokConnection from './GrokConnection';
-beforeEach(() => { hooks.values = []; hooks.refs = []; hooks.connect.mockReset(); hooks.status.mockReset(); });
+beforeEach(() => { hooks.values = []; hooks.refs = []; hooks.connect.mockReset(); hooks.status.mockReset(); hooks.cancel.mockReset(); });
 afterEach(() => vi.useRealTimers());
 function render() { hooks.i = 0; hooks.r = 0; return GrokConnection(); }
 function buttons() { return render().props.children[2].props.children; }
@@ -33,14 +34,20 @@ it('does not describe a local credential-file check as provider verification', a
   await vi.waitFor(() => expect(hooks.values[0]).toBe('Grok credential file found. Provider access has not yet been verified.'));
   expect(hooks.connect).not.toHaveBeenCalled();
 });
-it('suppresses concurrent starts and aborts observation without claiming connection', async () => {
+it('suppresses concurrent starts and explicitly cancels the known attempt without claiming connection', async () => {
   let finish!: () => void;
-  hooks.connect.mockImplementation(() => new Promise<void>(resolve => { finish = resolve; }));
+  const id = '11111111-1111-4111-8111-111111111111';
+  hooks.connect.mockImplementation((_signal, _message, observed) => {
+    observed({ id, state: 'pending', messages: [] });
+    return new Promise<void>(resolve => { finish = resolve; });
+  });
+  hooks.cancel.mockResolvedValue({ id, state: 'cancelling', messages: [] });
   buttons()[1].props.onClick(); buttons()[1].props.onClick();
   expect(hooks.connect).toHaveBeenCalledOnce();
   const signal = hooks.connect.mock.calls[0][0] as AbortSignal;
   buttons()[2].props.onClick();
   expect(signal.aborted).toBe(true);
   finish(); await Promise.resolve(); await Promise.resolve();
-  expect(hooks.values[0]).toContain('cancelled');
+  await vi.waitFor(() => expect(hooks.values[0]).toContain('Cancellation requested'));
+  expect(hooks.cancel).toHaveBeenCalledWith(id, expect.any(AbortSignal));
 });
