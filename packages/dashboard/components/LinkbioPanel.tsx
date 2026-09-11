@@ -107,6 +107,10 @@ export default function LinkbioPanel({
       setError('A link label and URL are required');
       return;
     }
+    if (nextLabel.length > 120 || nextUrl.length > 2048) {
+      setError('Link labels must be at most 120 characters and URLs at most 2048 characters.');
+      return;
+    }
     try {
       const parsed = new URL(nextUrl);
       if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error();
@@ -128,7 +132,7 @@ export default function LinkbioPanel({
       const res = await mutationFetch(`/api/v1/models/${modelId}/linkbio`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ kind: 'native', config: { links } }),
+        body: JSON.stringify({ kind: 'native', config: { ...activeNative.config, links } }),
       });
       if (!res.ok) {
         const b = await readDashboardError(res);
@@ -203,8 +207,8 @@ export default function LinkbioPanel({
             </ul>
           )}
           <div className="row">
-            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label" />
-            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
+            <input aria-label="Link label" maxLength={120} disabled={busy} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label" />
+            <input aria-label="Link URL" maxLength={2048} disabled={busy} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
             <button className="btn" type="button" disabled={busy} onClick={addLink}>
               Add link
             </button>
