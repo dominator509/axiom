@@ -18,7 +18,8 @@ vi.mock('@axiom/db', () => ({
 vi.mock('@axiom/worker', () => ({
   enqueueJob: vi.fn(async () => ({ id: 'job-1' })),
   resolveCapabilities: vi.fn((platform: string) => ({
-    media: platform === 'x' || platform === 'reddit' ? ['text'] : ['image'],
+    media: platform === 'youtube' || platform === 'tiktok' ? ['video', 'short']
+      : platform === 'x' || platform === 'reddit' ? ['text', 'image', 'video'] : ['image'],
   })),
   asPlatform: vi.fn((platform: string) => {
     const supported = [
@@ -40,7 +41,7 @@ vi.mock('@axiom/worker', () => ({
 }));
 
 import { bundlesRouter } from './bundles.js';
-import { enqueueJob } from '@axiom/worker';
+import { enqueueJob, resolveCapabilities } from '@axiom/worker';
 import { getPublishingConsentStatus, getTosScanState } from '@axiom/db';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -358,6 +359,37 @@ describe('POST /:id/approve — ToS-gated approval (LBI-11)', () => {
 
     expect(res.status).toBe(409);
     expect(((await res.json()) as any).detail).toContain('unavailable or unsupported media asset');
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it.each(['youtube', 'tiktok'])('rejects image approval for video-only %s before mutation', async (platform) => {
+    mockState.results = [[], [{
+      id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID,
+      state: 'generated', assetId: 'asset-1', tosReport: passingTos(platform),
+    }], [{ id: 'asset-1', kind: 'image' }]];
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: [platform] }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { detail: string }).detail).toContain(`${platform} does not support image assets`);
+    expect(mockState.updates).toHaveLength(0);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when asset capabilities cannot be resolved', async () => {
+    mockState.results = [[], [{
+      id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID,
+      state: 'generated', assetId: 'asset-1', tosReport: passingTos('instagram'),
+    }], [{ id: 'asset-1', kind: 'image' }]];
+    vi.mocked(resolveCapabilities).mockImplementationOnce(() => { throw new Error('registry unavailable'); });
+    const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}/approve`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platforms: ['instagram'] }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { detail: string }).detail).toContain('media support is unknown');
+    expect(mockState.updates).toHaveLength(0);
     expect(enqueueJob).not.toHaveBeenCalled();
   });
 

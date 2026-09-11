@@ -230,6 +230,23 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
             'bundle references an unavailable or unsupported media asset; approval cannot continue',
         };
       }
+      // Ownership and a passing scan do not prove that every destination can
+      // publish this asset. Match the same capability contract used downstream
+      // before committing an approval or any durable publishing work.
+      for (const platform of platforms) {
+        try {
+          if (resolveCapabilities(platform).media.includes(asset.kind)) continue;
+        } catch {
+          return {
+            status: 409 as const,
+            error: `cannot resolve ${platform} capabilities; media support is unknown`,
+          };
+        }
+        return {
+          status: 409 as const,
+          error: `${platform} does not support ${asset.kind} assets; approval cannot continue`,
+        };
+      }
     }
 
     const tosScanState = await getTosScanState(tx, orgId, id);
