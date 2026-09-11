@@ -299,7 +299,10 @@ function buildCommand(request: SubscriptionRequest): CommandSpec {
       '--agent',
       'axiom-text',
       '--tools',
-      '',
+      // A nonempty, recognized allowlist prevents older CLIs from inheriting
+      // all tools when they ignore injectDefaultTools. Deny both MCP tools
+      // below: the intersection is empty (deny wins over allow).
+      'search_tool',
       '--disallowed-tools',
       'run_terminal_cmd,read_file,search_replace,write_file,grep,web_fetch,web_search,x_search,search_tool,use_tool,Agent',
       '--disable-web-search',

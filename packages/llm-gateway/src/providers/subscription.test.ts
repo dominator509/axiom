@@ -144,6 +144,9 @@ describe('official subscription auth command lifecycle', () => {
       toolConfig: { tools: [] }, injectDefaultTools: false,
       discoverSkills: false, agentsMd: false, mcpInheritance: 'none',
     });
+    // Grok 1.0.5 ignores the curated-registry flag. A nonempty recognized
+    // allowlist, intersected with the denylist, must independently yield none.
+    expect(args[args.indexOf('--tools') + 1]).toBe('search_tool');
     expect(args[args.indexOf('--disallowed-tools') + 1]?.split(',')).toEqual(
       expect.arrayContaining(['search_tool', 'use_tool', 'run_terminal_cmd', 'read_file']),
     );
