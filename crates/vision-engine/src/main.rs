@@ -267,8 +267,8 @@ fn softmax(logits: &[f32]) -> Vec<f64> {
     exps.iter().map(|e| e / sum).collect()
 }
 
-/// Preprocess an image exactly as the model's ViTFeatureExtractor:
-/// resize to 224x224 (bicubic ≈ CatmullRom), rescale to [0,1], then
+/// Use the pinned model's ViT input shape, resize filter and normalization:
+/// resize to 224x224 (bilinear / Triangle), rescale to [0,1], then
 /// normalize with mean=0.5, std=0.5 → channel-first CHW float32.
 fn preprocess(path: &str) -> Result<Vec<f32>, VisionError> {
     let img = image::open(Path::new(path))
@@ -276,7 +276,7 @@ fn preprocess(path: &str) -> Result<Vec<f32>, VisionError> {
     let resized = img.resize_exact(
         IMG_SIZE as u32,
         IMG_SIZE as u32,
-        image::imageops::FilterType::CatmullRom,
+        image::imageops::FilterType::Triangle,
     );
     let rgb = resized.to_rgb8();
 
@@ -736,6 +736,24 @@ mod tests {
     }
 
     #[test]
+    fn preprocess_uses_pinned_bilinear_filter() {
+        // Pinned preprocessor_config.json has resample=2 (Pillow bilinear).
+        // Pillow's 2x1 black/white resize yields [0,56,199,255] at these x values.
+        let path = test_media_path("bilinear-test.png");
+        let mut img = image::RgbImage::new(2, 1);
+        img.put_pixel(1, 0, image::Rgb([255, 255, 255]));
+        img.save(&path).unwrap();
+        let pixels = preprocess(path.to_str().unwrap()).unwrap();
+        std::fs::remove_file(&path).unwrap();
+        for channel in 0..3 {
+            for (x, expected) in [(0, 0.0), (80, 56.0), (143, 199.0), (223, 255.0)] {
+                let actual = pixels[channel * 224 * 224 + 112 * 224 + x];
+                assert!((actual - (expected / 255.0 - 0.5) / 0.5).abs() < 1e-6);
+            }
+        }
+    }
+
+    #[test]
     fn heuristic_fallback_never_panics() {
         let m = ImageMetrics {
             width: 100,
@@ -874,6 +892,7 @@ mod tests {
             assert_eq!(response.analysis.dimensions.height, 64);
             assert_eq!(response.engine, "override");
         }
+        std::fs::remove_file(&path).unwrap();
     }
 
     #[test]
