@@ -25,7 +25,10 @@ try {
     const child = spawnSync(spec.command, spec.args, { env: spec.env, input: Buffer.alloc(128, 0x42),
       stdio: extraFd ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'],
       encoding: 'utf8', timeout: 10000, maxBuffer: 65536 });
-    assert.equal(child.status, 0, `handoff probe failed (extra FD=${extraFd}, status=${child.status})`);
+    // This fixture mounts only empty credentials and synthetic bytes. Include
+    // bounded setup diagnostics so CI failures are actionable; production
+    // provider stderr remains private.
+    assert.equal(child.status, 0, `handoff probe failed (extra FD=${extraFd}, status=${child.status}): ${child.error?.message ?? ''} ${(child.stderr ?? '').slice(0, 2048)}`);
     assert.equal(child.stdout.trim(), 'sealed image handoff passed');
   }
   for (const size of [0, 12, 127, 129, 1024]) {
