@@ -36,6 +36,18 @@ it('rejects truncated and malformed containers', () => {
   expect(() => cleanEncodedMp4(Buffer.from('malformed'))).toThrow();
   expect(() => cleanEncodedPng(Buffer.from('malformed'))).toThrow();
 });
+it('rejects real animated PNG instead of silently keeping only its first frame', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'axiom-animated-png-'));
+  try {
+    const input = join(root, 'animation.png');
+    execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-f', 'lavfi', '-i', 'testsrc=size=16x16:rate=2',
+      '-frames:v', '2', '-plays', '0', '-f', 'apng', input], { windowsHide: true });
+    const bytes = await readFile(input);
+    expect(bytes.includes(Buffer.from('acTL'))).toBe(true);
+    await expect(sanitizeMedia(bytes, 'image/png')).rejects.toThrow('Animated PNG');
+    expect(await readFile(input)).toEqual(bytes);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 it('rejects opaque colour profiles rather than preserving their private payloads', () => {
   const media = (profile: Buffer) => Buffer.concat([box('ftyp', Buffer.from('isom0000')),
     box('moov', box('colr', profile)), box('mdat', Buffer.from('pixels'))]);

@@ -137,7 +137,11 @@ export async function sanitizeMedia(bytes: Buffer, mimeType: SanitizableMime): P
       while (offset + 12 <= bytes.length) {
         const end = offset + bytes.readUInt32BE(offset) + 12;
         if (end > bytes.length) throw new Error('Truncated input PNG');
-        if (bytes.toString('ascii', offset + 4, offset + 8) === 'IEND') { bytes = bytes.subarray(0, end); break; }
+        const kind = bytes.toString('ascii', offset + 4, offset + 8);
+        // The still-image encoder cannot preserve an APNG timeline. Never
+        // report a successful privacy export after silently losing its frames.
+        if (['acTL', 'fcTL', 'fdAT'].includes(kind)) throw new Error('Animated PNG sanitization is unsupported');
+        if (kind === 'IEND') { bytes = bytes.subarray(0, end); break; }
         offset = end;
       }
     }
