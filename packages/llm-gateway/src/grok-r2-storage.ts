@@ -82,5 +82,7 @@ export function removeR2Storage(scope: R2Scope) {
 export function r2ManagedConfig(config: R2Storage, scope: R2Scope) {
   const checked = r2StorageSchema.parse(config);
   // Every interpolated value has a restricted alphabet; no TOML injection.
-  return `[tools.zdr_video_output_s3]\nbucket = "${checked.bucket}"\nendpoint = "${checked.endpoint}"\nregion = "auto"\nkey_prefix = "axiom/${identity(scope)}/"\nexpires_secs = 900\n[tools.zdr_video_output_s3.read_write]\naccess_key_id = "${checked.accessKeyId}"\nsecret_access_key = "${checked.secretAccessKey}"\n`;
+  // Pinned Grok prepare_video_gen_config drops S3 settings unless this flag
+  // is true. A ZDR account alone does not enable the CLI's upload path.
+  return `[tools]\ndisable_zdr_incompatible_tools = true\n[tools.zdr_video_output_s3]\nbucket = "${checked.bucket}"\nendpoint = "${checked.endpoint}"\nregion = "auto"\nkey_prefix = "axiom/${identity(scope)}/"\nexpires_secs = 900\n[tools.zdr_video_output_s3.read_write]\naccess_key_id = "${checked.accessKeyId}"\nsecret_access_key = "${checked.secretAccessKey}"\n`;
 }

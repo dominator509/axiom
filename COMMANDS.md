@@ -16,6 +16,7 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/rehearse-grok-installed-runtime.mjs <absolute-cli-path> <absolute-launcher-path>` — offline installed CLI/sealed-input/R2 managed-config checks using synthetic credentials and a network-disabled Linux sandbox
 - `node scripts/backup-recovery-database.mjs --local-backup` — explicitly authorized private local backup; no credentials printed
 - `node scripts/rehearse-recovery-upgrade.mjs --restore-copy <archive> <sha256>` — verify the local backup by restoring an access-restricted copy
 - `node scripts/apply-local-character-lock.mjs --rehearse-copy <copy> <archive> <sha256>` — rehearse only migration 0026 with atomic ledger insertion and existing profile value verification
@@ -29,6 +30,7 @@
 - `node scripts/probe-live-grok-media.mjs --authorized-live-once <user-id> <run-id> image` — Linux-only, explicitly authorized single real Grok image request; exclusive dispatch marker, no retry, no DB writes or publication
 - `node scripts/probe-live-grok-media.mjs --authorized-live-once <user-id> <run-id> video <scanned-image-sha256>` — one real six-second video request bound to the independently scanned source image; failed/uncertain dispatch must be reconciled before another attempt
 - `node scripts/rehearse-vision.mjs --generated-image <sha256>` — classify the content-hashed JPEG in ignored `var/live-grok-probe` with the pinned model in a network-disabled container; does not persist a bundle ToS verdict or establish model accuracy
+- `node scripts/rehearse-vision.mjs --generated-video <sha256>` — classify prepared 2fps frames of the content-hashed video in ignored `var/live-grok-probe`; probe-only evidence, not a persisted bundle verdict or full-video/audio approval
 - `node scripts/rehearse-vision.mjs --isolated-fixture` — verify both pinned vision inference routes and authorization/path boundaries on the existing local fixture
 - `node scripts/test-login-stream-compression.mjs` — verify actual dashboard gzip buffering and immediate delivery with no-transform on a credential-free loopback SSE fixture
 - `node scripts/provision-local-grok-user.mjs --inspect <email>` — inspect only the explicitly identified local recovery account; never reads credential fields

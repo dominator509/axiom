@@ -48,6 +48,7 @@ it('fails closed without encryption and restricts endpoints and TOML values', ()
     expect(r2StorageSchema.safeParse({ ...config, endpoint }).success).toBe(false);
   expect(r2StorageSchema.safeParse({ ...config, bucket: 'x"\nsecret = 1' }).success).toBe(false);
   const toml = r2ManagedConfig(config, scope);
+  expect(toml).toMatch(/^\[tools\]\ndisable_zdr_incompatible_tools = true\n/);
   expect(toml).toContain('[tools.zdr_video_output_s3.read_write]');
   expect(toml).toContain('region = "auto"');
   expect(toml).not.toContain(scope.userId);

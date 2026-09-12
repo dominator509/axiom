@@ -49,7 +49,12 @@ export function grokSandboxCommand(input: {
     if (existsSync(path)) args.push('--ro-bind', path, path);
   }
   if (input.imageLauncher) args.push('--ro-bind', input.imageLauncher.executable, '/grok-input-launch');
-  if (input.managedConfigPath) args.push('--ro-bind', input.managedConfigPath, '/etc/grok/managed_config.toml');
+  if (input.managedConfigPath) args.push(
+    '--ro-bind', input.managedConfigPath, '/etc/grok/managed_config.toml',
+    // Keep the R2 upload path enabled across later account/settings refreshes.
+    // This preserves ZDR; it never changes the account's retention preference.
+    '--setenv', 'GROK_DISABLE_ZDR_INCOMPATIBLE_TOOLS', '1',
+  );
   args.push(
     '--ro-bind', input.executable, '/grok',
     '--bind', input.credentialRoot, '/credentials',

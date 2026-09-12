@@ -1,5 +1,21 @@
 # Grok OAuth media CLI integration (live acceptance pending)
 
+## Verified local ZDR video path (2026-09-12)
+
+A real OAuth-authenticated six-second video completed using private R2 storage
+with ZDR retained. The initial R2 config omitted `tools.disable_zdr_incompatible_tools`;
+the pinned CLI's `prepare_video_gen_config` discards its S3 config unless this
+flag is true, even when the account itself requires ZDR. AXIOM now emits the
+flag in the managed TOML and pins `GROK_DISABLE_ZDR_INCOMPATIBLE_TOOLS=1` only
+inside R2-configured media sandboxes. No account retention preference is changed.
+
+`rehearse-grok-installed-runtime.mjs` checks the actual CLI and sealed launcher
+with synthetic R2 settings and networking disabled. The live artifact was
+443,128 bytes, 544x544, 6.041667 seconds with audio. All 12 sampled frames were
+classified with the pinned ONNX model without overrides. This is local
+transport evidence, not full-video/audio approval, dashboard bundle ingestion,
+publication, or container deployment acceptance. Those boundaries remain open.
+
 The source-image patch targets exactly `xai-org/grok-build` commit
 `37949780c144e37df692e3d669051a21fec24f20`. It is a candidate patch, not a
 verified distributable CLI. Video transport now requires explicit installation

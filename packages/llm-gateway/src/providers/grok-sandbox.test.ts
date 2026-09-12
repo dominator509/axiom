@@ -21,6 +21,8 @@ describe('Grok Linux request filesystem boundary', () => {
     const command = grokSandboxCommand({ ...input, managedConfigPath });
     const index = command.args.indexOf(managedConfigPath);
     expect(command.args.slice(index - 1, index + 2)).toEqual(['--ro-bind', managedConfigPath, '/etc/grok/managed_config.toml']);
+    const zdrIndex = command.args.indexOf('GROK_DISABLE_ZDR_INCOMPATIBLE_TOOLS');
+    expect(command.args.slice(zdrIndex - 1, zdrIndex + 2)).toEqual(['--setenv', 'GROK_DISABLE_ZDR_INCOMPATIBLE_TOOLS', '1']);
     expect(command.env).toEqual({});
   });
   it('mounts only this request, its credentials and runtime dependencies', () => {
@@ -37,6 +39,7 @@ describe('Grok Linux request filesystem boundary', () => {
     expect(command.args).not.toContain('--unshare-user-try');
     expect(command.args).not.toContain('/app');
     expect(command.args).not.toContain('/home');
+    expect(command.args).not.toContain('GROK_DISABLE_ZDR_INCOMPATIBLE_TOOLS');
     expect(command.args.slice(-4)).toEqual(['--', '/grok', '--tools', 'image_to_video']);
   });
   it.each(['win32', 'darwin'])('fails closed on unsupported %s', platform => {
