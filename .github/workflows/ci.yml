@@ -317,6 +317,7 @@ jobs:
         run: |
           node scripts/test-security-gate.mjs
           node scripts/test-local-grok-origin.mjs
+          node scripts/test-local-grok-startup.mjs --isolated-fixture
           node scripts/test-login-stream-compression.mjs
           pnpm security-check
 

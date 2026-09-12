@@ -4,7 +4,7 @@ import { loadEnvFile } from 'node:process';
 import { readFileSync } from 'node:fs';
 import { parseEnv } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { localGrokOrigin } from './local-grok-origin.mjs';
 if (process.platform !== 'linux' || Number(process.versions.node.split('.')[0]) < 22)
@@ -18,6 +18,18 @@ if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
 for (const key of ['AXIOM_GROK_CLI', 'AXIOM_GROK_VIDEO_CLI', 'AXIOM_GROK_IMAGE_LAUNCHER']) {
   if (!runtime[key]?.startsWith('/')) throw new Error(`${key} must be configured for Linux`);
 }
+// Reuse the read-only recovery-schema check before opening an API listener.
+// A timeout, missing dependency, or incompatible schema must never launch a
+// process that appears healthy but fails when a model profile is requested.
+// Keep child diagnostics private; the checker never performs a migration.
+const schemaCheck = spawnSync(process.execPath, [
+  fileURLToPath(new URL('./check-local-grok-schema.mjs', import.meta.url)), '--read-only',
+], {
+  env: { DATABASE_URL: process.env.DATABASE_URL },
+  stdio: 'ignore', timeout: 20_000, killSignal: 'SIGKILL', windowsHide: true,
+});
+if (schemaCheck.error || schemaCheck.signal || schemaCheck.status !== 0)
+  throw new Error('Local API not started: required schema could not be verified. Run the read-only schema check; backup and migration require operator approval.');
 const child = spawn(process.execPath, [fileURLToPath(new URL('../packages/api/dist/server.js', import.meta.url))], {
   cwd: fileURLToPath(new URL('../', import.meta.url)), stdio: 'inherit',
   env: {

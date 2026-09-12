@@ -16,6 +16,7 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/test-local-grok-startup.mjs --isolated-fixture` — Linux launcher process-boundary checks with disposable configuration; failed, signalled, timed-out or missing schema checks must never start the API; no real database or provider calls
 - `node scripts/check-local-grok-schema.mjs --read-only` — inspect required character-lock column metadata in the configured loopback recovery database; read-only transaction, no tenant rows or credentials printed, no migration or restart
 - `node scripts/rehearse-media-sanitizer.mjs --isolated-fixture` — generated-media runtime rehearsal for JPEG, PNG and MP4/audio; requires worker build and ffmpeg/ffprobe, never reads credentials or user media
 - `node scripts/sanitize-media.mjs <input.jpg|png|mp4> <new-output.png|mp4>` — optional privacy sanitizer shared with upload/generation; build the worker first, requires ffmpeg/ffprobe; strips embedded metadata/C2PA through re-encoding and container validation, never overwrites existing files, does not erase external fingerprint records or watermarks
