@@ -12,6 +12,7 @@ export default function MediaUpload({ modelId, onUploaded }: {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [pending, setPending] = useState(false);
+  const [fileInputVersion, setFileInputVersion] = useState(0);
   const active = useRef(false);
   const intent = useRef<{ file: File; sanitize: boolean; key: string } | null>(null);
   async function upload() {
@@ -40,12 +41,13 @@ export default function MediaUpload({ modelId, onUploaded }: {
         || !['image/png', 'image/jpeg', 'video/mp4'].includes(data.mimeType)) throw new Error('Invalid upload response');
       setMessage(`Stored asset ${data.id}${data.sanitized ? ' with embedded metadata and C2PA removed' : ''}. Exact-file SHA-256 ${data.exactFileHashChanged ? 'changed' : 'unchanged'}. This does not prevent perceptual matching. Not yet ToS-scanned or approved.`);
       onUploaded(data); intent.current = null; setFile(null); setPending(false);
+      setFileInputVersion(fileInputVersion + 1);
     } catch { setMessage('Upload outcome unconfirmed. Check the same request before uploading again.'); }
     finally { active.current = false; setBusy(false); }
   }
   return <section className="card" aria-label="Upload media">
     <h3>Upload source media</h3>
-    <input aria-label="Media file" type="file" accept="image/jpeg,image/png,video/mp4" disabled={busy || pending}
+    <input key={fileInputVersion} aria-label="Media file" type="file" accept="image/jpeg,image/png,video/mp4" disabled={busy || pending}
       onChange={event => setFile(event.target.files?.[0] ?? null)} />
     <label><input type="checkbox" checked={sanitize} disabled={busy || pending}
       onChange={event => setSanitize(event.target.checked)} /> Remove metadata and embedded provenance, including C2PA (optional)</label>

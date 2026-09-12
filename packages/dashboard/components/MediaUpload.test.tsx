@@ -24,9 +24,10 @@ it.each([true, false])('sends the explicit optional privacy choice %s without le
 });
 it('locks selection and reuses the identical file and key after uncertainty', async () => {
   hooks.fetch.mockRejectedValue(new Error('lost response'));
-  select(true); render()[4].props.onClick();
+  select(true); const beforeKey = render()[1].key; render()[4].props.onClick();
   await vi.waitFor(() => expect(hooks.values[2]).toBe(false));
   expect(render()[1].props.disabled).toBe(true);
+  expect(render()[1].key).toBe(beforeKey);
   render()[4].props.onClick();
   await vi.waitFor(() => expect(hooks.fetch).toHaveBeenCalledTimes(2));
   expect(hooks.fetch.mock.calls[1]).toEqual(hooks.fetch.mock.calls[0]);
@@ -45,4 +46,15 @@ it('reports an unchanged file hash honestly after successful cleaning', async ()
   select(true); render()[4].props.onClick();
   await vi.waitFor(() => expect(uploaded).toHaveBeenCalledOnce());
   expect(hooks.values[3]).toContain('SHA-256 unchanged');
+});
+it('resets the native file picker only after a confirmed successful upload', async () => {
+  hooks.fetch.mockResolvedValue(new Response(JSON.stringify({ data: {
+    id: '22222222-2222-4222-8222-222222222222', mimeType: 'image/png', sanitized: false, exactFileHashChanged: false,
+  } })));
+  select(false);
+  const beforeKey = render()[1].key;
+  render()[4].props.onClick();
+  await vi.waitFor(() => expect(uploaded).toHaveBeenCalledOnce());
+  expect(render()[1].key).not.toBe(beforeKey);
+  expect(render()[4].props.disabled).toBe(true);
 });
