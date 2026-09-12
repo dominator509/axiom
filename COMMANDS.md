@@ -16,6 +16,10 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/backup-recovery-database.mjs --local-backup` — explicitly authorized private local backup; no credentials printed
+- `node scripts/rehearse-recovery-upgrade.mjs --restore-copy <archive> <sha256>` — verify the local backup by restoring an access-restricted copy
+- `node scripts/apply-local-character-lock.mjs --rehearse-copy <copy> <archive> <sha256>` — rehearse only migration 0026 with atomic ledger insertion and existing profile value verification
+- `node scripts/apply-local-character-lock.mjs --apply-approved <copy> <archive> <sha256>` — operator-approved migration 0026 on the configured recovery DB, requiring a rehearsed copy and matching backup hash; never restarts services
 - `node scripts/test-local-grok-startup.mjs --isolated-fixture` — Linux launcher process-boundary checks with disposable configuration; failed, signalled, timed-out or missing schema checks must never start the API; no real database or provider calls
 - `node scripts/check-local-grok-schema.mjs --read-only` — inspect required character-lock column metadata in the configured loopback recovery database; read-only transaction, no tenant rows or credentials printed, no migration or restart
 - `node scripts/rehearse-media-sanitizer.mjs --isolated-fixture` — generated-media runtime rehearsal for JPEG, PNG and MP4/audio; requires worker build and ffmpeg/ffprobe, never reads credentials or user media
