@@ -127,6 +127,27 @@ COMMIT;
   assert.equal(created.status, 201, 'Assigned runtime-role operator can create a profile');
   const createdBody = await created.json();
   assert.ok(createdBody.data?.id);
+  assert.equal(createdBody.data.characterLockPrompt, '');
+  assert.equal(createdBody.data.characterLockVersion, 0);
+  const lockPath = `/api/v1/models/${createdBody.data.id}`;
+  const lockIntents = [0, 1].map(index => ({
+    method: 'PATCH', headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
+    body: JSON.stringify({ characterLockPrompt: `Saved fixture identity ${index}`, characterLockVersion: 0 }),
+  }));
+  const lockResponses = await Promise.all(lockIntents.map(intent => request(lockPath, intent)));
+  assert.deepEqual(lockResponses.map(response => response.status).sort(), [200, 409],
+    'Concurrent character lock saves must have exactly one winner');
+  const winningIndex = lockResponses.findIndex(response => response.status === 200);
+  const savedLock = (await lockResponses[winningIndex].json()).data;
+  assert.equal(savedLock.characterLockVersion, 1);
+  assert.equal(savedLock.characterLockPrompt, `Saved fixture identity ${winningIndex}`);
+  const lockReplay = await request(lockPath, lockIntents[winningIndex]);
+  assert.equal(lockReplay.status, 200, 'Replaying a successful save must not increment the version');
+  assert.equal((await lockReplay.json()).data.characterLockVersion, 1);
+  const lockReadback = await request(lockPath, { headers: { cookie } });
+  assert.equal(lockReadback.status, 200);
+  assert.equal((await lockReadback.json()).data.characterLockPrompt, savedLock.characterLockPrompt);
+  console.log('character lock HTTP smoke: concurrent winner, durable readback and idempotent replay passed');
   const replayed = await request('/api/v1/models', { method: 'POST', headers: mutationHeaders, body: modelBody });
   assert.equal(replayed.status, 201, 'Profile replay preserves the original response');
   assert.equal((await replayed.json())?.data?.id, createdBody.data.id, 'Replay must not create another profile');
