@@ -15,7 +15,7 @@ function select(sanitize: boolean) {
 }
 beforeEach(() => { hooks.values = []; hooks.refs = []; hooks.fetch.mockReset(); uploaded.mockReset(); });
 it.each([true, false])('sends the explicit optional privacy choice %s without leaking the original filename', async sanitize => {
-  hooks.fetch.mockResolvedValue(new Response(JSON.stringify({ data: { id: '22222222-2222-4222-8222-222222222222', mimeType: 'image/png', sanitized: sanitize } })));
+  hooks.fetch.mockResolvedValue(new Response(JSON.stringify({ data: { id: '22222222-2222-4222-8222-222222222222', mimeType: 'image/png', sanitized: sanitize, exactFileHashChanged: sanitize } })));
   select(sanitize); render()[4].props.onClick();
   await vi.waitFor(() => expect(uploaded).toHaveBeenCalledOnce());
   expect(hooks.fetch.mock.calls[0][0]).toBe(`/api/v1/models/model/media-upload?sanitize=${sanitize}`);
@@ -38,4 +38,11 @@ it('unlocks editing after the API confirms that no asset was stored', async () =
   await vi.waitFor(() => expect(hooks.values[2]).toBe(false));
   expect(render()[1].props.disabled).toBe(false);
   expect(uploaded).not.toHaveBeenCalled();
+});
+it('reports an unchanged file hash honestly after successful cleaning', async () => {
+  hooks.fetch.mockResolvedValue(new Response(JSON.stringify({ data: { id: '22222222-2222-4222-8222-222222222222',
+    mimeType: 'image/png', sanitized: true, exactFileHashChanged: false } })));
+  select(true); render()[4].props.onClick();
+  await vi.waitFor(() => expect(uploaded).toHaveBeenCalledOnce());
+  expect(hooks.values[3]).toContain('SHA-256 unchanged');
 });

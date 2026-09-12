@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 import { cleanEncodedMp4, cleanEncodedPng, sanitizeMedia } from './media-sanitizer.js';
 
 function box(kind: string, value: Buffer) {
@@ -51,6 +52,8 @@ it.each(['image', 'jpeg', 'video'] as const)('rebuilds real %s media and removes
     const result = await sanitizeMedia(bytes, kind === 'video' ? 'video/mp4' : kind === 'jpeg' ? 'image/jpeg' : 'image/png');
     expect(result.bytes.includes(Buffer.from('private'))).toBe(false);
     expect(result.bytes.includes(Buffer.from('c2pa'))).toBe(false);
+    expect(result.exactFileHashChanged).toBe(true);
+    expect(createHash('sha256').update(result.bytes).digest()).not.toEqual(createHash('sha256').update(bytes).digest());
     expect(result.mimeType).toBe(kind === 'video' ? 'video/mp4' : 'image/png');
     if (kind !== 'video') {
       expect(cleanEncodedPng(result.bytes)).toEqual(result.bytes);
@@ -58,11 +61,14 @@ it.each(['image', 'jpeg', 'video'] as const)('rebuilds real %s media and removes
       const pixels = (file: string) => execFileSync('ffmpeg', ['-v', 'error', '-i', file, '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'], { windowsHide: true });
       expect(pixels(output)).toEqual(pixels(path));
       if (kind === 'image') {
+        const repeated = await sanitizeMedia(result.bytes, 'image/png');
+        expect(repeated.bytes).toEqual(result.bytes);
+        expect(repeated.exactFileHashChanged).toBe(false);
         const dirty = join(root, 'dirty.png'), cliOutput = join(root, 'cli.png');
         await writeFile(dirty, bytes);
         const cli = fileURLToPath(new URL('../../../scripts/sanitize-media.mjs', import.meta.url));
         const run = () => execFileSync(process.execPath, [cli, dirty, cliOutput], { windowsHide: true, stdio: 'pipe' });
-        expect(JSON.parse(run().toString())).toMatchObject({ sanitized: true, sourceUnchanged: true });
+        expect(JSON.parse(run().toString())).toMatchObject({ sanitized: true, sourceUnchanged: true, exactFileHashChanged: true });
         expect(await readFile(cliOutput)).toEqual(result.bytes);
         expect(() => run()).toThrow();
         expect(await readFile(dirty)).toEqual(bytes);

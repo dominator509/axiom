@@ -26,7 +26,7 @@ function request(server = app(), sanitize = 'true', type = 'image/png') {
 beforeEach(() => {
   mockState.result = [{ id: modelId }]; mockState.results = []; store.mockReset();
   store.mockResolvedValue({ storageKey: 'generated/unit.png', fileName: 'unit.png', mimeType: 'image/png',
-    sha256: Buffer.alloc(32), fileSize: 24 });
+    sha256: Buffer.alloc(32), fileSize: 24, exactFileHashChanged: false });
 });
 it.each(['true', 'false'])('passes the exact upload privacy choice %s to storage', async selection => {
   const response = await request(app(), selection);

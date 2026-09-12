@@ -185,6 +185,16 @@ describe('evaluateMediaToS', () => {
 });
 
 describe('tosScan', () => {
+  it.each(['asset-1', 'previous-asset'])('retains fingerprint evidence only for the scanned asset: %s', async recordedAsset => {
+    const sanitization = { assetId: recordedAsset, selected: true, exactFileHashChanged: true };
+    mockState.results = [[{ id: 'bundle-1', modelId: 'model-1', assetId: 'asset-1', state: 'generated',
+      captions: { instagram: 'Safe' }, hashtags: [], tosReport: { sanitization } }],
+      [{ id: 'asset-1', kind: 'image', storageKey: 'generated/image.png' }], []];
+    await tosScan({ tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1' });
+    const report = (mockState.updates[0] as { tosReport: Record<string, unknown> }).tosReport;
+    if (recordedAsset === 'asset-1') expect(report.sanitization).toEqual(sanitization);
+    else expect(report).not.toHaveProperty('sanitization');
+  });
   it('binds video machine evidence to a fresh scan and content digest on every scan', async () => {
     const hash = Buffer.alloc(32, 1).toString('hex');
     vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify({

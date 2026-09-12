@@ -40,6 +40,7 @@ if (!sourceArgument || !outputArgument || extra.length) {
     try { await writer.writeFile(clean.bytes); await writer.sync(); completed = true; }
     finally { await writer.close(); if (!completed) await unlink(output); }
     console.log(JSON.stringify({ sanitized: true, mimeType: clean.mimeType, bytes: clean.bytes.length,
+      exactFileHashChanged: clean.exactFileHashChanged,
       externalProvenanceErased: false, sourceUnchanged: true }));
   } catch {
     console.error('Sanitization failed. No original fallback; existing files are not overwritten.');

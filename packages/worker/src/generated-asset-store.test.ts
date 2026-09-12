@@ -26,6 +26,7 @@ describe('generated asset persistence', () => {
     expect(await readFile(input().path)).toEqual(bytes);
     expect(result.sha256).toEqual(createHash('sha256').update(bytes).digest());
     expect(result.fileSize).toBe(bytes.length);
+    expect(result.exactFileHashChanged).toBe(false);
   });
   it('rejects a source outside the request before copying', async () => {
     const outside = join(root, 'outside.jpg');

@@ -7,6 +7,24 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('generation status polling', () => {
+  it.each([true, false])('reports the measured exact-file hash result %s for the attached asset', async changed => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ ...bundle, assetId: 'asset-a',
+      tosReport: { verdict: 'pass', sanitization: { assetId: 'asset-a', selected: true, exactFileHashChanged: changed } } })));
+    const status = vi.fn(); const stop = watchGeneration('bundle-a', 'model-a', status, vi.fn());
+    await vi.advanceTimersByTimeAsync(100);
+    expect(status).toHaveBeenCalledWith(expect.objectContaining({ sanitization: { selected: true, exactFileHashChanged: changed } }));
+    stop();
+  });
+  it.each([
+    { assetId: 'old-asset', selected: true, exactFileHashChanged: true },
+    { assetId: 'asset-a', selected: true, exactFileHashChanged: 'true' },
+    { assetId: 'asset-a', selected: false, exactFileHashChanged: true },
+  ])('does not report stale or malformed fingerprint evidence', async sanitization => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ ...bundle, assetId: 'asset-a', tosReport: { verdict: 'pass', sanitization } })));
+    const status = vi.fn(); const stop = watchGeneration('bundle-a', 'model-a', status, vi.fn());
+    await vi.advanceTimersByTimeAsync(100);
+    expect(status.mock.calls[0][0]).not.toHaveProperty('sanitization'); stop();
+  });
   it('follows queued, attached, then scanned state without issuing mutations', async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(response(bundle))

@@ -215,6 +215,9 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
       tosReport: {
         ...report,
         ...(videoScan ? { videoScan } : {}),
+        ...(bundle.tosReport?.sanitization && typeof bundle.tosReport.sanitization === 'object'
+          && 'assetId' in bundle.tosReport.sanitization && bundle.tosReport.sanitization.assetId === bundle.assetId
+          ? { sanitization: bundle.tosReport.sanitization } : {}),
         ...(typeof bundle.tosReport?.revisionId === 'string'
           ? { revisionId: bundle.tosReport.revisionId }
           : {}),

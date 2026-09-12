@@ -91,7 +91,7 @@ export const mediaGenerate: Executor = async (ctx) => {
     ctx.markExternalSideEffect!();
     if (!attempt) throw new Error('media.generate: existing dispatch requires provider reconciliation');
   });
-  const stored = await storeGeneratedAsset(artifact, {
+  const { exactFileHashChanged, ...stored } = await storeGeneratedAsset(artifact, {
     orgId: job.org_id, modelId: bundle.modelId, requestRoot: dirname(artifact.path), mediaRoot,
     sanitizeMetadata: payload.sanitizeMetadata === true,
   });
@@ -105,7 +105,8 @@ export const mediaGenerate: Executor = async (ctx) => {
   )).limit(1);
   const assetId = inserted?.id ?? existing[0]?.id;
   if (!assetId) throw new Error('media.generate: asset content is already assigned to another model');
-  await tx.update(schema.contentBundle).set({ assetId, tosReport: { verdict: 'pending' }, updatedAt: new Date() })
+  await tx.update(schema.contentBundle).set({ assetId, tosReport: { verdict: 'pending',
+    sanitization: { assetId, selected: payload.sanitizeMetadata === true, exactFileHashChanged: exactFileHashChanged === true } }, updatedAt: new Date() })
     .where(and(eq(schema.contentBundle.id, bundle.id), eq(schema.contentBundle.orgId, job.org_id)));
   await tx.update(schema.mediaGenerationAttempt).set({ state: 'completed', assetId, completedAt: new Date() })
     .where(and(eq(schema.mediaGenerationAttempt.jobId, job.id), eq(schema.mediaGenerationAttempt.orgId, job.org_id)));

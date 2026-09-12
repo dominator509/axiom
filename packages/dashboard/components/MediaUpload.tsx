@@ -34,10 +34,11 @@ export default function MediaUpload({ modelId, onUploaded }: {
         if (failure.code === 'ASSET_UPLOAD_NOT_STORED') { intent.current = null; setPending(false); }
         return;
       }
-      const { data } = await readDashboardJson<{ data: { id: string; mimeType: string; sanitized: boolean } }>(response);
+      const { data } = await readDashboardJson<{ data: { id: string; mimeType: string; sanitized: boolean; exactFileHashChanged: boolean } }>(response);
       if (!data || !/^[0-9a-f-]{36}$/i.test(data.id) || data.sanitized !== saved.sanitize
+        || typeof data.exactFileHashChanged !== 'boolean' || (!saved.sanitize && data.exactFileHashChanged)
         || !['image/png', 'image/jpeg', 'video/mp4'].includes(data.mimeType)) throw new Error('Invalid upload response');
-      setMessage(`Stored asset ${data.id}${data.sanitized ? ' with embedded metadata and C2PA removed' : ''}. Not yet ToS-scanned or approved.`);
+      setMessage(`Stored asset ${data.id}${data.sanitized ? ' with embedded metadata and C2PA removed' : ''}. Exact-file SHA-256 ${data.exactFileHashChanged ? 'changed' : 'unchanged'}. This does not prevent perceptual matching. Not yet ToS-scanned or approved.`);
       onUploaded(data); intent.current = null; setFile(null); setPending(false);
     } catch { setMessage('Upload outcome unconfirmed. Check the same request before uploading again.'); }
     finally { active.current = false; setBusy(false); }

@@ -16,7 +16,7 @@ export interface GeneratedAssetInput {
  */
 export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
   orgId: string; modelId: string; requestRoot: string; mediaRoot: string; sanitizeMetadata?: boolean;
-}): Promise<{ storageKey: string; fileName: string; fileSize: number; sha256: Buffer; mimeType: GeneratedAssetInput['mimeType'] }> {
+}): Promise<{ storageKey: string; fileName: string; fileSize: number; sha256: Buffer; mimeType: GeneratedAssetInput['mimeType']; exactFileHashChanged: boolean }> {
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuid.test(scope.orgId) || !uuid.test(scope.modelId)) throw new Error('Invalid asset tenant scope');
   const limit = input.mimeType === 'video/mp4' ? 256 * 1024 * 1024 : 20 * 1024 * 1024;
@@ -48,6 +48,7 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
     created = true;
     const hash = createHash('sha256');
     let copied = 0;
+    let exactFileHashChanged = false;
     const chunks: Buffer[] = [];
     try {
       const buffer = Buffer.alloc(64 * 1024);
@@ -82,6 +83,7 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
         throw new Error('Generated asset changed during import');
       if (scope.sanitizeMetadata) {
         const sanitized = await sanitizeMedia(Buffer.concat(chunks), input.mimeType);
+        exactFileHashChanged = sanitized.exactFileHashChanged;
         if (sanitized.mimeType !== mimeType) throw new Error('Sanitizer output type mismatch');
         await writer.writeFile(sanitized.bytes);
         copied = sanitized.bytes.length;
@@ -98,7 +100,7 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
     }
     return {
       storageKey: ['generated', scope.orgId, scope.modelId, fileName].join('/'),
-      fileName, fileSize: copied, sha256: hash.digest(), mimeType,
+      fileName, fileSize: copied, sha256: hash.digest(), mimeType, exactFileHashChanged,
     };
   } catch (error) {
     if (created) await unlink(destination);

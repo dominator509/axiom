@@ -4,6 +4,7 @@ export type GenerationStatus = {
   assetReady: boolean;
   verdict: string;
   state: string;
+  sanitization?: { selected: boolean; exactFileHashChanged: boolean };
 };
 
 /** Read-only polling: never redispatch generation on a failed or lost response. */
@@ -29,7 +30,7 @@ export function watchGeneration(
       if (!response.ok) throw new Error('Status unavailable');
       const { data } = await readDashboardJson<{ data?: {
         id?: unknown; modelId?: unknown; state?: unknown; assetId?: unknown;
-        tosReport?: { verdict?: unknown } | null;
+        tosReport?: { verdict?: unknown; sanitization?: { assetId?: unknown; selected?: unknown; exactFileHashChanged?: unknown } } | null;
       } }>(response);
       if (data?.id !== bundleId || data.modelId !== modelId || typeof data.state !== 'string')
         throw new Error('Unexpected bundle');
@@ -38,7 +39,11 @@ export function watchGeneration(
         throw new Error('Unexpected scan status');
       const assetReady = typeof data.assetId === 'string' && data.assetId.length > 0;
       if (stopped) return;
-      onStatus({ assetReady, verdict, state: data.state });
+      const privacy = data.tosReport?.sanitization;
+      const sanitization = assetReady && privacy && privacy.assetId === data.assetId && typeof privacy.selected === 'boolean'
+        && typeof privacy.exactFileHashChanged === 'boolean' && (privacy.selected || !privacy.exactFileHashChanged)
+        ? { selected: privacy.selected, exactFileHashChanged: privacy.exactFileHashChanged } : undefined;
+      onStatus({ assetReady, verdict, state: data.state, ...(sanitization ? { sanitization } : {}) });
       if ((assetReady && verdict !== 'pending') || ['rejected', 'hold'].includes(data.state)) return;
     } catch {
       if (!stopped) onUnavailable();

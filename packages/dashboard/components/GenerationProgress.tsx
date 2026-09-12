@@ -33,6 +33,7 @@ export default function GenerationProgress({ bundleId, modelId }: { bundleId: st
   return <div>
     <p role="status">{message}</p>
     {status?.assetReady && <BundleMedia bundleId={bundleId} />}
+    {status?.sanitization?.selected && <p>Embedded metadata sanitization completed. Exact-file SHA-256 {status.sanitization.exactFileHashChanged ? 'changed' : 'unchanged'}. This does not prevent perceptual matching.</p>}
     {!unavailable && status && (status.state === 'hold' || (status.assetReady && ['block', 'review'].includes(status.verdict)))
       && ['generated', 'hold'].includes(status.state) && <GenerationRetry key={bundleId} modelId={modelId} bundleId={bundleId}
         blocked={status.verdict === 'block'} onQueued={setRetryBundleId} />}

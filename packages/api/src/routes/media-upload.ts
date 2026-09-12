@@ -35,7 +35,7 @@ mediaUploadRouter.post('/models/:modelId/media-upload', async c => {
   try {
     const source = join(directory, 'input');
     await writeFile(source, bytes, { flag: 'wx', mode: 0o600 });
-    const stored = await storeGeneratedAsset({ path: source, byteLength: bytes.length, mimeType }, {
+    const { exactFileHashChanged, ...stored } = await storeGeneratedAsset({ path: source, byteLength: bytes.length, mimeType }, {
       orgId, modelId, requestRoot: directory, mediaRoot, sanitizeMetadata: selection === 'true',
     });
     storedPath = join(mediaRoot, stored.storageKey);
@@ -49,13 +49,13 @@ mediaUploadRouter.post('/models/:modelId/media-upload', async c => {
       )).limit(1))[0];
       if (!asset) throw new Error('Content belongs to another model');
       await writeAudit(tx, orgId, userId, 'asset.upload', asset.id, {
-        sanitizeMetadata: selection === 'true', mimeType: stored.mimeType, fileSize: stored.fileSize,
+        sanitizeMetadata: selection === 'true', mimeType: stored.mimeType, fileSize: stored.fileSize, exactFileHashChanged,
       });
       return { id: asset.id as string, inserted: !!inserted };
     });
     if (!result.inserted) await unlink(storedPath).catch(() => {});
     storedPath = undefined;
-    return c.json({ data: { id: result.id, mimeType: stored.mimeType, sanitized: selection === 'true', tosStatus: 'not-scanned' } }, 201);
+    return c.json({ data: { id: result.id, mimeType: stored.mimeType, sanitized: selection === 'true', exactFileHashChanged, tosStatus: 'not-scanned' } }, 201);
   } catch {
     // A selected cleaning error never falls back to storing the original.
     if (persistenceAttempted) return apiError(c, 503, statusTitle(503), 'Upload persistence is unconfirmed. Reconcile this request before uploading again.');

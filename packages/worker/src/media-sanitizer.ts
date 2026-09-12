@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -108,11 +109,16 @@ function run(command: string, args: string[], cwd: string, timeout = 300_000): P
  * credentials, attachments and chapters. Visible watermarks are not edited.
  * This does not erase external provenance or promise fingerprint anonymity.
  */
-export async function sanitizeMedia(bytes: Buffer, mimeType: SanitizableMime): Promise<{ bytes: Buffer; mimeType: 'image/png' | 'video/mp4' }> {
+export async function sanitizeMedia(bytes: Buffer, mimeType: SanitizableMime): Promise<{
+  bytes: Buffer; mimeType: 'image/png' | 'video/mp4'; exactFileHashChanged: boolean;
+}> {
   const video = mimeType === 'video/mp4';
   const limit = (video ? 256 : 20) * 1024 * 1024;
   if (!['image/jpeg', 'image/png', 'video/mp4'].includes(mimeType) || bytes.length < 12 || bytes.length > limit)
     throw new Error('Unsupported sanitizer input');
+  // Hash the full original, including trailers that will be discarded below.
+  // Do not expose or embed the source hash in the cleaned file.
+  const originalHash = createHash('sha256').update(bytes).digest();
   const directory = await mkdtemp(join(tmpdir(), 'axiom-sanitize-'));
   try {
     const input = join(directory, video ? 'input.mp4' : mimeType === 'image/jpeg' ? 'input.jpg' : 'input.png');
@@ -170,6 +176,7 @@ export async function sanitizeMedia(bytes: Buffer, mimeType: SanitizableMime): P
     }
     await run('ffmpeg', ['-nostdin', '-v', 'error', '-xerror', '-protocol_whitelist', 'file', '-i', output,
       '-map', '0:v:0', ...(video ? ['-map', '0:a?'] : []), '-f', 'null', '-'], directory, 60_000);
-    return { bytes: cleaned, mimeType: video ? 'video/mp4' : 'image/png' };
+    return { bytes: cleaned, mimeType: video ? 'video/mp4' : 'image/png',
+      exactFileHashChanged: !createHash('sha256').update(cleaned).digest().equals(originalHash) };
   } finally { await rm(directory, { recursive: true, force: true }); }
 }
