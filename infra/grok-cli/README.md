@@ -492,3 +492,20 @@ bubblewrap smoke with networking disabled and empty credentials. Older candidate
 hashes above predate this RNG change. No updated runtime has been installed and
 no provider call or privacy change was made. Other CLI advisories,
 installed-runtime acceptance, and real video/dashboard acceptance remain open.
+
+### Side-by-side installation verified (2026-09-12)
+
+The RNG candidate above is now installed in the private WSL directory
+`/home/doministic/.local/share/axiom-grok/37949780-rng-c44b2f03`.
+The installer verified the CLI SHA-256 before copying; installed readback is
+`c44b2f03712b0854daa78230638168ffb92eb4be665a19923f9c052ad52ca53a`.
+The copied launcher SHA-256 is
+`0e5555e9814495d3af920478b662e7c0ac63ddd10d841782ef088d5ee423f722`.
+Both direct CLI and sealed launcher startup passed
+`scripts/rehearse-grok-installed-runtime.mjs` under native Linux Node 22.23.2,
+with network isolation and empty credential directories.
+
+This is a side-by-side installation, **not live activation**. Existing runtime
+files, account credentials and service configuration were not changed. The
+remaining advisory findings and authenticated video/dashboard acceptance are
+still open; a version/startup smoke does not establish media-generation success.
