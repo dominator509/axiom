@@ -37,6 +37,12 @@ function key(fetch: ReturnType<typeof vi.fn>, index: number) {
 }
 
 describe('generation intent', () => {
+  it('includes the optional sanitizer selection in the queued media intent', async () => {
+    submit(); hooks.values[11] = 'image'; hooks.values[12] = 'Landscape'; hooks.values[17] = true;
+    const fetch = vi.fn().mockResolvedValue(response()); vi.stubGlobal('fetch', fetch);
+    await submit()();
+    expect(JSON.parse(fetch.mock.calls[0][1].body).media.sanitizeMetadata).toBe(true);
+  });
   it.each(['image', 'video'])('submits the %s media contract with the same retry key', async kind => {
     submit(); // Initialize the controlled hook state.
     hooks.values[11] = kind;

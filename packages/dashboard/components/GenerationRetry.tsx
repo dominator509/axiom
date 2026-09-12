@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import MediaPromptSuggestion from './MediaPromptSuggestion';
 
 export default function GenerationRetry({ modelId, bundleId, blocked, onQueued }: {
   modelId: string; bundleId: string; blocked: boolean; onQueued: (id: string) => void;
@@ -49,10 +50,12 @@ export default function GenerationRetry({ modelId, bundleId, blocked, onQueued }
     <p>A retry creates a new bundle and rejects the previous bundle, retaining its evidence. Provider usage may be charged. All moderation and ToS checks run again.</p>
     <button type="button" disabled={busy || !!intent.current} onClick={() => setEditing(true)}>Review suggested modifications</button>
     {editing && <>
-      <p>Make substantive changes: remove explicit sexual content or graphic violence, use a non-sexual scene with fully clothed adults, or choose a neutral product or landscape. For video, also choose a compliant source image through a new generation if needed. Do not just disguise restricted wording.</p>
-      <p>These are general compliance suggestions, not a provider diagnosis or a guarantee of acceptance. Prompt edits cannot fix ZDR, storage, sign-in, or quota errors.</p>
+      <p>Edit the prompt yourself or ask the generating provider for a minimal revision of the last tried prompt below.</p>
+      <p>Prompt edits cannot fix ZDR, storage, sign-in, or quota errors. A video source-image problem may require a new generation with a different source image.</p>
       <label htmlFor={`retry-prompt-${bundleId}`}>Review and write the revised prompt</label>
       <textarea id={`retry-prompt-${bundleId}`} value={prompt} maxLength={4000} disabled={busy || !!intent.current} onChange={e => setPrompt(e.target.value)} />
+      <MediaPromptSuggestion key={bundleId} modelId={modelId} bundleId={bundleId} disabled={busy || !!intent.current}
+        onUse={proposed => { if (!active.current && !intent.current) { setPrompt(proposed); setAcknowledged(false); } }} />
     </>}
     <label><input type="checkbox" checked={acknowledged} disabled={busy} onChange={e => setAcknowledged(e.target.checked)} /> I approve a new generation and possible provider charges.</label>
     <button type="button" disabled={busy || !acknowledged || (blocked && !editing) || (editing && !prompt.trim())} onClick={() => void retry()}>

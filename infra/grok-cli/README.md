@@ -450,7 +450,12 @@ The binary hash recorded in the AWS-LC section predates this dependency update
 and must not be represented as built from this newer lockfile. No updated binary
 has been installed or used with a real account.
 
-### RNG candidate update (validation in progress)
+### RNG candidate update (local build and launch verified)
+
+Published source commit `9f9296c2760a678e152623b673469dabe79e2c9f` passed all six
+jobs in GitHub Actions run `34659466007`, including the RNG regression and
+deployment-container gates. This does not establish production deployment or
+authenticated provider acceptance.
 
 The lock patch selects `rand 0.8.6` and `0.10.1` for RUSTSEC-2026-0097,
 retaining the existing `0.9.5` copy. Only the two affected package versions,
@@ -480,7 +485,10 @@ to the harness, rejects a reverted patch and checksum drift, and preserves the
 real index. All five packaged patches reconstruct the 15 candidate files.
 CI runs this binding check and both Linux regression modes; YAML parsing passes.
 
-The full locked offline CLI rebuild is still in progress. Older candidate hashes
-above predate this RNG change. No updated runtime has been installed and no
-provider call or privacy change was made. Other CLI advisories, installed-runtime
-acceptance, and real video/dashboard acceptance remain open.
+The full locked offline CLI rebuild passed in 12m08s. Candidate SHA-256:
+`c44b2f03712b0854daa78230638168ffb92eb4be665a19923f9c052ad52ca53a`.
+Both direct CLI startup and sealed-image launcher handoff passed the existing
+bubblewrap smoke with networking disabled and empty credentials. Older candidate
+hashes above predate this RNG change. No updated runtime has been installed and
+no provider call or privacy change was made. Other CLI advisories,
+installed-runtime acceptance, and real video/dashboard acceptance remain open.

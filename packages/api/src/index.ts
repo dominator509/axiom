@@ -18,6 +18,7 @@ import { analyticsRouter } from './routes/analytics.js';
 import { viralRouter } from './routes/viral.js';
 import { playbookRouter } from './routes/playbook.js';
 import { generateRouter } from './routes/generate.js';
+import { mediaUploadRouter } from './routes/media-upload.js';
 import { auditRouter } from './routes/audit.js';
 import { incidentsRouter } from './routes/incidents.js';
 import { digestsRouter } from './routes/digests.js';
@@ -806,6 +807,7 @@ app.use('/api/v1/org-settings/*', ownerOnly);
 // Hono's wildcard includes the base path; register once to avoid hashing and
 // reserving the same request twice.
 app.use('/api/v1/models/:modelId/generate/*', idempotency());
+app.use('/api/v1/models/:modelId/media-upload', idempotency(true, 64 * 1024 * 1024));
 app.use('/api/v1/models/:id', idempotency());
 app.use('/api/v1/bundles/*/approve', idempotency());
 app.use('/api/v1/bundles/*/revise', idempotency());
@@ -858,6 +860,7 @@ app.route('/api/v1', analyticsRouter);
 app.route('/api/v1', viralRouter);
 app.route('/api/v1', playbookRouter);
 app.route('/api/v1', generateRouter);
+app.route('/api/v1', mediaUploadRouter);
 app.route('/api/v1', auditRouter);
 app.route('/api/v1', incidentsRouter);
 app.route('/api/v1', digestsRouter);

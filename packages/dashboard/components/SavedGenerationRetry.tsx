@@ -12,8 +12,8 @@ export default function SavedGenerationRetry({ modelId, bundleId, blocked }: {
   const [queued, setQueued] = useState(false);
   if (queued) return <p role="status">Replacement queued. Refresh Approvals to follow its new media and ToS scan.</p>;
   return <details>
-    <summary>Grok generation retry options</summary>
-    <p>Available only for bundles generated through your Grok account. The server checks eligibility; active or uncertain provider outcomes cannot be retried here.</p>
+    <summary>Media generation retry options</summary>
+    <p>Available for generated image and video bundles. The server checks the saved provider and attempt; active or uncertain provider outcomes cannot be retried here.</p>
     <GenerationRetry modelId={modelId} bundleId={bundleId} blocked={blocked} onQueued={() => {
       setQueued(true);
       router.refresh();

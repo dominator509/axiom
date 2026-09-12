@@ -6,6 +6,7 @@ import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import GenerationProgress from './GenerationProgress';
 import GrokConnection from './GrokConnection';
+import MediaUpload from './MediaUpload';
 
 const PLATFORMS = [
   'instagram',
@@ -48,6 +49,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
   const [duration, setDuration] = useState<6 | 10>(6);
   const [sourceImages, setSourceImages] = useState<Array<{ id: string; fileName: string }>>([]);
   const [sourceError, setSourceError] = useState<string | null>(null);
+  const [sanitizeMetadata, setSanitizeMetadata] = useState(false);
   const inFlight = useRef(false);
   const intent = useRef<{ modelId: string; body: string; key: string } | null>(null);
 
@@ -88,6 +90,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         style, outfit, location, mood, lighting, aspectRatio, platforms, enrichWithLlm: enrich,
         ...(mediaKind === 'brief' ? {} : { media: {
           kind: mediaKind, prompt: mediaPrompt.trim(),
+          ...(sanitizeMetadata ? { sanitizeMetadata: true } : {}),
           ...(mediaKind === 'image' ? { aspectRatio } : {}),
           ...(mediaKind === 'video' ? { sourceAssetId, duration } : {}),
         } }),
@@ -125,6 +128,13 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         Media remains pending until generation and visual ToS checks finish. Provider usage may be charged.
       </p>
       <GrokConnection />
+      <MediaUpload modelId={modelId} onUploaded={asset => {
+        if (asset.mimeType.startsWith('image/')) {
+          setSourceImages(previous => [{ id: asset.id, fileName: `Uploaded image ${asset.id}` }, ...previous]);
+          setSourceAssetId(asset.id);
+        }
+        router.refresh();
+      }} />
       <form onSubmit={onSubmit} className="stack" style={{ maxWidth: 640 }}>
         <fieldset disabled={busy} className="stack" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <label htmlFor="mediaKind">Output</label>
@@ -136,6 +146,8 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         {mediaKind !== 'brief' && <>
           <label htmlFor="mediaPrompt">Media prompt</label>
           <textarea id="mediaPrompt" required maxLength={4000} value={mediaPrompt} onChange={e => setMediaPrompt(e.target.value)} />
+          <label><input type="checkbox" checked={sanitizeMetadata} onChange={e => setSanitizeMetadata(e.target.checked)} /> Remove metadata and embedded provenance, including C2PA (optional)</label>
+          <p>Rebuilds generated media and video source images before use. Images become PNG; video is re-encoded. Existing watermarks remain. A cleaning failure holds the result; no automatic generation retry.</p>
         </>}
         {mediaKind === 'video' && <>
           <label htmlFor="sourceAsset">Source image (latest 100 for this model)</label>

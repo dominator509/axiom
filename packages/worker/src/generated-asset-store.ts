@@ -2,6 +2,7 @@ import { constants } from 'node:fs';
 import { mkdir, open, realpath, unlink } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { sanitizeMedia } from './media-sanitizer.js';
 
 export interface GeneratedAssetInput {
   path: string;
@@ -14,8 +15,8 @@ export interface GeneratedAssetInput {
  * The original is retained for reconciliation if a later DB operation fails.
  */
 export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
-  orgId: string; modelId: string; requestRoot: string; mediaRoot: string;
-}): Promise<{ storageKey: string; fileName: string; fileSize: number; sha256: Buffer }> {
+  orgId: string; modelId: string; requestRoot: string; mediaRoot: string; sanitizeMetadata?: boolean;
+}): Promise<{ storageKey: string; fileName: string; fileSize: number; sha256: Buffer; mimeType: GeneratedAssetInput['mimeType'] }> {
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuid.test(scope.orgId) || !uuid.test(scope.modelId)) throw new Error('Invalid asset tenant scope');
   const limit = input.mimeType === 'video/mp4' ? 256 * 1024 * 1024 : 20 * 1024 * 1024;
@@ -34,7 +35,8 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
   const directory = join(root, 'generated', scope.orgId, scope.modelId);
   await mkdir(directory, { recursive: true, mode: 0o700 });
   if (await realpath(directory) !== directory) throw new Error('Unsafe asset directory');
-  const fileName = `${randomUUID()}.${extension}`;
+  const mimeType = scope.sanitizeMetadata && input.mimeType !== 'video/mp4' ? 'image/png' : input.mimeType;
+  const fileName = `${randomUUID()}.${extensions[mimeType]}`;
   const destination = join(directory, fileName);
   const reader = await open(source, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   let created = false;
@@ -46,6 +48,7 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
     created = true;
     const hash = createHash('sha256');
     let copied = 0;
+    const chunks: Buffer[] = [];
     try {
       const buffer = Buffer.alloc(64 * 1024);
       for (;;) {
@@ -61,6 +64,10 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
         }
         copied += bytesRead;
         if (copied > input.byteLength) throw new Error('Generated asset grew during import');
+        if (scope.sanitizeMetadata) {
+          chunks.push(Buffer.from(buffer.subarray(0, bytesRead)));
+          continue;
+        }
         hash.update(buffer.subarray(0, bytesRead));
         let written = 0;
         while (written < bytesRead) {
@@ -73,6 +80,13 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
       if (copied !== input.byteLength || after.size !== before.size
         || after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs)
         throw new Error('Generated asset changed during import');
+      if (scope.sanitizeMetadata) {
+        const sanitized = await sanitizeMedia(Buffer.concat(chunks), input.mimeType);
+        if (sanitized.mimeType !== mimeType) throw new Error('Sanitizer output type mismatch');
+        await writer.writeFile(sanitized.bytes);
+        copied = sanitized.bytes.length;
+        hash.update(sanitized.bytes);
+      }
       await writer.sync();
     } finally { await writer.close(); }
     // Linux deployment requires directory-entry durability as well as file data.
@@ -84,7 +98,7 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
     }
     return {
       storageKey: ['generated', scope.orgId, scope.modelId, fileName].join('/'),
-      fileName, fileSize: copied, sha256: hash.digest(),
+      fileName, fileSize: copied, sha256: hash.digest(), mimeType,
     };
   } catch (error) {
     if (created) await unlink(destination);

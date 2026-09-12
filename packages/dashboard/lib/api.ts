@@ -104,6 +104,8 @@ export interface ModelProfile {
   handle: string;
   avatarUrl: string | null;
   bio: string | null;
+  characterLockPrompt?: string;
+  characterLockVersion?: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

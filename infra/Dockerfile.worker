@@ -64,6 +64,8 @@ FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a55
 RUN addgroup -S -g 1001 axiom-worker && \
     adduser -S -D -H -u 1001 -G axiom-worker axiom-worker
 
+RUN apk add --no-cache ffmpeg
+
 WORKDIR /app
 
 COPY --from=builder /app/pruned/node_modules ./node_modules

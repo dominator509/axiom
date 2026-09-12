@@ -40,3 +40,4 @@ export {
   connectorForTarget,
 } from './connection.js';
 export type { TargetConnectionRef, ResolvedTargetConnector } from './connection.js';
+export { storeGeneratedAsset } from './generated-asset-store.js';

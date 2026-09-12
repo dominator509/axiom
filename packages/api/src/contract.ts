@@ -191,7 +191,9 @@ function idempotencyResponse(
  * execute the handler, and DB failures fail closed rather than risking a
  * repeated outside-world side effect.
  */
-export function idempotency(required = true) {
+export function idempotency(required = true, maxBodyBytes = IDEMPOTENCY_MAX_BODY_BYTES) {
+  if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes < 1 || maxBodyBytes > 64 * 1024 * 1024)
+    throw new Error('Invalid idempotency request limit');
   return async (c: Context, next: Next): Promise<Response | void> => {
     const method = c.req.method;
     const mutating =
@@ -233,7 +235,7 @@ export function idempotency(required = true) {
 
     let requestBytes: Uint8Array;
     try {
-      requestBytes = await readBoundedBytes(c.req.raw, IDEMPOTENCY_MAX_BODY_BYTES);
+      requestBytes = await readBoundedBytes(c.req.raw, maxBodyBytes);
       // The idempotency middleware consumes the raw stream to hash it. Cache
       // an independent ArrayBuffer so downstream Hono JSON/form parsers read
       // the exact same bytes without reopening an unbounded raw stream.

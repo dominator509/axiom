@@ -14,6 +14,10 @@ const nextConfig: NextConfig = {
     : process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   output: 'standalone',
   reactStrictMode: true,
+  experimental: {
+    middlewareClientMaxBodySize: '64mb',
+    proxyTimeout: 660_000,
+  },
   async rewrites() {
     return [
       {

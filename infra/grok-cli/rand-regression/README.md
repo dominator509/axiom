@@ -69,5 +69,8 @@ compiler flags. Both passes are required in CI. Local Linux results: default
 runner and invoked explicitly by its parent. Rust formatting also passed.
 
 Independent patch review prompted both the entropy-failure coverage and the
-shipped-lock binding. Full CLI rebuild and installed-runtime acceptance for
-this candidate remain outstanding; standalone tests are not release proof.
+shipped-lock binding. The full locked offline CLI rebuild subsequently passed
+in 12m08s; direct CLI and sealed-launcher offline startup checks passed with empty
+credentials. Linux all-target/all-feature Clippy also passed with warnings
+denied. Installed-runtime and authenticated media acceptance remain outstanding;
+these tests are not release proof. See the parent README for the candidate hash.

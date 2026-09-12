@@ -1,11 +1,12 @@
 import { and, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { OfficialSubscriptionTransport, type GrokMediaRequest } from '@axiom/llm-gateway';
+import { OfficialSubscriptionTransport, characterLockSnapshot, buildMediaPrompt, type GrokMediaRequest } from '@axiom/llm-gateway';
 import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { open, realpath } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { storeGeneratedAsset } from '../generated-asset-store.js';
+import { sanitizeMedia } from '../media-sanitizer.js';
 import { enqueueJob } from '../enqueue.js';
 import { ParkJobError, type Executor } from './context.js';
 
@@ -16,14 +17,19 @@ export const mediaGenerate: Executor = async (ctx) => {
   const { tx, job } = ctx;
   if (ctx.killSwitchEnabled) throw new ParkJobError('Media generation paused by kill switch', 60_000);
   const payload = job.payload as {
-    bundleId?: string; userId?: string; kind?: string; prompt?: string;
+    bundleId?: string; userId?: string; kind?: string; prompt?: string; provider?: string;
     sourceAssetId?: string; duration?: number; aspectRatio?: GrokMediaRequest['aspectRatio'];
+    characterLockPrompt?: string; characterLockVersion?: number;
+    sanitizeMetadata?: boolean;
   };
   if (!payload.bundleId || !payload.userId || !payload.prompt?.trim()
+    || (payload.sanitizeMetadata !== undefined && typeof payload.sanitizeMetadata !== 'boolean')
+    || (payload.provider !== undefined && payload.provider !== 'grok')
     || payload.prompt.length > 4000 || !['image', 'video'].includes(payload.kind ?? '')
     || (payload.kind === 'video' && (!payload.sourceAssetId || ![6, 10].includes(payload.duration ?? 6)))
     || (payload.kind === 'image' && !['auto', '1:1', '16:9', '9:16', '4:5', '3:2', '2:3'].includes(payload.aspectRatio ?? 'auto')))
     throw new Error('media.generate: invalid request');
+  const effectivePrompt = buildMediaPrompt(payload.prompt, characterLockSnapshot(payload));
   const [actor] = await tx.select().from(schema.authUser).where(and(
     eq(schema.authUser.id, payload.userId), eq(schema.authUser.orgId, job.org_id),
   )).limit(1);
@@ -69,9 +75,10 @@ export const mediaGenerate: Executor = async (ctx) => {
       if (!Buffer.isBuffer(source.sha256) || !createHash('sha256').update(image).digest().equals(source.sha256))
         throw new Error('media.generate: source asset content hash mismatch');
     } finally { await reader.close(); }
+    if (payload.sanitizeMetadata) image = (await sanitizeMedia(image!, source.mimeType as 'image/jpeg' | 'image/png')).bytes;
   }
   const artifact = await new OfficialSubscriptionTransport().generateMedia({
-    kind: payload.kind as 'image' | 'video', userId: payload.userId, prompt: payload.prompt,
+    kind: payload.kind as 'image' | 'video', userId: payload.userId, prompt: effectivePrompt,
     ...(payload.kind === 'image' ? { aspectRatio: payload.aspectRatio ?? 'auto' } : {}),
     ...(image ? { image, duration: (payload.duration ?? 6) as 6 | 10 } : {}),
   }, async () => {
@@ -86,9 +93,10 @@ export const mediaGenerate: Executor = async (ctx) => {
   });
   const stored = await storeGeneratedAsset(artifact, {
     orgId: job.org_id, modelId: bundle.modelId, requestRoot: dirname(artifact.path), mediaRoot,
+    sanitizeMetadata: payload.sanitizeMetadata === true,
   });
   const [inserted] = await tx.insert(schema.asset).values({
-    orgId: job.org_id, modelId: bundle.modelId, kind: payload.kind, mimeType: artifact.mimeType,
+    orgId: job.org_id, modelId: bundle.modelId, kind: payload.kind,
     ...stored,
   }).onConflictDoNothing().returning({ id: schema.asset.id });
   const existing = inserted ? [] : await tx.select().from(schema.asset).where(and(

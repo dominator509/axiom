@@ -16,6 +16,7 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/sanitize-media.mjs <input.jpg|png|mp4> <new-output.png|mp4>` — optional privacy sanitizer shared with upload/generation; build the worker first, requires ffmpeg/ffprobe; strips embedded metadata/C2PA through re-encoding and container validation, never overwrites existing files, does not erase external fingerprint records or watermarks
 - `node scripts/check-grok-rand-contract.mjs --fetch-upstream` — verify shipped RNG lock patch against hash-pinned upstream and harness checksums, including reverted-patch negative control; use `--local-source var/grok-source-37949780` for offline source
 - `node scripts/rehearse-grok-patchset.mjs --isolated-fixture` — apply all pinned Grok patches to a temporary Git index and compare every resulting file with the tested candidate; no credentials, build or upstream checkout edits
 - `node scripts/probe-live-grok-media.mjs --authorized-live-once <user-id> <run-id> image` — Linux-only, explicitly authorized single real Grok image request; exclusive dispatch marker, no retry, no DB writes or publication

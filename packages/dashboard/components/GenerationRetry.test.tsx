@@ -86,3 +86,12 @@ it('unlocks edits only after a confirmed no-dispatch eligibility rejection', asy
   await vi.waitFor(() => expect(hooks.values[3]).toBe(false));
   expect(render()[1].props.disabled).toBe(false);
 });
+it('copies a Grok proposal into the editor but requires fresh generation consent', () => {
+  render(true)[1].props.onClick();
+  render(true)[3].props.children[0].props.onChange({ target: { checked: true } });
+  render(true)[2].props.children[4].props.onUse('A reviewed Grok revision');
+  expect(hooks.values[1]).toBe('A reviewed Grok revision');
+  expect(hooks.values[2]).toBe(false);
+  expect(hooks.fetch).not.toHaveBeenCalled();
+  expect(render(true)[4].props.disabled).toBe(true);
+});

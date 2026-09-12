@@ -5,7 +5,8 @@ const state = vi.hoisted(() => ({
   rows: [] as unknown[], markerRows: [] as unknown[], events: [] as string[],
   generate: vi.fn(), store: vi.fn(), enqueue: vi.fn(),
 }));
-vi.mock('@axiom/llm-gateway', () => ({ OfficialSubscriptionTransport: class { generateMedia = state.generate; } }));
+vi.mock('@axiom/llm-gateway', async original => ({ ...await original<typeof import('@axiom/llm-gateway')>(),
+  OfficialSubscriptionTransport: class { generateMedia = state.generate; } }));
 vi.mock('../generated-asset-store.js', () => ({ storeGeneratedAsset: state.store }));
 vi.mock('../enqueue.js', () => ({ enqueueJob: state.enqueue }));
 import { mediaGenerate } from './media_generate.js';
@@ -47,6 +48,37 @@ beforeEach(() => {
   state.enqueue.mockResolvedValue(undefined);
 });
 describe('one-shot media worker', () => {
+  it('enforces requested sanitization before enqueueing visual ToS', async () => {
+    const ctx = context();
+    ctx.job.payload = { ...ctx.job.payload, sanitizeMetadata: true };
+    state.store.mockRejectedValueOnce(new Error('Sanitization failed'));
+    await expect(mediaGenerate(ctx)).rejects.toThrow('Sanitization failed');
+    expect(state.store).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ sanitizeMetadata: true }));
+    expect(state.enqueue).not.toHaveBeenCalled();
+    expect(state.generate).toHaveBeenCalledOnce();
+  });
+  it('uses the job character-lock snapshot verbatim when dispatching', async () => {
+    const ctx = context();
+    ctx.job.payload = { ...ctx.job.payload, characterLockPrompt: 'Freckles and green eyes', characterLockVersion: 3 };
+    await mediaGenerate(ctx);
+    expect(state.generate).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: 'CHARACTER / PERSONA — preserve this identity:\nFreckles and green eyes\n\nSCENE:\nLandscape',
+    }), expect.any(Function));
+  });
+  it('rejects malformed lock snapshots before dispatch', async () => {
+    const ctx = context();
+    ctx.job.payload = { ...ctx.job.payload, characterLockPrompt: 'Missing revision' };
+    await expect(mediaGenerate(ctx)).rejects.toThrow('Invalid character lock snapshot');
+    expect(state.events).toEqual([]);
+    expect(state.generate).not.toHaveBeenCalled();
+  });
+  it('rejects an unsupported provider before persisting a dispatch or calling Grok', async () => {
+    const ctx = context();
+    ctx.job.payload = { ...ctx.job.payload, provider: 'unsupported-provider' };
+    await expect(mediaGenerate(ctx)).rejects.toThrow('invalid request');
+    expect(state.events).toEqual([]);
+    expect(state.generate).not.toHaveBeenCalled();
+  });
   it('accepts the manager role authorized by the generation API', async () => {
     state.rows[0] = [{ id: 'user', role: 'manager' }];
     await mediaGenerate(context());
