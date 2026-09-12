@@ -509,3 +509,20 @@ This is a side-by-side installation, **not live activation**. Existing runtime
 files, account credentials and service configuration were not changed. The
 remaining advisory findings and authenticated video/dashboard acceptance are
 still open; a version/startup smoke does not establish media-generation success.
+
+### Local configuration and container acceptance (2026-09-12)
+
+The three executable entries in ignored `var/grok-runtime.env` now select the
+side-by-side patched installation. Readback verified all three paths. No API
+restart has been performed, so this does not prove the running service uses it.
+Native WSL initially lacked FFmpeg and ffprobe; dependency installation is in
+progress and native sanitizer rehearsal remains pending.
+
+CI run `34664797413`, commit `f571bcd91b22a9b9922d56bb2cb1f21a6452e852`,
+passed all six gates. The completed container log explicitly confirms concurrent
+character-lock save/readback/replay and real synthetic PNG upload, packaged
+sanitization, replay/deduplication, source listing and tenant rejection. A
+disposable fixture bundle served the uploaded bytes through authenticated media
+delivery; their hash matched the database and the private trailer was absent.
+This is deployed-container HTTP evidence, not browser UI interaction, a real
+provider generation, a moderation decision or production deployment.
