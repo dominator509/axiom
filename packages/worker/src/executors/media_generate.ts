@@ -78,7 +78,7 @@ export const mediaGenerate: Executor = async (ctx) => {
     if (payload.sanitizeMetadata) image = (await sanitizeMedia(image!, source.mimeType as 'image/jpeg' | 'image/png')).bytes;
   }
   const artifact = await new OfficialSubscriptionTransport().generateMedia({
-    kind: payload.kind as 'image' | 'video', userId: payload.userId, prompt: effectivePrompt,
+    kind: payload.kind as 'image' | 'video', userId: payload.userId, orgId: job.org_id, prompt: effectivePrompt,
     ...(payload.kind === 'image' ? { aspectRatio: payload.aspectRatio ?? 'auto' } : {}),
     ...(image ? { image, duration: (payload.duration ?? 6) as 6 | 10 } : {}),
   }, async () => {

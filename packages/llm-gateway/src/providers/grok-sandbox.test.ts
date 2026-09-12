@@ -15,6 +15,14 @@ const input = {
 afterEach(() => { vi.resetAllMocks(); osPlatform.mockReturnValue('linux'); exists.mockReturnValue(true); });
 
 describe('Grok Linux request filesystem boundary', () => {
+  it('binds the scoped storage config read-only at the CLI system config path', () => {
+    canonical.mockImplementation(path => resolve(path));
+    const managedConfigPath = resolve('/fixture/private-r2.toml');
+    const command = grokSandboxCommand({ ...input, managedConfigPath });
+    const index = command.args.indexOf(managedConfigPath);
+    expect(command.args.slice(index - 1, index + 2)).toEqual(['--ro-bind', managedConfigPath, '/etc/grok/managed_config.toml']);
+    expect(command.env).toEqual({});
+  });
   it('mounts only this request, its credentials and runtime dependencies', () => {
     canonical.mockImplementation(path => resolve(path));
     const command = grokSandboxCommand(input);

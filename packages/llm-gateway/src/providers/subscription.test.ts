@@ -13,6 +13,7 @@ vi.mock('node:child_process', () => ({ spawn: spawnMock }));
 vi.mock('./grok-sandbox.js', () => ({ grokSandboxCommand: sandboxMock }));
 
 import { OfficialSubscriptionTransport } from './subscription.js';
+import { saveR2Storage } from '../grok-r2-storage.js';
 
 type FakeChild = EventEmitter & {
   stdin: PassThrough;
@@ -478,11 +479,20 @@ describe('official subscription auth command lifecycle', () => {
     // This is a command-wiring test. OS enforcement is rehearsed separately.
     sandboxMock.mockImplementation(input => ({ command: '/usr/bin/bwrap', args: input.args,
       env: { GROK_HOME: input.requestRoot }, cwd: input.requestRoot }));
+    vi.stubEnv('BETTER_AUTH_SECRET', 'test-only-r2-session-secret-32-characters');
+    saveR2Storage({ userId: 'user-1', orgId: 'r2-test-org' }, {
+      endpoint: `https://${'1'.repeat(32)}.r2.cloudflarestorage.com`, bucket: 'test-media',
+      accessKeyId: 'a'.repeat(32), secretAccessKey: 'b'.repeat(64),
+    });
     const pending = transport.generateMedia({
-      kind, userId: 'user-1', prompt: 'A landscape',
+      kind, userId: 'user-1', orgId: 'r2-test-org', prompt: 'A landscape',
       ...(kind === 'video' ? { image: Buffer.from([255, 216, 255, ...Array(13).fill(0)]) } : {}),
     });
     const [, args, options] = spawnMock.mock.calls.at(-1)! as [string, string[], { env: NodeJS.ProcessEnv }];
+    const managedConfigPath = sandboxMock.mock.calls.at(-1)![0].managedConfigPath as string | undefined;
+    if (kind === 'video') expect(readFileSync(managedConfigPath!, 'utf8')).toContain('[tools.zdr_video_output_s3.read_write]');
+    else expect(managedConfigPath).toBeUndefined();
+    expect(JSON.stringify([args, options])).not.toContain('b'.repeat(64));
     const tool = kind === 'image' ? 'image_gen' : 'image_to_video';
     expect(args[args.indexOf('--tools') + 1]).toBe(tool);
     expect(args).not.toContain('--agents');
@@ -515,6 +525,7 @@ describe('official subscription auth command lifecycle', () => {
     child.emit('exit', 0);
     await expect(pending).resolves.toMatchObject({ path, mimeType: kind === 'image' ? 'image/jpeg' : 'video/mp4' });
     expect(existsSync(promptFile)).toBe(false);
+    if (managedConfigPath) expect(existsSync(managedConfigPath)).toBe(false);
     expect(spawnMock).toHaveBeenCalledTimes(1);
     expect(spawnMock.mock.calls[0]?.[0]).toBe('/usr/bin/bwrap');
     expect(sandboxMock).toHaveBeenCalledWith(expect.objectContaining({ credentialRoot: credentials }));

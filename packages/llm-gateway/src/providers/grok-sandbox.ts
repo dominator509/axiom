@@ -22,6 +22,7 @@ export function grokSandboxCommand(input: {
   credentialRoot: string;
   args: string[];
   imageLauncher?: { executable: string; byteLength: number };
+  managedConfigPath?: string;
 }): GrokSandboxCommand {
   if (platform() !== 'linux' || !existsSync('/usr/bin/bwrap')) {
     throw new ProviderError('Grok media requires the Linux CLI isolation runtime', 503, 'grok');
@@ -31,7 +32,8 @@ export function grokSandboxCommand(input: {
     throw new ProviderError('Invalid isolated image transfer length', 400, 'grok');
   }
   for (const path of [input.executable, input.requestRoot, input.credentialRoot,
-    ...(input.imageLauncher ? [input.imageLauncher.executable] : [])]) {
+    ...(input.imageLauncher ? [input.imageLauncher.executable] : []),
+    ...(input.managedConfigPath ? [input.managedConfigPath] : [])]) {
     if (!isAbsolute(path) || realpathSync(path) !== resolve(path)) {
       throw new ProviderError('Unsafe Grok isolation path', 503, 'grok');
     }
@@ -47,6 +49,7 @@ export function grokSandboxCommand(input: {
     if (existsSync(path)) args.push('--ro-bind', path, path);
   }
   if (input.imageLauncher) args.push('--ro-bind', input.imageLauncher.executable, '/grok-input-launch');
+  if (input.managedConfigPath) args.push('--ro-bind', input.managedConfigPath, '/etc/grok/managed_config.toml');
   args.push(
     '--ro-bind', input.executable, '/grok',
     '--bind', input.credentialRoot, '/credentials',

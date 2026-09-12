@@ -9,6 +9,7 @@ import type { LLMGateway } from './gateway.js';
 import { ProviderError } from './providers/types.js';
 import { PLATFORMS } from './prompts.js';
 import { GrokLoginAttempts } from './grok-login-attempts.js';
+import { r2StorageSchema, r2StorageStatus, saveR2Storage, removeR2Storage } from './grok-r2-storage.js';
 
 type GatewayEnv = {
   Variables: { userId: string; orgId: string };
@@ -133,7 +134,48 @@ const tokenkillerBodySchema = chatBodySchema.extend({
 export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
   const router = new Hono<GatewayEnv>();
   const grokLogins = new GrokLoginAttempts(gateway);
+  router.use('/subscriptions/grok/r2-storage', async (c, next) => {
+    await next();
+    c.header('Cache-Control', 'no-store');
+    c.header('Referrer-Policy', 'no-referrer');
+  });
+  router.use('/subscriptions/grok/r2-storage', async (c, next) => {
+    c.header('Cache-Control', 'no-store');
+    c.header('Referrer-Policy', 'no-referrer');
+    if (!c.get('userId') || !c.get('orgId')) return problemResponse(c, 401, 'Authenticated workspace required');
+    if (c.req.method !== 'GET') {
+      let expected: string;
+      try {
+        const origin = new URL(process.env.BETTER_AUTH_URL!);
+        if (origin.protocol !== 'https:' && !(origin.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname)))
+          throw new Error('HTTPS required');
+        expected = origin.origin;
+      }
+      catch { return problemResponse(c, 503, 'Secure storage setup unavailable'); }
+      if (c.req.header('Origin') !== expected) return problemResponse(c, 403, 'Same-origin request required');
+      if (c.req.method === 'PUT' && c.req.header('Content-Type') !== 'application/json')
+        return problemResponse(c, 415, 'JSON required');
+    }
+    await next();
+  });
   router.use('*', boundedJsonBody);
+
+  router.get('/subscriptions/grok/r2-storage', c => {
+    try { return c.json(r2StorageStatus({ userId: c.get('userId'), orgId: c.get('orgId') })); }
+    catch { return problemResponse(c, 503, 'Unable to read storage configuration'); }
+  });
+  router.put('/subscriptions/grok/r2-storage', async c => {
+    let value: unknown;
+    try { value = await c.req.json(); } catch { return problemResponse(c, 400, 'Invalid storage configuration'); }
+    const parsed = r2StorageSchema.safeParse(value);
+    if (!parsed.success) return problemResponse(c, 400, 'Invalid R2 endpoint, bucket or credential format');
+    try { return c.json(saveR2Storage({ userId: c.get('userId'), orgId: c.get('orgId') }, parsed.data)); }
+    catch { return problemResponse(c, 503, 'Storage save unconfirmed; check status before trying again'); }
+  });
+  router.delete('/subscriptions/grok/r2-storage', c => {
+    try { return c.json(removeR2Storage({ userId: c.get('userId'), orgId: c.get('orgId') })); }
+    catch { return problemResponse(c, 503, 'Unable to remove storage configuration'); }
+  });
 
   router.use('/subscriptions/grok/*', async (c, next) => {
     await next();

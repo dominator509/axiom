@@ -19,9 +19,11 @@ import { ProviderError } from './types.js';
 import { GrokMediaResult, type GrokMediaArtifact, type GrokMediaKind } from './grok-media.js';
 import { grokSandboxCommand } from './grok-sandbox.js';
 import { waitForLinuxProcessGroup } from './subscription-process.js';
+import { loadR2Storage, r2ManagedConfig } from '../grok-r2-storage.js';
 
 export interface GrokMediaRequest {
   userId: string;
+  orgId?: string;
   kind: GrokMediaKind;
   prompt: string;
   aspectRatio?: 'auto' | '1:1' | '16:9' | '9:16' | '4:5' | '3:2' | '2:3';
@@ -926,7 +928,18 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
     const spec = buildCommand(base);
     const tool = request.kind === 'image' ? 'image_gen' : 'image_to_video';
     let safeToCleanup = true;
+    let managedConfigPath: string | undefined;
     try {
+      if (request.kind === 'video' && request.orgId) {
+        const scope = { userId: request.userId, orgId: request.orgId };
+        let storage;
+        try { storage = loadR2Storage(scope); }
+        catch { throw new ProviderError('Unable to load private video storage configuration', 503, 'grok'); }
+        if (storage) {
+          managedConfigPath = join(requestRoot, 'r2-managed.toml');
+          writeFileSync(managedConfigPath, r2ManagedConfig(storage, scope), { flag: 'wx', mode: 0o600 });
+        }
+      }
       // Replace the legacy prompt location before entering the isolated mount.
       rmSync(spec.promptFile!, { force: true });
       spec.promptFile = join(requestRoot, 'intent.prompt');
@@ -947,6 +960,7 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
       Object.assign(spec, grokSandboxCommand({
         executable: imageBytes ? videoExecutable! : spec.command,
         requestRoot, credentialRoot: credentials, args: spec.args,
+        ...(managedConfigPath ? { managedConfigPath } : {}),
         ...(imageBytes ? { imageLauncher: { executable: imageLauncher!, byteLength: imageBytes.length } } : {}),
       }));
       const result = new GrokMediaResult(request.kind);
@@ -964,6 +978,9 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
       }
       return await result.artifact(requestRoot, sessionId);
     } finally {
+      // Remove the host plaintext even on uncertain termination. A live Linux
+      // bind mount retains its inode only until that sandbox terminates.
+      if (managedConfigPath) rmSync(managedConfigPath, { force: true });
       if (safeToCleanup) {
         if (spec.promptFile) rmSync(spec.promptFile, { force: true });
       }
