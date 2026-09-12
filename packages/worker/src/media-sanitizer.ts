@@ -82,6 +82,13 @@ export function cleanEncodedMp4(bytes: Buffer): Buffer {
         if (size < header + 24) throw new Error('Invalid MP4 handler');
         out.fill(0, offset + header + 24, offset + size);
       }
+      if (kind === 'colr') {
+        // Only standardized numeric colour descriptions may survive. ICC
+        // profiles can carry arbitrary private data and creator identifiers.
+        const colourType = out.toString('ascii', offset + header, offset + header + 4);
+        if (!((colourType === 'nclx' && size === header + 11) || (colourType === 'nclc' && size === header + 10)))
+          throw new Error('Unverified colour-profile payload');
+      }
       if (['mvhd', 'tkhd', 'mdhd'].includes(kind)) {
         const times = out[offset + header] === 1 ? 16 : 8;
         if (size < header + 4 + times) throw new Error('Invalid MP4 timestamps');
@@ -160,6 +167,28 @@ export async function sanitizeMedia(bytes: Buffer, mimeType: SanitizableMime): P
       '-fs', String(limit + 1), output], directory);
     const info = await stat(output);
     if (!info.isFile() || info.size < 12 || info.size > limit) throw new Error('Sanitized output exceeds limit');
+    if (!video) {
+      // Fully transparent pixels can conceal RGB content. Decode the new PNG
+      // to raw pixels, erase only invisible RGB, and rebuild without metadata.
+      const png = await readFile(output);
+      const width = png.readUInt32BE(16), height = png.readUInt32BE(20);
+      const rawSize = width * height * 4;
+      if (!Number.isSafeInteger(rawSize) || rawSize < 4 || rawSize > 160_000_000) throw new Error('Invalid pixel buffer size');
+      const rawPath = join(directory, 'pixels.rgba');
+      await run('ffmpeg', ['-nostdin', '-v', 'error', '-xerror', '-n', '-protocol_whitelist', 'file', '-i', output,
+        '-frames:v', '1', '-pix_fmt', 'rgba', '-f', 'rawvideo', '-fs', String(rawSize + 1), rawPath], directory, 60_000);
+      if ((await stat(rawPath)).size !== rawSize) throw new Error('Incomplete decoded pixels');
+      const pixels = await readFile(rawPath);
+      for (let offset = 0; offset < pixels.length; offset += 4) {
+        if (pixels[offset + 3] === 0) pixels.fill(0, offset, offset + 3);
+      }
+      await writeFile(rawPath, pixels, { mode: 0o600 });
+      await run('ffmpeg', ['-nostdin', '-v', 'error', '-xerror', '-y', '-protocol_whitelist', 'file',
+        '-f', 'rawvideo', '-pixel_format', 'rgba', '-video_size', `${width}x${height}`, '-i', rawPath,
+        '-frames:v', '1', '-c:v', 'png', '-threads', '2', '-fflags', '+bitexact', '-flags:v', '+bitexact',
+        '-map_metadata', '-1', '-f', 'image2', '-fs', String(limit + 1), output], directory, 60_000);
+      if ((await stat(output)).size > limit) throw new Error('Sanitized output exceeds limit');
+    }
     const encoded = await readFile(output);
     const cleaned = video ? cleanEncodedMp4(encoded) : cleanEncodedPng(encoded);
     // Verify the actual cleaned bytes still decode, not merely FFmpeg's input.

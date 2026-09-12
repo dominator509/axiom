@@ -36,6 +36,25 @@ it('rejects truncated and malformed containers', () => {
   expect(() => cleanEncodedMp4(Buffer.from('malformed'))).toThrow();
   expect(() => cleanEncodedPng(Buffer.from('malformed'))).toThrow();
 });
+it('rejects opaque colour profiles rather than preserving their private payloads', () => {
+  const media = (profile: Buffer) => Buffer.concat([box('ftyp', Buffer.from('isom0000')),
+    box('moov', box('colr', profile)), box('mdat', Buffer.from('pixels'))]);
+  expect(() => cleanEncodedMp4(media(Buffer.from('profprivate-ICC-author')))).toThrow('colour-profile');
+  expect(() => cleanEncodedMp4(media(Buffer.concat([Buffer.from('nclx'), Buffer.alloc(7)])))).not.toThrow();
+});
+it('erases hidden RGB under zero alpha without changing visible pixels', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'axiom-hidden-pixels-'));
+  try {
+    const raw = join(root, 'input.rgba'), input = join(root, 'input.png'), output = join(root, 'output.png');
+    await writeFile(raw, Buffer.from([203, 17, 211, 0, 71, 83, 95, 255]));
+    execFileSync('ffmpeg', ['-v', 'error', '-f', 'rawvideo', '-pixel_format', 'rgba', '-video_size', '2x1',
+      '-i', raw, '-frames:v', '1', '-c:v', 'png', input], { windowsHide: true });
+    const result = await sanitizeMedia(await readFile(input), 'image/png');
+    await writeFile(output, result.bytes);
+    const decoded = execFileSync('ffmpeg', ['-v', 'error', '-i', output, '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'], { windowsHide: true });
+    expect(decoded).toEqual(Buffer.from([0, 0, 0, 0, 71, 83, 95, 255]));
+  } finally { await rm(root, { recursive: true, force: true }); }
+}, 30_000);
 it.each(['image', 'jpeg', 'video'] as const)('rebuilds real %s media and removes injected provenance', async kind => {
   const root = await mkdtemp(join(tmpdir(), 'axiom-sanitizer-test-'));
   try {
