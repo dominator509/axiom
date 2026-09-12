@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { and, eq } from 'drizzle-orm';
-import { consentRequirementMessage, getPublishingConsentStatus } from '@axiom/db';
 import { Tier, type AgentPermission, tierAtLeast } from '../auth.js';
 import { withModelOrg, schema } from '../org-context.js';
 import { enqueueJob } from '@axiom/worker';
@@ -38,12 +37,12 @@ export type PublishingInput = z.infer<typeof PublishingInputSchema>;
  * - Viewer:   DENIED
  * - Operator: DENIED (use Relay for direct operations)
  * - Manager:  ALLOWED with requiresApproval=true
- * - Autonomous: ALLOWED, requiresApproval=false
+ * - Autonomous: ALLOWED, requiresApproval=true
  *
- * Real behaviour (H-2): creates a content_bundle and, for Autonomous calls,
- * an idem-keyed post_target (LBI-05) plus publish.target job in the same
- * org-scoped txn. Manager calls stop at the generated bundle and wait for the
- * dashboard/Relay approval path to create the target and enqueue publishing.
+ * Real behaviour (H-2): creates a generated content_bundle in the same
+ * org-scoped txn. Every tier stops at the generated bundle and waits for the
+ * dashboard/Relay approval path, which owns the durable ToS gate and creates
+ * the post target plus publish job.
  */
 export class PublishingTool {
   name = 'publishing_post';
@@ -53,10 +52,11 @@ export class PublishingTool {
   tier: Tier = Tier.Manager;
 
   /**
-   * Approval is required at Manager tier but NOT at Autonomous tier.
+   * Approval is required for every tier until an automated ToS scan and
+   * approval handoff exists for this tool.
    */
   get requiresApproval(): boolean {
-    return false; // evaluated dynamically in handle()
+    return true;
   }
 
   async handle(args: PublishingInput, permission: AgentPermission): Promise<unknown> {
@@ -69,8 +69,6 @@ export class PublishingTool {
       );
     }
 
-    const isAutonomous = permission.tier === Tier.Autonomous;
-    const needsApproval = !isAutonomous;
     const bundleId = uuidv4();
     const mediaId = args.post.mediaIds?.[0] ?? null;
 
@@ -78,21 +76,7 @@ export class PublishingTool {
       throw new Error(`publishing_post: ${args.post.platform} requires at least one mediaId`);
     }
 
-    const scheduledFor = args.post.scheduledAt ? new Date(args.post.scheduledAt) : null;
-
     await withModelOrg(args.modelId, async (tx, orgId) => {
-      if (isAutonomous) {
-        const consent = await getPublishingConsentStatus(
-          tx,
-          orgId,
-          args.modelId,
-          args.post.platform,
-        );
-        if (!consent.ok) {
-          throw new Error(consentRequirementMessage(consent, args.post.platform));
-        }
-      }
-
       let assetId: string | null = null;
       if (mediaId) {
         const assets = await tx
@@ -122,36 +106,20 @@ export class PublishingTool {
         assetId,
         captions: args.post.text ? { [args.post.platform]: args.post.text } : {},
         hashtags: [],
-        // Autonomous publishing has already satisfied the approval gate.
-        // publish.target only accepts approved bundles, so leaving this as
-        // generated would enqueue a job that can never reach its connector.
-        state: isAutonomous ? 'approved' : 'generated',
-      });
-
-      if (!isAutonomous) return;
-
-      // 2. post_target with an idempotency key (LBI-05 / L3.1 §11).
-      const [target] = await tx
-        .insert(schema.postTarget)
-        .values({
-          orgId,
-          bundleId,
+        publishIntent: {
+          action: args.action,
           platform: args.post.platform,
-          scheduledFor,
-          state: 'pending',
-          idemKey: Buffer.from(bundleId + '|' + args.post.platform + '|' + args.action),
-        })
-        .returning({ id: schema.postTarget.id });
-      if (!target?.id) throw new Error('publishing_post: target insert returned no id');
-
-      // 3. Enqueue the publish job in the same txn (L3.4 §1 dedupe).
+          scheduledAt: args.post.scheduledAt ?? null,
+        },
+        state: 'generated',
+      });
       await enqueueJob(tx, {
         orgId,
-        queue: 'publish',
-        kind: 'publish.target',
-        payload: { targetId: target.id },
-        runAfter: scheduledFor ?? new Date(),
-        dedupeParts: ['publish.target', target.id],
+        queue: 'tos',
+        kind: 'tos.scan',
+        payload: { bundleId },
+        runAfter: new Date(),
+        dedupeParts: ['tos.scan', bundleId],
       });
     });
 
@@ -159,15 +127,13 @@ export class PublishingTool {
       success: true,
       tool: this.name,
       bundleId,
-      requiresApproval: needsApproval,
+      requiresApproval: true,
       action: args.action,
       modelId: args.modelId,
       platform: args.post.platform,
-      status: needsApproval ? 'pending_approval' : 'queued',
+      status: 'pending_approval',
       scheduledAt: args.post.scheduledAt ?? null,
-      message: needsApproval
-        ? 'Publishing request submitted for human approval via Relay.'
-        : 'Post queued for publishing (Autonomous mode).',
+      message: 'Publishing request submitted for human approval via Relay.',
     };
   }
 }

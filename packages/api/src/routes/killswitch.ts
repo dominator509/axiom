@@ -4,7 +4,7 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { zValidator } from '@hono/zod-validator';
+import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
@@ -59,6 +59,7 @@ router.post('/killswitch/enable', zValidator('json', killSwitchSchema), async (c
   const userId = c.get('userId') ?? 'system';
 
   const updated = await withOrgContext(orgId, async (tx) => {
+    await getSettings(tx, orgId);
     const [row] = await tx
       .update(schema.orgSettings)
       .set({
@@ -92,6 +93,7 @@ router.post('/killswitch/disable', async (c) => {
   const userId = c.get('userId') ?? 'system';
 
   const updated = await withOrgContext(orgId, async (tx) => {
+    await getSettings(tx, orgId);
     const [row] = await tx
       .update(schema.orgSettings)
       .set({
@@ -126,6 +128,7 @@ router.post('/kill-switch', zValidator('json', killSwitchSchema), async (c) => {
   // model's egress config; the plane already supports per-model binds, so
   // the dashboard only exposes the org-wide switch (LBI-11).
   const updated = await withOrgContext(orgId, async (tx) => {
+    await getSettings(tx, orgId);
     const [row] = await tx
       .update(schema.orgSettings)
       .set({

@@ -8,7 +8,7 @@ import { db, schema } from '@axiom/db';
 import { backoffDelayMs } from './backoff.js';
 import { claimNextJob } from './claim.js';
 import { defaultExecutors } from './executors/index.js';
-import { ParkJobError } from './executors/context.js';
+import { EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX, ParkJobError } from './executors/context.js';
 import type { Executor } from './executors/context.js';
 import type { JobRow } from './types.js';
 
@@ -36,6 +36,17 @@ export interface WorkerStats {
 }
 
 const JOB_LEASE_HEARTBEAT_MS = 5 * 60_000;
+
+class JobLeaseLostError extends Error {
+  constructor(jobId: string) {
+    super(`worker: job ${jobId} lease ownership lost during execution`);
+    this.name = 'JobLeaseLostError';
+  }
+}
+
+interface LeaseState {
+  lost: JobLeaseLostError | null;
+}
 
 function ownedRunningJob(job: JobRow, workerId: string) {
   return and(
@@ -72,13 +83,23 @@ async function updateOwnedJob(
 async function renewJobLease(job: JobRow, workerId: string): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
-    await tx.update(schema.job).set({ lockedAt: new Date() }).where(ownedRunningJob(job, workerId));
+    const rows = await tx
+      .update(schema.job)
+      .set({ lockedAt: new Date() })
+      .where(ownedRunningJob(job, workerId))
+      .returning({ id: schema.job.id });
+    if (!Array.isArray(rows) || rows.length !== 1) {
+      throw new JobLeaseLostError(job.id);
+    }
   });
 }
 
-function startJobLeaseHeartbeat(job: JobRow, workerId: string): () => void {
+function startJobLeaseHeartbeat(job: JobRow, workerId: string, leaseState: LeaseState): () => void {
   const timer = setInterval(() => {
     void renewJobLease(job, workerId).catch((err: unknown) => {
+      if (!leaseState.lost) {
+        leaseState.lost = err instanceof JobLeaseLostError ? err : new JobLeaseLostError(job.id);
+      }
       console.error('[worker] job lease renewal failed:', (err as Error).message ?? String(err));
     });
   }, JOB_LEASE_HEARTBEAT_MS);
@@ -92,8 +113,9 @@ export async function readKillSwitch(tx: any, orgId: string): Promise<boolean> {
     .from(schema.orgSettings)
     .where(sql`${schema.orgSettings.orgId} = ${orgId}`)
     .limit(1);
-  if (rows.length === 0) return false; // default: publishing enabled
-  return !rows[0].publishingEnabled;
+  // A missing or malformed safety record must halt publishing until an
+  // operator has explicitly established the desired state.
+  return rows.length === 0 || rows[0]?.publishingEnabled !== true;
 }
 
 /**
@@ -111,7 +133,9 @@ export async function processJob(
     throw new Error(`worker: no executor for kind '${job.kind}'`);
   }
 
-  const stopLeaseHeartbeat = startJobLeaseHeartbeat(job, workerId);
+  const leaseState: LeaseState = { lost: null };
+  const stopLeaseHeartbeat = startJobLeaseHeartbeat(job, workerId, leaseState);
+  let externalSideEffectStarted = false;
   try {
     // claim_job set the org context only for ITS transaction; this executor
     // runs in a fresh txn, so set the org context from the claimed job first
@@ -119,7 +143,26 @@ export async function processJob(
     const result = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
       const killSwitchEnabled = await readKillSwitch(tx, job.org_id);
-      await executor({ tx, job, workerId, killSwitchEnabled });
+      await executor({
+        tx,
+        job,
+        workerId,
+        killSwitchEnabled,
+        markExternalSideEffect: () => {
+          if (leaseState.lost) throw leaseState.lost;
+          externalSideEffectStarted = true;
+        },
+        persistSideEffectMarker: async <T>(operation: (markerTx: any) => Promise<T>) => {
+          if (leaseState.lost) throw leaseState.lost;
+          return db.transaction(async (markerTx) => {
+            await markerTx.execute(
+              sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`,
+            );
+            return operation(markerTx);
+          });
+        },
+      });
+      if (leaseState.lost) throw leaseState.lost;
       await updateOwnedJob(tx, job, workerId, {
         state: 'done',
         completedAt: new Date(),
@@ -129,9 +172,39 @@ export async function processJob(
       });
       return 'done' as const;
     });
+    // Keep the claimed row's local snapshot aligned with the durable state so
+    // workerTick can report a useful outcome to the long-running loop.
+    job.last_error = null;
     return result;
   } catch (err) {
+    // A lost lease means another worker may own the row, or may reclaim it
+    // once the stale-lease window expires. Do not mutate it from this worker;
+    // leaving it running lets the database recovery path decide the next
+    // state without risking a conflicting retry or dead-letter transition.
+    if (err instanceof JobLeaseLostError || leaseState.lost) {
+      throw leaseState.lost ?? err;
+    }
+
+    // Once provider I/O has started, a later failure has an unknown external
+    // outcome. Retrying would be unsafe: the provider may already have
+    // accepted the publish/card. Dead-letter it for reconciliation instead.
+    if (externalSideEffectStarted) {
+      const message = (err as Error).message ?? String(err);
+      job.last_error = `${EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX} ${message}`;
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
+        await updateOwnedJob(tx, job, workerId, {
+          state: 'dead',
+          lastError: `${EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX} ${message}`,
+          lockedBy: null,
+          lockedAt: null,
+        });
+      });
+      return 'dead';
+    }
+
     if (err instanceof ParkJobError) {
+      job.last_error = err.message;
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
         await updateOwnedJob(tx, job, workerId, {
@@ -146,6 +219,7 @@ export async function processJob(
     }
 
     const message = (err as Error).message ?? String(err);
+    job.last_error = message;
     const attempts = (job.attempts ?? 0) + 1;
     const maxAttempts = opts.maxAttempts ?? job.max_attempts ?? 3;
 
@@ -215,6 +289,9 @@ export async function workerTick(opts: WorkerOptions = {}): Promise<WorkerStats>
   else if (outcome === 'retry') stats.failed = 1;
   else if (outcome === 'dead') stats.dead = 1;
   else stats.parked = 1;
+  if (outcome !== 'done') {
+    stats.lastError = claimed.last_error ?? `job ${claimed.id} ended with ${outcome}`;
+  }
 
   return stats;
 }

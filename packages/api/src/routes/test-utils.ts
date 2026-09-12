@@ -5,7 +5,12 @@
 
 import { vi } from 'vitest';
 
-export const mockState: { result: unknown; results: unknown[] } = { result: [], results: [] };
+export const mockState: {
+  result: unknown;
+  results: unknown[];
+  updates: unknown[];
+  conflictUpdates: unknown[];
+} = { result: [], results: [], updates: [], conflictUpdates: [] };
 
 export function makeChain(): any {
   const handler = {
@@ -14,6 +19,18 @@ export function makeChain(): any {
         return (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => {
           const value = mockState.results.length > 0 ? mockState.results.shift() : mockState.result;
           Promise.resolve(value).then(resolve, reject);
+        };
+      }
+      if (prop === 'set') {
+        return (values: unknown) => {
+          mockState.updates.push(values);
+          return makeChain();
+        };
+      }
+      if (prop === 'onConflictDoUpdate') {
+        return (values: unknown) => {
+          mockState.conflictUpdates.push(values);
+          return makeChain();
         };
       }
       return () => makeChain();

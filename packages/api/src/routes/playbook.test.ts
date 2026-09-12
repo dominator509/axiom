@@ -24,7 +24,7 @@ vi.mock('@axiom/llm-gateway', () => ({
   })),
 }));
 
-import { playbookRouter } from './playbook.js';
+import { playbookRouter, playbookWindowStart } from './playbook.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -42,6 +42,7 @@ function appWithOrg(orgId: string | null) {
 
 beforeEach(() => {
   mockState.result = [];
+  mockState.results = [];
 });
 
 afterEach(() => {
@@ -71,6 +72,48 @@ describe('GET /models/:modelId/playbook-score', () => {
     const body = (await res.json()) as any;
     expect(body.data.postCount30d).toBe(2);
     expect(body.data.scheduleCount30d).toBe(2);
+  });
+
+  it('excludes historical targets, ToS reports, and metrics from the 30-day score', async () => {
+    const now = new Date();
+    const recent = new Date(now.getTime() - 2 * 86_400_000).toISOString();
+    const old = new Date(playbookWindowStart(now).getTime() - 86_400_000).toISOString();
+    mockState.results = [
+      [],
+      [
+        { platform: 'instagram', scheduledFor: recent, state: 'published' },
+        { platform: 'instagram', scheduledFor: old, state: 'published' },
+      ],
+      [
+        { tosReport: { verdict: 'pass' }, scheduledFor: recent, state: 'published' },
+        { tosReport: { verdict: 'block' }, scheduledFor: old, state: 'published' },
+      ],
+      [
+        {
+          postTargetId: 'recent-target',
+          collectedAt: recent,
+          scheduledFor: recent,
+          state: 'published',
+          rate: 0.1,
+        },
+        {
+          postTargetId: 'old-target',
+          collectedAt: old,
+          scheduledFor: old,
+          state: 'published',
+          rate: 1,
+        },
+      ],
+      [],
+    ];
+
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/playbook-score`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.data.postCount30d).toBe(1);
+    expect(body.data.scheduleCount30d).toBe(1);
+    expect(body.data.score.components.platformRuleCompliance).toBe(1);
+    expect(body.data.score.components.exemplarSimilarity).toBe(1);
   });
 
   it('rejects without org context (401)', async () => {

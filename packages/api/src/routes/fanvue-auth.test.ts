@@ -12,6 +12,14 @@ const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 
 vi.mock('@axiom/db', () => mockDbFactory());
+vi.mock('@axiom/llm-gateway', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@axiom/llm-gateway')>();
+  return {
+    ...actual,
+    resolveEgressProxy: vi.fn(async () => 'http://10.240.1.1:8080'),
+    buildEgressFetch: vi.fn(() => globalThis.fetch),
+  };
+});
 vi.mock('@axiom/worker', () => ({
   capabilityNames: vi.fn(() => ['publish', 'read.insights']),
   resolveCapabilities: vi.fn(() => ({ publish: true })),
@@ -43,15 +51,19 @@ function callbackInit(response: Response): RequestInit {
   };
 }
 
-function egressResponse(): { ok: boolean; json: () => Promise<Record<string, string>> } {
-  return {
-    ok: true,
-    json: async () => ({
-      enc_creds: Buffer.from('ciphertext').toString('base64'),
-      enc_nonce: Buffer.from('nonce').toString('base64'),
-      dek_id: 'test-dek',
-    }),
-  };
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function egressResponse(): Response {
+  return jsonResponse({
+    enc_creds: Buffer.from('ciphertext').toString('base64'),
+    enc_nonce: Buffer.from('nonce').toString('base64'),
+    dek_id: 'test-dek',
+  });
 }
 
 function installFetchMock(
@@ -63,7 +75,7 @@ function installFetchMock(
 ) {
   const fetchMock = vi.fn((url: string | URL, _init?: RequestInit) => {
     if (String(url).includes('/egress/encrypt')) return Promise.resolve(egressResponse());
-    return Promise.resolve({ ok: true, json: async () => tokenData });
+    return Promise.resolve(jsonResponse(tokenData));
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
@@ -119,6 +131,13 @@ describe('GET /callback', () => {
     expect(JSON.stringify(body)).not.toContain('callback-access-token');
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    const egress = await import('@axiom/llm-gateway');
+    expect(egress.resolveEgressProxy).toHaveBeenCalledWith(MODEL_ID);
+    expect(egress.buildEgressFetch).toHaveBeenCalledWith('http://10.240.1.1:8080');
+    const tokenExchangeCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('auth.fanvue.com/oauth2/token'),
+    );
+    expect(tokenExchangeCall?.[1]?.signal).toBeInstanceOf(AbortSignal);
     const encryptionCall = fetchMock.mock.calls.find(([url]) =>
       String(url).includes('/egress/encrypt'),
     );

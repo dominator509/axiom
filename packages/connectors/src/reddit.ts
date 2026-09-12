@@ -1,7 +1,13 @@
 // ─── Reddit Connector ───
 // Uses the Reddit API (OAuth 2.0) for publishing, metrics, and token management.
 
-import { BaseConnector } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  readResponseJson,
+  readResponseText,
+  redactProviderText,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -14,7 +20,7 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
-import { validatePublish } from './validation.js';
+import { mediaTypeHint, validatePublish } from './validation.js';
 
 const REDDIT_API_BASE = 'https://oauth.reddit.com';
 const REDDIT_OAUTH_REVOKE = 'https://www.reddit.com/api/v1/revoke_token';
@@ -64,10 +70,6 @@ interface RedditInfoResponse {
   };
 }
 
-interface RedditRevokeResponse {
-  success: boolean;
-}
-
 export class RedditConnector extends BaseConnector implements SocialConnector {
   constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
     super('reddit' as Platform, 'Reddit', 'api' as PublishMode, auth, fetchImpl);
@@ -82,7 +84,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
       caption: true,
       maxCaptionLength: 40_000,
       scheduling: 'internal' as const,
-      metrics: ['views', 'likes', 'comments', 'shares'],
+      metrics: ['views', 'likes', 'comments'],
       refreshMetrics: true,
     };
   }
@@ -108,7 +110,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
 
       if (mediaUrls.length > 0) {
         const mediaUrl = mediaUrls[0];
-        const mediaType = this.detectMediaType(mediaUrl);
+        const mediaType = this.detectMediaType(mediaUrl, mediaTypeHint(input));
 
         if (mediaType === 'video') {
           kind = 'video';
@@ -184,11 +186,17 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
       });
 
       if (!submitResp.ok) {
-        const submitBody = await submitResp.text().catch(() => '');
-        throw new Error(`Reddit submit failed: HTTP ${submitResp.status} — ${submitBody}`);
+        const submitBody = await readResponseText(
+          submitResp,
+          CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+          'provider error response',
+        ).catch(() => '');
+        throw new Error(
+          `Reddit submit failed: HTTP ${submitResp.status} — ${redactProviderText(submitBody)}`,
+        );
       }
 
-      const submitData = (await submitResp.json()) as RedditSubmitResponse;
+      const submitData = await readResponseJson<RedditSubmitResponse>(submitResp);
 
       if (submitData.json.errors && submitData.json.errors.length > 0) {
         const errorMessages = submitData.json.errors.map((e) => e.join(': ')).join('; ');
@@ -232,11 +240,17 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
     });
 
     if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
-      throw new Error(`Reddit info fetch failed: HTTP ${resp.status} — ${body}`);
+      const body = await readResponseText(
+        resp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      throw new Error(
+        `Reddit info fetch failed: HTTP ${resp.status} — ${redactProviderText(body)}`,
+      );
     }
 
-    const data = (await resp.json()) as RedditInfoResponse;
+    const data = await readResponseJson<RedditInfoResponse>(resp);
 
     if (!data.data?.children || data.data.children.length === 0) {
       throw new Error(`Reddit post ${remoteId} not found`);
@@ -256,7 +270,6 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
         views,
         likes: Math.max(likes, 0),
         comments: post.num_comments ?? 0,
-        shares: 0, // Reddit doesn't expose share count via API
       },
       raw: {
         ups: post.ups,
@@ -294,11 +307,19 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
     });
 
     if (response.ok) {
-      const result = (await response.json()) as RedditRevokeResponse;
-      this.log('info', 'revoke', `Reddit OAuth token revoked`, { success: result.success });
+      // Reddit's revoke endpoint has no meaningful response body and may
+      // return 204. HTTP success is the contract; parsing JSON here turns a
+      // successful revoke into a client-side failure on an empty response.
+      this.log('info', 'revoke', `Reddit OAuth token revoked`);
     } else {
-      const body = await response.text().catch(() => '');
-      this.log('warn', 'revoke', `Reddit token revocation warned: ${response.status} — ${body}`);
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      throw new Error(
+        `Reddit token revocation failed: HTTP ${response.status} — ${redactProviderText(body)}`,
+      );
     }
 
     // Clear cached auth data
@@ -333,7 +354,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
         return violations;
       }
 
-      const rulesData = (await resp.json()) as RedditAboutRulesResponse;
+      const rulesData = await readResponseJson<RedditAboutRulesResponse>(resp);
       const rules = rulesData.rules ?? [];
 
       for (const rule of rules) {
@@ -390,7 +411,10 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
   }
 
   /** Detect media type from URL extension */
-  private detectMediaType(url: string): 'image' | 'video' {
+  private detectMediaType(url: string, declared?: MediaType): 'image' | 'video' {
+    if (declared === 'video') return 'video';
+    if (declared === 'image') return 'image';
+
     try {
       const pathname = new URL(url).pathname;
       const ext = pathname.split('.').pop()?.toLowerCase() ?? '';

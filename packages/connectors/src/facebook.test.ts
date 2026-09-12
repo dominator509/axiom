@@ -39,10 +39,10 @@ describe('FacebookConnector basics', () => {
     expect(cap.publish).toBe(true);
     expect(cap.media).toEqual(['image', 'video', 'story', 'text']);
     expect(cap.maxMediaBytes).toBe(4_294_967_296);
-    expect(cap.maxMediaCount).toBe(10);
+    expect(cap.maxMediaCount).toBe(1);
     expect(cap.caption).toBe(true);
     expect(cap.maxCaptionLength).toBe(63_206);
-    expect(cap.scheduling).toBe('native');
+    expect(cap.scheduling).toBe('internal');
     expect(cap.metrics).toEqual(['impressions', 'likes', 'comments', 'shares']);
     expect(cap.refreshMetrics).toBe(true);
   });
@@ -107,14 +107,14 @@ describe('validate', () => {
     });
   });
 
-  it('errors when more than maxMediaCount media items are provided', async () => {
+  it('errors when more than one media item is provided', async () => {
     const c = new FacebookConnector(AUTH);
-    const urls = Array.from({ length: 11 }, (_, i) => `https://cdn.example.com/p${i}.jpg`);
+    const urls = ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.jpg'];
     const report = await c.validate(input({ mediaUrls: urls }));
     expect(report.valid).toBe(false);
     expect(report.errors).toContainEqual({
       field: 'mediaUrls',
-      message: 'Maximum of 10 media items allowed (got 11).',
+      message: 'Maximum of 1 media items allowed (got 2).',
       severity: 'error',
     });
   });
@@ -204,11 +204,8 @@ describe('publish', () => {
     });
   });
 
-  it('uploads every media item in order and returns the last remoteId', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({ id: 'photo-1' }))
-      .mockResolvedValueOnce(jsonResponse({ id: 'vid-1' }));
+  it('fails closed instead of turning a multi-media bundle into multiple posts', async () => {
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FacebookConnector(AUTH);
@@ -216,10 +213,10 @@ describe('publish', () => {
       input({ mediaUrls: ['https://cdn.example.com/a.jpg', 'https://cdn.example.com/b.mp4'] }),
     );
 
-    expect(result.remoteId).toBe('vid-1');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect((fetchMock.mock.calls[0] as [string])[0]).toContain('/photos');
-    expect((fetchMock.mock.calls[1] as [string])[0]).toContain('/videos');
+    expect(result.state).toBe('failed');
+    expect(result.remoteId).toBeNull();
+    expect(result.error).toBe('Facebook supports at most one media item per publish request');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('falls back to the photo id when post_id is missing', async () => {
@@ -302,11 +299,13 @@ describe('fetchMetrics', () => {
     expect(metrics.collectedAt).toBeTruthy();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url] = fetchMock.mock.calls[0] as [string];
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(
       'https://graph.facebook.com/v22.0/page-1_post-1/insights' +
-        '?metric=impressions,likes,comments,shares&access_token=fb-token-123',
+        '?metric=impressions,likes,comments,shares',
     );
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer fb-token-123');
+    expect(url).not.toContain('fb-token-123');
   });
 
   it('falls back to post fields when insights are missing likes and comments', async () => {
@@ -327,12 +326,35 @@ describe('fetchMetrics', () => {
 
     expect(metrics.metrics).toEqual({ impressions: 0, likes: 9, comments: 4, shares: 2 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    const [fallbackUrl] = fetchMock.mock.calls[1] as [string];
+    const [fallbackUrl, fallbackInit] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(fallbackUrl).toBe(
       'https://graph.facebook.com/v22.0/page-1_post-1' +
         '?fields=likes.summary(true).limit(0),comments.summary(true).limit(0),shares' +
-        '&access_token=fb-token-123',
+        '',
     );
+    expect((fallbackInit.headers as Record<string, string>).Authorization).toBe(
+      'Bearer fb-token-123',
+    );
+    expect(fallbackUrl).not.toContain('fb-token-123');
+  });
+
+  it('does not double-prefix a Page post ID already returned in compound form', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        data: [{ name: 'impressions', period: 'lifetime', values: [{ value: 100 }] }],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new FacebookConnector(AUTH);
+    await c.fetchMetrics('page-1_post-1');
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      'https://graph.facebook.com/v22.0/page-1_post-1/insights' +
+        '?metric=impressions,likes,comments,shares',
+    );
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer fb-token-123');
   });
 
   it('throws when the insights endpoint fails', async () => {
@@ -367,16 +389,14 @@ describe('revoke', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const [pageUrl, pageInit] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(pageUrl).toBe(
-      'https://graph.facebook.com/v22.0/page-1/permissions?access_token=fb-token-123',
-    );
+    expect(pageUrl).toBe('https://graph.facebook.com/v22.0/page-1/permissions');
     expect(pageInit.method).toBe('DELETE');
+    expect((pageInit.headers as Record<string, string>).Authorization).toBe('Bearer fb-token-123');
 
     const [userUrl, userInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(userUrl).toBe(
-      'https://graph.facebook.com/v22.0/me/permissions?access_token=fb-token-123',
-    );
+    expect(userUrl).toBe('https://graph.facebook.com/v22.0/me/permissions');
     expect(userInit.method).toBe('DELETE');
+    expect((userInit.headers as Record<string, string>).Authorization).toBe('Bearer fb-token-123');
 
     expect(c.auth.accessToken).toBe('');
     expect(c.auth.refreshToken).toBeUndefined();
@@ -386,34 +406,42 @@ describe('revoke', () => {
     ).toBe(true);
   });
 
-  it('warns and still clears auth when permission deletion fails', async () => {
+  it('accepts empty successful responses from both permission deletes', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ error: 'denied' }, 403))
-      .mockRejectedValueOnce(new TypeError('network down'));
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FacebookConnector(AUTH);
     await expect(c.revoke()).resolves.toBeUndefined();
-
-    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('warned: 403'))).toBe(
-      true,
-    );
     expect(c.auth.accessToken).toBe('');
+    expect(c.auth.refreshToken).toBeUndefined();
     expect(c.auth.expiresAt).toBe(0);
   });
 
-  it('logs a warning and does not clear auth when no Page ID is set', async () => {
+  it('retains auth when page permission deletion fails', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ error: 'denied' }, 403));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new FacebookConnector({
+      accessToken: 'fb-token-123',
+      externalUserId: 'page-1',
+    });
+    await expect(c.revoke()).rejects.toThrow('page permissions deletion failed: HTTP 403');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(c.auth.accessToken).toBe('fb-token-123');
+    expect(c.auth.expiresAt).toBeUndefined();
+  });
+
+  it('fails and does not clear auth when no Page ID is set', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FacebookConnector({ accessToken: 'fb-token-123' });
-    await c.revoke();
+    await expect(c.revoke()).rejects.toThrow('requires externalUserId');
 
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(
-      c.getLogs().some((l) => l.level === 'warn' && l.message.includes('skipping revoke')),
-    ).toBe(true);
     expect(c.auth.accessToken).toBe('fb-token-123');
   });
 });

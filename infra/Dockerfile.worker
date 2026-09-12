@@ -1,0 +1,87 @@
+# =============================================================================
+# Dockerfile.worker — durable queue worker
+# Multi-stage: deps → builder → runner
+# =============================================================================
+
+# node:22-alpine manifest digest (resolved 2026-09-09).
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS deps
+
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+RUN npm install -g pnpm@9.14.0
+
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY patches ./patches
+
+# Keep the workspace dependency graph reproducible in a clean image build.
+COPY packages/auth/package.json ./packages/auth/package.json
+COPY packages/core/package.json ./packages/core/package.json
+COPY packages/db/package.json ./packages/db/package.json
+COPY packages/connectors/package.json ./packages/connectors/package.json
+COPY packages/relay/package.json ./packages/relay/package.json
+COPY packages/llm-gateway/package.json ./packages/llm-gateway/package.json
+COPY packages/fanvue-mcp/package.json ./packages/fanvue-mcp/package.json
+COPY packages/mcp-server/package.json ./packages/mcp-server/package.json
+COPY packages/worker/package.json ./packages/worker/package.json
+COPY packages/mobile/package.json ./packages/mobile/package.json
+COPY packages/api/package.json ./packages/api/package.json
+COPY packages/dashboard/package.json ./packages/dashboard/package.json
+
+RUN pnpm install --frozen-lockfile
+
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS builder
+
+WORKDIR /app
+
+RUN npm install -g pnpm@9.14.0
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages ./packages
+COPY --from=deps /app/patches ./patches
+COPY --from=deps /app/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY pnpm-workspace.yaml package.json turbo.json tsconfig.base.json ./
+
+COPY packages ./packages
+
+# Build the worker and every workspace dependency it imports. Keep the
+# dependency order explicit here: a clean Docker layer has no prior `dist`
+# artifacts, and TypeScript project references need each declaration bundle
+# available before the next package starts compiling.
+RUN cd packages/core && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
+    cd packages/db && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
+    cd packages/connectors && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
+    cd packages/relay && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
+    cd packages/fanvue-mcp && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
+    cd packages/llm-gateway && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
+    cd packages/worker && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app
+RUN pnpm --filter=@axiom/worker --prod deploy /app/pruned
+RUN cp -r packages/worker/dist /app/pruned/dist
+
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS runner
+
+RUN addgroup -S -g 1001 axiom-worker && \
+    adduser -S -D -H -u 1001 -G axiom-worker axiom-worker
+
+RUN apk add --no-cache ffmpeg
+
+WORKDIR /app
+
+COPY --from=builder /app/pruned/node_modules ./node_modules
+COPY --from=builder /app/pruned/dist ./dist
+COPY --from=builder /app/pruned/package.json ./package.json
+
+RUN chown -R axiom-worker:axiom-worker /app
+
+USER axiom-worker
+
+ENV NODE_ENV=production
+ENV WORKER_POLL_INTERVAL_MS=1000
+
+# The worker has no HTTP surface; a live PID is the liveness contract. Fatal
+# startup/runtime errors terminate the process and therefore fail this check.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD kill -0 1
+
+CMD ["node", "dist/runner.js"]

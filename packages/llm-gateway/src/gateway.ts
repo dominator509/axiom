@@ -3,12 +3,9 @@
 // Features: policy-based provider selection, fallback chains, rate limiting,
 // exponential-backoff retry, response caching, streaming, and pipeline transforms.
 
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { resolveEgressProxy, buildEgressFetch } from './egress.js';
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+// Library imports must not load dotenv or mutate the host process environment.
+// Runtime configuration belongs to the service launcher/deployment boundary.
 import { v4 as uuid } from 'uuid';
 import { callVLLM, streamVLLM, VLLM_BASE_URL } from './providers/vllm.js';
 import {
@@ -32,6 +29,7 @@ import {
   type ViralExemplar,
 } from './prompts.js';
 import { cacheKey } from './cache.js';
+import { appendBoundedProviderContent } from './bounded-provider-response.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -262,11 +260,63 @@ function calculateCost(
   );
 }
 
-/** Sleep helper */
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** Preserve caller cancellation across retry and provider-fallback boundaries. */
+function abortReason(signal?: AbortSignal): Error {
+  if (signal?.reason instanceof Error) return signal.reason;
+  if (signal?.reason !== undefined) {
+    return new DOMException(String(signal.reason), 'AbortError');
+  }
+  return new DOMException('Operation aborted', 'AbortError');
+}
 
-function responseCacheKey(messages: Message[], model: string, userId: string): string {
-  return JSON.stringify({ userId, model, messages });
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortReason(signal);
+}
+
+function isAbortLike(error: unknown, signal?: AbortSignal): boolean {
+  if (signal?.aborted) return true;
+  const name = error instanceof Error ? error.name : '';
+  return name === 'AbortError' || name === 'TimeoutError';
+}
+
+/** Abortable retry backoff. */
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortReason(signal));
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+      reject(abortReason(signal));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+
+function responseCacheKey(
+  messages: Message[],
+  model: string,
+  options: Pick<
+    Required<ChatOptions>,
+    'userId' | 'egress' | 'temperature' | 'maxTokens' | 'policy' | 'provider'
+  >,
+): string {
+  return JSON.stringify({
+    userId: options.userId,
+    model,
+    egress: options.egress,
+    temperature: options.temperature,
+    maxTokens: options.maxTokens,
+    policy: options.policy,
+    provider: options.provider,
+    messages,
+  });
 }
 
 /** Get env var — case-insensitive lookup, prefers upper-case */
@@ -381,12 +431,12 @@ export class LLMGateway {
     }));
   }
 
-  async getSubscriptionStatus(provider: string, userId: string) {
+  async getSubscriptionStatus(provider: string, userId: string, signal?: AbortSignal) {
     const config = this.providers.get(provider);
     if (!config?.subscriptionSupported) {
       throw new ProviderError('Provider has no subscription transport', 404, provider);
     }
-    return this.subscriptionTransport.status(provider as SubscriptionProvider, userId);
+    return this.subscriptionTransport.status(provider as SubscriptionProvider, userId, signal);
   }
 
   connectSubscription(
@@ -401,12 +451,12 @@ export class LLMGateway {
     return this.subscriptionTransport.connect(provider as SubscriptionProvider, userId, signal);
   }
 
-  async disconnectSubscription(provider: string, userId: string): Promise<void> {
+  async disconnectSubscription(provider: string, userId: string, signal?: AbortSignal): Promise<void> {
     const config = this.providers.get(provider);
     if (!config?.subscriptionSupported) {
       throw new ProviderError('Provider has no subscription transport', 404, provider);
     }
-    await this.subscriptionTransport.disconnect(provider as SubscriptionProvider, userId);
+    await this.subscriptionTransport.disconnect(provider as SubscriptionProvider, userId, signal);
   }
 
   /** Select a provider based on policy and availability */
@@ -479,12 +529,15 @@ export class LLMGateway {
 
   /**
    * Resolve a fetch implementation bound to the model's egress sidecar
-   * (L2.6). Returns undefined when the model has no healthy bound egress —
-   * callers then use the global fetch (direct route).
+   * (L2.6). A requested model-bound route is a hard precondition; callers
+   * must never silently fall back to the host route.
    */
-  private async resolveEgressFetch(model: string): Promise<typeof fetch | undefined> {
+  private async resolveEgressFetch(model: string): Promise<typeof fetch> {
     const proxy = await resolveEgressProxy(model);
-    return proxy ? buildEgressFetch(proxy) : undefined;
+    if (!proxy) {
+      throw new ProviderError('Model egress binding is unavailable', 503, 'vllm');
+    }
+    return buildEgressFetch(proxy);
   }
 
   /** Call a single provider with retry + exponential backoff */
@@ -497,6 +550,7 @@ export class LLMGateway {
     // provider accepted the turn could consume the user's allowance twice.
     const maxRetries = provider.subscriptionSupported ? 0 : 3;
     let lastError: Error | null = null;
+    throwIfAborted(options.signal);
     // Egress: route through the model's bound sidecar when requested.
     const egressFetchImpl =
       options.egress && provider.name === 'vllm'
@@ -504,12 +558,13 @@ export class LLMGateway {
         : undefined;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      if (attempt > 0) {
-        const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
-        await sleep(delay);
-      }
-
       try {
+        if (attempt > 0) {
+          const delay = Math.min(1000 * 2 ** (attempt - 1), 10_000);
+          await sleep(delay, options.signal);
+        }
+        throwIfAborted(options.signal);
+
         // Rate limit check
         if (!this.checkRateLimit(provider.name)) {
           throw new Error(`Rate limit exceeded for ${provider.name}`);
@@ -561,7 +616,7 @@ export class LLMGateway {
         const cost = calculateCost(provider, promptTokens, completionTokens);
 
         // Cache the result
-        const resultCacheKey = responseCacheKey(messages, model, options.userId);
+        const resultCacheKey = responseCacheKey(messages, model, options);
         this.cache.set(resultCacheKey, {
           content,
           usage: { prompt: promptTokens, completion: completionTokens },
@@ -582,7 +637,7 @@ export class LLMGateway {
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         this.failureCount++;
-        if (err instanceof DOMException && err.name === 'AbortError') {
+        if (isAbortLike(err, options.signal)) {
           throw err; // Don't retry aborted requests
         }
         // On last attempt, don't continue
@@ -630,11 +685,7 @@ export class LLMGateway {
     // Check cache
     const requestedModel = requiredOptions.model || model || '';
     if (requestedModel) {
-      const resultCacheKey = responseCacheKey(
-        processedMessages,
-        requestedModel,
-        requiredOptions.userId,
-      );
+      const resultCacheKey = responseCacheKey(processedMessages, requestedModel, requiredOptions);
       const cached = this.cache.get(resultCacheKey);
       if (cached !== null) {
         return {
@@ -658,6 +709,7 @@ export class LLMGateway {
     const chainErrors: Array<{ provider: string; error: Error }> = [];
     for (const provider of chain) {
       try {
+        throwIfAborted(options.signal);
         const result = await this.callProvider(provider, processedMessages, requiredOptions);
 
         // Run pipeline after-hooks
@@ -680,6 +732,7 @@ export class LLMGateway {
           latency: pipelineResult.latency,
         };
       } catch (err) {
+        if (isAbortLike(err, options.signal)) throw err;
         const error = err instanceof Error ? err : new Error(String(err));
         chainErrors.push({ provider: provider.name, error });
         // Continue to fallback
@@ -808,6 +861,7 @@ export class LLMGateway {
 
       for (const provider of chain) {
         try {
+          throwIfAborted(requiredOptions.signal);
           // Rate limit check
           if (!checkRateLimit(provider.name)) {
             throw new Error(`Rate limit exceeded for ${provider.name}`);
@@ -853,7 +907,7 @@ export class LLMGateway {
           recordRequest();
           let fullContent = '';
           for await (const chunk of stream) {
-            fullContent += chunk;
+            fullContent = appendBoundedProviderContent(fullContent, chunk);
             yield chunk;
           }
 
@@ -861,17 +915,15 @@ export class LLMGateway {
           const streamCacheKey = responseCacheKey(
             processedMessages,
             resolvedModel,
-            requiredOptions.userId,
+            requiredOptions,
           );
           cacheResponse(streamCacheKey, fullContent);
 
           return; // Success — stop iterating fallback chain
         } catch (err) {
+          if (isAbortLike(err, requiredOptions.signal)) throw err;
           lastError = err instanceof Error ? err : new Error(String(err));
           recordFailure();
-          if (err instanceof DOMException && err.name === 'AbortError') {
-            throw err;
-          }
           // Continue to next provider in chain
         }
       }

@@ -1,7 +1,8 @@
 use axum::{
-    extract::State,
+    extract::{Request, State},
     http::StatusCode,
-    response::IntoResponse,
+    middleware::{self, Next},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
@@ -30,6 +31,8 @@ use proxy::{ProxyKind, Upstream};
 
 /// Port the sidecar proxy listens on INSIDE the model netns.
 pub const SIDECAR_PORT: u16 = 8080;
+/// Control-plane listener used by the container image and local callers.
+pub const CONTROL_PLANE_LISTEN_ADDR: &str = "0.0.0.0:9090";
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -86,6 +89,8 @@ impl IntoResponse for EgressError {
 pub struct Config {
     pub kill_switch: String,
     pub listen_addr: String,
+    /// Shared secret required for non-loopback control-plane requests.
+    pub auth_token: Option<String>,
     /// Echo endpoint that reports the caller's egress IP.
     pub echo_url: String,
     pub database_url: Option<String>,
@@ -100,7 +105,11 @@ impl Config {
         Self {
             kill_switch: std::env::var("KILL_SWITCH").unwrap_or_else(|_| "false".to_string()),
             listen_addr: std::env::var("LISTEN_ADDR")
-                .unwrap_or_else(|_| "127.0.0.1:3000".to_string()),
+                .unwrap_or_else(|_| CONTROL_PLANE_LISTEN_ADDR.to_string()),
+            auth_token: std::env::var("EGRESS_PLANE_TOKEN")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
             echo_url: std::env::var("EGRESS_ECHO_URL")
                 .unwrap_or_else(|_| "https://api.ipify.org".to_string()),
             database_url: std::env::var("EGRESS_DATABASE_URL")
@@ -111,6 +120,84 @@ impl Config {
                 .ok()
                 .map(std::path::PathBuf::from),
         }
+    }
+
+    /// Production egress must not start as a partially configured control
+    /// plane. Without these values it cannot load durable model bindings,
+    /// decrypt credential envelopes, or authenticate callers, while its
+    /// liveness endpoint would otherwise still report success.
+    pub fn validate_production(&self) -> Result<(), String> {
+        let token = self
+            .auth_token
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| "EGRESS_PLANE_TOKEN is required in production".to_string())?;
+        if token.len() < 32 {
+            return Err("EGRESS_PLANE_TOKEN must be at least 32 characters in production".into());
+        }
+        match self.database_url.as_deref() {
+            Some(value) if !value.trim().is_empty() => {}
+            _ => {
+                return Err("EGRESS_DATABASE_URL or DATABASE_URL is required in production".into())
+            }
+        }
+        if self.dek.is_none() {
+            return Err("EGRESS_DEK must be a 32-byte hex key in production".into());
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod config_tests {
+    use super::{Config, CONTROL_PLANE_LISTEN_ADDR};
+
+    fn production_config() -> Config {
+        Config {
+            kill_switch: "false".to_string(),
+            listen_addr: CONTROL_PLANE_LISTEN_ADDR.to_string(),
+            auth_token: Some("x".repeat(32)),
+            echo_url: "https://api.ipify.org".to_string(),
+            database_url: Some("postgresql://egress@db.example/axiom".to_string()),
+            dek: Some([0; 32]),
+            sidecar_bin: None,
+        }
+    }
+
+    #[test]
+    fn production_config_requires_all_control_plane_dependencies() {
+        let mut config = production_config();
+
+        config.auth_token = None;
+        assert_eq!(
+            config
+                .validate_production()
+                .expect_err("token must be required"),
+            "EGRESS_PLANE_TOKEN is required in production"
+        );
+
+        let mut config = production_config();
+        config.database_url = None;
+        assert_eq!(
+            config
+                .validate_production()
+                .expect_err("database must be required"),
+            "EGRESS_DATABASE_URL or DATABASE_URL is required in production"
+        );
+
+        let mut config = production_config();
+        config.dek = None;
+        assert_eq!(
+            config
+                .validate_production()
+                .expect_err("DEK must be required"),
+            "EGRESS_DEK must be a 32-byte hex key in production"
+        );
+    }
+
+    #[test]
+    fn production_config_accepts_complete_values() {
+        assert!(production_config().validate_production().is_ok());
     }
 }
 
@@ -200,6 +287,179 @@ pub struct AppState {
     pub kill_switch: KillSwitch,
     pub db: Mutex<Option<tokio_postgres::Client>>,
     pub registry: Mutex<Registry>,
+}
+
+/// Remove a bound egress from the in-memory registry and release the subnet
+/// reservation that belongs to it. The caller must tear down the returned
+/// kernel/process resources before starting a replacement with the same model
+/// namespace.
+fn take_bound(state: &Arc<AppState>, model_id: &str) -> Option<BoundEgress> {
+    let mut registry = state.registry.lock().unwrap();
+    let bound = registry.bounds.remove(model_id);
+    if let Some(existing) = bound.as_ref() {
+        if let Some(octet) = bound_octet(existing) {
+            registry.release_octet(octet);
+        }
+        registry.unbinds_total += 1;
+    }
+    bound
+}
+
+/// Replace the registry entry after a new binding has been fully created and
+/// probed. A previous entry is returned for teardown by the caller; replacing
+/// it here also prevents an async caller from publishing a new registry state
+/// without releasing the old subnet reservation.
+fn replace_bound(
+    state: &Arc<AppState>,
+    model_id: String,
+    bound: BoundEgress,
+) -> Result<Option<BoundEgress>, EgressError> {
+    let mut registry = state.registry.lock().unwrap();
+    // kill_switch_drain flips the atomic flag before taking this same
+    // registry lock. Checking it here closes the interval between the
+    // expensive namespace setup/probe and the final registry install: a bind
+    // that raced with drain is torn down instead of becoming live afterward.
+    if state.kill_switch.is_enabled() {
+        drop(registry);
+        let _ = teardown_bound(bound);
+        return Err(EgressError::KillSwitch(
+            "egress blocked by kill-switch".to_string(),
+        ));
+    }
+    let previous = registry.bounds.insert(model_id, bound);
+    if let Some(existing) = previous.as_ref() {
+        if let Some(octet) = bound_octet(existing) {
+            registry.release_octet(octet);
+        }
+        registry.unbinds_total += 1;
+    }
+    registry.binds_total += 1;
+    Ok(previous)
+}
+
+fn bound_octet(bound: &BoundEgress) -> Option<u16> {
+    bound
+        .host_ip
+        .split('.')
+        .nth(2)
+        .and_then(|s| s.parse::<u16>().ok())
+}
+
+fn same_binding_config(bound: &BoundEgress, persisted: &NetworkConfig) -> bool {
+    let current = &bound.config;
+    current.model_id == persisted.model_id
+        && current.org_id == persisted.org_id
+        && current.mode == persisted.mode
+        && current.proxy_addr == persisted.proxy_addr
+        && current.wg_public_key == persisted.wg_public_key
+        && current.wg_endpoint == persisted.wg_endpoint
+        && current.wg_allowed_ips == persisted.wg_allowed_ips
+        && current.wg_persistent_keepalive == persisted.wg_persistent_keepalive
+        && current.expected_egress_ip == persisted.expected_egress_ip
+        && current.failover_proxy_addrs == persisted.failover_proxy_addrs
+        && current.enc_creds == persisted.enc_creds
+        && current.enc_nonce == persisted.enc_nonce
+        && current.dek_id == persisted.dek_id
+}
+
+#[cfg(test)]
+mod registry_tests {
+    use super::*;
+
+    fn network_config() -> NetworkConfig {
+        NetworkConfig {
+            model_id: "model-1".to_string(),
+            org_id: "org-1".to_string(),
+            mode: EgressMode::Direct,
+            proxy_addr: None,
+            wg_public_key: None,
+            wg_endpoint: None,
+            wg_allowed_ips: None,
+            wg_persistent_keepalive: None,
+            expected_egress_ip: None,
+            failover_proxy_addrs: Vec::new(),
+            enc_creds: None,
+            enc_nonce: None,
+            dek_id: None,
+        }
+    }
+
+    fn bound() -> BoundEgress {
+        BoundEgress {
+            config: network_config(),
+            ns: String::new(),
+            veth_host: String::new(),
+            host_ip: "10.240.7.2".to_string(),
+            ns_ip: String::new(),
+            child: None,
+            upstream: Upstream::Direct,
+            health: HealthState::default(),
+            failover_index: 0,
+        }
+    }
+
+    fn state() -> Arc<AppState> {
+        Arc::new(AppState {
+            config: Config {
+                kill_switch: "false".to_string(),
+                listen_addr: "127.0.0.1:0".to_string(),
+                auth_token: None,
+                echo_url: "https://example.invalid/ip".to_string(),
+                database_url: None,
+                dek: None,
+                sidecar_bin: None,
+            },
+            kill_switch: KillSwitch::new(false),
+            db: Mutex::new(None),
+            registry: Mutex::new(Registry::new()),
+        })
+    }
+
+    #[test]
+    fn taking_bound_releases_subnet_and_counts_replacement_cleanup() {
+        let state = state();
+        {
+            let mut registry = state.registry.lock().unwrap();
+            registry.used_octets.push(7);
+            registry.bounds.insert("model-1".to_string(), bound());
+        }
+
+        let removed = take_bound(&state, "model-1").expect("binding should exist");
+        assert_eq!(bound_octet(&removed), Some(7));
+
+        let registry = state.registry.lock().unwrap();
+        assert!(registry.bounds.is_empty());
+        assert!(registry.used_octets.is_empty());
+        assert_eq!(registry.unbinds_total, 1);
+    }
+
+    #[test]
+    fn persisted_binding_comparison_detects_credential_rotation() {
+        let mut current = bound();
+        let mut persisted = network_config();
+        persisted.enc_creds = Some(vec![1, 2, 3]);
+        persisted.enc_nonce = Some(vec![4, 5, 6]);
+        persisted.dek_id = Some("rotated-key".to_string());
+        assert!(!same_binding_config(&current, &persisted));
+
+        current.config.enc_creds = persisted.enc_creds.clone();
+        current.config.enc_nonce = persisted.enc_nonce.clone();
+        current.config.dek_id = persisted.dek_id.clone();
+        assert!(same_binding_config(&current, &persisted));
+
+        persisted.expected_egress_ip = Some("203.0.113.10".to_string());
+        assert!(!same_binding_config(&current, &persisted));
+    }
+
+    #[test]
+    fn replacement_is_rejected_when_kill_switch_is_enabled() {
+        let state = state();
+        state.kill_switch.set_enabled(true);
+
+        let result = replace_bound(&state, "model-1".to_string(), bound());
+        assert!(matches!(result, Err(EgressError::KillSwitch(_))));
+        assert!(state.registry.lock().unwrap().bounds.is_empty());
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -563,6 +823,20 @@ pub async fn egress_bind(
     Json(body): Json<BindRequest>,
 ) -> Result<impl IntoResponse, EgressError> {
     let correlation_id = Uuid::new_v4().to_string();
+
+    // Validate before removing a live binding. Rebinding uses the model's
+    // deterministic namespace name, so the previous namespace must be torn
+    // down before a replacement can be created without a name collision.
+    resolve_config(&body).await?;
+    if state.kill_switch.is_enabled() {
+        return Err(EgressError::KillSwitch(
+            "egress blocked by kill-switch".to_string(),
+        ));
+    }
+    if let Some(previous) = take_bound(&state, &body.model_id) {
+        let _ = teardown_bound(previous);
+    }
+
     let mut bound = bind_egress(&state, &body).await?;
 
     // First health probe (fail-closed: a dead egress is reported as unhealthy,
@@ -573,13 +847,14 @@ pub async fn egress_bind(
     let mode = bound.config.mode.as_str().to_string();
     let health_snapshot = bound.health.clone();
 
-    {
-        let mut reg = state.registry.lock().unwrap();
-        if let Some(prev) = reg.bounds.remove(&model_id) {
-            let _ = teardown_bound(prev);
-        }
-        reg.binds_total += 1;
-        reg.bounds.insert(model_id.clone(), bound);
+    let previous = match replace_bound(&state, model_id.clone(), bound) {
+        Ok(previous) => previous,
+        Err(error) => return Err(error),
+    };
+    if let Some(previous) = previous {
+        // This is only expected if a concurrent bind won the registry race;
+        // retain the newest fully-probed binding and clean up the old one.
+        let _ = teardown_bound(previous);
     }
 
     // Persist health to Postgres when connected (take/replace: no lock held
@@ -655,22 +930,10 @@ pub async fn egress_unbind(
     Json(body): Json<UnbindRequest>,
 ) -> Result<impl IntoResponse, EgressError> {
     let correlation_id = Uuid::new_v4().to_string();
-    let removed = {
-        let mut reg = state.registry.lock().unwrap();
-        reg.unbinds_total += 1;
-        reg.bounds.remove(&body.model_id)
-    };
+    let removed = take_bound(&state, &body.model_id);
     match removed {
         Some(bound) => {
-            let octet = bound
-                .host_ip
-                .split('.')
-                .nth(2)
-                .and_then(|s| s.parse::<u16>().ok());
             let _ = teardown_bound(bound);
-            if let Some(o) = octet {
-                state.registry.lock().unwrap().release_octet(o);
-            }
             Ok((
                 StatusCode::OK,
                 Json(serde_json::json!({
@@ -1051,16 +1314,57 @@ pub async fn egress_sync(
         }
     };
     *state.db.lock().unwrap() = client;
+    // Reconcile the complete persisted set, not just additions. Removed
+    // rows, direct-mode rows, and kill-switch activation must all tear down a
+    // previously isolated binding; otherwise deleted credentials and network
+    // namespaces remain live after a sync.
+    let configs_by_model: HashMap<String, NetworkConfig> = configs
+        .into_iter()
+        .map(|cfg| (cfg.model_id.clone(), cfg))
+        .collect();
+    let kill_switch_enabled = state.kill_switch.is_enabled();
+    let stale_models: Vec<String> = {
+        let registry = state.registry.lock().unwrap();
+        registry
+            .bounds
+            .iter()
+            .filter_map(|(model_id, current)| {
+                let keep = !kill_switch_enabled
+                    && configs_by_model.get(model_id).is_some_and(|persisted| {
+                        persisted.mode != EgressMode::Direct
+                            && same_binding_config(current, persisted)
+                    });
+                (!keep).then(|| model_id.clone())
+            })
+            .collect()
+    };
+    for model_id in stale_models {
+        if let Some(previous) = take_bound(&state, &model_id) {
+            let _ = teardown_bound(previous);
+        }
+    }
+
     let mut bound = 0usize;
     let mut skipped = 0usize;
-    for cfg in configs {
-        if state.kill_switch.is_enabled() {
+    for cfg in configs_by_model.into_values() {
+        if kill_switch_enabled {
             skipped += 1;
             continue;
         }
-        // Skip direct-mode rows (no isolation to enforce).
+        // Direct mode is an explicit no-isolation choice and never needs a
+        // sidecar binding. Any prior isolated binding was removed above.
         if cfg.mode == EgressMode::Direct {
             skipped += 1;
+            continue;
+        }
+        let already_bound = state
+            .registry
+            .lock()
+            .unwrap()
+            .bounds
+            .contains_key(&cfg.model_id);
+        if already_bound {
+            bound += 1;
             continue;
         }
         let creds = db::decrypt_creds(&cfg, state.config.dek.as_ref().map(|d| d.as_slice()))
@@ -1086,13 +1390,23 @@ pub async fn egress_sync(
         match bind_egress(&state, &req).await {
             Ok(mut b) => {
                 probe_bound(&state, &mut b).await;
-                state.registry.lock().unwrap().binds_total += 1;
-                state
-                    .registry
-                    .lock()
-                    .unwrap()
-                    .bounds
-                    .insert(cfg.model_id.clone(), b);
+                // Keep only the encrypted envelope identity in the live
+                // binding so a later sync notices credential rotation without
+                // retaining decrypted material in the registry.
+                b.config.enc_creds = cfg.enc_creds.clone();
+                b.config.enc_nonce = cfg.enc_nonce.clone();
+                b.config.dek_id = cfg.dek_id.clone();
+                match replace_bound(&state, cfg.model_id.clone(), b) {
+                    Ok(Some(previous)) => {
+                        let _ = teardown_bound(previous);
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        skipped += 1;
+                        warn!(model_id = %cfg.model_id, error = %e, "sync bind raced with kill-switch");
+                        continue;
+                    }
+                }
                 bound += 1;
             }
             Err(e) => {
@@ -1135,7 +1449,68 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/kill-switch/drain", post(kill_switch_drain))
         .route("/kill-switch/status", get(kill_switch_status))
         .route("/kill-switch/disable", post(kill_switch_disable))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            require_control_plane_auth,
+        ))
         .with_state(state)
+}
+
+/// Require the shared plane token whenever the control plane is reachable
+/// beyond loopback. A missing token is tolerated only for local development
+/// and tests; a non-loopback deployment fails closed with 503.
+async fn require_control_plane_auth(
+    State(state): State<Arc<AppState>>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if request.uri().path() == "/health" {
+        return next.run(request).await;
+    }
+
+    let Some(expected) = state.config.auth_token.as_deref() else {
+        if is_loopback_listener(&state.config.listen_addr) {
+            return next.run(request).await;
+        }
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "EGRESS_PLANE_TOKEN is not configured" })),
+        )
+            .into_response();
+    };
+
+    let supplied = request
+        .headers()
+        .get("x-egress-plane-token")
+        .and_then(|value| value.to_str().ok());
+    if supplied.is_some_and(|value| constant_time_token_eq(expected, value)) {
+        next.run(request).await
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({ "error": "invalid egress plane token" })),
+        )
+            .into_response()
+    }
+}
+
+fn is_loopback_listener(listen_addr: &str) -> bool {
+    listen_addr
+        .parse::<std::net::SocketAddr>()
+        .map(|addr| addr.ip().is_loopback())
+        .unwrap_or_else(|_| listen_addr.starts_with("127.") || listen_addr.starts_with("[::1]"))
+}
+
+fn constant_time_token_eq(expected: &str, supplied: &str) -> bool {
+    let expected = expected.as_bytes();
+    let supplied = supplied.as_bytes();
+    let mut difference = expected.len() ^ supplied.len();
+    for index in 0..expected.len().max(supplied.len()) {
+        difference |= usize::from(
+            expected.get(index).copied().unwrap_or(0) ^ supplied.get(index).copied().unwrap_or(0),
+        );
+    }
+    difference == 0
 }
 
 /// Build a test router (used by integration tests).

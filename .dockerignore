@@ -12,6 +12,8 @@ dist
 **/.next
 .turbo
 **/.turbo
+*.tsbuildinfo
+**/*.tsbuildinfo
 target
 **/target
 coverage

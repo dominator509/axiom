@@ -22,6 +22,7 @@
   "dependencies": {
     "@anthropic-ai/claude-code": "2.1.241",
     "@axiom/core": "workspace:*",
+    "@axiom/fanvue-mcp": "workspace:*",
     "@hono/zod-validator": "^0.4.0",
     "@openai/codex": "0.149.1",
     "@xai-official/grok": "1.0.5",

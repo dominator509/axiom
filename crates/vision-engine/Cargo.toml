@@ -16,3 +16,6 @@ image = { workspace = true, features = ["png", "jpeg"] }
 sha2.workspace = true
 ort.workspace = true
 ndarray.workspace = true
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }

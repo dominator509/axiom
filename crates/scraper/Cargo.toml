@@ -15,3 +15,6 @@ reqwest.workspace = true
 axum = { workspace = true, features = ["json"] }
 scraper_crate.workspace = true
 regex.workspace = true
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }

@@ -50,22 +50,58 @@ router.post('/incidents/:jobId/replay', async (c) => {
   const userId = c.get('userId') ?? 'system';
 
   const result = await withOrgContext(orgId, async (tx) => {
+    const existing = await tx
+      .select({ state: schema.job.state, lastError: schema.job.lastError })
+      .from(schema.job)
+      .where(and(eq(schema.job.id, jobId), eq(schema.job.orgId, orgId)))
+      .limit(1)
+      .for('update');
+    if (existing.length === 0) return { status: 404 as const, data: null };
+    // Keep the eligibility check and reset under the same row lock. A replay
+    // must never steal an active lease or erase a worker's unknown outcome.
+    if (!['dead', 'failed'].includes(existing[0].state)) {
+      return {
+        status: 409 as const,
+        data: null,
+        message: 'Only dead or failed jobs can be replayed',
+      };
+    }
+    if (existing[0].lastError?.startsWith('external-side-effect-unknown:')) {
+      return {
+        status: 409 as const,
+        data: null,
+        message: 'Provider outcome is unknown; reconcile the external side effect before replaying',
+      };
+    }
+
     const rows = await tx
       .update(schema.job)
       .set({
         state: 'ready',
         attempts: 0,
         lastError: null,
+        runAfter: new Date(),
+        lockedBy: null,
+        lockedAt: null,
         startedAt: null,
         completedAt: null,
       })
-      .where(and(eq(schema.job.id, jobId), eq(schema.job.orgId, orgId)))
+      .where(
+        and(
+          eq(schema.job.id, jobId),
+          eq(schema.job.orgId, orgId),
+          sql`${schema.job.state} IN ('dead', 'failed')`,
+        ),
+      )
       .returning();
     if (rows.length === 0) return { status: 404 as const, data: null };
     await writeAudit(tx, orgId, userId, 'incident.replay', jobId, {});
     return { status: 200 as const, data: rows[0] };
   });
   if (result.status === 404) return apiError(c, 404, statusTitle(404), 'job not found');
+  if (result.status === 409) {
+    return apiError(c, 409, statusTitle(409), result.message);
+  }
   return c.json({ success: true, data: result.data });
 });
 

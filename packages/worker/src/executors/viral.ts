@@ -18,6 +18,18 @@ export interface ViralMetricSample {
   engagementRate: number;
 }
 
+export interface TimestampedViralMetricSample extends ViralMetricSample {
+  collectedAt?: Date | string | null;
+}
+
+interface ViralHistorySample extends TimestampedViralMetricSample {
+  views: number;
+  likes: number;
+  shares: number;
+  comments: number;
+  collectedAt: Date;
+}
+
 export interface ViralScore<T extends ViralMetricSample = ViralMetricSample> {
   own: T;
   mean: number;
@@ -30,6 +42,20 @@ export function labelForZ(z: number): 'viral' | 'strong' | 'baseline' | 'weak' {
   if (z >= LABEL_THRESHOLDS.strong) return 'strong';
   if (z >= LABEL_THRESHOLDS.baseline) return 'baseline';
   return 'weak';
+}
+
+/**
+ * Keep the newest observation for each target from a newest-first snapshot
+ * query. Provider metrics are cumulative; scoring every poll would weight
+ * frequently-polled posts more heavily than other posts.
+ */
+export function latestMetricSamples<T extends TimestampedViralMetricSample>(history: T[]): T[] {
+  const seen = new Set<string>();
+  return history.filter((sample) => {
+    if (seen.has(sample.postTargetId)) return false;
+    seen.add(sample.postTargetId);
+    return true;
+  });
 }
 
 /** Score the requested target against the complete model/platform window. */
@@ -80,7 +106,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
 
   // 1. Trailing window of this model+platform's performance (L3.5 §1.1: 72h default).
   const windowStart = new Date(Date.now() - 72 * 3600_000);
-  const history = await tx
+  const historyRows = (await tx
     .select({
       postTargetId: schema.postMetric.postTargetId,
       views: schema.postMetric.views,
@@ -88,6 +114,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
       shares: schema.postMetric.shares,
       comments: schema.postMetric.comments,
       engagementRate: schema.postMetric.engagementRate,
+      collectedAt: schema.postMetric.collectedAt,
     })
     .from(schema.postMetric)
     .innerJoin(schema.postTarget, eq(schema.postTarget.id, schema.postMetric.postTargetId))
@@ -101,7 +128,8 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
         gte(schema.postMetric.collectedAt, windowStart),
       ),
     )
-    .orderBy(desc(schema.postMetric.collectedAt));
+    .orderBy(desc(schema.postMetric.collectedAt))) as ViralHistorySample[];
+  const history = latestMetricSamples(historyRows);
 
   // 2. Perf score: z-score of the target's own engagement against the window.
   let score: ViralScore<(typeof history)[number]>;
@@ -129,21 +157,9 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
   };
   const embedding = embedFeatures(features);
 
-  // Upsert exemplar keyed by (model_id, bundle_id, platform) — re-labeling an
-  // existing exemplar is idempotent.
-  const existing = await tx
-    .select({ id: schema.viralExemplar.id })
-    .from(schema.viralExemplar)
-    .where(
-      and(
-        eq(schema.viralExemplar.orgId, job.org_id),
-        eq(schema.viralExemplar.modelId, bundle.modelId),
-        eq(schema.viralExemplar.bundleId, bundle.id),
-        eq(schema.viralExemplar.platform, target.platform),
-      ),
-    )
-    .limit(1);
-
+  // Atomically upsert the exemplar keyed by (org, model, bundle, platform).
+  // The unique constraint is the concurrency guard; a select-then-insert
+  // would allow concurrent metrics polls to create duplicate S2 context.
   const exemplarValues = {
     orgId: job.org_id,
     modelId: bundle.modelId,
@@ -155,19 +171,23 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     label,
   };
 
-  if (existing.length > 0) {
-    await tx
-      .update(schema.viralExemplar)
-      .set(exemplarValues)
-      .where(
-        and(
-          eq(schema.viralExemplar.id, existing[0].id),
-          eq(schema.viralExemplar.orgId, job.org_id),
-        ),
-      );
-  } else {
-    await tx.insert(schema.viralExemplar).values(exemplarValues);
-  }
+  await tx
+    .insert(schema.viralExemplar)
+    .values(exemplarValues)
+    .onConflictDoUpdate({
+      target: [
+        schema.viralExemplar.orgId,
+        schema.viralExemplar.modelId,
+        schema.viralExemplar.bundleId,
+        schema.viralExemplar.platform,
+      ],
+      set: {
+        features: exemplarValues.features,
+        embedding: exemplarValues.embedding,
+        perfScore: exemplarValues.perfScore,
+        label: exemplarValues.label,
+      },
+    });
 
   // Recipe + embedding (L2.8 F-81/F-82).
   const [recipe] = await tx

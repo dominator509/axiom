@@ -4,10 +4,12 @@ networks:
 
 volumes:
   pgdata:
+  media-data:
 
 services:
   postgres:
-    image: timescale/timescaledb:2.29.2-pg16
+    # timescale/timescaledb:2.29.2-pg16 manifest digest (resolved 2026-09-09).
+    image: timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a
     container_name: axiom-postgres
     restart: unless-stopped
     environment:
@@ -15,12 +17,13 @@ services:
       POSTGRES_PASSWORD: changeme
       POSTGRES_DB: axiom
     ports:
-      - "5432:5432"
+      # Development credentials must not expose PostgreSQL to the host LAN.
+      - '127.0.0.1:5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ../packages/db/migrations:/migrations:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U axiom -d axiom"]
+      test: ['CMD-SHELL', 'pg_isready -U axiom -d axiom']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,14 +32,15 @@ services:
       - axiom-net
 
   pgadmin:
-    image: dpage/pgadmin4:latest
+    # dpage/pgadmin4:latest manifest digest (resolved 2026-09-09).
+    image: dpage/pgadmin4:latest@sha256:2f4ce946ddf8360680d7eff4eaba1d91859eb6b4003e6623bad5c63a322c2f4d
     container_name: axiom-pgadmin
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@axiom.local
       PGADMIN_DEFAULT_PASSWORD: changeme
     ports:
-      - "5050:80"
+      - '127.0.0.1:5050:80'
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,3 +48,72 @@ services:
       - axiom-net
     profiles:
       - tools
+
+  media-plane:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.media
+    container_name: axiom-media-plane
+    restart: unless-stopped
+    environment:
+      AXIOM_MEDIA_ADDR: 0.0.0.0:8100
+      # The process refuses non-loopback operation without this value.
+      AXIOM_MEDIA_AUTH_TOKEN: ${AXIOM_MEDIA_AUTH_TOKEN:-}
+    volumes:
+      - media-data:/app/var/media
+    ports:
+      - '127.0.0.1:8100:8100'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', '--silent', '--show-error', 'http://127.0.0.1:8100/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - axiom-net
+
+  vision-engine:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.vision
+    container_name: axiom-vision-engine
+    restart: unless-stopped
+    environment:
+      AXIOM_VISION_ADDR: 0.0.0.0:8101
+      AXIOM_VISION_MODEL: /opt/axiom/models/nsfw-vit.onnx
+      # The process refuses non-loopback operation without this value.
+      AXIOM_VISION_AUTH_TOKEN: ${AXIOM_VISION_AUTH_TOKEN:-}
+    volumes:
+      - ../var/models:/opt/axiom/models:ro
+      - media-data:/app/var/media:ro
+    ports:
+      - '8101:8101'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', '--silent', '--show-error', 'http://127.0.0.1:8101/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - axiom-net
+
+  scraper:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.scraper
+    container_name: axiom-scraper
+    restart: unless-stopped
+    environment:
+      AXIOM_SCRAPER_ADDR: 0.0.0.0:8102
+      # The process refuses non-loopback operation without this value.
+      AXIOM_SCRAPER_AUTH_TOKEN: ${AXIOM_SCRAPER_AUTH_TOKEN:-}
+    ports:
+      - '8102:8102'
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', '--silent', '--show-error', 'http://127.0.0.1:8102/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - axiom-net

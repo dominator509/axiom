@@ -36,6 +36,7 @@ fn test_config(echo_url: String) -> egress_plane::Config {
     egress_plane::Config {
         kill_switch: "false".to_string(),
         listen_addr: "127.0.0.1:0".to_string(),
+        auth_token: None,
         echo_url,
         database_url: None,
         dek: None,
@@ -70,6 +71,42 @@ async fn start_test_server_with_base(echo_url: String, base_octet: u16) -> Strin
 
 async fn start_test_server(echo_url: String) -> String {
     start_test_server_with_base(echo_url, 1).await
+}
+
+#[tokio::test]
+async fn test_non_loopback_control_plane_requires_token() {
+    let kill_switch = egress_plane::killswitch::KillSwitch::new(false);
+    let mut config = test_config("https://example.invalid/ip".to_string());
+    config.listen_addr = "0.0.0.0:9090".to_string();
+    let state = Arc::new(egress_plane::AppState {
+        config,
+        kill_switch,
+        db: Mutex::new(None),
+        registry: Mutex::new(egress_plane::Registry::new()),
+    });
+    let app = egress_plane::build_router_for_test(state);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind");
+    let addr = listener.local_addr().expect("addr");
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("serve");
+    });
+
+    let client = reqwest::Client::new();
+    let health = client
+        .get(format!("http://{addr}/health"))
+        .send()
+        .await
+        .expect("health");
+    assert_eq!(health.status(), 200);
+
+    let status = client
+        .get(format!("http://{addr}/egress/status"))
+        .send()
+        .await
+        .expect("status");
+    assert_eq!(status.status(), 503);
 }
 
 /// Find a free TCP port by binding :0 and dropping the listener.
@@ -347,7 +384,7 @@ async fn test_encrypt_endpoint_rejects_bad_dek() {
         .json(&serde_json::json!({
             "plaintext": base64::engine::general_purpose::STANDARD.encode(b"x"),
             "dek_id": "test-dek",
-            "dek": base64::engine::general_purpose::STANDARD.encode(&[0u8; 16])
+            "dek": base64::engine::general_purpose::STANDARD.encode([0u8; 16])
         }))
         .send()
         .await
@@ -573,6 +610,7 @@ async fn test_wireguard_tunnel_mode_full_chain() {
     let priv_client = wg_genkey();
     let pub_host = wg_pubkey(&priv_host);
     let pub_client = wg_pubkey(&priv_client);
+    let preshared_key = wg_genpsk();
 
     // Host wg interface.
     let _ = Command::new("ip")
@@ -607,7 +645,10 @@ async fn test_wireguard_tunnel_mode_full_chain() {
     let _ = Command::new("bash")
         .args([
             "-c",
-            &format!("printf '%s' '{}' > /tmp/wg_peer_host_test", pub_client),
+            &format!(
+                "printf '%s' '{}' > /tmp/wg_peer_host_test && printf '%s' '{}' > /tmp/wg_psk_host_test",
+                pub_client, preshared_key
+            ),
         ])
         .status();
     assert!(Command::new("wg")
@@ -616,6 +657,8 @@ async fn test_wireguard_tunnel_mode_full_chain() {
             "wg-host-test",
             "peer",
             &pub_client,
+            "preshared-key",
+            "/tmp/wg_psk_host_test",
             "allowed-ips",
             "10.0.0.2/32"
         ])
@@ -645,6 +688,7 @@ async fn test_wireguard_tunnel_mode_full_chain() {
                 "wg_endpoint": "10.240.20.1:51820",
                 "wg_allowed_ips": "0.0.0.0/0",
                 "wg_private_key": priv_client,
+                "wg_preshared_key": preshared_key,
                 "wg_persistent_keepalive": 25,
                 "iface_addr": "10.0.0.2/32",
                 "expected_egress_ip": echo_ip
@@ -694,7 +738,12 @@ async fn test_wireguard_tunnel_mode_full_chain() {
         .args(["link", "del", "wg-host-test"])
         .output();
     let _ = Command::new("rm")
-        .args(["-f", "/tmp/wg_priv_host_test", "/tmp/wg_peer_host_test"])
+        .args([
+            "-f",
+            "/tmp/wg_priv_host_test",
+            "/tmp/wg_peer_host_test",
+            "/tmp/wg_psk_host_test",
+        ])
         .status();
 }
 
@@ -704,6 +753,15 @@ fn wg_genkey() -> String {
         .arg("genkey")
         .output()
         .expect("wg genkey");
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+#[cfg(target_os = "linux")]
+fn wg_genpsk() -> String {
+    let out = Command::new("wg")
+        .arg("genpsk")
+        .output()
+        .expect("wg genpsk");
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 

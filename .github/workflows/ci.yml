@@ -8,6 +8,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # The CI runner uses host networking for the dashboard/API smoke fixture.
+  # Production deployments must provide their real service origin explicitly.
+  API_ORIGIN: http://127.0.0.1:3001
 
 permissions:
   contents: read
@@ -17,7 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: timescale/timescaledb:2.29.2-pg16
+        # timescale/timescaledb:2.29.2-pg16 manifest digest (resolved 2026-09-09).
+        image: timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a
         env:
           POSTGRES_USER: axiom
           POSTGRES_PASSWORD: changeme
@@ -73,6 +77,10 @@ jobs:
         if: matrix.task == 'typecheck'
         run: pnpm typecheck
 
+      - name: Run repository ship gate
+        if: matrix.task == 'typecheck'
+        run: sh scripts/verify.sh
+
       # ═══════════════════════════════════════════════════════════
       #  MATRIX TASK: lint
       # ═══════════════════════════════════════════════════════════
@@ -84,6 +92,14 @@ jobs:
         if: matrix.task == 'lint'
         run: |
           find scripts/ -maxdepth 1 -name '*.sh' -type f -print -exec sh -n {} \; && echo "Shell syntax: ok"
+
+      - name: Verify deployment base images are immutable
+        if: matrix.task == 'lint'
+        run: sh scripts/check-container-base-pins.sh
+
+      - name: Verify development database bindings and media mounts
+        if: matrix.task == 'lint'
+        run: node scripts/check-dev-db-bindings.mjs
 
       - name: Rust clippy check
         if: matrix.task == 'lint'
@@ -104,6 +120,8 @@ jobs:
           MIGRATOR_DATABASE_URL: postgresql://axiom:changeme@localhost:5432/axiom_test
           PGPASSWORD: changeme
         run: |
+          pnpm migrate
+          # Rehearse reruns: existing checksums must skip DDL rather than replay it.
           pnpm migrate
           psql -h localhost -U axiom -d axiom_test -v ON_ERROR_STOP=1 <<'SQL'
           ALTER ROLE axiom_app WITH LOGIN PASSWORD 'axiom_app';
@@ -153,12 +171,23 @@ jobs:
           ON CONFLICT (id) DO NOTHING;
           SQL
 
+      - name: Verify runtime egress resolver crosses RLS safely
+        if: matrix.task == 'test'
+        env:
+          PGPASSWORD: axiom_app
+        run: |
+          psql -h localhost -U axiom_app -d axiom_test -v ON_ERROR_STOP=1 \
+            -c "SELECT count(*) FROM load_model_network_configs();"
+
       - name: Run JS/TS tests
         if: matrix.task == 'test'
         env:
           DATABASE_URL: postgresql://axiom_app:axiom_app@localhost:5432/axiom_test
           TEST_DATABASE_URL: postgresql://axiom_app:axiom_app@localhost:5432/axiom_test
-        run: pnpm test
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ffmpeg
+          pnpm test
 
       - name: Rust cargo check
         if: matrix.task == 'test'
@@ -180,6 +209,23 @@ jobs:
             fi
           done
 
+      - name: Grok CLI sealed-image guard
+        if: matrix.task == 'test'
+        run: |
+          cargo fmt --manifest-path infra/grok-cli/input-guard/Cargo.toml --check
+          cargo clippy --locked --manifest-path infra/grok-cli/input-guard/Cargo.toml --all-targets -- -D warnings
+          cargo test --locked --manifest-path infra/grok-cli/input-guard/Cargo.toml
+
+      - name: Grok event-listener thread-safety regression
+        if: matrix.task == 'test'
+        run: cargo test --locked --manifest-path infra/grok-cli/event-listener-regression/Cargo.toml
+
+      - name: Grok RNG logging-boundary regression
+        if: matrix.task == 'test'
+        run: |
+          node scripts/check-grok-rand-contract.mjs --fetch-upstream
+          sh infra/grok-cli/rand-regression/test-linux.sh
+
       - name: RLS coverage check — verify ENABLE ROW LEVEL SECURITY policies
         if: matrix.task == 'test'
         run: |
@@ -192,15 +238,36 @@ jobs:
             exit 1
           fi
 
-      - name: Install privileged egress test dependencies
+      - name: Install runtime rehearsal dependencies
         if: matrix.task == 'test'
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y iproute2 iptables wireguard-tools
+          # The hosted runner image may carry an unrelated Google Chrome APT
+          # source whose rotating index can briefly fail hash verification.
+          # Retry once with only that source disabled; all required packages
+          # come from the Ubuntu repositories, and other APT failures remain
+          # fatal.
+          if ! sudo apt-get update; then
+            for source in /etc/apt/sources.list.d/*; do
+              if [ -f "$source" ] && sudo grep -q -- 'dl.google.com/linux/chrome' "$source"; then
+                echo "Disabling transient Google Chrome source: $source"
+                sudo mv "$source" "${source}.disabled"
+              fi
+            done
+            sudo apt-get update
+          fi
+          sudo apt-get install --no-install-recommends -y iproute2 iptables wireguard-tools bubblewrap ffmpeg
           command -v ip
           command -v iptables
           command -v wg
           sudo ip netns list
+        shell: bash
+
+      - name: Rehearse real video frame extraction
+        if: matrix.task == 'test'
+        run: |
+          command -v ffmpeg
+          command -v ffprobe
+          cargo test --locked -p media-plane video_frames::tests::real_ffmpeg_short_clip_coverage_and_cache -- --exact --ignored
         shell: bash
 
       - name: Run privileged egress integration tests
@@ -209,6 +276,16 @@ jobs:
           sudo -E env "PATH=$PATH" cargo test \
             --manifest-path crates/egress-plane/Cargo.toml \
             --test egress_test -- --ignored --test-threads=1
+        shell: bash
+
+      - name: Rehearse isolated Grok image descriptor handoff
+        if: matrix.task == 'test'
+        run: |
+          cargo build --locked --manifest-path infra/grok-cli/input-guard/Cargo.toml --bins --examples
+          pnpm --filter @axiom/llm-gateway build
+          # Hosted Ubuntu can restrict unprivileged user namespaces. This is
+          # a synthetic privileged fixture, not production/rootless acceptance.
+          sudo "$(command -v node)" scripts/rehearse-grok-handoff.mjs --isolated-fixture
         shell: bash
 
       # ═══════════════════════════════════════════════════════════
@@ -237,7 +314,20 @@ jobs:
 
       - name: Run repository security gates
         if: matrix.task == 'security'
-        run: pnpm security-check
+        run: |
+          node scripts/test-security-gate.mjs
+          node scripts/test-local-grok-origin.mjs
+          node scripts/test-local-grok-startup.mjs --isolated-fixture
+          node scripts/test-login-stream-compression.mjs
+          pnpm security-check
+
+      - name: Audit Grok CLI input guard dependencies
+        if: matrix.task == 'security'
+        run: cargo audit --file infra/grok-cli/input-guard/Cargo.lock
+
+      - name: Run dependency advisory gate
+        if: matrix.task == 'security'
+        run: pnpm audit:dependencies
 
       # ───────────────────────────────────────────────────────────────────────
       #  MATRIX TASK: container
@@ -246,8 +336,12 @@ jobs:
         if: matrix.task == 'container'
         run: |
           docker build --file infra/Dockerfile.hono --tag axiom-hono:ci .
-          docker build --file infra/Dockerfile.next --tag axiom-dashboard:ci .
+          docker build --build-arg API_ORIGIN=http://127.0.0.1:3001 --file infra/Dockerfile.next --tag axiom-dashboard:ci .
+          docker build --file infra/Dockerfile.worker --tag axiom-worker:ci .
           docker build --file infra/Dockerfile.rust --tag axiom-egress-plane:ci .
+          docker build --file infra/Dockerfile.media --tag axiom-media-plane:ci .
+          docker build --file infra/Dockerfile.vision --tag axiom-vision-engine:ci .
+          docker build --file infra/Dockerfile.scraper --tag axiom-scraper:ci .
 
       - name: Smoke-test deployment containers
         if: matrix.task == 'container'
@@ -255,7 +349,7 @@ jobs:
           set -euo pipefail
 
           cleanup() {
-            docker rm --force axiom-egress-ci axiom-hono-ci axiom-dashboard-ci >/dev/null 2>&1 || true
+            docker rm --force axiom-egress-ci axiom-media-ci axiom-vision-ci axiom-scraper-ci axiom-hono-ci axiom-dashboard-ci axiom-worker-ci >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
 
@@ -288,25 +382,114 @@ jobs:
 
           ci_auth_value='ci-authentication-value-012345678901'
           ci_relay_value='ci-relay-value-012345678901234567'
+          ci_egress_value='ci-egress-plane-012345678901234567890123'
+          ci_media_value='ci-media-plane-012345678901234567890123'
+          ci_vision_value='ci-vision-sidecar-012345678901234567890123'
+          ci_scraper_value='ci-scraper-sidecar-012345678901234567890123'
 
-          docker run --detach --name axiom-egress-ci --network host --cap-add=NET_ADMIN axiom-egress-plane:ci
+          export MIGRATOR_DATABASE_URL=postgresql://axiom:changeme@127.0.0.1:5432/axiom_test
+          export PGPASSWORD=changeme
+          pnpm migrate
+          psql -h 127.0.0.1 -U axiom -d axiom_test -v ON_ERROR_STOP=1 \
+            -c "ALTER ROLE axiom_app WITH LOGIN PASSWORD 'axiom_app'"
+
+          docker run --detach --name axiom-egress-ci --network host --cap-add=NET_ADMIN \
+            --env NODE_ENV=production \
+            --env EGRESS_DATABASE_URL=postgresql://axiom:changeme@127.0.0.1:5432/axiom_test \
+            --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
+            --env EGRESS_DEK=0000000000000000000000000000000000000000000000000000000000000000 \
+            axiom-egress-plane:ci
+          docker run --detach --name axiom-media-ci --network host \
+            --env NODE_ENV=production \
+            --env AXIOM_MEDIA_ADDR=0.0.0.0:8100 \
+            --env AXIOM_MEDIA_AUTH_TOKEN="$ci_media_value" \
+            axiom-media-plane:ci
+          docker run --detach --name axiom-vision-ci --network host \
+            --env NODE_ENV=production \
+            --env AXIOM_VISION_ADDR=0.0.0.0:8101 \
+            --env AXIOM_VISION_AUTH_TOKEN="$ci_vision_value" \
+            --env AXIOM_VISION_MODEL=/opt/axiom/models/nsfw-vit.onnx \
+            axiom-vision-engine:ci
+          docker run --detach --name axiom-scraper-ci --network host \
+            --env NODE_ENV=production \
+            --env AXIOM_SCRAPER_ADDR=0.0.0.0:8102 \
+            --env AXIOM_SCRAPER_AUTH_TOKEN="$ci_scraper_value" \
+            axiom-scraper:ci
           docker run --detach --name axiom-hono-ci --network host \
             --env NODE_ENV=production \
             --env API_HOST=0.0.0.0 \
-            --env DATABASE_URL=postgresql://axiom:changeme@127.0.0.1:5432/axiom_test \
+            --env DATABASE_URL=postgresql://axiom_app:axiom_app@127.0.0.1:5432/axiom_test \
             --env BETTER_AUTH_SECRET="$ci_auth_value" \
             --env BETTER_AUTH_URL=https://127.0.0.1:3001 \
             --env RELAY_SECRET="$ci_relay_value" \
+            --env EGRESS_PLANE_URL=http://127.0.0.1:9090 \
+            --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
             axiom-hono:ci
           docker run --detach --name axiom-dashboard-ci --network host \
             --env NODE_ENV=production \
             --env PORT=3000 \
             --env HOSTNAME=0.0.0.0 \
             axiom-dashboard:ci
+          docker run --detach --name axiom-worker-ci --network host \
+            --env NODE_ENV=production \
+            --env DATABASE_URL=postgresql://axiom_app:axiom_app@127.0.0.1:5432/axiom_test \
+            --env RELAY_SECRET="$ci_relay_value" \
+            --env EGRESS_PLANE_URL=http://127.0.0.1:9090 \
+            --env EGRESS_PLANE_TOKEN="$ci_egress_value" \
+            --env MEDIA_PLANE_URL=http://127.0.0.1:8100 \
+            --env MEDIA_PLANE_AUTH_TOKEN="$ci_media_value" \
+            --env AXIOM_SERVICE_NAME=worker-ci \
+            axiom-worker:ci
 
           wait_for_health axiom-egress-ci
+          wait_for_health axiom-media-ci
+          wait_for_health axiom-scraper-ci
           wait_for_health axiom-hono-ci
           wait_for_health axiom-dashboard-ci
+          wait_for_health axiom-worker-ci
+
+          # Exercise real identity persistence through the dashboard rewrite,
+          # with the API running as the non-owner application database role.
+          node scripts/smoke-auth.mjs http://127.0.0.1:3000 https://127.0.0.1:3001 --tenant-fixture --wait-for-tos
+
+          # Vision readiness is model-backed. The CI image intentionally does
+          # not bundle the 343 MB external model artifact; verify that the
+          # binary starts, keeps health public, and protects inference routes.
+          for _ in $(seq 1 45); do
+            if curl --silent http://127.0.0.1:8101/health >/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          if ! curl --silent --show-error http://127.0.0.1:8101/health | grep -q 'model_loaded'; then
+            echo "axiom-vision-ci: health response missing model status"
+            docker logs axiom-vision-ci
+            exit 1
+          fi
+          if [ "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8101/vision/nsfw-detect)" != "401" ]; then
+            echo "axiom-vision-ci: unauthenticated inference route was not rejected"
+            exit 1
+          fi
+          echo "axiom-vision-ci: authenticated boundary probe passed"
+
+          curl --fail --silent --show-error \
+            -H "x-egress-plane-token: $ci_egress_value" \
+            http://127.0.0.1:9090/kill-switch/status >/dev/null
+          echo "axiom-egress-ci: authenticated control-plane probe passed"
+
+          if [ "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request POST http://127.0.0.1:8100/media/video/probe \
+            --header 'content-type: application/json' \
+            --data '{"video_path":"missing.mp4"}')" != "401" ]; then
+            echo "axiom-media-ci: unauthenticated media route was not rejected"
+            exit 1
+          fi
+          curl --fail --silent --show-error \
+            --request POST http://127.0.0.1:8100/media/video/probe \
+            --header "authorization: Bearer $ci_media_value" \
+            --header 'content-type: application/json' \
+            --data '{"video_path":"missing.mp4"}' >/dev/null
+          echo "axiom-media-ci: authenticated media boundary probe passed"
 
           # Liveness only proves that the Hono process is serving HTTP. The
           # readiness endpoint performs the real database dependency check;

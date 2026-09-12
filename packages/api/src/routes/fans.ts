@@ -3,11 +3,18 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { zValidator } from '@hono/zod-validator';
+import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, modelOrgId, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
+import {
+  withOrgContext,
+  modelOrgId,
+  requireOrg,
+  writeAudit,
+  apiError,
+  statusTitle,
+} from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
@@ -203,12 +210,7 @@ router.post('/custom-requests', zValidator('json', requestSchema), async (c) => 
       const fans = await tx
         .select({ id: schema.fanCrmContact.id, modelId: schema.fanCrmContact.modelId })
         .from(schema.fanCrmContact)
-        .where(
-          and(
-            eq(schema.fanCrmContact.id, body.fanId),
-            eq(schema.fanCrmContact.orgId, orgId),
-          ),
-        )
+        .where(and(eq(schema.fanCrmContact.id, body.fanId), eq(schema.fanCrmContact.orgId, orgId)))
         .limit(1);
       if (fans.length === 0 || fans[0].modelId !== body.modelId) return null;
     }

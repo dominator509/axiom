@@ -61,6 +61,7 @@ const TS_TO_SQL: Record<string, string> = {
   relayBinding: 'relay_binding',
   agentPermission: 'agent_permission',
   crashReport: 'crash_report',
+  mcpTokenRevocation: 'mcp_token_revocation',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -100,6 +101,9 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(runner).toContain('stream_migration_without_transaction_control');
     expect(runner).toContain('TO axiom_app;');
     expect(runner).toContain("TO axiom_app'");
+    // Database selection must be an option, not a positional argument before
+    // -c: native Windows psql otherwise silently ignores the ledger query.
+    expect(runner.match(/-d "\$MIGRATOR_DATABASE_URL"/g)).toHaveLength(4);
   });
 
   it('reclaims stale worker leases before selecting the next job', () => {
@@ -108,6 +112,36 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(sql).toContain('worker lease expired before completion');
     expect(sql).toContain(
       "state = CASE WHEN attempts + 1 >= max_attempts THEN 'dead' ELSE 'ready' END",
+    );
+  });
+
+  it('dead-letters stale jobs that may have an unknown external side effect', () => {
+    expect(sql).toContain("kind IN ('publish.target', 'relay.card')");
+    expect(sql).toContain('external-side-effect-unknown: worker lease expired before completion');
+  });
+
+  it('enforces the viral exemplar identity used by the worker upsert', () => {
+    expect(sql).toContain('viral_exemplar_identity');
+    expect(sql).toContain('UNIQUE (org_id, model_id, bundle_id, platform)');
+    expect(sql).toContain('deduplicate before applying 0022');
+  });
+
+  it('serializes concurrent pending relay-card dispatch markers', () => {
+    expect(sql).toContain('relay_card_pending_dispatch_unique');
+    expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS relay_card_pending_dispatch_unique');
+    expect(sql).toContain('ON relay_card (org_id, bundle_id, channel, external_ref)');
+    expect(sql).toContain("WHERE state = 'pending';");
+    expect(sql).toContain('deduplicate before applying 0023');
+  });
+
+  it('locks the trusted cross-org egress resolver to the runtime and migrator roles', () => {
+    expect(sql).toContain('CREATE OR REPLACE FUNCTION load_model_network_configs()');
+    expect(sql).toContain('RETURNS SETOF public.model_network_configs');
+    expect(sql).toContain('SECURITY DEFINER');
+    expect(sql).toContain('REVOKE ALL ON FUNCTION load_model_network_configs() FROM PUBLIC;');
+    expect(sql).toContain('GRANT EXECUTE ON FUNCTION load_model_network_configs() TO axiom_app;');
+    expect(sql).toContain(
+      'GRANT EXECUTE ON FUNCTION load_model_network_configs() TO axiom_migrator;',
     );
   });
 
@@ -156,6 +190,14 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
         ],
       ],
       ['model_profile', ['handle TEXT NOT NULL', 'bio TEXT']],
+      [
+        'mcp_token_revocation',
+        [
+          'token_id TEXT PRIMARY KEY',
+          'revoked_at TIMESTAMPTZ NOT NULL',
+          'expires_at TIMESTAMPTZ NOT NULL',
+        ],
+      ],
       [
         'consent_record',
         [
@@ -480,7 +522,15 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // Auth identity tables are cross-tenant (session lookup happens before org
     // context exists) — excluded from the RLS sweep. All other tables are
     // org-scoped and must be RLS-protected (LBI-02).
-    const nonTenant = new Set(['auth_user', 'auth_session', 'auth_account', 'auth_verification']);
+    const nonTenant = new Set([
+      'auth_user',
+      'auth_session',
+      'auth_account',
+      'auth_verification',
+      // The denylist is deliberately global so every API instance can reject
+      // a revoked capability before model/org resolution.
+      'mcp_token_revocation',
+    ]);
     // 0000/0001 emit literal ALTER statements; 0002 emits the same statements
     // through a DO block with format('...', t) — both patterns are valid.
     const doBlockTables = new Set([
@@ -526,8 +576,9 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 15 tables in 0000 (org_id + key lookup) + 1 in 0001 (org_id) +
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
-    // 29 in 0004 (job_pick + job_dedupe + 27 entity-table hot paths) — exact count.
-    expect(indexStatements).toHaveLength(69);
+    // 29 in 0004 (job_pick + job_dedupe + 27 entity-table hot paths) + 1
+    // durable MCP revocation expiry index — exact count.
+    expect(indexStatements).toHaveLength(70);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(

@@ -11,23 +11,49 @@ import { createRelayRoutes, type RelayDependencies } from './routes.js';
 import type { ViralPersistence } from './viral/persistence.js';
 
 function buildDeps(overrides: Partial<RelayDependencies> = {}): RelayDependencies {
+  const viralLoop = new ViralLoop();
   return {
     cardRenderer: new CardRenderer(),
-    commandRouter: new CommandRouter('route-secret', 5),
-    viralLoop: new ViralLoop(),
+    commandRouter: new CommandRouter('route-secret', 5, async () => undefined),
     bandit: new Bandit(),
     incidentManager: new IncidentManager(),
     healthRegistry: new HealthCheckRegistry(),
+    // Explicit test-only persistence keeps the route tests deterministic
+    // without allowing the production route factory to use an in-memory
+    // fallback.
+    viralPersistence: {
+      persist: async ({ postId, metrics }) => {
+        viralLoop.ingestMetrics(postId, metrics);
+        const label = viralLoop.labelPost(postId);
+        viralLoop.storeExemplar(postId, label);
+        return { label };
+      },
+      listExemplars: async ({ platform, limit }) =>
+        viralLoop.retrieveExemplars(platform, limit).map((exemplar) => ({ ...exemplar })),
+    },
     ...overrides,
   };
 }
 
+function withOrgContext(routeApp: ReturnType<typeof createRelayRoutes>, orgId = 'test-org') {
+  const parent = new Hono<{ Variables: { orgId?: string } }>();
+  parent.use('*', async (c, next) => {
+    c.set('orgId', orgId);
+    await next();
+  });
+  parent.route('/', routeApp);
+  return parent;
+}
+
 let deps: RelayDependencies;
-let app: ReturnType<typeof createRelayRoutes>;
+// The parent test harness adds the auth variable before routing into the
+// factory's standalone Hono app, so retain the harness's inferred type while
+// the production factory remains environment-typed.
+let app: ReturnType<typeof withOrgContext>;
 
 beforeAll(() => {
   deps = buildDeps();
-  app = createRelayRoutes(deps);
+  app = withOrgContext(createRelayRoutes(deps));
 });
 
 afterAll(() => {
@@ -151,6 +177,21 @@ describe('POST /api/v1/relay/command', () => {
     const body = (await res.json()) as any;
     expect(body.success).toBe(false);
   });
+
+  it('rejects an oversized body before signature verification', async () => {
+    const res = await postJson('/api/v1/relay/command', {
+      signature: 'deadbeef',
+      nonce: 'n1',
+      action: 'approve',
+      cardId: 'bundle-1',
+      payload: 'x'.repeat(262_144),
+    });
+    expect(res.status).toBe(413);
+    await expect(res.json()).resolves.toMatchObject({
+      success: false,
+      error: 'Request body too large',
+    });
+  });
 });
 
 describe('POST /api/v1/viral/ingest', () => {
@@ -213,7 +254,7 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
     const listExemplars = vi.fn(async () => [{ label: 'viral', platform: 'tiktok' }]);
     const persistence: ViralPersistence = { persist, listExemplars };
     const localDeps = buildDeps({ viralPersistence: persistence });
-    const localApp = createRelayRoutes(localDeps);
+    const localApp = withOrgContext(createRelayRoutes(localDeps), 'org-123');
 
     const res = await localApp.request('/api/v1/viral/ingest', {
       method: 'POST',
@@ -227,10 +268,8 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
     expect(persist).toHaveBeenCalledWith({
       postId: 'db1',
       metrics: expect.objectContaining({ postId: 'db1', engagementRate: 0.05 }),
-      orgId: undefined,
+      orgId: 'org-123',
     });
-    // The in-memory loop must NOT be touched when persistence is injected.
-    expect(localDeps.viralLoop.getExemplarCount()).toBe(0);
   });
 
   it('passes the authenticated orgId from the request context', async () => {
@@ -268,13 +307,25 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
     ]);
     const persistence: ViralPersistence = { persist: vi.fn(), listExemplars };
     const localDeps = buildDeps({ viralPersistence: persistence });
-    const localApp = createRelayRoutes(localDeps);
+    const localApp = withOrgContext(createRelayRoutes(localDeps), 'org-123');
 
     const res = await localApp.request('/api/v1/viral/exemplars?platform=tiktok&limit=3');
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.exemplars).toEqual([{ label: 'strong', platform: 'tiktok', perfScore: 1.2 }]);
-    expect(listExemplars).toHaveBeenCalledWith({ platform: 'tiktok', limit: 3, orgId: undefined });
+    expect(listExemplars).toHaveBeenCalledWith({ platform: 'tiktok', limit: 3, orgId: 'org-123' });
+  });
+
+  it('rejects a tenant query parameter without an authenticated org context', async () => {
+    const listExemplars = vi.fn(async () => []);
+    const localApp = createRelayRoutes(
+      buildDeps({ viralPersistence: { persist: vi.fn(), listExemplars } }),
+    );
+
+    const res = await localApp.request('/api/v1/viral/exemplars?orgId=attacker-org');
+
+    expect(res.status).toBe(401);
+    expect(listExemplars).not.toHaveBeenCalled();
   });
 
   it('returns 500 when persistence throws (fail closed, no silent in-memory fallback)', async () => {
@@ -285,7 +336,7 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
       listExemplars: async () => [],
     };
     const localDeps = buildDeps({ viralPersistence: persistence });
-    const localApp = createRelayRoutes(localDeps);
+    const localApp = withOrgContext(createRelayRoutes(localDeps), 'org-123');
 
     const res = await localApp.request('/api/v1/viral/ingest', {
       method: 'POST',
@@ -296,7 +347,6 @@ describe('POST /api/v1/viral/ingest — DB-backed path (M-7)', () => {
     const body = (await res.json()) as any;
     expect(body.success).toBe(false);
     expect(body.error).toBe('Failed to ingest metrics');
-    expect(localDeps.viralLoop.getExemplarCount()).toBe(0);
   });
 });
 
@@ -331,7 +381,7 @@ describe('POST /api/v1/incidents/:id/replay', () => {
     expect(body).toEqual({ success: false });
   });
 
-  it('replays an enqueued DLQ entry successfully', async () => {
+  it('rejects replay when no durable executor is configured and preserves the entry', async () => {
     const entry = deps.incidentManager.enqueueDLQ({
       originalPayload: { postId: 'p9' },
       error: 'timeout',
@@ -339,10 +389,13 @@ describe('POST /api/v1/incidents/:id/replay', () => {
       maxRetries: 3,
     });
     const res = await app.request(`/api/v1/incidents/${entry.id}/replay`, { method: 'POST' });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(501);
     const body = (await res.json()) as any;
-    expect(body).toEqual({ success: true });
-    expect(deps.incidentManager.getDLQ()).toHaveLength(0);
+    expect(body).toEqual({
+      success: false,
+      error: 'DLQ replay requires the durable API job replay endpoint',
+    });
+    expect(deps.incidentManager.getDLQ()).toHaveLength(1);
   });
 });
 
@@ -352,8 +405,8 @@ describe('GET /api/v1/metrics', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toContain('text/plain');
     const text = await res.text();
-    expect(text).toContain('# TYPE relay_cards_sent counter');
-    expect(text).toContain('relay_cards_sent{platforms="tiktok"}');
+    expect(text).toContain('# TYPE relay_cards_rendered counter');
+    expect(text).toContain('relay_cards_rendered{platforms="tiktok"}');
   });
 });
 

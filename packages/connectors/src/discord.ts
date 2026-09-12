@@ -2,7 +2,13 @@
 // Uses Discord webhooks for link-sharing posts. Discord does not expose
 // post-level metrics via webhooks, so fetchMetrics returns an empty set.
 
-import { BaseConnector } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+  readResponseText,
+  redactProviderText,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -15,7 +21,7 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
-import { validatePublish } from './validation.js';
+import { mediaTypeHint, validatePublish } from './validation.js';
 
 const DISCORD_API_BASE = 'https://discord.com/api';
 
@@ -103,7 +109,7 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
       // Attach the first media as thumbnail/image
       if (mediaUrls.length > 0) {
         const firstMedia = mediaUrls[0];
-        const mediaType = this.detectMediaType(firstMedia);
+        const mediaType = this.detectMediaType(firstMedia, mediaTypeHint(input));
 
         if (mediaType === 'video') {
           embed.video = { url: firstMedia };
@@ -132,11 +138,21 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
       });
 
       if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(`Discord webhook failed: HTTP ${response.status} — ${body}`);
+        const body = await readResponseText(
+          response,
+          CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+          'provider error response',
+        ).catch(() => '');
+        throw new Error(
+          `Discord webhook failed: HTTP ${response.status} — ${redactProviderText(body)}`,
+        );
       }
 
-      const responseBody = await response.text().catch(() => '');
+      const responseBody = await readResponseText(
+        response,
+        CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+        'provider JSON response',
+      ).catch(() => '');
       let result: Partial<DiscordWebhookResponse> = {};
       if (responseBody.trim().length > 0) {
         result = JSON.parse(responseBody) as DiscordWebhookResponse;
@@ -176,8 +192,7 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
   async revoke(): Promise<void> {
     const webhookUrl = this.auth.extra?.webhookUrl as string | undefined;
     if (!webhookUrl) {
-      this.log('warn', 'revoke', 'No webhook URL set; skipping revoke');
-      return;
+      throw new Error('Discord revoke requires a webhook URL in auth.extra.webhookUrl');
     }
 
     // Delete Webhook with Token is the unauthenticated endpoint for an
@@ -186,13 +201,11 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
     try {
       webhook = new URL(webhookUrl);
     } catch {
-      this.log('warn', 'revoke', 'Could not parse webhook URL; skipping');
-      return;
+      throw new Error('Discord revoke requires a valid webhook URL');
     }
     const match = webhook.pathname.match(/\/webhooks\/(\d+)\/([^/]+)$/);
     if (!match) {
-      this.log('warn', 'revoke', 'Webhook URL does not contain an ID and token; skipping');
-      return;
+      throw new Error('Discord revoke requires a webhook URL containing an ID and token');
     }
 
     const webhookId = match[1];
@@ -207,11 +220,13 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
     );
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      this.log(
-        'warn',
-        'revoke',
-        `Discord webhook deletion warned: HTTP ${response.status} — ${body}`,
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      throw new Error(
+        `Discord webhook deletion failed: HTTP ${response.status} — ${redactProviderText(body)}`,
       );
     } else {
       this.log('info', 'revoke', `Discord webhook ${webhookId} deleted successfully`);
@@ -224,7 +239,10 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
   }
 
   /** Detect media type from URL extension */
-  private detectMediaType(url: string): 'image' | 'video' {
+  private detectMediaType(url: string, declared?: MediaType): 'image' | 'video' {
+    if (declared === 'video') return 'video';
+    if (declared === 'image') return 'image';
+
     try {
       const pathname = new URL(url).pathname;
       const ext = pathname.split('.').pop()?.toLowerCase() ?? '';

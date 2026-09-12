@@ -37,7 +37,7 @@ export default function LoginPage() {
           <p className="eyebrow">Welcome back</p>
           <h2>Enter your studio</h2>
           <p className="subtle">Sign in to continue to your private workspace.</p>
-          <LoginForm />
+          <LoginForm allowSignup={process.env.AXIOM_ENABLE_LOCAL_SIGNUP === '1'} />
           <p className="login-footnote">Protected by encrypted, tenant-isolated access.</p>
         </div>
       </section>

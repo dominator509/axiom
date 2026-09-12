@@ -272,6 +272,8 @@ export class PrefixCache {
  * Separate from the prefix cache — this stores full responses by conversation key.
  */
 export class ResponseCache {
+  private static readonly CAPACITY = 256;
+  private static readonly MAX_CONTENT_CHARS = 100_000;
   private store = new Map<
     string,
     { content: string; usage: { prompt: number; completion: number } }
@@ -293,6 +295,13 @@ export class ResponseCache {
     key: string,
     value: { content: string; usage: { prompt: number; completion: number } },
   ): void {
+    if (value.content.length > ResponseCache.MAX_CONTENT_CHARS) return;
+    this.store.delete(key);
+    while (this.store.size >= ResponseCache.CAPACITY) {
+      const oldest = this.store.keys().next();
+      if (oldest.done) break;
+      this.store.delete(oldest.value);
+    }
     this.store.set(key, value);
   }
 

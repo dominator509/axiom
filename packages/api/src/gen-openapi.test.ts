@@ -31,6 +31,38 @@ describe('groupRoutes (L3.0 build-time OpenAPI)', () => {
     expect(op['parameters']).toEqual([]);
   });
 
+  it('converts mounted route parameters to required OpenAPI path parameters', () => {
+    const paths = groupRoutes([
+      { method: 'POST', path: '/api/v1/models/:modelId/bundles/:id/approve' },
+    ]);
+    const operation = paths['/api/v1/models/{modelId}/bundles/{id}/approve'].post as Record<
+      string,
+      unknown
+    >;
+    expect(operation.parameters).toEqual(
+      ['modelId', 'id'].map((name) => ({
+        name,
+        in: 'path',
+        required: true,
+        schema: { type: 'string' },
+      })),
+    );
+    expect(Object.keys(paths).some((path) => path.includes(':'))).toBe(false);
+  });
+
+  it('omits wildcard forwarding mounts rather than advertising literal star endpoints', () => {
+    expect(groupRoutes([{ method: 'GET', path: '/api/auth/*' }])).toEqual({});
+  });
+
+  it('resolves full mounted paths without repeating the API prefix', () => {
+    const doc = buildOpenApi([{ method: 'GET', path: '/api/v1/health' }]);
+    const servers = doc.servers as { url: string }[];
+    expect(servers[0].url).toBe('/');
+    const origin = new URL(servers[0].url, 'https://operator.example/api/v1/openapi.json');
+    const target = new URL('/api/v1/health', origin);
+    expect(target.href).toBe('https://operator.example/api/v1/health');
+  });
+
   it('buildOpenApi emits a valid OpenAPI 3.0 envelope', () => {
     const doc = buildOpenApi([
       { method: 'GET', path: '/api/v1/health' },

@@ -54,7 +54,11 @@ describe('sendCard', () => {
     await adapter.sendCard('+15559998888', makeCard());
 
     expect(mockedExeca).toHaveBeenCalledTimes(1);
-    const [cliPath, args] = mockedExeca.mock.calls[0] as unknown as [string, string[]];
+    const [cliPath, args, options] = mockedExeca.mock.calls[0] as unknown as [
+      string,
+      string[],
+      { timeout?: number },
+    ];
     expect(cliPath).toBe('/usr/bin/signal-cli');
     expect(args).toEqual([
       'send',
@@ -65,6 +69,7 @@ describe('sendCard', () => {
     ]);
     expect(args[4]).toContain('approve');
     expect(args[4]).toContain('Actions (reply with the action and its signed token):');
+    expect(options).toEqual({ timeout: 30_000 });
   });
 
   it('propagates CLI failures', async () => {
@@ -179,6 +184,20 @@ describe('inbound JSON-RPC receive handling', () => {
         }),
       ),
     ).toMatchObject({ source: '+15550002222', text: 'approve token' });
+  });
+
+  it('rejects oversized JSON-RPC notifications before parsing', () => {
+    const oversized = JSON.stringify({
+      params: {
+        envelope: {
+          source: '+15550002222',
+          dataMessage: { message: 'x'.repeat(256 * 1024) },
+        },
+      },
+    });
+
+    expect(Buffer.byteLength(oversized, 'utf8')).toBeGreaterThan(256 * 1024);
+    expect(parseSignalNotification(oversized)).toBeNull();
   });
 
   it('verifies a signed token before invoking the domain handler', async () => {

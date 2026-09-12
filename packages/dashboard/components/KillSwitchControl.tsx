@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutationFetch } from '@/lib/mutation';
+import { readDashboardError } from '@/lib/response';
 
 export default function KillSwitchControl({ enabled }: { enabled: boolean }) {
   const router = useRouter();
@@ -23,7 +24,7 @@ export default function KillSwitchControl({ enabled }: { enabled: boolean }) {
         },
       );
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
+        const b = await readDashboardError(res);
         setError(b?.error?.message ?? 'Action failed');
         return;
       }

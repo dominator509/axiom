@@ -4,7 +4,7 @@ use tracing_subscriber::EnvFilter;
 
 use egress_plane::killswitch::KillSwitch;
 use egress_plane::proxy;
-use egress_plane::{build_router, AppState, Config, Registry};
+use egress_plane::{build_router, AppState, Config, Registry, CONTROL_PLANE_LISTEN_ADDR};
 
 #[tokio::main]
 async fn main() {
@@ -27,14 +27,28 @@ async fn main() {
     }
 
     let config = Config::from_env();
+    let production = std::env::var("NODE_ENV")
+        .map(|value| value.eq_ignore_ascii_case("production"))
+        .unwrap_or(false);
+    if production {
+        if let Err(error) = config.validate_production() {
+            eprintln!("egress-plane production configuration invalid: {error}");
+            std::process::exit(1);
+        }
+    }
     let kill_switch = KillSwitch::from_env();
 
-    // Optional Postgres integration (loads model_network_configs + persists
-    // health). Falls back gracefully when DATABASE_URL is absent.
+    // Postgres loads model_network_configs and persists health. Development
+    // keeps the existing optional behavior; production has already validated
+    // the URL and must terminate if the connection cannot be established.
     let db = match &config.database_url {
         Some(url) => match egress_plane::db::connect(url).await {
             Ok(client) => Some(client),
             Err(e) => {
+                if production {
+                    eprintln!("egress-plane production database connection failed: {e}");
+                    std::process::exit(1);
+                }
                 warn!(error = %e, "DB integration disabled");
                 None
             }
@@ -73,8 +87,9 @@ async fn main() {
 
 async fn run_healthcheck() {
     let url = std::env::var("HEALTHCHECK_URL").unwrap_or_else(|_| {
-        let listen = std::env::var("LISTEN_ADDR").unwrap_or_else(|_| "127.0.0.1:3000".into());
-        let port = listen.rsplit(':').next().unwrap_or("3000");
+        let listen =
+            std::env::var("LISTEN_ADDR").unwrap_or_else(|_| CONTROL_PLANE_LISTEN_ADDR.to_string());
+        let port = listen.rsplit(':').next().unwrap_or("9090");
         format!("http://127.0.0.1:{port}/health")
     });
     let result = reqwest::Client::new()

@@ -78,7 +78,7 @@ describe('MCP queue contracts', () => {
     );
   });
 
-  it('enqueues publish.target with the returned target ID for Autonomous calls', async () => {
+  it('stops Autonomous publishing at the generated bundle until approval', async () => {
     const result = await new PublishingTool().handle(
       {
         modelId: MODEL_ID,
@@ -88,16 +88,25 @@ describe('MCP queue contracts', () => {
       permission(Tier.Autonomous),
     );
 
-    expect(result).toMatchObject({ status: 'queued', requiresApproval: false });
-    expect(inserted).toHaveLength(2);
-    expect(inserted[0]?.values).toMatchObject({ state: 'approved', modelId: MODEL_ID });
+    expect(result).toMatchObject({ status: 'pending_approval', requiresApproval: true });
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]?.values).toMatchObject({
+      state: 'generated',
+      modelId: MODEL_ID,
+      publishIntent: {
+        action: 'publish',
+        platform: 'x',
+        scheduledAt: null,
+      },
+    });
+    expect(enqueueJob).toHaveBeenCalledTimes(1);
     expect(enqueueJob).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        queue: 'publish',
-        kind: 'publish.target',
-        payload: { targetId: TARGET_ID },
-        dedupeParts: ['publish.target', TARGET_ID],
+        queue: 'tos',
+        kind: 'tos.scan',
+        payload: { bundleId: expect.any(String) },
+        dedupeParts: ['tos.scan', expect.any(String)],
       }),
     );
   });
@@ -114,7 +123,7 @@ describe('MCP queue contracts', () => {
       permission(Tier.Autonomous),
     );
 
-    expect(inserted[0]?.values).toMatchObject({ assetId: ASSET_ID, state: 'approved' });
+    expect(inserted[0]?.values).toMatchObject({ assetId: ASSET_ID, state: 'generated' });
   });
 
   it('rejects an unowned mediaId before creating a bundle', async () => {
@@ -155,7 +164,7 @@ describe('MCP queue contracts', () => {
     ).toBe(false);
   });
 
-  it('does not create a publish target or enqueue a job before Manager approval', async () => {
+  it('does not create a publish target before Manager approval', async () => {
     assetRows.push({ id: ASSET_ID });
     const result = await new PublishingTool().handle(
       {
@@ -168,7 +177,18 @@ describe('MCP queue contracts', () => {
 
     expect(result).toMatchObject({ status: 'pending_approval', requiresApproval: true });
     expect(inserted).toHaveLength(1);
-    expect(enqueueJob).not.toHaveBeenCalled();
+    expect(inserted[0]?.values).toMatchObject({
+      publishIntent: {
+        action: 'schedule',
+        platform: 'fanvue',
+        scheduledAt: '2026-08-02T10:00:00Z',
+      },
+    });
+    expect(enqueueJob).toHaveBeenCalledTimes(1);
+    expect(enqueueJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ queue: 'tos', kind: 'tos.scan' }),
+    );
   });
 
   it('does not advertise an unsupported OnlyFans connector', () => {

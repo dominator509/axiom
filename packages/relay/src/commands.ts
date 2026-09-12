@@ -33,6 +33,7 @@ const ACTIONS_BY_CODE = Object.fromEntries(
 ) as Record<string, CardAction>;
 const COMPACT_TOKEN_MAC_BYTES = 12;
 const COMPACT_TOKEN_MAX_LENGTH = 64;
+const NONCE_CLEANUP_MIN_INTERVAL_MS = 30_000;
 
 export function isCardAction(value: unknown): value is CardAction {
   return typeof value === 'string' && CARD_ACTIONS.includes(value as CardAction);
@@ -74,7 +75,7 @@ export class CommandRouter {
   private secret: Buffer;
   private nonces: Map<string, NonceEntry> = new Map();
   private ttlMs: number;
-  private auditLog: CommandResult[] = [];
+  private nextNonceCleanupAt = 0;
   private executor?: CommandExecutor;
 
   constructor(secret: string, ttlMinutes: number = 5, executor?: CommandExecutor) {
@@ -151,10 +152,13 @@ export class CommandRouter {
   }
 
   verifyCommand(signature: string, nonce: string, action: CardAction, cardId: string): boolean {
+    const now = Date.now();
+    this.maybeCleanupExpiredNonces(now);
+
     // Check nonce reuse
     const existing = this.nonces.get(nonce);
     if (existing) {
-      if (existing.expiresAt > Date.now()) {
+      if (existing.expiresAt > now) {
         return false; // Nonce still valid — reuse detected
       }
       this.nonces.delete(nonce); // Expired, clean up
@@ -177,7 +181,7 @@ export class CommandRouter {
     // Store nonce with expiry
     this.nonces.set(nonce, {
       nonce,
-      expiresAt: Date.now() + this.ttlMs,
+      expiresAt: now + this.ttlMs,
     });
 
     return true;
@@ -196,18 +200,22 @@ export class CommandRouter {
       timestamp: Date.now(),
     };
 
+    if (!this.executor) {
+      // A verified token is not a durable domain mutation. Without the API's
+      // DB-backed executor, reporting success would acknowledge a command
+      // that was never applied and would be lost on process restart.
+      return {
+        ...result,
+        success: false,
+        error: 'relay command executor not configured',
+      };
+    }
+
     try {
-      if (this.executor) {
-        const note = context
-          ? await this.executor(action, cardId, params, context)
-          : await this.executor(action, cardId, params);
-        result.error = note ?? undefined;
-      } else {
-        // No executor injected (e.g. unit tests): record the command in the
-        // in-memory audit log. Production wiring always injects the DB
-        // executor (see packages/api/src/index.ts initRelay).
-        this.auditLog.push(result);
-      }
+      const note = context
+        ? await this.executor(action, cardId, params, context)
+        : await this.executor(action, cardId, params);
+      result.error = note ?? undefined;
     } catch (err) {
       result.success = false;
       result.error = err instanceof Error ? err.message : String(err);
@@ -216,12 +224,7 @@ export class CommandRouter {
     return result;
   }
 
-  getAuditLog(): CommandResult[] {
-    return [...this.auditLog];
-  }
-
-  cleanupExpiredNonces(): void {
-    const now = Date.now();
+  cleanupExpiredNonces(now: number = Date.now()): void {
     for (const [key, entry] of this.nonces) {
       if (entry.expiresAt <= now) {
         this.nonces.delete(key);
@@ -241,7 +244,11 @@ export class CommandRouter {
     token: string,
     expectedAction?: CardAction,
   ): { action: CardAction; cardId: string; nonce: string } | null {
-    if (typeof token !== 'string' || token.length === 0 || token.length > COMPACT_TOKEN_MAX_LENGTH) {
+    if (
+      typeof token !== 'string' ||
+      token.length === 0 ||
+      token.length > COMPACT_TOKEN_MAX_LENGTH
+    ) {
       return null;
     }
 
@@ -281,16 +288,32 @@ export class CommandRouter {
   }
 
   private consumeNonce(nonce: string): boolean {
+    const now = Date.now();
+    this.maybeCleanupExpiredNonces(now);
+
     const existing = this.nonces.get(nonce);
     if (existing) {
-      if (existing.expiresAt > Date.now()) return false;
+      if (existing.expiresAt > now) return false;
       this.nonces.delete(nonce);
     }
     this.nonces.set(nonce, {
       nonce,
-      expiresAt: Date.now() + this.ttlMs,
+      expiresAt: now + this.ttlMs,
     });
     return true;
+  }
+
+  /**
+   * Reclaim stale replay-protection entries during normal verification. The
+   * router is long-lived in production, so relying on an explicit cleanup
+   * call would retain every verified nonce until process restart. Throttling
+   * the scan keeps request handling bounded without introducing a timer that
+   * would complicate lifecycle management and tests.
+   */
+  private maybeCleanupExpiredNonces(now: number): void {
+    if (now < this.nextNonceCleanupAt) return;
+    this.cleanupExpiredNonces(now);
+    this.nextNonceCleanupAt = now + Math.max(NONCE_CLEANUP_MIN_INTERVAL_MS, this.ttlMs / 2);
   }
 }
 

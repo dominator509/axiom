@@ -1289,8 +1289,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "tempfile",
  "thiserror 2.0.19",
  "tokio",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2319,6 +2321,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.19",
  "tokio",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]
@@ -2948,6 +2951,7 @@ dependencies = [
  "sha2 0.10.9",
  "thiserror 2.0.19",
  "tokio",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]

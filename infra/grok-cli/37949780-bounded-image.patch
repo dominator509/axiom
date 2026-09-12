@@ -1,0 +1,371 @@
+diff --git a/crates/codegen/xai-grok-image/src/lib.rs b/crates/codegen/xai-grok-image/src/lib.rs
+--- a/crates/codegen/xai-grok-image/src/lib.rs
++++ b/crates/codegen/xai-grok-image/src/lib.rs
+@@ -5,3 +5,6 @@
+ use image::{ImageError, ImageFormat};
++
++mod axiom;
++pub use axiom::validate_axiom_source_image;
+ 
+ /// `image`-crate error message substrings classified as `Truncated`.
+diff --git a/crates/codegen/xai-grok-tools/src/implementations/grok_build/video_gen/mod.rs b/crates/codegen/xai-grok-tools/src/implementations/grok_build/video_gen/mod.rs
+--- a/crates/codegen/xai-grok-tools/src/implementations/grok_build/video_gen/mod.rs
++++ b/crates/codegen/xai-grok-tools/src/implementations/grok_build/video_gen/mod.rs
+@@ -868,5 +868,5 @@
+     let (_w, _h, mime) =
+-        crate::util::image_validate::validate_image_bytes(&raw_bytes).map_err(|e| {
++        xai_grok_image::validate_axiom_source_image(&raw_bytes).map_err(|e| {
+             xai_tool_runtime::ToolError::invalid_arguments(format!("invalid image reference: {e}"))
+         })?;
+     let b64 = base64::engine::general_purpose::STANDARD.encode(&raw_bytes);
+diff --git a/crates/codegen/xai-grok-image/src/axiom.rs b/crates/codegen/xai-grok-image/src/axiom.rs
+new file mode 100644
+--- /dev/null
++++ b/crates/codegen/xai-grok-image/src/axiom.rs
+@@ -0,0 +1,346 @@
++//! AXIOM-only source-image policy, before provider upload.
++use image::{ImageFormat, ImageReader, Limits};
++use std::io::Cursor;
++
++#[derive(Clone, Copy)]
++struct Policy {
++    side: u32,
++    pixels: u64,
++    allocation: u64,
++}
++
++const POLICY: Policy = Policy {
++    side: 8192,
++    pixels: 16_000_000,
++    allocation: 256 * 1024 * 1024,
++};
++
++/// Validate the same immutable snapshot that the caller subsequently uploads.
++/// Decoder allocation is best effort, not a process-wide memory guarantee.
++pub fn validate_axiom_source_image(bytes: &[u8]) -> Result<(u32, u32, &'static str), &'static str> {
++    validate(bytes, POLICY)
++}
++
++fn reader(bytes: &[u8], format: ImageFormat, policy: Policy) -> ImageReader<Cursor<&[u8]>> {
++    let mut reader = ImageReader::with_format(Cursor::new(bytes), format);
++    let mut limits = Limits::default();
++    limits.max_image_width = Some(policy.side);
++    limits.max_image_height = Some(policy.side);
++    limits.max_alloc = Some(policy.allocation);
++    reader.limits(limits);
++    reader
++}
++
++fn dimensions(w: u32, h: u32, policy: Policy) -> Result<(), &'static str> {
++    if w == 0
++        || h == 0
++        || w > policy.side
++        || h > policy.side
++        || u64::from(w) * u64::from(h) > policy.pixels
++    {
++        return Err("AXIOM source image dimensions exceed policy");
++    }
++    Ok(())
++}
++
++// Scan real PNG chunks, not substring matches in compressed pixels/metadata.
++// The full decoder still checks CRCs and pixel corruption afterward.
++fn static_png(bytes: &[u8]) -> Result<(), &'static str> {
++    let mut offset = 8usize;
++    loop {
++        let header = bytes
++            .get(offset..offset + 8)
++            .ok_or("Invalid PNG structure")?;
++        let length = u32::from_be_bytes(header[..4].try_into().unwrap()) as usize;
++        let end = offset
++            .checked_add(12)
++            .and_then(|n| n.checked_add(length))
++            .filter(|&n| n <= bytes.len())
++            .ok_or("Invalid PNG structure")?;
++        match &header[4..8] {
++            b"acTL" | b"fcTL" | b"fdAT" => {
++                return Err("Animated PNG source images are unsupported");
++            }
++            b"IEND" => {
++                return if length == 0 && end == bytes.len() {
++                    Ok(())
++                } else {
++                    Err("Invalid PNG ending")
++                };
++            }
++            _ => {}
++        }
++        offset = end;
++    }
++}
++
++// Linear structural walk before any decoder metadata reassembly. Count APP
++// segments throughout the file, including between progressive scans.
++fn bounded_jpeg_metadata(bytes: &[u8]) -> Result<(), &'static str> {
++    let mut offset = 2usize;
++    let mut entropy = false;
++    let mut segments = 0usize;
++    let mut metadata_bytes = 0usize;
++    while offset < bytes.len() {
++        if bytes[offset] != 0xff {
++            if !entropy {
++                return Err("Invalid JPEG marker structure");
++            }
++            offset += 1;
++            continue;
++        }
++        while bytes.get(offset) == Some(&0xff) {
++            offset += 1;
++        }
++        let marker = *bytes.get(offset).ok_or("Truncated JPEG source image")?;
++        offset += 1;
++        if entropy && (marker == 0 || (0xd0..=0xd7).contains(&marker)) {
++            continue;
++        }
++        if marker == 0xd9 {
++            return Ok(());
++        }
++        if marker == 0 || marker == 0xd8 || (0xd0..=0xd7).contains(&marker) {
++            return Err("Invalid JPEG marker structure");
++        }
++        if marker == 1 {
++            continue;
++        }
++        let length = bytes
++            .get(offset..offset + 2)
++            .ok_or("Truncated JPEG source image")?;
++        let length = usize::from(u16::from_be_bytes([length[0], length[1]]));
++        if length < 2 {
++            return Err("Invalid JPEG segment length");
++        }
++        let end = offset
++            .checked_add(length)
++            .filter(|&n| n <= bytes.len())
++            .ok_or("Truncated JPEG source image")?;
++        if (0xe0..=0xef).contains(&marker) || marker == 0xfe {
++            segments += 1;
++            metadata_bytes += length;
++            if segments > 512 || metadata_bytes > 2 * 1024 * 1024 {
++                return Err("JPEG metadata exceeds AXIOM policy");
++            }
++        }
++        entropy = marker == 0xda;
++        offset = end;
++    }
++    Err("Truncated JPEG source image")
++}
++
++fn validate(bytes: &[u8], policy: Policy) -> Result<(u32, u32, &'static str), &'static str> {
++    if !(12..=20 * 1024 * 1024).contains(&bytes.len()) {
++        return Err("AXIOM source image encoded size exceeds policy");
++    }
++    let format = image::guess_format(bytes).map_err(|_| "Unsupported source image format")?;
++    let mime = match format {
++        ImageFormat::Png => "image/png",
++        ImageFormat::Jpeg => "image/jpeg",
++        _ => return Err("Unsupported source image format"),
++    };
++    if format == ImageFormat::Jpeg {
++        bounded_jpeg_metadata(bytes)?;
++    }
++    // Header probe is bounded too; never call the generic full-decode validator first.
++    let (w, h) = reader(bytes, format, policy)
++        .into_dimensions()
++        .map_err(|_| "Invalid or oversized source image header")?;
++    dimensions(w, h, policy)?;
++    if format == ImageFormat::Jpeg && !crate::jpeg_reaches_eoi(bytes) {
++        return Err("Truncated JPEG source image");
++    }
++    if format == ImageFormat::Png {
++        static_png(bytes)?;
++    }
++    // ImageReader::decode reserves output bytes against the allocation budget.
++    let decoded = reader(bytes, format, policy)
++        .decode()
++        .map_err(|_| "Invalid source image or decoder resource limit exceeded")?;
++    dimensions(decoded.width(), decoded.height(), policy)?;
++    if (decoded.width(), decoded.height()) != (w, h) {
++        return Err("Source image dimensions changed during decode");
++    }
++    Ok((w, h, mime))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use image::{DynamicImage, ImageBuffer, Rgb, Rgba};
++
++    fn encode(image: DynamicImage, format: ImageFormat) -> Vec<u8> {
++        let mut bytes = Cursor::new(Vec::new());
++        image.write_to(&mut bytes, format).unwrap();
++        bytes.into_inner()
++    }
++
++    fn png(w: u32, h: u32) -> Vec<u8> {
++        encode(
++            DynamicImage::ImageRgba8(ImageBuffer::from_pixel(w, h, Rgba([1, 2, 3, 4]))),
++            ImageFormat::Png,
++        )
++    }
++
++    #[test]
++    fn legitimate_formats_and_bit_depths() {
++        let images = [
++            (
++                DynamicImage::ImageRgb8(ImageBuffer::from_pixel(8, 4, Rgb([1, 2, 3]))),
++                ImageFormat::Jpeg,
++                "image/jpeg",
++            ),
++            (
++                DynamicImage::ImageRgba8(ImageBuffer::from_pixel(8, 4, Rgba([1, 2, 3, 4]))),
++                ImageFormat::Png,
++                "image/png",
++            ),
++            (
++                DynamicImage::ImageLuma16(ImageBuffer::from_pixel(8, 4, image::Luma([1024]))),
++                ImageFormat::Png,
++                "image/png",
++            ),
++            (
++                DynamicImage::ImageRgba16(ImageBuffer::from_pixel(8, 4, Rgba([1, 2, 3, 65535]))),
++                ImageFormat::Png,
++                "image/png",
++            ),
++        ];
++        for (image, format, mime) in images {
++            assert_eq!(
++                validate_axiom_source_image(&encode(image, format)),
++                Ok((8, 4, mime))
++            );
++        }
++    }
++
++    #[test]
++    fn dimensions_and_pixels_boundaries() {
++        let policy = Policy {
++            side: 8,
++            pixels: 32,
++            ..POLICY
++        };
++        assert_eq!(validate(&png(8, 4), policy), Ok((8, 4, "image/png")));
++        for (w, h) in [(9, 1), (1, 9), (8, 5), (0, 1), (1, 0), (u32::MAX, u32::MAX)] {
++            assert!(dimensions(w, h, policy).is_err());
++        }
++        assert_eq!(
++            validate(&png(8, 5), policy),
++            Err("AXIOM source image dimensions exceed policy")
++        );
++    }
++
++    #[test]
++    fn full_decode_and_allocation_remain_mandatory() {
++        let bytes = png(8, 4);
++        assert!(
++            validate(
++                &bytes,
++                Policy {
++                    allocation: 1,
++                    ..POLICY
++                }
++            )
++            .is_err()
++        );
++        let mut corrupt = bytes.clone();
++        let idat = corrupt.windows(4).position(|w| w == b"IDAT").unwrap();
++        corrupt[idat + 4] ^= 0xff;
++        assert!(validate_axiom_source_image(&corrupt).is_err());
++        let jpeg = encode(
++            DynamicImage::ImageRgb8(ImageBuffer::from_pixel(8, 4, Rgb([1, 2, 3]))),
++            ImageFormat::Jpeg,
++        );
++        assert_eq!(
++            validate_axiom_source_image(&jpeg[..jpeg.len() - 2]),
++            Err("Truncated JPEG source image")
++        );
++    }
++
++    #[test]
++    fn unsupported_format_is_rejected() {
++        for format in [
++            ImageFormat::Bmp,
++            ImageFormat::Gif,
++            ImageFormat::Tiff,
++            ImageFormat::Ico,
++        ] {
++            let bytes = encode(
++                DynamicImage::ImageRgba8(ImageBuffer::from_pixel(8, 4, Rgba([1, 2, 3, 4]))),
++                format,
++            );
++            assert_eq!(
++                validate_axiom_source_image(&bytes),
++                Err("Unsupported source image format")
++            );
++        }
++    }
++
++    #[test]
++    fn oversize_pixel_header_precedes_corrupt_payload() {
++        let mut bytes = png(8, 5);
++        let idat = bytes.windows(4).position(|w| w == b"IDAT").unwrap();
++        bytes[idat + 4] ^= 0xff;
++        assert_eq!(
++            validate(
++                &bytes,
++                Policy {
++                    pixels: 32,
++                    ..POLICY
++                }
++            ),
++            Err("AXIOM source image dimensions exceed policy")
++        );
++    }
++
++    #[test]
++    fn png_animation_and_trailing_bytes_are_rejected() {
++        let mut trailing = png(1, 1);
++        trailing.push(0);
++        assert_eq!(
++            validate_axiom_source_image(&trailing),
++            Err("Invalid PNG ending")
++        );
++        let mut animated = png(1, 1);
++        // A structural animation chunk is refused independently of its CRC.
++        animated.splice(33..33, [0, 0, 0, 0, b'a', b'c', b'T', b'L', 0, 0, 0, 0]);
++        assert_eq!(
++            static_png(&animated),
++            Err("Animated PNG source images are unsupported")
++        );
++    }
++
++    #[test]
++    fn repeated_extended_xmp_is_rejected_before_decoder_reassembly() {
++        let jpeg = encode(
++            DynamicImage::ImageRgb8(ImageBuffer::from_pixel(8, 4, Rgb([1, 2, 3]))),
++            ImageFormat::Jpeg,
++        );
++        for count in [1, 1000, 2000, 4000] {
++            let mut payload = b"http://ns.adobe.com/xmp/extension/\0".to_vec();
++            payload.extend_from_slice(&[b'A'; 32]);
++            payload.extend_from_slice(&1u32.to_be_bytes());
++            payload.extend_from_slice(&0u32.to_be_bytes());
++            let mut bytes = vec![255, 216];
++            for _ in 0..count {
++                bytes.extend_from_slice(&[255, 225]);
++                bytes.extend_from_slice(&((payload.len() + 2) as u16).to_be_bytes());
++                bytes.extend_from_slice(&payload);
++            }
++            bytes.extend_from_slice(&jpeg[2..]);
++            if count == 1 {
++                assert_eq!(
++                    validate_axiom_source_image(&bytes),
++                    Ok((8, 4, "image/jpeg"))
++                );
++            } else {
++                assert_eq!(
++                    validate_axiom_source_image(&bytes),
++                    Err("JPEG metadata exceeds AXIOM policy")
++                );
++            }
++        }
++    }
++}

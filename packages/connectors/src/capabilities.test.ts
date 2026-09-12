@@ -82,11 +82,17 @@ describe('capabilityNames', () => {
         maxMediaCount: 2,
         caption: true,
         maxCaptionLength: 100,
-        scheduling: 'native',
+        scheduling: 'internal',
         metrics: ['likes'],
         refreshMetrics: true,
       }),
-    ).toEqual(['publish', 'publish.image', 'publish.carousel', 'schedule.native', 'read.insights']);
+    ).toEqual([
+      'publish',
+      'publish.image',
+      'publish.carousel',
+      'schedule.internal',
+      'read.insights',
+    ]);
   });
 
   it('does not advertise scheduling or insights when they are unsupported', () => {

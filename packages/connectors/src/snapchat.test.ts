@@ -1,5 +1,5 @@
 // ─── Snapchat Connector — Vitest Suite ───
-// Covers: capability(), validate() (media + caption-length warning + assisted info),
+// Covers: capability(), validate() (media contract + caption-length warning + assisted info),
 // publish() assisted relay handoff (always skipped), fetchMetrics(), revoke().
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -38,7 +38,7 @@ describe('SnapchatConnector', () => {
     expect(cap.caption).toBe(false);
     expect(cap.maxCaptionLength).toBe(0);
     expect(cap.scheduling).toBe('none');
-    expect(cap.metrics).toEqual(['views', 'impressions']);
+    expect(cap.metrics).toEqual([]);
     expect(cap.refreshMetrics).toBe(false);
   });
 });
@@ -71,6 +71,42 @@ describe('validate', () => {
       message: 'Snapchat captions limited to ~100 chars',
       severity: 'warning',
     });
+  });
+
+  it('rejects unsupported media instead of handing it off', async () => {
+    const c = new SnapchatConnector(AUTH);
+    const report = await c.validate(input({ mediaUrls: ['https://cdn.example.com/anim.gif'] }));
+    expect(report.valid).toBe(false);
+    expect(report.errors).toContainEqual({
+      field: 'mediaUrls[0]',
+      message: 'Media type "gif" is not in the connector\'s supported types (image, video, story).',
+      severity: 'error',
+    });
+  });
+
+  it('rejects more than the declared media count', async () => {
+    const c = new SnapchatConnector(AUTH);
+    const mediaUrls = Array.from({ length: 11 }, (_, i) => `https://cdn.example.com/p${i}.jpg`);
+    const report = await c.validate(input({ mediaUrls }));
+    expect(report.valid).toBe(false);
+    expect(report.errors).toContainEqual({
+      field: 'mediaUrls',
+      message: 'Maximum of 10 media items allowed (got 11).',
+      severity: 'error',
+    });
+  });
+
+  it('does not return a skipped handoff for invalid media', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new SnapchatConnector(AUTH);
+    const result = await c.publish(input({ mediaUrls: ['https://cdn.example.com/anim.gif'] }));
+
+    expect(result.state).toBe('failed');
+    expect(result.remoteId).toBeNull();
+    expect(result.error).toContain('Media type "gif" is not in the connector\'s supported types');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('does not warn for short captions', async () => {

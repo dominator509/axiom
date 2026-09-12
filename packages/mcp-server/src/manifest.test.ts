@@ -97,13 +97,13 @@ describe('getManifest — descriptors', () => {
     expect(manifest.find((t) => t.name === 'inbox_manage')!.requiresApproval).toBe(false);
   });
 
-  it('publishing requires approval for Manager but not Autonomous', () => {
+  it('publishing requires approval for Manager and Autonomous', () => {
     const manager = getManifest(Tier.Manager, MODEL).find((t) => t.name === 'publishing_post')!;
     expect(manager.requiresApproval).toBe(true);
     const autonomous = getManifest(Tier.Autonomous, MODEL).find(
       (t) => t.name === 'publishing_post',
     )!;
-    expect(autonomous.requiresApproval).toBe(false);
+    expect(autonomous.requiresApproval).toBe(true);
   });
 
   it('network_configure always requires approval and is autonomous-tier only', () => {

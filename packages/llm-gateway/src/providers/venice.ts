@@ -6,6 +6,7 @@ import type {
   BaseProvider,
 } from './types.js';
 import { ProviderError } from './types.js';
+import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
 
 // Venice.ai pricing — generally free/uncensored models
 function estimateTokens(text: string): number {
@@ -51,10 +52,11 @@ export class VeniceProvider implements BaseProvider {
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify(body),
+      signal: options?.signal,
     });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
+      const text = await readProviderErrorText(res);
       throw new ProviderError(
         `Venice API error ${res.status}: ${text}`,
         res.status,
@@ -63,7 +65,7 @@ export class VeniceProvider implements BaseProvider {
       );
     }
 
-    const data = (await res.json()) as {
+    const data = await readProviderJson<{
       model: string;
       choices: Array<{
         message: { role: string; content: string | null };
@@ -74,7 +76,7 @@ export class VeniceProvider implements BaseProvider {
         completion_tokens: number;
         total_tokens: number;
       };
-    };
+    }>(res);
 
     const content = data.choices?.[0]?.message?.content ?? '';
     const usage = {
@@ -111,10 +113,11 @@ export class VeniceProvider implements BaseProvider {
         Authorization: `Bearer ${this.apiKey}`,
       },
       body: JSON.stringify(body),
+      signal: options?.signal,
     });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
+      const text = await readProviderErrorText(res);
       throw new ProviderError(
         `Venice stream error ${res.status}: ${text}`,
         res.status,
@@ -274,10 +277,10 @@ export async function callVenice(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new ProviderError(`Venice API error ${res.status}: ${text}`, res.status, 'venice', text);
   }
-  return res.json() as Promise<VeniceCompletionResponse>;
+  return readProviderJson<VeniceCompletionResponse>(res);
 }
 
 export async function* streamVenice(
@@ -297,7 +300,7 @@ export async function* streamVenice(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new ProviderError(
       `Venice stream error ${res.status}: ${text}`,
       res.status,

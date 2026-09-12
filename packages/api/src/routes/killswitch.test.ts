@@ -117,6 +117,22 @@ describe('POST /killswitch/enable', () => {
     });
     expect(res.status).toBe(400);
   });
+
+  it('initializes missing settings before enabling the switch', async () => {
+    const updated = {
+      orgId: ORG_ID,
+      publishingEnabled: false,
+      killSwitchReason: 'New org shutdown',
+    };
+    mockState.results = [[], [updated], [updated]];
+    const res = await appWithOrg(ORG_ID).request('/killswitch/enable', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ reason: 'New org shutdown' }),
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).data.enabled).toBe(true);
+  });
 });
 
 describe('POST /killswitch/disable', () => {

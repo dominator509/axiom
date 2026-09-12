@@ -7,11 +7,18 @@
 // Wire order in index.ts: correlation → rate limit → idempotency → routes.
 
 import { createHash, randomUUID } from 'node:crypto';
+import { BlockList, isIP } from 'node:net';
 import type { Context, Next } from 'hono';
 import { sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
+import { readBoundedResponseJson } from '@axiom/core';
 import { db } from '@axiom/db';
 import { captureUnhandledApiError, describeCrash } from './crash-reporter.js';
+import {
+  readBoundedBytes,
+  InvalidContentLengthError,
+  RequestBodyTooLargeError,
+} from './webhook-body.js';
 
 export interface ProblemDetails {
   type: string;
@@ -126,6 +133,9 @@ export function handleProblem(fn: (c: Context) => Promise<Response> | Response) 
 // ---------------------------------------------------------------------------
 
 const IDEM_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const IDEMPOTENCY_MAX_BODY_BYTES = 256 * 1024;
+/** Opaque client keys are persisted and hashed; keep that header bounded. */
+export const IDEMPOTENCY_KEY_MAX_BYTES = 256;
 
 interface IdempotencyRow {
   id: string;
@@ -135,6 +145,18 @@ interface IdempotencyRow {
   status: number | null;
   response_body: unknown;
   expires_at: Date;
+}
+
+function isProblemDetails(value: unknown): value is ProblemDetails {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    record.type === 'about:blank' &&
+    typeof record.title === 'string' &&
+    typeof record.status === 'number' &&
+    typeof record.detail === 'string' &&
+    typeof record.correlation_id === 'string'
+  );
 }
 
 function queryRows<T>(result: unknown): T[] {
@@ -169,7 +191,9 @@ function idempotencyResponse(
  * execute the handler, and DB failures fail closed rather than risking a
  * repeated outside-world side effect.
  */
-export function idempotency(required = true) {
+export function idempotency(required = true, maxBodyBytes = IDEMPOTENCY_MAX_BODY_BYTES) {
+  if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes < 1 || maxBodyBytes > 64 * 1024 * 1024)
+    throw new Error('Invalid idempotency request limit');
   return async (c: Context, next: Next): Promise<Response | void> => {
     const method = c.req.method;
     const mutating =
@@ -194,6 +218,14 @@ export function idempotency(required = true) {
       }
       return await next();
     }
+    if (Buffer.byteLength(key, 'utf8') > IDEMPOTENCY_KEY_MAX_BYTES) {
+      return idempotencyResponse(
+        c,
+        400,
+        'Bad Request',
+        `Idempotency-Key header exceeds the maximum size of ${IDEMPOTENCY_KEY_MAX_BYTES} bytes`,
+      );
+    }
 
     const route = c.req.path;
     const orgId = c.get('orgId') as string | undefined;
@@ -201,7 +233,32 @@ export function idempotency(required = true) {
       return idempotencyResponse(c, 503, 'Service Unavailable', 'Idempotency store unavailable');
     }
 
-    const requestBytes = Buffer.from(await c.req.raw.clone().arrayBuffer());
+    let requestBytes: Uint8Array;
+    try {
+      requestBytes = await readBoundedBytes(c.req.raw, maxBodyBytes);
+      // The idempotency middleware consumes the raw stream to hash it. Cache
+      // an independent ArrayBuffer so downstream Hono JSON/form parsers read
+      // the exact same bytes without reopening an unbounded raw stream.
+      c.req.bodyCache.arrayBuffer = Promise.resolve(
+        requestBytes.slice().buffer,
+      ) as unknown as ArrayBuffer;
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        const correlationId = (c.get('correlationId') as string) ?? randomUUID();
+        return problemResponse(
+          problem(413, 'Payload Too Large', 'request body exceeds the maximum size', correlationId),
+          413,
+        );
+      }
+      if (error instanceof InvalidContentLengthError) {
+        const correlationId = (c.get('correlationId') as string) ?? randomUUID();
+        return problemResponse(
+          problem(400, 'Bad Request', 'invalid Content-Length header', correlationId),
+          400,
+        );
+      }
+      throw error;
+    }
     // Include the query string in the fingerprint. Some mutating routes use
     // query parameters for resource identity (for example, modelId on the
     // social-account connect route); omitting it could replay a response for
@@ -290,25 +347,60 @@ export function idempotency(required = true) {
           'Stored idempotency response is invalid',
         );
       }
+      const headers = new Headers({ 'Content-Type': 'application/json' });
+      if (isProblemDetails(reservation.row.response_body)) {
+        headers.set('Content-Type', 'application/problem+json; charset=UTF-8');
+        headers.set('X-Correlation-ID', reservation.row.response_body.correlation_id);
+      } else {
+        const correlationId = c.get('correlationId') as string | undefined;
+        if (correlationId) headers.set('X-Correlation-ID', correlationId);
+      }
       return new Response(JSON.stringify(reservation.row.response_body), {
         status: reservation.row.status,
-        headers: { 'Content-Type': 'application/json' },
+        headers,
       });
     }
 
-    // Execute only after durable ownership is established.
-    await next();
+    // Execute only after durable ownership is established. If a downstream
+    // handler throws outside its route-level ProblemError boundary, convert
+    // the exception through the same sanitized error boundary used by the
+    // application. The reservation must still be completed: leaving it in
+    // `pending` would make every retry return 409 until the 24-hour TTL,
+    // while clearing it would permit an unsafe re-execution after a possible
+    // outside-world side effect.
+    let res: Response;
+    try {
+      await next();
+      res = c.res;
+      // Hono may catch a downstream exception inside its composed dispatcher
+      // and return its default plain-text 500 instead of rejecting `next()`.
+      // Detect that path as well. The production app's onError already emits
+      // our problem+json response, so only replace non-contract responses to
+      // avoid recording duplicate crash reports.
+      if (
+        c.error &&
+        !res.headers.get('Content-Type')?.toLowerCase().startsWith('application/problem+json')
+      ) {
+        res = await onError(c.error, c);
+      }
+    } catch (err: unknown) {
+      res = await onError(err instanceof Error ? err : new Error(String(err)), c);
+    }
 
-    const res = c.res;
     if (!res) {
       return idempotencyResponse(c, 503, 'Service Unavailable', 'Mutation response unavailable');
     }
     let body: unknown;
     try {
-      body = await res.clone().json();
+      body = await readBoundedResponseJson(res.clone());
     } catch {
       return idempotencyResponse(c, 503, 'Service Unavailable', 'Mutation response was not JSON');
     }
+    // Publish the response only AFTER cloning it for persistence. Hono's
+    // setter wraps its body stream; cloning after that would tee the original
+    // and leave the context holding a disturbed stream, breaking outer CORS
+    // header writes and turning a completed mutation into an HTTP 500.
+    c.res = res;
     try {
       const completed = await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
@@ -356,6 +448,39 @@ const RATE_BUCKETS = new Map<string, Bucket>();
 const DEFAULT_CAPACITY = 60; // 60 requests
 const DEFAULT_REFILL = 10; // 10 req/sec sustained
 
+// The API normally sits behind Caddy, which overwrites X-Forwarded-For with
+// the client address before forwarding. A direct client must not be able to
+// rotate that header to evade anonymous limits, so only transport peers in a
+// private/loopback network may delegate the client identity to that header.
+const TRUSTED_PROXY_NETWORKS = new BlockList();
+for (const [address, prefix, family] of [
+  ['127.0.0.0', 8, 'ipv4'],
+  ['10.0.0.0', 8, 'ipv4'],
+  ['172.16.0.0', 12, 'ipv4'],
+  ['192.168.0.0', 16, 'ipv4'],
+  ['::1', 128, 'ipv6'],
+  ['fc00::', 7, 'ipv6'],
+  ['fe80::', 10, 'ipv6'],
+] as const) {
+  TRUSTED_PROXY_NETWORKS.addSubnet(address, prefix, family);
+}
+
+type NodeIncomingBinding = { socket?: { remoteAddress?: string } };
+
+function transportPeerAddress(c: Context): string | undefined {
+  const incoming = (c.env as { incoming?: NodeIncomingBinding } | undefined)?.incoming;
+  return incoming?.socket?.remoteAddress;
+}
+
+function isTrustedProxyAddress(address: string | undefined): boolean {
+  if (!address) return false;
+  const normalized = address.replace(/^::ffff:/i, '');
+  const family = isIP(normalized);
+  if (family === 4) return TRUSTED_PROXY_NETWORKS.check(normalized, 'ipv4');
+  if (family === 6) return TRUSTED_PROXY_NETWORKS.check(normalized, 'ipv6');
+  return false;
+}
+
 function getBucket(
   key: string,
   capacity: number,
@@ -396,12 +521,19 @@ export function rateLimit(
   return async (c: Context, next: Next): Promise<Response | void> => {
     const credential = c.req.header('Authorization')?.replace(/^Bearer\s+/i, '');
     const apiKey = c.req.header('X-API-Key');
-    const forwardedFor = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
+    const peerAddress = transportPeerAddress(c);
+    const forwardedFor = c.req
+      .header('x-forwarded-for')
+      ?.split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .at(-1);
+    const clientAddress = isTrustedProxyAddress(peerAddress) ? forwardedFor : peerAddress;
     const source = credential
       ? `bearer:${credential}`
       : apiKey
         ? `api-key:${apiKey}`
-        : `ip:${forwardedFor || 'anonymous'}`;
+        : `ip:${clientAddress || 'anonymous'}`;
     // Retain only an irreversible fingerprint, never a live credential.
     const bucketKey = createHash('sha256').update(source).digest('base64url');
     const bucket = getBucket(bucketKey, capacity, refillPerSec, maxBuckets);

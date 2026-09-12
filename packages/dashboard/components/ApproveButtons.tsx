@@ -1,8 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { mutationFetch } from '@/lib/mutation';
+import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
+import { readDashboardError } from '@/lib/response';
+import { approvalSlot } from '@/lib/schedule';
+import type { SocialConnection } from '@/lib/api';
 
 const PLATFORMS = [
   'instagram',
@@ -21,49 +24,133 @@ const PLATFORMS = [
 export default function ApproveButtons({
   bundleId,
   tosBlocked,
+  connections,
+  revisionId,
+  platforms,
 }: {
   bundleId: string;
   tosBlocked: boolean;
+  connections: SocialConnection[];
+  revisionId?: string;
+  platforms: string[];
 }) {
   const router = useRouter();
-  const [selected, setSelected] = useState<string[]>(['instagram']);
+  const availablePlatforms = PLATFORMS.filter((platform) => platforms.includes(platform));
+  const [selected, setSelected] = useState<string[]>(() => availablePlatforms.slice(0, 1));
+  const [connectionIds, setConnectionIds] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      availablePlatforms.flatMap((platform) => {
+        const candidates = connections.filter(
+          (connection) =>
+            connection.platform === platform &&
+            (connection.status === 'connected' || connection.status === 'active'),
+        );
+        return candidates.length === 1 ? [[platform, candidates[0].id]] : [];
+      }),
+    ),
+  );
   const [slot, setSlot] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const intent = useRef<{
+    path: string;
+    body: string;
+    key: string;
+    approvalInput?: string;
+    scheduledSlot?: string;
+  } | null>(null);
 
   function toggle(p: string) {
-    setSelected((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
+    setSelected((prev) => {
+      if (prev.includes(p)) return prev.filter((x) => x !== p);
+      if (!connectionIds[p]) {
+        const candidates = connections.filter(
+          (connection) =>
+            connection.platform === p &&
+            (connection.status === 'connected' || connection.status === 'active'),
+        );
+        if (candidates.length === 1)
+          setConnectionIds((current) => ({ ...current, [p]: candidates[0].id }));
+      }
+      return [...prev, p];
+    });
   }
 
+  const selectedWithoutConnection = selected.filter((platform) => !connectionIds[platform]);
+
   async function act(action: 'approve' | 'revise' | 'reject') {
+    if (inFlight.current) return;
+    if (action === 'approve' && (tosBlocked || selected.length === 0 || selectedWithoutConnection.length > 0)) return;
+    const approvalInput = action === 'approve'
+      ? JSON.stringify({ bundleId, revisionId, selected, connectionIds, slot })
+      : undefined;
+    let scheduledSlot: string | undefined;
+    if (action === 'approve') {
+      try {
+        // A previously submitted request may have succeeded before its response
+        // was lost. Recover that exact request even if its slot has since passed;
+        // changed inputs remain new intents and must still use a future slot.
+        scheduledSlot = intent.current && intent.current.approvalInput === approvalInput
+          ? intent.current.scheduledSlot
+          : approvalSlot(slot);
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'Choose a valid schedule.');
+        return;
+      }
+    }
+    if (action === 'revise' && !instructions.trim()) {
+      setError('Enter caption revision instructions.');
+      return;
+    }
+    inFlight.current = true;
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
+      const send = (body: string) => {
+        const path = `/api/v1/bundles/${bundleId}/${action}`;
+        if (intent.current?.path !== path || intent.current.body !== body) {
+          intent.current = { path, body, key: createIdempotencyKey(), approvalInput, scheduledSlot };
+        }
+        return mutationFetch(path, {
+          method: 'POST', headers: { 'content-type': 'application/json' }, body,
+        }, { idempotencyKey: intent.current.key });
+      };
       let res: Response;
       if (action === 'approve') {
-        res = await mutationFetch(`/api/v1/bundles/${bundleId}/approve`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ platforms: selected, slot: slot || undefined }),
-        });
+        res = await send(JSON.stringify({
+            platforms: selected,
+            revisionId,
+            slot: scheduledSlot,
+            connectionIds: Object.fromEntries(
+              selected
+                .filter((platform) => connectionIds[platform])
+                .map((platform) => [platform, connectionIds[platform]]),
+            ),
+          }));
       } else if (action === 'revise') {
-        res = await mutationFetch(`/api/v1/bundles/${bundleId}/revise`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ instructions: 'Revise per operator' }),
-        });
+        res = await send(JSON.stringify({ instructions: instructions.trim(), revisionId }));
       } else {
-        res = await mutationFetch(`/api/v1/bundles/${bundleId}/reject`, { method: 'POST' });
+        res = await send(JSON.stringify({ revisionId }));
       }
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
+        const b = await readDashboardError(res);
         setError(b?.error?.message ?? 'Action failed');
         return;
       }
+      intent.current = null;
+      if (action === 'revise')
+        setNotice(
+          'Caption revision queued. Approval requires a fresh ToS scan. Media and hashtags are unchanged.',
+        );
       router.refresh();
     } catch {
-      setError('Network error');
+      setError('Action could not be confirmed. Retry the unchanged action to check the same request.');
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -71,10 +158,11 @@ export default function ApproveButtons({
   return (
     <div className="stack">
       <div className="row" style={{ flexWrap: 'wrap' }}>
-        {PLATFORMS.map((p) => (
+        {availablePlatforms.map((p) => (
           <button
             key={p}
             type="button"
+            disabled={busy}
             className={`btn ${selected.includes(p) ? '' : 'secondary'}`}
             style={{ padding: '4px 10px', fontSize: 12 }}
             onClick={() => toggle(p)}
@@ -83,23 +171,75 @@ export default function ApproveButtons({
           </button>
         ))}
       </div>
+      {availablePlatforms.length === 0 && (
+        <p role="status">No supported publishing destinations in this bundle.</p>
+      )}
       <div className="row">
         <label style={{ margin: 0 }}>
-          Slot
+          Slot (your local time)
+          <small style={{ display: 'block' }}>
+            During a repeated daylight-saving hour, the first occurrence is used.
+          </small>
           <input
             type="datetime-local"
+            disabled={busy}
             value={slot}
             onChange={(e) => setSlot(e.target.value)}
             style={{ marginLeft: 8, width: 'auto' }}
           />
         </label>
       </div>
-      {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
+      {selected.map((platform) => {
+        const available = connections.filter(
+          (connection) =>
+            connection.platform === platform &&
+            (connection.status === 'connected' || connection.status === 'active'),
+        );
+        return (
+          <label key={platform} style={{ margin: 0 }}>
+            {platform} account
+            <select
+              disabled={busy}
+              value={connectionIds[platform] ?? ''}
+              onChange={(event) =>
+                setConnectionIds((current) => ({ ...current, [platform]: event.target.value }))
+              }
+              style={{ marginLeft: 8, width: 'auto' }}
+            >
+              <option value="">Select a connected account</option>
+              {available.map((connection) => (
+                <option key={connection.id} value={connection.id}>
+                  {connection.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+        );
+      })}
+      {selectedWithoutConnection.length > 0 && (
+        <p style={{ color: 'var(--bad)', margin: 0 }}>
+          Connect or select an account for: {selectedWithoutConnection.join(', ')}
+        </p>
+      )}
+      {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
+      {notice && <p role="status">{notice}</p>}
+      <label>
+        Caption revision instructions
+        <textarea
+          value={instructions}
+          maxLength={2000}
+          disabled={busy}
+          onChange={(event) => setInstructions(event.target.value)}
+          placeholder="Describe how the captions should change"
+        />
+      </label>
       <div className="row">
         <button
           className="btn"
           type="button"
-          disabled={busy || tosBlocked}
+          disabled={
+            busy || tosBlocked || selected.length === 0 || selectedWithoutConnection.length > 0
+          }
           onClick={() => act('approve')}
         >
           {tosBlocked ? 'Blocked by ToS' : 'Approve'}
@@ -107,10 +247,10 @@ export default function ApproveButtons({
         <button
           className="btn secondary"
           type="button"
-          disabled={busy}
+          disabled={busy || !instructions.trim()}
           onClick={() => act('revise')}
         >
-          Revise
+          Revise captions
         </button>
         <button className="btn danger" type="button" disabled={busy} onClick={() => act('reject')}>
           Reject

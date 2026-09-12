@@ -1,0 +1,91 @@
+diff --git a/crates/codegen/xai-grok-login/Cargo.toml b/crates/codegen/xai-grok-login/Cargo.toml
+index 45d9103..6a15224 100644
+--- a/crates/codegen/xai-grok-login/Cargo.toml
++++ b/crates/codegen/xai-grok-login/Cargo.toml
+@@ -23,7 +23,7 @@ backon = { workspace = true }
+ base64 = { workspace = true }
+ chrono = { workspace = true }
+ fs2 = { workspace = true }
+-jsonwebtoken = { version = "10", features = ["rust_crypto"] }
++jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
+ obfstr = { workspace = true }
+ parking_lot = { workspace = true }
+ rand = { workspace = true }
+diff --git a/crates/codegen/xai-grok-login/src/device_code.rs b/crates/codegen/xai-grok-login/src/device_code.rs
+index 53d33cb..aef74ba 100644
+--- a/crates/codegen/xai-grok-login/src/device_code.rs
++++ b/crates/codegen/xai-grok-login/src/device_code.rs
+@@ -549,7 +549,7 @@ pub mod tests {
+ 
+     /// jsonwebtoken needs a process-level CryptoProvider; tests that encode JWTs can't rely on another test having installed it first.
+     fn ensure_crypto_provider() {
+-        let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
++        let _ = jsonwebtoken::crypto::aws_lc::DEFAULT_PROVIDER.install_default();
+     }
+ 
+     #[test]
+diff --git a/crates/codegen/xai-grok-login/src/flow.rs b/crates/codegen/xai-grok-login/src/flow.rs
+index 4607a00..95d51f0 100644
+--- a/crates/codegen/xai-grok-login/src/flow.rs
++++ b/crates/codegen/xai-grok-login/src/flow.rs
+@@ -1585,7 +1585,7 @@ mod tests {
+         ));
+     }
+     fn ensure_crypto_provider() {
+-        let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
++        let _ = jsonwebtoken::crypto::aws_lc::DEFAULT_PROVIDER.install_default();
+     }
+     fn team_jwt(principal_id: &str) -> String {
+         ensure_crypto_provider();
+diff --git a/crates/codegen/xai-grok-login/src/manager_tests.rs b/crates/codegen/xai-grok-login/src/manager_tests.rs
+index 0a230dd..1b06f1a 100644
+--- a/crates/codegen/xai-grok-login/src/manager_tests.rs
++++ b/crates/codegen/xai-grok-login/src/manager_tests.rs
+@@ -3402,7 +3402,7 @@ async fn enrich_auth_inline_unreachable_server_leaves_auth_unchanged() {
+ }
+ /// `jsonwebtoken` needs a process-level CryptoProvider; tests that encode JWTs can't rely on another test having installed it first.
+ fn ensure_crypto_provider() {
+-    let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
++    let _ = jsonwebtoken::crypto::aws_lc::DEFAULT_PROVIDER.install_default();
+ }
+ /// A signed (HS256) access token carrying a `Team` principal, matching the shape `peek_access_token_principal` extracts in production.
+ fn team_jwt(principal_id: &str) -> String {
+diff --git a/crates/codegen/xai-grok-login/src/oidc/login.rs b/crates/codegen/xai-grok-login/src/oidc/login.rs
+index 0dd8071..aac9f66 100644
+--- a/crates/codegen/xai-grok-login/src/oidc/login.rs
++++ b/crates/codegen/xai-grok-login/src/oidc/login.rs
+@@ -364,7 +364,7 @@ pub async fn run_login_flow_with_config(
+ 
+     // Ensure jsonwebtoken CryptoProvider is installed (required for JWT validation).
+     jsonwebtoken::crypto::CryptoProvider::install_default(
+-        &jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER,
++        &jsonwebtoken::crypto::aws_lc::DEFAULT_PROVIDER,
+     )
+     .ok();
+ 
+diff --git a/crates/codegen/xai-grok-login/src/oidc/test_helpers.rs b/crates/codegen/xai-grok-login/src/oidc/test_helpers.rs
+index 20a866a..8f4ce0a 100644
+--- a/crates/codegen/xai-grok-login/src/oidc/test_helpers.rs
++++ b/crates/codegen/xai-grok-login/src/oidc/test_helpers.rs
+@@ -12,7 +12,7 @@ pub(super) fn test_nonce() -> String {
+ pub(super) const TEST_CLIENT_ID: &str = "test-client-id";
+ pub(super) fn ensure_crypto_provider() {
+     xai_grok_extra_ca::ensure_default_crypto_provider();
+-    let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
++    let _ = jsonwebtoken::crypto::aws_lc::DEFAULT_PROVIDER.install_default();
+ }
+ pub(super) fn generate_test_rsa_key() -> (String, String, String) {
+     use rsa::pkcs8::EncodePrivateKey;
+diff --git a/crates/codegen/xai-grok-login/src/recovery.rs b/crates/codegen/xai-grok-login/src/recovery.rs
+index 77789c0..9a0658f 100644
+--- a/crates/codegen/xai-grok-login/src/recovery.rs
++++ b/crates/codegen/xai-grok-login/src/recovery.rs
+@@ -924,7 +924,7 @@ mod tests {
+         );
+     }
+     fn ensure_crypto_provider() {
+-        let _ = jsonwebtoken::crypto::rust_crypto::DEFAULT_PROVIDER.install_default();
++        let _ = jsonwebtoken::crypto::aws_lc::DEFAULT_PROVIDER.install_default();
+     }
+     fn team_jwt(principal_id: &str) -> String {
+         ensure_crypto_provider();

@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { fetchWithTimeout } from '@/lib/request';
+import { readDashboardJson } from '@/lib/response';
 
 interface KillSwitchState {
   enabled: boolean;
@@ -12,12 +14,14 @@ export default function KillSwitchBanner() {
   const [state, setState] = useState<KillSwitchState | null>(null);
 
   useEffect(() => {
-    fetch('/api/v1/killswitch', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
+    const controller = new AbortController();
+    void fetchWithTimeout('/api/v1/killswitch', { cache: 'no-store', signal: controller.signal })
+      .then((r) => (r.ok ? readDashboardJson<{ data?: KillSwitchState }>(r) : null))
       .then((body) => {
         if (body?.data) setState({ enabled: body.data.enabled, reason: body.data.reason ?? '' });
       })
       .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   if (!state?.enabled) return null;

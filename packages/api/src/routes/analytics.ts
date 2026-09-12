@@ -9,6 +9,30 @@ import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js'
 
 const router = new Hono<AppBindings>();
 
+type MetricAggregateRow = {
+  platform: string;
+  views: number;
+  likes: number;
+  shares: number;
+  comments: number;
+  engagementRate: number;
+};
+
+type DailyMetricRow = {
+  day: string;
+  views: number;
+  likes: number;
+};
+
+function resultRows<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  if (result && typeof result === 'object' && 'rows' in result) {
+    const rows = (result as { rows?: unknown }).rows;
+    return Array.isArray(rows) ? (rows as T[]) : [];
+  }
+  return [];
+}
+
 // GET /models/:id/analytics?days=30 — dashboard aggregates
 router.get('/models/:modelId/analytics', async (c) => {
   const orgId = requireOrg(c);
@@ -18,48 +42,69 @@ router.get('/models/:modelId/analytics', async (c) => {
   const since = new Date(Date.now() - days * 86_400_000);
 
   const data = await withOrgContext(orgId, async (tx) => {
-    // Aggregate metrics per platform over the window (join via post_target → bundle)
-    const perPlatform = await tx
-      .select({
-        platform: schema.postMetric.platform,
-        views: sql<number>`coalesce(sum(${schema.postMetric.views}),0)::int`,
-        likes: sql<number>`coalesce(sum(${schema.postMetric.likes}),0)::int`,
-        shares: sql<number>`coalesce(sum(${schema.postMetric.shares}),0)::int`,
-        comments: sql<number>`coalesce(sum(${schema.postMetric.comments}),0)::int`,
-        engagementRate: sql<number>`coalesce(avg(${schema.postMetric.engagementRate}),0)`,
-      })
-      .from(schema.postMetric)
-      .innerJoin(schema.postTarget, eq(schema.postTarget.id, schema.postMetric.postTargetId))
-      .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.postTarget.bundleId))
-      .where(
-        and(
-          eq(schema.contentBundle.modelId, modelId),
-          eq(schema.contentBundle.orgId, orgId),
-          gte(schema.postMetric.collectedAt, since),
-        ),
+    // Provider metrics are cumulative snapshots, not deltas. Select the
+    // newest observation per target before aggregating or repeated polling
+    // would inflate the dashboard totals.
+    const perPlatformResult = await tx.execute(sql`
+      WITH latest_metrics AS (
+        SELECT DISTINCT ON (pm.post_target_id)
+          pm.post_target_id,
+          pm.platform,
+          pm.views,
+          pm.likes,
+          pm.shares,
+          pm.comments,
+          pm.engagement_rate
+        FROM post_metric pm
+        INNER JOIN post_target pt ON pt.id = pm.post_target_id
+        INNER JOIN content_bundle cb ON cb.id = pt.bundle_id
+        WHERE cb.model_id = ${modelId}
+          AND cb.org_id = ${orgId}
+          AND pt.org_id = ${orgId}
+          AND pm.collected_at >= ${since}
+        ORDER BY pm.post_target_id, pm.collected_at DESC
       )
-      .groupBy(schema.postMetric.platform)
-      .orderBy(sql`sum(${schema.postMetric.views}) DESC`);
+      SELECT
+        platform,
+        COALESCE(SUM(views), 0)::int AS views,
+        COALESCE(SUM(likes), 0)::int AS likes,
+        COALESCE(SUM(shares), 0)::int AS shares,
+        COALESCE(SUM(comments), 0)::int AS comments,
+        COALESCE(AVG(engagement_rate), 0)::float8 AS "engagementRate"
+      FROM latest_metrics
+      GROUP BY platform
+      ORDER BY SUM(views) DESC
+    `);
+    const perPlatform = resultRows<MetricAggregateRow>(perPlatformResult);
 
-    // Recent daily series (last 14 days) for the trend chart
-    const daily = await tx
-      .select({
-        day: sql<string>`to_char(${schema.postMetric.collectedAt}, 'YYYY-MM-DD')`,
-        views: sql<number>`coalesce(sum(${schema.postMetric.views}),0)::int`,
-        likes: sql<number>`coalesce(sum(${schema.postMetric.likes}),0)::int`,
-      })
-      .from(schema.postMetric)
-      .innerJoin(schema.postTarget, eq(schema.postTarget.id, schema.postMetric.postTargetId))
-      .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.postTarget.bundleId))
-      .where(
-        and(
-          eq(schema.contentBundle.modelId, modelId),
-          eq(schema.contentBundle.orgId, orgId),
-          gte(schema.postMetric.collectedAt, since),
-        ),
+    // For the trend, retain one latest snapshot per target per calendar day;
+    // summing every intraday poll would report the same cumulative counters
+    // repeatedly.
+    const dailyResult = await tx.execute(sql`
+      WITH daily_latest AS (
+        SELECT DISTINCT ON (pm.post_target_id, DATE_TRUNC('day', pm.collected_at))
+          DATE_TRUNC('day', pm.collected_at) AS day,
+          pm.post_target_id,
+          pm.views,
+          pm.likes
+        FROM post_metric pm
+        INNER JOIN post_target pt ON pt.id = pm.post_target_id
+        INNER JOIN content_bundle cb ON cb.id = pt.bundle_id
+        WHERE cb.model_id = ${modelId}
+          AND cb.org_id = ${orgId}
+          AND pt.org_id = ${orgId}
+          AND pm.collected_at >= ${since}
+        ORDER BY pm.post_target_id, DATE_TRUNC('day', pm.collected_at), pm.collected_at DESC
       )
-      .groupBy(sql`to_char(${schema.postMetric.collectedAt}, 'YYYY-MM-DD')`)
-      .orderBy(sql`to_char(${schema.postMetric.collectedAt}, 'YYYY-MM-DD')`);
+      SELECT
+        TO_CHAR(day, 'YYYY-MM-DD') AS day,
+        COALESCE(SUM(views), 0)::int AS views,
+        COALESCE(SUM(likes), 0)::int AS likes
+      FROM daily_latest
+      GROUP BY day
+      ORDER BY day
+    `);
+    const daily = resultRows<DailyMetricRow>(dailyResult);
 
     const totals = perPlatform.reduce(
       (
@@ -82,6 +127,7 @@ router.get('/models/:modelId/analytics', async (c) => {
         and(
           eq(schema.contentBundle.orgId, orgId),
           eq(schema.contentBundle.modelId, modelId),
+          eq(schema.postTarget.orgId, orgId),
           gte(schema.postMetric.collectedAt, since),
         ),
       );

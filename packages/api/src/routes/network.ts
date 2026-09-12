@@ -4,29 +4,90 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { zValidator } from '@hono/zod-validator';
+import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { eq, and } from 'drizzle-orm';
+import type { InferSelectModel } from 'drizzle-orm';
+import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson } from '@axiom/core';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, modelOrgId, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
+import {
+  withOrgContext,
+  modelOrgId,
+  requireOrg,
+  writeAudit,
+  apiError,
+  statusTitle,
+} from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
-const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? 'http://127.0.0.1:3000';
+const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
+const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
+  ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
+  : {};
 
-const networkSchema = z.object({
-  egressMode: z.enum(['direct', 'socks5', 'http', 'https', 'wireguard', 'vpn']).default('direct'),
-  proxyType: z.string().max(20).optional(),
-  proxyAddr: z.string().max(500).optional(),
-  wgPublicKey: z.string().max(200).optional(),
-  wgEndpoint: z.string().max(500).optional(),
-  wgAllowedIps: z.string().max(1000).optional(),
-  wgPersistentKeepalive: z.number().int().min(0).max(65535).optional(),
-  expectedEgressIp: z.string().max(100).optional(),
-  failoverProxyAddrs: z.array(z.string().max(500)).optional(),
-  proxyUsername: z.string().max(500).optional(),
-  proxyPassword: z.string().max(500).optional(),
-});
+const networkSchema = z
+  .object({
+    egressMode: z.enum(['direct', 'socks5', 'http', 'https', 'wireguard', 'vpn']).default('direct'),
+    proxyType: z.string().max(20).optional(),
+    proxyAddr: z.string().max(500).nullable().optional(),
+    wgPublicKey: z.string().max(200).optional(),
+    wgEndpoint: z.string().max(500).optional(),
+    wgAllowedIps: z.string().max(1000).optional(),
+    wgPersistentKeepalive: z.number().int().min(0).max(65535).optional(),
+    expectedEgressIp: z.string().max(100).nullable().optional(),
+    failoverProxyAddrs: z.array(z.string().max(500)).optional(),
+  })
+  .strict();
+
+type NetworkConfigRow = InferSelectModel<typeof schema.modelNetworkConfigs>;
+type PublicNetworkConfig = Pick<
+  NetworkConfigRow,
+  | 'id'
+  | 'modelId'
+  | 'egressMode'
+  | 'proxyType'
+  | 'proxyAddr'
+  | 'wgPublicKey'
+  | 'wgEndpoint'
+  | 'wgAllowedIps'
+  | 'wgPersistentKeepalive'
+  | 'expectedEgressIp'
+  | 'failoverProxyAddrs'
+  | 'healthy'
+  | 'lastCheck'
+  | 'latencyMs'
+  | 'lastEgressIp'
+  | 'failCount'
+  | 'lastError'
+  | 'createdAt'
+  | 'updatedAt'
+>;
+
+/** Return network metadata without exposing the encrypted credential envelope. */
+function publicNetworkConfig(row: PublicNetworkConfig): PublicNetworkConfig {
+  return {
+    id: row.id,
+    modelId: row.modelId,
+    egressMode: row.egressMode,
+    proxyType: row.proxyType,
+    proxyAddr: row.proxyAddr,
+    wgPublicKey: row.wgPublicKey,
+    wgEndpoint: row.wgEndpoint,
+    wgAllowedIps: row.wgAllowedIps,
+    wgPersistentKeepalive: row.wgPersistentKeepalive,
+    expectedEgressIp: row.expectedEgressIp,
+    failoverProxyAddrs: row.failoverProxyAddrs,
+    healthy: row.healthy,
+    lastCheck: row.lastCheck,
+    latencyMs: row.latencyMs,
+    lastEgressIp: row.lastEgressIp,
+    failCount: row.failCount,
+    lastError: row.lastError,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
 
 // GET /models/:id/network — egress config + health
 router.get('/:modelId/network', async (c) => {
@@ -36,7 +97,27 @@ router.get('/:modelId/network', async (c) => {
 
   const rows = await withOrgContext(orgId, (tx) =>
     tx
-      .select()
+      .select({
+        id: schema.modelNetworkConfigs.id,
+        modelId: schema.modelNetworkConfigs.modelId,
+        egressMode: schema.modelNetworkConfigs.egressMode,
+        proxyType: schema.modelNetworkConfigs.proxyType,
+        proxyAddr: schema.modelNetworkConfigs.proxyAddr,
+        wgPublicKey: schema.modelNetworkConfigs.wgPublicKey,
+        wgEndpoint: schema.modelNetworkConfigs.wgEndpoint,
+        wgAllowedIps: schema.modelNetworkConfigs.wgAllowedIps,
+        wgPersistentKeepalive: schema.modelNetworkConfigs.wgPersistentKeepalive,
+        expectedEgressIp: schema.modelNetworkConfigs.expectedEgressIp,
+        failoverProxyAddrs: schema.modelNetworkConfigs.failoverProxyAddrs,
+        healthy: schema.modelNetworkConfigs.healthy,
+        lastCheck: schema.modelNetworkConfigs.lastCheck,
+        latencyMs: schema.modelNetworkConfigs.latencyMs,
+        lastEgressIp: schema.modelNetworkConfigs.lastEgressIp,
+        failCount: schema.modelNetworkConfigs.failCount,
+        lastError: schema.modelNetworkConfigs.lastError,
+        createdAt: schema.modelNetworkConfigs.createdAt,
+        updatedAt: schema.modelNetworkConfigs.updatedAt,
+      })
       .from(schema.modelNetworkConfigs)
       .where(
         and(
@@ -60,28 +141,7 @@ router.get('/:modelId/network', async (c) => {
       },
     });
   }
-  const row = rows[0];
-  return c.json({
-    data: {
-      id: row.id,
-      modelId: row.modelId,
-      egressMode: row.egressMode,
-      proxyType: row.proxyType,
-      proxyAddr: row.proxyAddr,
-      wgPublicKey: row.wgPublicKey,
-      wgEndpoint: row.wgEndpoint,
-      wgAllowedIps: row.wgAllowedIps,
-      wgPersistentKeepalive: row.wgPersistentKeepalive,
-      expectedEgressIp: row.expectedEgressIp,
-      failoverProxyAddrs: row.failoverProxyAddrs,
-      healthy: row.healthy,
-      lastCheck: row.lastCheck,
-      latencyMs: row.latencyMs,
-      lastEgressIp: row.lastEgressIp,
-      failCount: row.failCount,
-      lastError: row.lastError,
-    },
-  });
+  return c.json({ data: publicNetworkConfig(rows[0]) });
 });
 
 // PUT /models/:id/network — set egress config (dashboard-only fields, L2.11)
@@ -110,7 +170,12 @@ router.put('/:modelId/network', zValidator('json', networkSchema), async (c) => 
       [row] = await tx
         .update(schema.modelNetworkConfigs)
         .set({ ...body, updatedAt: new Date() })
-        .where(eq(schema.modelNetworkConfigs.id, existing[0].id))
+        .where(
+          and(
+            eq(schema.modelNetworkConfigs.id, existing[0].id),
+            eq(schema.modelNetworkConfigs.orgId, orgId),
+          ),
+        )
         .returning();
     } else {
       [row] = await tx
@@ -126,7 +191,7 @@ router.put('/:modelId/network', zValidator('json', networkSchema), async (c) => 
     return row;
   });
   if (!saved) return apiError(c, 404, statusTitle(404), 'model not found');
-  return c.json({ data: saved });
+  return c.json({ data: publicNetworkConfig(saved) });
 });
 
 // GET /models/:id/network/health — live health via the egress plane
@@ -137,7 +202,15 @@ router.get('/:modelId/network/health', async (c) => {
 
   const rows = await withOrgContext(orgId, (tx) =>
     tx
-      .select()
+      .select({
+        modelId: schema.modelNetworkConfigs.modelId,
+        healthy: schema.modelNetworkConfigs.healthy,
+        lastCheck: schema.modelNetworkConfigs.lastCheck,
+        latencyMs: schema.modelNetworkConfigs.latencyMs,
+        lastEgressIp: schema.modelNetworkConfigs.lastEgressIp,
+        failCount: schema.modelNetworkConfigs.failCount,
+        lastError: schema.modelNetworkConfigs.lastError,
+      })
       .from(schema.modelNetworkConfigs)
       .where(
         and(
@@ -155,10 +228,11 @@ router.get('/:modelId/network/health', async (c) => {
   if (rows.length > 0) {
     try {
       const res = await fetch(`${EGRESS_PLANE_URL}/egress/status`, {
+        headers: EGRESS_PLANE_HEADERS,
         signal: AbortSignal.timeout(3000),
       });
       if (res.ok) {
-        const status = (await res.json()) as { models?: unknown };
+        const status = await readBoundedResponseJson<{ models?: unknown }>(res);
         if (Array.isArray(status.models)) {
           const model = status.models.find(
             (entry: unknown): entry is Record<string, unknown> =>

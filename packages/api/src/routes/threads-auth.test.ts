@@ -12,6 +12,14 @@ const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 
 vi.mock('@axiom/db', () => mockDbFactory());
+vi.mock('@axiom/llm-gateway', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@axiom/llm-gateway')>();
+  return {
+    ...actual,
+    resolveEgressProxy: vi.fn(async () => 'http://10.240.1.1:8080'),
+    buildEgressFetch: vi.fn(() => globalThis.fetch),
+  };
+});
 vi.mock('@axiom/worker', () => ({
   capabilityNames: vi.fn(() => ['publish', 'read.insights']),
   resolveCapabilities: vi.fn(() => ({ publish: true })),
@@ -42,33 +50,40 @@ function callbackInit(response: Response): RequestInit {
   };
 }
 
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
 function installFetchMock(options: { longLivedOk?: boolean } = {}) {
   const fetchMock = vi.fn((url: string | URL, _init?: RequestInit) => {
     const value = String(url);
     if (value.includes('/egress/encrypt')) {
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
+      return Promise.resolve(
+        jsonResponse({
           enc_creds: Buffer.from('ciphertext').toString('base64'),
           enc_nonce: Buffer.from('nonce').toString('base64'),
           dek_id: 'test-dek',
         }),
-      });
+      );
     }
     if (value.endsWith('/oauth/access_token')) {
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
+      return Promise.resolve(
+        jsonResponse({
           access_token: 'short-lived-token',
           user_id: 'threads-user-1',
           expires_in: 3600,
         }),
-      });
+      );
     }
-    return Promise.resolve({
-      ok: options.longLivedOk !== false,
-      json: async () => ({ access_token: 'long-lived-token', expires_in: 5_184_000 }),
-    });
+    return Promise.resolve(
+      jsonResponse(
+        { access_token: 'long-lived-token', expires_in: 5_184_000 },
+        options.longLivedOk !== false ? 200 : 400,
+      ),
+    );
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
@@ -96,7 +111,9 @@ describe('GET /authorize', () => {
     const location = new URL(response.headers.get('location')!);
     expect(location.origin).toBe('https://threads.net');
     expect(location.searchParams.get('client_id')).toBe('test-threads-client');
-    expect(location.searchParams.get('scope')).toBe('threads_basic,threads_publish');
+    expect(location.searchParams.get('scope')).toBe(
+      'threads_basic,threads_content_publish,threads_manage_insights',
+    );
     expect(response.headers.get('set-cookie')).toContain('HttpOnly');
   });
 });
@@ -123,6 +140,17 @@ describe('GET /callback', () => {
     });
     expect(JSON.stringify(body)).not.toContain('long-lived-token');
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    const egress = await import('@axiom/llm-gateway');
+    expect(egress.resolveEgressProxy).toHaveBeenCalledWith(MODEL_ID);
+    expect(egress.buildEgressFetch).toHaveBeenCalledWith('http://10.240.1.1:8080');
+    const tokenExchangeCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).endsWith('/oauth/access_token'),
+    );
+    const longLivedCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).endsWith('/access_token'),
+    );
+    expect(tokenExchangeCall?.[1]?.signal).toBeInstanceOf(AbortSignal);
+    expect(longLivedCall?.[1]?.signal).toBeInstanceOf(AbortSignal);
 
     const encryptionCall = fetchMock.mock.calls.find(([url]) =>
       String(url).includes('/egress/encrypt'),
@@ -169,14 +197,17 @@ describe('GET /callback', () => {
 });
 
 describe('webhooks', () => {
-  it('acknowledges uninstall notifications without exposing credentials', async () => {
+  it('fails closed instead of acknowledging an uninstall without a processor', async () => {
     const response = await app.request('/uninstall', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ user_id: 'threads-user-7' }),
     });
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ status: 'acknowledged', user_id: 'threads-user-7' });
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      status: 503,
+      detail: 'Threads uninstall processing is unavailable; no local connection was changed',
+    });
   });
 
   it('returns the Meta deletion callback status URL', async () => {
@@ -184,7 +215,22 @@ describe('webhooks', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       confirmation_code: 'delete-123',
-      url: expect.stringContaining('delete-123'),
+      url: 'https://axiom.example.test/api/v1/connectors/threads/delete/status?id=delete-123',
     });
+  });
+
+  it('fails closed instead of reporting deletion as permanently pending', async () => {
+    const response = await app.request('/delete/status?id=delete-123');
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      status: 503,
+      detail: 'Threads data-deletion processing is unavailable; no deletion was confirmed',
+      id: 'delete-123',
+    });
+  });
+
+  it('requires a deletion status identifier', async () => {
+    const response = await app.request('/delete/status');
+    expect(response.status).toBe(400);
   });
 });

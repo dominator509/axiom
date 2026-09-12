@@ -37,7 +37,7 @@ describe('InstagramConnector', () => {
     expect(cap.media).toEqual(['image', 'video', 'carousel', 'story']);
     expect(cap.maxMediaCount).toBe(10);
     expect(cap.maxCaptionLength).toBe(2200);
-    expect(cap.scheduling).toBe('native');
+    expect(cap.scheduling).toBe('internal');
     expect(cap.metrics).toEqual(['impressions', 'likes', 'comments', 'shares', 'saves']);
   });
 
@@ -57,8 +57,11 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ id: 'container-1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'container-1', status_code: 'FINISHED' }))
       .mockResolvedValueOnce(jsonResponse({ id: 'container-2' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'container-2', status_code: 'FINISHED' }))
       .mockResolvedValueOnce(jsonResponse({ id: 'carousel-1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'carousel-1', status_code: 'FINISHED' }))
       .mockResolvedValueOnce(jsonResponse({ id: 'post-1' }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -73,30 +76,34 @@ describe('publish', () => {
 
     // Container creation calls (all containers are created before any publish)
     const createInit1 = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(createInit1[0]).toBe('https://graph.facebook.com/v22.0/ig-business-1/media');
-    const body1 = JSON.parse(createInit1[1].body as string) as Record<string, string>;
-    expect(body1.image_url).toBe('https://cdn.example.com/a.jpg');
-    expect(body1.media_type).toBeUndefined();
-    expect(body1.is_carousel_item).toBe('true');
+    expect(new URL(createInit1[0]).pathname).toBe('/v22.0/ig-business-1/media');
+    expect(createInit1[1].body).toBeUndefined();
+    const params1 = new URL(createInit1[0]).searchParams;
+    expect(params1.get('image_url')).toBe('https://cdn.example.com/a.jpg');
+    expect(params1.get('media_type')).toBeNull();
+    expect(params1.get('is_carousel_item')).toBe('true');
 
-    const createInit2 = fetchMock.mock.calls[1] as [string, RequestInit];
-    const body2 = JSON.parse(createInit2[1].body as string) as Record<string, string>;
-    expect(body2.media_type).toBe('VIDEO');
-    expect(body2.video_url).toBe('https://cdn.example.com/b.mp4');
-    expect(body2.image_url).toBeUndefined();
-    expect(body2.is_carousel_item).toBe('true');
+    const createInit2 = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(createInit2[1].body).toBeUndefined();
+    const params2 = new URL(createInit2[0]).searchParams;
+    expect(params2.get('media_type')).toBe('VIDEO');
+    expect(params2.get('video_url')).toBe('https://cdn.example.com/b.mp4');
+    expect(params2.get('image_url')).toBeNull();
+    expect(params2.get('is_carousel_item')).toBe('true');
 
-    const parentInit = fetchMock.mock.calls[2] as [string, RequestInit];
-    expect(parentInit[0]).toBe('https://graph.facebook.com/v22.0/ig-business-1/media');
-    expect(JSON.parse(parentInit[1].body as string)).toMatchObject({
+    const parentInit = fetchMock.mock.calls[4] as [string, RequestInit];
+    expect(new URL(parentInit[0]).pathname).toBe('/v22.0/ig-business-1/media');
+    expect(parentInit[1].body).toBeUndefined();
+    expect(Object.fromEntries(new URL(parentInit[0]).searchParams)).toMatchObject({
       media_type: 'CAROUSEL',
       children: 'container-1,container-2',
       caption: 'Summer vibes',
     });
 
-    const publishInit = fetchMock.mock.calls[3] as [string, RequestInit];
-    expect(publishInit[0]).toBe('https://graph.facebook.com/v22.0/ig-business-1/media_publish');
-    expect(JSON.parse(publishInit[1].body as string)).toMatchObject({
+    const publishInit = fetchMock.mock.calls[6] as [string, RequestInit];
+    expect(new URL(publishInit[0]).pathname).toBe('/v22.0/ig-business-1/media_publish');
+    expect(publishInit[1].body).toBeUndefined();
+    expect(Object.fromEntries(new URL(publishInit[0]).searchParams)).toMatchObject({
       creation_id: 'carousel-1',
     });
   });
@@ -105,6 +112,7 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ id: 'story-container-1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'story-container-1', status_code: 'FINISHED' }))
       .mockResolvedValueOnce(jsonResponse({ id: 'story-1' }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -120,15 +128,17 @@ describe('publish', () => {
     expect(result.postUrl).toBeUndefined();
 
     const createInit = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(createInit[1].body as string)).toMatchObject({
+    expect(createInit[1].body).toBeUndefined();
+    expect(Object.fromEntries(new URL(createInit[0]).searchParams)).toMatchObject({
       media_type: 'STORIES',
       image_url: 'https://cdn.example.com/photo.jpg',
     });
-    expect(JSON.parse(createInit[1].body as string).caption).toBeUndefined();
+    expect(new URL(createInit[0]).searchParams.get('caption')).toBeNull();
 
-    const publishInit = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(publishInit[0]).toBe('https://graph.facebook.com/v22.0/ig-business-1/media_publish');
-    expect(JSON.parse(publishInit[1].body as string)).toMatchObject({
+    const publishInit = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(new URL(publishInit[0]).pathname).toBe('/v22.0/ig-business-1/media_publish');
+    expect(publishInit[1].body).toBeUndefined();
+    expect(Object.fromEntries(new URL(publishInit[0]).searchParams)).toMatchObject({
       creation_id: 'story-container-1',
     });
   });
@@ -168,6 +178,7 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ id: 'container-1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'container-1', status_code: 'FINISHED' }))
       .mockResolvedValueOnce(jsonResponse({ id: 'post-1' }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -178,7 +189,7 @@ describe('publish', () => {
 
     expect(second.state).toBe('skipped');
     expect(second.remoteId).toBe('post-1');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('returns failed when a container creation fails', async () => {
@@ -221,10 +232,11 @@ describe('fetchMetrics', () => {
     });
     expect(metrics.raw).toEqual(insights);
 
-    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/v22.0/post-9/insights');
     expect(url).toContain('metric=impressions,likes,comments,shares,saved');
-    expect(url).toContain('access_token=ig-token');
+    expect(url).not.toContain('access_token=');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer ig-token');
   });
 
   it('fetches media insights without requiring the account id', async () => {
@@ -253,10 +265,9 @@ describe('revoke', () => {
     await c.revoke();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(
-      'https://graph.facebook.com/v22.0/ig-business-1/permissions?delegation&access_token=ig-token',
-    );
+    expect(url).toBe('https://graph.facebook.com/v22.0/ig-business-1/permissions?delegation');
     expect(init.method).toBe('DELETE');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer ig-token');
     expect(
       c
         .getLogs()
@@ -264,11 +275,11 @@ describe('revoke', () => {
     ).toBe(true);
   });
 
-  it('skips gracefully when externalUserId is missing', async () => {
+  it('fails when externalUserId is missing', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const c = new InstagramConnector({ accessToken: 'ig-token' });
-    await expect(c.revoke()).resolves.toBeUndefined();
+    await expect(c.revoke()).rejects.toThrow('requires externalUserId');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

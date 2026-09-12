@@ -9,6 +9,7 @@ interface ProviderRow {
   enabled: boolean;
   isPrimary: boolean;
   clicks?: number;
+  config?: Record<string, unknown> | null;
 }
 
 interface LinkbioAnalytics {
@@ -56,6 +57,14 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
         )}
         <LinkbioPanel modelId={id} providers={data?.providers ?? []} />
       </div>
+      {data?.nativeEnabled && (
+        <p style={{ color: 'var(--muted)', fontSize: 12 }}>
+          Public page:{' '}
+          <a href={`/linkbio/${encodeURIComponent(id)}`} target="_blank" rel="noreferrer">
+            /linkbio/{id}
+          </a>
+        </p>
+      )}
       <p style={{ color: 'var(--muted)', fontSize: 12 }}>
         External Linktree, Beacons, and Fanlynks adapters are not available in this release.
       </p>

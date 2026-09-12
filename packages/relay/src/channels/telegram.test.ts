@@ -5,7 +5,11 @@ import { TelegramAdapter } from './telegram.js';
 import type { RelayCard, CardAction } from '../card.js';
 import { CommandRouter } from '../commands.js';
 
-const config = { token: '123:test-token', webhookUrl: 'https://relay.example/webhook' };
+const config = {
+  token: '123:test-token',
+  webhookUrl: 'https://relay.example/webhook',
+  webhookSecret: 'telegram-webhook-secret',
+};
 const COMMAND_SECRET = 'telegram-test-secret';
 
 function makeCard(actions: CardAction[]): RelayCard {
@@ -43,14 +47,21 @@ describe('construction / getBot / onCommand', () => {
   it('constructs a grammy Bot and exposes it', () => {
     const bot = adapter.getBot();
     expect(bot).toBeDefined();
+    expect(bot.api.options?.timeoutSeconds).toBe(60);
   });
 
   it('stores action handlers for callback queries', async () => {
-    const handler = vi.fn().mockResolvedValue(undefined);
+    const events: string[] = [];
+    const handler = vi.fn().mockImplementation(async () => {
+      events.push('handler');
+    });
     adapter.onCommand('approve', handler);
     const answerSpy = vi
       .spyOn(adapter.getBot().api, 'answerCallbackQuery')
-      .mockResolvedValue(true as any);
+      .mockImplementation(async () => {
+        events.push('ack');
+        return true as any;
+      });
 
     const token = new CommandRouter(COMMAND_SECRET).createCommandToken('approve', 'bundle-1');
     await adapter.handleCallback({
@@ -63,7 +74,8 @@ describe('construction / getBot / onCommand', () => {
       channel: 'telegram',
       sourceId: 'chat-1',
     });
-    expect(answerSpy).toHaveBeenCalledWith('cb-1', { text: 'Action processed' });
+    expect(answerSpy).toHaveBeenCalledWith('cb-1', { text: 'Action received' });
+    expect(events).toEqual(['ack', 'handler']);
   });
 });
 
@@ -138,8 +150,12 @@ describe('handleCallback', () => {
   it('ignores callbacks without data', async () => {
     const handler = vi.fn();
     adapter.onCommand('approve', handler);
+    const answerSpy = vi
+      .spyOn(adapter.getBot().api, 'answerCallbackQuery')
+      .mockResolvedValue(true as any);
     await adapter.handleCallback({ id: 'cb-1', data: undefined });
     expect(handler).not.toHaveBeenCalled();
+    expect(answerSpy).toHaveBeenCalledWith('cb-1');
   });
 
   it('ignores callbacks with no registered handler', async () => {
@@ -151,28 +167,36 @@ describe('handleCallback', () => {
       data: new CommandRouter(COMMAND_SECRET).createCommandToken('approve', 'bundle-1'),
       message: { chat: { id: 'chat-1' } },
     });
-    expect(answerSpy).not.toHaveBeenCalled();
+    expect(answerSpy).toHaveBeenCalledWith('cb-1');
   });
 
   it('handles malformed callback data without crashing', async () => {
     const handler = vi.fn();
     adapter.onCommand('approve', handler);
+    const answerSpy = vi
+      .spyOn(adapter.getBot().api, 'answerCallbackQuery')
+      .mockResolvedValue(true as any);
     await adapter.handleCallback({
       id: 'cb-1',
       data: 'garbage',
       message: { chat: { id: 'chat-1' } },
     });
     expect(handler).not.toHaveBeenCalled();
+    expect(answerSpy).toHaveBeenCalledWith('cb-1');
   });
 
   it('rejects a valid token when the provider supplies no source chat', async () => {
     const handler = vi.fn();
     adapter.onCommand('approve', handler);
+    const answerSpy = vi
+      .spyOn(adapter.getBot().api, 'answerCallbackQuery')
+      .mockResolvedValue(true as any);
     await adapter.handleCallback({
       id: 'cb-1',
       data: new CommandRouter(COMMAND_SECRET).createCommandToken('approve', 'bundle-1'),
     });
     expect(handler).not.toHaveBeenCalled();
+    expect(answerSpy).toHaveBeenCalledWith('cb-1');
   });
 });
 
@@ -301,7 +325,10 @@ describe('setupCommands', () => {
       'chat-1',
       `Edit this caption with:\n/edit ${token} <new caption>`,
     );
-    expect(router.verifyCommandToken(token)).toEqual({ action: 'edit_caption', cardId: 'bundle-47' });
+    expect(router.verifyCommandToken(token)).toEqual({
+      action: 'edit_caption',
+      cardId: 'bundle-47',
+    });
   });
 });
 
@@ -310,10 +337,19 @@ describe('startPolling / setWebhook', () => {
     const commandSpy = vi
       .spyOn(adapter.getBot(), 'command')
       .mockImplementation(() => adapter.getBot() as any);
-    const startSpy = vi.spyOn(adapter.getBot(), 'start').mockResolvedValue();
+    const startSpy = vi.spyOn(adapter.getBot(), 'start').mockImplementation(async (options) => {
+      await options?.onStart?.({} as never);
+    });
     await adapter.startPolling();
     expect(commandSpy).toHaveBeenCalled();
     expect(startSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails startup when grammY cannot initialize polling', async () => {
+    const error = new Error('Telegram unauthorized');
+    vi.spyOn(adapter.getBot(), 'start').mockRejectedValue(error);
+
+    await expect(adapter.startPolling()).rejects.toThrow('Telegram unauthorized');
   });
 
   it('setWebhook calls the API and registers commands', async () => {
@@ -321,8 +357,21 @@ describe('startPolling / setWebhook', () => {
       .spyOn(adapter.getBot(), 'command')
       .mockImplementation(() => adapter.getBot() as any);
     const webhookSpy = vi.spyOn(adapter.getBot().api, 'setWebhook').mockResolvedValue(true as any);
+    const initSpy = vi.spyOn(adapter.getBot(), 'init').mockResolvedValue();
     await adapter.setWebhook('https://relay.example/hook');
-    expect(webhookSpy).toHaveBeenCalledWith('https://relay.example/hook');
+    expect(initSpy).toHaveBeenCalledTimes(1);
+    expect(webhookSpy).toHaveBeenCalledWith('https://relay.example/hook', {
+      secret_token: 'telegram-webhook-secret',
+    });
     expect(commandSpy).toHaveBeenCalled();
+  });
+
+  it('forwards provider updates to grammy after the API verifies the webhook secret', async () => {
+    const update = { update_id: 1 } as any;
+    const handleUpdateSpy = vi.spyOn(adapter.getBot(), 'handleUpdate').mockResolvedValue(undefined);
+
+    await adapter.handleWebhook(update);
+
+    expect(handleUpdateSpy).toHaveBeenCalledWith(update);
   });
 });

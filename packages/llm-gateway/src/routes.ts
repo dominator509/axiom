@@ -4,9 +4,11 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { randomUUID } from 'node:crypto';
+import { boundedJsonBody } from './bounded-json-body.js';
 import type { LLMGateway } from './gateway.js';
 import { ProviderError } from './providers/types.js';
 import { PLATFORMS } from './prompts.js';
+import { GrokLoginAttempts } from './grok-login-attempts.js';
 
 type GatewayEnv = {
   Variables: { userId: string; orgId: string };
@@ -62,15 +64,16 @@ const chatBodySchema = z.object({
     .array(
       z.object({
         role: z.enum(['system', 'user', 'assistant']),
-        content: z.string(),
+        content: z.string().max(16_000),
       }),
     )
-    .min(1, 'at least one message is required'),
-  model: z.string().optional(),
+    .min(1, 'at least one message is required')
+    .max(64),
+  model: z.string().max(200).optional(),
   temperature: z.number().min(0).max(2).optional(),
-  maxTokens: z.number().int().positive().optional(),
+  maxTokens: z.number().int().positive().max(8192).optional(),
   policy: z.enum(['cost', 'latency', 'quality']).optional(),
-  provider: z.string().optional(),
+  provider: z.string().max(64).optional(),
   stream: z.boolean().optional(),
   /** Route through the model's bound egress sidecar (L2.6). */
   egress: z.boolean().optional(),
@@ -129,6 +132,30 @@ const tokenkillerBodySchema = chatBodySchema.extend({
 
 export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
   const router = new Hono<GatewayEnv>();
+  const grokLogins = new GrokLoginAttempts(gateway);
+  router.use('*', boundedJsonBody);
+
+  router.use('/subscriptions/grok/*', async (c, next) => {
+    await next();
+    c.header('Cache-Control', 'no-store');
+  });
+  router.post('/subscriptions/grok/login-attempt', (c) => {
+    if (c.req.raw.signal.aborted) return problemResponse(c, 408, 'Login request was cancelled');
+    try { return c.json(grokLogins.start(c.get('userId')), 202); }
+    catch (err) { return problemResponse(c, err instanceof ProviderError ? err.status : 502, 'Unable to start Grok login'); }
+  });
+  router.get('/subscriptions/grok/login-attempt', (c) => {
+    try { return c.json({ attempt: grokLogins.latest(c.get('userId')) }); }
+    catch (err) { return problemResponse(c, err instanceof ProviderError ? err.status : 502, 'Unable to read Grok login'); }
+  });
+  router.get('/subscriptions/grok/login-attempt/:id', (c) => {
+    try { return c.json(grokLogins.get(c.get('userId'), c.req.param('id'))); }
+    catch (err) { return problemResponse(c, err instanceof ProviderError ? err.status : 502, 'Grok login attempt not found'); }
+  });
+  router.delete('/subscriptions/grok/login-attempt/:id', (c) => {
+    try { return c.json(grokLogins.cancel(c.get('userId'), c.req.param('id'))); }
+    catch (err) { return problemResponse(c, err instanceof ProviderError ? err.status : 502, 'Grok login attempt not found'); }
+  });
 
   // POST /chat — non-streaming completion
   router.post('/chat', zValidator('json', chatBodySchema), async (c) => {
@@ -199,6 +226,7 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
       provider,
       egress,
       userId: c.get('userId'),
+      signal: c.req.raw.signal,
     });
 
     return new Response(
@@ -237,9 +265,12 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
     const parsed = subscriptionProviderSchema.safeParse(c.req.param('provider'));
     if (!parsed.success) return problemResponse(c, 404, 'Unsupported subscription provider');
     try {
-      return c.json(await gateway.getSubscriptionStatus(parsed.data, c.get('userId')));
+      return c.json(
+        await gateway.getSubscriptionStatus(parsed.data, c.get('userId'), c.req.raw.signal),
+      );
     } catch (err) {
-      const status = (err instanceof ProviderError ? err.status : 502) as 401 | 404 | 502 | 503;
+      const status = (err instanceof ProviderError ? err.status : 502) as
+        401 | 404 | 502 | 503 | 504;
       return problemResponse(c, status, 'Unable to read subscription status');
     }
   });
@@ -247,29 +278,41 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
   router.post('/subscriptions/:provider/login', async (c) => {
     const parsed = subscriptionProviderSchema.safeParse(c.req.param('provider'));
     if (!parsed.success) return problemResponse(c, 404, 'Unsupported subscription provider');
-    const events = gateway.connectSubscription(parsed.data, c.get('userId'), c.req.raw.signal);
+    if (parsed.data === 'grok') return problemResponse(c, 409, 'Use the resumable Grok login attempt endpoint');
+    const cancellation = new AbortController();
+    const signal = AbortSignal.any([c.req.raw.signal, cancellation.signal]);
+    const events = gateway.connectSubscription(parsed.data, c.get('userId'), signal);
+    let cancelled = false;
     return new Response(
       new ReadableStream({
         async start(controller) {
           const encoder = new TextEncoder();
           try {
             for await (const message of events) {
+              if (signal.aborted) break;
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ message })}\n\n`));
             }
-            controller.enqueue(encoder.encode('event: connected\ndata: {}\n\n'));
+            if (!signal.aborted) controller.enqueue(encoder.encode('event: connected\ndata: {}\n\n'));
           } catch {
-            controller.enqueue(
+            if (!signal.aborted) controller.enqueue(
               encoder.encode('event: error\ndata: Subscription login did not complete\n\n'),
             );
           } finally {
-            controller.close();
+            if (!cancelled) controller.close();
           }
+        },
+        cancel() {
+          cancelled = true;
+          cancellation.abort();
         },
       }),
       {
         headers: {
           'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-store',
+          // Compression proxies can otherwise buffer the short device-code
+          // instructions until the login ends, preventing user authorization.
+          'Cache-Control': 'no-store, no-transform',
+          'X-Accel-Buffering': 'no',
           Connection: 'keep-alive',
         },
       },
@@ -279,11 +322,14 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
   router.delete('/subscriptions/:provider', async (c) => {
     const parsed = subscriptionProviderSchema.safeParse(c.req.param('provider'));
     if (!parsed.success) return problemResponse(c, 404, 'Unsupported subscription provider');
+    if (parsed.data === 'grok' && grokLogins.isRunning(c.get('userId')))
+      return problemResponse(c, 409, 'Cancel the pending Grok login before disconnecting');
     try {
-      await gateway.disconnectSubscription(parsed.data, c.get('userId'));
+      await gateway.disconnectSubscription(parsed.data, c.get('userId'), c.req.raw.signal);
       return c.json({ provider: parsed.data, connected: false });
     } catch (err) {
-      const status = (err instanceof ProviderError ? err.status : 502) as 401 | 404 | 502 | 503;
+      const status = (err instanceof ProviderError ? err.status : 502) as
+        401 | 404 | 502 | 503 | 504;
       return problemResponse(c, status, 'Unable to disconnect subscription');
     }
   });

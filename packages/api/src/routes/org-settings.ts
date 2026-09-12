@@ -8,6 +8,7 @@ import { eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, apiError, statusTitle, writeAudit } from './helpers.js';
+import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 
 const router = new Hono<AppBindings>();
 
@@ -34,7 +35,15 @@ router.patch('/org-settings', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const userId = c.get('userId') ?? 'system';
-  const parsed = patchSchema.safeParse(await c.req.json().catch(() => ({})));
+  let payload: unknown = {};
+  try {
+    payload = await readBoundedJson(c.req.raw);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return apiError(c, 413, statusTitle(413), 'org settings body too large');
+    }
+  }
+  const parsed = patchSchema.safeParse(payload);
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'invalid org settings body');
   const body = parsed.data;
   if (Object.keys(body).length === 0)

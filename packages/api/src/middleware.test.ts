@@ -12,14 +12,27 @@ import { mockState, mockDbFactory } from './routes/test-utils.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ apiIdempotency: {} }));
 
-import { idempotency, rateLimit, correlationId } from './contract.js';
+import {
+  idempotency,
+  IDEMPOTENCY_KEY_MAX_BYTES,
+  rateLimit,
+  correlationId,
+} from './contract.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
+
+type MiddlewareTestApp = Hono<{
+  Bindings: { incoming?: { socket?: { remoteAddress?: string } } };
+  Variables: { orgId: string; userId: string; correlationId?: string };
+}>;
 
 function makeApp(
   opts: { rate?: { capacity?: number; refillPerSec?: number; maxBuckets?: number } } = {},
 ) {
-  const app = new Hono<{ Variables: { orgId: string; userId: string; correlationId?: string } }>();
+  const app = new Hono<{
+    Bindings: { incoming?: { socket?: { remoteAddress?: string } } };
+    Variables: { orgId: string; userId: string; correlationId?: string };
+  }>();
   app.use('*', correlationId);
   app.use('*', async (c, next) => {
     // Production sets orgId via requireAuth before idempotency runs.
@@ -31,9 +44,7 @@ function makeApp(
 }
 
 /** A route that records every execution (to prove replay skips it). */
-function countedRoute(
-  app: Hono<{ Variables: { orgId: string; userId: string; correlationId?: string } }>,
-) {
+function countedRoute(app: MiddlewareTestApp) {
   let calls = 0;
   app.post('/mutate', idempotency(), async (c) => {
     calls += 1;
@@ -82,6 +93,123 @@ describe('idempotency middleware (durable, M-2)', () => {
     expect(body.title).toBe('Bad Request');
     expect(body.detail).toContain('Idempotency-Key');
     expect(calls).toBe(0); // rejected before the handler ran
+  });
+
+  it('rejects an oversized Idempotency-Key before hashing or reserving it', async () => {
+    const app = makeApp();
+    let calls = 0;
+    app.post('/mutate', idempotency(), async (c) => {
+      calls += 1;
+      return c.json({ data: { ok: true } }, 201);
+    });
+
+    const res = await app.request('/mutate', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': 'x'.repeat(IDEMPOTENCY_KEY_MAX_BYTES + 1) },
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
+    expect(((await res.json()) as { detail: string }).detail).toContain('Idempotency-Key');
+    expect(calls).toBe(0);
+  });
+
+  it('bounds declared mutation bodies before hashing or handler execution', async () => {
+    const app = makeApp();
+    let calls = 0;
+    app.post('/mutate', idempotency(), async (c) => {
+      calls += 1;
+      await c.req.json();
+      return c.json({ data: { ok: true } }, 201);
+    });
+
+    const res = await app.request('/mutate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': String(256 * 1024 + 1),
+        'Idempotency-Key': 'oversized-declared',
+      },
+      body: '{}',
+    });
+
+    expect(res.status).toBe(413);
+    expect(res.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
+    expect(calls).toBe(0);
+  });
+
+  it('bounds chunked mutation bodies before hashing or handler execution', async () => {
+    const app = makeApp();
+    let calls = 0;
+    app.post('/mutate', idempotency(), async (c) => {
+      calls += 1;
+      await c.req.json();
+      return c.json({ data: { ok: true } }, 201);
+    });
+
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(256 * 1024 + 1));
+        controller.close();
+      },
+    });
+    const request = new Request('http://localhost/mutate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'oversized-chunked',
+      },
+      body: stream,
+      duplex: 'half',
+    } as RequestInit);
+
+    const res = await app.fetch(request);
+    expect(res.status).toBe(413);
+    expect(calls).toBe(0);
+  });
+
+  it('replays the bounded body to downstream Hono parsers', async () => {
+    const app = makeApp();
+    app.use('*', async (c, next) => {
+      await next();
+      c.header('X-After-Idempotency', 'present');
+    });
+    const body = '{"value":"ok"}';
+    let parsed: unknown;
+    app.post('/mutate', idempotency(), async (c) => {
+      parsed = await c.req.json();
+      return c.json({ data: { ok: true } }, 201);
+    });
+    mockState.results = [
+      [],
+      [
+        {
+          id: 'row-body-cache',
+          state: 'pending',
+          request_hash: requestHash(body, 'application/json'),
+          owner_token: 'owner-body-cache',
+          status: null,
+          response_body: null,
+          expires_at: new Date(Date.now() + 86_400_000),
+        },
+      ],
+      [],
+      [{ id: 'row-body-cache' }],
+    ];
+
+    const res = await app.request('/mutate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'body-cache',
+      },
+      body,
+    });
+
+    expect(res.status).toBe(201);
+    expect(parsed).toEqual({ value: 'ok' });
+    expect(res.headers.get('X-After-Idempotency')).toBe('present');
+    await expect(res.json()).resolves.toEqual({ data: { ok: true } });
   });
 
   it('executes once, then replays the stored response without re-execution', async () => {
@@ -181,6 +309,69 @@ describe('idempotency middleware (durable, M-2)', () => {
     expect(getCalls()).toBe(0);
   });
 
+  it('stores the sanitized 500 when the protected handler throws', async () => {
+    const app = makeApp();
+    let calls = 0;
+    app.post('/mutate', idempotency(), async () => {
+      calls += 1;
+      throw new Error('provider request failed');
+    });
+
+    const headers = { 'Idempotency-Key': 'key-uncaught' };
+    const requestHashValue = requestHash();
+    mockState.results = [
+      [],
+      [
+        {
+          id: 'row-uncaught',
+          state: 'pending',
+          request_hash: requestHashValue,
+          owner_token: 'owner-uncaught',
+          status: null,
+          response_body: null,
+          expires_at: new Date(Date.now() + 86_400_000),
+        },
+      ],
+      [],
+      [],
+      [],
+      [{ id: 'row-uncaught' }],
+    ];
+
+    const first = await app.request('/mutate', { method: 'POST', headers });
+    expect(first.status).toBe(500);
+    expect(first.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
+    expect(calls).toBe(1);
+
+    mockState.results = [
+      [],
+      [],
+      [
+        {
+          id: 'row-uncaught',
+          state: 'completed',
+          request_hash: requestHashValue,
+          owner_token: null,
+          status: 500,
+          response_body: {
+            type: 'about:blank',
+            title: 'Internal Server Error',
+            status: 500,
+            detail: 'An internal error occurred',
+            correlation_id: 'corr-uncaught',
+          },
+          expires_at: new Date(Date.now() + 86_400_000),
+        },
+      ],
+    ];
+
+    const second = await app.request('/mutate', { method: 'POST', headers });
+    expect(second.status).toBe(500);
+    expect(second.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
+    expect(second.headers.get('X-Correlation-ID')).toBe('corr-uncaught');
+    expect(calls).toBe(1);
+  });
+
   it('rejects reuse of a key with a different request body', async () => {
     const app = makeApp();
     const getCalls = countedRoute(app);
@@ -273,6 +464,52 @@ describe('rateLimit middleware (L3.0)', () => {
       headers: { Authorization: 'Bearer cardinality-a' },
     });
     expect(replayOldest.status).toBe(200);
+  });
+
+  it('does not trust a spoofed forwarding header from a direct peer', async () => {
+    const app = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
+    app.get('/x', (c) => c.json({ ok: true }));
+    const directPeer = { incoming: { socket: { remoteAddress: '203.0.113.10' } } };
+
+    const first = await app.request(
+      '/x',
+      { headers: { 'X-Forwarded-For': 'spoofed-client-a' } },
+      directPeer,
+    );
+    const second = await app.request(
+      '/x',
+      { headers: { 'X-Forwarded-For': 'spoofed-client-b' } },
+      directPeer,
+    );
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  it('uses the forwarded client address only behind a trusted proxy peer', async () => {
+    const app = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
+    app.get('/x', (c) => c.json({ ok: true }));
+    const trustedProxy = { incoming: { socket: { remoteAddress: '127.0.0.1' } } };
+
+    const clientA = await app.request(
+      '/x',
+      { headers: { 'X-Forwarded-For': '198.51.100.10' } },
+      trustedProxy,
+    );
+    const clientB = await app.request(
+      '/x',
+      { headers: { 'X-Forwarded-For': '198.51.100.11' } },
+      trustedProxy,
+    );
+    const clientAReplay = await app.request(
+      '/x',
+      { headers: { 'X-Forwarded-For': '198.51.100.10' } },
+      trustedProxy,
+    );
+
+    expect(clientA.status).toBe(200);
+    expect(clientB.status).toBe(200);
+    expect(clientAReplay.status).toBe(429);
   });
 });
 

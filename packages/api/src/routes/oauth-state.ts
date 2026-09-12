@@ -13,10 +13,12 @@ const IV_BYTES = 12;
  * and could silently weaken the boundary when auth configuration is wrong.
  */
 export function resolveOAuthCookieSecret(
-  env: Partial<Pick<NodeJS.ProcessEnv, 'BETTER_AUTH_SECRET' | 'NODE_ENV'>> = process.env,
+  env: Partial<Pick<NodeJS.ProcessEnv, 'BETTER_AUTH_SECRET' | 'NODE_ENV' | 'AXIOM_ENV'>> = process.env,
 ): string {
   const secret = env.BETTER_AUTH_SECRET?.trim();
-  if (env.NODE_ENV === 'production' && (!secret || secret.length < 32)) {
+  const environment = (env.AXIOM_ENV ?? env.NODE_ENV)?.trim();
+  const localDevelopment = environment === 'development' || environment === 'test';
+  if (!localDevelopment && (!secret || secret.length < 32)) {
     throw new Error('BETTER_AUTH_SECRET must be at least 32 characters in production');
   }
   return secret ?? 'axiom-dev-secret-change-me';
@@ -93,7 +95,9 @@ export function setOAuthStateCookie(
     maxAge: OAUTH_STATE_MAX_AGE_SECONDS,
     path,
     sameSite: 'Lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: !['development', 'test'].includes(
+      (process.env.AXIOM_ENV ?? process.env.NODE_ENV)?.trim() ?? '',
+    ),
   });
 }
 

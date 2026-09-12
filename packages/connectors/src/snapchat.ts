@@ -14,6 +14,7 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
+import { validatePublish } from './validation.js';
 
 const SNAP_BASE = 'https://kit.snapchat.com/v1';
 
@@ -31,47 +32,50 @@ export class SnapchatConnector extends BaseConnector implements SocialConnector 
       caption: false,
       maxCaptionLength: 0,
       scheduling: 'none' as const,
-      metrics: ['views' as const, 'impressions' as const],
+      // Assisted publishing does not receive a provider remote ID, so the
+      // worker cannot collect Snapchat metrics for the resulting handoff.
+      // Do not advertise an insights path that the production publish flow
+      // cannot reach.
+      metrics: [],
       refreshMetrics: false,
     };
   }
 
   async validate(input: ConnectorPublishInput): Promise<ValidationReport> {
-    const errors: Array<{ field: string; message: string; severity: 'error' }> = [];
-    const warnings: Array<{ field: string; message: string; severity: 'warning' }> = [];
+    // Reuse the common media type/count contract. The assisted handoff may
+    // still include an operator-facing caption even though Snapchat's direct
+    // connector capability has no provider-side caption field, so disable only
+    // the shared caption-length check and keep the existing warning below.
+    const report = validatePublish(input, {
+      ...this.capability(),
+      maxCaptionLength: Number.MAX_SAFE_INTEGER,
+    });
 
-    if (!input.mediaUrls || input.mediaUrls.length === 0) {
-      errors.push({
-        field: 'mediaUrls',
-        message: 'Snapchat requires at least one media',
-        severity: 'error' as const,
-      });
-    }
     if (input.caption && input.caption.length > 100) {
-      warnings.push({
+      report.warnings.push({
         field: 'caption',
         message: 'Snapchat captions limited to ~100 chars',
         severity: 'warning' as const,
       });
     }
 
-    return {
-      valid: errors.length === 0,
-      errors,
-      warnings,
-      infos: [
-        {
-          field: 'general',
-          message: 'Snapchat uses assisted publish — operator must tap to post',
-          severity: 'info' as const,
-        },
-      ],
-      tosVerdict: 'pass' as const,
-    };
+    report.infos.push({
+      field: 'general',
+      message: 'Snapchat uses assisted publish — operator must tap to post',
+      severity: 'info' as const,
+    });
+    report.tosVerdict = report.valid ? (report.warnings.length > 0 ? 'flag' : 'pass') : 'block';
+    return report;
   }
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
     return this.idempotentPublish(input, async () => {
+      const validation = await this.validate(input);
+      if (!validation.valid) {
+        throw new Error(
+          `Snapchat assisted publish validation failed: ${validation.errors.map((error) => error.message).join('; ')}`,
+        );
+      }
       this.log('info', 'publish', `Snapchat assisted publish: relay card needed`);
       return {
         remoteId: null,

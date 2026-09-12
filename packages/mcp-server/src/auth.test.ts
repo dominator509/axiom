@@ -5,7 +5,9 @@ import {
   tierAtLeast,
   createCapabilityToken,
   validateToken,
+  validateTokenAsync,
   revokeToken,
+  revokeTokenDurably,
   authenticateAgent,
   resolveHighestTier,
   TierResolution,
@@ -48,7 +50,7 @@ describe('tierAtLeast', () => {
 });
 
 describe('createCapabilityToken / validateToken', () => {
-  it('creates a signed v1 token with a future expiry (default 1h)', () => {
+  it('creates a signed v1 token with a future expiry no more than 15 minutes away', () => {
     const token = createCapabilityToken(MODEL, Tier.Manager, 'agent-1');
     expect(token).toMatch(/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
     const perm = validateToken(token);
@@ -58,7 +60,9 @@ describe('createCapabilityToken / validateToken', () => {
     expect(perm!.agentId).toBe('agent-1');
     expect(perm).not.toHaveProperty('token');
     expect(perm!.scopes).toEqual([]);
-    expect(Date.parse(perm!.expiresAt!)).toBeGreaterThan(Date.now());
+    const remaining = Date.parse(perm!.expiresAt!) - Date.now();
+    expect(remaining).toBeGreaterThan(0);
+    expect(remaining).toBeLessThanOrEqual(15 * 60_000);
   });
 
   it('produces unique tokens on each call', () => {
@@ -79,6 +83,10 @@ describe('createCapabilityToken / validateToken', () => {
     expect(validateToken('deadbeef'.repeat(8))).toBeNull();
   });
 
+  it('rejects capability tokens above the authorization-header budget', () => {
+    expect(validateToken('x'.repeat(4 * 1024 + 1))).toBeNull();
+  });
+
   it('returns null and deletes expired tokens', () => {
     const token = createCapabilityToken(MODEL, Tier.Viewer, 'agent-3', -1000);
     expect(validateToken(token)).toBeNull();
@@ -91,6 +99,35 @@ describe('createCapabilityToken / validateToken', () => {
     expect(validateToken(token)).not.toBeNull();
     revokeToken(token);
     expect(validateToken(token)).toBeNull();
+  });
+
+  it('binds tokens to the active signing key id', () => {
+    const previousKid = process.env.MCP_TOKEN_KID;
+    try {
+      process.env.MCP_TOKEN_KID = 'kid-a';
+      const token = createCapabilityToken(MODEL, Tier.Viewer, 'agent-kid');
+      expect(validateToken(token)).not.toBeNull();
+
+      process.env.MCP_TOKEN_KID = 'kid-b';
+      expect(validateToken(token)).toBeNull();
+    } finally {
+      if (previousKid === undefined) delete process.env.MCP_TOKEN_KID;
+      else process.env.MCP_TOKEN_KID = previousKid;
+    }
+  });
+
+  it('supports durable revocation shared across API instances', async () => {
+    const token = createCapabilityToken(MODEL, Tier.Manager, 'agent-durable');
+    const durableRevocations = new Set<string>();
+
+    await revokeTokenDurably(token, async ({ tokenId }) => {
+      durableRevocations.add(tokenId);
+    });
+
+    const permission = await validateTokenAsync(token, async (tokenId) =>
+      durableRevocations.has(tokenId),
+    );
+    expect(permission).toBeNull();
   });
 });
 
@@ -144,11 +181,15 @@ describe('authenticateAgent', () => {
       authenticateAgent({ headers: { authorization: 'Bearer not-a-real-token' } }),
     ).toThrow('Authentication failed: invalid or expired token');
     const expired = createCapabilityToken(MODEL, Tier.Viewer, 'agent-9', -1);
-    expect(() =>
-      authenticateAgent({ headers: { authorization: `Bearer ${expired}` } }),
-    ).toThrow(
+    expect(() => authenticateAgent({ headers: { authorization: `Bearer ${expired}` } })).toThrow(
       'Authentication failed: invalid or expired token',
     );
+  });
+
+  it('fails closed for an oversized bearer token', () => {
+    expect(() =>
+      authenticateAgent({ headers: { authorization: `Bearer ${'x'.repeat(4 * 1024 + 1)}` } }),
+    ).toThrow('Authentication failed: invalid or expired token');
   });
 });
 

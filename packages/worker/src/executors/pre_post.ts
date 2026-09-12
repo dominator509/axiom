@@ -8,13 +8,23 @@
 import { db, schema } from '@axiom/db';
 import { sql } from 'drizzle-orm';
 import { PrePostHook } from '@axiom/fanvue-mcp';
-import type { Platform, PublishResult } from '@axiom/core';
+import {
+  isProductionEnvironment,
+  readBoundedResponseJson,
+  type Platform,
+  type PublishResult,
+} from '@axiom/core';
 import type { ConnectorPublishInput } from '@axiom/connectors';
 import type { ExecutorContext } from './context.js';
 
-const DEFAULT_MEDIA_PLANE_URL = process.env.AXIOM_MEDIA_ADDR
-  ? `http://${process.env.AXIOM_MEDIA_ADDR}`
-  : (process.env.MEDIA_PLANE_URL ?? 'http://127.0.0.1:8100');
+function defaultMediaPlaneUrl(): string {
+  return process.env.MEDIA_PLANE_URL ?? 'http://127.0.0.1:8100';
+}
+
+function mediaPlaneHeaders(): Record<string, string> {
+  const token = process.env.MEDIA_PLANE_AUTH_TOKEN?.trim();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 export interface PrePostRunInput {
   targetId: string;
@@ -52,11 +62,14 @@ export function getPrePostHook(): PrePostHook {
  * Returns the engine label actually used.
  */
 export async function mediaPlaneEngine(
-  mediaPlaneUrl: string = DEFAULT_MEDIA_PLANE_URL,
+  mediaPlaneUrl: string = defaultMediaPlaneUrl(),
 ): Promise<'rust-media-plane' | 'in-process'> {
   let failure: string | undefined;
   try {
-    const res = await fetch(`${mediaPlaneUrl}/health`, { signal: AbortSignal.timeout(2_000) });
+    const res = await fetch(`${mediaPlaneUrl}/health`, {
+      headers: mediaPlaneHeaders(),
+      signal: AbortSignal.timeout(2_000),
+    });
     if (res.ok) return 'rust-media-plane';
     failure = `HTTP ${res.status}`;
   } catch (err) {
@@ -68,7 +81,7 @@ export async function mediaPlaneEngine(
   // only and must be explicitly enabled; allowing it by default would let a
   // dependency outage bypass the declared isolation and ToS-compliance path.
   const allowInProcessFallback =
-    process.env.NODE_ENV !== 'production' && process.env.AXIOM_ALLOW_IN_PROCESS_PREPOST === 'true';
+    !isProductionEnvironment(process.env) && process.env.AXIOM_ALLOW_IN_PROCESS_PREPOST === 'true';
   if (!allowInProcessFallback) {
     throw new Error(`Rust media plane unavailable (${failure ?? 'unknown failure'})`);
   }
@@ -85,12 +98,17 @@ function toConnectorInput(
   mutated: Record<string, unknown>,
 ): ConnectorPublishInput {
   const { job } = ctx;
+  const mutatedOptions = (mutated.options as Record<string, unknown>) ?? {};
   return {
     idempotencyKey: `${job.org_id}:${input.targetId}:${input.phase}`,
     caption: (mutated.caption as string) ?? input.caption,
     mediaUrls: (mutated.mediaUrls as string[]) ?? input.mediaUrls,
     hashtags: (mutated.hashtags as string[]) ?? input.hashtags,
-    options: { modelId: input.modelId, ...((mutated.options as Record<string, unknown>) ?? {}) },
+    options: {
+      ...mutatedOptions,
+      modelId: input.modelId,
+      ...(input.mediaKind ? { mediaType: input.mediaKind } : {}),
+    },
   };
 }
 
@@ -116,7 +134,10 @@ export async function runPrePostBefore(
     caption: input.caption,
     mediaUrls: input.mediaUrls,
     hashtags: input.hashtags,
-    options: { modelId: input.modelId },
+    options: {
+      modelId: input.modelId,
+      ...(input.mediaKind ? { mediaType: input.mediaKind } : {}),
+    },
   };
 
   try {
@@ -262,7 +283,8 @@ export async function runPrePostAfter(
  * its actual kind. Returns the media-plane result for auditability.
  */
 async function stageMediaOnPlane(input: PrePostRunInput): Promise<Record<string, unknown>> {
-  const mediaPlaneUrl = DEFAULT_MEDIA_PLANE_URL;
+  const mediaPlaneUrl = defaultMediaPlaneUrl();
+  const headers = { 'Content-Type': 'application/json', ...mediaPlaneHeaders() };
   const out: Record<string, unknown> = {};
 
   const firstMedia = input.mediaUrls[0];
@@ -275,14 +297,14 @@ async function stageMediaOnPlane(input: PrePostRunInput): Promise<Record<string,
     if (input.mediaKind === 'image') {
       const hash = await fetch(`${mediaPlaneUrl}/media/compute-hash`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ image_path: mediaPath }),
         signal: AbortSignal.timeout(5_000),
       });
       if (!hash.ok) {
         throw new Error(`media-plane image validation failed: HTTP ${hash.status}`);
       }
-      const hashResult = (await hash.json()) as { hash?: string };
+      const hashResult = await readBoundedResponseJson<{ hash?: string }>(hash);
       if (!hashResult.hash) {
         throw new Error('media-plane image validation returned no hash');
       }
@@ -290,14 +312,14 @@ async function stageMediaOnPlane(input: PrePostRunInput): Promise<Record<string,
     } else {
       const probe = await fetch(`${mediaPlaneUrl}/media/video/probe`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ video_path: mediaPath }),
         signal: AbortSignal.timeout(5_000),
       });
       if (!probe.ok) {
         throw new Error(`media-plane probe failed: HTTP ${probe.status}`);
       }
-      const probeResult = (await probe.json()) as { exists?: boolean };
+      const probeResult = await readBoundedResponseJson<{ exists?: boolean }>(probe);
       if (probeResult.exists === false) {
         throw new Error('media-plane probe reported that the input is missing');
       }

@@ -100,6 +100,30 @@ describe('validatePublish', () => {
     expect(report.warnings).toEqual([]);
   });
 
+  it('honors an authoritative media type hint for extensionless delivery URLs', () => {
+    const videoOnlyCap: ConnectorCapability = { ...cap, media: ['video'] };
+    const report = validatePublish(
+      input({
+        mediaUrls: ['https://media.example.test/object/opaque-id'],
+        options: { mediaType: 'video' },
+      }),
+      videoOnlyCap,
+    );
+
+    expect(report.valid).toBe(true);
+    expect(report.errors).toEqual([]);
+  });
+
+  it('detects m4a as audio rather than defaulting to image', () => {
+    const audioCap: ConnectorCapability = { ...cap, media: ['image', 'video', 'audio'] };
+    const report = validatePublish(
+      input({ mediaUrls: ['https://cdn.example.com/clip.m4a'] }),
+      audioCap,
+    );
+    expect(report.valid).toBe(true);
+    expect(report.errors).toEqual([]);
+  });
+
   it('treats unparseable URLs as default image type', () => {
     const report = validatePublish(input({ mediaUrls: ['not a url'] }), cap);
     expect(report.valid).toBe(true);

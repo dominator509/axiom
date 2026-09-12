@@ -1,6 +1,7 @@
 use axum::{
-    extract::Json,
-    http::StatusCode,
+    extract::{DefaultBodyLimit, Json, Request},
+    http::{header, StatusCode},
+    middleware::{self, Next},
     response::IntoResponse,
     routing::{get, post},
     Router,
@@ -10,8 +11,12 @@ use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use thiserror::Error;
+use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tracing::info;
+
+const MEDIA_AUTH_TOKEN_ENV: &str = "AXIOM_MEDIA_AUTH_TOKEN";
+mod video_frames;
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -42,6 +47,9 @@ pub enum MediaError {
 
     #[error("Media path is outside the configured media root")]
     InvalidPath,
+
+    #[error("Media input exceeds the configured size limit: {0}")]
+    InputTooLarge(String),
 }
 
 impl IntoResponse for MediaError {
@@ -66,6 +74,7 @@ impl IntoResponse for MediaError {
                 format!("Input file does not exist: {p}"),
             ),
             Self::InvalidPath => (StatusCode::BAD_REQUEST, self.to_string()),
+            Self::InputTooLarge(_) => (StatusCode::PAYLOAD_TOO_LARGE, self.to_string()),
         };
         (status, Json(serde_json::json!({ "error": body }))).into_response()
     }
@@ -181,6 +190,12 @@ async fn health() -> Json<serde_json::Value> {
 // Filesystem boundary
 // ---------------------------------------------------------------------------
 
+const MEDIA_REQUEST_MAX_BYTES: usize = 64 * 1024;
+const MAX_IMAGE_FILE_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION: u32 = 16_384;
+const MAX_IMAGE_ALLOC_BYTES: u64 = 256 * 1024 * 1024;
+const HASH_BUFFER_BYTES: usize = 64 * 1024;
+
 /// All media-plane file access is confined to `<working-directory>/var/media`.
 /// Relative asset IDs are resolved beneath this root; absolute paths are
 /// accepted only when their canonical target is already inside it.
@@ -234,6 +249,46 @@ fn path_arg(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
+fn image_limits() -> image::Limits {
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(MAX_IMAGE_DIMENSION);
+    limits.max_image_height = Some(MAX_IMAGE_DIMENSION);
+    limits.max_alloc = Some(MAX_IMAGE_ALLOC_BYTES);
+    limits
+}
+
+/// Decode images with explicit resource limits so decompression bombs cannot
+/// turn a small uploaded file into an unbounded allocation.
+fn open_image(path: &Path) -> Result<image::DynamicImage, MediaError> {
+    let size = std::fs::metadata(path)?.len();
+    if size > MAX_IMAGE_FILE_BYTES {
+        return Err(MediaError::InputTooLarge(path.display().to_string()));
+    }
+
+    let mut reader = image::ImageReader::open(path)?;
+    reader.limits(image_limits());
+    Ok(reader.decode()?)
+}
+
+async fn hash_file(path: &Path) -> Result<String, MediaError> {
+    let mut file = tokio::fs::File::open(path).await?;
+    let mut buffer = vec![0u8; HASH_BUFFER_BYTES];
+    let mut hasher = Sha256::new();
+    loop {
+        let read = file.read(&mut buffer).await?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<Vec<_>>()
+        .concat())
+}
+
 // ---------------------------------------------------------------------------
 // /media/transcode
 // ---------------------------------------------------------------------------
@@ -248,7 +303,7 @@ async fn transcode(
 
     let input_path = resolve_input(&req.input_path)?;
     let output_path = resolve_output(&req.output_path)?;
-    let img = image::open(input_path)?;
+    let img = open_image(&input_path)?;
 
     match req.target_format.to_lowercase().as_str() {
         "png" => img.save(output_path)?,
@@ -276,8 +331,8 @@ async fn watermark(
     let image_path = resolve_input(&req.image_path)?;
     let watermark_path = resolve_input(&req.watermark_path)?;
     let output_path = resolve_output(&req.output_path)?;
-    let mut base = image::open(image_path)?;
-    let watermark_img = image::open(watermark_path)?;
+    let mut base = open_image(&image_path)?;
+    let watermark_img = open_image(&watermark_path)?;
 
     let (base_w, base_h) = (base.width(), base.height());
     let (wm_w, wm_h) = (watermark_img.width(), watermark_img.height());
@@ -314,7 +369,7 @@ async fn resize(Json(req): Json<ResizeRequest>) -> Result<Json<serde_json::Value
 
     let image_path = resolve_input(&req.image_path)?;
     let output_path = resolve_output(&req.output_path)?;
-    let img = image::open(image_path)?;
+    let img = open_image(&image_path)?;
     let resized = img.resize_exact(req.width, req.height, image::imageops::FilterType::Lanczos3);
     resized.save(output_path)?;
 
@@ -335,7 +390,7 @@ async fn clip(Json(req): Json<ClipRequest>) -> Result<Json<serde_json::Value>, M
 
     let image_path = resolve_input(&req.image_path)?;
     let output_path = resolve_output(&req.output_path)?;
-    let img = image::open(image_path)?;
+    let img = open_image(&image_path)?;
     let cropped = img.crop_imm(req.x, req.y, req.width, req.height);
     cropped.save(output_path)?;
 
@@ -352,17 +407,7 @@ async fn compute_hash(Json(req): Json<HashRequest>) -> Result<Json<HashResponse>
     info!("compute-hash: {}", req.image_path);
 
     let image_path = resolve_input(&req.image_path)?;
-    let bytes = tokio::fs::read(image_path).await?;
-    let hash = {
-        let mut hasher = Sha256::new();
-        hasher.update(&bytes);
-        hasher
-            .finalize()
-            .iter()
-            .map(|b| format!("{:02x}", b))
-            .collect::<Vec<_>>()
-            .concat()
-    };
+    let hash = hash_file(&image_path).await?;
 
     Ok(Json(HashResponse { hash }))
 }
@@ -572,6 +617,83 @@ async fn video_probe(
     }))
 }
 
+/// Protect media operations when the service crosses a process or container
+/// boundary. Health remains public for Docker readiness checks; non-loopback
+/// deployments must configure the internal bearer token before binding.
+async fn require_internal_auth(request: Request, next: Next) -> axum::response::Response {
+    let Some(expected) = configured_auth_token() else {
+        return next.run(request).await;
+    };
+
+    let authorized = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| bearer_token_authorized(value, &expected));
+
+    if authorized {
+        next.run(request).await
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, "Bearer")],
+            "media plane authentication required",
+        )
+            .into_response()
+    }
+}
+
+fn configured_auth_token() -> Option<String> {
+    std::env::var(MEDIA_AUTH_TOKEN_ENV)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn bearer_token_authorized(header_value: &str, expected: &str) -> bool {
+    header_value
+        .strip_prefix("Bearer ")
+        .is_some_and(|provided| provided == expected)
+}
+
+fn non_loopback_without_auth(addr: &str, auth_token: Option<&str>) -> bool {
+    let is_loopback = addr
+        .parse::<std::net::SocketAddr>()
+        .map(|socket| socket.ip().is_loopback())
+        .unwrap_or(false);
+    !is_loopback
+        && auth_token
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+}
+
+fn validate_bind_security(addr: &str) {
+    assert!(
+        !non_loopback_without_auth(addr, configured_auth_token().as_deref()),
+        "media-plane refuses non-loopback bind addresses without {MEDIA_AUTH_TOKEN_ENV}"
+    );
+}
+
+fn build_app() -> Router {
+    let protected_routes = Router::new()
+        .route("/media/transcode", post(transcode))
+        .route("/media/watermark", post(watermark))
+        .route("/media/resize", post(resize))
+        .route("/media/clip", post(clip))
+        .route("/media/compute-hash", post(compute_hash))
+        .route("/media/video/transcode", post(video_transcode))
+        .route("/media/video/watermark", post(video_watermark))
+        .route("/media/video/clip", post(video_clip))
+        .route("/media/video/probe", post(video_probe))
+        .route("/media/video/frames", post(video_frames::extract))
+        .layer(middleware::from_fn(require_internal_auth));
+
+    Router::new()
+        .route("/health", get(health))
+        .merge(protected_routes)
+        .layer(DefaultBodyLimit::max(MEDIA_REQUEST_MAX_BYTES))
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -585,29 +707,14 @@ async fn main() {
         )
         .init();
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/media/transcode", post(transcode))
-        .route("/media/watermark", post(watermark))
-        .route("/media/resize", post(resize))
-        .route("/media/clip", post(clip))
-        .route("/media/compute-hash", post(compute_hash))
-        .route("/media/video/transcode", post(video_transcode))
-        .route("/media/video/watermark", post(video_watermark))
-        .route("/media/video/clip", post(video_clip))
-        .route("/media/video/probe", post(video_probe));
-
     let addr = std::env::var("AXIOM_MEDIA_ADDR").unwrap_or_else(|_| "127.0.0.1:8100".to_string());
     let socket_addr: std::net::SocketAddr =
         addr.parse().expect("AXIOM_MEDIA_ADDR must be host:port");
-    assert!(
-        socket_addr.ip().is_loopback(),
-        "media-plane refuses non-loopback bind addresses"
-    );
+    validate_bind_security(&addr);
     info!("media-plane listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(socket_addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, build_app()).await.unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -649,6 +756,31 @@ mod tests {
     }
 
     #[test]
+    fn image_decoder_limits_are_explicit() {
+        let limits = image_limits();
+        assert_eq!(limits.max_image_width, Some(MAX_IMAGE_DIMENSION));
+        assert_eq!(limits.max_image_height, Some(MAX_IMAGE_DIMENSION));
+        assert_eq!(limits.max_alloc, Some(MAX_IMAGE_ALLOC_BYTES));
+    }
+
+    #[test]
+    fn hash_file_returns_the_streamed_sha256_digest() {
+        let path = media_root()
+            .unwrap()
+            .join(format!("hash-fixture-{}.bin", std::process::id()));
+        std::fs::write(&path, b"axiom-hash-fixture").unwrap();
+
+        let actual = tokio_test_block_on(hash_file(&path)).unwrap();
+        let expected = Sha256::digest(b"axiom-hash-fixture")
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<Vec<_>>()
+            .concat();
+        assert_eq!(actual, expected);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn video_probe_reports_missing_as_exists_false() {
         let req = VideoProbeRequest {
             video_path: "/nonexistent/nope.mp4".to_string(),
@@ -656,6 +788,76 @@ mod tests {
         let result = tokio_test_block_on(video_probe(Json(req)));
         let resp = result.unwrap().0;
         assert!(!resp.exists);
+    }
+
+    #[test]
+    fn non_loopback_bind_requires_authentication() {
+        assert!(non_loopback_without_auth("0.0.0.0:8100", None));
+        assert!(!non_loopback_without_auth(
+            "0.0.0.0:8100",
+            Some("internal-token")
+        ));
+        assert!(!non_loopback_without_auth("127.0.0.1:8100", None));
+    }
+
+    #[test]
+    fn bearer_auth_requires_exact_scheme_and_token() {
+        assert!(bearer_token_authorized(
+            "Bearer internal-token",
+            "internal-token"
+        ));
+        assert!(!bearer_token_authorized(
+            "bearer internal-token",
+            "internal-token"
+        ));
+        assert!(!bearer_token_authorized("Bearer wrong", "internal-token"));
+    }
+
+    #[tokio::test]
+    async fn media_routes_are_protected_while_health_remains_public() {
+        use axum::{body::Body, http::Request as HttpRequest};
+        use tower::ServiceExt;
+
+        std::env::set_var(MEDIA_AUTH_TOKEN_ENV, "internal-token");
+
+        let unauthorized = build_app()
+            .oneshot(
+                HttpRequest::builder()
+                    .method("POST")
+                    .uri("/media/video/probe")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+
+        let health = build_app()
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(health.status(), StatusCode::OK);
+
+        let authorized = build_app()
+            .oneshot(
+                HttpRequest::builder()
+                    .method("POST")
+                    .uri("/media/video/probe")
+                    .header(header::AUTHORIZATION, "Bearer internal-token")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"video_path":"missing.mp4"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(authorized.status(), StatusCode::OK);
+
+        std::env::remove_var(MEDIA_AUTH_TOKEN_ENV);
     }
 
     /// Minimal synchronous block_on for the async helpers under test.

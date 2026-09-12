@@ -107,7 +107,12 @@ const permission: AgentPermission = {
 
 function conditions(value: unknown): Array<{ column: unknown; value: unknown }> {
   if (!value || typeof value !== 'object') return [];
-  const condition = value as { op?: string; column?: unknown; value?: unknown; conditions?: unknown[] };
+  const condition = value as {
+    op?: string;
+    column?: unknown;
+    value?: unknown;
+    conditions?: unknown[];
+  };
   if (condition.op === 'eq') return [{ column: condition.column, value: condition.value }];
   return (condition.conditions ?? []).flatMap((nested) => conditions(nested));
 }
@@ -152,29 +157,16 @@ describe('InboxTool tenant and model scoping', () => {
     );
   });
 
-  it('does not reply to a touchpoint belonging to another model in the org', async () => {
-    testState.state.results = [[]];
-
+  it('fails closed instead of recording an undeliverable reply', async () => {
     await expect(
       new InboxTool().handle(
         { modelId: MODEL_ID, action: 'reply', messageId: MESSAGE_ID, content: 'reply' },
         permission,
       ),
-    ).rejects.toThrow(`Message ${MESSAGE_ID} not found`);
-
-    expect(testState.state.inserts).toHaveLength(0);
-  });
-
-  it('writes a reply with the resolved tenant after model-scoped lookup', async () => {
-    testState.state.results = [[{ fanId: 'fan-a', platform: 'telegram' }], []];
-
-    await new InboxTool().handle(
-      { modelId: MODEL_ID, action: 'reply', messageId: MESSAGE_ID, content: 'reply' },
-      permission,
+    ).rejects.toThrow(
+      'Direct-message replies are unavailable: no provider delivery worker is configured',
     );
 
-    expect(testState.state.inserts).toEqual([
-      expect.objectContaining({ orgId: 'org-a', fanId: 'fan-a', platform: 'telegram' }),
-    ]);
+    expect(testState.state.inserts).toHaveLength(0);
   });
 });

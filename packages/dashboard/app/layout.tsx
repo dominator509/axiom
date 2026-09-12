@@ -13,13 +13,24 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
-  const email = (session as { user?: { email?: string } } | null)?.user?.email ?? 'operator';
+  const email = session?.user?.email ?? 'operator';
+  const role = session?.user?.role;
+  const roleLabel = role === 'owner' ? 'Owner' : role === 'operator' ? 'Operator' : 'Member';
 
   return (
     <html lang="en">
       <body>
         {!session ? (
           <main className="auth-shell">{children}</main>
+        ) : !session.user?.orgId ? (
+          <main className="auth-shell">
+            <section className="login-card" aria-labelledby="access-heading">
+              <h1 id="access-heading">Workspace access pending</h1>
+              <p>You are signed in as {email}, but your account has no assigned organization.</p>
+              <p>Contact your workspace administrator to arrange access, or sign out to use another account.</p>
+              <SignOutButton />
+            </section>
+          </main>
         ) : (
           <div className="app-shell">
             <aside className="sidebar">
@@ -34,17 +45,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <NavLinks />
               <div className="sidebar-spacer" />
               <div className="system-card">
-                <span className="status-dot" />
                 <div>
-                  <strong>Private cloud</strong>
-                  <span>All systems connected</span>
+                  <strong>Workspace session</strong>
+                  <span>Signed in</span>
                 </div>
               </div>
               <div className="user-card">
                 <span className="user-avatar">{email.slice(0, 1).toUpperCase()}</span>
                 <div>
                   <strong>{email.split('@')[0]}</strong>
-                  <span>Studio owner</span>
+                  <span>{roleLabel}</span>
                 </div>
                 <SignOutButton />
               </div>
@@ -68,7 +78,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <footer className="footer">
                 <span>Private by design · self-hosted</span>
                 <Link href="/api/v1/health">
-                  <span className="status-dot" /> System health
+                  System health
                 </Link>
               </footer>
             </div>

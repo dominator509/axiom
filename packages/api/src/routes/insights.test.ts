@@ -41,6 +41,7 @@ function withOrg(router: any) {
 
 beforeEach(() => {
   mockState.result = [];
+  mockState.results = [];
 });
 
 afterEach(() => {
@@ -194,6 +195,7 @@ describe('incidents — GET /incidents + replay', () => {
   });
 
   it('replays a dead job back to ready (200)', async () => {
+    mockState.results = [[], [{ id: JOB_ID, state: 'dead', lastError: null }]];
     mockState.result = [
       { id: JOB_ID, orgId: ORG_ID, kind: 'publish', state: 'ready', attempts: 0 },
     ];

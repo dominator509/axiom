@@ -3,6 +3,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { incidentNotify } from './incident.js';
 
 function makeTx(previousHash: Buffer) {
+  const execute = vi.fn().mockResolvedValue([]);
   const limit = vi.fn().mockResolvedValue([{ rowHash: previousHash }]);
   const orderBy = vi.fn(() => ({ limit }));
   const whereSelect = vi.fn(() => ({ orderBy }));
@@ -15,7 +16,8 @@ function makeTx(previousHash: Buffer) {
   const update = vi.fn(() => ({ set }));
 
   return {
-    tx: { select, insert, update },
+    tx: { execute, select, insert, update },
+    execute,
     insertValues: values,
     updateWhere: whereUpdate,
   };
@@ -29,7 +31,7 @@ describe('incident.notify executor', () => {
     const now = new Date('2026-09-07T18:00:00.000Z');
     vi.setSystemTime(now);
     const previousHash = createHash('sha256').update('previous').digest();
-    const { tx, insertValues } = makeTx(previousHash);
+    const { tx, execute, insertValues } = makeTx(previousHash);
 
     await incidentNotify({
       tx,
@@ -50,6 +52,7 @@ describe('incident.notify executor', () => {
     };
     expect(row.prevHash).toEqual(previousHash);
     expect(row.rowHash).not.toEqual(previousHash);
+    expect(execute).toHaveBeenCalledTimes(1);
     expect(row.detail).toEqual({ message: 'publish failed', severity: 'sev-1' });
 
     const payload = {

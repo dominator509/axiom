@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import type { SocialConnection } from '@/lib/api';
 import NetworkForm from '@/components/NetworkForm';
 
 export const dynamic = 'force-dynamic';
@@ -56,7 +57,7 @@ export default async function NetworkPage({ params }: { params: Promise<{ id: st
 }
 
 async function SocialAccounts({ modelId }: { modelId: string }) {
-  let accounts: Array<Record<string, unknown>> = [];
+  let accounts: SocialConnection[] = [];
   try {
     accounts = (await api.social.list(modelId)).data;
   } catch {

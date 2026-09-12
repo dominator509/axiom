@@ -27,5 +27,11 @@ export {
   evaluateConsentRecords,
   getPublishingConsentStatus,
   consentRequirementMessage,
+  getTosScanState,
 } from './compliance.js';
-export type { RequiredConsentDocumentKind, ConsentPolicyRow, ConsentStatus } from './compliance.js';
+export type {
+  RequiredConsentDocumentKind,
+  ConsentPolicyRow,
+  ConsentStatus,
+  TosScanState,
+} from './compliance.js';

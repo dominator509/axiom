@@ -80,6 +80,7 @@ import {
   relayBindingRelations,
   agentPermission,
   agentPermissionRelations,
+  mcpTokenRevocation,
   allRelations,
 } from './schema/index.js';
 
@@ -179,6 +180,7 @@ describe('schema index', () => {
     expect(linkbioAnalytics).toBeDefined();
     expect(relayBinding).toBeDefined();
     expect(agentPermission).toBeDefined();
+    expect(mcpTokenRevocation).toBeDefined();
   });
 
   it('allRelations contains exactly the 43 relation configs', () => {

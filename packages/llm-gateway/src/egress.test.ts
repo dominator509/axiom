@@ -1,7 +1,6 @@
 // ─── Egress-aware fetch (L2.6) — Vitest Suite ───
 // resolveEgressProxy: status lookup against the egress plane, 5s cache,
-// deliberate degrade-to-direct when the plane is unreachable or the model
-// is unbound/unhealthy. buildEgressFetch: undici ProxyAgent dispatcher.
+// model is unbound/unhealthy. buildEgressFetch: undici ProxyAgent dispatcher.
 import { describe, it, expect, afterEach, vi } from 'vitest';
 
 // undici's fetch export is a non-configurable ESM binding — spyOn can't
@@ -87,7 +86,7 @@ describe('resolveEgressProxy', () => {
     expect(await resolveEgressProxy('gpt-4o')).toBeNull();
   });
 
-  it('degrades to null (direct egress) when the plane is unreachable', async () => {
+  it('returns null when the plane is unreachable', async () => {
     globalThis.fetch = vi
       .fn()
       .mockRejectedValue(new TypeError('fetch failed')) as unknown as typeof fetch;
@@ -95,7 +94,7 @@ describe('resolveEgressProxy', () => {
     expect(await resolveEgressProxy('gpt-4o')).toBeNull();
   });
 
-  it('degrades to null when the plane returns a non-OK status', async () => {
+  it('returns null when the plane returns a non-OK status', async () => {
     globalThis.fetch = vi
       .fn()
       .mockResolvedValue(new Response('boom', { status: 503 })) as unknown as typeof fetch;

@@ -1,0 +1,13 @@
+[package]
+name = "axiom-grok-input-guard"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+# Deliberately separate from the application workspace: this library belongs
+# to the patched CLI build, not to a server that handles OAuth tokens.
+[workspace]
+
+[dependencies]
+libc = "=0.2.189"

@@ -9,13 +9,27 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import { PassThrough } from 'node:stream';
+import { Transform } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { ProviderError } from './types.js';
+import { GrokMediaResult, type GrokMediaArtifact, type GrokMediaKind } from './grok-media.js';
+import { grokSandboxCommand } from './grok-sandbox.js';
+import { waitForLinuxProcessGroup } from './subscription-process.js';
+
+export interface GrokMediaRequest {
+  userId: string;
+  kind: GrokMediaKind;
+  prompt: string;
+  aspectRatio?: 'auto' | '1:1' | '16:9' | '9:16' | '4:5' | '3:2' | '2:3';
+  /** Required for image-to-video; bytes supplied by the authorized caller. */
+  image?: Buffer;
+  duration?: 6 | 10;
+  signal?: AbortSignal;
+}
 
 export type SubscriptionProvider = 'openai' | 'anthropic' | 'grok';
 
@@ -52,13 +66,17 @@ export interface SubscriptionTransport {
   readonly providers: ReadonlySet<SubscriptionProvider>;
   chat(request: SubscriptionRequest): Promise<SubscriptionResult>;
   stream(request: SubscriptionRequest): AsyncIterable<string>;
-  status(provider: SubscriptionProvider, userId: string): Promise<SubscriptionConnectionStatus>;
+  status(
+    provider: SubscriptionProvider,
+    userId: string,
+    signal?: AbortSignal,
+  ): Promise<SubscriptionConnectionStatus>;
   connect(
     provider: SubscriptionProvider,
     userId: string,
     signal?: AbortSignal,
   ): AsyncIterable<string>;
-  disconnect(provider: SubscriptionProvider, userId: string): Promise<void>;
+  disconnect(provider: SubscriptionProvider, userId: string, signal?: AbortSignal): Promise<void>;
 }
 
 type CommandSpec = {
@@ -79,13 +97,36 @@ type ParsedLine = {
 const require = createRequire(import.meta.url);
 const PACKAGE_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
-const API_KEY_ENV_NAMES = [
-  'OPENAI_API_KEY',
-  'CODEX_API_KEY',
-  'ANTHROPIC_API_KEY',
-  'CLAUDE_CODE_OAUTH_TOKEN',
-  'XAI_API_KEY',
-  'GROK_API_KEY',
+// Provider CLIs are untrusted subprocess boundaries. Keep one malformed or
+// newline-free JSON record from becoming an unbounded allocation, and cap the
+// total stream retained by one completion. Valid output beyond these limits is
+// rejected rather than truncated so callers never receive a misleading
+// partial completion.
+const SUBSCRIPTION_JSON_LINE_MAX_BYTES = 1 * 1024 * 1024;
+const SUBSCRIPTION_STDOUT_MAX_BYTES = 4 * 1024 * 1024;
+const SUBSCRIPTION_AUTH_OUTPUT_MAX_BYTES = 64 * 1024;
+const SUBSCRIPTION_AUTH_LINE_MAX_BYTES = 64 * 1024;
+const CHILD_ENVIRONMENT_KEYS = [
+  'PATH',
+  'Path',
+  'HOME',
+  'USERPROFILE',
+  'HOMEDRIVE',
+  'HOMEPATH',
+  'APPDATA',
+  'LOCALAPPDATA',
+  'XDG_CONFIG_HOME',
+  'XDG_CACHE_HOME',
+  'TMPDIR',
+  'TMP',
+  'TEMP',
+  'SystemRoot',
+  'WINDIR',
+  'LANG',
+  'LC_ALL',
+  'TERM',
+  'SSL_CERT_FILE',
+  'SSL_CERT_DIR',
 ] as const;
 
 function packageRoot(name: string): string {
@@ -101,7 +142,7 @@ function executableFor(provider: SubscriptionProvider): { command: string; prefi
   }
   if (provider === 'grok') {
     return {
-      command: join(homedir(), '.grok', 'bin', process.platform === 'win32' ? 'grok.exe' : 'grok'),
+      command: process.env.AXIOM_GROK_CLI || join(homedir(), '.grok', 'bin', process.platform === 'win32' ? 'grok.exe' : 'grok'),
       prefix: [],
     };
   }
@@ -128,15 +169,28 @@ function profileRoot(userId: string, provider: SubscriptionProvider): string {
   return root;
 }
 
-function oauthOnlyEnvironment(provider: SubscriptionProvider, userId: string): NodeJS.ProcessEnv {
-  const env = { ...process.env };
-  for (const name of API_KEY_ENV_NAMES) {
-    delete env[name];
-    delete env[name.toLowerCase()];
+function childEnvironment(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const name of CHILD_ENVIRONMENT_KEYS) {
+    const value = process.env[name];
+    if (value !== undefined) env[name] = value;
   }
+  return env;
+}
+
+function oauthOnlyEnvironment(provider: SubscriptionProvider, userId: string): NodeJS.ProcessEnv {
+  const env = childEnvironment();
   const root = profileRoot(userId, provider);
   if (provider === 'openai') env.CODEX_HOME = root;
-  if (provider === 'grok') env.GROK_HOME = root;
+  if (provider === 'grok') {
+    env.GROK_HOME = root;
+    // New logins use a dedicated directory. Do not read/copy/migrate existing
+    // token values; legacy text profiles continue to work until reconnected.
+    const credentialFile = join(root, 'credentials', 'auth.json');
+    if (existsSync(join(dirname(credentialFile), '.active'))) env.GROK_AUTH_PATH = credentialFile;
+    env.GROK_MEMORY = '0';
+    env.GROK_DISABLE_AUTOUPDATER = '1';
+  }
   if (provider === 'anthropic') {
     env.CLAUDE_CONFIG_DIR = root;
     env.ANTHROPIC_CONFIG_DIR = root;
@@ -245,10 +299,30 @@ function buildCommand(request: SubscriptionRequest): CommandSpec {
       '--output-format',
       'streaming-messages-json',
       '--include-partial-messages',
+      // An empty --tools list means inherit, not deny-all. Use a curated
+      // empty registry with optional tool injection disabled instead.
+      // Contract: xai-org/grok-build 37949780, AgentDefinition + AgentBuilder.
+      '--agents',
+      JSON.stringify({
+        'axiom-text': {
+          description: 'AXIOM text-only completion without tool execution',
+          toolConfig: { tools: [] },
+          injectDefaultTools: false,
+          discoverSkills: false,
+          inheritSkills: false,
+          agentsMd: false,
+          mcpInheritance: 'none',
+        },
+      }),
+      '--agent',
+      'axiom-text',
       '--tools',
-      '',
+      // A nonempty, recognized allowlist prevents older CLIs from inheriting
+      // all tools when they ignore injectDefaultTools. Deny both MCP tools
+      // below: the intersection is empty (deny wins over allow).
+      'search_tool',
       '--disallowed-tools',
-      'Bash,Edit,Write,Read,Grep,WebFetch,WebSearch,Agent,MCPTool',
+      'run_terminal_cmd,read_file,search_replace,write_file,grep,web_fetch,web_search,x_search,search_tool,use_tool,Agent',
       '--disable-web-search',
       '--no-subagents',
       '--no-plan',
@@ -346,6 +420,11 @@ function authCommand(
   const executable = executableFor(provider);
   const env = oauthOnlyEnvironment(provider, userId);
   env.CI = '0';
+  if (provider === 'grok' && operation === 'connect') {
+    const credentials = join(profileRoot(userId, provider), 'credentials');
+    mkdirSync(credentials, { recursive: true, mode: 0o700 });
+    env.GROK_AUTH_PATH = join(credentials, 'auth.json');
+  }
   const commandArgs: Record<SubscriptionProvider, Record<typeof operation, string[]>> = {
     openai: {
       status: ['login', 'status'],
@@ -359,7 +438,9 @@ function authCommand(
     },
     grok: {
       status: ['inspect', '--json'],
-      connect: ['login', '--oauth', '--device-auth'],
+      // Device login is the remote/phone flow; --oauth selects an exclusive
+      // browser-based transport in the pinned CLI and must not be combined.
+      connect: ['login', '--device-auth'],
       disconnect: ['logout'],
     },
   };
@@ -375,7 +456,9 @@ async function runAuthCommand(
   provider: SubscriptionProvider,
   userId: string,
   operation: 'status' | 'disconnect',
+  signal?: AbortSignal,
 ): Promise<{ exitCode: number | null; output: string }> {
+  if (signal?.aborted) throw new DOMException('Subscription command aborted', 'AbortError');
   const spec = authCommand(provider, userId, operation);
   const child = spawn(spec.command, spec.args, {
     env: spec.env,
@@ -384,15 +467,62 @@ async function runAuthCommand(
     windowsHide: true,
   });
   const output: string[] = [];
+  let outputBytes = 0;
+  let outputLimitExceeded = false;
+  const appendOutput = (chunk: string) => {
+    if (outputLimitExceeded) return;
+    outputBytes += Buffer.byteLength(chunk, 'utf8');
+    if (outputBytes > SUBSCRIPTION_AUTH_OUTPUT_MAX_BYTES) {
+      outputLimitExceeded = true;
+      child.kill();
+      return;
+    }
+    output.push(chunk);
+  };
   child.stdout.setEncoding('utf8');
   child.stderr.setEncoding('utf8');
-  child.stdout.on('data', (chunk: string) => output.push(chunk));
-  child.stderr.on('data', (chunk: string) => output.push(chunk));
-  const exitCode = await new Promise<number | null>((resolveExit, rejectExit) => {
+  child.stdout.on('data', appendOutput);
+  child.stderr.on('data', appendOutput);
+  const exitPromise = new Promise<number | null>((resolveExit, rejectExit) => {
     child.once('error', rejectExit);
     child.once('exit', resolveExit);
   });
-  return { exitCode, output: sanitizedDiagnostic(output.join('')) };
+  const timeoutMs = Number(process.env.AXIOM_LLM_TRANSPORT_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let abort: (() => void) | undefined;
+  let timedOut = false;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+      reject(new ProviderError('Subscription command timed out', 504, provider));
+    }, timeoutMs);
+    timer.unref();
+  });
+  const abortPromise = signal
+    ? new Promise<never>((_, reject) => {
+        abort = () => {
+          child.kill();
+          reject(new DOMException('Subscription command aborted', 'AbortError'));
+        };
+        signal.addEventListener('abort', abort, { once: true });
+        if (signal.aborted) abort();
+      })
+    : undefined;
+  try {
+    const exitCode = await Promise.race(
+      abortPromise ? [exitPromise, timeoutPromise, abortPromise] : [exitPromise, timeoutPromise],
+    );
+    if (timedOut) throw new ProviderError('Subscription command timed out', 504, provider);
+    if (signal?.aborted) throw new DOMException('Subscription command aborted', 'AbortError');
+    if (outputLimitExceeded) {
+      throw new ProviderError('Subscription command output exceeded its limit', 502, provider);
+    }
+    return { exitCode, output: sanitizedDiagnostic(output.join('')) };
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (abort) signal?.removeEventListener('abort', abort);
+  }
 }
 
 async function* runAuthConnect(
@@ -400,52 +530,137 @@ async function* runAuthConnect(
   userId: string,
   signal?: AbortSignal,
 ): AsyncIterable<string> {
+  if (signal?.aborted) throw new DOMException('Subscription login aborted', 'AbortError');
   const spec = authCommand(provider, userId, 'connect');
   const child = spawn(spec.command, spec.args, {
     env: spec.env,
     cwd: PACKAGE_DIR,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    detached: process.platform !== 'win32',
   });
-  const exitPromise = new Promise<number | null>((resolveExit, rejectExit) => {
-    child.once('error', rejectExit);
-    child.once('exit', resolveExit);
+  let closed = false;
+  let stopping = false;
+  let terminalError: Error | undefined;
+  let treeTermination = Promise.resolve(true);
+  let resolveStopped!: () => void;
+  const stopped = new Promise<void>(resolve => { resolveStopped = resolve; });
+  let outputBytes = 0;
+  // Cap raw bytes before readline can buffer an arbitrarily long line.
+  // Count both streams together, including diagnostic lines filtered later.
+  const combined = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      if (terminalError) { callback(); return; }
+      outputBytes += chunk.byteLength;
+      if (outputBytes > SUBSCRIPTION_AUTH_OUTPUT_MAX_BYTES) {
+        callback();
+        stop(new ProviderError('Subscription login output exceeded its limit', 502, provider));
+        return;
+      }
+      callback(null, chunk);
+    },
   });
-  const abort = () => child.kill();
-  signal?.addEventListener('abort', abort, { once: true });
-  const timeoutMs = Number(process.env.AXIOM_LLM_TRANSPORT_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
-  const timer = setTimeout(() => child.kill(), timeoutMs);
-  timer.unref();
-
-  const combined = new PassThrough();
   let openStreams = 2;
   const closeCombined = () => {
     openStreams -= 1;
-    if (openStreams === 0) combined.end();
+    if (openStreams === 0 && !combined.writableEnded) combined.end();
   };
+  const lines = createInterface({ input: combined, crlfDelay: Infinity });
+  const stop = (error?: Error) => {
+    terminalError ??= error;
+    resolveStopped();
+    if (stopping) return;
+    stopping = true;
+    // Match completion cancellation: own a POSIX group or stop the Windows
+    // wrapper tree, then verify closure before reporting any successful login.
+    if (!closed || process.platform === 'linux') {
+      if (child.pid && process.platform === 'win32') {
+        const killer = spawn(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'taskkill.exe'),
+          ['/PID', String(child.pid), '/T', '/F'], {
+            windowsHide: true, stdio: 'ignore', env: { SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' },
+          });
+        treeTermination = new Promise(resolveTree => {
+          const deadline = setTimeout(() => { killer.kill('SIGKILL'); resolveTree(false); }, 2000);
+          killer.once('error', () => { clearTimeout(deadline); resolveTree(false); });
+          killer.once('close', code => { clearTimeout(deadline); resolveTree(code === 0); });
+        });
+      } else if (child.pid) {
+        try {
+          process.kill(-child.pid, 'SIGKILL');
+          if (process.platform === 'linux') treeTermination = waitForLinuxProcessGroup(child.pid);
+        } catch (error) {
+          treeTermination = Promise.resolve((error as NodeJS.ErrnoException).code === 'ESRCH');
+        }
+      } else if (!closed) child.kill('SIGKILL');
+    }
+    child.stdout.unpipe(combined);
+    child.stderr.unpipe(combined);
+    child.stdout.destroy();
+    child.stderr.destroy();
+    lines.close();
+    combined.destroy();
+  };
+  const exitPromise = new Promise<number | null>(resolveExit => {
+    // Do not leave a rejecting promise unobserved while waiting for a line.
+    child.once('error', () => stop(new ProviderError('Subscription login could not start', 503, provider)));
+    child.once('close', code => { closed = true; resolveExit(code); });
+  });
+  let terminationPromise: Promise<void> | undefined;
+  const stopAndWait = () => terminationPromise ??= (async () => {
+    stop();
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    const confirmed = await Promise.race([
+      Promise.all([exitPromise, treeTermination]).then(([, treeStopped]) => treeStopped),
+      new Promise<false>(resolve => { deadline = setTimeout(() => resolve(false), 2000); }),
+    ]);
+    if (deadline) clearTimeout(deadline);
+    if (!confirmed) throw new ProviderError('Subscription login termination could not be confirmed', 503, provider);
+  })();
+  const abort = () => stop(new DOMException('Subscription login aborted', 'AbortError'));
+  const configuredTimeout = Number(process.env.AXIOM_LLM_TRANSPORT_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? Math.min(configuredTimeout, 2_147_483_647) : DEFAULT_TIMEOUT_MS;
+  const timer = setTimeout(() => stop(new ProviderError('Subscription login timed out', 504, provider)), timeoutMs);
+  timer.unref();
+  signal?.addEventListener('abort', abort, { once: true });
   child.stdout.pipe(combined, { end: false });
   child.stderr.pipe(combined, { end: false });
   child.stdout.once('end', closeCombined);
   child.stderr.once('end', closeCombined);
-  const lines = createInterface({ input: combined, crlfDelay: Infinity });
-  let output = '';
-  for await (const line of lines) {
-    const safeLine = sanitizedDiagnostic(line);
-    if (safeLine) {
-      output = `${output}\n${safeLine}`.slice(-2000);
-      yield safeLine;
+  try {
+    if (signal?.aborted) abort();
+    let output = '';
+    for await (const line of lines) {
+      if (terminalError) break;
+      if (Buffer.byteLength(line, 'utf8') > SUBSCRIPTION_AUTH_LINE_MAX_BYTES) {
+        throw new ProviderError('Subscription login output line exceeded its limit', 502, provider);
+      }
+      const safeLine = sanitizedDiagnostic(line);
+      if (safeLine) {
+        output = `${output}\n${safeLine}`.slice(-2000);
+        yield safeLine;
+      }
     }
-  }
-  const exitCode = await exitPromise;
-  clearTimeout(timer);
-  signal?.removeEventListener('abort', abort);
-  if (signal?.aborted) throw new DOMException('Subscription login aborted', 'AbortError');
-  if (exitCode !== 0) {
-    throw new ProviderError(
-      output || 'Subscription login failed',
-      statusForFailure(output),
-      provider,
-    );
+    if (terminalError) throw terminalError;
+    const exitCode = await Promise.race([exitPromise, stopped.then(() => null)]);
+    if (terminalError) throw terminalError;
+    if (exitCode !== 0) {
+      throw new ProviderError(
+        output || 'Subscription login failed', statusForFailure(output), provider,
+      );
+    }
+    await stopAndWait();
+    if (terminalError) throw terminalError;
+    if (provider === 'grok') {
+      // A cancelled reconnect must not hide a working legacy session.
+      writeFileSync(join(profileRoot(userId, provider), 'credentials', '.active'), '', { mode: 0o600 });
+    }
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
+    child.stdout.removeListener('end', closeCombined);
+    child.stderr.removeListener('end', closeCombined);
+    await stopAndWait();
   }
 }
 
@@ -457,15 +672,80 @@ function statusForFailure(message: string): number {
   return 502;
 }
 
-async function* runSubscription(request: SubscriptionRequest): AsyncIterable<{
+async function* runSubscription(request: SubscriptionRequest, control?: {
+  spec: CommandSpec;
+  onLine: (line: string) => void;
+  onStopped?: () => void;
+  imageBytes?: Buffer;
+}): AsyncIterable<{
   text?: string;
   usage?: Partial<SubscriptionUsage>;
 }> {
-  const spec = buildCommand(request);
+  if (request.signal?.aborted) throw new DOMException('Subscription request aborted', 'AbortError');
+  const spec = control?.spec ?? buildCommand(request);
   let child: ChildProcessWithoutNullStreams | undefined;
   let stderr = '';
   let fatal = '';
-  const timeoutMs = Number(process.env.AXIOM_LLM_TRANSPORT_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let closed = false;
+  let exitPromise: Promise<number | null> | undefined;
+  let terminalError: Error | undefined;
+  let stopping = false;
+  let treeTermination = Promise.resolve(true);
+  let resolveStopped!: () => void;
+  const stopped = new Promise<void>(resolve => { resolveStopped = resolve; });
+  const stop = (error?: Error) => {
+    terminalError ??= error;
+    resolveStopped();
+    if (!child || stopping || (closed && process.platform !== 'linux')) return;
+    stopping = true;
+    // Stop the owned process tree, including CLI launch wrappers. Killing only
+    // codex.js bypasses its signal forwarding and leaves its native child alive.
+    if (child.pid && process.platform === 'win32') {
+      const killer = spawn(join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'taskkill.exe'),
+        ['/PID', String(child.pid), '/T', '/F'], {
+          windowsHide: true, stdio: 'ignore', env: { SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' },
+        });
+      treeTermination = new Promise(resolveTree => {
+        const killDeadline = setTimeout(() => { killer.kill('SIGKILL'); resolveTree(false); }, 2000);
+        killer.once('error', () => { clearTimeout(killDeadline); resolveTree(false); });
+        killer.once('close', code => { clearTimeout(killDeadline); resolveTree(code === 0); });
+      });
+    } else if (child.pid) {
+      try {
+        process.kill(-child.pid, 'SIGKILL');
+        if (process.platform === 'linux') treeTermination = waitForLinuxProcessGroup(child.pid);
+      }
+      catch (error) {
+        treeTermination = Promise.resolve((error as NodeJS.ErrnoException).code === 'ESRCH');
+      }
+    } else {
+      child.kill('SIGKILL');
+    }
+    child.stdin.destroy();
+    child.stdout.destroy();
+    child.stderr.destroy();
+  };
+  const abort = () => stop(new DOMException('Subscription request aborted', 'AbortError'));
+  const configuredTimeout = Number(process.env.AXIOM_LLM_TRANSPORT_TIMEOUT_MS || DEFAULT_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? Math.min(configuredTimeout, 2_147_483_647) : DEFAULT_TIMEOUT_MS;
+  let terminationPromise: Promise<void> | undefined;
+  const stopAndWait = () => terminationPromise ??= (async () => {
+    if (!child) return;
+    stop();
+    let closeTimer: ReturnType<typeof setTimeout> | undefined;
+    const confirmed = await Promise.race([
+      Promise.all([exitPromise!, treeTermination]).then(([, treeStopped]) => treeStopped),
+      new Promise<false>(resolveClose => { closeTimer = setTimeout(() => resolveClose(false), 2000); }),
+    ]);
+    if (closeTimer) clearTimeout(closeTimer);
+    if (!confirmed) {
+      // Cleanup is not safe without confirmed closure, even if the original
+      // request failed for a different reason. Retain its prompt and fail closed.
+      throw new ProviderError('Subscription process termination could not be confirmed', 503, request.provider);
+    }
+  })();
 
   try {
     child = spawn(spec.command, spec.args, {
@@ -473,46 +753,96 @@ async function* runSubscription(request: SubscriptionRequest): AsyncIterable<{
       cwd: spec.cwd ?? PACKAGE_DIR,
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
+      // A new POSIX session gives cancellation an owned process group. On
+      // Windows taskkill /T targets the live wrapper and its descendants.
+      detached: process.platform !== 'win32',
     });
-    const exitPromise = new Promise<number | null>((resolveExit, rejectExit) => {
-      child!.once('error', rejectExit);
-      child!.once('exit', (code) => resolveExit(code));
+    exitPromise = new Promise<number | null>((resolveExit) => {
+      // Observe errors immediately, even while stdout is still being consumed.
+      child!.once('error', (error) => stop(error));
+      child!.once('close', (code) => { closed = true; resolveExit(code); });
     });
+    child.stdin.on('error', () => stop(new ProviderError('Subscription input transfer failed', 502, request.provider)));
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (chunk: string) => {
       stderr = (stderr + chunk).slice(-8192);
     });
 
-    const abort = () => child?.kill();
     request.signal?.addEventListener('abort', abort, { once: true });
-    const timer = setTimeout(() => child?.kill(), timeoutMs);
+    if (request.signal?.aborted) abort();
+    timer = setTimeout(() => stop(new ProviderError('Subscription request timed out', 504, request.provider)), timeoutMs);
     timer.unref();
 
-    if (spec.prompt) child.stdin.end(spec.prompt, 'utf8');
-    else child.stdin.end();
+    if (!terminalError) {
+      if (control?.imageBytes) child.stdin.end(control.imageBytes);
+      else if (spec.prompt) child.stdin.end(spec.prompt, 'utf8');
+      else child.stdin.end();
+    }
 
     let buffer = '';
+    let stdoutBytes = 0;
     child.stdout.setEncoding('utf8');
     for await (const chunk of child.stdout) {
-      buffer += String(chunk);
+      const text = String(chunk);
+      stdoutBytes += Buffer.byteLength(text, 'utf8');
+      if (stdoutBytes > SUBSCRIPTION_STDOUT_MAX_BYTES) {
+        throw new ProviderError(
+          'Subscription transport output exceeded its limit',
+          502,
+          request.provider,
+        );
+      }
+      buffer += text;
       const lines = buffer.split(/\r?\n/);
       buffer = lines.pop() || '';
+      if (Buffer.byteLength(buffer, 'utf8') > SUBSCRIPTION_JSON_LINE_MAX_BYTES) {
+        throw new ProviderError('Subscription transport JSON line exceeded its limit', 502, request.provider);
+      }
       for (const line of lines) {
         if (!line.trim()) continue;
+        if (Buffer.byteLength(line, 'utf8') > SUBSCRIPTION_JSON_LINE_MAX_BYTES) {
+          throw new ProviderError(
+            'Subscription transport JSON line exceeded its limit',
+            502,
+            request.provider,
+          );
+        }
         const parsed = parseJsonLine(request.provider, line);
-        if (parsed.fatal) fatal = parsed.fatal;
+        control?.onLine(line);
+        if (parsed.fatal) {
+          fatal = parsed.fatal;
+          const diagnostic = sanitizedDiagnostic(fatal);
+          throw new ProviderError(diagnostic || 'Subscription transport failed', statusForFailure(diagnostic), request.provider);
+        }
         if (parsed.usage) yield { usage: parsed.usage };
         for (const text of parsed.chunks) yield { text };
       }
     }
     if (buffer.trim()) {
+      if (Buffer.byteLength(buffer, 'utf8') > SUBSCRIPTION_JSON_LINE_MAX_BYTES) {
+        throw new ProviderError(
+          'Subscription transport JSON line exceeded its limit',
+          502,
+          request.provider,
+        );
+      }
       const parsed = parseJsonLine(request.provider, buffer);
-      if (parsed.fatal) fatal = parsed.fatal;
+      control?.onLine(buffer);
+      if (parsed.fatal) {
+        fatal = parsed.fatal;
+        const diagnostic = sanitizedDiagnostic(fatal);
+        throw new ProviderError(diagnostic || 'Subscription transport failed', statusForFailure(diagnostic), request.provider);
+      }
       if (parsed.usage) yield { usage: parsed.usage };
       for (const text of parsed.chunks) yield { text };
     }
 
-    const exitCode = await exitPromise;
+    if (terminalError) throw terminalError;
+    const exitCode = await Promise.race([
+      exitPromise,
+      stopped.then(async () => { await stopAndWait(); return null; }),
+    ]);
+    if (terminalError) throw terminalError;
     clearTimeout(timer);
     request.signal?.removeEventListener('abort', abort);
 
@@ -529,21 +859,116 @@ async function* runSubscription(request: SubscriptionRequest): AsyncIterable<{
   } catch (error) {
     if (request.signal?.aborted)
       throw new DOMException('Subscription request aborted', 'AbortError');
-    if (error instanceof ProviderError) throw error;
-    const message = sanitizedDiagnostic(error instanceof Error ? error.message : String(error));
+    if (terminalError instanceof ProviderError) throw terminalError;
+    const failure = terminalError ?? error;
+    if (failure instanceof ProviderError) throw failure;
+    const message = sanitizedDiagnostic(failure instanceof Error ? failure.message : String(failure));
     throw new ProviderError(
       message || 'Subscription transport failed',
       statusForFailure(message),
       request.provider,
     );
   } finally {
-    child?.kill();
+    if (timer) clearTimeout(timer);
+    request.signal?.removeEventListener('abort', abort);
+    await stopAndWait();
+    control?.onStopped?.();
     if (spec.promptFile && existsSync(spec.promptFile)) rmSync(spec.promptFile, { force: true });
   }
 }
 
 export class OfficialSubscriptionTransport implements SubscriptionTransport {
   readonly providers = new Set<SubscriptionProvider>(['openai', 'anthropic', 'grok']);
+
+  /** Real official-CLI media transport; not advertised by API/UI until the
+   * asset/ToS/worker lifecycle is wired. Never retries a generation implicitly. */
+  async generateMedia(request: GrokMediaRequest, beforeDispatch?: () => Promise<void>): Promise<GrokMediaArtifact> {
+    if (request.signal?.aborted) throw new DOMException('Subscription request aborted', 'AbortError');
+    if (!request.prompt?.trim() || request.prompt.length > 4000
+      || !['image', 'video'].includes(request.kind)
+      || !['auto', '1:1', '16:9', '9:16', '4:5', '3:2', '2:3'].includes(request.aspectRatio ?? 'auto')) {
+      throw new ProviderError('Invalid Grok media request', 400, 'grok');
+    }
+    let inputExtension: 'jpg' | 'png' | undefined;
+    if (request.kind === 'video') {
+      if (!Buffer.isBuffer(request.image) || request.image.length < 12
+        || request.image.length > 20 * 1024 * 1024 || ![6, 10].includes(request.duration ?? 6)) {
+        throw new ProviderError('Video requires a bounded source image and a supported duration', 400, 'grok');
+      }
+      if (request.image.subarray(0, 3).equals(Buffer.from([255, 216, 255]))) inputExtension = 'jpg';
+      else if (request.image.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) inputExtension = 'png';
+      else throw new ProviderError('Unsupported source image format', 400, 'grok');
+    } else if (request.image || request.duration !== undefined) {
+      throw new ProviderError('Image generation does not accept video inputs', 400, 'grok');
+    }
+    // Only the dedicated sealed-input build supports video. Never substitute
+    // the stock CLI, whose model-selected file references are not constrained.
+    const videoExecutable = process.env.AXIOM_GROK_VIDEO_CLI;
+    const imageLauncher = process.env.AXIOM_GROK_IMAGE_LAUNCHER;
+    if (request.kind === 'video' && (!videoExecutable || !imageLauncher)) {
+      throw new ProviderError('Install the sealed-input Grok video CLI and image launcher', 503, 'grok');
+    }
+    const imageBytes = inputExtension ? Buffer.from(request.image!) : undefined;
+    const profile = profileRoot(request.userId, 'grok');
+    const credentials = join(profile, 'credentials');
+    if (!existsSync(join(credentials, '.active')) || !existsSync(join(credentials, 'auth.json'))) {
+      throw new ProviderError('Reconnect Grok OAuth before using isolated media generation', 401, 'grok');
+    }
+    // No request may inherit the persistent profile's sessions/config/files.
+    const requests = join(profile, 'media-requests');
+    mkdirSync(requests, { recursive: true, mode: 0o700 });
+    const requestRoot = mkdtempSync(join(requests, 'request-'));
+    const sessionId = randomUUID();
+    const base: SubscriptionRequest = {
+      provider: 'grok', userId: request.userId, model: 'grok-default',
+      messages: [], signal: request.signal,
+    };
+    const spec = buildCommand(base);
+    const tool = request.kind === 'image' ? 'image_gen' : 'image_to_video';
+    let safeToCleanup = true;
+    try {
+      // Replace the legacy prompt location before entering the isolated mount.
+      rmSync(spec.promptFile!, { force: true });
+      spec.promptFile = join(requestRoot, 'intent.prompt');
+      spec.args[spec.args.indexOf('--prompt-file') + 1] = spec.promptFile;
+      const input = request.kind === 'image'
+        ? { prompt: request.prompt, aspect_ratio: request.aspectRatio ?? 'auto' }
+        : { prompt: request.prompt, image: 'axiom-input://image', duration: request.duration ?? 6, resolution_name: '480p' };
+      writeFileSync(spec.promptFile!, `Call ${tool} exactly once with the following JSON arguments. Do not use another tool, retry, or describe a result without a successful tool response.\n${JSON.stringify(input)}`, { mode: 0o600 });
+      // Use the stock media registry, but allow only this one media tool.
+      // Both MCP meta-tools remain explicitly denied by buildCommand.
+      for (const flag of ['--agents', '--agent']) {
+        const index = spec.args.indexOf(flag);
+        spec.args.splice(index, 2);
+      }
+      spec.args[spec.args.indexOf('--tools') + 1] = tool;
+      spec.args[spec.args.indexOf('--max-turns') + 1] = '2';
+      spec.args.push('--session-id', sessionId, '--always-approve');
+      Object.assign(spec, grokSandboxCommand({
+        executable: imageBytes ? videoExecutable! : spec.command,
+        requestRoot, credentialRoot: credentials, args: spec.args,
+        ...(imageBytes ? { imageLauncher: { executable: imageLauncher!, byteLength: imageBytes.length } } : {}),
+      }));
+      const result = new GrokMediaResult(request.kind);
+      // Preparation failures (missing login, unsupported runtime, invalid input)
+      // must not be mistaken for an uncertain paid request. The worker commits
+      // its one-shot marker here, before any subprocess can contact the provider.
+      if (request.signal?.aborted) throw new DOMException('Subscription request aborted', 'AbortError');
+      if (beforeDispatch) await beforeDispatch();
+      safeToCleanup = false;
+      for await (const _event of runSubscription(base, {
+        spec, imageBytes, onLine: line => result.accept(line), onStopped: () => { safeToCleanup = true; },
+      })) {
+        // Text alone never establishes media success.
+        void _event;
+      }
+      return await result.artifact(requestRoot, sessionId);
+    } finally {
+      if (safeToCleanup) {
+        if (spec.promptFile) rmSync(spec.promptFile, { force: true });
+      }
+    }
+  }
 
   async chat(request: SubscriptionRequest): Promise<SubscriptionResult> {
     let content = '';
@@ -575,11 +1000,18 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
   async status(
     provider: SubscriptionProvider,
     userId: string,
+    signal?: AbortSignal,
   ): Promise<SubscriptionConnectionStatus> {
     if (provider === 'grok') {
-      return { provider, connected: existsSync(join(profileRoot(userId, provider), 'auth.json')) };
+      const profile = profileRoot(userId, provider);
+      const credentials = join(profile, 'credentials');
+      // Local-presence signal only: this neither validates tokens nor proves
+      // provider entitlements. Callers must not label it live verification.
+      return { provider, connected: existsSync(join(
+        existsSync(join(credentials, '.active')) ? credentials : profile, 'auth.json',
+      )) };
     }
-    const result = await runAuthCommand(provider, userId, 'status');
+    const result = await runAuthCommand(provider, userId, 'status', signal);
     const disconnected =
       /(not logged|not authenticated|logged.?in.?false|authenticated.?false)/i.test(result.output);
     return { provider, connected: result.exitCode === 0 && !disconnected };
@@ -593,14 +1025,25 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
     return runAuthConnect(provider, userId, signal);
   }
 
-  async disconnect(provider: SubscriptionProvider, userId: string): Promise<void> {
-    const result = await runAuthCommand(provider, userId, 'disconnect');
+  async disconnect(
+    provider: SubscriptionProvider,
+    userId: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const result = await runAuthCommand(provider, userId, 'disconnect', signal);
     if (result.exitCode !== 0) {
       throw new ProviderError(
         result.output || 'Subscription logout failed',
         statusForFailure(result.output),
         provider,
       );
+    }
+    if (provider === 'grok') {
+      const profile = profileRoot(userId, provider);
+      const credentials = join(profile, 'credentials');
+      // Grok can leave an empty auth store after logout. Remove only the
+      // selected local store; never reactivate the preserved legacy file.
+      rmSync(join(existsSync(join(credentials, '.active')) ? credentials : profile, 'auth.json'), { force: true });
     }
   }
 }

@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import CharacterLockEditor from '@/components/CharacterLockEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,6 +42,10 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
         <div>
           <strong>Bio:</strong> {model.bio ?? '—'}
         </div>
+        {typeof model.characterLockPrompt === 'string' && Number.isSafeInteger(model.characterLockVersion)
+          ? <CharacterLockEditor key={`${model.id}:${model.characterLockVersion}`} modelId={model.id}
+            initialPrompt={model.characterLockPrompt} initialVersion={model.characterLockVersion!} />
+          : <p>Character lock editing is unavailable until the profile API and migration are installed.</p>}
         <div>
           <strong>Created:</strong> {new Date(model.createdAt).toLocaleDateString()}
         </div>

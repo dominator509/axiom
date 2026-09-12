@@ -95,6 +95,19 @@ describe('mediaPlaneEngine', () => {
 
     await expect(mediaPlaneEngine('http://media.test')).resolves.toBe('in-process');
   });
+
+  it('sends the configured bearer token to the media plane', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('MEDIA_PLANE_AUTH_TOKEN', 'internal-token');
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(mediaPlaneEngine('http://media.test')).resolves.toBe('rust-media-plane');
+
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      headers: { Authorization: 'Bearer internal-token' },
+    });
+  });
 });
 
 describe('runPrePostBefore', () => {
@@ -198,6 +211,19 @@ describe('runPrePostBefore', () => {
     });
     expect(transactionRows[0]).toMatchObject({ status: 'success' });
     expect(rows).toEqual([]);
+  });
+
+  it('carries the authoritative media kind into the connector input', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })));
+    const transactionRows: Array<Record<string, unknown>> = [];
+
+    const stage = await runPrePostBefore({ ...context, tx: makeTx(transactionRows) } as never, {
+      ...input,
+      mediaKind: 'video',
+    });
+
+    expect(stage.input.options).toMatchObject({ modelId: 'model-1', mediaType: 'video' });
   });
 
   it('fails closed when media is present without an explicit kind', async () => {

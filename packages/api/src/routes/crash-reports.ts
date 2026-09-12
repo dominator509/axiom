@@ -11,6 +11,7 @@ import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 import { recordCrashReport } from '../crash-reporter.js';
+import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 
 const router = new Hono<AppBindings>();
 
@@ -20,7 +21,7 @@ const reportSchema = z.object({
   release: z.string().max(100).optional(),
   environment: z.string().max(50).optional(),
   message: z.string().max(2000).default(''),
-  stacktrace: z.array(z.record(z.string(), z.unknown())).default([]),
+  stacktrace: z.array(z.record(z.string(), z.unknown())).max(50).default([]),
   correlationId: z.string().max(100).optional(),
   severity: z.enum(['sev-1', 'sev-2', 'sev-3', 'sev-4']).default('sev-3'),
   fingerprint: z.string().max(200).optional(),
@@ -32,7 +33,15 @@ export { crashFingerprint } from '../crash-reporter.js';
 router.post('/crash-reports', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
-  const parsed = reportSchema.safeParse(await c.req.json().catch(() => ({})));
+  let payload: unknown = {};
+  try {
+    payload = await readBoundedJson(c.req.raw);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return apiError(c, 413, statusTitle(413), 'crash report body too large');
+    }
+  }
+  const parsed = reportSchema.safeParse(payload);
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'invalid crash report body');
   const body = parsed.data;
   const report = await recordCrashReport({
