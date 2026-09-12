@@ -2,7 +2,7 @@
 // synthetic user; database teardown removes it. This does not claim browser
 // cookie/TLS coverage: CI supplies the configured HTTPS Origin over loopback.
 import assert from 'node:assert/strict';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -148,6 +148,66 @@ COMMIT;
   assert.equal(lockReadback.status, 200);
   assert.equal((await lockReadback.json()).data.characterLockPrompt, savedLock.characterLockPrompt);
   console.log('character lock HTTP smoke: concurrent winner, durable readback and idempotent replay passed');
+  // Real 16x16 blue PNG generated with FFmpeg, plus a private trailer. The
+  // running API must sanitize it using its packaged decoder and persist it.
+  const uploadBytes = Buffer.concat([
+    Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAACXBIWXMAAAABAAAAAQBPJcTWAAAAI0lEQVR4nGNkYPjHQApgIUk1w6gG4gALkergYFQDMYDkUAIAaRMBPMpWW/QAAAAASUVORK5CYII=', 'base64'),
+    Buffer.from('disposable-private-upload-marker'),
+  ]);
+  const uploadIntent = { method: 'POST', body: uploadBytes,
+    headers: { origin, cookie, 'content-type': 'image/png', 'Idempotency-Key': randomUUID() } };
+  const uploadPath = `/api/v1/models/${createdBody.data.id}/media-upload?sanitize=true`;
+  const uploaded = await request(uploadPath, uploadIntent);
+  assert.equal(uploaded.status, 201, 'Packaged API must sanitize and store an uploaded image');
+  const uploadedAsset = (await uploaded.json()).data;
+  assert.ok(uploadedAsset.id);
+  assert.equal(uploadedAsset.mimeType, 'image/png');
+  assert.equal(uploadedAsset.sanitized, true);
+  assert.equal(uploadedAsset.exactFileHashChanged, true);
+  assert.equal(uploadedAsset.tosStatus, 'not-scanned', 'Upload alone must not claim content approval');
+  const uploadReplay = await request(uploadPath, uploadIntent);
+  assert.equal(uploadReplay.status, 201);
+  assert.equal((await uploadReplay.json()).data.id, uploadedAsset.id);
+  const uploadDuplicate = await request(uploadPath, { ...uploadIntent,
+    headers: { ...uploadIntent.headers, 'Idempotency-Key': randomUUID() } });
+  assert.equal(uploadDuplicate.status, 201, 'Same-model duplicate content must resolve without another asset');
+  assert.equal((await uploadDuplicate.json()).data.id, uploadedAsset.id);
+  const sourceImages = await request(`/api/v1/models/${createdBody.data.id}/media-source-images`, { headers: { cookie } });
+  assert.equal(sourceImages.status, 200);
+  assert.equal((await sourceImages.json()).data.filter(asset => asset.id === uploadedAsset.id).length, 1);
+  const foreignUpload = await request(`/api/v1/models/${otherModelId}/media-upload?sanitize=true`, {
+    ...uploadIntent, headers: { ...uploadIntent.headers, 'Idempotency-Key': randomUUID() },
+  });
+  assert.equal(foreignUpload.status, 404, 'An upload cannot target another tenant model');
+  // Bind only this synthetic upload to a disposable bundle to exercise the
+  // actual authenticated media endpoint. This is not provider-generation proof.
+  const previewBundle = randomUUID();
+  const previewFixture = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_org=${orgId}`, '-v', `fixture_model=${createdBody.data.id}`,
+    '-v', `fixture_asset=${uploadedAsset.id}`, '-v', `fixture_bundle=${previewBundle}`,
+  ], { encoding: 'utf8', timeout: 10_000, input: `BEGIN;
+SELECT set_config('app.current_org_id', :'fixture_org', true) IS NOT NULL;
+INSERT INTO content_bundle (id, org_id, model_id, asset_id, state)
+SELECT :'fixture_bundle', org_id, model_id, id, 'generated' FROM asset
+WHERE id = :'fixture_asset' AND org_id = :'fixture_org' AND model_id = :'fixture_model';
+SELECT encode(sha256, 'hex') FROM asset
+WHERE id = :'fixture_asset' AND org_id = :'fixture_org' AND model_id = :'fixture_model';
+COMMIT;
+` });
+  assert.equal(previewFixture.status, 0, 'Disposable preview fixture must persist');
+  const expectedHash = previewFixture.stdout.trim().split(/\r?\n/).at(-1);
+  assert.match(expectedHash, /^[0-9a-f]{64}$/);
+  const previewPath = `/api/v1/bundles/${previewBundle}/media`;
+  const preview = await request(previewPath, { headers: { cookie } });
+  assert.equal(preview.status, 200, 'Uploaded bytes must be available through authenticated dashboard media delivery');
+  assert.equal(preview.headers.get('content-type'), 'image/png');
+  const previewBytes = Buffer.from(await preview.arrayBuffer());
+  assert.equal(createHash('sha256').update(previewBytes).digest('hex'), expectedHash);
+  assert.equal(previewBytes.includes(Buffer.from('disposable-private-upload-marker')), false);
+  assert.equal((await request(previewPath)).status, 401, 'Media preview must remain authenticated');
+  console.log('upload HTTP smoke: packaged sanitizer, replay, content deduplication, source listing and tenant boundary passed');
+  console.log('upload preview smoke: authenticated media bytes match stored hash and omit private trailer');
   const replayed = await request('/api/v1/models', { method: 'POST', headers: mutationHeaders, body: modelBody });
   assert.equal(replayed.status, 201, 'Profile replay preserves the original response');
   assert.equal((await replayed.json())?.data?.id, createdBody.data.id, 'Replay must not create another profile');
