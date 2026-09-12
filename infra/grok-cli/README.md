@@ -515,8 +515,10 @@ still open; a version/startup smoke does not establish media-generation success.
 The three executable entries in ignored `var/grok-runtime.env` now select the
 side-by-side patched installation. Readback verified all three paths. No API
 restart has been performed, so this does not prove the running service uses it.
-Native WSL initially lacked FFmpeg and ffprobe; dependency installation is in
-progress and native sanitizer rehearsal remains pending.
+Native WSL initially lacked FFmpeg and ffprobe. Ubuntu package installation
+completed successfully (`ffmpeg` package `7:6.1.1-3ubuntu5`). The generated-media
+sanitizer rehearsal passed for PNG, JPEG and MP4/audio under native Linux Node
+22.23.2, with zero provider requests. Temporary synthetic media was removed.
 
 CI run `34664797413`, commit `f571bcd91b22a9b9922d56bb2cb1f21a6452e852`,
 passed all six gates. The completed container log explicitly confirms concurrent
