@@ -7,8 +7,9 @@
 // Safety:
 //  - Skipped entirely when DATABASE_URL is not set (CI / offline).
 //  - Every fixture uses a THROWAWAY org (random UUID) — no shared state.
-//  - All writes happen in a transaction that is ROLLED BACK in afterAll,
-//    so the live DB is never polluted.
+//  - Shared fixtures are rolled back in afterAll. Multi-connection race
+//    fixtures must commit setup; they remove their exact random org afterward.
+//    Run this suite against a disposable database, not production data.
 //  - RLS FORCE is on for every tenant table, so each assertion runs inside
 //    an org context (set_config app.current_org_id), mirroring the API's
 //    withOrgContext helper.
@@ -441,6 +442,74 @@ skip('Relay dispatch marker identity', () => {
     );
     expect(history.rows).toEqual([{ state: 'pending' }, { state: 'sent' }]);
   });
+});
+
+skip('character lock persistence', () => {
+  it('isolates the saved lock even when SQL omits an explicit org predicate', async () => {
+    await setOrg(orgId);
+    await q(`UPDATE model_profile SET character_lock_prompt = 'fixture identity', character_lock_version = 1 WHERE id = $1`, [modelId]);
+    await setOrg(randomUUID());
+    expect((await q(`SELECT character_lock_prompt FROM model_profile WHERE id = $1`, [modelId])).rows).toHaveLength(0);
+    expect((await q(`UPDATE model_profile SET character_lock_prompt = 'forbidden', character_lock_version = 2 WHERE id = $1 RETURNING id`, [modelId])).rows).toHaveLength(0);
+    await setOrg(orgId);
+    expect((await q(`SELECT character_lock_prompt, character_lock_version FROM model_profile WHERE id = $1`, [modelId])).rows)
+      .toEqual([{ character_lock_prompt: 'fixture identity', character_lock_version: 1 }]);
+  });
+
+  it('allows only one concurrent edit of the same saved lock version', async () => {
+    const isolatedOrg = randomUUID(), isolatedModel = randomUUID();
+    const setup = new pg.Client({ connectionString: DATABASE_URL });
+    const editors = [new pg.Client({ connectionString: DATABASE_URL }), new pg.Client({ connectionString: DATABASE_URL })];
+    const connections = [setup, ...editors];
+    let created = false;
+    try {
+      await Promise.all(connections.map(connection => connection.connect()));
+      const begin = async (connection: pg.Client) => {
+        await connection.query('BEGIN');
+        await connection.query(`SET LOCAL statement_timeout = '3s'`);
+        await connection.query(`SELECT set_config('app.current_org_id', $1, true)`, [isolatedOrg]);
+      };
+      await begin(setup);
+      await setup.query(`INSERT INTO org (id, name, slug) VALUES ($1::uuid, 'character lock race', $1::text)`, [isolatedOrg]);
+      await setup.query(`INSERT INTO model_profile (id, org_id, display_name, handle) VALUES ($1::uuid, $2, 'race fixture', $1::text)`, [isolatedModel, isolatedOrg]);
+      await setup.query('COMMIT');
+      created = true;
+      await Promise.all(editors.map(begin));
+      const pending = editors.map((connection, index) => connection.query(
+        `UPDATE model_profile SET character_lock_prompt = $3, character_lock_version = character_lock_version + 1
+         WHERE id = $1 AND org_id = $2 AND character_lock_version = 0 RETURNING character_lock_prompt, character_lock_version`,
+        [isolatedModel, isolatedOrg, `editor-${index}`],
+      ).then(result => ({ index, result })));
+      // Attach handlers to both immediately, including timeout/failure paths.
+      const settled = Promise.allSettled(pending);
+      const winner = await Promise.race(pending);
+      expect(winner.result.rows).toHaveLength(1);
+      await editors[winner.index].query('COMMIT');
+      const results = await settled;
+      for (const result of results) {
+        if (result.status === 'rejected') throw result.reason;
+        expect(result.value.result.rows).toHaveLength(result.value.index === winner.index ? 1 : 0);
+      }
+      await editors[1 - winner.index].query('COMMIT');
+      await begin(setup);
+      expect((await setup.query(`SELECT character_lock_prompt, character_lock_version FROM model_profile WHERE id = $1`, [isolatedModel])).rows)
+        .toEqual([{ character_lock_prompt: `editor-${winner.index}`, character_lock_version: 1 }]);
+      await setup.query('ROLLBACK');
+    } finally {
+      await Promise.all(connections.map(connection => connection.query('ROLLBACK').catch(() => {})));
+      try {
+        if (created) {
+          await setup.query('BEGIN');
+          await setup.query(`SELECT set_config('app.current_org_id', $1, true)`, [isolatedOrg]);
+          await setup.query(`DELETE FROM model_profile WHERE id = $1`, [isolatedModel]);
+          await setup.query(`DELETE FROM org WHERE id = $1`, [isolatedOrg]);
+          await setup.query('COMMIT');
+        }
+      } finally {
+        await Promise.all(connections.map(connection => connection.end().catch(() => {})));
+      }
+    }
+  }, 15_000);
 });
 
 // Guard: if DATABASE_URL was set, at least ensure the suite is discoverable.
