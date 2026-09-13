@@ -40,6 +40,8 @@ if (process.argv[2] === '--evaluate-isolated') {
   } finally { await pool.end(); }
 } else {
   assert.equal(process.argv[2], '--existing-probe');
+  const withDatabase = process.argv[4] === '--with-database';
+  assert.ok(process.argv.length === 4 || (process.argv.length === 5 && withDatabase));
   const hash = process.argv[3];
   assert.match(hash ?? '', /^[0-9a-f]{64}$/);
   const source = fileURLToPath(new URL(`../var/live-grok-probe/${hash}.mp4`, import.meta.url));
@@ -102,6 +104,17 @@ if (process.argv[2] === '--evaluate-isolated') {
     });
     assert.equal(evaluated.status, 0, 'Real worker video evaluation must pass (diagnostics suppressed)');
     console.log(evaluated.stdout.trim());
+    if (withDatabase) {
+      const persisted = spawnSync(process.execPath, [fileURLToPath(new URL('./test-isolated-workspace.mjs', import.meta.url)),
+        '--isolated-fixture', '--worker-media-failure'], {
+        encoding: 'utf8', windowsHide: true, timeout: 180_000, maxBuffer: 1024 * 1024,
+        env: { ...cleanEnv, MEDIA_PLANE_URL: urls.media, VISION_ENGINE_URL: urls.vision,
+          MEDIA_PLANE_AUTH_TOKEN: token, AXIOM_VISION_AUTH_TOKEN: token,
+          AXIOM_VIDEO_REHEARSAL_HASH: hash, AXIOM_VIDEO_REHEARSAL_SIZE: String(readFileSync(source).length) },
+      });
+      assert.equal(persisted.status, 0, 'Disposable video verdict/handoff transaction must pass (diagnostics suppressed)');
+      console.log(persisted.stdout.trim());
+    }
   } finally {
     for (const name of created.reverse()) docker(['rm', '--force', name]);
     if (networkCreated) docker(['network', 'rm', network]);

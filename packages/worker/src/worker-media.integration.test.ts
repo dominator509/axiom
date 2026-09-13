@@ -9,6 +9,7 @@ import { tosScan } from './executors/tos.js';
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
 const modelId = '9283b927-b95d-461c-90d0-729bc2d13852';
+const videoHash = process.env.AXIOM_VIDEO_REHEARSAL_HASH;
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const scoped = <T>(operation: (tx: Transaction) => Promise<T>) => db.transaction(async tx => {
   await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
@@ -28,13 +29,31 @@ describe.skipIf(!url)('terminal media state in real PostgreSQL', () => {
   });
   afterAll(async () => { await pool.end(); });
 
-  it.each([false, true])('commits ToS verdict and review handoff together; lostLease=%s', async lostLease => {
+  it.each([
+    { lostLease: false, video: false }, { lostLease: true, video: false },
+    ...(videoHash ? [{ lostLease: false, video: true }, { lostLease: true, video: true }] : []),
+  ])('commits ToS verdict and review handoff together: %j', async ({ lostLease, video }) => {
     const bundleId = randomUUID();
     const jobId = randomUUID();
     const revisionId = randomUUID();
+    const assetId = video ? randomUUID() : undefined;
+    if (video) {
+      expect(videoHash).toMatch(/^[0-9a-f]{64}$/);
+      expect(Number(process.env.AXIOM_VIDEO_REHEARSAL_SIZE)).toBeGreaterThan(12);
+      for (const key of ['MEDIA_PLANE_URL', 'VISION_ENGINE_URL']) {
+        const endpoint = new URL(process.env[key]!);
+        expect(endpoint.hostname).toBe('127.0.0.1');
+        expect(endpoint.protocol).toBe('http:');
+      }
+    }
     try {
       const item = await scoped(async tx => {
+        if (video) await tx.insert(schema.asset).values({ id: assetId, orgId, modelId,
+          kind: 'video', fileName: 'source.mp4', mimeType: 'video/mp4',
+          fileSize: Number(process.env.AXIOM_VIDEO_REHEARSAL_SIZE), storageKey: 'source.mp4',
+          sha256: Buffer.from(videoHash!, 'hex') });
         await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId,
+          ...(assetId ? { assetId } : {}),
           state: 'generated', captions: { telegram: 'A peaceful landscape at sunrise.' }, hashtags: [],
           tosReport: { verdict: 'pending', revisionId } });
         await tx.insert(schema.job).values({ id: jobId, orgId, queue: 'tos', kind: 'tos.scan',
@@ -52,17 +71,24 @@ describe.skipIf(!url)('terminal media state in real PostgreSQL', () => {
         cards: await tx.execute(sql`SELECT payload FROM job WHERE org_id=${orgId}
           AND kind='relay.card' AND payload->>'bundleId'=${bundleId}`),
       }));
-      expect(records.bundles[0].tosReport?.verdict).toBe(lostLease ? 'pending' : 'pass');
+      expect(records.bundles[0].tosReport?.verdict).toBe(lostLease ? 'pending' : video ? 'review' : 'pass');
       expect(records.bundles[0].tosReport?.revisionId).toBe(revisionId);
       expect(records.jobs[0].state).toBe(lostLease ? 'running' : 'done');
       expect(records.cards.rows).toHaveLength(lostLease ? 0 : 1);
       if (!lostLease) expect(records.cards.rows[0].payload).toEqual({ bundleId, revisionId });
+      if (video && !lostLease) expect(records.bundles[0].tosReport?.videoScan).toEqual(expect.objectContaining({
+        assetSha256: videoHash, policy: 'sampled-2fps-v1', frameCount: expect.any(Number),
+        scanId: expect.stringMatching(/^[0-9a-f-]{36}$/), contentDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+        automatedScores: [expect.objectContaining({ platform: 'telegram', verdict: 'pass' })],
+      }));
+      if (lostLease) expect(records.bundles[0].tosReport?.videoScan).toBeUndefined();
     } finally {
       await scoped(async tx => {
         await tx.execute(sql`DELETE FROM job WHERE org_id=${orgId} AND kind='relay.card'
           AND payload->>'bundleId'=${bundleId}`);
         await tx.delete(schema.job).where(eq(schema.job.id, jobId));
         await tx.delete(schema.contentBundle).where(eq(schema.contentBundle.id, bundleId));
+        if (assetId) await tx.delete(schema.asset).where(eq(schema.asset.id, assetId));
       });
     }
   });

@@ -16,6 +16,7 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/rehearse-worker-video.mjs --existing-probe <sha256> --with-database` — additionally run actual video verdict/handoff commit and lease-loss rollback tests in a fresh disposable PostgreSQL fixture; no live workspace or provider writes
 - `node scripts/rehearse-worker-video.mjs --existing-probe <sha256>` — real worker video evaluation against isolated media/vision containers using a copied existing probe; requires built worker and rehearsal images, no provider/queue/approval/database writes
 - `node scripts/test-docker-context.mjs --isolated-fixture` — verify Docker context exclusions using synthetic files and a scratch image export; no workspace secrets enter the fixture, temporary output removed
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --worker-media-failure` — run real worker terminal-transition and lost-lease rollback checks in a fresh disposable PostgreSQL database; no workspace build, provider calls, or live dashboard changes
