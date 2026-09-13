@@ -7,6 +7,18 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('generation status polling', () => {
+  it('reports a paused workspace and keeps observing without redispatching', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ data: bundle, generationPaused: true }))
+      .mockResolvedValueOnce(Response.json({ data: { ...bundle, state: 'hold' }, generationPaused: false }));
+    vi.stubGlobal('fetch', fetcher);
+    const status = vi.fn(); const unavailable = vi.fn();
+    const stop = watchGeneration('bundle-a', 'model-a', status, unavailable);
+    await vi.advanceTimersByTimeAsync(12_000);
+    expect(status.mock.calls.map(([value]) => value.generationPaused)).toEqual([true, false]);
+    expect(unavailable).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    stop();
+  });
   it.each([true, false])('reports the measured exact-file hash result %s for the attached asset', async changed => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response({ ...bundle, assetId: 'asset-a',
       tosReport: { verdict: 'pass', sanitization: { assetId: 'asset-a', selected: true, exactFileHashChanged: changed } } })));

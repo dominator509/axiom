@@ -4,6 +4,7 @@ export type GenerationStatus = {
   assetReady: boolean;
   verdict: string;
   state: string;
+  generationPaused?: boolean;
   sanitization?: { selected: boolean; exactFileHashChanged: boolean };
 };
 
@@ -28,12 +29,14 @@ export function watchGeneration(
         cache: 'no-store',
       });
       if (!response.ok) throw new Error('Status unavailable');
-      const { data } = await readDashboardJson<{ data?: {
+      const { data, generationPaused } = await readDashboardJson<{ generationPaused?: unknown; data?: {
         id?: unknown; modelId?: unknown; state?: unknown; assetId?: unknown;
         tosReport?: { verdict?: unknown; sanitization?: { assetId?: unknown; selected?: unknown; exactFileHashChanged?: unknown } } | null;
       } }>(response);
       if (data?.id !== bundleId || data.modelId !== modelId || typeof data.state !== 'string')
         throw new Error('Unexpected bundle');
+      if (generationPaused !== undefined && typeof generationPaused !== 'boolean')
+        throw new Error('Unexpected generation pause status');
       const verdict = data.tosReport?.verdict ?? 'pending';
       if (typeof verdict !== 'string' || !['pending', 'pass', 'review', 'block'].includes(verdict))
         throw new Error('Unexpected scan status');
@@ -43,7 +46,9 @@ export function watchGeneration(
       const sanitization = assetReady && privacy && privacy.assetId === data.assetId && typeof privacy.selected === 'boolean'
         && typeof privacy.exactFileHashChanged === 'boolean' && (privacy.selected || !privacy.exactFileHashChanged)
         ? { selected: privacy.selected, exactFileHashChanged: privacy.exactFileHashChanged } : undefined;
-      onStatus({ assetReady, verdict, state: data.state, ...(sanitization ? { sanitization } : {}) });
+      onStatus({ assetReady, verdict, state: data.state,
+        ...(typeof generationPaused === 'boolean' ? { generationPaused } : {}),
+        ...(sanitization ? { sanitization } : {}) });
       if ((assetReady && verdict !== 'pending') || ['rejected', 'hold'].includes(data.state)) return;
     } catch {
       if (!stopped) onUnavailable();

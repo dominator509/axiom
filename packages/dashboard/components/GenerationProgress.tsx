@@ -21,7 +21,9 @@ export default function GenerationProgress({ bundleId, modelId }: { bundleId: st
       : status?.state === 'rejected'
         ? 'Bundle was rejected.'
         : !status?.assetReady
-          ? 'Grok generation queued or running. No generated asset is attached yet.'
+          ? status?.generationPaused
+            ? 'Media generation is paused by the workspace kill switch. No generated asset is attached yet. An operator must review the workspace safety setting before work can resume.'
+            : 'Grok generation queued or running. No generated asset is attached yet.'
           : status.verdict === 'pending'
             ? 'Generated media is attached. ToS scanning is pending; approval is not available yet.'
             : status.verdict === 'pass'

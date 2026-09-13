@@ -9,7 +9,7 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => ({
-  ...mockDbFactory({ contentBundle: {}, postTarget: {}, asset: {}, platformConnection: {} }),
+  ...mockDbFactory({ contentBundle: {}, postTarget: {}, asset: {}, platformConnection: {}, orgSettings: {} }),
   getPublishingConsentStatus: vi.fn(async () => ({ ok: true, missing: [] })),
   getTosScanState: vi.fn(async () => 'completed'),
   consentRequirementMessage: vi.fn(
@@ -52,6 +52,17 @@ const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 const BUNDLE_ID = '33333333-3333-4333-8333-333333333333';
 const INSTAGRAM_CONNECTION_ID = '44444444-4444-4444-8444-444444444444';
 const X_CONNECTION_ID = '55555555-5555-4555-8555-555555555555';
+
+describe('generation safety snapshot', () => {
+  it.each([true, false, undefined])('reports existing workspace pause state (%s)', async enabled => {
+    mockState.results = [[], [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated', assetId: null }],
+      enabled === undefined ? [] : [{ publishingEnabled: enabled }]];
+    const result = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}`);
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({ generationPaused: enabled !== true });
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+});
 
 describe('bundle media preview authorization', () => {
   it('requires organization context', async () => {

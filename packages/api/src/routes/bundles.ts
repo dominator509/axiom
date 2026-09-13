@@ -78,15 +78,22 @@ router.get('/:id', async (c) => {
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { id } = c.req.param();
 
-  const rows = await withOrgContext(orgId, (tx) =>
-    tx
+  const result = await withOrgContext(orgId, async (tx) => {
+    const rows = await tx
       .select()
       .from(schema.contentBundle)
       .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.orgId, orgId)))
-      .limit(1),
-  );
-  if (rows.length === 0) return apiError(c, 404, statusTitle(404), 'bundle not found');
-  return c.json({ data: rows[0] });
+      .limit(1);
+    if (!rows[0]) return null;
+    if (rows[0].state !== 'generated' || rows[0].assetId) return { data: rows[0] };
+    const settings = await tx.select({ publishingEnabled: schema.orgSettings.publishingEnabled })
+      .from(schema.orgSettings).where(eq(schema.orgSettings.orgId, orgId)).limit(1);
+    // Same fail-closed interpretation as the worker; this is a snapshot, not
+    // a claim that a worker is running or that a generation was dispatched.
+    return { data: rows[0], generationPaused: settings[0]?.publishingEnabled !== true };
+  });
+  if (!result) return apiError(c, 404, statusTitle(404), 'bundle not found');
+  return c.json(result);
 });
 
 // Authenticated browser media delivery; no storage path is returned to clients.
