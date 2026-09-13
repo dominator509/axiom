@@ -2,6 +2,7 @@
 // retry, connector registration, or publication. Use only explicitly authorized IDs.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
 
 const [mode, orgId, modelId, bundleId, jobId, ...extra] = process.argv.slice(2);
 assert.ok(['--inspect', '--execute-approved'].includes(mode), 'Explicit inspect or approved execution mode required');
@@ -13,7 +14,8 @@ assert.ok(process.env.DATABASE_URL, 'Explicit database environment required');
 if (mode === '--execute-approved') assert.equal(process.platform, 'linux', 'Media execution requires the installed Linux runtime');
 
 const { db, pool } = await import('../packages/db/dist/index.js');
-const { sql } = await import('drizzle-orm');
+const require = createRequire(new URL('../packages/db/package.json', import.meta.url));
+const { sql } = require('drizzle-orm');
 try {
   if (mode === '--inspect') {
     const state = await db.transaction(async tx => {
