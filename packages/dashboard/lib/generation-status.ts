@@ -5,6 +5,7 @@ export type GenerationStatus = {
   verdict: string;
   state: string;
   generationPaused?: boolean;
+  scanFailed?: boolean;
   sanitization?: { selected: boolean; exactFileHashChanged: boolean };
 };
 
@@ -29,7 +30,7 @@ export function watchGeneration(
         cache: 'no-store',
       });
       if (!response.ok) throw new Error('Status unavailable');
-      const { data, generationPaused } = await readDashboardJson<{ generationPaused?: unknown; data?: {
+      const { data, generationPaused, scanFailed } = await readDashboardJson<{ generationPaused?: unknown; scanFailed?: unknown; data?: {
         id?: unknown; modelId?: unknown; state?: unknown; assetId?: unknown;
         tosReport?: { verdict?: unknown; sanitization?: { assetId?: unknown; selected?: unknown; exactFileHashChanged?: unknown } } | null;
       } }>(response);
@@ -37,10 +38,13 @@ export function watchGeneration(
         throw new Error('Unexpected bundle');
       if (generationPaused !== undefined && typeof generationPaused !== 'boolean')
         throw new Error('Unexpected generation pause status');
+      if (scanFailed !== undefined && typeof scanFailed !== 'boolean')
+        throw new Error('Unexpected scan failure status');
       const verdict = data.tosReport?.verdict ?? 'pending';
       if (typeof verdict !== 'string' || !['pending', 'pass', 'review', 'block'].includes(verdict))
         throw new Error('Unexpected scan status');
       const assetReady = typeof data.assetId === 'string' && data.assetId.length > 0;
+      if (scanFailed && (!assetReady || verdict !== 'pending')) throw new Error('Contradictory scan failure status');
       if (stopped) return;
       const privacy = data.tosReport?.sanitization;
       const sanitization = assetReady && privacy && privacy.assetId === data.assetId && typeof privacy.selected === 'boolean'
@@ -48,8 +52,9 @@ export function watchGeneration(
         ? { selected: privacy.selected, exactFileHashChanged: privacy.exactFileHashChanged } : undefined;
       onStatus({ assetReady, verdict, state: data.state,
         ...(typeof generationPaused === 'boolean' ? { generationPaused } : {}),
+        ...(typeof scanFailed === 'boolean' ? { scanFailed } : {}),
         ...(sanitization ? { sanitization } : {}) });
-      if ((assetReady && verdict !== 'pending') || ['rejected', 'hold'].includes(data.state)) return;
+      if (scanFailed || (assetReady && verdict !== 'pending') || ['rejected', 'hold'].includes(data.state)) return;
     } catch {
       if (!stopped) onUnavailable();
       // Stop on unavailable status, including auth expiry. The user can reload

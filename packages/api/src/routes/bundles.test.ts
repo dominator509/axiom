@@ -54,6 +54,16 @@ const INSTAGRAM_CONNECTION_ID = '44444444-4444-4444-8444-444444444444';
 const X_CONNECTION_ID = '55555555-5555-4555-8555-555555555555';
 
 describe('generation safety snapshot', () => {
+  it.each(['failed', 'pending', 'completed', 'missing'] as const)('reports durable scan state %s without redispatching', async state => {
+    vi.mocked(getTosScanState).mockResolvedValueOnce(state);
+    mockState.results = [[], [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID,
+      state: 'generated', assetId: 'saved-asset', tosReport: { verdict: 'pending' } }]];
+    const response = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ scanFailed: state === 'failed', data: { assetId: 'saved-asset' } });
+    expect(getTosScanState).toHaveBeenCalledWith(expect.anything(), ORG_ID, BUNDLE_ID);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
   it.each([
     { state: 'generated', assetId: 'saved-asset' },
     { state: 'hold', assetId: null },

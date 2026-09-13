@@ -85,6 +85,9 @@ router.get('/:id', async (c) => {
       .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.orgId, orgId)))
       .limit(1);
     if (!rows[0]) return null;
+    if (rows[0].assetId && rows[0].tosReport?.verdict === 'pending') {
+      return { data: rows[0], scanFailed: (await getTosScanState(tx, orgId, id)) === 'failed' };
+    }
     if (rows[0].state !== 'generated' || rows[0].assetId) return { data: rows[0] };
     const settings = await tx.select({ publishingEnabled: schema.orgSettings.publishingEnabled })
       .from(schema.orgSettings).where(eq(schema.orgSettings.orgId, orgId)).limit(1);

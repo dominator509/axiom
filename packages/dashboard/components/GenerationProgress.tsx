@@ -16,6 +16,8 @@ export default function GenerationProgress({ bundleId, modelId }: { bundleId: st
   }, [bundleId, modelId]);
   const message = unavailable
     ? 'Live status unavailable. Generation may still be running; check Approvals or Incidents before submitting again.'
+    : status?.scanFailed
+      ? 'ToS scanning failed. Your generated media is saved, but approval remains blocked. Open Incidents for details; do not generate again just to retry the scan.'
     : status?.state === 'hold'
       ? 'Bundle is on hold. Inspect Incidents before retrying generation.'
       : status?.state === 'rejected'
@@ -40,5 +42,6 @@ export default function GenerationProgress({ bundleId, modelId }: { bundleId: st
       && ['generated', 'hold'].includes(status.state) && <GenerationRetry key={bundleId} modelId={modelId} bundleId={bundleId}
         blocked={status.verdict === 'block'} onQueued={setRetryBundleId} />}
     <a href={`/models/${encodeURIComponent(modelId)}/approvals`}>Open Approvals</a>
+    {status?.scanFailed && <p><a href="/incidents">Open Incidents</a></p>}
   </div>;
 }

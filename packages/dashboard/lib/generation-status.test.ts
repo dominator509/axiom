@@ -7,6 +7,22 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('generation status polling', () => {
+  it('reports a terminal scan failure once while preserving saved media', async () => {
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ data: { ...bundle, assetId: 'asset-a' }, scanFailed: true }));
+    vi.stubGlobal('fetch', fetcher);
+    const status = vi.fn(), unavailable = vi.fn();
+    const stop = watchGeneration('bundle-a', 'model-a', status, unavailable);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(status).toHaveBeenCalledWith(expect.objectContaining({ assetReady: true, scanFailed: true, verdict: 'pending' }));
+    expect(fetcher).toHaveBeenCalledOnce(); expect(unavailable).not.toHaveBeenCalled(); stop();
+  });
+  it.each(['true', 1, null])('rejects malformed scan failure %j', async scanFailed => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ data: bundle, scanFailed })));
+    const status = vi.fn(), unavailable = vi.fn();
+    const stop = watchGeneration('bundle-a', 'model-a', status, unavailable);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(status).not.toHaveBeenCalled(); expect(unavailable).toHaveBeenCalledOnce(); stop();
+  });
   it.each(['true', 1, null])('rejects malformed pause state %j without claiming generation is active', async generationPaused => {
     const fetcher = vi.fn().mockResolvedValue(Response.json({ data: bundle, generationPaused }));
     vi.stubGlobal('fetch', fetcher);
