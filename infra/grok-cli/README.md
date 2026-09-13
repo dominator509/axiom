@@ -16,6 +16,31 @@ classified with the pinned ONNX model without overrides. This is local
 transport evidence, not full-video/audio approval, dashboard bundle ingestion,
 publication, or container deployment acceptance. Those boundaries remain open.
 
+### Restart and media-delivery checks (2026-09-12)
+
+The local API launcher now requires the existing persistent `BETTER_AUTH_SECRET`
+and checks all three configured executables before accessing the database. It
+never invents a replacement secret: doing so would invalidate sessions and make
+saved R2 credentials unreadable after a restart. Preserve that key when moving
+or restarting the runtime. Missing, short or blank secrets and missing,
+relative, non-file or non-executable CLI paths stop startup with value-free
+diagnostics. The actual Linux child-process regression passes 23 checks,
+including repeat startup with the same key and no schema access on invalid
+configuration. These launcher changes apply at the next start; the already
+healthy API was not restarted for these checks.
+
+`rehearse-generated-media.mjs --existing-probe <sha256> <jpg|png|mp4>` passes
+the existing content-hashed Grok artifact through the built worker asset store
+and API preview implementation using private temporary copies. Both the real
+132,318-byte JPEG and 443,128-byte MP4 passed with sanitization off and on,
+including HEAD/full responses, initial two-byte, suffix and open-ended ranges,
+invalid-range rejection and wrong-hash rejection. Sanitized derivatives were
+638,697-byte PNG and 436,853-byte MP4. Original bytes and file timestamps were
+unchanged; temporary copies were removed. No provider call, database write,
+browser interaction or approval decision occurred. This establishes storage
+and preview-code compatibility, not the missing live queued-worker-to-dashboard
+and full-video/audio review acceptance.
+
 The source-image patch targets exactly `xai-org/grok-build` commit
 `37949780c144e37df692e3d669051a21fec24f20`. It is a candidate patch, not a
 verified distributable CLI. Video transport now requires explicit installation
