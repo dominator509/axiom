@@ -254,19 +254,7 @@ COMMIT;
   assert.equal(generatedReplay.status, 201);
   assert.equal((await generatedReplay.json()).data?.bundle?.id, generation.bundle.id);
   const switchStatus = await request('/api/v1/killswitch', { headers: { cookie } });
-  assert.equal(switchStatus.status, 200);
-  assert.deepEqual((await switchStatus.json()).data, {
-    enabled: true, reason: '', startedAt: null, updatedAt: null,
-  }, 'Reading missing safety settings must report emergency pause without initializing them');
-  const settingsRows = spawnSync('psql', [
-    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
-    '-v', `fixture_org=${orgId}`,
-  ], {
-    encoding: 'utf8', timeout: 10_000,
-    input: `SELECT count(*) FROM org_settings WHERE org_id = :'fixture_org';`,
-  });
-  assert.equal(settingsRows.status, 0, 'Read-only safety status verification must execute');
-  assert.equal(settingsRows.stdout.trim(), '0', 'GET safety status must not create settings');
+  assert.equal(switchStatus.status, 403, 'Safety control status remains owner-only');
   const persisted = await request(`/api/v1/bundles/${generation.bundle.id}`, { headers: { cookie } });
   assert.equal(persisted.status, 200);
   const persistedBody = await persisted.json();
@@ -446,6 +434,21 @@ UPDATE auth_user SET role = 'owner' WHERE email = :'fixture_email' AND org_id = 
   const ownerSession = await request('/api/auth/get-session', { headers: { cookie } });
   assert.equal(ownerSession.status, 200);
   assert.equal((await ownerSession.json()).user.role, 'owner', 'Session must reflect the server-assigned role');
+  const ownerSwitchStatus = await request('/api/v1/killswitch', { headers: { cookie } });
+  assert.equal(ownerSwitchStatus.status, 200);
+  assert.deepEqual((await ownerSwitchStatus.json()).data, {
+    enabled: true, reason: '', startedAt: null, updatedAt: null,
+  }, 'Reading missing safety settings must report emergency pause without initializing them');
+  const settingsRows = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_org=${orgId}`,
+  ], {
+    encoding: 'utf8', timeout: 10_000,
+    input: `SELECT count(*) FROM org_settings WHERE org_id = :'fixture_org';`,
+  });
+  assert.equal(settingsRows.status, 0, 'Read-only safety status verification must execute');
+  assert.equal(settingsRows.stdout.trim(), '0', 'GET safety status must not create settings');
+  console.log('safety status HTTP smoke: operator denied; owner read fails closed and creates no settings');
   for (const values of [
     { proxyAddr: '127.0.0.1:1080', expectedEgressIp: '203.0.113.7' },
     { proxyAddr: null, expectedEgressIp: null },
