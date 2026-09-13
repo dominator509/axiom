@@ -1,5 +1,25 @@
 # Grok OAuth media CLI integration (live acceptance pending)
 
+## Live application image acceptance (2026-09-13)
+
+A real worker-generated ceramic-vase image was saved to its model's asset and
+bundle, then passed the separately executed ToS scan. This verifies the local
+authenticated image transport, persistence and scan handoff; phone rendering,
+normal unattended worker operation and public deployment remain separate gates.
+
+The preceding request received an explicit provider HTTP 422: `aspect_ratio`
+did not accept `4:5`. The image UI now defaults to `3:4`; the API, worker and
+transport reject `4:5` before dispatch. General text-brief geometry is separate.
+The failed attempt and its dispatch marker were retained, with an audited,
+corrected replacement instead of erasing history or blindly replaying it.
+
+A subsequent six-second vase video used that saved image through the real
+worker and installed sealed-input/R2 transport. The 1,364,659-byte MP4 contains
+480x640 H.264 video and AAC audio (6.041667 seconds). Its asset and bundle were
+saved, and the separate frame-scan job completed with a persisted `review`
+verdict. This is not human approval: the full clip/audio and phone playback
+still need operator review. Neither the image nor video was published.
+
 ## Verified local ZDR video path (2026-09-12)
 
 A real OAuth-authenticated six-second video completed using private R2 storage

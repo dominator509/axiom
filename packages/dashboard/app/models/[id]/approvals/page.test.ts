@@ -74,6 +74,20 @@ async function renderPage(query: Record<string, string | string[] | undefined> =
 }
 
 describe('approval review queue', () => {
+  it('distinguishes a saved brief from completed media generation', async () => {
+    transport('generated', 'pending');
+    const html = await renderPage();
+    expect(html).toContain('Brief saved');
+    expect(html).toContain('No media is attached to this bundle');
+    expect(html).not.toContain('Media saved');
+  });
+  it('labels an attached asset separately from its ToS decision', async () => {
+    transport('generated', 'pending', false, {}, 'attached-asset');
+    const html = await renderPage();
+    expect(html).toContain('Media saved');
+    expect(html).not.toContain('No media is attached');
+    expect(html).toContain('ToS: pending');
+  });
   it('shows explicit video review while keeping scheduling blocked for a sampled scan', async () => {
     transport('generated', 'review', false, {}, 'video-asset', {
       videoScan: { scanId: '22222222-2222-4222-8222-222222222222' },

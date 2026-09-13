@@ -84,7 +84,7 @@ export default async function ApprovalsPage({
               <div>
                 <span className="mono">{b.id.slice(0, 8)}</span>
                 <span className="badge warn" style={{ marginLeft: 8 }}>
-                  {b.state}
+                  {b.state === 'generated' ? b.assetId ? 'Media saved' : 'Brief saved' : b.state}
                 </span>
                 {b.tosReport && (
                   <span
@@ -101,6 +101,7 @@ export default async function ApprovalsPage({
             </div>
             <div className="stack" style={{ marginTop: 10 }}>
               {b.assetId && <BundleMedia key={b.assetId} bundleId={b.id} />}
+              {!b.assetId && <p>No media is attached to this bundle. Saved captions do not mean image or video generation has completed.</p>}
               {Object.entries(b.captions ?? {}).map(([platform, caption]) => (
                 <div key={platform}>
                   <strong>{platform}:</strong> {caption}
