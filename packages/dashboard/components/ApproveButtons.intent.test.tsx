@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 const hooks = vi.hoisted(() => ({
   values: [] as unknown[], refs: [] as { current: unknown }[], stateIndex: 0, refIndex: 0,
@@ -24,6 +25,7 @@ function success(path: string) {
   return new Response(JSON.stringify({ data: { id: bundleId, state,
     tosReport: { verdict: state === 'revising' ? 'pending' : 'pass', revisionId: revision } } }));
 }
+let latestView: ReactElement;
 
 beforeEach(() => {
   hooks.values = [];
@@ -41,6 +43,7 @@ function buttons(revisionId = 'revision-a') {
     connections: [{ id: 'account', modelId: 'model', platform: 'threads', status: 'connected',
       displayName: 'Account', capabilities: [], connectedAt: '2026-01-01' }],
   });
+  latestView = element;
   const actions = element.props.children.at(-1).props.children as ReactElement<{ onClick: () => Promise<void> }>[];
   return actions.map((button) => button.props.onClick);
 }
@@ -49,6 +52,22 @@ function key(fetch: ReturnType<typeof vi.fn>, index: number) {
 }
 
 describe('review action intent', () => {
+  it.each([0, 1, 2])('renders locked inputs and only the original recovery action after uncertainty (%s)', async index => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('response lost')));
+    await buttons()[index]();
+    buttons();
+    const html = renderToStaticMarkup(latestView);
+    expect(html).toContain('An action is unresolved');
+    const recovery = html.match(/<button[^>]*>Check original (?:approval|revision|rejection)<\/button>/g);
+    expect(recovery).toHaveLength(1);
+    expect(recovery![0]).not.toContain('disabled');
+    for (const control of html.match(/<(?:input|textarea|select)\b[^>]*>/g) ?? []) {
+      expect(control).toContain('disabled');
+    }
+    for (const button of html.match(/<button\b[^>]*>[\s\S]*?<\/button>/g) ?? []) {
+      if (!button.includes('Check original')) expect(button).toContain('disabled');
+    }
+  });
   it('can recover an unchanged scheduled approval after its slot has passed', async () => {
     const slot = new Date(2030, 0, 15, 12, 0);
     vi.spyOn(Date, 'now').mockReturnValue(slot.getTime() - 60_000);
