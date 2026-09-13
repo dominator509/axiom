@@ -59,7 +59,6 @@ export default function ApproveButtons({
     path: string;
     body: string;
     key: string;
-    approvalInput?: string;
     scheduledSlot?: string;
   } | null>(null);
 
@@ -80,20 +79,24 @@ export default function ApproveButtons({
   }
 
   const selectedWithoutConnection = selected.filter((platform) => !connectionIds[platform]);
+  const pendingAction = intent.current?.path.split('/').at(-1);
+  const inputsLocked = busy || Boolean(intent.current);
 
   async function act(action: 'approve' | 'revise' | 'reject') {
     if (inFlight.current) return;
-    if (action === 'approve' && (tosBlocked || selected.length === 0 || selectedWithoutConnection.length > 0)) return;
-    const approvalInput = action === 'approve'
-      ? JSON.stringify({ bundleId, revisionId, selected, connectionIds, slot })
-      : undefined;
+    const path = `/api/v1/bundles/${bundleId}/${action}`;
+    if (intent.current && intent.current.path !== path) {
+      setError('Resolve the original action before submitting a different action or bundle.');
+      return;
+    }
+    if (!intent.current && action === 'approve' && (tosBlocked || selected.length === 0 || selectedWithoutConnection.length > 0)) return;
     let scheduledSlot: string | undefined;
     if (action === 'approve') {
       try {
         // A previously submitted request may have succeeded before its response
-        // was lost. Recover that exact request even if its slot has since passed;
-        // changed inputs remain new intents and must still use a future slot.
-        scheduledSlot = intent.current && intent.current.approvalInput === approvalInput
+        // was lost. Recover that exact request even if the slot or revision has
+        // changed; do not authorize a second action until it is resolved.
+        scheduledSlot = intent.current
           ? intent.current.scheduledSlot
           : approvalSlot(slot);
       } catch (cause) {
@@ -101,7 +104,7 @@ export default function ApproveButtons({
         return;
       }
     }
-    if (action === 'revise' && !instructions.trim()) {
+    if (!intent.current && action === 'revise' && !instructions.trim()) {
       setError('Enter caption revision instructions.');
       return;
     }
@@ -111,12 +114,11 @@ export default function ApproveButtons({
     setNotice(null);
     try {
       const send = (body: string) => {
-        const path = `/api/v1/bundles/${bundleId}/${action}`;
-        if (intent.current?.path !== path || intent.current.body !== body) {
-          intent.current = { path, body, key: createIdempotencyKey(), approvalInput, scheduledSlot };
+        if (!intent.current) {
+          intent.current = { path, body, key: createIdempotencyKey(), scheduledSlot };
         }
         return mutationFetch(path, {
-          method: 'POST', headers: { 'content-type': 'application/json' }, body,
+          method: 'POST', headers: { 'content-type': 'application/json' }, body: intent.current.body,
         }, { idempotencyKey: intent.current.key });
       };
       let res: Response;
@@ -138,7 +140,8 @@ export default function ApproveButtons({
       }
       if (!res.ok) {
         const b = await readDashboardError(res);
-        setError(b?.error?.message ?? 'Action failed');
+        if (res.status === 400 || res.status === 422) intent.current = null;
+        setError(typeof b?.detail === 'string' ? b.detail : b?.error?.message ?? 'Action failed');
         return;
       }
       intent.current = null;
@@ -162,7 +165,7 @@ export default function ApproveButtons({
           <button
             key={p}
             type="button"
-            disabled={busy}
+            disabled={inputsLocked}
             className={`btn ${selected.includes(p) ? '' : 'secondary'}`}
             style={{ padding: '4px 10px', fontSize: 12 }}
             onClick={() => toggle(p)}
@@ -182,7 +185,7 @@ export default function ApproveButtons({
           </small>
           <input
             type="datetime-local"
-            disabled={busy}
+            disabled={inputsLocked}
             value={slot}
             onChange={(e) => setSlot(e.target.value)}
             style={{ marginLeft: 8, width: 'auto' }}
@@ -199,7 +202,7 @@ export default function ApproveButtons({
           <label key={platform} style={{ margin: 0 }}>
             {platform} account
             <select
-              disabled={busy}
+              disabled={inputsLocked}
               value={connectionIds[platform] ?? ''}
               onChange={(event) =>
                 setConnectionIds((current) => ({ ...current, [platform]: event.target.value }))
@@ -223,12 +226,13 @@ export default function ApproveButtons({
       )}
       {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
       {notice && <p role="status">{notice}</p>}
+      {pendingAction && <p role="status">An action is unresolved. Check its original request before changing inputs or taking another action.</p>}
       <label>
         Caption revision instructions
         <textarea
           value={instructions}
           maxLength={2000}
-          disabled={busy}
+          disabled={inputsLocked}
           onChange={(event) => setInstructions(event.target.value)}
           placeholder="Describe how the captions should change"
         />
@@ -238,22 +242,22 @@ export default function ApproveButtons({
           className="btn"
           type="button"
           disabled={
-            busy || tosBlocked || selected.length === 0 || selectedWithoutConnection.length > 0
+            busy || (pendingAction ? pendingAction !== 'approve' : tosBlocked || selected.length === 0 || selectedWithoutConnection.length > 0)
           }
           onClick={() => act('approve')}
         >
-          {tosBlocked ? 'Blocked by ToS' : 'Approve'}
+          {pendingAction === 'approve' ? 'Check original approval' : tosBlocked ? 'Blocked by ToS' : 'Approve'}
         </button>
         <button
           className="btn secondary"
           type="button"
-          disabled={busy || !instructions.trim()}
+          disabled={busy || (pendingAction ? pendingAction !== 'revise' : !instructions.trim())}
           onClick={() => act('revise')}
         >
-          Revise captions
+          {pendingAction === 'revise' ? 'Check original revision' : 'Revise captions'}
         </button>
-        <button className="btn danger" type="button" disabled={busy} onClick={() => act('reject')}>
-          Reject
+        <button className="btn danger" type="button" disabled={busy || Boolean(pendingAction && pendingAction !== 'reject')} onClick={() => act('reject')}>
+          {pendingAction === 'reject' ? 'Check original rejection' : 'Reject'}
         </button>
       </div>
     </div>

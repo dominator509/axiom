@@ -59,7 +59,7 @@ describe('review action intent', () => {
     expect(hooks.refresh).toHaveBeenCalledOnce();
   });
 
-  it('still rejects a past slot when the reviewed revision changes after a lost response', async () => {
+  it('reconciles the original approval when the reviewed revision changes after a lost response', async () => {
     const slot = new Date(2030, 0, 15, 12, 0);
     vi.spyOn(Date, 'now').mockReturnValue(slot.getTime() - 60_000);
     hooks.values[2] = '2030-01-15T12:00';
@@ -67,9 +67,11 @@ describe('review action intent', () => {
     vi.stubGlobal('fetch', fetch);
     await buttons('revision-a')[0]();
     vi.mocked(Date.now).mockReturnValue(slot.getTime() + 60_000);
+    fetch.mockResolvedValue(new Response('{}'));
     await buttons('revision-b')[0]();
-    expect(fetch).toHaveBeenCalledTimes(2);
-    expect(hooks.values[6]).toContain('future');
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(key(fetch, 2)).toBe(key(fetch, 0));
+    expect(fetch.mock.calls[2][1].body).toBe(fetch.mock.calls[0][1].body);
   });
 
   it('does not retain the expired-slot exception after confirmed success', async () => {
@@ -111,12 +113,51 @@ describe('review action intent', () => {
     await pending;
   });
 
-  it('does not reuse a key for a new reviewed revision', async () => {
+  it('reconciles the unresolved original revision before permitting a new intent', async () => {
     const fetch = vi.fn().mockRejectedValue(new Error('response lost'));
     vi.stubGlobal('fetch', fetch);
     await buttons('revision-a')[2]();
     fetch.mockResolvedValue(new Response('{}'));
     await buttons('revision-b')[2]();
-    expect(key(fetch, 2)).not.toBe(key(fetch, 0));
+    expect(key(fetch, 2)).toBe(key(fetch, 0));
+    expect(fetch.mock.calls[2][1].body).toBe(fetch.mock.calls[0][1].body);
+  });
+  it('refuses to switch actions after an unknown outcome', async () => {
+    const fetch = vi.fn().mockRejectedValue(new Error('response lost'));
+    vi.stubGlobal('fetch', fetch);
+    await buttons()[0]();
+    await buttons()[2]();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+  it('retains revision instructions after an unknown outcome even if inputs change', async () => {
+    const fetch = vi.fn().mockRejectedValue(new Error('response lost'));
+    vi.stubGlobal('fetch', fetch);
+    await buttons()[1]();
+    hooks.values[3] = 'Different instructions';
+    fetch.mockResolvedValue(new Response('{}'));
+    await buttons()[1]();
+    expect(key(fetch, 2)).toBe(key(fetch, 0));
+    expect(fetch.mock.calls[2][1].body).toBe(fetch.mock.calls[0][1].body);
+  });
+  it.each([401, 403, 404, 409, 429, 500])('retains the original action after HTTP %s', async status => {
+    const fetch = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ detail: 'Review action not confirmed' }), { status }));
+    vi.stubGlobal('fetch', fetch);
+    await buttons()[1]();
+    expect(hooks.values[6]).toBe('Review action not confirmed');
+    const next = fetch.mock.calls.length;
+    hooks.values[3] = 'Changed after error';
+    fetch.mockImplementation(async () => new Response('{}'));
+    await buttons()[1]();
+    expect(key(fetch, next)).toBe(key(fetch, 0));
+    expect(fetch.mock.calls[next][1].body).toBe(fetch.mock.calls[0][1].body);
+  });
+  it.each([400, 422])('permits corrected input after validation HTTP %s', async status => {
+    const fetch = vi.fn().mockResolvedValueOnce(new Response('{}', { status })).mockImplementation(async () => new Response('{}'));
+    vi.stubGlobal('fetch', fetch);
+    await buttons()[1]();
+    hooks.values[3] = 'Corrected instructions';
+    await buttons()[1]();
+    expect(key(fetch, 1)).not.toBe(key(fetch, 0));
+    expect(JSON.parse(fetch.mock.calls[1][1].body).instructions).toBe('Corrected instructions');
   });
 });
