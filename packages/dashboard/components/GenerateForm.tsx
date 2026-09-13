@@ -78,9 +78,14 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (inFlight.current || platforms.length === 0
+    if (inFlight.current) return;
+    if (intent.current && intent.current.modelId !== modelId) {
+      setError('Return to the original model to reconcile the unresolved generation before starting another.');
+      return;
+    }
+    if (!intent.current && (platforms.length === 0
       || (mediaKind !== 'brief' && !mediaPrompt.trim())
-      || (mediaKind === 'video' && !sourceAssetId)) return;
+      || (mediaKind === 'video' && !sourceAssetId))) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -95,17 +100,24 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
           ...(mediaKind === 'video' ? { sourceAssetId, duration } : {}),
         } }),
       });
-      if (intent.current?.modelId !== modelId || intent.current.body !== requestBody) {
+      if (!intent.current) {
         intent.current = { modelId, body: requestBody, key: createIdempotencyKey() };
       }
       const res = await mutationFetch(`/api/v1/models/${modelId}/generate`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: requestBody,
+        body: intent.current.body,
       }, { idempotencyKey: intent.current.key });
       if (!res.ok) {
         const b = await readDashboardError(res);
-        setError(b?.error?.message ?? 'Generation failed');
+        const message = b?.error?.message ?? b?.detail;
+        setError(typeof message === 'string' ? message : 'Generation failed');
+        // An uncertain response is not permission to queue a new paid request.
+        // Preserve its exact body/key until reconciliation. An expired session
+        // or revoked access on a later check cannot disprove earlier acceptance.
+        // Only input-validation rejection permits a corrected request here.
+        if ([400, 422].includes(res.status))
+          intent.current = null;
         return;
       }
       const body = await readDashboardJson<{ data: typeof result }>(res);
@@ -136,7 +148,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         router.refresh();
       }} />
       <form onSubmit={onSubmit} className="stack" style={{ maxWidth: 640 }}>
-        <fieldset disabled={busy} className="stack" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+        <fieldset disabled={busy || !!intent.current} className="stack" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <label htmlFor="mediaKind">Output</label>
         <select id="mediaKind" value={mediaKind} onChange={e => setMediaKind(e.target.value as 'brief' | 'image' | 'video')}>
           <option value="brief">Text brief only</option>
@@ -223,13 +235,14 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
           />
           Enrich captions via LLM gateway (optional, live provider call)
         </label>
+        </fieldset>
+        {intent.current && !busy && <p>Previous generation outcome is unresolved. Inputs are locked. Check the same request before editing or starting another generation.</p>}
         {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
         <div>
-          <button className="btn" type="submit" disabled={busy || platforms.length === 0}>
-            {busy ? 'Generating…' : mediaKind === 'brief' ? 'Generate content brief' : 'Queue Grok generation'}
+          <button className="btn" type="submit" disabled={busy || (!intent.current && platforms.length === 0)}>
+            {busy ? 'Generating…' : intent.current ? 'Check same generation request' : mediaKind === 'brief' ? 'Generate content brief' : 'Queue Grok generation'}
           </button>
         </div>
-        </fieldset>
       </form>
 
       {result && (

@@ -98,13 +98,59 @@ describe('generation intent', () => {
     expect(hooks.values[8]).toBe(false);
   });
 
-  it.each(['model', 'payload'])('starts a distinct intent when the %s changes', async (change) => {
+  it('reconciles the original intent even if field state changes after a lost response', async () => {
     const fetch = vi.fn().mockRejectedValue(new Error('response lost'));
     vi.stubGlobal('fetch', fetch);
     await submit()();
-    if (change === 'payload') hooks.values[0] = 'outdoor';
+    hooks.values[0] = 'outdoor';
     fetch.mockResolvedValue(response());
-    await submit(change === 'model' ? 'model-b' : 'model-a')();
-    expect(key(fetch, 2)).not.toBe(key(fetch, 0));
+    await submit()();
+    expect(key(fetch, 2)).toBe(key(fetch, 0));
+    expect(fetch.mock.calls[2][1].body).toBe(fetch.mock.calls[0][1].body);
+  });
+
+  it('never moves an unresolved intent to another model', async () => {
+    const fetch = vi.fn().mockRejectedValue(new Error('response lost'));
+    vi.stubGlobal('fetch', fetch);
+    await submit()();
+    await submit('model-b')();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(hooks.values[9]).toEqual(expect.stringContaining('original model'));
+  });
+
+  it.each([401, 403, 404, 408, 409, 429, 500])('retains exact intent on unresolved HTTP %s', async status => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: 'Check this request' }), { status }));
+    vi.stubGlobal('fetch', fetch);
+    await submit()();
+    expect(hooks.values[9]).toBe('Check this request');
+    hooks.values[0] = 'outdoor';
+    fetch.mockResolvedValue(response());
+    await submit()();
+    expect(key(fetch, 1)).toBe(key(fetch, 0));
+    expect(fetch.mock.calls[1][1].body).toBe(fetch.mock.calls[0][1].body);
+  });
+
+  it('locks inputs after uncertainty but leaves reconciliation outside the disabled fieldset', async () => {
+    const fetch = vi.fn().mockRejectedValue(new Error('response lost'));
+    vi.stubGlobal('fetch', fetch);
+    await submit()();
+    hooks.stateIndex = 0; hooks.refIndex = 0;
+    const form = GenerateForm({ modelId: 'model-a' }).props.children.find((child: { type?: unknown }) => child?.type === 'form');
+    expect(form.props.children.find((child: { type?: unknown }) => child?.type === 'fieldset').props.disabled).toBe(true);
+    const action = form.props.children.find((child: { type?: unknown }) => child?.type === 'div').props.children;
+    expect(action.props.type).toBe('submit');
+    expect(action.props.disabled).toBe(false);
+    expect(action.props.children).toBe('Check same generation request');
+  });
+
+  it('allows corrected input with a new key after a definite validation rejection', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: 'Invalid input' }), { status: 400 }));
+    vi.stubGlobal('fetch', fetch);
+    await submit()();
+    hooks.values[0] = 'outdoor';
+    fetch.mockResolvedValue(response());
+    await submit()();
+    expect(key(fetch, 1)).not.toBe(key(fetch, 0));
+    expect(JSON.parse(fetch.mock.calls[1][1].body).style).toBe('outdoor');
   });
 });
