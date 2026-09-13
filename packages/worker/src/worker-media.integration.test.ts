@@ -5,6 +5,7 @@ import { db, pool, schema } from '@axiom/db';
 import { processJob } from './worker.js';
 import type { JobRow } from './types.js';
 import { tosScan } from './executors/tos.js';
+import { claimExactMediaJob } from './claim.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
@@ -28,6 +29,41 @@ describe.skipIf(!url)('terminal media state in real PostgreSQL', () => {
     expect(role.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
   });
   afterAll(async () => { await pool.end(); });
+
+  it.each(['media.generate', 'tos.scan', 'publish.target'])('exact media claim bounds %s without sweeping the queue', async kind => {
+    const bundleId = randomUUID();
+    const jobId = randomUUID();
+    const unrelatedId = randomUUID();
+    const target = { orgId, modelId, bundleId, jobId };
+    try {
+      await scoped(async tx => {
+        await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId, state: 'generated' });
+        await tx.insert(schema.job).values([
+          { id: jobId, orgId, queue: 'fixture', kind, state: 'ready', payload: { bundleId } },
+          { id: unrelatedId, orgId, queue: 'fixture', kind: 'publish.target', state: 'ready', payload: { bundleId } },
+        ]);
+      });
+      for (const field of ['orgId', 'modelId', 'bundleId', 'jobId'] as const) {
+        const result = await db.transaction(tx => claimExactMediaJob(tx, 'bounded-fixture', { ...target, [field]: randomUUID() }));
+        expect(result).toEqual({ job: null, empty: true });
+      }
+      const result = await db.transaction(tx => claimExactMediaJob(tx, 'bounded-fixture', target));
+      expect(result.empty).toBe(kind === 'publish.target');
+      if (kind !== 'publish.target') {
+        expect(result.job).toMatchObject({ id: jobId, org_id: orgId, state: 'running', locked_by: 'bounded-fixture' });
+        expect(await db.transaction(tx => claimExactMediaJob(tx, 'another-worker', target))).toEqual({ job: null, empty: true });
+      }
+      const [unrelated] = await scoped(tx => tx.select().from(schema.job).where(eq(schema.job.id, unrelatedId)));
+      expect(unrelated.state).toBe('ready');
+      expect(unrelated.lockedBy).toBeNull();
+    } finally {
+      await scoped(async tx => {
+        await tx.delete(schema.job).where(eq(schema.job.id, jobId));
+        await tx.delete(schema.job).where(eq(schema.job.id, unrelatedId));
+        await tx.delete(schema.contentBundle).where(eq(schema.contentBundle.id, bundleId));
+      });
+    }
+  });
 
   it.each([
     { lostLease: false, video: false }, { lostLease: true, video: false },
