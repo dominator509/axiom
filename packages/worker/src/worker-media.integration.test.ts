@@ -5,7 +5,7 @@ import { db, pool, schema } from '@axiom/db';
 import { processJob } from './worker.js';
 import type { JobRow } from './types.js';
 import { tosScan } from './executors/tos.js';
-import { claimExactMediaJob } from './claim.js';
+import { claimExactMediaJob, claimNextModelMediaJob } from './claim.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
@@ -29,6 +29,39 @@ describe.skipIf(!url)('terminal media state in real PostgreSQL', () => {
     expect(role.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
   });
   afterAll(async () => { await pool.end(); });
+
+  it.each(['media.generate', 'tos.scan'])('model media loop claims only unstarted %s jobs', async kind => {
+    const bundleId = randomUUID();
+    const ids = Array.from({ length: 5 }, () => randomUUID());
+    try {
+      await scoped(async tx => {
+        await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId, state: 'generated' });
+        await tx.insert(schema.job).values(ids.map((id, index) => ({ id, orgId, queue: 'fixture',
+          kind: index === 0 ? 'publish.target' : kind, state: 'ready', attempts: index === 1 ? 1 : 0,
+          runAfter: index === 3 ? new Date(Date.now() + 3600000) : new Date(0), payload: { bundleId },
+        })));
+        await tx.insert(schema.mediaGenerationAttempt).values({ jobId: ids[2], orgId, modelId, bundleId, userId: 'fixture', kind: 'image' });
+      });
+      for (const scope of [{ orgId: randomUUID(), modelId }, { orgId, modelId: randomUUID() }]) {
+        expect(await db.transaction(tx => claimNextModelMediaJob(tx, 'media-only', scope))).toEqual({ job: null, empty: true });
+      }
+      const result = await db.transaction(tx => claimNextModelMediaJob(tx, 'media-only', { orgId, modelId }));
+      expect(result.job).toMatchObject({ id: ids[4], kind, org_id: orgId, state: 'running' });
+      expect(await db.transaction(tx => claimNextModelMediaJob(tx, 'second-worker', { orgId, modelId })))
+        .toEqual({ job: null, empty: true });
+      for (const id of ids.slice(0, 4)) {
+        const [untouched] = await scoped(tx => tx.select().from(schema.job).where(eq(schema.job.id, id)));
+        expect(untouched.state).toBe('ready'); expect(untouched.lockedBy).toBeNull();
+      }
+    } finally {
+      await scoped(async tx => {
+        // Dispatch markers are intentionally non-deletable by the runtime role.
+        // The isolated runner drops this entire disposable database afterward.
+        for (const id of ids) await tx.delete(schema.job).where(eq(schema.job.id, id));
+        await tx.delete(schema.contentBundle).where(eq(schema.contentBundle.id, bundleId));
+      });
+    }
+  });
 
   it.each(['media.generate', 'tos.scan', 'publish.target'])('exact media claim bounds %s without sweeping the queue', async kind => {
     const bundleId = randomUUID();

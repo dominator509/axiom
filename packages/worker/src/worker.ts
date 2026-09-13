@@ -6,13 +6,15 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db, schema } from '@axiom/db';
 import { backoffDelayMs } from './backoff.js';
-import { claimNextJob } from './claim.js';
+import { claimNextJob, claimNextModelMediaJob, type MediaWorkerScope } from './claim.js';
 import { defaultExecutors } from './executors/index.js';
 import { EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX, ParkJobError } from './executors/context.js';
 import type { Executor } from './executors/context.js';
 import type { JobRow } from './types.js';
 
 export interface WorkerOptions {
+  /** Explicit model-only media operation; no publishing or retry recovery. */
+  mediaScope?: MediaWorkerScope;
   workerId?: string;
   /** Milliseconds to sleep when the queue is empty. Default 1000. */
   pollIntervalMs?: number;
@@ -287,8 +289,12 @@ export async function workerTick(opts: WorkerOptions = {}): Promise<WorkerStats>
   };
 
   const claimed = await db.transaction(async (tx) => {
-    const { job, empty } = await claimNextJob(tx, workerId);
+    const { job, empty } = opts.mediaScope
+      ? await claimNextModelMediaJob(tx, workerId, opts.mediaScope)
+      : await claimNextJob(tx, workerId);
     if (empty || !job) return null;
+    if (opts.mediaScope && (job.org_id !== opts.mediaScope.orgId || !['media.generate', 'tos.scan'].includes(job.kind)))
+      throw new Error('Media worker claim escaped its scope');
     return job;
   });
 
