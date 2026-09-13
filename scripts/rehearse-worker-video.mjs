@@ -32,7 +32,7 @@ if (process.argv[2] === '--evaluate-isolated') {
     assert.equal(result.videoCoverage.automatedScores[0].verdict, 'pass', 'Real benign clip inference must succeed, not a fallback error');
     await assert.rejects(() => evaluateMediaToS({ ...asset, sha256: Buffer.alloc(32) }, '', [], ['telegram']),
       /invalid video frame coverage or content identity/);
-    process.env.MEDIA_PLANE_AUTH_TOKEN = 'invalid-fixture-credential';
+    process.env.MEDIA_PLANE_AUTH_TOKEN = randomBytes(32).toString('hex');
     await assert.rejects(() => evaluateMediaToS(asset, '', [], ['telegram']), /video extraction failed \(401\)/);
     assert.equal(pool.totalCount, 0, 'Evaluation must not open a database connection');
     console.log(JSON.stringify({ workerVideoEvaluation: 'passed', frameCount: result.videoCoverage.frameCount,
