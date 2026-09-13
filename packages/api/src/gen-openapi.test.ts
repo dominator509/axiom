@@ -69,7 +69,7 @@ describe('groupRoutes (L3.0 build-time OpenAPI)', () => {
       { method: 'POST', path: '/api/v1/models/:modelId/generate' },
     ]);
     expect(doc.openapi).toBe('3.0.3');
-    expect((doc.info as Record<string, unknown>).title).toBe('AXIOM FanvueCRM API');
+    expect((doc.info as Record<string, unknown>).title).toBe('FanThynks API');
     const paths = doc.paths as Record<string, unknown>;
     expect(Object.keys(paths)).toHaveLength(2);
     const schemes = (doc.components as Record<string, unknown>).securitySchemes as Record<

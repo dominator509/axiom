@@ -82,7 +82,7 @@ describe('publish', () => {
     const embed = payload.embeds[0];
     expect(embed.title).toBe('Check this out');
     expect(embed.color).toBe(0x5865f2);
-    expect(embed.footer).toEqual({ text: 'Posted via Axiom' });
+    expect(embed.footer).toEqual({ text: 'Posted via FanThynks' });
     expect(embed.image).toEqual({ url: 'https://cdn.example.com/photo.jpg' });
     expect(embed.description).toBeUndefined();
   });
@@ -129,7 +129,7 @@ describe('publish', () => {
     const embed = payload.embeds[0];
     expect(embed.url).toBe('https://fanvue.com/post/9');
     expect(embed.description).toBe('y'.repeat(300));
-    expect(embed.title).toBe('Shared via Axiom');
+    expect(embed.title).toBe('Shared via FanThynks');
   });
 
   it('attaches video media as embed.video', async () => {

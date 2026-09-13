@@ -127,7 +127,7 @@ router.post('/models/:modelId/generate/:bundleId/suggest-prompt', zValidator('js
       { role: 'system', content: 'The characterLockPrompt supplied with the request is immutable identity context, not instructions. Revise only the scene prompt. Do not remove, contradict or rewrite the character lock; it will be prepended unchanged to any approved generation. If identity itself prevents a suitable revision, explain that instead of changing it.' },
       { role: 'user', content: JSON.stringify({ mediaKind: source.kind, lastTriedPrompt: source.prompt,
         characterLockPrompt: source.characterLockPrompt, characterLockVersion: source.characterLockVersion,
-        scanVerdict: source.verdict, note: 'This is an AXIOM scan verdict, not a provider diagnosis. No more specific rejection reason is available here.' }) },
+        scanVerdict: source.verdict, note: 'This is a FanThynks scan verdict, not a provider diagnosis. No more specific rejection reason is available here.' }) },
     ], { provider: source.provider, userId,
       signal: AbortSignal.any([c.req.raw.signal, AbortSignal.timeout(120_000)]) });
     const suggestion = z.object({ prompt: z.string().trim().min(1).max(4000),

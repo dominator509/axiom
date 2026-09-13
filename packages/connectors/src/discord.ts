@@ -88,7 +88,7 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
         title: caption.length > 256 ? caption.slice(0, 253) + '...' : caption,
         color: 0x5865f2, // Discord blurple
         timestamp: new Date().toISOString(),
-        footer: { text: 'Posted via Axiom' },
+        footer: { text: 'Posted via FanThynks' },
       };
 
       // Set the description with the full caption if it was truncated in title
@@ -102,7 +102,7 @@ export class DiscordConnector extends BaseConnector implements SocialConnector {
         embed.description = caption;
         // If title was the truncated caption, re-set it to something meaningful
         if (caption.length > 256) {
-          embed.title = 'Shared via Axiom';
+          embed.title = 'Shared via FanThynks';
         }
       }
 

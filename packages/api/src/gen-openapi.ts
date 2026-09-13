@@ -89,7 +89,7 @@ export function buildOpenApi(routes: RouteEntry[]): Record<string, unknown> {
   return {
     openapi: '3.0.3',
     info: {
-      title: 'AXIOM FanvueCRM API',
+      title: 'FanThynks API',
       version: '0.1.0',
       description:
         'Multi-tenant CRM for operating Fanvue talent profiles. All /api/v1 routes enforce session auth (bearer), org RLS isolation, rate limits and audit. Mutations that touch platforms require an Idempotency-Key header. Errors are RFC-7807 problem+json with correlation_id.',

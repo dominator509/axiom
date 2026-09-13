@@ -251,7 +251,7 @@ function renderNativePage(page: PublicNativePage): string {
       .link:hover { background: #dbeafe; } footer { margin-top: 32px; color: #94a3b8; font-size: 12px; }
     </style>
   </head>
-  <body><main>${avatar}<h1>${escapeHtml(page.model.displayName)}</h1><p class="handle">@${escapeHtml(page.model.handle)}</p>${bio}<section class="links">${links}</section><footer>Powered by AXIOM</footer></main></body>
+  <body><main>${avatar}<h1>${escapeHtml(page.model.displayName)}</h1><p class="handle">@${escapeHtml(page.model.handle)}</p>${bio}<section class="links">${links}</section><footer>Powered by FanThynks</footer></main></body>
 </html>`;
 }
 

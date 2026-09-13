@@ -6,11 +6,11 @@ export const metadata: Metadata = { title: 'Sign in' };
 export default function LoginPage() {
   return (
     <div className="login-page">
-      <section className="login-story" aria-label="AXIOM introduction">
+      <section className="login-story" aria-label="FanThynks introduction">
         <div className="brand login-brand">
-          <span className="brand-mark">A</span>
+          <span className="brand-mark">F</span>
           <span className="brand-copy">
-            <strong>AXIOM</strong>
+            <strong>FanThynks</strong>
             <small>Creator intelligence</small>
           </span>
         </div>

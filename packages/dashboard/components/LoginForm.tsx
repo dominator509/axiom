@@ -74,13 +74,13 @@ export default function LoginForm({ allowSignup = false }: { allowSignup?: boole
       </div>
       {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
       <button className="btn" type="submit" disabled={busy}>
-        {busy ? 'Please wait…' : creating ? 'Create AXIOM account' : 'Sign in'}
+        {busy ? 'Please wait…' : creating ? 'Create FanThynks account' : 'Sign in'}
       </button>
       {allowSignup && <>
         <button className="btn" type="button" disabled={busy} onClick={() => {
           setCreating(!creating); setPassword(''); setError(null);
-        }}>{creating ? 'Use existing AXIOM account' : 'First time? Create AXIOM account'}</button>
-        {creating && <p>Choose a new AXIOM password, not your Grok password. Account creation does not grant workspace access; your administrator must assign it before you can connect Grok.</p>}
+        }}>{creating ? 'Use existing FanThynks account' : 'First time? Create FanThynks account'}</button>
+        {creating && <p>Choose a new FanThynks password, not your Grok password. Account creation does not grant workspace access; your administrator must assign it before you can connect Grok.</p>}
       </>}
     </form>
   );

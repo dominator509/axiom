@@ -7,7 +7,8 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
-import RootLayout from './layout';
+import RootLayout, { metadata } from './layout';
+import LoginPage from './login/page';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -17,6 +18,16 @@ async function render(user: Record<string, unknown> | null) {
 }
 
 describe('dashboard session presentation', () => {
+  it('uses FanThynks branding in metadata, navigation and login', async () => {
+    expect(metadata.title).toEqual({ default: 'FanThynks — Creator OS', template: '%s · FanThynks' });
+    const html = await render({ id: 'user', email: 'member@example.invalid', orgId: 'org', role: 'operator' });
+    expect(html).toContain('FanThynks home');
+    expect(html).toContain('brand-mark">F</span>');
+    expect(html).not.toContain('AXIOM');
+    const login = renderToStaticMarkup(<LoginPage />);
+    expect(login).toContain('FanThynks introduction');
+    expect(login).not.toContain('AXIOM');
+  });
   it.each(['owner', 'manager', 'operator', 'unexpected'])(
     'mounts owner-only safety status only for an owner (%s)', async role => {
       const html = await render({ id: 'user', email: 'member@example.invalid', orgId: 'org', role });

@@ -7,7 +7,7 @@ import NavLinks from '@/components/NavLinks';
 import SignOutButton from '@/components/SignOutButton';
 
 export const metadata: Metadata = {
-  title: { default: 'AXIOM — Creator OS', template: '%s · AXIOM' },
+  title: { default: 'FanThynks — Creator OS', template: '%s · FanThynks' },
   description: 'Private creator intelligence and operations.',
 };
 
@@ -34,10 +34,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         ) : (
           <div className="app-shell">
             <aside className="sidebar">
-              <Link href="/" className="brand" aria-label="AXIOM home">
-                <span className="brand-mark">A</span>
+              <Link href="/" className="brand" aria-label="FanThynks home">
+                <span className="brand-mark">F</span>
                 <span className="brand-copy">
-                  <strong>AXIOM</strong>
+                  <strong>FanThynks</strong>
                   <small>Creator intelligence</small>
                 </span>
               </Link>
@@ -62,8 +62,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="workspace">
               <header className="mobile-bar">
                 <Link href="/" className="brand compact">
-                  <span className="brand-mark">A</span>
-                  <strong>AXIOM</strong>
+                  <span className="brand-mark">F</span>
+                  <strong>FanThynks</strong>
                 </Link>
                 <div className="mobile-actions">
                   <span className="eyebrow">Creator OS</span>

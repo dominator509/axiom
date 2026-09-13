@@ -688,7 +688,7 @@ app.get('/api/v1/openapi.json', (c) => {
   return c.json(
     existsSync(specUrl)
       ? JSON.parse(readFileSync(specUrl, 'utf8'))
-      : { openapi: '3.0.3', info: { title: 'AXIOM FanvueCRM API', version: '0.1.0' }, paths: {} },
+      : { openapi: '3.0.3', info: { title: 'FanThynks API', version: '0.1.0' }, paths: {} },
   );
 });
 
