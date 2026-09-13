@@ -255,7 +255,15 @@ COMMIT;
   assert.equal((await generatedReplay.json()).data?.bundle?.id, generation.bundle.id);
   const persisted = await request(`/api/v1/bundles/${generation.bundle.id}`, { headers: { cookie } });
   assert.equal(persisted.status, 200);
-  assert.equal((await persisted.json()).data?.modelId, createdBody.data.id);
+  const persistedBody = await persisted.json();
+  assert.equal(persistedBody.data?.modelId, createdBody.data.id);
+  assert.equal(persistedBody.generationPaused, true,
+    'A fresh tenant without an enabled safety record must report media generation paused');
+  const attachedDetail = await request(`/api/v1/bundles/${previewBundle}`, { headers: { cookie } });
+  assert.equal(attachedDetail.status, 200);
+  assert.equal((await attachedDetail.json()).generationPaused, undefined,
+    'An attached media bundle must not be described as waiting for generation');
+  console.log('generation pause HTTP smoke: missing safety record fails closed; attached media does not report a generation pause');
   const queuedScan = spawnSync('psql', [
     '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
     '-v', `fixture_org=${orgId}`, '-v', `fixture_bundle=${generation.bundle.id}`,

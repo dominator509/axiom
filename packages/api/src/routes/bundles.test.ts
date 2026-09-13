@@ -54,6 +54,16 @@ const INSTAGRAM_CONNECTION_ID = '44444444-4444-4444-8444-444444444444';
 const X_CONNECTION_ID = '55555555-5555-4555-8555-555555555555';
 
 describe('generation safety snapshot', () => {
+  it.each([
+    { state: 'generated', assetId: 'saved-asset' },
+    { state: 'hold', assetId: null },
+    { state: 'approved', assetId: null },
+  ])('does not label a bundle that is not awaiting generation as paused (%j)', async values => {
+    mockState.results = [[], [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, ...values }]];
+    const result = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}`);
+    expect(result.status).toBe(200);
+    expect(await result.json()).not.toHaveProperty('generationPaused');
+  });
   it.each([true, false, undefined])('reports existing workspace pause state (%s)', async enabled => {
     mockState.results = [[], [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated', assetId: null }],
       enabled === undefined ? [] : [{ publishingEnabled: enabled }]];

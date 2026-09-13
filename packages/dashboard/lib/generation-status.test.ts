@@ -7,6 +7,17 @@ beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 describe('generation status polling', () => {
+  it.each(['true', 1, null])('rejects malformed pause state %j without claiming generation is active', async generationPaused => {
+    const fetcher = vi.fn().mockResolvedValue(Response.json({ data: bundle, generationPaused }));
+    vi.stubGlobal('fetch', fetcher);
+    const status = vi.fn(); const unavailable = vi.fn();
+    const stop = watchGeneration('bundle-a', 'model-a', status, unavailable);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(status).not.toHaveBeenCalled();
+    expect(unavailable).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledOnce();
+    stop();
+  });
   it('reports a paused workspace and keeps observing without redispatching', async () => {
     const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ data: bundle, generationPaused: true }))
       .mockResolvedValueOnce(Response.json({ data: { ...bundle, state: 'hold' }, generationPaused: false }));
