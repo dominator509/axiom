@@ -26,7 +26,7 @@ export interface GrokMediaRequest {
   orgId?: string;
   kind: GrokMediaKind;
   prompt: string;
-  aspectRatio?: 'auto' | '1:1' | '16:9' | '9:16' | '4:5' | '3:2' | '2:3';
+  aspectRatio?: 'auto' | '1:1' | '16:9' | '9:16' | '3:4' | '3:2' | '2:3';
   /** Required for image-to-video; bytes supplied by the authorized caller. */
   image?: Buffer;
   duration?: 6 | 10;
@@ -888,7 +888,7 @@ export class OfficialSubscriptionTransport implements SubscriptionTransport {
     if (request.signal?.aborted) throw new DOMException('Subscription request aborted', 'AbortError');
     if (!request.prompt?.trim() || request.prompt.length > 4000
       || !['image', 'video'].includes(request.kind)
-      || !['auto', '1:1', '16:9', '9:16', '4:5', '3:2', '2:3'].includes(request.aspectRatio ?? 'auto')) {
+      || !['auto', '1:1', '16:9', '9:16', '3:4', '3:2', '2:3'].includes(request.aspectRatio ?? 'auto')) {
       throw new ProviderError('Invalid Grok media request', 400, 'grok');
     }
     let inputExtension: 'jpg' | 'png' | undefined;

@@ -91,6 +91,14 @@ const validBody = {
 };
 
 describe('POST /models/:id/generate', () => {
+  it('rejects the provider-invalid 4:5 media ratio before enqueueing', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, media: { kind: 'image', prompt: 'A ceramic vase', aspectRatio: '4:5' } }),
+    });
+    expect(res.status).toBe(400);
+    expect(mediaQueue).not.toHaveBeenCalled();
+  });
   it.each([['telegram'], ['instagram', 'telegram']])('fits generated hashtags to all destinations: %j', async (...platforms) => {
     mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
     const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {

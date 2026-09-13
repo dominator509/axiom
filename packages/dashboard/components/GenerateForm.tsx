@@ -29,7 +29,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
   const [location, setLocation] = useState('studio');
   const [mood, setMood] = useState('energetic');
   const [lighting, setLighting] = useState('soft studio');
-  const [aspectRatio, setAspectRatio] = useState('4:5');
+  const [aspectRatio, setAspectRatio] = useState('3:4');
   const [platforms, setPlatforms] = useState<string[]>(['instagram']);
   const [enrich, setEnrich] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -222,7 +222,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
               value={aspectRatio}
               onChange={(e) => setAspectRatio(e.target.value)}
             >
-              {['4:5', '9:16', '1:1', '16:9'].map((r) => (
+              {['3:4', '9:16', '1:1', '16:9'].map((r) => (
                 <option key={r} value={r}>
                   {r}
                 </option>

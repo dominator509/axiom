@@ -106,7 +106,7 @@ describe('generation intent', () => {
     await submit()();
     const body = JSON.parse(fetch.mock.calls[0][1].body);
     expect(body.media).toEqual(kind === 'image'
-      ? { kind, prompt: 'A landscape', aspectRatio: '4:5' }
+      ? { kind, prompt: 'A landscape', aspectRatio: '3:4' }
       : { kind, prompt: 'A landscape', sourceAssetId: hooks.values[13], duration: 10 });
     expect(body).not.toHaveProperty('userId');
     expect(key(fetch, 2)).toBe(key(fetch, 0));

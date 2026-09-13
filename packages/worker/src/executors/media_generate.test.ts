@@ -86,13 +86,13 @@ describe('one-shot media worker', () => {
   });
   it('forwards the selected image aspect ratio', async () => {
     const ctx = context();
-    ctx.job.payload = { ...ctx.job.payload, aspectRatio: '4:5' };
+    ctx.job.payload = { ...ctx.job.payload, aspectRatio: '3:4' };
     await mediaGenerate(ctx);
-    expect(state.generate).toHaveBeenCalledWith(expect.objectContaining({ aspectRatio: '4:5' }), expect.any(Function));
+    expect(state.generate).toHaveBeenCalledWith(expect.objectContaining({ aspectRatio: '3:4' }), expect.any(Function));
   });
-  it('rejects unsupported image geometry before committing a dispatch', async () => {
+  it.each(['99:1', '4:5'])('rejects unsupported image geometry %s before committing a dispatch', async (aspectRatio) => {
     const ctx = context();
-    ctx.job.payload = { ...ctx.job.payload, aspectRatio: '99:1' };
+    ctx.job.payload = { ...ctx.job.payload, aspectRatio };
     await expect(mediaGenerate(ctx)).rejects.toThrow('invalid request');
     expect(state.events).toEqual([]);
   });

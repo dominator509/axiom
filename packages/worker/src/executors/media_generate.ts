@@ -27,7 +27,7 @@ export const mediaGenerate: Executor = async (ctx) => {
     || (payload.provider !== undefined && payload.provider !== 'grok')
     || payload.prompt.length > 4000 || !['image', 'video'].includes(payload.kind ?? '')
     || (payload.kind === 'video' && (!payload.sourceAssetId || ![6, 10].includes(payload.duration ?? 6)))
-    || (payload.kind === 'image' && !['auto', '1:1', '16:9', '9:16', '4:5', '3:2', '2:3'].includes(payload.aspectRatio ?? 'auto')))
+    || (payload.kind === 'image' && !['auto', '1:1', '16:9', '9:16', '3:4', '3:2', '2:3'].includes(payload.aspectRatio ?? 'auto')))
     throw new Error('media.generate: invalid request');
   const effectivePrompt = buildMediaPrompt(payload.prompt, characterLockSnapshot(payload));
   const [actor] = await tx.select().from(schema.authUser).where(and(

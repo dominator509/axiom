@@ -602,6 +602,16 @@ describe('official subscription auth command lifecycle', () => {
     await expect(transport.status('grok', 'user-1')).resolves.toMatchObject({ connected: false });
   });
 
+  it('rejects provider-invalid 4:5 geometry before dispatch or spawn', async () => {
+    const beforeDispatch = vi.fn();
+    await expect(transport.generateMedia({ kind: 'image', userId: 'user-1', prompt: 'A vase',
+      // Deliberately exercise untyped callers and stale persisted requests.
+      aspectRatio: '4:5' as '3:4',
+    }, beforeDispatch)).rejects.toMatchObject({ status: 400 });
+    expect(beforeDispatch).not.toHaveBeenCalled();
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
   it('rejects video without a source image before launching a provider', async () => {
     await expect(transport.generateMedia({ kind: 'video', userId: 'user-1', prompt: 'Landscape' }))
       .rejects.toMatchObject({ status: 400 });

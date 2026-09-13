@@ -68,7 +68,7 @@ const generateSchema = z.object({
   media: z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('image'), provider: z.literal('grok').default('grok'), prompt: z.string().trim().min(1).max(4000),
       sanitizeMetadata: z.boolean().optional(),
-      aspectRatio: z.enum(['auto', '1:1', '16:9', '9:16', '4:5', '3:2', '2:3']).default('auto') }).strict(),
+      aspectRatio: z.enum(['auto', '1:1', '16:9', '9:16', '3:4', '3:2', '2:3']).default('auto') }).strict(),
     z.object({ kind: z.literal('video'), provider: z.literal('grok').default('grok'), prompt: z.string().trim().min(1).max(4000),
       sanitizeMetadata: z.boolean().optional(),
       sourceAssetId: z.string().uuid(), duration: z.union([z.literal(6), z.literal(10)]).default(6) }).strict(),
