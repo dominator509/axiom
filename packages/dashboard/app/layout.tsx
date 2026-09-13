@@ -73,7 +73,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <div className="mobile-nav">
                 <NavLinks />
               </div>
-              <KillSwitchBanner />
+              {role === 'owner' && <KillSwitchBanner />}
               <main className="main">{children}</main>
               <footer className="footer">
                 <span>Private by design · self-hosted</span>

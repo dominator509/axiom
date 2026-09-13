@@ -17,6 +17,12 @@ async function render(user: Record<string, unknown> | null) {
 }
 
 describe('dashboard session presentation', () => {
+  it.each(['owner', 'manager', 'operator', 'unexpected'])(
+    'mounts owner-only safety status only for an owner (%s)', async role => {
+      const html = await render({ id: 'user', email: 'member@example.invalid', orgId: 'org', role });
+      expect(html.includes('Checking workspace safety status')).toBe(role === 'owner');
+    },
+  );
   it('retains the anonymous authentication shell', async () => {
     const html = await render(null);
     expect(html).toContain('Workspace contents');
