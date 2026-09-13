@@ -15,6 +15,7 @@ function transport(
   failHeld = false,
   next: Record<string, string> = {},
   assetId?: string,
+  reportFields: Record<string, unknown> = {},
 ) {
   const fetchMock = vi.fn(async (input: string | URL | Request) => {
     const url = new URL(String(input));
@@ -47,7 +48,7 @@ function transport(
               state,
               captions: { instagram: 'Caption awaiting operator review' },
               hashtags: [],
-              tosReport: { verdict },
+              tosReport: { verdict, ...reportFields },
               createdAt: '2026-01-01T00:00:00Z',
             },
           ]
@@ -73,6 +74,36 @@ async function renderPage(query: Record<string, string | string[] | undefined> =
 }
 
 describe('approval review queue', () => {
+  it('shows explicit video review while keeping scheduling blocked for a sampled scan', async () => {
+    transport('generated', 'review', false, {}, 'video-asset', {
+      videoScan: { scanId: '22222222-2222-4222-8222-222222222222' },
+    });
+    const html = await renderPage();
+    expect(html).toContain('Full-video compliance review');
+    expect(html).toContain('I reviewed the entire video and its audio');
+    expect(html).toContain('I accept this video and caption for instagram');
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Record compliance review<\/button>/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Blocked by ToS<\/button>/);
+  });
+  it.each(['block', 'pending'])('never offers a video review override for %s', async verdict => {
+    transport('generated', verdict, false, {}, 'video-asset', {
+      videoScan: { scanId: '22222222-2222-4222-8222-222222222222' },
+    });
+    const html = await renderPage();
+    expect(html).not.toContain('Record compliance review');
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Blocked by ToS<\/button>/);
+  });
+  it('labels saved human review explicitly and enables the separate approval action', async () => {
+    transport('generated', 'pass', false, {}, 'video-asset', {
+      decisionSource: 'human-review', videoScan: { scanId: '22222222-2222-4222-8222-222222222222' },
+    });
+    const html = await renderPage();
+    expect(html).toContain('ToS: pass (operator reviewed)');
+    expect(html).not.toContain('Record compliance review');
+    const approve = html.match(/<button[^>]*>Approve<\/button>/)?.[0];
+    expect(approve).toBeDefined();
+    expect(approve).not.toContain('disabled');
+  });
   it.each([['generated', 'pass'], ['generated', 'pending'], ['revising', 'block']])(
     'does not offer media retry for %s/%s', async (state, verdict) => {
       transport(state, verdict, false, {}, 'attached-asset');
