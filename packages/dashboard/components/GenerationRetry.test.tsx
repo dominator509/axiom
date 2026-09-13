@@ -11,6 +11,11 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
 vi.mock('@/lib/mutation', () => ({ createIdempotencyKey: hooks.key, mutationFetch: hooks.fetch }));
 import GenerationRetry from './GenerationRetry';
 const queued = vi.fn();
+function successResponse() {
+  return new Response(JSON.stringify({ data: { bundle: {
+    id: '11111111-1111-4111-8111-111111111111', modelId: 'model',
+  }, mediaGeneration: 'queued' } }));
+}
 function render(blocked = false) {
   hooks.i = 0; hooks.r = 0;
   return GenerationRetry({ modelId: 'model', bundleId: 'bundle', blocked, onQueued: queued }).props.children;
@@ -27,7 +32,7 @@ it('unlocks a stalled response and reconciles using the original intent', async 
   vi.useFakeTimers();
   try {
     hooks.fetch.mockResolvedValueOnce(new Response(new ReadableStream()))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { bundle: { id: '11111111-1111-4111-8111-111111111111' } } })));
+      .mockResolvedValueOnce(successResponse());
     render()[3].props.children[0].props.onChange({ target: { checked: true } });
     render()[4].props.onClick();
     await vi.advanceTimersByTimeAsync(30_000);
@@ -56,7 +61,7 @@ it('retains the same intent after an uncertain response and suppresses parallel 
   expect(hooks.fetch.mock.calls[1]).toEqual(hooks.fetch.mock.calls[0]);
 });
 it('submits only operator-reviewed edits and follows the returned bundle', async () => {
-  hooks.fetch.mockResolvedValue(new Response(JSON.stringify({ data: { bundle: { id: '11111111-1111-4111-8111-111111111111' } } })));
+  hooks.fetch.mockResolvedValue(successResponse());
   render(true)[1].props.onClick();
   render(true)[2].props.children[3].props.onChange({ target: { value: 'A ceramic vase' } });
   render(true)[3].props.children[0].props.onChange({ target: { checked: true } });
@@ -94,4 +99,34 @@ it('copies a Grok proposal into the editor but requires fresh generation consent
   expect(hooks.values[2]).toBe(false);
   expect(hooks.fetch).not.toHaveBeenCalled();
   expect(render(true)[4].props.disabled).toBe(true);
+});
+
+it.each([401, 403, 404])('preserves reconciliation after HTTP %s without unlocking edits', async status => {
+  hooks.fetch.mockResolvedValue(new Response('{}', { status }));
+  render()[3].props.children[0].props.onChange({ target: { checked: true } });
+  render()[4].props.onClick();
+  await vi.waitFor(() => expect(hooks.values[3]).toBe(false));
+  expect(render()[1].props.disabled).toBe(true);
+  hooks.fetch.mockResolvedValue(successResponse());
+  render()[4].props.onClick();
+  await vi.waitFor(() => expect(queued).toHaveBeenCalledOnce());
+  expect(hooks.key).toHaveBeenCalledOnce();
+  expect(hooks.fetch.mock.calls[1]).toEqual(hooks.fetch.mock.calls[0]);
+});
+
+it.each([
+  { bundle: { id: '-'.repeat(36), modelId: 'model' }, mediaGeneration: 'queued' },
+  { bundle: { id: '11111111-1111-4111-8111-111111111111', modelId: 'other' }, mediaGeneration: 'queued' },
+  { bundle: { id: '11111111-1111-4111-8111-111111111111', modelId: 'model' } },
+])('does not follow an invalid retry receipt: %j', async data => {
+  hooks.fetch.mockResolvedValue(new Response(JSON.stringify({ data })));
+  render()[3].props.children[0].props.onChange({ target: { checked: true } });
+  render()[4].props.onClick();
+  await vi.waitFor(() => expect(hooks.values[3]).toBe(false));
+  expect(queued).not.toHaveBeenCalled();
+  expect(hooks.values[4]).toContain('unconfirmed');
+  hooks.fetch.mockResolvedValue(successResponse());
+  render()[4].props.onClick();
+  await vi.waitFor(() => expect(queued).toHaveBeenCalledOnce());
+  expect(hooks.fetch.mock.calls[1]).toEqual(hooks.fetch.mock.calls[0]);
 });

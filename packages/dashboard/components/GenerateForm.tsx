@@ -35,7 +35,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
-    bundle?: { id: string };
+    bundle?: { id: string; modelId: string };
     mediaGeneration?: 'queued';
     variants: Array<{ prompt: string; styleLabel: string; caption: string; hashtags: string[] }>;
     tosReport: {
@@ -121,7 +121,23 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         return;
       }
       const body = await readDashboardJson<{ data: typeof result }>(res);
-      setResult(body.data);
+      const receipt = body?.data;
+      const queuedMedia = !!JSON.parse(intent.current.body).media;
+      // A 2xx status alone cannot resolve a possibly paid generation. Validate
+      // the receipt before discarding the only key that can recover its result.
+      if (!receipt || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(receipt.bundle?.id ?? '')
+        || receipt.bundle?.modelId !== intent.current.modelId
+        || !Array.isArray(receipt.variants) || receipt.variants.some(variant => !variant
+          || typeof variant.prompt !== 'string' || typeof variant.caption !== 'string'
+          || typeof variant.styleLabel !== 'string' || !Array.isArray(variant.hashtags)
+          || variant.hashtags.some(tag => typeof tag !== 'string'))
+        || !receipt.tosReport || !['pending', 'pass', 'review', 'block'].includes(receipt.tosReport.verdict)
+        || !Array.isArray(receipt.tosReport.scores) || receipt.tosReport.scores.some(score => !score
+          || typeof score.platform !== 'string' || !['pass', 'review', 'block'].includes(score.verdict)
+          || !Number.isFinite(score.score))
+        || (queuedMedia ? receipt.mediaGeneration !== 'queued' || receipt.tosReport.verdict !== 'pending'
+          : receipt.mediaGeneration !== undefined)) throw new Error('Invalid generation receipt');
+      setResult(receipt);
       intent.current = null;
       router.refresh();
     } catch {

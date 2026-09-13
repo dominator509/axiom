@@ -35,12 +35,13 @@ export default function GenerationRetry({ modelId, bundleId, blocked, onQueued }
         // A conflict may be an in-flight reservation, not a rejected intent.
         // Keep its key for reconciliation; likewise timeouts/rate limits.
         if ((response.status === 409 && failure.code === 'MEDIA_RETRY_NOT_QUEUED')
-          || (response.status >= 400 && response.status < 500
-            && ![408, 409, 429].includes(response.status))) intent.current = null;
+          || [400, 422].includes(response.status)) intent.current = null;
         return;
       }
-      const result = await readDashboardJson<{ data: { bundle: { id: string } } }>(response);
-      if (!/^[0-9a-f-]{36}$/i.test(result.data?.bundle?.id ?? '')) throw new Error('Invalid result');
+      const result = await readDashboardJson<{ data: { bundle: { id: string; modelId: string }; mediaGeneration: string } }>(response);
+      if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(result?.data?.bundle?.id ?? '')
+        || result.data.bundle.modelId !== modelId || result.data.mediaGeneration !== 'queued')
+        throw new Error('Invalid retry receipt');
       onQueued(result.data.bundle.id);
     } catch {
       setError('Retry outcome unconfirmed. Retry again to check the same request; do not start another generation.');

@@ -30,13 +30,63 @@ function submit(modelId = 'model-a') {
   return () => handler({ preventDefault: vi.fn() } as unknown as FormEvent);
 }
 function response() {
-  return new Response(JSON.stringify({ data: { variants: [], tosReport: { verdict: 'review', scores: [] } } }));
+  const media = ['image', 'video'].includes(String(hooks.values[11]));
+  return new Response(JSON.stringify({ data: {
+    bundle: { id: '11111111-1111-4111-8111-111111111111', modelId: 'model-a' },
+    variants: [], tosReport: { verdict: media ? 'pending' : 'review', scores: [] },
+    ...(media ? { mediaGeneration: 'queued' } : {}),
+  } }));
 }
 function key(fetch: ReturnType<typeof vi.fn>, index: number) {
   return new Headers(fetch.mock.calls[index][1].headers).get('Idempotency-Key');
 }
 
 describe('generation intent', () => {
+  it('accepts the API variant and scored text-report shape', async () => {
+    const payload = await response().json();
+    payload.data.variants = [{ prompt: 'A studio portrait', caption: 'Studio light',
+      styleLabel: 'Close-up', hashtags: ['studio'] }];
+    payload.data.tosReport.scores = [{ platform: 'instagram', verdict: 'review', score: 0.2 }];
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload)));
+    vi.stubGlobal('fetch', fetch);
+    await submit()();
+    expect(hooks.refresh).toHaveBeenCalledOnce();
+    expect(hooks.values[10]).toEqual(payload.data);
+    expect(hooks.values[9]).toBe(null);
+  });
+
+  it.each(['missing-queue', 'false-pass'])('rejects a media receipt with %s evidence', async issue => {
+    submit(); hooks.values[11] = 'image'; hooks.values[12] = 'A vase';
+    const payload = await response().json();
+    if (issue === 'missing-queue') delete payload.data.mediaGeneration;
+    else payload.data.tosReport.verdict = 'pass';
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload)));
+    vi.stubGlobal('fetch', fetch);
+    await submit()();
+    expect(hooks.refresh).not.toHaveBeenCalled();
+    expect(hooks.values[9]).toEqual(expect.stringContaining('could not be confirmed'));
+    fetch.mockResolvedValue(response());
+    await submit()();
+    expect(key(fetch, 1)).toBe(key(fetch, 0));
+  });
+
+  it.each([
+    {}, { data: null },
+    { data: { variants: [], tosReport: { verdict: 'pass', scores: [] } } },
+    { data: { bundle: { id: '11111111-1111-4111-8111-111111111111', modelId: 'other-model' }, variants: [], tosReport: { verdict: 'pass', scores: [] } } },
+    { data: { bundle: { id: '11111111-1111-4111-8111-111111111111', modelId: 'model-a' }, variants: [null], tosReport: { verdict: 'pass', scores: [] } } },
+  ])('retains the request when successful HTTP does not provide a valid receipt: %j', async payload => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload)));
+    vi.stubGlobal('fetch', fetch);
+    await submit()();
+    expect(hooks.refresh).not.toHaveBeenCalled();
+    expect(hooks.values[10]).toBe(null);
+    expect(hooks.values[9]).toEqual(expect.stringContaining('could not be confirmed'));
+    fetch.mockResolvedValue(response());
+    await submit()();
+    expect(key(fetch, 1)).toBe(key(fetch, 0));
+    expect(hooks.refresh).toHaveBeenCalledOnce();
+  });
   it('includes the optional sanitizer selection in the queued media intent', async () => {
     submit(); hooks.values[11] = 'image'; hooks.values[12] = 'Landscape'; hooks.values[17] = true;
     const fetch = vi.fn().mockResolvedValue(response()); vi.stubGlobal('fetch', fetch);
