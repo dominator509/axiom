@@ -356,6 +356,80 @@ SELECT state FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' AND 
     assert.ok(retiredCard, 'Worker must retire the rejected bundle card within 20 seconds');
     console.log('decision smoke: generated/scanned bundle rejected, exact-response replay, new-intent conflict, one audit and no publish targets passed');
     console.log('relay lifecycle smoke: real worker retired rejected bundle card without a configured external binding');
+    // Exercise successful approval separately; never rewrite the rejected
+    // bundle or manufacture a passing scan. All records below are CI-only.
+    const approvalGeneration = await request(generationPath, {
+      method: 'POST', headers: { ...generationHeaders, 'Idempotency-Key': randomUUID() }, body: generationBody,
+    });
+    assert.equal(approvalGeneration.status, 201);
+    const approvalBundleId = (await approvalGeneration.json()).data.bundle.id;
+    const approvalDeadline = Date.now() + 20_000;
+    let approvalScanDone = false;
+    while (Date.now() < approvalDeadline) {
+      const scan = spawnSync('psql', [
+        '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+        '-v', `fixture_org=${orgId}`, '-v', `fixture_bundle=${approvalBundleId}`,
+      ], { encoding: 'utf8', timeout: 2000,
+        input: `SELECT state FROM job WHERE org_id = :'fixture_org' AND kind = 'tos.scan' AND payload->>'bundleId' = :'fixture_bundle';` });
+      assert.equal(scan.status, 0);
+      assert.notEqual(scan.stdout.trim(), 'dead');
+      if (scan.stdout.trim() === 'done') { approvalScanDone = true; break; }
+      await delay(300);
+    }
+    assert.ok(approvalScanDone, 'Second real generated bundle must finish its worker scan');
+    const approvalDetail = await request(`/api/v1/bundles/${approvalBundleId}`, { headers: { cookie } });
+    assert.equal(approvalDetail.status, 200);
+    const approvalBundle = (await approvalDetail.json()).data;
+    assert.equal(approvalBundle.tosReport?.verdict, 'pass');
+    const connectionId = randomUUID();
+    const slot = new Date(Date.now() + 86_400_000).toISOString();
+    const approvalPath = `/api/v1/bundles/${approvalBundleId}/approve`;
+    const approvalBody = JSON.stringify({ platforms: ['telegram'], slot,
+      revisionId: approvalBundle.tosReport.revisionId, connectionIds: { telegram: connectionId } });
+    const approvalHeaders = { ...headers, cookie, 'Idempotency-Key': randomUUID() };
+    assert.equal((await request(approvalPath, { method: 'POST', headers: { ...headers, cookie }, body: approvalBody })).status, 400);
+    assert.equal((await request(approvalPath, { method: 'POST', headers: approvalHeaders, body: approvalBody })).status, 409,
+      'A passing scan must not bypass missing consent');
+    const approvalFixture = spawnSync('psql', [
+      '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+      '-v', `fixture_org=${orgId}`, '-v', `fixture_model=${createdBody.data.id}`,
+      '-v', `fixture_connection=${connectionId}`,
+    ], { encoding: 'utf8', timeout: 10_000, input: `BEGIN;
+INSERT INTO consent_record (org_id, model_id, platform, consent_type, granted, doc_kind, subject_ref, blob_ref, sha256)
+SELECT :'fixture_org', :'fixture_model', 'telegram', kind, true, kind, 'synthetic-ci-subject', 'fixture://not-a-legal-document', decode(repeat('00', 32), 'hex')
+FROM unnest(ARRAY['2257','model_release','id_verify','platform_consent']) AS kind;
+INSERT INTO platform_connection (id, org_id, model_id, platform, display_name, enc_token, enc_nonce, dek_id)
+VALUES (:'fixture_connection', :'fixture_org', :'fixture_model', 'telegram', 'Non-publishing CI fixture', decode('', 'hex'), decode('', 'hex'), 'invalid-ci-only');
+COMMIT;` });
+    assert.equal(approvalFixture.status, 0, 'Synthetic consent/account metadata fixture must persist');
+    // A new intent follows remediation of the rejected precondition. Never
+    // reuse a cached failure key, and never give this future job credentials.
+    approvalHeaders['Idempotency-Key'] = randomUUID();
+    const approved = await request(approvalPath, { method: 'POST', headers: approvalHeaders, body: approvalBody });
+    assert.equal(approved.status, 200, 'Operator can approve and schedule the scanned bundle');
+    const approval = await approved.json();
+    assert.equal(approval.data?.state, 'approved');
+    const approvalReplay = await request(approvalPath, { method: 'POST', headers: approvalHeaders, body: approvalBody });
+    assert.equal(approvalReplay.status, 200);
+    assert.deepEqual(await approvalReplay.json(), approval);
+    assert.equal((await request(approvalPath, { method: 'POST',
+      headers: { ...approvalHeaders, 'Idempotency-Key': randomUUID() }, body: approvalBody })).status, 409);
+    const approvalEvidence = spawnSync('psql', [
+      '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+      '-v', `fixture_org=${orgId}`, '-v', `fixture_bundle=${approvalBundleId}`,
+      '-v', `fixture_connection=${connectionId}`, '-v', `fixture_slot=${slot}`,
+    ], { encoding: 'utf8', timeout: 10_000, input: `
+SELECT count(*) FROM audit_log WHERE org_id=:'fixture_org' AND action='bundle.approve' AND target=:'fixture_bundle';
+SELECT count(*) FROM post_target WHERE org_id=:'fixture_org' AND bundle_id=:'fixture_bundle';
+SELECT count(*) FROM job j JOIN post_target p ON j.payload->>'targetId'=p.id::text
+WHERE j.org_id=:'fixture_org' AND p.org_id=:'fixture_org' AND p.bundle_id=:'fixture_bundle'
+AND j.kind='publish.target' AND j.state='ready' AND p.state='pending' AND p.connection_id=:'fixture_connection'
+AND j.run_after=:'fixture_slot'::timestamptz AND p.scheduled_for=:'fixture_slot'::timestamptz;
+` });
+    assert.equal(approvalEvidence.status, 0);
+    assert.deepEqual(approvalEvidence.stdout.trim().split(/\r?\n/), ['1', '1', '1'],
+      'Approval/retries must persist one audit, one target and one future publish job at the requested time');
+    console.log('approval scheduling smoke: real generation/scan, consent denial, approval replay and exactly one future target/job passed; provider publication not exercised');
   }
   console.log('generation smoke: five real prompt/caption variants, text ToS report, persisted bundle, same-bundle replay and one durable scan job passed');
   const linkbioPath = `/api/v1/models/${createdBody.data.id}/linkbio`;
