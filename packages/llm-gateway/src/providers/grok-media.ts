@@ -39,8 +39,13 @@ export class GrokMediaResult {
         this.callId = block.id;
       }
       if (value?.type === 'user' && block?.type === 'tool_result') {
-        if (!this.callId || block.tool_use_id !== this.callId || block.is_error !== false
+        if (!this.callId || block.tool_use_id !== this.callId
           || this.artifactPath || typeof block.content !== 'string') invalid();
+        // Report only the trusted wire state, never raw provider error text:
+        // it may contain prompts, credentials, or credential-bearing URLs.
+        if (block.is_error === true)
+          throw new ProviderError('Grok media tool reported an error; no generated asset was accepted', 502, 'grok');
+        if (block.is_error !== false) invalid();
         let result: Record<string, unknown> | undefined;
         try { result = object(JSON.parse(block.content)); } catch { invalid(); }
         if (result?.type !== (this.kind === 'image' ? 'ImageGen' : 'ImageToVideo')
@@ -51,7 +56,11 @@ export class GrokMediaResult {
   }
 
   async artifact(profile: string, sessionId: string): Promise<GrokMediaArtifact> {
-    if (!this.artifactPath || !isAbsolute(this.artifactPath)) invalid();
+    if (!this.callId)
+      throw new ProviderError('Grok finished without calling the requested media tool', 502, 'grok');
+    if (!this.artifactPath)
+      throw new ProviderError('Grok media tool did not return an artifact receipt; outcome requires reconciliation', 502, 'grok');
+    if (!isAbsolute(this.artifactPath)) invalid();
     const root = await realpath(profile);
     const candidate = resolve(this.artifactPath);
     const local = relative(root, candidate);

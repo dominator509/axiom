@@ -43,6 +43,19 @@ describe('official Grok media result contract', () => {
   it('rejects an orphan result', () => {
     expect(() => new GrokMediaResult('image').accept(result('/tmp/a.jpg'))).toThrow();
   });
+  it('distinguishes no tool call from an incomplete dispatched tool receipt', async () => {
+    const collector = new GrokMediaResult('video');
+    await expect(collector.artifact(root, session)).rejects.toThrow('without calling the requested media tool');
+    collector.accept(use('image_to_video'));
+    await expect(collector.artifact(root, session)).rejects.toThrow('outcome requires reconciliation');
+  });
+  it('reports a correlated tool error without leaking its content or assuming moderation', () => {
+    const collector = new GrokMediaResult('video');
+    collector.accept(use('image_to_video'));
+    const line = JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result',
+      tool_use_id: 'call-1', is_error: true, content: 'private prompt and https://example.invalid/?token=secret' }] } });
+    expect(() => collector.accept(line)).toThrow('Grok media tool reported an error; no generated asset was accepted');
+  });
   it.each(['wrong-id', 'wrong-type', 'quota', 'duplicate'])('rejects %s tool results', (caseName) => {
     const collector = new GrokMediaResult('image');
     collector.accept(use());
