@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
-import { readDashboardError } from '@/lib/response';
+import { readDashboardError, readDashboardJson } from '@/lib/response';
 import { approvalSlot } from '@/lib/schedule';
 import type { SocialConnection } from '@/lib/api';
 
@@ -143,6 +143,18 @@ export default function ApproveButtons({
         if (res.status === 400 || res.status === 422) intent.current = null;
         setError(typeof b?.detail === 'string' ? b.detail : b?.error?.message ?? 'Action failed');
         return;
+      }
+      const receipt = await readDashboardJson<{ data?: {
+        id?: unknown; state?: unknown; tosReport?: { verdict?: unknown; revisionId?: unknown };
+      } } | null>(res);
+      const result = receipt?.data;
+      const expectedState = { approve: 'approved', revise: 'revising', reject: 'rejected' }[action];
+      const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+      if (!result || result.id !== bundleId || typeof result.id !== 'string' || !uuid.test(result.id)
+        || result.state !== expectedState
+        || (action === 'revise' && (result.tosReport?.verdict !== 'pending'
+          || typeof result.tosReport.revisionId !== 'string' || !uuid.test(result.tosReport.revisionId)))) {
+        throw new Error('Unconfirmed review action receipt');
       }
       intent.current = null;
       if (action === 'revise')

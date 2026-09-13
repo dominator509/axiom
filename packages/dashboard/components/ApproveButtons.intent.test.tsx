@@ -17,6 +17,13 @@ vi.mock('react', async (original) => ({
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
 import ApproveButtons from './ApproveButtons';
+const bundleId = '22222222-2222-4222-8222-222222222222';
+const revision = '33333333-3333-4333-8333-333333333333';
+function success(path: string) {
+  const state = { approve: 'approved', revise: 'revising', reject: 'rejected' }[path.split('/').at(-1)!];
+  return new Response(JSON.stringify({ data: { id: bundleId, state,
+    tosReport: { verdict: state === 'revising' ? 'pending' : 'pass', revisionId: revision } } }));
+}
 
 beforeEach(() => {
   hooks.values = [];
@@ -30,7 +37,7 @@ function buttons(revisionId = 'revision-a') {
   hooks.stateIndex = 0;
   hooks.refIndex = 0;
   const element = ApproveButtons({
-    bundleId: 'bundle', revisionId, tosBlocked: false, platforms: ['threads'],
+    bundleId, revisionId, tosBlocked: false, platforms: ['threads'],
     connections: [{ id: 'account', modelId: 'model', platform: 'threads', status: 'connected',
       displayName: 'Account', capabilities: [], connectedAt: '2026-01-01' }],
   });
@@ -51,7 +58,7 @@ describe('review action intent', () => {
     await buttons()[0]();
     expect(fetch).toHaveBeenCalledTimes(2);
     vi.mocked(Date.now).mockReturnValue(slot.getTime() + 60_000);
-    fetch.mockResolvedValue(new Response('{}'));
+    fetch.mockImplementation(success);
     await buttons()[0]();
     expect(fetch).toHaveBeenCalledTimes(3);
     expect(key(fetch, 2)).toBe(key(fetch, 0));
@@ -67,7 +74,7 @@ describe('review action intent', () => {
     vi.stubGlobal('fetch', fetch);
     await buttons('revision-a')[0]();
     vi.mocked(Date.now).mockReturnValue(slot.getTime() + 60_000);
-    fetch.mockResolvedValue(new Response('{}'));
+    fetch.mockImplementation(success);
     await buttons('revision-b')[0]();
     expect(fetch).toHaveBeenCalledTimes(3);
     expect(key(fetch, 2)).toBe(key(fetch, 0));
@@ -78,7 +85,7 @@ describe('review action intent', () => {
     const slot = new Date(2030, 0, 15, 12, 0);
     vi.spyOn(Date, 'now').mockReturnValue(slot.getTime() - 60_000);
     hooks.values[2] = '2030-01-15T12:00';
-    const fetch = vi.fn().mockResolvedValue(new Response('{}'));
+    const fetch = vi.fn().mockImplementation(success);
     vi.stubGlobal('fetch', fetch);
     await buttons()[0]();
     vi.mocked(Date.now).mockReturnValue(slot.getTime() + 60_000);
@@ -94,7 +101,7 @@ describe('review action intent', () => {
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(hooks.values[5]).toBe(false);
     expect(hooks.values[6]).toEqual(expect.stringContaining('could not be confirmed'));
-    fetch.mockResolvedValue(new Response('{}'));
+    fetch.mockImplementation(success);
     await buttons()[index]();
     expect(key(fetch, 0)).toBeTruthy();
     expect(key(fetch, 2)).toBe(key(fetch, 0));
@@ -109,7 +116,7 @@ describe('review action intent', () => {
     const pending = approve();
     await reject();
     expect(fetch).toHaveBeenCalledOnce();
-    finish(new Response('{}'));
+    finish(success('/approve'));
     await pending;
   });
 
@@ -117,7 +124,7 @@ describe('review action intent', () => {
     const fetch = vi.fn().mockRejectedValue(new Error('response lost'));
     vi.stubGlobal('fetch', fetch);
     await buttons('revision-a')[2]();
-    fetch.mockResolvedValue(new Response('{}'));
+    fetch.mockImplementation(success);
     await buttons('revision-b')[2]();
     expect(key(fetch, 2)).toBe(key(fetch, 0));
     expect(fetch.mock.calls[2][1].body).toBe(fetch.mock.calls[0][1].body);
@@ -134,7 +141,7 @@ describe('review action intent', () => {
     vi.stubGlobal('fetch', fetch);
     await buttons()[1]();
     hooks.values[3] = 'Different instructions';
-    fetch.mockResolvedValue(new Response('{}'));
+    fetch.mockImplementation(success);
     await buttons()[1]();
     expect(key(fetch, 2)).toBe(key(fetch, 0));
     expect(fetch.mock.calls[2][1].body).toBe(fetch.mock.calls[0][1].body);
@@ -146,18 +153,40 @@ describe('review action intent', () => {
     expect(hooks.values[6]).toBe('Review action not confirmed');
     const next = fetch.mock.calls.length;
     hooks.values[3] = 'Changed after error';
-    fetch.mockImplementation(async () => new Response('{}'));
+    fetch.mockImplementation(success);
     await buttons()[1]();
     expect(key(fetch, next)).toBe(key(fetch, 0));
     expect(fetch.mock.calls[next][1].body).toBe(fetch.mock.calls[0][1].body);
   });
   it.each([400, 422])('permits corrected input after validation HTTP %s', async status => {
-    const fetch = vi.fn().mockResolvedValueOnce(new Response('{}', { status })).mockImplementation(async () => new Response('{}'));
+    const fetch = vi.fn().mockResolvedValueOnce(new Response('{}', { status })).mockImplementation(success);
     vi.stubGlobal('fetch', fetch);
     await buttons()[1]();
     hooks.values[3] = 'Corrected instructions';
     await buttons()[1]();
     expect(key(fetch, 1)).not.toBe(key(fetch, 0));
     expect(JSON.parse(fetch.mock.calls[1][1].body).instructions).toBe('Corrected instructions');
+  });
+  it.each([0, 1, 2])('does not resolve action %s from a malformed or mismatched receipt', async index => {
+    for (const body of [{}, { data: null }, { data: { id: bundleId, state: 'generated' } },
+      { data: { id: revision, state: ['approved', 'revising', 'rejected'][index] } }]) {
+      const fetch = vi.fn().mockImplementation(async () => new Response(JSON.stringify(body)));
+      vi.stubGlobal('fetch', fetch);
+      await buttons()[index]();
+      expect(hooks.refresh).not.toHaveBeenCalled();
+      expect(hooks.values[6]).toContain('could not be confirmed');
+      fetch.mockImplementation(success);
+      await buttons()[index]();
+      expect(key(fetch, 1)).toBe(key(fetch, 0));
+      expect(hooks.refresh).toHaveBeenCalledOnce();
+      hooks.refresh.mockClear();
+    }
+  });
+  it('does not report a queued revision without its pending scan and revision identifier', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { id: bundleId, state: 'revising' } })));
+    vi.stubGlobal('fetch', fetch);
+    await buttons()[1]();
+    expect(hooks.refresh).not.toHaveBeenCalled();
+    expect(hooks.values[4]).toBeNull();
   });
 });
