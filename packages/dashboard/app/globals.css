@@ -675,6 +675,30 @@ label span {
   font-weight: 500;
 }
 
+/* Keep the control beside its wrapping label, including on narrow phones. */
+.checkbox-option {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  cursor: pointer;
+  min-height: 44px;
+  padding-block: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.checkbox-option > input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+}
+.checkbox-option > span {
+  color: inherit;
+  font-weight: inherit;
+}
+
 .tabs {
   display: flex;
   gap: 4px;

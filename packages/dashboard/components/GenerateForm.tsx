@@ -178,7 +178,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         {mediaKind !== 'brief' && <>
           <label htmlFor="mediaPrompt">Media prompt</label>
           <textarea id="mediaPrompt" required maxLength={4000} value={mediaPrompt} onChange={e => setMediaPrompt(e.target.value)} />
-          <label><input type="checkbox" checked={sanitizeMetadata} onChange={e => setSanitizeMetadata(e.target.checked)} /> Remove metadata and embedded provenance, including C2PA (optional)</label>
+          <label className="checkbox-option"><input type="checkbox" checked={sanitizeMetadata} onChange={e => setSanitizeMetadata(e.target.checked)} /><span>Remove metadata and embedded provenance, including C2PA (optional)</span></label>
           <p>Rebuilds generated media and video source images before use. Images become PNG; video is re-encoded. Existing watermarks remain. A cleaning failure holds the result; no automatic generation retry.</p>
         </>}
         {mediaKind === 'video' && <>
@@ -246,14 +246,13 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
             ))}
           </div>
         </div>
-        <label className="row" style={{ cursor: 'pointer' }}>
+        <label className="checkbox-option">
           <input
             type="checkbox"
             checked={enrich}
             onChange={(e) => setEnrich(e.target.checked)}
-            style={{ width: 'auto' }}
           />
-          Enrich captions via LLM gateway (optional, live provider call)
+          <span>Enrich captions via LLM gateway (optional, live provider call)</span>
         </label>
         </fieldset>
         {intent.current && !busy && <p>Previous generation outcome is unresolved. Inputs are locked. Check the same request before editing or starting another generation.</p>}

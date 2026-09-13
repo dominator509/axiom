@@ -49,8 +49,8 @@ export default function MediaUpload({ modelId, onUploaded }: {
     <h3>Upload source media</h3>
     <input key={fileInputVersion} aria-label="Media file" type="file" accept="image/jpeg,image/png,video/mp4" disabled={busy || pending}
       onChange={event => setFile(event.target.files?.[0] ?? null)} />
-    <label><input type="checkbox" checked={sanitize} disabled={busy || pending}
-      onChange={event => setSanitize(event.target.checked)} /> Remove metadata and embedded provenance, including C2PA (optional)</label>
+    <label className="checkbox-option"><input type="checkbox" checked={sanitize} disabled={busy || pending}
+      onChange={event => setSanitize(event.target.checked)} /><span>Remove metadata and embedded provenance, including C2PA (optional)</span></label>
     <p>JPEG/PNG up to 20 MB; MP4 up to 64 MB. Cleaning converts images to PNG and re-encodes video. Existing watermarks remain. No publishing or generation occurs.</p>
     <button type="button" disabled={busy || !file} onClick={() => void upload()}>{busy ? 'Uploading and processing…' : pending ? 'Check same upload' : 'Upload media'}</button>
     {message && <p role="status">{message}</p>}
