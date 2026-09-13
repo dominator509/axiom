@@ -357,9 +357,11 @@ SELECT state FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' AND 
     console.log('decision smoke: generated/scanned bundle rejected, exact-response replay, new-intent conflict, one audit and no publish targets passed');
     console.log('relay lifecycle smoke: real worker retired rejected bundle card without a configured external binding');
     // Exercise successful approval separately; never rewrite the rejected
-    // bundle or manufacture a passing scan. All records below are CI-only.
+    // bundle or manufacture a passing scan. X supports text-only publishing;
+    // Telegram's link-sharing connector requires media. Records are CI-only.
     const approvalGeneration = await request(generationPath, {
-      method: 'POST', headers: { ...generationHeaders, 'Idempotency-Key': randomUUID() }, body: generationBody,
+      method: 'POST', headers: { ...generationHeaders, 'Idempotency-Key': randomUUID() },
+      body: JSON.stringify({ platforms: ['x'], enrichWithLlm: false }),
     });
     assert.equal(approvalGeneration.status, 201);
     const approvalBundleId = (await approvalGeneration.json()).data.bundle.id;
@@ -384,8 +386,8 @@ SELECT state FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' AND 
     const connectionId = randomUUID();
     const slot = new Date(Date.now() + 86_400_000).toISOString();
     const approvalPath = `/api/v1/bundles/${approvalBundleId}/approve`;
-    const approvalBody = JSON.stringify({ platforms: ['telegram'], slot,
-      revisionId: approvalBundle.tosReport.revisionId, connectionIds: { telegram: connectionId } });
+    const approvalBody = JSON.stringify({ platforms: ['x'], slot,
+      revisionId: approvalBundle.tosReport.revisionId, connectionIds: { x: connectionId } });
     const approvalHeaders = { ...headers, cookie, 'Idempotency-Key': randomUUID() };
     assert.equal((await request(approvalPath, { method: 'POST', headers: { ...headers, cookie }, body: approvalBody })).status, 400);
     assert.equal((await request(approvalPath, { method: 'POST', headers: approvalHeaders, body: approvalBody })).status, 409,
@@ -396,10 +398,10 @@ SELECT state FROM job WHERE org_id = :'fixture_org' AND kind = 'relay.card' AND 
       '-v', `fixture_connection=${connectionId}`,
     ], { encoding: 'utf8', timeout: 10_000, input: `BEGIN;
 INSERT INTO consent_record (org_id, model_id, platform, consent_type, granted, doc_kind, subject_ref, blob_ref, sha256)
-SELECT :'fixture_org', :'fixture_model', 'telegram', kind, true, kind, 'synthetic-ci-subject', 'fixture://not-a-legal-document', decode(repeat('00', 32), 'hex')
+SELECT :'fixture_org', :'fixture_model', 'x', kind, true, kind, 'synthetic-ci-subject', 'fixture://not-a-legal-document', decode(repeat('00', 32), 'hex')
 FROM unnest(ARRAY['2257','model_release','id_verify','platform_consent']) AS kind;
 INSERT INTO platform_connection (id, org_id, model_id, platform, display_name, enc_token, enc_nonce, dek_id)
-VALUES (:'fixture_connection', :'fixture_org', :'fixture_model', 'telegram', 'Non-publishing CI fixture', decode('', 'hex'), decode('', 'hex'), 'invalid-ci-only');
+VALUES (:'fixture_connection', :'fixture_org', :'fixture_model', 'x', 'Non-publishing CI fixture', decode('', 'hex'), decode('', 'hex'), 'invalid-ci-only');
 COMMIT;` });
     assert.equal(approvalFixture.status, 0, 'Synthetic consent/account metadata fixture must persist');
     // A new intent follows remediation of the rejected precondition. Never
