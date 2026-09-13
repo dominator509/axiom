@@ -69,10 +69,11 @@ export default function GrokConnection() {
     <p role="status">{status}</p>
     <p>Connect your own Grok account before generating media. Sign in only on Grok’s authorization page; never paste passwords or tokens here. Connecting does not generate media.</p>
     <div className="actions">
-      <button type="button" disabled={busy} onClick={() => void run(false)}>Check Grok connection</button>
+      <button type="button" disabled={busy} onClick={() => void run(false)}>Check saved Grok login</button>
       <button type="button" disabled={busy} onClick={() => void run(true)}>Connect Grok account</button>
       {attempt && ['pending', 'cancelling'].includes(attempt.state) && <button type="button" onClick={() => void cancel()}>Cancel Grok login</button>}
     </div>
+    <p>This check detects saved sign-in credentials; it does not test live image or video access. A credential-file result is not a login failure. Reconnecting does not verify generation access. Generation also requires an available worker and workspace safety settings that permit it.</p>
     {instructions && <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{instructions}</pre>}
   </section>;
 }

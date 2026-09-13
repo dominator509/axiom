@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { renderToStaticMarkup } from 'react-dom/server';
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], refs: [] as { current: unknown }[], i: 0, r: 0,
   connect: vi.fn(), status: vi.fn(), cancel: vi.fn() }));
 vi.mock('react', async original => ({ ...await original<typeof import('react')>(),
@@ -21,6 +22,15 @@ function render() { hooks.i = 0; hooks.r = 0; return GrokConnection(); }
 function buttons() { return render().props.children[2].props.children; }
 it('performs no automatic login or status request on rendering', () => {
   render(); expect(hooks.connect).not.toHaveBeenCalled(); expect(hooks.status).not.toHaveBeenCalled();
+});
+it('explains the saved-login boundary and independent generation prerequisites', () => {
+  const html = renderToStaticMarkup(render());
+  expect(html).toContain('Check saved Grok login');
+  expect(html).toContain('does not test live image or video access');
+  expect(html).toContain('Reconnecting does not verify generation access');
+  expect(html).toContain('available worker and workspace safety settings');
+  expect(hooks.connect).not.toHaveBeenCalled();
+  expect(hooks.status).not.toHaveBeenCalled();
 });
 it('shows connected only after login confirmation and clears login instructions', async () => {
   hooks.connect.mockImplementation(async (_signal, message) => { message('<script>not executable</script>'); });
