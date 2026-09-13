@@ -16,6 +16,7 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/test-isolated-workspace.mjs --isolated-fixture --worker-media-failure` — run real worker terminal-transition and lost-lease rollback checks in a fresh disposable PostgreSQL database; no workspace build, provider calls, or live dashboard changes
 - `node scripts/rehearse-generated-media.mjs --existing-probe <sha256> <jpg|png|mp4>` — copy a content-hashed artifact from ignored `var/live-grok-probe` through the built worker store and API preview code, with sanitization off/on and Safari-style ranges; requires API/worker builds and FFmpeg, removes only private temporary copies, no provider/DB/approval operations
 - `node scripts/rehearse-grok-installed-runtime.mjs <absolute-cli-path> <absolute-launcher-path>` — offline installed CLI/sealed-input/R2 managed-config checks using synthetic credentials and a network-disabled Linux sandbox
 - `node scripts/backup-recovery-database.mjs --local-backup` — explicitly authorized private local backup; no credentials printed
