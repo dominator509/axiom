@@ -16,6 +16,8 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/run-exact-media-job.mjs --inspect <org-id> <model-id> <bundle-id> <job-id>` — read-only exact media/ToS job inspection with explicitly supplied database environment; never loads dotenv or prints payloads
+- `node scripts/run-exact-media-job.mjs --execute-approved <org-id> <model-id> <bundle-id> <job-id>` — explicitly authorized Linux-only first-attempt execution of one existing media/ToS job through the real worker; requires current package builds/runtime configuration, no queue loop, retry loop or publishing executor; inspect/reconcile non-done outcomes before further action
 - `node scripts/rehearse-worker-video.mjs --existing-probe <sha256> --with-database` — additionally run actual video verdict/handoff commit and lease-loss rollback tests in a fresh disposable PostgreSQL fixture; no live workspace or provider writes
 - `node scripts/rehearse-worker-video.mjs --existing-probe <sha256>` — real worker video evaluation against isolated media/vision containers using a copied existing probe; requires built worker and rehearsal images, no provider/queue/approval/database writes
 - `node scripts/test-docker-context.mjs --isolated-fixture` — verify Docker context exclusions using synthetic files and a scratch image export; no workspace secrets enter the fixture, temporary output removed
