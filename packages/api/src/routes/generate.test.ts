@@ -91,6 +91,20 @@ const validBody = {
 };
 
 describe('POST /models/:id/generate', () => {
+  it.each([['telegram'], ['instagram', 'telegram']])('fits generated hashtags to all destinations: %j', async (...platforms) => {
+    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
+    const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, platforms, enrichWithLlm: false }),
+    });
+    expect(response.status).toBe(201);
+    const { data: result } = await response.json() as { data: {
+      variants: { hashtags: string[] }[]; tosReport: { verdict: string };
+    } };
+    expect(result.variants).toHaveLength(5);
+    expect(result.variants.every((variant: { hashtags: string[] }) => variant.hashtags.length === 0)).toBe(true);
+    expect(result.tosReport.verdict).toBe('pass');
+  });
   it('snapshots the profile character lock into the initial media job', async () => {
     mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated',
       characterLockPrompt: 'Copper hair, green jacket', characterLockVersion: 7 }];

@@ -24,7 +24,7 @@ import {
   type ModelProfile as PromptModelProfile,
 } from '@axiom/llm-gateway';
 import { LLMGateway, characterLockSnapshot, buildMediaPrompt } from '@axiom/llm-gateway';
-import { evaluateTextToS } from '@axiom/fanvue-mcp';
+import { evaluateTextToS, PLATFORM_RULES } from '@axiom/fanvue-mcp';
 import { asPlatform, enqueueJob, retrieveTopExemplars } from '@axiom/worker';
 
 type PromptPlatform =
@@ -323,6 +323,12 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema), asy
         console.error('generate enrich failed:', (err as Error).message);
       }
     }
+
+    // Bundles share one hashtag list across destinations. Fit generated
+    // variants to every selected destination before evaluation/persistence;
+    // otherwise our own generator guarantees review for zero-tag platforms.
+    const hashtagLimit = Math.min(...platforms.map((platform) => PLATFORM_RULES[platform].maxHashtags));
+    for (const variant of variants) variant.hashtags = variant.hashtags.slice(0, hashtagLimit);
 
     // 3. ToS text evaluation per platform (LBI-11)
     const captions: Record<string, string> = {};
