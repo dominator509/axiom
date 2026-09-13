@@ -3,7 +3,7 @@
 // executor → mark done. Errors: backoff into ready, or dead (DLQ) at
 // max_attempts. Kill-switch parks re-queue with a delay instead of failing.
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db, schema } from '@axiom/db';
 import { backoffDelayMs } from './backoff.js';
 import { claimNextJob } from './claim.js';
@@ -77,6 +77,21 @@ async function updateOwnedJob(
   if (!Array.isArray(rows) || rows.length !== 1) {
     throw new Error(`worker: job ${job.id} lease ownership lost before state transition`);
   }
+}
+
+/** A terminal media job must not leave its review card looking queued forever.
+ * Run in the same transaction as the owned job transition; a lost lease rolls
+ * both back. Lock the bundle first, matching the API's bundle/job lock order.
+ * Hold is not retry authorization: durable dispatch evidence still governs it.
+ */
+async function holdUnfinishedMediaBundle(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], job: JobRow): Promise<void> {
+  const bundleId = job.payload?.bundleId;
+  if (job.kind !== 'media.generate' || typeof bundleId !== 'string'
+    || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(bundleId)) return;
+  await tx.update(schema.contentBundle).set({ state: 'hold', updatedAt: new Date() }).where(and(
+    eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, job.org_id),
+    eq(schema.contentBundle.state, 'generated'), isNull(schema.contentBundle.assetId),
+  ));
 }
 
 /** Renew a claimed job's lease without holding the executor transaction open. */
@@ -193,6 +208,7 @@ export async function processJob(
       job.last_error = `${EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX} ${message}`;
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
+        await holdUnfinishedMediaBundle(tx, job);
         await updateOwnedJob(tx, job, workerId, {
           state: 'dead',
           lastError: `${EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX} ${message}`,
@@ -226,6 +242,7 @@ export async function processJob(
     if (attempts >= maxAttempts) {
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
+        await holdUnfinishedMediaBundle(tx, job);
         await updateOwnedJob(tx, job, workerId, {
           state: 'dead',
           lastError: message,
