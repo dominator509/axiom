@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { db, pool, schema } from '@axiom/db';
-import { processJob } from './worker.js';
+import { processJob, workerTick } from './worker.js';
 import type { JobRow } from './types.js';
 import { tosScan } from './executors/tos.js';
 import { claimExactMediaJob, claimNextModelMediaJob } from './claim.js';
@@ -29,6 +29,29 @@ describe.skipIf(!url)('terminal media state in real PostgreSQL', () => {
     expect(role.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
   });
   afterAll(async () => { await pool.end(); });
+
+  it('scoped first-attempt failures do not leave an unclaimable queued retry', async () => {
+    const bundleId = randomUUID(), jobId = randomUUID();
+    try {
+      await scoped(async tx => {
+        await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId, state: 'generated' });
+        await tx.insert(schema.job).values({ id: jobId, orgId, queue: 'content', kind: 'media.generate',
+          state: 'ready', attempts: 0, maxAttempts: 3, payload: { bundleId } });
+      });
+      const result = await workerTick({ workerId: 'scoped-failure', mediaScope: { orgId, modelId },
+        executors: { 'media.generate': async () => { throw new Error('Fixture missing runtime config; no provider call'); } },
+      });
+      expect(result.dead).toBe(1); expect(result.failed).toBe(0);
+      const [job] = await scoped(tx => tx.select().from(schema.job).where(eq(schema.job.id, jobId)));
+      const [bundle] = await scoped(tx => tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, bundleId)));
+      expect(job.state).toBe('dead'); expect(job.lockedBy).toBeNull(); expect(bundle.state).toBe('hold');
+    } finally {
+      await scoped(async tx => {
+        await tx.delete(schema.job).where(eq(schema.job.id, jobId));
+        await tx.delete(schema.contentBundle).where(eq(schema.contentBundle.id, bundleId));
+      });
+    }
+  });
 
   it.each(['media.generate', 'tos.scan'])('model media loop claims only unstarted %s jobs', async kind => {
     const bundleId = randomUUID();

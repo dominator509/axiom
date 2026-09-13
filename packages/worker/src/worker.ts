@@ -305,7 +305,9 @@ export async function workerTick(opts: WorkerOptions = {}): Promise<WorkerStats>
 
   stats.claimed = 1;
   const outcome = await processJob(claimed, executors, workerId, {
-    maxAttempts: opts.maxAttempts,
+    // This mode intentionally never claims a second attempt. Do not enqueue a
+    // retry that it cannot process; expose failures for operator reconciliation.
+    maxAttempts: opts.mediaScope ? 1 : opts.maxAttempts,
   });
 
   if (outcome === 'done') stats.done = 1;
