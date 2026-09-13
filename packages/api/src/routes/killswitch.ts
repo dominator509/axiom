@@ -22,10 +22,16 @@ async function getSettings(tx: any, orgId: string) {
     .from(schema.orgSettings)
     .where(eq(schema.orgSettings.orgId, orgId))
     .limit(1);
-  if (rows.length > 0) return rows[0];
+  return rows[0];
+}
+
+// Only mutation routes may initialize settings; absence must remain fail-closed.
+async function ensureSettings(tx: any, orgId: string) {
+  const settings = await getSettings(tx, orgId);
+  if (settings) return settings;
   const [row] = await tx
     .insert(schema.orgSettings)
-    .values({ orgId, publishingEnabled: true })
+    .values({ orgId, publishingEnabled: false })
     .onConflictDoNothing()
     .returning();
   return (
@@ -43,10 +49,10 @@ router.get('/killswitch', async (c) => {
   const settings = await withOrgContext(orgId, (tx) => getSettings(tx, orgId));
   return c.json({
     data: {
-      enabled: !settings.publishingEnabled,
-      reason: settings.killSwitchReason ?? '',
-      startedAt: settings.killSwitchAt,
-      updatedAt: settings.updatedAt,
+      enabled: settings?.publishingEnabled !== true,
+      reason: settings?.killSwitchReason ?? '',
+      startedAt: settings?.killSwitchAt ?? null,
+      updatedAt: settings?.updatedAt ?? null,
     },
   });
 });
@@ -59,7 +65,7 @@ router.post('/killswitch/enable', zValidator('json', killSwitchSchema), async (c
   const userId = c.get('userId') ?? 'system';
 
   const updated = await withOrgContext(orgId, async (tx) => {
-    await getSettings(tx, orgId);
+    await ensureSettings(tx, orgId);
     const [row] = await tx
       .update(schema.orgSettings)
       .set({
@@ -93,11 +99,12 @@ router.post('/killswitch/disable', async (c) => {
   const userId = c.get('userId') ?? 'system';
 
   const updated = await withOrgContext(orgId, async (tx) => {
-    await getSettings(tx, orgId);
+    await ensureSettings(tx, orgId);
     const [row] = await tx
       .update(schema.orgSettings)
       .set({
         publishingEnabled: true,
+        killSwitchActor: userId,
         killSwitchReason: null,
         killSwitchAt: null,
         updatedAt: new Date(),
@@ -128,7 +135,7 @@ router.post('/kill-switch', zValidator('json', killSwitchSchema), async (c) => {
   // model's egress config; the plane already supports per-model binds, so
   // the dashboard only exposes the org-wide switch (LBI-11).
   const updated = await withOrgContext(orgId, async (tx) => {
-    await getSettings(tx, orgId);
+    await ensureSettings(tx, orgId);
     const [row] = await tx
       .update(schema.orgSettings)
       .set({

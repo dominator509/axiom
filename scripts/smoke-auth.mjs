@@ -253,6 +253,20 @@ COMMIT;
   const generatedReplay = await request(generationPath, { method: 'POST', headers: generationHeaders, body: generationBody });
   assert.equal(generatedReplay.status, 201);
   assert.equal((await generatedReplay.json()).data?.bundle?.id, generation.bundle.id);
+  const switchStatus = await request('/api/v1/killswitch', { headers: { cookie } });
+  assert.equal(switchStatus.status, 200);
+  assert.deepEqual((await switchStatus.json()).data, {
+    enabled: true, reason: '', startedAt: null, updatedAt: null,
+  }, 'Reading missing safety settings must report emergency pause without initializing them');
+  const settingsRows = spawnSync('psql', [
+    '-X', '-q', '-t', '-A', '-d', fixtureDatabase.href, '-v', 'ON_ERROR_STOP=1',
+    '-v', `fixture_org=${orgId}`,
+  ], {
+    encoding: 'utf8', timeout: 10_000,
+    input: `SELECT count(*) FROM org_settings WHERE org_id = :'fixture_org';`,
+  });
+  assert.equal(settingsRows.status, 0, 'Read-only safety status verification must execute');
+  assert.equal(settingsRows.stdout.trim(), '0', 'GET safety status must not create settings');
   const persisted = await request(`/api/v1/bundles/${generation.bundle.id}`, { headers: { cookie } });
   assert.equal(persisted.status, 200);
   const persistedBody = await persisted.json();
