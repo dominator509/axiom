@@ -4,6 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db, pool, schema } from '@axiom/db';
 import { processJob } from './worker.js';
 import type { JobRow } from './types.js';
+import { tosScan } from './executors/tos.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
@@ -26,6 +27,45 @@ describe.skipIf(!url)('terminal media state in real PostgreSQL', () => {
     expect(role.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
   });
   afterAll(async () => { await pool.end(); });
+
+  it.each([false, true])('commits ToS verdict and review handoff together; lostLease=%s', async lostLease => {
+    const bundleId = randomUUID();
+    const jobId = randomUUID();
+    const revisionId = randomUUID();
+    try {
+      const item = await scoped(async tx => {
+        await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId,
+          state: 'generated', captions: { telegram: 'A peaceful landscape at sunrise.' }, hashtags: [],
+          tosReport: { verdict: 'pending', revisionId } });
+        await tx.insert(schema.job).values({ id: jobId, orgId, queue: 'tos', kind: 'tos.scan',
+          payload: { bundleId }, state: 'running', attempts: 1, maxAttempts: 3,
+          lockedBy: lostLease ? 'replacement-worker' : 'fixture-worker', lockedAt: new Date() });
+        const result = await tx.execute(sql`SELECT * FROM job WHERE id=${jobId}`);
+        return result.rows[0] as unknown as JobRow;
+      });
+      const operation = processJob(item, { 'tos.scan': tosScan }, 'fixture-worker', {});
+      if (lostLease) await expect(operation).rejects.toThrow('lease ownership lost before state transition');
+      else expect(await operation).toBe('done');
+      const records = await scoped(async tx => ({
+        bundles: await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, bundleId)),
+        jobs: await tx.select().from(schema.job).where(eq(schema.job.id, jobId)),
+        cards: await tx.execute(sql`SELECT payload FROM job WHERE org_id=${orgId}
+          AND kind='relay.card' AND payload->>'bundleId'=${bundleId}`),
+      }));
+      expect(records.bundles[0].tosReport?.verdict).toBe(lostLease ? 'pending' : 'pass');
+      expect(records.bundles[0].tosReport?.revisionId).toBe(revisionId);
+      expect(records.jobs[0].state).toBe(lostLease ? 'running' : 'done');
+      expect(records.cards.rows).toHaveLength(lostLease ? 0 : 1);
+      if (!lostLease) expect(records.cards.rows[0].payload).toEqual({ bundleId, revisionId });
+    } finally {
+      await scoped(async tx => {
+        await tx.execute(sql`DELETE FROM job WHERE org_id=${orgId} AND kind='relay.card'
+          AND payload->>'bundleId'=${bundleId}`);
+        await tx.delete(schema.job).where(eq(schema.job.id, jobId));
+        await tx.delete(schema.contentBundle).where(eq(schema.contentBundle.id, bundleId));
+      });
+    }
+  });
 
   it.each([
     { dispatched: false, lostLease: false }, { dispatched: true, lostLease: false },
