@@ -119,6 +119,16 @@ describe('generation intent', () => {
     vi.stubGlobal('fetch', fetch);
     await submit()();
     expect(fetch).not.toHaveBeenCalled();
+    expect(hooks.values[9]).toBe('Select or upload a source image before generating video.');
+  });
+
+  it('explains a whitespace-only media prompt instead of silently ignoring submit', async () => {
+    submit(); hooks.values[11] = 'image'; hooks.values[12] = '   ';
+    const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
+    await submit()();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(hooks.values[9]).toBe('Enter a media prompt before generating.');
+    expect(hooks.values[8]).toBe(false);
   });
   it('reuses the same model and payload key after lost responses', async () => {
     const fetch = vi.fn().mockRejectedValue(new Error('response lost'));

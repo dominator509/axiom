@@ -84,7 +84,8 @@ export default async function HomePage({ searchParams }: {
       )}
       <div className="grid talent-grid">
         {models.map((model) => (
-          <Link key={model.id} href={`/models/${model.id}`} className="model-link">
+          <div key={model.id}>
+          <Link href={`/models/${model.id}`} className="model-link">
             <article className="card model-card">
               <div className="model-card-top">
                 <span className="talent-avatar small">
@@ -110,6 +111,11 @@ export default async function HomePage({ searchParams }: {
               </span>
             </article>
           </Link>
+          <div className="row" style={{ flexWrap: 'wrap', marginTop: 12 }}>
+            <Link href={`/models/${model.id}/generation`} className="btn">Generate image or video</Link>
+            <Link href={`/models/${model.id}/approvals`} className="btn secondary">Review content</Link>
+          </div>
+          </div>
         ))}
       </div>
       {(cursor || nextCursor) && (

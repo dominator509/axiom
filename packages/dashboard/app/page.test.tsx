@@ -26,6 +26,15 @@ async function render(query: Record<string, string | string[] | undefined> = {})
 }
 
 describe('portfolio pagination and counts', () => {
+  it('exposes generation and review directly on each profile without nesting links', async () => {
+    transport();
+    const html = await render();
+    expect(html).toContain('href="/models/profile/generation"');
+    expect(html).toContain('Generate image or video');
+    expect(html).toContain('href="/models/profile/approvals"');
+    expect(html).toContain('Review content');
+    expect(html).not.toMatch(/<a\b[^>]*>(?:(?!<\/a>)[\s\S])*<a\b/);
+  });
   it('renders the organization count separately from page counts and an encoded next link', async () => {
     const fetch = transport();
     const html = await render();

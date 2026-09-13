@@ -83,9 +83,13 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
       setError('Return to the original model to reconcile the unresolved generation before starting another.');
       return;
     }
-    if (!intent.current && (platforms.length === 0
-      || (mediaKind !== 'brief' && !mediaPrompt.trim())
-      || (mediaKind === 'video' && !sourceAssetId))) return;
+    if (!intent.current) {
+      const invalid = platforms.length === 0 ? 'Select at least one destination platform.'
+        : mediaKind !== 'brief' && !mediaPrompt.trim() ? 'Enter a media prompt before generating.'
+          : mediaKind === 'video' && !sourceAssetId ? 'Select or upload a source image before generating video.'
+            : null;
+      if (invalid) { setError(invalid); return; }
+    }
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -163,7 +167,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         }
         router.refresh();
       }} />
-      <form onSubmit={onSubmit} className="stack" style={{ maxWidth: 640 }}>
+      <form noValidate onSubmit={onSubmit} className="stack" style={{ maxWidth: 640 }}>
         <fieldset disabled={busy || !!intent.current} className="stack" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <label htmlFor="mediaKind">Output</label>
         <select id="mediaKind" value={mediaKind} onChange={e => setMediaKind(e.target.value as 'brief' | 'image' | 'video')}>
@@ -254,6 +258,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
         </fieldset>
         {intent.current && !busy && <p>Previous generation outcome is unresolved. Inputs are locked. Check the same request before editing or starting another generation.</p>}
         {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
+        {busy && <p role="status">Submitting your request. Wait for a saved bundle or an error below; do not submit again.</p>}
         <div>
           <button className="btn" type="submit" disabled={busy || (!intent.current && platforms.length === 0)}>
             {busy ? 'Generating…' : intent.current ? 'Check same generation request' : mediaKind === 'brief' ? 'Generate content brief' : 'Queue Grok generation'}
