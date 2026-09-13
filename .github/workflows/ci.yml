@@ -97,6 +97,10 @@ jobs:
         if: matrix.task == 'lint'
         run: sh scripts/check-container-base-pins.sh
 
+      - name: Verify private files stay outside Docker build contexts
+        if: matrix.task == 'lint'
+        run: node scripts/test-docker-context.mjs --isolated-fixture
+
       - name: Verify development database bindings and media mounts
         if: matrix.task == 'lint'
         run: node scripts/check-dev-db-bindings.mjs
