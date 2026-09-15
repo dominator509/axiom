@@ -589,3 +589,36 @@ disposable fixture bundle served the uploaded bytes through authenticated media
 delivery; their hash matched the database and the private trailer was absent.
 This is deployed-container HTTP evidence, not browser UI interaction, a real
 provider generation, a moderation decision or production deployment.
+
+### TLS security lock update (2026-09-15)
+
+The shipped lock patch now selects `rustls 0.23.45` for
+[RUSTSEC-2026-0285](https://rustsec.org/advisories/RUSTSEC-2026-0285.html).
+The root workspace lock does not govern this separate CLI build. Its required
+transitives are `rustls-webpki 0.103.15`, `aws-lc-rs 1.18.1` and
+`aws-lc-sys 0.45.0`; both updated TLS crates require AWS-LC Rust bindings 1.18.
+No other candidate package records changed, and all existing patches remain.
+
+The existing `check-grok-rand-contract.mjs` also checks the shipped TLS versions
+and checksums. It rejects a patch restored to vulnerable `rustls 0.23.37` and
+an additional rustls copy. The RNG regressions still pass; all five distributed
+patches reconstruct the 15 local candidate files. These are lock-contract
+checks, not a malicious TLS packet test. The full CLI advisory scan no longer
+reports this TLS advisory but still exits 1 for the existing RSA advisory
+RUSTSEC-2023-0071; informational warnings also remain. This is not an all-clear
+for the CLI dependency tree.
+
+The full Linux `cargo build --locked -j 2 -p xai-grok-pager-bin --bin
+xai-grok-pager` passed in 17m38s using the existing `axiom-grok-build:m94` image,
+read-only source and guard mounts, separate dependency/output caches and no
+credentials. The resulting development-profile CLI SHA-256 is
+`ef7496d2f625abbe0f332c256f6c9b90d5c7a6a2753cb23690d85f2c11a4550e`.
+Its `--version` startup check passed in a read-only, network-disabled container
+with an empty temporary home. This does not test an authenticated TLS exchange.
+
+All binary hashes and installation evidence in earlier sections predate this
+TLS update. Deploying the rebuilt CLI is still required before a running
+installation can be considered patched. No provider calls or live service
+changes accompany this source update. The root workspace update at `6f6eb1b`
+passed all six CI gates in run `34989824638`; that run predates this separate
+Grok lock-patch commit.

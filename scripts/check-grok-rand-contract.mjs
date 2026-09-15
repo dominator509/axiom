@@ -1,4 +1,4 @@
-// Bind standalone RNG regression coverage to the actual distributed lock patch.
+// Bind RNG regression coverage and the TLS security floor to the shipped lock patch.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -75,9 +75,30 @@ function validate(lock, fixtureLock) {
     assert.equal(tested.get(version), checksum, 'Harness RNG checksum mismatch');
   }
 }
+function validateTls(lock) {
+  for (const [name, version, checksum] of [
+    ['rustls', '0.23.45', '0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634'],
+    ['rustls-webpki', '0.103.15', 'f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2'],
+  ]) {
+    const records = lock.replaceAll('\r', '').split('[[package]]\n').slice(1)
+      .filter(block => block.startsWith(`name = "${name}"\n`));
+    assert.equal(records.length, 1, `Expected exactly one ${name} package`);
+    assert(records[0].includes(`\nversion = "${version}"\n`), `${name} security pin drift`);
+    assert(records[0].includes(`\nchecksum = "${checksum}"\n`), `${name} checksum drift`);
+  }
+}
 try {
   const lock = reconstruct(patch);
   validate(lock, harness);
+  validateTls(lock);
+  const tlsRegression = patch
+    .replaceAll('+version = "0.23.45"', '+version = "0.23.37"')
+    .replaceAll('0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634',
+      '758025cb5fccfd3bc2fd74708fd4682be41d99e5dff73c377c0646c6012c73a4');
+  const regressedTlsLock = reconstruct(tlsRegression);
+  assert.throws(() => validateTls(regressedTlsLock), 'Restored vulnerable TLS patch must fail');
+  assert.throws(() => validateTls(`${lock}\n[[package]]\nname = "rustls"\nversion = "0.23.37"\n`),
+    'An additional vulnerable TLS copy must fail');
   // Same syntactically valid patch, but restore both vulnerable RNG records and
   // references. A passing standalone test must not make this regression green.
   let regressed = patch;
@@ -94,6 +115,7 @@ try {
   assert.throws(() => validate(lock, harness.replace(expected.get('0.8.6'), '0'.repeat(64))),
     'Harness checksum drift must fail');
   console.log('Grok RNG shipped-lock contract: pass; reverted patch and harness drift rejected');
+  console.log('Grok TLS shipped-lock contract: pass; vulnerable version and duplicate rejected');
 } finally {
   // Only the fresh private index is removed; caller index and worktree stay intact.
   rmSync(fixture, { recursive: true, force: true });
