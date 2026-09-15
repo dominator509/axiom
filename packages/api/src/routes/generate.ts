@@ -10,6 +10,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
+import { validationDiagnostics } from '../validation-diagnostics.js';
 import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
@@ -212,7 +213,8 @@ router.post('/models/:modelId/generate/:bundleId/retry', zValidator('json', z.ob
 });
 
 // POST /models/:id/generate
-router.post('/models/:modelId/generate', zValidator('json', generateSchema), async (c) => {
+router.post('/models/:modelId/generate', zValidator('json', generateSchema,
+  validationDiagnostics('generate', Object.keys(generateSchema.shape))), async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
