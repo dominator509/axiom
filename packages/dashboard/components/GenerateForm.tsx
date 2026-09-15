@@ -95,8 +95,18 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
     setError(null);
     setResult(null);
     try {
+      // FanThynks TEST deployment fix: the server schema declares these five
+      // fields as z.string().min(1).default(...), so an empty box is invalid and
+      // the default only applies when the key is ABSENT. Sending '' for a
+      // cleared field rejected every submission with HTTP 400 ("String must
+      // contain at least 1 character(s)") in ~71ms, before Grok was contacted.
+      // Omit them when blank so the server defaults are used.
+      const optionalWithDefault = { style, outfit, location, mood, lighting };
+      const cleaned = Object.fromEntries(
+        Object.entries(optionalWithDefault).filter(([, v]) => String(v).trim().length > 0),
+      );
       const requestBody = JSON.stringify({
-        style, outfit, location, mood, lighting, aspectRatio, platforms, enrichWithLlm: enrich,
+        ...cleaned, aspectRatio, platforms, enrichWithLlm: enrich,
         ...(mediaKind === 'brief' ? {} : { media: {
           kind: mediaKind, prompt: mediaPrompt.trim(),
           ...(sanitizeMetadata ? { sanitizeMetadata: true } : {}),
