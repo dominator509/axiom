@@ -42,6 +42,29 @@ function key(fetch: ReturnType<typeof vi.fn>, index: number) {
 }
 
 describe('generation intent', () => {
+  it.each(['', '   '])('omits cleared defaulted fields (%j) while preserving the media prompt', async blank => {
+    submit();
+    for (let index = 0; index < 5; index++) hooks.values[index] = blank;
+    hooks.values[11] = 'image'; hooks.values[12] = 'A ceramic vase';
+    const fetch = vi.fn().mockResolvedValue(response()); vi.stubGlobal('fetch', fetch);
+    await submit()();
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    for (const field of ['style', 'outfit', 'location', 'mood', 'lighting'])
+      expect(body).not.toHaveProperty(field);
+    expect(body.media.prompt).toBe('A ceramic vase');
+    expect(body.media.aspectRatio).toBe('3:4');
+  });
+
+  it('preserves nonblank defaulted fields', async () => {
+    submit(); hooks.values[1] = ''; hooks.values[2] = ' sunlit table ';
+    const fetch = vi.fn().mockResolvedValue(response()); vi.stubGlobal('fetch', fetch);
+    await submit()();
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({
+      style: 'studio', location: ' sunlit table ', mood: 'energetic', lighting: 'soft studio',
+    });
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).not.toHaveProperty('outfit');
+  });
+
   it('accepts the API variant and scored text-report shape', async () => {
     const payload = await response().json();
     payload.data.variants = [{ prompt: 'A studio portrait', caption: 'Studio light',

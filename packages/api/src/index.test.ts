@@ -98,6 +98,13 @@ describe('mounted route groups', () => {
     expect(res.headers.get('X-Correlation-ID')).toMatch(/^[A-Za-z0-9-]{8,64}$/);
   });
 
+  it('bare generation requires a session before processing its body', async () => {
+    const res = await app.request('/api/v1/models/22222222-2222-4222-8222-222222222222/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{malformed',
+    });
+    expect(res.status).toBe(401);
+  });
+
   it('media retry requires a session before processing its body', async () => {
     const res = await app.request('/api/v1/models/22222222-2222-4222-8222-222222222222/generate/33333333-3333-4333-8333-333333333333/retry', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{malformed',

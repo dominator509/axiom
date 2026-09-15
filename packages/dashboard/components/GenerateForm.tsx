@@ -95,8 +95,14 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
     setError(null);
     setResult(null);
     try {
+      // Server defaults apply to absent keys, not cleared or whitespace-only inputs.
+      // Preserve nonblank values and the existing immutable retry payload.
+      const cleaned = Object.fromEntries(
+        Object.entries({ style, outfit, location, mood, lighting })
+          .filter(([, value]) => value.trim().length > 0),
+      );
       const requestBody = JSON.stringify({
-        style, outfit, location, mood, lighting, aspectRatio, platforms, enrichWithLlm: enrich,
+        ...cleaned, aspectRatio, platforms, enrichWithLlm: enrich,
         ...(mediaKind === 'brief' ? {} : { media: {
           kind: mediaKind, prompt: mediaPrompt.trim(),
           ...(sanitizeMetadata ? { sanitizeMetadata: true } : {}),
