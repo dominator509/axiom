@@ -81,6 +81,10 @@ jobs:
         if: matrix.task == 'typecheck'
         run: sh scripts/verify.sh
 
+      - name: Verify phase ledger gate regressions
+        if: matrix.task == 'typecheck'
+        run: node scripts/test-phase-gates.mjs
+
       # ═══════════════════════════════════════════════════════════
       #  MATRIX TASK: lint
       # ═══════════════════════════════════════════════════════════
