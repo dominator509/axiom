@@ -25,7 +25,7 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
 
   if (!data) {
     return (
-      <div>
+      <div className="page-stack">
         <h2>Playbook score</h2>
         <div className="card">
           <p style={{ color: 'var(--muted)' }}>Score unavailable.</p>
@@ -37,7 +37,7 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
   const pct = Math.round(data.score.overall * 100);
 
   return (
-    <div>
+    <div className="page-stack">
       <h2>Playbook score</h2>
       <div className="grid">
         <div className="card">

@@ -40,7 +40,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <div>
+    <div className="page-stack">
       <h2>Performance</h2>
       {analytics ? (
         <>
@@ -134,7 +134,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
 
       <h2 style={{ marginTop: 24 }}>Viral insights</h2>
       <div className="card">
-        {!viral || viral.totalExemplars === 0 ? (
+        {!viral ? <p role="alert">Viral insights could not be loaded. Reload this page to try again.</p> : viral.totalExemplars === 0 ? (
           <p style={{ color: 'var(--muted)' }}>
             No viral exemplars yet — they accumulate as posts get labeled.
           </p>
