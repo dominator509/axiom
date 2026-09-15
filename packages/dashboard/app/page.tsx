@@ -38,6 +38,15 @@ export default async function HomePage({ searchParams }: {
         <NewModelForm />
       </section>
 
+      <section className="card stack" aria-labelledby="getting-started-heading">
+        <h2 id="getting-started-heading">What would you like to do?</h2>
+        <p className="subtle">Start with a talent profile below. Create content, review the saved media, then choose a publishing time in its workspace. Creating content does not publish it.</p>
+        <div className="row" style={{ flexWrap: 'wrap' }}>
+          <Link href="/connections/grok" className="btn secondary">Set up Grok &amp; media storage</Link>
+          <a href="#talent-profiles" className="btn secondary">Choose a talent profile</a>
+        </div>
+      </section>
+
       <section className="stat-grid" aria-label="Portfolio summary">
         <div className="stat-card">
           <span>Total talent</span>
@@ -82,7 +91,7 @@ export default async function HomePage({ searchParams }: {
           <span>{models.length} shown</span>
         </div>
       )}
-      <div className="grid talent-grid">
+      <div id="talent-profiles" className="grid talent-grid" tabIndex={-1}>
         {models.map((model) => (
           <div key={model.id}>
           <Link href={`/models/${model.id}`} className="model-link">

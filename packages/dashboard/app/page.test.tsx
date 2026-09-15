@@ -26,6 +26,15 @@ async function render(query: Record<string, string | string[] | undefined> = {})
 }
 
 describe('portfolio pagination and counts', () => {
+  it('offers setup guidance even before a talent profile exists', async () => {
+    transport({ empty: true });
+    const html = await render();
+    expect(html).toContain('What would you like to do?');
+    expect(html).toContain('href="/connections/grok"');
+    expect(html).toContain('href="#talent-profiles"');
+    expect(html).toContain('id="talent-profiles"');
+    expect(html).toContain('Creating content does not publish it.');
+  });
   it('exposes generation and review directly on each profile without nesting links', async () => {
     transport();
     const html = await render();

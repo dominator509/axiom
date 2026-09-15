@@ -33,6 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </main>
         ) : (
           <div className="app-shell">
+            <a href="#main-content" className="skip-link">Skip to page content</a>
             <aside className="sidebar">
               <Link href="/" className="brand" aria-label="FanThynks home">
                 <span className="brand-mark">F</span>
@@ -74,7 +75,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <NavLinks />
               </div>
               {role === 'owner' && <KillSwitchBanner />}
-              <main className="main">{children}</main>
+              <main id="main-content" tabIndex={-1} className="main">{children}</main>
               <footer className="footer">
                 <span>Private by design · self-hosted</span>
                 <Link href="/api/v1/health">

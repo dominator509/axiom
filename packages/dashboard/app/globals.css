@@ -75,6 +75,7 @@ a {
   grid-template-columns: 248px minmax(0, 1fr);
 }
 .sidebar {
+  overflow-y: auto;
   position: sticky;
   top: 0;
   height: 100vh;
@@ -575,6 +576,7 @@ a.model-link {
 }
 
 .btn {
+  text-decoration: none;
   min-height: 42px;
   display: inline-flex;
   align-items: center;
@@ -701,6 +703,7 @@ label span {
 
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin: -4px 0 2px;
   padding: 5px;
@@ -714,6 +717,9 @@ label span {
   display: none;
 }
 .tabs a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
   flex: 0 0 auto;
   padding: 8px 13px;
   border-radius: 9px;
@@ -1109,8 +1115,7 @@ tbody tr:hover {
   }
   .mobile-nav {
     display: block;
-    position: sticky;
-    top: 64px;
+    position: relative;
     z-index: 29;
     padding: 8px 14px;
     overflow: hidden;
@@ -1119,13 +1124,12 @@ tbody tr:hover {
     backdrop-filter: blur(20px);
   }
   .mobile-nav .nav {
-    flex-direction: row;
-    overflow-x: auto;
-    scrollbar-width: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .mobile-nav .nav a {
     flex: 0 0 auto;
-    min-height: 37px;
+    min-height: 44px;
     padding: 8px 11px;
   }
   .mobile-nav .nav a.active::before {
@@ -1138,6 +1142,14 @@ tbody tr:hover {
   .main {
     padding: 34px 18px 24px;
   }
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tabs a { overflow-wrap: anywhere; }
+  .grid, .talent-grid { grid-template-columns: minmax(0, 1fr); }
+  input, select, textarea { font-size: 16px; }
+  .signout-button, .icon-button { min-width: 44px; min-height: 44px; }
   .banner,
   .footer {
     width: calc(100% - 36px);
@@ -1237,3 +1249,17 @@ tbody tr:hover {
   outline: 2px solid var(--accent-strong);
   outline-offset: 3px;
 }
+
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 200;
+  padding: 12px 18px;
+  color: var(--accent-ink);
+  background: var(--accent-strong);
+  border-radius: 8px;
+  transform: translateY(-150%);
+}
+.skip-link:focus { transform: none; }
+#main-content, #talent-profiles { scroll-margin-top: 80px; }

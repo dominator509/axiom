@@ -18,6 +18,12 @@ async function render(user: Record<string, unknown> | null) {
 }
 
 describe('dashboard session presentation', () => {
+  it('provides keyboard navigation directly to the signed-in page', async () => {
+    const html = await render({ id: 'user', email: 'member@example.invalid', orgId: 'org', role: 'operator' });
+    expect(html).toContain('href="#main-content"');
+    expect(html).toContain('id="main-content" tabindex="-1"');
+    expect(html).toContain('href="/connections/grok"');
+  });
   it('uses FanThynks branding in metadata, navigation and login', async () => {
     expect(metadata.title).toEqual({ default: 'FanThynks — Creator OS', template: '%s · FanThynks' });
     const html = await render({ id: 'user', email: 'member@example.invalid', orgId: 'org', role: 'operator' });

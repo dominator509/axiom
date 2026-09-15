@@ -4,15 +4,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const TABS = [
-  { href: '', label: 'Overview' },
-  { href: 'network', label: 'Network' },
-  { href: 'calendar', label: 'Calendar' },
-  { href: 'generation', label: 'Create' },
-  { href: 'approvals', label: 'Approvals' },
-  { href: 'fans', label: 'Fan CRM' },
+  { href: '', label: 'Profile & character' },
+  { href: 'generation', label: 'Create content' },
+  { href: 'approvals', label: 'Review & approve' },
+  { href: 'calendar', label: 'Schedule' },
+  { href: 'fans', label: 'Fan contacts' },
   { href: 'linkbio', label: 'Link in bio' },
   { href: 'analytics', label: 'Analytics' },
   { href: 'playbook', label: 'Playbook' },
+  { href: 'network', label: 'Network settings' },
 ] as const;
 
 export default function ModelTabs({ modelId }: { modelId: string }) {
