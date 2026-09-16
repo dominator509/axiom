@@ -1,6 +1,7 @@
 import { api, getSession } from '@/lib/api';
 import FanContactForm from '@/components/FanContactForm';
 import CustomRequestForm from '@/components/CustomRequestForm';
+import FanInteractionForm from '@/components/FanInteractionForm';
 import Link from 'next/link';
 import type { FanTimeline } from '@/lib/api';
 
@@ -51,6 +52,7 @@ export default async function FansPage({ params, searchParams }: { params: Promi
         {timelineError && <p role="alert">This fan timeline could not be loaded for this talent. Select a contact from the list or try again.</p>}
         {timeline && <>
           <h3>{timeline.fan.displayName ?? 'Fan'} — recorded activity</h3>
+          {canEdit && <FanInteractionForm key={timeline.fan.id} fanId={timeline.fan.id} platform={timeline.fan.platform} />}
           <p className="subtle">Up to 100 most recent saved interactions. This is not a live inbox or proof that all platforms have synchronized.</p>
           {timeline.touchpoints.length === 0 ? <p>No recorded interactions yet.</p> : <ol className="stack">
             {timeline.touchpoints.map(point => <li key={point.id}>
