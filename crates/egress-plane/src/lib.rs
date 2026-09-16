@@ -1308,15 +1308,23 @@ impl SyncScope {
     fn validate(&self) -> Result<(), EgressError> {
         match (&self.model_id, &self.org_id) {
             (None, None) => Ok(()),
-            (Some(model), Some(org)) if Uuid::parse_str(model).is_ok() && Uuid::parse_str(org).is_ok() => Ok(()),
-            _ => Err(EgressError::Validation("sync requires both valid model_id and org_id".into())),
+            (Some(model), Some(org))
+                if Uuid::parse_str(model).is_ok() && Uuid::parse_str(org).is_ok() =>
+            {
+                Ok(())
+            }
+            _ => Err(EgressError::Validation(
+                "sync requires both valid model_id and org_id".into(),
+            )),
         }
     }
 
     fn includes(&self, model: &str, org: &str) -> bool {
         match (&self.model_id, &self.org_id) {
             (None, None) => true,
-            (Some(expected_model), Some(expected_org)) => expected_model == model && expected_org == org,
+            (Some(expected_model), Some(expected_org)) => {
+                expected_model == model && expected_org == org
+            }
             _ => false,
         }
     }
@@ -1328,7 +1336,9 @@ pub async fn egress_sync_model(
     Query(scope): Query<SyncScope>,
 ) -> Result<impl IntoResponse, EgressError> {
     if scope.model_id.is_none() || scope.org_id.is_none() {
-        return Err(EgressError::Validation("model-scoped sync requires model_id and org_id".into()));
+        return Err(EgressError::Validation(
+            "model-scoped sync requires model_id and org_id".into(),
+        ));
     }
     egress_sync(state, Query(scope)).await
 }
@@ -1340,12 +1350,20 @@ mod sync_scope_tests {
     fn model_scope_excludes_other_models_and_tenants() {
         let model = Uuid::new_v4().to_string();
         let org = Uuid::new_v4().to_string();
-        let scope = SyncScope { model_id: Some(model.clone()), org_id: Some(org.clone()) };
+        let scope = SyncScope {
+            model_id: Some(model.clone()),
+            org_id: Some(org.clone()),
+        };
         assert!(scope.validate().is_ok());
         assert!(scope.includes(&model, &org));
         assert!(!scope.includes("other", &org));
         assert!(!scope.includes(&model, "other"));
-        assert!(SyncScope { model_id: Some(model), org_id: None }.validate().is_err());
+        assert!(SyncScope {
+            model_id: Some(model),
+            org_id: None
+        }
+        .validate()
+        .is_err());
     }
 }
 
