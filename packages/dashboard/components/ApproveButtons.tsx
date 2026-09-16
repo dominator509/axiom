@@ -179,7 +179,7 @@ export default function ApproveButtons({
             type="button"
             disabled={inputsLocked}
             className={`btn ${selected.includes(p) ? '' : 'secondary'}`}
-            style={{ padding: '4px 10px', fontSize: 12 }}
+            aria-pressed={selected.includes(p)}
             onClick={() => toggle(p)}
           >
             {p}
@@ -190,7 +190,7 @@ export default function ApproveButtons({
         <p role="status">No supported publishing destinations in this bundle.</p>
       )}
       <div className="row">
-        <label style={{ margin: 0 }}>
+        <label className="field-stack" style={{ margin: 0 }}>
           Slot (your local time)
           <small style={{ display: 'block' }}>
             During a repeated daylight-saving hour, the first occurrence is used.
@@ -200,7 +200,6 @@ export default function ApproveButtons({
             disabled={inputsLocked}
             value={slot}
             onChange={(e) => setSlot(e.target.value)}
-            style={{ marginLeft: 8, width: 'auto' }}
           />
         </label>
       </div>
@@ -211,7 +210,7 @@ export default function ApproveButtons({
             (connection.status === 'connected' || connection.status === 'active'),
         );
         return (
-          <label key={platform} style={{ margin: 0 }}>
+          <label key={platform} className="field-stack" style={{ margin: 0 }}>
             {platform} account
             <select
               disabled={inputsLocked}
@@ -219,7 +218,6 @@ export default function ApproveButtons({
               onChange={(event) =>
                 setConnectionIds((current) => ({ ...current, [platform]: event.target.value }))
               }
-              style={{ marginLeft: 8, width: 'auto' }}
             >
               <option value="">Select a connected account</option>
               {available.map((connection) => (
@@ -239,7 +237,7 @@ export default function ApproveButtons({
       {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
       {notice && <p role="status">{notice}</p>}
       {pendingAction && <p role="status">An action is unresolved. Check its original request before changing inputs or taking another action.</p>}
-      <label>
+      <label className="field-stack">
         Caption revision instructions
         <textarea
           value={instructions}
@@ -249,7 +247,7 @@ export default function ApproveButtons({
           placeholder="Describe how the captions should change"
         />
       </label>
-      <div className="row">
+      <div className="action-row">
         <button
           className="btn"
           type="button"

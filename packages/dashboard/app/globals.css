@@ -169,11 +169,11 @@ a {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 43px;
+  min-height: 44px;
   padding: 10px 12px;
   border: 1px solid transparent;
   border-radius: 12px;
-  color: #998c95;
+  color: var(--muted-strong);
   text-decoration: none;
   font-size: 13px;
   font-weight: 600;
@@ -267,8 +267,9 @@ a {
   font-family: Georgia, serif;
 }
 .signout-button {
-  width: 29px;
-  height: 29px;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
   display: grid;
   place-items: center;
   margin-left: auto;
@@ -379,13 +380,24 @@ h3 {
 }
 .row {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   align-items: center;
 }
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+}
+.stack > p { margin-block: 0; }
+.row > *, .grid > * { min-width: 0; }
+.action-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.action-row > .btn { flex: 1 1 150px; }
+.field-stack { display: grid; gap: 8px; width: 100%; }
+.field-stack > small { color: var(--muted); font-weight: 400; }
+.main a:not(.btn):not(.model-link):not(.back-link):not(.tabs a) {
+  color: var(--accent-strong);
+  text-underline-offset: 3px;
 }
 
 .stat-grid {
@@ -577,7 +589,11 @@ a.model-link {
 
 .btn {
   text-decoration: none;
-  min-height: 42px;
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -590,7 +606,7 @@ a.model-link {
   box-shadow:
     0 10px 25px rgba(188, 103, 136, 0.18),
     inset 0 1px rgba(255, 255, 255, 0.45);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 750;
   cursor: pointer;
   transition:
@@ -623,8 +639,9 @@ a.model-link {
   min-width: 130px;
 }
 .icon-button {
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
   border: 1px solid var(--line);
   border-radius: 11px;
   color: var(--muted);
@@ -637,7 +654,9 @@ input,
 select,
 textarea {
   width: 100%;
-  min-height: 43px;
+  min-height: 44px;
+  min-width: 0;
+  max-width: 100%;
   padding: 10px 13px;
   border: 1px solid var(--line-strong);
   border-radius: 11px;
@@ -668,12 +687,12 @@ label {
   display: block;
   margin-bottom: 6px;
   color: var(--muted-strong);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 650;
   letter-spacing: 0.025em;
 }
 label span {
-  color: #746971;
+  color: var(--muted);
   font-weight: 500;
 }
 
@@ -725,7 +744,7 @@ label span {
   border-radius: 9px;
   color: var(--muted);
   text-decoration: none;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 650;
   transition:
     color 0.2s,
@@ -1147,6 +1166,7 @@ tbody tr:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .tabs a { overflow-wrap: anywhere; }
+  .action-row > .btn { flex-basis: 100%; }
   .grid, .talent-grid { grid-template-columns: minmax(0, 1fr); }
   input, select, textarea { font-size: 16px; }
   .signout-button, .icon-button { min-width: 44px; min-height: 44px; }
@@ -1213,7 +1233,7 @@ tbody tr:hover {
 
 @media (max-width: 460px) {
   h1 {
-    font-size: 36px;
+    font-size: clamp(30px, 8vw, 36px);
   }
   .page-stack {
     gap: 20px;
