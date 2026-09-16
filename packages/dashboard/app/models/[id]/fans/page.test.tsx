@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import FansPage from './page';
 import { api, getSession } from '@/lib/api';
 
-vi.mock('@/lib/api', () => ({ getSession: vi.fn(), api: { models: { fans: vi.fn(), customRequests: vi.fn() } } }));
+vi.mock('@/lib/api', () => ({ getSession: vi.fn(), api: { fans: { get: vi.fn() }, models: { fans: vi.fn(), customRequests: vi.fn() } } }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 beforeEach(() => {
   vi.resetAllMocks();
@@ -13,6 +13,25 @@ beforeEach(() => {
 const render = async () => renderToStaticMarkup(await FansPage({ params: Promise.resolve({ id: 'talent' }) }));
 
 describe('independent fan section loading', () => {
+  it('links contacts to a scoped timeline', async () => {
+    expect(await render()).toContain('/models/talent/fans?fan=fan');
+  });
+  it('renders recorded activity and escapes its text', async () => {
+    vi.mocked(api.fans.get).mockResolvedValue({ data: {
+      fan: { id: 'fan', modelId: 'talent', displayName: 'Fan', platform: 'x', tier: 'new', lifetimeValueUsd: '0', lastActiveAt: null },
+      touchpoints: [{ id: 'point', platform: 'x', kind: 'note', direction: 'inbound', content: '<script>unsafe</script>', ts: '2026-09-15T10:00:00Z' }], requests: [],
+    } } as Awaited<ReturnType<typeof api.fans.get>>);
+    const html = renderToStaticMarkup(await FansPage({ params: Promise.resolve({ id: 'talent' }), searchParams: Promise.resolve({ fan: '11111111-1111-4111-8111-111111111111' }) }));
+    expect(html).toContain('recorded activity');
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).toContain('100 most recent');
+  });
+  it('does not render another talent fan details', async () => {
+    vi.mocked(api.fans.get).mockResolvedValue({ data: { fan: { modelId: 'other', displayName: 'Other private name' } } } as Awaited<ReturnType<typeof api.fans.get>>);
+    const html = renderToStaticMarkup(await FansPage({ params: Promise.resolve({ id: 'talent' }), searchParams: Promise.resolve({ fan: '11111111-1111-4111-8111-111111111111' }) }));
+    expect(html).toContain('could not be loaded for this talent');
+    expect(html).not.toContain('Other private name');
+  });
   it('exposes contact editing to operators', async () => {
     vi.mocked(getSession).mockResolvedValue({ user: { id: 'user', role: 'operator' } });
     expect(await render()).toContain('Save fan contact');

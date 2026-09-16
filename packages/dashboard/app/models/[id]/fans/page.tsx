@@ -1,6 +1,8 @@
 import { api, getSession } from '@/lib/api';
 import FanContactForm from '@/components/FanContactForm';
 import CustomRequestForm from '@/components/CustomRequestForm';
+import Link from 'next/link';
+import type { FanTimeline } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +13,7 @@ const TIER_BADGE: Record<string, string> = {
   new: 'mute',
 };
 
-export default async function FansPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function FansPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ fan?: string | string[] }> }) {
   const { id } = await params;
   const session = await getSession();
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
@@ -22,12 +24,43 @@ export default async function FansPage({ params }: { params: Promise<{ id: strin
   ]);
   if (contactsResult.status === 'fulfilled') fans = contactsResult.value.data;
   if (requestsResult.status === 'fulfilled') requests = requestsResult.value.data;
+  const selected = (await searchParams)?.fan;
+  let timeline: FanTimeline | null = null;
+  let timelineError = false;
+  if (selected) {
+    try {
+      if (typeof selected !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selected)) throw new Error('Invalid fan');
+      const result = (await api.fans.get(selected)).data;
+      if (result.fan.modelId !== id) throw new Error('Fan belongs to another talent');
+      timeline = result;
+    } catch { timelineError = true; }
+  }
 
   return (
     <div className="page-stack">
       <h2>Fan relationships</h2>
       <p className="subtle">Browse saved fan contacts and track requests for custom content. Lifetime value is the recorded total spent by a fan.</p>
       {canEdit ? <FanContactForm modelId={id} /> : <p className="subtle">Contact editing requires an owner, manager or operator role.</p>}
+      {selected && <section className="card stack" aria-label="Fan timeline">
+        <Link href={`/models/${encodeURIComponent(id)}/fans`}>Close fan details</Link>
+        {timelineError && <p role="alert">This fan timeline could not be loaded for this talent. Select a contact from the list or try again.</p>}
+        {timeline && <>
+          <h3>{timeline.fan.displayName ?? 'Fan'} — recorded activity</h3>
+          <p className="subtle">Up to 100 most recent saved interactions. This is not a live inbox or proof that all platforms have synchronized.</p>
+          {timeline.touchpoints.length === 0 ? <p>No recorded interactions yet.</p> : <ol className="stack">
+            {timeline.touchpoints.map(point => <li key={point.id}>
+              <strong>{point.platform} · {point.kind} · {point.direction}</strong>
+              <p><time dateTime={point.ts}>{point.ts}</time></p>
+              <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{point.content ?? 'No text recorded.'}</p>
+            </li>)}
+          </ol>}
+          <h4>Linked custom requests</h4>
+          {timeline.requests.length === 0 ? <p>No linked requests.</p> : timeline.requests.map(request => <div className="stack" key={request.id}>
+            <strong>{request.title}</strong><span>{request.status}</span>
+            {canEdit && <CustomRequestForm requestId={request.id} title={request.title} status={request.status} />}
+          </div>)}
+        </>}
+      </section>}
       <div className="grid">
         <div className="card">
           <h3>High-value contacts</h3>
@@ -46,7 +79,7 @@ export default async function FansPage({ params }: { params: Promise<{ id: strin
             <tbody>
               {fans.map((f) => (
                 <tr key={f.id}>
-                  <td>{f.displayName ?? f.id.slice(0, 8)}</td>
+                  <td><Link href={`/models/${encodeURIComponent(id)}/fans?fan=${encodeURIComponent(f.id)}`}>{f.displayName ?? f.id.slice(0, 8)}</Link></td>
                   <td>{f.platform}</td>
                   <td>
                     <span className={`badge ${TIER_BADGE[f.tier] ?? 'mute'}`}>{f.tier}</span>

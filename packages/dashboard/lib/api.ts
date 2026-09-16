@@ -168,6 +168,12 @@ export interface CustomRequest {
   createdAt: string;
 }
 
+export interface FanTimeline {
+  fan: FanContact;
+  touchpoints: Array<{ id: string; platform: string; kind: string; direction: string; content: string | null; ts: string }>;
+  requests: CustomRequest[];
+}
+
 export interface KillSwitchState {
   enabled: boolean;
   reason: string;
@@ -187,6 +193,9 @@ export interface NetworkConfig {
 }
 
 export const api = {
+  fans: {
+    get: (id: string) => apiFetch<{ data: FanTimeline }>(`/api/v1/fans/${encodeURIComponent(id)}`),
+  },
   models: {
     list: (cursor?: string) => apiFetch<{
       data: ModelProfile[];
