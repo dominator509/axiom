@@ -86,3 +86,19 @@ successful responses. Full dashboard suite: 378 tests across 46 files passed;
 dashboard typecheck and focused lint exited 0 (existing Next pages-directory lint
 warning). No live routing changes or deployment performed. Privileged isolation,
 provider connectivity, and authenticated browser acceptance remain open.
+# M205: Calendar reschedule and cancellation controls
+
+Calendar cards now expose the existing PATCH/DELETE post APIs to operational
+roles for pending targets without a remote publication ID. Explicit confirmation
+is required. Rescheduling validates a future local timestamp using the existing
+DST-aware schedule converter. In-flight duplicate submits are blocked; uncertain
+retries retain the original action/body/key and never automatically retry.
+Successful responses must identify the post and confirm its new state/time.
+The server remains authoritative for dispatch-marker and publication-lock checks.
+
+Evidence: calendar role/state visibility tests and mutation tests for reschedule,
+cancellation, uncertain retries, empty successful responses, and input validation.
+Full dashboard suite: 382 tests in 47 files passed; typecheck and focused lint
+exited 0 (existing Next pages-directory lint warning). No live schedule changes.
+Drag/drop week view, account retargeting controls, media previews, and deployed
+authenticated browser acceptance are not established by this change.

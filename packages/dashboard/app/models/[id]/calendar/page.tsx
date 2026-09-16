@@ -1,5 +1,6 @@
-import { api } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
 import Link from 'next/link';
+import PostScheduleForm from '@/components/PostScheduleForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +9,8 @@ export default async function CalendarPage({ params, searchParams }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const session = await getSession();
+  const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   const query = await searchParams;
   const now = new Date();
   const currentMonth = now.toISOString().slice(0, 7);
@@ -33,7 +36,7 @@ export default async function CalendarPage({ params, searchParams }: {
   }
 
   return (
-    <div>
+    <div className="page-stack">
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <h2>Content calendar</h2>
         <span style={{ color: 'var(--muted)' }}>{error ? 'Calendar unavailable' : `${posts.length} ${posts.length === 1 ? 'post' : 'posts'} in this month`}</span>
@@ -80,6 +83,8 @@ export default async function CalendarPage({ params, searchParams }: {
                 {p.error}
               </div>
             )}
+            <Link href={`/models/${encodeURIComponent(id)}/approvals`}>View bundles and approvals</Link>
+            {canEdit && p.state === 'pending' && !p.remoteId && <PostScheduleForm key={`${p.id}:${p.scheduledFor}`} postId={p.id} />}
           </div>
         ))}
       </div>

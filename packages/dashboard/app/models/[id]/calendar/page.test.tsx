@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import CalendarPage from './page';
+const session = vi.hoisted(() => ({ role: 'operator' }));
+vi.mock('@/lib/api', async original => ({ ...await original<typeof import('@/lib/api')>(), getSession: async () => ({ user: { role: session.role } }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [] }) }));
-afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); session.role = 'operator'; });
 
 async function render(query: Record<string, string | string[] | undefined> = {}) {
   return renderToStaticMarkup(await CalendarPage({
@@ -20,6 +23,16 @@ function transport(status = 200) {
 }
 
 describe('calendar month navigation', () => {
+  it('exposes editing only to operational roles and pending unpublished posts', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify({ data: [
+      { id: 'pending', platform: 'x', state: 'pending', scheduledFor: null, remoteId: null },
+      { id: 'handoff', platform: 'x', state: 'pending', scheduledFor: null, remoteId: 'remote' },
+      { id: 'published', platform: 'x', state: 'published', scheduledFor: null, remoteId: 'remote' },
+    ] }))));
+    expect((await render()).match(/Change schedule or cancel/g)).toHaveLength(1);
+    session.role = 'viewer';
+    expect(await render()).not.toContain('Change schedule or cancel');
+  });
   it('loads a distant month through the real API client with UTC bounds', async () => {
     const fetch = transport();
     const html = await render({ month: '2030-02' });
