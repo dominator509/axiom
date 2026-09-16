@@ -116,3 +116,17 @@ focused lint exited 0 with the existing Next pages-directory warning. No live
 profile was edited. Avatar editing, activation/deactivation enforcement, and
 deployed browser acceptance remain open. Hosted CI 35047124075 for the earlier
 af8fe4b revision completed successfully; it does not cover M204–M206.
+# M207: Crash report triage on Incidents
+
+Incidents now lists existing crash-report records with open/resolved/ignored
+filters and forward pagination. Operational roles can invoke the existing resolve
+endpoint; its mutation now also uses operational-role middleware server-side.
+Resolution checks returned report identity/status, preserves uncertain intent,
+and explicitly does not claim to repair software or replay jobs. Job recovery
+shows full escaped error detail, hides replay for known uncertain provider
+outcomes/read-only users, and no longer claims queue health from an empty page.
+
+Evidence: four dashboard regressions, dashboard typecheck, 68 API wiring/crash
+route tests passed. Focused dashboard lint exited 0 with the existing Next warning.
+No live report resolved or job replayed. Browser/mobile acceptance, job-list
+pagination, and runtime operator-role acceptance remain open.

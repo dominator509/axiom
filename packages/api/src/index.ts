@@ -780,6 +780,7 @@ app.use('/api/v1/models/:modelId/consent-records/*', operationalMutation);
 app.use('/api/v1/models/:modelId/playbook-score/record', operationalMutation);
 app.use('/api/v1/incidents', operationalMutation);
 app.use('/api/v1/incidents/*', operationalMutation);
+app.use('/api/v1/crash-reports/*', operationalMutation);
 app.use('/api/v1/digests/generate', operationalMutation);
 app.use('/api/v1/llm/*', operationalMutation);
 app.use('/api/v1/connectors/fanvue/*', operationalMutation);

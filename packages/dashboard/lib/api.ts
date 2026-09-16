@@ -285,6 +285,7 @@ export const api = {
       ),
   },
   incidents: {
+    crashes: (status: string, cursor?: string) => apiFetch<{ data: Array<{ id: string; service: string; message: string; severity: string; status: string; count: number; lastSeen: string }>; meta?: { next_cursor?: string | null } }>(`/api/v1/crash-reports?${new URLSearchParams({ status, ...(cursor ? { cursor } : {}) })}`),
     list: () => apiFetch<{ data: Array<Record<string, unknown>> }>('/api/v1/incidents'),
     replay: (jobId: string) =>
       apiFetch<{ success: boolean }>(`/api/v1/incidents/${jobId}/replay`, { method: 'POST' }),
