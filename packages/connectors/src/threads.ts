@@ -2,7 +2,13 @@
 // Uses the Threads Publishing API (Meta Graph API v1.0) for publishing,
 // metrics, and auth management.
 
-import { BaseConnector } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  readResponseJson,
+  readResponseText,
+  redactProviderText,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -15,12 +21,20 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
-import { validatePublish } from './validation.js';
+import { mediaTypeHint, validatePublish } from './validation.js';
 
 const THREADS_GRAPH_BASE = 'https://graph.threads.net/v1.0';
+const CONTAINER_POLL_INTERVAL_MS = 60_000;
+const CONTAINER_POLL_ATTEMPTS = 5;
 
 interface ThreadsMediaContainerResponse {
   id: string;
+}
+
+interface ThreadsContainerStatusResponse {
+  id: string;
+  status?: 'EXPIRED' | 'ERROR' | 'FINISHED' | 'IN_PROGRESS' | 'PUBLISHED';
+  error_message?: string;
 }
 
 interface ThreadsPublishResponse {
@@ -31,7 +45,8 @@ interface ThreadsInsightsResponse {
   data: Array<{
     name: string;
     period: string;
-    values: Array<{ value: number }>;
+    values?: Array<{ value: number }>;
+    total_value?: { value: number };
   }>;
 }
 
@@ -52,7 +67,9 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
       maxMediaCount: 20,
       caption: true,
       maxCaptionLength: 500,
-      scheduling: 'native' as const,
+      // The worker owns the scheduled slot; Threads containers are created
+      // and published immediately when the job runs.
+      scheduling: 'internal' as const,
       metrics: ['impressions', 'likes', 'comments', 'shares', 'reposts', 'quotes'],
       refreshMetrics: true,
     };
@@ -76,22 +93,24 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
       const creationIds: string[] = [];
 
       for (const mediaUrl of input.mediaUrls) {
-        const mediaType = this.detectMediaType(mediaUrl);
+        const mediaType = this.detectMediaType(mediaUrl, mediaTypeHint(input));
 
-        const body: Record<string, string | boolean> = {
+        const params: Record<string, string> = {
           media_type: mediaType === 'video' ? 'VIDEO' : 'IMAGE',
           ...(mediaType === 'video' ? { video_url: mediaUrl } : { image_url: mediaUrl }),
           access_token: accessToken,
+          // Threads calls the caption `text` on a single media container.
+          // Carousel captions belong to the parent container below.
+          ...(input.mediaUrls.length === 1 && input.caption ? { text: input.caption } : {}),
         };
-        if (input.mediaUrls.length > 1) body.is_carousel_item = true;
+        if (input.mediaUrls.length > 1) params.is_carousel_item = 'true';
 
         const createResp = await this.apiPost<ThreadsMediaContainerResponse>(
-          `${THREADS_GRAPH_BASE}/${threadsUserId}/threads`,
-          body,
-          { 'Content-Type': 'application/json' },
+          graphUrl(`${THREADS_GRAPH_BASE}/${threadsUserId}/threads`, params),
         );
 
         creationIds.push(createResp.id);
+        await this.waitForContainerReady(createResp.id);
         this.log('info', 'publish', `Created Threads media container ${createResp.id}`, {
           mediaUrl,
           mediaType,
@@ -102,25 +121,25 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
         creationIds.length > 1
           ? (
               await this.apiPost<ThreadsMediaContainerResponse>(
-                `${THREADS_GRAPH_BASE}/${threadsUserId}/threads`,
-                {
-                  media_type: 'CAROUSEL_ALBUM',
+                graphUrl(`${THREADS_GRAPH_BASE}/${threadsUserId}/threads`, {
+                  media_type: 'CAROUSEL',
                   text: input.caption,
                   children: creationIds.join(','),
                   access_token: accessToken,
-                },
-                { 'Content-Type': 'application/json' },
+                }),
               )
             ).id
           : creationIds[0];
 
       if (!publishCreationId) throw new Error('Threads did not return a publish container ID');
+      if (creationIds.length > 1) await this.waitForContainerReady(publishCreationId);
 
       // Step 2: Publish the single container (or carousel parent).
       const publishResp = await this.apiPost<ThreadsPublishResponse>(
-        `${THREADS_GRAPH_BASE}/${threadsUserId}/threads_publish`,
-        { creation_id: publishCreationId, access_token: accessToken },
-        { 'Content-Type': 'application/json' },
+        graphUrl(`${THREADS_GRAPH_BASE}/${threadsUserId}/threads_publish`, {
+          creation_id: publishCreationId,
+          access_token: accessToken,
+        }),
       );
       const lastRemoteId = publishResp.id;
 
@@ -146,22 +165,34 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
 
     const metricsUrl =
       `${THREADS_GRAPH_BASE}/${remoteId}/insights` +
-      `?metric=views,likes,replies,reposts,quotes,shares` +
-      `&access_token=${accessToken}`;
+      '?metric=views,likes,replies,reposts,quotes,shares';
 
-    const resp = await this.fetchImpl(metricsUrl);
+    const resp = await this.fetchImpl(metricsUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
     if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
-      throw new Error(`Threads metrics fetch failed: HTTP ${resp.status} — ${body}`);
+      const body = await readResponseText(
+        resp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      throw new Error(
+        `Threads metrics fetch failed: HTTP ${resp.status} — ${redactProviderText(body)}`,
+      );
     }
 
-    const data = (await resp.json()) as ThreadsInsightsResponse;
+    const data = await readResponseJson<ThreadsInsightsResponse>(resp);
 
     const result: Partial<Record<string, number>> = {};
 
     for (const item of data.data) {
-      if (item.values && item.values.length > 0) {
-        result[item.name] = item.values[0].value;
+      // Threads returns time-series metrics in values[], but engagement
+      // metrics such as likes/replies/reposts/quotes may be returned as a
+      // lifetime aggregate in total_value.value. Preserve either documented
+      // response shape instead of silently normalizing the latter to zero.
+      const value = item.total_value?.value ?? item.values?.[0]?.value;
+      if (typeof value === 'number') {
+        result[item.name] = value;
       }
     }
 
@@ -184,21 +215,21 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
   async revoke(): Promise<void> {
     const threadsUserId = this.auth.externalUserId;
     if (!threadsUserId) {
-      this.log('warn', 'revoke', 'No externalUserId set; skipping revoke');
-      return;
+      throw new Error('Threads revoke requires externalUserId (Threads User ID)');
     }
 
-    const accessToken = this.auth.accessToken;
-
     await this.apiDelete<ThreadsPermissionsResponse>(
-      `${THREADS_GRAPH_BASE}/${threadsUserId}/permissions?access_token=${accessToken}`,
+      `${THREADS_GRAPH_BASE}/${threadsUserId}/permissions`,
     );
 
     this.log('info', 'revoke', `Revoked Threads permissions for user ${threadsUserId}`);
   }
 
   /** Detect media type from URL extension */
-  private detectMediaType(url: string): 'image' | 'video' {
+  private detectMediaType(url: string, declared?: MediaType): 'image' | 'video' {
+    if (declared === 'video') return 'video';
+    if (declared === 'image') return 'image';
+
     try {
       const pathname = new URL(url).pathname;
       const ext = pathname.split('.').pop()?.toLowerCase() ?? '';
@@ -208,6 +239,40 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
       return 'image';
     }
   }
+
+  /**
+   * Threads media uploads are asynchronous. Publishing a container before
+   * Meta reports FINISHED is rejected for media and can strand a carousel.
+   * Meta recommends polling no more than once per minute for up to five
+   * minutes, so keep that provider contract explicit here.
+   */
+  private async waitForContainerReady(containerId: string): Promise<void> {
+    for (let attempt = 0; attempt < CONTAINER_POLL_ATTEMPTS; attempt++) {
+      const status = await this.apiGet<ThreadsContainerStatusResponse>(
+        `${THREADS_GRAPH_BASE}/${containerId}?fields=status`,
+      );
+
+      if (status.status === 'FINISHED' || status.status === 'PUBLISHED') return;
+
+      if (status.status === 'ERROR' || status.status === 'EXPIRED') {
+        throw new Error(
+          `Threads container ${containerId} processing ${status.status.toLowerCase()}: ${redactProviderText(status.error_message ?? 'unknown provider error')}`,
+        );
+      }
+
+      if (attempt < CONTAINER_POLL_ATTEMPTS - 1) {
+        await new Promise((resolve) => setTimeout(resolve, CONTAINER_POLL_INTERVAL_MS));
+      }
+    }
+
+    throw new Error(`Threads container ${containerId} processing timed out`);
+  }
+}
+
+function graphUrl(endpoint: string, params: Record<string, string>): string {
+  const url = new URL(endpoint);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  return url.toString();
 }
 
 export default ThreadsConnector;

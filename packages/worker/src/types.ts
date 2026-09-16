@@ -24,6 +24,7 @@ export interface JobRow {
 /** Job kinds per L3.4 §2. */
 export type JobKind =
   | 'content.generate'
+  | 'media.generate'
   | 'tos.scan'
   | 'relay.card'
   | 'publish.target'
@@ -34,6 +35,7 @@ export type JobKind =
 
 export const JOB_KINDS: JobKind[] = [
   'content.generate',
+  'media.generate',
   'tos.scan',
   'relay.card',
   'publish.target',

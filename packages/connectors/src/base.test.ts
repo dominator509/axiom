@@ -3,7 +3,15 @@
 // logging with MAX_LOG cap, and the HTTP helpers (apiGet/apiPost/apiUpload/apiDelete).
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { BaseConnector, CONNECTOR_REQUEST_TIMEOUT_MS } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_REQUEST_TIMEOUT_MS,
+  CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+  readResponseBytes,
+  readResponseText,
+  redactProviderText,
+  redactProviderUrl,
+} from './base.js';
 import type {
   ConnectorAuth,
   ConnectorPublishInput,
@@ -143,6 +151,18 @@ describe('idempotency', () => {
     expect(result).toEqual({ remoteId: null, state: 'skipped', error: 'Previously skipped' });
   });
 
+  it('does not carry a published result across connector instances', async () => {
+    const key = 'instance-isolation-key';
+    const first = new TestConnector();
+    await first.publish(input({ idempotencyKey: key }));
+
+    const second = new TestConnector();
+    const result = await second.publish(input({ idempotencyKey: key }));
+
+    expect(result.state).toBe('published');
+    expect(result.remoteId).toBe('r1');
+  });
+
   it('retries a previously failed publish', async () => {
     const c = new TestConnector();
     c.recordIdem('key-1', null, 'failed');
@@ -174,6 +194,15 @@ describe('logging', () => {
       platform: 'x',
     });
     expect(logs[0].timestamp).toBeTruthy();
+  });
+
+  it('redacts provider credentials from URLs and error text', () => {
+    expect(redactProviderUrl('https://graph.example.test/post?access_token=secret&fields=id')).toBe(
+      'https://graph.example.test/post?access_token=%5BREDACTED%5D&fields=id',
+    );
+    expect(redactProviderText('Bearer secret access_token=another-secret detail=bad')).toBe(
+      'Bearer [REDACTED] access_token=[REDACTED] detail=bad',
+    );
   });
 
   it('caps log history at MAX_LOG (100) entries', () => {
@@ -220,6 +249,24 @@ describe('apiGet', () => {
     expect(errorLogs).toHaveLength(1);
   });
 
+  it('accepts a successful empty response such as HTTP 204', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+    const c = new TestConnector({ accessToken: 'tok' });
+    await expect(c.get('https://api.example.com/v1/things')).resolves.toBeUndefined();
+  });
+
+  it('rejects a successful response that exceeds the JSON body ceiling', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('x'.repeat(CONNECTOR_MAX_JSON_RESPONSE_BYTES + 1))),
+    );
+    const c = new TestConnector();
+    await expect(c.get('https://api.example.com/v1/things')).rejects.toThrow(
+      'provider JSON response exceeds the maximum supported size of 1048576 bytes',
+    );
+  });
+
   it('propagates network errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network down')));
     const c = new TestConnector();
@@ -253,6 +300,13 @@ describe('apiPost', () => {
     await expect(c.post('https://api.example.com/v1/create', {})).rejects.toThrow(
       'API POST https://api.example.com/v1/create failed: 400 Bad Request',
     );
+  });
+
+  it('accepts a successful empty response such as HTTP 204', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+    const c = new TestConnector({ accessToken: 'tok' });
+    await expect(c.post('https://api.example.com/v1/create', {})).resolves.toBeUndefined();
   });
 
   it('propagates network errors', async () => {
@@ -296,6 +350,14 @@ describe('apiUpload', () => {
       'API Upload to https://api.example.com/v1/upload failed: 503 Unavailable',
     );
   });
+
+  it('accepts a successful empty response such as HTTP 204', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+    const c = new TestConnector({ accessToken: 'tok' });
+    const fd = new FormData();
+    await expect(c.upload('https://api.example.com/v1/upload', fd)).resolves.toBeUndefined();
+  });
 });
 
 describe('apiDelete', () => {
@@ -313,6 +375,13 @@ describe('apiDelete', () => {
     expect(url).toBe('https://api.example.com/v1/things/1');
     expect(init.method).toBe('DELETE');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok');
+  });
+
+  it('accepts a successful empty response such as HTTP 204', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+    const c = new TestConnector({ accessToken: 'tok' });
+    await expect(c.del('https://api.example.com/v1/things/1')).resolves.toBeUndefined();
   });
 
   it('throws on non-ok responses', async () => {
@@ -341,5 +410,25 @@ describe('provider request deadline', () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
     expect(init.signal?.aborted).toBe(false);
     expect(CONNECTOR_REQUEST_TIMEOUT_MS).toBe(5 * 60_000);
+  });
+});
+
+describe('bounded media reads', () => {
+  it('reads a response incrementally up to the configured limit', async () => {
+    const bytes = await readResponseBytes(new Response('123456'), 6, 'media');
+    expect(new TextDecoder().decode(bytes)).toBe('123456');
+  });
+
+  it('rejects streamed content that exceeds the configured limit', async () => {
+    await expect(readResponseBytes(new Response('1234567'), 6, 'media')).rejects.toThrow(
+      'media exceeds the maximum supported size of 6 bytes',
+    );
+  });
+
+  it('reads bounded text without allocating beyond the configured limit', async () => {
+    await expect(readResponseText(new Response('hello'), 5, 'text')).resolves.toBe('hello');
+    await expect(readResponseText(new Response('hello!'), 5, 'text')).rejects.toThrow(
+      'text exceeds the maximum supported size of 5 bytes',
+    );
   });
 });

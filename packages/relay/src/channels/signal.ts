@@ -3,6 +3,9 @@ import type { RelayCard, CardAction } from '../card.js';
 import { CardRenderer } from '../card.js';
 import { CommandRouter, type CommandContext } from '../commands.js';
 
+const SIGNAL_SEND_TIMEOUT_MS = 30_000;
+const SIGNAL_NOTIFICATION_MAX_BYTES = 256 * 1024;
+
 export interface SignalConfig {
   cliPath: string;
   account: string;
@@ -58,7 +61,9 @@ export class SignalAdapter {
     }
     const body = this.renderer.toText(card);
 
-    await execa(this.config.cliPath, ['send', '-a', this.config.account, chatId, body]);
+    await execa(this.config.cliPath, ['send', '-a', this.config.account, chatId, body], {
+      timeout: SIGNAL_SEND_TIMEOUT_MS,
+    });
   }
 
   /**
@@ -175,6 +180,7 @@ export function parseSignalNotification(value: unknown): SignalMessage | null {
   const parsedValue =
     typeof value === 'string'
       ? (() => {
+          if (Buffer.byteLength(value, 'utf8') > SIGNAL_NOTIFICATION_MAX_BYTES) return null;
           try {
             return JSON.parse(value);
           } catch {

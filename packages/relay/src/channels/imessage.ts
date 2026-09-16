@@ -3,6 +3,8 @@ import type { RelayCard, CardAction } from '../card.js';
 import { CardRenderer } from '../card.js';
 import { CommandRouter, type CommandContext } from '../commands.js';
 
+const IMESSAGE_SEND_TIMEOUT_MS = 30_000;
+
 export interface IMessageConfig {
   blueBubblesUrl: string;
   /** BlueBubbles server password used as the documented `password` query parameter. */
@@ -70,6 +72,7 @@ export class IMessageAdapter {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(IMESSAGE_SEND_TIMEOUT_MS),
     });
     if (!response.ok) {
       throw new Error(`BlueBubbles send failed: HTTP ${response.status}`);

@@ -8,6 +8,7 @@ import type {
   BaseProvider,
 } from './types.js';
 import { ProviderError } from './types.js';
+import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
 
 export const MISTRAL_BASE_URL = 'https://api.mistral.ai/v1';
 
@@ -28,7 +29,7 @@ export class MistralProvider implements BaseProvider {
         temperature: options?.temperature,
         max_tokens: options?.maxTokens,
       },
-      undefined,
+      options?.signal,
       options?.fetchImpl ?? fetch,
     );
     return {
@@ -56,7 +57,7 @@ export class MistralProvider implements BaseProvider {
           temperature: options?.temperature,
           max_tokens: options?.maxTokens,
         },
-        undefined,
+        options?.signal,
         options?.fetchImpl ?? fetch,
       )) {
         yield { type: 'delta', content: delta };
@@ -108,10 +109,10 @@ export async function callMistral(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new Error(`Mistral API error ${res.status}: ${text}`);
   }
-  return res.json() as Promise<MistralCompletionResponse>;
+  return readProviderJson<MistralCompletionResponse>(res);
 }
 
 export async function* streamMistral(
@@ -130,7 +131,7 @@ export async function* streamMistral(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new Error(`Mistral stream error ${res.status}: ${text}`);
   }
   const reader = res.body?.getReader();

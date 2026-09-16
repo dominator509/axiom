@@ -24,7 +24,7 @@ vi.mock('@axiom/worker', () => ({
     'publish',
     'publish.image',
     'publish.carousel',
-    'schedule.native',
+    'schedule.internal',
     'read.insights',
   ]),
   connectorForConnection: vi.fn(async () => ({
@@ -69,7 +69,12 @@ describe('GET / — list connections', () => {
         modelId: MODEL_ID,
         platform: 'instagram',
         displayName: '@luna',
+        capabilities: ['publish', 'read.insights'],
         status: 'connected',
+        connectedAt: new Date('2026-01-01T00:00:00.000Z'),
+        encToken: new Uint8Array([1, 2, 3]),
+        encNonce: new Uint8Array([4, 5, 6]),
+        dekId: 'secret-dek-id',
       },
     ];
     const res = await appWithOrg(ORG_ID).request(`/?modelId=${MODEL_ID}`);
@@ -77,6 +82,10 @@ describe('GET / — list connections', () => {
     const body = (await res.json()) as any;
     expect(body.data).toHaveLength(1);
     expect(body.data[0].platform).toBe('instagram');
+    expect(body.data[0].capabilities).toEqual(['publish', 'read.insights']);
+    expect(body.data[0]).not.toHaveProperty('encToken');
+    expect(body.data[0]).not.toHaveProperty('encNonce');
+    expect(body.data[0]).not.toHaveProperty('dekId');
   });
 
   it('returns an empty list when nothing is connected', async () => {
@@ -111,7 +120,12 @@ describe('POST / — connect', () => {
         modelId: MODEL_ID,
         platform: 'instagram',
         displayName: '@luna',
+        capabilities: ['publish'],
         status: 'connected',
+        connectedAt: new Date('2026-01-01T00:00:00.000Z'),
+        encToken: new Uint8Array([1, 2, 3]),
+        encNonce: new Uint8Array([4, 5, 6]),
+        dekId: 'secret-dek-id',
       },
     ];
     const res = await appWithOrg(ORG_ID).request(`/?modelId=${MODEL_ID}`, {
@@ -122,6 +136,9 @@ describe('POST / — connect', () => {
     expect(res.status).toBe(201);
     const resBody = (await res.json()) as any;
     expect(resBody.data.platform).toBe('instagram');
+    expect(resBody.data).not.toHaveProperty('encToken');
+    expect(resBody.data).not.toHaveProperty('encNonce');
+    expect(resBody.data).not.toHaveProperty('dekId');
     expect(resolveCapabilities).toHaveBeenCalledWith('instagram');
     expect(capabilityNames).toHaveBeenCalled();
   });

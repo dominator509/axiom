@@ -1,0 +1,57 @@
+# =============================================================================
+# Dockerfile.scraper — authenticated social-scraper sidecar
+# Multi-stage: builder → runner
+# =============================================================================
+
+# ------------------------------------------------------------------------------
+# Stage 1: Builder
+# ------------------------------------------------------------------------------
+# rust:1.97-slim-bookworm manifest digest (resolved 2026-09-09).
+FROM rust:1.97-slim-bookworm@sha256:2775a09d208ff0d7c1f50490c45b62db929e87ba1dcbc3f2132ac71a704bcdd3 AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates/egress-plane/Cargo.toml ./crates/egress-plane/Cargo.toml
+COPY crates/media-plane/Cargo.toml ./crates/media-plane/Cargo.toml
+COPY crates/vision-engine/Cargo.toml ./crates/vision-engine/Cargo.toml
+COPY crates/scraper/Cargo.toml ./crates/scraper/Cargo.toml
+COPY crates/egress-plane/src ./crates/egress-plane/src
+COPY crates/media-plane/src ./crates/media-plane/src
+COPY crates/vision-engine/src ./crates/vision-engine/src
+COPY crates/scraper/src ./crates/scraper/src
+
+RUN cargo build --locked --release --package social-scraper
+
+# ------------------------------------------------------------------------------
+# Stage 2: Runtime
+# ------------------------------------------------------------------------------
+# debian:bookworm-slim manifest digest (resolved 2026-09-09).
+FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS runner
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    && groupadd --system --gid 1001 scraper \
+    && useradd --system --uid 1001 --gid 1001 --home-dir /nonexistent --no-create-home scraper \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /app/target/release/social-scraper /app/social-scraper
+
+USER 1001:1001
+
+ENV NODE_ENV=production
+ENV AXIOM_SCRAPER_ADDR=0.0.0.0:8102
+EXPOSE 8102
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl --fail --silent --show-error http://127.0.0.1:8102/health >/dev/null
+
+ENTRYPOINT ["/app/social-scraper"]

@@ -14,7 +14,7 @@
 
 import { and, eq, gte, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { enqueueJob, scoreTargetEngagement, labelForZ } from '@axiom/worker';
+import { enqueueJob, latestMetricSamples, scoreTargetEngagement, labelForZ } from '@axiom/worker';
 import { withOrgContext } from './routes/helpers.js';
 import type { ViralPersistence, ViralPersistInput, ViralListInput } from '@axiom/relay';
 
@@ -69,10 +69,11 @@ async function computeLabel(
   const modelId = bundles[0].modelId;
 
   const windowStart = new Date(Date.now() - LABEL_WINDOW_MS);
-  const history = await tx
+  const historyRows = await tx
     .select({
       postTargetId: schema.postMetric.postTargetId,
       engagementRate: schema.postMetric.engagementRate,
+      collectedAt: schema.postMetric.collectedAt,
     })
     .from(schema.postMetric)
     .innerJoin(schema.postTarget, eq(schema.postTarget.id, schema.postMetric.postTargetId))
@@ -87,6 +88,7 @@ async function computeLabel(
       ),
     )
     .orderBy(desc(schema.postMetric.collectedAt));
+  const history = latestMetricSamples(historyRows);
 
   try {
     return labelForZ(scoreTargetEngagement(history, targetId).perfScore);

@@ -40,3 +40,6 @@ target/
 .obsidian/
 # Local media-plane working data
 /var/
+/crates/media-plane/var/
+**/.next-dev/
+**/.next-rehearsal/

@@ -7,7 +7,13 @@
 //  5. Enqueue metrics.poll for the published target (L2.8 §1).
 
 import { eq, and } from 'drizzle-orm';
-import { schema, getPublishingConsentStatus, consentRequirementMessage } from '@axiom/db';
+import { isProductionEnvironment, tosReportPassesForPlatforms } from '@axiom/core';
+import {
+  schema,
+  getPublishingConsentStatus,
+  consentRequirementMessage,
+  getTosScanState,
+} from '@axiom/db';
 import { asPlatform, connectorForTarget } from '../connection.js';
 import { enqueueJob } from '../enqueue.js';
 import { ParkJobError } from './context.js';
@@ -19,7 +25,7 @@ const PENDING_PUBLISH_RETRY_MS = 60_000;
 
 /** Target states that must not be dispatched to a connector again. */
 export function isTerminalPublishTargetState(state: string): boolean {
-  return state === 'published' || state === 'skipped';
+  return state === 'published' || state === 'skipped' || state === 'canceled';
 }
 
 type PublishAsset = {
@@ -93,7 +99,7 @@ export function resolveProviderAssetUrl(asset: Pick<PublishAsset, 'id' | 'storag
   if (base.protocol !== 'http:' && base.protocol !== 'https:') {
     throw new Error('publish.target: AXIOM_ASSET_DELIVERY_BASE_URL must use http(s)');
   }
-  if (process.env.NODE_ENV === 'production' && base.protocol !== 'https:') {
+  if (isProductionEnvironment(process.env) && base.protocol !== 'https:') {
     throw new Error('publish.target: AXIOM_ASSET_DELIVERY_BASE_URL must use https in production');
   }
   if (base.username || base.password || base.search || base.hash) {
@@ -147,6 +153,30 @@ export function shouldEnqueueMetrics(
   return Boolean(remoteId && metrics.length > 0);
 }
 
+/**
+ * Build the durable reconciliation record written immediately before a
+ * provider publish. Keep the marker deliberately narrow: it must identify the
+ * attempt without persisting captions, media URLs, or credentials.
+ */
+export function publishDispatchMarkerValues(
+  orgId: string,
+  modelId: string,
+  targetId: string,
+  platform: string,
+  idempotencyKey: string,
+  startedAt = new Date(),
+) {
+  return {
+    orgId,
+    modelId,
+    targetId,
+    script: 'publish.dispatch',
+    status: 'pending',
+    input: { platform, idempotencyKey },
+    startedAt,
+  };
+}
+
 export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const { tx, job, killSwitchEnabled } = ctx;
   const payload = (job.payload ?? {}) as { targetId?: string };
@@ -163,7 +193,11 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     .select()
     .from(schema.postTarget)
     .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)))
-    .limit(1);
+    .limit(1)
+    // Serialize publish attempts for one target before any provider I/O. A
+    // second worker waits for the first transaction, then observes its
+    // committed terminal state instead of racing into another publish call.
+    .for('update');
   if (targets.length === 0) throw new Error(`publish.target: target ${targetId} not found`);
   const target = targets[0];
   if (isTerminalPublishTargetState(target.state)) {
@@ -173,6 +207,16 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     // assisted connector's skipped handoff is also terminal: the operator
     // must complete it manually rather than causing an automatic retry loop.
     return;
+  }
+
+  // The job may have been claimed before an operator postponed the target.
+  // Recheck the authoritative schedule under its lock before provider I/O;
+  // updating only a ready job's run_after cannot cover that claim race.
+  if (!target.remoteId && target.scheduledFor) {
+    const delayMs = new Date(target.scheduledFor).getTime() - Date.now();
+    if (delayMs > 0) {
+      throw new ParkJobError('publish.target: target rescheduled into the future', delayMs);
+    }
   }
 
   const bundles = await tx
@@ -187,6 +231,28 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   if (bundle.state !== 'approved') {
     throw new Error(
       `publish.target: bundle ${target.bundleId} is ${bundle.state}; publishing requires approved state`,
+    );
+  }
+
+  const tosScanState = await getTosScanState(tx, job.org_id, target.bundleId);
+  if (tosScanState === 'pending') {
+    throw new ParkJobError(
+      `publish.target: ToS scan for bundle ${target.bundleId} is still running`,
+      PENDING_PUBLISH_RETRY_MS,
+    );
+  }
+  if (tosScanState !== 'completed') {
+    throw new Error(
+      `publish.target: ToS scan for bundle ${target.bundleId} is ${tosScanState}; refusing provider dispatch`,
+    );
+  }
+
+  // Defense-in-depth for every producer of post_targets, including MCP and
+  // operator tooling: no connector call is allowed without a complete,
+  // passing ToS report for the exact destination.
+  if (!tosReportPassesForPlatforms(bundle.tosReport, [target.platform])) {
+    throw new Error(
+      `publish.target: ToS check unavailable or not passing for ${target.platform}; refusing provider dispatch`,
     );
   }
 
@@ -324,9 +390,67 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     );
   }
 
+  // A marker left in its initial state means a previous worker may have
+  // reached the provider and died before committing the target result. Treat
+  // that outcome as unknown and dead-letter for reconciliation; never issue a
+  // blind second provider call. Legitimate asynchronous provider results use
+  // the distinct `provider-pending` state below and remain retryable.
+  const unresolvedDispatch = await tx
+    .select({ id: schema.prePostRun.id })
+    .from(schema.prePostRun)
+    .where(
+      and(
+        eq(schema.prePostRun.orgId, job.org_id),
+        eq(schema.prePostRun.targetId, targetId),
+        eq(schema.prePostRun.script, 'publish.dispatch'),
+        eq(schema.prePostRun.status, 'pending'),
+      ),
+    )
+    .limit(1);
+  if (unresolvedDispatch.length > 0) {
+    ctx.markExternalSideEffect?.();
+    throw new Error(
+      `publish.target: unresolved dispatch marker ${unresolvedDispatch[0].id}; provider reconciliation required before retry`,
+    );
+  }
+
+  // Commit an independent reconciliation anchor before provider I/O. If the
+  // provider accepts the post and this executor process crashes before its
+  // transaction commits, the pending marker survives stale-job recovery and
+  // tells operators that the target requires provider reconciliation instead
+  // of an unsafe blind retry.
+  const persistSideEffectMarker: NonNullable<ExecutorContext['persistSideEffectMarker']> =
+    ctx.persistSideEffectMarker ??
+    (async <T>(operation: (markerTx: any) => Promise<T>): Promise<T> => operation(tx));
+  const [dispatchMarker] = await persistSideEffectMarker<Array<{ id: string }>>((markerTx) =>
+    markerTx
+      .insert(schema.prePostRun)
+      .values(
+        publishDispatchMarkerValues(job.org_id, model.id, targetId, platform, input.idempotencyKey),
+      )
+      .returning({ id: schema.prePostRun.id }),
+  );
+  if (!dispatchMarker?.id) {
+    throw new Error('publish.target: dispatch marker insert returned no id');
+  }
+
+  // From this point onward the provider may have accepted the request. If
+  // local persistence fails after this call, the worker must not retry the
+  // target automatically because that can double-post.
+  ctx.markExternalSideEffect?.();
   const result = await connector.publish(stagedInput);
 
   if (result.state === 'pending') {
+    await tx
+      .update(schema.prePostRun)
+      .set({
+        status: 'provider-pending',
+        output: { state: result.state, remoteId: result.remoteId },
+        error: result.error ?? null,
+      })
+      .where(
+        and(eq(schema.prePostRun.id, dispatchMarker.id), eq(schema.prePostRun.orgId, job.org_id)),
+      );
     await tx
       .update(schema.postTarget)
       .set({ state: 'pending', remoteId: result.remoteId, error: result.error ?? null })
@@ -348,6 +472,17 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   }
 
   if (result.state === 'skipped') {
+    await tx
+      .update(schema.prePostRun)
+      .set({
+        status: 'skipped',
+        output: { state: result.state, remoteId: result.remoteId },
+        error: result.error ?? null,
+        finishedAt: new Date(),
+      })
+      .where(
+        and(eq(schema.prePostRun.id, dispatchMarker.id), eq(schema.prePostRun.orgId, job.org_id)),
+      );
     // Assisted connectors intentionally have no provider remote ID. Persist
     // the handoff as terminal so the worker marks the job done and does not
     // retry the same operator action as though it were a failed API call.
@@ -362,8 +497,20 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     throw new Error(`publish.target: connector publish failed: ${result.error ?? 'no remote_id'}`);
   }
 
+  await tx
+    .update(schema.prePostRun)
+    .set({
+      status: 'success',
+      output: { state: result.state, remoteId: result.remoteId },
+      error: null,
+      finishedAt: new Date(),
+    })
+    .where(
+      and(eq(schema.prePostRun.id, dispatchMarker.id), eq(schema.prePostRun.orgId, job.org_id)),
+    );
+
   // 3b. Post-publish hook (recorded in pre_post_run; fire-and-forget hooks).
-  await runPrePostAfter(ctx, prePostInput, result);
+  await runPrePostAfter(ctx, { ...prePostInput, phase: 'after' }, result);
 
   // 4. Mark published + write idempotency ledger in the SAME txn (L3.4 §4).
   await tx

@@ -23,9 +23,63 @@ function rustTosBody(over: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 describe('VisionEngineClient', () => {
+  it.each([null, undefined, '0', false, -0.1, 1.1])(
+    'rejects invalid scores on both inference routes (case %#)',
+    async (score) => {
+      vi.stubGlobal('fetch', vi.fn().mockImplementation(async () =>
+        jsonResponse(rustTosBody({ nsfw_score: score }))));
+      for (const allowLocalFallback of [false, true]) {
+        const client = new VisionEngineClient({ allowLocalFallback });
+        await expect(client.callTosClassify('image.png')).rejects.toThrow('invalid nsfw_score');
+        await expect(client.callNsfwDetect('image.png')).rejects.toThrow('invalid nsfw_score');
+      }
+    },
+  );
+
+  it('rejects non-finite JSON numbers instead of treating them as scores', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () =>
+      new Response('{"nsfw_score":1e400}', { headers: { 'Content-Type': 'application/json' } })));
+    const client = new VisionEngineClient({ allowLocalFallback: true });
+    await expect(client.callTosClassify('image.png')).rejects.toThrow('invalid nsfw_score');
+    await expect(client.callNsfwDetect('image.png')).rejects.toThrow('invalid nsfw_score');
+  });
+
+  it.each([0, 1])('preserves valid boundary score %s on both routes', async (score) => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () =>
+      jsonResponse(rustTosBody({ nsfw_score: score }))));
+    const client = new VisionEngineClient();
+    expect((await client.callTosClassify('image.png')).score).toBe(score);
+    expect((await client.callNsfwDetect('image.png')).score).toBe(score);
+  });
+
+  it('uses the deployment-configured vision service for the default client', async () => {
+    vi.stubEnv('VISION_ENGINE_URL', 'http://vision-engine:8101');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(rustTosBody())));
+
+    const client = new VisionEngineClient();
+    await client.callTosClassify('/var/media/img.png');
+
+    const [url] = vi.mocked(fetch).mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('http://vision-engine:8101/vision/tos-classify');
+  });
+
+  it('sends the configured internal bearer token to the vision service', async () => {
+    vi.stubEnv('AXIOM_VISION_AUTH_TOKEN', 'test-internal-token');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(rustTosBody())));
+
+    const client = new VisionEngineClient({ baseUrl: 'http://vision-engine:8101' });
+    await client.callTosClassify('/var/media/img.png');
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] as unknown as [string, RequestInit];
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer test-internal-token');
+  });
+
   it('calls the Rust engine with image_path and maps the real response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(rustTosBody())));
     const client = new VisionEngineClient({ baseUrl: 'http://engine.test' });

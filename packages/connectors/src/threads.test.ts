@@ -38,6 +38,7 @@ describe('ThreadsConnector', () => {
     expect(cap.media).toEqual(['image', 'video', 'carousel']);
     expect(cap.maxMediaCount).toBe(20);
     expect(cap.maxCaptionLength).toBe(500);
+    expect(cap.scheduling).toBe('internal');
     expect(cap.metrics).toEqual([
       'impressions',
       'likes',
@@ -62,8 +63,11 @@ describe('publish', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(jsonResponse({ id: 'c1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'c1', status: 'FINISHED' }))
       .mockResolvedValueOnce(jsonResponse({ id: 'c2' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'c2', status: 'FINISHED' }))
       .mockResolvedValueOnce(jsonResponse({ id: 'parent-1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'parent-1', status: 'FINISHED' }))
       .mockResolvedValueOnce(jsonResponse({ id: 'p1' }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -78,31 +82,54 @@ describe('publish', () => {
 
     // Container creation calls come first (both)
     const create1 = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(create1[0]).toBe('https://graph.threads.net/v1.0/threads-user-1/threads');
-    expect(JSON.parse(create1[1].body as string)).toMatchObject({
-      media_type: 'IMAGE',
-      image_url: 'https://cdn.example.com/a.jpg',
-      is_carousel_item: true,
-    });
+    const create1Url = new URL(create1[0]);
+    expect(create1Url.origin + create1Url.pathname).toBe(
+      'https://graph.threads.net/v1.0/threads-user-1/threads',
+    );
+    expect(create1[1].body).toBeUndefined();
+    expect(create1Url.searchParams.get('media_type')).toBe('IMAGE');
+    expect(create1Url.searchParams.get('image_url')).toBe('https://cdn.example.com/a.jpg');
+    expect(create1Url.searchParams.get('is_carousel_item')).toBe('true');
 
-    const create2 = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(JSON.parse(create2[1].body as string)).toMatchObject({
-      media_type: 'VIDEO',
-      video_url: 'https://cdn.example.com/b.mp4',
-      is_carousel_item: true,
-    });
+    const create2 = fetchMock.mock.calls[2] as [string, RequestInit];
+    const create2Url = new URL(create2[0]);
+    expect(create2[1].body).toBeUndefined();
+    expect(create2Url.searchParams.get('media_type')).toBe('VIDEO');
+    expect(create2Url.searchParams.get('video_url')).toBe('https://cdn.example.com/b.mp4');
+    expect(create2Url.searchParams.get('is_carousel_item')).toBe('true');
 
-    const parent = fetchMock.mock.calls[2] as [string, RequestInit];
-    expect(parent[0]).toBe('https://graph.threads.net/v1.0/threads-user-1/threads');
-    expect(JSON.parse(parent[1].body as string)).toMatchObject({
-      media_type: 'CAROUSEL_ALBUM',
-      text: 'Hello Threads',
-      children: 'c1,c2',
-    });
+    const parent = fetchMock.mock.calls[4] as [string, RequestInit];
+    const parentUrl = new URL(parent[0]);
+    expect(parentUrl.origin + parentUrl.pathname).toBe(
+      'https://graph.threads.net/v1.0/threads-user-1/threads',
+    );
+    expect(parent[1].body).toBeUndefined();
+    expect(parentUrl.searchParams.get('media_type')).toBe('CAROUSEL');
+    expect(parentUrl.searchParams.get('text')).toBe('Hello Threads');
+    expect(parentUrl.searchParams.get('children')).toBe('c1,c2');
 
-    const publish = fetchMock.mock.calls[3] as [string, RequestInit];
-    expect(publish[0]).toBe('https://graph.threads.net/v1.0/threads-user-1/threads_publish');
-    expect(JSON.parse(publish[1].body as string)).toMatchObject({ creation_id: 'parent-1' });
+    const publish = fetchMock.mock.calls[6] as [string, RequestInit];
+    const publishUrl = new URL(publish[0]);
+    expect(publishUrl.origin + publishUrl.pathname).toBe(
+      'https://graph.threads.net/v1.0/threads-user-1/threads_publish',
+    );
+    expect(publish[1].body).toBeUndefined();
+    expect(publishUrl.searchParams.get('creation_id')).toBe('parent-1');
+  });
+
+  it('sends the caption on a single-media container', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ id: 'c1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'c1', status: 'FINISHED' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'p1' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await new ThreadsConnector(AUTH).publish(input());
+
+    expect(result).toMatchObject({ state: 'published', remoteId: 'p1' });
+    const [createUrl] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(new URL(createUrl).searchParams.get('text')).toBe('Hello Threads');
   });
 
   it('fails fast when externalUserId is missing', async () => {
@@ -142,10 +169,34 @@ describe('fetchMetrics', () => {
       quotes: 0,
     });
 
-    const [url] = vi.mocked(fetch).mock.calls[0] as [string];
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
     expect(url).toBe(
-      'https://graph.threads.net/v1.0/p1/insights?metric=views,likes,replies,reposts,quotes,shares&access_token=threads-token',
+      'https://graph.threads.net/v1.0/p1/insights?metric=views,likes,replies,reposts,quotes,shares',
     );
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer threads-token');
+  });
+
+  it('maps aggregate insight metrics returned in total_value', async () => {
+    const data = {
+      data: [
+        { name: 'likes', period: 'lifetime', total_value: { value: 14 } },
+        { name: 'replies', period: 'lifetime', total_value: { value: 3 } },
+        { name: 'reposts', period: 'lifetime', total_value: { value: 2 } },
+        { name: 'quotes', period: 'lifetime', total_value: { value: 1 } },
+      ],
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(data)));
+
+    const metrics = await new ThreadsConnector(AUTH).fetchMetrics('p1');
+
+    expect(metrics.metrics).toEqual({
+      impressions: 0,
+      likes: 14,
+      comments: 3,
+      shares: 0,
+      reposts: 2,
+      quotes: 1,
+    });
   });
 
   it('throws when the metrics fetch fails', async () => {
@@ -164,17 +215,16 @@ describe('revoke', () => {
     await c.revoke();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(
-      'https://graph.threads.net/v1.0/threads-user-1/permissions?access_token=threads-token',
-    );
+    expect(url).toBe('https://graph.threads.net/v1.0/threads-user-1/permissions');
     expect(init.method).toBe('DELETE');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer threads-token');
   });
 
-  it('skips when externalUserId is missing', async () => {
+  it('fails when externalUserId is missing', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const c = new ThreadsConnector({ accessToken: 't' });
-    await expect(c.revoke()).resolves.toBeUndefined();
+    await expect(c.revoke()).rejects.toThrow('requires externalUserId');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

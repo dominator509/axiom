@@ -1,8 +1,5 @@
 import { z } from 'zod';
-import { v4 as uuidv4 } from 'uuid';
-import { eq } from 'drizzle-orm';
 import { Tier, type AgentPermission } from '../auth.js';
-import { withModelOrg, schema } from '../org-context.js';
 
 /**
  * Input schema for network configuration updates.
@@ -27,18 +24,17 @@ export const NetworkInputSchema = z.object({
 export type NetworkInput = z.infer<typeof NetworkInputSchema>;
 
 /**
- * Network tool — update cross-platform network configuration.
- * Exclusive to Autonomous tier. Requires dashboard-grant (approval via Relay).
+ * Network tool — reserved for cross-platform network configuration.
+ * Exclusive to Autonomous tier. The durable dashboard/Relay approval executor
+ * is not currently bound, so requests fail closed before any DB mutation.
  *
- * Real behaviour (H-2): persists the requested configuration into the model's
- * org_settings.features map (versioned) as a pending_approval change; the
- * dashboard/relay approval path applies it. The change is auditable because
- * org_settings carries updated_at.
+ * Do not persist a pending change without a consumer. That would report a
+ * successful approval handoff while leaving the request permanently inert.
  */
 export class NetworkTool {
   name = 'network_configure';
   description =
-    'Update cross-platform network configuration including cross-posting toggles, auto-reply thresholds, repost cadence, rate limits, and content blocklists. Autonomous-tier only — requires dashboard approval.';
+    'Network configuration is unavailable until a durable dashboard/Relay approval executor is configured.';
   inputSchema = NetworkInputSchema;
   tier: Tier = Tier.Autonomous;
   requiresApproval = true;
@@ -53,34 +49,8 @@ export class NetworkTool {
       );
     }
 
-    const changeId = uuidv4();
-
-    await withModelOrg(args.modelId, async (tx, orgId) => {
-      const orgRows = await tx
-        .select({ features: schema.org.features })
-        .from(schema.org)
-        .where(eq(schema.org.id, orgId))
-        .limit(1);
-
-      const features = (orgRows[0]?.features ?? {}) as Record<string, unknown>;
-      const pending = (features.pendingNetworkChanges ?? {}) as Record<string, unknown>;
-      await tx
-        .update(schema.org)
-        .set({
-          features: { ...features, pendingNetworkChanges: { ...pending, [changeId]: args.config } },
-        })
-        .where(eq(schema.org.id, orgId));
-    });
-
-    return {
-      success: true,
-      tool: this.name,
-      changeId,
-      requiresApproval: true,
-      modelId: args.modelId,
-      config: args.config,
-      status: 'pending_approval',
-      message: 'Network configuration change submitted for dashboard approval.',
-    };
+    throw new Error(
+      'Network configuration is unavailable: no durable dashboard/Relay approval executor is configured',
+    );
   }
 }

@@ -75,22 +75,55 @@ export function assertRelayBindingDispatchable(
 
 export const relayCard: Executor = async (ctx: ExecutorContext) => {
   const { tx, job, killSwitchEnabled } = ctx;
-  const payload = (job.payload ?? {}) as { bundleId?: string; channel?: string };
+  const payload = (job.payload ?? {}) as { bundleId?: string; channel?: string; revisionId?: string | null };
   const bundleId = payload.bundleId;
   if (!bundleId) throw new Error('relay.card: payload.bundleId required');
-
-  // Kill switch also gates card dispatch (L3.4 §5: every *.card worker).
-  if (killSwitchEnabled) {
-    throw new ParkJobError('relay.card: kill switch enabled — parked', 60_000);
-  }
 
   const bundles = await tx
     .select()
     .from(schema.contentBundle)
     .where(and(eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, job.org_id)))
-    .limit(1);
+    .limit(1)
+    // Keep revision/state stable through dispatch. NO KEY UPDATE still permits
+    // the independent marker transaction's foreign-key KEY SHARE lock; UPDATE
+    // would block our own marker while we wait for its commit.
+    .for('no key update');
   if (bundles.length === 0) throw new Error(`relay.card: bundle ${bundleId} not found`);
   const bundle = bundles[0];
+
+  // A parked card can outlive the operator's dashboard decision. Do not send
+  // another approval request for content that has left the decision stage.
+  // Revision completion enqueues a fresh scan/card, so the old card job can
+  // also finish while caption revision is in progress.
+  switch (bundle.state) {
+    case 'generated':
+    case 'hold':
+      break;
+    case 'approved':
+    case 'scheduled':
+    case 'publishing':
+    case 'published':
+    case 'rejected':
+    case 'revising':
+      return;
+    default:
+      throw new Error('relay.card: unknown bundle lifecycle state; refusing dispatch');
+  }
+
+  const tosReport = (bundle.tosReport as Record<string, unknown> | null) ?? {};
+  // Unversioned jobs belong to the initial revision. They must not pick up a
+  // later caption revision merely because delivery was delayed. Its completed
+  // scan produces a new card job with an explicit revision identity.
+  if ((payload.revisionId ?? null) !== (tosReport.revisionId ?? null)) return;
+
+  // Kill switch gates every actionable card before any provider work. Obsolete
+  // jobs above can finish even while killed: they perform no outbound I/O.
+  if (killSwitchEnabled) {
+    throw new ParkJobError('relay.card: kill switch enabled — parked', 60_000);
+  }
+  if (tosReport.verdict === 'pending') {
+    throw new ParkJobError('relay.card: ToS scan pending — parked', 60_000);
+  }
 
   // Approval cards must show the same provider-readable preview that the
   // publish executor will use. Resolve it before inserting a relay card or
@@ -148,7 +181,6 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
   }));
   const commandRouter = new CommandRouter(resolveRelaySecret(process.env));
 
-  const tosReport = (bundle.tosReport as Record<string, unknown> | null) ?? {};
   const captions = (bundle.captions as Record<string, string> | null) ?? {};
   const scores =
     (tosReport.scores as Array<{
@@ -173,30 +205,81 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
     }),
   );
   const targetPlatforms = Object.keys(captions).length > 0 ? Object.keys(captions) : ['instagram'];
+  const primaryPlatform = targetPlatforms[0] ?? 'instagram';
+  const primaryCaption = captions[primaryPlatform] ?? Object.values(captions)[0] ?? '';
+  const hashtagSets = Object.fromEntries(
+    targetPlatforms.map((platform) => [platform, (bundle.hashtags as string[]) ?? []]),
+  );
   const renderer = new CardRenderer();
   for (const { binding, channel, chatRef } of dispatchBindings) {
-    const [relayCardRow] = await tx
-      .insert(schema.relayCard)
-      .values({
-        orgId: job.org_id,
-        bundleId: bundle.id,
-        channel,
-        externalRef: chatRef,
-        state: 'pending',
-        title: `Bundle approval — ${bundle.id}`,
-        description: captions['instagram'] ?? Object.values(captions)[0] ?? '',
-        config: { targetPlatforms, tosScores },
-      })
-      .returning({ id: schema.relayCard.id });
-    if (!relayCardRow?.id) throw new Error('relay.card: relay card insert returned no id');
+    // A pending relay row is durable evidence that an earlier worker may
+    // already have handed this exact card to the provider. The provider does
+    // not expose a portable idempotency key across Telegram, Discord, Signal,
+    // and BlueBubbles, so a retry cannot safely send the card again. Leave the
+    // row available for operator reconciliation and dead-letter the job rather
+    // than creating a duplicate approval prompt.
+    const unresolvedRelayCard = await tx
+      .select({ id: schema.relayCard.id })
+      .from(schema.relayCard)
+      .where(
+        and(
+          eq(schema.relayCard.orgId, job.org_id),
+          eq(schema.relayCard.bundleId, bundle.id),
+          eq(schema.relayCard.channel, channel),
+          eq(schema.relayCard.externalRef, chatRef),
+          eq(schema.relayCard.state, 'pending'),
+        ),
+      )
+      .limit(1);
+    if (unresolvedRelayCard.length > 0) {
+      ctx.markExternalSideEffect?.();
+      throw new Error(
+        `relay.card: unresolved dispatch marker ${unresolvedRelayCard[0].id}; provider reconciliation required before retry`,
+      );
+    }
+
+    // Commit the dispatch log before provider I/O. If the provider accepts the
+    // card and the executor transaction later rolls back, the pending row is
+    // still available to reconcile the unknown external outcome.
+    const persistSideEffectMarker: NonNullable<ExecutorContext['persistSideEffectMarker']> =
+      ctx.persistSideEffectMarker ??
+      (async <T>(operation: (markerTx: any) => Promise<T>): Promise<T> => operation(tx));
+    const [relayCardRow] = await persistSideEffectMarker<Array<{ id: string }>>((markerTx) =>
+      markerTx
+        .insert(schema.relayCard)
+        .values({
+          orgId: job.org_id,
+          bundleId: bundle.id,
+          channel,
+          externalRef: chatRef,
+          state: 'pending',
+          title: `Bundle approval — ${bundle.id}`,
+          description: captions['instagram'] ?? Object.values(captions)[0] ?? '',
+          config: { targetPlatforms, tosScores, revisionId: tosReport.revisionId ?? null },
+        })
+        // The pending-dispatch partial unique index is the concurrency guard
+        // for jobs that race after the read above. A losing insert must not
+        // proceed without its own durable marker.
+        .onConflictDoNothing()
+        .returning({ id: schema.relayCard.id }),
+    );
+    if (!relayCardRow?.id) {
+      ctx.markExternalSideEffect?.();
+      throw new Error(
+        `relay.card: concurrent dispatch marker already exists for ${bundle.id}/${channel}/${chatRef}; provider reconciliation required before retry`,
+      );
+    }
 
     const content: BundleContent = {
       id: bundle.id,
       cardId: relayCardRow.id,
       mediaUrls,
-      caption: captions[channel] ?? captions['instagram'] ?? '',
+      // Relay channel names are transport bindings, not target-platform keys.
+      // Use the selected platform caption so a TikTok-only (or any
+      // non-Instagram-only) bundle is not rendered as an empty approval card.
+      caption: captions[channel] ?? captions[primaryPlatform] ?? primaryCaption,
       captionVariants: captions,
-      hashtagSets: { [channel]: (bundle.hashtags as string[]) ?? [] },
+      hashtagSets,
       tosScores,
       targetPlatforms,
     };
@@ -215,6 +298,7 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
         const token = process.env.TELEGRAM_BOT_TOKEN;
         if (!token) throw new Error('relay.card: TELEGRAM_BOT_TOKEN not configured');
         const adapter = new TelegramAdapter({ token });
+        ctx.markExternalSideEffect?.();
         await adapter.sendCard(chatRef, card);
         break;
       }
@@ -223,7 +307,18 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
         const clientId = process.env.DISCORD_APPLICATION_ID;
         if (!token || !clientId) throw new Error('relay.card: Discord bot env not configured');
         const adapter = new DiscordAdapter({ token, clientId });
-        await adapter.sendCard(chatRef, card);
+        // Worker relay jobs construct a short-lived adapter instead of using
+        // the API process's long-lived gateway client. Authenticate that
+        // client before resolving the channel, then tear it down after the
+        // one-shot send so the worker neither dispatches anonymously nor
+        // leaks a gateway connection per job.
+        try {
+          await adapter.login();
+          ctx.markExternalSideEffect?.();
+          await adapter.sendCard(chatRef, card);
+        } finally {
+          adapter.getClient().destroy();
+        }
         break;
       }
       case 'signal': {
@@ -231,6 +326,7 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
         const account = process.env.SIGNAL_ACCOUNT;
         if (!cliPath || !account) throw new Error('relay.card: Signal CLI env not configured');
         const adapter = new SignalAdapter({ cliPath, account });
+        ctx.markExternalSideEffect?.();
         await adapter.sendCard(chatRef, card);
         break;
       }
@@ -241,6 +337,7 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
           throw new Error('relay.card: BlueBubbles env not configured');
         }
         const adapter = new IMessageAdapter({ blueBubblesUrl, password });
+        ctx.markExternalSideEffect?.();
         await adapter.sendCard(chatRef, card);
         break;
       }

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutationFetch } from '@/lib/mutation';
+import { readDashboardError } from '@/lib/response';
 
 const MODES = ['direct', 'socks5', 'http', 'https', 'wireguard', 'vpn'] as const;
 
@@ -33,16 +34,18 @@ export default function NetworkForm({
     setError(null);
     setDone(false);
     try {
-      const body: Record<string, unknown> = { egressMode: mode };
-      if (proxyAddr) body.proxyAddr = proxyAddr;
-      if (expectedIp) body.expectedEgressIp = expectedIp;
+      const body = {
+        egressMode: mode,
+        proxyAddr: proxyAddr.trim() || null,
+        expectedEgressIp: expectedIp.trim() || null,
+      };
       const res = await mutationFetch(`/api/v1/models/${modelId}/network`, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
+        const b = await readDashboardError(res);
         setError(b?.error?.message ?? 'Save failed');
         return;
       }

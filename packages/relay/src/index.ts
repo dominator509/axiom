@@ -28,6 +28,4 @@ export {
 export { HealthCheckRegistry } from './observability/health.js';
 export type { StandardHealthProbes } from './observability/health.js';
 
-export { MetricPoller } from './metrics/poller.js';
-
 export { createRelayRoutes } from './routes.js';

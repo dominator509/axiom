@@ -57,6 +57,7 @@ describe('sendCard', () => {
     );
     expect(init.method).toBe('POST');
     expect(init.headers).toMatchObject({ 'Content-Type': 'application/json' });
+    expect(init.signal).toBeInstanceOf(AbortSignal);
     const body = JSON.parse(init.body);
     expect(body.chatGuid).toBe('chat-guid-1');
     expect(body.tempGuid).toMatch(/^[0-9a-f-]{36}$/);

@@ -4,10 +4,17 @@
 //   GET  /callback — exchange code for token
 //   GET  /delete — Meta data-deletion callback
 //   POST /uninstall — Meta app-uninstall callback
+//
+// The callbacks stay fail-closed until a durable provider-lifecycle processor
+// exists. Returning success without deleting local data would falsely satisfy
+// Meta's contract and leave a remote account connected in AXIOM.
 
 import { Hono } from 'hono';
 import { randomBytes } from 'node:crypto';
 import type { AppBindings } from '../index.js';
+import { normalizeAuthOrigin } from '@axiom/auth';
+import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
+import { readBoundedResponseJson } from '@axiom/core';
 import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
 import {
   clearOAuthStateCookie,
@@ -19,13 +26,22 @@ import { persistOAuthConnection } from './oauth-connection.js';
 
 const THREADS_APP_ID = process.env.THREADS_CLIENT_ID || '';
 const THREADS_APP_SECRET = process.env.THREADS_CLIENT_SECRET || '';
-const REDIRECT_URI = new URL(
-  '/api/v1/connectors/threads/callback',
+const APPLICATION_ORIGIN = normalizeAuthOrigin(
   process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
-).toString();
+);
+const REDIRECT_URI = new URL('/api/v1/connectors/threads/callback', APPLICATION_ORIGIN).toString();
 const OAUTH_STATE_COOKIE = 'axiom_threads_oauth_state';
 const OAUTH_COOKIE_PATH = '/api/v1/connectors/threads';
-const OAUTH_STATE_KEY = resolveOAuthCookieSecret();
+const OAUTH_REQUEST_TIMEOUT_MS = 30_000;
+// Resolve on request so build-time OpenAPI generation can import the route
+// without requiring runtime deployment secrets.
+const oauthStateKey = () => resolveOAuthCookieSecret();
+
+function deletionStatusUrl(confirmationCode: string): string {
+  const url = new URL('/api/v1/connectors/threads/delete/status', APPLICATION_ORIGIN);
+  url.searchParams.set('id', confirmationCode);
+  return url.toString();
+}
 
 const router = new Hono<AppBindings>();
 
@@ -49,14 +65,17 @@ router.get('/authorize', async (c) => {
   const authUrl = new URL('https://threads.net/oauth/authorize');
   authUrl.searchParams.set('client_id', THREADS_APP_ID);
   authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
-  authUrl.searchParams.set('scope', 'threads_basic,threads_publish');
+  authUrl.searchParams.set(
+    'scope',
+    'threads_basic,threads_content_publish,threads_manage_insights',
+  );
   authUrl.searchParams.set('response_type', 'code');
   const state = randomBytes(24).toString('base64url');
   setOAuthStateCookie(
     c,
     OAUTH_STATE_COOKIE,
     { state, orgId, modelId, issuedAt: Date.now() },
-    OAUTH_STATE_KEY,
+    oauthStateKey(),
     OAUTH_COOKIE_PATH,
   );
   authUrl.searchParams.set('state', state);
@@ -85,7 +104,7 @@ router.get('/callback', async (c) => {
     return apiError(c, 500, statusTitle(500), 'Threads client credentials not configured');
   }
 
-  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_STATE_KEY);
+  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, oauthStateKey());
   if (!state || !pending || pending.state !== state) {
     return apiError(c, 400, statusTitle(400), 'Invalid or missing state (CSRF check failed)');
   }
@@ -95,8 +114,19 @@ router.get('/callback', async (c) => {
   clearOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_COOKIE_PATH);
 
   try {
+    const egressProxy = await resolveEgressProxy(pending.modelId);
+    if (!egressProxy) {
+      return apiError(
+        c,
+        503,
+        statusTitle(503),
+        'Threads token exchange unavailable: model egress binding is unhealthy',
+      );
+    }
+    const egressFetch = buildEgressFetch(egressProxy);
+
     // Exchange authorization code for a short-lived access token
-    const tokenResp = await fetch('https://graph.threads.net/oauth/access_token', {
+    const tokenResp = await egressFetch('https://graph.threads.net/oauth/access_token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -106,18 +136,19 @@ router.get('/callback', async (c) => {
         redirect_uri: REDIRECT_URI,
         code,
       }),
+      signal: AbortSignal.timeout(OAUTH_REQUEST_TIMEOUT_MS),
     });
 
     if (!tokenResp.ok) {
       return apiError(c, 502, statusTitle(502), `Token exchange failed: HTTP ${tokenResp.status}`);
     }
 
-    const tokenData = (await tokenResp.json()) as {
+    const tokenData = await readBoundedResponseJson<{
       access_token?: string;
       user_id?: string;
       token_type?: string;
       expires_in?: number;
-    };
+    }>(tokenResp);
 
     const accessToken = tokenData.access_token;
     const threadsUserId = tokenData.user_id;
@@ -130,15 +161,17 @@ router.get('/callback', async (c) => {
     longLivedUrl.searchParams.set('grant_type', 'th_exchange_token');
     longLivedUrl.searchParams.set('client_secret', THREADS_APP_SECRET);
     longLivedUrl.searchParams.set('access_token', accessToken);
-    const longLivedResp = await fetch(longLivedUrl);
+    const longLivedResp = await egressFetch(longLivedUrl, {
+      signal: AbortSignal.timeout(OAUTH_REQUEST_TIMEOUT_MS),
+    });
 
     let finalToken = accessToken;
     let expiresIn = typeof tokenData.expires_in === 'number' ? tokenData.expires_in : 3600;
     if (longLivedResp.ok) {
-      const longLivedData = (await longLivedResp.json()) as {
+      const longLivedData = await readBoundedResponseJson<{
         access_token?: string;
         expires_in?: number;
-      };
+      }>(longLivedResp);
       if (longLivedData.access_token) finalToken = longLivedData.access_token;
       if (typeof longLivedData.expires_in === 'number') expiresIn = longLivedData.expires_in;
     }
@@ -181,15 +214,14 @@ router.get('/callback', async (c) => {
  * when a user requests data deletion (GDPR). Echoes the code back
  * and provides a status URL.
  *
- * In Meta Dev Portal, set Delete Callback URL to:
- *   https://axiom.fanlynks.com/api/v1/connectors/threads/delete
+ * In Meta Dev Portal, set Delete Callback URL to the deployed
+ * BETTER_AUTH_URL origin plus /api/v1/connectors/threads/delete.
  */
 router.get('/delete', (c) => {
   const confirmationCode = c.req.query('confirmation_code');
   if (confirmationCode) {
-    const statusUrl = `https://axiom.fanlynks.com/api/v1/connectors/threads/delete/status?id=${confirmationCode}`;
     return c.json({
-      url: statusUrl,
+      url: deletionStatusUrl(confirmationCode),
       confirmation_code: confirmationCode,
     });
   }
@@ -199,26 +231,39 @@ router.get('/delete', (c) => {
 /**
  * Threads Uninstall webhook — Meta sends POST when a user removes the app.
  *
- * In Meta Dev Portal, set Uninstall Callback URL to:
- *   https://axiom.fanlynks.com/api/v1/connectors/threads/uninstall
+ * In Meta Dev Portal, set Uninstall Callback URL to the deployed
+ * BETTER_AUTH_URL origin plus /api/v1/connectors/threads/uninstall.
+ *
+ * AXIOM does not yet have a durable provider-lifecycle processor that can
+ * resolve the encrypted connection by provider user id and revoke it. Do not
+ * acknowledge this callback as handled; a successful response would make the
+ * provider stop retrying while leaving the local connection active.
  */
-router.post('/uninstall', async (c) => {
-  const payload = await c.req.json().catch(() => ({}));
-  const userId = (payload as Record<string, unknown>)?.user_id || 'unknown';
-  console.log(`[Threads] User uninstalled app: user_id=${userId}`);
-  return c.json({ status: 'acknowledged', user_id: userId });
-});
+router.post('/uninstall', (c) =>
+  apiError(
+    c,
+    503,
+    statusTitle(503),
+    'Threads uninstall processing is unavailable; no local connection was changed',
+  ),
+);
 
 /**
  * Deletion status check — user-facing endpoint to check GDPR deletion progress.
+ *
+ * A durable deletion record/processor is not present, so this endpoint must
+ * not report a permanently pending request as if work had been accepted.
  */
 router.get('/delete/status', (c) => {
   const id = c.req.query('id');
-  return c.json({
-    id,
-    status: 'pending',
-    message: 'Deletion request received and is being processed.',
-  });
+  if (!id) return apiError(c, 400, statusTitle(400), 'id query required');
+  return apiError(
+    c,
+    503,
+    statusTitle(503),
+    'Threads data-deletion processing is unavailable; no deletion was confirmed',
+    { id },
+  );
 });
 
 export { router as threadsAuthRouter };

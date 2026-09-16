@@ -1,4 +1,6 @@
 import { api } from '@/lib/api';
+import CharacterLockEditor from '@/components/CharacterLockEditor';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -6,8 +8,9 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
   const { id } = await params;
   let model;
   let network;
-  let calendarCount = 0;
-  let fanCount = 0;
+  let calendarCount: number | null = null;
+  let fanCount: number | null = null;
+  let networkFailed = false;
   try {
     model = (await api.models.get(id)).data;
   } catch {
@@ -17,19 +20,24 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
     network = (await api.models.network(id)).data;
   } catch {
     network = null;
+    networkFailed = true;
   }
   try {
     calendarCount = (await api.models.calendar(id)).data.length;
   } catch {
-    calendarCount = 0;
+    calendarCount = null;
   }
   try {
     fanCount = (await api.models.fans(id)).data.length;
   } catch {
-    fanCount = 0;
+    fanCount = null;
   }
 
-  if (!model) return <div className="card">Model not found.</div>;
+  if (!model) return <div className="card stack" role="alert">
+    <h2>Profile unavailable</h2>
+    <p>We could not load this profile. Return to your talent list and try again.</p>
+    <Link href="/" className="btn secondary">Back to talent</Link>
+  </div>;
 
   return (
     <div className="grid">
@@ -41,6 +49,10 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
         <div>
           <strong>Bio:</strong> {model.bio ?? '—'}
         </div>
+        {typeof model.characterLockPrompt === 'string' && Number.isSafeInteger(model.characterLockVersion)
+          ? <CharacterLockEditor key={`${model.id}:${model.characterLockVersion}`} modelId={model.id}
+            initialPrompt={model.characterLockPrompt} initialVersion={model.characterLockVersion!} />
+          : <p>Character lock editing is unavailable until the profile API and migration are installed.</p>}
         <div>
           <strong>Created:</strong> {new Date(model.createdAt).toLocaleDateString()}
         </div>
@@ -76,19 +88,25 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
             {network.lastError && <div style={{ color: 'var(--bad)' }}>{network.lastError}</div>}
           </>
         ) : (
-          <p style={{ color: 'var(--muted)', margin: 0 }}>No egress config.</p>
+          <p style={{ color: 'var(--muted)', margin: 0 }}>
+            {networkFailed ? 'Network status could not be loaded.' : 'No network configuration yet.'}
+          </p>
         )}
+        <Link href={`/models/${id}/network`} className="btn secondary">Open network settings</Link>
       </div>
       <div className="card stack">
         <h3>Activity</h3>
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <span>Scheduled posts</span>
-          <strong>{calendarCount}</strong>
+          <Link href={`/models/${id}/calendar`}>View schedule</Link>
+          <strong>{calendarCount ?? 'Unavailable'}</strong>
         </div>
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <span>Fan contacts</span>
-          <strong>{fanCount}</strong>
+          <Link href={`/models/${id}/fans`}>View fan contacts</Link>
+          <strong>{fanCount ?? 'Unavailable'}</strong>
         </div>
+        <p className="subtle">Counts reflect the records returned for this overview. Open each section for details.</p>
+        <Link href={`/models/${id}/generation`} className="btn">Create content</Link>
+        <Link href={`/models/${id}/approvals`} className="btn secondary">Review saved content</Link>
       </div>
     </div>
   );

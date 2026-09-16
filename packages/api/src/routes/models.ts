@@ -4,7 +4,7 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { zValidator } from '@hono/zod-validator';
+import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { sql, eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
@@ -17,6 +17,7 @@ const createModelSchema = z.object({
   displayName: z.string().min(1).max(100),
   handle: z.string().min(1).max(50),
   bio: z.string().max(500).optional(),
+  characterLockPrompt: z.string().trim().max(2000).optional(),
   avatarUrl: z.string().url().optional(),
 });
 
@@ -24,9 +25,12 @@ const updateModelSchema = z.object({
   displayName: z.string().min(1).max(100).optional(),
   handle: z.string().min(1).max(50).optional(),
   bio: z.string().max(500).optional(),
+  characterLockPrompt: z.string().trim().max(2000).optional(),
+  characterLockVersion: z.number().int().min(0).max(2147483646).optional(),
   avatarUrl: z.string().url().optional(),
   isActive: z.boolean().optional(),
-});
+}).refine(body => (body.characterLockPrompt === undefined) === (body.characterLockVersion === undefined),
+  { message: 'A character lock edit requires its current version' });
 
 // GET /api/v1/models — list models scoped to the session org (keyset cursor)
 router.get('/', async (c) => {
@@ -104,6 +108,8 @@ router.post('/', zValidator('json', createModelSchema), async (c) => {
         displayName: body.displayName,
         handle: body.handle,
         bio: body.bio ?? null,
+        characterLockPrompt: body.characterLockPrompt ?? '',
+        characterLockVersion: body.characterLockPrompt ? 1 : 0,
         avatarUrl: body.avatarUrl ?? null,
         isActive: true,
       })
@@ -126,17 +132,22 @@ router.patch('/:id', zValidator('json', updateModelSchema), async (c) => {
   const userId = c.get('userId') ?? 'system';
 
   const updated = await withOrgContext(orgId, async (tx) => {
+    const { characterLockVersion: expectedVersion, ...changes } = body;
     const rows = await tx
       .update(schema.modelProfile)
-      .set({ ...body, updatedAt: new Date() })
-      .where(and(eq(schema.modelProfile.id, id), eq(schema.modelProfile.orgId, orgId)))
+      .set({ ...changes, updatedAt: new Date(), ...(expectedVersion !== undefined
+        ? { characterLockVersion: sql`${schema.modelProfile.characterLockVersion} + 1` } : {}) })
+      .where(and(eq(schema.modelProfile.id, id), eq(schema.modelProfile.orgId, orgId),
+        ...(expectedVersion !== undefined ? [eq(schema.modelProfile.characterLockVersion, expectedVersion)] : [])))
       .returning();
     if (rows.length > 0) {
       await writeAudit(tx, orgId, userId, 'model.update', id, { changes: body });
     }
     return rows;
   });
-  if (updated.length === 0) return apiError(c, 404, statusTitle(404), 'model not found');
+  if (updated.length === 0) return body.characterLockPrompt !== undefined
+    ? apiError(c, 409, statusTitle(409), 'Character lock changed or model unavailable. Reload the profile before saving.', { code: 'CHARACTER_LOCK_CONFLICT' })
+    : apiError(c, 404, statusTitle(404), 'model not found');
   return c.json({ data: updated[0] });
 });
 

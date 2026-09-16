@@ -70,6 +70,15 @@ describe('PATCH /org-settings', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects an oversized update body before parsing it', async () => {
+    const res = await appWithOrg(ORG_ID).request('/org-settings', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: `{"viralSharing":true,"padding":"${'x'.repeat(262_144)}"}`,
+    });
+    expect(res.status).toBe(413);
+  });
+
   it('enables viral_sharing (opt-in) and returns updated settings', async () => {
     mockState.result = [{ ...settingsRow, viralSharing: true }];
     const res = await appWithOrg(ORG_ID).request('/org-settings', {

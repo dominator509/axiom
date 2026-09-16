@@ -6,7 +6,15 @@
 // Token refresh (Ory client_secret_basic) is supported when refresh
 // credentials are supplied, so short-lived (1h) access tokens stay valid.
 
-import { BaseConnector } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+  readResponseJson,
+  readResponseText,
+  redactProviderText,
+  redactProviderUrl,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -19,11 +27,13 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
+import { mediaTypeHint, validatePublish } from './validation.js';
 
 const FANVUE_API_BASE = 'https://api.fanvue.com';
 const FANVUE_API_VERSION = '2025-06-26';
 const FANVUE_TOKEN_URL = 'https://auth.fanvue.com/oauth2/token';
 const FANVUE_REVOKE_URL = 'https://auth.fanvue.com/oauth2/revoke';
+const FANVUE_MAX_MEDIA_BYTES = 1_610_612_736;
 
 /** Media type allowed by the upload session API. */
 type FanvueMediaType = 'image' | 'video' | 'audio' | 'document';
@@ -86,7 +96,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     return {
       publish: true,
       media: ['image' as MediaType, 'video' as MediaType, 'audio' as MediaType],
-      maxMediaBytes: 1_610_612_736, // 1.5 GiB — API limit (sizeBytes <= 1610612736)
+      maxMediaBytes: FANVUE_MAX_MEDIA_BYTES, // 1.5 GiB — API limit (sizeBytes <= 1610612736)
       maxMediaCount: 10,
       caption: true,
       maxCaptionLength: 5000, // text max length per API reference
@@ -124,12 +134,16 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     });
 
     if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
-      this.log('error', 'refresh', `HTTP ${resp.status}: ${body}`);
+      const body = await readResponseText(
+        resp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      this.log('error', 'refresh', `HTTP ${resp.status}: ${redactProviderText(body)}`);
       throw new Error(`Fanvue token refresh failed: ${resp.status} ${resp.statusText}`);
     }
 
-    const tokens: Record<string, unknown> = (await resp.json()) as Record<string, unknown>;
+    const tokens = await readResponseJson<Record<string, unknown>>(resp);
     const accessToken = typeof tokens['access_token'] === 'string' ? tokens['access_token'] : '';
     const expiresIn = typeof tokens['expires_in'] === 'number' ? tokens['expires_in'] : 3600;
     if (!accessToken) {
@@ -193,20 +207,34 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     });
 
     if (!response.ok) {
-      const responseBody = await response.text().catch(() => '');
-      this.log('error', method, `HTTP ${response.status}: ${responseBody}`, { path });
+      const responseBody = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      this.log('error', method, `HTTP ${response.status}: ${redactProviderText(responseBody)}`, {
+        path: redactProviderUrl(path),
+      });
       throw new Error(
         `Fanvue API ${method} ${path} failed: ${response.status} ${response.statusText}`,
       );
     }
 
     if (response.status === 204) return undefined as T;
-    if (rawText) return (await response.text()) as T;
-    return response.json() as Promise<T>;
+    if (rawText) {
+      return (await readResponseText(
+        response,
+        CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+        'provider text response',
+      )) as T;
+    }
+    return readResponseJson<T>(response);
   }
 
   /** Determine media type from a URL path extension (defaults to image). */
-  private mediaTypeFromUrl(url: string): FanvueMediaType {
+  private mediaTypeFromUrl(url: string, declared?: MediaType): FanvueMediaType {
+    if (declared === 'image' || declared === 'video' || declared === 'audio') return declared;
+
     const path = url.split('?')[0].toLowerCase();
     if (/\.(mp4|mov|avi|webm|mkv)$/.test(path)) return 'video';
     if (/\.(mp3|wav|m4a|aac|flac)$/.test(path)) return 'audio';
@@ -214,26 +242,84 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     return 'image';
   }
 
-  /** Download remote media bytes (bounded) for the multipart upload. */
+  /** Download remote media bytes with the declared Fanvue size bound. */
   private async downloadMedia(url: string): Promise<Uint8Array> {
     const resp = await this.fetchImpl(url, { method: 'GET' });
     if (!resp.ok) {
-      throw new Error(`Fanvue media download failed: ${resp.status} ${resp.statusText} (${url})`);
+      throw new Error(
+        `Fanvue media download failed: ${resp.status} ${resp.statusText} (${redactProviderUrl(url)})`,
+      );
     }
-    const buffer = await resp.arrayBuffer();
-    return new Uint8Array(buffer);
+
+    const contentLength = resp.headers.get('content-length');
+    if (contentLength) {
+      const declaredLength = Number(contentLength);
+      if (!Number.isSafeInteger(declaredLength) || declaredLength < 0) {
+        throw new Error('Fanvue media download returned an invalid content length');
+      }
+      if (declaredLength > FANVUE_MAX_MEDIA_BYTES) {
+        throw new Error(
+          `Fanvue media exceeds the maximum supported size of ${FANVUE_MAX_MEDIA_BYTES} bytes`,
+        );
+      }
+    }
+
+    // Read incrementally so a missing or dishonest Content-Length cannot turn
+    // a provider-readable URL into an unbounded allocation.
+    if (!resp.body) {
+      const buffer = await resp.arrayBuffer();
+      if (buffer.byteLength > FANVUE_MAX_MEDIA_BYTES) {
+        throw new Error(
+          `Fanvue media exceeds the maximum supported size of ${FANVUE_MAX_MEDIA_BYTES} bytes`,
+        );
+      }
+      return new Uint8Array(buffer);
+    }
+
+    const reader = resp.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        total += value.byteLength;
+        if (total > FANVUE_MAX_MEDIA_BYTES) {
+          await reader.cancel();
+          throw new Error(
+            `Fanvue media exceeds the maximum supported size of ${FANVUE_MAX_MEDIA_BYTES} bytes`,
+          );
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    const result = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      result.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return result;
   }
 
   /**
    * Upload one remote media URL via the documented multipart flow and return
    * the mediaUuid. Requires the creator uuid for the presigned part URLs.
    */
-  private async uploadMedia(url: string, creatorUuid: string): Promise<string> {
+  private async uploadMedia(
+    url: string,
+    creatorUuid: string,
+    declaredMediaType?: MediaType,
+  ): Promise<string> {
     const bytes = await this.downloadMedia(url);
 
     const name = url.split('/').pop()?.split('?')[0] || 'media';
     const filename = name.length <= 255 ? name : name.slice(-255);
-    const mediaType = this.mediaTypeFromUrl(url);
+    const mediaType = this.mediaTypeFromUrl(url, declaredMediaType);
 
     const session = await this.fanvueRequest<FanvueUploadSession>('POST', '/media/uploads', {
       name: filename,
@@ -262,8 +348,14 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
         body: partBytes,
       });
       if (!putRes.ok) {
-        const body = await putRes.text().catch(() => '');
-        throw new Error(`Fanvue part ${partNumber} upload failed: ${putRes.status} ${body}`);
+        const body = await readResponseText(
+          putRes,
+          CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+          'provider error response',
+        ).catch(() => '');
+        throw new Error(
+          `Fanvue part ${partNumber} upload failed: ${putRes.status} ${redactProviderText(body)}`,
+        );
       }
       const etag = putRes.headers.get('etag') || '';
       completed.push({ partNumber, etag });
@@ -280,30 +372,27 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
   // ── Connector interface ──
 
   async validate(input: ConnectorPublishInput): Promise<ValidationReport> {
-    const errors = [];
+    const report = validatePublish(input, this.capability());
 
     if (!input.mediaUrls || input.mediaUrls.length === 0) {
-      errors.push({
+      report.errors.push({
         field: 'mediaUrls',
         message: 'Fanvue requires at least one media file',
         severity: 'error' as const,
       });
     }
-    if (!input.caption) {
-      errors.push({
+    if (!input.caption?.trim()) {
+      report.warnings = report.warnings.filter((warning) => warning.field !== 'caption');
+      report.errors.push({
         field: 'caption',
         message: 'Fanvue posts require a caption',
         severity: 'error' as const,
       });
     }
 
-    return {
-      valid: errors.length === 0,
-      errors,
-      warnings: [],
-      infos: [],
-      tosVerdict: 'pass' as const,
-    };
+    report.valid = report.errors.length === 0;
+    report.tosVerdict = report.valid ? (report.warnings.length > 0 ? 'flag' : 'pass') : 'block';
+    return report;
   }
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
@@ -318,8 +407,9 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
       // 1. Upload each media URL → mediaUuid list.
       const mediaUuids: string[] = [];
+      const declaredMediaType = mediaTypeHint(input);
       for (const mediaUrl of input.mediaUrls) {
-        const mediaUuid = await this.uploadMedia(mediaUrl, creatorUuid);
+        const mediaUuid = await this.uploadMedia(mediaUrl, creatorUuid, declaredMediaType);
         mediaUuids.push(mediaUuid);
       }
 
@@ -366,8 +456,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
   async revoke(): Promise<void> {
     if (!this.refreshToken || !this.clientId || !this.clientSecret) {
-      this.log('warn', 'revoke', 'Fanvue revoke skipped: no refresh token/client credentials');
-      return;
+      throw new Error('Fanvue revoke requires refresh token and client credentials');
     }
 
     const basic = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64');
@@ -384,9 +473,14 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     });
 
     if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
-      this.log('error', 'revoke', `HTTP ${resp.status}: ${body}`);
-      return;
+      const body = await readResponseText(
+        resp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      throw new Error(
+        `Fanvue token revocation failed: HTTP ${resp.status} — ${redactProviderText(body)}`,
+      );
     }
 
     this.log('info', 'revoke', 'Fanvue refresh token revoked (Ory RFC 7009)');

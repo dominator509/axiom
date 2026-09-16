@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Talent', icon: 'talent' },
+  { href: '/connections/grok', label: 'Grok & storage', icon: 'connection' },
   { href: '/audit', label: 'Audit trail', icon: 'audit' },
   { href: '/incidents', label: 'Incidents', icon: 'incident' },
   { href: '/killswitch', label: 'Safety', icon: 'safety' },
@@ -12,6 +13,7 @@ const NAV_ITEMS = [
 
 function NavIcon({ name }: { name: (typeof NAV_ITEMS)[number]['icon'] }) {
   const paths = {
+    connection: <path d="M8 12 12 8M7 13l-1 1a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0m0 8a3 3 0 0 0 4 0l4-4a3 3 0 0 0-4-4l-1 1" />,
     talent: (
       <path d="M7.5 10.25a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5ZM2.25 18a5.25 5.25 0 0 1 10.5 0M15.5 7.25v7.5M11.75 11h7.5" />
     ),
@@ -49,7 +51,7 @@ export default function NavLinks() {
         const active =
           item.href === '/'
             ? pathname === '/' || pathname.startsWith('/models/')
-            : pathname.startsWith(item.href);
+            : pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (
           <Link
             key={item.href}

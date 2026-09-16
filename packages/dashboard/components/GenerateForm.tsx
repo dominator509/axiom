@@ -1,8 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { mutationFetch } from '@/lib/mutation';
+import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
+import { readDashboardError, readDashboardJson } from '@/lib/response';
+import GenerationProgress from './GenerationProgress';
+import GrokConnection from './GrokConnection';
+import MediaUpload from './MediaUpload';
 
 const PLATFORMS = [
   'instagram',
@@ -25,18 +29,48 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
   const [location, setLocation] = useState('studio');
   const [mood, setMood] = useState('energetic');
   const [lighting, setLighting] = useState('soft studio');
-  const [aspectRatio, setAspectRatio] = useState('4:5');
+  const [aspectRatio, setAspectRatio] = useState('3:4');
   const [platforms, setPlatforms] = useState<string[]>(['instagram']);
   const [enrich, setEnrich] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
+    bundle?: { id: string; modelId: string };
+    mediaGeneration?: 'queued';
     variants: Array<{ prompt: string; styleLabel: string; caption: string; hashtags: string[] }>;
     tosReport: {
       verdict: string;
       scores: Array<{ platform: string; verdict: string; score: number }>;
     };
   } | null>(null);
+  const [mediaKind, setMediaKind] = useState<'brief' | 'image' | 'video'>('brief');
+  const [mediaPrompt, setMediaPrompt] = useState('');
+  const [sourceAssetId, setSourceAssetId] = useState('');
+  const [duration, setDuration] = useState<6 | 10>(6);
+  const [sourceImages, setSourceImages] = useState<Array<{ id: string; fileName: string }>>([]);
+  const [sourceError, setSourceError] = useState<string | null>(null);
+  const [sanitizeMetadata, setSanitizeMetadata] = useState(false);
+  const inFlight = useRef(false);
+  const intent = useRef<{ modelId: string; body: string; key: string } | null>(null);
+
+  useEffect(() => {
+    setSourceAssetId('');
+    setSourceImages([]);
+    setSourceError(null);
+    if (mediaKind !== 'video') return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(`/api/v1/models/${modelId}/media-source-images`, { signal: controller.signal });
+        if (!response.ok) throw new Error('Source images unavailable');
+        const body = await readDashboardJson<{ data: Array<{ id: string; fileName: string }> }>(response);
+        if (!controller.signal.aborted) setSourceImages(body.data);
+      } catch {
+        if (!controller.signal.aborted) setSourceError('Could not load source images. Switch away from video and back to retry.');
+      }
+    })();
+    return () => controller.abort();
+  }, [modelId, mediaKind]);
 
   function togglePlatform(p: string) {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
@@ -44,35 +78,82 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (inFlight.current) return;
+    if (intent.current && intent.current.modelId !== modelId) {
+      setError('Return to the original model to reconcile the unresolved generation before starting another.');
+      return;
+    }
+    if (!intent.current) {
+      const invalid = platforms.length === 0 ? 'Select at least one destination platform.'
+        : mediaKind !== 'brief' && !mediaPrompt.trim() ? 'Enter a media prompt before generating.'
+          : mediaKind === 'video' && !sourceAssetId ? 'Select or upload a source image before generating video.'
+            : null;
+      if (invalid) { setError(invalid); return; }
+    }
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     setResult(null);
     try {
+      // Server defaults apply to absent keys, not cleared or whitespace-only inputs.
+      // Preserve nonblank values and the existing immutable retry payload.
+      const cleaned = Object.fromEntries(
+        Object.entries({ style, outfit, location, mood, lighting })
+          .filter(([, value]) => value.trim().length > 0),
+      );
+      const requestBody = JSON.stringify({
+        ...cleaned, aspectRatio, platforms, enrichWithLlm: enrich,
+        ...(mediaKind === 'brief' ? {} : { media: {
+          kind: mediaKind, prompt: mediaPrompt.trim(),
+          ...(sanitizeMetadata ? { sanitizeMetadata: true } : {}),
+          ...(mediaKind === 'image' ? { aspectRatio } : {}),
+          ...(mediaKind === 'video' ? { sourceAssetId, duration } : {}),
+        } }),
+      });
+      if (!intent.current) {
+        intent.current = { modelId, body: requestBody, key: createIdempotencyKey() };
+      }
       const res = await mutationFetch(`/api/v1/models/${modelId}/generate`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          style,
-          outfit,
-          location,
-          mood,
-          lighting,
-          aspectRatio,
-          platforms,
-          enrichWithLlm: enrich,
-        }),
-      });
+        body: intent.current.body,
+      }, { idempotencyKey: intent.current.key });
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
-        setError(b?.error?.message ?? 'Generation failed');
+        const b = await readDashboardError(res);
+        const message = b?.error?.message ?? b?.detail;
+        setError(typeof message === 'string' ? message : 'Generation failed');
+        // An uncertain response is not permission to queue a new paid request.
+        // Preserve its exact body/key until reconciliation. An expired session
+        // or revoked access on a later check cannot disprove earlier acceptance.
+        // Only input-validation rejection permits a corrected request here.
+        if ([400, 422].includes(res.status))
+          intent.current = null;
         return;
       }
-      const body = await res.json();
-      setResult(body.data);
+      const body = await readDashboardJson<{ data: typeof result }>(res);
+      const receipt = body?.data;
+      const queuedMedia = !!JSON.parse(intent.current.body).media;
+      // A 2xx status alone cannot resolve a possibly paid generation. Validate
+      // the receipt before discarding the only key that can recover its result.
+      if (!receipt || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(receipt.bundle?.id ?? '')
+        || receipt.bundle?.modelId !== intent.current.modelId
+        || !Array.isArray(receipt.variants) || receipt.variants.some(variant => !variant
+          || typeof variant.prompt !== 'string' || typeof variant.caption !== 'string'
+          || typeof variant.styleLabel !== 'string' || !Array.isArray(variant.hashtags)
+          || variant.hashtags.some(tag => typeof tag !== 'string'))
+        || !receipt.tosReport || !['pending', 'pass', 'review', 'block'].includes(receipt.tosReport.verdict)
+        || !Array.isArray(receipt.tosReport.scores) || receipt.tosReport.scores.some(score => !score
+          || typeof score.platform !== 'string' || !['pass', 'review', 'block'].includes(score.verdict)
+          || !Number.isFinite(score.score))
+        || (queuedMedia ? receipt.mediaGeneration !== 'queued' || receipt.tosReport.verdict !== 'pending'
+          : receipt.mediaGeneration !== undefined)) throw new Error('Invalid generation receipt');
+      setResult(receipt);
+      intent.current = null;
       router.refresh();
     } catch {
-      setError('Network error');
+      setError('Generation could not be confirmed. Retry the unchanged brief to check the same request.');
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -81,11 +162,44 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
     <div className="card">
       <h2>Create content brief</h2>
       <p style={{ color: 'var(--muted)', marginTop: 0 }}>
-        Creates five prompt/caption variants and a text-only ToS report. This release does not
-        render or store image/video files; attach an approved asset before publishing to a
-        media-only destination.
+        Create a text brief or queue Grok image/video generation using your connected subscription.
+        Media remains pending until generation and visual ToS checks finish. Provider usage may be charged.
       </p>
-      <form onSubmit={onSubmit} className="stack" style={{ maxWidth: 640 }}>
+      <GrokConnection />
+      <MediaUpload modelId={modelId} onUploaded={asset => {
+        if (asset.mimeType.startsWith('image/')) {
+          setSourceImages(previous => [{ id: asset.id, fileName: `Uploaded image ${asset.id}` }, ...previous]);
+          setSourceAssetId(asset.id);
+        }
+        router.refresh();
+      }} />
+      <form noValidate onSubmit={onSubmit} className="stack" style={{ maxWidth: 640 }}>
+        <fieldset disabled={busy || !!intent.current} className="stack" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+        <label htmlFor="mediaKind">Output</label>
+        <select id="mediaKind" value={mediaKind} onChange={e => setMediaKind(e.target.value as 'brief' | 'image' | 'video')}>
+          <option value="brief">Text brief only</option>
+          <option value="image">Grok image</option>
+          <option value="video">Grok image-to-video</option>
+        </select>
+        {mediaKind !== 'brief' && <>
+          <label htmlFor="mediaPrompt">Media prompt</label>
+          <textarea id="mediaPrompt" required maxLength={4000} value={mediaPrompt} onChange={e => setMediaPrompt(e.target.value)} />
+          <label className="checkbox-option"><input type="checkbox" checked={sanitizeMetadata} onChange={e => setSanitizeMetadata(e.target.checked)} /><span>Remove metadata and embedded provenance, including C2PA (optional)</span></label>
+          <p>Rebuilds generated media and video source images before use. Images become PNG; video is re-encoded. Existing watermarks remain. A cleaning failure holds the result; no automatic generation retry.</p>
+        </>}
+        {mediaKind === 'video' && <>
+          <label htmlFor="sourceAsset">Source image (latest 100 for this model)</label>
+          <select id="sourceAsset" required value={sourceAssetId} onChange={e => setSourceAssetId(e.target.value)}>
+            <option value="">Select a stored image</option>
+            {sourceImages.map(image => <option key={image.id} value={image.id}>{image.fileName}</option>)}
+          </select>
+          {sourceError && <p role="alert">{sourceError}</p>}
+          {!sourceError && sourceImages.length === 0 && <p>Generate or import a source image for this model first.</p>}
+          <label htmlFor="videoDuration">Video duration</label>
+          <select id="videoDuration" value={duration} onChange={e => setDuration(Number(e.target.value) as 6 | 10)}>
+            <option value={6}>6 seconds</option><option value={10}>10 seconds</option>
+          </select>
+        </>}
         <div className="grid">
           <div>
             <label htmlFor="style">Style</label>
@@ -114,7 +228,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
               value={aspectRatio}
               onChange={(e) => setAspectRatio(e.target.value)}
             >
-              {['4:5', '9:16', '1:1', '16:9'].map((r) => (
+              {['3:4', '9:16', '1:1', '16:9'].map((r) => (
                 <option key={r} value={r}>
                   {r}
                 </option>
@@ -138,27 +252,32 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
             ))}
           </div>
         </div>
-        <label className="row" style={{ cursor: 'pointer' }}>
+        <label className="checkbox-option">
           <input
             type="checkbox"
             checked={enrich}
             onChange={(e) => setEnrich(e.target.checked)}
-            style={{ width: 'auto' }}
           />
-          Enrich captions via LLM gateway (optional, live provider call)
+          <span>Enrich captions via LLM gateway (optional, live provider call)</span>
         </label>
-        {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
+        </fieldset>
+        {intent.current && !busy && <p>Previous generation outcome is unresolved. Inputs are locked. Check the same request before editing or starting another generation.</p>}
+        {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
+        {busy && <p role="status">Submitting your request. Wait for a saved bundle or an error below; do not submit again.</p>}
         <div>
-          <button className="btn" type="submit" disabled={busy || platforms.length === 0}>
-            {busy ? 'Generating…' : 'Generate content brief'}
+          <button className="btn" type="submit" disabled={busy || (!intent.current && platforms.length === 0)}>
+            {busy ? 'Generating…' : intent.current ? 'Check same generation request' : mediaKind === 'brief' ? 'Generate content brief' : 'Queue Grok generation'}
           </button>
         </div>
       </form>
 
       {result && (
         <div style={{ marginTop: 20 }}>
+          {result.mediaGeneration === 'queued' && result.bundle?.id && (
+            <GenerationProgress key={result.bundle.id} bundleId={result.bundle.id} modelId={modelId} />
+          )}
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <h3>ToS report</h3>
+            <h3>{result.mediaGeneration === 'queued' ? 'Initial ToS report (before media generation)' : 'ToS report'}</h3>
             <span
               className={`badge ${result.tosReport.verdict === 'pass' ? 'good' : result.tosReport.verdict === 'review' ? 'warn' : 'bad'}`}
             >

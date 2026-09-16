@@ -91,6 +91,27 @@ describe('validate', () => {
     expect(report.valid).toBe(false);
     expect(report.errors.some((e) => e.field === 'caption')).toBe(true);
   });
+
+  it('enforces the shared media count and caption limits', async () => {
+    const c = new FanvueConnector(AUTH);
+    const report = await c.validate(
+      input({
+        mediaUrls: Array.from({ length: 11 }, (_, index) => `https://cdn.example.com/${index}.jpg`),
+        caption: 'x'.repeat(5001),
+      }),
+    );
+    expect(report.valid).toBe(false);
+    expect(report.errors.some((error) => error.field === 'mediaUrls')).toBe(true);
+    expect(report.errors.some((error) => error.field === 'caption')).toBe(true);
+    expect(report.tosVerdict).toBe('block');
+  });
+
+  it('accepts m4a audio input that the upload path can classify', async () => {
+    const c = new FanvueConnector(AUTH);
+    const report = await c.validate(input({ mediaUrls: ['https://cdn.example.com/voice.m4a'] }));
+    expect(report.valid).toBe(true);
+    expect(report.errors).toEqual([]);
+  });
 });
 
 describe('publish', () => {
@@ -297,6 +318,23 @@ describe('publish', () => {
     expect(result.remoteId).toBeNull();
   });
 
+  it('rejects a media response that exceeds the declared size limit before creating a session', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(new Uint8Array([1]), {
+        status: 200,
+        headers: { 'content-length': '1610612737' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new FanvueConnector(AUTH);
+    const result = await c.publish(input());
+
+    expect(result.state).toBe('failed');
+    expect(result.error).toContain('maximum supported size');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('returns a failed result when the post creation fails', async () => {
     const { fetchMock } = multipartFetchMock({ postStatus: 422 });
     vi.stubGlobal('fetch', fetchMock);
@@ -439,13 +477,12 @@ describe('revoke', () => {
     expect(c.getLogs().some((l) => l.action === 'revoke')).toBe(true);
   });
 
-  it('logs a warning when no refresh credentials are available', async () => {
+  it('fails when no refresh credentials are available', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FanvueConnector(AUTH);
-    await c.revoke();
+    await expect(c.revoke()).rejects.toThrow('requires refresh token and client credentials');
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(c.getLogs().some((l) => l.action === 'revoke' && l.level === 'warn')).toBe(true);
   });
 });

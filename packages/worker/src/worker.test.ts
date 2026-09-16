@@ -3,15 +3,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ─── Chainable transaction mock (mirrors api test-utils pattern) ───
 // NOTE: vi.mock factories are hoisted above imports, so all state referenced
 // by the factory must be defined inside the factory itself.
-const mockState: { result: unknown } = { result: [] };
+const mockState: { result: unknown; executeResult?: unknown } = { result: [] };
 
-function makeChain(): any {
+function makeChain(result = mockState.result): any {
   const handler = {
     get(_t: unknown, prop: string | symbol) {
       if (prop === 'then') {
         return (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => {
-          Promise.resolve(mockState.result).then(resolve, reject);
+          Promise.resolve(result).then(resolve, reject);
         };
+      }
+      if (prop === 'execute') {
+        return () => makeChain(mockState.executeResult ?? mockState.result);
       }
       return () => makeChain();
     },
@@ -53,7 +56,7 @@ vi.mock('@axiom/db', () => {
   };
 });
 
-import { workerTick, processJob } from './worker.js';
+import { readKillSwitch, workerTick, processJob } from './worker.js';
 import { defaultExecutors } from './executors/index.js';
 import { ParkJobError } from './executors/context.js';
 import type { JobRow } from './types.js';
@@ -93,6 +96,43 @@ describe('workerTick with empty queue', () => {
     expect(stats.emptyPolls).toBe(1);
     expect(stats.claimed).toBe(0);
   });
+
+  it('reports the handled job error for the long-running loop', async () => {
+    const job = makeJob({ kind: 'test.fail' });
+    mockState.result = [job];
+    mockState.executeResult = { rows: [job] };
+
+    const stats = await workerTick({
+      executors: {
+        'test.fail': async () => {
+          throw new Error('provider timeout');
+        },
+      },
+    });
+
+    expect(stats.claimed).toBe(1);
+    expect(stats.failed).toBe(1);
+    expect(stats.lastError).toBe('provider timeout');
+  });
+});
+
+describe('readKillSwitch', () => {
+  beforeEach(() => {
+    mockState.executeResult = undefined;
+  });
+
+  it('fails closed when the organization has no settings row', async () => {
+    mockState.result = [];
+    await expect(readKillSwitch(makeChain(), 'org-1')).resolves.toBe(true);
+  });
+
+  it('allows publishing only when settings explicitly enable it', async () => {
+    mockState.result = [{ publishingEnabled: true }];
+    await expect(readKillSwitch(makeChain(), 'org-1')).resolves.toBe(false);
+
+    mockState.result = [{ publishingEnabled: false }];
+    await expect(readKillSwitch(makeChain(), 'org-1')).resolves.toBe(true);
+  });
 });
 
 describe('processJob state transitions', () => {
@@ -126,6 +166,17 @@ describe('processJob state transitions', () => {
     expect(outcome).toBe('dead');
   });
 
+  it('dead-letters instead of retrying after an external side effect starts', async () => {
+    const job = makeJob({ kind: 'test.external', attempts: 0, max_attempts: 3 });
+    const executor = vi.fn(async (ctx: { markExternalSideEffect?: () => void }) => {
+      ctx.markExternalSideEffect?.();
+      throw new Error('provider response lost');
+    });
+    const outcome = await processJob(job, { 'test.external': executor }, 'w1', {});
+    expect(outcome).toBe('dead');
+    expect(executor).toHaveBeenCalledTimes(1);
+  });
+
   it('parks the job on ParkJobError without consuming attempts', async () => {
     const job = makeJob({ kind: 'test.park', attempts: 0, max_attempts: 3 });
     const executor = vi.fn(async () => {
@@ -145,6 +196,36 @@ describe('processJob state transitions', () => {
     );
   });
 
+  it('fails closed when a heartbeat loses lease ownership', async () => {
+    vi.useFakeTimers();
+    try {
+      mockState.result = [{ id: 'job-1', publishingEnabled: true }];
+      let releaseExecutor!: () => void;
+      let markExternalSideEffect!: () => void;
+      const executor = vi.fn(async (ctx: { markExternalSideEffect?: () => void }) => {
+        markExternalSideEffect = ctx.markExternalSideEffect!;
+        await new Promise<void>((resolve) => {
+          releaseExecutor = resolve;
+        });
+      });
+      const job = makeJob({ kind: 'test.heartbeat' });
+      const processing = processJob(job, { 'test.heartbeat': executor }, 'w1', {});
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(markExternalSideEffect).toBeTypeOf('function');
+
+      // The next renewal observes that the row is no longer owned by w1.
+      mockState.result = [];
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+      expect(() => markExternalSideEffect()).toThrow('lease ownership lost during execution');
+
+      releaseExecutor();
+      await expect(processing).rejects.toThrow('lease ownership lost during execution');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('throws for an unknown job kind', async () => {
     const job = makeJob({ kind: 'unknown.kind' });
     await expect(processJob(job, defaultExecutors, 'w1', {})).rejects.toThrow(/no executor/);
@@ -156,6 +237,7 @@ describe('default executor registry', () => {
     expect(Object.keys(defaultExecutors).sort()).toEqual(
       [
         'content.generate',
+        'media.generate',
         'tos.scan',
         'relay.card',
         'publish.target',
