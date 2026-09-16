@@ -37,8 +37,8 @@ export default function BundleMedia({ bundleId }: { bundleId: string }) {
   </div>;
   if (!kind) return <p role="status">Loading media preview…</p>;
   return kind === 'video'
-    ? <video controls playsInline preload="metadata" src={src} style={{ maxWidth: '100%', maxHeight: 480 }} onError={() => setFailed(true)} />
+    ? <video controls playsInline preload="metadata" src={src} style={{ display: 'block', alignSelf: 'center', width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: 480, objectFit: 'contain' }} onError={() => setFailed(true)} />
     // Authenticated same-origin bytes must not go through the public image optimizer.
     // eslint-disable-next-line @next/next/no-img-element
-    : <img src={src} alt="Generated media for this bundle" style={{ maxWidth: '100%', maxHeight: 480 }} onError={() => setFailed(true)} />;
+    : <img src={src} alt="Generated media for this bundle" style={{ display: 'block', alignSelf: 'center', width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: 480, objectFit: 'contain' }} onError={() => setFailed(true)} />;
 }

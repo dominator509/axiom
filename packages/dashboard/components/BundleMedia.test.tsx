@@ -37,6 +37,11 @@ afterEach(() => {
 });
 
 describe('saved media preview recovery', () => {
+  it.each(['image/jpeg', 'video/mp4'])('prevents flex stretching and preserves %s preview proportions', async type => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { headers: { 'content-type': type } })));
+    mount(); await flush();
+    expect(render().props.style).toMatchObject({ alignSelf: 'center', width: 'auto', height: 'auto', objectFit: 'contain', maxWidth: '100%', maxHeight: 480 });
+  });
   it('retries only the authenticated saved-media HEAD request after failure', async () => {
     const fetch = vi.fn().mockResolvedValueOnce(new Response(null, { status: 503 }))
       .mockResolvedValueOnce(new Response(null, { headers: { 'content-type': 'video/mp4' } }));
