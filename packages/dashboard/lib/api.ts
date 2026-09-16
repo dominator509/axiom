@@ -182,6 +182,7 @@ export interface KillSwitchState {
 }
 
 export interface NetworkConfig {
+  id?: string;
   modelId: string;
   egressMode: string | null;
   healthy: boolean;
