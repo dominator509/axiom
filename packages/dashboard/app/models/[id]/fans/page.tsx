@@ -1,4 +1,5 @@
-import { api } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
+import FanContactForm from '@/components/FanContactForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,8 @@ const TIER_BADGE: Record<string, string> = {
 
 export default async function FansPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const session = await getSession();
+  const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   let fans: Awaited<ReturnType<typeof api.models.fans>>['data'] = [];
   let requests: Awaited<ReturnType<typeof api.models.customRequests>>['data'] = [];
   const [contactsResult, requestsResult] = await Promise.allSettled([
@@ -23,6 +26,7 @@ export default async function FansPage({ params }: { params: Promise<{ id: strin
     <div className="page-stack">
       <h2>Fan relationships</h2>
       <p className="subtle">Browse saved fan contacts and track requests for custom content. Lifetime value is the recorded total spent by a fan.</p>
+      {canEdit ? <FanContactForm modelId={id} /> : <p className="subtle">Contact editing requires an owner, manager or operator role.</p>}
       <div className="grid">
         <div className="card">
           <h3>High-value contacts</h3>

@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import FansPage from './page';
-import { api } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
 
-vi.mock('@/lib/api', () => ({ api: { models: { fans: vi.fn(), customRequests: vi.fn() } } }));
+vi.mock('@/lib/api', () => ({ getSession: vi.fn(), api: { models: { fans: vi.fn(), customRequests: vi.fn() } } }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(api.models.fans).mockResolvedValue({ data: [{ id: 'fan', displayName: 'Saved contact', platform: 'fanvue', tier: 'new', lifetimeValueUsd: '12' }] } as Awaited<ReturnType<typeof api.models.fans>>);
@@ -12,6 +13,13 @@ beforeEach(() => {
 const render = async () => renderToStaticMarkup(await FansPage({ params: Promise.resolve({ id: 'talent' }) }));
 
 describe('independent fan section loading', () => {
+  it('exposes contact editing to operators', async () => {
+    vi.mocked(getSession).mockResolvedValue({ user: { id: 'user', role: 'operator' } });
+    expect(await render()).toContain('Save fan contact');
+  });
+  it('does not expose contact editing without a permitted role', async () => {
+    expect(await render()).not.toContain('Save fan contact');
+  });
   it('preserves contacts when custom requests fail', async () => {
     vi.mocked(api.models.customRequests).mockRejectedValue(new Error('Unavailable'));
     const html = await render();

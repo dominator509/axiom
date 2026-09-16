@@ -58,3 +58,7 @@ Backend paths below are relative to `/api/v1` unless noted. Evidence paths are r
 For every operator capability: name its architecture feature, mounted backend contract, permitted roles, reachable UI control, validated payload, visible success/error/empty states, persistence after reload, and desktop/mobile browser result. Test forbidden roles as well as allowed roles. Destructive operations need confirmation; retries must preserve user-intent idempotency; asynchronous operations need terminal status and reconciliation. Do not bypass safety gates or dispatch publication merely to satisfy coverage.
 
 Remaining audit depth: complete field-by-field and role-by-role runtime execution; inspect all worker-only architectural features for missing orchestration rather than merely missing buttons; verify every F-01..F-88 requirement individually. This document is a coverage finding, not a new execution plan, and does not certify architecture completeness or production readiness.
+
+## Remediation evidence after baseline
+
+- M193: Fans page now includes a role-gated contact add/update form against the existing upsert route. Optional blank fields preserve existing values; uncertain submissions retain the request body/key and lock editing until reconciliation. Eleven payload/page tests and dashboard typecheck pass. This narrows the fan-contact gap only: timeline, ticket controls, pagination and deployed browser save/reload acceptance remain open.
