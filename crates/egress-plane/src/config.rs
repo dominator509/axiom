@@ -72,6 +72,8 @@ pub struct Creds {
     pub wg_preshared_key: Option<String>,
     #[serde(default)]
     pub vpn_config: Option<String>,
+    #[serde(default)]
+    pub iface_addr: Option<String>,
 }
 
 /// A fully-resolved per-model egress config (the Rust-side mirror of a
@@ -156,6 +158,13 @@ impl NetworkConfig {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn stored_tunnel_address_survives_credential_decode() {
+        let creds: super::Creds = serde_json::from_str(r#"{"iface_addr":"10.88.0.9/32"}"#).unwrap();
+        assert_eq!(creds.iface_addr.as_deref(), Some("10.88.0.9/32"));
+        let legacy: super::Creds = serde_json::from_str("{}").unwrap();
+        assert!(legacy.iface_addr.is_none());
+    }
     use super::*;
 
     #[test]

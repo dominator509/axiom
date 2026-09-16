@@ -1385,7 +1385,7 @@ pub async fn egress_sync(
             wg_private_key: creds.as_ref().and_then(|c| c.wg_private_key.clone()),
             wg_preshared_key: creds.as_ref().and_then(|c| c.wg_preshared_key.clone()),
             vpn_config: creds.as_ref().and_then(|c| c.vpn_config.clone()),
-            iface_addr: None,
+            iface_addr: creds.as_ref().and_then(|c| c.iface_addr.clone()),
         };
         match bind_egress(&state, &req).await {
             Ok(mut b) => {

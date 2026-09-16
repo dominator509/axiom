@@ -1,8 +1,8 @@
 // ─── Egress config management (L2.6) — Vitest-backed API routes ───
 // Real DB-backed CRUD for model_network_configs (org-scoped via RLS
 // app.current_org_id) + proxy endpoints to the egress-plane (:9090) for
-// bind/unbind/status/sync. Credentials never enter the API process in
-// plaintext: the API calls the plane's /egress/encrypt to get an envelope
+// bind/unbind/status/sync. Credentials pass through the authenticated API
+// in memory: the API calls the plane's /egress/encrypt to get an envelope
 // and stores enc_creds/enc_nonce/dek_id.
 
 import { Hono } from 'hono';
@@ -41,6 +41,11 @@ const createEgressConfigSchema = z.object({
   proxyPassword: z.string().max(500).optional(),
   wgPrivateKey: z.string().max(500).optional(),
   wgPresharedKey: z.string().max(500).optional(),
+  wgInterfaceAddress: z.string().max(49).refine(value => {
+    const [address, prefix, extra] = value.split('/');
+    return extra === undefined && z.string().ip({ version: 'v4' }).safeParse(address).success
+      && /^(?:[0-9]|[12][0-9]|3[0-2])$/.test(prefix ?? '');
+  }, 'WireGuard interface address must be IPv4/CIDR').optional(),
   vpnConfig: z.string().max(20000).optional(),
 });
 
@@ -92,6 +97,7 @@ function credsPayload(body: Record<string, unknown>): string | null {
     proxyPassword: 'proxy_password',
     wgPrivateKey: 'wg_private_key',
     wgPresharedKey: 'wg_preshared_key',
+    wgInterfaceAddress: 'iface_addr',
     vpnConfig: 'vpn_config',
   } as const;
   const credentials: Record<string, string> = {};

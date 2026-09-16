@@ -78,6 +78,13 @@ const validBody = {
 };
 
 describe('POST / — create config', () => {
+  it.each(['10.0.0.2', '10.0.0.2/33', '999.0.0.2/32', '10.0.0.2/32/extra'])('rejects invalid tunnel address %s', async wgInterfaceAddress => {
+    const res = await appWithOrg('org-1').request('/', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, wgInterfaceAddress }),
+    });
+    expect(res.status).toBe(400);
+  });
   it('rejects a request without an org context (401)', async () => {
     const res = await appWithOrg(null).request('/', {
       method: 'POST',
@@ -161,6 +168,7 @@ describe('POST / — create config', () => {
         proxyAddr: '127.0.0.1:1080',
         proxyUsername: 'alice\\ops',
         proxyPassword: 's3cret"line\nnext',
+        wgInterfaceAddress: '10.88.0.9/32',
       }),
     });
     expect(res.status).toBe(201);
@@ -174,6 +182,7 @@ describe('POST / — create config', () => {
     expect(JSON.parse(decoded)).toEqual({
       proxy_username: 'alice\\ops',
       proxy_password: 's3cret"line\nnext',
+      iface_addr: '10.88.0.9/32',
     });
     expect(callInit.body).not.toContain('s3cret');
   });
