@@ -1,16 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ModelOverviewPage from './page';
-import { api } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
 
-vi.mock('@/lib/api', () => ({ api: { models: {
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock('@/lib/api', () => ({ getSession: vi.fn(), api: { models: {
   get: vi.fn(), network: vi.fn(), calendar: vi.fn(), fans: vi.fn(),
 } } }));
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(getSession).mockResolvedValue({ user: { role: 'operator' } } as Awaited<ReturnType<typeof getSession>>);
   vi.mocked(api.models.get).mockResolvedValue({ data: {
-    id: 'talent', handle: 'creator', bio: 'Profile', createdAt: '2026-09-15',
+    id: 'talent', displayName: 'Creator', handle: 'creator', bio: 'Profile', createdAt: '2026-09-15',
   } } as Awaited<ReturnType<typeof api.models.get>>);
   vi.mocked(api.models.network).mockRejectedValue(new Error('Unavailable'));
   vi.mocked(api.models.calendar).mockResolvedValue({ data: [] } as Awaited<ReturnType<typeof api.models.calendar>>);
@@ -20,6 +22,11 @@ beforeEach(() => {
 const render = async () => renderToStaticMarkup(await ModelOverviewPage({ params: Promise.resolve({ id: 'talent' }) }));
 
 describe('talent overview recovery and navigation', () => {
+  it('shows profile editing only to operational roles', async () => {
+    expect(await render()).toContain('Edit profile details');
+    vi.mocked(getSession).mockResolvedValue({ user: { role: 'viewer' } } as Awaited<ReturnType<typeof getSession>>);
+    expect(await render()).not.toContain('Edit profile details');
+  });
   it('links summaries and next actions to this talent workspace', async () => {
     const html = await render();
     for (const route of ['network', 'calendar', 'fans', 'generation', 'approvals']) {

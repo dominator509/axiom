@@ -1,11 +1,14 @@
-import { api } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
 import CharacterLockEditor from '@/components/CharacterLockEditor';
+import ProfileEditor from '@/components/ProfileEditor';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ModelOverviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const session = await getSession();
+  const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   let model;
   let network;
   let calendarCount: number | null = null;
@@ -43,16 +46,19 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
     <div className="grid">
       <div className="card stack">
         <h3>Profile</h3>
+        <div><strong>Creator:</strong> {model.displayName}</div>
         <div>
           <strong>Handle:</strong> @{model.handle}
         </div>
         <div>
           <strong>Bio:</strong> {model.bio ?? '—'}
         </div>
-        {typeof model.characterLockPrompt === 'string' && Number.isSafeInteger(model.characterLockVersion)
+        {canEdit && <ProfileEditor key={`${model.id}:${model.updatedAt}`} model={model} />}
+        {canEdit && (typeof model.characterLockPrompt === 'string' && Number.isSafeInteger(model.characterLockVersion)
           ? <CharacterLockEditor key={`${model.id}:${model.characterLockVersion}`} modelId={model.id}
             initialPrompt={model.characterLockPrompt} initialVersion={model.characterLockVersion!} />
-          : <p>Character lock editing is unavailable until the profile API and migration are installed.</p>}
+          : <p>Character lock editing is unavailable until the profile API and migration are installed.</p>)}
+        {!canEdit && <p className="subtle">Profile editing requires an owner, manager or operator role.</p>}
         <div>
           <strong>Created:</strong> {new Date(model.createdAt).toLocaleDateString()}
         </div>

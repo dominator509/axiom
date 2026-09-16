@@ -102,3 +102,17 @@ Full dashboard suite: 382 tests in 47 files passed; typecheck and focused lint
 exited 0 (existing Next pages-directory lint warning). No live schedule changes.
 Drag/drop week view, account retargeting controls, media previews, and deployed
 authenticated browser acceptance are not established by this change.
+# M206: Basic talent profile editing
+
+The overview now exposes the existing model PATCH route for creator name, handle,
+and brand note, including clearing the note. Owner/manager/operator roles see the
+editor; read-only roles also no longer see the character-lock editing control.
+Writes exclude character-lock and activation fields. An uncertain save retains
+the original body/key; successful responses must confirm identity and values.
+The editor remounts on the saved profile timestamp to avoid stale default fields.
+
+Evidence: seven focused component/page tests and dashboard typecheck passed;
+focused lint exited 0 with the existing Next pages-directory warning. No live
+profile was edited. Avatar editing, activation/deactivation enforcement, and
+deployed browser acceptance remain open. Hosted CI 35047124075 for the earlier
+af8fe4b revision completed successfully; it does not cover M204–M206.
