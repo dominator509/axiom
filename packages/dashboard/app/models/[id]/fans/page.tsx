@@ -13,18 +13,23 @@ const TIER_BADGE: Record<string, string> = {
   new: 'mute',
 };
 
-export default async function FansPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ fan?: string | string[] }> }) {
+export default async function FansPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ fan?: string | string[]; cursor?: string | string[] }> }) {
   const { id } = await params;
+  const query = await searchParams;
+  const cursor = typeof query?.cursor === 'string' ? query.cursor : undefined;
+  const basePath = `/models/${encodeURIComponent(id)}/fans`;
+  const currentList = `${basePath}${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`;
   const session = await getSession();
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   let fans: Awaited<ReturnType<typeof api.models.fans>>['data'] = [];
   let requests: Awaited<ReturnType<typeof api.models.customRequests>>['data'] = [];
   const [contactsResult, requestsResult] = await Promise.allSettled([
-    api.models.fans(id), api.models.customRequests(id),
+    api.models.fans(id, cursor), api.models.customRequests(id),
   ]);
   if (contactsResult.status === 'fulfilled') fans = contactsResult.value.data;
   if (requestsResult.status === 'fulfilled') requests = requestsResult.value.data;
-  const selected = (await searchParams)?.fan;
+  const nextCursor = contactsResult.status === 'fulfilled' ? contactsResult.value.meta?.next_cursor : null;
+  const selected = query?.fan;
   let timeline: FanTimeline | null = null;
   let timelineError = false;
   if (selected) {
@@ -42,7 +47,7 @@ export default async function FansPage({ params, searchParams }: { params: Promi
       <p className="subtle">Browse saved fan contacts and track requests for custom content. Lifetime value is the recorded total spent by a fan.</p>
       {canEdit ? <FanContactForm modelId={id} /> : <p className="subtle">Contact editing requires an owner, manager or operator role.</p>}
       {selected && <section className="card stack" aria-label="Fan timeline">
-        <Link href={`/models/${encodeURIComponent(id)}/fans`}>Close fan details</Link>
+        <Link href={currentList}>Close fan details</Link>
         {timelineError && <p role="alert">This fan timeline could not be loaded for this talent. Select a contact from the list or try again.</p>}
         {timeline && <>
           <h3>{timeline.fan.displayName ?? 'Fan'} — recorded activity</h3>
@@ -66,7 +71,7 @@ export default async function FansPage({ params, searchParams }: { params: Promi
           <h3>High-value contacts</h3>
           {contactsResult.status === 'rejected'
             ? <p role="alert">Fan contacts could not be loaded. Reload this page to try again.</p>
-            : fans.length === 0 && <p style={{ color: 'var(--muted)' }}>No fan contacts yet.</p>}
+            : fans.length === 0 && <p style={{ color: 'var(--muted)' }}>{cursor ? 'No more contacts on this page.' : 'No fan contacts yet.'}</p>}
           <table>
             <thead>
               <tr>
@@ -79,7 +84,7 @@ export default async function FansPage({ params, searchParams }: { params: Promi
             <tbody>
               {fans.map((f) => (
                 <tr key={f.id}>
-                  <td><Link href={`/models/${encodeURIComponent(id)}/fans?fan=${encodeURIComponent(f.id)}`}>{f.displayName ?? f.id.slice(0, 8)}</Link></td>
+                  <td><Link href={`${basePath}?${new URLSearchParams({ fan: f.id, ...(cursor ? { cursor } : {}) })}`}>{f.displayName ?? f.id.slice(0, 8)}</Link></td>
                   <td>{f.platform}</td>
                   <td>
                     <span className={`badge ${TIER_BADGE[f.tier] ?? 'mute'}`}>{f.tier}</span>
@@ -89,6 +94,10 @@ export default async function FansPage({ params, searchParams }: { params: Promi
               ))}
             </tbody>
           </table>
+          <nav className="row" aria-label="Fan contact pages">
+            {cursor && <Link href={basePath}>First contacts</Link>}
+            {nextCursor && <Link href={`${basePath}?${new URLSearchParams({ cursor: nextCursor })}`}>Next contacts</Link>}
+          </nav>
         </div>
         <div className="card">
           <h3>Custom requests</h3>

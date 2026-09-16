@@ -217,7 +217,7 @@ export const api = {
       apiFetch<{ data: PostTarget[] }>(
         `/api/v1/models/${id}/calendar${from || to ? `?${new URLSearchParams({ ...(from ? { from } : {}), ...(to ? { to } : {}) })}` : ''}`,
       ),
-    fans: (id: string) => apiFetch<{ data: FanContact[] }>(`/api/v1/models/${id}/fans`),
+    fans: (id: string, cursor?: string) => apiFetch<{ data: FanContact[]; meta?: { next_cursor: string | null } }>(`/api/v1/models/${id}/fans${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
     customRequests: (id: string) =>
       apiFetch<{ data: CustomRequest[] }>(`/api/v1/models/${id}/custom-requests`),
     analytics: (id: string, days = 30) =>

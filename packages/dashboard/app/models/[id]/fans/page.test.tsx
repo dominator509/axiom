@@ -13,6 +13,21 @@ beforeEach(() => {
 const render = async () => renderToStaticMarkup(await FansPage({ params: Promise.resolve({ id: 'talent' }) }));
 
 describe('independent fan section loading', () => {
+  it('forwards the cursor and preserves it when opening a contact', async () => {
+    vi.mocked(api.models.fans).mockResolvedValue({ data: [{ id: 'fan', displayName: 'Saved contact', platform: 'x', tier: 'new', lifetimeValueUsd: '0' }], meta: { next_cursor: 'next+/=' } } as Awaited<ReturnType<typeof api.models.fans>>);
+    const html = renderToStaticMarkup(await FansPage({ params: Promise.resolve({ id: 'talent' }), searchParams: Promise.resolve({ cursor: 'current+/=' }) }));
+    expect(api.models.fans).toHaveBeenCalledWith('talent', 'current+/=');
+    expect(html).toContain('fan=fan&amp;cursor=current%2B%2F%3D');
+    expect(html).toContain('cursor=next%2B%2F%3D');
+    expect(html).toContain('First contacts');
+  });
+  it('distinguishes an exhausted page from an empty contact database', async () => {
+    vi.mocked(api.models.fans).mockResolvedValue({ data: [], meta: { next_cursor: null } });
+    const html = renderToStaticMarkup(await FansPage({ params: Promise.resolve({ id: 'talent' }), searchParams: Promise.resolve({ cursor: 'end' }) }));
+    expect(html).toContain('No more contacts on this page.');
+    expect(html).not.toContain('No fan contacts yet.');
+    expect(html).not.toContain('Next contacts');
+  });
   it('links contacts to a scoped timeline', async () => {
     expect(await render()).toContain('/models/talent/fans?fan=fan');
   });
