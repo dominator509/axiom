@@ -70,3 +70,19 @@ Remaining audit depth: complete field-by-field and role-by-role runtime executio
 - M200: Saved non-direct configs now expose owner-only encrypted credential entry: complete proxy username/password or WireGuard private/peer/preshared keys, endpoint, assigned IPv4 address and allowed IPs. Uses existing egress PATCH encryption path with replacement acknowledgment, no secret readback, bounded generic errors and same-intent retries. Ten focused render/payload/page tests and typecheck pass. Saving is explicitly not activation; per-model activation/health, deployed credential round trip and privacy enforcement remain open.
 - M201-M202: Owner live-status readout and explicit model-scoped apply controls now exist. API validates model ownership and targets a distinct Rust sync-model endpoint so older sidecars reject rather than ignore scope. Reconciliation filters both configuration application and stale-binding teardown. Source wiring no longer lacks apply/status controls; deployed behavior, credentials, Linux isolation and live leak tests remain open.
 - M203 combined verification: dashboard 368/368 tests passed. First full API run: 580 passed, two import-hook timeouts left 56 skipped; those 56 passed at one worker, and the complete API suite passed 636/636 at maxWorkers=2 with unchanged timeouts/assertions. API typecheck passed. Rust formatting drift corrected and fmt check passed. This does not establish default-concurrency reliability, hosted CI or deployed acceptance.
+# M204: Network activation interaction hardening
+
+The owner-facing activation control now validates the sidecar's `synced`, `bound`,
+and `skipped` response before reporting reconciliation. Empty/malformed 2xx
+responses remain uncertain. Routing changes are not automatically retried by the
+browser mutation helper; an explicit retry preserves the uncertain intent key.
+Definitive validation/auth/not-found rejections require renewed approval and a
+new key. Successful reconciliation displays bound/skipped counts and explicitly
+does not claim tunnel health.
+
+Evidence: 10 interaction regressions exercise explicit approval, concurrent-click
+suppression, model-only payload, uncertain retries, rejected intents, and invalid
+successful responses. Full dashboard suite: 378 tests across 46 files passed;
+dashboard typecheck and focused lint exited 0 (existing Next pages-directory lint
+warning). No live routing changes or deployment performed. Privileged isolation,
+provider connectivity, and authenticated browser acceptance remain open.
