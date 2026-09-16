@@ -39,7 +39,7 @@ describe('workspace navigation coverage', () => {
     expect(renderToStaticMarkup(<NavLinks />)).not.toContain('aria-current');
   });
 
-  it.each(['generation', 'approvals', 'calendar', 'network', 'fans', 'linkbio', 'analytics', 'playbook'])('keeps talent identity when navigating to %s', section => {
+  it.each(['generation', 'media', 'approvals', 'calendar', 'network', 'fans', 'linkbio', 'analytics', 'playbook'])('keeps talent identity when navigating to %s', section => {
     location.pathname = `/models/test-profile/${section}`;
     const html = renderToStaticMarkup(<ModelTabs modelId="test-profile" />);
     const link = html.match(new RegExp(`<a\\b[^>]*href="${location.pathname}"[^>]*>`))?.[0];

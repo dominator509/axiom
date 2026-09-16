@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, desc } from 'drizzle-orm';
 import { mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -8,8 +8,36 @@ import { schema } from '@axiom/db';
 import { storeGeneratedAsset } from '@axiom/worker';
 import type { AppBindings } from '../index.js';
 import { apiError, requireOrg, statusTitle, withOrgContext, writeAudit } from './helpers.js';
+import { parseCursor, cursorLt, nextCursor } from '../contract.js';
+import { assetPreview } from '../asset-preview.js';
 
 export const mediaUploadRouter = new Hono<AppBindings>();
+// Both uploaded and generated assets use the same tenant-scoped storage table.
+mediaUploadRouter.get('/models/:modelId/media', async c => {
+  const orgId = requireOrg(c), modelId = c.req.param('modelId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  if (!z.string().uuid().safeParse(modelId).success) return apiError(c, 400, statusTitle(400), 'Invalid model');
+  const { limit, cursor } = parseCursor(c, 20, 100);
+  const rows = await withOrgContext(orgId, tx => tx.select({
+    id: schema.asset.id, kind: schema.asset.kind, mimeType: schema.asset.mimeType,
+    fileSize: schema.asset.fileSize, width: schema.asset.width, height: schema.asset.height, createdAt: schema.asset.createdAt,
+  }).from(schema.asset).where(and(eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
+    ...cursorLt(schema.asset.createdAt, schema.asset.id, cursor)))
+    .orderBy(desc(schema.asset.createdAt), desc(schema.asset.id)).limit(limit));
+  const last = rows[rows.length - 1];
+  return c.json({ data: rows, meta: { next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length) } });
+});
+mediaUploadRouter.get('/models/:modelId/media/:assetId', async c => {
+  const orgId = requireOrg(c), modelId = c.req.param('modelId'), assetId = c.req.param('assetId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  if (![modelId, assetId].every(id => z.string().uuid().safeParse(id).success)) return apiError(c, 400, statusTitle(400), 'Invalid media identity');
+  const asset = await withOrgContext(orgId, async tx => (await tx.select().from(schema.asset).where(and(
+    eq(schema.asset.id, assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
+  )).limit(1))[0]);
+  if (!asset || asset.id !== assetId || asset.orgId !== orgId || asset.modelId !== modelId) return apiError(c, 404, statusTitle(404), 'Media unavailable');
+  try { return await assetPreview(asset, c.req.raw, process.env.AXIOM_MEDIA_ROOT ?? 'var/media'); }
+  catch { return apiError(c, 404, statusTitle(404), 'Media unavailable'); }
+});
 mediaUploadRouter.post('/models/:modelId/media-upload', async c => {
   const orgId = requireOrg(c), userId = c.get('userId'), modelId = c.req.param('modelId');
   if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'Authenticated operator required');

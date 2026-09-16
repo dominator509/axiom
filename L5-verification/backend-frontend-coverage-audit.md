@@ -141,3 +141,18 @@ ambiguous cursors. Job load failures remain alerts rather than empty results.
 Evidence: ten focused incident-page/API-client tests and dashboard typecheck
 passed; focused lint exited 0 with the existing Next warning. Deployed browser
 acceptance remains open; no replay or other live mutation was dispatched.
+# M209: Saved media library
+
+A Media library tab now lists the existing talent-scoped asset store, including
+uploads and generated files, with image/video previews and forward pagination.
+Two read-only routes in the existing media router project non-storage metadata
+and serve owned assets through the existing hash-verified authenticated preview
+reader (including Range requests). No migration or new storage service is added.
+The UI explicitly separates media presence from compliance/approval status.
+
+Evidence: 15 dashboard navigation/library tests, 12 media-router tests, API and
+dashboard typechecks, focused lint passed. The initial library test cleanup
+incorrectly returned a mock function; corrected before the passing rerun. No live
+media accessed or modified. Source/generated provenance labels, selecting stored
+references directly for generation, preview error UX and deployed browser
+acceptance remain open; this does not claim full media workflow completion.

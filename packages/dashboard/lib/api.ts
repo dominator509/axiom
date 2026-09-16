@@ -198,6 +198,7 @@ export const api = {
     get: (id: string) => apiFetch<{ data: FanTimeline }>(`/api/v1/fans/${encodeURIComponent(id)}`),
   },
   models: {
+    media: (id: string, cursor?: string) => apiFetch<{ data: Array<{ id: string; kind: string; mimeType: string; fileSize: number; width: number | null; height: number | null; createdAt: string }>; meta?: { next_cursor?: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/media${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
     list: (cursor?: string) => apiFetch<{
       data: ModelProfile[];
       meta: { total: number; limit: number; next_cursor: string | null };

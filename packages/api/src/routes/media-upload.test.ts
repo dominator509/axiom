@@ -3,6 +3,8 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 const store = vi.hoisted(() => vi.fn());
+const preview = vi.hoisted(() => vi.fn());
+vi.mock('../asset-preview.js', () => ({ assetPreview: preview }));
 vi.mock('@axiom/db', () => mockDbFactory());
 vi.mock('@axiom/worker', () => ({ storeGeneratedAsset: store }));
 vi.mock('./helpers.js', async original => ({ ...await original<typeof import('./helpers.js')>(), writeAudit: vi.fn() }));
@@ -25,8 +27,29 @@ function request(server = app(), sanitize = 'true', type = 'image/png') {
 }
 beforeEach(() => {
   mockState.result = [{ id: modelId }]; mockState.results = []; store.mockReset();
+  preview.mockReset();
   store.mockResolvedValue({ storageKey: 'generated/unit.png', fileName: 'unit.png', mimeType: 'image/png',
     sha256: Buffer.alloc(32), fileSize: 24, exactFileHashChanged: false });
+});
+it('requires authentication and valid model IDs to list media', async () => {
+  expect((await app(false).request(`/models/${modelId}/media`)).status).toBe(401);
+  expect((await app().request('/models/bad/media')).status).toBe(400);
+});
+it.each([
+  null,
+  { id: '33333333-3333-4333-8333-333333333333', orgId: 'other', modelId },
+  { id: '33333333-3333-4333-8333-333333333333', orgId: '11111111-1111-4111-8111-111111111111', modelId: 'other' },
+])('never previews an absent or mismatched asset %j', async row => {
+  mockState.result = row ? [row] : [];
+  const response = await app().request(`/models/${modelId}/media/33333333-3333-4333-8333-333333333333`);
+  expect(response.status).toBe(404); expect(preview).not.toHaveBeenCalled();
+});
+it('passes the owned asset and range request to the existing preview reader', async () => {
+  mockState.result = [{ id: '33333333-3333-4333-8333-333333333333', orgId: '11111111-1111-4111-8111-111111111111', modelId }];
+  preview.mockResolvedValue(new Response('bytes', { status: 206 }));
+  const response = await app().request(`/models/${modelId}/media/33333333-3333-4333-8333-333333333333`, { headers: { range: 'bytes=0-4' } });
+  expect(response.status).toBe(206);
+  expect(preview.mock.calls[0][1].headers.get('range')).toBe('bytes=0-4');
 });
 it.each(['true', 'false'])('passes the exact upload privacy choice %s to storage', async selection => {
   const response = await request(app(), selection);

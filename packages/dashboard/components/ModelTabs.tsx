@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 const TABS = [
   { href: '', label: 'Profile & character' },
   { href: 'generation', label: 'Create content' },
+  { href: 'media', label: 'Media library' },
   { href: 'approvals', label: 'Review & approve' },
   { href: 'calendar', label: 'Schedule' },
   { href: 'fans', label: 'Fan contacts' },
