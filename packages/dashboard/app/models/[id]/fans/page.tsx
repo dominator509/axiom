@@ -1,5 +1,6 @@
 import { api, getSession } from '@/lib/api';
 import FanContactForm from '@/components/FanContactForm';
+import CustomRequestForm from '@/components/CustomRequestForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,6 +59,7 @@ export default async function FansPage({ params }: { params: Promise<{ id: strin
         </div>
         <div className="card">
           <h3>Custom requests</h3>
+          {canEdit && <CustomRequestForm modelId={id} fans={fans} />}
           {requestsResult.status === 'rejected' && <p role="alert">Custom requests could not be loaded. Reload this page to try again.</p>}
           {requestsResult.status === 'fulfilled' && requests.length === 0 && (
             <p style={{ color: 'var(--muted)' }}>No custom request tickets.</p>
@@ -78,6 +80,7 @@ export default async function FansPage({ params }: { params: Promise<{ id: strin
                     <span className={`badge ${r.status === 'delivered' ? 'good' : 'warn'}`}>
                       {r.status}
                     </span>
+                    {canEdit && <CustomRequestForm requestId={r.id} status={r.status} title={r.title} />}
                   </td>
                   <td>{r.priceUsd ? `$${r.priceUsd}` : '—'}</td>
                 </tr>
