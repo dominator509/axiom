@@ -508,18 +508,28 @@ describe('Plane proxy endpoints', () => {
     expect(payload).toEqual({ model_id: MODEL_ID, org_id: 'org-1' });
   });
 
-  it('POST /plane/sync asks the plane to sync configs from the DB', async () => {
+  it('POST /plane/sync scopes reconciliation to the authenticated model', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
         new Response(JSON.stringify({ status: 'synced', bound: 2 }), { status: 200 }),
       );
     vi.stubGlobal('fetch', fetchMock);
-    const res = await appWithOrg('org-1').request('/plane/sync', { method: 'POST' });
+    mockState.result = [{ orgId: 'org-1' }];
+    const res = await appWithOrg('org-1').request('/plane/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model_id: MODEL_ID }) });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.status).toBe('synced');
     expect(body.data.bound).toBe(2);
+    expect(fetchMock.mock.calls[0][0]).toContain(`model_id=${MODEL_ID}&org_id=org-1`);
+    expect(fetchMock.mock.calls[0][0]).toContain('/egress/sync-model?');
+  });
+  it('rejects unscoped or cross-tenant sync without invoking the plane', async () => {
+    const send = vi.fn(); vi.stubGlobal('fetch', send);
+    expect((await appWithOrg('org-1').request('/plane/sync', { method: 'POST' })).status).toBe(400);
+    mockState.result = [];
+    expect((await appWithOrg('org-1').request('/plane/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model_id: MODEL_ID }) })).status).toBe(404);
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('returns 502 when the plane is unreachable', async () => {

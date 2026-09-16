@@ -446,10 +446,20 @@ router.get('/plane/status', async (c) => {
   }
 });
 
-// POST /plane/sync — ask the plane to sync configs from the DB
+// POST /plane/sync — reconcile only the authenticated owner's selected model
 router.post('/plane/sync', async (c) => {
+  const orgId = c.get('orgId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  let payload: unknown;
+  try { payload = await readBoundedJson(c.req.raw); }
+  catch { return apiError(c, 400, statusTitle(400), 'model_id required'); }
+  const parsed = z.object({ model_id: z.string().uuid() }).strict().safeParse(payload);
+  if (!parsed.success) return apiError(c, 400, statusTitle(400), 'model_id required');
   try {
-    const res = await fetch(`${EGRESS_PLANE_URL}/egress/sync`, {
+    const ownerOrgId = await withOrgContext(orgId, tx => modelOrgId(tx, parsed.data.model_id));
+    if (ownerOrgId !== orgId) return apiError(c, 404, statusTitle(404), 'model not found');
+    const query = new URLSearchParams({ model_id: parsed.data.model_id, org_id: orgId });
+    const res = await fetch(`${EGRESS_PLANE_URL}/egress/sync-model?${query}`, {
       method: 'POST',
       headers: EGRESS_PLANE_HEADERS,
       signal: AbortSignal.timeout(30000),

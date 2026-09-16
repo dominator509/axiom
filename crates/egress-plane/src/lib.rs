@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Request, State},
+    extract::{Query, Request, State},
     http::StatusCode,
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -1298,15 +1298,68 @@ pub async fn metrics(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     )
 }
 
-/// POST /egress/sync — load all configs from Postgres and bind them
+#[derive(Debug, Default, Deserialize)]
+pub struct SyncScope {
+    model_id: Option<String>,
+    org_id: Option<String>,
+}
+
+impl SyncScope {
+    fn validate(&self) -> Result<(), EgressError> {
+        match (&self.model_id, &self.org_id) {
+            (None, None) => Ok(()),
+            (Some(model), Some(org)) if Uuid::parse_str(model).is_ok() && Uuid::parse_str(org).is_ok() => Ok(()),
+            _ => Err(EgressError::Validation("sync requires both valid model_id and org_id".into())),
+        }
+    }
+
+    fn includes(&self, model: &str, org: &str) -> bool {
+        match (&self.model_id, &self.org_id) {
+            (None, None) => true,
+            (Some(expected_model), Some(expected_org)) => expected_model == model && expected_org == org,
+            _ => false,
+        }
+    }
+}
+
+/// Separate endpoint so older sidecars fail with 404 instead of ignoring scope.
+pub async fn egress_sync_model(
+    state: State<Arc<AppState>>,
+    Query(scope): Query<SyncScope>,
+) -> Result<impl IntoResponse, EgressError> {
+    if scope.model_id.is_none() || scope.org_id.is_none() {
+        return Err(EgressError::Validation("model-scoped sync requires model_id and org_id".into()));
+    }
+    egress_sync(state, Query(scope)).await
+}
+
+#[cfg(test)]
+mod sync_scope_tests {
+    use super::*;
+    #[test]
+    fn model_scope_excludes_other_models_and_tenants() {
+        let model = Uuid::new_v4().to_string();
+        let org = Uuid::new_v4().to_string();
+        let scope = SyncScope { model_id: Some(model.clone()), org_id: Some(org.clone()) };
+        assert!(scope.validate().is_ok());
+        assert!(scope.includes(&model, &org));
+        assert!(!scope.includes("other", &org));
+        assert!(!scope.includes(&model, "other"));
+        assert!(SyncScope { model_id: Some(model), org_id: None }.validate().is_err());
+    }
+}
+
+/// POST /egress/sync — reconcile persisted configs, optionally one tenant model.
 #[instrument(skip(state))]
 pub async fn egress_sync(
     State(state): State<Arc<AppState>>,
+    Query(scope): Query<SyncScope>,
 ) -> Result<impl IntoResponse, EgressError> {
+    scope.validate()?;
     let correlation_id = Uuid::new_v4().to_string();
     let mut client = state.db.lock().unwrap().take();
-    let configs = match client.as_mut() {
-        Some(c) => db::load_configs(c).await.map_err(EgressError::Config)?,
+    let configs_result = match client.as_mut() {
+        Some(c) => db::load_configs(c).await.map_err(EgressError::Config),
         None => {
             return Err(EgressError::Config(
                 "DATABASE_URL not configured".to_string(),
@@ -1314,12 +1367,14 @@ pub async fn egress_sync(
         }
     };
     *state.db.lock().unwrap() = client;
+    let configs = configs_result?;
     // Reconcile the complete persisted set, not just additions. Removed
     // rows, direct-mode rows, and kill-switch activation must all tear down a
     // previously isolated binding; otherwise deleted credentials and network
     // namespaces remain live after a sync.
     let configs_by_model: HashMap<String, NetworkConfig> = configs
         .into_iter()
+        .filter(|cfg| scope.includes(&cfg.model_id, &cfg.org_id))
         .map(|cfg| (cfg.model_id.clone(), cfg))
         .collect();
     let kill_switch_enabled = state.kill_switch.is_enabled();
@@ -1329,6 +1384,9 @@ pub async fn egress_sync(
             .bounds
             .iter()
             .filter_map(|(model_id, current)| {
+                if !scope.includes(model_id, &current.config.org_id) {
+                    return None;
+                }
                 let keep = !kill_switch_enabled
                     && configs_by_model.get(model_id).is_some_and(|persisted| {
                         persisted.mode != EgressMode::Direct
@@ -1446,6 +1504,7 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/egress/decrypt", post(egress_decrypt))
         .route("/egress/encrypt", post(egress_encrypt))
         .route("/egress/sync", post(egress_sync))
+        .route("/egress/sync-model", post(egress_sync_model))
         .route("/kill-switch/drain", post(kill_switch_drain))
         .route("/kill-switch/status", get(kill_switch_status))
         .route("/kill-switch/disable", post(kill_switch_disable))

@@ -3,6 +3,7 @@ import type { SocialConnection } from '@/lib/api';
 import NetworkForm from '@/components/NetworkForm';
 import EgressCredentials from '@/components/EgressCredentials';
 import NetworkHealth from '@/components/NetworkHealth';
+import ActivateNetwork from '@/components/ActivateNetwork';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +61,7 @@ export default async function NetworkPage({ params }: { params: Promise<{ id: st
       </div>
       {owner && network?.id && network.egressMode && network.egressMode !== 'direct' && <EgressCredentials key={`${network.id}:${network.egressMode}`} configId={network.id} mode={network.egressMode} />}
       {owner && <NetworkHealth modelId={id} />}
+      {owner && network?.id && <ActivateNetwork modelId={id} />}
       <div className="card">
         <h2>Connected accounts</h2>
         {accounts}
