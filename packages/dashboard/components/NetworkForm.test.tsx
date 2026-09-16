@@ -16,6 +16,16 @@ import NetworkForm from './NetworkForm';
 beforeEach(() => { hooks.values = []; hooks.index = 0; hooks.refresh.mockReset(); });
 afterEach(() => vi.unstubAllGlobals());
 
+it('does not submit an unconfigured model as direct', async () => {
+  const fetch = vi.fn();
+  vi.stubGlobal('fetch', fetch);
+  const element = NetworkForm({ modelId: 'model', initial: null });
+  expect(hooks.values[0]).toBe('');
+  await element.props.onSubmit({ preventDefault() {} } as FormEvent);
+  expect(fetch).not.toHaveBeenCalled();
+  expect(hooks.values[4]).toBe('Choose an outbound connection before saving.');
+});
+
 function form() {
   hooks.index = 0;
   return NetworkForm({ modelId: 'model', initial: {

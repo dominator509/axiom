@@ -21,7 +21,7 @@ export default async function NetworkPage({ params }: { params: Promise<{ id: st
           <div className="stack" style={{ marginBottom: 16 }}>
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <span>Egress mode</span>
-              <span className="mono">{network.egressMode}</span>
+              <span className="mono">{network.egressMode ?? 'Not configured'}</span>
             </div>
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <span>Health</span>

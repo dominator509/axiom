@@ -59,11 +59,11 @@ describe('GET /:modelId/network', () => {
     expect(body.data).not.toHaveProperty('dekId');
   });
 
-  it('returns a direct-default shape when no config exists', async () => {
+  it('does not imply direct routing was chosen when no config exists', async () => {
     const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.data.egressMode).toBe('direct');
+    expect(body.data.egressMode).toBeNull();
     expect(body.data.healthy).toBe(false);
   });
 
@@ -74,6 +74,13 @@ describe('GET /:modelId/network', () => {
 });
 
 describe('PUT /:modelId/network', () => {
+  it('requires an explicit mode instead of silently selecting direct', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`, {
+      method: 'PUT', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ proxyAddr: '127.0.0.1:1080' }),
+    });
+    expect(res.status).toBe(400);
+  });
   it('accepts explicit null to clear saved proxy and expected IP fields', async () => {
     mockState.result = [{ id: 'cfg-1', orgId: ORG_ID, modelId: MODEL_ID }];
     mockState.updates = [];

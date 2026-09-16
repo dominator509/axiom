@@ -28,7 +28,7 @@ const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TO
 
 const networkSchema = z
   .object({
-    egressMode: z.enum(['direct', 'socks5', 'http', 'https', 'wireguard', 'vpn']).default('direct'),
+    egressMode: z.enum(['direct', 'socks5', 'http', 'https', 'wireguard', 'vpn']),
     proxyType: z.string().max(20).optional(),
     proxyAddr: z.string().max(500).nullable().optional(),
     wgPublicKey: z.string().max(200).optional(),
@@ -131,13 +131,13 @@ router.get('/:modelId/network', async (c) => {
     return c.json({
       data: {
         modelId,
-        egressMode: 'direct',
+        egressMode: null,
         healthy: false,
         lastCheck: null,
         latencyMs: null,
         lastEgressIp: null,
         failCount: 0,
-        lastError: 'no egress config — direct default',
+        lastError: 'Network not configured. Choose an outbound connection explicitly.',
       },
     });
   }
