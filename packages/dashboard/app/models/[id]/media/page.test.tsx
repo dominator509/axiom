@@ -12,7 +12,7 @@ it('renders authenticated image/video previews and model-scoped pagination', asy
   const html = renderToStaticMarkup(await MediaPage({ params: Promise.resolve({ id: 'talent' }), searchParams: Promise.resolve({ cursor: 'current' }) }));
   expect(list).toHaveBeenCalledWith('talent', 'current');
   expect(html).toContain('/api/v1/models/talent/media/image');
-  expect(html).toContain('<video'); expect(html).toContain('playsInline');
+  expect(html).toContain('Saved video'); expect(html).toContain('Loading media preview');
   expect(html).toContain('/models/talent/media?cursor=next+token');
   expect(html).toContain('does not mean an asset passed review');
 });

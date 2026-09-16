@@ -156,3 +156,15 @@ incorrectly returned a mock function; corrected before the passing rerun. No liv
 media accessed or modified. Source/generated provenance labels, selecting stored
 references directly for generation, preview error UX and deployed browser
 acceptance remain open; this does not claim full media workflow completion.
+# M210: Media library preview recovery
+
+Library cards now reuse the existing authenticated bundle viewer with an explicit
+model/asset identity alternative. This provides bounded HEAD requests, media-type
+validation, loading/error states, manual saved-media retry, and aspect-ratio-safe
+image/video display. Retry cannot generate or publish media. The bundle identity
+path remains unchanged.
+
+Evidence: eleven focused preview/library tests, dashboard typecheck and focused
+lint passed. The tests cover library image/video byte-load failures and manual
+retry alongside existing deadline/cleanup/HTML-response checks. Actual browser
+playback and deployed acceptance remain unverified.

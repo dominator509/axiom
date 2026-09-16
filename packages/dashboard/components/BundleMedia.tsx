@@ -2,11 +2,16 @@
 
 import { useEffect, useState } from 'react';
 
-export default function BundleMedia({ bundleId }: { bundleId: string }) {
+type MediaIdentity = { bundleId: string; modelId?: never; assetId?: never }
+  | { bundleId?: never; modelId: string; assetId: string };
+
+export default function BundleMedia(identity: MediaIdentity) {
   const [kind, setKind] = useState<'image' | 'video' | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const src = `/api/v1/bundles/${encodeURIComponent(bundleId)}/media`;
+  const src = identity.bundleId !== undefined
+    ? `/api/v1/bundles/${encodeURIComponent(identity.bundleId)}/media`
+    : `/api/v1/models/${encodeURIComponent(identity.modelId)}/media/${encodeURIComponent(identity.assetId)}`;
   useEffect(() => {
     setKind(null);
     setFailed(false);
@@ -40,5 +45,5 @@ export default function BundleMedia({ bundleId }: { bundleId: string }) {
     ? <video controls playsInline preload="metadata" src={src} style={{ display: 'block', alignSelf: 'center', width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: 480, objectFit: 'contain' }} onError={() => setFailed(true)} />
     // Authenticated same-origin bytes must not go through the public image optimizer.
     // eslint-disable-next-line @next/next/no-img-element
-    : <img src={src} alt="Generated media for this bundle" style={{ display: 'block', alignSelf: 'center', width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: 480, objectFit: 'contain' }} onError={() => setFailed(true)} />;
+    : <img src={src} alt={identity.bundleId !== undefined ? 'Generated media for this bundle' : 'Saved talent media'} style={{ display: 'block', alignSelf: 'center', width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: 480, objectFit: 'contain' }} onError={() => setFailed(true)} />;
 }

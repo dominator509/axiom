@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import BundleMedia from '@/components/BundleMedia';
 
 export const dynamic = 'force-dynamic';
 export default async function MediaPage({ params, searchParams }: {
@@ -21,11 +22,7 @@ export default async function MediaPage({ params, searchParams }: {
         const src = `/api/v1/models/${encodeURIComponent(id)}/media/${encodeURIComponent(asset.id)}`;
         return <article key={asset.id} className="card stack">
           <h3>{asset.kind === 'video' ? 'Saved video' : 'Saved image'}</h3>
-          {asset.mimeType === 'video/mp4' ? <video controls playsInline preload="metadata" src={src} style={{ maxWidth: '100%', maxHeight: 480 }} />
-            : ['image/jpeg', 'image/png'].includes(asset.mimeType) ?
-              // Authenticated images must not pass through a public optimization service.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img loading="lazy" src={src} alt="Saved talent media" style={{ width: '100%', maxHeight: 480, objectFit: 'contain' }} /> : <p>Preview format unavailable.</p>}
+          <BundleMedia modelId={id} assetId={asset.id} />
           <p className="subtle">{asset.width && asset.height ? `${asset.width} × ${asset.height} · ` : ''}{Math.ceil(asset.fileSize / 1024)} KB · {asset.createdAt}</p>
           <a href={src} target="_blank" rel="noopener noreferrer">Open saved media</a>
         </article>;

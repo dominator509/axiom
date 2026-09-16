@@ -37,6 +37,22 @@ afterEach(() => {
 });
 
 describe('saved media preview recovery', () => {
+  it.each(['image/png', 'video/mp4'])('uses the authenticated library endpoint and recovers a failed %s preview', async type => {
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { headers: { 'content-type': type } }));
+    vi.stubGlobal('fetch', fetch);
+    const library = () => { hooks.index = 0; return BundleMedia({ modelId: 'talent', assetId: 'asset' }); };
+    library(); cleanups.push(hooks.effect!()); await flush();
+    const media = library();
+    expect(media.type).toBe(type === 'video/mp4' ? 'video' : 'img');
+    expect(media.props.src).toBe('/api/v1/models/talent/media/asset');
+    expect(fetch).toHaveBeenCalledWith('/api/v1/models/talent/media/asset', expect.objectContaining({ method: 'HEAD', cache: 'no-store' }));
+    media.props.onError();
+    expect(library().props.children[1].props.children).toBe('Retry media preview');
+    library().props.children[1].props.onClick();
+    library(); cleanups.push(hooks.effect!()); await flush();
+    expect(library().type).toBe(media.type);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
   it.each(['image/jpeg', 'video/mp4'])('prevents flex stretching and preserves %s preview proportions', async type => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { headers: { 'content-type': type } })));
     mount(); await flush();
