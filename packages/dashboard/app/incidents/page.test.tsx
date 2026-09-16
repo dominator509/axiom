@@ -27,3 +27,17 @@ it('keeps independent failures explicit without claiming queue health', async ()
   expect(html).toContain('Crash reports could not be loaded'); expect(html).not.toContain('All queues healthy');
   expect(html).not.toContain('No open crash reports');
 });
+it('paginates jobs independently without losing the crash filter or cursor', async () => {
+  state.jobs.mockResolvedValue({ data: [], meta: { next_cursor: 'older jobs' } });
+  const html = renderToStaticMarkup(await IncidentsPage({ searchParams: Promise.resolve({ status: 'resolved', crashCursor: 'crash-page', jobCursor: 'job-page' }) }));
+  expect(state.jobs).toHaveBeenCalledWith('job-page');
+  expect(html).toContain('status=resolved&amp;crashCursor=crash-page&amp;jobCursor=older+jobs');
+  expect(html).toContain('href="/incidents?status=resolved&amp;crashCursor=crash-page">Latest failed jobs');
+  expect(html).toContain('status=resolved&amp;crashCursor=older+token&amp;jobCursor=job-page');
+  expect(html).toContain('href="/incidents?status=open&amp;jobCursor=job-page"');
+});
+it('does not forward ambiguous cursor values', async () => {
+  await IncidentsPage({ searchParams: Promise.resolve({ crashCursor: ['one', 'two'], jobCursor: ['one', 'two'] }) });
+  expect(state.jobs).toHaveBeenCalledWith(undefined);
+  expect(state.crashes).toHaveBeenCalledWith('open', undefined);
+});

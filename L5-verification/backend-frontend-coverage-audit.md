@@ -130,3 +130,14 @@ Evidence: four dashboard regressions, dashboard typecheck, 68 API wiring/crash
 route tests passed. Focused dashboard lint exited 0 with the existing Next warning.
 No live report resolved or job replayed. Browser/mobile acceptance, job-list
 pagination, and runtime operator-role acceptance remain open.
+# M208: Recovery job pagination
+
+The existing incidents cursor is now forwarded by the dashboard API client and
+exposed through Older failed jobs / Latest failed jobs controls. Job and crash
+pagination preserve each other's cursor and crash status; changing crash status
+resets only the crash cursor. Repeated query parameters are not forwarded as
+ambiguous cursors. Job load failures remain alerts rather than empty results.
+
+Evidence: ten focused incident-page/API-client tests and dashboard typecheck
+passed; focused lint exited 0 with the existing Next warning. Deployed browser
+acceptance remains open; no replay or other live mutation was dispatched.
