@@ -2,7 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { InferSelectModel } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
-import { createConnector, type ConnectorAuth, type SocialConnector } from '@axiom/connectors';
+import { createConnector, FanvueConnector, type ConnectorAuth, type SocialConnector } from '@axiom/connectors';
 import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson, type Platform } from '@axiom/core';
 
 const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
@@ -40,6 +40,14 @@ export async function connectorForConnection(
     connection,
     connector: createConnector(platform, auth, buildEgressFetch(proxy)),
   };
+}
+
+/** Financial reads share publishing's exact model-egress and encrypted credential boundary. */
+export async function earningsForConnection(connection: PlatformConnectionRow) {
+  if (connection.platform !== 'fanvue') throw new Error('Earnings are only supported for Fanvue');
+  const { connector } = await connectorForConnection(connection);
+  if (!(connector instanceof FanvueConnector)) throw new Error('Fanvue connector unavailable');
+  return connector.fetchEarningsSummary();
 }
 
 /** Resolve a stored platform identifier without allowing arbitrary dispatch. */

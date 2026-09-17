@@ -19,6 +19,7 @@ import { mediaOperationsRouter } from './media-operations.js';
 import { playbookRouter } from './playbook.js';
 import { playbookGuidelinesRouter } from './playbook-guidelines.js';
 import { analyticsRouter } from './analytics.js';
+import { earningsRouter } from './earnings.js';
 import { viralRouter } from './viral.js';
 import { reportsRouter } from './reports.js';
 import { enforceModelAccess, type ScopedHumanRole } from '../model-access.js';
@@ -58,6 +59,7 @@ function scopedApp(role: ScopedHumanRole, org = orgId) {
   route.route('/api/v1', playbookRouter);
   route.route('/api/v1', playbookGuidelinesRouter);
   route.route('/api/v1', analyticsRouter);
+  route.route('/api/v1', earningsRouter);
   route.route('/api/v1', viralRouter);
   route.route('/api/v1', reportsRouter);
   return route;
@@ -383,6 +385,31 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     }
     await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
     for (const section of ['analytics', 'viral', 'reports/monthly']) expect((await route.request(`/api/v1/models/${models[0]}/${section}`)).status).toBe(404);
+  });
+  it('isolates earnings account choices by model, tenant, platform, status and assignment', async () => {
+    const ids = Array.from({ length: 4 }, () => randomUUID());
+    await scoped(async tx => {
+      await tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing();
+      await tx.insert(schema.platformConnection).values(ids.map((id, i) => ({
+        id, orgId, modelId: models[i === 1 ? 1 : 0], platform: i === 2 ? 'x' : 'fanvue',
+        displayName: `Account ${i}`, encToken: Buffer.from('fixture-not-a-credential'),
+        encNonce: Buffer.alloc(12), dekId: 'fixture', status: i === 3 ? 'revoked' : 'connected',
+      })));
+    });
+    try {
+      const route = scopedApp('model'), path = `/api/v1/models/${models[0]}/earnings`;
+      const response = await route.request(path);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ data: { accounts: [{ id: ids[0], displayName: 'Account 0' }] } });
+      for (const id of ids.slice(1)) expect((await route.request(`${path}?connectionId=${id}`)).status).toBe(404);
+      expect((await route.request(`/api/v1/models/${models[1]}/earnings`)).status).toBe(404);
+      expect((await scopedApp('model', foreignOrg).request(path)).status).toBe(404);
+      for (const role of ['chatter', 'content_creator'] as const) expect((await scopedApp(role).request(path)).status).toBe(403);
+      await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
+      expect((await route.request(path)).status).toBe(404);
+    } finally {
+      await scoped(tx => tx.delete(schema.platformConnection).where(inArray(schema.platformConnection.id, ids)));
+    }
   });
   it('lists only assigned self shifts before their start without granting early model access', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());

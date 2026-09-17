@@ -261,5 +261,25 @@ the MCP client's unvalidated object or invoke a host-direct provider fetch. Live
 OAuth scope, financial values and browser acceptance remain unverified. No
 account role, deployment, provider state, or social publication changed.
 
+## Earnings API boundary (M303, 2026-09-17)
+
+`GET /api/v1/models/:modelId/earnings` now exposes active Fanvue account choices
+without decrypting or contacting a provider. An explicit `connectionId` reads
+the validated provider summary through the worker's existing credential and
+healthy-model-egress boundary. Owner/Manager and assigned Model may read; other
+roles are denied. Query predicates repeat org/model/assignment/platform/status
+checks. Model access and connection presence are rechecked after provider latency;
+responses are private/no-store and upstream failures never become zero earnings.
+The API returns cents, currency and observation time without credential envelopes.
+
+27 route/policy tests, API typecheck, connector/worker builds and 31 real PostgreSQL
+tests pass after 46 migrations. The first PG run rejected a test fixture's invalid
+`disconnected` status; corrected it to the schema's `revoked` without weakening
+the production check. Disposable fixture `axiom_workspace_test_9938506ee4dd53a6`
+was removed. The PG checks exercise account discovery and denied selections, not
+an authenticated provider response. No live provider call or deployment occurred.
+Earnings GUI, explicit financial disclosures, live OAuth/egress/account acceptance
+and full new-role activation still remain; this API is not feature completion.
+
 Completion requires all applicable steps and live evidence; neither additive role
 names nor empty navigation alone satisfies F-24/F-26.

@@ -38,6 +38,7 @@ export {
   asPlatform,
   resolvePlatformConnection,
   connectorForConnection,
+  earningsForConnection,
   decryptConnectorAuth,
   parseConnectorAuth,
   connectorForTarget,
