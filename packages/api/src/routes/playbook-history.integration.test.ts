@@ -18,7 +18,7 @@ function app(org = orgId) {
   route.route('/', playbookGuidelinesRouter); return route;
 }
 const path = `/models/${modelId}/playbook-guidelines`;
-const save = (strategy: string) => app().request(path, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ platform: 'instagram', optimalTimes: ['18:00'], cadencePerWeek: 3, upsellStrategy: strategy }) });
+const save = (strategy: string, expectedRevision: number) => app().request(path, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision, platform: 'instagram', optimalTimes: ['18:00'], cadencePerWeek: 3, upsellStrategy: strategy }) });
 describe.skipIf(!url)('playbook history in PostgreSQL', () => {
   beforeAll(async () => {
     const target = new URL(url!);
@@ -35,13 +35,16 @@ describe.skipIf(!url)('playbook history in PostgreSQL', () => {
     await pool.end();
   });
   it('preserves both concurrent saves in serial revision order', async () => {
-    expect((await save('first')).status).toBe(200);
-    const responses = await Promise.all([save('second'), save('third')]);
-    expect(responses.map(response => response.status)).toEqual([200, 200]);
+    expect((await save('first', 0)).status).toBe(200);
+    const responses = await Promise.all([save('second', 1), save('third', 1)]);
+    expect(responses.map(response => response.status).sort()).toEqual([200, 409]);
+    expect((await save('reviewed', 2)).status).toBe(200);
     const response = await app().request(`${path}?history=true&platform=instagram`);
     const body = await response.json() as { data: { revision: number; upsellStrategy: string }[]; meta: unknown };
     expect(body.data.map(row => row.revision)).toEqual([3, 2, 1]);
-    expect(new Set(body.data.map(row => row.upsellStrategy))).toEqual(new Set(['first', 'second', 'third']));
+    expect(body.data[0].upsellStrategy).toBe('reviewed');
+    expect(['second', 'third']).toContain(body.data[1].upsellStrategy);
+    expect(body.data[2].upsellStrategy).toBe('first');
     expect(body.meta).toEqual({ next_cursor: null });
   });
   it('bounds history by cursor and platform and excludes another tenant', async () => {

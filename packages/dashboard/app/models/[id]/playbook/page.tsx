@@ -20,7 +20,11 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
   const session = await getSession();
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   let guidelines = [] as Awaited<ReturnType<typeof api.models.playbookGuidelines>>['data'];
-  try { guidelines = (await api.models.playbookGuidelines(id)).data; } catch { /* score remains useful when guidelines are unavailable */ }
+  let guidelinesUnavailable = false;
+  try { guidelines = (await api.models.playbookGuidelines(id)).data; } catch { guidelinesUnavailable = true; }
+  const guidelinePanel = guidelinesUnavailable
+    ? <div className="card stack" role="alert"><p>Guidelines could not be loaded. Reload before editing; saved values have not been replaced with defaults.</p></div>
+    : <PlaybookGuidelineManager modelId={id} initial={guidelines} canEdit={canEdit} />;
   let data: PlaybookData | null = null;
   try {
     data = (await api.models.playbookScore(id)).data as unknown as PlaybookData;
@@ -35,6 +39,7 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
         <div className="card">
           <p style={{ color: 'var(--muted)' }}>Score unavailable.</p>
         </div>
+        {guidelinePanel}
       </div>
     );
   }
@@ -91,7 +96,7 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
           </table>
         </div>
       )}
-      <PlaybookGuidelineManager modelId={id} initial={guidelines} canEdit={canEdit} />
+      {guidelinePanel}
     </div>
   );
 }

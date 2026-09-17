@@ -11,7 +11,7 @@ import { withOrgContext, requireOrg, apiError, statusTitle, writeAudit } from '.
 import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 
 const router = new Hono<AppBindings>();
-const guidelineSchema = z.object({ platform: z.string().trim().min(1).max(50), optimalTimes: z.array(z.string().trim().min(1).max(30)).max(14), cadencePerWeek: z.number().int().min(0).max(100), upsellStrategy: z.string().trim().max(2_000) }).strict();
+const guidelineSchema = z.object({ expectedRevision: z.number().int().min(0).max(2147483646), platform: z.string().trim().min(1).max(50), optimalTimes: z.array(z.string().trim().min(1).max(30)).max(14), cadencePerWeek: z.number().int().min(0).max(100), upsellStrategy: z.string().trim().max(2_000) }).strict();
 
 async function readBody(c: Context<AppBindings>): Promise<unknown> {
   try { return await readBoundedJson(c.req.raw, 64 * 1024); }
@@ -51,6 +51,7 @@ router.put('/models/:modelId/playbook-guidelines', async (c) => {
     const [model] = await tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile).where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId))).limit(1).for('update');
     if (!model) return null;
     const [previous] = await tx.select().from(schema.playbookGuideline).where(and(eq(schema.playbookGuideline.orgId, orgId), eq(schema.playbookGuideline.modelId, modelId), eq(schema.playbookGuideline.platform, parsed.data.platform))).limit(1);
+    if ((previous?.revision ?? 0) !== parsed.data.expectedRevision) return 'conflict' as const;
     const snapshot = async (value: typeof schema.playbookGuideline.$inferSelect) => {
       await tx.insert(schema.playbookGuidelineRevision).values({ guidelineId: value.id, orgId, modelId,
         platform: value.platform, revision: value.revision, optimalTimes: value.optimalTimes,
@@ -67,6 +68,7 @@ router.put('/models/:modelId/playbook-guidelines', async (c) => {
     return row ?? null;
   });
   if (!saved) return apiError(c, 404, statusTitle(404), 'model not found');
+  if (saved === 'conflict') return apiError(c, 409, statusTitle(409), 'Guideline changed since you opened it. Reload the page and review the latest revision before saving.');
   return c.json({ data: saved });
 });
 
