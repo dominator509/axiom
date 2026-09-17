@@ -196,7 +196,7 @@ export default function VariantExperimentManager({
                 ))}
               </div>
               {experiment.status !== 'completed' && <p className="subtle">Winner selection is an operator decision, not a statistical-significance claim. Every variant needs at least one recorded outcome.</p>}
-              <VariantExperimentTracking modelId={modelId} experimentId={experiment.id} status={experiment.status} canEdit={canEdit} />
+              <VariantExperimentTracking modelId={modelId} experimentId={experiment.id} status={experiment.status} platform={experiment.platform} canEdit={canEdit} />
               <VariantPublishedPerformance modelId={modelId} experimentId={experiment.id} />
             </article>
           ))}
@@ -229,7 +229,7 @@ export default function VariantExperimentManager({
           {available.length === 0 && <p>No variants yet. <Link href={`/models/${encodeURIComponent(modelId)}/media`}>Create crops or adaptations in the media library</Link>.</p>}
           <div className="grid">{available.map(candidate => <div className="card stack" key={candidate.id}>
             {candidate.copy && <div><p className="subtle">{candidate.copy.platform} copy</p><p style={{ whiteSpace: 'pre-wrap' }}>{candidate.copy.text}</p></div>}
-            {candidate.copy && <VariantReviewCreate modelId={modelId} variantId={candidate.id} />}
+            {candidate.outputAssetId && <VariantReviewCreate modelId={modelId} variantId={candidate.id} requiresCaption={!candidate.copy} />}
             <label className="checkbox-option"><input type="checkbox" disabled={Boolean(candidate.copy && candidate.copy.platform !== platform)} checked={variantIds.split(' ').includes(candidate.id)}
               onChange={event => setVariantIds(previous => {
                 const ids = previous.split(' ').filter(Boolean);

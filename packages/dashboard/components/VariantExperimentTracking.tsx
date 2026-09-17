@@ -11,8 +11,8 @@ type Assignment = { id: string; variantId: string; assignedAt: string; outcomeAt
 type Intent = { path: string; body: string; key: string };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export default function VariantExperimentTracking({ modelId, experimentId, status, canEdit }: {
-  modelId: string; experimentId: string; status: string; canEdit: boolean;
+export default function VariantExperimentTracking({ modelId, experimentId, status, canEdit, platform = 'instagram' }: {
+  modelId: string; experimentId: string; status: string; canEdit: boolean; platform?: string;
 }) {
   const router = useRouter();
   const base = `/api/v1/models/${encodeURIComponent(modelId)}/variant-experiments/${encodeURIComponent(experimentId)}`;
@@ -86,7 +86,7 @@ export default function VariantExperimentTracking({ modelId, experimentId, statu
     <ul className="stack">{rows.map(row => <li key={row.id}>
       <span className="mono">{row.id.slice(0, 8)}</span> · variant {row.variantId.slice(0, 8)} · {row.outcomeAt ? `${row.converted ? 'Converted' : 'Did not convert'}${row.metricValue === null ? '' : ` · metric ${row.metricValue}`}` : 'Awaiting outcome'}
       {row.reviewBundleId ? <Link href={`/models/${encodeURIComponent(modelId)}/approvals`}>Review bundle {row.reviewBundleId.slice(0, 8)}</Link>
-        : canEdit && ['running', 'paused'].includes(status) && ['caption', 'teaser'].includes(row.variantType ?? '') && <VariantReviewCreate modelId={modelId} variantId={row.variantId} assignmentId={row.id} />}
+        : canEdit && ['running', 'paused'].includes(status) && row.variantType && <VariantReviewCreate modelId={modelId} variantId={row.variantId} assignmentId={row.id} requiresCaption={!['caption', 'teaser'].includes(row.variantType)} initialPlatform={platform} />}
     </li>)}</ul>
     {cursor && <button type="button" className="btn secondary" disabled={loading || busy} onClick={() => void load(true)}>Load older assignments</button>}
     {canEdit && status === 'running' && <fieldset className="stack" disabled={busy || intent.current !== null}>

@@ -247,6 +247,22 @@ describe('GET /:id — get bundle', () => {
 });
 
 describe('POST / — create bundle', () => {
+  it.each(['image_clip', 'image_resize', 'video_clip', 'video_transcode'])('reviews a stored %s variant with explicit bounded copy', async variantType => {
+    mockState.insertValues = [];
+    const asset = { id: X_CONNECTION_ID, orgId: ORG_ID, modelId: MODEL_ID, mimeType: variantType.startsWith('video') ? 'video/mp4' : 'image/jpeg' };
+    mockState.results = [[], [{ orgId: ORG_ID }], [{ id: INSTAGRAM_CONNECTION_ID, outputAssetId: asset.id, variantType, settings: {} }], [asset], [{ id: BUNDLE_ID }]];
+    vi.mocked(assetPreview).mockResolvedValue(new Response(null));
+    const response = await appWithOrg(ORG_ID).request('/', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ modelId: MODEL_ID, variantId: INSTAGRAM_CONNECTION_ID, variantCaption: { platform: 'instagram', text: 'A ceramic vase' } }) });
+    expect(response.status).toBe(201);
+    expect(mockState.insertValues[0]).toMatchObject({ sourceVariantId: INSTAGRAM_CONNECTION_ID, assetId: asset.id, captions: { instagram: 'A ceramic vase' }, tosReport: { verdict: 'pending' } });
+  });
+  it('does not allow explicit variantCaption to replace saved caption-variant text', async () => {
+    mockState.results = [[], [{ orgId: ORG_ID }], [{ id: INSTAGRAM_CONNECTION_ID, outputAssetId: X_CONNECTION_ID, variantType: 'caption', settings: { copy: { platform: 'instagram', text: 'Original' } } }]];
+    const response = await appWithOrg(ORG_ID).request('/', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ modelId: MODEL_ID, variantId: INSTAGRAM_CONNECTION_ID, variantCaption: { platform: 'instagram', text: 'Override' } }) });
+    expect(response.status).toBe(404); expect(enqueueJob).not.toHaveBeenCalled();
+  });
   it('reuses the allocated review bundle without enqueueing another scan', async () => {
     mockState.insertValues = [];
     mockState.results = [[], [{ orgId: ORG_ID }], [{ experimentId: MODEL_ID }],

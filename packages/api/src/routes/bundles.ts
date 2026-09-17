@@ -38,6 +38,7 @@ const createBundleSchema = z.object({
   assetId: z.string().uuid().optional(),
   variantId: z.string().uuid().optional(),
   assignmentId: z.string().uuid().optional(),
+  variantCaption: z.object({ platform: z.string().min(1).max(50), text: z.string().trim().min(1).max(10000) }).strict().optional(),
   captions: z.record(z.string(), z.string()).default({}),
   hashtags: z.array(z.string()).default([]),
 });
@@ -174,6 +175,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
   if (body.assignmentId && !body.variantId) return apiError(c, 400, statusTitle(400), 'Assignment review requires its variant');
+  if (body.variantCaption && !body.variantId) return apiError(c, 400, statusTitle(400), 'Variant caption requires a variant');
   if (body.variantId && (body.assetId || Object.keys(body.captions).length || body.hashtags.length))
     return apiError(c, 400, statusTitle(400), 'Variant review uses the saved copy and media; overrides are not accepted');
   if (body.assetId) {
@@ -210,8 +212,11 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
         eq(schema.assetVariant.id, body.variantId), eq(schema.assetVariant.orgId, orgId),
         eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, body.modelId),
       )).limit(1).for('share');
-      if (!variant || !variant.outputAssetId || !['caption', 'teaser'].includes(variant.variantType)) return null;
-      const copy = z.object({ platform: z.string().min(1).max(50), text: z.string().trim().min(1).max(10000) }).safeParse(variant.settings?.copy);
+      if (!variant || !variant.outputAssetId) return null;
+      const isCopy = ['caption', 'teaser'].includes(variant.variantType);
+      if (isCopy && body.variantCaption) return null;
+      if (!isCopy && !['crop', 'image_clip', 'image_resize', 'video_clip', 'video_transcode'].includes(variant.variantType)) return null;
+      const copy = z.object({ platform: z.string().min(1).max(50), text: z.string().trim().min(1).max(10000) }).safeParse(isCopy ? variant.settings?.copy : body.variantCaption);
       if (!copy.success) return null;
       if (assignmentPlatform && copy.data.platform !== assignmentPlatform) return null;
       try { asPlatform(copy.data.platform); } catch { return null; }

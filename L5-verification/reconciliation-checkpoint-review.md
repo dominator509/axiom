@@ -14,6 +14,8 @@ Review findings requiring follow-up:
 
 Current verification:
 
+- Media-only variants now share the same attributed review path: explicit bounded caption for crops/adaptations, immutable stored copy for caption/teaser variants, assignment-platform matching, owned verified output and fresh scan. GUI supports both with stable retry body. 91 API/nine dashboard tests and both typechecks pass. Concurrent review creation and deployed scan/approval/browser acceptance remain open.
+
 - Experiment allocations now retain a unique review bundle reference (migration0038); repeated review creation returns that bundle without another scan. Query attribution requires matching assignment, experiment and unchanged source variant, excluding unassigned posts even if they reuse the media/copy. GUI history exposes the saved-copy review handoff. 115 API/13dashboard/122DB tests, workspace typecheck22/22 and five real PostgreSQL query/locking tests pass after39migrations; fixture cleanup confirmed. Concurrent review creation itself, crop assignment review, browser deployment and automatic learning remain open.
 
 - Superseding query/locking evidence: `--variant-performance` runs five real API/PostgreSQL tests under a non-superuser/non-bypass-RLS role. Latest matching published snapshots exclude wrong remote IDs/platforms and unpublished targets; cross-tenant/model reads fail; edited copy loses attribution; simultaneous different-winner promotions produce one200/one409 and identical replay preserves timestamp. All38migrations applied, isolated fixture removed, API typecheck passes. Browser and live provider evidence remain open.
