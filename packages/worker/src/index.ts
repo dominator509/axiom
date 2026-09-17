@@ -25,6 +25,7 @@ export type {
   ViralScore,
 } from './executors/viral.js';
 export { retrieveTopExemplars } from './viral-retrieval.js';
+export { assessVariantPerformance } from './variant-evaluation.js';
 export { runWorker, workerTick, processJob, readKillSwitch } from './worker.js';
 export type { WorkerOptions, WorkerStats } from './worker.js';
 export { JOB_KINDS } from './types.js';

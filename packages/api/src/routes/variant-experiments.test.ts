@@ -3,16 +3,17 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockDbFactory, mockState } from './test-utils.js';
 vi.mock('@axiom/db', () => mockDbFactory());
-vi.mock('@axiom/worker', () => ({ asPlatform: (value: string) => value }));
+vi.mock('@axiom/worker', async importOriginal => ({ ...(await importOriginal<Record<string, unknown>>()), asPlatform: (value: string) => value }));
 import { variantExperimentsRouter } from './variant-experiments.js';
 const id = '11111111-1111-4111-8111-111111111111';
 it('returns bounded published performance without conflating manual outcomes', async () => {
   mockState.results = [[], [{ id, platform: 'instagram', variantIds: [id] }], Array.from({ length: 101 }, () => ({ targetId: id, variantId: id, views: 5 }))];
   const response = await app().request(`/models/${id}/variant-experiments/${id}/performance`);
   expect(response.status).toBe(200);
-  const result = await response.json() as { data: unknown[]; meta: unknown };
+  const result = await response.json() as { data: unknown[]; meta: unknown; assessment: { status: string } };
   expect(result.data).toHaveLength(100);
   expect(result.meta).toEqual({ truncated: true, source: 'published-target-metrics' });
+  expect(result.assessment.status).toBe('unavailable');
 });
 it('does not expose performance for an absent scoped experiment', async () => {
   mockState.results = [[], []];

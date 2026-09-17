@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import { asPlatform } from '@axiom/worker';
+import { asPlatform, assessVariantPerformance } from '@axiom/worker';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import type { Context } from 'hono';
@@ -22,11 +22,13 @@ router.get('/models/:modelId/variant-experiments/:experimentId/performance', asy
   const orgId = requireOrg(c), modelId = c.req.param('modelId'), experimentId = c.req.param('experimentId');
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   if (![modelId, experimentId].every(id => z.string().uuid().safeParse(id).success)) return apiError(c, 400, statusTitle(400), 'Invalid experiment identity');
+  let candidateIds: string[] = [];
   const rows = await withOrgContext(orgId, async tx => {
     const [experiment] = await tx.select().from(schema.variantExperiment).where(and(
       eq(schema.variantExperiment.id, experimentId), eq(schema.variantExperiment.modelId, modelId), eq(schema.variantExperiment.orgId, orgId),
     )).limit(1);
     if (!experiment) return null;
+    candidateIds = experiment.variantIds;
     if (!experiment.variantIds.length) return [];
     const m = schema.postMetric, p = schema.postTarget, b = schema.contentBundle, a = schema.variantExperimentAssignment;
     // Cumulative provider counts: select one latest snapshot per published target.
@@ -42,7 +44,7 @@ router.get('/models/:modelId/variant-experiments/:experimentId/performance', asy
     )).orderBy(p.id, desc(m.collectedAt), desc(m.id)).limit(101);
   });
   if (!rows) return apiError(c, 404, statusTitle(404), 'variant experiment not found');
-  return c.json({ data: rows.slice(0, 100), meta: { truncated: rows.length > 100, source: 'published-target-metrics' } });
+  return c.json({ data: rows.slice(0, 100), assessment: assessVariantPerformance(candidateIds, rows, rows.length > 100), meta: { truncated: rows.length > 100, source: 'published-target-metrics' } });
 });
 
 router.post('/models/:modelId/variant-experiments/candidates', async c => {
