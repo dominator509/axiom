@@ -23,6 +23,33 @@ function transport(status = 200) {
 }
 
 describe('calendar month navigation', () => {
+  it('shows a model calendar without restricted guideline or team-note surfaces', async () => {
+    session.role = 'model';
+    const fetch = transport();
+    const html = await render();
+    expect(html).toContain('Content calendar');
+    expect(html).toContain('2030-02-20');
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(String(fetch.mock.calls[0][0])).toContain('/calendar?');
+    expect(html).not.toContain('/playbook');
+    expect(html).not.toContain('/approvals');
+    expect(html).not.toContain('Internal post notes');
+    expect(html).not.toContain('Change schedule or cancel');
+  });
+  it('guides creators to reviewable scheduling without direct publishing controls', async () => {
+    session.role = 'content_creator'; transport();
+    const html = await render();
+    expect(html).toContain('with a schedule request');
+    expect(html).toContain('href="/models/calendar-model/media"');
+    expect(html).toContain('Review drafts');
+    expect(html).not.toContain('Internal post notes');
+    expect(html).not.toContain('Change schedule or cancel');
+  });
+  it.each(['chatter', 'unknown'])('does not request calendar resources for %s', async role => {
+    session.role = role; const fetch = transport();
+    expect(await render()).toContain('Calendar access unavailable');
+    expect(fetch).not.toHaveBeenCalled();
+  });
   it('loads saved model guidelines and compares the complete current UTC week separately from the selected month', async () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date('2030-01-01T00:30:00Z'));
     const fetch = vi.fn().mockImplementation(async (url: string) => Response.json({ data: url.includes('playbook-guidelines')

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import PostScheduleForm from '@/components/PostScheduleForm';
 import PostTeamNotes from '@/components/PostTeamNotes';
 import PlaybookCadence, { currentUtcWeek } from '@/components/PlaybookCadence';
+import { talentDestinationAllowed } from '@/lib/navigation-role';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +13,11 @@ export default async function CalendarPage({ params, searchParams }: {
 }) {
   const { id } = await params;
   const session = await getSession();
+  const role = session?.user?.role;
+  if (!talentDestinationAllowed(role, 'calendar')) return <div className="card"><h2>Calendar access unavailable</h2><p>Your role does not include this calendar.</p><Link href="/">Back to workspace</Link></div>;
+  const showCadence = talentDestinationAllowed(role, 'playbook');
+  const showReview = talentDestinationAllowed(role, 'approvals');
+  const showTeamNotes = ['owner', 'manager', 'operator', 'analyst', 'agent'].includes(role ?? '');
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   const query = await searchParams;
   const now = new Date();
@@ -40,7 +46,7 @@ export default async function CalendarPage({ params, searchParams }: {
   let guidelines: Awaited<ReturnType<typeof api.models.playbookGuidelines>>['data'] = [];
   let weekPosts: typeof posts = [];
   let cadenceUnavailable = false;
-  try {
+  if (showCadence) try {
     const [saved, scheduled] = await Promise.all([
       api.models.playbookGuidelines(id), api.models.calendar(id, week.from, week.to),
     ]);
@@ -65,7 +71,8 @@ export default async function CalendarPage({ params, searchParams }: {
         <button className="btn secondary" type="submit">Show month</button>
       </form>
       {invalidMonth && <p role="alert">Invalid or repeated month parameter. Showing the current UTC month.</p>}
-      <PlaybookCadence modelId={id} guidelines={guidelines} posts={weekPosts} {...week} unavailable={cadenceUnavailable} />
+      {showCadence && <PlaybookCadence modelId={id} guidelines={guidelines} posts={weekPosts} {...week} unavailable={cadenceUnavailable} />}
+      {role === 'content_creator' && <p>To propose a posting time, stage a saved asset from the <Link href={`/models/${encodeURIComponent(id)}/media`}>media library</Link> with a schedule request. An operator must approve it before publication.</p>}
       {error && (
         <div className="card" style={{ color: 'var(--bad)' }}>
           {error}
@@ -74,7 +81,7 @@ export default async function CalendarPage({ params, searchParams }: {
       {posts.length === 0 && !error && (
         <div className="card">
           <p style={{ color: 'var(--muted)', margin: 0 }}>
-            No scheduled posts in the window. Approve a generated bundle to schedule.
+            No scheduled posts in the window.{canEdit ? ' Approve a generated bundle to schedule.' : ' Approved posting plans will appear here.'}
           </p>
         </div>
       )}
@@ -97,8 +104,8 @@ export default async function CalendarPage({ params, searchParams }: {
                 {p.error}
               </div>
             )}
-            <Link href={`/models/${encodeURIComponent(id)}/approvals`}>View bundles and approvals</Link>
-            <PostTeamNotes key={`notes:${p.id}`} modelId={id} postId={p.id} canEdit={canEdit} />
+            {showReview && <Link href={`/models/${encodeURIComponent(id)}/approvals`}>{role === 'content_creator' ? 'Review drafts' : 'View bundles and approvals'}</Link>}
+            {showTeamNotes && <PostTeamNotes key={`notes:${p.id}`} modelId={id} postId={p.id} canEdit={canEdit} />}
             {canEdit && p.state === 'pending' && !p.remoteId && <PostScheduleForm key={`${p.id}:${p.scheduledFor}`} postId={p.id} />}
           </div>
         ))}

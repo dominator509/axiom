@@ -119,6 +119,14 @@ cancellation denial despite supplied body/query identities; both typechecks pass
 These tests do not dispatch a real provider login. Roles remain staged pending
 the rest of the workflow and deployed acceptance.
 
+Calendar role reconciliation preserves month navigation and scoped posts. Model
+viewers do not request inaccessible guideline/week data or see review/team-note
+controls. Creators see cadence, drafts and guidance to propose timing through
+media staging rather than direct post mutation. Excluded roles load no calendar
+resources. Twelve page tests and typecheck pass. Creator internal collaboration
+notes are still a missing capability to implement with explicit model assignment
+checks; hiding the unsupported control does not complete that requirement.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including
