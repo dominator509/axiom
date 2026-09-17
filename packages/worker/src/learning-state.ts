@@ -1,5 +1,53 @@
 import { sql } from 'drizzle-orm';
 
+export interface LearningArm { arm: string; alpha: number; beta: number; recentUses: number }
+
+// Marsaglia-Tsang Gamma sampler; Beta is the ratio of independent Gamma draws.
+function gamma(shape: number, rng: () => number): number {
+  const uniform = () => Math.max(Number.EPSILON, Math.min(1 - Number.EPSILON, rng()));
+  if (shape < 1) return gamma(shape + 1, rng) * uniform() ** (1 / shape);
+  const d = shape - 1 / 3, c = 1 / Math.sqrt(9 * d);
+  for (let attempt = 0; attempt < 10000; attempt++) {
+    const x = Math.sqrt(-2 * Math.log(uniform())) * Math.cos(2 * Math.PI * uniform());
+    const base = 1 + c * x;
+    if (base <= 0) continue;
+    const v = base ** 3, u = uniform();
+    if (u < 1 - .0331 * x ** 4 || Math.log(u) < .5 * x ** 2 + d * (1 - v + Math.log(v))) return d * v;
+  }
+  throw new Error('Learning sampler did not converge');
+}
+
+export function chooseLearningArm(arms: LearningArm[], rng = Math.random): string | null {
+  if (!arms.length) return null;
+  for (const arm of arms) {
+    if (![arm.alpha, arm.beta, arm.recentUses].every(Number.isFinite) || arm.alpha <= 0 || arm.beta <= 0 || arm.recentUses < 0)
+      throw new Error('Invalid learning posterior');
+  }
+  // Five percent uniform exploration keeps every available arm reachable.
+  if (rng() < .05) return arms[Math.min(arms.length - 1, Math.max(0, Math.floor(rng() * arms.length)))].arm;
+  let selected = arms[0].arm, best = -1;
+  for (const arm of arms) {
+    const a = gamma(arm.alpha, rng), b = gamma(arm.beta, rng);
+    const score = (a / (a + b)) / (1 + arm.recentUses);
+    if (score > best) { best = score; selected = arm.arm; }
+  }
+  return selected;
+}
+
+export async function selectLearnedGuidance(tx: any, orgId: string, modelId: string, platform: string, arms: string[], scheduledFor: Date | string | null) {
+  if (!arms.length) return null;
+  const context = learningStructure('', scheduledFor).context;
+  const result = await tx.execute(sql`SELECT s.arm,s.alpha,s.beta,
+    (SELECT COUNT(*) FROM viral_recipe r WHERE r.org_id=s.org_id AND r.model_id=s.model_id
+      AND r.platform=s.platform AND r.source_target_id IS NOT NULL
+      AND r.recipe->>'learning_arm'=s.arm AND r.created_at > now()-interval '24 hours') AS recent_uses
+    FROM bandit_state s WHERE s.org_id=${orgId} AND s.model_id=${modelId}
+      AND s.platform=${platform} AND s.context=${context}`);
+  const states = new Map<string, LearningArm>((result.rows ?? []).map((row: { arm: string; alpha: number; beta: number; recent_uses: string }) =>
+    [row.arm, { arm: row.arm, alpha: Number(row.alpha), beta: Number(row.beta), recentUses: Number(row.recent_uses) }]));
+  return chooseLearningArm(arms.map(arm => states.get(arm) ?? { arm, alpha: 1, beta: 1, recentUses: 0 }));
+}
+
 export function learningStructure(caption: string, scheduledFor: Date | string | null) {
   const date = scheduledFor === null ? null : new Date(scheduledFor);
   const bucket = date && Number.isFinite(date.getTime()) ? Math.floor(date.getUTCHours() / 6) : 'unknown';

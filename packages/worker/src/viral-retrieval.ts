@@ -2,6 +2,7 @@ import { and, cosineDistance, eq, inArray, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { ViralExemplar } from '@axiom/llm-gateway';
 import { embedExemplarIntent } from './embedding.js';
+import { learningStructure, selectLearnedGuidance } from './learning-state.js';
 
 export interface RetrievalRow {
   id: string;
@@ -76,6 +77,7 @@ export async function retrieveTopExemplars(
   platform: string,
   limit: number,
   intent = '',
+  scheduledFor: Date | string | null = null,
 ): Promise<ViralExemplar[]> {
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new Error('Exemplar limit must be 1..50');
   let query = embedExemplarIntent(intent);
@@ -112,6 +114,17 @@ export async function retrieveTopExemplars(
     .orderBy(cosineDistance(schema.viralExemplar.embedding, query), schema.viralExemplar.id)
     .limit(50);
 
-  return diversifyExemplars(rows, query, limit)
-    .map((row: RetrievalRow) => projectExemplar(row, modelId));
+  const ranked = diversifyExemplars(rows, query, limit);
+  const armFor = (row: RetrievalRow) => {
+    const features = (row.features ?? {}) as Record<string, unknown>;
+    return learningStructure(typeof features.caption === 'string' ? features.caption : '', null).arm;
+  };
+  const selected = await selectLearnedGuidance(tx, orgId, modelId, platform, [...new Set(ranked.map(armFor))], scheduledFor);
+  const preferred = ranked.findIndex(row => armFor(row) === selected);
+  if (preferred > 0) ranked.unshift(ranked.splice(preferred, 1)[0]);
+  return ranked.map((row: RetrievalRow, index: number) => {
+    const exemplar = projectExemplar(row, modelId);
+    if (index === 0 && selected) exemplar.aiNotes = `${exemplar.aiNotes ?? ''} Preferred caption structure: ${selected}. Adapt to the current task; do not copy another persona.`.trim();
+    return exemplar;
+  });
 }
