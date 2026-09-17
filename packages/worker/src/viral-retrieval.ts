@@ -107,7 +107,7 @@ export async function retrieveTopExemplars(
         ...(shareAcrossModels ? [] : [eq(schema.viralExemplar.modelId, modelId)]),
         eq(schema.viralExemplar.platform, platform),
         inArray(schema.viralExemplar.label, ['strong', 'viral']),
-        sql`${schema.viralExemplar.features}->>'evidence_source' = 'published-provider-v1'`,
+        sql`${schema.viralExemplar.features}->>'evidence_source' = 'published-provider-snapshot-v2'`,
         sql`${schema.viralExemplar.features}->>'embedding_version' = 'lexical-v1'`,
       ),
     )

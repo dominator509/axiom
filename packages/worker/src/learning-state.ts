@@ -42,7 +42,10 @@ export async function selectLearnedGuidance(tx: any, orgId: string, modelId: str
       AND r.platform=s.platform AND r.source_target_id IS NOT NULL
       AND r.recipe->>'learning_arm'=s.arm AND r.created_at > now()-interval '24 hours') AS recent_uses
     FROM bandit_state s WHERE s.org_id=${orgId} AND s.model_id=${modelId}
-      AND s.platform=${platform} AND s.context=${context}`);
+      AND s.platform=${platform} AND s.context=${context}
+      AND EXISTS (SELECT 1 FROM viral_recipe r WHERE r.org_id=s.org_id AND r.model_id=s.model_id
+        AND r.platform=s.platform AND r.recipe->>'learning_context'=s.context
+        AND r.recipe->>'learning_arm'=s.arm AND r.recipe->>'evidence_source'='published-provider-snapshot-v2')`);
   const states = new Map<string, LearningArm>((result.rows ?? []).map((row: { arm: string; alpha: number; beta: number; recent_uses: string }) =>
     [row.arm, { arm: row.arm, alpha: Number(row.alpha), beta: Number(row.beta), recentUses: Number(row.recent_uses) }]));
   return chooseLearningArm(arms.map(arm => states.get(arm) ?? { arm, alpha: 1, beta: 1, recentUses: 0 }));
@@ -72,7 +75,7 @@ export async function refreshLearningState(tx: any, orgId: string, modelId: stri
     FROM viral_recipe r JOIN post_target t ON t.id=r.source_target_id AND t.org_id=r.org_id
     WHERE r.org_id=${orgId} AND r.model_id=${modelId} AND r.platform=${platform}
       AND t.state='published' AND t.remote_id IS NOT NULL AND t.platform=r.platform
-      AND r.recipe->>'evidence_source'='published-provider-v1'
+      AND r.recipe->>'evidence_source'='published-provider-snapshot-v2'
       AND r.recipe->>'learning_context' LIKE 'learn-v1:%'
       AND r.recipe->>'learning_arm' IS NOT NULL
     GROUP BY r.org_id,r.model_id,r.platform,r.recipe->>'learning_context',r.recipe->>'learning_arm'

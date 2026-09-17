@@ -439,6 +439,12 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   // target automatically because that can double-post.
   ctx.markExternalSideEffect?.();
   const result = await connector.publish(stagedInput);
+  // Preserve the first dispatched copy across asynchronous status polls.
+  // Ledger-only recoveries without this evidence intentionally remain unknown.
+  const publicationSnapshot = target.publicationSnapshot ?? {
+    caption: stagedInput.caption, hashtags: stagedInput.hashtags ?? [], modelId: model.id,
+    assetId: bundle.assetId ?? null, scheduledFor: input.scheduledFor ?? null,
+  };
 
   if (result.state === 'pending') {
     await tx
@@ -453,7 +459,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
       );
     await tx
       .update(schema.postTarget)
-      .set({ state: 'pending', remoteId: result.remoteId, error: result.error ?? null })
+      .set({ state: 'pending', remoteId: result.remoteId, error: result.error ?? null, publicationSnapshot })
       .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
 
     // The current job already owns the canonical publish.target dedupe key.
@@ -515,7 +521,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   // 4. Mark published + write idempotency ledger in the SAME txn (L3.4 §4).
   await tx
     .update(schema.postTarget)
-    .set({ state: 'published', remoteId: result.remoteId, error: null })
+    .set({ state: 'published', remoteId: result.remoteId, error: null, publicationSnapshot })
     .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
 
   if (idemKeyHex) {

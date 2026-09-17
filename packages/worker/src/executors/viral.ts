@@ -106,6 +106,8 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     .limit(1);
   if (bundles.length === 0) throw new Error(`viral.label: bundle ${target.bundleId} not found`);
   const bundle = bundles[0];
+  const snapshot = target.publicationSnapshot;
+  if (!snapshot || snapshot.modelId !== bundle.modelId || typeof snapshot.caption !== 'string' || !Array.isArray(snapshot.hashtags)) return;
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${job.org_id}:${bundle.modelId}:${target.platform}:learning`},0))`);
 
   // 1. Trailing window of this model+platform's performance (L3.5 §1.1: 72h default).
@@ -154,23 +156,22 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
   const label = labelForZ(perfScore);
 
   // 4. Feature record + embedding (L3.5 §1.4).
-  const captions = (bundle.captions as Record<string, string> | null) ?? {};
-  const structure = learningStructure(captions[target.platform] ?? '', target.scheduledFor);
+  const structure = learningStructure(snapshot.caption, snapshot.scheduledFor);
   const features: Record<string, unknown> = {
-    evidence_source: 'published-provider-v1',
+    evidence_source: 'published-provider-snapshot-v2',
     embedding_version: 'lexical-v1',
     learning_arm: structure.arm,
     learning_context: structure.context,
     platform: target.platform,
-    caption: captions[target.platform] ?? '',
-    hashtags: bundle.hashtags ?? [],
+    caption: snapshot.caption,
+    hashtags: snapshot.hashtags,
     perf_score: perfScore,
     label,
     window_count: history.length,
     window_mean: mean,
     window_std: std,
   };
-  const embedding = embedExemplarIntent(`${features.caption} ${(bundle.hashtags ?? []).join(' ')}`);
+  const embedding = embedExemplarIntent(`${features.caption} ${snapshot.hashtags.join(' ')}`);
 
   // Atomically upsert the exemplar keyed by (org, model, bundle, platform).
   // The unique constraint is the concurrency guard; a select-then-insert

@@ -27,7 +27,7 @@ async function fixture(check: (tx: Transaction, modelId: string, otherModel: str
           orgId, modelId: index === 5 ? otherModel : modelId, platform, label, perfScore: 2,
           embedding: embedExemplarIntent('blue ceramic vase'),
           features: { caption: `Private caption ${index}`, hashtags: ['private-tag'],
-            ...(verified ? { evidence_source: 'published-provider-v1' } : {}),
+            ...(verified ? { evidence_source: 'published-provider-snapshot-v2' } : {}),
             ...(version ? { embedding_version: 'lexical-v1' } : {}) },
         });
       }
@@ -80,7 +80,8 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
     await fixture(async (tx, modelId) => {
       const bundleId = randomUUID(), targetId = randomUUID();
       await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId, captions: { instagram: 'Blue ceramic vase' } });
-      await tx.insert(schema.postTarget).values({ id: targetId, orgId, bundleId, platform: 'instagram', state: 'published', remoteId: targetId, idemKey: Buffer.from(randomUUID()) });
+      await tx.insert(schema.postTarget).values({ id: targetId, orgId, bundleId, platform: 'instagram', state: 'published', remoteId: targetId, idemKey: Buffer.from(randomUUID()),
+        publicationSnapshot: { caption: 'Blue ceramic vase', hashtags: [], modelId, assetId: null, scheduledFor: null } });
       await tx.insert(schema.postMetric).values({ postTargetId: targetId, platform: 'instagram', remoteId: targetId, source: 'provider', views: 10, likes: 1, engagementRate: .1, collectedAt: new Date(Date.now() - 1000) });
       const job: JobRow = {
         id: randomUUID(), org_id: orgId, queue: 'viral', kind: 'viral.label', payload: { targetId },
@@ -92,6 +93,7 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       await viralLabel(context);
       const [first] = await tx.select().from(schema.viralRecipe).where(eq(schema.viralRecipe.sourceTargetId, targetId));
       expect(first.realizedMetrics.views).toBe(10);
+      await tx.update(schema.contentBundle).set({ captions: { instagram: 'A changed question?' } }).where(eq(schema.contentBundle.id, bundleId));
       await tx.insert(schema.postMetric).values({ postTargetId: targetId, platform: 'instagram', remoteId: targetId, source: 'provider', views: 20, likes: 3, engagementRate: .15 });
       await viralLabel(context);
       await viralLabel(context);
@@ -99,6 +101,7 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       expect(recipes).toHaveLength(1);
       expect(recipes[0].id).toBe(first.id);
       expect(recipes[0].realizedMetrics.views).toBe(20);
+      expect(recipes[0].recipe.caption).toBe('Blue ceramic vase');
       const embeddings = await tx.select().from(schema.viralEmbedding).where(eq(schema.viralEmbedding.recipeId, first.id));
       expect(embeddings).toHaveLength(1);
       expect(embeddings[0].id).toBe(first.id);
