@@ -9,6 +9,7 @@ import { enqueueJob } from '@axiom/worker';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
+import { readDigestScheduleStatus } from '../digest-schedule-status.js';
 
 const router = new Hono<AppBindings>();
 
@@ -59,8 +60,10 @@ router.get('/digests', async (c) => {
       .limit(limit),
   );
   const last = rows[rows.length - 1];
+  const schedule = await withOrgContext(orgId, tx => readDigestScheduleStatus(tx, orgId));
   return c.json({
     data: rows,
+    schedule,
     meta: {
       total: rows.length,
       limit,

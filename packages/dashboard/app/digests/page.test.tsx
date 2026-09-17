@@ -13,3 +13,9 @@ it('hides queue control from read-only roles and does not disguise failure as em
   state.role = 'viewer'; state.list.mockRejectedValue(new Error('down')); const html = renderToStaticMarkup(await DigestsPage({}));
   expect(html).not.toContain('Generate this week'); expect(html).toContain('could not be loaded');
 });
+it('links settings only for the owner who can actually access that page', async () => {
+  state.role = 'manager';
+  expect(renderToStaticMarkup(await DigestsPage({}))).not.toContain('Manage weekly digest settings');
+  state.role = 'owner';
+  expect(renderToStaticMarkup(await DigestsPage({}))).toContain('Manage weekly digest settings');
+});
