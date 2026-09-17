@@ -1,5 +1,24 @@
 # Model-scoped human roles — implementation queue
 
+## Assigned draft editing API checkpoint — M330
+
+L1.0 permits Creators to manage assigned assets and scheduler work via approval.
+Previously timing could be requested only during bundle creation. The new strict,
+idempotent `PATCH /api/v1/bundles/:id/draft` accepts direct captions/hashtags and
+an optional future schedule request, with mandatory expected revision identity.
+Only operational roles or assigned Creators may edit generated/held bundles with
+saved media and no publication targets. A row lock serializes edits and approval;
+each edit rotates the revision, clears variant attribution, invalidates the old
+ToS report and queues a fresh scan in the same audited transaction. No approval,
+target creation or publication occurs. Old revision-bound review cards are stale.
+
+Forty real PostgreSQL tests after 48 migrations, 101 policy/registration tests and
+API typecheck pass. Tests cover concurrent single-save/conflict, unassigned/read-only
+denial, invalid schedule destinations, injected state, stale revision, approved
+state rejection and scan-only jobs. A test-helper UUID inference error was fixed
+after typecheck; the database behavior passed. Fixture43a8faea3f50f32c removed.
+GUI editing is next; this API alone does not complete the Creator scheduler flow.
+
 ## Scoped-role session activation checkpoint — M329
 
 Authentication now preserves Chatter, Content Creator and Model as explicit roles;

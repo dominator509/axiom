@@ -59,6 +59,9 @@ it.each(['chatter', 'content_creator', 'model'] as const)('denies unclassified r
   expect(scopedReadTarget(role, 'HEAD', `/api/v1/models/${id}`)).toBe(id);
 });
 it('allows media reads only for models and creators, never publishing or malformed paths', () => {
+  expect(scopedReadTarget('content_creator', 'PATCH', `/api/v1/bundles/${id}/draft`)).toBe(`bundle:${id}`);
+  for (const role of ['chatter', 'model'] as const) expect(scopedReadTarget(role, 'PATCH', `/api/v1/bundles/${id}/draft`)).toBeNull();
+  expect(scopedReadTarget('content_creator', 'POST', `/api/v1/bundles/${id}/draft`)).toBeNull();
   for (const role of ['model', 'content_creator'] as const) {
     expect(scopedReadTarget(role, 'GET', '/api/v1/bundles')).toBe('discovery');
     expect(scopedReadTarget(role, 'GET', `/api/v1/bundles/${id}/media`)).toBe(`bundle:${id}`);

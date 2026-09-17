@@ -869,6 +869,7 @@ app.use('/api/v1/models/:modelId/media-upload', idempotency(true, 64 * 1024 * 10
 app.use('/api/v1/models/:id', idempotency());
 app.use('/api/v1/bundles/*/approve', idempotency());
 app.use('/api/v1/bundles/*/revise', idempotency());
+app.use('/api/v1/bundles/*/draft', idempotency());
 app.use('/api/v1/bundles/*/reject', idempotency());
 app.use('/api/v1/bundles/*/video-review', idempotency());
 app.use('/api/v1/bundles', idempotency());

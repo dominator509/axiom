@@ -31,6 +31,7 @@ describe('application idempotency registration', () => {
     '/api/v1/models/model/team-shifts/shift',
     '/api/v1/bundles/bundle/approve',
     '/api/v1/bundles/bundle/revise',
+    '/api/v1/bundles/bundle/draft',
     '/api/v1/bundles/bundle/reject',
     ...paths.flatMap((pattern) => {
       const concrete = pattern.replace(/:[^/]+/g, 'fixture');

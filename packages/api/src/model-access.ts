@@ -40,6 +40,8 @@ export function scopedReadTarget(role: ScopedHumanRole, method: string, path: st
     || (role === 'model' && ['GET', 'HEAD'].includes(method)))) return replies[1];
   if (role === 'chatter' && ['GET', 'HEAD'].includes(method) && path === '/api/v1/my-shifts') return 'self-shifts';
   if (role === 'content_creator') {
+    const draft = /^\/api\/v1\/bundles\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/draft$/i.exec(path);
+    if (draft && method === 'PATCH') return `bundle:${draft[1]}`;
     // Own-user credential lifecycle only. Gateway derives identity from the
     // authenticated context, never a model, request body or supplied user ID.
     const grok = '/api/v1/llm/subscriptions/grok';

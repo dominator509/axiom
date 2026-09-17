@@ -4,6 +4,7 @@
 // (LBI-11: only a complete passing report can reach approval).
 
 import { Hono } from 'hono';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { sql, eq, and } from 'drizzle-orm';
@@ -518,6 +519,52 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
   if (result.status === 400)
     return apiError(c, 400, statusTitle(400), result.error ?? 'invalid slot');
   if (result.status === 409) return apiError(c, 409, statusTitle(409), result.error ?? 'conflict');
+  return c.json({ data: result.data });
+});
+
+// Manual edits preserve the saved asset, but invalidate approval/review receipts.
+// The revision compare-and-swap serializes against both editors and approvers.
+router.patch('/:id/draft', zValidator('json', z.object({
+  expectedRevisionId: z.string().uuid().nullable(),
+  captions: z.record(z.string().min(1).max(30), z.string().trim().min(1).max(10000)),
+  hashtags: z.array(z.string().max(100)).max(100),
+  scheduleRequest: z.object({ platform: z.string().min(1).max(30), scheduledAt: z.string().datetime() }).strict().nullable(),
+}).strict()), async c => {
+  const orgId = requireOrg(c), userId = c.get('userId'), role = c.get('role');
+  if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authenticated workspace required');
+  if (!['owner', 'manager', 'operator', 'content_creator'].includes(role ?? '')) return apiError(c, 403, statusTitle(403), 'draft editing is not available to this role');
+  const id = z.string().uuid().safeParse(c.req.param('id'));
+  if (!id.success) return apiError(c, 400, statusTitle(400), 'valid bundle required');
+  const body = c.req.valid('json'), platforms = Object.keys(body.captions);
+  if (!platforms.length || platforms.length > 11) return apiError(c, 400, statusTitle(400), 'one to eleven destination captions required');
+  try { platforms.forEach(asPlatform); } catch { return apiError(c, 400, statusTitle(400), 'unsupported destination'); }
+  if (body.scheduleRequest && (!platforms.includes(body.scheduleRequest.platform) || Date.parse(body.scheduleRequest.scheduledAt) <= Date.now()))
+    return apiError(c, 400, statusTitle(400), 'schedule request requires a caption destination and future time');
+  const result = await withOrgContext(orgId, async tx => {
+    const [bundle] = await tx.select().from(schema.contentBundle).where(and(
+      eq(schema.contentBundle.id, id.data), eq(schema.contentBundle.orgId, orgId),
+      modelAccessCondition(role, orgId, userId, schema.contentBundle.modelId),
+    )).limit(1).for('update');
+    if (!bundle) return { status: 404 as const };
+    if (!['generated', 'hold'].includes(bundle.state) || !bundle.assetId
+      || (bundle.tosReport?.revisionId ?? null) !== body.expectedRevisionId) return { status: 409 as const };
+    const [target] = await tx.select({ id: schema.postTarget.id }).from(schema.postTarget).where(and(
+      eq(schema.postTarget.orgId, orgId), eq(schema.postTarget.bundleId, bundle.id),
+    )).limit(1);
+    if (target) return { status: 409 as const };
+    const revisionId = randomUUID();
+    const [updated] = await tx.update(schema.contentBundle).set({
+      captions: body.captions, hashtags: body.hashtags,
+      publishIntent: body.scheduleRequest ? { action: 'schedule', ...body.scheduleRequest } : null,
+      state: 'generated', sourceVariantId: null,
+      tosReport: { verdict: 'pending', revisionId }, updatedAt: new Date(),
+    }).where(and(eq(schema.contentBundle.id, bundle.id), eq(schema.contentBundle.orgId, orgId))).returning();
+    await enqueueJob(tx, { orgId, queue: 'content', kind: 'tos.scan', payload: { bundleId: bundle.id }, dedupeParts: ['tos.scan', bundle.id, revisionId] });
+    await writeAudit(tx, orgId, userId, 'bundle.draft.edit', bundle.id, { revisionId, platforms, scheduleRequested: body.scheduleRequest !== null });
+    return { status: 200 as const, data: updated };
+  });
+  if (result.status === 404) return apiError(c, 404, statusTitle(404), 'assigned bundle unavailable');
+  if (result.status === 409) return apiError(c, 409, statusTitle(409), 'draft changed, lacks saved media or is already in publication; reload before editing');
   return c.json({ data: result.data });
 });
 

@@ -127,6 +127,45 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     const read = await app().request(`${path}?postId=${posts[0]}`);
     expect((await read.json() as Page).data.map(row => row.id)).toContain(data.id);
   });
+  it('edits assigned Creator drafts with revision conflict protection and fresh scan, never publishing', async () => {
+    const userId = randomUUID(), assignmentId = randomUUID(), bundleId = randomUUID();
+    await scoped(async tx => {
+      await tx.insert(schema.authUser).values({ id: userId, orgId, name: 'Draft editor', email: `${userId}@example.invalid`, role: 'content_creator' });
+      await tx.insert(schema.modelUserAssignment).values({ id: assignmentId, orgId, modelId: models[0], userId });
+      await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId: models[0], assetId: assets[0], state: 'generated', captions: { x: 'Original' }, tosReport: { verdict: 'pass' } });
+    });
+    const body = { expectedRevisionId: null, captions: { x: 'Edited caption' }, hashtags: ['studio'], scheduleRequest: { platform: 'x', scheduledAt: new Date(Date.now() + 3600_000).toISOString() } };
+    const patch = (input: unknown, id: string = bundleId, role: ScopedHumanRole = 'content_creator') => scopedApp(role, orgId, userId).request(`/api/v1/bundles/${id}/draft`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    });
+    try {
+      expect((await patch(body, bundleId, 'model')).status).toBe(403);
+      expect((await patch(body, bundles[1])).status).toBe(404);
+      expect((await patch({ ...body, scheduleRequest: { ...body.scheduleRequest, platform: 'instagram' } })).status).toBe(400);
+      expect((await patch({ ...body, state: 'approved' })).status).toBe(400);
+      const edits = await Promise.all([patch(body), patch({ ...body, captions: { x: 'Concurrent edit' } })]);
+      expect(edits.map(response => response.status).sort()).toEqual([200, 409]);
+      const saved = await edits.find(response => response.status === 200)!.json() as { data: { tosReport: { verdict: string; revisionId: string }; state: string; publishIntent: unknown } };
+      expect(saved.data.state).toBe('generated'); expect(saved.data.tosReport.verdict).toBe('pending');
+      expect(saved.data.tosReport.revisionId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(saved.data.publishIntent).toEqual({ action: 'schedule', ...body.scheduleRequest });
+      const jobs = await scoped(tx => tx.select().from(schema.job).where(sql`${schema.job.payload}->>'bundleId' = ${bundleId}`));
+      expect(jobs.map(job => job.kind)).toEqual(['tos.scan']);
+      expect(await scoped(tx => tx.select().from(schema.postTarget).where(eq(schema.postTarget.bundleId, bundleId)))).toHaveLength(0);
+      expect((await patch(body)).status).toBe(409);
+      await scoped(tx => tx.update(schema.contentBundle).set({ state: 'approved' }).where(eq(schema.contentBundle.id, bundleId)));
+      expect((await patch({ ...body, expectedRevisionId: saved.data.tosReport.revisionId })).status).toBe(409);
+      await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.id, assignmentId)));
+      expect((await patch(body)).status).toBe(404);
+    } finally {
+      await scoped(async tx => {
+        await tx.delete(schema.job).where(sql`${schema.job.payload}->>'bundleId' = ${bundleId}`);
+        await tx.delete(schema.contentBundle).where(eq(schema.contentBundle.id, bundleId));
+        await tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.id, assignmentId));
+        await tx.delete(schema.authUser).where(eq(schema.authUser.id, userId));
+      });
+    }
+  });
   it.each(['content_creator', 'model', 'chatter'] as const)('enforces assignment and session revocation through real signed-in %s sessions', async role => {
     const email = `${randomUUID()}@example.invalid`;
     const origin = new URL(String(auth.options.baseURL)).origin;
