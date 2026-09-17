@@ -156,5 +156,19 @@ Source and automated evidence never substitutes for a missing runtime or provide
 - M319 exposes scoped review creation/history with transactional audit, exact intent-key replay and conversation-independent reply-ID pagination. Exact retries survive a late provider receipt; new reviews require unresolved attempts. Current writer role, assignment and shift are checked; Model access is read-only. 35 real PostgreSQL tests after 48 migrations, 97 policy/registration tests and API typecheck pass. No provider call or live migration occurred.
 - M320 adds per-reply operator review history and recording controls, including pagination, explicit human-evidence labels, a required provider UUID for observed-send testimony, stable retries and recovery from history. Original attempt state remains unchanged and reviews never authorize a resend. Model viewers have no recording controls. 35 focused GUI tests, dashboard typecheck and lint pass (three existing warnings). Hosted run 35235992820 passed all six checks on the earlier published 8a2ae2e; this does not establish hosted or live acceptance of these newer review commits.
 - Still required: attachment handling, agentic drafting, role activation and authenticated deployed acceptance. Operator review evidence is implemented; it is not automatic proof of delivery or permission to resend. Pending intent creation is not message delivery.
+- M336 wires message-bound attachment metadata through the existing model-egress
+  connector, scoped inbox API and an explicit dashboard load action. Model/shift
+  and account access are checked before and after provider reads. Signed URLs,
+  provider filenames/owners and raw errors are omitted; missing media is reported
+  unavailable, not fabricated. Listed price and amount paid remain separate.
+  Forty-five connector/worker/API tests and 22 dashboard/page tests pass, along
+  with worker build, API/dashboard typechecks and dashboard lint (three existing
+  warnings). This is metadata only: authorized byte proxy, image/video playback,
+  attachment sending and authenticated provider/browser acceptance remain open.
+- Hermes D001 installer patch was inspected and rejected: it inferred live mode
+  on missing rehearsal context, retained live Docker/admin access, omitted actual
+  callsite propagation and contained non-executing test assertions. No patch was
+  applied. Correlated review request `codex-d001-review-20260917` was acknowledged;
+  complete source replacements and real helper tests are pending, not verified.
 
 The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.

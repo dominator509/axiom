@@ -3,8 +3,9 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 const provider = vi.hoisted(() => vi.fn());
+const mediaProvider = vi.hoisted(() => vi.fn());
 vi.mock('@axiom/db', () => mockDbFactory());
-vi.mock('@axiom/worker', () => ({ inboxForConnection: provider }));
+vi.mock('@axiom/worker', () => ({ inboxForConnection: provider, inboxMediaForConnection: mediaProvider }));
 import { inboxRouter } from './inbox.js';
 import { scopedReadTarget } from '../model-access.js';
 const model = '22222222-2222-4222-8222-222222222222';
@@ -20,7 +21,7 @@ function app(role = 'owner', authenticated = true) {
   a.route('/', inboxRouter); return a;
 }
 function results(...queries: unknown[]) { mockState.results = queries.flatMap(q => [[], q]); }
-beforeEach(() => { mockState.results = []; mockState.result = []; provider.mockReset(); });
+beforeEach(() => { mockState.results = []; mockState.result = []; provider.mockReset(); mediaProvider.mockReset(); });
 it('requires authentication', async () => {
   expect((await app('owner', false).request(path)).status).toBe(401);
   expect(provider).not.toHaveBeenCalled();
@@ -83,3 +84,29 @@ it('returns a private failure, not an empty inbox, when provider access fails', 
   expect(response.status).toBe(502);
   expect(await response.text()).not.toContain('private-provider-details');
 });
+
+const mediaQuery = `connectionId=${account}&userUuid=${user}&messageUuid=${user}&mediaUuids=${model}`;
+it.each([`messageUuid=${user}`, `mediaUuids=${model}`, `connectionId=${account}&messageUuid=${user}&mediaUuids=${model}`,
+  `${mediaQuery},${model}`, `${mediaQuery},bad`])('rejects incomplete or invalid media scope %s', async query => {
+  expect((await app().request(`${path}?${query}`)).status).toBe(400);
+  expect(mediaProvider).not.toHaveBeenCalled();
+});
+it('resolves attachment metadata through the exact account and message', async () => {
+  const row = { id: account, encToken: 'private' };
+  results([{ id: model }], [row], [{ id: model }], [{ id: account }]);
+  mediaProvider.mockResolvedValue({ kind: 'attachments', messageUuid: user, data: [] });
+  const response = await app('chatter').request(`${path}?${mediaQuery}`);
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('private, no-store');
+  expect(mediaProvider).toHaveBeenCalledWith(row, user, user, [model]);
+  expect(provider).not.toHaveBeenCalled();
+});
+it.each([{ queries: [[{ id: model }], [{ id: account }], []] }, { queries: [[{ id: model }], [{ id: account }], [{ id: model }], []] }])(
+  'withholds attachment metadata after scope revocation %#', async ({ queries }) => {
+    results(...queries);
+    mediaProvider.mockResolvedValue({ privateMetadata: 'must-not-return' });
+    const response = await app('chatter').request(`${path}?${mediaQuery}`);
+    expect(response.status).toBe(404);
+    expect(await response.text()).not.toContain('must-not-return');
+  },
+);

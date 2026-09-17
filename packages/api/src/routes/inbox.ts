@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, eq, inArray } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { inboxForConnection } from '@axiom/worker';
+import { inboxForConnection, inboxMediaForConnection } from '@axiom/worker';
 import type { AppBindings } from '../index.js';
 import { modelAccessCondition } from '../model-access.js';
 import { apiError, requireOrg, statusTitle, withOrgContext } from './helpers.js';
@@ -11,7 +11,12 @@ const router = new Hono<AppBindings>();
 const input = z.object({
   modelId: z.string().uuid(), connectionId: z.string().uuid().optional(), userUuid: z.string().uuid().optional(),
   page: z.string().regex(/^[1-9][0-9]{0,5}$/).default('1').transform(Number),
-}).refine(value => !value.userUuid || Boolean(value.connectionId));
+  messageUuid: z.string().uuid().optional(),
+  mediaUuids: z.string().max(739).transform(value => value.split(','))
+    .pipe(z.array(z.string().uuid()).min(1).max(20).refine(ids => new Set(ids).size === ids.length)).optional(),
+}).refine(value => (!value.userUuid || Boolean(value.connectionId))
+  && (value.messageUuid || value.mediaUuids
+    ? Boolean(value.messageUuid && value.mediaUuids && value.userUuid && value.connectionId) : true));
 
 router.get('/models/:modelId/inbox', async c => {
   c.header('Cache-Control', 'private, no-store');
@@ -20,9 +25,10 @@ router.get('/models/:modelId/inbox', async c => {
   if (!['owner', 'manager', 'operator', 'model', 'chatter'].includes(role ?? ''))
     return apiError(c, 403, statusTitle(403), 'inbox is not available to this role');
   const parsed = input.safeParse({ modelId: c.req.param('modelId'), connectionId: c.req.query('connectionId'),
-    userUuid: c.req.query('userUuid'), page: c.req.query('page') });
+    userUuid: c.req.query('userUuid'), page: c.req.query('page'),
+    messageUuid: c.req.query('messageUuid'), mediaUuids: c.req.query('mediaUuids') });
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'valid model, account, conversation and page required');
-  const { modelId, connectionId, userUuid, page } = parsed.data;
+  const { modelId, connectionId, userUuid, page, messageUuid, mediaUuids } = parsed.data;
   const accessible = () => withOrgContext(orgId, tx => tx.select({ id: schema.modelProfile.id })
     .from(schema.modelProfile).where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId),
       modelAccessCondition(role, orgId, userId))).limit(1));
@@ -41,7 +47,9 @@ router.get('/models/:modelId/inbox', async c => {
   if (!rows.length) return apiError(c, 404, statusTitle(404), 'inbox account unavailable');
   try {
     // Counterpart is interpreted only within this exact connected creator account.
-    const inbox = await inboxForConnection(rows[0], page, userUuid);
+    const inbox = messageUuid && mediaUuids && userUuid
+      ? await inboxMediaForConnection(rows[0], userUuid, messageUuid, mediaUuids)
+      : await inboxForConnection(rows[0], page, userUuid);
     if (!(await accessible()).length) return apiError(c, 404, statusTitle(404), 'assigned model or active shift unavailable');
     const stillConnected = await withOrgContext(orgId, tx => tx.select({ id: schema.platformConnection.id })
       .from(schema.platformConnection).where(and(connectionScope, eq(schema.platformConnection.id, connectionId))).limit(1));

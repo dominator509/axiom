@@ -4,6 +4,7 @@ import { schema } from '@axiom/db';
 import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
 import { createConnector, FanvueConnector, type ConnectorAuth, type SocialConnector } from '@axiom/connectors';
 import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson, type Platform } from '@axiom/core';
+import { inboxMediaMetadata } from './inbox-media.js';
 
 const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
 const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
@@ -58,6 +59,17 @@ export async function inboxForConnection(connection: PlatformConnectionRow, page
   return userUuid
     ? { kind: 'messages' as const, ...await connector.fetchChatMessages(userUuid, page, 25) }
     : { kind: 'chats' as const, ...await connector.fetchChats(page, 25) };
+}
+
+/** Resolve attachment metadata within the exact creator account and message.
+ * Signed provider URLs stay server-side; this is not a byte-preview endpoint.
+ */
+export async function inboxMediaForConnection(connection: PlatformConnectionRow, userUuid: string, messageUuid: string, mediaUuids: string[]) {
+  if (connection.platform !== 'fanvue') throw new Error('Inbox media is only supported for Fanvue');
+  const { connector } = await connectorForConnection(connection);
+  if (!(connector instanceof FanvueConnector)) throw new Error('Fanvue connector unavailable');
+  const media = await connector.fetchMessageMedia(userUuid, messageUuid, mediaUuids);
+  return inboxMediaMetadata(media, messageUuid, mediaUuids);
 }
 
 /** Resolve healthy model egress and credentials without dispatching a reply. */

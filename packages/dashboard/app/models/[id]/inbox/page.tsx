@@ -3,6 +3,7 @@ import { api, getSession } from '@/lib/api';
 import type { InboxObservation } from '@/lib/inbox-types';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
 import InboxReplies from '@/components/InboxReplies';
+import InboxAttachments from '@/components/InboxAttachments';
 
 export const dynamic = 'force-dynamic';
 type Query = { connectionId?: string | string[]; userUuid?: string | string[]; page?: string | string[] };
@@ -58,6 +59,8 @@ export default async function InboxPage({ params, searchParams }: { params: Prom
         <h3>@{message.sender.handle}</h3><p>{message.sentAt ?? 'Time unavailable'} · {message.type} · {message.isRead ? 'Read by recipient' : 'Not read by recipient'}</p>
         <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{message.text ?? 'No text in this message.'}</p>
         {message.hasMedia && <p>{message.mediaType ?? 'Media'} attachment · {message.mediaUuids.length} item(s). Preview unavailable.</p>}
+        {message.hasMedia && userUuid && <InboxAttachments key={`${id}:${connectionId}:${userUuid}:${message.uuid}`}
+          modelId={id} connectionId={connectionId} userUuid={userUuid} messageUuid={message.uuid} mediaUuids={message.mediaUuids} />}
         {message.gif && <p>GIF: {message.gif.title ?? message.gif.id}. Preview unavailable.</p>}
         {message.pricing && <p>Pay-to-view price: {(message.pricing.USD.price / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' })} · {message.purchasedAt ? `Purchased ${message.purchasedAt}` : 'No purchase recorded'}</p>}
         {message.tipSource && <p>Tip source: {message.tipSource}</p>}
