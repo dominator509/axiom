@@ -12,6 +12,26 @@ import type { Executor, ExecutorContext } from './context.js';
 const RATE_BUCKET_PARK_MS = 30_000;
 export const METRICS_POLL_INTERVAL_MS = 15 * 60_000;
 
+/** Reject absent/invalid observations rather than teach the learner invented zeros. */
+export function normalizeEngagementMetrics(metrics: Record<string, number | undefined>) {
+  const names = ['impressions', 'views', 'likes', 'comments', 'shares', 'reposts', 'retweets', 'saves'];
+  for (const name of names) {
+    const value = metrics[name];
+    if (value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0))
+      throw new Error(`metrics.poll: invalid ${name} counter`);
+  }
+  const impressions = metrics.impressions ?? metrics.views;
+  if (impressions === undefined) throw new Error('metrics.poll: provider supplied no view or impression observation');
+  if (!['likes', 'comments', 'shares', 'reposts', 'retweets', 'saves'].some(name => metrics[name] !== undefined))
+    throw new Error('metrics.poll: provider supplied no engagement observation');
+  const likes = metrics.likes ?? 0, comments = metrics.comments ?? 0;
+  const shares = metrics.shares ?? metrics.reposts ?? metrics.retweets ?? 0, saves = metrics.saves ?? 0;
+  const engagement = likes + comments + shares + saves;
+  if (!Number.isSafeInteger(engagement)) throw new Error('metrics.poll: engagement counter overflow');
+  if (impressions === 0 && engagement > 0) throw new Error('metrics.poll: engagement has no observed denominator');
+  return { impressions, likes, comments, shares, engagementRate: impressions > 0 ? engagement / impressions : 0 };
+}
+
 export function nextMetricsPollAt(now = new Date()): Date {
   return new Date(now.getTime() + METRICS_POLL_INTERVAL_MS);
 }
@@ -74,15 +94,7 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
   if (!collected)
     throw new Error(`metrics.poll: connector returned no metrics for ${target.remoteId}`);
 
-  const m = collected.metrics ?? {};
-  const impressions = m.impressions ?? m.views ?? 0;
-  const likes = m.likes ?? 0;
-  const comments = m.comments ?? 0;
-  const shares = m.shares ?? m.reposts ?? m.retweets ?? 0;
-  const saves = m.saves ?? 0;
-
-  const engagement = likes + comments + shares + saves;
-  const engagementRate = impressions > 0 ? engagement / impressions : 0;
+  const { impressions, likes, comments, shares, engagementRate } = normalizeEngagementMetrics(collected.metrics ?? {});
 
   await tx.insert(schema.postMetric).values({
     postTargetId: targetId,

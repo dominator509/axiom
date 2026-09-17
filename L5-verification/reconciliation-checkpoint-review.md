@@ -14,6 +14,8 @@ Review findings requiring follow-up:
 
 Current verification:
 
+- Hosted CI35201077897 on exact0bc26e83a45a9e67e88d5f25d38453318c4a0bcd passed all six jobs. Later commits require a new hosted run. Metrics ingestion now refuses absent denominators/engagement observations and malformed/unsafe counters rather than writing synthetic zero-rate data; seventeen focused tests and worker typecheck pass. This is not a complete availability model for every individual metric and does not establish conversion attribution or automated winner learning.
+
 - Media-only variants now share the same attributed review path: explicit bounded caption for crops/adaptations, immutable stored copy for caption/teaser variants, assignment-platform matching, owned verified output and fresh scan. GUI supports both with stable retry body. 91 API/nine dashboard tests and both typechecks pass. Concurrent review creation and deployed scan/approval/browser acceptance remain open.
 
 - Experiment allocations now retain a unique review bundle reference (migration0038); repeated review creation returns that bundle without another scan. Query attribution requires matching assignment, experiment and unchanged source variant, excluding unassigned posts even if they reuse the media/copy. GUI history exposes the saved-copy review handoff. 115 API/13dashboard/122DB tests, workspace typecheck22/22 and five real PostgreSQL query/locking tests pass after39migrations; fixture cleanup confirmed. Concurrent review creation itself, crop assignment review, browser deployment and automatic learning remain open.
