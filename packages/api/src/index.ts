@@ -889,6 +889,9 @@ app.use('/api/v1/models/:modelId/variant-experiments/:experimentId/outcomes', id
 app.use('/api/v1/models/:modelId/variant-experiments/:experimentId/promote', idempotency());
 app.use('/api/v1/models/:modelId/scrape-runs', idempotency());
 app.use('/api/v1/models/:modelId/team-operations', idempotency());
+app.use('/api/v1/models/:modelId/team-shifts', idempotency());
+app.use('/api/v1/models/:modelId/team-shifts/:shiftId', idempotency());
+app.use('/api/v1/models/:modelId/team-notes', idempotency());
 app.use('/api/v1/models/:modelId/media-operations', idempotency());
 app.use('/api/v1/models/:modelId/playbook-guidelines', idempotency());
 app.use('/api/v1/models/:modelId/linkbio/*', idempotency());

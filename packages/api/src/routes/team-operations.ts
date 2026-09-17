@@ -3,7 +3,7 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, lt, or } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import type { Context } from 'hono';
@@ -13,7 +13,35 @@ import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 const router = new Hono<AppBindings>();
 const shiftSchema = z.object({ assigneeUserId: z.string().trim().min(1).max(200), queue: z.string().trim().min(1).max(100).default('inbox'), startsAt: z.string().datetime(), endsAt: z.string().datetime(), note: z.string().trim().max(2_000).optional() }).strict();
 const shiftPatchSchema = z.object({ status: z.enum(['scheduled', 'active', 'completed', 'cancelled']), note: z.string().trim().max(2_000).optional() }).strict();
-const noteSchema = z.object({ targetType: z.string().trim().min(1).max(50).default('model'), targetId: z.string().trim().max(200).optional(), body: z.string().trim().min(1).max(4_000) }).strict();
+const noteSchema = z.object({ targetType: z.enum(['model', 'post']).default('model'), targetId: z.string().uuid().optional(), body: z.string().trim().min(1).max(4_000) }).strict().refine(value => value.targetType === 'post' ? !!value.targetId : value.targetId === undefined);
+
+async function ownedPost(tx: any, orgId: string, modelId: string, postId: string) {
+  const rows = await tx.select({ id: schema.postTarget.id }).from(schema.postTarget)
+    .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.postTarget.bundleId))
+    .where(and(eq(schema.postTarget.id, postId), eq(schema.postTarget.orgId, orgId),
+      eq(schema.contentBundle.orgId, orgId), eq(schema.contentBundle.modelId, modelId))).limit(1);
+  return rows.length > 0;
+}
+
+router.get('/models/:modelId/team-notes', async c => {
+  const orgId = requireOrg(c);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const postId = c.req.query('postId'), cursor = c.req.query('cursor');
+  if (!z.string().uuid().safeParse(postId).success || (cursor && !z.string().uuid().safeParse(cursor).success))
+    return apiError(c, 400, statusTitle(400), 'valid postId and cursor required');
+  const result = await withOrgContext(orgId, async tx => {
+    if (!await ownedPost(tx, orgId, c.req.param('modelId'), postId!)) return null;
+    const scope = and(eq(schema.teamNote.orgId, orgId), eq(schema.teamNote.modelId, c.req.param('modelId')), eq(schema.teamNote.targetType, 'post'), eq(schema.teamNote.targetId, postId!));
+    const [before] = cursor ? await tx.select().from(schema.teamNote).where(and(scope, eq(schema.teamNote.id, cursor))).limit(1) : [];
+    if (cursor && !before) return 'invalid-cursor' as const;
+    const rows = await tx.select().from(schema.teamNote).where(and(scope, before ? or(lt(schema.teamNote.createdAt, before.createdAt), and(eq(schema.teamNote.createdAt, before.createdAt), lt(schema.teamNote.id, before.id))) : undefined))
+      .orderBy(desc(schema.teamNote.createdAt), desc(schema.teamNote.id)).limit(51);
+    return { data: rows.slice(0, 50), meta: { next_cursor: rows.length > 50 ? rows[49].id : null } };
+  });
+  if (!result) return apiError(c, 404, statusTitle(404), 'post not found');
+  if (result === 'invalid-cursor') return apiError(c, 400, statusTitle(400), 'invalid note cursor');
+  return c.json(result);
+});
 
 async function readBody(c: Context<AppBindings>): Promise<unknown> {
   try { return await readBoundedJson(c.req.raw, 64 * 1024); }
@@ -110,6 +138,7 @@ router.post('/models/:modelId/team-notes', async (c) => {
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'note body is required');
   const row = await withOrgContext(orgId, async (tx) => {
     if (!(await modelExists(tx, orgId, c.req.param('modelId')))) return null;
+    if (parsed.data.targetType === 'post' && !await ownedPost(tx, orgId, c.req.param('modelId'), parsed.data.targetId!)) return null;
     const [saved] = await tx.insert(schema.teamNote).values({ orgId, modelId: c.req.param('modelId'), authorUserId: userId, targetType: parsed.data.targetType, targetId: parsed.data.targetId, body: parsed.data.body }).returning();
     if (saved) await writeAudit(tx, orgId, userId, 'team.note.create', saved.id, { modelId: saved.modelId, targetType: saved.targetType });
     return saved ?? null;

@@ -52,6 +52,7 @@ Source and automated evidence never substitutes for a missing runtime or provide
 - Add tenant-scoped team membership/role visibility, shift lifecycle, handoff notes, and bounded queue assignment using existing RBAC and RLS conventions.
 - Expose the human workflow in a dedicated team/operations surface; keep infrastructure and secret controls out of content-team roles.
 - M274 adds row-locked shift lifecycle transitions and explicit completion handoff notes; terminal shifts cannot be reopened/rewritten. Existing generic workspace operational roles do not yet satisfy the L1.0 Chatter persona restricted to assigned shifts/models. F-25 post-specific note ownership/UI and historical list pagination also remain open. Do not label the team feature complete from generic CRUD or navigation tests.
+- M275 adds F-25 post-note ownership checks and the calendar read/write/pagination panel, with actual team mutation idempotency registrations. Focused route/UI checks pass; live multi-user acceptance and dedicated PostgreSQL post-note isolation evidence remain open. Chatter permissions and general team-list pagination remain incomplete.
 - [x] Gate: authorization/RLS and dashboard navigation tests pass; multi-user browser acceptance remains open.
 
 ### 4. Clipping and adaptation controls — source slice complete; deployment gate open

@@ -1,6 +1,7 @@
 import { api, getSession } from '@/lib/api';
 import Link from 'next/link';
 import PostScheduleForm from '@/components/PostScheduleForm';
+import PostTeamNotes from '@/components/PostTeamNotes';
 import PlaybookCadence, { currentUtcWeek } from '@/components/PlaybookCadence';
 
 export const dynamic = 'force-dynamic';
@@ -97,6 +98,7 @@ export default async function CalendarPage({ params, searchParams }: {
               </div>
             )}
             <Link href={`/models/${encodeURIComponent(id)}/approvals`}>View bundles and approvals</Link>
+            <PostTeamNotes key={`notes:${p.id}`} modelId={id} postId={p.id} canEdit={canEdit} />
             {canEdit && p.state === 'pending' && !p.remoteId && <PostScheduleForm key={`${p.id}:${p.scheduledFor}`} postId={p.id} />}
           </div>
         ))}
