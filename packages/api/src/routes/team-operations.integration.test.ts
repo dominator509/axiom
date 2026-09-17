@@ -532,11 +532,15 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     });
     const create = async () => (await run(tx => tx.insert(schema.inboxReplyIntent).values({ orgId: testOrg, modelId, connectionId, actorUserId: userId, counterpartUuid: randomUUID(), intentKey: randomUUID(), body: 'Private human reply' }).returning()))[0];
     const reply = await create(), identity = { orgId: testOrg, modelId, userId, replyId: reply.id };
+    const sendRoute = scopedApp('chatter', testOrg, userId);
+    const requestSend = () => sendRoute.request(`/api/v1/models/${modelId}/inbox/replies/${reply.id}/send`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirm: true }) });
     expect((await claimReplyDispatch({ ...identity, orgId: orgId })).outcome).toBe('denied');
     expect((await claimReplyDispatch({ ...identity, userId: assignmentUsers[0] })).outcome).toBe('denied');
     expect((await claimReplyDispatch(identity)).outcome).toBe('halted');
+    expect((await requestSend()).status).toBe(409);
     await run(tx => tx.insert(schema.orgSettings).values({ orgId: testOrg, publishingEnabled: true }));
     expect((await claimReplyDispatch(identity)).outcome).toBe('consent-required');
+    expect((await requestSend()).status).toBe(409);
     await run(tx => tx.insert(schema.consentRecord).values((['2257', 'model_release', 'id_verify', 'platform_consent'] as const).map(docKind => ({ orgId: testOrg, modelId, platform: 'fanvue', consentType: docKind, docKind, granted: true, grantedAt: new Date(Date.now() - 60_000), validFrom: '2020-01-01', blobRef: 'fixture-only', sha256: Buffer.alloc(32) }))));
     await run(tx => tx.update(schema.platformConnection).set({ status: 'revoked' }).where(eq(schema.platformConnection.id, connectionId)));
     expect((await claimReplyDispatch(identity)).outcome).toBe('account-unavailable');
@@ -551,6 +555,7 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect(claims.map(c => c.outcome).sort()).toEqual(['already-dispatched', 'claimed']);
     // Crash-equivalent retry never reclaims a dispatching row.
     expect((await claimReplyDispatch(identity)).outcome).toBe('already-dispatched');
+    expect((await requestSend()).status).toBe(409);
     const next = await create();
     await run(tx => tx.update(schema.teamShift).set({ endsAt: new Date(Date.now() - 1000) }).where(eq(schema.teamShift.id, shiftId)));
     expect((await claimReplyDispatch({ ...identity, replyId: next.id })).outcome).toBe('denied');

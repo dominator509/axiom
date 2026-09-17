@@ -904,6 +904,7 @@ app.use('/api/v1/models/:modelId/team-shifts', idempotency());
 app.use('/api/v1/models/:modelId/team-shifts/:shiftId', idempotency());
 app.use('/api/v1/models/:modelId/team-notes', idempotency());
 app.use('/api/v1/models/:modelId/inbox/replies', idempotency());
+app.use('/api/v1/models/:modelId/inbox/replies/:replyId/send', idempotency());
 app.use('/api/v1/models/:modelId/member-assignments', idempotency());
 app.use('/api/v1/models/:modelId/member-assignments/:assignmentId', idempotency());
 app.use('/api/v1/models/:modelId/media-operations', idempotency());

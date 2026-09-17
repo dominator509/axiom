@@ -10,7 +10,8 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function InboxPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Query> }) {
   const { id } = await params;
-  const role = (await getSession())?.user?.role;
+  const session = await getSession();
+  const role = session?.user?.role;
   if (!talentDestinationAllowed(role, 'inbox')) return <div className="card stack"><h2>Inbox access unavailable</h2><p>Your role does not include messages.</p><Link href="/">Back to workspace</Link></div>;
   const query = await searchParams;
   const connectionId = typeof query.connectionId === 'string' ? query.connectionId : '';
@@ -34,7 +35,7 @@ export default async function InboxPage({ params, searchParams }: { params: Prom
   }
   const inbox = observation?.inbox;
   return <div className="page-stack">
-    <div><h2>Inbox</h2><p>Read Fanvue conversations for this talent. Opening a conversation does not mark it read. You can review prepared replies below a conversation. Sending and attachment previews are not available here yet.</p></div>
+    <div><h2>Inbox</h2><p>Read Fanvue conversations for this talent. Opening a conversation does not mark it read. Review and explicitly send your prepared replies below a conversation. Attachment previews are not available here yet.</p></div>
     {error && <div className="card stack" role="alert"><p>{error}</p><Link className="btn secondary" href={path} prefetch={false}>Reload account choices</Link></div>}
     {accounts?.length === 0 && <div className="card stack"><h3>No connected Fanvue account</h3><p>Ask your workspace owner to connect an account for this talent.</p></div>}
     {accounts && accounts.length > 0 && <form action={path} method="get" className="card stack">
@@ -68,7 +69,7 @@ export default async function InboxPage({ params, searchParams }: { params: Prom
         <span>Page {inbox.pagination.page}</span>
         {inbox.pagination.hasMore && page < 999999 && <Link href={href(page + 1, userUuid)} prefetch={false} className="btn secondary">Next page</Link>}
       </nav>
-      {inbox.kind === 'messages' && userUuid && <InboxReplies key={`${id}:${connectionId}:${userUuid}`} modelId={id} connectionId={connectionId} counterpartUuid={userUuid} canPrepare={['owner', 'manager', 'operator', 'chatter'].includes(role ?? '')} />}
+      {inbox.kind === 'messages' && userUuid && <InboxReplies key={`${id}:${connectionId}:${userUuid}`} modelId={id} connectionId={connectionId} counterpartUuid={userUuid} actorUserId={session?.user?.id} canPrepare={['owner', 'manager', 'operator', 'chatter'].includes(role ?? '')} />}
     </>}
   </div>;
 }

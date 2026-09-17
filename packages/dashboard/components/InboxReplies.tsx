@@ -27,11 +27,13 @@ export function isInboxReply(value: unknown, scope: Scope): value is Reply {
     && (reply.state === 'sent' ? typeof reply.remoteMessageUuid === 'string' && uuid.test(reply.remoteMessageUuid) : reply.remoteMessageUuid === null);
 }
 
-export default function InboxReplies({ modelId, connectionId, counterpartUuid, canPrepare }: Scope & { canPrepare: boolean }) {
+export default function InboxReplies({ modelId, connectionId, counterpartUuid, canPrepare, actorUserId }: Scope & { canPrepare: boolean; actorUserId?: string }) {
   const [records, setRecords] = useState<Reply[]>([]), [cursor, setCursor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false), [busy, setBusy] = useState(false);
   const [body, setBody] = useState(''), [error, setError] = useState(''), [message, setMessage] = useState('');
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const active = useRef(false);
+  const attempted = useRef(new Set<string>());
   const intent = useRef<{ key: string; body: string; request: string } | null>(null);
   const scope = { modelId, connectionId, counterpartUuid };
   const path = `/api/v1/models/${encodeURIComponent(modelId)}/inbox/replies`;
@@ -48,6 +50,9 @@ export default function InboxReplies({ modelId, connectionId, counterpartUuid, c
       const replies = result.data as Reply[];
       setRecords(previous => older ? [...previous, ...replies].filter((reply, index, all) => all.findIndex(item => item.id === reply.id) === index) : replies);
       setCursor(result.meta.next_cursor as string | null); setLoaded(true);
+      setConfirmId(null);
+      // A fresh server read is required before another explicit send action.
+      for (const reply of replies) attempted.current.delete(reply.id);
       // A read can reconcile an uncertain save, but only for the exact outstanding intent.
       const recovered = intent.current && replies.find(reply => reply.intentKey === intent.current!.key && reply.body === intent.current!.body);
       if (recovered) { intent.current = null; setBody(''); setMessage('Saved reply found in history. Check its status below.'); }
@@ -73,17 +78,41 @@ export default function InboxReplies({ modelId, connectionId, counterpartUuid, c
     } catch { setError('Save not confirmed. Load history or retry this same reply. Do not start a duplicate.'); }
     finally { active.current = false; setBusy(false); }
   }
+  async function sendReply(reply: Reply) {
+    if (!canPrepare || !actorUserId || reply.actorUserId !== actorUserId || reply.state !== 'pending'
+      || confirmId !== reply.id || !loaded || active.current || attempted.current.has(reply.id)) return;
+    active.current = true; attempted.current.add(reply.id); setBusy(true); setConfirmId(null); setError(''); setMessage('');
+    try {
+      const response = await mutationFetch(`${path}/${encodeURIComponent(reply.id)}/send`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirm: true }),
+      }, { idempotencyKey: crypto.randomUUID(), retries: 0 });
+      if (!response.ok) throw new Error('unconfirmed');
+      const result = await readDashboardJson<{ data: { replyId: string; state: string } }>(response);
+      if (result.data?.replyId !== reply.id || !['sent', 'rejected', 'uncertain'].includes(result.data?.state)) throw new Error('invalid status');
+      setMessage(result.data.state === 'sent' ? 'Fanvue accepted the reply. Load history for its receipt; this is not a read receipt.'
+        : result.data.state === 'rejected' ? 'Fanvue rejected the reply. Load history; nothing will retry automatically.'
+          : 'Delivery is uncertain. Do not resend or create a duplicate. Load history and reconcile with Fanvue.');
+    } catch { setError('Delivery not confirmed. Do not resend or create a duplicate. Load reply history to check status and access.'); }
+    finally { active.current = false; setBusy(false); }
+  }
   return <section className="card stack" aria-label="Workspace replies">
     <h3>Workspace replies</h3>
-    <p>Prepare a text reply for this conversation and review saved attempts. Sending and attachment previews are not available here yet. Nothing is sent when you save.</p>
+    <p>Prepare a text reply for this conversation and review saved attempts. Sending requires a separate confirmation. Attachment previews are not available here yet. Nothing is sent when you save.</p>
     <p className="subtle">Load history before preparing a reply, including after a page reload. Unsaved text stays only in this page and is lost when you leave.</p>
     <div className="action-row"><button type="button" className="btn secondary" disabled={busy} onClick={() => void load(false)}>Load reply history</button>
       {cursor && <button type="button" className="btn secondary" disabled={busy} onClick={() => void load(true)}>Load older replies</button>}</div>
     {loaded && records.length === 0 && <p>No saved replies in this conversation.</p>}
     {records.map(reply => <article key={reply.id} className="card stack">
-      <h4>{labels[reply.state]}</h4><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{reply.body}</p>
+      <h4>{attempted.current.has(reply.id) ? 'Send attempted — refresh status' : labels[reply.state]}</h4><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{reply.body}</p>
       <p className="subtle">{new Date(reply.createdAt).toLocaleString()} · Prepared by {reply.actorUserId}</p>
       {reply.remoteMessageUuid && <p className="subtle">Provider receipt: {reply.remoteMessageUuid}</p>}
+      {canPrepare && actorUserId === reply.actorUserId && reply.state === 'pending' && <div className="stack">
+        {attempted.current.has(reply.id) ? <p>Send was attempted. Load history before taking further action.</p>
+          : confirmId === reply.id ? <><p>This sends the exact text above to this Fanvue conversation immediately. It cannot be recalled here.</p><div className="action-row">
+            <button type="button" className="btn" disabled={busy || !loaded} onClick={() => void sendReply(reply)}>Confirm send to Fanvue</button>
+            <button type="button" className="btn secondary" disabled={busy} onClick={() => setConfirmId(null)}>Keep prepared</button>
+          </div></> : <button type="button" className="btn secondary" disabled={busy || !loaded} onClick={() => setConfirmId(reply.id)}>Send prepared reply</button>}
+      </div>}
     </article>)}
     {canPrepare && <><label className="stack">Reply text<textarea value={body} maxLength={5000} rows={5} disabled={!loaded || busy || !!intent.current} onChange={event => setBody(event.target.value)} /></label>
       <p className="subtle">{body.length}/5000 characters. Saved text cannot be edited.</p>

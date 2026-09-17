@@ -22,7 +22,7 @@ function find(value: unknown, type: string, text?: string): Node | undefined {
   if (node.type === type && (text === undefined || node.props.children === text)) return node;
   return find(node.props?.children, type, text);
 }
-function render(canPrepare = true) { hooks.index = 0; return InboxReplies({ ...scope, canPrepare }); }
+function render(canPrepare = true) { hooks.index = 0; return InboxReplies({ ...scope, canPrepare, actorUserId: 'actor' }); }
 function click(text: string) { const button = find(render(), 'button', text); expect(button).toBeDefined(); button!.props.onClick!(); }
 async function load(data: unknown[] = [], cursor: string | null = null) {
   hooks.fetch.mockResolvedValueOnce(Response.json({ data, meta: { next_cursor: cursor } }));
@@ -95,4 +95,44 @@ it('retains conversation scope on older pages and distinguishes uncertain delive
   expect(hooks.fetch.mock.calls[1][0]).toContain(`connectionId=${id}&counterpartUuid=${id}&cursor=${id}`);
   expect(find(render(), 'h4', 'Delivery uncertain — do not resend')).toBeDefined();
   expect(hooks.send).not.toHaveBeenCalled();
+});
+it('requires explicit confirmation, fences double clicks and sends only the immutable reply ID', async () => {
+  await load([reply]);
+  click('Send prepared reply');
+  expect(hooks.send).not.toHaveBeenCalled();
+  click('Keep prepared');
+  expect(find(render(), 'button', 'Confirm send to Fanvue')).toBeUndefined();
+  click('Send prepared reply');
+  let complete!: (response: Response) => void;
+  hooks.send.mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+  const confirm = find(render(), 'button', 'Confirm send to Fanvue')!;
+  confirm.props.onClick!(); confirm.props.onClick!();
+  expect(hooks.send).toHaveBeenCalledOnce();
+  expect(hooks.send.mock.calls[0]).toEqual([`/api/v1/models/${id}/inbox/replies/${id}/send`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"confirm":true}',
+  }, { idempotencyKey: key, retries: 0 }]);
+  complete(Response.json({ data: { replyId: id, state: 'sent' } }));
+  await vi.waitFor(() => expect(find(render(), 'button', 'Load reply history')!.props.disabled).toBe(false));
+  expect(find(render(), 'h4', 'Prepared — not sent')).toBeUndefined();
+  expect(find(render(), 'h4', 'Send attempted — refresh status')).toBeDefined();
+  expect(find(render(), 'button', 'Send prepared reply')).toBeUndefined();
+  await load([{ ...reply, state: 'sent', remoteMessageUuid: key }]);
+  expect(find(render(), 'h4', 'Accepted by Fanvue — not a read receipt')).toBeDefined();
+  expect(find(render(), 'button', 'Send prepared reply')).toBeUndefined();
+});
+it('does not send someone else’s reply or a non-pending attempt', async () => {
+  await load([{ ...reply, actorUserId: 'other' }]);
+  expect(find(render(), 'button', 'Send prepared reply')).toBeUndefined();
+  await load([{ ...reply, state: 'uncertain' }]);
+  expect(find(render(), 'button', 'Send prepared reply')).toBeUndefined();
+  expect(hooks.send).not.toHaveBeenCalled();
+});
+it('requires history after a lost send response instead of offering transport retry', async () => {
+  await load([reply]);
+  hooks.send.mockRejectedValueOnce(new Error('private-network-detail'));
+  click('Send prepared reply'); click('Confirm send to Fanvue');
+  await vi.waitFor(() => expect(find(render(), 'button', 'Load reply history')!.props.disabled).toBe(false));
+  expect(find(render(), 'button', 'Send prepared reply')).toBeUndefined();
+  expect(find(render(), 'p', 'Delivery not confirmed. Do not resend or create a duplicate. Load reply history to check status and access.')).toBeDefined();
+  expect(hooks.send).toHaveBeenCalledOnce();
 });

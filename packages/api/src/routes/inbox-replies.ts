@@ -4,6 +4,7 @@ import { and, desc, eq, inArray, lt, or } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { modelAccessCondition } from '../model-access.js';
+import { dispatchReply } from '../reply-dispatch.js';
 import { boundedJsonValidator } from '../bounded-json-validator.js';
 import { apiError, requireOrg, statusTitle, withOrgContext, writeAudit } from './helpers.js';
 
@@ -13,6 +14,27 @@ const bodySchema = z.object({ connectionId: uuid, counterpartUuid: uuid, intentK
   body: z.string().min(1).max(5000).refine(text => text.trim().length > 0) }).strict();
 const readRoles = ['owner', 'manager', 'operator', 'model', 'chatter'];
 const writeRoles = ['owner', 'manager', 'operator', 'chatter'];
+
+router.post('/models/:modelId/inbox/replies/:replyId/send', boundedJsonValidator('json', z.object({ confirm: z.literal(true) }).strict()), async c => {
+  c.header('Cache-Control', 'private, no-store');
+  const orgId = requireOrg(c), userId = c.get('userId'), role = c.get('role');
+  if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authenticated workspace required');
+  if (!writeRoles.includes(role ?? '')) return apiError(c, 403, statusTitle(403), 'reply sending unavailable');
+  const modelId = c.req.param('modelId'), replyId = c.req.param('replyId');
+  if (!uuid.safeParse(modelId).success || !uuid.safeParse(replyId).success) return apiError(c, 400, statusTitle(400), 'valid model and reply required');
+  try {
+    const result = await dispatchReply({ orgId, modelId, userId, replyId });
+    if (result.outcome === 'finished') return c.json({ data: { replyId: result.replyId, state: result.state } });
+    if (result.outcome === 'denied') return apiError(c, 404, statusTitle(404), 'reply ownership, assignment or active shift unavailable');
+    if (result.outcome === 'halted') return apiError(c, 409, statusTitle(409), 'workspace safety switch is halted');
+    if (result.outcome === 'consent-required') return apiError(c, 409, statusTitle(409), 'valid model consent records required');
+    if (result.outcome === 'account-unavailable') return apiError(c, 409, statusTitle(409), 'account changed or unavailable; check the connection');
+    if (result.outcome === 'already-dispatched') return apiError(c, 409, statusTitle(409), 'reply already attempted; load history, do not create a duplicate');
+    return apiError(c, 503, statusTitle(503), 'delivery not confirmed; load reply history before any further action');
+  } catch {
+    return apiError(c, 503, statusTitle(503), 'delivery not confirmed; load reply history before any further action');
+  }
+});
 
 router.post('/models/:modelId/inbox/replies', boundedJsonValidator('json', bodySchema), async c => {
   c.header('Cache-Control', 'private, no-store');
