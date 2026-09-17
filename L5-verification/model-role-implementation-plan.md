@@ -360,5 +360,27 @@ evidence, not authenticated browser acceptance. The page explicitly states reply
 delivery and attachment previews are unavailable; these remain implementation
 requirements, not waived features. No live request, read receipt, send or deployment.
 
+## Text reply provider contract (M309, 2026-09-17)
+
+Retrieved official Fanvue OpenAPI `POST /chats/{userUuid}/message`: text 1..5000
+characters and HTTP 201 `{messageUuid}` receipt. No idempotency parameter/header
+is documented on this operation. Added exactly-one-attempt text reply to the
+existing connector; recipient/text validation and credential refresh precede
+dispatch, approved whitespace is preserved, and successful receipts are validated.
+Documented 400/401/403/410/429 outcomes are rejected; transport failures,
+non-contract status codes, 5xx and malformed successful receipts are uncertain.
+Neither class is retried in the adapter. Error messages never include provider
+bodies or private transport diagnostics. 61 focused connector tests and typecheck
+pass; no message was sent to a real provider.
+
+Before exposing replies, implement a tenant/model/connection/actor/counterpart
+bound durable intent with immutable approved text and client intent key, a
+committed dispatch fence, one-attempt delivery, confirmed receipt persistence,
+and explicit uncertain reconciliation. A crashed dispatch cannot return to the
+ready queue automatically. Recheck active shift/assignment and publishing halt
+before dispatch. Record author/delivery evidence without falsely claiming delivery
+from a local timeline row. Add SFW checks per L3.0 and make rejection/uncertainty
+visible in the GUI. Attachment/paid replies remain separate from this text path.
+
 Completion requires all applicable steps and live evidence; neither additive role
 names nor empty navigation alone satisfies F-24/F-26.

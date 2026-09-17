@@ -29,7 +29,7 @@ import type {
 import type { Platform, PublishMode } from '@axiom/core';
 import { mediaTypeHint, validatePublish } from './validation.js';
 import { parseFanvueEarningsSummary, type FanvueEarningsSummary } from './fanvue-earnings.js';
-import { inboxPageQuery, inboxUserUuid, parseChatPage, parseMessagePage, type FanvueChatPage, type FanvueMessagePage } from './fanvue-inbox.js';
+import { FanvueMessageDeliveryError, replyText, messageReceipt, inboxPageQuery, inboxUserUuid, parseChatPage, parseMessagePage, type FanvueChatPage, type FanvueMessagePage } from './fanvue-inbox.js';
 
 const FANVUE_API_BASE = 'https://api.fanvue.com';
 const FANVUE_API_VERSION = '2025-06-26';
@@ -457,6 +457,34 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     query.set('markAsRead', 'false');
     const response = await this.fanvueRequest<unknown>('GET', `/chats/${user}/messages?${query}`);
     return parseMessagePage(response, page, size);
+  }
+
+  /**
+   * One text reply attempt, never a retry. Official POST contract has no
+   * documented idempotency header: the caller must persist dispatch intent
+   * before invoking this and reconcile uncertain outcomes outside this adapter.
+   */
+  async sendTextReply(userUuid: string, text: string): Promise<{ messageUuid: string }> {
+    const user = inboxUserUuid(userUuid), body = { text: replyText(text) };
+    await this.ensureFreshToken(); // Failure here precedes message dispatch.
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${FANVUE_API_BASE}/chats/${user}/message`, {
+        method: 'POST', headers: this.fanvueHeaders(), body: JSON.stringify(body),
+      });
+    } catch {
+      throw new FanvueMessageDeliveryError('uncertain');
+    }
+    if (response.status !== 201) {
+      // Only the documented rejection statuses establish a negative outcome.
+      // Never log a provider body: it may echo private message text or tokens.
+      await response.body?.cancel().catch(() => undefined);
+      throw new FanvueMessageDeliveryError(
+        [400, 401, 403, 410, 429].includes(response.status) ? 'rejected' : 'uncertain', response.status,
+      );
+    }
+    try { return messageReceipt(await readResponseJson<unknown>(response)); }
+    catch { throw new FanvueMessageDeliveryError('uncertain', 201); }
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {

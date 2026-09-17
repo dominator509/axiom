@@ -36,6 +36,26 @@ const messages = z.object({ data: z.array(message).max(50), pagination });
 export type FanvueChatPage = z.infer<typeof chats>;
 export type FanvueMessagePage = z.infer<typeof messages>;
 
+/** Outcome after a send was attempted. Uncertain must never be automatically retried. */
+export class FanvueMessageDeliveryError extends Error {
+  constructor(public readonly outcome: 'rejected' | 'uncertain', public readonly status?: number) {
+    super(outcome === 'rejected' ? 'Fanvue rejected the message' : 'Fanvue message delivery is unconfirmed');
+    this.name = 'FanvueMessageDeliveryError';
+  }
+}
+
+export function replyText(value: string): string {
+  if (typeof value !== 'string' || !value.trim() || value.length > 5000)
+    throw new Error('Fanvue reply must contain 1 to 5000 characters');
+  return value; // Preserve the exact text approved by the user.
+}
+
+export function messageReceipt(value: unknown): { messageUuid: string } {
+  const result = z.object({ messageUuid: uuid }).safeParse(value);
+  if (!result.success) throw new FanvueMessageDeliveryError('uncertain');
+  return result.data;
+}
+
 export function inboxPageQuery(page: number, size: number): URLSearchParams {
   if (!Number.isSafeInteger(page) || page < 1 || !Number.isInteger(size) || size < 1 || size > 50)
     throw new Error('Invalid Fanvue inbox pagination');
