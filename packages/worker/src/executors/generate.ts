@@ -19,13 +19,7 @@ import {
 import type { Executor, ExecutorContext } from './context.js';
 import { enqueueJob } from '../enqueue.js';
 
-async function modelPlaybookContext(tx: any, orgId: string, modelId: string, platform: string): Promise<string> {
-  const [guideline] = await tx.select().from(schema.playbookGuideline).where(and(
-    eq(schema.playbookGuideline.orgId, orgId), eq(schema.playbookGuideline.modelId, modelId), eq(schema.playbookGuideline.platform, platform),
-  )).limit(1);
-  if (!guideline) return '';
-  return `\n[MODEL PLAYBOOK GUIDELINE]\nOptimal posting times: ${guideline.optimalTimes.join(', ') || 'operator default'}\nCadence target: ${guideline.cadencePerWeek} posts/week\nUpsell strategy: ${guideline.upsellStrategy || 'none configured'}\nGuideline revision: ${guideline.revision}`;
-}
+import { modelPlaybookContext } from '../playbook-context.js';
 import { asPlatform } from '../connection.js';
 import { retrieveTopExemplars } from '../viral-retrieval.js';
 

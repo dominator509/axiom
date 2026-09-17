@@ -22,6 +22,7 @@ vi.mock('@axiom/llm-gateway', async (importOriginal) => {
       async chat(_messages: unknown, options: { userId?: string }) {
         capturedOptions = options;
         capturedMessages = _messages;
+        allMessages.push(_messages);
         // Match the real subscription gateway's identity requirement.
         if (!options.userId) throw new Error('Authenticated user is required');
         return {
@@ -47,6 +48,7 @@ vi.mock('@axiom/llm-gateway', async (importOriginal) => {
 let capturedSegments: Record<string, string> | null = null;
 let capturedOptions: { userId?: string } | null = null;
 let capturedMessages: unknown = null;
+let allMessages: unknown[] = [];
 let revisionReply: string | null = null;
 
 import { generateRouter } from './generate.js';
@@ -72,6 +74,8 @@ beforeEach(() => {
   mediaQueue.mockClear();
   capturedOptions = null;
   capturedMessages = null;
+  allMessages = [];
+  capturedSegments = null;
   revisionReply = null;
 });
 
@@ -91,6 +95,35 @@ const validBody = {
 };
 
 describe('POST /models/:id/generate', () => {
+  it('uses separate playbook context for each selected destination rather than copying the first platform context', async () => {
+    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
+    const guideline = (strategy: string) => [{ optimalTimes: [], cadencePerWeek: 1, upsellStrategy: strategy, revision: 1 }];
+    mockState.results = [[], mockState.result, [], [], guideline('INSTAGRAM ONLY'), [], [], guideline('THREADS ONLY')];
+    const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, platforms: ['instagram', 'threads'], enrichWithLlm: true }),
+    });
+    expect(response.status).toBe(201);
+    expect(allMessages).toHaveLength(2);
+    expect(JSON.stringify(allMessages[0])).toContain('INSTAGRAM ONLY');
+    expect(JSON.stringify(allMessages[0])).not.toContain('THREADS ONLY');
+    expect(JSON.stringify(allMessages[1])).toContain('THREADS ONLY');
+    expect(JSON.stringify(allMessages[1])).not.toContain('INSTAGRAM ONLY');
+  });
+  it('injects the saved model playbook into synchronous caption enrichment (F-56)', async () => {
+    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
+    mockState.results = [[], mockState.result, [], [], [{ optimalTimes: ['18:00'], cadencePerWeek: 4, upsellStrategy: 'Invite readers to the approved collection', revision: 7 }]];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, enrichWithLlm: true }),
+    });
+    expect(res.status).toBe(201);
+    expect(capturedSegments?.S1).toContain('[MODEL PLAYBOOK GUIDELINE]');
+    expect(capturedSegments?.S1).toContain('Invite readers to the approved collection');
+    expect(capturedSegments?.S1).toContain('Guideline revision: 7');
+    expect(capturedSegments?.S1).toContain('explicit operator instructions and platform safety rules take precedence');
+    expect(capturedOptions).toMatchObject({ userId: 'user-1' });
+  });
   it('rejects the provider-invalid 4:5 media ratio before enqueueing', async () => {
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -175,7 +208,7 @@ describe('POST /models/:id/generate', () => {
       bio: null, avatarUrl: null, state: 'generated',
     }];
     // Scope setup, model lookup, sharing policy, then the empty exemplar pool.
-    mockState.results = [[], mockState.result, [], []];
+    mockState.results = [[], mockState.result, [], [], []];
     const res = await appWithOrg(ORG_ID, userId).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ...validBody, enrichWithLlm: true, userId: 'other-users-profile' }),
@@ -295,7 +328,7 @@ describe('POST /models/:id/generate', () => {
     const fixtureRows = mockState.result as unknown[];
     mockState.result = [fixtureRows[0]];
     // Distinct rows for scope/model/policy/vector retrieval and posterior query.
-    mockState.results = [[], [fixtureRows[0]], [], [fixtureRows[1]], { rows: [] }];
+    mockState.results = [[], [fixtureRows[0]], [], [fixtureRows[1]], { rows: [] }, []];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

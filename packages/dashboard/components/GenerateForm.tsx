@@ -259,7 +259,7 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '' }: { m
             checked={enrich}
             onChange={(e) => setEnrich(e.target.checked)}
           />
-          <span>Enrich captions via LLM gateway (optional, live provider call)</span>
+          <span>Enrich captions via LLM gateway (optional, one live provider call per selected platform)</span>
         </label>
         </fieldset>
         {intent.current && !busy && <p>Previous generation outcome is unresolved. Inputs are locked. Check the same request before editing or starting another generation.</p>}

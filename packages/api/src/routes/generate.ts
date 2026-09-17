@@ -26,7 +26,7 @@ import {
 } from '@axiom/llm-gateway';
 import { LLMGateway, characterLockSnapshot, buildMediaPrompt } from '@axiom/llm-gateway';
 import { evaluateTextToS, PLATFORM_RULES } from '@axiom/fanvue-mcp';
-import { asPlatform, enqueueJob, retrieveTopExemplars } from '@axiom/worker';
+import { asPlatform, enqueueJob, retrieveTopExemplars, modelPlaybookContext } from '@axiom/worker';
 
 type PromptPlatform =
   | 'instagram'
@@ -290,22 +290,23 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
     });
 
     // 2. Optional LLM enrichment through the gateway (real provider call)
-    let enrichedCaption: string | null = null;
+    const enrichedCaptions: Record<string, string> = {};
     if (body.enrichWithLlm) {
+      for (const destination of platforms) {
       try {
         const gateway = new LLMGateway();
         // F-83 exemplar injection: retrieve the model's best-performing
         // exemplars from the DB-backed viral memory (L2.8) and feed them
         // into the S2 segment so generation is guided by what worked.
-        const exemplars = await retrieveTopExemplars(tx, orgId, modelId, promptPlatform, 3, variants[0].prompt);
+        const exemplars = await retrieveTopExemplars(tx, orgId, modelId, destination, 3, variants[0].prompt);
         const prompt = assemblePrompt({
           S0: buildS0(profile),
-          S1: buildS1(promptPlatform),
+          S1: buildS1(destination as PromptPlatform) + await modelPlaybookContext(tx, orgId, modelId, destination),
           S2: buildS2(exemplars),
           S3: buildS3({
             modelId,
             task: 'Write an engaging caption for the photoshoot, max 200 chars.',
-            platform: promptPlatform,
+            platform: destination as PromptPlatform,
             context: variants[0].caption,
           }),
         });
@@ -318,11 +319,13 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
           // never from request JSON or the audit-only 'system' fallback.
           { model: body.model, userId: c.get('userId') },
         );
-        enrichedCaption = chat.content.trim();
+        const caption = chat.content.trim();
+        if (caption) enrichedCaptions[destination] = caption;
       } catch (err) {
         // LLM enrichment is best-effort; the bundle still forms from the
         // prompt engine. Never fail generation because a provider is down.
         console.error('generate enrich failed:', (err as Error).message);
+      }
       }
     }
 
@@ -337,7 +340,7 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
     const tosScores: Record<string, unknown>[] = [];
     const allReasons = new Set<string>();
     for (const platform of platforms) {
-      const caption = enrichedCaption ?? variants[0].caption;
+      const caption = enrichedCaptions[platform] ?? variants[0].caption;
       captions[platform] = caption;
       const evalResult = evaluateTextToS(caption, variants[0].hashtags, [platform]);
       tosScores.push(...evalResult.scores);

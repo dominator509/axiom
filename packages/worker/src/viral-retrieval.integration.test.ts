@@ -8,6 +8,7 @@ import { viralLabel } from './executors/viral.js';
 import type { JobRow } from './types.js';
 import { evaluateAutomaticVariants, evaluationDigest } from './variant-auto-evaluation.js';
 import { refreshLearningState } from './learning-state.js';
+import { modelPlaybookContext } from './playbook-context.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
@@ -50,6 +51,22 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
     expect(role.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
   });
   afterAll(async () => { await pool.end(); });
+  it('reads only the current model/platform playbook and enforces tenant RLS', async () => {
+    await fixture(async (tx, modelId, otherModel) => {
+      await tx.insert(schema.playbookGuideline).values([
+        { orgId, modelId, platform: 'instagram', optimalTimes: ['18:00'], cadencePerWeek: 4, upsellStrategy: 'OWN INSTAGRAM', revision: 3 },
+        { orgId, modelId: otherModel, platform: 'instagram', optimalTimes: [], cadencePerWeek: 1, upsellStrategy: 'OTHER MODEL' },
+        { orgId, modelId, platform: 'x', optimalTimes: [], cadencePerWeek: 2, upsellStrategy: 'OTHER PLATFORM' },
+      ]);
+      const context = await modelPlaybookContext(tx, orgId, modelId, 'instagram');
+      expect(context).toContain('OWN INSTAGRAM');
+      expect(context).toContain('Guideline revision: 3');
+      expect(context).not.toContain('OTHER');
+      expect(await modelPlaybookContext(tx, orgId, modelId, 'threads')).toBe('');
+      await tx.execute(sql`SELECT set_config('app.current_org_id', ${randomUUID()}, true)`);
+      expect(await modelPlaybookContext(tx, orgId, modelId, 'instagram')).toBe('');
+    });
+  });
   it('executes cosine retrieval and excludes other models, platforms, weak and legacy evidence', async () => {
     await fixture(async (tx, modelId) => {
       const rows = await retrieveTopExemplars(tx, orgId, modelId, 'instagram', 10, 'blue vase');
