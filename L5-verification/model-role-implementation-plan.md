@@ -78,6 +78,14 @@ These presentation rules are not authorization. Profile shortcuts, individual
 page queries/actions and direct-page denied states still need alignment before
 activating the roles; no claim of complete frontend role support is made yet.
 
+The review queue now resolves the session before loading resources. Creator,
+Analyst and Agent views retain drafts/media/pagination but do not query social
+connections or render approval, revision, retry, adaptation or compliance-review
+mutations. Excluded roles get a useful denied page without resource requests.
+Twenty-five page tests and dashboard typecheck pass; deployed browser acceptance
+and remaining profile/page controls are still open. Roles remain inactive until
+the full authorization and user workflow is implemented.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including

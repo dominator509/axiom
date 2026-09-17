@@ -1,6 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ApprovalsPage from './page';
+const session = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/api', async importOriginal => ({
+  ...await importOriginal<typeof import('@/lib/api')>(), getSession: session,
+}));
+beforeEach(() => session.mockResolvedValue({ user: { role: 'owner' } }));
 
 vi.mock('next/headers', () => ({
   cookies: async () => ({ getAll: () => [] }),
@@ -74,6 +79,25 @@ async function renderPage(query: Record<string, string | string[] | undefined> =
 }
 
 describe('approval review queue', () => {
+  it.each(['content_creator', 'analyst', 'agent'])('shows drafts without privileged lookups or controls for %s', async role => {
+    session.mockResolvedValue({ user: { role } });
+    const fetchMock = transport('hold', 'review', false, { hold: 'older' }, 'video-asset', {
+      videoScan: { scanId: '22222222-2222-4222-8222-222222222222' },
+    });
+    const html = await renderPage();
+    expect(html).toContain('Review drafts');
+    expect(html).toContain('Caption awaiting operator review');
+    expect(html).toContain('Loading media preview');
+    expect(html).toContain('Older hold bundles');
+    for (const text of ['Revise captions', 'Reject', 'Record compliance review', 'Media generation retry options', 'Approve</button>']) expect(html).not.toContain(text);
+    expect(fetchMock.mock.calls.every(([input]) => new URL(String(input)).pathname === '/api/v1/bundles')).toBe(true);
+  });
+  it.each(['chatter', 'model', 'unexpected', undefined])('does not load queue resources for excluded role %s', async role => {
+    session.mockResolvedValue({ user: { role } });
+    const fetchMock = transport('hold');
+    expect(await renderPage()).toContain('Review access unavailable');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it('distinguishes a saved brief from completed media generation', async () => {
     transport('generated', 'pending');
     const html = await renderPage();

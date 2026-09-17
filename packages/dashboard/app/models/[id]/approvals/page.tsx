@@ -1,4 +1,5 @@
-import { api } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
+import { talentDestinationAllowed } from '@/lib/navigation-role';
 import ApproveButtons from '@/components/ApproveButtons';
 import RequestedSchedule from '@/components/RequestedSchedule';
 import BundleMedia from '@/components/BundleMedia';
@@ -18,6 +19,12 @@ export default async function ApprovalsPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const session = await getSession();
+  const role = session?.user?.role;
+  if (!talentDestinationAllowed(role, 'approvals')) return (
+    <div className="card"><h2>Review access unavailable</h2><p>Your role does not include this review queue.</p><a href="/">Back to workspace</a></div>
+  );
+  const canApprove = ['owner', 'manager', 'operator'].includes(role ?? '');
   const query = (await searchParams) ?? {};
   const cursors = new URLSearchParams();
   for (const state of reviewStates) {
@@ -32,7 +39,7 @@ export default async function ApprovalsPage({
   try {
     const [bundleResult, connectionResult, revisingResult, heldResult] = await Promise.all([
       api.bundles.list(id, 'generated', cursors.get('generatedCursor') ?? undefined),
-      api.social.list(id),
+      canApprove ? api.social.list(id) : Promise.resolve({ data: [] }),
       api.bundles.list(id, 'revising', cursors.get('revisingCursor') ?? undefined),
       api.bundles.list(id, 'hold', cursors.get('holdCursor') ?? undefined),
     ]);
@@ -53,9 +60,10 @@ export default async function ApprovalsPage({
   return (
     <div>
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h2>Approvals</h2>
+        <h2>{canApprove ? 'Approvals' : 'Review drafts'}</h2>
         <span style={{ color: 'var(--muted)' }}>{bundles.length} shown for review</span>
       </div>
+      {!canApprove && <p>You can inspect saved drafts and media here. An owner, manager or operator must review and approve them before publication.</p>}
       {error && (
         <div className="card" style={{ color: 'var(--bad)' }}>
           {error}
@@ -113,21 +121,21 @@ export default async function ApprovalsPage({
               <div className="mono" style={{ color: 'var(--muted)' }}>
                 {(b.hashtags ?? []).join(' ')}
               </div>
-              <AdaptationControls bundleId={b.id} revisionId={b.tosReport?.revisionId} platforms={Object.keys(b.captions ?? {})} />
+              {canApprove && <AdaptationControls bundleId={b.id} revisionId={b.tosReport?.revisionId} platforms={Object.keys(b.captions ?? {})} />}
             </div>
             <div style={{ marginTop: 12 }}>
-              {b.state !== 'revising' && (b.state === 'hold' || (b.assetId && ['block', 'review'].includes(b.tosReport?.verdict ?? '')))
+              {canApprove && b.state !== 'revising' && (b.state === 'hold' || (b.assetId && ['block', 'review'].includes(b.tosReport?.verdict ?? '')))
                 && <SavedGenerationRetry key={b.id} modelId={id} bundleId={b.id} blocked={b.tosReport?.verdict === 'block'} />}
-              {b.state !== 'revising' && b.assetId && b.tosReport?.verdict === 'review' && b.tosReport.videoScan?.scanId && (
+              {canApprove && b.state !== 'revising' && b.assetId && b.tosReport?.verdict === 'review' && b.tosReport.videoScan?.scanId && (
                 <VideoReview key={b.tosReport.videoScan.scanId} bundleId={b.id}
                   scanId={b.tosReport.videoScan.scanId} platforms={Object.keys(b.captions ?? {})} />
               )}
               {b.state === 'revising' ? (
                 <p role="status">
                   Caption revision pending. Refresh after generation and ToS scanning complete. If
-                  processing fails, inspect the generation job in Incidents.
+                  processing fails, contact a workspace operator.
                 </p>
-              ) : (
+              ) : canApprove ? (
                 <ApproveButtons
                   key={`${b.id}:${b.tosReport?.revisionId ?? 'initial'}`}
                   bundleId={b.id}
@@ -136,7 +144,7 @@ export default async function ApprovalsPage({
                   revisionId={b.tosReport?.revisionId}
                   connections={connections}
                 />
-              )}
+              ) : null}
             </div>
           </div>
         ))}
