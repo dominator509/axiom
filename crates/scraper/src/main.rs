@@ -165,33 +165,35 @@ async fn scrape_competitor(
     validate_competitor_platforms(&req.platforms)?;
     let proxy = resolve_model_proxy(&req.model_id).await?;
 
-    let mut results = Vec::with_capacity(req.platforms.len());
-
-    for platform in &req.platforms {
-        let profile_url = build_platform_url(platform, &req.brand_name);
-        let result = match fetch_page(&profile_url, &proxy).await {
-            Ok(html) => {
-                let counts = parse_profile_counts(&html);
-                CompetitorResult {
+    let brand = req.brand_name.clone();
+    let results = collect_profile_results(req.platforms, move |platform| {
+        let profile_url = build_platform_url(&platform, &brand);
+        let proxy = proxy.clone();
+        async move {
+            match fetch_page(&profile_url, &proxy).await {
+                Ok(html) => {
+                    let counts = parse_profile_counts(&html);
+                    CompetitorResult {
+                        platform: platform.clone(),
+                        profile_url,
+                        followers: counts.followers,
+                        posts: counts.posts,
+                        engagement_rate: None,
+                        error: None,
+                    }
+                }
+                Err(e) => CompetitorResult {
                     platform: platform.clone(),
                     profile_url,
-                    followers: counts.followers,
-                    posts: counts.posts,
+                    followers: None,
+                    posts: None,
                     engagement_rate: None,
-                    error: None,
-                }
+                    error: Some(format!("{e}")),
+                },
             }
-            Err(e) => CompetitorResult {
-                platform: platform.clone(),
-                profile_url,
-                followers: None,
-                posts: None,
-                engagement_rate: None,
-                error: Some(format!("{e}")),
-            },
-        };
-        results.push(result);
-    }
+        }
+    })
+    .await?;
 
     Ok(Json(CompetitorResponse {
         brand: req.brand_name,
@@ -203,6 +205,31 @@ async fn scrape_competitor(
 // ---------------------------------------------------------------------------
 // Helper functions
 // ---------------------------------------------------------------------------
+
+// At most ten independent public-page lookups. Concurrent requests fit inside the
+// worker's 30s deadline (5s egress lookup + 15s page fetch), without multiplying
+// that deadline by the number of providers. Dropping the set aborts unfinished work.
+async fn collect_profile_results<F, Fut>(
+    platforms: Vec<String>,
+    fetch: F,
+) -> Result<Vec<CompetitorResult>, ScraperError>
+where
+    F: Fn(String) -> Fut,
+    Fut: std::future::Future<Output = CompetitorResult> + Send + 'static,
+{
+    validate_competitor_platforms(&platforms)?;
+    let mut pending = tokio::task::JoinSet::new();
+    for (index, platform) in platforms.into_iter().enumerate() {
+        let request = fetch(platform);
+        pending.spawn(async move { (index, request.await) });
+    }
+    let mut results = Vec::new();
+    while let Some(result) = pending.join_next().await {
+        results.push(result.map_err(|_| ScraperError::Parse("profile lookup task failed".into()))?);
+    }
+    results.sort_by_key(|(index, _)| *index);
+    Ok(results.into_iter().map(|(_, result)| result).collect())
+}
 
 fn proxy_from_status(status: &serde_json::Value, model_id: &str) -> Result<String, ScraperError> {
     let denied = || ScraperError::Parse("model egress is unavailable or halted".to_string());
@@ -723,6 +750,41 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn competitor_lookups_overlap_and_preserve_requested_order() {
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(3));
+        let results = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            super::collect_profile_results(
+                vec!["instagram".into(), "tiktok".into(), "x".into()],
+                move |platform| {
+                    let barrier = barrier.clone();
+                    async move {
+                        barrier.wait().await;
+                        super::CompetitorResult {
+                            platform,
+                            profile_url: String::new(),
+                            followers: None,
+                            posts: None,
+                            engagement_rate: None,
+                            error: Some("unavailable".into()),
+                        }
+                    }
+                },
+            ),
+        )
+        .await
+        .expect("serial lookups deadlock at the barrier")
+        .unwrap();
+        assert_eq!(
+            results
+                .iter()
+                .map(|r| r.platform.as_str())
+                .collect::<Vec<_>>(),
+            vec!["instagram", "tiktok", "x"]
+        );
+        assert!(results.iter().all(|r| r.error.is_some()));
+    }
     #[test]
     fn unavailable_counts_serialize_as_null_not_zero() {
         let result = super::CompetitorResult {
