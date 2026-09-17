@@ -14,6 +14,7 @@ import { validationDiagnostics } from '../validation-diagnostics.js';
 import { eq, and, desc, inArray, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
+import { modelAccessCondition } from '../model-access.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import {
   generatePhotoshootPrompts,
@@ -51,6 +52,7 @@ router.get('/models/:modelId/media-source-images', async (c) => {
     id: schema.asset.id, fileName: schema.asset.fileName,
   }).from(schema.asset).where(and(
     eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
+    modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.asset.modelId),
     eq(schema.asset.kind, 'image'), inArray(schema.asset.mimeType, ['image/jpeg', 'image/png']),
   )).orderBy(desc(schema.asset.createdAt), desc(schema.asset.id)).limit(100));
   return c.json({ data });
@@ -250,7 +252,7 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
     const models = await tx
       .select()
       .from(schema.modelProfile)
-      .where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId)))
+      .where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId), modelAccessCondition(c.get('role'), orgId, userId)))
       .limit(1);
     if (models.length === 0) return { status: 404 as const, data: null };
     const model = models[0];

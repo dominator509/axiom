@@ -29,8 +29,13 @@ export function modelAccessCondition(role: unknown, orgId: string, userId: strin
   )`)!;
 }
 
-/** Explicit read allowlist. Unimplemented mutations and nested-ID routes stay denied. */
+/** Explicit role allowlist. Unimplemented operations stay denied. */
 export function scopedReadTarget(role: ScopedHumanRole, method: string, path: string): 'discovery' | string | null {
+  if (role === 'content_creator') {
+    const preparation = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(generate|media-upload|media-operations|media-source-images|playbook-guidelines)$/i.exec(path);
+    if (preparation && ((method === 'POST' && ['generate', 'media-upload', 'media-operations'].includes(preparation[2]))
+      || ((method === 'GET' || method === 'HEAD') && ['media-operations', 'media-source-images', 'playbook-guidelines'].includes(preparation[2])))) return preparation[1];
+  }
   if (method !== 'GET' && method !== 'HEAD') return null;
   if (path === '/api/v1/models' || path === '/api/v1/models/stats/count') return 'discovery';
   if (role !== 'content_creator') {

@@ -12,6 +12,7 @@ describe('application idempotency registration', () => {
     const boundary = source.indexOf("app.use('/api/v1/*', enforceModelAccess);");
     expect(boundary).toBeGreaterThan(source.indexOf("app.use('/api/v1/viral/exemplars', requireAuth);"));
     expect(boundary).toBeLessThan(source.indexOf("app.route('/api/v1/models', modelsRouter);"));
+    expect(boundary).toBeLessThan(source.indexOf("const operationalMutation = requireMutationRole('owner', 'manager', 'operator', 'content_creator');"));
   });
   it.each([
     '/api/v1/models',

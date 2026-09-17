@@ -51,7 +51,7 @@ mediaUploadRouter.post('/models/:modelId/media-upload', async c => {
   const selection = c.req.query('sanitize');
   if (selection !== 'true' && selection !== 'false') return apiError(c, 400, statusTitle(400), 'Choose whether to sanitize');
   const exists = await withOrgContext(orgId, async tx => (await tx.select({ id: schema.modelProfile.id })
-    .from(schema.modelProfile).where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId))).limit(1))[0]);
+    .from(schema.modelProfile).where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId), modelAccessCondition(c.get('role'), orgId, userId))).limit(1))[0]);
   if (!exists) return apiError(c, 404, statusTitle(404), 'Model not found');
   // The assembled app's idempotency middleware bounds and caches raw bytes.
   // Refuse an unprotected mount rather than reading an unbounded upload.

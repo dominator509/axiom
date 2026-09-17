@@ -784,7 +784,9 @@ app.use('/api/v1/*', enforceModelAccess);
 // server-owned auth_user.role field by requireAuth; it is never accepted from
 // request input. Read routes remain available to authenticated roles, while
 // mutation groups name the operational roles that may change state.
-const operationalMutation = requireMutationRole('owner', 'manager', 'operator');
+// Creator operations first pass the narrow, assigned-model allowlist above.
+// Including the role here does not grant approval, scheduling or other routes.
+const operationalMutation = requireMutationRole('owner', 'manager', 'operator', 'content_creator');
 const ownerOnly = requireRole('owner');
 app.use('/api/v1/models/:modelId/member-assignments/*', ownerOnly);
 

@@ -38,6 +38,15 @@ Real PostgreSQL tests cover active/expired shifts, revoked membership, another
 model/tenant and mismatched request references. This is saved CRM read access,
 not live inbox synchronization or permission to send messages.
 
+Creator preparation now has an explicit assigned-model allowlist: POST generation,
+upload and media operations; GET source-image choices, operation status and saved
+playbook guidelines. Generation/model and asset queries repeat assignment scope.
+The operational-role middleware accepts Creator only after the central allowlist.
+Real PostgreSQL tests exercise text-only generation plus ToS enqueue and an owned
+image transform enqueue, without running workers or providers. Approval, direct
+publishing, standalone bundle staging, schedule changes and retry endpoints remain
+denied until individually implemented. Normal login still rejects staged roles.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including

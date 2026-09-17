@@ -8,6 +8,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { enqueueJob } from '@axiom/worker';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
+import { modelAccessCondition } from '../model-access.js';
 import type { Context } from 'hono';
 import { withOrgContext, requireOrg, apiError, statusTitle, writeAudit } from './helpers.js';
 import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
@@ -40,7 +41,7 @@ router.get('/models/:modelId/media-operations', async (c) => {
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const rows = await withOrgContext(orgId, (tx) => tx.select({ operation: schema.mediaOperation, outputAssetId: schema.assetVariant.outputAssetId }).from(schema.mediaOperation)
     .leftJoin(schema.assetVariant, and(eq(schema.assetVariant.id, schema.mediaOperation.resultVariantId), eq(schema.assetVariant.orgId, orgId), eq(schema.assetVariant.assetId, schema.mediaOperation.sourceAssetId)))
-    .where(and(eq(schema.mediaOperation.orgId, orgId), eq(schema.mediaOperation.modelId, c.req.param('modelId'))))
+    .where(and(eq(schema.mediaOperation.orgId, orgId), eq(schema.mediaOperation.modelId, c.req.param('modelId')), modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.mediaOperation.modelId)))
     .orderBy(desc(schema.mediaOperation.createdAt)).limit(100));
   return c.json({ data: rows.map((row: { operation: typeof schema.mediaOperation.$inferSelect; outputAssetId: string | null }) => ({ ...row.operation, outputAssetId: row.outputAssetId })) });
 });
@@ -56,7 +57,7 @@ router.post('/models/:modelId/media-operations', async (c) => {
   const assetId = c.req.query('assetId');
   if (!assetId || !z.string().uuid().safeParse(assetId).success) return apiError(c, 400, statusTitle(400), 'assetId is required');
   const saved = await withOrgContext(orgId, async (tx) => {
-    const [asset] = await tx.select({ id: schema.asset.id, kind: schema.asset.kind, modelId: schema.asset.modelId, width: schema.asset.width, height: schema.asset.height }).from(schema.asset).where(and(eq(schema.asset.id, assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId))).limit(1);
+    const [asset] = await tx.select({ id: schema.asset.id, kind: schema.asset.kind, modelId: schema.asset.modelId, width: schema.asset.width, height: schema.asset.height }).from(schema.asset).where(and(eq(schema.asset.id, assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId), modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.asset.modelId))).limit(1);
     if (!asset) return { status: 404 as const, error: 'asset not found' };
     const expectedKind = parsed.data.type.startsWith('video') ? 'video' : 'image';
     if (asset.kind !== expectedKind) return { status: 409 as const, error: `${parsed.data.type} requires a ${expectedKind} asset` };

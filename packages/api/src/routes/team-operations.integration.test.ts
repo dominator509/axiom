@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { Hono } from 'hono';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { db, pool, schema } from '@axiom/db';
+import { requireMutationRole } from '@axiom/auth';
 import type { AppBindings } from '../index.js';
 import { teamOperationsRouter } from './team-operations.js';
 import { modelAssignmentsRouter } from './model-assignments.js';
@@ -13,10 +14,12 @@ import { modelsRouter } from './models.js';
 import { bundlesRouter } from './bundles.js';
 import { mediaUploadRouter } from './media-upload.js';
 import { fansRouter } from './fans.js';
+import { generateRouter } from './generate.js';
+import { mediaOperationsRouter } from './media-operations.js';
 import { enforceModelAccess, type ScopedHumanRole } from '../model-access.js';
 
 const url = process.env.TEST_DATABASE_URL, orgId = '11111111-1111-4111-8111-111111111111';
-const models = [randomUUID(), randomUUID()], bundles = [randomUUID(), randomUUID()], posts = [randomUUID(), randomUUID()];
+const models = [randomUUID(), randomUUID()], bundles: string[] = [randomUUID(), randomUUID()], posts = [randomUUID(), randomUUID()];
 const assignmentUsers = [randomUUID(), randomUUID()];
 const pageUsers = Array.from({ length: 51 }, () => randomUUID());
 const foreignOrg = randomUUID(), foreignModel = randomUUID();
@@ -39,10 +42,13 @@ function scopedApp(role: ScopedHumanRole, org = orgId) {
   const route = new Hono<AppBindings>();
   route.use('*', async (c, next) => { c.set('orgId', org); c.set('userId', assignmentUsers[0]); c.set('role', role); await next(); });
   route.use('/api/v1/*', enforceModelAccess);
+  route.use('/api/v1/*', requireMutationRole('owner', 'manager', 'operator', 'content_creator'));
   route.route('/api/v1/models', modelsRouter);
   route.route('/api/v1/bundles', bundlesRouter);
   route.route('/api/v1', mediaUploadRouter);
   route.route('/api/v1', fansRouter);
+  route.route('/api/v1', generateRouter);
+  route.route('/api/v1', mediaOperationsRouter);
   return route;
 }
 const write = (postId: string, org = orgId) => app(org).request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetType: 'post', targetId: postId, body: 'Post handoff context' }) });
@@ -294,5 +300,31 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     }
     await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
     expect((await route.request(path)).status).toBe(404);
+  });
+  it('allows creator preparation only for assigned talent and never creates publication work', async () => {
+    await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
+    const route = scopedApp('content_creator');
+    const post = (path: string, body: unknown) => route.request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const generationBody = { platforms: ['x'], enrichWithLlm: false, outfit: 'blue jacket' };
+    expect((await post(`/api/v1/models/${models[1]}/generate`, generationBody)).status).toBe(404);
+    expect((await scopedApp('model').request(`/api/v1/models/${models[0]}/generate`, { method: 'POST' })).status).toBe(403);
+    const generated = await post(`/api/v1/models/${models[0]}/generate`, generationBody);
+    expect(generated.status).toBe(201);
+    const generatedBody = await generated.json() as { data: { bundle: { id: string; state: string; modelId: string } } };
+    bundles.push(generatedBody.data.bundle.id);
+    expect(generatedBody.data.bundle).toMatchObject({ modelId: models[0], state: 'generated' });
+    const jobs = await scoped(tx => tx.select({ kind: schema.job.kind }).from(schema.job).where(sql`${schema.job.payload}->>'bundleId' = ${generatedBody.data.bundle.id}`));
+    expect(jobs.map(job => job.kind)).toEqual(['tos.scan']);
+    expect((await post(`/api/v1/bundles/${generatedBody.data.bundle.id}/approve`, {})).status).toBe(403);
+    const operationBody = { type: 'image_resize', width: 128, height: 128 };
+    expect((await post(`/api/v1/models/${models[0]}/media-operations?assetId=${assets[1]}`, operationBody)).status).toBe(404);
+    const transformed = await post(`/api/v1/models/${models[0]}/media-operations?assetId=${assets[0]}`, operationBody);
+    expect(transformed.status).toBe(202);
+    const operation = await transformed.json() as { data: { id: string; state: string } };
+    expect(operation.data.state).toBe('queued');
+    const transformJobs = await scoped(tx => tx.select({ kind: schema.job.kind }).from(schema.job).where(sql`${schema.job.payload}->>'operationId' = ${operation.data.id}`));
+    expect(transformJobs.map(job => job.kind)).toEqual(['media.transform']);
+    await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
+    expect((await post(`/api/v1/models/${models[0]}/generate`, generationBody)).status).toBe(404);
   });
 });
