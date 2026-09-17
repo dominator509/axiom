@@ -22,6 +22,7 @@ import { analyticsRouter } from './analytics.js';
 import { earningsRouter } from './earnings.js';
 import { inboxRouter } from './inbox.js';
 import { inboxRepliesRouter } from './inbox-replies.js';
+import { inboxReviewsRouter } from './inbox-reviews.js';
 import { claimReplyDispatch, finalizeReplyDispatch, dispatchReply, cancelReply } from '../reply-dispatch.js';
 import { FanvueConnector } from '@axiom/connectors';
 import { viralRouter } from './viral.js';
@@ -66,6 +67,7 @@ function scopedApp(role: ScopedHumanRole, org = orgId, userId = assignmentUsers[
   route.route('/api/v1', earningsRouter);
   route.route('/api/v1', inboxRouter);
   route.route('/api/v1', inboxRepliesRouter);
+  route.route('/api/v1', inboxReviewsRouter);
   route.route('/api/v1', viralRouter);
   route.route('/api/v1', reportsRouter);
   return route;
@@ -656,6 +658,40 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect(await scoped(tx => tx.select().from(schema.inboxReplyReview).where(eq(schema.inboxReplyReview.id, review.id)))).toEqual([]);
     const [followup] = await run(tx => tx.insert(schema.inboxReplyReview).values({ ...evidence, intentKey: randomUUID(), conclusion: 'unresolved', observedMessageUuid: null, note: 'Follow-up review cannot establish an exact match.' }).returning());
     expect(followup.id).not.toBe(review.id);
+    const apiReply = await create(), apiIdentity = { ...identity, replyId: apiReply.id };
+    expect((await claimReplyDispatch(apiIdentity)).outcome).toBe('claimed');
+    const reviewPath = `/api/v1/models/${modelId}/inbox/replies/${apiReply.id}/reviews`;
+    const reviewBody = { intentKey: randomUUID(), conclusion: 'unresolved', observedMessageUuid: null, note: 'Checked the correct conversation; no exact match can be established.' };
+    const postReview = (body = reviewBody) => sendRoute.request(reviewPath, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const saves = await Promise.all([postReview(), postReview()]);
+    expect(saves.map(response => response.status).sort()).toEqual([200, 201]);
+    const saved = await saves[0].json() as { data: { id: string; evidenceSource: string } };
+    expect(saved.data.evidenceSource).toBe('operator_review');
+    expect((await postReview({ ...reviewBody, note: 'Changed retry' })).status).toBe(409);
+    expect((await postReview({ ...reviewBody, conclusion: 'observed_sent' })).status).toBe(400);
+    const reviewAudits = await run(tx => tx.select().from(schema.auditLog).where(eq(schema.auditLog.target, saved.data.id)));
+    expect(reviewAudits).toHaveLength(1); expect(JSON.stringify(reviewAudits)).not.toContain(reviewBody.note);
+    const olderReviews = await run(tx => tx.insert(schema.inboxReplyReview).values(Array.from({ length: 51 }, () => ({
+      orgId: testOrg, modelId, replyId: apiReply.id, actorUserId: userId, intentKey: randomUUID(), conclusion: 'unresolved' as const,
+      note: 'Older retained observation', createdAt: new Date('2020-01-01T00:00:00Z'),
+    }))).returning());
+    const firstResponse = await sendRoute.request(reviewPath);
+    expect(firstResponse.status).toBe(200);
+    const firstReviews = await firstResponse.json() as { data: { id: string }[]; meta: { next_cursor: string } };
+    expect(firstReviews.data).toHaveLength(50);
+    const nextReviews = await (await sendRoute.request(`${reviewPath}?cursor=${firstReviews.meta.next_cursor}`)).json() as { data: { id: string }[]; meta: { next_cursor: null } };
+    expect(nextReviews.meta.next_cursor).toBeNull();
+    expect(new Set([...firstReviews.data, ...nextReviews.data].map(row => row.id))).toEqual(new Set([saved.data.id, ...olderReviews.map(row => row.id)]));
+    expect((await sendRoute.request(`${reviewPath}?cursor=${review.id}`)).status).toBe(400);
+    expect((await scopedApp('chatter', orgId, userId).request(reviewPath)).status).toBe(404);
+    expect((await scopedApp('model', testOrg, userId).request(reviewPath)).status).toBe(200);
+    expect((await scopedApp('model', testOrg, userId).request(reviewPath, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(reviewBody) })).status).toBe(403);
+    await finalizeReplyDispatch(apiIdentity, { state: 'sent', messageUuid: randomUUID() });
+    expect((await postReview()).status).toBe(200); // Exact retry still works after a late receipt.
+    expect((await postReview({ ...reviewBody, intentKey: randomUUID() })).status).toBe(409);
+    await run(tx => tx.update(schema.teamShift).set({ endsAt: new Date(Date.now() - 1000) }).where(eq(schema.teamShift.id, shiftId)));
+    expect((await postReview()).status).toBe(404);
+    expect((await sendRoute.request(reviewPath)).status).toBe(404);
   });
   it('lists only assigned self shifts before their start without granting early model access', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
