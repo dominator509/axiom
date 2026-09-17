@@ -28,6 +28,7 @@ import type {
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
 import { mediaTypeHint, validatePublish } from './validation.js';
+import { parseFanvueEarningsSummary, type FanvueEarningsSummary } from './fanvue-earnings.js';
 
 const FANVUE_API_BASE = 'https://api.fanvue.com';
 const FANVUE_API_VERSION = '2025-06-26';
@@ -432,6 +433,14 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
         postUrl: `https://fanvue.com/post/${post.uuid}`,
       };
     });
+  }
+
+  /** Account earnings, not post engagement. Uses this connector's bound egress transport. */
+  async fetchEarningsSummary(): Promise<FanvueEarningsSummary> {
+    const response = await this.fanvueRequest<unknown>(
+      'GET', '/insights/earnings/summary?timezone=UTC&granularity=day',
+    );
+    return parseFanvueEarningsSummary(response);
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {

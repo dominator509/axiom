@@ -240,5 +240,26 @@ Implementation sequence:
    on the deployed exact revision. No live DM is sent without an approved test
    recipient and message.
 
+## Earnings contract groundwork (M302, 2026-09-17)
+
+The L1 Model persona explicitly requires own earnings. Source inspection found
+only an unconsumed permissive MCP client method; no earnings API/page/storage.
+The official https://api.fanvue.com/docs/openapi.json self-summary contract was
+retrieved on 2026-09-17. The versioned Fanvue connector now implements the read
+through its injected transport (the worker binds that transport to model egress),
+validating totals, source breakdown, timeline and period. Unknown fields are
+discarded, missing/malformed money fails instead of becoming zero, and nullable
+percentage comparisons remain nullable. Amounts stay in USD cents. Provider net
+excludes platform fees but does not subtract reversals; it is not payout balance.
+36 focused connector tests and connector typecheck pass. These are contract
+fixtures, not live provider evidence.
+
+Next: exact org/model/connection selection and assignment checks in an API route,
+owner/manager/model financial visibility, explicit unavailable/reconnect handling,
+and a reachable earnings page with the above disclosures. No frontend should use
+the MCP client's unvalidated object or invoke a host-direct provider fetch. Live
+OAuth scope, financial values and browser acceptance remain unverified. No
+account role, deployment, provider state, or social publication changed.
+
 Completion requires all applicable steps and live evidence; neither additive role
 names nor empty navigation alone satisfies F-24/F-26.
