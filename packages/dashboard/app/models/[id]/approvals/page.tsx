@@ -3,6 +3,7 @@ import ApproveButtons from '@/components/ApproveButtons';
 import BundleMedia from '@/components/BundleMedia';
 import VideoReview from '@/components/VideoReview';
 import SavedGenerationRetry from '@/components/SavedGenerationRetry';
+import AdaptationControls from '@/components/AdaptationControls';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,6 +111,7 @@ export default async function ApprovalsPage({
               <div className="mono" style={{ color: 'var(--muted)' }}>
                 {(b.hashtags ?? []).join(' ')}
               </div>
+              <AdaptationControls bundleId={b.id} revisionId={b.tosReport?.revisionId} platforms={Object.keys(b.captions ?? {})} />
             </div>
             <div style={{ marginTop: 12 }}>
               {b.state !== 'revising' && (b.state === 'hold' || (b.assetId && ['block', 'review'].includes(b.tosReport?.verdict ?? '')))

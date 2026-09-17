@@ -44,6 +44,13 @@ import { relayBinding, relayBindingRelations } from './relay_binding.js';
 import { agentPermission, agentPermissionRelations } from './agent_permission.js';
 import { crashReport, crashReportRelations } from './crash_report.js';
 import { mcpTokenRevocation } from './mcp_token_revocation.js';
+import { mcpCapabilityToken } from './mcp_capability_token.js';
+import { cascadeTemplate, cascadeTemplateRelations } from './cascade_template.js';
+import { variantExperiment, variantExperimentRelations, variantExperimentAssignment, variantExperimentAssignmentRelations } from './variant_experiment.js';
+import { scrapeRun, scrapeRunRelations } from './scrape_run.js';
+import { teamShift, teamShiftRelations, teamNote, teamNoteRelations } from './team_operations.js';
+import { mediaOperation, mediaOperationRelations } from './media_operation.js';
+import { playbookGuideline, playbookGuidelineRelations } from './playbook_guideline.js';
 
 export { org, orgRelations };
 export { appUser, appUserRelations };
@@ -91,6 +98,13 @@ export { relayBinding, relayBindingRelations };
 export { agentPermission, agentPermissionRelations };
 export { crashReport, crashReportRelations };
 export { mcpTokenRevocation };
+export { mcpCapabilityToken };
+export { cascadeTemplate, cascadeTemplateRelations };
+export { variantExperiment, variantExperimentRelations, variantExperimentAssignment, variantExperimentAssignmentRelations };
+export { scrapeRun, scrapeRunRelations };
+export { teamShift, teamShiftRelations, teamNote, teamNoteRelations };
+export { mediaOperation, mediaOperationRelations };
+export { playbookGuideline, playbookGuidelineRelations };
 export { mediaGenerationAttempt } from './media_generation_attempt.js';
 
 export const allRelations = [
@@ -138,4 +152,12 @@ export const allRelations = [
   agentPermissionRelations,
   crashReportRelations,
   apiIdempotencyRelations,
+  cascadeTemplateRelations,
+  variantExperimentRelations,
+  variantExperimentAssignmentRelations,
+  scrapeRunRelations,
+  teamShiftRelations,
+  teamNoteRelations,
+  mediaOperationRelations,
+  playbookGuidelineRelations,
 ];

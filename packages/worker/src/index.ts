@@ -10,6 +10,7 @@ export { embedFeatures } from './embedding.js';
 export { claimNextJob } from './claim.js';
 export type { ClaimResult } from './claim.js';
 export { defaultExecutors } from './executors/index.js';
+export { triggerEvaluate } from './executors/trigger.js';
 export {
   METRICS_POLL_INTERVAL_MS,
   metricsPollDedupeParts,

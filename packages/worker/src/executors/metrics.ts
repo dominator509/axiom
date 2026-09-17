@@ -97,6 +97,17 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
     // engagement counters; the viral labeler consumes views/likes/shares/comments.
   });
 
+  // Evaluate persisted model rules against this real observation. The
+  // evaluator can only enqueue approval-bound work; it never publishes.
+  await enqueueJob(tx, {
+    orgId: job.org_id,
+    queue: 'triggers',
+    kind: 'trigger.evaluate',
+    payload: { targetId },
+    runAfter: new Date(),
+    dedupeParts: ['trigger.evaluate', targetId, job.id],
+  });
+
   // Label the exemplar once enough signal exists (L2.8 §2).
   await enqueueJob(tx, {
     orgId: job.org_id,

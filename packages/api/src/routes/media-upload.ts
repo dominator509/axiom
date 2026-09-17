@@ -19,7 +19,7 @@ mediaUploadRouter.get('/models/:modelId/media', async c => {
   if (!z.string().uuid().safeParse(modelId).success) return apiError(c, 400, statusTitle(400), 'Invalid model');
   const { limit, cursor } = parseCursor(c, 20, 100);
   const rows = await withOrgContext(orgId, tx => tx.select({
-    id: schema.asset.id, kind: schema.asset.kind, mimeType: schema.asset.mimeType,
+    id: schema.asset.id, kind: schema.asset.kind, origin: schema.asset.origin, mimeType: schema.asset.mimeType,
     fileSize: schema.asset.fileSize, width: schema.asset.width, height: schema.asset.height, createdAt: schema.asset.createdAt,
   }).from(schema.asset).where(and(eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
     ...cursorLt(schema.asset.createdAt, schema.asset.id, cursor)))
@@ -70,7 +70,7 @@ mediaUploadRouter.post('/models/:modelId/media-upload', async c => {
     persistenceAttempted = true;
     const result = await withOrgContext(orgId, async tx => {
       const [inserted] = await tx.insert(schema.asset).values({ orgId, modelId,
-        kind: mimeType === 'video/mp4' ? 'video' : 'image', ...stored,
+      kind: mimeType === 'video/mp4' ? 'video' : 'image', origin: 'uploaded', ...stored,
       }).onConflictDoNothing().returning({ id: schema.asset.id });
       const asset = inserted ?? (await tx.select({ id: schema.asset.id }).from(schema.asset).where(and(
         eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId), eq(schema.asset.sha256, stored.sha256),

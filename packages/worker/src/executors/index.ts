@@ -11,6 +11,9 @@ import { viralLabel } from './viral.js';
 import { incidentNotify } from './incident.js';
 import { dlqReplay } from './dlq.js';
 import { digestWeekly } from './digest.js';
+import { triggerEvaluate } from './trigger.js';
+import { scrapeRun } from './scrape.js';
+import { mediaTransform } from './media_transform.js';
 
 export type { Executor, ExecutorContext } from './context.js';
 export {
@@ -28,6 +31,9 @@ export {
   incidentNotify,
   dlqReplay,
   digestWeekly,
+  triggerEvaluate,
+  scrapeRun,
+  mediaTransform,
 };
 
 export const defaultExecutors: Record<string, Executor> = {
@@ -41,4 +47,7 @@ export const defaultExecutors: Record<string, Executor> = {
   'incident.notify': incidentNotify,
   'dlq.replay': dlqReplay,
   'digest.weekly': digestWeekly,
+  'trigger.evaluate': triggerEvaluate,
+  'scrape.run': scrapeRun,
+  'media.transform': mediaTransform,
 };

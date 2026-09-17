@@ -62,6 +62,15 @@ const TS_TO_SQL: Record<string, string> = {
   agentPermission: 'agent_permission',
   crashReport: 'crash_report',
   mcpTokenRevocation: 'mcp_token_revocation',
+  mcpCapabilityToken: 'mcp_capability_token',
+  cascadeTemplate: 'cascade_template',
+  variantExperiment: 'variant_experiment',
+  variantExperimentAssignment: 'variant_experiment_assignment',
+  scrapeRun: 'scrape_run',
+  teamShift: 'team_shift',
+  teamNote: 'team_note',
+  mediaOperation: 'media_operation',
+  playbookGuideline: 'playbook_guideline',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -196,6 +205,27 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
           'token_id TEXT PRIMARY KEY',
           'revoked_at TIMESTAMPTZ NOT NULL',
           'expires_at TIMESTAMPTZ NOT NULL',
+        ],
+      ],
+      [
+        'mcp_capability_token',
+        [
+          'token_id TEXT PRIMARY KEY',
+          'org_id UUID NOT NULL REFERENCES org(id) ON DELETE CASCADE',
+          'permission_id UUID NOT NULL REFERENCES agent_permission(id) ON DELETE CASCADE',
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          'expires_at TIMESTAMPTZ NOT NULL',
+          'revoked_at TIMESTAMPTZ',
+        ],
+      ],
+      [
+        'cascade_template',
+        [
+          'org_id UUID NOT NULL REFERENCES org(id) ON DELETE CASCADE',
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          'name TEXT NOT NULL',
+          'steps JSONB NOT NULL DEFAULT',
+          'enabled BOOLEAN NOT NULL DEFAULT true',
         ],
       ],
       [
@@ -576,9 +606,8 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 15 tables in 0000 (org_id + key lookup) + 1 in 0001 (org_id) +
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
-    // 29 in 0004 (job_pick + job_dedupe + 27 entity-table hot paths) + 1
-    // durable MCP revocation expiry index — exact count.
-    expect(indexStatements).toHaveLength(70);
+    // Includes the durable MCP revocation and capability-registry indexes.
+    expect(indexStatements).toHaveLength(83);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(

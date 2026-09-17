@@ -18,7 +18,7 @@ const createModelSchema = z.object({
   handle: z.string().min(1).max(50),
   bio: z.string().max(500).optional(),
   characterLockPrompt: z.string().trim().max(2000).optional(),
-  avatarUrl: z.string().url().optional(),
+  avatarUrl: z.string().url().max(2048).nullable().optional(),
 });
 
 const updateModelSchema = z.object({
@@ -27,7 +27,7 @@ const updateModelSchema = z.object({
   bio: z.string().max(500).optional(),
   characterLockPrompt: z.string().trim().max(2000).optional(),
   characterLockVersion: z.number().int().min(0).max(2147483646).optional(),
-  avatarUrl: z.string().url().optional(),
+  avatarUrl: z.string().url().max(2048).nullable().optional(),
   isActive: z.boolean().optional(),
 }).refine(body => (body.characterLockPrompt === undefined) === (body.characterLockVersion === undefined),
   { message: 'A character lock edit requires its current version' });

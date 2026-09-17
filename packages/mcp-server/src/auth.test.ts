@@ -129,6 +129,15 @@ describe('createCapabilityToken / validateToken', () => {
     );
     expect(permission).toBeNull();
   });
+
+  it('fails closed when the durable grant registry rejects the permission', async () => {
+    const token = createCapabilityToken(MODEL, Tier.Operator, 'agent-grant');
+    const permission = await validateTokenAsync(token, async () => false, async resolved => {
+      expect(resolved.tokenId).toBeTypeOf('string');
+      return false;
+    });
+    expect(permission).toBeNull();
+  });
 });
 
 describe('authenticateAgent', () => {

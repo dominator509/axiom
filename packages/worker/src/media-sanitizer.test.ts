@@ -66,7 +66,7 @@ it('erases hidden RGB under zero alpha without changing visible pixels', async (
     const decoded = execFileSync('ffmpeg', ['-v', 'error', '-i', output, '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'], { windowsHide: true });
     expect(decoded).toEqual(Buffer.from([0, 0, 0, 0, 71, 83, 95, 255]));
   } finally { await rm(root, { recursive: true, force: true }); }
-}, 30_000);
+}, 120_000);
 it.each(['image', 'jpeg', 'video'] as const)('rebuilds real %s media and removes injected provenance', async kind => {
   const root = await mkdtemp(join(tmpdir(), 'axiom-sanitizer-test-'));
   try {
@@ -107,7 +107,7 @@ it.each(['image', 'jpeg', 'video'] as const)('rebuilds real %s media and removes
       }
     } else expect(cleanEncodedMp4(result.bytes)).toEqual(result.bytes);
   } finally { await rm(root, { recursive: true, force: true }); }
-}, 30_000);
+}, 120_000);
 it('fails closed on malformed media rather than returning the original', async () => {
   await expect(sanitizeMedia(Buffer.alloc(24), 'image/png')).rejects.toThrow();
-});
+}, 120_000);

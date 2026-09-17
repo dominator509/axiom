@@ -81,6 +81,22 @@ import {
   agentPermission,
   agentPermissionRelations,
   mcpTokenRevocation,
+  cascadeTemplate,
+  cascadeTemplateRelations,
+  variantExperiment,
+  variantExperimentRelations,
+  variantExperimentAssignment,
+  variantExperimentAssignmentRelations,
+  scrapeRun,
+  scrapeRunRelations,
+  teamShift,
+  teamShiftRelations,
+  teamNote,
+  teamNoteRelations,
+  mediaOperation,
+  mediaOperationRelations,
+  playbookGuideline,
+  playbookGuidelineRelations,
   allRelations,
 } from './schema/index.js';
 
@@ -181,10 +197,26 @@ describe('schema index', () => {
     expect(relayBinding).toBeDefined();
     expect(agentPermission).toBeDefined();
     expect(mcpTokenRevocation).toBeDefined();
+    expect(cascadeTemplate).toBeDefined();
+    expect(cascadeTemplateRelations).toBeDefined();
+    expect(variantExperiment).toBeDefined();
+    expect(variantExperimentRelations).toBeDefined();
+    expect(variantExperimentAssignment).toBeDefined();
+    expect(variantExperimentAssignmentRelations).toBeDefined();
+    expect(scrapeRun).toBeDefined();
+    expect(scrapeRunRelations).toBeDefined();
+    expect(teamShift).toBeDefined();
+    expect(teamShiftRelations).toBeDefined();
+    expect(teamNote).toBeDefined();
+    expect(teamNoteRelations).toBeDefined();
+    expect(mediaOperation).toBeDefined();
+    expect(mediaOperationRelations).toBeDefined();
+    expect(playbookGuideline).toBeDefined();
+    expect(playbookGuidelineRelations).toBeDefined();
   });
 
-  it('allRelations contains exactly the 43 relation configs', () => {
-    expect(allRelations).toHaveLength(44);
+  it('allRelations contains exactly the relation configs', () => {
+    expect(allRelations).toHaveLength(52);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -232,6 +264,14 @@ describe('schema index', () => {
         'relay_binding',
         'agent_permission',
         'crash_report',
+        'cascade_template',
+        'variant_experiment',
+        'variant_experiment_assignment',
+        'scrape_run',
+        'team_shift',
+        'team_note',
+        'media_operation',
+        'playbook_guideline',
       ].sort(),
     );
   });
@@ -615,6 +655,8 @@ describe('asset table', () => {
     expect(cols.fileSize.dataType).toBe('number');
     expect(cols.fileSize.columnType).toBe('PgInteger');
     expect(cols.storageKey.notNull).toBe(true);
+    expect(cols.origin.notNull).toBe(true);
+    expect(cols.origin.default).toBe('legacy');
   });
 
   it('requires sha256 and kind per L3.1 §11 (content-addressed dedupe)', () => {

@@ -1,4 +1,5 @@
-import { api } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
+import PlaybookGuidelineManager from '@/components/PlaybookGuidelineManager';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,10 @@ interface PlaybookData {
 
 export default async function PlaybookPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const session = await getSession();
+  const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
+  let guidelines = [] as Awaited<ReturnType<typeof api.models.playbookGuidelines>>['data'];
+  try { guidelines = (await api.models.playbookGuidelines(id)).data; } catch { /* score remains useful when guidelines are unavailable */ }
   let data: PlaybookData | null = null;
   try {
     data = (await api.models.playbookScore(id)).data as unknown as PlaybookData;
@@ -86,6 +91,7 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
           </table>
         </div>
       )}
+      <PlaybookGuidelineManager modelId={id} initial={guidelines} canEdit={canEdit} />
     </div>
   );
 }

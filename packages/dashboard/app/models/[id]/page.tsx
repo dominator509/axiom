@@ -1,6 +1,7 @@
 import { api, getSession } from '@/lib/api';
 import CharacterLockEditor from '@/components/CharacterLockEditor';
 import ProfileEditor from '@/components/ProfileEditor';
+import ModelLifecycleControls from '@/components/ModelLifecycleControls';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
@@ -54,6 +55,7 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
           <strong>Bio:</strong> {model.bio ?? '—'}
         </div>
         {canEdit && <ProfileEditor key={`${model.id}:${model.updatedAt}`} model={model} />}
+        {canEdit && <ModelLifecycleControls model={model} canEdit={canEdit} />}
         {canEdit && (typeof model.characterLockPrompt === 'string' && Number.isSafeInteger(model.characterLockVersion)
           ? <CharacterLockEditor key={`${model.id}:${model.characterLockVersion}`} modelId={model.id}
             initialPrompt={model.characterLockPrompt} initialVersion={model.characterLockVersion!} />
@@ -113,6 +115,21 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
         <p className="subtle">Counts reflect the records returned for this overview. Open each section for details.</p>
         <Link href={`/models/${id}/generation`} className="btn">Create content</Link>
         <Link href={`/models/${id}/approvals`} className="btn secondary">Review saved content</Link>
+      </div>
+      <div className="card stack">
+        <h3>Workspace tools</h3>
+        <p className="subtle">Open the areas used to prepare, protect and measure this talent’s content.</p>
+        <div className="grid" style={{ gap: 10 }}>
+          <Link href={`/models/${id}/media`} className="btn secondary">Media library</Link>
+          <Link href={`/models/${id}/consent`} className="btn secondary">Consent vault</Link>
+          <Link href={`/models/${id}/linkbio`} className="btn secondary">Link in bio</Link>
+          <Link href={`/models/${id}/analytics`} className="btn secondary">Analytics</Link>
+          <Link href={`/models/${id}/playbook`} className="btn secondary">Playbook</Link>
+          <Link href={`/models/${id}/relay`} className="btn secondary">Relay delivery</Link>
+          <Link href={`/models/${id}/agents`} className="btn secondary">Agent access</Link>
+          <Link href={`/models/${id}/cascades`} className="btn secondary">Cascade schedules</Link>
+          <Link href={`/models/${id}/triggers`} className="btn secondary">Automation rules</Link>
+        </div>
       </div>
     </div>
   );

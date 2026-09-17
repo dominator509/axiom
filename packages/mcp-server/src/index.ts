@@ -6,10 +6,12 @@ export {
   authenticateAgent,
   authenticateAgentAsync,
   createCapabilityToken,
+  createCapabilityTokenWithMetadata,
   revokeTokenDurably,
   validateTokenAsync,
 } from './auth.js';
 export type { AgentPermission } from './auth.js';
+export type { CapabilityTokenIssue, TokenPermissionChecker } from './auth.js';
 export { getManifest } from './manifest.js';
 export { AnalyticsTool } from './tools/analytics.js';
 export { InboxTool } from './tools/inbox.js';

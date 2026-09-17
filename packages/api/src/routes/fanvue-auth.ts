@@ -5,6 +5,7 @@
 //   POST /refresh  — rotate the token for one org/model-scoped connection
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { randomBytes, createHash } from 'node:crypto';
 import type { AppBindings } from '../index.js';
 import { normalizeAuthOrigin } from '@axiom/auth';
@@ -26,12 +27,10 @@ import {
 
 const FANVUE_CLIENT_ID = process.env.FANVUE_CLIENT_ID || '';
 const FANVUE_CLIENT_SECRET = process.env.FANVUE_CLIENT_SECRET || '';
+const APPLICATION_ORIGIN = normalizeAuthOrigin(process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001');
 const FANVUE_REDIRECT_URI =
   process.env.FANVUE_REDIRECT_URI ||
-  new URL(
-    '/api/v1/connectors/fanvue/callback',
-    normalizeAuthOrigin(process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001'),
-  ).toString();
+  new URL('/api/v1/connectors/fanvue/callback', APPLICATION_ORIGIN).toString();
 const FANVUE_AUTH_URL = 'https://auth.fanvue.com/oauth2/auth';
 const FANVUE_TOKEN_URL = 'https://auth.fanvue.com/oauth2/token';
 const OAUTH_REQUEST_TIMEOUT_MS = 30_000;
@@ -59,6 +58,15 @@ const OAUTH_COOKIE_PATH = '/api/v1/connectors/fanvue';
 const oauthStateKey = () => resolveOAuthCookieSecret();
 
 const router = new Hono<AppBindings>();
+
+function browserConnectionRedirect(c: Context<AppBindings>, modelId: string, platform: string) {
+  const accept = c.req.header('accept') ?? '';
+  if (!accept.includes('text/html')) return null;
+  const destination = new URL(`/models/${encodeURIComponent(modelId)}/network`, APPLICATION_ORIGIN);
+  destination.searchParams.set('oauth', 'connected');
+  destination.searchParams.set('platform', platform);
+  return c.redirect(destination.toString(), 303);
+}
 
 function base64URLEncode(buffer: Buffer): string {
   return buffer.toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -214,6 +222,8 @@ router.get('/callback', async (c) => {
     });
     if (!connection) return apiError(c, 404, statusTitle(404), 'model not found');
 
+    const browserRedirect = browserConnectionRedirect(c, pending.modelId, 'fanvue');
+    if (browserRedirect) return browserRedirect;
     return c.json({
       success: true,
       message: 'Fanvue connected.',

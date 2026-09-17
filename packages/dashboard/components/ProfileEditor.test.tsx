@@ -13,7 +13,7 @@ function fields() {
 }
 it('validates required fields, permits clearing bio, and never edits the character lock or account state', () => {
   const form = fields(); form.set('characterLockPrompt', 'ignored'); form.set('isActive', 'false');
-  expect(profilePayload(form)).toEqual({ displayName: 'Creator', handle: 'creator', bio: '' });
+  expect(profilePayload(form)).toEqual({ displayName: 'Creator', handle: 'creator', bio: '', avatarUrl: null });
   form.set('displayName', ' '); expect(() => profilePayload(form)).toThrow('creator name');
   form.set('displayName', 'Creator'); form.set('bio', 'x'.repeat(501)); expect(() => profilePayload(form)).toThrow('500');
 });
@@ -21,7 +21,7 @@ it('retains original changes and key after an uncertain save and validates the r
   const form = fields();
   vi.stubGlobal('FormData', class { get(key: string) { return form.get(key); } });
   state.send.mockResolvedValueOnce(new Response('{}')).mockResolvedValueOnce(new Response(JSON.stringify({ data: {
-    id: 'model', displayName: 'Creator', handle: 'creator', bio: '',
+    id: 'model', displayName: 'Creator', handle: 'creator', bio: '', avatarUrl: null,
   } })));
   const submit = ProfileEditor({ model: { id: 'model', displayName: 'Old', handle: 'old', bio: 'Old' } }).props.children[1].props.onSubmit;
   const event = { preventDefault() {}, currentTarget: {} } as unknown as FormEvent<HTMLFormElement>;
@@ -29,6 +29,6 @@ it('retains original changes and key after an uncertain save and validates the r
   form.set('displayName', 'Changed after timeout');
   await submit(event);
   expect(state.send.mock.calls[0]).toEqual(state.send.mock.calls[1]);
-  expect(state.send).toHaveBeenCalledWith('/api/v1/models/model', expect.objectContaining({ method: 'PATCH', body: '{"displayName":"Creator","handle":"creator","bio":""}' }), { idempotencyKey: 'profile-intent' });
+  expect(state.send).toHaveBeenCalledWith('/api/v1/models/model', expect.objectContaining({ method: 'PATCH', body: '{"displayName":"Creator","handle":"creator","bio":"","avatarUrl":null}' }), { idempotencyKey: 'profile-intent' });
   expect(state.refresh).toHaveBeenCalledOnce();
 });

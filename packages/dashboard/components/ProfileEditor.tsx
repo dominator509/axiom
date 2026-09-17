@@ -10,13 +10,20 @@ export function profilePayload(form: FormData) {
   const displayName = String(form.get('displayName') ?? '').trim();
   const handle = String(form.get('handle') ?? '').trim();
   const bio = String(form.get('bio') ?? '').trim();
+  const avatarUrl = String(form.get('avatarUrl') ?? '').trim();
   if (!displayName || displayName.length > 100) throw new Error('Enter a creator name of 1–100 characters.');
   if (!handle || handle.length > 50) throw new Error('Enter a handle of 1–50 characters.');
   if (bio.length > 500) throw new Error('The brand note must be at most 500 characters.');
-  return { displayName, handle, bio };
+  if (avatarUrl) {
+    try {
+      const parsed = new URL(avatarUrl);
+      if (!['http:', 'https:'].includes(parsed.protocol) || avatarUrl.length > 2048) throw new Error();
+    } catch { throw new Error('Avatar URL must be a valid http(s) URL of at most 2048 characters.'); }
+  }
+  return { displayName, handle, bio, avatarUrl: avatarUrl || null };
 }
 
-export default function ProfileEditor({ model }: { model: { id: string; displayName: string; handle: string; bio: string | null } }) {
+export default function ProfileEditor({ model }: { model: { id: string; displayName: string; handle: string; bio: string | null; avatarUrl?: string | null } }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false), [pending, setPending] = useState(false);
   const [error, setError] = useState(''), [message, setMessage] = useState('');
@@ -57,6 +64,7 @@ export default function ProfileEditor({ model }: { model: { id: string; displayN
         <label>Creator name<input name="displayName" defaultValue={model.displayName} maxLength={100} required /></label>
         <label>Handle<input name="handle" defaultValue={model.handle} maxLength={50} required /></label>
         <label>Brand note<textarea name="bio" defaultValue={model.bio ?? ''} maxLength={500} rows={4} /></label>
+        <label>Avatar URL <span>(optional)</span><input name="avatarUrl" type="url" defaultValue={model.avatarUrl ?? ''} maxLength={2048} placeholder="https://…" /></label>
       </fieldset>
       {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
       <button type="submit" disabled={busy}>{busy ? 'Saving…' : pending ? 'Retry same profile changes' : 'Save profile details'}</button>

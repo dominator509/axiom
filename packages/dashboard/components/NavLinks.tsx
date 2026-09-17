@@ -9,6 +9,8 @@ const NAV_ITEMS = [
   { href: '/audit', label: 'Audit trail', icon: 'audit' },
   { href: '/incidents', label: 'Incidents', icon: 'incident' },
   { href: '/killswitch', label: 'Safety', icon: 'safety' },
+  { href: '/settings', label: 'Settings', icon: 'settings' },
+  { href: '/digests', label: 'Digests', icon: 'digest' },
 ] as const;
 
 function NavIcon({ name }: { name: (typeof NAV_ITEMS)[number]['icon'] }) {
@@ -24,6 +26,8 @@ function NavIcon({ name }: { name: (typeof NAV_ITEMS)[number]['icon'] }) {
     safety: (
       <path d="M10 2.25c2.1 1.45 4.08 2.12 6 2.25v4.75c0 4.13-2.38 6.95-6 8.5-3.62-1.55-6-4.37-6-8.5V4.5c1.92-.13 3.9-.8 6-2.25Zm-2.5 7.5 1.7 1.7 3.55-3.7" />
     ),
+    settings: <path d="M10 3v2m0 10v2M3 10h2m10 0h2M5.05 5.05l1.4 1.4m7.1 7.1 1.4 1.4m0-9.9-1.4 1.4m-7.1 7.1-1.4 1.4M13.5 10a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" />,
+    digest: <path d="M4 4.5h12v11H4zM7 8h6M7 11h4M6 2.5v4M14 2.5v4" />,
   } as const;
 
   return (

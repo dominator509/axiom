@@ -1,9 +1,19 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 const list = vi.hoisted(() => vi.fn());
-vi.mock('@/lib/api', () => ({ api: { models: { media: list } } }));
+const operations = vi.hoisted(() => vi.fn());
+const getSession = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/api', () => ({
+  api: { models: { media: list, mediaOperations: operations } },
+  getSession,
+}));
 import MediaPage from './page';
-beforeEach(() => { list.mockReset(); });
+beforeEach(() => {
+  list.mockReset();
+  operations.mockReset();
+  operations.mockResolvedValue({ data: [] });
+  getSession.mockResolvedValue({ user: { role: 'operator' } });
+});
 it('renders authenticated image/video previews and model-scoped pagination', async () => {
   list.mockResolvedValue({ data: [
     { id: 'image', kind: 'image', mimeType: 'image/png', fileSize: 2048, width: 864, height: 1152, createdAt: '2026-09-15' },
@@ -14,6 +24,7 @@ it('renders authenticated image/video previews and model-scoped pagination', asy
   expect(html).toContain('/api/v1/models/talent/media/image');
   expect(html).toContain('Saved video'); expect(html).toContain('Loading media preview');
   expect(html).toContain('/models/talent/media?cursor=next+token');
+  expect(html).toContain('/models/talent/generation?sourceAssetId=image');
   expect(html).toContain('does not mean an asset passed review');
 });
 it('does not disguise an API failure as an empty library', async () => {

@@ -139,6 +139,22 @@ export interface PostTarget {
   error: string | null;
 }
 
+export interface ConsentRecord {
+  id: string;
+  platform: string;
+  consentType: string | null;
+  granted: boolean;
+  grantedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  subjectRef: string;
+  docKind: string;
+  blobRef: string;
+  sha256: string | Uint8Array;
+  validFrom: string;
+  validTo: string | null;
+}
+
 export interface SocialConnection {
   id: string;
   modelId: string;
@@ -193,12 +209,118 @@ export interface NetworkConfig {
   lastError: string | null;
 }
 
+export interface RelayBinding {
+  id: string;
+  modelId: string;
+  channel: string;
+  chatRef: string | null;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface AgentTokenMetadata {
+  tokenId: string;
+  expiresAt: string;
+  revokedAt: string | null;
+}
+
+export interface AgentPermission {
+  id: string;
+  modelId: string;
+  agentRef: string;
+  tier: 'viewer' | 'operator' | 'manager' | 'autonomous' | string;
+  canPublish: boolean;
+  canEdit: boolean;
+  createdAt: string;
+  updatedAt: string;
+  tokens: AgentTokenMetadata[];
+}
+
+export interface CascadeStep { platform: string; offsetMinutes: number }
+export interface CascadeTemplate {
+  id: string;
+  modelId: string;
+  name: string;
+  steps: CascadeStep[];
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TriggerCondition {
+  metric: 'views' | 'likes' | 'comments' | 'shares' | 'engagementRate';
+  threshold: number;
+  windowMinutes?: number;
+}
+
+export interface TriggerAction {
+  type: 'content.generate' | 'relay.card';
+  prompt?: string;
+  style?: string;
+  outfit?: string;
+  location?: string;
+  mood?: string;
+  lighting?: string;
+  aspectRatio?: '1:1' | '4:5' | '9:16' | '16:9';
+  cooldownMinutes?: number;
+}
+
+export interface TriggerRule {
+  id: string;
+  modelId: string;
+  name: string;
+  platform: string;
+  condition: TriggerCondition;
+  action: TriggerAction;
+  enabled: boolean;
+  lastFiredAt: string | null;
+  createdAt: string;
+}
+
+export interface VariantExperimentStat {
+  variantId: string;
+  exposures: number;
+  outcomes: number;
+  metricTotal: number;
+}
+
+export interface VariantExperiment {
+  id: string;
+  modelId: string;
+  name: string;
+  platform: string;
+  variantIds: string[];
+  status: 'draft' | 'running' | 'paused' | 'completed' | string;
+  winnerVariantId: string | null;
+  stats: VariantExperimentStat[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScrapeRun {
+  id: string;
+  modelId: string;
+  kind: 'social' | 'competitor' | string;
+  request: Record<string, unknown>;
+  result: Record<string, unknown> | null;
+  state: 'queued' | 'running' | 'completed' | 'failed' | string;
+  error: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface TeamMember { id: string; email: string; role: string }
+export interface TeamShift { id: string; modelId: string; assigneeUserId: string; queue: string; startsAt: string; endsAt: string; status: string; note: string | null }
+export interface TeamNote { id: string; modelId: string; authorUserId: string; targetType: string; targetId: string | null; body: string; createdAt: string }
+export interface MediaOperation { id: string; modelId: string; sourceAssetId: string; resultVariantId: string | null; type: string; options: Record<string, unknown>; state: string; error: string | null; createdAt: string; completedAt: string | null }
+export interface PlaybookGuideline { id: string; modelId: string; platform: string; optimalTimes: string[]; cadencePerWeek: number; upsellStrategy: string; revision: number; updatedAt: string }
+
 export const api = {
   fans: {
     get: (id: string) => apiFetch<{ data: FanTimeline }>(`/api/v1/fans/${encodeURIComponent(id)}`),
   },
   models: {
-    media: (id: string, cursor?: string) => apiFetch<{ data: Array<{ id: string; kind: string; mimeType: string; fileSize: number; width: number | null; height: number | null; createdAt: string }>; meta?: { next_cursor?: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/media${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
+    media: (id: string, cursor?: string) => apiFetch<{ data: Array<{ id: string; kind: string; origin: string; mimeType: string; fileSize: number; width: number | null; height: number | null; createdAt: string }>; meta?: { next_cursor?: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/media${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
     list: (cursor?: string) => apiFetch<{
       data: ModelProfile[];
       meta: { total: number; limit: number; next_cursor: string | null };
@@ -227,6 +349,7 @@ export const api = {
     viral: (id: string) => apiFetch<{ data: unknown }>(`/api/v1/models/${id}/viral`),
     playbookScore: (id: string) =>
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/playbook-score`),
+    consentRecords: (id: string) => apiFetch<{ data: ConsentRecord[]; meta?: { total: number } }>(`/api/v1/models/${id}/consent-records`),
     generate: (id: string, body: Record<string, unknown>) =>
       apiFetch<{ data: { bundle: ContentBundle; variants: unknown[]; tosReport: unknown } }>(
         `/api/v1/models/${id}/generate`,
@@ -235,6 +358,24 @@ export const api = {
     linkbio: (id: string) => apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio`),
     linkbioAnalytics: (id: string) =>
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio/analytics`),
+    relayBindings: (id: string) =>
+      apiFetch<{ data: RelayBinding[]; meta?: { total: number } }>(`/api/v1/models/${id}/relay-bindings`),
+    agentPermissions: (id: string) =>
+      apiFetch<{ data: AgentPermission[] }>(`/api/v1/models/${id}/agent-permissions`),
+    cascadeTemplates: (id: string) =>
+      apiFetch<{ data: CascadeTemplate[] }>(`/api/v1/models/${id}/cascade-templates`),
+    triggerRules: (id: string) =>
+      apiFetch<{ data: TriggerRule[] }>(`/api/v1/models/${id}/trigger-rules`),
+    variantExperiments: (id: string) =>
+      apiFetch<{ data: VariantExperiment[] }>(`/api/v1/models/${id}/variant-experiments`),
+    scrapeRuns: (id: string) =>
+      apiFetch<{ data: ScrapeRun[] }>(`/api/v1/models/${id}/scrape-runs`),
+    teamOperations: (id: string) =>
+      apiFetch<{ data: { members: TeamMember[]; shifts: TeamShift[]; notes: TeamNote[] } }>(`/api/v1/models/${id}/team-operations`),
+    mediaOperations: (id: string) =>
+      apiFetch<{ data: MediaOperation[] }>(`/api/v1/models/${id}/media-operations`),
+    playbookGuidelines: (id: string) =>
+      apiFetch<{ data: PlaybookGuideline[] }>(`/api/v1/models/${id}/playbook-guidelines`),
   },
   bundles: {
     list: (modelId?: string, state?: string, cursor?: string) =>
@@ -297,6 +438,12 @@ export const api = {
   },
   llm: {
     providers: () => apiFetch<{ providers: string[] }>('/api/v1/llm/providers'),
+  },
+  orgSettings: {
+    get: () => apiFetch<{ data: { viralSharing: boolean; publishingEnabled: boolean } }>('/api/v1/org-settings'),
+  },
+  digests: {
+    list: (cursor?: string) => apiFetch<{ data: Array<{ id: string; title: string; description: string | null; state: string; createdAt: string; config: Record<string, unknown> | null }>; meta?: { next_cursor?: string | null } }>(`/api/v1/digests${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
   },
 };
 

@@ -18,6 +18,14 @@ import {
 } from '@axiom/llm-gateway';
 import type { Executor, ExecutorContext } from './context.js';
 import { enqueueJob } from '../enqueue.js';
+
+async function modelPlaybookContext(tx: any, orgId: string, modelId: string, platform: string): Promise<string> {
+  const [guideline] = await tx.select().from(schema.playbookGuideline).where(and(
+    eq(schema.playbookGuideline.orgId, orgId), eq(schema.playbookGuideline.modelId, modelId), eq(schema.playbookGuideline.platform, platform),
+  )).limit(1);
+  if (!guideline) return '';
+  return `\n[MODEL PLAYBOOK GUIDELINE]\nOptimal posting times: ${guideline.optimalTimes.join(', ') || 'operator default'}\nCadence target: ${guideline.cadencePerWeek} posts/week\nUpsell strategy: ${guideline.upsellStrategy || 'none configured'}\nGuideline revision: ${guideline.revision}`;
+}
 import { asPlatform } from '../connection.js';
 import { retrieveTopExemplars } from '../viral-retrieval.js';
 
@@ -130,7 +138,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
       const exemplars = await retrieveTopExemplars(tx, job.org_id, modelId, target, 3);
       const prompt = assemblePrompt({
         S0: buildS0(profile),
-        S1: buildS1(target),
+        S1: buildS1(target) + await modelPlaybookContext(tx, job.org_id, modelId, target),
         S2: buildS2(exemplars),
         S3: buildS3({
           modelId,
@@ -202,7 +210,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
       const exemplars = await retrieveTopExemplars(tx, job.org_id, modelId, platform, 3);
       const prompt = assemblePrompt({
         S0: buildS0(profile),
-        S1: buildS1(platform as never),
+        S1: buildS1(platform as never) + await modelPlaybookContext(tx, job.org_id, modelId, platform),
         S2: buildS2(exemplars),
         S3: buildS3({
           modelId,

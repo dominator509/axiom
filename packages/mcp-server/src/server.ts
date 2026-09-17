@@ -5,6 +5,7 @@ import {
   authenticateAgentAsync,
   tierAtLeast,
   type TokenRevocationChecker,
+  type TokenPermissionChecker,
 } from './auth.js';
 import { getManifest, allTools, type ToolDescriptor } from './manifest.js';
 
@@ -56,6 +57,8 @@ export interface McpServerOptions {
   onToolCall?: (event: McpToolAuditEvent) => Promise<void> | void;
   /** Durable denylist lookup used by the production HTTP transport. */
   isTokenRevoked?: TokenRevocationChecker;
+  /** Durable grant lookup used by the production HTTP transport. */
+  isTokenAllowed?: TokenPermissionChecker;
 }
 
 // ─── Server ─────────────────────────────────────────────────────────────────
@@ -234,6 +237,6 @@ export async function createMcpServerAsync(
   },
   options: McpServerOptions & { isTokenRevoked: TokenRevocationChecker },
 ): Promise<McpServer> {
-  const permission = await authenticateAgentAsync(request, options.isTokenRevoked);
+  const permission = await authenticateAgentAsync(request, options.isTokenRevoked, options.isTokenAllowed);
   return new McpServer(permission, options);
 }

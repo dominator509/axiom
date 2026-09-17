@@ -7,6 +7,7 @@ const TABS = [
   { href: '', label: 'Profile & character' },
   { href: 'generation', label: 'Create content' },
   { href: 'media', label: 'Media library' },
+  { href: 'consent', label: 'Consent vault' },
   { href: 'approvals', label: 'Review & approve' },
   { href: 'calendar', label: 'Schedule' },
   { href: 'fans', label: 'Fan contacts' },
@@ -14,6 +15,13 @@ const TABS = [
   { href: 'analytics', label: 'Analytics' },
   { href: 'playbook', label: 'Playbook' },
   { href: 'network', label: 'Network settings' },
+  { href: 'relay', label: 'Relay delivery' },
+  { href: 'agents', label: 'Agent access' },
+  { href: 'cascades', label: 'Cascade schedules' },
+  { href: 'triggers', label: 'Automation rules' },
+  { href: 'experiments', label: 'Variant experiments' },
+  { href: 'scraping', label: 'Trend & competitor radar' },
+  { href: 'team', label: 'Team & shifts' },
 ] as const;
 
 export default function ModelTabs({ modelId }: { modelId: string }) {

@@ -29,7 +29,7 @@ describe('talent overview recovery and navigation', () => {
   });
   it('links summaries and next actions to this talent workspace', async () => {
     const html = await render();
-    for (const route of ['network', 'calendar', 'fans', 'generation', 'approvals']) {
+    for (const route of ['network', 'calendar', 'fans', 'generation', 'approvals', 'media', 'consent', 'linkbio', 'analytics', 'playbook', 'relay', 'agents', 'cascades']) {
       expect(html).toContain(`href="/models/talent/${route}"`);
     }
   });

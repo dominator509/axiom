@@ -26,6 +26,7 @@ interface ViralData {
 
 export default async function AnalyticsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const reportMonth = new Date().toISOString().slice(0, 7);
   let analytics: AnalyticsData | null = null;
   let viral: ViralData | null = null;
   try {
@@ -41,7 +42,12 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="page-stack">
-      <h2>Performance</h2>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'end' }}>
+        <h2 style={{ margin: 0 }}>Performance</h2>
+        <a className="btn secondary" href={`/api/v1/models/${encodeURIComponent(id)}/reports/monthly?month=${reportMonth}`}>
+          Download monthly PDF
+        </a>
+      </div>
       {analytics ? (
         <>
           <div className="grid">

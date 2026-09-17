@@ -9,7 +9,7 @@ import type { LLMGateway } from './gateway.js';
 import { ProviderError } from './providers/types.js';
 import { PLATFORMS } from './prompts.js';
 import { GrokLoginAttempts } from './grok-login-attempts.js';
-import { r2StorageSchema, r2StorageStatus, saveR2Storage, removeR2Storage } from './grok-r2-storage.js';
+import { r2StorageSchema, r2StorageStatus, saveR2Storage, removeR2Storage, verifyR2Storage } from './grok-r2-storage.js';
 
 type GatewayEnv = {
   Variables: { userId: string; orgId: string };
@@ -171,6 +171,10 @@ export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
     if (!parsed.success) return problemResponse(c, 400, 'Invalid R2 endpoint, bucket or credential format');
     try { return c.json(saveR2Storage({ userId: c.get('userId'), orgId: c.get('orgId') }, parsed.data)); }
     catch { return problemResponse(c, 503, 'Storage save unconfirmed; check status before trying again'); }
+  });
+  router.post('/subscriptions/grok/r2-storage/verify', async c => {
+    try { return c.json(await verifyR2Storage({ userId: c.get('userId'), orgId: c.get('orgId') })); }
+    catch { return problemResponse(c, 502, 'R2 bucket read/write verification failed'); }
   });
   router.delete('/subscriptions/grok/r2-storage', c => {
     try { return c.json(removeR2Storage({ userId: c.get('userId'), orgId: c.get('orgId') })); }

@@ -10,6 +10,7 @@
 // Meta's contract and leave a remote account connected in AXIOM.
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { randomBytes } from 'node:crypto';
 import type { AppBindings } from '../index.js';
 import { normalizeAuthOrigin } from '@axiom/auth';
@@ -44,6 +45,15 @@ function deletionStatusUrl(confirmationCode: string): string {
 }
 
 const router = new Hono<AppBindings>();
+
+function browserConnectionRedirect(c: Context<AppBindings>, modelId: string, platform: string) {
+  const accept = c.req.header('accept') ?? '';
+  if (!accept.includes('text/html')) return null;
+  const destination = new URL(`/models/${encodeURIComponent(modelId)}/network`, APPLICATION_ORIGIN);
+  destination.searchParams.set('oauth', 'connected');
+  destination.searchParams.set('platform', platform);
+  return c.redirect(destination.toString(), 303);
+}
 
 /**
  * Step 1: Redirect user to Meta OAuth authorization page.
@@ -190,6 +200,8 @@ router.get('/callback', async (c) => {
     });
     if (!connection) return apiError(c, 404, statusTitle(404), 'model not found');
 
+    const browserRedirect = browserConnectionRedirect(c, pending.modelId, 'threads');
+    if (browserRedirect) return browserRedirect;
     return c.json({
       status: 'success',
       platform: 'threads',

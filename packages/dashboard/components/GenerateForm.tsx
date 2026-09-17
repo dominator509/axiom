@@ -22,7 +22,7 @@ const PLATFORMS = [
   'fanvue',
 ];
 
-export default function GenerateForm({ modelId }: { modelId: string }) {
+export default function GenerateForm({ modelId, initialSourceAssetId = '' }: { modelId: string; initialSourceAssetId?: string }) {
   const router = useRouter();
   const [style, setStyle] = useState('studio');
   const [outfit, setOutfit] = useState('summer dress');
@@ -43,9 +43,9 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
       scores: Array<{ platform: string; verdict: string; score: number }>;
     };
   } | null>(null);
-  const [mediaKind, setMediaKind] = useState<'brief' | 'image' | 'video'>('brief');
+  const [mediaKind, setMediaKind] = useState<'brief' | 'image' | 'video'>(initialSourceAssetId ? 'video' : 'brief');
   const [mediaPrompt, setMediaPrompt] = useState('');
-  const [sourceAssetId, setSourceAssetId] = useState('');
+  const [sourceAssetId, setSourceAssetId] = useState(initialSourceAssetId);
   const [duration, setDuration] = useState<6 | 10>(6);
   const [sourceImages, setSourceImages] = useState<Array<{ id: string; fileName: string }>>([]);
   const [sourceError, setSourceError] = useState<string | null>(null);
@@ -54,7 +54,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
   const intent = useRef<{ modelId: string; body: string; key: string } | null>(null);
 
   useEffect(() => {
-    setSourceAssetId('');
+    setSourceAssetId(initialSourceAssetId);
     setSourceImages([]);
     setSourceError(null);
     if (mediaKind !== 'video') return;
@@ -70,7 +70,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
       }
     })();
     return () => controller.abort();
-  }, [modelId, mediaKind]);
+  }, [modelId, mediaKind, initialSourceAssetId]);
 
   function togglePlatform(p: string) {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
@@ -195,6 +195,7 @@ export default function GenerateForm({ modelId }: { modelId: string }) {
           </select>
           {sourceError && <p role="alert">{sourceError}</p>}
           {!sourceError && sourceImages.length === 0 && <p>Generate or import a source image for this model first.</p>}
+          {sourceAssetId && <a href={`/api/v1/models/${encodeURIComponent(modelId)}/media/${encodeURIComponent(sourceAssetId)}`} target="_blank" rel="noopener noreferrer">Open selected source image</a>}
           <label htmlFor="videoDuration">Video duration</label>
           <select id="videoDuration" value={duration} onChange={e => setDuration(Number(e.target.value) as 6 | 10)}>
             <option value={6}>6 seconds</option><option value={10}>10 seconds</option>

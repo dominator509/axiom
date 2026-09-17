@@ -4,13 +4,18 @@ import NetworkForm from '@/components/NetworkForm';
 import EgressCredentials from '@/components/EgressCredentials';
 import NetworkHealth from '@/components/NetworkHealth';
 import ActivateNetwork from '@/components/ActivateNetwork';
+import DisconnectSocialAccountButton from '@/components/DisconnectSocialAccountButton';
 
 export const dynamic = 'force-dynamic';
 
-export default async function NetworkPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function NetworkPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ oauth?: string | string[]; platform?: string | string[] } | undefined> }) {
   const { id } = await params;
+  const query = (await searchParams) ?? {};
+  const oauthConnected = query?.oauth === 'connected' && (query.platform === 'fanvue' || query.platform === 'threads');
+  const oauthPlatform = query?.platform === 'fanvue' ? 'Fanvue' : 'Threads';
   const session = await getSession();
   const owner = session?.user?.role === 'owner';
+  const canManageAccounts = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   let network = null;
   let failed = false;
   if (owner) {
@@ -20,10 +25,11 @@ export default async function NetworkPage({ params }: { params: Promise<{ id: st
       failed = true;
     }
   }
-  const accounts = await SocialAccounts({ modelId: id });
+  const accounts = await SocialAccounts({ modelId: id, canManage: canManageAccounts });
 
   return (
     <div className="page-stack">
+      {oauthConnected && <p className="notice" role="status">{oauthPlatform} connected successfully. Refresh the account list below if it is not visible yet.</p>}
       <div className="card">
         <h2>Network &amp; security</h2>
         {!owner && <p>Only a workspace owner can view or change network configuration. Ask your owner to configure this talent’s outbound connection.</p>}
@@ -62,6 +68,14 @@ export default async function NetworkPage({ params }: { params: Promise<{ id: st
       {owner && network?.id && network.egressMode && network.egressMode !== 'direct' && <EgressCredentials key={`${network.id}:${network.egressMode}`} configId={network.id} mode={network.egressMode} />}
       {owner && <NetworkHealth modelId={id} />}
       {owner && network?.id && <ActivateNetwork modelId={id} />}
+      <div className="card stack">
+        <h2>Social account connections</h2>
+        <p className="subtle">Connect a provider account through its own authorization page. AXIOM never asks for provider passwords or tokens in this form.</p>
+        {canManageAccounts ? <div className="action-row">
+          <a className="btn secondary" href={`/api/v1/connectors/fanvue/authorize?modelId=${encodeURIComponent(id)}`}>Connect Fanvue</a>
+          <a className="btn secondary" href={`/api/v1/connectors/threads/authorize?modelId=${encodeURIComponent(id)}`}>Connect Threads</a>
+        </div> : <p className="subtle">Connecting accounts requires an owner, manager or operator role.</p>}
+      </div>
       <div className="card">
         <h2>Connected accounts</h2>
         {accounts}
@@ -70,7 +84,7 @@ export default async function NetworkPage({ params }: { params: Promise<{ id: st
   );
 }
 
-async function SocialAccounts({ modelId }: { modelId: string }) {
+async function SocialAccounts({ modelId, canManage }: { modelId: string; canManage: boolean }) {
   let accounts: SocialConnection[] = [];
   try {
     accounts = (await api.social.list(modelId)).data;
@@ -88,6 +102,7 @@ async function SocialAccounts({ modelId }: { modelId: string }) {
           <th>Display name</th>
           <th>Status</th>
           <th>Capabilities</th>
+          {canManage && <th>Actions</th>}
         </tr>
       </thead>
       <tbody>
@@ -101,6 +116,7 @@ async function SocialAccounts({ modelId }: { modelId: string }) {
               </span>
             </td>
             <td className="mono">{(a.capabilities as string[])?.join(', ') ?? '—'}</td>
+            {canManage && <td><DisconnectSocialAccountButton accountId={a.id} displayName={`${a.platform} (${a.displayName})`} /></td>}
           </tr>
         ))}
       </tbody>

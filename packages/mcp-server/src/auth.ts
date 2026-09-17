@@ -42,9 +42,12 @@ export interface AgentPermission {
   scopes: string[];
   /** Expiry timestamp (ISO 8601) or null for never-expiring. */
   expiresAt: string | null;
+  /** Durable registry identifier; present on bearer tokens issued by the API. */
+  tokenId?: string;
 }
 
 export type TokenRevocationChecker = (tokenId: string) => Promise<boolean>;
+export type TokenPermissionChecker = (permission: AgentPermission) => Promise<boolean>;
 
 export type TokenRevocationWriter = (input: {
   tokenId: string;
@@ -147,12 +150,18 @@ function decodeToken(token: string): CapabilityPayload | null {
  * Returns the raw token string. The caller is responsible for delivering it
  * to the agent out-of-band (e.g. via the Relay channel).
  */
-export function createCapabilityToken(
+export interface CapabilityTokenIssue {
+  token: string;
+  tokenId: string;
+  expiresAt: string;
+}
+
+export function createCapabilityTokenWithMetadata(
   modelId: string,
   tier: Tier,
   agentId: string,
   ttlMs: number = DEFAULT_CAPABILITY_TTL_MS,
-): string {
+): CapabilityTokenIssue {
   const { kid } = signingKey();
   const expiresAt = new Date(Date.now() + ttlMs).toISOString();
   const payload: CapabilityPayload = {
@@ -167,7 +176,16 @@ export function createCapabilityToken(
   };
   const token = signPayload(payload);
   issuedTokens.set(tokenHash(token), payload);
-  return token;
+  return { token, tokenId: payload.tokenId, expiresAt };
+}
+
+export function createCapabilityToken(
+  modelId: string,
+  tier: Tier,
+  agentId: string,
+  ttlMs: number = DEFAULT_CAPABILITY_TTL_MS,
+): string {
+  return createCapabilityTokenWithMetadata(modelId, tier, agentId, ttlMs).token;
 }
 
 /**
@@ -206,10 +224,12 @@ function resolveToken(token: string): CapabilityPayload | null {
 export async function validateTokenAsync(
   token: string,
   isRevoked: TokenRevocationChecker,
+  isAllowed?: TokenPermissionChecker,
 ): Promise<AgentPermission | null> {
   const permission = resolveToken(token);
   if (!permission) return null;
   if (await isRevoked(permission.tokenId)) return null;
+  if (isAllowed && !(await isAllowed(permission))) return null;
   return permission;
 }
 
@@ -266,12 +286,13 @@ export async function authenticateAgentAsync(
     params?: Record<string, unknown>;
   },
   isRevoked: TokenRevocationChecker,
+  isAllowed?: TokenPermissionChecker,
 ): Promise<AgentPermission> {
   const token = bearerToken(request);
   if (!token) {
     throw new Error('Authentication required: no token provided');
   }
-  const permission = await validateTokenAsync(token, isRevoked);
+  const permission = await validateTokenAsync(token, isRevoked, isAllowed);
   if (!permission) {
     throw new Error('Authentication failed: invalid or expired token');
   }

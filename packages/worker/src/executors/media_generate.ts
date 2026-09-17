@@ -96,7 +96,7 @@ export const mediaGenerate: Executor = async (ctx) => {
     sanitizeMetadata: payload.sanitizeMetadata === true,
   });
   const [inserted] = await tx.insert(schema.asset).values({
-    orgId: job.org_id, modelId: bundle.modelId, kind: payload.kind,
+    orgId: job.org_id, modelId: bundle.modelId, kind: payload.kind, origin: 'generated',
     ...stored,
   }).onConflictDoNothing().returning({ id: schema.asset.id });
   const existing = inserted ? [] : await tx.select().from(schema.asset).where(and(

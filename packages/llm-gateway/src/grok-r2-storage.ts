@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { constants, closeSync, existsSync, fstatSync, fsyncSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -85,4 +85,69 @@ export function r2ManagedConfig(config: R2Storage, scope: R2Scope) {
   // Pinned Grok prepare_video_gen_config drops S3 settings unless this flag
   // is true. A ZDR account alone does not enable the CLI's upload path.
   return `[tools]\ndisable_zdr_incompatible_tools = true\n[tools.zdr_video_output_s3]\nbucket = "${checked.bucket}"\nendpoint = "${checked.endpoint}"\nregion = "auto"\nkey_prefix = "axiom/${identity(scope)}/"\nexpires_secs = 900\n[tools.zdr_video_output_s3.read_write]\naccess_key_id = "${checked.accessKeyId}"\nsecret_access_key = "${checked.secretAccessKey}"\n`;
+}
+
+function hmac(key: Buffer | string, value: string): Buffer {
+  return createHmac('sha256', key).update(value).digest();
+}
+
+function signingKey(secret: string, date: string): Buffer {
+  return hmac(hmac(hmac(hmac(`AWS4${secret}`, date), 'auto'), 's3'), 'aws4_request');
+}
+
+function encodedPath(bucket: string, objectKey: string): string {
+  return `/${[bucket, ...objectKey.split('/')].map(segment => encodeURIComponent(segment)).join('/')}`;
+}
+
+async function signedR2Request(config: R2Storage, method: 'PUT' | 'GET' | 'DELETE', objectKey: string, body = Buffer.alloc(0)): Promise<Response> {
+  const endpoint = new URL(config.endpoint);
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const shortDate = amzDate.slice(0, 8);
+  const payloadHash = createHash('sha256').update(body).digest('hex');
+  const host = endpoint.hostname;
+  const uri = encodedPath(config.bucket, objectKey);
+  const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
+  const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+  const canonicalRequest = [method, uri, '', canonicalHeaders, signedHeaders, payloadHash].join('\n');
+  const scope = `${shortDate}/auto/s3/aws4_request`;
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, createHash('sha256').update(canonicalRequest).digest('hex')].join('\n');
+  const signature = createHmac('sha256', signingKey(config.secretAccessKey, shortDate)).update(stringToSign).digest('hex');
+  const authorization = `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  return fetch(new URL(uri, endpoint).toString(), {
+    method,
+    headers: {
+      host,
+      'x-amz-content-sha256': payloadHash,
+      'x-amz-date': amzDate,
+      Authorization: authorization,
+      ...(method === 'PUT' ? { 'content-type': 'text/plain; charset=utf-8', 'content-length': String(body.byteLength) } : {}),
+    },
+    body: method === 'GET' || method === 'DELETE' ? undefined : body,
+    signal: AbortSignal.timeout(10_000),
+  });
+}
+
+/** Prove private R2 read/write access with a tenant-scoped temporary object. */
+export async function verifyR2Storage(scope: R2Scope): Promise<{ configured: true; verified: true }> {
+  const config = loadR2Storage(scope);
+  if (!config) throw new Error('R2 storage is not configured');
+  const objectKey = `axiom-verification/${identity(scope)}/${randomUUID()}.txt`;
+  const probe = Buffer.from('FanThynks private storage verification\n', 'utf8');
+  let uploaded = false;
+  try {
+    const put = await signedR2Request(config, 'PUT', objectKey, probe);
+    if (!put.ok) throw new Error(`PUT returned HTTP ${put.status}`);
+    uploaded = true;
+    const get = await signedR2Request(config, 'GET', objectKey);
+    if (!get.ok) throw new Error(`GET returned HTTP ${get.status}`);
+    if (!Buffer.from(await get.arrayBuffer()).equals(probe)) throw new Error('GET returned unexpected probe bytes');
+    return { configured: true, verified: true };
+  } catch (error) {
+    throw new Error(`R2 verification failed: ${error instanceof Error ? error.message : 'provider request failed'}`);
+  } finally {
+    if (uploaded) {
+      try { await signedR2Request(config, 'DELETE', objectKey); } catch { /* best-effort cleanup */ }
+    }
+  }
 }

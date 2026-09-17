@@ -6,7 +6,7 @@ export default function GrokR2Storage() {
   const [status, setStatus] = useState('Storage not checked');
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
-  async function request(method: 'GET' | 'PUT' | 'DELETE', body?: Record<string, string>) {
+  async function request(method: 'GET' | 'PUT' | 'DELETE' | 'POST', body?: Record<string, string>) {
     if (pending.current) return;
     pending.current = true; setBusy(true);
     const controller = new AbortController();
@@ -18,7 +18,8 @@ export default function GrokR2Storage() {
       if (!response.ok) throw new Error('Storage request failed');
       const data = await response.json();
       if (typeof data.configured !== 'boolean') throw new Error('Invalid response');
-      setStatus(data.configured ? 'R2 configuration saved. Bucket access and video generation have not been verified.'
+      setStatus(data.verified ? 'R2 bucket read/write verified; the temporary probe object was removed.'
+        : data.configured ? 'R2 configuration saved. Bucket access and video generation have not been verified.'
         : 'No R2 configuration saved for this workspace and operator.');
     } catch {
       setStatus('Storage operation not confirmed. Check saved status before trying again.');
@@ -44,6 +45,7 @@ export default function GrokR2Storage() {
       <button type="submit" disabled={busy}>Save R2 credentials</button>
     </form>
     <div><button disabled={busy} onClick={() => void request('GET')}>Check saved status</button>{' '}
+      <button disabled={busy} onClick={() => void request('POST')}>Verify bucket access</button>{' '}
       <button disabled={busy} onClick={() => void request('DELETE')}>Remove saved R2 credentials</button></div>
     <p role="status">{status}</p>
     <p>Removal prevents future requests from loading these credentials. It does not revoke the Cloudflare keys, delete stored media, or cancel a running generation.</p>

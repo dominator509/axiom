@@ -2,6 +2,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
+import { parseWireGuardConfig } from '@/lib/wireguard-import';
 
 export function credentialPayload(mode: string, fields: FormData) {
   const value = (key: string) => String(fields.get(key) ?? '').trim();
@@ -11,7 +12,10 @@ export function credentialPayload(mode: string, fields: FormData) {
     const key = /^[A-Za-z0-9+/]{43}=$/;
     if (!key.test(wgPrivateKey) || !key.test(wgPublicKey) || (wgPresharedKey && !key.test(wgPresharedKey))) throw new Error('Enter valid WireGuard keys.');
     if (!wgEndpoint || wgEndpoint.length > 500 || !wgInterfaceAddress) throw new Error('Enter the peer endpoint and assigned tunnel address.');
+    const keepalive = value('wgPersistentKeepalive') || '0';
+    if (!/^\d{1,5}$/.test(keepalive) || Number(keepalive) > 65535) throw new Error('Keepalive must be between 0 and 65535 seconds.');
     return { wgPrivateKey, wgPublicKey, wgEndpoint, wgInterfaceAddress,
+      wgPersistentKeepalive: Number(keepalive),
       wgAllowedIps: value('wgAllowedIps') || '0.0.0.0/0', ...(wgPresharedKey ? { wgPresharedKey } : {}) };
   }
   if (!['socks5', 'http', 'https'].includes(mode)) throw new Error('Select and save a proxy or WireGuard mode first.');
@@ -27,6 +31,25 @@ export default function EgressCredentials({ configId, mode }: { configId: string
   const [message, setMessage] = useState(''), [error, setError] = useState('');
   const active = useRef(false), intent = useRef<{ body: string; key: string } | null>(null);
   const tunnel = mode === 'wireguard' || mode === 'vpn';
+  async function importConfig(input: HTMLInputElement) {
+    const file = input.files?.[0];
+    const form = input.form;
+    if (!file || !form) return;
+    setError(''); setMessage('');
+    try {
+      if (file.size > 16_384) throw new Error('WireGuard configuration must be smaller than 16 KB.');
+      const fields = parseWireGuardConfig(await file.text());
+      if (active.current || intent.current) return;
+      for (const [name, value] of Object.entries(fields)) {
+        const field = form.elements.namedItem(name);
+        if (field instanceof HTMLInputElement) field.value = value;
+      }
+      const optional = form.elements.namedItem('wgPresharedKey');
+      if (optional instanceof HTMLInputElement) optional.value = fields.wgPresharedKey ?? '';
+      setMessage('Configuration imported locally. Review the fields and save to connect this talent to your VPN.');
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Could not read the configuration.'); }
+    finally { input.value = ''; }
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (active.current) return;
@@ -56,12 +79,16 @@ export default function EgressCredentials({ configId, mode }: { configId: string
     {tunnel && <p>The VPN mode uses WireGuard, not an OpenVPN configuration. Enter the address supplied by your VPN provider.</p>}
     <fieldset disabled={busy || pending} className="stack" style={{ border: 0, padding: 0, minWidth: 0 }}>
       {tunnel ? <>
+        <p>Use your own VPN subscription or WireGuard server. Your provider must supply a compatible WireGuard configuration.</p>
+        <label>Import WireGuard configuration<input type="file" accept=".conf,text/plain" onChange={event => { void importConfig(event.currentTarget); }} /></label>
         <label>Private key<input type="password" name="wgPrivateKey" required autoComplete="new-password" maxLength={44} /></label>
         <label>Peer public key<input name="wgPublicKey" required maxLength={44} spellCheck={false} /></label>
         <label>Preshared key (optional)<input type="password" name="wgPresharedKey" autoComplete="new-password" maxLength={44} /></label>
         <label>Peer endpoint (host:port)<input name="wgEndpoint" required maxLength={500} spellCheck={false} /></label>
         <label>Assigned IPv4 tunnel address (CIDR)<input name="wgInterfaceAddress" required placeholder="10.88.0.9/32" maxLength={49} spellCheck={false} /></label>
         <label>Allowed IP ranges<input name="wgAllowedIps" defaultValue="0.0.0.0/0" maxLength={1000} required spellCheck={false} /></label>
+        <label>Keepalive interval (seconds)<input type="number" name="wgPersistentKeepalive" defaultValue="0" min={0} max={65535} step={1} required /></label>
+        <p className="subtle">Use your provider’s keepalive interval. Zero disables keepalive.</p>
       </> : <>
         <label>Proxy username<input name="proxyUsername" required maxLength={500} autoComplete="off" spellCheck={false} /></label>
         <label>Proxy password<input type="password" name="proxyPassword" required maxLength={500} autoComplete="new-password" /></label>

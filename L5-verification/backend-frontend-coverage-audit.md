@@ -10,6 +10,60 @@ Scope inspected: API route registrations and middleware in `packages/api/src/ind
 
 Labels: **partial** means some controls exist but the family is incomplete; **absent** means no dashboard workflow was found in the inspected page/component/client inventory; **wired** means a source call path exists, not runtime acceptance; **internal** means a direct user button would be inappropriate, but its user-facing outcome still needs acceptance.
 
+## Current reconciliation snapshot (working tree, 2026-09-16)
+
+The table below supersedes the original inventory where later remediation milestones
+changed the source tree. It is still a static reconciliation: no row is marked
+runtime-accepted merely because its unit tests pass.
+
+| Feature IDs | Current source/UI result | Remaining evidence or implementation gap |
+| --- | --- | --- |
+| F-01 | **Wired**: model workspaces, create/edit, character lock, avatar URL, activate/deactivate | Authenticated desktop/mobile lifecycle acceptance and role matrix remain deployment evidence |
+| F-02, F-04, F-43 | **Wired/partial**: owner network config, encrypted credentials, health, model-scoped apply, Rust fail-closed plane | Privileged Linux namespace, WireGuard/proxy leak and real egress acceptance remain open |
+| F-03, F-31 | **Partial**: Fanvue OAuth/MCP and worker connector paths exist | Live provider OAuth, upload/post/analytics/vault rehearsal and browser acceptance remain open |
+| F-05, F-08 | **Wired**: fan contacts and custom-request lifecycle are reachable from Fans | Browser persistence and long-history acceptance remain open |
+| F-06, F-07 | **Partial/internal**: CRM tables and recorded timeline controls exist | Automated Fanvue top-spender ingestion and cross-platform event synchronization are not established |
+| F-09 | **Internal**: pre-post executor exists and is in the generation/publish chain | Runtime script/container acceptance remains open; no separate button is required |
+| F-10 | **Partial**: schedule page and DST-aware reschedule/cancel controls exist | Visual week/month drag-drop and viral optimal-time suggestions are missing |
+| F-11 | **Wired/partial**: model-scoped cascade-template CRUD and a responsive Cascade schedules page persist ordered platform offsets and expand approved bundles into ordinary scheduled targets | Live account/consent/capability/worker acceptance and browser persistence remain open; expansion deliberately does not bypass approval or publication gates |
+| F-12 | **Wired**: Safety page and kill-switch API/worker interlock exist | Live response-time and multi-worker drain rehearsal remain open |
+| F-13, F-15, F-16 | **Wired/partial**: model-scoped variant experiments provide draft/running/paused/completed lifecycle, deterministic assignment, exposure/outcome capture, and winner promotion | Statistical validity and live worker/provider acceptance remain open |
+| F-14 | **Internal/partial**: media-plane primitives exist | User-configurable per-model watermark policy and CDN/runtime acceptance are not established |
+| F-17, F-18 | **Wired/partial**: authenticated model-scoped scrape runs persist bounded requests/results, dispatch a worker job, and expose status/error controls | Deployed sidecar rehearsal and benchmark history acceptance remain open |
+| F-19, F-20, F-21 | **Wired/partial**: model-scoped trigger-rule CRUD/UI and a metrics-driven worker evaluator now exist for bounded follow-up generation or operator relay cards | Churn-rescue subscription events, provider moderation coverage, and live metrics/worker acceptance remain open |
+| F-22, F-23 | **Partial**: native link-bio short links and click/UTM analytics are real | Subscription-event attribution/ROI join and custom-domain acceptance are not established |
+| F-24, F-25, F-26 | **Wired/partial**: team membership, role-scoped shifts, handoff notes, and operational queue assignment have model-scoped API/UI controls | Multi-user browser/RLS acceptance remains open |
+| F-27 | **Wired**: authenticated model-scoped monthly PDF route and Analytics download link now render from the analytics/playbook/viral store | Browser download, branding review, and deployment acceptance remain open; no background report schedule is claimed |
+| F-28 | **Wired**: digest enqueue/list page and relay-card persistence exist | Worker delivery and external channel acceptance remain open |
+| F-29, F-30 | **Wired/partial**: persisted image/video clip, resize, transcode, and caption-adaptation controls dispatch retry-safe media operations | Deployed image/video rehearsal remains open |
+| F-32, F-36, F-37 | **Wired/partial**: ToS→approval, photoshoot generation, retry/revise, and video review are user-visible | Real video frame scan/provider generation and browser terminal-state acceptance remain open |
+| F-33, F-34, F-35 | **Internal/partial**: LLM gateway/TOKENKILLER/provider paths exist | Provider cache toggles and provider-by-provider live acceptance are not a dashboard workflow |
+| F-38, F-39, F-40, F-42 | **Partial/internal**: channel/connectors and LLM/provider mechanics exist | Community setup, Venice/vLLM live configuration, and public-agent acceptance are not exposed as complete workflows |
+| F-44, F-45, F-47 | **Wired**: REST, `/api/mcp`, dynamic manifest and tiered tools are implemented | External Bearer/MCP client rehearsal and rate/audit evidence remain open |
+| F-46 | **Wired/partial**: owner-only per-model grants, one-time capability issuance, durable token registry/revocation, and Agent access UI now exist | External MCP-client rehearsal, provider-side token delivery, and role/browser acceptance remain open |
+| F-48, F-52, F-53 | **Wired native**: first-party page, short links, click analytics, and native editor ship | Cross-provider normalization is limited to native until future adapters exist |
+| F-49, F-50, F-51 | **Planned by specification**: Fanlynks, Linktree, and Beacons are explicitly rejected/hidden | Do not represent them as connected; implement only as a separately scoped provider project |
+| F-54, F-55, F-56, F-57 | **Wired/partial**: revisioned model-scoped playbook guidelines are editable in the dashboard and injected into generation context | Scheduler/browser acceptance remains open |
+| F-58–F-67 | **Wired static contract subset**: connector tests cover the corrected TikTok, Discord, Threads, Instagram, and YouTube request/response semantics; unsupported paths remain explicit | OAuth/onboarding, current provider-contract probes, account management, and live publish/metrics/moderation evidence remain open |
+| F-68, F-69, F-70, F-72 | **Partial/internal**: signed relay cards/commands and dashboard approval overlap exist | Dashboard relay-card history and complete deep-link/editor lifecycle are not exposed as a dedicated workflow |
+| F-71 | **Wired source/UI**: model-scoped Telegram/Discord/Signal/iMessage binding CRUD and Relay page now exist | Adapter credential/configuration and real channel delivery remain deployment evidence |
+| F-73–F-78 | **Partial**: incidents, crash triage, replay, structured logs, metrics and health primitives exist | Sentry/GlitchTip release/source-map upload, Grafana/OTel deployment, crash-loop paging and live DLQ rehearsal remain open |
+| F-79–F-85 | **Partial/internal**: metric ingestion, labels, recipes, embeddings, retrieval, bandit and insights are implemented | Operator controls/history and worker/runtime acceptance remain incomplete |
+| F-86 | **Wired setting/partial**: org-level sharing toggle and scoped viral retrieval exist | Cross-model sharing acceptance and privacy rehearsal remain open |
+| F-87 | **Wired source/UI**: metadata-only consent vault, revoke, and publication gate are reachable | Encrypted document-store/provider and expiry rehearsal remain open |
+| F-88 | **Partial**: Expo app restores auth and exposes settings/digest/Relay | It is not feature-parity with the responsive dashboard; mobile browser and native acceptance remain open |
+
+### Executed remediation queue
+
+The source implementation queue has now completed variant/A-B controls, authenticated
+scrape orchestration, team/shift operations, media clipping/adaptation, and playbook
+guideline management. Remaining work is primarily runtime/provider evidence: live
+provider contracts and OAuth/publishing, an actual R2 round trip, privileged VPN
+isolation, browser/mobile acceptance, live migration rehearsal, external observability
+deployment, and GitHub branch/ruleset enforcement. External provider adapters remain
+separately gated because claiming them without provider contracts would recreate the
+audit defect.
+
 ## Capability-family coverage
 
 Backend paths below are relative to `/api/v1` unless noted. Evidence paths are relative to the repository root.
@@ -17,18 +71,21 @@ Backend paths below are relative to `/api/v1` unless noted. Evidence paths are r
 | Capability and backend evidence | Dashboard evidence / disposition | Result |
 | --- | --- | --- |
 | Models list/detail/create/PATCH/DELETE (`routes/models.ts`) | Home, `NewModelForm`, profile and `CharacterLockEditor`; general name/handle/bio/avatar editing, activation and deletion controls not found | Partial |
-| Network metadata/health (`routes/network.ts`) | `NetworkForm` submits mode/address/expected IP; no full WG peer fields, live health action or failover editor | Partial |
-| Encrypted egress credentials, config CRUD, bind/unbind/sync/status/health (`routes/egress.ts`) | No `/egress` control calls found. Network metadata save is not credential provisioning or binding | Absent |
+| Network metadata/health (`routes/network.ts`) | `NetworkForm` submits mode/address/expected IP; model Network page now exposes egress credentials, bind/unbind/sync/status/health controls with role-aware failure states | Wired source/UI; privileged VPN rehearsal remains open |
+| Encrypted egress credentials, config CRUD, bind/unbind/sync/status/health (`routes/egress.ts`) | Network page reaches the model-scoped egress contracts; secrets are never rendered back | Wired source/UI; deployed tunnel/kill-switch acceptance remains open |
 | Social account list/connect/delete; Fanvue authorize/callback/refresh; Threads authorize/callback (`routes/social.ts`, `fanvue-auth.ts`, `threads-auth.ts`) | Network account table and approval account selector; no connect/disconnect/onboarding workflow | Partial |
 | Fan contacts, timeline, touchpoint creation, custom-request create/status (`routes/fans.ts`) | Fans page reads two lists; no timeline/detail, contact creation, touchpoint or ticket mutation controls | Partial |
 | Consent records/status/create/revoke (`routes/consent.ts`) | No vault page, status panel, creation or revoke controls | Absent |
 | Calendar and post schedule/reschedule/cancel (`routes/posts.ts`) | Calendar reads month-filtered cards; approval can schedule, but existing-post PATCH/DELETE controls are absent; no drag/drop week/month view | Partial |
+| Cascade template CRUD/expansion (`routes/cascade-templates.ts`) | Model workspace Cascade schedules page creates, enables/disables, deletes and expands templates with stable mutation identity | Wired source/UI; runtime/provider acceptance remains open |
+| Trigger-rule CRUD/evaluation (`routes/trigger-rules.ts`, `worker/executors/trigger.ts`) | Model workspace Automation rules page configures threshold/action rules; metrics polling enqueues evaluation | Wired source/UI/internal worker; provider metrics, churn events, moderation adapters, and live acceptance remain open |
 | Bundle list/detail/create/media/approve/revise/reject/video-review (`routes/bundles.ts`) | Approval controls, `BundleMedia`, `VideoReview`; creation also occurs through generation/upload. Arbitrary raw bundle creation does not need a duplicate UI. No general all-state media/history library | Partial |
 | Generation, source-image selection, retry, prompt suggestion (`routes/generate.ts`) | `GenerateForm`, `GenerationProgress`, `GenerationRetry`, `SavedGenerationRetry`, `MediaPromptSuggestion` provide call paths | Wired; runtime acceptance incomplete |
 | Image/video upload (`routes/media-upload.ts`) | `MediaUpload` exists; persistent source-media browsing and source-video library not found | Partial |
 | Native link-in-bio CRUD/analytics (`routes/linkbio.ts`) | `LinkbioPanel` enables/disables native provider and edits links; analytics page call exists. External adapters explicitly unavailable | Wired native only |
 | Analytics/viral exemplars (`routes/analytics.ts`, `viral.ts`) | Analytics page displays 30-day data and viral data; broader filtering/detail controls not established | Partial |
-| Playbook score/read/record (`routes/playbook.ts`) | Score display exists; no guideline/cadence management UI. Recording computed evidence is not necessarily an operator action | Partial |
+| Monthly PDF report (`routes/reports.ts`) | Analytics page exposes a model-scoped download link; generated artifact is private and no-store | Wired; browser/PDF visual acceptance remains open |
+| Playbook score/read/record (`routes/playbook.ts`) | Score display plus revisioned Playbook guideline CRUD/editor are reachable from the model workspace | Wired source/UI; scheduler/browser acceptance remains open |
 | Audit list/verify (`routes/audit.ts`) | Audit page calls both; source wiring present | Wired |
 | Incident list/replay (`routes/incidents.ts`) | Incidents page plus `ReplayButton`; source wiring present | Wired |
 | Crash report ingestion/list/resolve (`routes/crash-reports.ts`) | No dashboard crash triage/resolve workflow; incident jobs are not the same resource | Absent |
@@ -37,12 +94,12 @@ Backend paths below are relative to `/api/v1` unless noted. Evidence paths are r
 | Kill switch read/enable/disable (`routes/killswitch.ts`) | Banner and `KillSwitchControl` exist; owner-only permission awareness remains a UI gap | Partial |
 | Grok subscription status/login attempts/cancel (`llm-gateway/src/routes.ts`) | `GrokConnection` and `lib/grok-connection.ts` wired; credential presence correctly distinguished from generation access | Wired subset |
 | Subscription disconnect and other provider login/status (`llm-gateway/src/routes.ts`) | Grok attempt cancellation is not subscription disconnect; no general provider onboarding/disconnect UI found | Partial |
-| Grok R2 configuration read/write/delete (`llm-gateway/src/routes.ts`) | `GrokR2Storage` provides all three controls; saved state is not a successful storage round trip | Wired |
+| Grok R2 configuration read/write/delete/verify (`llm-gateway/src/routes.ts`) | `GrokR2Storage` provides save/status/verify/remove; verification performs an application-scoped write/read/checksum/delete probe | Wired source/UI; live bucket round trip remains open |
 | Chat/tokenkiller/stream/providers/stats (`llm-gateway/src/routes.ts`) | Some consumption through generation; no generic chat/stats console. Internal chat primitives need not all become buttons | Internal / incomplete operator visibility |
 | Relay card/command, webhook adapters (`relay/src/routes.ts`, API registration) | Dashboard approvals overlap some actions; no channel pairing/binding management UI found. Native Relay screen reads digests/crashes, not proof of full card lifecycle control | Partial |
-| MCP analytics/inbox/generation/publishing/network tools (`mcp-server/src/manifest.ts`) | No agent grant/tier/token administration UI found; raw tool invocation is not required as a separate dashboard | Absent administration |
-| Media transcode/resize/watermark/clip/video variants (`crates/media-plane/src/main.rs`) | Upload/ToS consume part of media infrastructure; no user watermark/crop/clip editor found. Sidecar routes alone do not establish full editing feature implementation | Partial / internal primitives |
-| Social/competitor scraping (`crates/scraper/src/main.rs`) | No competitor-management/benchmarking workflow found; endpoint existence is not product completion | Absent workflow |
+| MCP analytics/inbox/generation/publishing/network tools (`mcp-server/src/manifest.ts`) | Agent access page administers grants/tokens; raw tool invocation is not required as a separate dashboard | Wired administration; external client acceptance remains open |
+| Media transcode/resize/watermark/clip/video variants (`crates/media-plane/src/main.rs`) | Media page exposes persisted clip/resize/transcode controls and approvals expose caption adaptation with reapproval | Wired source/UI; deployed sidecar rehearsal remains open |
+| Social/competitor scraping (`crates/scraper/src/main.rs`) | Scraping page creates bounded authenticated runs and reports queued/running/completed/failed state | Wired source/UI; deployed sidecar rehearsal and benchmark history remain open |
 | Vision classification, hash, frames, encryption/decryption, telemetry, health, OAuth callbacks | Keep internal or service-authenticated; expose results/settings through scoped workflows, never raw secret/decrypt or arbitrary sidecar execution controls | Intentionally internal |
 
 ## Confirmed cross-cutting defects
@@ -168,3 +225,203 @@ Evidence: eleven focused preview/library tests, dashboard typecheck and focused
 lint passed. The tests cover library image/video byte-load failures and manual
 retry alongside existing deadline/cleanup/HTML-response checks. Actual browser
 playback and deployed acceptance remain unverified.
+# M211: Consent vault GUI
+
+The existing metadata-only consent-record and immutable-revoke APIs are now
+reachable from every talent workspace through a Consent vault tab. The UI lists
+grant/revoke state, validity, subject and digest, explicitly excludes document
+bytes, and exposes add/revoke only to owner/manager/operator roles. Create and
+revoke controls preserve idempotency identity after uncertain responses and
+validate returned record identity/state.
+
+The media library now links an owned image directly into the existing video
+generation form. The generator opens in video mode with that source selected,
+shows an authenticated source preview link, and still requires the operator to
+review the prompt before queueing.
+
+Evidence: 16 consent/navigation/page tests and 33 generation/library handoff
+tests passed; dashboard typecheck and focused lint passed (existing Next
+pages-directory warning). No live consent, media, or generation mutation was
+performed. Provider acceptance, browser/mobile acceptance, social connector
+workflow coverage, and deployment remain open.
+# M212: Social-account lifecycle judgment
+
+The connected-account table now exposes provider-backed disconnect/revoke to
+owner, manager and operator roles, with confirmation, stable uncertain-request
+identity, and response validation. Connection creation was intentionally not
+faked: the existing API requires an encrypted credential envelope and the
+repository has no completed OAuth/onboarding UI for these platform rows. That
+gap remains explicit rather than presenting a plaintext token form.
+
+Evidence: eight focused network/disconnect tests, dashboard typecheck and
+focused lint passed. No provider revoke or live account mutation was performed.
+# M213: Workspace settings GUI
+
+The existing owner-only org-settings GET/PATCH routes now have a discoverable
+Settings page. It exposes only the real `viralSharing` and `publishingEnabled`
+switches, explains their scope, keeps emergency halt on the Safety page, and
+validates the returned persisted values. Non-owners receive an explicit access
+message; load failures are not rendered as defaults.
+
+Evidence: 16 focused settings/navigation tests, dashboard typecheck and focused
+lint passed. No workspace setting was changed live. This does not imply that a
+mechanics-only worker/netns/ledger control needs a separate GUI.
+# M214: Weekly digest GUI
+
+The existing digest-week enqueue and relay-card list APIs now have a primary
+navigation page. Operational roles can queue the current weekly digest; the UI
+requires a confirmed job receipt, does not auto-retry a possibly paid/queued
+mutation, and explains that queueing is not publication. Durable cards are
+rendered with cursor pagination and load failures are distinct from an empty
+history. Read-only roles can review cards but cannot queue a digest.
+
+Evidence: three focused digest tests, dashboard typecheck and focused lint
+passed. No digest was queued live. Worker completion and deployed browser
+acceptance remain open.
+
+# M220: Model lifecycle and avatar controls
+
+The existing model PATCH/soft-delete contracts are now reachable from the
+overview for operational roles. Avatar URL editing uses the existing nullable
+field with bounded HTTP(S) validation. Deactivation requires confirmation and
+retains media, bundles, and audit history; reactivation uses PATCH. Both paths
+preserve one idempotency key/body across an uncertain response and validate the
+returned model identity and `isActive` state.
+
+Evidence: model route 23-test suite, profile/lifecycle/overview 14 focused
+dashboard tests, API/dashboard typechecks, and diff check pass. No live profile
+was changed; role, deployed, and browser acceptance remain open.
+
+# M221: Relay binding workflow
+
+Added model-scoped Relay binding GET/POST/PATCH contracts over the existing
+`relay_binding` table and exposed a Relay delivery tab in each talent workspace.
+The UI supports Telegram, Discord, Signal, and iMessage destination references,
+role-aware enable/disable controls, confirmation, response validation, and
+uncertain-intent retry. It deliberately never accepts bot credentials; those
+remain deployment-owned. The page explains that a saved binding is not proof of
+adapter configuration or external delivery.
+
+Evidence: relay-binding route tests, overview navigation tests, API/dashboard
+typechecks and diff check pass. No channel binding was created or external
+message sent. Real adapter configuration and worker delivery remain open.
+
+# M222: Media origin provenance
+
+Added an additive `asset.origin` field (`uploaded`, `generated`, or legacy)
+with a migration-safe `legacy` fallback. The upload route records `uploaded`,
+the media-generation executor records `generated`, and the talent media
+library now labels source uploads separately from generated output. Existing
+assets are not guessed or relabelled.
+
+Evidence: DB schema/migration 122 tests, media-upload 12 tests,
+media-generation 14 tests pass. No migration was run against a live database;
+deployment and browser gallery acceptance remain open.
+
+# M223: Monthly performance report
+
+Added an authenticated, model-scoped monthly PDF endpoint that aggregates
+scheduled/published posts, provider metrics, latest Course Adherence Score, and
+viral exemplar counts for a validated `YYYY-MM` calendar window. The Analytics
+page now exposes a direct download link. The artifact is generated in-process,
+marked private/no-store, and contains no provider credentials or user-supplied
+HTML. This is on-demand report generation; a background monthly scheduler and
+external white-label branding review remain separate deployment/product work.
+
+Evidence: three report-route tests, API/dashboard typechecks and dashboard lint
+pass. No live report was downloaded; runtime database and browser/PDF rendering
+acceptance remain open.
+
+# M224: Durable agent permission administration
+
+Added owner-only model-scoped agent grant CRUD and a discoverable Agent access
+page. Issuing a grant creates a short-lived signed bearer token and records only
+non-secret token metadata; the raw token is shown once. The MCP HTTP transport
+now checks both the global revocation denylist and the durable token/grant
+registry inside the model's RLS context, so deleted or changed grants fail
+closed across API processes. Token revoke is durable and audited.
+
+Evidence: agent route 3-test suite, MCP auth durable-grant regression, DB schema
+and migration tests, API/dashboard typechecks, dashboard lint, and overview
+navigation update pass. No live grant/token was issued; external MCP client and
+browser role acceptance remain open.
+
+# M225: Cross-platform cascade schedule templates
+
+Added a model-scoped `cascade_template` resource and migration with ordered platform
+steps, bounded offsets, enable/disable/delete controls, and an operator-facing Cascade
+schedules page. Expansion accepts only a future base time and an approved content
+bundle, verifies model-scoped consent, media capability, and connected-account
+resolution for every destination, then creates ordinary `post_target` rows and
+`publish.target` jobs in the same transaction with deterministic target idempotency.
+The workflow explicitly does not bypass approval, ToS, consent, kill-switch, or worker
+gates.
+
+Evidence: DB schema/migration tests, cascade route tests covering auth, validation,
+persistence and future-only expansion guards, API/dashboard typechecks, dashboard lint,
+and middleware registration checks. No live schedule was expanded; provider accounts,
+worker execution, and authenticated browser/mobile acceptance remain open.
+
+# M226: Metrics-driven trigger rules
+
+Added authenticated model-scoped trigger-rule CRUD with bounded metric thresholds,
+supported platform validation, cooldowns, and safe action configuration. Added the
+`trigger.evaluate` worker job after real metrics ingestion. A matching threshold can
+enqueue a new content-generation bundle or an operator relay card; it cannot publish
+directly and the resulting work still passes ToS, approval, kill-switch, and worker
+gates. The model workspace now exposes Automation rules with role-aware controls and
+same-intent retry handling.
+
+Evidence: trigger route tests, API/worker/dashboard typechecks, and full regression
+coverage for the existing dashboard/API/DB slices. Churn-rescue subscription events,
+connector moderation APIs, provider metrics, and deployed worker acceptance remain
+open.
+
+# M227: Variant, scraper, team, media, and playbook source reconciliation
+
+Implemented the next five architecture slices as additive, tenant-scoped workflows:
+variant experiments with deterministic assignments and winner promotion; bounded
+authenticated scrape runs with durable worker state; team membership, shifts, notes,
+and queue operations; persisted media clip/resize/transcode operations plus approval-safe
+caption adaptation; and revisioned playbook guidelines injected into generation context.
+Each mutation has role/model ownership checks, idempotency where it creates durable work,
+and visible dashboard loading/empty/error states. No operation publishes directly.
+
+Evidence: API, DB, worker, and dashboard tests; package typechecks; migration dry-run
+through migration 0034; and `git diff --check`. Live sidecar, database, multi-user,
+browser, and mobile acceptance remain open.
+
+# M228: Provider contract and R2 verification reconciliation
+
+The connector test suite now verifies the source-level contracts for TikTok Direct Post
+initialization/status/revoke, Discord 204 webhook responses and token deletion, Threads
+media parameters/carousel/post insights, Instagram carousel containers, and the absence
+of the deprecated YouTube favorite/share metric. These are static contract checks, not
+live provider proofs. The references are the official [TikTok Direct Post API](https://developers.tiktok.com/docs/en/content-posting-api-reference-direct-post),
+[Discord Webhook resource](https://docs.discord.com/developers/resources/webhook), and
+[YouTube videos resource](https://developers.google.com/youtube/v3/docs/videos).
+
+Grok R2 now has an explicit dashboard verification action and an application-scoped
+write/read/checksum/delete probe; credentials remain encrypted and are not returned.
+The live bucket round trip has not been run from this workspace.
+
+# M229: Regression and release-gate checkpoint
+
+Focused API middleware, worker sanitizer, dashboard R2, LLM gateway R2, connector, DB,
+and typecheck gates pass. The full package suites are resource-sensitive when run in
+parallel: API and dashboard import hooks can exceed the default 30-second Vitest hook
+timeout, and the sanitizer's real FFmpeg image fixture can exceed it under contention;
+the affected suites pass when isolated. This is recorded as a test-harness execution
+constraint, not suppressed as a product pass.
+
+The deployed test release remains the separately verified `da09f664cbe801ed45a62ad4ad8014c94c795`
+artifact with successful hosted CI. Current source typecheck and application compilation
+pass; the Windows production packaging step cannot create Next standalone symlinks under
+the current non-elevated checkout and therefore needs a Linux/CI packaging run or an
+explicitly approved Windows symlink-capable environment. Current source changes are not
+yet committed or deployed. GitHub rulesets read empty, and branch-protection
+write/readback is still an external operator gate because the connected GitHub
+integration cannot manage that endpoint. Security scan evidence is clean for tracked
+secrets, patched-dependency fixtures, pnpm audit, and `.env` handling; cargo-audit could
+not refresh the RustSec advisory database because this workstation could not reach the
+GitHub advisory repository.

@@ -27,6 +27,16 @@ import { orgSettingsRouter } from './routes/org-settings.js';
 import { fanvueAuthRouter } from './routes/fanvue-auth.js';
 import { threadsAuthRouter } from './routes/threads-auth.js';
 import { consentRouter } from './routes/consent.js';
+import { relayBindingsRouter } from './routes/relay-bindings.js';
+import { reportsRouter } from './routes/reports.js';
+import { agentPermissionsRouter } from './routes/agent-permissions.js';
+import { cascadeTemplatesRouter } from './routes/cascade-templates.js';
+import { triggerRulesRouter } from './routes/trigger-rules.js';
+import { variantExperimentsRouter } from './routes/variant-experiments.js';
+import { scrapeRouter } from './routes/scrape.js';
+import { teamOperationsRouter } from './routes/team-operations.js';
+import { mediaOperationsRouter } from './routes/media-operations.js';
+import { playbookGuidelinesRouter } from './routes/playbook-guidelines.js';
 import {
   auth,
   normalizeAuthOrigin,
@@ -734,6 +744,22 @@ app.use('/api/v1/digests/*', requireAuth);
 app.use('/api/v1/crash-reports/*', requireAuth);
 app.use('/api/v1/models/:modelId/consent-records/*', requireAuth);
 app.use('/api/v1/models/:modelId/consent-status', requireAuth);
+app.use('/api/v1/models/:modelId/relay-bindings', requireAuth);
+app.use('/api/v1/models/:modelId/relay-bindings/*', requireAuth);
+app.use('/api/v1/models/:modelId/reports/*', requireAuth);
+app.use('/api/v1/models/:modelId/agent-permissions', requireAuth);
+app.use('/api/v1/models/:modelId/agent-permissions/*', requireAuth);
+app.use('/api/v1/models/:modelId/cascade-templates', requireAuth);
+app.use('/api/v1/models/:modelId/cascade-templates/*', requireAuth);
+app.use('/api/v1/models/:modelId/variant-experiments', requireAuth);
+app.use('/api/v1/models/:modelId/variant-experiments/*', requireAuth);
+app.use('/api/v1/models/:modelId/scrape-runs', requireAuth);
+app.use('/api/v1/models/:modelId/scrape-runs/*', requireAuth);
+app.use('/api/v1/models/:modelId/team-operations', requireAuth);
+app.use('/api/v1/models/:modelId/team-operations/*', requireAuth);
+app.use('/api/v1/models/:modelId/media-operations', requireAuth);
+app.use('/api/v1/models/:modelId/media-operations/*', requireAuth);
+app.use('/api/v1/models/:modelId/playbook-guidelines', requireAuth);
 app.use('/api/v1/org-settings/*', requireAuth);
 // LLM requests can spend provider credits and reveal provider/runtime state.
 app.use('/api/v1/llm/*', requireAuth);
@@ -777,6 +803,23 @@ app.use('/api/v1/models/:modelId/generate', operationalMutation);
 app.use('/api/v1/models/:modelId/generate/*', operationalMutation);
 app.use('/api/v1/models/:modelId/consent-records', operationalMutation);
 app.use('/api/v1/models/:modelId/consent-records/*', operationalMutation);
+app.use('/api/v1/models/:modelId/relay-bindings', operationalMutation);
+app.use('/api/v1/models/:modelId/relay-bindings/*', operationalMutation);
+app.use('/api/v1/models/:modelId/agent-permissions', ownerOnly);
+app.use('/api/v1/models/:modelId/agent-permissions/*', ownerOnly);
+app.use('/api/v1/models/:modelId/cascade-templates', operationalMutation);
+app.use('/api/v1/models/:modelId/cascade-templates/*', operationalMutation);
+app.use('/api/v1/models/:modelId/trigger-rules', operationalMutation);
+app.use('/api/v1/models/:modelId/trigger-rules/*', operationalMutation);
+app.use('/api/v1/models/:modelId/variant-experiments', operationalMutation);
+app.use('/api/v1/models/:modelId/variant-experiments/*', operationalMutation);
+app.use('/api/v1/models/:modelId/scrape-runs', operationalMutation);
+app.use('/api/v1/models/:modelId/scrape-runs/*', operationalMutation);
+app.use('/api/v1/models/:modelId/team-operations', operationalMutation);
+app.use('/api/v1/models/:modelId/team-operations/*', operationalMutation);
+app.use('/api/v1/models/:modelId/media-operations', operationalMutation);
+app.use('/api/v1/models/:modelId/media-operations/*', operationalMutation);
+app.use('/api/v1/models/:modelId/playbook-guidelines', operationalMutation);
 app.use('/api/v1/models/:modelId/playbook-score/record', operationalMutation);
 app.use('/api/v1/incidents', operationalMutation);
 app.use('/api/v1/incidents/*', operationalMutation);
@@ -828,6 +871,22 @@ app.use('/api/v1/org-settings', idempotency());
 app.use('/api/v1/digests/generate', idempotency());
 app.use('/api/v1/crash-reports/*', idempotency());
 app.use('/api/v1/models/:modelId/consent-records/*', idempotency());
+app.use('/api/v1/models/:modelId/relay-bindings', idempotency());
+app.use('/api/v1/models/:modelId/relay-bindings/:id', idempotency());
+app.use('/api/v1/models/:modelId/agent-permissions', idempotency());
+app.use('/api/v1/models/:modelId/agent-permissions/:permissionId', idempotency());
+app.use('/api/v1/models/:modelId/agent-permissions/:permissionId/tokens', idempotency());
+app.use('/api/v1/models/:modelId/agent-permissions/:permissionId/tokens/:tokenId/revoke', idempotency());
+app.use('/api/v1/models/:modelId/cascade-templates', idempotency());
+app.use('/api/v1/models/:modelId/cascade-templates/:templateId', idempotency());
+app.use('/api/v1/models/:modelId/cascade-templates/:templateId/expand', idempotency());
+app.use('/api/v1/models/:modelId/trigger-rules', idempotency());
+app.use('/api/v1/models/:modelId/trigger-rules/:ruleId', idempotency());
+app.use('/api/v1/models/:modelId/variant-experiments', idempotency());
+app.use('/api/v1/models/:modelId/scrape-runs', idempotency());
+app.use('/api/v1/models/:modelId/team-operations', idempotency());
+app.use('/api/v1/models/:modelId/media-operations', idempotency());
+app.use('/api/v1/models/:modelId/playbook-guidelines', idempotency());
 app.use('/api/v1/models/:modelId/linkbio/*', idempotency());
 app.use('/api/v1/posts', idempotency());
 app.use('/api/v1/posts/:id', idempotency());
@@ -868,6 +927,16 @@ app.route('/api/v1', digestsRouter);
 app.route('/api/v1', crashReportsRouter);
 app.route('/api/v1', consentRouter);
 app.route('/api/v1', orgSettingsRouter);
+app.route('/api/v1', relayBindingsRouter);
+app.route('/api/v1', reportsRouter);
+app.route('/api/v1', agentPermissionsRouter);
+app.route('/api/v1', cascadeTemplatesRouter);
+app.route('/api/v1', triggerRulesRouter);
+app.route('/api/v1', variantExperimentsRouter);
+app.route('/api/v1', scrapeRouter);
+app.route('/api/v1', teamOperationsRouter);
+app.route('/api/v1', mediaOperationsRouter);
+app.route('/api/v1', playbookGuidelinesRouter);
 
 // LLM gateway — unified multi-provider chat completions
 const llmGateway = new LLMGateway();
@@ -913,6 +982,31 @@ app.post('/api/mcp', async (c) => {
             sql`SELECT 1 FROM mcp_token_revocation WHERE token_id = ${tokenId} LIMIT 1`,
           );
           return ((result?.rows ?? []) as unknown[]).length > 0;
+        },
+        isTokenAllowed: async (permission) => {
+          if (!permission.tokenId) return false;
+          try {
+            return await withModelOrg(permission.modelId, async (tx) => {
+              const result = await tx.execute(sql`
+                SELECT 1
+                FROM mcp_capability_token t
+                INNER JOIN agent_permission p ON p.id = t.permission_id
+                WHERE t.token_id = ${permission.tokenId}
+                  AND t.model_id = ${permission.modelId}
+                  AND t.agent_ref = ${permission.agentId}
+                  AND t.tier = ${permission.tier}
+                  AND t.revoked_at IS NULL
+                  AND t.expires_at > now()
+                  AND p.model_id = ${permission.modelId}
+                  AND p.agent_ref = ${permission.agentId}
+                  AND p.tier = ${permission.tier}
+                LIMIT 1
+              `);
+              return ((result?.rows ?? []) as unknown[]).length > 0;
+            });
+          } catch {
+            return false;
+          }
         },
         onToolCall: async ({ agentId, modelId, tier, toolName, requestId }) => {
           await withModelOrg(modelId, async (tx, orgId) => {

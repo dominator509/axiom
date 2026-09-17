@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
 import { createRouter } from './routes.js';
 import type { LLMGateway } from './gateway.js';
-import { loadR2Storage, saveR2Storage, removeR2Storage, r2StorageStatus, r2ManagedConfig, r2StorageSchema } from './grok-r2-storage.js';
+import { loadR2Storage, saveR2Storage, removeR2Storage, r2StorageStatus, r2ManagedConfig, r2StorageSchema, verifyR2Storage } from './grok-r2-storage.js';
 
 let root: string;
 const scope = { userId: 'test-operator', orgId: 'test-workspace' };
@@ -87,4 +87,19 @@ it('rejects insecure setup, malformed and oversized bodies without echoing crede
   }
   const oversized = await app().request(route, put(undefined, JSON.stringify({ value: 'x'.repeat(262144) })));
   expect(oversized.status).toBe(413); expect(oversized.headers.get('cache-control')).toBe('no-store');
+});
+it('verifies private R2 read/write with a temporary tenant-scoped object and cleanup', async () => {
+  saveR2Storage(scope, config);
+  const probe = Buffer.from('FanThynks private storage verification\n');
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(new Response(null, { status: 200 }))
+    .mockResolvedValueOnce(new Response(probe, { status: 200 }))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  vi.stubGlobal('fetch', fetchMock);
+  await expect(verifyR2Storage(scope)).resolves.toEqual({ configured: true, verified: true });
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+  expect(fetchMock.mock.calls[0]![0]).toMatch(/^https:\/\/11111111111111111111111111111111\.r2\.cloudflarestorage\.com\/test-private-media\/axiom-verification\//);
+  expect(fetchMock.mock.calls[0]![1].headers.Authorization).toMatch(/^AWS4-HMAC-SHA256 Credential=/);
+  expect(fetchMock.mock.calls[0]![1].headers.Authorization).not.toContain(config.secretAccessKey);
+  expect(fetchMock.mock.calls[2]![1].method).toBe('DELETE');
 });

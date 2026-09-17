@@ -30,6 +30,9 @@ export type JobKind =
   | 'publish.target'
   | 'metrics.poll'
   | 'viral.label'
+  | 'trigger.evaluate'
+  | 'scrape.run'
+  | 'media.transform'
   | 'incident.notify'
   | 'dlq.replay';
 
@@ -41,6 +44,9 @@ export const JOB_KINDS: JobKind[] = [
   'publish.target',
   'metrics.poll',
   'viral.label',
+  'trigger.evaluate',
+  'scrape.run',
+  'media.transform',
   'incident.notify',
   'dlq.replay',
 ];
@@ -76,3 +82,5 @@ export interface IncidentNotifyPayload {
   incidentId: string;
   severity?: string;
 }
+export interface ScrapeRunPayload { runId: string; modelId: string }
+export interface MediaTransformPayload { operationId: string }

@@ -24,6 +24,16 @@ it('does not automatically request, exposes password fields and warns that savin
   await vi.waitFor(() => expect(hooks.values[0]).toContain('have not been verified'));
   expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ credentials: 'same-origin', cache: 'no-store', redirect: 'error' }));
 });
+it('offers an explicit bucket verification action and reports a verified result', async () => {
+  const tree = render();
+  fetchMock.mockResolvedValue(new Response(JSON.stringify({ configured: true, verified: true })));
+  const buttons = tree.props.children[3].props.children.filter((child: unknown) =>
+    typeof child === 'object' && child !== null && 'props' in child &&
+    typeof (child as { props?: { onClick?: unknown } }).props?.onClick === 'function') as Array<{ props: { onClick: () => void } }>;
+  buttons[1].props.onClick();
+  await vi.waitFor(() => expect(hooks.values[0]).toContain('read/write verified'));
+  expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ method: 'POST' }));
+});
 it('clears entered values before sending, suppresses duplicate submission and never retries failures', async () => {
   const reset = vi.fn();
   vi.stubGlobal('FormData', class { get(key: string) { return key === 'secretAccessKey' ? 'test-secret' : 'test-field'; } });

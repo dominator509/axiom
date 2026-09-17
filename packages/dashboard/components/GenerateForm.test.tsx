@@ -42,6 +42,12 @@ function key(fetch: ReturnType<typeof vi.fn>, index: number) {
 }
 
 describe('generation intent', () => {
+  it('opens in video mode with a selected stored source image from the media library', () => {
+    hooks.stateIndex = 0; hooks.refIndex = 0;
+    GenerateForm({ modelId: 'model-a', initialSourceAssetId: '11111111-1111-4111-8111-111111111111' });
+    expect(hooks.values[11]).toBe('video');
+    expect(hooks.values[13]).toBe('11111111-1111-4111-8111-111111111111');
+  });
   it.each(['', '   '])('omits cleared defaulted fields (%j) while preserving the media prompt', async blank => {
     submit();
     for (let index = 0; index < 5; index++) hooks.values[index] = blank;
