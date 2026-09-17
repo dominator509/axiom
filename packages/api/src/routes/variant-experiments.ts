@@ -37,6 +37,26 @@ const createSchema = z.object({
   platform: z.string().trim().min(1).max(50),
   variantIds: z.array(z.string().uuid()).min(2).max(10),
 }).strict();
+
+router.get('/models/:modelId/variant-experiments/:experimentId/assignments', async c => {
+  const orgId = requireOrg(c), modelId = c.req.param('modelId'), experimentId = c.req.param('experimentId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  if (![modelId, experimentId].every(id => z.string().uuid().safeParse(id).success)) return apiError(c, 400, statusTitle(400), 'Invalid experiment identity');
+  const { limit, cursor } = parseCursor(c, 20, 100);
+  const rows = await withOrgContext(orgId, async tx => {
+    const [experiment] = await tx.select({ id: schema.variantExperiment.id }).from(schema.variantExperiment).where(and(
+      eq(schema.variantExperiment.id, experimentId), eq(schema.variantExperiment.orgId, orgId), eq(schema.variantExperiment.modelId, modelId),
+    )).limit(1);
+    if (!experiment) return null;
+    const a = schema.variantExperimentAssignment;
+    return tx.select({ id: a.id, variantId: a.variantId, assignedAt: a.assignedAt, outcomeAt: a.outcomeAt, converted: a.converted, metricValue: a.metricValue })
+      .from(a).where(and(eq(a.orgId, orgId), eq(a.experimentId, experimentId), ...cursorLt(a.assignedAt, a.id, cursor)))
+      .orderBy(desc(a.assignedAt), desc(a.id)).limit(limit);
+  });
+  if (!rows) return apiError(c, 404, statusTitle(404), 'variant experiment not found');
+  const last = rows[rows.length - 1];
+  return c.json({ data: rows, meta: { next_cursor: nextCursor(last?.assignedAt, last?.id, limit, rows.length) } });
+});
 const patchSchema = z.object({ status: z.enum(['draft', 'running', 'paused']) }).strict();
 const assignmentSchema = z.object({ assignmentKey: z.string().trim().min(1).max(256) }).strict();
 const outcomeSchema = z.object({

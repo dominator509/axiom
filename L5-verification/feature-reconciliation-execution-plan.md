@@ -28,13 +28,14 @@ Source and automated evidence never substitutes for a missing runtime or provide
 - [x] Preserve the existing dirty worktree; do not reset unrelated work.
 - [ ] Re-run the final full test/build matrix in the hosted/deployment environment after publication.
 
-### 1. Variant and A/B workflows — source slice complete; runtime gate open
+### 1. Variant and A/B workflows — partial implementation; source and runtime gates open
 
 - Inspect and extend the existing `asset_variant` model rather than creating parallel media state.
 - Add an org/model-scoped experiment lifecycle: draft, running, paused, completed; candidate assignment; exposure accounting; winner promotion.
 - Enforce consent, asset ownership, platform capability, and idempotency at every mutation.
 - Add dashboard controls that show candidates, exposure, metrics, and the promoted winner; no direct publication from experiment controls.
-- [x] Gate: API/dashboard/DB tests, typecheck, and build pass for the source slice; live statistical validity remains a runtime observation gate.
+- [ ] Full architecture gate: L1 F-15 also calls for caption/teaser variants; F-16 and L2.8 require automated winner promotion feeding the bandit/viral learning loop. Current crop/adaptation experiments and manual winner selection do not fulfill those requirements. Published-post attribution, evidence-based automatic promotion, and reward integration must be implemented and tested; manual self-reported outcomes must not be treated as verified published-post learning signals.
+- Current slice: candidate picker/preview, lifecycle, paginated assignment history, stable allocation and observed-outcome controls, confirmed manual winner, frozen completion, and idempotency on nested mutations. Allocations are not counted as proven views. Focused tests/typechecks pass; database concurrency, browser acceptance and deployed workflow remain open.
 
 ### 2. Scraper orchestration — source slice complete; deployment gate open
 

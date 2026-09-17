@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { VariantExperiment, VariantCandidate } from '@/lib/api';
 import BundleMedia from './BundleMedia';
+import VariantExperimentTracking from './VariantExperimentTracking';
 import Link from 'next/link';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
@@ -179,7 +180,7 @@ export default function VariantExperimentManager({
                   >
                     <strong className="mono">{stat.variantId}</strong>
                     <span className="subtle">
-                      {stat.exposures} exposures · {stat.outcomes} outcomes
+                      {stat.exposures} allocations · {stat.outcomes} outcomes
                     </span>
                     <span>Metric total: {stat.metricTotal.toFixed(2)}</span>
                     <span>{stat.conversions === undefined ? 'Conversion data unavailable' : `${stat.conversions} conversions`}</span>
@@ -193,6 +194,7 @@ export default function VariantExperimentManager({
                 ))}
               </div>
               {experiment.status !== 'completed' && <p className="subtle">Winner selection is an operator decision, not a statistical-significance claim. Every variant needs at least one recorded outcome.</p>}
+              <VariantExperimentTracking modelId={modelId} experimentId={experiment.id} status={experiment.status} canEdit={canEdit} />
             </article>
           ))}
         </div>

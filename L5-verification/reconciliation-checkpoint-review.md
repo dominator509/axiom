@@ -14,6 +14,8 @@ Review findings requiring follow-up:
 
 Current verification:
 
+- Tracking GUI now supports paginated assignment history, stable opaque allocation identifiers, and explicit observed-outcome recording. All nested experiment mutations have one idempotency layer. 106 API/middleware and 11 dashboard tests plus typechecks pass. Architecture recheck identified genuine remaining source gaps: caption/teaser variants and automated, attributable winner-to-bandit/viral learning. Manual winner selection and self-reported outcomes do not satisfy those requirements; the execution plan is corrected accordingly.
+
 - Experiment winner selection is now exposed with confirmation and explicit manual-decision wording. Completion cannot be reopened or overwritten; assignment/outcome writes share-lock the experiment against completion, and completed results reject new outcomes while accepting identical replay. Fifteen API and four rendered-component tests and both typechecks pass. Database concurrency rehearsal, assignment/outcome GUI, and deployed browser acceptance remain open.
 
 - Variant discovery now has a model-scoped keyset-paginated API and checkbox/preview picker in the experiment page, with load-more retaining selections. Conversion counts are visible. Seven API and two rendered-component tests plus typechecks pass; live browser selection, assignment/outcome controls and winner promotion are not yet accepted.

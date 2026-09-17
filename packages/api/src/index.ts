@@ -883,6 +883,10 @@ app.use('/api/v1/models/:modelId/cascade-templates/:templateId/expand', idempote
 app.use('/api/v1/models/:modelId/trigger-rules', idempotency());
 app.use('/api/v1/models/:modelId/trigger-rules/:ruleId', idempotency());
 app.use('/api/v1/models/:modelId/variant-experiments', idempotency());
+app.use('/api/v1/models/:modelId/variant-experiments/:experimentId', idempotency());
+app.use('/api/v1/models/:modelId/variant-experiments/:experimentId/assign', idempotency());
+app.use('/api/v1/models/:modelId/variant-experiments/:experimentId/outcomes', idempotency());
+app.use('/api/v1/models/:modelId/variant-experiments/:experimentId/promote', idempotency());
 app.use('/api/v1/models/:modelId/scrape-runs', idempotency());
 app.use('/api/v1/models/:modelId/team-operations', idempotency());
 app.use('/api/v1/models/:modelId/media-operations', idempotency());

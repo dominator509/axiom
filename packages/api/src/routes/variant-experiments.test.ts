@@ -100,3 +100,16 @@ it('allows identical outcome replay after experiment completion', async () => {
   expect((await outcome()).status).toBe(200);
   expect(mockState.updates).toEqual([]);
 });
+it('lists paginated assignments after checking scoped experiment ownership', async () => {
+  mockState.results = [[], [{ id }], [{ id, variantId: id, assignedAt: new Date('2026-09-17T00:00:00Z'), outcomeAt: null, converted: false, metricValue: null }]];
+  const response = await app().request(`/models/${id}/variant-experiments/${id}/assignments?limit=1`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ data: [{ id, variantId: id }], meta: { next_cursor: expect.any(String) } });
+});
+it('does not list assignments for an absent scoped experiment', async () => {
+  mockState.results = [[], []];
+  expect((await app().request(`/models/${id}/variant-experiments/${id}/assignments`)).status).toBe(404);
+});
+it('rejects malformed assignment history identities', async () => {
+  expect((await app().request(`/models/${id}/variant-experiments/invalid/assignments`)).status).toBe(400);
+});
