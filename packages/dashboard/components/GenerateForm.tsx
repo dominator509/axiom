@@ -23,7 +23,7 @@ const PLATFORMS = [
   'fanvue',
 ];
 
-export default function GenerateForm({ modelId, initialSourceAssetId = '' }: { modelId: string; initialSourceAssetId?: string }) {
+export default function GenerateForm({ modelId, initialSourceAssetId = '', operatorControls = true }: { modelId: string; initialSourceAssetId?: string; operatorControls?: boolean }) {
   const router = useRouter();
   const [style, setStyle] = useState('studio');
   const [outfit, setOutfit] = useState('summer dress');
@@ -278,7 +278,7 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '' }: { m
         <div style={{ marginTop: 20 }}>
           <GeneratedCaptionReceipt captions={result.bundle?.captions} enrichment={result.captionEnrichment} />
           {result.mediaGeneration === 'queued' && result.bundle?.id && (
-            <GenerationProgress key={result.bundle.id} bundleId={result.bundle.id} modelId={modelId} />
+            <GenerationProgress key={result.bundle.id} bundleId={result.bundle.id} modelId={modelId} operatorControls={operatorControls} />
           )}
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <h3>{result.mediaGeneration === 'queued' ? 'Initial ToS report (before media generation)' : 'ToS report'}</h3>

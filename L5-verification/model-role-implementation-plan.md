@@ -101,6 +101,14 @@ denied history request from hiding valid media. Failed history suppresses new
 transform controls until refresh. Ten page tests and typecheck pass; generation
 page and its nested controls still require the role reconciliation pass.
 
+Generation page now allows operational roles and Creator only. Creator progress
+keeps previews and review-draft links without operator retry/incident controls;
+scan failures direct them to an operator. Forty focused tests and dashboard
+typecheck pass. The embedded Grok connection uses `/api/v1/llm/subscriptions/grok`:
+Creator own-user sign-in/status/cancellation requires an explicit central policy
+and gateway ownership verification before role activation. Do not expose storage
+administration or arbitrary gateway mutations by allowing the whole prefix.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including

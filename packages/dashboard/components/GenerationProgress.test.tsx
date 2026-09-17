@@ -12,6 +12,14 @@ vi.mock('./GenerationRetry', () => ({ default: () => 'Generation-retry-control' 
 import GenerationProgress from './GenerationProgress';
 beforeEach(() => { state.calls = 0; state.scanFailed = true; });
 describe('scan failure feedback', () => {
+  it('directs creators to drafts and an operator without inaccessible incident links', () => {
+    const html = renderToStaticMarkup(<GenerationProgress bundleId="bundle" modelId="model" operatorControls={false} />);
+    expect(html).toContain('Contact an operator for details');
+    expect(html).toContain('Open Review drafts');
+    expect(html).toContain('Saved-media-preview');
+    expect(html).not.toContain('href="/incidents"');
+    expect(html).not.toContain('Generation-retry-control');
+  });
   it('preserves preview and directs to incidents without offering regeneration', () => {
     const html = renderToStaticMarkup(<GenerationProgress bundleId="bundle" modelId="model" />);
     expect(html).toContain('ToS scanning failed');
