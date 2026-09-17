@@ -29,6 +29,7 @@ import { asPlatform, enqueueJob, resolveCapabilities } from '@axiom/worker';
 import type { Platform } from '@axiom/core';
 import { queueBundleRevision } from '../bundle-revision.js';
 import { assetPreview } from '../asset-preview.js';
+import { modelAccessCondition } from '../model-access.js';
 import { reviewedVideoReport, videoReviewRequest } from '../video-review.js';
 
 const router = new Hono<AppBindings>();
@@ -86,7 +87,7 @@ router.get('/:id', async (c) => {
     const rows = await tx
       .select()
       .from(schema.contentBundle)
-      .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.orgId, orgId)))
+      .where(and(eq(schema.contentBundle.id, id), eq(schema.contentBundle.orgId, orgId), modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.contentBundle.modelId)))
       .limit(1);
     if (!rows[0]) return null;
     if (rows[0].assetId && rows[0].tosReport?.verdict === 'pending') {
@@ -111,7 +112,7 @@ router.get('/:id/media', async (c) => {
   if (!id.success) return apiError(c, 400, statusTitle(400), 'invalid bundle id');
   const asset = await withOrgContext(orgId, async (tx) => {
     const [bundle] = await tx.select().from(schema.contentBundle)
-      .where(and(eq(schema.contentBundle.id, id.data), eq(schema.contentBundle.orgId, orgId))).limit(1);
+      .where(and(eq(schema.contentBundle.id, id.data), eq(schema.contentBundle.orgId, orgId), modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.contentBundle.modelId))).limit(1);
     if (!bundle?.assetId || bundle.orgId !== orgId) return null;
     const [row] = await tx.select().from(schema.asset).where(and(
       eq(schema.asset.id, bundle.assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, bundle.modelId),
@@ -629,6 +630,7 @@ router.get('/', async (c) => {
   const rows = await withOrgContext(orgId, (tx) => {
     const conds = [
       eq(schema.contentBundle.orgId, orgId),
+      modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.contentBundle.modelId),
       ...cursorLt(schema.contentBundle.createdAt, schema.contentBundle.id, cursor),
     ];
     if (modelId) conds.push(eq(schema.contentBundle.modelId, modelId));

@@ -2,12 +2,23 @@ import { expect, it } from 'vitest';
 import { scopedReadTarget, isScopedHumanRole } from './model-access.js';
 const id = '11111111-1111-4111-8111-111111111111';
 it.each(['chatter', 'content_creator', 'model'] as const)('denies unclassified routes and all writes for staged role %s', role => {
-  for (const path of ['/api/v1/audit', '/api/v1/org-settings', '/api/v1/llm/generate', '/api/v1/bundles', `/api/v1/models/${id}/network`, `/api/v1/models/${id}/member-assignments`, `/api/v1/models/${id}/unknown`, `/api/v1/models/${id}/fans/extra`])
+  for (const path of ['/api/v1/audit', '/api/v1/org-settings', '/api/v1/llm/generate', `/api/v1/bundles/${id}/approve`, `/api/v1/models/${id}/network`, `/api/v1/models/${id}/member-assignments`, `/api/v1/models/${id}/unknown`, `/api/v1/models/${id}/fans/extra`])
     expect(scopedReadTarget(role, 'GET', path)).toBeNull();
   for (const method of ['POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'])
     expect(scopedReadTarget(role, method, `/api/v1/models/${id}`)).toBeNull();
   expect(scopedReadTarget(role, 'GET', '/api/v1/models')).toBe('discovery');
   expect(scopedReadTarget(role, 'HEAD', `/api/v1/models/${id}`)).toBe(id);
+});
+it('allows media reads only for models and creators, never publishing or malformed paths', () => {
+  for (const role of ['model', 'content_creator'] as const) {
+    expect(scopedReadTarget(role, 'GET', '/api/v1/bundles')).toBe('discovery');
+    expect(scopedReadTarget(role, 'GET', `/api/v1/bundles/${id}/media`)).toBe(`bundle:${id}`);
+    expect(scopedReadTarget(role, 'GET', `/api/v1/models/${id}/media/${id}`)).toBe(id);
+    expect(scopedReadTarget(role, 'GET', `/api/v1/models/${id}/media/not-a-uuid`)).toBeNull();
+    expect(scopedReadTarget(role, 'POST', `/api/v1/bundles/${id}/approve`)).toBeNull();
+  }
+  expect(scopedReadTarget('chatter', 'GET', '/api/v1/bundles')).toBeNull();
+  expect(scopedReadTarget('chatter', 'GET', `/api/v1/models/${id}/media`)).toBeNull();
 });
 it('matches only blueprint read surfaces for each role', () => {
   expect(scopedReadTarget('chatter', 'GET', `/api/v1/models/${id}/calendar`)).toBeNull();

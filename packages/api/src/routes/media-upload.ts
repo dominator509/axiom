@@ -10,6 +10,7 @@ import type { AppBindings } from '../index.js';
 import { apiError, requireOrg, statusTitle, withOrgContext, writeAudit } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 import { assetPreview } from '../asset-preview.js';
+import { modelAccessCondition } from '../model-access.js';
 
 export const mediaUploadRouter = new Hono<AppBindings>();
 // Both uploaded and generated assets use the same tenant-scoped storage table.
@@ -22,6 +23,7 @@ mediaUploadRouter.get('/models/:modelId/media', async c => {
     id: schema.asset.id, kind: schema.asset.kind, origin: schema.asset.origin, mimeType: schema.asset.mimeType,
     fileSize: schema.asset.fileSize, width: schema.asset.width, height: schema.asset.height, createdAt: schema.asset.createdAt,
   }).from(schema.asset).where(and(eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
+    modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.asset.modelId),
     ...cursorLt(schema.asset.createdAt, schema.asset.id, cursor)))
     .orderBy(desc(schema.asset.createdAt), desc(schema.asset.id)).limit(limit));
   const last = rows[rows.length - 1];
@@ -33,6 +35,7 @@ mediaUploadRouter.get('/models/:modelId/media/:assetId', async c => {
   if (![modelId, assetId].every(id => z.string().uuid().safeParse(id).success)) return apiError(c, 400, statusTitle(400), 'Invalid media identity');
   const asset = await withOrgContext(orgId, async tx => (await tx.select().from(schema.asset).where(and(
     eq(schema.asset.id, assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
+    modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.asset.modelId),
   )).limit(1))[0]);
   if (!asset || asset.id !== assetId || asset.orgId !== orgId || asset.modelId !== modelId) return apiError(c, 404, statusTitle(404), 'Media unavailable');
   try { return await assetPreview(asset, c.req.raw, process.env.AXIOM_MEDIA_ROOT ?? 'var/media'); }

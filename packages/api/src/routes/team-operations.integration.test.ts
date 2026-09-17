@@ -1,5 +1,8 @@
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
+import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Hono } from 'hono';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { db, pool, schema } from '@axiom/db';
@@ -7,6 +10,8 @@ import type { AppBindings } from '../index.js';
 import { teamOperationsRouter } from './team-operations.js';
 import { modelAssignmentsRouter } from './model-assignments.js';
 import { modelsRouter } from './models.js';
+import { bundlesRouter } from './bundles.js';
+import { mediaUploadRouter } from './media-upload.js';
 import { enforceModelAccess, type ScopedHumanRole } from '../model-access.js';
 
 const url = process.env.TEST_DATABASE_URL, orgId = '11111111-1111-4111-8111-111111111111';
@@ -14,6 +19,10 @@ const models = [randomUUID(), randomUUID()], bundles = [randomUUID(), randomUUID
 const assignmentUsers = [randomUUID(), randomUUID()];
 const pageUsers = Array.from({ length: 51 }, () => randomUUID());
 const foreignOrg = randomUUID(), foreignModel = randomUUID();
+const assets = [randomUUID(), randomUUID()];
+const imageBytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
+let mediaRoot: string | undefined;
+const previousMediaRoot = process.env.AXIOM_MEDIA_ROOT;
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const scoped = <T>(operation: (tx: Transaction) => Promise<T>, org = orgId) => db.transaction(async tx => {
   await tx.execute(sql`SELECT set_config('app.current_org_id', ${org}, true)`); return operation(tx);
@@ -30,6 +39,8 @@ function scopedApp(role: ScopedHumanRole, org = orgId) {
   route.use('*', async (c, next) => { c.set('orgId', org); c.set('userId', assignmentUsers[0]); c.set('role', role); await next(); });
   route.use('/api/v1/*', enforceModelAccess);
   route.route('/api/v1/models', modelsRouter);
+  route.route('/api/v1/bundles', bundlesRouter);
+  route.route('/api/v1', mediaUploadRouter);
   return route;
 }
 const write = (postId: string, org = orgId) => app(org).request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetType: 'post', targetId: postId, body: 'Post handoff context' }) });
@@ -42,11 +53,15 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect(target.username).toBe('axiom_app');
     expect(target.pathname).toMatch(/^\/(?:axiom_test|axiom_workspace_test_[0-9a-f]{16})$/);
     expect((await pool.query('SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname=current_user')).rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
+    mediaRoot = await mkdtemp(join(tmpdir(), 'axiom-team-media-'));
+    process.env.AXIOM_MEDIA_ROOT = mediaRoot;
+    await writeFile(join(mediaRoot, 'fixture.png'), imageBytes);
     await scoped(async tx => {
       await tx.insert(schema.authUser).values({ id: assignmentUsers[0], orgId, name: 'Assignment fixture', email: `${assignmentUsers[0]}@example.invalid` });
       await tx.insert(schema.modelProfile).values(models.map(id => ({ id, orgId, displayName: 'Team fixture', handle: id })));
       for (let i = 0; i < 2; i++) {
-        await tx.insert(schema.contentBundle).values({ id: bundles[i], orgId, modelId: models[i], captions: { x: 'Test' } });
+        await tx.insert(schema.asset).values({ id: assets[i], orgId, modelId: models[i], fileName: 'fixture.png', mimeType: 'image/png', fileSize: imageBytes.length, storageKey: 'fixture.png', sha256: i === 0 ? createHash('sha256').update(imageBytes).digest() : createHash('sha256').update('unreadable-other-model-fixture').digest() });
+        await tx.insert(schema.contentBundle).values({ id: bundles[i], orgId, modelId: models[i], assetId: assets[i], captions: { x: 'Test' } });
         await tx.insert(schema.postTarget).values({ id: posts[i], orgId, bundleId: bundles[i], platform: 'x', state: 'pending', idemKey: Buffer.from(randomUUID()) });
       }
     });
@@ -60,6 +75,7 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     await scoped(async tx => {
       await tx.delete(schema.postTarget).where(inArray(schema.postTarget.id, posts));
       await tx.delete(schema.contentBundle).where(inArray(schema.contentBundle.id, bundles));
+      await tx.delete(schema.asset).where(inArray(schema.asset.id, assets));
       await tx.delete(schema.modelProfile).where(inArray(schema.modelProfile.id, models));
       await tx.delete(schema.authUser).where(inArray(schema.authUser.id, [assignmentUsers[0], ...pageUsers]));
     });
@@ -69,6 +85,9 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
       await tx.delete(schema.org).where(eq(schema.org.id, foreignOrg));
     }, foreignOrg);
     await pool.end();
+    if (previousMediaRoot === undefined) delete process.env.AXIOM_MEDIA_ROOT;
+    else process.env.AXIOM_MEDIA_ROOT = previousMediaRoot;
+    if (mediaRoot) await rm(mediaRoot, { recursive: true, force: true });
   });
   it('persists a post-linked note with the authenticated author', async () => {
     const result = await write(posts[0]); expect(result.status).toBe(201);
@@ -215,5 +234,30 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
     expect(await count()).toBe(0);
     expect((await route.request(`/api/v1/models/${models[0]}`)).status).toBe(404);
+  });
+  it.each(['model', 'content_creator'] as const)('authorizes real media bytes and filters bundle discovery for %s', async role => {
+    await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
+    const route = scopedApp(role);
+    const list = await (await route.request('/api/v1/bundles')).json() as { data: { id: string }[] };
+    expect(list.data.map(row => row.id)).toEqual([bundles[0]]);
+    expect((await (await route.request(`/api/v1/bundles?modelId=${models[1]}`)).json() as { data: unknown[] }).data).toEqual([]);
+    expect((await route.request(`/api/v1/bundles/${bundles[0]}`)).status).toBe(200);
+    expect((await route.request(`/api/v1/bundles/${bundles[1]}`)).status).toBe(404);
+    for (const path of [`/api/v1/bundles/${bundles[0]}/media`, `/api/v1/models/${models[0]}/media/${assets[0]}`]) {
+      const response = await route.request(path);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('private, no-store');
+      expect(Buffer.from(await response.arrayBuffer())).toEqual(imageBytes);
+      const partial = await route.request(path, { headers: { Range: 'bytes=0-7' } });
+      expect(partial.status).toBe(206);
+      expect(Buffer.from(await partial.arrayBuffer())).toEqual(imageBytes.subarray(0, 8));
+      expect((await scopedApp(role, foreignOrg).request(path)).status).toBe(404);
+    }
+    expect((await route.request(`/api/v1/bundles/${bundles[1]}/media`)).status).toBe(404);
+    expect((await route.request(`/api/v1/models/${models[1]}/media`)).status).toBe(404);
+    expect((await route.request(`/api/v1/models/${models[0]}/media/${assets[1]}`)).status).toBe(404);
+    expect((await route.request(`/api/v1/bundles/${bundles[0]}/approve`, { method: 'POST' })).status).toBe(403);
+    await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
+    expect((await route.request(`/api/v1/bundles/${bundles[0]}/media`)).status).toBe(404);
   });
 });

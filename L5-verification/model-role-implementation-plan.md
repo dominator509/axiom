@@ -3,7 +3,8 @@
 Authority: L1.0 personas/RBAC and L1.1 F-24–F-26.
 Status: **in progress**. Assignment storage, owner-only grant/revoke/list API and
 Team-page controls are implemented. Staged role enforcement now covers discovery,
-counts and direct model reads with a default-deny read allowlist. Nested resources,
+counts, direct model reads, bundle reads and media previews with a default-deny
+read allowlist. Remaining nested resources,
 mutations, scoped navigation and the live DM workflow remain incomplete; deployed
 browser acceptance is pending. Normal authentication rejects staged roles rather
 than treating them as unrestricted null-role sessions until the policy is complete.
@@ -21,6 +22,13 @@ shift for the exact organization/model/user and a half-open time window evaluate
 by PostgreSQL. Unknown route shapes, nested-ID routes and all mutations remain
 denied for staged roles until their explicit policies are implemented. This is an
 incomplete implementation, not a completed Chatter/Creator workflow.
+
+Bundle lists filter assignments before pagination; direct bundle IDs resolve
+through owned records. Gallery and bundle preview queries independently recheck
+assignment membership before opening files. Real PostgreSQL acceptance exercises
+temporary PNG byte delivery and range responses, foreign model/tenant denial,
+and revocation. Chatter cannot read these media paths. Creator approval and other
+mutations remain denied; roles are still not activated in normal authentication.
 
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
