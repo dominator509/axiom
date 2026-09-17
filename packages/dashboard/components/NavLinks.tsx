@@ -67,7 +67,7 @@ export default function NavLinks({ role }: { role?: string | null }) {
             aria-current={active ? 'page' : undefined}
           >
             <NavIcon name={item.icon} />
-            <span>{item.label}</span>
+            <span>{role === 'content_creator' && item.href === '/connections/grok' ? 'Grok account' : item.label}</span>
           </Link>
         );
       })}

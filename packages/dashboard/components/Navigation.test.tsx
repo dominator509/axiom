@@ -22,9 +22,15 @@ describe('workspace navigation coverage', () => {
     expect(html).not.toContain('href="/killswitch"');
     expect(html).not.toContain('href="/settings"');
     if (!role || ['chatter', 'content_creator', 'model'].includes(role)) {
-      expect(html.match(/href="/g)).toHaveLength(role === 'chatter' ? 2 : 1);
+      expect(html.match(/href="/g)).toHaveLength(role === 'chatter' || role === 'content_creator' ? 2 : 1);
       expect(html).toContain('href="/"');
     }
+  });
+  it('exposes only the Creator account connection, without advertising storage access', () => {
+    const html = renderToStaticMarkup(<NavLinks role="content_creator" />);
+    expect(html).toContain('href="/connections/grok"');
+    expect(html).toContain('Grok account');
+    expect(html).not.toContain('Grok &amp; storage');
   });
   it.each([
     ['chatter', ['', 'fans', 'inbox']],

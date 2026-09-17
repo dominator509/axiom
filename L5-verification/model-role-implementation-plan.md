@@ -1,5 +1,18 @@
 # Model-scoped human roles — implementation queue
 
+## Creator connection presentation checkpoint — M325
+
+Creator navigation now exposes the existing own-user Grok connection flow as
+“Grok account”. The server page checks the same role policy before mounting
+interactive controls. Creators do not receive R2 credential controls that their
+scoped API policy denies; Owner/Manager/Operator retain account and storage
+configuration. Analyst/Agent/Chatter/Model and unknown roles receive an explicit
+access explanation rather than nonfunctional mutation buttons. Thirty-seven
+page/navigation tests, dashboard typecheck and lint pass (three existing warnings).
+No login, credentials or live account state changed. Scoped authentication remains
+disabled pending its full acceptance gate; Creator video storage provisioning
+still needs a usable end-to-end solution, not merely hidden forbidden controls.
+
 ## Owner member GUI checkpoint — M323
 
 Owners can now discover `/members` through primary navigation, load paginated
