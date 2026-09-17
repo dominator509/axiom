@@ -281,6 +281,7 @@ export interface VariantExperimentStat {
   variantId: string;
   exposures: number;
   outcomes: number;
+  conversions?: number;
   metricTotal: number;
 }
 
@@ -296,6 +297,8 @@ export interface VariantExperiment {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface VariantCandidate { id: string; variantType: string; outputAssetId: string | null; createdAt: string }
 
 export interface ScrapeRun {
   id: string;
@@ -368,6 +371,8 @@ export const api = {
       apiFetch<{ data: TriggerRule[] }>(`/api/v1/models/${id}/trigger-rules`),
     variantExperiments: (id: string) =>
       apiFetch<{ data: VariantExperiment[] }>(`/api/v1/models/${id}/variant-experiments`),
+    variantCandidates: (id: string, cursor?: string) =>
+      apiFetch<{ data: VariantCandidate[]; meta: { next_cursor: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/variant-experiments/candidates${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
     scrapeRuns: (id: string) =>
       apiFetch<{ data: ScrapeRun[] }>(`/api/v1/models/${id}/scrape-runs`),
     teamOperations: (id: string) =>

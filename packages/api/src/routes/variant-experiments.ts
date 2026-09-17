@@ -12,8 +12,25 @@ import type { AppBindings } from '../index.js';
 import type { Context } from 'hono';
 import { withOrgContext, requireOrg, apiError, statusTitle, writeAudit } from './helpers.js';
 import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
+import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
+
+router.get('/models/:modelId/variant-experiments/candidates', async c => {
+  const orgId = requireOrg(c), modelId = c.req.param('modelId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  if (!z.string().uuid().safeParse(modelId).success) return apiError(c, 400, statusTitle(400), 'Invalid model');
+  const { limit, cursor } = parseCursor(c, 20, 100);
+  const rows = await withOrgContext(orgId, tx => tx.select({
+    id: schema.assetVariant.id, variantType: schema.assetVariant.variantType,
+    outputAssetId: schema.assetVariant.outputAssetId, createdAt: schema.assetVariant.createdAt,
+  }).from(schema.assetVariant).innerJoin(schema.asset, eq(schema.asset.id, schema.assetVariant.assetId))
+    .where(and(eq(schema.assetVariant.orgId, orgId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
+      ...cursorLt(schema.assetVariant.createdAt, schema.assetVariant.id, cursor)))
+    .orderBy(desc(schema.assetVariant.createdAt), desc(schema.assetVariant.id)).limit(limit));
+  const last = rows[rows.length - 1];
+  return c.json({ data: rows, meta: { next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length) } });
+});
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(120),

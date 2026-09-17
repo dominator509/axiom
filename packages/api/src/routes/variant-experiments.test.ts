@@ -18,6 +18,19 @@ function outcome(converted = true) {
   });
 }
 beforeEach(() => { mockState.results = []; mockState.result = []; mockState.updates = []; });
+it('lists variant candidate identities with a bounded page and continuation cursor', async () => {
+  mockState.results = [[], [{ id, variantType: 'image_resize', outputAssetId: id, createdAt: new Date('2026-09-17T00:00:00Z') }]];
+  const response = await app().request(`/models/${id}/variant-experiments/candidates?limit=1`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ data: [{ id, outputAssetId: id }], meta: { next_cursor: expect.any(String) } });
+});
+it('rejects invalid model identity before candidate lookup', async () => {
+  expect((await app().request('/models/not-a-model/variant-experiments/candidates')).status).toBe(400);
+});
+it('requires organization context for variant discovery', async () => {
+  const server = new Hono<AppBindings>(); server.route('/', variantExperimentsRouter);
+  expect((await server.request(`/models/${id}/variant-experiments/candidates`)).status).toBe(401);
+});
 it('counts completed conversion outcomes without numeric metrics', async () => {
   mockState.results = [[], [{ id, variantIds: ['a'] }], [
     { experimentId: id, variantId: 'a', converted: true, metricValue: null, outcomeAt: new Date() },

@@ -14,6 +14,8 @@ Review findings requiring follow-up:
 
 Current verification:
 
+- Variant discovery now has a model-scoped keyset-paginated API and checkbox/preview picker in the experiment page, with load-more retaining selections. Conversion counts are visible. Seven API and two rendered-component tests plus typechecks pass; live browser selection, assignment/outcome controls and winner promotion are not yet accepted.
+
 - Deployment integration correction: the scoped media worker previously excluded media.transform entirely. It now claims eligible unstarted transforms through organization/model/source ownership joins. Thirteen real PostgreSQL worker tests, 22 scope/worker unit tests and worker typecheck pass. No publishing connectors/global claims were enabled; deployment remains pending.
 
 - Superseding full-run evidence (source 926fcb2): isolated workspace run exited 0, all 24 Turbo tasks successful, all 36 fresh migrations applied, DB/worker live suites passed, dashboard build and mobile export passed. Migration atomicity fault injection also exited 0. See `reconciliation-runtime-receipt-2026-09-17.md`. Earlier failure entries below are historical and no longer describe the latest full run; deployment acceptance remains open.
