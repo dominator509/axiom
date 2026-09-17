@@ -265,6 +265,22 @@ describe('llm gateway routes mounted', () => {
   });
 });
 
+describe('member administration authentication', () => {
+  it('rejects unauthenticated member discovery', async () => {
+    const response = await app.request('/api/v1/members');
+    expect(response.status).toBe(401);
+  });
+
+  it('rejects unauthenticated role changes before validation or mutation', async () => {
+    const response = await app.request('/api/v1/members/another-user/role', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'owner' }),
+    });
+    expect(response.status).toBe(401);
+  });
+});
+
 describe('MCP transport body limits', () => {
   it('rejects an oversized JSON-RPC body before authentication work', async () => {
     const response = await app.request('/api/mcp', {

@@ -1,5 +1,18 @@
 # Model-scoped human roles — implementation queue
 
+## Owner member API checkpoint — M322
+
+Authenticated owner member discovery and role mutation are now mounted in the API.
+Discovery uses tenant-scoped cursor pagination and returns only member ID, name,
+email and role. Both routes recheck stored owner authority; mutations require an
+idempotency key and expected prior role. Real PostgreSQL coverage checks paging,
+foreign cursors/targets, stale authority, conflicting edits, last-owner protection
+and session revocation. The application entry rejects unauthenticated discovery
+and mutation before handler work. All 148 focused API tests, 36 PostgreSQL tests
+after 48 migrations and API typecheck pass. No live member was changed. The owner
+GUI and scoped-role activation remain incomplete and are the next implementation
+steps; this is not deployed acceptance evidence.
+
 ## Owner role-control checkpoint — M321
 
 The role-change transaction service now supports the currently enabled human roles

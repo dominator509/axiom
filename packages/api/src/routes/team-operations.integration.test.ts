@@ -24,6 +24,7 @@ import { inboxRouter } from './inbox.js';
 import { inboxRepliesRouter } from './inbox-replies.js';
 import { inboxReviewsRouter } from './inbox-reviews.js';
 import { changeMemberRole } from '../member-roles.js';
+import { membersRouter } from './members.js';
 import { claimReplyDispatch, finalizeReplyDispatch, dispatchReply, cancelReply } from '../reply-dispatch.js';
 import { FanvueConnector } from '@axiom/connectors';
 import { viralRouter } from './viral.js';
@@ -156,6 +157,34 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect(demotions.map(value => value.outcome).sort()).toEqual(['changed', 'last-owner']);
     const owners = await run(tx => tx.select().from(schema.authUser).where(sql`${schema.authUser.orgId} = ${tenant} AND ${schema.authUser.role} = 'owner'`));
     expect(owners).toHaveLength(1);
+    const currentOwner = owners[0].id, otherMember = currentOwner === owner ? member : owner;
+    function memberApp(actorId = currentOwner, role: AppBindings['Variables']['role'] = 'owner') {
+      const route = new Hono<AppBindings>();
+      route.use('*', async (c, next) => { c.set('orgId', tenant); c.set('userId', actorId); c.set('role', role); await next(); });
+      route.route('/', membersRouter); return route;
+    }
+    const route = memberApp();
+    const extras = Array.from({ length: 51 }, () => randomUUID());
+    await run(tx => tx.insert(schema.authUser).values(extras.map(id => ({ id, orgId: tenant, name: 'Page fixture', email: `${id}@example.invalid`, role: 'operator' }))));
+    const response = await route.request('/members');
+    expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('private, no-store');
+    const first = await response.json() as { data: { id: string }[]; meta: { next_cursor: string; assignable_roles: string[] } };
+    expect(first.data).toHaveLength(50); expect(first.meta.assignable_roles).not.toContain('chatter');
+    const second = await (await route.request(`/members?cursor=${first.meta.next_cursor}`)).json() as { data: { id: string }[]; meta: { next_cursor: null } };
+    expect(second.meta.next_cursor).toBeNull();
+    expect(new Set([...first.data, ...second.data].map(row => row.id))).toEqual(new Set([owner, member, ...extras]));
+    expect(Object.keys(first.data[0]).sort()).toEqual(['email', 'id', 'name', 'role']);
+    expect((await route.request(`/members?cursor=${assignmentUsers[0]}`)).status).toBe(400);
+    expect((await memberApp(currentOwner, 'manager').request('/members')).status).toBe(403);
+    expect((await memberApp(otherMember).request('/members')).status).toBe(403); // Stale owner session.
+    const patch = (target: string, body: unknown) => route.request(`/members/${target}/role`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const change = await patch(otherMember, { expectedRole: 'operator', role: 'analyst' });
+    expect(change.status).toBe(200); expect(await change.json()).toEqual({ data: { id: otherMember, role: 'analyst', sessionsRevoked: true } });
+    expect((await patch(otherMember, { expectedRole: 'operator', role: 'manager' })).status).toBe(409);
+    expect((await patch(currentOwner, { expectedRole: 'owner', role: 'operator' })).status).toBe(409);
+    expect((await patch(assignmentUsers[0], { expectedRole: 'operator', role: 'manager' })).status).toBe(404);
+    expect((await patch(otherMember, { expectedRole: 'analyst', role: 'chatter' })).status).toBe(400);
+    expect((await patch(otherMember, { expectedRole: 'analyst', role: 'manager', orgId })).status).toBe(400);
   });
   it('enforces assignment membership for both model and user at the database boundary', async () => {
     const insert = (modelId: string, userId: string) => scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId, userId }));
