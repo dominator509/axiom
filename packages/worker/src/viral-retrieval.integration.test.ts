@@ -7,6 +7,7 @@ import { embedExemplarIntent } from './embedding.js';
 import { viralLabel } from './executors/viral.js';
 import type { JobRow } from './types.js';
 import { evaluateAutomaticVariants, evaluationDigest } from './variant-auto-evaluation.js';
+import { refreshLearningState } from './learning-state.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
@@ -147,6 +148,23 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       await evaluateAutomaticVariants(tx, orgId, modelId, 'instagram');
       [saved] = await tx.select().from(schema.variantExperiment).where(eq(schema.variantExperiment.id, experimentId));
       expect(saved.evaluation).toEqual(frozen);
+      // A winner upgrades its existing target contribution, not its play count.
+      await tx.insert(schema.viralRecipe).values({ orgId, modelId, platform: 'instagram', sourceTargetId: records[0].targetId, perfScore: 0,
+        recipe: { evidence_source: 'published-provider-snapshot-v2', learning_context: 'learn-v1:scheduled-utc-unknown', learning_arm: 'short:statement' } });
+      await refreshLearningState(tx, orgId, modelId, 'instagram');
+      await refreshLearningState(tx, orgId, modelId, 'instagram');
+      const rewards = await tx.select().from(schema.banditState).where(eq(schema.banditState.modelId, modelId));
+      expect(rewards).toHaveLength(1);
+      expect(rewards[0]).toMatchObject({ plays: 1, reward: 1, alpha: 2, beta: 1 });
+      const manualId = randomUUID();
+      await tx.insert(schema.variantExperiment).values({ id: manualId, orgId, modelId, name: manualId, platform: 'instagram', variantIds: variants,
+        status: 'completed', winnerVariantId: variants[1], evaluationPolicy: 'manual',
+        evaluation: { observations: [{ targetId: records[20].targetId, variantId: variants[1] }] } });
+      await tx.insert(schema.viralRecipe).values({ orgId, modelId, platform: 'instagram', sourceTargetId: records[20].targetId, perfScore: 0,
+        recipe: { evidence_source: 'published-provider-snapshot-v2', learning_context: 'learn-v1:scheduled-utc-unknown', learning_arm: 'short:statement' } });
+      await refreshLearningState(tx, orgId, modelId, 'instagram');
+      const [manualExcluded] = await tx.select().from(schema.banditState).where(eq(schema.banditState.modelId, modelId));
+      expect(manualExcluded).toMatchObject({ plays: 2, reward: 1, alpha: 2, beta: 2 });
       const replayDecisions = await tx.select().from(schema.auditLog).where(eq(schema.auditLog.action, 'variant.experiment.auto-evaluate'));
       expect(replayDecisions.filter(row => row.detail?.experimentId === experimentId)).toHaveLength(1);
       await expect(tx.transaction(nested => nested.update(schema.variantExperiment).set({ evaluation: {} }).where(eq(schema.variantExperiment.id, experimentId)))).rejects.toThrow();

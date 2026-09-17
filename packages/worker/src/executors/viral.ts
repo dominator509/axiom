@@ -250,6 +250,6 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
       embedding,
     })
     .onConflictDoUpdate({ target: schema.viralEmbedding.id, set: { embedding } });
-  await refreshLearningState(tx, job.org_id, bundle.modelId, target.platform);
   await evaluateAutomaticVariants(tx, job.org_id, bundle.modelId, target.platform);
+  await refreshLearningState(tx, job.org_id, bundle.modelId, target.platform);
 };

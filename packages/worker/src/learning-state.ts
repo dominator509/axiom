@@ -69,10 +69,19 @@ export async function refreshLearningState(tx: any, orgId: string, modelId: stri
     WHERE org_id=${orgId} AND model_id=${modelId} AND platform=${platform} AND context LIKE 'learn-v1:%'`);
   await tx.execute(sql`INSERT INTO bandit_state(org_id,model_id,platform,context,arm,alpha,beta,plays,reward)
     SELECT r.org_id,r.model_id,r.platform,r.recipe->>'learning_context',r.recipe->>'learning_arm',
-      1+SUM(LEAST(1.0,GREATEST(0.0,r.perf_score))),
-      1+COUNT(*)-SUM(LEAST(1.0,GREATEST(0.0,r.perf_score))),COUNT(*)::integer,
-      SUM(LEAST(1.0,GREATEST(0.0,r.perf_score)))
+      1+SUM(score.value),
+      1+COUNT(*)-SUM(score.value),COUNT(*)::integer,
+      SUM(score.value)
     FROM viral_recipe r JOIN post_target t ON t.id=r.source_target_id AND t.org_id=r.org_id
+    CROSS JOIN LATERAL (SELECT CASE WHEN EXISTS (
+      SELECT 1 FROM variant_experiment e
+      CROSS JOIN LATERAL jsonb_array_elements(e.evaluation->'observations') observation
+      WHERE e.org_id=r.org_id AND e.model_id=r.model_id AND e.platform=r.platform
+        AND e.evaluation_policy='fixed-post-engagement-v1' AND e.status='completed'
+        AND e.winner_variant_id IS NOT NULL
+        AND observation->>'targetId'=r.source_target_id::text
+        AND observation->>'variantId'=e.winner_variant_id::text
+    ) THEN 1.0 ELSE LEAST(1.0,GREATEST(0.0,r.perf_score)) END AS value) score
     WHERE r.org_id=${orgId} AND r.model_id=${modelId} AND r.platform=${platform}
       AND t.state='published' AND t.remote_id IS NOT NULL AND t.platform=r.platform
       AND r.recipe->>'evidence_source'='published-provider-snapshot-v2'
