@@ -293,6 +293,13 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect(result.data.fan.id).toBe(fanIds[0]);
     expect(result.data.touchpoints.map(row => row.content)).toEqual(['Owned saved timeline']);
     expect(result.data.requests.map(row => row.id)).toEqual([requestId]);
+    const requestPath = `/api/v1/models/${models[0]}/custom-requests`;
+    const tickets = await route.request(requestPath);
+    expect(tickets.status).toBe(200);
+    expect((await tickets.json() as { data: { id: string; modelId: string }[] }).data.every(row => row.modelId === models[0])).toBe(true);
+    expect((await route.request(`/api/v1/models/${models[1]}/custom-requests`)).status).toBe(404);
+    expect((await scopedApp(role, foreignOrg).request(requestPath)).status).toBe(404);
+    expect((await scopedApp('content_creator').request(requestPath)).status).toBe(403);
     expect((await route.request(`/api/v1/fans/${fanIds[1]}`)).status).toBe(404);
     expect((await scopedApp(role, foreignOrg).request(path)).status).toBe(404);
     expect((await scopedApp('content_creator').request(path)).status).toBe(403);
@@ -302,9 +309,11 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     if (role === 'chatter') {
       await scoped(tx => tx.update(schema.teamShift).set({ endsAt: new Date(Date.now() - 1_000) }).where(eq(schema.teamShift.id, shiftId)));
       expect((await route.request(path)).status).toBe(404);
+      expect((await route.request(requestPath)).status).toBe(404);
     }
     await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
     expect((await route.request(path)).status).toBe(404);
+    expect((await route.request(requestPath)).status).toBe(404);
   });
   it('permits creator post collaboration only within current model assignments', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());

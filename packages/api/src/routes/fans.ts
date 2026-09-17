@@ -269,7 +269,7 @@ router.get('/models/:modelId/custom-requests', async (c) => {
     tx
       .select()
       .from(schema.customRequest)
-      .where(and(eq(schema.customRequest.orgId, orgId), eq(schema.customRequest.modelId, modelId)))
+      .where(and(eq(schema.customRequest.orgId, orgId), eq(schema.customRequest.modelId, modelId), modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.customRequest.modelId)))
       .orderBy(desc(schema.customRequest.createdAt)),
   );
   return c.json({ data: rows, meta: { total: rows.length } });

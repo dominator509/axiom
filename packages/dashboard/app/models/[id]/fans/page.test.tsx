@@ -7,12 +7,24 @@ vi.mock('@/lib/api', () => ({ getSession: vi.fn(), api: { fans: { get: vi.fn() }
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(getSession).mockResolvedValue({ user: { id: 'user', role: 'analyst' } });
   vi.mocked(api.models.fans).mockResolvedValue({ data: [{ id: 'fan', displayName: 'Saved contact', platform: 'fanvue', tier: 'new', lifetimeValueUsd: '12' }] } as Awaited<ReturnType<typeof api.models.fans>>);
   vi.mocked(api.models.customRequests).mockResolvedValue({ data: [{ id: 'request', title: 'Saved request', status: 'pending', priceUsd: '20' }] } as Awaited<ReturnType<typeof api.models.customRequests>>);
 });
 const render = async () => renderToStaticMarkup(await FansPage({ params: Promise.resolve({ id: 'talent' }) }));
 
 describe('independent fan section loading', () => {
+  it.each(['model', 'chatter'])('shows saved CRM and requests read-only for %s', async role => {
+    vi.mocked(getSession).mockResolvedValue({ user: { id: 'user', role } });
+    const html = await render();
+    expect(html).toContain('Saved contact'); expect(html).toContain('Saved request');
+    expect(html).not.toContain('Save fan contact');
+  });
+  it.each(['content_creator', 'unknown'])('does not fetch fan data for %s', async role => {
+    vi.mocked(getSession).mockResolvedValue({ user: { id: 'user', role } });
+    expect(await render()).toContain('Fan CRM access unavailable');
+    expect(api.models.fans).not.toHaveBeenCalled(); expect(api.models.customRequests).not.toHaveBeenCalled();
+  });
   it('forwards the cursor and preserves it when opening a contact', async () => {
     vi.mocked(api.models.fans).mockResolvedValue({ data: [{ id: 'fan', displayName: 'Saved contact', platform: 'x', tier: 'new', lifetimeValueUsd: '0' }], meta: { next_cursor: 'next+/=' } } as Awaited<ReturnType<typeof api.models.fans>>);
     const html = renderToStaticMarkup(await FansPage({ params: Promise.resolve({ id: 'talent' }), searchParams: Promise.resolve({ cursor: 'current+/=' }) }));

@@ -53,6 +53,8 @@ export function scopedReadTarget(role: ScopedHumanRole, method: string, path: st
   }
   if (method !== 'GET' && method !== 'HEAD') return null;
   if (path === '/api/v1/models' || path === '/api/v1/models/stats/count') return 'discovery';
+  const requests = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/custom-requests$/i.exec(path);
+  if (requests && role !== 'content_creator') return requests[1];
   if (role !== 'content_creator') {
     const fan = /^\/api\/v1\/fans\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(path);
     if (fan) return `fan:${fan[1]}`;

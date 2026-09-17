@@ -4,6 +4,7 @@ import CustomRequestForm from '@/components/CustomRequestForm';
 import FanInteractionForm from '@/components/FanInteractionForm';
 import Link from 'next/link';
 import type { FanTimeline } from '@/lib/api';
+import { talentDestinationAllowed } from '@/lib/navigation-role';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,7 @@ export default async function FansPage({ params, searchParams }: { params: Promi
   const basePath = `/models/${encodeURIComponent(id)}/fans`;
   const currentList = `${basePath}${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`;
   const session = await getSession();
+  if (!talentDestinationAllowed(session?.user?.role, 'fans')) return <div className="card stack"><h2>Fan CRM access unavailable</h2><p>Your role does not include these fan records.</p><Link href="/">Back to workspace</Link></div>;
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   let fans: Awaited<ReturnType<typeof api.models.fans>>['data'] = [];
   let requests: Awaited<ReturnType<typeof api.models.customRequests>>['data'] = [];

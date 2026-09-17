@@ -165,6 +165,16 @@ Thirty-eight page/navigation tests, dashboard typecheck and lint pass (three
 existing explicit-any warnings). Live DM implementation and deployed browser
 acceptance remain open; new roles are still not enabled in authentication.
 
+Saved fan CRM custom-request list now permits Model and active-shift Chatter
+reads for assigned talent. The central route boundary and query-level assignment
+predicate both apply; Creator remains excluded and no ticket mutation is enabled.
+Fan page rejects excluded roles before requests while Model/Chatter see saved
+contacts and tickets without editing controls. Twenty-seven PostgreSQL tests
+after 46 migrations verify foreign-model/tenant, expired-shift and revoked reads;
+fixture removed. Twenty-eight API tests, fourteen page tests and both typechecks
+pass. This remains saved CRM, not live DM synchronization; analytics supplemental
+routes and the remaining role activation workflow are still open.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including
