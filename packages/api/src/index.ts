@@ -35,6 +35,7 @@ import { triggerRulesRouter } from './routes/trigger-rules.js';
 import { variantExperimentsRouter } from './routes/variant-experiments.js';
 import { scrapeRouter } from './routes/scrape.js';
 import { teamOperationsRouter } from './routes/team-operations.js';
+import { modelAssignmentsRouter } from './routes/model-assignments.js';
 import { mediaOperationsRouter } from './routes/media-operations.js';
 import { playbookGuidelinesRouter } from './routes/playbook-guidelines.js';
 import {
@@ -783,6 +784,7 @@ app.use('/api/v1/viral/exemplars', requireAuth);
 // mutation groups name the operational roles that may change state.
 const operationalMutation = requireMutationRole('owner', 'manager', 'operator');
 const ownerOnly = requireRole('owner');
+app.use('/api/v1/models/:modelId/member-assignments/*', ownerOnly);
 
 app.use('/api/v1/models', operationalMutation);
 app.use('/api/v1/models/*', operationalMutation);
@@ -892,6 +894,8 @@ app.use('/api/v1/models/:modelId/team-operations', idempotency());
 app.use('/api/v1/models/:modelId/team-shifts', idempotency());
 app.use('/api/v1/models/:modelId/team-shifts/:shiftId', idempotency());
 app.use('/api/v1/models/:modelId/team-notes', idempotency());
+app.use('/api/v1/models/:modelId/member-assignments', idempotency());
+app.use('/api/v1/models/:modelId/member-assignments/:assignmentId', idempotency());
 app.use('/api/v1/models/:modelId/media-operations', idempotency());
 app.use('/api/v1/models/:modelId/playbook-guidelines', idempotency());
 app.use('/api/v1/models/:modelId/linkbio/*', idempotency());
@@ -942,6 +946,7 @@ app.route('/api/v1', triggerRulesRouter);
 app.route('/api/v1', variantExperimentsRouter);
 app.route('/api/v1', scrapeRouter);
 app.route('/api/v1', teamOperationsRouter);
+app.route('/api/v1', modelAssignmentsRouter);
 app.route('/api/v1', mediaOperationsRouter);
 app.route('/api/v1', playbookGuidelinesRouter);
 

@@ -1,14 +1,24 @@
 # Model-scoped human roles — implementation queue
 
 Authority: L1.0 personas/RBAC and L1.1 F-24–F-26.
-Status: **in progress**. Assignment storage is implemented; role authorization,
-owner management, scoped navigation and the live DM workflow remain incomplete.
+Status: **in progress**. Assignment storage and owner-only grant/revoke/list API
+are implemented; role authorization, owner GUI, scoped navigation and the live
+DM workflow remain incomplete.
 
 Migration 0045 adds user/model assignments with composite organization foreign
 keys, forced tenant RLS and explicit grant/revoke semantics (no runtime UPDATE).
 Parent tenant changes require removing existing assignments first. No existing
 account role is changed and no new role is accepted by authentication yet: the
 current workspace-wide read behavior must be replaced before enabling them.
+
+The authenticated `/api/v1/models/:modelId/member-assignments` API provides
+cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
+`/:assignmentId` revokes one grant. Owner checks apply to all methods, including
+reads. Grants/revocations and audit entries commit together. Repeated/concurrent
+grants return the original assignment without duplicating the audit. No endpoint
+changes account roles, and these assignments alone do not reduce or expand the
+legacy workspace roles' permissions. GUI language must preserve that distinction
+until the complete role policy is installed.
 
 Current evidence (2026-09-17): core UserRole and auth session validation recognize
 owner, manager, operator, analyst and agent only. Team shifts record human queue

@@ -5,19 +5,22 @@ import { eq, inArray, sql } from 'drizzle-orm';
 import { db, pool, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { teamOperationsRouter } from './team-operations.js';
+import { modelAssignmentsRouter } from './model-assignments.js';
 
 const url = process.env.TEST_DATABASE_URL, orgId = '11111111-1111-4111-8111-111111111111';
 const models = [randomUUID(), randomUUID()], bundles = [randomUUID(), randomUUID()], posts = [randomUUID(), randomUUID()];
 const assignmentUsers = [randomUUID(), randomUUID()];
+const pageUsers = Array.from({ length: 51 }, () => randomUUID());
 const foreignOrg = randomUUID(), foreignModel = randomUUID();
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const scoped = <T>(operation: (tx: Transaction) => Promise<T>, org = orgId) => db.transaction(async tx => {
   await tx.execute(sql`SELECT set_config('app.current_org_id', ${org}, true)`); return operation(tx);
 });
-function app(org = orgId) {
+function app(org = orgId, role: AppBindings['Variables']['role'] = 'owner') {
   const route = new Hono<AppBindings>();
-  route.use('*', async (c, next) => { c.set('orgId', org); c.set('userId', 'fixture-operator'); await next(); });
-  route.route('/', teamOperationsRouter); return route;
+  route.use('*', async (c, next) => { c.set('orgId', org); c.set('userId', 'fixture-operator'); c.set('role', role); await next(); });
+  route.route('/', teamOperationsRouter);
+  route.route('/', modelAssignmentsRouter); return route;
 }
 const path = `/models/${models[0]}/team-notes`;
 const write = (postId: string, org = orgId) => app(org).request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetType: 'post', targetId: postId, body: 'Post handoff context' }) });
@@ -49,7 +52,7 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
       await tx.delete(schema.postTarget).where(inArray(schema.postTarget.id, posts));
       await tx.delete(schema.contentBundle).where(inArray(schema.contentBundle.id, bundles));
       await tx.delete(schema.modelProfile).where(inArray(schema.modelProfile.id, models));
-      await tx.delete(schema.authUser).where(eq(schema.authUser.id, assignmentUsers[0]));
+      await tx.delete(schema.authUser).where(inArray(schema.authUser.id, [assignmentUsers[0], ...pageUsers]));
     });
     await scoped(async tx => {
       await tx.delete(schema.modelProfile).where(eq(schema.modelProfile.id, foreignModel));
@@ -125,5 +128,53 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     const outcomes = await Promise.all([change('completed', 'Completed handoff'), change('cancelled', 'Cancelled handoff')]);
     expect(outcomes.map(response => response.status).sort()).toEqual([200, 409]);
     expect((await change('active', 'Reopen')).status).toBe(409);
+  });
+  it.each(['manager', 'operator', 'analyst', 'agent', null] as const)('denies assignment management for role %s', async role => {
+    const base = `/models/${models[0]}/member-assignments`;
+    for (const method of ['GET', 'POST', 'DELETE']) {
+      const response = await app(orgId, role).request(method === 'DELETE' ? `${base}/${randomUUID()}` : base, { method });
+      expect(response.status).toBe(403);
+    }
+  });
+  it('requires a workspace and validates assignment inputs without role elevation', async () => {
+    expect((await app('').request(`/models/${models[0]}/member-assignments`)).status).toBe(401);
+    expect((await app().request('/models/invalid/member-assignments')).status).toBe(400);
+    expect((await app().request(`/models/${models[0]}/member-assignments?cursor=invalid`)).status).toBe(400);
+    expect((await app().request(`/models/${models[0]}/member-assignments`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ userId: assignmentUsers[0], role: 'owner' }) })).status).toBe(400);
+  });
+  it('serializes duplicate owner grants, audits once, and scopes revocation to model and tenant', async () => {
+    const base = `/models/${models[1]}/member-assignments`;
+    const send = (userId = assignmentUsers[0]) => app().request(base, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ userId }) });
+    expect((await send(assignmentUsers[1])).status).toBe(404);
+    const responses = await Promise.all([send(), send()]);
+    expect(responses.map(r => r.status).sort()).toEqual([200, 201]);
+    const [{ data: grant }, { data: duplicate }] = await Promise.all(responses.map(r => r.json())) as { data: { id: string; userId: string } }[];
+    expect(grant.id).toBe(duplicate.id);
+    const audits = () => scoped(tx => tx.select().from(schema.auditLog).where(eq(schema.auditLog.target, grant.id)));
+    expect((await audits()).map(row => row.action)).toEqual(['team.assignment.grant']);
+    expect((await app(foreignOrg).request(base)).status).toBe(404);
+    expect((await app().request(`/models/${models[0]}/member-assignments/${grant.id}`, { method: 'DELETE' })).status).toBe(404);
+    expect((await app(foreignOrg).request(`${base}/${grant.id}`, { method: 'DELETE' })).status).toBe(404);
+    const listed = await (await app().request(base)).json() as { data: { id: string; role: string }[] };
+    expect(listed.data).toContainEqual(expect.objectContaining({ id: grant.id, role: 'operator' }));
+    expect((await app().request(`${base}/${grant.id}`, { method: 'DELETE' })).status).toBe(200);
+    expect((await app().request(`${base}/${grant.id}`, { method: 'DELETE' })).status).toBe(404);
+    expect((await audits()).map(row => row.action).sort()).toEqual(['team.assignment.grant', 'team.assignment.revoke']);
+  });
+  it('paginates assignment membership without omitting users and exposes no account secrets', async () => {
+    await scoped(async tx => {
+      await tx.insert(schema.authUser).values(pageUsers.map(id => ({ id, orgId, name: 'Page fixture', email: `${id}@example.invalid` })));
+      await tx.insert(schema.modelUserAssignment).values(pageUsers.map(userId => ({ orgId, userId, modelId: models[1] })));
+    });
+    const base = `/models/${models[1]}/member-assignments`;
+    type Assignments = { data: { userId: string; id: string }[]; meta: { next_cursor: string | null } };
+    const first = await (await app().request(base)).json() as Assignments;
+    expect(first.data).toHaveLength(50);
+    expect(first.meta.next_cursor).toBe(first.data[49].id);
+    const second = await (await app().request(`${base}?cursor=${first.meta.next_cursor}`)).json() as Assignments;
+    expect(second.meta.next_cursor).toBeNull();
+    const received = [...first.data, ...second.data];
+    expect(received.map(row => row.userId).sort()).toEqual([...pageUsers].sort());
+    for (const row of received) expect(Object.keys(row).sort()).toEqual(['createdAt', 'id', 'modelId', 'name', 'role', 'userId']);
   });
 });
