@@ -1,6 +1,6 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: 2026-09-17, after milestone M346. This is a continuation checkpoint,
+Updated: 2026-09-17, after milestone M347. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
 ## Mission and authority
@@ -26,9 +26,9 @@ merely because credits or the current turn are ending.
 
 - Repository: `dominator509/axiom`; branch `codex/telegram-webhook-hardening`;
   existing PR #14. Do not open a duplicate PR or force-push.
-- Latest application milestone: **M346 explicit digest schedule recovery**, in
+- Latest application milestone: **M347 published insights evidence filter**, in
   this handoff's commit (resolve SHA with git log). Prior application SHA:
-  `afa063ddb06184240451cc64af64f330bd57293c` (M345).
+  `0a12d3c4a27e020dd8fc8bff1763bbdefd8b9830` (M346).
 - Worktree was clean immediately before this documentation update. Inspect it
   again on arrival; this handoff's own commit will be newer than M342.
 - Current application migrations: **50**, ending
@@ -36,8 +36,8 @@ merely because credits or the current turn are ending.
 - Latest tested source including the handoff: `d53787420f4b880d911818ca9ed45b3f271c541c`.
 - Hosted CI **35285232940** exact `d537874` and **35284764547** exact
   `bbefee6` both completed successfully. Documentation commit `741c7e6` has
-  run **35286101578**, now successful. M345 run **35286677401** remains active.
-  M346 needs its own exact-SHA hosted result after publication; do not confuse
+  run **35286101578**, now successful. M345 run **35286677401** also succeeded.
+  M346 run **35287400606** remains active. M347 needs its own hosted result; do not confuse
   earlier green runs.
 - Hosted CI **35283023039** on `f1378c4` and **35281902829** on `30cd883` passed.
 - No local test/build process is left running at this checkpoint.
@@ -49,7 +49,7 @@ merely because credits or the current turn are ending.
 
 1. Read this file, the private local operator companion
    `var/handoff/luna-operator.md`, and the authoritative documents below.
-2. Verify branch/HEAD/dirty state and the exact M346 hosted CI result. Preserve
+2. Verify branch/HEAD/dirty state and the exact M347 hosted CI result. Preserve
    the passing earlier-SHA receipts as historical.
 3. Read the reply to **`codex-d001a-r2-review-20260917`** through the bridge.
    At this checkpoint it was an acknowledgment, **not corrected R3 artifacts**.
@@ -140,6 +140,20 @@ passed. Disposable DB was removed. This is not a live deployment receipt.
 | RELEASE | CI / governance | Exact-candidate full gates, dependency/advisory checks, container checks, actual branch-protection enforcement, final immutable release acceptance. |
 
 ## Hermes task state / review findings
+
+M347: architecture L2.8 review found viral list/distributions were accepting
+legacy or unverified exemplars. All three queries now require the worker's
+published-provider evidence marker plus a same-org/model/bundle/platform
+published target with remote ID, nonfuture publication and a matching nonfuture
+provider metric. EXISTS avoids multiplying exemplars on repeated polls. GUI
+discloses relative engagement, not conversions or causal attribution.17APItests,
+4GUItests, bothtypechecks/lint(3existingwarnings), realPG50migration evidence
+fixture0c9edc2977dc4aab passed/removed. Two GUI assertions initially expected old
+empty-state wording; updated and reran. This repairs evidence eligibility;
+it DOES NOT implement the missing grouped pattern comparisons, hook/format/time
+arms, revenue attribution or actual Relay delivery. Next implement those from
+L2.8 sections1,3,6,7 without labeling engagement as conversion lift.
+Hermes checkpoint reply file was absent on this turn's read; no delivery assumed.
 
 M346: owner settings now exposes confirmed schedule replacement starting next
 Monday UTC. PATCH recovery is exclusive of ordinary settings; expected ID and

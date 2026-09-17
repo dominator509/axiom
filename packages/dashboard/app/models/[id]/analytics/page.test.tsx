@@ -11,7 +11,8 @@ it.each(['model', 'content_creator'])('keeps all assigned analytics destinations
   const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ id: 'assigned' }) }));
   expect(mocks.analytics).toHaveBeenCalledWith('assigned', 30); expect(mocks.viral).toHaveBeenCalledWith('assigned');
   expect(html).toContain('/api/v1/models/assigned/reports/monthly');
-  expect(html).toContain('No viral exemplars yet');
+  expect(html).toContain('No verified published exemplars yet');
+  expect(html).toContain('relative engagement, not conversions');
 });
 it.each(['chatter', 'unknown'])('does not request analytics for %s', async role => {
   mocks.role = role;

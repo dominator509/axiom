@@ -11,7 +11,8 @@ const focusedPlaybook = process.argv[3] === '--playbook-history';
 const focusedTeam = process.argv[3] === '--team-operations';
 const focusedReadiness = process.argv[3] === '--database-readiness';
 const focusedDigestStatus = process.argv[3] === '--digest-status';
-const focused = focusedWorker || focusedVariants || focusedRetrieval || focusedPlaybook || focusedTeam || focusedReadiness || focusedDigestStatus;
+const focusedViralEvidence = process.argv[3] === '--viral-evidence';
+const focused = focusedWorker || focusedVariants || focusedRetrieval || focusedPlaybook || focusedTeam || focusedReadiness || focusedDigestStatus || focusedViralEvidence;
 assert.ok(process.argv.length === 3 || (process.argv.length === 4 && focused));
 const container = 'axiom-ci-local-6cefdc1';
 function docker(args, input) {
@@ -49,7 +50,7 @@ try {
   const url = `postgresql://axiom_app:axiom_app@127.0.0.1:55432/${database}`;
   console.log(JSON.stringify({ isolated_fixture: database, migrations: migrations.length, running_workspace_tests: true }));
   const command = focused ? process.execPath : process.platform === 'win32' ? process.env.ComSpec ?? 'cmd.exe' : 'pnpm';
-  const testFile = focusedDigestStatus ? 'packages/api/src/digest-schedule-status.integration.test.ts' : focusedReadiness ? 'packages/db/src/readiness.integration.test.ts' : focusedTeam ? 'packages/api/src/routes/team-operations.integration.test.ts' : focusedPlaybook ? 'packages/api/src/routes/playbook-history.integration.test.ts' : focusedRetrieval ? 'packages/worker/src/viral-retrieval.integration.test.ts' : focusedVariants ? 'packages/api/src/routes/variant-performance.integration.test.ts' : 'packages/worker/src/worker-media.integration.test.ts';
+  const testFile = focusedViralEvidence ? 'packages/api/src/viral-evidence.integration.test.ts' : focusedDigestStatus ? 'packages/api/src/digest-schedule-status.integration.test.ts' : focusedReadiness ? 'packages/db/src/readiness.integration.test.ts' : focusedTeam ? 'packages/api/src/routes/team-operations.integration.test.ts' : focusedPlaybook ? 'packages/api/src/routes/playbook-history.integration.test.ts' : focusedRetrieval ? 'packages/worker/src/viral-retrieval.integration.test.ts' : focusedVariants ? 'packages/api/src/routes/variant-performance.integration.test.ts' : 'packages/worker/src/worker-media.integration.test.ts';
   const args = focused ? ['--input-type=module', '-e',
     `import{startVitest}from'vitest/node';const c=await startVitest('test',[${JSON.stringify(testFile)}],{run:true},{envFile:false});await c.close();`]
     // Windows runs real process-tree and media tests alongside Next/Metro builds.

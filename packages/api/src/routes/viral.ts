@@ -11,6 +11,19 @@ import { modelAccessCondition } from '../model-access.js';
 
 const router = new Hono<AppBindings>();
 
+/** Retained legacy/manual exemplars are not evidence of published performance. */
+export function publishedExemplarEvidence() {
+  return sql`${schema.viralExemplar.features}->>'evidence_source' = 'published-provider-snapshot-v2'
+    AND EXISTS (SELECT 1 FROM post_target t JOIN content_bundle b ON b.id=t.bundle_id AND b.org_id=t.org_id
+      WHERE t.org_id=${schema.viralExemplar.orgId} AND t.bundle_id=${schema.viralExemplar.bundleId}
+        AND b.model_id=${schema.viralExemplar.modelId} AND t.platform=${schema.viralExemplar.platform}
+        AND t.state='published' AND t.remote_id IS NOT NULL
+        AND t.published_at IS NOT NULL AND t.published_at <= now()
+        AND EXISTS (SELECT 1 FROM post_metric m WHERE m.post_target_id=t.id
+          AND m.source='provider' AND m.remote_id=t.remote_id AND m.platform=t.platform
+          AND m.collected_at <= now()))`;
+}
+
 // GET /models/:id/viral — exemplar distribution + top performers
 router.get('/models/:modelId/viral', async (c) => {
   const orgId = requireOrg(c);
@@ -26,7 +39,7 @@ router.get('/models/:modelId/viral', async (c) => {
         count: sql<number>`count(*)::int`,
       })
       .from(schema.viralExemplar)
-      .where(and(eq(schema.viralExemplar.orgId, orgId), eq(schema.viralExemplar.modelId, modelId), access))
+      .where(and(eq(schema.viralExemplar.orgId, orgId), eq(schema.viralExemplar.modelId, modelId), access, publishedExemplarEvidence()))
       .groupBy(schema.viralExemplar.label)
       .orderBy(schema.viralExemplar.label);
 
@@ -38,6 +51,7 @@ router.get('/models/:modelId/viral', async (c) => {
           eq(schema.viralExemplar.orgId, orgId),
           eq(schema.viralExemplar.modelId, modelId),
           access,
+          publishedExemplarEvidence(),
           ...cursorLt(schema.viralExemplar.perfScore, schema.viralExemplar.id, cursor),
         ),
       )
@@ -50,7 +64,7 @@ router.get('/models/:modelId/viral', async (c) => {
         count: sql<number>`count(*)::int`,
       })
       .from(schema.viralExemplar)
-      .where(and(eq(schema.viralExemplar.orgId, orgId), eq(schema.viralExemplar.modelId, modelId), access))
+      .where(and(eq(schema.viralExemplar.orgId, orgId), eq(schema.viralExemplar.modelId, modelId), access, publishedExemplarEvidence()))
       .groupBy(schema.viralExemplar.platform)
       .orderBy(sql`count(*) DESC`);
 

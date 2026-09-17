@@ -6,6 +6,7 @@
 - `cargo build --workspace` — build Rust crates
 
 ## Test Commands
+- `node scripts/test-isolated-workspace.mjs --isolated-fixture --viral-evidence` — check published/provider-backed insights filtering against disposable PostgreSQL
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --digest-status` — verify active weekly schedule selection and tenant isolation in disposable PostgreSQL; no external dispatch
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --database-readiness` — verify schema readiness under the runtime role, including empty schema, missing tables/columns and revoked access, using transactional DDL only in a labeled disposable local database
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --team-operations` — post-note ownership/RLS/pagination and shift concurrency in a disposable PostgreSQL database

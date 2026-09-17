@@ -142,10 +142,11 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
       )}
 
       <h2 style={{ marginTop: 24 }}>Viral insights</h2>
+      <p className="subtle">Only verified exemplars backed by published posts and matching provider observations appear here. Scores describe relative engagement, not conversions or proof that a caption caused an outcome.</p>
       <div className="card">
         {!viral ? <p role="alert">Viral insights could not be loaded. Reload this page to try again.</p> : viral.totalExemplars === 0 ? (
           <p style={{ color: 'var(--muted)' }}>
-            No viral exemplars yet — they accumulate as posts get labeled.
+            No verified published exemplars yet — they accumulate after attributable provider metrics are labeled.
           </p>
         ) : (
           <div className="grid">
