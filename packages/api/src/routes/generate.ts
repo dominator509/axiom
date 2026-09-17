@@ -297,7 +297,7 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
         // F-83 exemplar injection: retrieve the model's best-performing
         // exemplars from the DB-backed viral memory (L2.8) and feed them
         // into the S2 segment so generation is guided by what worked.
-        const exemplars = await retrieveTopExemplars(tx, orgId, modelId, promptPlatform, 3);
+        const exemplars = await retrieveTopExemplars(tx, orgId, modelId, promptPlatform, 3, variants[0].prompt);
         const prompt = assemblePrompt({
           S0: buildS0(profile),
           S1: buildS1(promptPlatform),

@@ -1,6 +1,7 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, cosineDistance, eq, inArray, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { ViralExemplar } from '@axiom/llm-gateway';
+import { embedExemplarIntent } from './embedding.js';
 
 export interface RetrievalRow {
   id: string;
@@ -9,6 +10,36 @@ export interface RetrievalRow {
   label: string;
   perfScore: number | null;
   features: unknown;
+}
+
+export interface RankedRow extends RetrievalRow { embedding: number[]; createdAt: Date | string }
+
+function similarity(a: number[], b: number[]): number {
+  let dot = 0, aa = 0, bb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * (b[i] ?? 0); aa += a[i] ** 2; bb += (b[i] ?? 0) ** 2;
+  }
+  return aa && bb ? Math.max(0, Math.min(1, dot / Math.sqrt(aa * bb))) : 0;
+}
+
+/** MMR over bounded k-NN candidates, with a thirty-day recency half-life. */
+export function diversifyExemplars(rows: RankedRow[], query: number[], limit: number, now = Date.now()): RankedRow[] {
+  const remaining = [...rows].sort((a, b) => a.id.localeCompare(b.id));
+  const selected: RankedRow[] = [];
+  while (remaining.length && selected.length < limit) {
+    let best = 0, bestScore = -Infinity;
+    remaining.forEach((row, index) => {
+      const age = Math.max(0, now - new Date(row.createdAt).getTime());
+      const recency = Number.isFinite(age) ? 2 ** (-age / (30 * 86400_000)) : 0;
+      const relevance = .7 * similarity(query, row.embedding) + .2 * recency
+        + .1 * Math.max(0, Math.min(1, (row.perfScore ?? 0) / 3));
+      const redundancy = Math.max(0, ...selected.map(other => similarity(other.embedding, row.embedding)));
+      const score = .5 * relevance - .5 * redundancy;
+      if (score > bestScore) { best = index; bestScore = score; }
+    });
+    selected.push(remaining.splice(best, 1)[0]);
+  }
+  return selected;
 }
 
 /** Cross-model sharing grants access to structure, never another persona's copy. */
@@ -44,9 +75,11 @@ export async function retrieveTopExemplars(
   modelId: string,
   platform: string,
   limit: number,
+  intent = '',
 ): Promise<ViralExemplar[]> {
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new Error('Exemplar limit must be 1..50');
-  const labelOrder = ['viral', 'strong'];
+  let query = embedExemplarIntent(intent);
+  if (!query.some(value => value !== 0)) query = embedExemplarIntent(platform);
   const sharing = await tx
     .select({ viralSharing: schema.orgSettings.viralSharing })
     .from(schema.orgSettings)
@@ -62,6 +95,8 @@ export async function retrieveTopExemplars(
       label: schema.viralExemplar.label,
       perfScore: schema.viralExemplar.perfScore,
       features: schema.viralExemplar.features,
+      embedding: schema.viralExemplar.embedding,
+      createdAt: schema.viralExemplar.createdAt,
     })
     .from(schema.viralExemplar)
     .where(
@@ -71,24 +106,12 @@ export async function retrieveTopExemplars(
         eq(schema.viralExemplar.platform, platform),
         inArray(schema.viralExemplar.label, ['strong', 'viral']),
         sql`${schema.viralExemplar.features}->>'evidence_source' = 'published-provider-v1'`,
+        sql`${schema.viralExemplar.features}->>'embedding_version' = 'lexical-v1'`,
       ),
     )
-    .orderBy(desc(schema.viralExemplar.perfScore), schema.viralExemplar.id)
+    .orderBy(cosineDistance(schema.viralExemplar.embedding, query), schema.viralExemplar.id)
     .limit(50);
 
-  const sorted = rows.sort(
-    (
-      a: { label: string; perfScore: number | null },
-      b: { label: string; perfScore: number | null },
-    ) => {
-      const la = labelOrder.indexOf(a.label) === -1 ? 3 : labelOrder.indexOf(a.label);
-      const lb = labelOrder.indexOf(b.label) === -1 ? 3 : labelOrder.indexOf(b.label);
-      if (la !== lb) return la - lb;
-      return (b.perfScore ?? 0) - (a.perfScore ?? 0);
-    },
-  );
-
-  return sorted
-    .slice(0, limit)
+  return diversifyExemplars(rows, query, limit)
     .map((row: RetrievalRow) => projectExemplar(row, modelId));
 }

@@ -8,7 +8,7 @@
 
 import { eq, and, gte, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { embedFeatures } from '../embedding.js';
+import { embedExemplarIntent } from '../embedding.js';
 import type { Executor, ExecutorContext } from './context.js';
 
 const LABEL_THRESHOLDS = { viral: 2, strong: 1, baseline: -1, weak: -Infinity };
@@ -153,6 +153,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
   const captions = (bundle.captions as Record<string, string> | null) ?? {};
   const features: Record<string, unknown> = {
     evidence_source: 'published-provider-v1',
+    embedding_version: 'lexical-v1',
     platform: target.platform,
     caption: captions[target.platform] ?? '',
     hashtags: bundle.hashtags ?? [],
@@ -162,7 +163,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     window_mean: mean,
     window_std: std,
   };
-  const embedding = embedFeatures(features);
+  const embedding = embedExemplarIntent(`${features.caption} ${(bundle.hashtags ?? []).join(' ')}`);
 
   // Atomically upsert the exemplar keyed by (org, model, bundle, platform).
   // The unique constraint is the concurrency guard; a select-then-insert

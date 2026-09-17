@@ -135,7 +135,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
     for (const target of platforms) {
       const original = currentCaptions[target];
       if (typeof original !== 'string') throw new Error('content.generate: invalid source caption');
-      const exemplars = await retrieveTopExemplars(tx, job.org_id, modelId, target, 3);
+      const exemplars = await retrieveTopExemplars(tx, job.org_id, modelId, target, 3, `${original} ${payload.revision.instructions}`);
       const prompt = assemblePrompt({
         S0: buildS0(profile),
         S1: buildS1(target) + await modelPlaybookContext(tx, job.org_id, modelId, target),
@@ -207,7 +207,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   if (payload.enrichWithLlm) {
     try {
       const gateway = new LLMGateway();
-      const exemplars = await retrieveTopExemplars(tx, job.org_id, modelId, platform, 3);
+      const exemplars = await retrieveTopExemplars(tx, job.org_id, modelId, platform, 3, variants[0].prompt);
       const prompt = assemblePrompt({
         S0: buildS0(profile),
         S1: buildS1(platform as never) + await modelPlaybookContext(tx, job.org_id, modelId, platform),
