@@ -20,6 +20,7 @@ export const postTarget = pgTable(
     scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
     state: text('state').notNull().default('pending'),
     remoteId: text('remote_id'),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
     publicationSnapshot: jsonb('publication_snapshot').$type<{
       caption: string; hashtags: string[]; modelId: string; assetId: string | null; scheduledFor: string | null;
     }>(),

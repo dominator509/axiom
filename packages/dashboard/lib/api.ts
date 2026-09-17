@@ -293,6 +293,8 @@ export interface VariantExperiment {
   variantIds: string[];
   status: 'draft' | 'running' | 'paused' | 'completed' | string;
   winnerVariantId: string | null;
+  evaluationPolicy?: 'manual' | 'fixed-post-engagement-v1';
+  evaluation?: Record<string, unknown> | null;
   stats: VariantExperimentStat[];
   createdAt: string;
   updatedAt: string;

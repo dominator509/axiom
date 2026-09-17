@@ -11,6 +11,7 @@ import { schema } from '@axiom/db';
 import { embedExemplarIntent } from '../embedding.js';
 import type { Executor, ExecutorContext } from './context.js';
 import { learningStructure, refreshLearningState } from '../learning-state.js';
+import { evaluateAutomaticVariants } from '../variant-auto-evaluation.js';
 
 const LABEL_THRESHOLDS = { viral: 2, strong: 1, baseline: -1, weak: -Infinity };
 
@@ -250,4 +251,5 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     })
     .onConflictDoUpdate({ target: schema.viralEmbedding.id, set: { embedding } });
   await refreshLearningState(tx, job.org_id, bundle.modelId, target.platform);
+  await evaluateAutomaticVariants(tx, job.org_id, bundle.modelId, target.platform);
 };

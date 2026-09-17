@@ -30,6 +30,7 @@ export default function VariantExperimentManager({
   const [name, setName] = useState('Creative variant test');
   const [platform, setPlatform] = useState('instagram');
   const [variantIds, setVariantIds] = useState('');
+  const [automatic, setAutomatic] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -109,7 +110,7 @@ export default function VariantExperimentManager({
       {
         path: `/api/v1/models/${encodeURIComponent(modelId)}/variant-experiments`,
         method: 'POST',
-        body: JSON.stringify({ name: name.trim(), platform, variantIds: ids }),
+        body: JSON.stringify({ name: name.trim(), platform, variantIds: ids, evaluationPolicy: automatic ? 'fixed-post-engagement-v1' : 'manual' }),
       },
       () =>
         setMessage(
@@ -186,7 +187,7 @@ export default function VariantExperimentManager({
                     </span>
                     <span>Metric total: {stat.metricTotal.toFixed(2)}</span>
                     <span>{stat.conversions === undefined ? 'Conversion data unavailable' : `${stat.conversions} conversions`}</span>
-                    {canEdit && ['running', 'paused'].includes(experiment.status) && <button type="button" className="btn secondary"
+                    {canEdit && experiment.evaluationPolicy !== 'fixed-post-engagement-v1' && ['running', 'paused'].includes(experiment.status) && <button type="button" className="btn secondary"
                       disabled={busy || intent.current !== null || experiment.stats.some(item => item.outcomes < 1)}
                       onClick={() => {
                         if (!window.confirm('Select this variant as the winner and complete this experiment? This does not approve or publish media.')) return;
@@ -195,7 +196,10 @@ export default function VariantExperimentManager({
                   </div>
                 ))}
               </div>
-              {experiment.status !== 'completed' && <p className="subtle">Winner selection is an operator decision, not a statistical-significance claim. Every variant needs at least one recorded outcome.</p>}
+              {experiment.evaluationPolicy === 'fixed-post-engagement-v1' ? <p className="subtle">
+                Automatic fixed evaluation: first 20 published posts per variant, first provider observations after 72 hours. The result is frozen once evaluated; no clear separation means completion without a winner. This does not approve or publish posts and is not a causal sales-lift claim.
+                {experiment.status === 'completed' && !experiment.winnerVariantId ? ' Result: inconclusive.' : ''}
+              </p> : experiment.status !== 'completed' && <p className="subtle">Winner selection is an operator decision, not a statistical-significance claim. Every variant needs at least one recorded outcome.</p>}
               <VariantExperimentTracking modelId={modelId} experimentId={experiment.id} status={experiment.status} platform={experiment.platform} canEdit={canEdit} />
               <VariantPublishedPerformance modelId={modelId} experimentId={experiment.id} />
             </article>
@@ -226,6 +230,10 @@ export default function VariantExperimentManager({
             </label>
           </div>
           <p>Select two to ten variants. Selection does not approve or publish them.</p>
+          <label className="checkbox-option"><input type="checkbox" checked={automatic} onChange={event => setAutomatic(event.target.checked)} />
+            <span>Automatically evaluate after 20 published posts per variant have 72-hour provider observations.</span>
+          </label>
+          <p className="subtle">This choice is fixed when saved. Manual outcomes do not count. Normal approvals remain required; an inconclusive result completes without a winner.</p>
           {available.length === 0 && <p>No variants yet. <Link href={`/models/${encodeURIComponent(modelId)}/media`}>Create crops or adaptations in the media library</Link>.</p>}
           <div className="grid">{available.map(candidate => <div className="card stack" key={candidate.id}>
             {candidate.copy && <div><p className="subtle">{candidate.copy.platform} copy</p><p style={{ whiteSpace: 'pre-wrap' }}>{candidate.copy.text}</p></div>}

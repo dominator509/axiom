@@ -100,6 +100,7 @@ const createSchema = z.object({
   name: z.string().trim().min(1).max(120),
   platform: z.string().trim().min(1).max(50),
   variantIds: z.array(z.string().uuid()).min(2).max(10),
+  evaluationPolicy: z.enum(['manual', 'fixed-post-engagement-v1']).default('manual'),
 }).strict();
 
 router.get('/models/:modelId/variant-experiments/:experimentId/assignments', async c => {
@@ -222,6 +223,7 @@ router.post('/models/:modelId/variant-experiments', async (c) => {
     if (owned.length !== parsed.data.variantIds.length) return { invalidVariants: true as const };
     const [row] = await tx.insert(schema.variantExperiment).values({
       orgId, modelId, name: parsed.data.name, platform, variantIds: parsed.data.variantIds,
+      evaluationPolicy: parsed.data.evaluationPolicy,
     }).returning();
     if (row) await writeAudit(tx, orgId, c.get('userId') ?? 'system', 'variant.experiment.create', row.id, { modelId, platform });
     return row ?? null;
@@ -340,6 +342,7 @@ router.post('/models/:modelId/variant-experiments/:experimentId/promote', async 
     if (experiment.status === 'completed') return experiment.winnerVariantId === parsed.data.variantId
       ? { status: 200 as const, data: experiment }
       : { status: 409 as const, error: 'This experiment already has a different winner' };
+    if (experiment.evaluationPolicy === 'fixed-post-engagement-v1') return { status: 409 as const, error: 'This experiment uses a fixed automatic evaluation; manual promotion is disabled' };
     if (!['running', 'paused'].includes(experiment.status)) return { status: 409 as const, error: 'Start the experiment before selecting a winner' };
     const assignments = await tx.select({ variantId: schema.variantExperimentAssignment.variantId, outcomeAt: schema.variantExperimentAssignment.outcomeAt })
       .from(schema.variantExperimentAssignment).where(and(eq(schema.variantExperimentAssignment.experimentId, experiment.id), eq(schema.variantExperimentAssignment.orgId, orgId)));

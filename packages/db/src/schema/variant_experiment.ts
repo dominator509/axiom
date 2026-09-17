@@ -15,6 +15,8 @@ export const variantExperiment = pgTable('variant_experiment', {
   platform: text('platform').notNull(),
   variantIds: jsonb('variant_ids').$type<string[]>().notNull().default([]),
   status: text('status').$type<VariantExperimentStatus>().notNull().default('draft'),
+  evaluationPolicy: text('evaluation_policy').$type<'manual' | 'fixed-post-engagement-v1'>().notNull().default('manual'),
+  evaluation: jsonb('evaluation').$type<Record<string, unknown>>(),
   winnerVariantId: uuid('winner_variant_id').references(() => assetVariant.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

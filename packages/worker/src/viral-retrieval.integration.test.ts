@@ -6,6 +6,7 @@ import { retrieveTopExemplars } from './viral-retrieval.js';
 import { embedExemplarIntent } from './embedding.js';
 import { viralLabel } from './executors/viral.js';
 import type { JobRow } from './types.js';
+import { evaluateAutomaticVariants } from './variant-auto-evaluation.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
@@ -117,6 +118,33 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       const [preserved] = await tx.select().from(schema.postTarget).where(eq(schema.postTarget.id, targetId));
       expect(preserved.publicationSnapshot?.caption).toBe('Blue ceramic vase');
       await tx.update(schema.postTarget).set({ error: 'Status metadata may still change' }).where(eq(schema.postTarget.id, targetId));
+    });
+  });
+  it('freezes an automatic winner from mature fixed evidence and ignores later metric changes', async () => {
+    await fixture(async (tx, modelId) => {
+      const assetId = randomUUID(), experimentId = randomUUID(), variants = [randomUUID(), randomUUID()];
+      await tx.insert(schema.asset).values({ id: assetId, orgId, modelId, kind: 'image', mimeType: 'image/jpeg', fileName: 'fixture.jpg', fileSize: 1, storageKey: 'fixture.jpg', sha256: Buffer.alloc(32) });
+      await tx.insert(schema.assetVariant).values(variants.map(id => ({ id, orgId, assetId, outputAssetId: assetId, storageKey: 'fixture.jpg' })));
+      await tx.insert(schema.variantExperiment).values({ id: experimentId, orgId, modelId, name: experimentId, platform: 'instagram', variantIds: variants, status: 'running', evaluationPolicy: 'fixed-post-engagement-v1' });
+      const records = Array.from({ length: 40 }, (_, i) => ({ bundleId: randomUUID(), targetId: randomUUID(), variantId: variants[i < 20 ? 0 : 1], rate: i < 20 ? 1 : 0 }));
+      await tx.insert(schema.contentBundle).values(records.map(row => ({ id: row.bundleId, orgId, modelId, assetId, sourceVariantId: row.variantId, captions: { instagram: 'Fixture' } })));
+      await tx.insert(schema.variantExperimentAssignment).values(records.map(row => ({ orgId, experimentId, variantId: row.variantId, assignmentKey: row.targetId, reviewBundleId: row.bundleId })));
+      await tx.insert(schema.postTarget).values(records.map(row => ({ id: row.targetId, orgId, bundleId: row.bundleId, platform: 'instagram', state: 'published', remoteId: row.targetId, idemKey: Buffer.from(row.targetId), publishedAt: new Date('2026-09-01'), publicationSnapshot: { caption: 'Fixture', hashtags: [], modelId, assetId, scheduledFor: null } })));
+      // Immature observations must not complete the experiment.
+      await tx.insert(schema.postMetric).values(records.map(row => ({ postTargetId: row.targetId, platform: 'instagram', source: 'provider' as const, remoteId: row.targetId, views: 100, engagementRate: row.rate, collectedAt: new Date('2026-09-02') })));
+      await evaluateAutomaticVariants(tx, orgId, modelId, 'instagram');
+      let [saved] = await tx.select().from(schema.variantExperiment).where(eq(schema.variantExperiment.id, experimentId));
+      expect(saved.status).toBe('running');
+      await tx.insert(schema.postMetric).values(records.map(row => ({ postTargetId: row.targetId, platform: 'instagram', source: 'provider' as const, remoteId: row.targetId, views: 100, engagementRate: row.rate, collectedAt: new Date('2026-09-05') })));
+      await evaluateAutomaticVariants(tx, orgId, modelId, 'instagram');
+      [saved] = await tx.select().from(schema.variantExperiment).where(eq(schema.variantExperiment.id, experimentId));
+      expect(saved).toMatchObject({ status: 'completed', winnerVariantId: variants[0] });
+      const frozen = saved.evaluation;
+      await tx.insert(schema.postMetric).values(records.map(row => ({ postTargetId: row.targetId, platform: 'instagram', source: 'provider' as const, remoteId: row.targetId, views: 100, engagementRate: 1 - row.rate, collectedAt: new Date('2026-09-06') })));
+      await evaluateAutomaticVariants(tx, orgId, modelId, 'instagram');
+      [saved] = await tx.select().from(schema.variantExperiment).where(eq(schema.variantExperiment.id, experimentId));
+      expect(saved.evaluation).toEqual(frozen);
+      await expect(tx.transaction(nested => nested.update(schema.variantExperiment).set({ evaluation: {} }).where(eq(schema.variantExperiment.id, experimentId)))).rejects.toThrow();
     });
   });
 });

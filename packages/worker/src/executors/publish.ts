@@ -533,7 +533,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   // 4. Mark published + write idempotency ledger in the SAME txn (L3.4 §4).
   await tx
     .update(schema.postTarget)
-    .set({ state: 'published', remoteId: result.remoteId, error: null, publicationSnapshot })
+    .set({ state: 'published', remoteId: result.remoteId, error: null, publicationSnapshot, publishedAt: target.publishedAt ?? new Date() })
     .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
 
   if (idemKeyHex) {
