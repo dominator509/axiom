@@ -1,5 +1,24 @@
 # Model-scoped human roles — implementation queue
 
+## Creator private storage checkpoint — M326
+
+The runtime uses `{userId: payload.userId, orgId: job.org_id}` for video storage;
+API job creation supplies the authenticated user, and encrypted R2 records are
+keyed by both identities. Creator self-service now permits only exact configuration
+GET/HEAD/PUT/DELETE and verification POST routes, with existing origin checks.
+The connection page exposes the private storage controls with explicit non-sharing
+text. This supersedes M325's temporary hidden-storage presentation, not tenant
+isolation. Spoofed query identities cannot redirect read/save/delete; identity
+fields in the strict configuration body are rejected. Eleven API policy, eight
+gateway storage and 37 GUI/navigation tests pass; three package typechecks and
+dashboard lint pass (three existing warnings). No live credentials or bucket calls.
+
+**Next verified activation blocker:** `worker/src/executors/media_generate.ts`
+still allows only Owner/Manager/Operator despite the generation API accepting
+assigned Creators. Add and test Creator assignment checks at worker execution and
+dispatch before enabling scoped authentication. Storage setup alone does not prove
+Creator generation works. Live role/provider/browser acceptance remains open.
+
 ## Creator connection presentation checkpoint — M325
 
 Creator navigation now exposes the existing own-user Grok connection flow as

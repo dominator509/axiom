@@ -16,6 +16,7 @@ export default async function GrokConnectionPage() {
     <h1>Connect your Grok account</h1>
     <p>This only connects your account. It does not generate or publish media.</p>
     <GrokConnection />
-    {role !== 'content_creator' ? <GrokR2Storage /> : <p>Storage configuration is not available to Content Creators. If generation requires storage setup, contact your workspace owner before starting a job.</p>}
+    <p>Storage is private to your account in this workspace. Another team member’s saved configuration is not shared with your generation jobs.</p>
+    <GrokR2Storage />
   </section>;
 }

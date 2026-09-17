@@ -88,6 +88,21 @@ it('rejects insecure setup, malformed and oversized bodies without echoing crede
   const oversized = await app().request(route, put(undefined, JSON.stringify({ value: 'x'.repeat(262144) })));
   expect(oversized.status).toBe(413); expect(oversized.headers.get('cache-control')).toBe('no-store');
 });
+it('binds browser storage changes to authenticated workspace/user despite supplied identities', async () => {
+  const other = { userId: 'other-user', orgId: 'other-workspace' };
+  const otherConfig = { ...config, bucket: 'other-private-media' };
+  saveR2Storage(other, otherConfig);
+  const spoofed = `${route}?userId=${other.userId}&orgId=${other.orgId}`;
+  expect((await app().request(spoofed, put())).status).toBe(200);
+  expect(loadR2Storage(scope)).toEqual(config);
+  expect(loadR2Storage(other)).toEqual(otherConfig);
+  expect(await (await app().request(spoofed)).json()).toMatchObject({ bucket: config.bucket });
+  const bodyWithIdentity = await app().request(route, put(undefined, JSON.stringify({ ...config, ...other })));
+  expect(bodyWithIdentity.status).toBe(400);
+  expect((await app().request(spoofed, { method: 'DELETE', headers: { Origin: 'https://axiom.example' } })).status).toBe(200);
+  expect(loadR2Storage(scope)).toBeNull();
+  expect(loadR2Storage(other)).toEqual(otherConfig);
+});
 it('protects nested verification with authentication and exact-origin checks before provider work', async () => {
   saveR2Storage(scope, config);
   const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);

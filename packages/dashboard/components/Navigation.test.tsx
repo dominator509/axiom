@@ -26,11 +26,10 @@ describe('workspace navigation coverage', () => {
       expect(html).toContain('href="/"');
     }
   });
-  it('exposes only the Creator account connection, without advertising storage access', () => {
+  it('exposes Creator own-account connection and storage setup', () => {
     const html = renderToStaticMarkup(<NavLinks role="content_creator" />);
     expect(html).toContain('href="/connections/grok"');
-    expect(html).toContain('Grok account');
-    expect(html).not.toContain('Grok &amp; storage');
+    expect(html).toContain('Grok &amp; storage');
   });
   it.each([
     ['chatter', ['', 'fans', 'inbox']],

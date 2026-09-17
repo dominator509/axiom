@@ -24,14 +24,21 @@ it('permits Chatter reply preparation only on the exact scoped conversation rout
   for (const other of [`${path}/send`, `${path}/${id}`, '/api/v1/org-settings', '/api/v1/posts', `/api/v1/bundles/${id}/approve`])
     expect(scopedReadTarget('chatter', 'POST', other)).toBeNull();
 });
-it('allows only the creator own-user Grok lifecycle, not storage or arbitrary gateway work', () => {
+it('allows only the creator own-user Grok lifecycle and storage, not arbitrary gateway work', () => {
   const base = '/api/v1/llm/subscriptions/grok';
   for (const [path, methods] of [[base, ['GET', 'HEAD', 'DELETE']], [`${base}/login-attempt`, ['GET', 'HEAD', 'POST']], [`${base}/login-attempt/${id}`, ['GET', 'HEAD', 'DELETE']]] as const)
     for (const method of methods) {
       expect(scopedReadTarget('content_creator', method, path)).toBe('self-subscription');
       for (const role of ['model', 'chatter'] as const) expect(scopedReadTarget(role, method, path)).toBeNull();
     }
-  for (const path of [`${base}/r2-storage`, `${base}/r2-storage/verify`, `${base}/login`, `${base}/login-attempt/not-a-uuid`, `${base}/login-attempt/${id}/extra`, '/api/v1/llm/chat', '/api/v1/llm/subscriptions/openai'])
+  for (const [path, methods] of [[`${base}/r2-storage`, ['GET', 'HEAD', 'PUT', 'DELETE']], [`${base}/r2-storage/verify`, ['POST']]] as const)
+    for (const method of methods) {
+      expect(scopedReadTarget('content_creator', method, path)).toBe('self-subscription');
+      for (const role of ['model', 'chatter'] as const) expect(scopedReadTarget(role, method, path)).toBeNull();
+    }
+  expect(scopedReadTarget('content_creator', 'POST', `${base}/r2-storage`)).toBeNull();
+  for (const method of ['GET', 'PUT', 'DELETE', 'PATCH']) expect(scopedReadTarget('content_creator', method, `${base}/r2-storage/verify`)).toBeNull();
+  for (const path of [`${base}/r2-storage/other-user`, `${base}/r2-storage/verify/extra`, `${base}/login`, `${base}/login-attempt/not-a-uuid`, `${base}/login-attempt/${id}/extra`, '/api/v1/llm/chat', '/api/v1/llm/subscriptions/openai'])
     for (const method of ['GET', 'POST', 'PUT', 'DELETE']) expect(scopedReadTarget('content_creator', method, path)).toBeNull();
 });
 it.each([['user', 'org', 200], ['', 'org', 401], ['user', '', 401]])('requires authenticated identity for own-user subscription (%s/%s)', async (userId, orgId, status) => {

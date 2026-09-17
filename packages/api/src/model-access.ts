@@ -43,6 +43,10 @@ export function scopedReadTarget(role: ScopedHumanRole, method: string, path: st
     // Own-user credential lifecycle only. Gateway derives identity from the
     // authenticated context, never a model, request body or supplied user ID.
     const grok = '/api/v1/llm/subscriptions/grok';
+    // Generation uses the requesting user's workspace-scoped encrypted R2
+    // record. Self-service setup never grants access to another user's storage.
+    if (path === `${grok}/r2-storage` && ['GET', 'HEAD', 'PUT', 'DELETE'].includes(method)) return 'self-subscription';
+    if (path === `${grok}/r2-storage/verify` && method === 'POST') return 'self-subscription';
     if (path === grok && ['GET', 'HEAD', 'DELETE'].includes(method)) return 'self-subscription';
     if (path === `${grok}/login-attempt` && ['GET', 'HEAD', 'POST'].includes(method)) return 'self-subscription';
     const notes = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/team-notes$/i.exec(path);

@@ -13,12 +13,12 @@ it.each(['owner', 'manager', 'operator'])('retains generation connection and sto
   expect(html).toContain('Storage credential controls');
   expect(workspaceDestinationAllowed(role, '/connections/grok')).toBe(true);
 });
-it('shows Creator own-account connection without mounting unauthorized storage controls', async () => {
+it('shows Creator own-account connection and private storage controls', async () => {
   session.mockResolvedValue({ user: { role: 'content_creator' } });
   const html = renderToStaticMarkup(await Page());
   expect(html).toContain('Own account connection controls');
-  expect(html).not.toContain('Storage credential controls');
-  expect(html).toContain('contact your workspace owner');
+  expect(html).toContain('Storage credential controls');
+  expect(html).toContain('Storage is private to your account in this workspace');
 });
 it.each(['chatter', 'model', 'analyst', 'agent', 'unknown', undefined])('denies direct page controls and navigation for %s', async role => {
   session.mockResolvedValue({ user: { role } });
