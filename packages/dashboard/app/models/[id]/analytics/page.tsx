@@ -1,6 +1,7 @@
 import { api, getSession } from '@/lib/api';
 import Link from 'next/link';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
+import PerformancePatterns, { type PerformancePattern } from '@/components/PerformancePatterns';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,7 @@ interface AnalyticsData {
 }
 
 interface ViralData {
+  patterns?: { groups: PerformancePattern[]; truncated: boolean; minimumSample: number };
   totalExemplars: number;
   byLabel: Array<{ label: string; count: number }>;
   byPlatform: Array<{ platform: string; count: number }>;
@@ -142,6 +144,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
       )}
 
       <h2 style={{ marginTop: 24 }}>Viral insights</h2>
+      <PerformancePatterns patterns={viral?.patterns} />
       <p className="subtle">Only verified exemplars backed by published posts and matching provider observations appear here. Scores describe relative engagement, not conversions or proof that a caption caused an outcome.</p>
       <div className="card">
         {!viral ? <p role="alert">Viral insights could not be loaded. Reload this page to try again.</p> : viral.totalExemplars === 0 ? (

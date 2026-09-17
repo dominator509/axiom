@@ -2,7 +2,7 @@
 // GET /models/:id/viral — what's-working insights from labeled exemplars.
 
 import { Hono } from 'hono';
-import { sql, eq, and, desc } from 'drizzle-orm';
+import { sql, eq, and, desc, type SQL } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
@@ -22,6 +22,22 @@ export function publishedExemplarEvidence() {
         AND EXISTS (SELECT 1 FROM post_metric m WHERE m.post_target_id=t.id
           AND m.source='provider' AND m.remote_id=t.remote_id AND m.platform=t.platform
           AND m.collected_at <= now()))`;
+}
+
+export async function readExemplarPatterns(tx: any, orgId: string, modelId: string, access?: SQL) {
+  const arm = sql<string>`${schema.viralExemplar.features}->>'learning_arm'`;
+  const context = sql<string>`${schema.viralExemplar.features}->>'learning_context'`;
+  const mean = sql<number>`avg(${schema.viralExemplar.perfScore})::float8`;
+  const rows = await tx.select({ platform: schema.viralExemplar.platform, arm, context,
+    sampleSize: sql<number>`count(*)::int`, meanScore: mean }).from(schema.viralExemplar)
+    .where(and(eq(schema.viralExemplar.orgId, orgId), eq(schema.viralExemplar.modelId, modelId), access,
+      publishedExemplarEvidence(),
+      sql`${arm} IN ('short:question','short:statement','medium:question','medium:statement','long:question','long:statement')`,
+      sql`${context} IN ('learn-v1:scheduled-utc-0','learn-v1:scheduled-utc-1','learn-v1:scheduled-utc-2','learn-v1:scheduled-utc-3','learn-v1:scheduled-utc-unknown')`,
+      sql`${schema.viralExemplar.perfScore} NOT IN ('NaN'::float8,'Infinity'::float8,'-Infinity'::float8)`))
+    .groupBy(schema.viralExemplar.platform, arm, context).having(sql`count(*) >= 3`)
+    .orderBy(desc(mean), schema.viralExemplar.platform, arm, context).limit(21);
+  return { groups: rows.slice(0, 20), truncated: rows.length > 20, minimumSample: 3 as const };
 }
 
 // GET /models/:id/viral — exemplar distribution + top performers
@@ -73,6 +89,7 @@ router.get('/models/:modelId/viral', async (c) => {
       byLabel,
       byPlatform,
       top,
+      patterns: await readExemplarPatterns(tx, orgId, modelId, access),
     };
   });
   const last = data.top[data.top.length - 1];

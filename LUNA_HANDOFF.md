@@ -1,6 +1,6 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: 2026-09-17, after milestone M348. This is a continuation checkpoint,
+Updated: 2026-09-17, after milestone M349. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
 ## Mission and authority
@@ -26,9 +26,9 @@ merely because credits or the current turn are ending.
 
 - Repository: `dominator509/axiom`; branch `codex/telegram-webhook-hardening`;
   existing PR #14. Do not open a duplicate PR or force-push.
-- Latest application milestone: **M347 published insights evidence filter**,
-  `4be39a68b91dd4c9fb24a99ece86b8019974ffad`. M348 is documentation/bridge
-  coordination only, not another application change.
+- Latest application milestone: **M349 exploratory performance patterns**, in
+  this handoff's commit. Prior application SHA `4be39a68b91dd4c9fb24a99ece86b8019974ffad`;
+  intervening documentation SHA `466a55420722501dcbf450e1d58d4970807dabb1`.
 - Worktree was clean immediately before this documentation update. Inspect it
   again on arrival; this handoff's own commit will be newer than M342.
 - Current application migrations: **50**, ending
@@ -38,7 +38,8 @@ merely because credits or the current turn are ending.
 - Hosted CI **35285232940** exact `d537874` and **35284764547** exact
   `bbefee6` both completed successfully. Documentation commit `741c7e6` has
   run **35286101578**, now successful. M345 run **35286677401** also succeeded.
-  M346 run **35287400606** and M347 run **35287861462** remain active; do not confuse
+  M346 run **35287400606** succeeded. M347 run **35287861462** and M348 run
+  **35288152319** remain active; do not confuse
   earlier green runs.
 - Hosted CI **35283023039** on `f1378c4` and **35281902829** on `30cd883` passed.
 - No local test/build process is left running at this checkpoint.
@@ -50,11 +51,12 @@ merely because credits or the current turn are ending.
 
 1. Read this file, the private local operator companion
    `var/handoff/luna-operator.md`, and the authoritative documents below.
-2. Verify branch/HEAD/dirty state and the exact M347 hosted CI result. Preserve
+2. Verify branch/HEAD/dirty state and the exact M349 hosted CI result. Preserve
    the passing earlier-SHA receipts as historical.
 3. Read the reply to **`codex-d001a-shared-review-20260917`** through the bridge.
    M348 supplied the formerly inaccessible historical test as message data.
-   Last actual delivery remains R2, **not corrected R3 artifacts**.
+   R3 artifacts and inventory now exist and their hashes match (details below);
+   review actual source before acceptance or execution.
    Review actual delivered files, not promises or the previous 56-test count.
 4. Finish D001 source review and callsite integration work without executing the
    defective installed installer. Deployment work remains paused until the real
@@ -143,6 +145,34 @@ passed. Disposable DB was removed. This is not a live deployment receipt.
 
 ## Hermes task state / review findings
 
+M349: add per-talent/platform caption-length/question/scheduled-UTC grouped
+observations using M347 evidence eligibility. Minimum3labeledexemplars; at most
+20groups with truncation flag; mean engagement z-score, sample count and explicit
+historical-window/selection/causality limitations in GUI. These are exploratory
+observations, NOT conversion lift, statistical significance or recommendations.
+No private captions or cross-model patterns exposed.17API+6GUItests, bothTC/lint
+(3existingwarnings) pass; realPG50migration test verifies mean/count, suppression
+of small groups, duplicate-poll immunity and org/model/access filtering. Final
+fixturebb678f1c8c148c87removed; unique model fixture avoids parallel-test pollution.
+First integration command was denied by safety review citing the server incident.
+Read entire LOCAL runner and inspected Docker: Windows DockerDesktop npipe,
+isolated-ci-validation container, loopback55432, NO mounts. Reconsideration with
+this new evidence was allowed; no bypass or Contabo installer invocation.
+Broader F85 revenue/format/hook/time recommendations, calendar/trigger consumers
+and external Relay delivery remain incomplete.
+
+Hermes23:48:41Z delivered R3 under handoff/review-source. Actual remote hashes
+independently verified, but source NOT yet reviewed/executed/integrated:
+- fanthynks-target-context-r3.py: e1b05495c2a97f41b25cb82aa2d52ac19855c0cf03846a41e28f4f3e9afc16e5
+- test_fanthynks_target_context_r3.py: a609ee60c39647ded1f39dbe0757a90cc23aa1079a1645737ea67501409f7d98
+- d001a-db-ops-inventory.md: 400652ba04dc26d6008ee675c982d3b697816972012ec7180f7de64c64499098
+Claims67tests pass. Summary suggests endpoint allowlist only loopback (actual
+rehearsal DB was10.77.0.3) and namespace syntax net:digits instead of net:[digits];
+validate against source. Claimed own scratch/root paths conflict with previous
+unprivileged description; do not assume containment from wording. Inventory
+mentions prefix/root mismatches requiring explicit reconciliation. Next review
+all three files; parser tests alone never prove repaired deployment.
+
 M347: architecture L2.8 review found viral list/distributions were accepting
 legacy or unverified exemplars. All three queries now require the worker's
 published-provider evidence marker plus a same-org/model/bundle/platform
@@ -215,7 +245,7 @@ Every message sent to Hermes must end exactly with **sincerely, Codex** (owner i
   Hermes must update them, deliver actual files from its own scratch and supply
   the callsite inventory. If an additional specific sanitized source is unreadable,
   share it as data rather than granting access to private home/configuration.
-  No response to the new shared-review message has yet been verified.
+  Its23:48:41Z response and three artifact hashes are now verified above.
 
 ## Deployment incident constraints
 
