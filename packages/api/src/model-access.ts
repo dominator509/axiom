@@ -32,6 +32,13 @@ export function modelAccessCondition(role: unknown, orgId: string, userId: strin
 /** Explicit role allowlist. Unimplemented operations stay denied. */
 export function scopedReadTarget(role: ScopedHumanRole, method: string, path: string): 'discovery' | string | null {
   if (role === 'content_creator') {
+    // Own-user credential lifecycle only. Gateway derives identity from the
+    // authenticated context, never a model, request body or supplied user ID.
+    const grok = '/api/v1/llm/subscriptions/grok';
+    if (path === grok && ['GET', 'HEAD', 'DELETE'].includes(method)) return 'self-subscription';
+    if (path === `${grok}/login-attempt` && ['GET', 'HEAD', 'POST'].includes(method)) return 'self-subscription';
+    if (/^\/api\/v1\/llm\/subscriptions\/grok\/login-attempt\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path)
+      && ['GET', 'HEAD', 'DELETE'].includes(method)) return 'self-subscription';
     // The existing bounded JSON validator owns parsing. Its bundle handler
     // checks the body model's assignment inside the creation transaction.
     if (method === 'POST' && path === '/api/v1/bundles') return 'bundle-create';
@@ -69,6 +76,7 @@ export async function enforceModelAccess(c: Context<AppBindings>, next: Next) {
   if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authenticated workspace required');
   const target = scopedReadTarget(role, c.req.method, c.req.path);
   if (!target) return apiError(c, 403, statusTitle(403), 'operation is not available to this role');
+  if (target === 'self-subscription') return next();
   if (target === 'bundle-create') return next();
   if (target.startsWith('fan:')) {
     const allowed = await withOrgContext(orgId, tx => tx.select({ id: schema.fanCrmContact.id }).from(schema.fanCrmContact)

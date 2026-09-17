@@ -369,6 +369,39 @@ describe('createRouter — GET endpoints', () => {
 });
 
 describe('createRouter — subscription OAuth lifecycle', () => {
+  it('binds attempt observation and cancellation to session identity, ignoring supplied identities', async () => {
+    const gateway = makeGatewayStub();
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    let signal: AbortSignal | undefined;
+    gateway.connectSubscription = vi.fn((_provider, _user, incoming) => (async function* () {
+      signal = incoming;
+      yield 'Private provider instructions';
+      await pending;
+    })());
+    const app = new Hono<{ Variables: { userId: string; orgId: string } }>();
+    // Test session injection; production identity comes from requireAuth.
+    let user = 'first-user';
+    app.use('*', async (c, next) => { c.set('userId', user); c.set('orgId', 'test-org'); await next(); });
+    app.route('/', createRouter(gateway));
+    try {
+      const started = await app.request('/subscriptions/grok/login-attempt?userId=other', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'other' }) });
+      expect(started.status).toBe(202);
+      const { id } = await started.json() as { id: string };
+      expect(gateway.connectSubscription).toHaveBeenCalledWith('grok', 'first-user', expect.any(AbortSignal));
+      user = 'second-user';
+      expect(await (await app.request('/subscriptions/grok/login-attempt')).json()).toEqual({ attempt: null });
+      for (const method of ['GET', 'DELETE']) {
+        const response = await app.request(`/subscriptions/grok/login-attempt/${id}?userId=first-user`, { method });
+        expect(response.status).toBe(404);
+        expect(await response.text()).not.toContain('Private provider instructions');
+      }
+      expect(signal?.aborted).toBe(false);
+      user = 'first-user';
+      expect((await app.request(`/subscriptions/grok/login-attempt/${id}`, { method: 'DELETE' })).status).toBe(200);
+      expect(signal?.aborted).toBe(true);
+    } finally { finish(); }
+  });
   it('keeps a Grok attempt alive after the starting request closes and resumes by GET', async () => {
     const gateway = makeGatewayStub();
     let signal: AbortSignal | undefined;

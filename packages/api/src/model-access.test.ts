@@ -1,6 +1,28 @@
 import { expect, it } from 'vitest';
 import { scopedReadTarget, isScopedHumanRole } from './model-access.js';
+import { enforceModelAccess } from './model-access.js';
+import { Hono } from 'hono';
+import type { AppBindings } from './index.js';
 const id = '11111111-1111-4111-8111-111111111111';
+it('allows only the creator own-user Grok lifecycle, not storage or arbitrary gateway work', () => {
+  const base = '/api/v1/llm/subscriptions/grok';
+  for (const [path, methods] of [[base, ['GET', 'HEAD', 'DELETE']], [`${base}/login-attempt`, ['GET', 'HEAD', 'POST']], [`${base}/login-attempt/${id}`, ['GET', 'HEAD', 'DELETE']]] as const)
+    for (const method of methods) {
+      expect(scopedReadTarget('content_creator', method, path)).toBe('self-subscription');
+      for (const role of ['model', 'chatter'] as const) expect(scopedReadTarget(role, method, path)).toBeNull();
+    }
+  for (const path of [`${base}/r2-storage`, `${base}/r2-storage/verify`, `${base}/login`, `${base}/login-attempt/not-a-uuid`, `${base}/login-attempt/${id}/extra`, '/api/v1/llm/chat', '/api/v1/llm/subscriptions/openai'])
+    for (const method of ['GET', 'POST', 'PUT', 'DELETE']) expect(scopedReadTarget('content_creator', method, path)).toBeNull();
+});
+it.each([['user', 'org', 200], ['', 'org', 401], ['user', '', 401]])('requires authenticated identity for own-user subscription (%s/%s)', async (userId, orgId, status) => {
+  const app = new Hono<AppBindings>();
+  app.use('*', async (c, next) => { c.set('role', 'content_creator'); c.set('userId', userId as string); c.set('orgId', orgId as string); await next(); });
+  app.use('*', enforceModelAccess);
+  app.get('/api/v1/llm/subscriptions/grok', c => c.json({ userId: c.get('userId') }));
+  const response = await app.request('/api/v1/llm/subscriptions/grok?userId=other-user');
+  expect(response.status).toBe(status);
+  if (status === 200) expect(await response.json()).toEqual({ userId: 'user' });
+});
 it.each(['chatter', 'content_creator', 'model'] as const)('denies unclassified routes and all writes for staged role %s', role => {
   for (const path of ['/api/v1/audit', '/api/v1/org-settings', '/api/v1/llm/generate', `/api/v1/bundles/${id}/approve`, `/api/v1/models/${id}/network`, `/api/v1/models/${id}/member-assignments`, `/api/v1/models/${id}/unknown`, `/api/v1/models/${id}/fans/extra`])
     expect(scopedReadTarget(role, 'GET', path)).toBeNull();

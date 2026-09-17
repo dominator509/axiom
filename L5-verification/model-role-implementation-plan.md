@@ -109,6 +109,16 @@ Creator own-user sign-in/status/cancellation requires an explicit central policy
 and gateway ownership verification before role activation. Do not expose storage
 administration or arbitrary gateway mutations by allowing the whole prefix.
 
+Creator own-user Grok lifecycle now has exact method/path allowlisting for status,
+disconnect, resumable login creation/latest/status/cancellation. Authentication
+still requires both user and workspace; the gateway derives credential ownership
+only from user context. UUID attempt paths are explicit; storage, legacy login,
+other providers and generic gateway calls remain denied. Ten policy/boundary
+tests and 37 gateway lifecycle tests pass, including cross-user observation and
+cancellation denial despite supplied body/query identities; both typechecks pass.
+These tests do not dispatch a real provider login. Roles remain staged pending
+the rest of the workflow and deployed acceptance.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including
