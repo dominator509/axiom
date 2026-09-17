@@ -28,11 +28,13 @@ router.get('/models/:modelId/variant-experiments/:experimentId/performance', asy
     )).limit(1);
     if (!experiment) return null;
     if (!experiment.variantIds.length) return [];
-    const m = schema.postMetric, p = schema.postTarget, b = schema.contentBundle;
+    const m = schema.postMetric, p = schema.postTarget, b = schema.contentBundle, a = schema.variantExperimentAssignment;
     // Cumulative provider counts: select one latest snapshot per published target.
     return tx.selectDistinctOn([p.id], { targetId: p.id, variantId: b.sourceVariantId, collectedAt: m.collectedAt,
       views: m.views, likes: m.likes, shares: m.shares, comments: m.comments, engagementRate: m.engagementRate,
-    }).from(m).innerJoin(p, eq(p.id, m.postTargetId)).innerJoin(b, eq(b.id, p.bundleId)).where(and(
+    }).from(m).innerJoin(p, eq(p.id, m.postTargetId)).innerJoin(b, eq(b.id, p.bundleId))
+      .innerJoin(a, and(eq(a.reviewBundleId, b.id), eq(a.variantId, b.sourceVariantId))).where(and(
+      eq(a.orgId, orgId), eq(a.experimentId, experimentId),
       eq(p.orgId, orgId), eq(b.orgId, orgId), eq(b.modelId, modelId), eq(p.state, 'published'),
       eq(p.platform, experiment.platform), eq(m.platform, p.platform), eq(m.remoteId, p.remoteId),
       inArray(b.sourceVariantId, experiment.variantIds),
@@ -108,8 +110,10 @@ router.get('/models/:modelId/variant-experiments/:experimentId/assignments', asy
     )).limit(1);
     if (!experiment) return null;
     const a = schema.variantExperimentAssignment;
-    return tx.select({ id: a.id, variantId: a.variantId, assignedAt: a.assignedAt, outcomeAt: a.outcomeAt, converted: a.converted, metricValue: a.metricValue })
-      .from(a).where(and(eq(a.orgId, orgId), eq(a.experimentId, experimentId), ...cursorLt(a.assignedAt, a.id, cursor)))
+    return tx.select({ id: a.id, variantId: a.variantId, assignedAt: a.assignedAt, outcomeAt: a.outcomeAt, converted: a.converted, metricValue: a.metricValue,
+      reviewBundleId: a.reviewBundleId, variantType: schema.assetVariant.variantType })
+      .from(a).innerJoin(schema.assetVariant, and(eq(schema.assetVariant.id, a.variantId), eq(schema.assetVariant.orgId, orgId)))
+      .where(and(eq(a.orgId, orgId), eq(a.experimentId, experimentId), ...cursorLt(a.assignedAt, a.id, cursor)))
       .orderBy(desc(a.assignedAt), desc(a.id)).limit(limit);
   });
   if (!rows) return apiError(c, 404, statusTitle(404), 'variant experiment not found');

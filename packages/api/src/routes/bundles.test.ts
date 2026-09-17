@@ -247,6 +247,23 @@ describe('GET /:id — get bundle', () => {
 });
 
 describe('POST / — create bundle', () => {
+  it('reuses the allocated review bundle without enqueueing another scan', async () => {
+    mockState.insertValues = [];
+    mockState.results = [[], [{ orgId: ORG_ID }], [{ experimentId: MODEL_ID }],
+      [{ id: MODEL_ID, platform: 'instagram', status: 'completed', variantIds: [INSTAGRAM_CONNECTION_ID] }],
+      [{ variantId: INSTAGRAM_CONNECTION_ID, reviewBundleId: BUNDLE_ID }], [{ id: BUNDLE_ID }]];
+    const response = await appWithOrg(ORG_ID).request('/', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ modelId: MODEL_ID, variantId: INSTAGRAM_CONNECTION_ID, assignmentId: X_CONNECTION_ID }) });
+    expect(response.status).toBe(201); expect(await response.json()).toEqual({ data: { id: BUNDLE_ID } });
+    expect(mockState.insertValues).toEqual([]); expect(enqueueJob).not.toHaveBeenCalled();
+  });
+  it('rejects an allocation for a different variant', async () => {
+    mockState.results = [[], [{ orgId: ORG_ID }], [{ experimentId: MODEL_ID }],
+      [{ id: MODEL_ID, platform: 'instagram', status: 'running', variantIds: [INSTAGRAM_CONNECTION_ID] }], [{ variantId: X_CONNECTION_ID }]];
+    const response = await appWithOrg(ORG_ID).request('/', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ modelId: MODEL_ID, variantId: INSTAGRAM_CONNECTION_ID, assignmentId: X_CONNECTION_ID }) });
+    expect(response.status).toBe(404); expect(enqueueJob).not.toHaveBeenCalled();
+  });
   it('binds a saved copy variant using server-owned copy and media with fresh scan', async () => {
     mockState.insertValues = [];
     const asset = { id: X_CONNECTION_ID, orgId: ORG_ID, modelId: MODEL_ID, mimeType: 'image/jpeg' };

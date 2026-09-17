@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 
-export default function VariantReviewCreate({ modelId, variantId }: { modelId: string; variantId: string }) {
+export default function VariantReviewCreate({ modelId, variantId, assignmentId }: { modelId: string; variantId: string; assignmentId?: string }) {
   const [busy, setBusy] = useState(false), [saved, setSaved] = useState(false), [message, setMessage] = useState('');
   const active = useRef(false), key = useRef<string | null>(null);
   async function create() {
@@ -13,7 +13,7 @@ export default function VariantReviewCreate({ modelId, variantId }: { modelId: s
     active.current = true; setBusy(true); setMessage(''); key.current ??= createIdempotencyKey();
     try {
       const response = await mutationFetch('/api/v1/bundles', { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ modelId, variantId }),
+        body: JSON.stringify({ modelId, variantId, assignmentId }),
       }, { idempotencyKey: key.current, retries: 0 });
       if (!response.ok) {
         const error = await readDashboardError(response);

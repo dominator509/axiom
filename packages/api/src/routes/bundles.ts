@@ -37,6 +37,7 @@ const createBundleSchema = z.object({
   modelId: z.string().uuid(),
   assetId: z.string().uuid().optional(),
   variantId: z.string().uuid().optional(),
+  assignmentId: z.string().uuid().optional(),
   captions: z.record(z.string(), z.string()).default({}),
   hashtags: z.array(z.string()).default([]),
 });
@@ -172,6 +173,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
+  if (body.assignmentId && !body.variantId) return apiError(c, 400, statusTitle(400), 'Assignment review requires its variant');
   if (body.variantId && (body.assetId || Object.keys(body.captions).length || body.hashtags.length))
     return apiError(c, 400, statusTitle(400), 'Variant review uses the saved copy and media; overrides are not accepted');
   if (body.assetId) {
@@ -185,6 +187,22 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
 
   const inserted = await withOrgContext(orgId, async (tx) => {
     if ((await modelOrgId(tx, body.modelId)) !== orgId) return null;
+    let assignmentPlatform: string | undefined;
+    if (body.assignmentId) {
+      const a = schema.variantExperimentAssignment, e = schema.variantExperiment;
+      const [lookup] = await tx.select({ experimentId: a.experimentId }).from(a).where(and(eq(a.id, body.assignmentId), eq(a.orgId, orgId))).limit(1);
+      if (!lookup) return null;
+      const [experiment] = await tx.select().from(e).where(and(eq(e.id, lookup.experimentId), eq(e.orgId, orgId), eq(e.modelId, body.modelId))).limit(1).for('share');
+      if (!experiment) return null;
+      const [assignment] = await tx.select().from(a).where(and(eq(a.id, body.assignmentId), eq(a.orgId, orgId), eq(a.experimentId, experiment.id))).limit(1).for('update');
+      if (!assignment || assignment.variantId !== body.variantId || !experiment.variantIds.includes(body.variantId)) return null;
+      if (assignment.reviewBundleId) {
+        const [existing] = await tx.select().from(schema.contentBundle).where(and(eq(schema.contentBundle.id, assignment.reviewBundleId), eq(schema.contentBundle.orgId, orgId), eq(schema.contentBundle.modelId, body.modelId))).limit(1);
+        return existing ?? null;
+      }
+      if (!['running', 'paused'].includes(experiment.status)) return null;
+      assignmentPlatform = experiment.platform;
+    }
     if (body.variantId) {
       const [variant] = await tx.select({ id: schema.assetVariant.id, outputAssetId: schema.assetVariant.outputAssetId,
         variantType: schema.assetVariant.variantType, settings: schema.assetVariant.settings,
@@ -195,6 +213,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
       if (!variant || !variant.outputAssetId || !['caption', 'teaser'].includes(variant.variantType)) return null;
       const copy = z.object({ platform: z.string().min(1).max(50), text: z.string().trim().min(1).max(10000) }).safeParse(variant.settings?.copy);
       if (!copy.success) return null;
+      if (assignmentPlatform && copy.data.platform !== assignmentPlatform) return null;
       try { asPlatform(copy.data.platform); } catch { return null; }
       body.assetId = variant.outputAssetId;
       body.captions = { [copy.data.platform]: copy.data.text };
@@ -225,6 +244,9 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
         state: 'generated',
       })
       .returning();
+    if (body.assignmentId) await tx.update(schema.variantExperimentAssignment).set({ reviewBundleId: row.id }).where(and(
+      eq(schema.variantExperimentAssignment.id, body.assignmentId), eq(schema.variantExperimentAssignment.orgId, orgId),
+    ));
     await writeAudit(tx, orgId, userId, 'bundle.create', row.id, {
       modelId: body.modelId,
       assetId: body.assetId,

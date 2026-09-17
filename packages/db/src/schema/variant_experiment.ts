@@ -3,6 +3,7 @@ import { relations } from 'drizzle-orm';
 import { org } from './org.js';
 import { modelProfile } from './model_profile.js';
 import { assetVariant } from './asset_variant.js';
+import { contentBundle } from './content_bundle.js';
 
 export type VariantExperimentStatus = 'draft' | 'running' | 'paused' | 'completed';
 
@@ -27,12 +28,14 @@ export const variantExperimentAssignment = pgTable('variant_experiment_assignmen
   experimentId: uuid('experiment_id').notNull().references(() => variantExperiment.id, { onDelete: 'cascade' }),
   variantId: uuid('variant_id').notNull().references(() => assetVariant.id, { onDelete: 'cascade' }),
   assignmentKey: text('assignment_key').notNull(),
+  reviewBundleId: uuid('review_bundle_id').references(() => contentBundle.id, { onDelete: 'restrict' }),
   converted: boolean('converted').notNull().default(false),
   metricValue: doublePrecision('metric_value'),
   outcomeAt: timestamp('outcome_at', { withTimezone: true }),
   assignedAt: timestamp('assigned_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex('variant_experiment_assignment_key_unique').on(table.experimentId, table.assignmentKey),
+  uniqueIndex('variant_experiment_assignment_review_unique').on(table.reviewBundleId),
 ]);
 
 export const variantExperimentRelations = relations(variantExperiment, ({ one, many }) => ({

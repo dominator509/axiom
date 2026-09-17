@@ -9,7 +9,7 @@ import { variantExperimentsRouter } from './variant-experiments.js';
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111', modelId = '9283b927-b95d-461c-90d0-729bc2d13852';
 const assetId = randomUUID(), variantId = randomUUID(), otherVariant = randomUUID(), experimentId = randomUUID();
-const bundles = Array.from({ length: 4 }, () => randomUUID()), targets = Array.from({ length: 4 }, () => randomUUID());
+const bundles = Array.from({ length: 5 }, () => randomUUID()), targets = Array.from({ length: 5 }, () => randomUUID());
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const scoped = <T>(operation: (tx: Transaction) => Promise<T>) => db.transaction(async tx => {
   await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
@@ -42,8 +42,9 @@ describe.skipIf(!url)('published variant performance in PostgreSQL', () => {
       await tx.insert(schema.asset).values({ id: assetId, orgId, modelId, kind: 'image', mimeType: 'image/jpeg', fileName: 'fixture.jpg', fileSize: 1, storageKey: 'fixture.jpg', sha256: Buffer.from(randomUUID().replaceAll('-', '') + randomUUID().replaceAll('-', ''), 'hex') });
       await tx.insert(schema.assetVariant).values([variantId, otherVariant].map(id => ({ id, orgId, assetId, storageKey: 'fixture.jpg' })));
       await tx.insert(schema.variantExperiment).values({ id: experimentId, orgId, modelId, platform: 'instagram', name: experimentId, variantIds: [variantId, otherVariant] });
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 5; i++) {
         await tx.insert(schema.contentBundle).values({ id: bundles[i], orgId, modelId, assetId, sourceVariantId: variantId, captions: { instagram: 'Fixture' } });
+        if (i < 4) await tx.insert(schema.variantExperimentAssignment).values({ orgId, experimentId, variantId, assignmentKey: randomUUID(), reviewBundleId: bundles[i] });
         await tx.insert(schema.postTarget).values({ id: targets[i], orgId, bundleId: bundles[i], platform: i === 3 ? 'x' : 'instagram', state: i === 1 ? 'pending' : 'published', remoteId: `remote-${i}`, idemKey: Buffer.from(randomUUID()) });
         await tx.insert(schema.postMetric).values({ postTargetId: targets[i], platform: i === 3 ? 'x' : 'instagram', remoteId: i === 2 ? 'wrong-remote' : `remote-${i}`, views: 10, collectedAt: new Date('2026-09-01T00:00:00Z') });
       }
@@ -54,6 +55,7 @@ describe.skipIf(!url)('published variant performance in PostgreSQL', () => {
     await scoped(async tx => {
       await tx.delete(schema.postMetric).where(inArray(schema.postMetric.postTargetId, targets));
       await tx.delete(schema.postTarget).where(inArray(schema.postTarget.id, targets));
+      await tx.delete(schema.variantExperimentAssignment).where(eq(schema.variantExperimentAssignment.experimentId, experimentId));
       await tx.delete(schema.contentBundle).where(inArray(schema.contentBundle.id, bundles));
       await tx.delete(schema.variantExperiment).where(eq(schema.variantExperiment.id, experimentId));
       await tx.delete(schema.assetVariant).where(inArray(schema.assetVariant.id, [variantId, otherVariant]));

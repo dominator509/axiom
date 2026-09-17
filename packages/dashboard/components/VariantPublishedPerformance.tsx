@@ -23,7 +23,7 @@ export default function VariantPublishedPerformance({ modelId, experimentId }: {
     finally { active.current = false; setBusy(false); }
   }
   return <details className="stack"><summary>Published variant performance</summary>
-    <p>Latest stored provider snapshot per published post using an unchanged saved variant. This is separate from manual outcomes and does not establish a statistically valid experiment or attributed sales.</p>
+    <p>Latest stored provider snapshot per published post linked to this experiment through an allocation and unchanged review bundle. This is separate from manual outcomes and does not establish a statistically valid experiment or attributed sales.</p>
     <button type="button" className="btn secondary" disabled={busy} onClick={() => void load()}>{busy ? 'Loading performance…' : 'Refresh published performance'}</button>
     {loaded && rows.length === 0 && <p>No published metrics are linked to these variants yet.</p>}
     {truncated && <p role="status">Showing only 100 posts. This is not the complete experiment dataset.</p>}

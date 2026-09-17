@@ -4,8 +4,10 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import VariantReviewCreate from './VariantReviewCreate';
+import Link from 'next/link';
 
-type Assignment = { id: string; variantId: string; assignedAt: string; outcomeAt: string | null; converted: boolean; metricValue: number | null };
+type Assignment = { id: string; variantId: string; assignedAt: string; outcomeAt: string | null; converted: boolean; metricValue: number | null; reviewBundleId?: string | null; variantType?: string };
 type Intent = { path: string; body: string; key: string };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -36,7 +38,8 @@ export default function VariantExperimentTracking({ modelId, experimentId, statu
       if (!response.ok) throw new Error('Assignments unavailable');
       const result = await readDashboardJson<{ data: Assignment[]; meta: { next_cursor: string | null } }>(response);
       if (!Array.isArray(result.data) || !result.meta || !(result.meta.next_cursor === null || typeof result.meta.next_cursor === 'string') ||
-        result.data.some(row => !uuid.test(row.id) || !uuid.test(row.variantId) || typeof row.assignedAt !== 'string' || !(row.outcomeAt === null || typeof row.outcomeAt === 'string') || typeof row.converted !== 'boolean' || !(row.metricValue === null || Number.isFinite(row.metricValue)))) throw new Error('Invalid assignments');
+        result.data.some(row => !uuid.test(row.id) || !uuid.test(row.variantId) || typeof row.assignedAt !== 'string' || !(row.outcomeAt === null || typeof row.outcomeAt === 'string') || typeof row.converted !== 'boolean' || !(row.metricValue === null || Number.isFinite(row.metricValue)) ||
+          !(row.reviewBundleId == null || typeof row.reviewBundleId === 'string' && uuid.test(row.reviewBundleId)) || !(row.variantType === undefined || typeof row.variantType === 'string'))) throw new Error('Invalid assignments');
       setRows(previous => more ? [...new Map([...previous, ...result.data].map(row => [row.id, row])).values()] : result.data);
       setCursor(result.meta.next_cursor); setLoaded(true);
     } catch { setError('Assignment history could not be loaded. Try again.'); }
@@ -82,6 +85,8 @@ export default function VariantExperimentTracking({ modelId, experimentId, statu
     {loaded && rows.length === 0 && <p>No assignments recorded.</p>}
     <ul className="stack">{rows.map(row => <li key={row.id}>
       <span className="mono">{row.id.slice(0, 8)}</span> · variant {row.variantId.slice(0, 8)} · {row.outcomeAt ? `${row.converted ? 'Converted' : 'Did not convert'}${row.metricValue === null ? '' : ` · metric ${row.metricValue}`}` : 'Awaiting outcome'}
+      {row.reviewBundleId ? <Link href={`/models/${encodeURIComponent(modelId)}/approvals`}>Review bundle {row.reviewBundleId.slice(0, 8)}</Link>
+        : canEdit && ['running', 'paused'].includes(status) && ['caption', 'teaser'].includes(row.variantType ?? '') && <VariantReviewCreate modelId={modelId} variantId={row.variantId} assignmentId={row.id} />}
     </li>)}</ul>
     {cursor && <button type="button" className="btn secondary" disabled={loading || busy} onClick={() => void load(true)}>Load older assignments</button>}
     {canEdit && status === 'running' && <fieldset className="stack" disabled={busy || intent.current !== null}>
