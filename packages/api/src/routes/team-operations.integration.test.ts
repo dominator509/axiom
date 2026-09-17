@@ -22,7 +22,7 @@ import { analyticsRouter } from './analytics.js';
 import { earningsRouter } from './earnings.js';
 import { inboxRouter } from './inbox.js';
 import { inboxRepliesRouter } from './inbox-replies.js';
-import { claimReplyDispatch, finalizeReplyDispatch, dispatchReply } from '../reply-dispatch.js';
+import { claimReplyDispatch, finalizeReplyDispatch, dispatchReply, cancelReply } from '../reply-dispatch.js';
 import { FanvueConnector } from '@axiom/connectors';
 import { viralRouter } from './viral.js';
 import { reportsRouter } from './reports.js';
@@ -617,6 +617,27 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
       return lostSender();
     };
     expect((await dispatchReply({ ...identity, replyId: halted.id }, rotateDuringSetup)).outcome).toBe('account-unavailable');
+    expect(messageRequests).toBe(2);
+    const cancelTarget = await create(), cancelIdentity = { ...identity, replyId: cancelTarget.id };
+    await run(async tx => {
+      await tx.update(schema.orgSettings).set({ publishingEnabled: false }).where(eq(schema.orgSettings.orgId, testOrg));
+      await tx.update(schema.modelProfile).set({ isActive: false }).where(eq(schema.modelProfile.id, modelId));
+    });
+    expect((await cancelReply({ ...cancelIdentity, userId: assignmentUsers[0] })).outcome).toBe('denied');
+    expect((await cancelReply(cancelIdentity)).outcome).toBe('cancelled');
+    expect((await cancelReply(cancelIdentity)).outcome).toBe('cancelled');
+    const cancelAudits = await run(tx => tx.select().from(schema.auditLog).where(eq(schema.auditLog.target, cancelTarget.id)));
+    expect(cancelAudits.map(row => row.action)).toEqual(['inbox.reply.cancelled']);
+    expect((await cancelReply(sendIdentity)).outcome).toBe('already-dispatched');
+    await run(async tx => {
+      await tx.update(schema.orgSettings).set({ publishingEnabled: true }).where(eq(schema.orgSettings.orgId, testOrg));
+      await tx.update(schema.modelProfile).set({ isActive: true }).where(eq(schema.modelProfile.id, modelId));
+    });
+    expect((await claimReplyDispatch(cancelIdentity)).outcome).toBe('already-dispatched');
+    const race = await create(), raceIdentity = { ...identity, replyId: race.id };
+    const outcomesRace = await Promise.all([cancelReply(raceIdentity), claimReplyDispatch(raceIdentity)]);
+    expect(outcomesRace.map(value => value.outcome).filter(value => value === 'cancelled' || value === 'claimed')).toHaveLength(1);
+    expect(outcomesRace.map(value => value.outcome)).toContain('already-dispatched');
     expect(messageRequests).toBe(2);
   });
   it('lists only assigned self shifts before their start without granting early model access', async () => {

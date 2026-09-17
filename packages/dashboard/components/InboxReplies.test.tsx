@@ -114,7 +114,7 @@ it('requires explicit confirmation, fences double clicks and sends only the immu
   complete(Response.json({ data: { replyId: id, state: 'sent' } }));
   await vi.waitFor(() => expect(find(render(), 'button', 'Load reply history')!.props.disabled).toBe(false));
   expect(find(render(), 'h4', 'Prepared — not sent')).toBeUndefined();
-  expect(find(render(), 'h4', 'Send attempted — refresh status')).toBeDefined();
+  expect(find(render(), 'h4', 'Action attempted — refresh status')).toBeDefined();
   expect(find(render(), 'button', 'Send prepared reply')).toBeUndefined();
   await load([{ ...reply, state: 'sent', remoteMessageUuid: key }]);
   expect(find(render(), 'h4', 'Accepted by Fanvue — not a read receipt')).toBeDefined();
@@ -135,4 +135,26 @@ it('requires history after a lost send response instead of offering transport re
   expect(find(render(), 'button', 'Send prepared reply')).toBeUndefined();
   expect(find(render(), 'p', 'Delivery not confirmed. Do not resend or create a duplicate. Load reply history to check status and access.')).toBeDefined();
   expect(hooks.send).toHaveBeenCalledOnce();
+});
+it('confirms cancellation separately and preserves the cancelled history', async () => {
+  await load([reply]);
+  click('Cancel prepared reply');
+  expect(find(render(), 'button', 'Confirm send to Fanvue')).toBeUndefined();
+  expect(hooks.send).not.toHaveBeenCalled();
+  hooks.send.mockResolvedValueOnce(Response.json({ data: { replyId: id, state: 'cancelled' } }));
+  click('Confirm cancellation');
+  await vi.waitFor(() => expect(find(render(), 'h4', 'Cancelled — not sent')).toBeDefined());
+  expect(hooks.send.mock.calls[0][0]).toBe(`/api/v1/models/${id}/inbox/replies/${id}/cancel`);
+  expect(hooks.send.mock.calls[0][2]).toEqual({ idempotencyKey: key, retries: 0 });
+  expect(find(render(), 'button', 'Send prepared reply')).toBeUndefined();
+  expect(find(render(), 'p', reply.body)).toBeDefined();
+});
+it('does not claim cancellation after a lost or mismatched receipt', async () => {
+  await load([reply]);
+  hooks.send.mockResolvedValueOnce(Response.json({ data: { replyId: key, state: 'cancelled' } }));
+  click('Cancel prepared reply'); click('Confirm cancellation');
+  await vi.waitFor(() => expect(find(render(), 'button', 'Load reply history')!.props.disabled).toBe(false));
+  expect(find(render(), 'h4', 'Cancelled — not sent')).toBeUndefined();
+  expect(find(render(), 'button', 'Send prepared reply')).toBeUndefined();
+  expect(find(render(), 'h4', 'Action attempted — refresh status')).toBeDefined();
 });

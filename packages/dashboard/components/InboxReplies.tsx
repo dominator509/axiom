@@ -32,6 +32,7 @@ export default function InboxReplies({ modelId, connectionId, counterpartUuid, c
   const [loaded, setLoaded] = useState(false), [busy, setBusy] = useState(false);
   const [body, setBody] = useState(''), [error, setError] = useState(''), [message, setMessage] = useState('');
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [cancelId, setCancelId] = useState<string | null>(null);
   const active = useRef(false);
   const attempted = useRef(new Set<string>());
   const intent = useRef<{ key: string; body: string; request: string } | null>(null);
@@ -51,6 +52,7 @@ export default function InboxReplies({ modelId, connectionId, counterpartUuid, c
       setRecords(previous => older ? [...previous, ...replies].filter((reply, index, all) => all.findIndex(item => item.id === reply.id) === index) : replies);
       setCursor(result.meta.next_cursor as string | null); setLoaded(true);
       setConfirmId(null);
+      setCancelId(null);
       // A fresh server read is required before another explicit send action.
       for (const reply of replies) attempted.current.delete(reply.id);
       // A read can reconcile an uncertain save, but only for the exact outstanding intent.
@@ -95,6 +97,22 @@ export default function InboxReplies({ modelId, connectionId, counterpartUuid, c
     } catch { setError('Delivery not confirmed. Do not resend or create a duplicate. Load reply history to check status and access.'); }
     finally { active.current = false; setBusy(false); }
   }
+  async function cancelPrepared(reply: Reply) {
+    if (!canPrepare || !actorUserId || reply.actorUserId !== actorUserId || reply.state !== 'pending'
+      || cancelId !== reply.id || !loaded || active.current || attempted.current.has(reply.id)) return;
+    active.current = true; attempted.current.add(reply.id); setBusy(true); setCancelId(null); setError(''); setMessage('');
+    try {
+      const response = await mutationFetch(`${path}/${encodeURIComponent(reply.id)}/cancel`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ confirm: true }),
+      }, { idempotencyKey: crypto.randomUUID(), retries: 0 });
+      if (!response.ok) throw new Error('unconfirmed');
+      const result = await readDashboardJson<{ data: { replyId: string; state: string } }>(response);
+      if (result.data?.replyId !== reply.id || result.data.state !== 'cancelled') throw new Error('invalid cancellation');
+      setRecords(previous => previous.map(item => item.id === reply.id ? { ...item, state: 'cancelled' } : item));
+      attempted.current.delete(reply.id); setMessage('Prepared reply cancelled. Nothing was sent. You can prepare corrected text as a new reply.');
+    } catch { setError('Cancellation not confirmed. Load reply history before taking further action; cancellation cannot recall a message already being sent.'); }
+    finally { active.current = false; setBusy(false); }
+  }
   return <section className="card stack" aria-label="Workspace replies">
     <h3>Workspace replies</h3>
     <p>Prepare a text reply for this conversation and review saved attempts. Sending requires a separate confirmation. Attachment previews are not available here yet. Nothing is sent when you save.</p>
@@ -103,15 +121,19 @@ export default function InboxReplies({ modelId, connectionId, counterpartUuid, c
       {cursor && <button type="button" className="btn secondary" disabled={busy} onClick={() => void load(true)}>Load older replies</button>}</div>
     {loaded && records.length === 0 && <p>No saved replies in this conversation.</p>}
     {records.map(reply => <article key={reply.id} className="card stack">
-      <h4>{attempted.current.has(reply.id) ? 'Send attempted — refresh status' : labels[reply.state]}</h4><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{reply.body}</p>
+      <h4>{attempted.current.has(reply.id) ? 'Action attempted — refresh status' : labels[reply.state]}</h4><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{reply.body}</p>
       <p className="subtle">{new Date(reply.createdAt).toLocaleString()} · Prepared by {reply.actorUserId}</p>
       {reply.remoteMessageUuid && <p className="subtle">Provider receipt: {reply.remoteMessageUuid}</p>}
       {canPrepare && actorUserId === reply.actorUserId && reply.state === 'pending' && <div className="stack">
-        {attempted.current.has(reply.id) ? <p>Send was attempted. Load history before taking further action.</p>
+        {attempted.current.has(reply.id) ? <p>An action was attempted. Load history before taking further action.</p>
           : confirmId === reply.id ? <><p>This sends the exact text above to this Fanvue conversation immediately. It cannot be recalled here.</p><div className="action-row">
             <button type="button" className="btn" disabled={busy || !loaded} onClick={() => void sendReply(reply)}>Confirm send to Fanvue</button>
             <button type="button" className="btn secondary" disabled={busy} onClick={() => setConfirmId(null)}>Keep prepared</button>
-          </div></> : <button type="button" className="btn secondary" disabled={busy || !loaded} onClick={() => setConfirmId(reply.id)}>Send prepared reply</button>}
+          </div></> : cancelId === reply.id ? <><p>Cancel this prepared reply? Its text stays in history, but it will not be sent.</p><div className="action-row">
+            <button type="button" className="btn secondary" disabled={busy || !loaded} onClick={() => void cancelPrepared(reply)}>Confirm cancellation</button>
+            <button type="button" className="btn secondary" disabled={busy} onClick={() => setCancelId(null)}>Keep prepared</button>
+          </div></> : <div className="action-row"><button type="button" className="btn secondary" disabled={busy || !loaded} onClick={() => { setCancelId(null); setConfirmId(reply.id); }}>Send prepared reply</button>
+            <button type="button" className="btn secondary" disabled={busy || !loaded} onClick={() => { setConfirmId(null); setCancelId(reply.id); }}>Cancel prepared reply</button></div>}
       </div>}
     </article>)}
     {canPrepare && <><label className="stack">Reply text<textarea value={body} maxLength={5000} rows={5} disabled={!loaded || busy || !!intent.current} onChange={event => setBody(event.target.value)} /></label>

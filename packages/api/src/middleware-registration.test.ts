@@ -24,6 +24,7 @@ describe('application idempotency registration', () => {
     '/api/v1/models/model/team-notes',
     '/api/v1/models/model/inbox/replies',
     '/api/v1/models/model/inbox/replies/reply/send',
+    '/api/v1/models/model/inbox/replies/reply/cancel',
     '/api/v1/models/model/team-shifts',
     '/api/v1/models/model/team-shifts/shift',
     '/api/v1/bundles/bundle/approve',

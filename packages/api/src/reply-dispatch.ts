@@ -8,6 +8,28 @@ import { withOrgContext, writeAudit } from './routes/helpers.js';
 
 export interface ReplyDispatchIdentity { orgId: string; modelId: string; userId: string; replyId: string }
 
+/** Cancel only an unclaimed reply; no provider, consent or publishing-enable dependency. */
+export async function cancelReply(identity: ReplyDispatchIdentity) {
+  const { orgId, modelId, userId, replyId } = identity;
+  return withOrgContext(orgId, async tx => {
+    await tx.execute(sql`SELECT id FROM org WHERE id = ${orgId} FOR UPDATE`);
+    const [actor] = await tx.select().from(schema.authUser).where(and(eq(schema.authUser.orgId, orgId), eq(schema.authUser.id, userId))).limit(1);
+    if (!actor || !['owner', 'manager', 'operator', 'chatter'].includes(actor.role)) return { outcome: 'denied' as const };
+    const scope = and(eq(schema.inboxReplyIntent.orgId, orgId), eq(schema.inboxReplyIntent.modelId, modelId),
+      eq(schema.inboxReplyIntent.id, replyId), eq(schema.inboxReplyIntent.actorUserId, userId),
+      modelAccessCondition(actor.role, orgId, userId, schema.inboxReplyIntent.modelId));
+    const [reply] = await tx.select().from(schema.inboxReplyIntent).where(scope).limit(1);
+    if (!reply) return { outcome: 'denied' as const };
+    if (reply.state === 'cancelled') return { outcome: 'cancelled' as const, replyId };
+    if (reply.state !== 'pending') return { outcome: 'already-dispatched' as const };
+    const [cancelled] = await tx.update(schema.inboxReplyIntent).set({ state: 'cancelled', finalizedAt: sql`clock_timestamp()` })
+      .where(and(scope, eq(schema.inboxReplyIntent.state, 'pending'))).returning();
+    if (!cancelled) return { outcome: 'denied' as const };
+    await writeAudit(tx, orgId, userId, 'inbox.reply.cancelled', replyId, { modelId, connectionId: cancelled.connectionId });
+    return { outcome: 'cancelled' as const, replyId };
+  });
+}
+
 /**
  * Commit the one-way dispatch fence before any message request. This is not a
  * queue lease: a crash after this commit MUST NOT reset the reply to pending.

@@ -31,7 +31,7 @@ export function modelAccessCondition(role: unknown, orgId: string, userId: strin
 
 /** Explicit role allowlist. Unimplemented operations stay denied. */
 export function scopedReadTarget(role: ScopedHumanRole, method: string, path: string): 'discovery' | string | null {
-  const send = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/inbox\/replies\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/send$/i.exec(path);
+  const send = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/inbox\/replies\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(?:send|cancel)$/i.exec(path);
   if (send && role === 'chatter' && method === 'POST') return send[1];
   const replies = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/inbox\/replies$/i.exec(path);
   if (replies && ((role === 'chatter' && ['GET', 'HEAD', 'POST'].includes(method))

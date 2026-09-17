@@ -12,6 +12,8 @@ it('permits Chatter reply preparation only on the exact scoped conversation rout
   expect(scopedReadTarget('model', 'POST', path)).toBeNull();
   expect(scopedReadTarget('content_creator', 'GET', path)).toBeNull();
   expect(scopedReadTarget('chatter', 'POST', `${path}/${id}/send`)).toBe(id);
+  expect(scopedReadTarget('chatter', 'POST', `${path}/${id}/cancel`)).toBe(id);
+  expect(scopedReadTarget('model', 'POST', `${path}/${id}/cancel`)).toBeNull();
   for (const role of ['model', 'content_creator'] as const) expect(scopedReadTarget(role, 'POST', `${path}/${id}/send`)).toBeNull();
   for (const method of ['GET', 'PUT', 'DELETE']) expect(scopedReadTarget('chatter', method, `${path}/${id}/send`)).toBeNull();
   for (const other of [`${path}/send`, `${path}/${id}`, '/api/v1/org-settings', '/api/v1/posts', `/api/v1/bundles/${id}/approve`])
