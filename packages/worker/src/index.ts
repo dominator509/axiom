@@ -5,6 +5,7 @@ export type { BackoffOptions } from './backoff.js';
 export { publishIdemKey, minuteSlot, jobDedupeKey } from './idempotency.js';
 export type { PublishKeyInput } from './idempotency.js';
 export { enqueueJob } from './enqueue.js';
+export { enqueueWeeklyDigest, nextDigestAt } from './digest-schedule.js';
 export type { EnqueueJobInput } from './enqueue.js';
 export { embedFeatures } from './embedding.js';
 export { claimNextJob } from './claim.js';

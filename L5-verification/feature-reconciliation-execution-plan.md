@@ -245,4 +245,26 @@ Source and automated evidence never substitutes for a missing runtime or provide
   Periodic scheduling, external Relay delivery and richer pattern insights remain
   separate F-85 requirements: a stored digest card is not proof of those paths.
 
+- M342 adds opt-in Monday 00:00 UTC digest scheduling through workspace settings
+  and the existing durable queue (migration0049, 50 migrations total). A nullable
+  schedule identity fences old automatic jobs after disable/re-enable. Settings
+  and first enqueue share one transaction; execution locks the same row, writes
+  the card and enqueues the next occurrence atomically. Dedupe is per schedule
+  identity/week. Missed weeks do not create a catch-up storm. Worker/Safety gates
+  remain effective; this does not enable social publication or external delivery.
+- M342 evidence: 16 worker/API tests, three settings GUI/page tests, and nine real
+  PostgreSQL tests after 50 migrations pass. Database tests cover queue dedupe,
+  persisted run time, disabled/replaced identity suppression, and recurrence.
+  DB/worker builds, API/dashboard typechecks and dashboard lint pass (three old
+  warnings). Fixture `d80faaeb16e411e6` removed. No live schedule enabled.
+  Terminal job failure still needs operator intervention; schedule/job health
+  presentation and live recurring execution remain acceptance work. External
+  Relay delivery and richer insight patterns remain open F-85 requirements.
+- Hermes R2 parser source was actually delivered and reviewed. It fixes direct
+  construction and fingerprinting but still does not enforce the requested
+  rehearsal allowlist, rejects the legitimate rehearsal prefix/replica role,
+  and admits a trailing newline in directly constructed SHAs. Precise fixes
+  and a database-callsite inventory were delegated in
+  `codex-d001a-r2-review-20260917`; no installed script was changed or executed.
+
 The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.

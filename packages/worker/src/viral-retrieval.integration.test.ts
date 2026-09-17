@@ -11,10 +11,17 @@ import { evaluateAutomaticVariants, evaluationDigest } from './variant-auto-eval
 import { refreshLearningState, selectLearnedGuidance } from './learning-state.js';
 import { modelPlaybookContext } from './playbook-context.js';
 import { digestWeekly } from './executors/digest.js';
+import { enqueueWeeklyDigest, nextDigestAt } from './digest-schedule.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+function digestJob(orgId: string, payload: Record<string, unknown> = {}): JobRow {
+  return { id: randomUUID(), org_id: orgId, queue: 'digest', kind: 'digest.weekly', payload,
+    state: 'running', attempts: 1, max_attempts: 3, last_error: null, run_after: new Date(),
+    locked_by: 'digest-fixture', locked_at: new Date(), dedupe_key: null, scheduled_for: null,
+    started_at: new Date(), completed_at: null, created_at: new Date() };
+}
 async function fixture(check: (tx: Transaction, modelId: string, otherModel: string) => Promise<void>) {
   const rollback = new Error('fixture rollback');
   try {
@@ -81,12 +88,33 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
         { orgId: tenant, modelId, platform: 'instagram', label: 'viral', embedding: embedExemplarIntent('digest'), features: { evidence_source: 'published-provider-snapshot-v2' } },
         { orgId: tenant, modelId, platform: 'x', label: 'viral', embedding: embedExemplarIntent('digest'), features: {} },
       ]);
-      await digestWeekly({ tx, job: { org_id: tenant } as JobRow, workerId: 'digest-fixture', killSwitchEnabled: false });
+      await digestWeekly({ tx, job: digestJob(tenant), workerId: 'digest-fixture', killSwitchEnabled: false });
       const cards = await tx.select().from(schema.relayCard).where(eq(schema.relayCard.orgId, tenant));
       expect(cards).toHaveLength(1);
       expect(cards[0].config?.digest).toMatchObject({ posts: 1, views: 100, avgEngagement: .052, topPlatform: 'instagram', viralPosts: 1 });
       expect(cards[0].description).toContain('5.20% average per-post engagement');
       expect(cards[0].description).toContain('not views gained during the week');
+      const scheduleId = randomUUID();
+      await tx.insert(schema.orgSettings).values({ orgId: tenant, weeklyDigestScheduleId: scheduleId });
+      await enqueueWeeklyDigest(tx, tenant, scheduleId);
+      await enqueueWeeklyDigest(tx, tenant, scheduleId);
+      const queued = await tx.select().from(schema.job).where(eq(schema.job.orgId, tenant));
+      expect(queued).toHaveLength(1);
+      expect(queued[0].runAfter.toISOString()).toBe(nextDigestAt(new Date()).toISOString());
+      expect(queued[0].payload).toMatchObject({ automaticScheduleId: scheduleId });
+      await tx.update(schema.orgSettings).set({ weeklyDigestScheduleId: null }).where(eq(schema.orgSettings.orgId, tenant));
+      const runAutomatic = (id: string) => digestWeekly({ tx, job: digestJob(tenant, { automaticScheduleId: id }), workerId: 'digest-fixture', killSwitchEnabled: false });
+      await runAutomatic(scheduleId);
+      expect(await tx.select().from(schema.relayCard).where(eq(schema.relayCard.orgId, tenant))).toHaveLength(1);
+      const replacement = randomUUID();
+      await tx.update(schema.orgSettings).set({ weeklyDigestScheduleId: replacement }).where(eq(schema.orgSettings.orgId, tenant));
+      await runAutomatic(scheduleId);
+      expect(await tx.select().from(schema.relayCard).where(eq(schema.relayCard.orgId, tenant))).toHaveLength(1);
+      await runAutomatic(replacement);
+      expect(await tx.select().from(schema.relayCard).where(eq(schema.relayCard.orgId, tenant))).toHaveLength(2);
+      const nextJobs = await tx.select().from(schema.job).where(eq(schema.job.orgId, tenant));
+      expect(nextJobs).toHaveLength(2);
+      expect(nextJobs.some(row => row.payload?.automaticScheduleId === replacement)).toBe(true);
     });
   });
   it('reads only the current model/platform playbook and enforces tenant RLS', async () => {

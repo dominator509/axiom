@@ -476,7 +476,7 @@ export const api = {
     providers: () => apiFetch<{ providers: string[] }>('/api/v1/llm/providers'),
   },
   orgSettings: {
-    get: () => apiFetch<{ data: { viralSharing: boolean; publishingEnabled: boolean } }>('/api/v1/org-settings'),
+    get: () => apiFetch<{ data: { viralSharing: boolean; publishingEnabled: boolean; weeklyDigestEnabled: boolean } }>('/api/v1/org-settings'),
   },
   digests: {
     list: (cursor?: string) => apiFetch<{ data: Array<{ id: string; title: string; description: string | null; state: string; createdAt: string; config: Record<string, unknown> | null }>; meta?: { next_cursor?: string | null } }>(`/api/v1/digests${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),

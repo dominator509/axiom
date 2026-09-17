@@ -8,6 +8,8 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ orgSettings: {}, auditLog: {} }));
+const scheduling = vi.hoisted(() => ({ enqueue: vi.fn() }));
+vi.mock('@axiom/worker', () => ({ enqueueWeeklyDigest: scheduling.enqueue }));
 
 import { orgSettingsRouter } from './org-settings.js';
 
@@ -33,6 +35,7 @@ const settingsRow = {
 
 beforeEach(() => {
   mockState.result = [];
+  scheduling.enqueue.mockReset();
 });
 
 afterEach(() => {
@@ -61,6 +64,21 @@ describe('GET /org-settings', () => {
 });
 
 describe('PATCH /org-settings', () => {
+  it('reuses an enabled schedule identity and queues its next occurrence', async () => {
+    const scheduleId = '22222222-2222-4222-8222-222222222222';
+    mockState.result = [{ ...settingsRow, weeklyDigestScheduleId: scheduleId }];
+    const res = await appWithOrg(ORG_ID).request('/org-settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ weeklyDigestEnabled: true }) });
+    expect(res.status).toBe(200);
+    expect(scheduling.enqueue).toHaveBeenCalledWith(expect.anything(), ORG_ID, scheduleId);
+    expect((await res.json() as any).data.weeklyDigestEnabled).toBe(true);
+  });
+  it('does not enqueue when disabling automatic digests', async () => {
+    mockState.result = [{ ...settingsRow, weeklyDigestScheduleId: null }];
+    const res = await appWithOrg(ORG_ID).request('/org-settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ weeklyDigestEnabled: false }) });
+    expect(res.status).toBe(200);
+    expect(scheduling.enqueue).not.toHaveBeenCalled();
+    expect((await res.json() as any).data.weeklyDigestEnabled).toBe(false);
+  });
   it('rejects an empty update body', async () => {
     const res = await appWithOrg(ORG_ID).request('/org-settings', {
       method: 'PATCH',

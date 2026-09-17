@@ -5,9 +5,10 @@
 // viral_exemplar labels. Org context is set by the worker (set_config), and
 // the SQL also filters by org_id explicitly.
 
-import { sql } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { Executor, ExecutorContext } from './context.js';
+import { enqueueWeeklyDigest } from '../digest-schedule.js';
 
 export interface WeeklyDigest {
   weekStart: string;
@@ -24,6 +25,16 @@ export interface WeeklyDigest {
 
 export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
   const { tx, job } = ctx;
+  const automaticId = job.payload.automaticScheduleId;
+  if (automaticId !== undefined) {
+    if (typeof automaticId !== 'string' || !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(automaticId))
+      throw new Error('Invalid automatic digest schedule');
+    // Lock shares the settings update transaction boundary. A replaced/disabled
+    // schedule cannot produce a card or perpetuate its obsolete queue chain.
+    const [settings] = await tx.select().from(schema.orgSettings)
+      .where(eq(schema.orgSettings.orgId, job.org_id)).limit(1).for('update');
+    if (settings?.weeklyDigestScheduleId !== automaticId) return;
+  }
   const until = new Date();
   const since = new Date(until.getTime() - 7 * 24 * 3600_000);
 
@@ -136,4 +147,5 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
     config: { digest },
     priority: 5,
   });
+  if (typeof automaticId === 'string') await enqueueWeeklyDigest(tx, job.org_id, automaticId, until);
 };
