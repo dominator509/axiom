@@ -36,13 +36,14 @@ Source and automated evidence never substitutes for a missing runtime or provide
 - Add dashboard controls that show candidates, exposure, metrics, and the promoted winner; no direct publication from experiment controls.
 - [ ] Full architecture gate: L1 F-15 caption/teaser variants and F-16 automatic winner promotion now have source paths, including published-post attribution, creation-fixed automatic evaluation, frozen evidence, audit, and replay-safe winner reward integration (M242–M264). These are not yet deployed/browser-accepted. Manual self-reported outcomes remain excluded from verified learning. Selected-guidance attribution and richer hook/timing behavior remain incomplete; keep this gate open until runtime acceptance and remaining requirements are satisfied.
 - Current slice: candidate picker/preview, lifecycle, paginated assignment history, stable allocation and observed-outcome controls, confirmed manual winner, frozen completion, and idempotency on nested mutations. Allocations are not counted as proven views. Focused tests/typechecks pass; database concurrency, browser acceptance and deployed workflow remain open.
-- Caption/teaser candidate creation is now implemented in the media library using existing asset_variant settings and the owned source asset. The experiment picker shows copy and enforces platform matching. Still required: bind the selected copy/variant through review and published-post attribution, then implement evidence-based automatic promotion and learning rewards. Candidate creation alone does not fulfill F-15 end to end.
+- Caption/teaser candidates now flow through owned review bundles, assignment-bound publication attribution, immutable publication snapshots, automatic evaluation and winner rewards (M243–M264). Remaining work includes selected-guidance attribution, richer hook/timing behavior and deployed acceptance; candidate creation alone is not the completion criterion.
 
 ### 2. Scraper orchestration — model egress corrected; provider/deployment gate open
 
 - Reuse the authenticated Rust scraper sidecar and egress resolver.
 - M265 corrects a discovered bypass: worker includes the persisted model ID; Rust resolves `EGRESS_PLANE_URL` using `EGRESS_PLANE_TOKEN`, requires exact healthy binding plus inactive kill switch, and uses the bound HTTP proxy with no direct fallback. Deployment must provide both egress settings to the scraper, not only to the worker/API. Sixteen Rust tests include a real local CONNECT-proxy rejection test; live VPN/provider and result-quality acceptance remain open.
 - Add durable scrape-run state, model/org ownership, bounded request validation, worker dispatch, status/error reporting, and dashboard controls.
+- M266–M267 preserve missing counts as unavailable, reject all-failed observations, display structured partial results, run at most ten concurrent proxy-bound lookups within the worker timeout budget, and refresh active research runs in the dashboard. Provider parsing and deployed isolation/browser acceptance remain open.
 - Persist only provider responses that pass the existing data-retention and tenant checks; do not report an empty result as success.
 - [x] Gate: worker/API contract tests pass; deployed sidecar rehearsal remains open.
 
@@ -117,13 +118,13 @@ Source and automated evidence never substitutes for a missing runtime or provide
 - Add deployment configuration checks for the selected telemetry backend, redaction, retention, and alert thresholds.
 - Verify dashboards/alerts against a controlled failed job and recovery; do not treat a health endpoint as observability acceptance.
 
-### 13. CI and branch-protection enforcement — CI source/deployed receipt complete; protection gate open
+### 13. CI and branch-protection enforcement — protection verified; new release CI gate open
 
 - Pin Node and pnpm to repository versions and require typecheck, tests, lint, build, migration checks, provider-contract tests, and security audit in CI.
 - Make zero-test success impossible for production packages.
-- [ ] Apply GitHub protection/ruleset to `main` with required pull requests, required successful checks, stale-review dismissal, and no force pushes; verify by API readback.
+- [x] Classic branch protection API readback on 2026-09-17 confirms strict six required checks (typecheck, lint, test, build, security, container), one approving review, stale-review dismissal, admin enforcement, no force pushes and no deletions. This proves current enforcement, not permanent configuration or CI success on subsequent commits.
 - Gate: hosted CI success for the audited commit and branch/ruleset readback. If GitHub credentials are unavailable, leave a precise operator command and mark the external gate open.
 
 ## Completion definition
 
-The feature reconciliation is complete only when the source and automated gates pass and every open runtime/provider/operator gate is either evidenced on the deployed immutable release or explicitly recorded as a release blocker. The final report will contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts, and unresolved gates; it will not label the product production-ready while any required external gate is open.
+The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.
