@@ -6,6 +6,7 @@ import { sql } from 'drizzle-orm';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
 import { buildMonthlyReportPdf, type MonthlyReportData } from '../reports/monthly-pdf.js';
+import { modelAccessCondition } from '../model-access.js';
 
 const router = new Hono<AppBindings>();
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -75,6 +76,7 @@ router.get('/models/:modelId/reports/monthly', async (c) => {
             AND ve.created_at >= ${start} AND ve.created_at < ${end}), 0)::int AS "viralExemplars"
       FROM model_profile mp
       WHERE mp.org_id = ${orgId} AND mp.id = ${modelId}
+        AND ${modelAccessCondition(c.get('role'), orgId, c.get('userId'), sql`mp.id`) ?? sql`true`}
       LIMIT 1
     `);
     const [row] = rows<Record<string, unknown>>(result);

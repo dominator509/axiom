@@ -1,4 +1,6 @@
-import { api } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
+import Link from 'next/link';
+import { talentDestinationAllowed } from '@/lib/navigation-role';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +28,7 @@ interface ViralData {
 
 export default async function AnalyticsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!talentDestinationAllowed((await getSession())?.user?.role, 'analytics')) return <div className="card stack"><h2>Analytics access unavailable</h2><p>Your role does not include these performance records.</p><Link href="/">Back to workspace</Link></div>;
   const reportMonth = new Date().toISOString().slice(0, 7);
   let analytics: AnalyticsData | null = null;
   let viral: ViralData | null = null;

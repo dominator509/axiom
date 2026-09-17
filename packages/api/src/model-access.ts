@@ -60,6 +60,8 @@ export function scopedReadTarget(role: ScopedHumanRole, method: string, path: st
     if (fan) return `fan:${fan[1]}`;
   }
   if (role !== 'chatter') {
+    const insight = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(viral|reports\/monthly)$/i.exec(path);
+    if (insight) return insight[1];
     if (path === '/api/v1/bundles') return 'discovery';
     const bundle = /^\/api\/v1\/bundles\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/media)?$/i.exec(path);
     if (bundle) return `bundle:${bundle[1]}`;

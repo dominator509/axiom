@@ -18,6 +18,9 @@ import { generateRouter } from './generate.js';
 import { mediaOperationsRouter } from './media-operations.js';
 import { playbookRouter } from './playbook.js';
 import { playbookGuidelinesRouter } from './playbook-guidelines.js';
+import { analyticsRouter } from './analytics.js';
+import { viralRouter } from './viral.js';
+import { reportsRouter } from './reports.js';
 import { enforceModelAccess, type ScopedHumanRole } from '../model-access.js';
 
 const url = process.env.TEST_DATABASE_URL, orgId = '11111111-1111-4111-8111-111111111111';
@@ -54,6 +57,9 @@ function scopedApp(role: ScopedHumanRole, org = orgId) {
   route.route('/api/v1', teamOperationsRouter);
   route.route('/api/v1', playbookRouter);
   route.route('/api/v1', playbookGuidelinesRouter);
+  route.route('/api/v1', analyticsRouter);
+  route.route('/api/v1', viralRouter);
+  route.route('/api/v1', reportsRouter);
   return route;
 }
 const write = (postId: string, org = orgId) => app(org).request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetType: 'post', targetId: postId, body: 'Post handoff context' }) });
@@ -359,6 +365,24 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect((await route.request(`/api/v1/models/${models[0]}/playbook-guidelines`, { method: 'PUT' })).status).toBe(403);
     await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
     expect((await route.request(`/api/v1/models/${models[0]}/playbook-score`)).status).toBe(404);
+  });
+  it.each(['model', 'content_creator'] as const)('scopes analytics, viral insights and PDF reports for %s', async role => {
+    await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
+    const route = scopedApp(role);
+    for (const section of ['analytics', 'viral', 'reports/monthly']) {
+      const path = `/api/v1/models/${models[0]}/${section}`;
+      const response = await route.request(path);
+      expect(response.status).toBe(200);
+      if (section === 'reports/monthly') {
+        expect(response.headers.get('content-type')).toBe('application/pdf');
+        expect(Buffer.from(await response.arrayBuffer()).subarray(0, 5).toString()).toBe('%PDF-');
+      }
+      expect((await route.request(`/api/v1/models/${models[1]}/${section}`)).status).toBe(404);
+      expect((await scopedApp(role, foreignOrg).request(path)).status).toBe(404);
+      expect((await scopedApp('chatter').request(path)).status).toBe(403);
+    }
+    await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
+    for (const section of ['analytics', 'viral', 'reports/monthly']) expect((await route.request(`/api/v1/models/${models[0]}/${section}`)).status).toBe(404);
   });
   it('lists only assigned self shifts before their start without granting early model access', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());

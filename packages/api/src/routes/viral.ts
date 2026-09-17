@@ -7,6 +7,7 @@ import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
+import { modelAccessCondition } from '../model-access.js';
 
 const router = new Hono<AppBindings>();
 
@@ -18,13 +19,14 @@ router.get('/models/:modelId/viral', async (c) => {
   const { limit, cursor } = parseCursor(c, 20, 100);
 
   const data = await withOrgContext(orgId, async (tx) => {
+    const access = modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.viralExemplar.modelId);
     const byLabel = await tx
       .select({
         label: schema.viralExemplar.label,
         count: sql<number>`count(*)::int`,
       })
       .from(schema.viralExemplar)
-      .where(and(eq(schema.viralExemplar.orgId, orgId), eq(schema.viralExemplar.modelId, modelId)))
+      .where(and(eq(schema.viralExemplar.orgId, orgId), eq(schema.viralExemplar.modelId, modelId), access))
       .groupBy(schema.viralExemplar.label)
       .orderBy(schema.viralExemplar.label);
 
@@ -35,6 +37,7 @@ router.get('/models/:modelId/viral', async (c) => {
         and(
           eq(schema.viralExemplar.orgId, orgId),
           eq(schema.viralExemplar.modelId, modelId),
+          access,
           ...cursorLt(schema.viralExemplar.perfScore, schema.viralExemplar.id, cursor),
         ),
       )
@@ -47,7 +50,7 @@ router.get('/models/:modelId/viral', async (c) => {
         count: sql<number>`count(*)::int`,
       })
       .from(schema.viralExemplar)
-      .where(and(eq(schema.viralExemplar.orgId, orgId), eq(schema.viralExemplar.modelId, modelId)))
+      .where(and(eq(schema.viralExemplar.orgId, orgId), eq(schema.viralExemplar.modelId, modelId), access))
       .groupBy(schema.viralExemplar.platform)
       .orderBy(sql`count(*) DESC`);
 

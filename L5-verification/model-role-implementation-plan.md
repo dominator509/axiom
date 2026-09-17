@@ -175,6 +175,16 @@ fixture removed. Twenty-eight API tests, fourteen page tests and both typechecks
 pass. This remains saved CRM, not live DM synchronization; analytics supplemental
 routes and the remaining role activation workflow are still open.
 
+Analytics supplemental reads now permit assigned Model/Creator viral insights
+and monthly PDF downloads. Analytics raw SQL/count, viral distributions/top rows,
+and report model selection repeat assignment predicates; excluded dashboard roles
+issue no requests. Twenty-nine PostgreSQL tests after 46 migrations pass with
+real PDF signature, cross-model/tenant, Chatter denial and revocation coverage;
+fixture cleanup confirmed. Twelve route tests, four page tests and both typechecks
+pass. Inspection found monthly report metrics still sum cumulative snapshots,
+unlike dashboard latest-snapshot aggregation; correct that separately before
+claiming report metric accuracy. Role activation and live acceptance remain open.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including

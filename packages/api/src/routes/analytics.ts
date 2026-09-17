@@ -6,6 +6,7 @@ import { sql, eq, and, gte } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
+import { modelAccessCondition } from '../model-access.js';
 
 const router = new Hono<AppBindings>();
 
@@ -42,6 +43,7 @@ router.get('/models/:modelId/analytics', async (c) => {
   const since = new Date(Date.now() - days * 86_400_000);
 
   const data = await withOrgContext(orgId, async (tx) => {
+    const rawScope = modelAccessCondition(c.get('role'), orgId, c.get('userId'), sql`cb.model_id`) ?? sql`true`;
     // Provider metrics are cumulative snapshots, not deltas. Select the
     // newest observation per target before aggregating or repeated polling
     // would inflate the dashboard totals.
@@ -59,6 +61,7 @@ router.get('/models/:modelId/analytics', async (c) => {
         INNER JOIN post_target pt ON pt.id = pm.post_target_id
         INNER JOIN content_bundle cb ON cb.id = pt.bundle_id
         WHERE cb.model_id = ${modelId}
+          AND ${rawScope}
           AND cb.org_id = ${orgId}
           AND pt.org_id = ${orgId}
           AND pm.collected_at >= ${since}
@@ -91,6 +94,7 @@ router.get('/models/:modelId/analytics', async (c) => {
         INNER JOIN post_target pt ON pt.id = pm.post_target_id
         INNER JOIN content_bundle cb ON cb.id = pt.bundle_id
         WHERE cb.model_id = ${modelId}
+          AND ${rawScope}
           AND cb.org_id = ${orgId}
           AND pt.org_id = ${orgId}
           AND pm.collected_at >= ${since}
@@ -127,6 +131,7 @@ router.get('/models/:modelId/analytics', async (c) => {
         and(
           eq(schema.contentBundle.orgId, orgId),
           eq(schema.contentBundle.modelId, modelId),
+          modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.contentBundle.modelId),
           eq(schema.postTarget.orgId, orgId),
           gte(schema.postMetric.collectedAt, since),
         ),
