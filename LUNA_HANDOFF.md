@@ -1,6 +1,6 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: 2026-09-17, after milestone M342. This is a continuation checkpoint,
+Updated: 2026-09-17, after milestone M344. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
 ## Mission and authority
@@ -32,9 +32,12 @@ merely because credits or the current turn are ending.
   again on arrival; this handoff's own commit will be newer than M342.
 - Current application migrations: **50**, ending
   `0049_weekly_digest_schedule.sql`. Migration0048 adds caption guidance.
-- Hosted CI **35284764547** covers exact `bbefee6`; all six jobs were still
-  running at the handoff check. Poll this handle; do not assume success or
-  restart the run because observation timed out.
+- Latest tested source including the handoff: `d53787420f4b880d911818ca9ed45b3f271c541c`.
+- Hosted CI **35285232940** covers exact `d537874`: test, lint, security,
+  typecheck and build passed; container was still running at this checkpoint.
+  Poll this handle; do not restart it because observation timed out.
+- Earlier application CI **35284764547** covers exact `bbefee6`; it was still
+  running at the first check this turn. Prefer the newer exact-source run above.
 - Hosted CI **35283023039** on `f1378c4` and **35281902829** on `30cd883` passed.
 - No local test/build process is left running at this checkpoint.
 - Existing five-minute Hermes polling automation is named
@@ -45,7 +48,7 @@ merely because credits or the current turn are ending.
 
 1. Read this file, the private local operator companion
    `var/handoff/luna-operator.md`, and the authoritative documents below.
-2. Verify branch/HEAD/dirty state. Poll CI35284764547 and fix any genuine failure
+2. Verify branch/HEAD/dirty state. Poll CI35285232940 and fix any genuine failure
    on that exact SHA. Preserve the passing earlier-SHA receipts as historical.
 3. Read the reply to **`codex-d001a-r2-review-20260917`** through the bridge.
    At this checkpoint it was an acknowledgment, **not corrected R3 artifacts**.
@@ -57,9 +60,11 @@ merely because credits or the current turn are ending.
    work is recurring-digest failure/status visibility, F-85 pattern insights and
    actual Relay delivery, then broader F-81/F-84 recipe/arm coverage. Do not lose
    the other product/runtime workstreams while improving learning features.
-6. Run the complete disposable matrix after the 50-migration batch, then publish
-   intentionally and verify remote SHA/CI. The latest **full** local matrix only
-   covered 49 migrations at `f1378c4`; 50 has focused integration evidence only.
+6. The full **50-migration** local matrix now passed on `d537874`, exit0,
+   24/24 tasks, fixture removed. See
+   `L5-verification/reconciliation-runtime-receipt-d537874.md`. After subsequent
+   application changes, run proportionate focused checks and the next full gate;
+   do not rerun this unchanged source solely because a new agent takes over.
 7. Only after deployment tooling is proven, prepare one immutable candidate,
    review migration prerequisites, pin backup/rollback, perform the controlled
    TEST deployment, and complete authenticated desktop/mobile/provider gates.
@@ -149,7 +154,7 @@ because Hermes supplied it. User authorization and the scoped task still govern.
   legitimate rehearsal prefix and isolated replica migrator role; validate
   controls before stripping and SHA with fullmatch; explicit namespace IDs;
   then inventory every installer/bridge DB callsite and ambient configuration read.
-- Latest observed reply (23:00:44Z) accepts these requirements but is only an ACK.
+- Latest observed reply (23:00:44Z), re-read during M344, accepts these requirements but is only an ACK.
   Expect revised source in Hermes-owned scratch, not the codex-owned author dir.
   The previous write-directory blocker was resolved by accepting scratch/text
   delivery. Do not spend another cycle negotiating ownership of an output file.
