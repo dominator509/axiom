@@ -1,5 +1,16 @@
 # Model-scoped human roles — implementation queue
 
+## Owner role-control checkpoint — M321
+
+The role-change transaction service now supports the currently enabled human roles
+(Owner, Manager, Operator and Analyst). It rechecks current owner authority and
+tenant membership, rejects stale expected-role edits, protects the last owner
+under concurrent demotions, revokes target sessions and writes the audit in the
+same transaction. Thirty-six real PostgreSQL tests after 48 migrations and API
+typecheck pass. No actual workspace member was changed. This service still needs
+its owner-only API and GUI; scoped-role authentication activation remains a
+separate incomplete step, not silently enabled by assignment or role controls.
+
 Authority: L1.0 personas/RBAC and L1.1 F-24–F-26.
 Status: **in progress**. Assignment storage, owner-only grant/revoke/list API and
 Team-page controls are implemented. Staged role enforcement now covers discovery,

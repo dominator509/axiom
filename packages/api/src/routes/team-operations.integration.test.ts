@@ -23,6 +23,7 @@ import { earningsRouter } from './earnings.js';
 import { inboxRouter } from './inbox.js';
 import { inboxRepliesRouter } from './inbox-replies.js';
 import { inboxReviewsRouter } from './inbox-reviews.js';
+import { changeMemberRole } from '../member-roles.js';
 import { claimReplyDispatch, finalizeReplyDispatch, dispatchReply, cancelReply } from '../reply-dispatch.js';
 import { FanvueConnector } from '@axiom/connectors';
 import { viralRouter } from './viral.js';
@@ -124,6 +125,37 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect(data).toMatchObject({ targetId: posts[0], authorUserId: 'fixture-operator', body: 'Post handoff context' });
     const read = await app().request(`${path}?postId=${posts[0]}`);
     expect((await read.json() as Page).data.map(row => row.id)).toContain(data.id);
+  });
+  it('serializes member role changes, preserves an owner and revokes old sessions atomically', async () => {
+    const tenant = randomUUID(), owner = randomUUID(), member = randomUUID(), sessionId = randomUUID();
+    const run = <T>(fn: (tx: Transaction) => Promise<T>) => scoped(fn, tenant);
+    await run(async tx => {
+      await tx.insert(schema.org).values({ id: tenant, name: 'Roles fixture', slug: tenant });
+      await tx.insert(schema.authUser).values([
+        { id: owner, orgId: tenant, name: 'Owner', email: `${owner}@example.invalid`, role: 'owner' },
+        { id: member, orgId: tenant, name: 'Member', email: `${member}@example.invalid`, role: 'operator' },
+      ]);
+      await tx.insert(schema.authSession).values({ id: sessionId, userId: member, token: randomUUID(), expiresAt: new Date(Date.now() + 60_000) });
+    });
+    const input = { orgId: tenant, actorUserId: owner, userId: member, expectedRole: 'operator', role: 'manager' as const };
+    expect((await changeMemberRole({ ...input, actorUserId: member })).outcome).toBe('denied');
+    expect((await changeMemberRole({ ...input, userId: assignmentUsers[0] })).outcome).toBe('missing');
+    expect((await changeMemberRole({ ...input, userId: owner, expectedRole: 'owner' })).outcome).toBe('last-owner');
+    const results = await Promise.all([changeMemberRole(input), changeMemberRole({ ...input, role: 'analyst' })]);
+    expect(results.map(value => value.outcome).sort()).toEqual(['changed', 'conflict']);
+    expect(await run(tx => tx.select().from(schema.authSession).where(eq(schema.authSession.id, sessionId)))).toEqual([]);
+    const audits = await run(tx => tx.select().from(schema.auditLog).where(eq(schema.auditLog.target, member)));
+    expect(audits).toHaveLength(1);
+    const [current] = await run(tx => tx.select().from(schema.authUser).where(eq(schema.authUser.id, member)));
+    expect((await changeMemberRole({ ...input, expectedRole: current.role, role: 'owner' })).outcome).toBe('changed');
+    // Both owners attempt self-demotion concurrently. The second cannot remove the last owner.
+    const demotions = await Promise.all([
+      changeMemberRole({ orgId: tenant, actorUserId: owner, userId: owner, expectedRole: 'owner', role: 'operator' }),
+      changeMemberRole({ orgId: tenant, actorUserId: member, userId: member, expectedRole: 'owner', role: 'operator' }),
+    ]);
+    expect(demotions.map(value => value.outcome).sort()).toEqual(['changed', 'last-owner']);
+    const owners = await run(tx => tx.select().from(schema.authUser).where(sql`${schema.authUser.orgId} = ${tenant} AND ${schema.authUser.role} = 'owner'`));
+    expect(owners).toHaveLength(1);
   });
   it('enforces assignment membership for both model and user at the database boundary', async () => {
     const insert = (modelId: string, userId: string) => scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId, userId }));
