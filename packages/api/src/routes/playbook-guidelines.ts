@@ -9,6 +9,7 @@ import type { AppBindings } from '../index.js';
 import type { Context } from 'hono';
 import { withOrgContext, requireOrg, apiError, statusTitle, writeAudit } from './helpers.js';
 import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
+import { modelAccessCondition } from '../model-access.js';
 
 const router = new Hono<AppBindings>();
 const guidelineSchema = z.object({ expectedRevision: z.number().int().min(0).max(2147483646), platform: z.string().trim().min(1).max(50), optimalTimes: z.array(z.string().trim().min(1).max(30)).max(14), cadencePerWeek: z.number().int().min(0).max(100), upsellStrategy: z.string().trim().max(2_000) }).strict();
@@ -30,11 +31,12 @@ router.get('/models/:modelId/playbook-guidelines', async (c) => {
     const rows = await withOrgContext(orgId, tx => tx.select().from(schema.playbookGuidelineRevision).where(and(
       eq(schema.playbookGuidelineRevision.orgId, orgId), eq(schema.playbookGuidelineRevision.modelId, c.req.param('modelId')),
       eq(schema.playbookGuidelineRevision.platform, platform),
+      modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.playbookGuidelineRevision.modelId),
       before ? lt(schema.playbookGuidelineRevision.revision, Number(before)) : undefined,
     )).orderBy(desc(schema.playbookGuidelineRevision.revision)).limit(51));
     return c.json({ data: rows.slice(0, 50), meta: { next_cursor: rows.length > 50 ? String(rows[49].revision) : null } });
   }
-  const rows = await withOrgContext(orgId, (tx) => tx.select().from(schema.playbookGuideline).where(and(eq(schema.playbookGuideline.orgId, orgId), eq(schema.playbookGuideline.modelId, c.req.param('modelId')))).orderBy(asc(schema.playbookGuideline.platform)));
+  const rows = await withOrgContext(orgId, (tx) => tx.select().from(schema.playbookGuideline).where(and(eq(schema.playbookGuideline.orgId, orgId), eq(schema.playbookGuideline.modelId, c.req.param('modelId')), modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.playbookGuideline.modelId))).orderBy(asc(schema.playbookGuideline.platform)));
   return c.json({ data: rows });
 });
 

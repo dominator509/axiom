@@ -7,7 +7,7 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () =>
-  mockDbFactory({ postTarget: {}, contentBundle: {}, postMetric: {}, playbookScore: {} }),
+  mockDbFactory({ modelProfile: {}, postTarget: {}, contentBundle: {}, postMetric: {}, playbookScore: {} }),
 );
 vi.mock('@axiom/llm-gateway', () => ({
   calculateCourseAdherence: vi.fn((input: any) => ({
@@ -53,6 +53,7 @@ afterEach(() => {
 describe('GET /models/:modelId/playbook-score', () => {
   it('returns a neutral score when there is no activity (no 500 on empty)', async () => {
     mockState.result = [];
+    mockState.results = [[], [{ id: MODEL_ID }]];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/playbook-score`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
@@ -80,6 +81,7 @@ describe('GET /models/:modelId/playbook-score', () => {
     const old = new Date(playbookWindowStart(now).getTime() - 86_400_000).toISOString();
     mockState.results = [
       [],
+      [{ id: MODEL_ID }],
       [
         { platform: 'instagram', scheduledFor: recent, state: 'published' },
         { platform: 'instagram', scheduledFor: old, state: 'published' },

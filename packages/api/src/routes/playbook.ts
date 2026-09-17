@@ -16,6 +16,7 @@ import {
   statusTitle,
 } from './helpers.js';
 import { calculateCourseAdherence } from '@axiom/llm-gateway';
+import { modelAccessCondition } from '../model-access.js';
 
 const router = new Hono<AppBindings>();
 
@@ -202,6 +203,9 @@ router.get('/models/:modelId/playbook-score', async (c) => {
   const { modelId } = c.req.param();
 
   const data = await withOrgContext(orgId, async (tx) => {
+    const [model] = await tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile)
+      .where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId), modelAccessCondition(c.get('role'), orgId, c.get('userId')))).limit(1);
+    if (!model) return null;
     const derived = await deriveAdherenceInputs(tx, orgId, modelId);
     const score = calculateCourseAdherence(derived.input);
     const history = await tx
@@ -218,6 +222,7 @@ router.get('/models/:modelId/playbook-score', async (c) => {
       scheduleCount30d: derived.scheduleCount30d,
     };
   });
+  if (!data) return apiError(c, 404, statusTitle(404), 'model unavailable');
   return c.json({ data });
 });
 

@@ -16,6 +16,8 @@ import { mediaUploadRouter } from './media-upload.js';
 import { fansRouter } from './fans.js';
 import { generateRouter } from './generate.js';
 import { mediaOperationsRouter } from './media-operations.js';
+import { playbookRouter } from './playbook.js';
+import { playbookGuidelinesRouter } from './playbook-guidelines.js';
 import { enforceModelAccess, type ScopedHumanRole } from '../model-access.js';
 
 const url = process.env.TEST_DATABASE_URL, orgId = '11111111-1111-4111-8111-111111111111';
@@ -50,6 +52,8 @@ function scopedApp(role: ScopedHumanRole, org = orgId) {
   route.route('/api/v1', generateRouter);
   route.route('/api/v1', mediaOperationsRouter);
   route.route('/api/v1', teamOperationsRouter);
+  route.route('/api/v1', playbookRouter);
+  route.route('/api/v1', playbookGuidelinesRouter);
   return route;
 }
 const write = (postId: string, org = orgId) => app(org).request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetType: 'post', targetId: postId, body: 'Post handoff context' }) });
@@ -331,6 +335,21 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
     expect((await route.request(`${path}?postId=${posts[0]}`)).status).toBe(404);
     expect((await writeNote(posts[0])).status).toBe(404);
+  });
+  it('permits assigned creator playbook reads but not score or guideline writes', async () => {
+    await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
+    const route = scopedApp('content_creator');
+    for (const section of ['playbook-score', 'playbook-guidelines', 'playbook-guidelines?history=true&platform=x']) {
+      const path = `/api/v1/models/${models[0]}/${section}`;
+      expect((await route.request(path)).status).toBe(200);
+      expect((await route.request(`/api/v1/models/${models[1]}/${section}`)).status).toBe(404);
+      expect((await scopedApp('content_creator', foreignOrg).request(path)).status).toBe(404);
+      expect((await scopedApp('model').request(path)).status).toBe(403);
+    }
+    expect((await route.request(`/api/v1/models/${models[0]}/playbook-score/record`, { method: 'POST' })).status).toBe(403);
+    expect((await route.request(`/api/v1/models/${models[0]}/playbook-guidelines`, { method: 'PUT' })).status).toBe(403);
+    await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
+    expect((await route.request(`/api/v1/models/${models[0]}/playbook-score`)).status).toBe(404);
   });
   it('allows creator preparation only for assigned talent and never creates publication work', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());

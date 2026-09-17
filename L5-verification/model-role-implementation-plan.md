@@ -137,6 +137,15 @@ denial and revoked reads/writes; the disposable database was removed. Twenty API
 unit/policy tests, twelve calendar tests and API typecheck pass. Full model-note
 history, shift views and deployed browser acceptance are still unfinished.
 
+Creator playbook score GET/HEAD now resolves assigned talent; the score handler
+checks model ownership/membership before deriving results. Guideline/current and
+history queries repeat assignment predicates. The page excludes disallowed roles
+before queries and keeps Creator guidelines read-only. Twenty-six PostgreSQL
+tests after 46 migrations pass with foreign-model/tenant, denied writes and
+revocation checks; fixture cleanup confirmed. Seven score tests, six page tests
+and API/dashboard typechecks pass. This validates access wiring, not the accuracy
+of the legacy course-adherence proxy metrics or deployed browser acceptance.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including
