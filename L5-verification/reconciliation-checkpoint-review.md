@@ -5,6 +5,7 @@ This checkpoint preserves the accumulated API, database, worker and dashboard im
 Review findings requiring follow-up:
 
 - Media transforms now validate the bounded service receipt and exact output key before recording completion (nine tests and worker typecheck pass). Live output existence/metadata and dashboard variant previews still require completion and verification.
+- Image transform bounds are enforced at both API and Rust execution boundaries: source-contained crops, nonzero dimensions, 16384 per-axis ceiling and conservative decoded-output allocation budget. Eight API tests and API typecheck pass; media-plane suite has 13 passing tests and one explicitly ignored FFmpeg rehearsal. This does not establish output metadata integrity, variant preview or approval usability.
 
 - Variant outcome follow-up: summaries now use outcomeAt and include conversion counts. Recording first verifies experiment organization/model, then locks the assignment with SELECT FOR UPDATE; identical repeats preserve timestamps. Four route tests and API typecheck pass. Live PostgreSQL concurrency/tenant enforcement and conversion display in the GUI remain open.
 - Scraper response consumption now uses the shared bounded streaming reader at 512 KB with a 30-second body deadline, cancels HTTP-error bodies and rejects malformed/empty envelopes without echoing response content. Nine focused tests and worker typecheck pass. Provider-specific response contracts and model egress routing still require verification.

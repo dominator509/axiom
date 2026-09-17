@@ -24,7 +24,11 @@ const createSchema = z.discriminatedUnion('type', [
   options.image_resize,
   options.video_clip,
   options.video_transcode,
-]);
+]).refine(value => !('width' in value) || (
+  value.width <= 16_384 && value.height <= 16_384
+  // Budget for the largest decoded pixel representation (RGBA f32).
+  && value.width * value.height * 16 <= 256 * 1024 * 1024
+), 'Image output exceeds media-plane limits');
 
 async function readBody(c: Context<AppBindings>): Promise<unknown> {
   try { return await readBoundedJson(c.req.raw, 64 * 1024); }
@@ -51,10 +55,16 @@ router.post('/models/:modelId/media-operations', async (c) => {
   const assetId = c.req.query('assetId');
   if (!assetId || !z.string().uuid().safeParse(assetId).success) return apiError(c, 400, statusTitle(400), 'assetId is required');
   const saved = await withOrgContext(orgId, async (tx) => {
-    const [asset] = await tx.select({ id: schema.asset.id, kind: schema.asset.kind, modelId: schema.asset.modelId }).from(schema.asset).where(and(eq(schema.asset.id, assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId))).limit(1);
+    const [asset] = await tx.select({ id: schema.asset.id, kind: schema.asset.kind, modelId: schema.asset.modelId, width: schema.asset.width, height: schema.asset.height }).from(schema.asset).where(and(eq(schema.asset.id, assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId))).limit(1);
     if (!asset) return { status: 404 as const, error: 'asset not found' };
     const expectedKind = parsed.data.type.startsWith('video') ? 'video' : 'image';
     if (asset.kind !== expectedKind) return { status: 409 as const, error: `${parsed.data.type} requires a ${expectedKind} asset` };
+    if (parsed.data.type === 'image_clip') {
+      const { x, y, width, height } = parsed.data;
+      if (!asset.width || !asset.height) return { status: 409 as const, error: 'Source dimensions must be available before cropping' };
+      if (x + width > asset.width || y + height > asset.height)
+        return { status: 400 as const, error: 'Crop must fit inside the source image' };
+    }
     const [operation] = await tx.insert(schema.mediaOperation).values({ orgId, modelId, sourceAssetId: asset.id, type: parsed.data.type, options: parsed.data }).returning();
     if (!operation) return { status: 500 as const, error: 'media operation could not be saved' };
     await enqueueJob(tx, { orgId, queue: 'media', kind: 'media.transform', payload: { operationId: operation.id }, runAfter: new Date(), dedupeParts: ['media.transform', operation.id] });

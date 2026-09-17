@@ -48,6 +48,9 @@ pub enum MediaError {
     #[error("Media path is outside the configured media root")]
     InvalidPath,
 
+    #[error("Invalid image transform dimensions or crop bounds")]
+    InvalidTransform,
+
     #[error("Media input exceeds the configured size limit: {0}")]
     InputTooLarge(String),
 }
@@ -74,6 +77,7 @@ impl IntoResponse for MediaError {
                 format!("Input file does not exist: {p}"),
             ),
             Self::InvalidPath => (StatusCode::BAD_REQUEST, self.to_string()),
+            Self::InvalidTransform => (StatusCode::BAD_REQUEST, self.to_string()),
             Self::InputTooLarge(_) => (StatusCode::PAYLOAD_TOO_LARGE, self.to_string()),
         };
         (status, Json(serde_json::json!({ "error": body }))).into_response()
@@ -361,7 +365,37 @@ async fn watermark(
 // /media/resize
 // ---------------------------------------------------------------------------
 
+fn validate_image_output(width: u32, height: u32) -> Result<(), MediaError> {
+    if width == 0
+        || height == 0
+        || width > MAX_IMAGE_DIMENSION
+        || height > MAX_IMAGE_DIMENSION
+        || u64::from(width) * u64::from(height) * 16 > MAX_IMAGE_ALLOC_BYTES
+    {
+        return Err(MediaError::InvalidTransform);
+    }
+    Ok(())
+}
+
+fn validate_crop(
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    source_width: u32,
+    source_height: u32,
+) -> Result<(), MediaError> {
+    validate_image_output(width, height)?;
+    if x.checked_add(width).is_none_or(|end| end > source_width)
+        || y.checked_add(height).is_none_or(|end| end > source_height)
+    {
+        return Err(MediaError::InvalidTransform);
+    }
+    Ok(())
+}
+
 async fn resize(Json(req): Json<ResizeRequest>) -> Result<Json<serde_json::Value>, MediaError> {
+    validate_image_output(req.width, req.height)?;
     info!(
         "resize: {} -> {} ({}x{})",
         req.image_path, req.output_path, req.width, req.height
@@ -391,6 +425,14 @@ async fn clip(Json(req): Json<ClipRequest>) -> Result<Json<serde_json::Value>, M
     let image_path = resolve_input(&req.image_path)?;
     let output_path = resolve_output(&req.output_path)?;
     let img = open_image(&image_path)?;
+    validate_crop(
+        req.x,
+        req.y,
+        req.width,
+        req.height,
+        img.width(),
+        img.height(),
+    )?;
     let cropped = img.crop_imm(req.x, req.y, req.width, req.height);
     cropped.save(output_path)?;
 
@@ -724,6 +766,31 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn image_transform_dimensions_are_bounded() {
+        assert!(validate_image_output(1080, 1350).is_ok());
+        assert!(validate_image_output(4096, 4096).is_ok());
+        for (width, height) in [
+            (0, 1),
+            (1, 0),
+            (16385, 1),
+            (1, 16385),
+            (4097, 4096),
+            (u32::MAX, u32::MAX),
+        ] {
+            assert!(validate_image_output(width, height).is_err());
+        }
+    }
+
+    #[test]
+    fn crop_must_fit_without_clamping_or_integer_overflow() {
+        assert!(validate_crop(10, 20, 90, 80, 100, 100).is_ok());
+        assert!(validate_crop(10, 20, 91, 80, 100, 100).is_err());
+        assert!(validate_crop(10, 20, 90, 81, 100, 100).is_err());
+        assert!(validate_crop(u32::MAX, 0, 1, 1, 100, 100).is_err());
+        assert!(validate_crop(0, u32::MAX, 1, 1, 100, 100).is_err());
+    }
 
     #[test]
     fn overlay_position_maps_all_known_positions() {
