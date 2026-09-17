@@ -60,6 +60,16 @@ explicit reviewable schedule request, with revision protection and GUI disclosur
 Approval remains a separate authorized action. Legacy approved-bundle scheduling
 does not by itself prove a Creator-specific approval contract.
 
+New media review bundles now accept an optional future `scheduleRequest` tied
+to a caption destination. It persists as the existing schedule `publishIntent`,
+without approval/publication jobs. Media staging UI converts local time via the
+existing DST-aware parser and verifies the saved intent receipt. Approvals show
+the requested UTC time and explain blank-slot use versus explicit override.
+This implements proposing timing during bundle creation; editing existing
+requests and restricted-role navigation are still unfinished. Existing approval
+code rejects stale/past timing before dispatch. Real provider approval remains
+unexercised here; tests use isolated storage and DB only.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including

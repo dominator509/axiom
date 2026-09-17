@@ -42,7 +42,9 @@ const createBundleSchema = z.object({
   variantCaption: z.object({ platform: z.string().min(1).max(50), text: z.string().trim().min(1).max(10000) }).strict().optional(),
   captions: z.record(z.string(), z.string()).default({}),
   hashtags: z.array(z.string()).default([]),
-});
+  scheduleRequest: z.object({ platform: z.string().min(1).max(30), scheduledAt: z.string().datetime() }).strict().optional(),
+}).refine(body => !body.scheduleRequest || Date.parse(body.scheduleRequest.scheduledAt) > Date.now(),
+  { message: 'Requested schedule must be in the future' });
 
 const approveBundleSchema = z.object({
   revisionId: z.string().uuid().optional(),
@@ -231,6 +233,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
       body.assetId = variant.outputAssetId;
       body.captions = { [copy.data.platform]: copy.data.text };
     }
+    if (body.scheduleRequest && !Object.hasOwn(body.captions, body.scheduleRequest.platform)) return null;
     if (body.assetId) {
       const [asset] = await tx.select().from(schema.asset).where(and(
         eq(schema.asset.id, body.assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, body.modelId),
@@ -249,6 +252,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
         modelId: body.modelId,
         assetId: body.assetId,
         sourceVariantId: body.variantId,
+        publishIntent: body.scheduleRequest ? { action: 'schedule', platform: body.scheduleRequest.platform, scheduledAt: body.scheduleRequest.scheduledAt } : null,
         captions: body.captions,
         hashtags: body.hashtags,
         // Compliance reports are produced by the trusted generation/worker

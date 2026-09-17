@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import ApproveButtons from '@/components/ApproveButtons';
+import RequestedSchedule from '@/components/RequestedSchedule';
 import BundleMedia from '@/components/BundleMedia';
 import VideoReview from '@/components/VideoReview';
 import SavedGenerationRetry from '@/components/SavedGenerationRetry';
@@ -101,6 +102,7 @@ export default async function ApprovalsPage({
               </span>
             </div>
             <div className="stack" style={{ marginTop: 10 }}>
+              <RequestedSchedule intent={b.publishIntent} />
               {b.assetId && <BundleMedia key={b.assetId} bundleId={b.id} />}
               {!b.assetId && <p>No media is attached to this bundle. Saved captions do not mean image or video generation has completed.</p>}
               {Object.entries(b.captions ?? {}).map(([platform, caption]) => (

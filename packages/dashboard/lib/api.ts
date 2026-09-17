@@ -112,6 +112,7 @@ export interface ModelProfile {
 }
 
 export interface ContentBundle {
+  publishIntent?: { action: 'schedule' | 'publish'; platform: string; scheduledAt: string | null } | null;
   assetId?: string | null;
   id: string;
   orgId: string;
