@@ -6,10 +6,11 @@
 //  4. Write viral_exemplar (vector(768) via embedFeatures) + viral_recipe +
 //     viral_embedding (HNSW-indexed) in the same txn.
 
-import { eq, and, gte, desc } from 'drizzle-orm';
+import { eq, and, gte, desc, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { embedExemplarIntent } from '../embedding.js';
 import type { Executor, ExecutorContext } from './context.js';
+import { learningStructure, refreshLearningState } from '../learning-state.js';
 
 const LABEL_THRESHOLDS = { viral: 2, strong: 1, baseline: -1, weak: -Infinity };
 
@@ -105,6 +106,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     .limit(1);
   if (bundles.length === 0) throw new Error(`viral.label: bundle ${target.bundleId} not found`);
   const bundle = bundles[0];
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${job.org_id}:${bundle.modelId}:${target.platform}:learning`},0))`);
 
   // 1. Trailing window of this model+platform's performance (L3.5 §1.1: 72h default).
   const windowStart = new Date(Date.now() - 72 * 3600_000);
@@ -153,9 +155,12 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
 
   // 4. Feature record + embedding (L3.5 §1.4).
   const captions = (bundle.captions as Record<string, string> | null) ?? {};
+  const structure = learningStructure(captions[target.platform] ?? '', target.scheduledFor);
   const features: Record<string, unknown> = {
     evidence_source: 'published-provider-v1',
     embedding_version: 'lexical-v1',
+    learning_arm: structure.arm,
+    learning_context: structure.context,
     platform: target.platform,
     caption: captions[target.platform] ?? '',
     hashtags: bundle.hashtags ?? [],
@@ -243,4 +248,5 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
       embedding,
     })
     .onConflictDoUpdate({ target: schema.viralEmbedding.id, set: { embedding } });
+  await refreshLearningState(tx, job.org_id, bundle.modelId, target.platform);
 };

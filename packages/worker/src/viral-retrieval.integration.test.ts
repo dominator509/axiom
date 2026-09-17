@@ -102,6 +102,9 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       const embeddings = await tx.select().from(schema.viralEmbedding).where(eq(schema.viralEmbedding.recipeId, first.id));
       expect(embeddings).toHaveLength(1);
       expect(embeddings[0].id).toBe(first.id);
+      const states = await tx.select().from(schema.banditState).where(eq(schema.banditState.modelId, modelId));
+      expect(states).toHaveLength(1);
+      expect(states[0]).toMatchObject({ plays: 1, alpha: 1, beta: 2, reward: 0, arm: 'short:statement' });
     });
   });
 });
