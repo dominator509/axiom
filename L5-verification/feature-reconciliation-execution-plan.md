@@ -47,10 +47,11 @@ Source and automated evidence never substitutes for a missing runtime or provide
 - Persist only provider responses that pass the existing data-retention and tenant checks; do not report an empty result as success.
 - [x] Gate: worker/API contract tests pass; deployed sidecar rehearsal remains open.
 
-### 3. Team collaboration and shift management — source slice complete; browser/RLS gate open
+### 3. Team collaboration and shift management — source and runtime gaps remain
 
 - Add tenant-scoped team membership/role visibility, shift lifecycle, handoff notes, and bounded queue assignment using existing RBAC and RLS conventions.
 - Expose the human workflow in a dedicated team/operations surface; keep infrastructure and secret controls out of content-team roles.
+- M274 adds row-locked shift lifecycle transitions and explicit completion handoff notes; terminal shifts cannot be reopened/rewritten. Existing generic workspace operational roles do not yet satisfy the L1.0 Chatter persona restricted to assigned shifts/models. F-25 post-specific note ownership/UI and historical list pagination also remain open. Do not label the team feature complete from generic CRUD or navigation tests.
 - [x] Gate: authorization/RLS and dashboard navigation tests pass; multi-user browser acceptance remains open.
 
 ### 4. Clipping and adaptation controls — source slice complete; deployment gate open

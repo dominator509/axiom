@@ -26,6 +26,12 @@ function windowValid(startsAt: string, endsAt: string): boolean {
   return Number.isFinite(start) && Number.isFinite(end) && end > start && end - start <= 24 * 60 * 60 * 1000 * 7;
 }
 
+export function canTransitionShift(from: string, to: string): boolean {
+  if (!['scheduled', 'active', 'completed', 'cancelled'].includes(from)) return false;
+  return from === to || (from === 'scheduled' && ['active', 'cancelled'].includes(to))
+    || (from === 'active' && ['completed', 'cancelled'].includes(to));
+}
+
 async function modelExists(tx: any, orgId: string, modelId: string): Promise<boolean> {
   return (await tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile).where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId))).limit(1)).length > 0;
 }
@@ -76,11 +82,21 @@ router.patch('/models/:modelId/team-shifts/:shiftId', async (c) => {
   const parsed = shiftPatchSchema.safeParse(payload);
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'invalid shift update');
   const row = await withOrgContext(orgId, async (tx) => {
+    const [current] = await tx.select().from(schema.teamShift).where(and(eq(schema.teamShift.id, c.req.param('shiftId')), eq(schema.teamShift.modelId, c.req.param('modelId')), eq(schema.teamShift.orgId, orgId))).limit(1).for('update');
+    if (!current) return null;
+    if (!canTransitionShift(current.status, parsed.data.status)) return 'conflict' as const;
+    // Terminal handoffs are immutable; an identical replay is harmless.
+    if (['completed', 'cancelled'].includes(current.status)) {
+      if (parsed.data.note !== undefined && parsed.data.note !== current.note) return 'conflict' as const;
+      return current;
+    }
+    if (current.status === parsed.data.status && (parsed.data.note === undefined || parsed.data.note === current.note)) return current;
     const [updated] = await tx.update(schema.teamShift).set({ ...parsed.data, updatedAt: new Date() }).where(and(eq(schema.teamShift.id, c.req.param('shiftId')), eq(schema.teamShift.modelId, c.req.param('modelId')), eq(schema.teamShift.orgId, orgId))).returning();
     if (updated) await writeAudit(tx, orgId, c.get('userId') ?? 'system', 'team.shift.update', updated.id, { status: updated.status });
     return updated ?? null;
   });
   if (!row) return apiError(c, 404, statusTitle(404), 'shift not found');
+  if (row === 'conflict') return apiError(c, 409, statusTitle(409), 'Shift changed or is already closed. Refresh before changing its status. Completed and cancelled shifts cannot be reopened.');
   return c.json({ data: row });
 });
 
