@@ -386,8 +386,8 @@ fn validate_crop(
     source_height: u32,
 ) -> Result<(), MediaError> {
     validate_image_output(width, height)?;
-    if x.checked_add(width).is_none_or(|end| end > source_width)
-        || y.checked_add(height).is_none_or(|end| end > source_height)
+    if !x.checked_add(width).is_some_and(|end| end <= source_width)
+        || !y.checked_add(height).is_some_and(|end| end <= source_height)
     {
         return Err(MediaError::InvalidTransform);
     }
