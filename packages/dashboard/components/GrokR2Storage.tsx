@@ -12,7 +12,7 @@ export default function GrokR2Storage() {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(route, { method, credentials: 'same-origin', cache: 'no-store',
+      const response = await fetch(method === 'POST' ? `${route}/verify` : route, { method, credentials: 'same-origin', cache: 'no-store',
         redirect: 'error', signal: controller.signal,
         ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) });
       if (!response.ok) throw new Error('Storage request failed');

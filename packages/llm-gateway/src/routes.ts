@@ -134,12 +134,12 @@ const tokenkillerBodySchema = chatBodySchema.extend({
 export function createRouter(gateway: LLMGateway): Hono<GatewayEnv> {
   const router = new Hono<GatewayEnv>();
   const grokLogins = new GrokLoginAttempts(gateway);
-  router.use('/subscriptions/grok/r2-storage', async (c, next) => {
+  router.use('/subscriptions/grok/r2-storage/*', async (c, next) => {
     await next();
     c.header('Cache-Control', 'no-store');
     c.header('Referrer-Policy', 'no-referrer');
   });
-  router.use('/subscriptions/grok/r2-storage', async (c, next) => {
+  router.use('/subscriptions/grok/r2-storage/*', async (c, next) => {
     c.header('Cache-Control', 'no-store');
     c.header('Referrer-Policy', 'no-referrer');
     if (!c.get('userId') || !c.get('orgId')) return problemResponse(c, 401, 'Authenticated workspace required');

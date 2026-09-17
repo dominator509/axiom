@@ -32,7 +32,7 @@ it('offers an explicit bucket verification action and reports a verified result'
     typeof (child as { props?: { onClick?: unknown } }).props?.onClick === 'function') as Array<{ props: { onClick: () => void } }>;
   buttons[1].props.onClick();
   await vi.waitFor(() => expect(hooks.values[0]).toContain('read/write verified'));
-  expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ method: 'POST' }));
+  expect(fetchMock).toHaveBeenCalledWith('/api/v1/llm/subscriptions/grok/r2-storage/verify', expect.objectContaining({ method: 'POST' }));
 });
 it('clears entered values before sending, suppresses duplicate submission and never retries failures', async () => {
   const reset = vi.fn();
