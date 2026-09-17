@@ -1,5 +1,32 @@
 # Model-scoped human roles — implementation queue
 
+## Scoped-role session activation checkpoint — M329
+
+Authentication now preserves Chatter, Content Creator and Model as explicit roles;
+the API's default-deny scoped-route boundary remains mandatory. Owners can assign
+these roles using the existing atomic session-revoking member API and GUI. Agent
+is not an assignable human role. GUI descriptions explain talent assignments and
+active Chatter shifts; no live member role was changed.
+
+Real Better Auth signup-issued session cookies in an isolated PostgreSQL database
+now exercise requireAuth followed by enforceModelAccess and the actual model,
+bundle and member routers. Each role can read its assigned talent, cannot read
+unassigned/foreign talent, cannot access member administration or approve/delete,
+and loses access after assignment or session revocation. Chatter also loses access
+when its shift expires. These are real session/SQL checks, not injected role context.
+
+Verified: 39 real PostgreSQL tests after 48 migrations; 28 auth tests; 159 API
+entry/policy/registration tests; 22 focused member/assignment/page tests (19 before
+adding three scoped-role save cases, then all ten member cases passed); auth build,
+three package typechecks and dashboard lint (three existing warnings). Both
+disposable session fixtures removed; recovery DB untouched. Prior CI run35243295341
+on85ccabb remained in progress at observation, not evidence for this newer change.
+
+This supersedes earlier historical notes that scoped authentication is disabled.
+It does not establish live browser/provider acceptance or complete role workflows:
+attachment previews, agentic drafts, remaining Creator operations and the broad
+architecture reconciliation remain open. No live deployment or provider dispatch.
+
 ## Creator worker authorization checkpoint — M327
 
 The media executor now accepts Content Creators only with an exact organization,

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Hono } from 'hono';
 import { eq, inArray, sql } from 'drizzle-orm';
 import { db, pool, schema } from '@axiom/db';
-import { requireMutationRole } from '@axiom/auth';
+import { auth, requireAuth, requireMutationRole } from '@axiom/auth';
 import type { AppBindings } from '../index.js';
 import { teamOperationsRouter } from './team-operations.js';
 import { modelAssignmentsRouter } from './model-assignments.js';
@@ -127,6 +127,53 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     const read = await app().request(`${path}?postId=${posts[0]}`);
     expect((await read.json() as Page).data.map(row => row.id)).toContain(data.id);
   });
+  it.each(['content_creator', 'model', 'chatter'] as const)('enforces assignment and session revocation through real signed-in %s sessions', async role => {
+    const email = `${randomUUID()}@example.invalid`;
+    const origin = new URL(String(auth.options.baseURL)).origin;
+    const signup = await auth.handler(new Request(`${origin}/api/auth/sign-up/email`, {
+      method: 'POST', headers: { 'content-type': 'application/json', Origin: origin },
+      body: JSON.stringify({ email, password: `Fixture-${randomUUID()}`, name: 'Scoped session fixture' }),
+    }));
+    expect(signup.status).toBe(200);
+    const identity = await signup.json() as { user: { id: string } };
+    const userId = identity.user.id;
+    const cookie = signup.headers.getSetCookie().map(value => value.split(';')[0]).join('; ');
+    expect(cookie).toContain('session_token=');
+    const assignmentId = randomUUID(), shiftId = randomUUID();
+    await scoped(async tx => {
+      await tx.update(schema.authUser).set({ orgId, role }).where(eq(schema.authUser.id, userId));
+      await tx.insert(schema.modelUserAssignment).values({ id: assignmentId, orgId, modelId: models[0], userId });
+      if (role === 'chatter') await tx.insert(schema.teamShift).values({ id: shiftId, orgId, modelId: models[0], assigneeUserId: userId, status: 'active', startsAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() + 600_000) });
+    });
+    const route = new Hono<AppBindings>();
+    route.use('/api/v1/*', requireAuth);
+    route.use('/api/v1/*', enforceModelAccess);
+    route.route('/api/v1/models', modelsRouter);
+    route.route('/api/v1/bundles', bundlesRouter);
+    route.route('/api/v1', membersRouter);
+    const request = (path: string, method = 'GET') => route.request(path, { method, headers: { Cookie: cookie } });
+    try {
+      expect((await request(`/api/v1/models/${models[0]}`)).status).toBe(200);
+      for (const id of [models[1], foreignModel]) expect((await request(`/api/v1/models/${id}`)).status).toBe(404);
+      expect((await request('/api/v1/members')).status).toBe(403);
+      expect((await request(`/api/v1/models/${models[0]}`, 'DELETE')).status).toBe(403);
+      expect((await request(`/api/v1/bundles/${bundles[0]}/approve`, 'POST')).status).toBe(403);
+      if (role === 'chatter') {
+        await scoped(tx => tx.update(schema.teamShift).set({ endsAt: new Date(Date.now() - 1_000) }).where(eq(schema.teamShift.id, shiftId)));
+        expect((await request(`/api/v1/models/${models[0]}`)).status).toBe(404);
+      }
+      await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.id, assignmentId)));
+      expect((await request(`/api/v1/models/${models[0]}`)).status).toBe(404);
+      await scoped(tx => tx.delete(schema.authSession).where(eq(schema.authSession.userId, userId)));
+      expect((await request('/api/v1/models')).status).toBe(401);
+    } finally {
+      await scoped(async tx => {
+        await tx.delete(schema.teamShift).where(eq(schema.teamShift.id, shiftId));
+        await tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.id, assignmentId));
+        await tx.delete(schema.authUser).where(eq(schema.authUser.id, userId));
+      });
+    }
+  });
   it('serializes member role changes, preserves an owner and revokes old sessions atomically', async () => {
     const tenant = randomUUID(), owner = randomUUID(), member = randomUUID(), sessionId = randomUUID();
     const run = <T>(fn: (tx: Transaction) => Promise<T>) => scoped(fn, tenant);
@@ -169,7 +216,7 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     const response = await route.request('/members');
     expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toBe('private, no-store');
     const first = await response.json() as { data: { id: string }[]; meta: { next_cursor: string; assignable_roles: string[] } };
-    expect(first.data).toHaveLength(50); expect(first.meta.assignable_roles).not.toContain('chatter');
+    expect(first.data).toHaveLength(50); expect(first.meta.assignable_roles).toContain('chatter');
     const second = await (await route.request(`/members?cursor=${first.meta.next_cursor}`)).json() as { data: { id: string }[]; meta: { next_cursor: null } };
     expect(second.meta.next_cursor).toBeNull();
     expect(new Set([...first.data, ...second.data].map(row => row.id))).toEqual(new Set([owner, member, ...extras]));
@@ -183,7 +230,7 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect((await patch(otherMember, { expectedRole: 'operator', role: 'manager' })).status).toBe(409);
     expect((await patch(currentOwner, { expectedRole: 'owner', role: 'operator' })).status).toBe(409);
     expect((await patch(assignmentUsers[0], { expectedRole: 'operator', role: 'manager' })).status).toBe(404);
-    expect((await patch(otherMember, { expectedRole: 'analyst', role: 'chatter' })).status).toBe(400);
+    expect((await patch(otherMember, { expectedRole: 'analyst', role: 'agent' })).status).toBe(400);
     expect((await patch(otherMember, { expectedRole: 'analyst', role: 'manager', orgId })).status).toBe(400);
   });
   it('enforces assignment membership for both model and user at the database boundary', async () => {

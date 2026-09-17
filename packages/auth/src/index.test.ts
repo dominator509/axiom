@@ -94,14 +94,16 @@ describe('better-auth configuration', () => {
 });
 
 describe('REST role middleware', () => {
-  it.each(['chatter', 'content_creator', 'model'])('does not activate staged role %s as an unrestricted null-role session', async role => {
+  it.each(['chatter', 'content_creator', 'model'])('preserves scoped role %s for downstream authorization', async role => {
     const mod = await import('./index.js');
     const spy = vi.spyOn(auth.api, 'getSession').mockResolvedValue({ user: { id: 'user', orgId: 'org', role } });
     try {
       const app = new Hono<{ Variables: { userId: string; orgId: string; role: UserRole | null } }>();
       app.use('*', mod.requireAuth);
-      app.get('/', c => c.json({ unexpected: true }));
-      expect((await app.request('/')).status).toBe(401);
+      app.get('/', c => c.json({ role: c.get('role') }));
+      const response = await app.request('/');
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ role });
     } finally { spy.mockRestore(); }
   });
   type Bindings = {

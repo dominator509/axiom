@@ -91,8 +91,8 @@ export function scopedReadTarget(role: ScopedHumanRole, method: string, path: st
   return match[1];
 }
 
-// Mount after session middleware and before any REST route handlers. New roles
-// remain disabled in auth until their complete route/navigation policy is ready.
+// Mount after session middleware and before REST handlers. Scoped roles only
+// receive explicitly classified operations; new route shapes default to denial.
 export async function enforceModelAccess(c: Context<AppBindings>, next: Next) {
   const role = c.get('role');
   if (!isScopedHumanRole(role)) return next();

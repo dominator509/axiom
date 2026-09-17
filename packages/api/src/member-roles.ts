@@ -2,9 +2,8 @@ import { and, eq, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { withOrgContext, writeAudit } from './routes/helpers.js';
 
-// These are the human roles currently enabled by authentication. Scoped human
-// roles will join this list only with the corresponding auth activation gate.
-export const assignableMemberRoles = ['owner', 'manager', 'operator', 'analyst'] as const;
+// Human roles only; agent access uses separately scoped capability credentials.
+export const assignableMemberRoles = ['owner', 'manager', 'operator', 'analyst', 'content_creator', 'model', 'chatter'] as const;
 export type AssignableMemberRole = typeof assignableMemberRoles[number];
 
 /** Atomic owner-controlled role change; no caller can alter tenant membership. */

@@ -8,6 +8,7 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
 vi.mock('@/lib/mutation', () => ({ mutationFetch: hooks.send, createIdempotencyKey: () => 'stable-intent' }));
 import WorkspaceMembers, { MemberRoleCard, isMember } from './WorkspaceMembers';
 const member = { id: 'user/one', name: 'One', email: 'one@example.test', role: 'operator' };
+const roles = ['owner', 'manager', 'operator', 'analyst', 'content_creator', 'model', 'chatter'];
 interface Node { type: unknown; props: { children?: unknown; disabled?: boolean; onClick?: () => void; onChange?: (event: { target: { value: string } }) => void } }
 function find(value: unknown, type: unknown, text?: string): Node | undefined {
   if (!value || typeof value !== 'object') return;
@@ -36,6 +37,14 @@ it('requires confirmation and fences repeated clicks until the exact receipt arr
   await vi.waitFor(() => expect(hooks.saved).toHaveBeenCalledOnce());
   expect(find(card(), 'select')!.props.disabled).toBe(true);
 });
+it.each(['content_creator', 'model', 'chatter'])('confirms and saves scoped role %s through the member API', async role => {
+  find(card(), 'select')!.props.onChange!({ target: { value: role } });
+  click('Review role change');
+  hooks.send.mockResolvedValueOnce(Response.json({ data: { id: member.id, role, sessionsRevoked: true } }));
+  click('Confirm role change');
+  await vi.waitFor(() => expect(hooks.saved).toHaveBeenCalledOnce());
+  expect(JSON.parse(hooks.send.mock.calls[0][1].body)).toEqual({ expectedRole: 'operator', role });
+});
 it('preserves the exact key and payload after a lost response or mismatched receipt', async () => {
   choose(); hooks.send.mockRejectedValueOnce(new Error('lost')); click('Confirm role change');
   await vi.waitFor(() => expect(find(card(), 'button', 'Retry same role change')!.props.disabled).toBe(false));
@@ -53,10 +62,10 @@ it.each([401, 403, 409])('requires reloading after a terminal %s rather than res
 });
 it('validates paginated discovery before rendering edit controls', async () => {
   expect(isMember(member)).toBe(true); expect(isMember({ ...member, id: '' })).toBe(false);
-  hooks.fetch.mockResolvedValueOnce(Response.json({ data: [member], meta: { next_cursor: 'user/one', assignable_roles: ['owner', 'manager', 'operator', 'analyst'] } }));
+  hooks.fetch.mockResolvedValueOnce(Response.json({ data: [member], meta: { next_cursor: 'user/one', assignable_roles: roles } }));
   find(list(), 'button', 'Reload members')!.props.onClick!();
   await vi.waitFor(() => expect(find(list(), 'button', 'Load more members')).toBeDefined());
-  hooks.fetch.mockResolvedValueOnce(Response.json({ data: [], meta: { next_cursor: null, assignable_roles: ['owner', 'manager', 'operator', 'analyst'] } }));
+  hooks.fetch.mockResolvedValueOnce(Response.json({ data: [], meta: { next_cursor: null, assignable_roles: roles } }));
   find(list(), 'button', 'Load more members')!.props.onClick!();
   await vi.waitFor(() => expect(find(list(), 'button', 'Load more members')).toBeUndefined());
   expect(hooks.fetch.mock.calls[1][0]).toBe('/api/v1/members?cursor=user%2Fone');

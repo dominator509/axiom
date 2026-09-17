@@ -73,7 +73,7 @@ export default function ModelAssignments({ modelId, members }: { modelId: string
   const locked = busy || !!intent.current;
   return <section className="card stack" aria-label="Model team assignments">
     <h3>Model team assignments</h3>
-    <p className="subtle">Owner-managed membership for this talent. These records do not change account roles or restrict existing workspace-wide access. Role-specific access controls are still being completed.</p>
+    <p className="subtle">Owner-managed membership for this talent. Content Creators, Models and Chatters need an assignment; Chatters also need an active shift. Assignments do not change roles or restrict workspace-wide roles. Manage roles on the Members page.</p>
     <div className="action-row"><button className="btn secondary" type="button" disabled={locked} onClick={() => void load(false)}>Load assignments</button></div>
     {loaded && rows.length === 0 && <p>No team members assigned to this talent.</p>}
     {rows.map(row => <article className="card stack" key={row.id}>

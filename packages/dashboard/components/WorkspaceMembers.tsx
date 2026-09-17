@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 
-const roles = ['owner', 'manager', 'operator', 'analyst'] as const;
+const roles = ['owner', 'manager', 'operator', 'analyst', 'content_creator', 'model', 'chatter'] as const;
 type Role = typeof roles[number];
 interface Member { id: string; name: string; email: string; role: string }
 const descriptions: Record<Role, string> = {
@@ -12,6 +12,9 @@ const descriptions: Record<Role, string> = {
   manager: 'Manage talent operations without owner-only workspace controls.',
   operator: 'Run day-to-day content and publishing operations.',
   analyst: 'Review reporting; operational changes remain subject to API permissions.',
+  content_creator: 'Prepare content only for assigned talent; no approval or publishing controls. Uses their own generation account and storage.',
+  model: 'Read assigned talent media, calendar, analytics, earnings and inbox. No operational changes.',
+  chatter: 'Work assigned talent inboxes only during an active shift. No workspace administration or public publishing.',
 };
 export function isMember(value: unknown): value is Member {
   if (!value || typeof value !== 'object') return false;
@@ -93,7 +96,7 @@ export default function WorkspaceMembers() {
     } catch { setMessage('Members could not be loaded. Your session may have expired or owner access changed. Sign in again if needed.'); }
     finally { lock.current = false; setBusy(false); }
   }
-  return <div className="stack"><p className="subtle">Changes are audited. Scoped Chatter, Content Creator and Model role activation is not yet available here.</p>
+  return <div className="stack"><p className="subtle">Changes are audited. Content Creators, Models and Chatters need talent assignments from the talent’s Team page. Chatters also need an active shift before talent or inbox access is available.</p>
     <button className="btn secondary" type="button" disabled={busy} onClick={() => void load()}>Reload members</button>
     {message && <p role="status">{message}</p>}
     {loaded && members.length === 0 && <p>No workspace members returned.</p>}

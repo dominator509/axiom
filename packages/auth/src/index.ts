@@ -80,15 +80,17 @@ export async function getSessionFromRequest(c: Context): Promise<{
     if (!session?.user?.id) return null;
     const orgId = (session.user as unknown as { orgId?: string | null }).orgId ?? null;
     const role = (session.user as unknown as { role?: unknown }).role;
-    // Model-scoped role types/storage are being added, but do not activate
-    // accounts until all nested reads, mutations and navigation are scoped.
-    if (role === 'chatter' || role === 'content_creator' || role === 'model') return null;
+    // Preserve scoped roles so the API's default-deny model boundary can enforce
+    // assignments and active shifts. Never downgrade them to a null-role session.
     const validRole: UserRole | null =
       role === 'owner' ||
       role === 'manager' ||
       role === 'operator' ||
       role === 'analyst' ||
-      role === 'agent'
+      role === 'agent' ||
+      role === 'chatter' ||
+      role === 'content_creator' ||
+      role === 'model'
         ? role
         : null;
     return { userId: session.user.id, orgId, role: validRole };
