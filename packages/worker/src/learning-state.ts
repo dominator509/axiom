@@ -38,10 +38,13 @@ export async function selectLearnedGuidance(tx: any, orgId: string, modelId: str
   if (!arms.length) return null;
   const context = learningStructure('', scheduledFor).context;
   const result = await tx.execute(sql`SELECT s.arm,s.alpha,s.beta,
-    (SELECT COUNT(*) FROM viral_recipe r WHERE r.org_id=s.org_id AND r.model_id=s.model_id
-      AND r.platform=s.platform AND r.source_target_id IS NOT NULL
-      AND r.recipe->>'learning_arm'=s.arm AND r.created_at > now()-interval '24 hours') AS recent_uses
-    FROM bandit_state s WHERE s.org_id=${orgId} AND s.model_id=${modelId}
+    (SELECT COUNT(*) FROM viral_recipe r JOIN post_target t ON t.id=r.source_target_id AND t.org_id=r.org_id
+      WHERE r.org_id=s.org_id AND r.model_id=s.model_id AND r.platform=s.platform
+      AND t.state='published' AND t.remote_id IS NOT NULL AND t.platform=r.platform
+      AND r.recipe->>'evidence_source'='published-provider-snapshot-v2'
+      AND r.recipe->>'learning_arm'=s.arm
+      AND t.published_at > now()-interval '24 hours' AND t.published_at <= now()) AS recent_uses
+    FROM (${learningPosterior(orgId, modelId, platform)}) s WHERE s.org_id=${orgId} AND s.model_id=${modelId}
       AND s.platform=${platform} AND s.context=${context}
       AND EXISTS (SELECT 1 FROM viral_recipe r WHERE r.org_id=s.org_id AND r.model_id=s.model_id
         AND r.platform=s.platform AND r.recipe->>'learning_context'=s.context
@@ -60,18 +63,17 @@ export function learningStructure(caption: string, scheduledFor: Date | string |
   };
 }
 
-/** Recompute Beta sufficient statistics from one current record per target.
- * Caller holds the model/platform advisory lock throughout recipe refresh.
- * Clipping a z-score directly to [0,1] follows the documented reward contract.
+/** One observation per published target, with a 30-day half-life measured from
+ * publication, never from polling/recipe refresh. Decay both success and failure
+ * evidence toward the Beta(1,1) prior. Plays remains the raw observation count.
+ * Selection derives this at the transaction clock too: an idle cached posterior
+ * must not freeze old evidence in time. No new provider call or state write.
  */
-export async function refreshLearningState(tx: any, orgId: string, modelId: string, platform: string) {
-  await tx.execute(sql`UPDATE bandit_state SET alpha=1, beta=1, plays=0, reward=0, updated_at=now()
-    WHERE org_id=${orgId} AND model_id=${modelId} AND platform=${platform} AND context LIKE 'learn-v1:%'`);
-  await tx.execute(sql`INSERT INTO bandit_state(org_id,model_id,platform,context,arm,alpha,beta,plays,reward)
-    SELECT r.org_id,r.model_id,r.platform,r.recipe->>'learning_context',r.recipe->>'learning_arm',
-      1+SUM(score.value),
-      1+COUNT(*)-SUM(score.value),COUNT(*)::integer,
-      SUM(score.value)
+function learningPosterior(orgId: string, modelId: string, platform: string) {
+  return sql`SELECT r.org_id,r.model_id,r.platform,r.recipe->>'learning_context' AS context,r.recipe->>'learning_arm' AS arm,
+      1+SUM(score.value * age.weight) AS alpha,
+      1+SUM((1-score.value) * age.weight) AS beta,COUNT(*)::integer AS plays,
+      SUM(score.value * age.weight) AS reward
     FROM viral_recipe r JOIN post_target t ON t.id=r.source_target_id AND t.org_id=r.org_id
     CROSS JOIN LATERAL (SELECT CASE WHEN EXISTS (
       SELECT 1 FROM variant_experiment e
@@ -82,12 +84,23 @@ export async function refreshLearningState(tx: any, orgId: string, modelId: stri
         AND observation->>'targetId'=r.source_target_id::text
         AND observation->>'variantId'=e.winner_variant_id::text
     ) THEN 1.0 ELSE LEAST(1.0,GREATEST(0.0,r.perf_score)) END AS value) score
+    CROSS JOIN LATERAL (SELECT POWER(0.5, GREATEST(0.0,
+      EXTRACT(EPOCH FROM (now()-t.published_at))) / 2592000.0) AS weight) age
     WHERE r.org_id=${orgId} AND r.model_id=${modelId} AND r.platform=${platform}
       AND t.state='published' AND t.remote_id IS NOT NULL AND t.platform=r.platform
+      AND t.published_at IS NOT NULL AND t.published_at <= now()
       AND r.recipe->>'evidence_source'='published-provider-snapshot-v2'
       AND r.recipe->>'learning_context' LIKE 'learn-v1:%'
       AND r.recipe->>'learning_arm' IS NOT NULL
-    GROUP BY r.org_id,r.model_id,r.platform,r.recipe->>'learning_context',r.recipe->>'learning_arm'
+    GROUP BY r.org_id,r.model_id,r.platform,r.recipe->>'learning_context',r.recipe->>'learning_arm'`;
+}
+
+/** Caller holds the model/platform advisory lock throughout recipe refresh. */
+export async function refreshLearningState(tx: any, orgId: string, modelId: string, platform: string) {
+  await tx.execute(sql`UPDATE bandit_state SET alpha=1, beta=1, plays=0, reward=0, updated_at=now()
+    WHERE org_id=${orgId} AND model_id=${modelId} AND platform=${platform} AND context LIKE 'learn-v1:%'`);
+  await tx.execute(sql`INSERT INTO bandit_state(org_id,model_id,platform,context,arm,alpha,beta,plays,reward)
+    ${learningPosterior(orgId, modelId, platform)}
     ON CONFLICT(org_id,model_id,platform,context,arm) WHERE context LIKE 'learn-v1:%'
     DO UPDATE SET alpha=EXCLUDED.alpha,beta=EXCLUDED.beta,plays=EXCLUDED.plays,reward=EXCLUDED.reward,updated_at=now()`);
 }

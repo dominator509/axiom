@@ -219,4 +219,18 @@ Source and automated evidence never substitutes for a missing runtime or provide
   `codex-d001a-review-20260917`. No installer integration or live execution is
   approved by this source review. Deployment remains unverified and paused.
 
+- M340 implements recency-decayed reward contributions with a 30-day publication
+  half-life, shared by normal outcomes and automatic A/B winner evidence. Both
+  positive and negative evidence decay toward the neutral prior. Selection
+  derives current sufficient statistics rather than trusting stale cache values;
+  fatigue uses actual publication time rather than recipe creation. Fifteen
+  focused tests and eight real PostgreSQL tests after 49 migrations pass, plus
+  worker typecheck. Tests cover exact half-lives, excluded missing/future dates,
+  repeated polls, stale-cache rejection, winner decay and manual-outcome exclusion.
+  An initial fixture incorrectly referenced a nonexistent recipe updated_at
+  column; that test-only error was corrected before the successful run. Fixture
+  `6e767ceef7164a23` was removed; no deployed database or provider was touched.
+  Richer hook/format/time arms, query load measurement and live acceptance remain
+  open; this does not close F-84 or the full reconciliation.
+
 The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.

@@ -8,7 +8,7 @@ import { embedExemplarIntent } from './embedding.js';
 import { viralLabel } from './executors/viral.js';
 import type { JobRow } from './types.js';
 import { evaluateAutomaticVariants, evaluationDigest } from './variant-auto-evaluation.js';
-import { refreshLearningState } from './learning-state.js';
+import { refreshLearningState, selectLearnedGuidance } from './learning-state.js';
 import { modelPlaybookContext } from './playbook-context.js';
 
 const url = process.env.TEST_DATABASE_URL;
@@ -105,7 +105,7 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
         captionGuidance: { instagram: guidance } });
       const [savedBundle] = await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, bundleId));
       expect(savedBundle.captionGuidance.instagram).toEqual(guidance);
-      await tx.insert(schema.postTarget).values({ id: targetId, orgId, bundleId, platform: 'instagram', state: 'published', remoteId: targetId, idemKey: Buffer.from(randomUUID()),
+      await tx.insert(schema.postTarget).values({ id: targetId, orgId, bundleId, platform: 'instagram', state: 'published', remoteId: targetId, publishedAt: sql`now()`, idemKey: Buffer.from(randomUUID()),
         publicationSnapshot: { caption: 'Blue ceramic vase', hashtags: [], modelId, assetId: null, scheduledFor: null, captionGuidance: guidance } });
       // Both observations use the database transaction clock. Mixing JS wall
       // time with default now() can reverse them when fixture setup exceeds 1s.
@@ -181,7 +181,11 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       await refreshLearningState(tx, orgId, modelId, 'instagram');
       const rewards = await tx.select().from(schema.banditState).where(eq(schema.banditState.modelId, modelId));
       expect(rewards).toHaveLength(1);
-      expect(rewards[0]).toMatchObject({ plays: 1, reward: 1, alpha: 2, beta: 1 });
+      const clock = await tx.execute(sql`SELECT POWER(0.5, EXTRACT(EPOCH FROM (now()-TIMESTAMPTZ '2026-09-01'))/2592000.0) AS weight`);
+      const weight = Number(clock.rows[0].weight);
+      expect(rewards[0]).toMatchObject({ plays: 1, beta: 1 });
+      expect(rewards[0].reward).toBeCloseTo(weight, 8);
+      expect(rewards[0].alpha).toBeCloseTo(1 + weight, 8);
       const manualId = randomUUID();
       await tx.insert(schema.variantExperiment).values({ id: manualId, orgId, modelId, name: manualId, platform: 'instagram', variantIds: variants,
         status: 'completed', winnerVariantId: variants[1], evaluationPolicy: 'manual',
@@ -190,10 +194,51 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
         recipe: { evidence_source: 'published-provider-snapshot-v2', learning_context: 'learn-v1:scheduled-utc-unknown', learning_arm: 'short:statement' } });
       await refreshLearningState(tx, orgId, modelId, 'instagram');
       const [manualExcluded] = await tx.select().from(schema.banditState).where(eq(schema.banditState.modelId, modelId));
-      expect(manualExcluded).toMatchObject({ plays: 2, reward: 1, alpha: 2, beta: 2 });
+      expect(manualExcluded.plays).toBe(2);
+      expect(manualExcluded.reward).toBeCloseTo(weight, 8);
+      expect(manualExcluded.alpha).toBeCloseTo(1 + weight, 8);
+      expect(manualExcluded.beta).toBeCloseTo(1 + weight, 8);
       const replayDecisions = await tx.select().from(schema.auditLog).where(eq(schema.auditLog.action, 'variant.experiment.auto-evaluate'));
       expect(replayDecisions.filter(row => row.detail?.experimentId === experimentId)).toHaveLength(1);
       await expect(tx.transaction(nested => nested.update(schema.variantExperiment).set({ evaluation: {} }).where(eq(schema.variantExperiment.id, experimentId)))).rejects.toThrow();
+    });
+  });
+  it('decays published evidence, not poll age, and selects fresh posteriors rather than stale cache', async () => {
+    await fixture(async (tx, modelId) => {
+      const records = [
+        { age: sql`now()`, score: 1 },
+        { age: sql`now()-interval '30 days'`, score: 1 },
+        { age: sql`now()-interval '60 days'`, score: 0 },
+        { age: null, score: 1 },
+        { age: sql`now()+interval '1 day'`, score: 1 },
+      ].map(row => ({ ...row, bundleId: randomUUID(), targetId: randomUUID() }));
+      for (const row of records) {
+        await tx.insert(schema.contentBundle).values({ id: row.bundleId, orgId, modelId });
+        await tx.insert(schema.postTarget).values({ id: row.targetId, orgId, bundleId: row.bundleId,
+          platform: 'instagram', state: 'published', remoteId: row.targetId, publishedAt: row.age,
+          idemKey: Buffer.from(row.targetId) });
+        await tx.insert(schema.viralRecipe).values({ orgId, modelId, platform: 'instagram', sourceTargetId: row.targetId,
+          perfScore: row.score, recipe: { evidence_source: 'published-provider-snapshot-v2',
+            learning_context: 'learn-v1:scheduled-utc-unknown', learning_arm: 'short:statement' } });
+      }
+      await refreshLearningState(tx, orgId, modelId, 'instagram');
+      const [state] = await tx.select().from(schema.banditState).where(eq(schema.banditState.modelId, modelId));
+      expect(state).toMatchObject({ plays: 3, reward: 1.5, alpha: 2.5, beta: 1.25 });
+      await tx.execute(sql`UPDATE viral_recipe SET created_at=now() WHERE model_id=${modelId}`);
+      await refreshLearningState(tx, orgId, modelId, 'instagram');
+      const [replayed] = await tx.select().from(schema.banditState).where(eq(schema.banditState.modelId, modelId));
+      expect(replayed).toMatchObject({ plays: 3, reward: 1.5, alpha: 2.5, beta: 1.25 });
+      await tx.execute(sql`UPDATE bandit_state SET alpha=9999,beta=9999 WHERE model_id=${modelId}`);
+      let selectedRows: unknown[] = [];
+      const reader = { execute: async (query: Parameters<typeof tx.execute>[0]) => {
+        const result = await tx.execute(query); selectedRows = result.rows; return result;
+      } };
+      expect(await selectLearnedGuidance(reader, orgId, modelId, 'instagram', ['short:statement'], null)).toBe('short:statement');
+      expect(selectedRows).toHaveLength(1);
+      const selected = selectedRows[0] as { arm: string; alpha: unknown; beta: unknown };
+      expect(selected.arm).toBe('short:statement');
+      expect(Number(selected.alpha)).toBe(2.5);
+      expect(Number(selected.beta)).toBe(1.25);
     });
   });
 });
