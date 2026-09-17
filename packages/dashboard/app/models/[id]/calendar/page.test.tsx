@@ -23,8 +23,20 @@ function transport(status = 200) {
 }
 
 describe('calendar month navigation', () => {
+  it('loads saved model guidelines and compares the complete current UTC week separately from the selected month', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2030-01-01T00:30:00Z'));
+    const fetch = vi.fn().mockImplementation(async (url: string) => Response.json({ data: url.includes('playbook-guidelines')
+      ? [{ id: 'g', platform: 'x', cadencePerWeek: 3, optimalTimes: ['18:00'], revision: 2 }]
+      : [{ id: 'p', platform: 'x', state: 'pending', remoteId: null, scheduledFor: '2030-01-01T18:00:00Z' }] }));
+    vi.stubGlobal('fetch', fetch);
+    const html = await render({ month: '2030-02' });
+    expect(html).toContain('Under planned cadence by 2 posts');
+    const urls = fetch.mock.calls.map(([url]) => new URL(url));
+    expect(urls.some(url => url.pathname === '/api/v1/models/calendar-model/playbook-guidelines')).toBe(true);
+    expect(urls.some(url => url.searchParams.get('from') === '2029-12-31T00:00:00.000Z' && url.searchParams.get('to') === '2030-01-06T23:59:59.999Z')).toBe(true);
+  });
   it('exposes editing only to operational roles and pending unpublished posts', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify({ data: [
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async (url: string) => new Response(JSON.stringify({ data: url.includes('playbook-guidelines') ? [] : [
       { id: 'pending', platform: 'x', state: 'pending', scheduledFor: null, remoteId: null },
       { id: 'handoff', platform: 'x', state: 'pending', scheduledFor: null, remoteId: 'remote' },
       { id: 'published', platform: 'x', state: 'published', scheduledFor: null, remoteId: 'remote' },

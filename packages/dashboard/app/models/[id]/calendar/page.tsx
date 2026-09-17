@@ -1,6 +1,7 @@
 import { api, getSession } from '@/lib/api';
 import Link from 'next/link';
 import PostScheduleForm from '@/components/PostScheduleForm';
+import PlaybookCadence, { currentUtcWeek } from '@/components/PlaybookCadence';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,17 @@ export default async function CalendarPage({ params, searchParams }: {
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   }
+  const week = currentUtcWeek(now);
+  let guidelines: Awaited<ReturnType<typeof api.models.playbookGuidelines>>['data'] = [];
+  let weekPosts: typeof posts = [];
+  let cadenceUnavailable = false;
+  try {
+    const [saved, scheduled] = await Promise.all([
+      api.models.playbookGuidelines(id), api.models.calendar(id, week.from, week.to),
+    ]);
+    guidelines = saved.data;
+    weekPosts = scheduled.data;
+  } catch { cadenceUnavailable = true; }
 
   return (
     <div className="page-stack">
@@ -52,6 +64,7 @@ export default async function CalendarPage({ params, searchParams }: {
         <button className="btn secondary" type="submit">Show month</button>
       </form>
       {invalidMonth && <p role="alert">Invalid or repeated month parameter. Showing the current UTC month.</p>}
+      <PlaybookCadence modelId={id} guidelines={guidelines} posts={weekPosts} {...week} unavailable={cadenceUnavailable} />
       {error && (
         <div className="card" style={{ color: 'var(--bad)' }}>
           {error}

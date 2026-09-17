@@ -64,6 +64,7 @@ Source and automated evidence never substitutes for a missing runtime or provide
 
 - Extend the existing playbook store into model/org-scoped editable guidelines with revision history and audit records.
 - Connect guideline reads to scheduling, generation, caption adaptation, and analytics surfaces without silently overriding explicit user input.
+- M269 wires F-55 into the calendar: current UTC-week pending/published counts versus saved per-platform targets, shortfall flags, explicit unknown state and guideline navigation. No schedule mutation. F-56 still has a confirmed gap in synchronous API caption enrichment; worker generation/revision already reads model guidelines. Browser acceptance and broader analytics integration remain open.
 - [x] Gate: CRUD/authorization, prompt integration, typecheck, and dashboard tests pass; scheduler/browser acceptance remains open.
 
 ### 6. External provider contracts — static contracts complete; live probes open
