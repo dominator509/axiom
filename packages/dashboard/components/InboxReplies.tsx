@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import { mutationFetch } from '@/lib/mutation';
 import { readDashboardJson } from '@/lib/response';
+import InboxReplyReviews from './InboxReplyReviews';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const labels = {
@@ -124,6 +125,7 @@ export default function InboxReplies({ modelId, connectionId, counterpartUuid, c
       <h4>{attempted.current.has(reply.id) ? 'Action attempted — refresh status' : labels[reply.state]}</h4><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{reply.body}</p>
       <p className="subtle">{new Date(reply.createdAt).toLocaleString()} · Prepared by {reply.actorUserId}</p>
       {reply.remoteMessageUuid && <p className="subtle">Provider receipt: {reply.remoteMessageUuid}</p>}
+      {['dispatching', 'uncertain', 'sent', 'rejected'].includes(reply.state) && <InboxReplyReviews modelId={modelId} replyId={reply.id} canReview={canPrepare && ['dispatching', 'uncertain'].includes(reply.state)} />}
       {canPrepare && actorUserId === reply.actorUserId && reply.state === 'pending' && <div className="stack">
         {attempted.current.has(reply.id) ? <p>An action was attempted. Load history before taking further action.</p>
           : confirmId === reply.id ? <><p>This sends the exact text above to this Fanvue conversation immediately. It cannot be recalled here.</p><div className="action-row">
