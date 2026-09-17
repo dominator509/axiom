@@ -29,7 +29,7 @@ import { asPlatform, enqueueJob, resolveCapabilities } from '@axiom/worker';
 import type { Platform } from '@axiom/core';
 import { queueBundleRevision } from '../bundle-revision.js';
 import { assetPreview } from '../asset-preview.js';
-import { modelAccessCondition } from '../model-access.js';
+import { isScopedHumanRole, modelAccessCondition } from '../model-access.js';
 import { reviewedVideoReport, videoReviewRequest } from '../video-review.js';
 
 const router = new Hono<AppBindings>();
@@ -190,6 +190,13 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
 
   const inserted = await withOrgContext(orgId, async (tx) => {
     if ((await modelOrgId(tx, body.modelId)) !== orgId) return null;
+    if (isScopedHumanRole(c.get('role'))) {
+      const [assigned] = await tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile).where(and(
+        eq(schema.modelProfile.id, body.modelId), eq(schema.modelProfile.orgId, orgId),
+        modelAccessCondition(c.get('role'), orgId, userId),
+      )).limit(1);
+      if (!assigned) return null;
+    }
     let assignmentPlatform: string | undefined;
     if (body.assignmentId) {
       const a = schema.variantExperimentAssignment, e = schema.variantExperiment;

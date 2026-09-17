@@ -38,6 +38,9 @@ it('permits only explicit creator preparation operations, not administrative or 
     expect(scopedReadTarget('model', 'POST', `/api/v1/models/${id}/${action}`)).toBeNull();
     expect(scopedReadTarget('chatter', 'POST', `/api/v1/models/${id}/${action}`)).toBeNull();
   }
-  for (const path of ['/api/v1/posts', '/api/v1/bundles', `/api/v1/bundles/${id}/approve`, `/api/v1/models/${id}/playbook-guidelines`, `/api/v1/models/${id}/generate/${id}/retry`, `/api/v1/models/${id}/network`])
+  expect(scopedReadTarget('content_creator', 'POST', '/api/v1/bundles')).toBe('bundle-create');
+  expect(scopedReadTarget('model', 'POST', '/api/v1/bundles')).toBeNull();
+  expect(scopedReadTarget('chatter', 'POST', '/api/v1/bundles')).toBeNull();
+  for (const path of ['/api/v1/posts', `/api/v1/bundles/${id}/approve`, `/api/v1/models/${id}/playbook-guidelines`, `/api/v1/models/${id}/generate/${id}/retry`, `/api/v1/models/${id}/network`])
     expect(scopedReadTarget('content_creator', 'POST', path)).toBeNull();
 });

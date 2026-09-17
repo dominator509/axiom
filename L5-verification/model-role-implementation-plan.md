@@ -47,6 +47,19 @@ image transform enqueue, without running workers or providers. Approval, direct
 publishing, standalone bundle staging, schedule changes and retry endpoints remain
 denied until individually implemented. Normal login still rejects staged roles.
 
+Creator POST `/bundles` now permits staging after the validated body model's
+assignment is checked in the creation transaction. Existing asset/variant ownership
+and byte verification stay intact. Server-owned generated state and pending media
+ToS cannot be overwritten by client fields; only a ToS scan is queued. Tests prove
+unassigned models, mismatched assets and revoked membership cannot stage bundles.
+
+Scheduler inspection: POST `/posts` creates publishing jobs; PATCH may change
+destination/timing. Do not simply expose these to Creators. The next scheduler
+step should use the existing bundle `publishIntent` and approval flow for an
+explicit reviewable schedule request, with revision protection and GUI disclosure.
+Approval remains a separate authorized action. Legacy approved-bundle scheduling
+does not by itself prove a Creator-specific approval contract.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including
