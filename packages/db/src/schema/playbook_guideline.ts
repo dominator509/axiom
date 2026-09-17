@@ -20,3 +20,16 @@ export const playbookGuidelineRelations = relations(playbookGuideline, ({ one })
   org: one(org, { fields: [playbookGuideline.orgId], references: [org.id] }),
   model: one(modelProfile, { fields: [playbookGuideline.modelId], references: [modelProfile.id] }),
 }));
+
+export const playbookGuidelineRevision = pgTable('playbook_guideline_revision', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  guidelineId: uuid('guideline_id').notNull().references(() => playbookGuideline.id, { onDelete: 'cascade' }),
+  orgId: uuid('org_id').notNull().references(() => org.id, { onDelete: 'cascade' }),
+  modelId: uuid('model_id').notNull().references(() => modelProfile.id, { onDelete: 'cascade' }),
+  platform: text('platform').notNull(),
+  revision: integer('revision').notNull(),
+  optimalTimes: jsonb('optimal_times').$type<string[]>().notNull(),
+  cadencePerWeek: integer('cadence_per_week').notNull(),
+  upsellStrategy: text('upsell_strategy').notNull(),
+  recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex('playbook_guideline_revision_guideline_id_revision_key').on(table.guidelineId, table.revision)]);

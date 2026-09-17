@@ -50,7 +50,7 @@ import { variantExperiment, variantExperimentRelations, variantExperimentAssignm
 import { scrapeRun, scrapeRunRelations } from './scrape_run.js';
 import { teamShift, teamShiftRelations, teamNote, teamNoteRelations } from './team_operations.js';
 import { mediaOperation, mediaOperationRelations } from './media_operation.js';
-import { playbookGuideline, playbookGuidelineRelations } from './playbook_guideline.js';
+import { playbookGuideline, playbookGuidelineRelations, playbookGuidelineRevision } from './playbook_guideline.js';
 
 export { org, orgRelations };
 export { appUser, appUserRelations };
@@ -104,7 +104,7 @@ export { variantExperiment, variantExperimentRelations, variantExperimentAssignm
 export { scrapeRun, scrapeRunRelations };
 export { teamShift, teamShiftRelations, teamNote, teamNoteRelations };
 export { mediaOperation, mediaOperationRelations };
-export { playbookGuideline, playbookGuidelineRelations };
+export { playbookGuideline, playbookGuidelineRelations, playbookGuidelineRevision };
 export { mediaGenerationAttempt } from './media_generation_attempt.js';
 
 export const allRelations = [
