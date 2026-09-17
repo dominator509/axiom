@@ -1,8 +1,25 @@
 import { and, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
+import { readBoundedResponseText } from '@axiom/core';
 import type { Executor } from './context.js';
 
 function mediaOrigin(): string { return (process.env.MEDIA_PLANE_URL ?? 'http://127.0.0.1:8100').replace(/\/$/, ''); }
+
+export async function confirmTransformOutput(response: Response, outputKey: string): Promise<void> {
+  if (!response.ok) {
+    void response.body?.cancel().catch(() => undefined);
+    throw new Error(`media plane returned HTTP ${response.status}`);
+  }
+  const raw = await readBoundedResponseText(response, 16 * 1024, 'media transform receipt', 15_000);
+  let receipt: unknown;
+  try { receipt = JSON.parse(raw); }
+  catch { throw new Error('media plane returned an invalid transform receipt'); }
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)
+    || (receipt as Record<string, unknown>).status !== 'ok'
+    || (receipt as Record<string, unknown>).output_path !== outputKey) {
+    throw new Error('media plane did not confirm the requested transform output');
+  }
+}
 
 export const mediaTransform: Executor = async ({ tx, job }) => {
   const operationId = typeof job.payload?.operationId === 'string' ? job.payload.operationId : '';
@@ -27,7 +44,7 @@ export const mediaTransform: Executor = async ({ tx, job }) => {
         : { input_path: source.storageKey, target_format: options.targetFormat, scale: options.scale, output_path: outputKey };
   try {
     const response = await fetch(`${mediaOrigin()}${path}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(120_000) });
-    if (!response.ok) throw new Error(`media plane returned HTTP ${response.status}`);
+    await confirmTransformOutput(response, outputKey);
     const [variant] = await tx.insert(schema.assetVariant).values({ orgId: job.org_id, assetId: source.id, variantType: operation.type, storageKey: outputKey, width: typeof options.width === 'number' ? options.width : source.width, height: typeof options.height === 'number' ? options.height : source.height, settings: options }).returning();
     if (!variant) throw new Error('media.transform: result variant could not be saved');
     await tx.update(schema.mediaOperation).set({ state: 'completed', resultVariantId: variant.id, completedAt: new Date(), error: null }).where(eq(schema.mediaOperation.id, operation.id));

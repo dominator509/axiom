@@ -4,6 +4,8 @@ This checkpoint preserves the accumulated API, database, worker and dashboard im
 
 Review findings requiring follow-up:
 
+- Media transforms now validate the bounded service receipt and exact output key before recording completion (nine tests and worker typecheck pass). Live output existence/metadata and dashboard variant previews still require completion and verification.
+
 - Variant outcome follow-up: summaries now use outcomeAt and include conversion counts. Recording first verifies experiment organization/model, then locks the assignment with SELECT FOR UPDATE; identical repeats preserve timestamps. Four route tests and API typecheck pass. Live PostgreSQL concurrency/tenant enforcement and conversion display in the GUI remain open.
 - Scraper response consumption now uses the shared bounded streaming reader at 512 KB with a 30-second body deadline, cancels HTTP-error bodies and rejects malformed/empty envelopes without echoing response content. Nine focused tests and worker typecheck pass. Provider-specific response contracts and model egress routing still require verification.
 - Scrape/media failure recovery now updates operation state inside the lease-checked job recovery transaction: queued on retry, failed on terminal failure, completed rows preserved. Sixteen worker tests and typecheck pass; real PostgreSQL rollback/lease-race rehearsal and deployed GUI failure visibility remain open.
