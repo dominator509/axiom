@@ -16,6 +16,15 @@ function request(body: unknown) {
   });
 }
 beforeEach(() => { vi.clearAllMocks(); mockState.results = []; mockState.result = []; });
+it('includes the verified output identity in operation history', async () => {
+  mockState.results = [[], [{ operation: { id, state: 'completed' }, outputAssetId: id }]];
+  const app = new Hono<AppBindings>();
+  app.use('*', async (c, next) => { c.set('orgId', id); await next(); });
+  app.route('/', mediaOperationsRouter);
+  const response = await app.request(`/models/${id}/media-operations`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ data: [{ id, state: 'completed', outputAssetId: id }] });
+});
 it.each([[16385, 1], [1, 16385], [4097, 4096], [0, 100]])('rejects unsafe output %sx%s before queueing', async (width, height) => {
   expect((await request({ type: 'image_resize', width, height })).status).toBe(400);
   expect(enqueueJob).not.toHaveBeenCalled();

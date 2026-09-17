@@ -19,6 +19,17 @@ const input = () => ({ path: join(root, 'request', '1.jpg'), byteLength: bytes.l
 const scope = () => ({ orgId, modelId, requestRoot: join(root, 'request'), mediaRoot: join(root, 'media') });
 
 describe('generated asset persistence', () => {
+  it('stores WebM output with exact byte identity and no implicit sanitization', async () => {
+    const webm = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, ...Array(20).fill(0)]);
+    await writeFile(input().path, webm);
+    const result = await storeGeneratedAsset({ ...input(), byteLength: webm.length, mimeType: 'video/webm' }, scope());
+    expect(result.mimeType).toBe('video/webm');
+    expect(result.storageKey).toMatch(/\.webm$/);
+    expect(await readFile(join(root, 'media', result.storageKey))).toEqual(webm);
+    expect(result.sha256).toEqual(createHash('sha256').update(webm).digest());
+    await expect(storeGeneratedAsset({ ...input(), byteLength: webm.length, mimeType: 'video/webm' },
+      { ...scope(), sanitizeMetadata: true })).rejects.toThrow('WebM sanitization is not supported');
+  });
   it('copies exact bytes with tenant-scoped key and content hash, retaining source', async () => {
     const result = await storeGeneratedAsset(input(), scope());
     expect(result.storageKey).toMatch(new RegExp(`^generated/${orgId}/${modelId}/[a-f0-9-]+\\.jpg$`));

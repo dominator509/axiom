@@ -23,8 +23,8 @@ export default function BundleMedia(identity: MediaIdentity) {
         const response = await fetch(src, { method: 'HEAD', cache: 'no-store', signal: controller.signal });
         if (!response.ok) throw new Error('Preview unavailable');
         const type = response.headers.get('content-type')?.split(';')[0];
-        if (!['image/jpeg', 'image/png', 'video/mp4'].includes(type ?? '')) throw new Error('Preview unavailable');
-        if (!cancelled && !controller.signal.aborted) setKind(type === 'video/mp4' ? 'video' : 'image');
+        if (!['image/jpeg', 'image/png', 'video/mp4', 'video/webm'].includes(type ?? '')) throw new Error('Preview unavailable');
+        if (!cancelled && !controller.signal.aborted) setKind(type?.startsWith('video/') ? 'video' : 'image');
       } catch {
         if (!cancelled) setFailed(true);
       } finally { clearTimeout(deadline); }

@@ -7,7 +7,7 @@ import { sanitizeMedia } from './media-sanitizer.js';
 export interface GeneratedAssetInput {
   path: string;
   byteLength: number;
-  mimeType: 'image/jpeg' | 'image/png' | 'video/mp4';
+  mimeType: 'image/jpeg' | 'image/png' | 'video/mp4' | 'video/webm';
 }
 
 /** Persist a completed CLI artifact beneath the existing media-plane root.
@@ -19,8 +19,9 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
 }): Promise<{ storageKey: string; fileName: string; fileSize: number; sha256: Buffer; mimeType: GeneratedAssetInput['mimeType']; exactFileHashChanged: boolean }> {
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuid.test(scope.orgId) || !uuid.test(scope.modelId)) throw new Error('Invalid asset tenant scope');
-  const limit = input.mimeType === 'video/mp4' ? 256 * 1024 * 1024 : 20 * 1024 * 1024;
-  const extensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'video/mp4': 'mp4' };
+  if (scope.sanitizeMetadata && input.mimeType === 'video/webm') throw new Error('WebM sanitization is not supported');
+  const limit = input.mimeType.startsWith('video/') ? 256 * 1024 * 1024 : 20 * 1024 * 1024;
+  const extensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'video/mp4': 'mp4', 'video/webm': 'webm' };
   const extension = Object.hasOwn(extensions, input.mimeType) ? extensions[input.mimeType] : undefined;
   if (!extension || !Number.isSafeInteger(input.byteLength) || input.byteLength < 12 || input.byteLength > limit)
     throw new Error('Invalid generated asset metadata');
@@ -60,7 +61,9 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
             ? buffer.subarray(0, 3).equals(Buffer.from([255, 216, 255]))
             : input.mimeType === 'image/png'
               ? buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-              : buffer.toString('ascii', 4, 8) === 'ftyp';
+              : input.mimeType === 'video/webm'
+                ? buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
+                : buffer.toString('ascii', 4, 8) === 'ftyp';
           if (bytesRead < 12 || !matches) throw new Error('Generated asset type changed before import');
         }
         copied += bytesRead;
@@ -82,6 +85,7 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
         || after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs)
         throw new Error('Generated asset changed during import');
       if (scope.sanitizeMetadata) {
+        if (input.mimeType === 'video/webm') throw new Error('WebM sanitization is not supported');
         const sanitized = await sanitizeMedia(Buffer.concat(chunks), input.mimeType);
         exactFileHashChanged = sanitized.exactFileHashChanged;
         if (sanitized.mimeType !== mimeType) throw new Error('Sanitizer output type mismatch');

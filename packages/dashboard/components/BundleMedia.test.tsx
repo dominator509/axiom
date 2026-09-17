@@ -37,13 +37,13 @@ afterEach(() => {
 });
 
 describe('saved media preview recovery', () => {
-  it.each(['image/png', 'video/mp4'])('uses the authenticated library endpoint and recovers a failed %s preview', async type => {
+  it.each(['image/png', 'video/mp4', 'video/webm'])('uses the authenticated library endpoint and recovers a failed %s preview', async type => {
     const fetch = vi.fn().mockResolvedValue(new Response(null, { headers: { 'content-type': type } }));
     vi.stubGlobal('fetch', fetch);
     const library = () => { hooks.index = 0; return BundleMedia({ modelId: 'talent', assetId: 'asset' }); };
     library(); cleanups.push(hooks.effect!()); await flush();
     const media = library();
-    expect(media.type).toBe(type === 'video/mp4' ? 'video' : 'img');
+    expect(media.type).toBe(type.startsWith('video/') ? 'video' : 'img');
     expect(media.props.src).toBe('/api/v1/models/talent/media/asset');
     expect(fetch).toHaveBeenCalledWith('/api/v1/models/talent/media/asset', expect.objectContaining({ method: 'HEAD', cache: 'no-store' }));
     media.props.onError();

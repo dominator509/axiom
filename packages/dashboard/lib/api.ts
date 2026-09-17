@@ -312,7 +312,7 @@ export interface ScrapeRun {
 export interface TeamMember { id: string; email: string; role: string }
 export interface TeamShift { id: string; modelId: string; assigneeUserId: string; queue: string; startsAt: string; endsAt: string; status: string; note: string | null }
 export interface TeamNote { id: string; modelId: string; authorUserId: string; targetType: string; targetId: string | null; body: string; createdAt: string }
-export interface MediaOperation { id: string; modelId: string; sourceAssetId: string; resultVariantId: string | null; type: string; options: Record<string, unknown>; state: string; error: string | null; createdAt: string; completedAt: string | null }
+export interface MediaOperation { id: string; modelId: string; sourceAssetId: string; resultVariantId: string | null; outputAssetId?: string | null; type: string; options: Record<string, unknown>; state: string; error: string | null; createdAt: string; completedAt: string | null }
 export interface PlaybookGuideline { id: string; modelId: string; platform: string; optimalTimes: string[]; cadencePerWeek: number; upsellStrategy: string; revision: number; updatedAt: string }
 
 export const api = {

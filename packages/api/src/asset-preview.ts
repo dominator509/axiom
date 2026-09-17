@@ -15,8 +15,8 @@ export interface PreviewAsset {
  * Never accept a client-supplied path. Keep the media root private to services.
  */
 export async function assetPreview(asset: PreviewAsset, request: Request, root: string): Promise<Response> {
-  const limit = asset.mimeType === 'video/mp4' ? 256 * 1024 * 1024 : 20 * 1024 * 1024;
-  if (!['image/jpeg', 'image/png', 'video/mp4'].includes(asset.mimeType)
+  const limit = asset.mimeType.startsWith('video/') ? 256 * 1024 * 1024 : 20 * 1024 * 1024;
+  if (!['image/jpeg', 'image/png', 'video/mp4', 'video/webm'].includes(asset.mimeType)
     || !Number.isSafeInteger(asset.fileSize) || asset.fileSize < 12 || asset.fileSize > limit
     || asset.sha256.length !== 32) throw new Error('Preview unavailable');
   const base = resolve(root);
@@ -44,7 +44,9 @@ export async function assetPreview(asset: PreviewAsset, request: Request, root: 
           ? buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
           : asset.mimeType === 'image/jpeg'
             ? buffer.subarray(0, 3).equals(Buffer.from([255, 216, 255]))
-            : buffer.toString('ascii', 4, 8) === 'ftyp';
+            : asset.mimeType === 'video/webm'
+              ? buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
+              : buffer.toString('ascii', 4, 8) === 'ftyp';
         if (bytesRead < 12 || !matches) throw new Error('Preview unavailable');
       }
       hash.update(buffer.subarray(0, bytesRead));

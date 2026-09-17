@@ -17,6 +17,15 @@ beforeEach(async () => {
 afterEach(async () => rm(root, { recursive: true, force: true }));
 
 describe('authenticated asset byte delivery helper', () => {
+  it('delivers a verified WebM range without treating video as an image', async () => {
+    const webm = Buffer.from([0x1a, 0x45, 0xdf, 0xa3, ...Array(20).fill(0)]);
+    await writeFile(join(root, 'video.webm'), webm);
+    const response = await assetPreview({ storageKey: 'video.webm', mimeType: 'video/webm', fileSize: webm.length,
+      sha256: createHash('sha256').update(webm).digest() }, new Request('http://local/media', { headers: { range: 'bytes=0-3' } }), root);
+    expect(response.status).toBe(206);
+    expect(response.headers.get('content-type')).toBe('video/webm');
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(webm.subarray(0, 4));
+  });
   it('delivers exact content privately without storage metadata', async () => {
     const response = await assetPreview(asset, new Request('http://local/media'), root);
     expect(response.status).toBe(200);

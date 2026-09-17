@@ -26,7 +26,7 @@ export default async function MediaPage({ params, searchParams }: {
       {result.data.map(asset => {
         const src = `/api/v1/models/${encodeURIComponent(id)}/media/${encodeURIComponent(asset.id)}`;
         return <article key={asset.id} className="card stack">
-          <h3>{asset.origin === 'uploaded' ? 'Uploaded source' : asset.origin === 'generated' ? 'Generated media' : 'Saved'} {asset.kind === 'video' ? 'video' : 'image'}</h3>
+          <h3>{asset.origin === 'uploaded' ? 'Uploaded source' : asset.origin === 'generated' ? 'Generated media' : asset.origin === 'transformed' ? 'Transformed media' : 'Saved'} {asset.kind === 'video' ? 'video' : 'image'}</h3>
           <BundleMedia modelId={id} assetId={asset.id} />
           <p className="subtle">{asset.width && asset.height ? `${asset.width} × ${asset.height} · ` : ''}{Math.ceil(asset.fileSize / 1024)} KB · {asset.createdAt}</p>
           <div className="action-row"><a href={src} target="_blank" rel="noopener noreferrer">Open saved media</a>{asset.kind === 'image' && <Link href={`${base}/generation?${new URLSearchParams({ sourceAssetId: asset.id })}`}>Use for video</Link>}</div>

@@ -38,10 +38,11 @@ async function readBody(c: Context<AppBindings>): Promise<unknown> {
 router.get('/models/:modelId/media-operations', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
-  const rows = await withOrgContext(orgId, (tx) => tx.select().from(schema.mediaOperation)
+  const rows = await withOrgContext(orgId, (tx) => tx.select({ operation: schema.mediaOperation, outputAssetId: schema.assetVariant.outputAssetId }).from(schema.mediaOperation)
+    .leftJoin(schema.assetVariant, and(eq(schema.assetVariant.id, schema.mediaOperation.resultVariantId), eq(schema.assetVariant.orgId, orgId), eq(schema.assetVariant.assetId, schema.mediaOperation.sourceAssetId)))
     .where(and(eq(schema.mediaOperation.orgId, orgId), eq(schema.mediaOperation.modelId, c.req.param('modelId'))))
     .orderBy(desc(schema.mediaOperation.createdAt)).limit(100));
-  return c.json({ data: rows });
+  return c.json({ data: rows.map((row: { operation: typeof schema.mediaOperation.$inferSelect; outputAssetId: string | null }) => ({ ...row.operation, outputAssetId: row.outputAssetId })) });
 });
 
 router.post('/models/:modelId/media-operations', async (c) => {
