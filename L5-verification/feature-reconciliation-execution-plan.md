@@ -4,6 +4,10 @@ Date: 2026-09-16
 Repository: `dominator509/axiom`
 Working branch: `codex/telegram-webhook-hardening`
 
+**Agent continuation entry point:** `../LUNA_HANDOFF.md` contains the current
+SHA/CI checkpoint, ordered next actions, gap list and Hermes review status. Keep
+it synchronized with this cumulative plan and `.agent/state/LEDGER.md`.
+
 ## Purpose
 
 Reconcile the documented FanThynks architecture with the actual backend, worker, database, dashboard, mobile, provider, and deployment surfaces. Implement missing user-facing functionality in the existing architecture, and keep external/runtime gates explicitly separate from source-only evidence.
