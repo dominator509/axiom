@@ -1,5 +1,6 @@
 import { org, orgRelations } from './org.js';
 export { inboxReplyIntent } from './inbox_reply_intent.js';
+export { inboxReplyReview } from './inbox_reply_review.js';
 import { appUser, appUserRelations } from './app_user.js';
 import { modelProfile, modelProfileRelations } from './model_profile.js';
 import { consentRecord, consentRecordRelations } from './consent_record.js';

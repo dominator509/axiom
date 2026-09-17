@@ -639,6 +639,23 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect(outcomesRace.map(value => value.outcome).filter(value => value === 'cancelled' || value === 'claimed')).toHaveLength(1);
     expect(outcomesRace.map(value => value.outcome)).toContain('already-dispatched');
     expect(messageRequests).toBe(2);
+    const evidence = { orgId: testOrg, modelId, replyId: lost.id, actorUserId: userId, intentKey: randomUUID(), conclusion: 'observed_sent' as const, observedMessageUuid: randomUUID(), note: 'Operator found this message in the provider conversation.' };
+    const [review] = await run(tx => tx.insert(schema.inboxReplyReview).values(evidence).returning());
+    expect(review.evidenceSource).toBe('operator_review');
+    const [originalAttempt] = await run(tx => tx.select().from(schema.inboxReplyIntent).where(eq(schema.inboxReplyIntent.id, lost.id)));
+    expect(originalAttempt.state).toBe('uncertain'); expect(originalAttempt.remoteMessageUuid).toBeNull();
+    expect((await claimReplyDispatch(lostIdentity)).outcome).toBe('already-dispatched');
+    await expect(run(tx => tx.insert(schema.inboxReplyReview).values(evidence))).rejects.toThrow();
+    await expect(run(tx => tx.insert(schema.inboxReplyReview).values({ ...evidence, intentKey: randomUUID(), observedMessageUuid: null }))).rejects.toThrow();
+    await expect(run(tx => tx.insert(schema.inboxReplyReview).values({ ...evidence, intentKey: randomUUID(), conclusion: 'unresolved' }))).rejects.toThrow();
+    await expect(run(tx => tx.insert(schema.inboxReplyReview).values({ ...evidence, intentKey: randomUUID(), actorUserId: assignmentUsers[0] }))).rejects.toThrow();
+    await expect(run(tx => tx.insert(schema.inboxReplyReview).values({ ...evidence, intentKey: randomUUID(), modelId: models[0] }))).rejects.toThrow();
+    await expect(run(tx => tx.insert(schema.inboxReplyReview).values({ ...evidence, intentKey: randomUUID(), replyId: cancelTarget.id }))).rejects.toThrow();
+    await expect(run(tx => tx.update(schema.inboxReplyReview).set({ note: 'rewritten' }).where(eq(schema.inboxReplyReview.id, review.id)))).rejects.toThrow();
+    await expect(run(tx => tx.delete(schema.inboxReplyReview).where(eq(schema.inboxReplyReview.id, review.id)))).rejects.toThrow();
+    expect(await scoped(tx => tx.select().from(schema.inboxReplyReview).where(eq(schema.inboxReplyReview.id, review.id)))).toEqual([]);
+    const [followup] = await run(tx => tx.insert(schema.inboxReplyReview).values({ ...evidence, intentKey: randomUUID(), conclusion: 'unresolved', observedMessageUuid: null, note: 'Follow-up review cannot establish an exact match.' }).returning());
+    expect(followup.id).not.toBe(review.id);
   });
   it('lists only assigned self shifts before their start without granting early model access', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());

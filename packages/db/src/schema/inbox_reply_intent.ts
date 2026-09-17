@@ -16,6 +16,7 @@ export const inboxReplyIntent = pgTable('inbox_reply_intent', {
   dispatchedAt: timestamp('dispatched_at', { withTimezone: true }), finalizedAt: timestamp('finalized_at', { withTimezone: true }),
 }, table => [
   unique('inbox_reply_intent_key').on(table.orgId, table.actorUserId, table.intentKey),
+  unique('inbox_reply_scope_identity').on(table.orgId, table.modelId, table.id),
   index('inbox_reply_conversation').on(table.orgId, table.modelId, table.connectionId, table.counterpartUuid, table.createdAt, table.id),
   foreignKey({ name: 'inbox_reply_model', columns: [table.orgId, table.modelId], foreignColumns: [modelProfile.orgId, modelProfile.id] }).onDelete('cascade'),
   foreignKey({ name: 'inbox_reply_connection', columns: [table.orgId, table.modelId, table.connectionId], foreignColumns: [platformConnection.orgId, platformConnection.modelId, platformConnection.id] }),
