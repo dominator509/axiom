@@ -6,6 +6,34 @@ Local unit tests, static markup and an older green CI run do not close it.
 
 ## Current evidence
 
+### M334 validation update (supersedes earlier pending results below)
+
+- Hosted run `35247803764` completed successfully for exact source
+  `120f143ffe25c3ee3fa469736c24ac79c858c45d`: all six jobs, including container
+  builds/smoke tests, security, test, typecheck, lint and build.
+- The local full matrix now passes with M334's test-only/harness corrections:
+  24/24 tasks, all 48 migrations; API 889, dashboard 676, worker 287,
+  gateway 375, connectors 364, auth 28, DB 152, MCP server 91, mobile 20,
+  core 21, relay 272 and Fanvue MCP 77 tests passed. Fixture
+  `axiom_workspace_test_dea65c8028af8068` was removed; recovery was untouched.
+  This run used 120f143 plus the three reviewed M334 test/harness files before
+  committing the receipt. Do not describe it as a clean-120f143 local pass.
+- API and worker typechecks, harness syntax check and repository verify gate pass.
+- Failures before that pass remain part of the record: the reply-dispatch scenario
+  exceeded its generic 30s budget; worker claim tests consumed API-created jobs
+  under a shared seed model; a real Windows login child exceeded the test's 5s
+  deadline during concurrent builds. The fixes use a dedicated worker model,
+  an explicit 120s budget for the multi-transaction dispatch scenario and an
+  active-shift fixture whose expiry is tested explicitly. The local Windows
+  harness limits package-level concurrency to two; concurrency/race assertions
+  and process-termination deadlines remain unchanged. An initial pnpm forwarding
+  typo failed before tests; corrected syntax passed a dry run and the full matrix.
+- M334 changes no production application logic. Its successor commit still needs
+  publication and exact-SHA CI before the chosen immutable installation.
+- No live installation or browser acceptance has occurred. No new bridge handoff
+  was found in the server handoff directory at the latest inspection. Continue
+  this deployment checkpoint, not new feature work.
+
 - Feature candidate source: `487d531dbe27772d28750fe42069f0115c09a271`.
   **Not installable yet:** its full local matrix failed one chronological fixture
   assertion. The M333 successor corrects that fixture and must receive a fresh

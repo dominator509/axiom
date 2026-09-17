@@ -11,7 +11,10 @@ import { OfficialSubscriptionTransport } from '@axiom/llm-gateway';
 
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
-const modelId = '9283b927-b95d-461c-90d0-729bc2d13852';
+// API suites enqueue work for the shared CI seed model concurrently. Give
+// claim-loop tests their own model so they cannot consume another suite's jobs.
+const modelId = randomUUID();
+let fixtureModelCreated = false;
 const videoHash = process.env.AXIOM_VIDEO_REHEARSAL_HASH;
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const scoped = <T>(operation: (tx: Transaction) => Promise<T>) => db.transaction(async tx => {
@@ -29,8 +32,15 @@ describe.skipIf(!url)('terminal media state in real PostgreSQL', () => {
     expect(target.pathname).toMatch(/^\/(?:axiom_test|axiom_workspace_test_[0-9a-f]{16})$/);
     const role = await pool.query('SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname=current_user');
     expect(role.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
+    await scoped(tx => tx.insert(schema.modelProfile).values({ id: modelId, orgId,
+      handle: modelId, displayName: 'Isolated worker media fixture' }));
+    fixtureModelCreated = true;
   });
-  afterAll(async () => { await pool.end(); });
+  afterAll(async () => {
+    try {
+      if (fixtureModelCreated) await scoped(tx => tx.delete(schema.modelProfile).where(eq(schema.modelProfile.id, modelId)));
+    } finally { await pool.end(); }
+  });
 
   it.each(['assigned', 'missing', 'different-user', 'revoked-during-preparation', 'role-revoked-during-preparation'])('checks Creator generation against real assignments: %s', async mode => {
     const userId = randomUUID(), otherUserId = randomUUID(), bundleId = randomUUID(), jobId = randomUUID();

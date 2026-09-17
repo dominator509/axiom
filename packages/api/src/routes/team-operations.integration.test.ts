@@ -669,6 +669,9 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     // No queue/connector was invoked. Independent retained history is dropped with the fixture.
   });
   it('claims a reply once only after fresh role, shift, account, consent and safety checks', async () => {
+    // This end-to-end scenario includes dispatch races, terminal outcomes and
+    // paginated review history across many committed database transactions.
+    // Shift expiry is exercised explicitly below, not by machine load.
     const testOrg = randomUUID(), userId = randomUUID(), modelId = randomUUID(), connectionId = randomUUID(), shiftId = randomUUID();
     const run = <T>(fn: (tx: Transaction) => Promise<T>) => scoped(fn, testOrg);
     await run(async tx => {
@@ -676,7 +679,7 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
       await tx.insert(schema.authUser).values({ id: userId, orgId: testOrg, role: 'chatter', name: 'Reply dispatch', email: `${userId}@example.invalid` });
       await tx.insert(schema.modelProfile).values({ id: modelId, orgId: testOrg, displayName: 'Reply dispatch', handle: modelId });
       await tx.insert(schema.modelUserAssignment).values({ orgId: testOrg, modelId, userId });
-      await tx.insert(schema.teamShift).values({ id: shiftId, orgId: testOrg, modelId, assigneeUserId: userId, status: 'active', startsAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() + 60_000) });
+      await tx.insert(schema.teamShift).values({ id: shiftId, orgId: testOrg, modelId, assigneeUserId: userId, status: 'active', startsAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() + 600_000) });
       await tx.insert(schema.platformConnection).values({ id: connectionId, orgId: testOrg, modelId, platform: 'fanvue', displayName: 'Reply dispatch', encToken: Buffer.from('fixture'), encNonce: Buffer.alloc(12), dekId: 'fixture' });
     });
     const create = async () => (await run(tx => tx.insert(schema.inboxReplyIntent).values({ orgId: testOrg, modelId, connectionId, actorUserId: userId, counterpartUuid: randomUUID(), intentKey: randomUUID(), body: 'Private human reply' }).returning()))[0];
@@ -715,7 +718,7 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     const audits = await run(tx => tx.select().from(schema.auditLog).where(eq(schema.auditLog.target, reply.id)));
     expect(audits.map(row => row.action).sort()).toEqual(['inbox.reply.dispatch', 'inbox.reply.sent']);
     expect(JSON.stringify(audits)).not.toContain(reply.body);
-    await run(tx => tx.update(schema.teamShift).set({ endsAt: new Date(Date.now() + 60_000) }).where(eq(schema.teamShift.id, shiftId)));
+    await run(tx => tx.update(schema.teamShift).set({ endsAt: new Date(Date.now() + 600_000) }).where(eq(schema.teamShift.id, shiftId)));
     const nextIdentity = { ...identity, replyId: next.id };
     expect((await claimReplyDispatch(nextIdentity)).outcome).toBe('claimed');
     expect(await finalizeReplyDispatch(nextIdentity, { state: 'uncertain', providerStatus: 503 })).toMatchObject({ state: 'uncertain', providerStatus: 503, remoteMessageUuid: null });
@@ -839,7 +842,7 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     await run(tx => tx.update(schema.teamShift).set({ endsAt: new Date(Date.now() - 1000) }).where(eq(schema.teamShift.id, shiftId)));
     expect((await postReview()).status).toBe(404);
     expect((await sendRoute.request(reviewPath)).status).toBe(404);
-  });
+  }, 120_000);
   it('lists only assigned self shifts before their start without granting early model access', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
     const existing = await scoped(tx => tx.select({ id: schema.teamShift.id }).from(schema.teamShift).where(sql`${schema.teamShift.orgId} = ${orgId} AND ${schema.teamShift.modelId} = ${models[0]} AND ${schema.teamShift.assigneeUserId} = ${assignmentUsers[0]}`));

@@ -50,7 +50,9 @@ try {
   const testFile = focusedTeam ? 'packages/api/src/routes/team-operations.integration.test.ts' : focusedPlaybook ? 'packages/api/src/routes/playbook-history.integration.test.ts' : focusedRetrieval ? 'packages/worker/src/viral-retrieval.integration.test.ts' : focusedVariants ? 'packages/api/src/routes/variant-performance.integration.test.ts' : 'packages/worker/src/worker-media.integration.test.ts';
   const args = focused ? ['--input-type=module', '-e',
     `import{startVitest}from'vitest/node';const c=await startVitest('test',[${JSON.stringify(testFile)}],{run:true},{envFile:false});await c.close();`]
-    : process.platform === 'win32' ? ['/d', '/s', '/c', 'pnpm.cmd test'] : ['test'];
+    // Windows runs real process-tree and media tests alongside Next/Metro builds.
+    // Bound package-level contention, not the concurrency exercised by tests.
+    : process.platform === 'win32' ? ['/d', '/s', '/c', 'pnpm.cmd run test --concurrency=2'] : ['test'];
   const code = await new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd: new URL('../', import.meta.url), stdio: 'inherit', windowsHide: true,
       env: { ...process.env, DATABASE_URL: url, TEST_DATABASE_URL: url, API_ORIGIN: 'http://127.0.0.1:3001',
