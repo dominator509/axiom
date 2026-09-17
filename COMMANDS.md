@@ -6,6 +6,7 @@
 - `cargo build --workspace` — build Rust crates
 
 ## Test Commands
+- `node scripts/test-isolated-workspace.mjs --isolated-fixture --team-operations` — post-note ownership/RLS/pagination and shift concurrency in a disposable PostgreSQL database
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --playbook-history` — real PostgreSQL guideline snapshot/concurrent-save/tenant history checks in a disposable database
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --viral-retrieval` — real pgvector retrieval, evidence filtering and model/tenant sharing isolation in a disposable database
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --variant-performance` — real API/PostgreSQL variant-performance query acceptance in a fresh disposable database; no provider or live workspace operations
