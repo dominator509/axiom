@@ -18,7 +18,25 @@ const patchSchema = z.object({
   viralSharing: z.boolean().optional(),
   publishingEnabled: z.boolean().optional(),
   weeklyDigestEnabled: z.boolean().optional(),
-});
+  weeklyDigestRecovery: z.object({ expectedScheduleId: z.string().uuid(), replacementScheduleId: z.string().uuid() }).strict().optional(),
+}).refine(body => !body.weeklyDigestRecovery || (
+  Object.keys(body).length === 1 && body.weeklyDigestRecovery.expectedScheduleId !== body.weeklyDigestRecovery.replacementScheduleId
+));
+
+export async function recoverDigestSchedule(tx: any, orgId: string, userId: string,
+  recovery: { expectedScheduleId: string; replacementScheduleId: string }) {
+  const [current] = await tx.select().from(schema.orgSettings)
+    .where(eq(schema.orgSettings.orgId, orgId)).limit(1).for('update');
+  if (!current) return [];
+  if (current.weeklyDigestScheduleId === recovery.replacementScheduleId) return [current];
+  if (current.weeklyDigestScheduleId !== recovery.expectedScheduleId) return null;
+  const rows = await tx.update(schema.orgSettings)
+    .set({ weeklyDigestScheduleId: recovery.replacementScheduleId, updatedAt: new Date() })
+    .where(eq(schema.orgSettings.orgId, orgId)).returning();
+  await enqueueWeeklyDigest(tx, orgId, recovery.replacementScheduleId);
+  await writeAudit(tx, orgId, userId, 'org.digest.recover', orgId, recovery);
+  return rows;
+}
 
 // GET /api/v1/org-settings
 router.get('/org-settings', async (c) => {
@@ -53,7 +71,8 @@ router.patch('/org-settings', async (c) => {
     return apiError(c, 400, statusTitle(400), 'nothing to update');
 
   const rows = await withOrgContext(orgId, async (tx) => {
-    const { weeklyDigestEnabled, ...ordinarySettings } = body;
+    const { weeklyDigestEnabled, weeklyDigestRecovery, ...ordinarySettings } = body;
+    if (weeklyDigestRecovery) return recoverDigestSchedule(tx, orgId, userId, weeklyDigestRecovery);
     let scheduleId: string | null | undefined;
     if (weeklyDigestEnabled !== undefined) {
       const [current] = await tx.select().from(schema.orgSettings)
@@ -71,6 +90,7 @@ router.patch('/org-settings', async (c) => {
     await writeAudit(tx, orgId, userId, 'org.settings.update', orgId, { ...body });
     return updated;
   });
+  if (rows === null) return apiError(c, 409, 'Conflict', 'Digest schedule changed. Refresh before recovery.');
   if (rows.length === 0) return apiError(c, 404, statusTitle(404), 'org settings not found');
   return c.json({ success: true, data: { ...rows[0], weeklyDigestEnabled: !!rows[0].weeklyDigestScheduleId } });
 });

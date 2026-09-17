@@ -36,6 +36,7 @@ const settingsRow = {
 beforeEach(() => {
   mockState.result = [];
   scheduling.enqueue.mockReset();
+  mockState.results = [];
 });
 
 afterEach(() => {
@@ -64,6 +65,29 @@ describe('GET /org-settings', () => {
 });
 
 describe('PATCH /org-settings', () => {
+  const oldId = '22222222-2222-4222-8222-222222222222', newId = '33333333-3333-4333-8333-333333333333';
+  const recover = () => appWithOrg(ORG_ID).request('/org-settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ weeklyDigestRecovery: { expectedScheduleId: oldId, replacementScheduleId: newId } }) });
+  it.each([
+    { weeklyDigestRecovery: { expectedScheduleId: oldId, replacementScheduleId: oldId } },
+    { publishingEnabled: true, weeklyDigestRecovery: { expectedScheduleId: oldId, replacementScheduleId: newId } },
+    { weeklyDigestRecovery: { expectedScheduleId: 'invalid', replacementScheduleId: newId } },
+  ])('rejects invalid or mixed recovery commands', async body => {
+    const response = await appWithOrg(ORG_ID).request('/org-settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    expect(response.status).toBe(400); expect(scheduling.enqueue).not.toHaveBeenCalled();
+  });
+  it('replaces only the observed schedule and enqueues its new chain', async () => {
+    mockState.result = [{ ...settingsRow, weeklyDigestScheduleId: oldId }];
+    expect((await recover()).status).toBe(200);
+    expect(scheduling.enqueue).toHaveBeenCalledWith(expect.anything(), ORG_ID, newId);
+  });
+  it('does not requeue an already committed recovery or overwrite a concurrent edit', async () => {
+    mockState.result = [{ ...settingsRow, weeklyDigestScheduleId: newId }];
+    expect((await recover()).status).toBe(200);
+    expect(scheduling.enqueue).not.toHaveBeenCalled();
+    mockState.result = [{ ...settingsRow, weeklyDigestScheduleId: null }];
+    expect((await recover()).status).toBe(409);
+    expect(scheduling.enqueue).not.toHaveBeenCalled();
+  });
   it('reuses an enabled schedule identity and queues its next occurrence', async () => {
     const scheduleId = '22222222-2222-4222-8222-222222222222';
     mockState.result = [{ ...settingsRow, weeklyDigestScheduleId: scheduleId }];

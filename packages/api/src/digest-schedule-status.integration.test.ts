@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { db, pool, schema } from '@axiom/db';
 import { readDigestScheduleStatus } from './digest-schedule-status.js';
+import { recoverDigestSchedule } from './routes/org-settings.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
@@ -33,6 +34,15 @@ describe.skipIf(!url)('digest schedule status in PostgreSQL', () => {
       expect(await readDigestScheduleStatus(tx, randomUUID())).toBeNull();
       await tx.update(schema.job).set({ state: 'running' }).where(eq(schema.job.id, job.id));
       expect(await readDigestScheduleStatus(tx, orgId)).toMatchObject({ latest: { state: 'running' } });
+      const recovery = { expectedScheduleId: scheduleId, replacementScheduleId: randomUUID() };
+      const recovered = await recoverDigestSchedule(tx, orgId, 'test-operator', recovery);
+      expect(recovered?.[0]).toMatchObject({ weeklyDigestScheduleId: recovery.replacementScheduleId, publishingEnabled: false });
+      expect(await readDigestScheduleStatus(tx, orgId)).toMatchObject({ latest: { state: 'ready', attempts: 0 } });
+      const countJobs = async () => (await tx.execute(sql`SELECT count(*)::int AS n FROM job WHERE org_id=${orgId} AND payload->>'automaticScheduleId'=${recovery.replacementScheduleId}`)).rows[0].n;
+      expect(await countJobs()).toBe(1);
+      await recoverDigestSchedule(tx, orgId, 'test-operator', recovery);
+      expect(await countJobs()).toBe(1);
+      expect(await recoverDigestSchedule(tx, orgId, 'test-operator', { ...recovery, replacementScheduleId: randomUUID() })).toBeNull();
       await tx.update(schema.orgSettings).set({ weeklyDigestScheduleId: null }).where(eq(schema.orgSettings.orgId, orgId));
       expect(await readDigestScheduleStatus(tx, orgId)).toEqual({ enabled: false, workspacePermitted: false, latest: null });
       throw rollback;
