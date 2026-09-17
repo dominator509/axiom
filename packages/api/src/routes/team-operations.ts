@@ -9,6 +9,7 @@ import type { AppBindings } from '../index.js';
 import type { Context } from 'hono';
 import { withOrgContext, requireOrg, apiError, statusTitle, writeAudit } from './helpers.js';
 import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
+import { modelAccessCondition } from '../model-access.js';
 
 const router = new Hono<AppBindings>();
 const shiftSchema = z.object({ assigneeUserId: z.string().trim().min(1).max(200), queue: z.string().trim().min(1).max(100).default('inbox'), startsAt: z.string().datetime(), endsAt: z.string().datetime(), note: z.string().trim().max(2_000).optional() }).strict();
@@ -30,6 +31,7 @@ router.get('/models/:modelId/team-notes', async c => {
   if (!z.string().uuid().safeParse(postId).success || (cursor && !z.string().uuid().safeParse(cursor).success))
     return apiError(c, 400, statusTitle(400), 'valid postId and cursor required');
   const result = await withOrgContext(orgId, async tx => {
+    if (!await modelExists(tx, orgId, c.req.param('modelId'), c.get('role'), c.get('userId'))) return null;
     if (!await ownedPost(tx, orgId, c.req.param('modelId'), postId!)) return null;
     const scope = and(eq(schema.teamNote.orgId, orgId), eq(schema.teamNote.modelId, c.req.param('modelId')), eq(schema.teamNote.targetType, 'post'), eq(schema.teamNote.targetId, postId!));
     const [before] = cursor ? await tx.select().from(schema.teamNote).where(and(scope, eq(schema.teamNote.id, cursor))).limit(1) : [];
@@ -60,8 +62,8 @@ export function canTransitionShift(from: string, to: string): boolean {
     || (from === 'active' && ['completed', 'cancelled'].includes(to));
 }
 
-async function modelExists(tx: any, orgId: string, modelId: string): Promise<boolean> {
-  return (await tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile).where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId))).limit(1)).length > 0;
+async function modelExists(tx: any, orgId: string, modelId: string, role?: unknown, userId?: string): Promise<boolean> {
+  return (await tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile).where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId), modelAccessCondition(role, orgId, userId))).limit(1)).length > 0;
 }
 
 router.get('/models/:modelId/team-operations', async (c) => {
@@ -137,7 +139,7 @@ router.post('/models/:modelId/team-notes', async (c) => {
   const parsed = noteSchema.safeParse(payload);
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'note body is required');
   const row = await withOrgContext(orgId, async (tx) => {
-    if (!(await modelExists(tx, orgId, c.req.param('modelId')))) return null;
+    if (!(await modelExists(tx, orgId, c.req.param('modelId'), c.get('role'), userId))) return null;
     if (parsed.data.targetType === 'post' && !await ownedPost(tx, orgId, c.req.param('modelId'), parsed.data.targetId!)) return null;
     const [saved] = await tx.insert(schema.teamNote).values({ orgId, modelId: c.req.param('modelId'), authorUserId: userId, targetType: parsed.data.targetType, targetId: parsed.data.targetId, body: parsed.data.body }).returning();
     if (saved) await writeAudit(tx, orgId, userId, 'team.note.create', saved.id, { modelId: saved.modelId, targetType: saved.targetType });

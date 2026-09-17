@@ -17,7 +17,7 @@ export default async function CalendarPage({ params, searchParams }: {
   if (!talentDestinationAllowed(role, 'calendar')) return <div className="card"><h2>Calendar access unavailable</h2><p>Your role does not include this calendar.</p><Link href="/">Back to workspace</Link></div>;
   const showCadence = talentDestinationAllowed(role, 'playbook');
   const showReview = talentDestinationAllowed(role, 'approvals');
-  const showTeamNotes = ['owner', 'manager', 'operator', 'analyst', 'agent'].includes(role ?? '');
+  const showTeamNotes = ['owner', 'manager', 'operator', 'analyst', 'agent', 'content_creator'].includes(role ?? '');
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   const query = await searchParams;
   const now = new Date();
@@ -105,7 +105,7 @@ export default async function CalendarPage({ params, searchParams }: {
               </div>
             )}
             {showReview && <Link href={`/models/${encodeURIComponent(id)}/approvals`}>{role === 'content_creator' ? 'Review drafts' : 'View bundles and approvals'}</Link>}
-            {showTeamNotes && <PostTeamNotes key={`notes:${p.id}`} modelId={id} postId={p.id} canEdit={canEdit} />}
+            {showTeamNotes && <PostTeamNotes key={`notes:${p.id}`} modelId={id} postId={p.id} canEdit={canEdit || role === 'content_creator'} />}
             {canEdit && p.state === 'pending' && !p.remoteId && <PostScheduleForm key={`${p.id}:${p.scheduledFor}`} postId={p.id} />}
           </div>
         ))}

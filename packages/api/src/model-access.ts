@@ -37,6 +37,8 @@ export function scopedReadTarget(role: ScopedHumanRole, method: string, path: st
     const grok = '/api/v1/llm/subscriptions/grok';
     if (path === grok && ['GET', 'HEAD', 'DELETE'].includes(method)) return 'self-subscription';
     if (path === `${grok}/login-attempt` && ['GET', 'HEAD', 'POST'].includes(method)) return 'self-subscription';
+    const notes = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/team-notes$/i.exec(path);
+    if (notes && ['GET', 'HEAD', 'POST'].includes(method)) return notes[1];
     if (/^\/api\/v1\/llm\/subscriptions\/grok\/login-attempt\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(path)
       && ['GET', 'HEAD', 'DELETE'].includes(method)) return 'self-subscription';
     // The existing bounded JSON validator owns parsing. Its bundle handler

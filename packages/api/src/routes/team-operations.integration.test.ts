@@ -49,6 +49,7 @@ function scopedApp(role: ScopedHumanRole, org = orgId) {
   route.route('/api/v1', fansRouter);
   route.route('/api/v1', generateRouter);
   route.route('/api/v1', mediaOperationsRouter);
+  route.route('/api/v1', teamOperationsRouter);
   return route;
 }
 const write = (postId: string, org = orgId) => app(org).request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetType: 'post', targetId: postId, body: 'Post handoff context' }) });
@@ -300,6 +301,36 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     }
     await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
     expect((await route.request(path)).status).toBe(404);
+  });
+  it('permits creator post collaboration only within current model assignments', async () => {
+    await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
+    const route = scopedApp('content_creator');
+    const path = `/api/v1/models/${models[0]}/team-notes`;
+    const writeNote = (postId: string, target = path) => route.request(target, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetType: 'post', targetId: postId, body: 'Creator handoff' }) });
+    const saved = await writeNote(posts[0]);
+    expect(saved.status).toBe(201);
+    const note = await saved.json() as { data: { id: string; authorUserId: string; modelId: string } };
+    expect(note.data).toMatchObject({ authorUserId: assignmentUsers[0], modelId: models[0] });
+    const read = await route.request(`${path}?postId=${posts[0]}`);
+    expect(read.status).toBe(200);
+    let page = await read.json() as Page;
+    const notes = [...page.data];
+    for (let remaining = 5; page.meta.next_cursor && remaining > 0; remaining--) {
+      const older = await route.request(`${path}?postId=${posts[0]}&cursor=${page.meta.next_cursor}`);
+      expect(older.status).toBe(200);
+      page = await older.json() as Page;
+      notes.push(...page.data);
+    }
+    expect(page.meta.next_cursor).toBeNull();
+    expect(notes.some(row => row.id === note.data.id)).toBe(true);
+    expect((await writeNote(posts[1])).status).toBe(404);
+    expect((await writeNote(posts[1], `/api/v1/models/${models[1]}/team-notes`)).status).toBe(404);
+    expect((await scopedApp('content_creator', foreignOrg).request(`${path}?postId=${posts[0]}`)).status).toBe(404);
+    expect((await scopedApp('model').request(`${path}?postId=${posts[0]}`)).status).toBe(403);
+    expect((await route.request(`/api/v1/models/${models[0]}/team-operations`)).status).toBe(403);
+    await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
+    expect((await route.request(`${path}?postId=${posts[0]}`)).status).toBe(404);
+    expect((await writeNote(posts[0])).status).toBe(404);
   });
   it('allows creator preparation only for assigned talent and never creates publication work', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());

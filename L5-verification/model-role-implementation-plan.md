@@ -127,6 +127,16 @@ resources. Twelve page tests and typecheck pass. Creator internal collaboration
 notes are still a missing capability to implement with explicit model assignment
 checks; hiding the unsupported control does not complete that requirement.
 
+Creator post-linked collaboration notes are now wired back into calendar cards.
+Exact GET/HEAD/POST note routes resolve the assigned model; both read and write
+handlers repeat assignment checks inside their transaction and retain joined
+post/model/tenant ownership and authenticated author attribution. Workspace
+member/shift administration remains denied. Twenty-five real PostgreSQL tests
+after 46 migrations pass, including cursor traversal, foreign post/model/tenant
+denial and revoked reads/writes; the disposable database was removed. Twenty API
+unit/policy tests, twelve calendar tests and API typecheck pass. Full model-note
+history, shift views and deployed browser acceptance are still unfinished.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including

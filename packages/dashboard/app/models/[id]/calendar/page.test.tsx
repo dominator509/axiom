@@ -42,7 +42,7 @@ describe('calendar month navigation', () => {
     expect(html).toContain('with a schedule request');
     expect(html).toContain('href="/models/calendar-model/media"');
     expect(html).toContain('Review drafts');
-    expect(html).not.toContain('Internal post notes');
+    expect(html).toContain('Internal post notes');
     expect(html).not.toContain('Change schedule or cancel');
   });
   it.each(['chatter', 'unknown'])('does not request calendar resources for %s', async role => {
