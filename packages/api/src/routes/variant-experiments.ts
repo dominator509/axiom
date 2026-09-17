@@ -18,6 +18,30 @@ const router = new Hono<AppBindings>();
 const copySettingsSchema = z.object({ platform: z.string().min(1).max(50), text: z.string().trim().min(1).max(10000) });
 const copyVariantSchema = copySettingsSchema.extend({ assetId: z.string().uuid(), type: z.enum(['caption', 'teaser']) }).strict();
 
+router.get('/models/:modelId/variant-experiments/:experimentId/performance', async c => {
+  const orgId = requireOrg(c), modelId = c.req.param('modelId'), experimentId = c.req.param('experimentId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  if (![modelId, experimentId].every(id => z.string().uuid().safeParse(id).success)) return apiError(c, 400, statusTitle(400), 'Invalid experiment identity');
+  const rows = await withOrgContext(orgId, async tx => {
+    const [experiment] = await tx.select().from(schema.variantExperiment).where(and(
+      eq(schema.variantExperiment.id, experimentId), eq(schema.variantExperiment.modelId, modelId), eq(schema.variantExperiment.orgId, orgId),
+    )).limit(1);
+    if (!experiment) return null;
+    if (!experiment.variantIds.length) return [];
+    const m = schema.postMetric, p = schema.postTarget, b = schema.contentBundle;
+    // Cumulative provider counts: select one latest snapshot per published target.
+    return tx.selectDistinctOn([p.id], { targetId: p.id, variantId: b.sourceVariantId, collectedAt: m.collectedAt,
+      views: m.views, likes: m.likes, shares: m.shares, comments: m.comments, engagementRate: m.engagementRate,
+    }).from(m).innerJoin(p, eq(p.id, m.postTargetId)).innerJoin(b, eq(b.id, p.bundleId)).where(and(
+      eq(p.orgId, orgId), eq(b.orgId, orgId), eq(b.modelId, modelId), eq(p.state, 'published'),
+      eq(p.platform, experiment.platform), eq(m.platform, p.platform), eq(m.remoteId, p.remoteId),
+      inArray(b.sourceVariantId, experiment.variantIds),
+    )).orderBy(p.id, desc(m.collectedAt), desc(m.id)).limit(101);
+  });
+  if (!rows) return apiError(c, 404, statusTitle(404), 'variant experiment not found');
+  return c.json({ data: rows.slice(0, 100), meta: { truncated: rows.length > 100, source: 'published-target-metrics' } });
+});
+
 router.post('/models/:modelId/variant-experiments/candidates', async c => {
   const orgId = requireOrg(c), modelId = c.req.param('modelId');
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');

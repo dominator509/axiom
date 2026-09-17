@@ -6,6 +6,21 @@ vi.mock('@axiom/db', () => mockDbFactory());
 vi.mock('@axiom/worker', () => ({ asPlatform: (value: string) => value }));
 import { variantExperimentsRouter } from './variant-experiments.js';
 const id = '11111111-1111-4111-8111-111111111111';
+it('returns bounded published performance without conflating manual outcomes', async () => {
+  mockState.results = [[], [{ id, platform: 'instagram', variantIds: [id] }], Array.from({ length: 101 }, () => ({ targetId: id, variantId: id, views: 5 }))];
+  const response = await app().request(`/models/${id}/variant-experiments/${id}/performance`);
+  expect(response.status).toBe(200);
+  const result = await response.json() as { data: unknown[]; meta: unknown };
+  expect(result.data).toHaveLength(100);
+  expect(result.meta).toEqual({ truncated: true, source: 'published-target-metrics' });
+});
+it('does not expose performance for an absent scoped experiment', async () => {
+  mockState.results = [[], []];
+  expect((await app().request(`/models/${id}/variant-experiments/${id}/performance`)).status).toBe(404);
+});
+it('rejects malformed performance lookup identities', async () => {
+  expect((await app().request(`/models/${id}/variant-experiments/invalid/performance`)).status).toBe(400);
+});
 function app() {
   const server = new Hono<AppBindings>();
   server.use('*', async (c, next) => { c.set('orgId', id); await next(); });

@@ -6,6 +6,7 @@ import type { VariantExperiment, VariantCandidate } from '@/lib/api';
 import BundleMedia from './BundleMedia';
 import VariantExperimentTracking from './VariantExperimentTracking';
 import VariantReviewCreate from './VariantReviewCreate';
+import VariantPublishedPerformance from './VariantPublishedPerformance';
 import Link from 'next/link';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
@@ -196,6 +197,7 @@ export default function VariantExperimentManager({
               </div>
               {experiment.status !== 'completed' && <p className="subtle">Winner selection is an operator decision, not a statistical-significance claim. Every variant needs at least one recorded outcome.</p>}
               <VariantExperimentTracking modelId={modelId} experimentId={experiment.id} status={experiment.status} canEdit={canEdit} />
+              <VariantPublishedPerformance modelId={modelId} experimentId={experiment.id} />
             </article>
           ))}
         </div>
