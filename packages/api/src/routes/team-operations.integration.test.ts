@@ -22,6 +22,7 @@ import { analyticsRouter } from './analytics.js';
 import { earningsRouter } from './earnings.js';
 import { inboxRouter } from './inbox.js';
 import { inboxRepliesRouter } from './inbox-replies.js';
+import { claimReplyDispatch, finalizeReplyDispatch } from '../reply-dispatch.js';
 import { viralRouter } from './viral.js';
 import { reportsRouter } from './reports.js';
 import { enforceModelAccess, type ScopedHumanRole } from '../model-access.js';
@@ -516,6 +517,62 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect((await post()).status).toBe(404);
     expect((await route.request(`${path}?${query}`)).status).toBe(404);
     // No queue/connector was invoked. Independent retained history is dropped with the fixture.
+  });
+  it('claims a reply once only after fresh role, shift, account, consent and safety checks', async () => {
+    const testOrg = randomUUID(), userId = randomUUID(), modelId = randomUUID(), connectionId = randomUUID(), shiftId = randomUUID();
+    const run = <T>(fn: (tx: Transaction) => Promise<T>) => scoped(fn, testOrg);
+    await run(async tx => {
+      await tx.insert(schema.org).values({ id: testOrg, name: 'Reply dispatch', slug: testOrg });
+      await tx.insert(schema.authUser).values({ id: userId, orgId: testOrg, role: 'chatter', name: 'Reply dispatch', email: `${userId}@example.invalid` });
+      await tx.insert(schema.modelProfile).values({ id: modelId, orgId: testOrg, displayName: 'Reply dispatch', handle: modelId });
+      await tx.insert(schema.modelUserAssignment).values({ orgId: testOrg, modelId, userId });
+      await tx.insert(schema.teamShift).values({ id: shiftId, orgId: testOrg, modelId, assigneeUserId: userId, status: 'active', startsAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() + 60_000) });
+      await tx.insert(schema.platformConnection).values({ id: connectionId, orgId: testOrg, modelId, platform: 'fanvue', displayName: 'Reply dispatch', encToken: Buffer.from('fixture'), encNonce: Buffer.alloc(12), dekId: 'fixture' });
+    });
+    const create = async () => (await run(tx => tx.insert(schema.inboxReplyIntent).values({ orgId: testOrg, modelId, connectionId, actorUserId: userId, counterpartUuid: randomUUID(), intentKey: randomUUID(), body: 'Private human reply' }).returning()))[0];
+    const reply = await create(), identity = { orgId: testOrg, modelId, userId, replyId: reply.id };
+    expect((await claimReplyDispatch({ ...identity, orgId: orgId })).outcome).toBe('denied');
+    expect((await claimReplyDispatch({ ...identity, userId: assignmentUsers[0] })).outcome).toBe('denied');
+    expect((await claimReplyDispatch(identity)).outcome).toBe('halted');
+    await run(tx => tx.insert(schema.orgSettings).values({ orgId: testOrg, publishingEnabled: true }));
+    expect((await claimReplyDispatch(identity)).outcome).toBe('consent-required');
+    await run(tx => tx.insert(schema.consentRecord).values((['2257', 'model_release', 'id_verify', 'platform_consent'] as const).map(docKind => ({ orgId: testOrg, modelId, platform: 'fanvue', consentType: docKind, docKind, granted: true, grantedAt: new Date(Date.now() - 60_000), validFrom: '2020-01-01', blobRef: 'fixture-only', sha256: Buffer.alloc(32) }))));
+    await run(tx => tx.update(schema.platformConnection).set({ status: 'revoked' }).where(eq(schema.platformConnection.id, connectionId)));
+    expect((await claimReplyDispatch(identity)).outcome).toBe('account-unavailable');
+    await run(tx => tx.update(schema.platformConnection).set({ status: 'active' }).where(eq(schema.platformConnection.id, connectionId)));
+    await run(tx => tx.update(schema.authUser).set({ role: 'model' }).where(eq(schema.authUser.id, userId)));
+    expect((await claimReplyDispatch(identity)).outcome).toBe('denied');
+    await run(tx => tx.update(schema.authUser).set({ role: 'chatter' }).where(eq(schema.authUser.id, userId)));
+    await run(tx => tx.update(schema.modelProfile).set({ isActive: false }).where(eq(schema.modelProfile.id, modelId)));
+    expect((await claimReplyDispatch(identity)).outcome).toBe('denied');
+    await run(tx => tx.update(schema.modelProfile).set({ isActive: true }).where(eq(schema.modelProfile.id, modelId)));
+    const claims = await Promise.all([claimReplyDispatch(identity), claimReplyDispatch(identity)]);
+    expect(claims.map(c => c.outcome).sort()).toEqual(['already-dispatched', 'claimed']);
+    // Crash-equivalent retry never reclaims a dispatching row.
+    expect((await claimReplyDispatch(identity)).outcome).toBe('already-dispatched');
+    const next = await create();
+    await run(tx => tx.update(schema.teamShift).set({ endsAt: new Date(Date.now() - 1000) }).where(eq(schema.teamShift.id, shiftId)));
+    expect((await claimReplyDispatch({ ...identity, replyId: next.id })).outcome).toBe('denied');
+    // Persist the observed receipt despite shift expiry; do not allow another dispatch.
+    const receipt = randomUUID();
+    expect(await finalizeReplyDispatch(identity, { state: 'sent', messageUuid: receipt })).toMatchObject({ state: 'sent', remoteMessageUuid: receipt });
+    expect(await finalizeReplyDispatch(identity, { state: 'uncertain' })).toBeNull();
+    const audits = await run(tx => tx.select().from(schema.auditLog).where(eq(schema.auditLog.target, reply.id)));
+    expect(audits.map(row => row.action).sort()).toEqual(['inbox.reply.dispatch', 'inbox.reply.sent']);
+    expect(JSON.stringify(audits)).not.toContain(reply.body);
+    await run(tx => tx.update(schema.teamShift).set({ endsAt: new Date(Date.now() + 60_000) }).where(eq(schema.teamShift.id, shiftId)));
+    const nextIdentity = { ...identity, replyId: next.id };
+    expect((await claimReplyDispatch(nextIdentity)).outcome).toBe('claimed');
+    expect(await finalizeReplyDispatch(nextIdentity, { state: 'uncertain', providerStatus: 503 })).toMatchObject({ state: 'uncertain', providerStatus: 503, remoteMessageUuid: null });
+    expect((await claimReplyDispatch(nextIdentity)).outcome).toBe('already-dispatched');
+    expect(await finalizeReplyDispatch(nextIdentity, { state: 'sent', messageUuid: randomUUID() })).toBeNull();
+    const rejected = await create(), rejectedIdentity = { ...identity, replyId: rejected.id };
+    expect((await claimReplyDispatch(rejectedIdentity)).outcome).toBe('claimed');
+    expect(await finalizeReplyDispatch(rejectedIdentity, { state: 'rejected', providerStatus: 429 })).toMatchObject({ state: 'rejected', providerStatus: 429 });
+    expect((await claimReplyDispatch(rejectedIdentity)).outcome).toBe('already-dispatched');
+    const revoked = await create();
+    await run(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, userId)));
+    expect((await claimReplyDispatch({ ...identity, replyId: revoked.id })).outcome).toBe('denied');
   });
   it('lists only assigned self shifts before their start without granting early model access', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
