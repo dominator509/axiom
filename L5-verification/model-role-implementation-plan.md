@@ -1,5 +1,21 @@
 # Model-scoped human roles — implementation queue
 
+## Assigned draft editing GUI checkpoint — M331
+
+Saved generated/held bundles now expose direct caption, hashtag and posting-request
+editing to operational roles and assigned Creators in the review queue. Read-only
+roles, processing revisions and briefs without saved media have no editor. Existing
+scheduled instants are preserved exactly unless changed or removed; local inputs
+use the shared future-time/DST validation. Immediate-publication intent is explicitly
+cleared. Saving requires a fresh scan and subsequent approval, never publication.
+
+The client fences duplicate clicks, retains identical body/key on uncertain outcomes,
+checks bundle/revision/pending-state receipts and requires reload after terminal
+conflicts/access failures. Inputs stay locked during unresolved mutations.
+43 focused tests and all 676 dashboard tests pass, as do dashboard typecheck and
+lint (three pre-existing warnings). No deployment or live mutation occurred.
+Authenticated desktop/mobile acceptance and remaining persona workflows stay open.
+
 ## Assigned draft editing API checkpoint — M330
 
 L1.0 permits Creators to manage assigned assets and scheduler work via approval.

@@ -7,6 +7,7 @@ import BundleMedia from '@/components/BundleMedia';
 import VideoReview from '@/components/VideoReview';
 import SavedGenerationRetry from '@/components/SavedGenerationRetry';
 import AdaptationControls from '@/components/AdaptationControls';
+import DraftEditor from '@/components/DraftEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,6 +124,10 @@ export default async function ApprovalsPage({
                 {(b.hashtags ?? []).join(' ')}
               </div>
               {canApprove && <AdaptationControls bundleId={b.id} revisionId={b.tosReport?.revisionId} platforms={Object.keys(b.captions ?? {})} />}
+              {(canApprove || role === 'content_creator') && b.assetId && ['generated', 'hold'].includes(b.state) && (
+                <DraftEditor key={`${b.id}:${b.tosReport?.revisionId ?? 'initial'}`} bundleId={b.id}
+                  revisionId={b.tosReport?.revisionId} captions={b.captions ?? {}} hashtags={b.hashtags ?? []} publishIntent={b.publishIntent} />
+              )}
             </div>
             <div style={{ marginTop: 12 }}>
               {canApprove && b.state !== 'revising' && (b.state === 'hold' || (b.assetId && ['block', 'review'].includes(b.tosReport?.verdict ?? '')))

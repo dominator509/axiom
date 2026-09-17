@@ -79,6 +79,22 @@ async function renderPage(query: Record<string, string | string[] | undefined> =
 }
 
 describe('approval review queue', () => {
+  it.each(['owner', 'manager', 'operator', 'content_creator'])('offers saved draft editing for %s', async role => {
+    session.mockResolvedValue({ user: { role } });
+    transport('generated', 'pass', false, {}, 'asset');
+    expect(await renderPage()).toContain('Save draft and rescan');
+  });
+  it.each(['analyst', 'agent'])('keeps saved draft editing hidden for %s', async role => {
+    session.mockResolvedValue({ user: { role } });
+    transport('generated', 'pass', false, {}, 'asset');
+    expect(await renderPage()).not.toContain('Save draft and rescan');
+  });
+  it('does not edit a processing revision or a brief without saved media', async () => {
+    transport('revising', 'pending', false, {}, 'asset');
+    expect(await renderPage()).not.toContain('Save draft and rescan');
+    transport('generated', 'pending');
+    expect(await renderPage()).not.toContain('Save draft and rescan');
+  });
   it.each(['content_creator', 'analyst', 'agent'])('shows drafts without privileged lookups or controls for %s', async role => {
     session.mockResolvedValue({ user: { role } });
     const fetchMock = transport('hold', 'review', false, { hold: 'older' }, 'video-asset', {
