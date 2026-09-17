@@ -146,6 +146,16 @@ revocation checks; fixture cleanup confirmed. Seven score tests, six page tests
 and API/dashboard typechecks pass. This validates access wiring, not the accuracy
 of the legacy course-adherence proxy metrics or deployed browser acceptance.
 
+Self shift roster API: authenticated GET `/api/v1/my-shifts` returns only the
+current user's shifts in the current org and currently assigned models, sorted
+by start time/id with scoped cursor pagination. Chatter may read upcoming roster
+entries without gaining model/DM access before an active shift. No coworker list,
+emails or credentials are returned; assignment revocation removes roster access.
+Twenty-seven PostgreSQL tests after 46 migrations pass, including tied-time
+pagination, another assignee/model/tenant, cursor ownership and early model denial.
+API typecheck and 88 policy/registration tests pass. Personal roster frontend and
+shift-state UX are next; this endpoint alone does not complete F-26.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including

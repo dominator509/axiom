@@ -765,6 +765,7 @@ app.use('/api/v1/models/:modelId/playbook-guidelines', requireAuth);
 app.use('/api/v1/org-settings/*', requireAuth);
 // LLM requests can spend provider credits and reveal provider/runtime state.
 app.use('/api/v1/llm/*', requireAuth);
+app.use('/api/v1/my-shifts', requireAuth);
 // OAuth initiation and token refresh are session-authenticated. The sealed
 // callback state carries the org/model target, so public provider callbacks
 // cannot attach credentials to another tenant or a deployment-wide .env file.

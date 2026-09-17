@@ -3,7 +3,7 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { and, asc, desc, eq, lt, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, lt, or } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import type { Context } from 'hono';
@@ -12,6 +12,32 @@ import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 import { modelAccessCondition } from '../model-access.js';
 
 const router = new Hono<AppBindings>();
+
+// A Chatter may inspect their own roster before a shift starts. This is not
+// authorization to enter a talent workspace or read its DMs outside the shift.
+router.get('/my-shifts', async c => {
+  const orgId = requireOrg(c), userId = c.get('userId');
+  if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authentication required');
+  if (!['owner', 'manager', 'operator', 'chatter'].includes(c.get('role') ?? '')) return apiError(c, 403, statusTitle(403), 'shift roster unavailable to this role');
+  const cursor = c.req.query('cursor');
+  if (cursor && !z.string().uuid().safeParse(cursor).success) return apiError(c, 400, statusTitle(400), 'invalid shift cursor');
+  const result = await withOrgContext(orgId, async tx => {
+    const scope = and(eq(schema.teamShift.orgId, orgId), eq(schema.teamShift.assigneeUserId, userId),
+      modelAccessCondition('content_creator', orgId, userId, schema.teamShift.modelId));
+    const [before] = cursor ? await tx.select().from(schema.teamShift).where(and(scope, eq(schema.teamShift.id, cursor))).limit(1) : [];
+    if (cursor && !before) return null;
+    const rows = await tx.select({ id: schema.teamShift.id, modelId: schema.teamShift.modelId,
+      modelName: schema.modelProfile.displayName, queue: schema.teamShift.queue,
+      startsAt: schema.teamShift.startsAt, endsAt: schema.teamShift.endsAt, status: schema.teamShift.status,
+      note: schema.teamShift.note,
+    }).from(schema.teamShift).innerJoin(schema.modelProfile, and(eq(schema.modelProfile.id, schema.teamShift.modelId), eq(schema.modelProfile.orgId, orgId)))
+      .where(and(scope, before ? or(gt(schema.teamShift.startsAt, before.startsAt), and(eq(schema.teamShift.startsAt, before.startsAt), gt(schema.teamShift.id, before.id))) : undefined))
+      .orderBy(asc(schema.teamShift.startsAt), asc(schema.teamShift.id)).limit(51);
+    return { data: rows.slice(0, 50), meta: { next_cursor: rows.length > 50 ? rows[49].id : null } };
+  });
+  if (!result) return apiError(c, 400, statusTitle(400), 'invalid shift cursor');
+  return c.json(result);
+});
 const shiftSchema = z.object({ assigneeUserId: z.string().trim().min(1).max(200), queue: z.string().trim().min(1).max(100).default('inbox'), startsAt: z.string().datetime(), endsAt: z.string().datetime(), note: z.string().trim().max(2_000).optional() }).strict();
 const shiftPatchSchema = z.object({ status: z.enum(['scheduled', 'active', 'completed', 'cancelled']), note: z.string().trim().max(2_000).optional() }).strict();
 const noteSchema = z.object({ targetType: z.enum(['model', 'post']).default('model'), targetId: z.string().uuid().optional(), body: z.string().trim().min(1).max(4_000) }).strict().refine(value => value.targetType === 'post' ? !!value.targetId : value.targetId === undefined);

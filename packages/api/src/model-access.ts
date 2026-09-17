@@ -31,6 +31,7 @@ export function modelAccessCondition(role: unknown, orgId: string, userId: strin
 
 /** Explicit role allowlist. Unimplemented operations stay denied. */
 export function scopedReadTarget(role: ScopedHumanRole, method: string, path: string): 'discovery' | string | null {
+  if (role === 'chatter' && ['GET', 'HEAD'].includes(method) && path === '/api/v1/my-shifts') return 'self-shifts';
   if (role === 'content_creator') {
     // Own-user credential lifecycle only. Gateway derives identity from the
     // authenticated context, never a model, request body or supplied user ID.
@@ -81,6 +82,7 @@ export async function enforceModelAccess(c: Context<AppBindings>, next: Next) {
   const target = scopedReadTarget(role, c.req.method, c.req.path);
   if (!target) return apiError(c, 403, statusTitle(403), 'operation is not available to this role');
   if (target === 'self-subscription') return next();
+  if (target === 'self-shifts') return next();
   if (target === 'bundle-create') return next();
   if (target.startsWith('fan:')) {
     const allowed = await withOrgContext(orgId, tx => tx.select({ id: schema.fanCrmContact.id }).from(schema.fanCrmContact)

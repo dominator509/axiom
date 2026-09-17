@@ -351,6 +351,32 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
     expect((await route.request(`/api/v1/models/${models[0]}/playbook-score`)).status).toBe(404);
   });
+  it('lists only assigned self shifts before their start without granting early model access', async () => {
+    await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
+    const existing = await scoped(tx => tx.select({ id: schema.teamShift.id }).from(schema.teamShift).where(sql`${schema.teamShift.orgId} = ${orgId} AND ${schema.teamShift.modelId} = ${models[0]} AND ${schema.teamShift.assigneeUserId} = ${assignmentUsers[0]}`));
+    const own = Array.from({ length: 51 }, () => randomUUID()), other = randomUUID(), unassigned = randomUUID();
+    const startsAt = new Date(Date.now() + 86_400_000), endsAt = new Date(Date.now() + 90_000_000);
+    await scoped(tx => tx.insert(schema.teamShift).values([
+      ...own.map(id => ({ id, orgId, modelId: models[0], assigneeUserId: assignmentUsers[0], queue: 'assigned-inbox', startsAt, endsAt, status: 'scheduled' })),
+      { id: other, orgId, modelId: models[0], assigneeUserId: assignmentUsers[1], queue: 'private-other', startsAt, endsAt },
+      { id: unassigned, orgId, modelId: models[1], assigneeUserId: assignmentUsers[0], queue: 'private-model', startsAt, endsAt },
+    ]));
+    try {
+      const route = scopedApp('chatter');
+      const response = await route.request('/api/v1/my-shifts');
+      expect(response.status).toBe(200);
+      const first = await response.json() as { data: { id: string }[]; meta: { next_cursor: string } };
+      const second = await (await route.request(`/api/v1/my-shifts?cursor=${first.meta.next_cursor}`)).json() as { data: { id: string }[]; meta: { next_cursor: null } };
+      expect([...first.data, ...second.data].map(row => row.id).sort()).toEqual([...own, ...existing.map(row => row.id)].sort());
+      expect(second.meta.next_cursor).toBeNull();
+      expect((await route.request(`/api/v1/my-shifts?cursor=${other}`)).status).toBe(400);
+      expect((await route.request(`/api/v1/models/${models[0]}`)).status).toBe(404);
+      expect((await scopedApp('chatter', foreignOrg).request('/api/v1/my-shifts')).status).toBe(200);
+      expect(await (await scopedApp('chatter', foreignOrg).request('/api/v1/my-shifts')).json()).toMatchObject({ data: [] });
+      await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
+      expect(await (await route.request('/api/v1/my-shifts')).json()).toMatchObject({ data: [] });
+    } finally { await scoped(tx => tx.delete(schema.teamShift).where(inArray(schema.teamShift.id, [...own, other, unassigned]))); }
+  });
   it('allows creator preparation only for assigned talent and never creates publication work', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
     const route = scopedApp('content_creator');
