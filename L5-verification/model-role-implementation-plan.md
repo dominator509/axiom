@@ -156,6 +156,15 @@ pagination, another assignee/model/tenant, cursor ownership and early model deni
 API typecheck and 88 policy/registration tests pass. Personal roster frontend and
 shift-state UX are next; this endpoint alone does not complete F-26.
 
+Personal `/shifts` page is now linked in desktop/mobile primary navigation for
+Chatter and operational roles. It reads the self-roster API, shows UTC windows,
+recorded status, escaped handoff notes, pagination and manual refresh. Only an
+active in-window row offers the assigned CRM link, with explicit recheck and
+non-live-inbox disclosure. Invalid/future/ended/closed windows offer no such link.
+Thirty-eight page/navigation tests, dashboard typecheck and lint pass (three
+existing explicit-any warnings). Live DM implementation and deployed browser
+acceptance remain open; new roles are still not enabled in authentication.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including

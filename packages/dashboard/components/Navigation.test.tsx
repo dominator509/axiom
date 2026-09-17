@@ -22,7 +22,7 @@ describe('workspace navigation coverage', () => {
     expect(html).not.toContain('href="/killswitch"');
     expect(html).not.toContain('href="/settings"');
     if (!role || ['chatter', 'content_creator', 'model'].includes(role)) {
-      expect(html.match(/href="/g)).toHaveLength(1);
+      expect(html.match(/href="/g)).toHaveLength(role === 'chatter' ? 2 : 1);
       expect(html).toContain('href="/"');
     }
   });

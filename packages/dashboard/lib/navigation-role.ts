@@ -2,6 +2,7 @@
 const legacyRoles = new Set(['owner', 'manager', 'operator', 'analyst', 'agent']);
 export function workspaceDestinationAllowed(role: string | null | undefined, path: string): boolean {
   if (path === '/') return true;
+  if (path === '/shifts') return ['owner', 'manager', 'operator', 'chatter'].includes(role ?? '');
   if (!role || !legacyRoles.has(role)) return false;
   return role === 'owner' || !['/killswitch', '/settings'].includes(path);
 }
