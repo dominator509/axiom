@@ -1,5 +1,6 @@
 // ─── @axiom/api app wiring — Vitest Suite ───
 import { describe, it, expect, beforeAll, vi } from 'vitest';
+import * as database from '@axiom/db';
 
 // The api index mounts the fanvue auth router which reads env at load time.
 process.env.FANVUE_CLIENT_ID = 'test-client-id';
@@ -19,6 +20,26 @@ beforeAll(async () => {
 });
 
 describe('health', () => {
+  it('readiness reports 503 without schema or database error details', async () => {
+    const check = vi.spyOn(database, 'checkDatabase').mockRejectedValue(new Error('private database diagnostics'));
+    try {
+      const res = await app.request('/api/v1/ready');
+      expect(res.status).toBe(503);
+      expect(await res.json()).toEqual({ status: 'unavailable', dependencies: { postgres: 'unavailable' } });
+      expect(check).toHaveBeenCalledOnce();
+      expect((await app.request('/api/v1/health')).status).toBe(200);
+    } finally { check.mockRestore(); }
+  });
+
+  it('readiness reports 200 only after the database check succeeds', async () => {
+    const check = vi.spyOn(database, 'checkDatabase').mockResolvedValue(undefined);
+    try {
+      const res = await app.request('/api/v1/ready');
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ status: 'ok', dependencies: { postgres: 'ok' } });
+      expect(check).toHaveBeenCalledOnce();
+    } finally { check.mockRestore(); }
+  });
   it('GET /api/v1/health returns ok', async () => {
     const res = await app.request('/api/v1/health');
     expect(res.status).toBe(200);

@@ -6,6 +6,38 @@ Local unit tests, static markup and an older green CI run do not close it.
 
 ## Current evidence
 
+### M335 recovery/readiness update (supersedes historical live-state claims below)
+
+- Following the server-side rehearsal incidents and recovery, Hermes's correlated
+  bridge reply `codex-evidence-correction-20260917-01` (21:33 UTC) reports fresh
+  PostgreSQL evidence: 28 ledger rows, newest `0027_asset_origin.sql`;
+  `media.generate` and `tos.scan` done, one `relay.card` job ready, and zero
+  `relay_card` records. No replay or workspace-setting change is authorized by
+  those observations. API/dashboard remain on da09f66; worker and four sidecars
+  remain stopped per the recovery handoff. These server facts are Hermes evidence,
+  not an independently executed Codex database inspection.
+- The installed installer remains prohibited: repeated live-default resolution
+  defects reached live services/database during supposed rehearsals. D001 asks
+  Hermes for a source repair and propagation tests as reviewable patch text only.
+  No installation, live grants/migrations/restores or service changes are part of
+  that delegation. Existing source copies and their hashes were delivered through
+  the bridge; a repair and independent review are still pending.
+- M335 replaces readiness's `SELECT 1` with a catalog/privilege check derived from
+  the application's schema. All required public tables and columns must exist and
+  be readable by the runtime role. Liveness remains separate; readiness failures
+  return the existing generic 503 without database diagnostics.
+- Evidence: 69 focused API/DB unit tests, five actual PostgreSQL tests after all
+  48 migrations, API/DB typechecks, DB build and DB lint pass (11 existing lint
+  warnings). Empty schema, missing table/column and revoked SELECT each fail
+  readiness, with transactional rollback and a subsequent positive check.
+  Disposable fixture `axiom_workspace_test_275c8b5887eb946f` was removed.
+- This check does not prove backup completeness, tenant data integrity, column
+  types, constraints, migration checksums, RLS correctness or provider readiness.
+  It has not been installed on TEST. Exact-SHA CI, deployment repair, migrations,
+  service startup and authenticated browser acceptance remain open.
+- Owner has resumed feature reconciliation alongside bounded Hermes server work.
+  Continue source work without treating pending deployment as completed acceptance.
+
 ### M334 validation update (supersedes earlier pending results below)
 
 - Hosted run `35247803764` completed successfully for exact source

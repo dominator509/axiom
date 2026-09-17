@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from './schema/index.js';
 import pg from 'pg';
+import { assertDatabaseReady } from './readiness.js';
 
 export const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
@@ -17,7 +18,7 @@ export const db = drizzle({
 });
 
 export async function checkDatabase(): Promise<void> {
-  await pool.query('SELECT 1');
+  await assertDatabaseReady(pool);
 }
 
 export { schema };

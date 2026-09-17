@@ -120,6 +120,14 @@ Source and automated evidence never substitutes for a missing runtime or provide
 
 ### 12. Observability deployment
 
+- M335 closes the empty-schema readiness false positive in source: required
+  schema tables/columns and runtime SELECT access are checked against PostgreSQL
+  catalogs. Five real database failure/positive cases and 69 API/unit tests pass.
+  Liveness remains distinct. This is not a full schema/data integrity check and
+  still needs deployment; TEST recovery and installer repair are tracked in the
+  deployment checkpoint. Hermes supplies a source-only installer patch while
+  Codex owns application reconciliation and integration review.
+
 - Reconcile structured logs, request/job correlation, metrics, health/readiness, incident records, and provider/media audit events.
 - Add deployment configuration checks for the selected telemetry backend, redaction, retention, and alert thresholds.
 - Verify dashboards/alerts against a controlled failed job and recovery; do not treat a health endpoint as observability acceptance.
