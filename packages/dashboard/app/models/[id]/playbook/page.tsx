@@ -1,6 +1,7 @@
 import { api, getSession } from '@/lib/api';
 import PlaybookGuidelineManager from '@/components/PlaybookGuidelineManager';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,7 @@ interface PlaybookData {
 export default async function PlaybookPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
-  if (!talentDestinationAllowed(session?.user?.role, 'playbook')) return <div className="card"><h2>Playbook access unavailable</h2><p>Your role does not include these guidelines.</p><a href="/">Back to workspace</a></div>;
+  if (!talentDestinationAllowed(session?.user?.role, 'playbook')) return <div className="card"><h2>Playbook access unavailable</h2><p>Your role does not include these guidelines.</p><Link href="/">Back to workspace</Link></div>;
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   let guidelines = [] as Awaited<ReturnType<typeof api.models.playbookGuidelines>>['data'];
   let guidelinesUnavailable = false;

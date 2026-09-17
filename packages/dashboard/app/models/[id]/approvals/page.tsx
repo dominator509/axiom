@@ -1,4 +1,5 @@
 import { api, getSession } from '@/lib/api';
+import Link from 'next/link';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
 import ApproveButtons from '@/components/ApproveButtons';
 import RequestedSchedule from '@/components/RequestedSchedule';
@@ -22,7 +23,7 @@ export default async function ApprovalsPage({
   const session = await getSession();
   const role = session?.user?.role;
   if (!talentDestinationAllowed(role, 'approvals')) return (
-    <div className="card"><h2>Review access unavailable</h2><p>Your role does not include this review queue.</p><a href="/">Back to workspace</a></div>
+    <div className="card"><h2>Review access unavailable</h2><p>Your role does not include this review queue.</p><Link href="/">Back to workspace</Link></div>
   );
   const canApprove = ['owner', 'manager', 'operator'].includes(role ?? '');
   const query = (await searchParams) ?? {};

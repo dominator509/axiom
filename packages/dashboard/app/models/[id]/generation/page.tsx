@@ -1,5 +1,6 @@
 import GenerateForm from '@/components/GenerateForm';
 import { getSession } from '@/lib/api';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,7 +8,7 @@ export default async function GenerationPage({ params, searchParams }: { params:
   const { id } = await params;
   const role = (await getSession())?.user?.role;
   if (!['owner', 'manager', 'operator', 'content_creator'].includes(role ?? '')) return (
-    <div className="card"><h2>Generation access unavailable</h2><p>Your role does not allow creating or uploading media.</p><a href="/">Back to workspace</a></div>
+    <div className="card"><h2>Generation access unavailable</h2><p>Your role does not allow creating or uploading media.</p><Link href="/">Back to workspace</Link></div>
   );
   const query = await searchParams;
   const sourceAssetId = typeof query?.sourceAssetId === 'string' && /^[0-9a-f-]{36}$/i.test(query.sourceAssetId) ? query.sourceAssetId : undefined;
