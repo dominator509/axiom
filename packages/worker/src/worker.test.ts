@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ─── Chainable transaction mock (mirrors api test-utils pattern) ───
 // NOTE: vi.mock factories are hoisted above imports, so all state referenced
 // by the factory must be defined inside the factory itself.
-const mockState: { result: unknown; executeResult?: unknown } = { result: [] };
+const mockState: { result: unknown; executeResult?: unknown; updates: Record<string, unknown>[] } = { result: [], updates: [] };
 
 function makeChain(result = mockState.result): any {
   const handler = {
@@ -16,6 +16,10 @@ function makeChain(result = mockState.result): any {
       if (prop === 'execute') {
         return () => makeChain(mockState.executeResult ?? mockState.result);
       }
+      if (prop === 'set') return (values: Record<string, unknown>) => {
+        mockState.updates.push(values);
+        return makeChain();
+      };
       return () => makeChain();
     },
     apply() {
@@ -137,7 +141,28 @@ describe('readKillSwitch', () => {
 
 describe('processJob state transitions', () => {
   beforeEach(() => {
+    mockState.updates = [];
     mockState.result = [{ id: 'job-1', publishingEnabled: true }];
+  });
+
+  it.each(['scrape.run', 'media.transform'])('persists %s retry and terminal operation state after executor failure', async kind => {
+    const payload = kind === 'scrape.run' ? { runId: '22222222-2222-4222-8222-222222222222' } : { operationId: '22222222-2222-4222-8222-222222222222' };
+    const executor = async () => { throw new Error('private provider response'); };
+    expect(await processJob(makeJob({ kind, payload }), { [kind]: executor }, 'w1', {})).toBe('retry');
+    expect(mockState.updates.at(-1)).toMatchObject({ state: 'queued', completedAt: null });
+    mockState.updates = [];
+    expect(await processJob(makeJob({ kind, payload, attempts: 2 }), { [kind]: executor }, 'w1', {})).toBe('dead');
+    expect(mockState.updates.at(-1)).toMatchObject({ state: 'failed', completedAt: expect.any(Date) });
+    expect(mockState.updates.at(-1)?.error).not.toContain('private provider response');
+  });
+
+  it('does not write operation state after the job lease check fails', async () => {
+    mockState.result = [];
+    const kind = 'scrape.run';
+    await expect(processJob(makeJob({ kind, payload: { runId: '22222222-2222-4222-8222-222222222222' } }),
+      { [kind]: async () => { throw new Error('failed'); } }, 'w1', {})).rejects.toThrow('lease ownership lost');
+    expect(mockState.updates).toHaveLength(1);
+    expect(mockState.updates[0].state).toBe('ready');
   });
 
   it('marks done on executor success', async () => {

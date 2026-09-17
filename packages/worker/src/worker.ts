@@ -79,6 +79,22 @@ async function updateOwnedJob(
   if (!Array.isArray(rows) || rows.length !== 1) {
     throw new Error(`worker: job ${job.id} lease ownership lost before state transition`);
   }
+  // Executor writes roll back on failure. Persist the user-facing operation
+  // state in this same lease-checked recovery transaction instead.
+  if (values.state === 'ready' || values.state === 'dead') {
+    const table = job.kind === 'scrape.run' ? schema.scrapeRun
+      : job.kind === 'media.transform' ? schema.mediaOperation : null;
+    const operationId = job.kind === 'scrape.run' ? job.payload?.runId : job.payload?.operationId;
+    if (table && typeof operationId === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(operationId)) {
+      const terminal = values.state === 'dead';
+      await tx.update(table).set({
+        state: terminal ? 'failed' : 'queued',
+        error: terminal ? 'Processing failed. Check Incidents for job details.' : 'Processing will retry automatically.',
+        completedAt: terminal ? new Date() : null,
+      }).where(and(eq(table.id, operationId), eq(table.orgId, job.org_id),
+        sql`${table.state} <> 'completed'`));
+    }
+  }
 }
 
 /** A terminal media job must not leave its review card looking queued forever.
