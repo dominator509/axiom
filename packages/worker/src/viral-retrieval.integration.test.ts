@@ -101,7 +101,9 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId, captions: { instagram: 'Blue ceramic vase' } });
       await tx.insert(schema.postTarget).values({ id: targetId, orgId, bundleId, platform: 'instagram', state: 'published', remoteId: targetId, idemKey: Buffer.from(randomUUID()),
         publicationSnapshot: { caption: 'Blue ceramic vase', hashtags: [], modelId, assetId: null, scheduledFor: null } });
-      await tx.insert(schema.postMetric).values({ postTargetId: targetId, platform: 'instagram', remoteId: targetId, source: 'provider', views: 10, likes: 1, engagementRate: .1, collectedAt: new Date(Date.now() - 1000) });
+      // Both observations use the database transaction clock. Mixing JS wall
+      // time with default now() can reverse them when fixture setup exceeds 1s.
+      await tx.insert(schema.postMetric).values({ postTargetId: targetId, platform: 'instagram', remoteId: targetId, source: 'provider', views: 10, likes: 1, engagementRate: .1, collectedAt: sql`now() - interval '1 second'` });
       const job: JobRow = {
         id: randomUUID(), org_id: orgId, queue: 'viral', kind: 'viral.label', payload: { targetId },
         state: 'running', attempts: 1, max_attempts: 3, last_error: null,
