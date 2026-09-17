@@ -20,6 +20,7 @@ vi.mock('@axiom/llm-gateway', async (importOriginal) => {
     ...actual,
     LLMGateway: class {
       async chat(_messages: unknown, options: { userId?: string }) {
+        if (chatFailure) throw new Error(chatFailure);
         capturedOptions = options;
         capturedMessages = _messages;
         allMessages.push(_messages);
@@ -50,6 +51,7 @@ let capturedOptions: { userId?: string } | null = null;
 let capturedMessages: unknown = null;
 let allMessages: unknown[] = [];
 let revisionReply: string | null = null;
+let chatFailure: string | null = null;
 
 import { generateRouter } from './generate.js';
 
@@ -77,6 +79,7 @@ beforeEach(() => {
   allMessages = [];
   capturedSegments = null;
   revisionReply = null;
+  chatFailure = null;
 });
 
 afterEach(() => {
@@ -95,6 +98,33 @@ const validBody = {
 };
 
 describe('POST /models/:id/generate', () => {
+  it('keeps provider diagnostics out of logs and reports the saved fallback honestly', async () => {
+    chatFailure = 'synthetic-sensitive-provider-detail';
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
+    mockState.results = [[], mockState.result, [], [], []];
+    const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, enrichWithLlm: true }),
+    });
+    expect(response.status).toBe(201);
+    const body = await response.json() as { data: { captionEnrichment: Record<string, string> } };
+    expect(body.data.captionEnrichment.instagram).toBe('fallback');
+    expect(JSON.stringify(body)).not.toContain(chatFailure);
+    expect(JSON.stringify(log.mock.calls)).not.toContain(chatFailure);
+  });
+  it.each([['', 'fallback'], ['Useful caption', 'enriched']])('reports optional caption enrichment outcome for %j', async (reply, outcome) => {
+    revisionReply = reply;
+    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
+    mockState.results = [[], mockState.result, [], [], []];
+    const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, enrichWithLlm: true }),
+    });
+    expect(response.status).toBe(201);
+    const receipt = await response.json() as { data: { captionEnrichment: Record<string, string> } };
+    expect(receipt.data.captionEnrichment).toEqual({ instagram: outcome });
+  });
   it('uses separate playbook context for each selected destination rather than copying the first platform context', async () => {
     mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
     const guideline = (strategy: string) => [{ optimalTimes: [], cadencePerWeek: 1, upsellStrategy: strategy, revision: 1 }];

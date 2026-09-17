@@ -7,6 +7,7 @@ import { readDashboardError, readDashboardJson } from '@/lib/response';
 import GenerationProgress from './GenerationProgress';
 import GrokConnection from './GrokConnection';
 import MediaUpload from './MediaUpload';
+import GeneratedCaptionReceipt from './GeneratedCaptionReceipt';
 
 const PLATFORMS = [
   'instagram',
@@ -35,7 +36,8 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '' }: { m
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
-    bundle?: { id: string; modelId: string };
+    bundle?: { id: string; modelId: string; captions?: Record<string, string> };
+    captionEnrichment?: Record<string, 'enriched' | 'fallback' | 'not_requested'>;
     mediaGeneration?: 'queued';
     variants: Array<{ prompt: string; styleLabel: string; caption: string; hashtags: string[] }>;
     tosReport: {
@@ -274,6 +276,7 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '' }: { m
 
       {result && (
         <div style={{ marginTop: 20 }}>
+          <GeneratedCaptionReceipt captions={result.bundle?.captions} enrichment={result.captionEnrichment} />
           {result.mediaGeneration === 'queued' && result.bundle?.id && (
             <GenerationProgress key={result.bundle.id} bundleId={result.bundle.id} modelId={modelId} />
           )}

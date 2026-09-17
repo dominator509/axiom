@@ -291,6 +291,9 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
 
     // 2. Optional LLM enrichment through the gateway (real provider call)
     const enrichedCaptions: Record<string, string> = {};
+    const captionEnrichment: Record<string, 'not_requested' | 'enriched' | 'fallback'> = Object.fromEntries(
+      platforms.map(platform => [platform, body.enrichWithLlm ? 'fallback' : 'not_requested']),
+    );
     if (body.enrichWithLlm) {
       for (const destination of platforms) {
       try {
@@ -320,11 +323,15 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
           { model: body.model, userId: c.get('userId') },
         );
         const caption = chat.content.trim();
-        if (caption) enrichedCaptions[destination] = caption;
+        if (caption) {
+          enrichedCaptions[destination] = caption;
+          captionEnrichment[destination] = 'enriched';
+        }
       } catch (err) {
         // LLM enrichment is best-effort; the bundle still forms from the
         // prompt engine. Never fail generation because a provider is down.
-        console.error('generate enrich failed:', (err as Error).message);
+        // Provider error messages can contain credential-bearing URLs or input.
+        console.error('generate caption enrichment unavailable', { platform: destination });
       }
       }
     }
@@ -378,6 +385,7 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
       variantCount: variants.length,
       platforms,
       tosVerdict: tosReport.verdict,
+      captionEnrichment,
     });
 
     // Canonical flow (L2.0): generate → ToS scan → relay card → operator.
@@ -394,7 +402,7 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
 
     return {
       status: 201 as const,
-      data: { bundle, variants, tosReport, ...(body.media ? { mediaGeneration: 'queued' } : {}) },
+      data: { bundle, variants, tosReport, captionEnrichment, ...(body.media ? { mediaGeneration: 'queued' } : {}) },
     };
   });
 
