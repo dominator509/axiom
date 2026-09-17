@@ -20,6 +20,15 @@ it('requires explicit account selection before loading conversations', async () 
   const html = await render();
   expect(html).toContain('for="inbox-account"'); expect(html).toContain('Load conversations');
   expect(mocks.inbox).not.toHaveBeenCalled();
+  expect(html).not.toContain('Save reply without sending');
+});
+it.each(['owner', 'manager', 'operator', 'chatter', 'model'])('renders conversation reply controls appropriate for %s', async role => {
+  mocks.session.mockResolvedValue({ user: { role } });
+  mocks.inbox.mockResolvedValue({ data: { observedAt: 'today', inbox: { kind: 'messages', data: [], pagination: { page: 1, size: 0, hasMore: false } } } });
+  const html = await render({ connectionId: 'account', userUuid: user });
+  expect(html).toContain('Load reply history');
+  expect(html.includes('Save reply without sending')).toBe(role !== 'model');
+  expect(html).toContain('Nothing is sent when you save');
 });
 it('preserves unread state and escapes names while retaining account context in links', async () => {
   const html = await render({ connectionId: 'account' });

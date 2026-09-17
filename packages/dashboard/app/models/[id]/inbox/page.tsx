@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { api, getSession } from '@/lib/api';
 import type { InboxObservation } from '@/lib/inbox-types';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
+import InboxReplies from '@/components/InboxReplies';
 
 export const dynamic = 'force-dynamic';
 type Query = { connectionId?: string | string[]; userUuid?: string | string[]; page?: string | string[] };
@@ -33,7 +34,7 @@ export default async function InboxPage({ params, searchParams }: { params: Prom
   }
   const inbox = observation?.inbox;
   return <div className="page-stack">
-    <div><h2>Inbox</h2><p>Read Fanvue conversations for this talent. Opening a conversation does not mark it read. Replies and attachment previews are not available here yet.</p></div>
+    <div><h2>Inbox</h2><p>Read Fanvue conversations for this talent. Opening a conversation does not mark it read. You can review prepared replies below a conversation. Sending and attachment previews are not available here yet.</p></div>
     {error && <div className="card stack" role="alert"><p>{error}</p><Link className="btn secondary" href={path} prefetch={false}>Reload account choices</Link></div>}
     {accounts?.length === 0 && <div className="card stack"><h3>No connected Fanvue account</h3><p>Ask your workspace owner to connect an account for this talent.</p></div>}
     {accounts && accounts.length > 0 && <form action={path} method="get" className="card stack">
@@ -67,6 +68,7 @@ export default async function InboxPage({ params, searchParams }: { params: Prom
         <span>Page {inbox.pagination.page}</span>
         {inbox.pagination.hasMore && page < 999999 && <Link href={href(page + 1, userUuid)} prefetch={false} className="btn secondary">Next page</Link>}
       </nav>
+      {inbox.kind === 'messages' && userUuid && <InboxReplies key={`${id}:${connectionId}:${userUuid}`} modelId={id} connectionId={connectionId} counterpartUuid={userUuid} canPrepare={['owner', 'manager', 'operator', 'chatter'].includes(role ?? '')} />}
     </>}
   </div>;
 }
