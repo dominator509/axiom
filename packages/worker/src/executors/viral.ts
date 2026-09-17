@@ -152,6 +152,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
   // 4. Feature record + embedding (L3.5 §1.4).
   const captions = (bundle.captions as Record<string, string> | null) ?? {};
   const features: Record<string, unknown> = {
+    evidence_source: 'published-provider-v1',
     platform: target.platform,
     caption: captions[target.platform] ?? '',
     hashtags: bundle.hashtags ?? [],
