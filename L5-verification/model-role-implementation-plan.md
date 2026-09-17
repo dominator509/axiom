@@ -70,6 +70,14 @@ requests and restricted-role navigation are still unfinished. Existing approval
 code rejects stale/past timing before dispatch. Real provider approval remains
 unexercised here; tests use isolated storage and DB only.
 
+Shared primary navigation and talent tabs now receive the server session role
+for both desktop and mobile. Owner-only settings/network/agent destinations are
+hidden from other roles. Restricted roles get explicit destination lists, unknown
+roles get minimal navigation, and Creator approval navigation says Review drafts.
+These presentation rules are not authorization. Profile shortcuts, individual
+page queries/actions and direct-page denied states still need alignment before
+activating the roles; no claim of complete frontend role support is made yet.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including

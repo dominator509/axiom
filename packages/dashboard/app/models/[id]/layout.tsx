@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
 import ModelTabs from '@/components/ModelTabs';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +13,7 @@ export default async function ModelLayout({
   children: React.ReactNode;
 }) {
   const { id } = await params;
+  const session = await getSession();
   let model;
   try {
     model = (await api.models.get(id)).data;
@@ -46,7 +47,7 @@ export default async function ModelLayout({
           </span>
         )}
       </header>
-      <ModelTabs modelId={id} />
+      <ModelTabs modelId={id} role={session?.user?.role} />
       {children}
     </div>
   );

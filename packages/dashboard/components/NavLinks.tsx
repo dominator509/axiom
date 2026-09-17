@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { workspaceDestinationAllowed } from '@/lib/navigation-role';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Talent', icon: 'talent' },
@@ -46,12 +47,12 @@ function NavIcon({ name }: { name: (typeof NAV_ITEMS)[number]['icon'] }) {
   );
 }
 
-export default function NavLinks() {
+export default function NavLinks({ role }: { role?: string | null }) {
   const pathname = usePathname();
 
   return (
     <nav className="nav" aria-label="Primary navigation">
-      {NAV_ITEMS.map((item) => {
+      {NAV_ITEMS.filter(item => workspaceDestinationAllowed(role, item.href)).map((item) => {
         const active =
           item.href === '/'
             ? pathname === '/' || pathname.startsWith('/models/')

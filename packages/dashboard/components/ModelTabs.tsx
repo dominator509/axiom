@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { talentDestinationAllowed } from '@/lib/navigation-role';
 
 const TABS = [
   { href: '', label: 'Profile & character' },
@@ -24,13 +25,13 @@ const TABS = [
   { href: 'team', label: 'Team & shifts' },
 ] as const;
 
-export default function ModelTabs({ modelId }: { modelId: string }) {
+export default function ModelTabs({ modelId, role }: { modelId: string; role?: string | null }) {
   const pathname = usePathname();
   const base = `/models/${modelId}`;
 
   return (
     <nav className="tabs" aria-label="Talent workspace">
-      {TABS.map((tab) => {
+      {TABS.filter(tab => talentDestinationAllowed(role, tab.href)).map((tab) => {
         const href = tab.href ? `${base}/${tab.href}` : base;
         const active = pathname === href || pathname === `${href}/`;
         return (
@@ -40,7 +41,7 @@ export default function ModelTabs({ modelId }: { modelId: string }) {
             className={active ? 'active' : undefined}
             aria-current={active ? 'page' : undefined}
           >
-            {tab.label}
+            {role === 'content_creator' && tab.href === 'approvals' ? 'Review drafts' : tab.label}
           </Link>
         );
       })}

@@ -5,6 +5,7 @@ import { getSession } from '@/lib/api';
 import KillSwitchBanner from '@/components/KillSwitchBanner';
 import NavLinks from '@/components/NavLinks';
 import SignOutButton from '@/components/SignOutButton';
+import { roleLabel as displayRole } from '@/lib/navigation-role';
 
 export const metadata: Metadata = {
   title: { default: 'FanThynks — Creator OS', template: '%s · FanThynks' },
@@ -15,7 +16,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const session = await getSession();
   const email = session?.user?.email ?? 'operator';
   const role = session?.user?.role;
-  const roleLabel = role === 'owner' ? 'Owner' : role === 'operator' ? 'Operator' : 'Member';
+  const roleLabel = displayRole(role);
 
   return (
     <html lang="en">
@@ -43,7 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </span>
               </Link>
               <p className="nav-kicker">Workspace</p>
-              <NavLinks />
+              <NavLinks role={role} />
               <div className="sidebar-spacer" />
               <div className="system-card">
                 <div>
@@ -72,7 +73,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </div>
               </header>
               <div className="mobile-nav">
-                <NavLinks />
+                <NavLinks role={role} />
               </div>
               {role === 'owner' && <KillSwitchBanner />}
               <main id="main-content" tabIndex={-1} className="main">{children}</main>
