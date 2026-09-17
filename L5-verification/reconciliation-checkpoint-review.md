@@ -14,6 +14,8 @@ Review findings requiring follow-up:
 
 Current verification:
 
+- Experiment winner selection is now exposed with confirmation and explicit manual-decision wording. Completion cannot be reopened or overwritten; assignment/outcome writes share-lock the experiment against completion, and completed results reject new outcomes while accepting identical replay. Fifteen API and four rendered-component tests and both typechecks pass. Database concurrency rehearsal, assignment/outcome GUI, and deployed browser acceptance remain open.
+
 - Variant discovery now has a model-scoped keyset-paginated API and checkbox/preview picker in the experiment page, with load-more retaining selections. Conversion counts are visible. Seven API and two rendered-component tests plus typechecks pass; live browser selection, assignment/outcome controls and winner promotion are not yet accepted.
 
 - Deployment integration correction: the scoped media worker previously excluded media.transform entirely. It now claims eligible unstarted transforms through organization/model/source ownership joins. Thirteen real PostgreSQL worker tests, 22 scope/worker unit tests and worker typecheck pass. No publishing connectors/global claims were enabled; deployment remains pending.

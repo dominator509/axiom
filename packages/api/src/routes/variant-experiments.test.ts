@@ -18,6 +18,38 @@ function outcome(converted = true) {
   });
 }
 beforeEach(() => { mockState.results = []; mockState.result = []; mockState.updates = []; });
+function promote(variantId = id) {
+  return app().request(`/models/${id}/variant-experiments/${id}/promote`, { method: 'POST',
+    headers: { 'content-type': 'application/json' }, body: JSON.stringify({ variantId }) });
+}
+it('refuses to reopen a completed experiment', async () => {
+  mockState.results = [[], [{ id, status: 'completed' }]];
+  const response = await app().request(`/models/${id}/variant-experiments/${id}`, { method: 'PATCH',
+    headers: { 'content-type': 'application/json' }, body: JSON.stringify({ status: 'running' }) });
+  expect(response.status).toBe(409); expect(mockState.updates).toEqual([]);
+});
+it('replays the same completed winner without rewriting history', async () => {
+  mockState.results = [[], [{ id, status: 'completed', variantIds: [id], winnerVariantId: id }]];
+  expect((await promote()).status).toBe(200); expect(mockState.updates).toEqual([]);
+});
+it('refuses a different winner after completion', async () => {
+  mockState.results = [[], [{ id, status: 'completed', variantIds: [id], winnerVariantId: 'other' }]];
+  expect((await promote()).status).toBe(409); expect(mockState.updates).toEqual([]);
+});
+it('does not promote an unstarted experiment', async () => {
+  mockState.results = [[], [{ id, status: 'draft', variantIds: [id] }]];
+  expect((await promote()).status).toBe(409); expect(mockState.updates).toEqual([]);
+});
+it('requires outcomes for every candidate', async () => {
+  mockState.results = [[], [{ id, status: 'running', variantIds: [id, 'other'] }], [{ variantId: id, outcomeAt: new Date() }]];
+  expect((await promote()).status).toBe(409); expect(mockState.updates).toEqual([]);
+});
+it('records a winner after all candidates have outcomes', async () => {
+  mockState.results = [[], [{ id, status: 'paused', variantIds: [id, 'other'] }],
+    [{ variantId: id, outcomeAt: new Date() }, { variantId: 'other', outcomeAt: new Date() }], [{ id, winnerVariantId: id }]];
+  expect((await promote()).status).toBe(200);
+  expect(mockState.updates[0]).toMatchObject({ status: 'completed', winnerVariantId: id });
+});
 it('lists variant candidate identities with a bounded page and continuation cursor', async () => {
   mockState.results = [[], [{ id, variantType: 'image_resize', outputAssetId: id, createdAt: new Date('2026-09-17T00:00:00Z') }]];
   const response = await app().request(`/models/${id}/variant-experiments/candidates?limit=1`);
@@ -56,5 +88,15 @@ it('returns an identical completed outcome without rewriting its timestamp', asy
 it('rejects a conflicting completed outcome without an update', async () => {
   mockState.results = [[], [{ id }], [{ id, converted: false, metricValue: null, outcomeAt: new Date() }]];
   expect((await outcome()).status).toBe(409);
+  expect(mockState.updates).toEqual([]);
+});
+it('freezes new outcomes once a winner has been selected', async () => {
+  mockState.results = [[], [{ id, status: 'completed' }], [{ id, outcomeAt: null }]];
+  expect((await outcome()).status).toBe(409);
+  expect(mockState.updates).toEqual([]);
+});
+it('allows identical outcome replay after experiment completion', async () => {
+  mockState.results = [[], [{ id, status: 'completed' }], [{ id, converted: true, metricValue: null, outcomeAt: new Date() }]];
+  expect((await outcome()).status).toBe(200);
   expect(mockState.updates).toEqual([]);
 });

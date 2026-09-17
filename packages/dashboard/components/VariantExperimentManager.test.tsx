@@ -23,3 +23,12 @@ it('shows conversion counts to read-only users without experiment mutation contr
   expect(html).not.toContain('Save experiment');
   expect(html).not.toContain('Pause');
 });
+it.each([0, 1])('requires candidate outcomes before offering winner selection: %s', outcomes => {
+  const html = renderToStaticMarkup(<VariantExperimentManager modelId="model" canEdit experiments={[
+    { id: 'experiment', modelId: 'model', name: 'Creative test', platform: 'x', variantIds: ['variant'], status: 'running',
+      winnerVariantId: null, createdAt: '', updatedAt: '', stats: [{ variantId: 'variant', exposures: 1, outcomes, conversions: 0, metricTotal: 0 }] },
+  ]} />);
+  expect(html).toContain('Select as winner');
+  expect(html).toContain('not a statistical-significance claim');
+  expect(/disabled="">Select as winner/.test(html)).toBe(outcomes === 0);
+});

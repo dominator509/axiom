@@ -150,12 +150,19 @@ router.patch('/models/:modelId/variant-experiments/:experimentId', async (c) => 
   const parsed = patchSchema.safeParse(payload);
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'status must be draft, running, or paused');
   const updated = await withOrgContext(orgId, async (tx) => {
+    const [current] = await tx.select().from(schema.variantExperiment).where(and(
+      eq(schema.variantExperiment.id, c.req.param('experimentId')), eq(schema.variantExperiment.modelId, c.req.param('modelId')), eq(schema.variantExperiment.orgId, orgId),
+    )).limit(1).for('update');
+    if (!current) return null;
+    if (current.status === 'completed') return 'completed' as const;
+    if (current.status === parsed.data.status) return current;
     const [row] = await tx.update(schema.variantExperiment).set({ status: parsed.data.status, updatedAt: new Date() })
       .where(and(eq(schema.variantExperiment.id, c.req.param('experimentId')), eq(schema.variantExperiment.modelId, c.req.param('modelId')), eq(schema.variantExperiment.orgId, orgId)))
       .returning();
     if (row) await writeAudit(tx, orgId, c.get('userId') ?? 'system', 'variant.experiment.status', row.id, { status: row.status });
     return row ?? null;
   });
+  if (updated === 'completed') return apiError(c, 409, statusTitle(409), 'Completed experiments cannot be reopened; create a new experiment');
   if (!updated) return apiError(c, 404, statusTitle(404), 'variant experiment not found');
   return c.json({ data: updated });
 });
@@ -173,7 +180,7 @@ router.post('/models/:modelId/variant-experiments/:experimentId/assign', async (
       eq(schema.variantExperiment.id, c.req.param('experimentId')),
       eq(schema.variantExperiment.modelId, c.req.param('modelId')),
       eq(schema.variantExperiment.orgId, orgId),
-    )).limit(1);
+    )).limit(1).for('share');
     if (!experiment) return { status: 404 as const, error: 'variant experiment not found' };
     if (experiment.status !== 'running') return { status: 409 as const, error: `experiment is ${experiment.status}; assignment requires running status` };
     const key = stableKey(experiment.id, parsed.data.assignmentKey);
@@ -201,11 +208,11 @@ router.post('/models/:modelId/variant-experiments/:experimentId/outcomes', async
   const parsed = outcomeSchema.safeParse(payload);
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'assignmentId, converted, and optional metricValue are required');
   const updated = await withOrgContext(orgId, async (tx) => {
-    const [experiment] = await tx.select({ id: schema.variantExperiment.id }).from(schema.variantExperiment).where(and(
+    const [experiment] = await tx.select({ id: schema.variantExperiment.id, status: schema.variantExperiment.status }).from(schema.variantExperiment).where(and(
       eq(schema.variantExperiment.id, c.req.param('experimentId')),
       eq(schema.variantExperiment.modelId, c.req.param('modelId')),
       eq(schema.variantExperiment.orgId, orgId),
-    )).limit(1);
+    )).limit(1).for('share');
     if (!experiment) return null;
     const [assignment] = await tx.select().from(schema.variantExperimentAssignment).where(and(
       eq(schema.variantExperimentAssignment.id, parsed.data.assignmentId),
@@ -215,11 +222,13 @@ router.post('/models/:modelId/variant-experiments/:experimentId/outcomes', async
     if (!assignment) return null;
     if (assignment.outcomeAt && (assignment.converted !== parsed.data.converted || assignment.metricValue !== (parsed.data.metricValue ?? null))) return 'conflict' as const;
     if (assignment.outcomeAt) return assignment;
+    if (experiment.status === 'completed') return 'completed' as const;
     const [row] = await tx.update(schema.variantExperimentAssignment).set({ converted: parsed.data.converted, metricValue: parsed.data.metricValue ?? null, outcomeAt: new Date() })
       .where(eq(schema.variantExperimentAssignment.id, assignment.id)).returning();
     return row ?? null;
   });
   if (updated === 'conflict') return apiError(c, 409, statusTitle(409), 'assignment already has a different outcome');
+  if (updated === 'completed') return apiError(c, 409, statusTitle(409), 'Completed experiments cannot accept new outcomes');
   if (!updated) return apiError(c, 404, statusTitle(404), 'assignment not found');
   return c.json({ data: updated });
 });
@@ -235,9 +244,13 @@ router.post('/models/:modelId/variant-experiments/:experimentId/promote', async 
   const result = await withOrgContext(orgId, async (tx) => {
     const [experiment] = await tx.select().from(schema.variantExperiment).where(and(
       eq(schema.variantExperiment.id, c.req.param('experimentId')), eq(schema.variantExperiment.modelId, c.req.param('modelId')), eq(schema.variantExperiment.orgId, orgId),
-    )).limit(1);
+    )).limit(1).for('update');
     if (!experiment) return { status: 404 as const, error: 'variant experiment not found' };
     if (!experiment.variantIds.includes(parsed.data.variantId)) return { status: 400 as const, error: 'variant is not part of this experiment' };
+    if (experiment.status === 'completed') return experiment.winnerVariantId === parsed.data.variantId
+      ? { status: 200 as const, data: experiment }
+      : { status: 409 as const, error: 'This experiment already has a different winner' };
+    if (!['running', 'paused'].includes(experiment.status)) return { status: 409 as const, error: 'Start the experiment before selecting a winner' };
     const assignments = await tx.select({ variantId: schema.variantExperimentAssignment.variantId, outcomeAt: schema.variantExperimentAssignment.outcomeAt })
       .from(schema.variantExperimentAssignment).where(and(eq(schema.variantExperimentAssignment.experimentId, experiment.id), eq(schema.variantExperimentAssignment.orgId, orgId)));
     const observed = new Set(assignments.filter((row: { outcomeAt: Date | null }) => row.outcomeAt).map((row: { variantId: string }) => row.variantId));

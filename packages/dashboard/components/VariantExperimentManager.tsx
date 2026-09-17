@@ -31,6 +31,7 @@ export default function VariantExperimentManager({
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const intent = useRef<Intent | null>(null);
+  const onConfirmed = useRef<(() => void) | undefined>(undefined);
   const active = useRef(false);
   const [available, setAvailable] = useState(candidates);
   const [cursor, setCursor] = useState(nextCursor);
@@ -52,7 +53,10 @@ export default function VariantExperimentManager({
 
   async function run(next?: Omit<Intent, 'key'>, success?: () => void) {
     if (active.current) return;
-    if (next) intent.current ??= { ...next, key: createIdempotencyKey() };
+    if (next && !intent.current) {
+      intent.current = { ...next, key: createIdempotencyKey() };
+      onConfirmed.current = success;
+    }
     const request = intent.current;
     if (!request) return;
     active.current = true;
@@ -78,7 +82,8 @@ export default function VariantExperimentManager({
       const result = await readDashboardJson<{ data?: unknown }>(response);
       if (result.data === undefined) throw new Error('Unconfirmed variant experiment response');
       intent.current = null;
-      success?.();
+      onConfirmed.current?.();
+      onConfirmed.current = undefined;
       router.refresh();
     } catch {
       setError('Variant experiment change was not confirmed. Retry the same intent.');
@@ -178,9 +183,16 @@ export default function VariantExperimentManager({
                     </span>
                     <span>Metric total: {stat.metricTotal.toFixed(2)}</span>
                     <span>{stat.conversions === undefined ? 'Conversion data unavailable' : `${stat.conversions} conversions`}</span>
+                    {canEdit && ['running', 'paused'].includes(experiment.status) && <button type="button" className="btn secondary"
+                      disabled={busy || intent.current !== null || experiment.stats.some(item => item.outcomes < 1)}
+                      onClick={() => {
+                        if (!window.confirm('Select this variant as the winner and complete this experiment? This does not approve or publish media.')) return;
+                        void run({ path: `/api/v1/models/${encodeURIComponent(modelId)}/variant-experiments/${encodeURIComponent(experiment.id)}/promote`, method: 'POST', body: JSON.stringify({ variantId: stat.variantId }) }, () => setMessage('Winner recorded. The experiment is complete; normal media approval is still required.'));
+                      }}>Select as winner</button>}
                   </div>
                 ))}
               </div>
+              {experiment.status !== 'completed' && <p className="subtle">Winner selection is an operator decision, not a statistical-significance claim. Every variant needs at least one recorded outcome.</p>}
             </article>
           ))}
         </div>
