@@ -410,6 +410,25 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
       expect(await (await route.request('/api/v1/my-shifts')).json()).toMatchObject({ data: [] });
     } finally { await scoped(tx => tx.delete(schema.teamShift).where(inArray(schema.teamShift.id, [...own, other, unassigned]))); }
   });
+  it('monthly reports count one latest in-month snapshot per owned post', async () => {
+    await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
+    const records = [
+      { id: randomUUID(), postTargetId: posts[0], collectedAt: new Date('2030-02-01T00:00:00Z'), views: 100, likes: 10, shares: 2, comments: 3 },
+      { id: randomUUID(), postTargetId: posts[0], collectedAt: new Date('2030-02-28T23:59:59Z'), views: 140, likes: 15, shares: 4, comments: 7 },
+      { id: randomUUID(), postTargetId: posts[0], collectedAt: new Date('2030-03-01T00:00:00Z'), views: 900, likes: 90, shares: 90, comments: 90 },
+      { id: randomUUID(), postTargetId: posts[1], collectedAt: new Date('2030-02-28T23:59:59Z'), views: 800, likes: 80, shares: 80, comments: 80 },
+    ];
+    await scoped(tx => tx.insert(schema.postMetric).values(records.map(row => ({ ...row, platform: 'x', remoteId: 'fixture', source: 'provider' as const }))));
+    try {
+      const response = await scopedApp('model').request(`/api/v1/models/${models[0]}/reports/monthly?month=2030-02`);
+      expect(response.status).toBe(200);
+      const pdf = Buffer.from(await response.arrayBuffer()).toString();
+      expect(pdf).toContain('(Views: 140)'); expect(pdf).toContain('(Likes: 15)');
+      expect(pdf).toContain('(Shares: 4)'); expect(pdf).toContain('(Comments: 7)');
+      expect(pdf).toContain('not engagement earned during the month');
+      expect(pdf).not.toContain('(Views: 240)');
+    } finally { await scoped(tx => tx.delete(schema.postMetric).where(inArray(schema.postMetric.id, records.map(row => row.id)))); }
+  });
   it('allows creator preparation only for assigned talent and never creates publication work', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
     const route = scopedApp('content_creator');

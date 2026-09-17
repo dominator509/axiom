@@ -185,6 +185,15 @@ pass. Inspection found monthly report metrics still sum cumulative snapshots,
 unlike dashboard latest-snapshot aggregation; correct that separately before
 claiming report metric accuracy. Role activation and live acceptance remain open.
 
+Monthly repeated-snapshot defect corrected: one latest observation per post in
+the selected half-open month, with deterministic timestamp/id ordering, is summed
+for each counter. PDF discloses cumulative-not-period-earned semantics and that
+saved sources may be manual/legacy. Thirty real PostgreSQL tests after 46
+migrations pass; PDF bytes verify 100 then 140 views yields 140, excluding next
+month and another model. Three report tests and API typecheck pass; fixture
+removed. This does not establish provider metric completeness or resolve other
+legacy score semantics. Role activation and deployed acceptance remain open.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including

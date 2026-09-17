@@ -44,6 +44,15 @@ router.get('/models/:modelId/reports/monthly', async (c) => {
 
   const report = await withOrgContext(orgId, async (tx) => {
     const result = await tx.execute(sql`
+      WITH latest_metrics AS (
+        SELECT DISTINCT ON (pm.post_target_id) pm.views, pm.likes, pm.shares, pm.comments
+        FROM post_metric pm
+        INNER JOIN post_target pt ON pt.id = pm.post_target_id
+        INNER JOIN content_bundle cb ON cb.id = pt.bundle_id
+        WHERE cb.org_id = ${orgId} AND cb.model_id = ${modelId} AND pt.org_id = ${orgId}
+          AND pm.collected_at >= ${start} AND pm.collected_at < ${end}
+        ORDER BY pm.post_target_id, pm.collected_at DESC, pm.id DESC
+      )
       SELECT
         mp.display_name AS "displayName",
         COALESCE((SELECT COUNT(*) FROM post_target pt INNER JOIN content_bundle cb ON cb.id = pt.bundle_id
@@ -52,22 +61,10 @@ router.get('/models/:modelId/reports/monthly', async (c) => {
         COALESCE((SELECT COUNT(*) FROM post_target pt INNER JOIN content_bundle cb ON cb.id = pt.bundle_id
           WHERE cb.org_id = ${orgId} AND cb.model_id = mp.id AND pt.org_id = ${orgId}
             AND pt.state = 'published' AND pt.scheduled_for >= ${start} AND pt.scheduled_for < ${end}), 0)::int AS "publishedPosts",
-        COALESCE((SELECT SUM(pm.views) FROM post_metric pm INNER JOIN post_target pt ON pt.id = pm.post_target_id
-          INNER JOIN content_bundle cb ON cb.id = pt.bundle_id
-          WHERE cb.org_id = ${orgId} AND cb.model_id = mp.id AND pt.org_id = ${orgId}
-            AND pm.collected_at >= ${start} AND pm.collected_at < ${end}), 0)::bigint AS views,
-        COALESCE((SELECT SUM(pm.likes) FROM post_metric pm INNER JOIN post_target pt ON pt.id = pm.post_target_id
-          INNER JOIN content_bundle cb ON cb.id = pt.bundle_id
-          WHERE cb.org_id = ${orgId} AND cb.model_id = mp.id AND pt.org_id = ${orgId}
-            AND pm.collected_at >= ${start} AND pm.collected_at < ${end}), 0)::bigint AS likes,
-        COALESCE((SELECT SUM(pm.shares) FROM post_metric pm INNER JOIN post_target pt ON pt.id = pm.post_target_id
-          INNER JOIN content_bundle cb ON cb.id = pt.bundle_id
-          WHERE cb.org_id = ${orgId} AND cb.model_id = mp.id AND pt.org_id = ${orgId}
-            AND pm.collected_at >= ${start} AND pm.collected_at < ${end}), 0)::bigint AS shares,
-        COALESCE((SELECT SUM(pm.comments) FROM post_metric pm INNER JOIN post_target pt ON pt.id = pm.post_target_id
-          INNER JOIN content_bundle cb ON cb.id = pt.bundle_id
-          WHERE cb.org_id = ${orgId} AND cb.model_id = mp.id AND pt.org_id = ${orgId}
-            AND pm.collected_at >= ${start} AND pm.collected_at < ${end}), 0)::bigint AS comments,
+        COALESCE((SELECT SUM(views) FROM latest_metrics), 0)::bigint AS views,
+        COALESCE((SELECT SUM(likes) FROM latest_metrics), 0)::bigint AS likes,
+        COALESCE((SELECT SUM(shares) FROM latest_metrics), 0)::bigint AS shares,
+        COALESCE((SELECT SUM(comments) FROM latest_metrics), 0)::bigint AS comments,
         COALESCE((SELECT ps.score FROM playbook_score ps
           WHERE ps.org_id = ${orgId} AND ps.model_id = mp.id AND ps.ts < ${end}
           ORDER BY ps.ts DESC LIMIT 1), 0)::int AS "adherenceScore",

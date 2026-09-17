@@ -50,7 +50,9 @@ export function buildMonthlyReportPdf(data: MonthlyReportData): Uint8Array {
     `Viral exemplars captured: ${formatNumber(data.viralExemplars)}`,
     '',
     'Metrics are generated from the authenticated workspace analytics store.',
-    'Provider totals are latest snapshots within the selected calendar month.',
+    'Totals use one latest saved snapshot per post within the selected month.',
+    'These are cumulative counters, not engagement earned during the month.',
+    'Saved observations may include manual or legacy metric sources.',
   ];
 
   const commands = ['BT', '/F1 18 Tf', '54 748 Td'];
