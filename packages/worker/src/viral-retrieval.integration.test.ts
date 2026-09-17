@@ -6,7 +6,7 @@ import { retrieveTopExemplars } from './viral-retrieval.js';
 import { embedExemplarIntent } from './embedding.js';
 import { viralLabel } from './executors/viral.js';
 import type { JobRow } from './types.js';
-import { evaluateAutomaticVariants } from './variant-auto-evaluation.js';
+import { evaluateAutomaticVariants, evaluationDigest } from './variant-auto-evaluation.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
@@ -140,10 +140,15 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       [saved] = await tx.select().from(schema.variantExperiment).where(eq(schema.variantExperiment.id, experimentId));
       expect(saved).toMatchObject({ status: 'completed', winnerVariantId: variants[0] });
       const frozen = saved.evaluation;
+      const decisions = await tx.select().from(schema.auditLog).where(eq(schema.auditLog.action, 'variant.experiment.auto-evaluate'));
+      expect(decisions.filter(row => row.detail?.experimentId === experimentId)).toHaveLength(1);
+      expect(decisions.find(row => row.detail?.experimentId === experimentId)?.target).toBe(`${experimentId}:${evaluationDigest(frozen!)}`);
       await tx.insert(schema.postMetric).values(records.map(row => ({ postTargetId: row.targetId, platform: 'instagram', source: 'provider' as const, remoteId: row.targetId, views: 100, engagementRate: 1 - row.rate, collectedAt: new Date('2026-09-06') })));
       await evaluateAutomaticVariants(tx, orgId, modelId, 'instagram');
       [saved] = await tx.select().from(schema.variantExperiment).where(eq(schema.variantExperiment.id, experimentId));
       expect(saved.evaluation).toEqual(frozen);
+      const replayDecisions = await tx.select().from(schema.auditLog).where(eq(schema.auditLog.action, 'variant.experiment.auto-evaluate'));
+      expect(replayDecisions.filter(row => row.detail?.experimentId === experimentId)).toHaveLength(1);
       await expect(tx.transaction(nested => nested.update(schema.variantExperiment).set({ evaluation: {} }).where(eq(schema.variantExperiment.id, experimentId)))).rejects.toThrow();
     });
   });

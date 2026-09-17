@@ -1,6 +1,33 @@
 import { and, eq, sql } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
 import { schema } from '@axiom/db';
 import { assessVariantPerformance, type VariantObservation } from './variant-evaluation.js';
+
+export function evaluationDigest(evaluation: Record<string, unknown>): string {
+  const sort = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(sort);
+    if (value !== null && typeof value === 'object') return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, child]) => [key, sort(child)]));
+    return value;
+  };
+  // Normalize Dates exactly as JSONB stores them, then remove object-key order.
+  return createHash('sha256').update(JSON.stringify(sort(JSON.parse(JSON.stringify(evaluation))))).digest('hex');
+}
+
+async function auditEvaluation(tx: any, orgId: string, experimentId: string, evaluation: Record<string, unknown>) {
+  await tx.execute(sql`SELECT id FROM org WHERE id=${orgId} FOR UPDATE`);
+  const previous = await tx.select({ hash: schema.auditLog.rowHash, ts: schema.auditLog.ts }).from(schema.auditLog)
+    .where(eq(schema.auditLog.orgId, orgId)).orderBy(sql`${schema.auditLog.ts} DESC, ${schema.auditLog.id} DESC`).limit(1);
+  const prevHash = previous[0]?.hash ? Buffer.from(previous[0].hash) : Buffer.alloc(32);
+  const ts = new Date(Math.max(Date.now(), previous[0]?.ts ? new Date(previous[0].ts).getTime() + 1 : 0));
+  const evidenceDigest = evaluationDigest(evaluation);
+  // The legacy verifier canonicalizes top-level keys only. Binding the digest
+  // into target protects the entire evaluation without changing old chains.
+  const target = `${experimentId}:${evidenceDigest}`;
+  const detail = { experimentId, evidenceDigest, policy: evaluation.policy, assessment: evaluation.assessment };
+  const payload = { org_id: orgId, actor_ref: 'worker:variant-evaluation', action: 'variant.experiment.auto-evaluate', target, detail, ts: ts.toISOString(), prev_hash: prevHash.toString('hex') };
+  const rowHash = createHash('sha256').update(JSON.stringify(payload, Object.keys(payload).sort())).digest();
+  await tx.insert(schema.auditLog).values({ orgId, actorRef: payload.actor_ref, action: payload.action, target, detail, ts, prevHash, rowHash });
+}
 
 /** One fixed evaluation; no repeated significance testing and no publishing. */
 export async function evaluateAutomaticVariants(tx: any, orgId: string, modelId: string, platform: string) {
@@ -36,9 +63,11 @@ export async function evaluateAutomaticVariants(tx: any, orgId: string, modelId:
     if (rows.some(row => row.collectedAt === null)) continue;
     const assessment = assessVariantPerformance(experiment.variantIds, rows);
     if (assessment.status !== 'candidate' && assessment.status !== 'inconclusive') continue;
+    const evaluation = { policy: experiment.evaluationPolicy, assessment, observations: rows };
     await tx.update(schema.variantExperiment).set({
       status: 'completed', winnerVariantId: assessment.candidateVariantId,
-      evaluation: { policy: experiment.evaluationPolicy, assessment, observations: rows }, updatedAt: new Date(),
+      evaluation, updatedAt: new Date(),
     }).where(eq(schema.variantExperiment.id, experiment.id));
+    await auditEvaluation(tx, orgId, experiment.id, evaluation);
   }
 }
