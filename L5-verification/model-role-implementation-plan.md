@@ -86,6 +86,13 @@ Twenty-five page tests and dashboard typecheck pass; deployed browser acceptance
 and remaining profile/page controls are still open. Roles remain inactive until
 the full authorization and user workflow is implemented.
 
+The profile overview now shares the destination policy with navigation: network
+summary requests and links are owner-only, scoped calendar/fan requests are made
+only when allowed, and workspace shortcuts exclude unavailable sections. Failed
+profile loading stops secondary requests. Thirteen overview tests plus dashboard
+typecheck pass. Individual generation/media/calendar/playbook action controls and
+deployed role-specific browser acceptance remain to be reconciled.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including

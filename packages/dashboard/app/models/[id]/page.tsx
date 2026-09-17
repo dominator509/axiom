@@ -3,6 +3,7 @@ import CharacterLockEditor from '@/components/CharacterLockEditor';
 import ProfileEditor from '@/components/ProfileEditor';
 import ModelLifecycleControls from '@/components/ModelLifecycleControls';
 import Link from 'next/link';
+import { talentDestinationAllowed } from '@/lib/navigation-role';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,12 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const session = await getSession();
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
+  const allowed = (section: string) => talentDestinationAllowed(session?.user?.role, section);
+  const tools = [
+    ['media', 'Media library'], ['consent', 'Consent vault'], ['linkbio', 'Link in bio'],
+    ['analytics', 'Analytics'], ['playbook', 'Playbook'], ['relay', 'Relay delivery'],
+    ['agents', 'Agent access'], ['cascades', 'Cascade schedules'], ['triggers', 'Automation rules'],
+  ].filter(([section]) => allowed(section));
   let model;
   let network;
   let calendarCount: number | null = null;
@@ -20,18 +27,18 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
   } catch {
     model = null;
   }
-  try {
+  if (model && allowed('network')) try {
     network = (await api.models.network(id)).data;
   } catch {
     network = null;
     networkFailed = true;
   }
-  try {
+  if (model && allowed('calendar')) try {
     calendarCount = (await api.models.calendar(id)).data.length;
   } catch {
     calendarCount = null;
   }
-  try {
+  if (model && allowed('fans')) try {
     fanCount = (await api.models.fans(id)).data.length;
   } catch {
     fanCount = null;
@@ -65,7 +72,7 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
           <strong>Created:</strong> {new Date(model.createdAt).toLocaleDateString()}
         </div>
       </div>
-      <div className="card stack">
+      {allowed('network') && <div className="card stack">
         <h3>Network &amp; security</h3>
         {network ? (
           <>
@@ -101,36 +108,28 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
           </p>
         )}
         <Link href={`/models/${id}/network`} className="btn secondary">Open network settings</Link>
-      </div>
-      <div className="card stack">
+      </div>}
+      {(allowed('calendar') || allowed('fans') || allowed('generation') || allowed('approvals')) && <div className="card stack">
         <h3>Activity</h3>
-        <div className="row" style={{ justifyContent: 'space-between' }}>
+        {allowed('calendar') && <div className="row" style={{ justifyContent: 'space-between' }}>
           <Link href={`/models/${id}/calendar`}>View schedule</Link>
           <strong>{calendarCount ?? 'Unavailable'}</strong>
-        </div>
-        <div className="row" style={{ justifyContent: 'space-between' }}>
+        </div>}
+        {allowed('fans') && <div className="row" style={{ justifyContent: 'space-between' }}>
           <Link href={`/models/${id}/fans`}>View fan contacts</Link>
           <strong>{fanCount ?? 'Unavailable'}</strong>
-        </div>
+        </div>}
         <p className="subtle">Counts reflect the records returned for this overview. Open each section for details.</p>
-        <Link href={`/models/${id}/generation`} className="btn">Create content</Link>
-        <Link href={`/models/${id}/approvals`} className="btn secondary">Review saved content</Link>
-      </div>
-      <div className="card stack">
+        {allowed('generation') && <Link href={`/models/${id}/generation`} className="btn">Create content</Link>}
+        {allowed('approvals') && <Link href={`/models/${id}/approvals`} className="btn secondary">Review saved content</Link>}
+      </div>}
+      {tools.length > 0 && <div className="card stack">
         <h3>Workspace tools</h3>
         <p className="subtle">Open the areas used to prepare, protect and measure this talent’s content.</p>
         <div className="grid" style={{ gap: 10 }}>
-          <Link href={`/models/${id}/media`} className="btn secondary">Media library</Link>
-          <Link href={`/models/${id}/consent`} className="btn secondary">Consent vault</Link>
-          <Link href={`/models/${id}/linkbio`} className="btn secondary">Link in bio</Link>
-          <Link href={`/models/${id}/analytics`} className="btn secondary">Analytics</Link>
-          <Link href={`/models/${id}/playbook`} className="btn secondary">Playbook</Link>
-          <Link href={`/models/${id}/relay`} className="btn secondary">Relay delivery</Link>
-          <Link href={`/models/${id}/agents`} className="btn secondary">Agent access</Link>
-          <Link href={`/models/${id}/cascades`} className="btn secondary">Cascade schedules</Link>
-          <Link href={`/models/${id}/triggers`} className="btn secondary">Automation rules</Link>
+          {tools.map(([section, label]) => <Link key={section} href={`/models/${id}/${section}`} className="btn secondary">{label}</Link>)}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

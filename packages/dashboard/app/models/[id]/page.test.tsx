@@ -28,12 +28,14 @@ describe('talent overview recovery and navigation', () => {
     expect(await render()).not.toContain('Edit profile details');
   });
   it('links summaries and next actions to this talent workspace', async () => {
+    vi.mocked(getSession).mockResolvedValue({ user: { role: 'owner' } } as Awaited<ReturnType<typeof getSession>>);
     const html = await render();
     for (const route of ['network', 'calendar', 'fans', 'generation', 'approvals', 'media', 'consent', 'linkbio', 'analytics', 'playbook', 'relay', 'agents', 'cascades']) {
       expect(html).toContain(`href="/models/talent/${route}"`);
     }
   });
   it('keeps legitimate empty counts without inventing network configuration state', async () => {
+    vi.mocked(getSession).mockResolvedValue({ user: { role: 'owner' } } as Awaited<ReturnType<typeof getSession>>);
     const html = await render();
     expect(html.match(/<strong>0<\/strong>/g)).toHaveLength(2);
     expect(html).toContain('Network status could not be loaded.');
@@ -52,5 +54,31 @@ describe('talent overview recovery and navigation', () => {
     expect(html).toContain('role="alert"');
     expect(html).toContain('href="/"');
     expect(html).not.toContain('Model not found');
+    expect(api.models.network).not.toHaveBeenCalled();
+    expect(api.models.calendar).not.toHaveBeenCalled();
+    expect(api.models.fans).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['content_creator', ['calendar', 'generation', 'approvals', 'media', 'analytics', 'playbook']],
+    ['model', ['calendar', 'fans', 'media', 'analytics']],
+    ['chatter', ['fans']],
+    ['unknown', []],
+  ] as const)('matches scoped destinations and queries for %s', async (role, expected) => {
+    vi.mocked(getSession).mockResolvedValue({ user: { role } } as Awaited<ReturnType<typeof getSession>>);
+    const html = await render();
+    const routes = [...html.matchAll(/href="\/models\/talent\/([^"]+)"/g)].map(match => match[1]);
+    expect(routes.sort()).toEqual([...expected].sort());
+    expect(api.models.network).not.toHaveBeenCalled();
+    expect(api.models.calendar).toHaveBeenCalledTimes(expected.some(value => value === 'calendar') ? 1 : 0);
+    expect(api.models.fans).toHaveBeenCalledTimes(expected.some(value => value === 'fans') ? 1 : 0);
+    expect(html).not.toContain('Network &amp; security');
+    expect(html).not.toContain('Edit profile details');
+  });
+  it.each(['manager', 'operator', 'analyst', 'agent'])('does not load owner-only network data for %s', async role => {
+    vi.mocked(getSession).mockResolvedValue({ user: { role } } as Awaited<ReturnType<typeof getSession>>);
+    const html = await render();
+    expect(api.models.network).not.toHaveBeenCalled();
+    expect(html).not.toContain('/network');
+    expect(html).not.toContain('/agents');
   });
 });
