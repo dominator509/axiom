@@ -29,6 +29,7 @@ import type {
 import type { Platform, PublishMode } from '@axiom/core';
 import { mediaTypeHint, validatePublish } from './validation.js';
 import { parseFanvueEarningsSummary, type FanvueEarningsSummary } from './fanvue-earnings.js';
+import { inboxPageQuery, inboxUserUuid, parseChatPage, parseMessagePage, type FanvueChatPage, type FanvueMessagePage } from './fanvue-inbox.js';
 
 const FANVUE_API_BASE = 'https://api.fanvue.com';
 const FANVUE_API_VERSION = '2025-06-26';
@@ -441,6 +442,21 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
       'GET', '/insights/earnings/summary?timezone=UTC&granularity=day',
     );
     return parseFanvueEarningsSummary(response);
+  }
+
+  async fetchChats(page = 1, size = 25): Promise<FanvueChatPage> {
+    const query = inboxPageQuery(page, size);
+    const response = await this.fanvueRequest<unknown>('GET', `/chats?${query}`);
+    return parseChatPage(response, page, size);
+  }
+
+  /** Inspection must not silently consume unread state or send read receipts. */
+  async fetchChatMessages(userUuid: string, page = 1, size = 25): Promise<FanvueMessagePage> {
+    const user = inboxUserUuid(userUuid);
+    const query = inboxPageQuery(page, size);
+    query.set('markAsRead', 'false');
+    const response = await this.fanvueRequest<unknown>('GET', `/chats/${user}/messages?${query}`);
+    return parseMessagePage(response, page, size);
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {

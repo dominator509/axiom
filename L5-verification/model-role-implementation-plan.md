@@ -300,5 +300,25 @@ No deployment or provider call occurred. Financial account values/scopes and
 role activation remain live acceptance requirements. The original full feature
 reconciliation, including DM operations and all runtime gates, is still open.
 
+## Live inbox contract groundwork (M306, 2026-09-17)
+
+Retrieved official Fanvue OpenAPI `/chats` and `/chats/{userUuid}/messages`
+contracts from https://api.fanvue.com/docs/openapi.json. Added bounded typed
+reads to the existing injected-transport Fanvue connector; the former permissive
+MCP inbox method is not used as authority. Page/size and counterpart UUID are
+validated before network access, and response shapes/page counts are validated.
+`markAsRead=false` is always supplied: the provider defaults this to true, so
+omitting it would make inspection silently change unread state. Chat `isRead`
+remains authoritative even when unreadMessagesCount is zero. Sender attribution,
+message type, paid-content amounts/purchase status, media IDs and GIF identity
+are retained; third-party GIF hotlink URLs are not forwarded to the browser.
+
+53 focused connector tests and connector typecheck pass. No live inbox read,
+read receipt, message dispatch or provider login occurred. Next: exact account
+selection and assignment/active-shift checks in API reads, then inbox/navigation
+and controlled reply delivery with durable intent/uncertain-result handling.
+Attachment delivery needs an authorized media path, not direct third-party URLs.
+Agentic drafts, ingestion, queues, send attribution and SFW gating remain in scope.
+
 Completion requires all applicable steps and live evidence; neither additive role
 names nor empty navigation alone satisfies F-24/F-26.

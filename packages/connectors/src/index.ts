@@ -17,6 +17,7 @@ export { TelegramConnector } from './telegram.js';
 export { SnapchatConnector } from './snapchat.js';
 export { FanvueConnector } from './fanvue.js';
 export type { FanvueEarningsSummary } from './fanvue-earnings.js';
+export type { FanvueChatPage, FanvueMessagePage } from './fanvue-inbox.js';
 
 export {
   register,
