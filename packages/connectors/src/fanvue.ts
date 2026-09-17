@@ -29,6 +29,7 @@ import type {
 import type { Platform, PublishMode } from '@axiom/core';
 import { mediaTypeHint, validatePublish } from './validation.js';
 import { parseFanvueEarningsSummary, type FanvueEarningsSummary } from './fanvue-earnings.js';
+import { messageMediaQuery, parseMessageMedia, type FanvueMessageMedia } from './fanvue-message-media.js';
 import { FanvueMessageDeliveryError, replyText, messageReceipt, inboxPageQuery, inboxUserUuid, parseChatPage, parseMessagePage, type FanvueChatPage, type FanvueMessagePage } from './fanvue-inbox.js';
 
 const FANVUE_API_BASE = 'https://api.fanvue.com';
@@ -442,6 +443,12 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
       'GET', '/insights/earnings/summary?timezone=UTC&granularity=day',
     );
     return parseFanvueEarningsSummary(response);
+  }
+
+  async fetchMessageMedia(userUuid: string, messageUuid: string, mediaUuids: string[]): Promise<FanvueMessageMedia> {
+    const query = messageMediaQuery(userUuid, messageUuid, mediaUuids);
+    const response = await this.fanvueRequest<unknown>('GET', `/chats/${userUuid}/messages/${messageUuid}/media?${query}`);
+    return parseMessageMedia(response, messageUuid, mediaUuids);
   }
 
   async fetchChats(page = 1, size = 25): Promise<FanvueChatPage> {

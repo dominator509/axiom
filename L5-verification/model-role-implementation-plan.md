@@ -1,5 +1,27 @@
 # Model-scoped human roles — implementation queue
 
+## Inbox attachment provider contract checkpoint — M332
+
+Retrieved the official Fanvue OpenAPI on 2026-09-17. The read:chat operation
+`GET /chats/{userUuid}/messages/{messageUuid}/media` resolves at most 20 selected
+media UUIDs only within that message, returning metadata, optional signed variant
+URLs and per-item NOT_IN_MESSAGE/INTERNAL failures. Added this operation to the
+existing authenticated, versioned connector transport. Strict identity checks
+reject substituted message/media IDs, unexpected items and contradictory errors.
+Optional absent URLs remain absent; listed price, amount paid and purchase time
+remain distinct. Provider error text is discarded. No mark-read or send occurs.
+
+35 focused tests, all 364 connector tests and connector typecheck/lint pass.
+Only public documentation was fetched; no live account or media was accessed.
+Source: https://api.fanvue.com/docs/openapi.json (API version 2025-06-26).
+
+This is the provider layer, NOT a complete preview feature. Signed URLs remain
+server-side; the next layer needs exact org/model/account/assignment/shift checks,
+provider-host validation and model egress for bytes, bounded streaming/MIME/range
+handling, no-store responses and post-latency access rechecks. Then wire explicit
+attachment preview controls into the inbox and perform authenticated acceptance.
+Do not expose these URLs directly or treat HTTPS shape validation as SSRF protection.
+
 ## Assigned draft editing GUI checkpoint — M331
 
 Saved generated/held bundles now expose direct caption, hashtag and posting-request
