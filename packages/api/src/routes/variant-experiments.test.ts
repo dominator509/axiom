@@ -113,3 +113,31 @@ it('does not list assignments for an absent scoped experiment', async () => {
 it('rejects malformed assignment history identities', async () => {
   expect((await app().request(`/models/${id}/variant-experiments/invalid/assignments`)).status).toBe(400);
 });
+function copyVariant(body: Record<string, unknown>) {
+  return app().request(`/models/${id}/variant-experiments/candidates`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+}
+it.each(['caption', 'teaser'])('saves owned %s copy without exposing storage or queuing publication', async type => {
+  mockState.results = [[], [{ id, storageKey: '/private/source.jpg' }], [{ id }]];
+  const response = await copyVariant({ assetId: id, type, platform: 'instagram', text: 'A ceramic vase' });
+  expect(response.status).toBe(201); expect(await response.json()).toEqual({ data: { id } });
+});
+it('does not save copy against another model asset', async () => {
+  mockState.results = [[], []];
+  expect((await copyVariant({ assetId: id, type: 'caption', platform: 'instagram', text: 'A vase' })).status).toBe(404);
+});
+it.each(['', ' '.repeat(5), 'a'.repeat(10001)])('rejects empty or oversized copy', async text => {
+  expect((await copyVariant({ assetId: id, type: 'caption', platform: 'instagram', text })).status).toBe(400);
+});
+it('returns only bounded copy settings from candidate discovery', async () => {
+  mockState.results = [[], [{ id, variantType: 'caption', settings: { copy: { platform: 'instagram', text: 'A vase' }, privatePath: '/secret' }, createdAt: new Date() }]];
+  const response = await app().request(`/models/${id}/variant-experiments/candidates`);
+  const body = await response.json() as { data: Record<string, unknown>[] };
+  expect(body.data[0].copy).toEqual({ platform: 'instagram', text: 'A vase' });
+  expect(body.data[0]).not.toHaveProperty('settings');
+});
+it('rejects copy variants for a different experiment platform', async () => {
+  const other = '22222222-2222-4222-8222-222222222222';
+  mockState.results = [[], [{ id }], [{ id, variantType: 'caption', settings: { copy: { platform: 'x', text: 'A vase' } } }, { id: other, variantType: 'crop' }]];
+  const response = await app().request(`/models/${id}/variant-experiments`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Copy test', platform: 'instagram', variantIds: [id, other] }) });
+  expect(response.status).toBe(409);
+});

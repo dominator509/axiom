@@ -213,7 +213,7 @@ export default function VariantExperimentManager({
           <div className="row">
             <label>
               Platform
-              <select value={platform} onChange={(event) => setPlatform(event.target.value)}>
+              <select value={platform} onChange={(event) => { setPlatform(event.target.value); setVariantIds(''); }}>
                 <option value="instagram">Instagram</option>
                 <option value="tiktok">TikTok</option>
                 <option value="threads">Threads</option>
@@ -225,13 +225,15 @@ export default function VariantExperimentManager({
           <p>Select two to ten variants. Selection does not approve or publish them.</p>
           {available.length === 0 && <p>No variants yet. <Link href={`/models/${encodeURIComponent(modelId)}/media`}>Create crops or adaptations in the media library</Link>.</p>}
           <div className="grid">{available.map(candidate => <div className="card stack" key={candidate.id}>
-            <label className="checkbox-option"><input type="checkbox" checked={variantIds.split(' ').includes(candidate.id)}
+            {candidate.copy && <div><p className="subtle">{candidate.copy.platform} copy</p><p style={{ whiteSpace: 'pre-wrap' }}>{candidate.copy.text}</p></div>}
+            <label className="checkbox-option"><input type="checkbox" disabled={Boolean(candidate.copy && candidate.copy.platform !== platform)} checked={variantIds.split(' ').includes(candidate.id)}
               onChange={event => setVariantIds(previous => {
                 const ids = previous.split(' ').filter(Boolean);
                 return (event.target.checked ? [...new Set([...ids, candidate.id])] : ids.filter(id => id !== candidate.id)).join(' ');
               })} /><span>{candidate.variantType} · {candidate.id.slice(0, 8)}</span></label>
             {candidate.outputAssetId ? <details><summary>Preview variant</summary><BundleMedia modelId={modelId} assetId={candidate.outputAssetId} /></details>
               : <p className="subtle">Legacy variant: verified preview is not available.</p>}
+            {candidate.copy && candidate.copy.platform !== platform && <p className="subtle">Choose {candidate.copy.platform} to use this copy variant.</p>}
           </div>)}</div>
           {cursor && <button className="btn secondary" type="button" disabled={loading} onClick={() => void loadMore()}>{loading ? 'Loading variants…' : 'Load more variants'}</button>}
           <button className="btn" type="button" onClick={create}>

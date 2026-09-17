@@ -298,7 +298,7 @@ export interface VariantExperiment {
   updatedAt: string;
 }
 
-export interface VariantCandidate { id: string; variantType: string; outputAssetId: string | null; createdAt: string }
+export interface VariantCandidate { id: string; variantType: string; outputAssetId: string | null; createdAt: string; copy?: { platform: string; text: string } | null }
 
 export interface ScrapeRun {
   id: string;

@@ -36,6 +36,7 @@ Source and automated evidence never substitutes for a missing runtime or provide
 - Add dashboard controls that show candidates, exposure, metrics, and the promoted winner; no direct publication from experiment controls.
 - [ ] Full architecture gate: L1 F-15 also calls for caption/teaser variants; F-16 and L2.8 require automated winner promotion feeding the bandit/viral learning loop. Current crop/adaptation experiments and manual winner selection do not fulfill those requirements. Published-post attribution, evidence-based automatic promotion, and reward integration must be implemented and tested; manual self-reported outcomes must not be treated as verified published-post learning signals.
 - Current slice: candidate picker/preview, lifecycle, paginated assignment history, stable allocation and observed-outcome controls, confirmed manual winner, frozen completion, and idempotency on nested mutations. Allocations are not counted as proven views. Focused tests/typechecks pass; database concurrency, browser acceptance and deployed workflow remain open.
+- Caption/teaser candidate creation is now implemented in the media library using existing asset_variant settings and the owned source asset. The experiment picker shows copy and enforces platform matching. Still required: bind the selected copy/variant through review and published-post attribution, then implement evidence-based automatic promotion and learning rewards. Candidate creation alone does not fulfill F-15 end to end.
 
 ### 2. Scraper orchestration — source slice complete; deployment gate open
 

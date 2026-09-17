@@ -3,6 +3,7 @@ import { api } from '@/lib/api';
 import BundleMedia from '@/components/BundleMedia';
 import MediaOperationControls from '@/components/MediaOperationControls';
 import MediaBundleCreate from '@/components/MediaBundleCreate';
+import CopyVariantCreate from '@/components/CopyVariantCreate';
 import { getSession } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,7 @@ export default async function MediaPage({ params, searchParams }: {
           <div className="action-row"><a href={src} target="_blank" rel="noopener noreferrer">Open saved media</a>{asset.kind === 'image' && <Link href={`${base}/generation?${new URLSearchParams({ sourceAssetId: asset.id })}`}>Use for video</Link>}</div>
           <MediaOperationControls modelId={id} assetId={asset.id} kind={asset.kind} operations={operations} canEdit={canEdit} />
           {canEdit && <MediaBundleCreate modelId={id} assetId={asset.id} mimeType={asset.mimeType} />}
+          {canEdit && <CopyVariantCreate modelId={id} assetId={asset.id} />}
         </article>;
       })}
     </div>}

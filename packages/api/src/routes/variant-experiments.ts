@@ -15,6 +15,37 @@ import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
+const copySettingsSchema = z.object({ platform: z.string().min(1).max(50), text: z.string().trim().min(1).max(10000) });
+const copyVariantSchema = copySettingsSchema.extend({ assetId: z.string().uuid(), type: z.enum(['caption', 'teaser']) }).strict();
+
+router.post('/models/:modelId/variant-experiments/candidates', async c => {
+  const orgId = requireOrg(c), modelId = c.req.param('modelId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  if (!z.string().uuid().safeParse(modelId).success) return apiError(c, 400, statusTitle(400), 'Invalid model');
+  let body: unknown;
+  try { body = await readBody(c); } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) return apiError(c, 413, statusTitle(413), 'Copy variant body too large');
+    throw error;
+  }
+  const parsed = copyVariantSchema.safeParse(body);
+  if (!parsed.success) return apiError(c, 400, statusTitle(400), 'Owned asset, caption or teaser type, platform, and bounded text are required');
+  const platform = canonicalPlatform(parsed.data.platform);
+  if (!platform) return apiError(c, 400, statusTitle(400), 'Unsupported platform');
+  const saved = await withOrgContext(orgId, async tx => {
+    const [asset] = await tx.select({ id: schema.asset.id, storageKey: schema.asset.storageKey }).from(schema.asset).where(and(
+      eq(schema.asset.id, parsed.data.assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
+    )).limit(1);
+    if (!asset) return null;
+    const [variant] = await tx.insert(schema.assetVariant).values({ orgId, assetId: asset.id, outputAssetId: asset.id,
+      variantType: parsed.data.type, storageKey: asset.storageKey, settings: { copy: { platform, text: parsed.data.text } },
+    }).returning({ id: schema.assetVariant.id });
+    if (!variant) throw new Error('Copy variant could not be saved');
+    await writeAudit(tx, orgId, c.get('userId') ?? 'system', 'variant.copy.create', variant.id, { modelId, assetId: asset.id, type: parsed.data.type, platform });
+    return variant;
+  });
+  if (!saved) return apiError(c, 404, statusTitle(404), 'asset not found');
+  return c.json({ data: saved }, 201);
+});
 
 router.get('/models/:modelId/variant-experiments/candidates', async c => {
   const orgId = requireOrg(c), modelId = c.req.param('modelId');
@@ -24,12 +55,16 @@ router.get('/models/:modelId/variant-experiments/candidates', async c => {
   const rows = await withOrgContext(orgId, tx => tx.select({
     id: schema.assetVariant.id, variantType: schema.assetVariant.variantType,
     outputAssetId: schema.assetVariant.outputAssetId, createdAt: schema.assetVariant.createdAt,
+    settings: schema.assetVariant.settings,
   }).from(schema.assetVariant).innerJoin(schema.asset, eq(schema.asset.id, schema.assetVariant.assetId))
     .where(and(eq(schema.assetVariant.orgId, orgId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
       ...cursorLt(schema.assetVariant.createdAt, schema.assetVariant.id, cursor)))
     .orderBy(desc(schema.assetVariant.createdAt), desc(schema.assetVariant.id)).limit(limit));
   const last = rows[rows.length - 1];
-  return c.json({ data: rows, meta: { next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length) } });
+  return c.json({ data: rows.map(({ settings, ...row }: Pick<typeof schema.assetVariant.$inferSelect, 'id' | 'variantType' | 'outputAssetId' | 'createdAt' | 'settings'>) => {
+    const copy = ['caption', 'teaser'].includes(row.variantType) ? copySettingsSchema.safeParse(settings?.copy) : null;
+    return { ...row, copy: copy?.success ? copy.data : null };
+  }), meta: { next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length) } });
 });
 
 const createSchema = z.object({
@@ -82,8 +117,8 @@ function stableKey(experimentId: string, assignmentKey: string): string {
   return createHash('sha256').update(`${experimentId}:${assignmentKey}`).digest('hex');
 }
 
-async function ownedVariants(tx: any, orgId: string, modelId: string, variantIds: string[]) {
-  const rows = await tx.select({ id: schema.assetVariant.id })
+async function ownedVariants(tx: any, orgId: string, modelId: string, variantIds: string[], platform: string) {
+  const rows = await tx.select({ id: schema.assetVariant.id, variantType: schema.assetVariant.variantType, settings: schema.assetVariant.settings })
     .from(schema.assetVariant)
     .innerJoin(schema.asset, eq(schema.asset.id, schema.assetVariant.assetId))
     .where(and(
@@ -92,7 +127,11 @@ async function ownedVariants(tx: any, orgId: string, modelId: string, variantIds
       eq(schema.asset.modelId, modelId),
       inArray(schema.assetVariant.id, variantIds),
     ));
-  return rows.map((row: { id: string }) => row.id);
+  return rows.filter((row: { variantType: string; settings: Record<string, unknown> }) => {
+    if (!['caption', 'teaser'].includes(row.variantType)) return true;
+    const copy = copySettingsSchema.safeParse(row.settings?.copy);
+    return copy.success && copy.data.platform === platform;
+  }).map((row: { id: string }) => row.id);
 }
 
 router.get('/models/:modelId/variant-experiments', async (c) => {
@@ -148,7 +187,7 @@ router.post('/models/:modelId/variant-experiments', async (c) => {
     const [model] = await tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile)
       .where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId))).limit(1);
     if (!model) return null;
-    const owned = await ownedVariants(tx, orgId, modelId, parsed.data.variantIds);
+    const owned = await ownedVariants(tx, orgId, modelId, parsed.data.variantIds, platform);
     if (owned.length !== parsed.data.variantIds.length) return { invalidVariants: true as const };
     const [row] = await tx.insert(schema.variantExperiment).values({
       orgId, modelId, name: parsed.data.name, platform, variantIds: parsed.data.variantIds,
@@ -157,7 +196,7 @@ router.post('/models/:modelId/variant-experiments', async (c) => {
     return row ?? null;
   });
   if (!saved) return apiError(c, 404, statusTitle(404), 'model not found');
-  if ('invalidVariants' in saved) return apiError(c, 409, statusTitle(409), 'all variants must belong to this model');
+  if ('invalidVariants' in saved) return apiError(c, 409, statusTitle(409), 'all variants must belong to this model and copy variants must match the experiment platform');
   return c.json({ data: saved }, 201);
 });
 
