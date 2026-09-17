@@ -309,7 +309,7 @@ export async function workerTick(opts: WorkerOptions = {}): Promise<WorkerStats>
       ? await claimNextModelMediaJob(tx, workerId, opts.mediaScope)
       : await claimNextJob(tx, workerId);
     if (empty || !job) return null;
-    if (opts.mediaScope && (job.org_id !== opts.mediaScope.orgId || !['media.generate', 'tos.scan'].includes(job.kind)))
+    if (opts.mediaScope && (job.org_id !== opts.mediaScope.orgId || !['media.generate', 'tos.scan', 'media.transform'].includes(job.kind)))
       throw new Error('Media worker claim escaped its scope');
     return job;
   });

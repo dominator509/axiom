@@ -14,6 +14,8 @@ Review findings requiring follow-up:
 
 Current verification:
 
+- Deployment integration correction: the scoped media worker previously excluded media.transform entirely. It now claims eligible unstarted transforms through organization/model/source ownership joins. Thirteen real PostgreSQL worker tests, 22 scope/worker unit tests and worker typecheck pass. No publishing connectors/global claims were enabled; deployment remains pending.
+
 - Superseding full-run evidence (source 926fcb2): isolated workspace run exited 0, all 24 Turbo tasks successful, all 36 fresh migrations applied, DB/worker live suites passed, dashboard build and mobile export passed. Migration atomicity fault injection also exited 0. See `reconciliation-runtime-receipt-2026-09-17.md`. Earlier failure entries below are historical and no longer describe the latest full run; deployment acceptance remains open.
 
 - Saved-media reuse is implemented through the existing protected/idempotent bundle POST. Owned JPEG/PNG/MP4 bytes are checked before a new pending bundle and tos.scan job are inserted in one transaction. The library exposes caption/destination entry and stable retry handling; WebM directs the user to MP4 adaptation. 146 API/middleware tests and five dashboard tests pass. Real transaction rollback, deployed browser acceptance and completed scan-to-approval remain unverified.

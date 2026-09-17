@@ -59,8 +59,23 @@ export async function claimNextModelMediaJob(tx: Parameters<typeof claimNextJob>
       AND NOT EXISTS (SELECT 1 FROM media_generation_attempt a WHERE a.job_id=j.id AND a.org_id=j.org_id)
     ORDER BY j.created_at, j.id LIMIT 1 FOR UPDATE OF j SKIP LOCKED`);
   const row = selected.rows[0] as { id: string; bundle_id: string } | undefined;
-  return row ? claimExactMediaJob(tx, workerId, { ...scope, jobId: row.id, bundleId: row.bundle_id })
-    : { job: null, empty: true };
+  if (row) return claimExactMediaJob(tx, workerId, { ...scope, jobId: row.id, bundleId: row.bundle_id });
+  // Local transforms have operation IDs rather than bundle IDs. Keep the
+  // scope in the claim itself; never fall back to the global queue function.
+  const transformed = await tx.execute(sql`
+    WITH selected AS (
+      SELECT j.id FROM job j JOIN media_operation o
+        ON o.id::text=j.payload->>'operationId' AND o.org_id=j.org_id
+      JOIN asset a ON a.id=o.source_asset_id AND a.org_id=o.org_id AND a.model_id=o.model_id
+      WHERE j.org_id=${scope.orgId}::uuid AND o.model_id=${scope.modelId}::uuid
+        AND j.kind='media.transform' AND o.state='queued'
+        AND j.state='ready' AND j.attempts=0 AND j.max_attempts>0
+        AND j.locked_by IS NULL AND j.locked_at IS NULL AND j.run_after<=now()
+      ORDER BY j.created_at, j.id LIMIT 1 FOR UPDATE OF j SKIP LOCKED
+    ) UPDATE job j SET state='running', locked_by=${workerId}, locked_at=now()
+      FROM selected s WHERE j.id=s.id RETURNING j.*`);
+  const jobs = transformed.rows as JobRow[];
+  return { job: jobs[0] ?? null, empty: jobs.length === 0 };
 }
 
 /** Bounded operator execution: claim only an explicitly selected first attempt.

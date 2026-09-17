@@ -30,6 +30,42 @@ describe.skipIf(!url)('terminal media state in real PostgreSQL', () => {
   });
   afterAll(async () => { await pool.end(); });
 
+  it('scoped loop claims only eligible local transforms with owned source media', async () => {
+    const assetId = randomUUID(), operationId = randomUUID(), completedId = randomUUID();
+    const ids = Array.from({ length: 5 }, () => randomUUID());
+    try {
+      await scoped(async tx => {
+        await tx.insert(schema.asset).values({ id: assetId, orgId, modelId, kind: 'image', fileName: 'fixture.jpg',
+          mimeType: 'image/jpeg', fileSize: 20, storageKey: 'fixture.jpg', sha256: Buffer.from(randomUUID().replaceAll('-', '') + randomUUID().replaceAll('-', ''), 'hex') });
+        await tx.insert(schema.mediaOperation).values([
+          { id: operationId, orgId, modelId, sourceAssetId: assetId, type: 'image_resize', state: 'queued' },
+          { id: completedId, orgId, modelId, sourceAssetId: assetId, type: 'image_resize', state: 'completed' },
+        ]);
+        await tx.insert(schema.job).values(ids.map((id, index) => ({ id, orgId, queue: 'media',
+          kind: index === 0 ? 'publish.target' : 'media.transform', state: 'ready', attempts: index === 1 ? 1 : 0,
+          runAfter: index === 2 ? new Date(Date.now() + 3600000) : new Date(0),
+          payload: { operationId: index === 3 ? completedId : operationId },
+        })));
+      });
+      for (const scope of [{ orgId: randomUUID(), modelId }, { orgId, modelId: randomUUID() }]) {
+        expect(await db.transaction(tx => claimNextModelMediaJob(tx, 'transform-only', scope))).toEqual({ job: null, empty: true });
+      }
+      const claim = await db.transaction(tx => claimNextModelMediaJob(tx, 'transform-only', { orgId, modelId }));
+      expect(claim.job).toMatchObject({ id: ids[4], kind: 'media.transform', state: 'running' });
+      expect(await db.transaction(tx => claimNextModelMediaJob(tx, 'another', { orgId, modelId }))).toEqual({ job: null, empty: true });
+      for (const id of ids.slice(0, 4)) {
+        const [job] = await scoped(tx => tx.select().from(schema.job).where(eq(schema.job.id, id)));
+        expect(job.state).toBe('ready'); expect(job.lockedBy).toBeNull();
+      }
+    } finally {
+      await scoped(async tx => {
+        for (const id of ids) await tx.delete(schema.job).where(eq(schema.job.id, id));
+        for (const id of [operationId, completedId]) await tx.delete(schema.mediaOperation).where(eq(schema.mediaOperation.id, id));
+        await tx.delete(schema.asset).where(eq(schema.asset.id, assetId));
+      });
+    }
+  });
+
   it('scoped first-attempt failures do not leave an unclaimable queued retry', async () => {
     const bundleId = randomUUID(), jobId = randomUUID();
     try {
