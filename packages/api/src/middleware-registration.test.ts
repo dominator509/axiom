@@ -8,6 +8,11 @@ const source = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 const paths = [...source.matchAll(/app\.use\('([^']+)', idempotency\((?:true, 64 \* 1024 \* 1024)?\)\);/g)].map((match) => match[1]);
 
 describe('application idempotency registration', () => {
+  it('places model-role enforcement after session resolution and before REST routes', () => {
+    const boundary = source.indexOf("app.use('/api/v1/*', enforceModelAccess);");
+    expect(boundary).toBeGreaterThan(source.indexOf("app.use('/api/v1/viral/exemplars', requireAuth);"));
+    expect(boundary).toBeLessThan(source.indexOf("app.route('/api/v1/models', modelsRouter);"));
+  });
   it.each([
     '/api/v1/models',
     '/api/v1/models/model',

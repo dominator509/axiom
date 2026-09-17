@@ -1,0 +1,59 @@
+import { and, eq, sql, type SQL } from 'drizzle-orm';
+import type { Context, Next } from 'hono';
+import { schema } from '@axiom/db';
+import type { AppBindings } from './index.js';
+import { apiError, statusTitle, withOrgContext } from './routes/helpers.js';
+
+export type ScopedHumanRole = 'chatter' | 'content_creator' | 'model';
+export function isScopedHumanRole(role: unknown): role is ScopedHumanRole {
+  return role === 'chatter' || role === 'content_creator' || role === 'model';
+}
+
+/** Correlated to model_profile. Apply inside the same tenant query, not after pagination. */
+export function modelAccessCondition(role: unknown, orgId: string, userId: string | undefined): SQL | undefined {
+  if (!isScopedHumanRole(role)) return undefined;
+  if (!userId || !orgId) return sql`false`;
+  const assignment = sql`EXISTS (
+    SELECT 1 FROM model_user_assignment mua
+    WHERE mua.org_id = ${orgId} AND mua.model_id = ${schema.modelProfile.id}
+      AND mua.user_id = ${userId}
+  )`;
+  if (role !== 'chatter') return assignment;
+  // Database time, half-open interval, exact tenant/model/user. A queue label
+  // alone is not permission; an assignment and a currently active shift coexist.
+  return and(assignment, sql`EXISTS (
+    SELECT 1 FROM team_shift ts
+    WHERE ts.org_id = ${orgId} AND ts.model_id = ${schema.modelProfile.id}
+      AND ts.assignee_user_id = ${userId} AND ts.status = 'active'
+      AND ts.starts_at <= statement_timestamp() AND ts.ends_at > statement_timestamp()
+  )`)!;
+}
+
+/** Explicit read allowlist. Unimplemented mutations and nested-ID routes stay denied. */
+export function scopedReadTarget(role: ScopedHumanRole, method: string, path: string): 'discovery' | string | null {
+  if (method !== 'GET' && method !== 'HEAD') return null;
+  if (path === '/api/v1/models' || path === '/api/v1/models/stats/count') return 'discovery';
+  const match = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/(calendar|analytics|fans))?$/i.exec(path);
+  if (!match) return null;
+  const view = match[2];
+  if (role === 'chatter' && view !== undefined && view !== 'fans') return null;
+  if (role === 'content_creator' && view === 'fans') return null;
+  return match[1];
+}
+
+// Mount after session middleware and before any REST route handlers. New roles
+// remain disabled in auth until their complete route/navigation policy is ready.
+export async function enforceModelAccess(c: Context<AppBindings>, next: Next) {
+  const role = c.get('role');
+  if (!isScopedHumanRole(role)) return next();
+  const orgId = c.get('orgId'), userId = c.get('userId');
+  if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authenticated workspace required');
+  const target = scopedReadTarget(role, c.req.method, c.req.path);
+  if (!target) return apiError(c, 403, statusTitle(403), 'operation is not available to this role');
+  if (target !== 'discovery') {
+    const allowed = await withOrgContext(orgId, tx => tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile)
+      .where(and(eq(schema.modelProfile.orgId, orgId), eq(schema.modelProfile.id, target), modelAccessCondition(role, orgId, userId))).limit(1));
+    if (!allowed.length) return apiError(c, 404, statusTitle(404), 'assigned model or active shift unavailable');
+  }
+  return next();
+}

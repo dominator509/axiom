@@ -15,7 +15,7 @@ export type Platform =
 
 export type PublishMode = 'api' | 'assisted' | 'link_share';
 
-export type UserRole = 'owner' | 'manager' | 'operator' | 'analyst' | 'agent';
+export type UserRole = 'owner' | 'manager' | 'operator' | 'analyst' | 'agent' | 'chatter' | 'content_creator' | 'model';
 
 export type Capability =
   | 'publish'

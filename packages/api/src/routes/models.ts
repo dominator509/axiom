@@ -10,6 +10,7 @@ import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorGt, nextCursor } from '../contract.js';
+import { modelAccessCondition } from '../model-access.js';
 
 const router = new Hono<AppBindings>();
 
@@ -42,6 +43,7 @@ router.get('/', async (c) => {
   const rows = await withOrgContext(orgId, (tx) => {
     const conds = [
       eq(schema.modelProfile.orgId, orgId),
+      modelAccessCondition(c.get('role'), orgId, c.get('userId')),
       ...cursorGt(schema.modelProfile.createdAt, schema.modelProfile.id, cursor),
     ];
     return tx
@@ -71,7 +73,7 @@ router.get('/stats/count', async (c) => {
     tx
       .select({ count: sql<number>`count(*)::int` })
       .from(schema.modelProfile)
-      .where(eq(schema.modelProfile.orgId, orgId)),
+      .where(and(eq(schema.modelProfile.orgId, orgId), modelAccessCondition(c.get('role'), orgId, c.get('userId')))),
   );
   return c.json({ data: { count: rows[0]?.count ?? 0 } });
 });
@@ -86,7 +88,7 @@ router.get('/:id', async (c) => {
     tx
       .select()
       .from(schema.modelProfile)
-      .where(and(eq(schema.modelProfile.id, id), eq(schema.modelProfile.orgId, orgId)))
+      .where(and(eq(schema.modelProfile.id, id), eq(schema.modelProfile.orgId, orgId), modelAccessCondition(c.get('role'), orgId, c.get('userId'))))
       .limit(1),
   );
   if (rows.length === 0) return apiError(c, 404, statusTitle(404), 'model not found');

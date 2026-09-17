@@ -80,6 +80,9 @@ export async function getSessionFromRequest(c: Context): Promise<{
     if (!session?.user?.id) return null;
     const orgId = (session.user as unknown as { orgId?: string | null }).orgId ?? null;
     const role = (session.user as unknown as { role?: unknown }).role;
+    // Model-scoped role types/storage are being added, but do not activate
+    // accounts until all nested reads, mutations and navigation are scoped.
+    if (role === 'chatter' || role === 'content_creator' || role === 'model') return null;
     const validRole: UserRole | null =
       role === 'owner' ||
       role === 'manager' ||

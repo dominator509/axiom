@@ -6,6 +6,8 @@ import { db, pool, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { teamOperationsRouter } from './team-operations.js';
 import { modelAssignmentsRouter } from './model-assignments.js';
+import { modelsRouter } from './models.js';
+import { enforceModelAccess, type ScopedHumanRole } from '../model-access.js';
 
 const url = process.env.TEST_DATABASE_URL, orgId = '11111111-1111-4111-8111-111111111111';
 const models = [randomUUID(), randomUUID()], bundles = [randomUUID(), randomUUID()], posts = [randomUUID(), randomUUID()];
@@ -23,6 +25,13 @@ function app(org = orgId, role: AppBindings['Variables']['role'] = 'owner') {
   route.route('/', modelAssignmentsRouter); return route;
 }
 const path = `/models/${models[0]}/team-notes`;
+function scopedApp(role: ScopedHumanRole, org = orgId) {
+  const route = new Hono<AppBindings>();
+  route.use('*', async (c, next) => { c.set('orgId', org); c.set('userId', assignmentUsers[0]); c.set('role', role); await next(); });
+  route.use('/api/v1/*', enforceModelAccess);
+  route.route('/api/v1/models', modelsRouter);
+  return route;
+}
 const write = (postId: string, org = orgId) => app(org).request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetType: 'post', targetId: postId, body: 'Post handoff context' }) });
 type Page = { data: { id: string; body: string; authorUserId: string; targetId: string }[]; meta: { next_cursor: string | null } };
 describe.skipIf(!url)('team operations in PostgreSQL', () => {
@@ -176,5 +185,35 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     const received = [...first.data, ...second.data];
     expect(received.map(row => row.userId).sort()).toEqual([...pageUsers].sort());
     for (const row of received) expect(Object.keys(row).sort()).toEqual(['createdAt', 'id', 'modelId', 'name', 'role', 'userId']);
+  });
+  it.each(['model', 'content_creator'] as const)('scopes discovery, count and direct model reads for %s', async role => {
+    await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
+    const route = scopedApp(role);
+    const list = await (await route.request('/api/v1/models')).json() as { data: { id: string }[] };
+    expect(list.data.map(row => row.id)).toEqual([models[0]]);
+    expect(await (await route.request('/api/v1/models/stats/count')).json()).toEqual({ data: { count: 1 } });
+    expect((await route.request(`/api/v1/models/${models[0]}`)).status).toBe(200);
+    expect((await route.request(`/api/v1/models/${models[1]}`)).status).toBe(404);
+    expect((await scopedApp(role, foreignOrg).request(`/api/v1/models/${models[0]}`)).status).toBe(404);
+    expect((await route.request(`/api/v1/models/${models[0]}/network`)).status).toBe(403);
+    expect((await route.request(`/api/v1/models/${models[0]}`, { method: 'DELETE' })).status).toBe(403);
+  });
+  it('requires an active in-window shift for chatter discovery and loses access after revocation', async () => {
+    const route = scopedApp('chatter'), shiftId = randomUUID();
+    const count = async () => (await (await route.request('/api/v1/models/stats/count')).json() as { data: { count: number } }).data.count;
+    expect(await count()).toBe(0);
+    await scoped(tx => tx.insert(schema.teamShift).values({ id: shiftId, orgId, modelId: models[0], assigneeUserId: assignmentUsers[0], status: 'active', startsAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() + 60_000) }));
+    expect(await count()).toBe(1);
+    await scoped(tx => tx.update(schema.teamShift).set({ endsAt: new Date(Date.now() - 1_000) }).where(eq(schema.teamShift.id, shiftId)));
+    expect(await count()).toBe(0);
+    await scoped(tx => tx.update(schema.teamShift).set({ status: 'scheduled', endsAt: new Date(Date.now() + 60_000) }).where(eq(schema.teamShift.id, shiftId)));
+    expect(await count()).toBe(0);
+    await scoped(tx => tx.update(schema.teamShift).set({ status: 'active', startsAt: new Date(Date.now() + 10_000) }).where(eq(schema.teamShift.id, shiftId)));
+    expect(await count()).toBe(0);
+    await scoped(tx => tx.update(schema.teamShift).set({ startsAt: new Date(Date.now() - 60_000) }).where(eq(schema.teamShift.id, shiftId)));
+    expect(await count()).toBe(1);
+    await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
+    expect(await count()).toBe(0);
+    expect((await route.request(`/api/v1/models/${models[0]}`)).status).toBe(404);
   });
 });

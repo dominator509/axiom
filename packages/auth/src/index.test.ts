@@ -4,7 +4,7 @@
 // that serves the auth API. The organization plugin is intentionally NOT
 // used — org scoping is resolved by the API middleware from auth_user.org_id.
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { Hono } from 'hono';
 import { getCookies } from 'better-auth/cookies';
 import type { UserRole } from '@axiom/core';
@@ -94,6 +94,16 @@ describe('better-auth configuration', () => {
 });
 
 describe('REST role middleware', () => {
+  it.each(['chatter', 'content_creator', 'model'])('does not activate staged role %s as an unrestricted null-role session', async role => {
+    const mod = await import('./index.js');
+    const spy = vi.spyOn(auth.api, 'getSession').mockResolvedValue({ user: { id: 'user', orgId: 'org', role } });
+    try {
+      const app = new Hono<{ Variables: { userId: string; orgId: string; role: UserRole | null } }>();
+      app.use('*', mod.requireAuth);
+      app.get('/', c => c.json({ unexpected: true }));
+      expect((await app.request('/')).status).toBe(401);
+    } finally { spy.mockRestore(); }
+  });
   type Bindings = {
     Variables: { userId: string; orgId: string; role: UserRole | null };
   };

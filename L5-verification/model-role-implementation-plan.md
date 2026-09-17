@@ -1,16 +1,26 @@
 # Model-scoped human roles — implementation queue
 
 Authority: L1.0 personas/RBAC and L1.1 F-24–F-26.
-Status: **in progress**. Assignment storage and owner-only grant/revoke/list API
-and owner-only Team-page assignment controls are implemented. Role authorization,
-scoped navigation and the live DM workflow remain incomplete; deployed browser
-acceptance of the assignment controls is also pending.
+Status: **in progress**. Assignment storage, owner-only grant/revoke/list API and
+Team-page controls are implemented. Staged role enforcement now covers discovery,
+counts and direct model reads with a default-deny read allowlist. Nested resources,
+mutations, scoped navigation and the live DM workflow remain incomplete; deployed
+browser acceptance is pending. Normal authentication rejects staged roles rather
+than treating them as unrestricted null-role sessions until the policy is complete.
 
 Migration 0045 adds user/model assignments with composite organization foreign
 keys, forced tenant RLS and explicit grant/revoke semantics (no runtime UPDATE).
 Parent tenant changes require removing existing assignments first. No existing
 account role is changed and no new role is accepted by authentication yet: the
 current workspace-wide read behavior must be replaced before enabling them.
+
+The staged `enforceModelAccess` boundary is mounted after session resolution and
+before REST handlers. Model discovery/count/detail queries filter assignments
+inside SQL (before pagination). Chatter queries additionally require an active
+shift for the exact organization/model/user and a half-open time window evaluated
+by PostgreSQL. Unknown route shapes, nested-ID routes and all mutations remain
+denied for staged roles until their explicit policies are implemented. This is an
+incomplete implementation, not a completed Chatter/Creator workflow.
 
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of

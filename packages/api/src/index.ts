@@ -36,6 +36,7 @@ import { variantExperimentsRouter } from './routes/variant-experiments.js';
 import { scrapeRouter } from './routes/scrape.js';
 import { teamOperationsRouter } from './routes/team-operations.js';
 import { modelAssignmentsRouter } from './routes/model-assignments.js';
+import { enforceModelAccess } from './model-access.js';
 import { mediaOperationsRouter } from './routes/media-operations.js';
 import { playbookGuidelinesRouter } from './routes/playbook-guidelines.js';
 import {
@@ -777,6 +778,7 @@ app.use('/api/v1/relay/card', requireAuth);
 // orgId comes from the auth context, never from the request body.
 app.use('/api/v1/viral/ingest', requireAuth);
 app.use('/api/v1/viral/exemplars', requireAuth);
+app.use('/api/v1/*', enforceModelAccess);
 
 // REST role enforcement (L3.0 / L1.0). The session role is loaded from the
 // server-owned auth_user.role field by requireAuth; it is never accepted from
