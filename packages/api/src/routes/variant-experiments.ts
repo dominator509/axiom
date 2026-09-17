@@ -72,6 +72,7 @@ router.get('/models/:modelId/variant-experiments', async (c) => {
       variantId: schema.variantExperimentAssignment.variantId,
       converted: schema.variantExperimentAssignment.converted,
       metricValue: schema.variantExperimentAssignment.metricValue,
+      outcomeAt: schema.variantExperimentAssignment.outcomeAt,
     }).from(schema.variantExperimentAssignment).where(and(
       eq(schema.variantExperimentAssignment.orgId, orgId),
       inArray(schema.variantExperimentAssignment.experimentId, experiments.map((row: { id: string }) => row.id)),
@@ -82,9 +83,10 @@ router.get('/models/:modelId/variant-experiments', async (c) => {
         ...experiment,
         stats: experiment.variantIds.map((variantId: string) => {
           const variantRows = rows.filter((row: { variantId: string }) => row.variantId === variantId);
-          const completed = variantRows.filter((row: { metricValue: number | null }) => row.metricValue !== null);
+          const completed = variantRows.filter((row: { outcomeAt: Date | null }) => row.outcomeAt !== null);
           const total = completed.reduce((sum: number, row: { metricValue: number | null }) => sum + (row.metricValue ?? 0), 0);
-          return { variantId, exposures: variantRows.length, outcomes: completed.length, metricTotal: total };
+          return { variantId, exposures: variantRows.length, outcomes: completed.length,
+            conversions: completed.filter((row: { converted: boolean }) => row.converted).length, metricTotal: total };
         }),
       };
     });
@@ -182,13 +184,20 @@ router.post('/models/:modelId/variant-experiments/:experimentId/outcomes', async
   const parsed = outcomeSchema.safeParse(payload);
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'assignmentId, converted, and optional metricValue are required');
   const updated = await withOrgContext(orgId, async (tx) => {
+    const [experiment] = await tx.select({ id: schema.variantExperiment.id }).from(schema.variantExperiment).where(and(
+      eq(schema.variantExperiment.id, c.req.param('experimentId')),
+      eq(schema.variantExperiment.modelId, c.req.param('modelId')),
+      eq(schema.variantExperiment.orgId, orgId),
+    )).limit(1);
+    if (!experiment) return null;
     const [assignment] = await tx.select().from(schema.variantExperimentAssignment).where(and(
       eq(schema.variantExperimentAssignment.id, parsed.data.assignmentId),
       eq(schema.variantExperimentAssignment.orgId, orgId),
       eq(schema.variantExperimentAssignment.experimentId, c.req.param('experimentId')),
-    )).limit(1);
+    )).limit(1).for('update');
     if (!assignment) return null;
     if (assignment.outcomeAt && (assignment.converted !== parsed.data.converted || assignment.metricValue !== (parsed.data.metricValue ?? null))) return 'conflict' as const;
+    if (assignment.outcomeAt) return assignment;
     const [row] = await tx.update(schema.variantExperimentAssignment).set({ converted: parsed.data.converted, metricValue: parsed.data.metricValue ?? null, outcomeAt: new Date() })
       .where(eq(schema.variantExperimentAssignment.id, assignment.id)).returning();
     return row ?? null;

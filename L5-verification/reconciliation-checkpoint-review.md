@@ -4,8 +4,7 @@ This checkpoint preserves the accumulated API, database, worker and dashboard im
 
 Review findings requiring follow-up:
 
-- Variant experiment summary counts outcomes by non-null metricValue, although outcome requests allow an omitted metric. Count outcomeAt and report conversions separately.
-- Variant outcome recording scopes assignment to organization/experiment but does not verify the URL model against the experiment. Concurrent outcome updates also require atomic conflict handling.
+- Variant outcome follow-up: summaries now use outcomeAt and include conversion counts. Recording first verifies experiment organization/model, then locks the assignment with SELECT FOR UPDATE; identical repeats preserve timestamps. Four route tests and API typecheck pass. Live PostgreSQL concurrency/tenant enforcement and conversion display in the GUI remain open.
 - Scraper response size is checked after response.text() consumes the entire response. Stream and bound the response before allocation; verify model egress routing through the actual sidecar.
 - Media transform and scrape executors write failed state and then throw within the job transaction. Verify rollback behavior before claiming persistent failure visibility.
 - The reconciliation plan's earlier source-complete/test assertions need evidence review for the new feature routes; typechecking does not prove functional completeness.
