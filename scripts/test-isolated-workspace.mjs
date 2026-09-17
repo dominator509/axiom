@@ -5,7 +5,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 assert.equal(process.argv[2], '--isolated-fixture');
 const focusedWorker = process.argv[3] === '--worker-media-failure';
-assert.ok(process.argv.length === 3 || (process.argv.length === 4 && focusedWorker));
+const focusedVariants = process.argv[3] === '--variant-performance';
+const focused = focusedWorker || focusedVariants;
+assert.ok(process.argv.length === 3 || (process.argv.length === 4 && focused));
 const container = 'axiom-ci-local-6cefdc1';
 function docker(args, input) {
   const result = spawnSync('docker', args, { input, encoding: 'utf8', windowsHide: true,
@@ -41,9 +43,10 @@ try {
   assert.equal(sql("SELECT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls FROM pg_roles WHERE rolname='axiom_app';"), 't');
   const url = `postgresql://axiom_app:axiom_app@127.0.0.1:55432/${database}`;
   console.log(JSON.stringify({ isolated_fixture: database, migrations: migrations.length, running_workspace_tests: true }));
-  const command = focusedWorker ? process.execPath : process.platform === 'win32' ? process.env.ComSpec ?? 'cmd.exe' : 'pnpm';
-  const args = focusedWorker ? ['--input-type=module', '-e',
-    "import{startVitest}from'vitest/node';const c=await startVitest('test',['packages/worker/src/worker-media.integration.test.ts'],{run:true},{envFile:false});await c.close();"]
+  const command = focused ? process.execPath : process.platform === 'win32' ? process.env.ComSpec ?? 'cmd.exe' : 'pnpm';
+  const testFile = focusedVariants ? 'packages/api/src/routes/variant-performance.integration.test.ts' : 'packages/worker/src/worker-media.integration.test.ts';
+  const args = focused ? ['--input-type=module', '-e',
+    `import{startVitest}from'vitest/node';const c=await startVitest('test',[${JSON.stringify(testFile)}],{run:true},{envFile:false});await c.close();`]
     : process.platform === 'win32' ? ['/d', '/s', '/c', 'pnpm.cmd test'] : ['test'];
   const code = await new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd: new URL('../', import.meta.url), stdio: 'inherit', windowsHide: true,

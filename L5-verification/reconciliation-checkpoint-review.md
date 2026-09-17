@@ -14,6 +14,8 @@ Review findings requiring follow-up:
 
 Current verification:
 
+- Superseding query/locking evidence: `--variant-performance` runs five real API/PostgreSQL tests under a non-superuser/non-bypass-RLS role. Latest matching published snapshots exclude wrong remote IDs/platforms and unpublished targets; cross-tenant/model reads fail; edited copy loses attribution; simultaneous different-winner promotions produce one200/one409 and identical replay preserves timestamp. All38migrations applied, isolated fixture removed, API typecheck passes. Browser and live provider evidence remain open.
+
 - Published-performance view now follows owned experiment variants through unchanged bundles to published targets and matching platform/remote-ID metrics, selecting the latest cumulative snapshot per target. It is read-only, separate from manual outcomes, capped at 100 posts with explicit truncation, and does not claim sales attribution/statistical validity. 29 API and five dashboard tests plus both typechecks pass. Real PostgreSQL query and browser acceptance remain open. Hosted CI35201077897 on published0bc26e8 currently has lint/typecheck/security/build successful; test/container still running.
 
 - Cross-writer attribution protection is now enforced by migration0037, not solely the revision API. Relay/worker changes to captions, hashtags or media invalidate the identity; state-only and identical-content updates preserve it. Real PostgreSQL rehearsal applied all 38 migrations and passed 18 worker tests, including five direct trigger cases, then removed the fixture. Worker typecheck and 20 migration checks pass. Not installed live.
