@@ -10,6 +10,7 @@ import type { JobRow } from './types.js';
 import { evaluateAutomaticVariants, evaluationDigest } from './variant-auto-evaluation.js';
 import { refreshLearningState, selectLearnedGuidance } from './learning-state.js';
 import { modelPlaybookContext } from './playbook-context.js';
+import { digestWeekly } from './executors/digest.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
@@ -52,6 +53,42 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
     expect(role.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
   });
   afterAll(async () => { await pool.end(); });
+  it('builds digest cards only from matching published provider snapshots, with truthful units', async () => {
+    await fixture(async tx => {
+      const tenant = randomUUID(), modelId = randomUUID(), bundleId = randomUUID();
+      await tx.execute(sql`SELECT set_config('app.current_org_id', ${tenant}, true)`);
+      await tx.insert(schema.org).values({ id: tenant, name: 'Digest fixture', slug: tenant });
+      await tx.insert(schema.modelProfile).values({ id: modelId, orgId: tenant, handle: modelId, displayName: 'Digest fixture' });
+      await tx.insert(schema.contentBundle).values({ id: bundleId, orgId: tenant, modelId });
+      const targetId = randomUUID(), pendingId = randomUUID();
+      await tx.insert(schema.postTarget).values([
+        { id: targetId, orgId: tenant, bundleId, platform: 'instagram', state: 'published', remoteId: targetId, idemKey: Buffer.from(targetId) },
+        { id: pendingId, orgId: tenant, bundleId, platform: 'instagram', state: 'pending', remoteId: pendingId, idemKey: Buffer.from(pendingId) },
+      ]);
+      const collectedAt = new Date(Date.now() - 10_000);
+      const ids = [randomUUID(), randomUUID()].sort();
+      const metric = { postTargetId: targetId, platform: 'instagram', remoteId: targetId, source: 'provider' as const,
+        views: 100, engagementRate: .052, collectedAt };
+      await tx.insert(schema.postMetric).values([
+        { ...metric, id: ids[0], views: 50 }, { ...metric, id: ids[1] },
+        { ...metric, source: 'manual', views: 9000, collectedAt: new Date(collectedAt.getTime()+1000) },
+        { ...metric, remoteId: 'wrong', views: 9000, collectedAt: new Date(collectedAt.getTime()+2000) },
+        { ...metric, platform: 'x', views: 9000 },
+        { ...metric, postTargetId: pendingId, remoteId: pendingId, views: 9000 },
+        { ...metric, views: 9000, collectedAt: new Date(Date.now()+86400_000) },
+      ]);
+      await tx.insert(schema.viralExemplar).values([
+        { orgId: tenant, modelId, platform: 'instagram', label: 'viral', embedding: embedExemplarIntent('digest'), features: { evidence_source: 'published-provider-snapshot-v2' } },
+        { orgId: tenant, modelId, platform: 'x', label: 'viral', embedding: embedExemplarIntent('digest'), features: {} },
+      ]);
+      await digestWeekly({ tx, job: { org_id: tenant } as JobRow, workerId: 'digest-fixture', killSwitchEnabled: false });
+      const cards = await tx.select().from(schema.relayCard).where(eq(schema.relayCard.orgId, tenant));
+      expect(cards).toHaveLength(1);
+      expect(cards[0].config?.digest).toMatchObject({ posts: 1, views: 100, avgEngagement: .052, topPlatform: 'instagram', viralPosts: 1 });
+      expect(cards[0].description).toContain('5.20% average per-post engagement');
+      expect(cards[0].description).toContain('not views gained during the week');
+    });
+  });
   it('reads only the current model/platform playbook and enforces tenant RLS', async () => {
     await fixture(async (tx, modelId, otherModel) => {
       await tx.insert(schema.playbookGuideline).values([

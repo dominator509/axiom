@@ -6,11 +6,12 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-const mockState: { result: unknown } = { result: [] };
+const mockState: { result: unknown; values: Array<Record<string, any>> } = { result: [], values: [] };
 
 function makeChain(): any {
   const handler = {
     get(_t: unknown, prop: string | symbol) {
+      if (prop === 'values') return (value: Record<string, any>) => { mockState.values.push(value); return makeChain(); };
       if (prop === 'then') {
         return (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => {
           Promise.resolve(mockState.result).then(resolve, reject);
@@ -79,6 +80,7 @@ function makeJob(overrides: Partial<JobRow> = {}): JobRow {
 }
 
 beforeEach(() => {
+  mockState.values = [];
   mockState.result = [
     {
       posts: 5,
@@ -103,6 +105,11 @@ describe('digestWeekly executor', () => {
     await expect(
       digestWeekly({ tx: makeChain(), job: makeJob(), killSwitchEnabled: false, workerId: 'w1' }),
     ).resolves.toBeUndefined();
+    expect(mockState.values).toHaveLength(1);
+    expect(mockState.values[0].description).toContain('5.20% average per-post engagement');
+    expect(mockState.values[0].description).toContain('not views gained during the week');
+    expect(mockState.values[0].description).toContain('5 published posts');
+    expect(mockState.values[0].config.digest.avgEngagement).toBe(0.052);
   });
 
   it('handles an org with zero metrics (all aggregates coalesced)', async () => {

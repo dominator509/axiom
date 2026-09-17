@@ -24,7 +24,8 @@ export interface WeeklyDigest {
 
 export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
   const { tx, job } = ctx;
-  const since = new Date(Date.now() - 7 * 24 * 3600_000);
+  const until = new Date();
+  const since = new Date(until.getTime() - 7 * 24 * 3600_000);
 
   // 1. 7-day aggregates from the metrics hypertable. Provider metrics are
   // cumulative snapshots, so retain only the newest observation per target;
@@ -43,8 +44,12 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
       JOIN content_bundle cb ON cb.id = pt.bundle_id
       WHERE cb.org_id = ${job.org_id}
         AND pt.org_id = ${job.org_id}
+        AND pt.state = 'published' AND pt.remote_id IS NOT NULL
+        AND pm.source = 'provider' AND pm.remote_id = pt.remote_id
+        AND pm.platform = pt.platform
         AND pm.collected_at >= ${since}
-      ORDER BY pm.post_target_id, pm.collected_at DESC
+        AND pm.collected_at <= ${until}
+      ORDER BY pm.post_target_id, pm.collected_at DESC, pm.id DESC
     )
     SELECT count(*)::int AS posts,
            coalesce(sum(views), 0)::bigint AS views,
@@ -68,13 +73,17 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
       JOIN content_bundle cb ON cb.id = pt.bundle_id
       WHERE cb.org_id = ${job.org_id}
         AND pt.org_id = ${job.org_id}
+        AND pt.state = 'published' AND pt.remote_id IS NOT NULL
+        AND pm.source = 'provider' AND pm.remote_id = pt.remote_id
+        AND pm.platform = pt.platform
         AND pm.collected_at >= ${since}
-      ORDER BY pm.post_target_id, pm.collected_at DESC
+        AND pm.collected_at <= ${until}
+      ORDER BY pm.post_target_id, pm.collected_at DESC, pm.id DESC
     )
     SELECT platform, sum(views)::bigint AS views
     FROM latest_metrics
     GROUP BY platform
-    ORDER BY views DESC
+    ORDER BY views DESC, platform ASC
     LIMIT 1
   `);
   const topRow = Array.isArray(topRows) ? topRows[0] : (topRows as { rows: unknown[] }).rows?.[0];
@@ -89,6 +98,8 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
     WHERE mp.org_id = ${job.org_id}
       AND ve.org_id = ${job.org_id}
       AND ve.created_at >= ${since}
+      AND ve.created_at <= ${until}
+      AND ve.features->>'evidence_source' = 'published-provider-snapshot-v2'
   `);
   const labelRow = Array.isArray(labelRows)
     ? labelRows[0]
@@ -108,9 +119,11 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
   };
 
   const description =
-    `${digest.posts} posts · ${digest.views.toLocaleString()} views · ` +
-    `${digest.avgEngagement.toFixed(2)}% avg engagement · top platform ${digest.topPlatform} · ` +
-    `${digest.viralPosts} viral / ${digest.strongPosts} strong labels this week`;
+    `Latest cumulative provider totals for ${digest.posts} published posts observed in the last 7 days: ` +
+    `${digest.views.toLocaleString()} views · ` +
+    `${(digest.avgEngagement * 100).toFixed(2)}% average per-post engagement · top platform ${digest.topPlatform}. ` +
+    `These are not views gained during the week. ` +
+    `${digest.viralPosts} viral / ${digest.strongPosts} strong verified exemplars first recorded in this window (current labels).`;
 
   // 4. Durable digest card (F-28: weekly digests ride the Relay as cards).
   await tx.insert(schema.relayCard).values({

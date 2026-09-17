@@ -233,4 +233,16 @@ Source and automated evidence never substitutes for a missing runtime or provide
   Richer hook/format/time arms, query load measurement and live acceptance remain
   open; this does not close F-84 or the full reconciliation.
 
+- M341 corrects digest reporting: only matching published provider observations
+  enter totals/top-platform selection, future observations are excluded, tied
+  timestamps have deterministic IDs, and label counts require verified evidence.
+  Display converts fractional engagement to percent and explicitly calls totals
+  cumulative, not weekly gains. Two card-content tests and nine real PostgreSQL
+  integration tests pass after 49 migrations; worker typecheck passes. Initial
+  new fixture omitted a required embedding; fixed before the successful run.
+  Fixture `564dd2416d4997a6` was removed. Full matrix for preceding immutable
+  `f1378c4` passed 24/24 tasks; see its dedicated receipt. No live changes.
+  Periodic scheduling, external Relay delivery and richer pattern insights remain
+  separate F-85 requirements: a stored digest card is not proof of those paths.
+
 The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.
