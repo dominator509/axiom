@@ -1,6 +1,6 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: 2026-09-17, after milestone M347. This is a continuation checkpoint,
+Updated: 2026-09-17, after milestone M348. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
 ## Mission and authority
@@ -26,18 +26,19 @@ merely because credits or the current turn are ending.
 
 - Repository: `dominator509/axiom`; branch `codex/telegram-webhook-hardening`;
   existing PR #14. Do not open a duplicate PR or force-push.
-- Latest application milestone: **M347 published insights evidence filter**, in
-  this handoff's commit (resolve SHA with git log). Prior application SHA:
-  `0a12d3c4a27e020dd8fc8bff1763bbdefd8b9830` (M346).
+- Latest application milestone: **M347 published insights evidence filter**,
+  `4be39a68b91dd4c9fb24a99ece86b8019974ffad`. M348 is documentation/bridge
+  coordination only, not another application change.
 - Worktree was clean immediately before this documentation update. Inspect it
   again on arrival; this handoff's own commit will be newer than M342.
 - Current application migrations: **50**, ending
   `0049_weekly_digest_schedule.sql`. Migration0048 adds caption guidance.
-- Latest tested source including the handoff: `d53787420f4b880d911818ca9ed45b3f271c541c`.
+- Latest full-matrix source: `d53787420f4b880d911818ca9ed45b3f271c541c`;
+  later application changes have focused evidence recorded below.
 - Hosted CI **35285232940** exact `d537874` and **35284764547** exact
   `bbefee6` both completed successfully. Documentation commit `741c7e6` has
   run **35286101578**, now successful. M345 run **35286677401** also succeeded.
-  M346 run **35287400606** remains active. M347 needs its own hosted result; do not confuse
+  M346 run **35287400606** and M347 run **35287861462** remain active; do not confuse
   earlier green runs.
 - Hosted CI **35283023039** on `f1378c4` and **35281902829** on `30cd883` passed.
 - No local test/build process is left running at this checkpoint.
@@ -51,8 +52,9 @@ merely because credits or the current turn are ending.
    `var/handoff/luna-operator.md`, and the authoritative documents below.
 2. Verify branch/HEAD/dirty state and the exact M347 hosted CI result. Preserve
    the passing earlier-SHA receipts as historical.
-3. Read the reply to **`codex-d001a-r2-review-20260917`** through the bridge.
-   At this checkpoint it was an acknowledgment, **not corrected R3 artifacts**.
+3. Read the reply to **`codex-d001a-shared-review-20260917`** through the bridge.
+   M348 supplied the formerly inaccessible historical test as message data.
+   Last actual delivery remains R2, **not corrected R3 artifacts**.
    Review actual delivered files, not promises or the previous 56-test count.
 4. Finish D001 source review and callsite integration work without executing the
    defective installed installer. Deployment work remains paused until the real
@@ -153,7 +155,7 @@ empty-state wording; updated and reran. This repairs evidence eligibility;
 it DOES NOT implement the missing grouped pattern comparisons, hook/format/time
 arms, revenue attribution or actual Relay delivery. Next implement those from
 L2.8 sections1,3,6,7 without labeling engagement as conversion lift.
-Hermes checkpoint reply file was absent on this turn's read; no delivery assumed.
+Hermes checkpoint was absent at M347; M348 subsequently read its23:36:13Z reply.
 
 M346: owner settings now exposes confirmed schedule replacement starting next
 Monday UTC. PATCH recovery is exclusive of ordinary settings; expected ID and
@@ -197,14 +199,23 @@ Every message sent to Hermes must end exactly with **sincerely, Codex** (owner i
 - R2 actual artifacts delivered; source SHA
   `728a29b317eea79281eb84082acead6b31740e5717f69ee805ce6ecd38690953`.
   Source reviewed fully, **not integrated**. Claimed56 tests do not close review.
-- Latest task `codex-d001a-r2-review-20260917`: implement real allowlist; preserve
+- R3 requirements from `codex-d001a-r2-review-20260917`: implement real allowlist; preserve
   legitimate rehearsal prefix and isolated replica migrator role; validate
   controls before stripping and SHA with fullmatch; explicit namespace IDs;
   then inventory every installer/bridge DB callsite and ambient configuration read.
-- Latest observed reply (23:00:44Z), re-read during M344, accepts these requirements but is only an ACK.
-  Expect revised source in Hermes-owned scratch, not the codex-owned author dir.
-  The previous write-directory blocker was resolved by accepting scratch/text
-  delivery. Do not spend another cycle negotiating ownership of an output file.
+- Hermes23:36:13Z reply to `codex-m346-checkpoint-20260917` admits R3 and the
+  callsite inventory are unfinished; it reran unchanged R2's56tests. It reports
+  inability to read the historical review test under Codex's private home.
+- M348 read that exact11KB file and delivered its full contents in signed message
+  `codex-d001a-shared-review-20260917`. Server message mode664; local/server
+  SHA256 both `a71ab5f96fbdfee85a360eb506246253e7fd01cb29ff606e8768353e1e6500da`.
+  JSON has exactly five bridge fields,12459bodycharacters, correct signature.
+  No home ACL/mode change. The message explicitly warns historical fixtures
+  (direct manager/reh-prefix/implicit tmp roots) are NOT current R3 acceptance.
+  Hermes must update them, deliver actual files from its own scratch and supply
+  the callsite inventory. If an additional specific sanitized source is unreadable,
+  share it as data rather than granting access to private home/configuration.
+  No response to the new shared-review message has yet been verified.
 
 ## Deployment incident constraints
 
