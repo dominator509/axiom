@@ -90,7 +90,8 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     .select()
     .from(schema.postTarget)
     .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)))
-    .limit(1);
+    .limit(1)
+    .for('update');
   if (targets.length === 0) throw new Error(`viral.label: target ${targetId} not found`);
   const target = targets[0];
   if (target.state !== 'published' || !target.remoteId) return;
@@ -126,13 +127,14 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
         eq(schema.contentBundle.orgId, job.org_id),
         eq(schema.contentBundle.modelId, bundle.modelId),
         eq(schema.postMetric.platform, target.platform),
+        eq(schema.postTarget.platform, target.platform),
         eq(schema.postMetric.source, 'provider'),
         eq(schema.postTarget.state, 'published'),
         eq(schema.postMetric.remoteId, schema.postTarget.remoteId),
         gte(schema.postMetric.collectedAt, windowStart),
       ),
     )
-    .orderBy(desc(schema.postMetric.collectedAt))) as ViralHistorySample[];
+    .orderBy(desc(schema.postMetric.collectedAt), desc(schema.postMetric.id))) as ViralHistorySample[];
   const history = latestMetricSamples(historyRows);
   // Manual ingestion may request a refresh, but cannot supply learning evidence.
   if (!history.some(row => row.postTargetId === targetId)) return;
@@ -204,6 +206,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
       orgId: job.org_id,
       modelId: bundle.modelId,
       platform: target.platform,
+      sourceTargetId: targetId,
       label,
       perfScore,
       recipe: features,
@@ -215,16 +218,29 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
         engagementRate: own.engagementRate,
       },
     })
+    .onConflictDoUpdate({
+      target: schema.viralRecipe.sourceTargetId,
+      set: {
+        label, perfScore, recipe: features,
+        realizedMetrics: {
+          views: own.views, likes: own.likes, shares: own.shares,
+          comments: own.comments, engagementRate: own.engagementRate,
+        },
+      },
+    })
     .returning();
 
   await tx
     .insert(schema.viralEmbedding)
     .values({
+      // A stable embedding identity per new attributed recipe avoids multiplying
+      // the learning pool on repeated cumulative provider observations.
+      id: recipe.id,
       orgId: job.org_id,
       recipeId: recipe.id,
       modelId: bundle.modelId,
       platform: target.platform,
       embedding,
     })
-    .onConflictDoNothing();
+    .onConflictDoUpdate({ target: schema.viralEmbedding.id, set: { embedding } });
 };

@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db, pool, schema } from '@axiom/db';
 import { retrieveTopExemplars } from './viral-retrieval.js';
 import { embedExemplarIntent } from './embedding.js';
+import { viralLabel } from './executors/viral.js';
+import type { JobRow } from './types.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
@@ -72,6 +74,34 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
   it('handles punctuation-only intent without a zero query vector', async () => {
     await fixture(async (tx, modelId) => {
       expect(await retrieveTopExemplars(tx, orgId, modelId, 'instagram', 1, '?!')).toHaveLength(1);
+    });
+  });
+  it('refreshes one stable recipe and embedding rather than accumulating repeated polls', async () => {
+    await fixture(async (tx, modelId) => {
+      const bundleId = randomUUID(), targetId = randomUUID();
+      await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId, captions: { instagram: 'Blue ceramic vase' } });
+      await tx.insert(schema.postTarget).values({ id: targetId, orgId, bundleId, platform: 'instagram', state: 'published', remoteId: targetId, idemKey: Buffer.from(randomUUID()) });
+      await tx.insert(schema.postMetric).values({ postTargetId: targetId, platform: 'instagram', remoteId: targetId, source: 'provider', views: 10, likes: 1, engagementRate: .1, collectedAt: new Date(Date.now() - 1000) });
+      const job: JobRow = {
+        id: randomUUID(), org_id: orgId, queue: 'viral', kind: 'viral.label', payload: { targetId },
+        state: 'running', attempts: 1, max_attempts: 3, last_error: null,
+        run_after: new Date(), locked_by: 'retrieval-test', locked_at: new Date(),
+        dedupe_key: null, scheduled_for: null, started_at: new Date(), completed_at: null, created_at: new Date(),
+      };
+      const context = { tx, job, workerId: 'retrieval-test', killSwitchEnabled: false };
+      await viralLabel(context);
+      const [first] = await tx.select().from(schema.viralRecipe).where(eq(schema.viralRecipe.sourceTargetId, targetId));
+      expect(first.realizedMetrics.views).toBe(10);
+      await tx.insert(schema.postMetric).values({ postTargetId: targetId, platform: 'instagram', remoteId: targetId, source: 'provider', views: 20, likes: 3, engagementRate: .15 });
+      await viralLabel(context);
+      await viralLabel(context);
+      const recipes = await tx.select().from(schema.viralRecipe).where(eq(schema.viralRecipe.sourceTargetId, targetId));
+      expect(recipes).toHaveLength(1);
+      expect(recipes[0].id).toBe(first.id);
+      expect(recipes[0].realizedMetrics.views).toBe(20);
+      const embeddings = await tx.select().from(schema.viralEmbedding).where(eq(schema.viralEmbedding.recipeId, first.id));
+      expect(embeddings).toHaveLength(1);
+      expect(embeddings[0].id).toBe(first.id);
     });
   });
 });
