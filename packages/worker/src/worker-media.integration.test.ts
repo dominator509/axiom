@@ -30,6 +30,32 @@ describe.skipIf(!url)('terminal media state in real PostgreSQL', () => {
   });
   afterAll(async () => { await pool.end(); });
 
+  it.each(['captions', 'hashtags', 'assetId', 'state', 'identical'])('preserves attribution only for unchanged content: %s', async change => {
+    const assetId = randomUUID(), variantId = randomUUID(), bundleId = randomUUID();
+    try {
+      await scoped(async tx => {
+        await tx.insert(schema.asset).values({ id: assetId, orgId, modelId, kind: 'image', fileName: 'attribution.jpg',
+          mimeType: 'image/jpeg', fileSize: 20, storageKey: 'attribution.jpg', sha256: Buffer.from(randomUUID().replaceAll('-', '') + randomUUID().replaceAll('-', ''), 'hex') });
+        await tx.insert(schema.assetVariant).values({ id: variantId, orgId, assetId, outputAssetId: assetId, variantType: 'caption', storageKey: 'attribution.jpg' });
+        await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId, assetId, sourceVariantId: variantId,
+          captions: { instagram: 'Original copy' }, hashtags: [], state: 'generated' });
+        const patch = change === 'captions' ? { captions: { instagram: 'Edited copy' } }
+          : change === 'hashtags' ? { hashtags: ['changed'] }
+          : change === 'assetId' ? { assetId: null }
+          : change === 'state' ? { state: 'hold' }
+          : { captions: { instagram: 'Original copy' }, hashtags: [] };
+        const [updated] = await tx.update(schema.contentBundle).set(patch).where(eq(schema.contentBundle.id, bundleId)).returning();
+        expect(updated.sourceVariantId).toBe(['state', 'identical'].includes(change) ? variantId : null);
+      });
+    } finally {
+      await scoped(async tx => {
+        await tx.delete(schema.contentBundle).where(eq(schema.contentBundle.id, bundleId));
+        await tx.delete(schema.assetVariant).where(eq(schema.assetVariant.id, variantId));
+        await tx.delete(schema.asset).where(eq(schema.asset.id, assetId));
+      });
+    }
+  });
+
   it('scoped loop claims only eligible local transforms with owned source media', async () => {
     const assetId = randomUUID(), operationId = randomUUID(), completedId = randomUUID();
     const ids = Array.from({ length: 5 }, () => randomUUID());
