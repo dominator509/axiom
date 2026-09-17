@@ -382,5 +382,30 @@ before dispatch. Record author/delivery evidence without falsely claiming delive
 from a local timeline row. Add SFW checks per L3.0 and make rejection/uncertainty
 visible in the GUI. Attachment/paid replies remain separate from this text path.
 
+## Durable reply identity and dispatch fence (M310, 2026-09-17)
+
+Migration 0046 adds `inbox_reply_intent` with forced tenant RLS and composite
+model/account/actor ownership. `(org, actor, intent_key)` is unique; identity,
+counterpart, approved text and creation time cannot be changed after insertion.
+Only pending rows may be inserted. A database trigger permits pending to
+dispatching/cancelled and dispatching to sent/rejected/uncertain, with required
+timestamps and a unique provider receipt for sent records. No terminal row can
+be returned to pending or rewritten. Runtime has no DELETE privilege. Parent
+account/actor deletion is restricted while reply history references them; a
+deliberate retention/purge policy is required instead of silently erasing evidence.
+
+122 schema/migration tests, DB build, API typecheck and 33 real PostgreSQL tests
+pass after 47 migrations. Competing conditional dispatch updates produce one
+winner; cross-org reads/updates and cross-model/account or actor references fail.
+Unknown delivery cannot be retried by resetting state. Successful receipt remains
+immutable. Initial static migration scan required the repository's conventional
+`CREATE TABLE IF NOT EXISTS` spelling; corrected before the successful runs.
+Fixture `axiom_workspace_test_9f6f8df97ae888ff` removed; no live migration applied.
+
+This is storage groundwork only. Creation/dispatch APIs, validation/SFW policy,
+pre-dispatch safety checks, durable audit, crash classification, manual evidence
+reconciliation and user controls remain. Reconciliation must preserve the original
+terminal attempt and attach evidence, not rewrite it or enqueue an automatic resend.
+
 Completion requires all applicable steps and live evidence; neither additive role
 names nor empty navigation alone satisfies F-24/F-26.

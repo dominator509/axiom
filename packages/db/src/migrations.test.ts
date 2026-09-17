@@ -72,6 +72,7 @@ const TS_TO_SQL: Record<string, string> = {
   mediaOperation: 'media_operation',
   playbookGuideline: 'playbook_guideline',
   modelUserAssignment: 'model_user_assignment',
+  inboxReplyIntent: 'inbox_reply_intent',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */

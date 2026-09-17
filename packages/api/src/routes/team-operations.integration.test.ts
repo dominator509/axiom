@@ -448,6 +448,40 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
       });
     }
   });
+  it('persists immutable reply intent and fences concurrent dispatch without cross-tenant leakage', async () => {
+    // Independent rows remain until the entire disposable fixture is dropped;
+    // the runtime intentionally has no DELETE privilege on reply history.
+    const modelId = randomUUID(), actorUserId = randomUUID(), connectionId = randomUUID(), intentKey = randomUUID();
+    await scoped(async tx => {
+      await tx.insert(schema.authUser).values({ id: actorUserId, orgId, name: 'Reply test', email: `${actorUserId}@example.invalid` });
+      await tx.insert(schema.modelProfile).values({ id: modelId, orgId, displayName: 'Reply test', handle: modelId });
+      await tx.insert(schema.platformConnection).values({ id: connectionId, modelId, orgId, platform: 'fanvue', displayName: 'Reply test', encToken: Buffer.from('fixture'), encNonce: Buffer.alloc(12), dekId: 'fixture' });
+    });
+    const values = { orgId, modelId, actorUserId, connectionId, intentKey, counterpartUuid: randomUUID(), body: 'Hello from a durable intent' };
+    const [intent] = await scoped(tx => tx.insert(schema.inboxReplyIntent).values(values).returning());
+    await expect(scoped(tx => tx.insert(schema.inboxReplyIntent).values(values))).rejects.toMatchObject({ cause: { code: '23505' } });
+    await expect(scoped(tx => tx.insert(schema.inboxReplyIntent).values({ ...values, intentKey: randomUUID(), modelId: models[0] }))).rejects.toMatchObject({ cause: { code: '23503' } });
+    await expect(scoped(tx => tx.insert(schema.inboxReplyIntent).values({ ...values, intentKey: randomUUID(), actorUserId: assignmentUsers[1] }))).rejects.toMatchObject({ cause: { code: '23503' } });
+    expect(await scoped(tx => tx.select().from(schema.inboxReplyIntent).where(eq(schema.inboxReplyIntent.id, intent.id)), foreignOrg)).toEqual([]);
+    expect(await scoped(tx => tx.update(schema.inboxReplyIntent).set({ state: 'cancelled', finalizedAt: new Date() }).where(eq(schema.inboxReplyIntent.id, intent.id)).returning(), foreignOrg)).toEqual([]);
+    await expect(scoped(tx => tx.update(schema.inboxReplyIntent).set({ body: 'Changed after approval' }).where(eq(schema.inboxReplyIntent.id, intent.id)))).rejects.toThrow();
+    await expect(scoped(tx => tx.delete(schema.inboxReplyIntent).where(eq(schema.inboxReplyIntent.id, intent.id)))).rejects.toMatchObject({ cause: { code: '42501' } });
+    const claims = await Promise.all([0, 1].map(() => scoped(tx => tx.update(schema.inboxReplyIntent).set({ state: 'dispatching', dispatchedAt: new Date() })
+      .where(sql`${schema.inboxReplyIntent.id} = ${intent.id} AND ${schema.inboxReplyIntent.state} = 'pending'`).returning())));
+    expect(claims.map(rows => rows.length).sort()).toEqual([0, 1]);
+    await expect(scoped(tx => tx.update(schema.inboxReplyIntent).set({ state: 'pending', dispatchedAt: null }).where(eq(schema.inboxReplyIntent.id, intent.id)))).rejects.toThrow();
+    await expect(scoped(tx => tx.update(schema.inboxReplyIntent).set({ state: 'sent', finalizedAt: new Date() }).where(eq(schema.inboxReplyIntent.id, intent.id)))).rejects.toMatchObject({ cause: { code: '23514' } });
+    await scoped(tx => tx.update(schema.inboxReplyIntent).set({ state: 'uncertain', finalizedAt: new Date() }).where(eq(schema.inboxReplyIntent.id, intent.id)));
+    await expect(scoped(tx => tx.update(schema.inboxReplyIntent).set({ state: 'pending', dispatchedAt: null, finalizedAt: null }).where(eq(schema.inboxReplyIntent.id, intent.id)))).rejects.toThrow();
+    await expect(scoped(tx => tx.insert(schema.inboxReplyIntent).values({ ...values, intentKey: randomUUID(), state: 'dispatching', dispatchedAt: new Date() }))).rejects.toThrow();
+    const [success] = await scoped(tx => tx.insert(schema.inboxReplyIntent).values({ ...values, intentKey: randomUUID() }).returning());
+    await scoped(tx => tx.update(schema.inboxReplyIntent).set({ state: 'dispatching', dispatchedAt: new Date() }).where(eq(schema.inboxReplyIntent.id, success.id)));
+    const remoteMessageUuid = randomUUID();
+    await scoped(tx => tx.update(schema.inboxReplyIntent).set({ state: 'sent', remoteMessageUuid, providerStatus: 201, finalizedAt: new Date() }).where(eq(schema.inboxReplyIntent.id, success.id)));
+    const [saved] = await scoped(tx => tx.select().from(schema.inboxReplyIntent).where(eq(schema.inboxReplyIntent.id, success.id)));
+    expect(saved).toMatchObject({ state: 'sent', remoteMessageUuid, body: values.body });
+    await expect(scoped(tx => tx.update(schema.inboxReplyIntent).set({ remoteMessageUuid: randomUUID() }).where(eq(schema.inboxReplyIntent.id, success.id)))).rejects.toThrow();
+  });
   it('lists only assigned self shifts before their start without granting early model access', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());
     const existing = await scoped(tx => tx.select({ id: schema.teamShift.id }).from(schema.teamShift).where(sql`${schema.teamShift.orgId} = ${orgId} AND ${schema.teamShift.modelId} = ${models[0]} AND ${schema.teamShift.assigneeUserId} = ${assignmentUsers[0]}`));
