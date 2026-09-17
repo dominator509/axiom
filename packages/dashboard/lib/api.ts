@@ -129,6 +129,8 @@ export interface ModelProfile {
 }
 
 export interface ContentBundle {
+  captionGuidance?: Record<string, { version: 'caption-guidance-v1'; selectedArm: string | null;
+    context: string; exemplarIds: string[]; captionSha256: string }>;
   publishIntent?: { action: 'schedule' | 'publish'; platform: string; scheduledAt: string | null } | null;
   assetId?: string | null;
   id: string;

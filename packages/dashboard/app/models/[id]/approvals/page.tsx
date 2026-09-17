@@ -8,6 +8,7 @@ import VideoReview from '@/components/VideoReview';
 import SavedGenerationRetry from '@/components/SavedGenerationRetry';
 import AdaptationControls from '@/components/AdaptationControls';
 import DraftEditor from '@/components/DraftEditor';
+import CaptionGuidance from '@/components/CaptionGuidance';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,6 +124,7 @@ export default async function ApprovalsPage({
               <div className="mono" style={{ color: 'var(--muted)' }}>
                 {(b.hashtags ?? []).join(' ')}
               </div>
+              <CaptionGuidance captions={b.captions ?? {}} receipts={b.captionGuidance} />
               {canApprove && <AdaptationControls bundleId={b.id} revisionId={b.tosReport?.revisionId} platforms={Object.keys(b.captions ?? {})} />}
               {(canApprove || role === 'content_creator') && b.assetId && ['generated', 'hold'].includes(b.state) && (
                 <DraftEditor key={`${b.id}:${b.tosReport?.revisionId ?? 'initial'}`} bundleId={b.id}

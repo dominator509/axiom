@@ -204,4 +204,19 @@ Source and automated evidence never substitutes for a missing runtime or provide
   hosts/formats and large non-range responses fail visibly rather than bypassing
   bounds; no claim of universal provider-format support is made.
 
+- M339 exposes saved caption-guidance receipts in the real Approvals page, with
+  readable structure and scheduled-time context, exemplar counts, and explicit
+  missing/invalid/edited-caption states. Hashes and exemplar identifiers are not
+  rendered. Eleven component/page tests, dashboard typecheck and lint pass
+  (three existing warnings). Agents retain read-only review without loading
+  publication accounts; unsupported roles cannot load review data. This is not
+  a performance prediction, causal attribution, or deployed browser acceptance.
+- Exact-SHA CI 35279630194 passed all six jobs for `686f5b5`; it does not cover
+  the newer guidance commits. Hermes delivered the isolated target-context
+  parser, but review found direct-constructor validation bypass, acceptance of
+  actual live database `fanthynks_test`, unchecked live service prefix and
+  inadequate path/namespace validation. Corrections are assigned in
+  `codex-d001a-review-20260917`. No installer integration or live execution is
+  approved by this source review. Deployment remains unverified and paused.
+
 The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.
