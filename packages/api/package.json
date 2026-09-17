@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@axiom/auth": "workspace:*",
+    "@axiom/connectors": "workspace:*",
     "@axiom/core": "workspace:*",
     "@axiom/db": "workspace:*",
     "@axiom/llm-gateway": "workspace:*",

@@ -74,6 +74,9 @@ importers:
       '@axiom/auth':
         specifier: workspace:*
         version: link:../auth
+      '@axiom/connectors':
+        specifier: workspace:*
+        version: link:../connectors
       '@axiom/core':
         specifier: workspace:*
         version: link:../core

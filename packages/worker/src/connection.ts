@@ -60,6 +60,15 @@ export async function inboxForConnection(connection: PlatformConnectionRow, page
     : { kind: 'chats' as const, ...await connector.fetchChats(page, 25) };
 }
 
+/** Resolve healthy model egress and credentials without dispatching a reply. */
+export async function prepareReplySender(connection: PlatformConnectionRow) {
+  if (connection.platform !== 'fanvue') throw new Error('Replies are only supported for Fanvue');
+  const { connector } = await connectorForConnection(connection);
+  if (!(connector instanceof FanvueConnector)) throw new Error('Fanvue connector unavailable');
+  return (counterpartUuid: string, text: string, beforeDispatch: () => Promise<void>) =>
+    connector.sendTextReply(counterpartUuid, text, beforeDispatch);
+}
+
 /** Resolve a stored platform identifier without allowing arbitrary dispatch. */
 export function asPlatform(value: string): Platform {
   const platforms: readonly Platform[] = [

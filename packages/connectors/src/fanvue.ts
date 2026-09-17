@@ -464,9 +464,10 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
    * documented idempotency header: the caller must persist dispatch intent
    * before invoking this and reconcile uncertain outcomes outside this adapter.
    */
-  async sendTextReply(userUuid: string, text: string): Promise<{ messageUuid: string }> {
+  async sendTextReply(userUuid: string, text: string, beforeDispatch: () => Promise<void>): Promise<{ messageUuid: string }> {
     const user = inboxUserUuid(userUuid), body = { text: replyText(text) };
     await this.ensureFreshToken(); // Failure here precedes message dispatch.
+    await beforeDispatch(); // Permission and durable fence must commit after refresh.
     let response: Response;
     try {
       response = await this.fetchImpl(`${FANVUE_API_BASE}/chats/${user}/message`, {

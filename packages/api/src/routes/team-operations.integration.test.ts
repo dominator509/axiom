@@ -22,7 +22,8 @@ import { analyticsRouter } from './analytics.js';
 import { earningsRouter } from './earnings.js';
 import { inboxRouter } from './inbox.js';
 import { inboxRepliesRouter } from './inbox-replies.js';
-import { claimReplyDispatch, finalizeReplyDispatch } from '../reply-dispatch.js';
+import { claimReplyDispatch, finalizeReplyDispatch, dispatchReply } from '../reply-dispatch.js';
+import { FanvueConnector } from '@axiom/connectors';
 import { viralRouter } from './viral.js';
 import { reportsRouter } from './reports.js';
 import { enforceModelAccess, type ScopedHumanRole } from '../model-access.js';
@@ -573,6 +574,45 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     const revoked = await create();
     await run(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, userId)));
     expect((await claimReplyDispatch({ ...identity, replyId: revoked.id })).outcome).toBe('denied');
+    await run(tx => tx.insert(schema.modelUserAssignment).values({ orgId: testOrg, modelId, userId }));
+    const liveShape = await create(), sendIdentity = { ...identity, replyId: liveShape.id };
+    let messageRequests = 0;
+    const sender = async () => {
+      const connector = new FanvueConnector({ accessToken: 'fixture-only' }, async (url, init) => {
+        messageRequests++;
+        expect(String(url)).toBe(`https://api.fanvue.com/chats/${liveShape.counterpartUuid}/message`);
+        expect(JSON.parse(String(init?.body))).toEqual({ text: liveShape.body });
+        const [committed] = await run(tx => tx.select().from(schema.inboxReplyIntent).where(eq(schema.inboxReplyIntent.id, liveShape.id)));
+        expect(committed.state).toBe('dispatching'); // Another connection observes the committed fence.
+        return Response.json({ messageUuid: randomUUID() }, { status: 201 });
+      });
+      return connector.sendTextReply.bind(connector);
+    };
+    const outcomes = await Promise.all([dispatchReply(sendIdentity, sender), dispatchReply(sendIdentity, sender)]);
+    expect(outcomes.map(value => value.outcome).sort()).toEqual(['already-dispatched', 'finished']);
+    expect(messageRequests).toBe(1);
+    const lost = await create(), lostIdentity = { ...identity, replyId: lost.id };
+    const lostSender = async () => {
+      const connector = new FanvueConnector({ accessToken: 'fixture-only' }, async () => { messageRequests++; throw new Error('private transport detail'); });
+      return connector.sendTextReply.bind(connector);
+    };
+    expect(await dispatchReply(lostIdentity, lostSender)).toMatchObject({ outcome: 'finished', state: 'uncertain' });
+    expect((await dispatchReply(lostIdentity, lostSender)).outcome).toBe('already-dispatched');
+    expect(messageRequests).toBe(2);
+    const halted = await create();
+    const haltDuringSetup = async () => {
+      await run(tx => tx.update(schema.orgSettings).set({ publishingEnabled: false }).where(eq(schema.orgSettings.orgId, testOrg)));
+      return lostSender();
+    };
+    expect((await dispatchReply({ ...identity, replyId: halted.id }, haltDuringSetup)).outcome).toBe('halted');
+    expect(messageRequests).toBe(2);
+    await run(tx => tx.update(schema.orgSettings).set({ publishingEnabled: true }).where(eq(schema.orgSettings.orgId, testOrg)));
+    const rotateDuringSetup = async () => {
+      await run(tx => tx.update(schema.platformConnection).set({ encToken: Buffer.from('rotated-fixture') }).where(eq(schema.platformConnection.id, connectionId)));
+      return lostSender();
+    };
+    expect((await dispatchReply({ ...identity, replyId: halted.id }, rotateDuringSetup)).outcome).toBe('account-unavailable');
+    expect(messageRequests).toBe(2);
   });
   it('lists only assigned self shifts before their start without granting early model access', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());

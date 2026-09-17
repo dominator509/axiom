@@ -1,5 +1,8 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
+import type { InferSelectModel } from 'drizzle-orm';
 import { getPublishingConsentStatus, schema } from '@axiom/db';
+import { FanvueMessageDeliveryError } from '@axiom/connectors';
+import { prepareReplySender } from '@axiom/worker';
 import { modelAccessCondition } from './model-access.js';
 import { withOrgContext, writeAudit } from './routes/helpers.js';
 
@@ -10,7 +13,11 @@ export interface ReplyDispatchIdentity { orgId: string; modelId: string; userId:
  * queue lease: a crash after this commit MUST NOT reset the reply to pending.
  * Only the preparing actor can dispatch their exact immutable reply.
  */
-export async function claimReplyDispatch(identity: ReplyDispatchIdentity) {
+type Connection = InferSelectModel<typeof schema.platformConnection>;
+export async function claimReplyDispatch(identity: ReplyDispatchIdentity, expectedConnection?: Connection) {
+  return evaluateDispatch(identity, true, expectedConnection);
+}
+async function evaluateDispatch(identity: ReplyDispatchIdentity, claim: boolean, expectedConnection?: Connection) {
   const { orgId, modelId, userId, replyId } = identity;
   return withOrgContext(orgId, async tx => {
     // Use the same organization lock order as the audit writer. All checks are
@@ -35,7 +42,11 @@ export async function claimReplyDispatch(identity: ReplyDispatchIdentity) {
       eq(schema.platformConnection.id, reply.connectionId), eq(schema.platformConnection.platform, 'fanvue'),
       inArray(schema.platformConnection.status, ['active', 'connected']))).limit(1);
     if (!connection) return { outcome: 'account-unavailable' as const };
+    if (expectedConnection && (connection.id !== expectedConnection.id || connection.dekId !== expectedConnection.dekId
+      || !Buffer.from(connection.encToken).equals(Buffer.from(expectedConnection.encToken))
+      || !Buffer.from(connection.encNonce).equals(Buffer.from(expectedConnection.encNonce)))) return { outcome: 'account-unavailable' as const };
     if (!(await getPublishingConsentStatus(tx, orgId, modelId, 'fanvue')).ok) return { outcome: 'consent-required' as const };
+    if (!claim) return { outcome: 'prepared' as const, reply, connection };
     const [claimed] = await tx.update(schema.inboxReplyIntent)
       .set({ state: 'dispatching', dispatchedAt: sql`clock_timestamp()` })
       .where(and(scope, eq(schema.inboxReplyIntent.state, 'pending'), modelAccessCondition(actor.role, orgId, userId, schema.inboxReplyIntent.modelId))).returning();
@@ -43,6 +54,36 @@ export async function claimReplyDispatch(identity: ReplyDispatchIdentity) {
     await writeAudit(tx, orgId, userId, 'inbox.reply.dispatch', replyId, { modelId, connectionId: connection.id });
     return { outcome: 'claimed' as const, reply: claimed, connection };
   });
+}
+
+/** Actual dispatch orchestration. Factory injection is for isolated contract tests. */
+export async function dispatchReply(identity: ReplyDispatchIdentity, prepare = prepareReplySender) {
+  const initial = await evaluateDispatch(identity, false);
+  if (initial.outcome !== 'prepared') return { outcome: initial.outcome };
+  let claimed = false;
+  let stopped: Awaited<ReturnType<typeof claimReplyDispatch>>['outcome'] | undefined;
+  let delivery: ReplyDeliveryResult;
+  try {
+    // Credentials and model egress are resolved only after scoped preflight.
+    const send = await prepare(initial.connection);
+    const receipt = await send(initial.reply.counterpartUuid, initial.reply.body, async () => {
+      const fence = await claimReplyDispatch(identity, initial.connection);
+      if (fence.outcome !== 'claimed') { stopped = fence.outcome; throw new Error('dispatch denied'); }
+      claimed = true;
+    });
+    if (!claimed) throw new Error('missing dispatch fence');
+    delivery = { state: 'sent', messageUuid: receipt.messageUuid };
+  } catch (error) {
+    if (!claimed) return { outcome: stopped ?? 'unavailable' as const };
+    delivery = error instanceof FanvueMessageDeliveryError
+      ? { state: error.outcome, providerStatus: error.status }
+      : { state: 'uncertain' };
+  }
+  // If persistence fails, leave dispatching in place. Never call the provider
+  // again to recover a missing receipt, and never expose credential-bearing input.
+  const record = await finalizeReplyDispatch(identity, delivery);
+  return { outcome: record ? 'finished' as const : 'unconfirmed' as const,
+    ...(record ? { replyId: record.id, state: record.state } : {}) };
 }
 
 export type ReplyDeliveryResult = { state: 'sent'; messageUuid: string }

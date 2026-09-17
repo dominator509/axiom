@@ -40,6 +40,7 @@ export {
   connectorForConnection,
   earningsForConnection,
   inboxForConnection,
+  prepareReplySender,
   decryptConnectorAuth,
   parseConnectorAuth,
   connectorForTarget,
