@@ -50,6 +50,16 @@ export async function earningsForConnection(connection: PlatformConnectionRow) {
   return connector.fetchEarningsSummary();
 }
 
+/** Read-only inbox access: never mark read, publish, or send a message. */
+export async function inboxForConnection(connection: PlatformConnectionRow, page: number, userUuid?: string) {
+  if (connection.platform !== 'fanvue') throw new Error('Inbox is only supported for Fanvue');
+  const { connector } = await connectorForConnection(connection);
+  if (!(connector instanceof FanvueConnector)) throw new Error('Fanvue connector unavailable');
+  return userUuid
+    ? { kind: 'messages' as const, ...await connector.fetchChatMessages(userUuid, page, 25) }
+    : { kind: 'chats' as const, ...await connector.fetchChats(page, 25) };
+}
+
 /** Resolve a stored platform identifier without allowing arbitrary dispatch. */
 export function asPlatform(value: string): Platform {
   const platforms: readonly Platform[] = [

@@ -52,6 +52,8 @@ export function scopedReadTarget(role: ScopedHumanRole, method: string, path: st
       || ((method === 'GET' || method === 'HEAD') && ['media-operations', 'media-source-images', 'playbook-guidelines'].includes(preparation[2])))) return preparation[1];
   }
   if (method !== 'GET' && method !== 'HEAD') return null;
+  const inbox = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/inbox$/i.exec(path);
+  if (inbox) return role !== 'content_creator' ? inbox[1] : null;
   const earnings = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/earnings$/i.exec(path);
   if (earnings) return role === 'model' ? earnings[1] : null;
   if (path === '/api/v1/models' || path === '/api/v1/models/stats/count') return 'discovery';

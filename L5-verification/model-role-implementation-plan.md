@@ -320,5 +320,26 @@ and controlled reply delivery with durable intent/uncertain-result handling.
 Attachment delivery needs an authorized media path, not direct third-party URLs.
 Agentic drafts, ingestion, queues, send attribution and SFW gating remain in scope.
 
+## Live inbox API reads (M307, 2026-09-17)
+
+Added `/api/v1/models/:modelId/inbox`: account choices without provider access,
+then explicit connection selection for chat pages or counterpart message pages.
+Inputs are bounded; encrypted credentials and healthy model egress use the
+existing worker connection adapter. The response is private/no-store, never
+serializes the credential row, and errors are generic rather than empty inboxes.
+Owner/Manager/Operator may read within their org. Model needs an assignment;
+Chatter needs that assignment plus an active in-window shift. Creator and legacy
+agent API access are denied; MCP capability-based integration remains separate.
+Assignment/shift and active connection are checked again after provider latency.
+No API mutation, mark-read operation or reply delivery is enabled by this work.
+
+27 route/policy tests, API typecheck, connector/worker builds and 32 actual
+PostgreSQL tests pass after 46 migrations. A fresh Chatter fixture proves no
+access before a shift, own-account discovery while active, foreign model/tenant
+denial, expiry denial and assigned Model access independent of a chatter shift.
+Fixture `axiom_workspace_test_d10ad2794e58eff7` was removed. No provider was called.
+Next remains inbox GUI, authenticated provider/browser evidence, attachment proxy,
+durable reply intent/delivery/reconciliation, agentic drafts and sync/queue work.
+
 Completion requires all applicable steps and live evidence; neither additive role
 names nor empty navigation alone satisfies F-24/F-26.

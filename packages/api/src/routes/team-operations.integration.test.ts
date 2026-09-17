@@ -20,6 +20,7 @@ import { playbookRouter } from './playbook.js';
 import { playbookGuidelinesRouter } from './playbook-guidelines.js';
 import { analyticsRouter } from './analytics.js';
 import { earningsRouter } from './earnings.js';
+import { inboxRouter } from './inbox.js';
 import { viralRouter } from './viral.js';
 import { reportsRouter } from './reports.js';
 import { enforceModelAccess, type ScopedHumanRole } from '../model-access.js';
@@ -44,9 +45,9 @@ function app(org = orgId, role: AppBindings['Variables']['role'] = 'owner') {
   route.route('/', modelAssignmentsRouter); return route;
 }
 const path = `/models/${models[0]}/team-notes`;
-function scopedApp(role: ScopedHumanRole, org = orgId) {
+function scopedApp(role: ScopedHumanRole, org = orgId, userId = assignmentUsers[0]) {
   const route = new Hono<AppBindings>();
-  route.use('*', async (c, next) => { c.set('orgId', org); c.set('userId', assignmentUsers[0]); c.set('role', role); await next(); });
+  route.use('*', async (c, next) => { c.set('orgId', org); c.set('userId', userId); c.set('role', role); await next(); });
   route.use('/api/v1/*', enforceModelAccess);
   route.use('/api/v1/*', requireMutationRole('owner', 'manager', 'operator', 'content_creator'));
   route.route('/api/v1/models', modelsRouter);
@@ -60,6 +61,7 @@ function scopedApp(role: ScopedHumanRole, org = orgId) {
   route.route('/api/v1', playbookGuidelinesRouter);
   route.route('/api/v1', analyticsRouter);
   route.route('/api/v1', earningsRouter);
+  route.route('/api/v1', inboxRouter);
   route.route('/api/v1', viralRouter);
   route.route('/api/v1', reportsRouter);
   return route;
@@ -409,6 +411,41 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
       expect((await route.request(path)).status).toBe(404);
     } finally {
       await scoped(tx => tx.delete(schema.platformConnection).where(inArray(schema.platformConnection.id, ids)));
+    }
+  });
+  it('gates inbox account discovery on exact model assignment and an active Chatter shift', async () => {
+    const userId = randomUUID(), shiftId = randomUUID(), connectionId = randomUUID();
+    await scoped(async tx => {
+      await tx.insert(schema.authUser).values({ id: userId, orgId, name: 'Inbox test', email: `${userId}@example.invalid` });
+      await tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId });
+      await tx.insert(schema.platformConnection).values({ id: connectionId, orgId, modelId: models[0], platform: 'fanvue',
+        displayName: 'Inbox account', encToken: Buffer.from('fixture-only'), encNonce: Buffer.alloc(12), dekId: 'fixture' });
+    });
+    const path = `/api/v1/models/${models[0]}/inbox`, route = scopedApp('chatter', orgId, userId);
+    try {
+      expect((await route.request(path)).status).toBe(404);
+      await scoped(tx => tx.insert(schema.teamShift).values({ id: shiftId, orgId, modelId: models[0], assigneeUserId: userId,
+        status: 'active', startsAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() + 60_000) }));
+      const response = await route.request(path);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ data: { accounts: [{ id: connectionId, displayName: 'Inbox account' }] } });
+      expect((await route.request(`/api/v1/models/${models[1]}/inbox`)).status).toBe(404);
+      expect((await scopedApp('chatter', foreignOrg, userId).request(path)).status).toBe(404);
+      expect((await scopedApp('content_creator', orgId, userId).request(path)).status).toBe(403);
+      expect((await route.request(`${path}?connectionId=${randomUUID()}`)).status).toBe(404);
+      await scoped(tx => tx.update(schema.teamShift).set({ endsAt: new Date(Date.now() - 1000) }).where(eq(schema.teamShift.id, shiftId)));
+      expect((await route.request(path)).status).toBe(404);
+      // Model access needs an assignment, not a chatter shift.
+      const modelRoute = scopedApp('model', orgId, userId);
+      expect((await modelRoute.request(path)).status).toBe(200);
+      await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, userId)));
+      expect((await modelRoute.request(path)).status).toBe(404);
+    } finally {
+      await scoped(async tx => {
+        await tx.delete(schema.teamShift).where(eq(schema.teamShift.id, shiftId));
+        await tx.delete(schema.platformConnection).where(eq(schema.platformConnection.id, connectionId));
+        await tx.delete(schema.authUser).where(eq(schema.authUser.id, userId));
+      });
     }
   });
   it('lists only assigned self shifts before their start without granting early model access', async () => {

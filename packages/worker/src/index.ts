@@ -39,6 +39,7 @@ export {
   resolvePlatformConnection,
   connectorForConnection,
   earningsForConnection,
+  inboxForConnection,
   decryptConnectorAuth,
   parseConnectorAuth,
   connectorForTarget,
