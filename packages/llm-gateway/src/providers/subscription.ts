@@ -35,6 +35,13 @@ export interface GrokMediaRequest {
 
 export type SubscriptionProvider = 'openai' | 'anthropic' | 'grok';
 
+// Windows taskkill starts a separate process and enumerates the owned tree.
+// Allow bounded scheduling/enumeration latency under concurrent builds; still
+// require BOTH a successful tree kill and the wrapper's close event.
+function terminationDeadlineMs(pid: number | undefined): number {
+  return process.platform === 'win32' && pid ? 10_000 : 2_000;
+}
+
 export interface SubscriptionMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -582,7 +589,7 @@ async function* runAuthConnect(
             windowsHide: true, stdio: 'ignore', env: { SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' },
           });
         treeTermination = new Promise(resolveTree => {
-          const deadline = setTimeout(() => { killer.kill('SIGKILL'); resolveTree(false); }, 2000);
+          const deadline = setTimeout(() => { killer.kill('SIGKILL'); resolveTree(false); }, terminationDeadlineMs(child.pid));
           killer.once('error', () => { clearTimeout(deadline); resolveTree(false); });
           killer.once('close', code => { clearTimeout(deadline); resolveTree(code === 0); });
         });
@@ -613,7 +620,7 @@ async function* runAuthConnect(
     let deadline: ReturnType<typeof setTimeout> | undefined;
     const confirmed = await Promise.race([
       Promise.all([exitPromise, treeTermination]).then(([, treeStopped]) => treeStopped),
-      new Promise<false>(resolve => { deadline = setTimeout(() => resolve(false), 2000); }),
+      new Promise<false>(resolve => { deadline = setTimeout(() => resolve(false), terminationDeadlineMs(child.pid)); }),
     ]);
     if (deadline) clearTimeout(deadline);
     if (!confirmed) throw new ProviderError('Subscription login termination could not be confirmed', 503, provider);
@@ -709,7 +716,7 @@ async function* runSubscription(request: SubscriptionRequest, control?: {
           windowsHide: true, stdio: 'ignore', env: { SystemRoot: process.env.SystemRoot ?? 'C:\\Windows' },
         });
       treeTermination = new Promise(resolveTree => {
-        const killDeadline = setTimeout(() => { killer.kill('SIGKILL'); resolveTree(false); }, 2000);
+        const killDeadline = setTimeout(() => { killer.kill('SIGKILL'); resolveTree(false); }, terminationDeadlineMs(child!.pid));
         killer.once('error', () => { clearTimeout(killDeadline); resolveTree(false); });
         killer.once('close', code => { clearTimeout(killDeadline); resolveTree(code === 0); });
       });
@@ -739,7 +746,7 @@ async function* runSubscription(request: SubscriptionRequest, control?: {
     let closeTimer: ReturnType<typeof setTimeout> | undefined;
     const confirmed = await Promise.race([
       Promise.all([exitPromise!, treeTermination]).then(([, treeStopped]) => treeStopped),
-      new Promise<false>(resolveClose => { closeTimer = setTimeout(() => resolveClose(false), 2000); }),
+      new Promise<false>(resolveClose => { closeTimer = setTimeout(() => resolveClose(false), terminationDeadlineMs(child!.pid)); }),
     ]);
     if (closeTimer) clearTimeout(closeTimer);
     if (!confirmed) {

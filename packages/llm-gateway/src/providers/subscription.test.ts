@@ -193,6 +193,38 @@ describe('official subscription auth command lifecycle', () => {
     }
   });
 
+  it.skipIf(process.platform !== 'win32')('waits for delayed Windows tree confirmation, not just wrapper close', async () => {
+    const child = Object.assign(fakeChild(), { pid: 987654 });
+    const killer = fakeChild();
+    spawnMock.mockImplementation(command => String(command).endsWith('taskkill.exe') ? killer : child);
+    const controller = new AbortController();
+    const iterator = transport.connect('grok', 'user-1', controller.signal)[Symbol.asyncIterator]();
+    const pending = iterator.next();
+    const result = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    controller.abort();
+    child.emit('close', null);
+    await vi.advanceTimersByTimeAsync(2500);
+    expect(killer.kill).not.toHaveBeenCalled();
+    killer.emit('close', 0);
+    await result;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.skipIf(process.platform !== 'win32')('still fails closed when Windows tree confirmation misses its bounded deadline', async () => {
+    const child = Object.assign(fakeChild(), { pid: 987654 });
+    const killer = fakeChild();
+    spawnMock.mockImplementation(command => String(command).endsWith('taskkill.exe') ? killer : child);
+    const controller = new AbortController();
+    const iterator = transport.connect('grok', 'user-1', controller.signal)[Symbol.asyncIterator]();
+    const result = expect(iterator.next()).rejects.toMatchObject({ status: 503 });
+    controller.abort();
+    child.emit('close', null);
+    await vi.advanceTimersByTimeAsync(10_001);
+    await result;
+    expect(killer.kill).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('counts login stdout and stderr against one shared raw-byte budget', async () => {
     const child = fakeChild(); spawnMock.mockReturnValue(child);
     const iterator = transport.connect('grok', 'user-1')[Symbol.asyncIterator]();
