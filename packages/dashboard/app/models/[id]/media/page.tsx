@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import BundleMedia from '@/components/BundleMedia';
 import MediaOperationControls from '@/components/MediaOperationControls';
+import MediaBundleCreate from '@/components/MediaBundleCreate';
 import { getSession } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +32,7 @@ export default async function MediaPage({ params, searchParams }: {
           <p className="subtle">{asset.width && asset.height ? `${asset.width} × ${asset.height} · ` : ''}{Math.ceil(asset.fileSize / 1024)} KB · {asset.createdAt}</p>
           <div className="action-row"><a href={src} target="_blank" rel="noopener noreferrer">Open saved media</a>{asset.kind === 'image' && <Link href={`${base}/generation?${new URLSearchParams({ sourceAssetId: asset.id })}`}>Use for video</Link>}</div>
           <MediaOperationControls modelId={id} assetId={asset.id} kind={asset.kind} operations={operations} canEdit={canEdit} />
+          {canEdit && <MediaBundleCreate modelId={id} assetId={asset.id} mimeType={asset.mimeType} />}
         </article>;
       })}
     </div>}

@@ -14,6 +14,8 @@ Review findings requiring follow-up:
 
 Current verification:
 
+- Saved-media reuse is implemented through the existing protected/idempotent bundle POST. Owned JPEG/PNG/MP4 bytes are checked before a new pending bundle and tos.scan job are inserted in one transaction. The library exposes caption/destination entry and stable retry handling; WebM directs the user to MP4 adaptation. 146 API/middleware tests and five dashboard tests pass. Real transaction rollback, deployed browser acceptance and completed scan-to-approval remain unverified.
+
 - WireGuard importer/credentials: 21 focused tests passed and dashboard typecheck passed before checkpoint review.
 - Workspace test command reaches the dashboard prerequisite build, which fails because API_ORIGIN is not configured for production. This is an environment prerequisite, not a successful full test run.
 - DB tests reported 140 passed and 12 skipped during that run. Skipped runtime checks remain open.

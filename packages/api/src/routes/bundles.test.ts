@@ -247,6 +247,37 @@ describe('GET /:id — get bundle', () => {
 });
 
 describe('POST / — create bundle', () => {
+  it('links owned saved media with fresh pending scan in the bundle transaction', async () => {
+    mockState.insertValues = [];
+    const asset = { id: X_CONNECTION_ID, orgId: ORG_ID, modelId: MODEL_ID, mimeType: 'image/jpeg' };
+    mockState.results = [[], [{ orgId: ORG_ID }], [asset], [{ id: BUNDLE_ID }]];
+    vi.mocked(assetPreview).mockResolvedValue(new Response(null));
+    const response = await appWithOrg(ORG_ID).request('/', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ modelId: MODEL_ID, assetId: asset.id, captions: { instagram: 'A ceramic vase' }, tosReport: { verdict: 'pass' } }) });
+    expect(response.status).toBe(201);
+    expect(mockState.insertValues[0]).toMatchObject({ assetId: asset.id, state: 'generated', tosReport: { verdict: 'pending', scores: [] } });
+    expect(enqueueJob).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ kind: 'tos.scan', payload: { bundleId: BUNDLE_ID } }));
+    expect(assetPreview).toHaveBeenCalledWith(asset, expect.objectContaining({ method: 'HEAD' }), expect.any(String));
+  });
+  it.each(['other-org', 'other-model', 'missing', 'webm', 'missing-file'])('rejects unusable saved media: %s', async failure => {
+    mockState.insertValues = [];
+    const asset = { id: X_CONNECTION_ID, orgId: failure === 'other-org' ? 'other' : ORG_ID,
+      modelId: failure === 'other-model' ? 'other' : MODEL_ID, mimeType: failure === 'webm' ? 'video/webm' : 'image/jpeg' };
+    mockState.results = [[], [{ orgId: ORG_ID }], failure === 'missing' ? [] : [asset]];
+    vi.mocked(assetPreview).mockRejectedValue(new Error('private storage path'));
+    const response = await appWithOrg(ORG_ID).request('/', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ modelId: MODEL_ID, assetId: asset.id, captions: { instagram: 'Caption' } }) });
+    expect(response.status).toBe(404);
+    expect(mockState.insertValues).toEqual([]);
+    expect(enqueueJob).not.toHaveBeenCalled();
+    expect(await response.text()).not.toContain('private storage path');
+  });
+  it.each([{}, { instagram: ' ' }, { unknown: 'Caption' }])('rejects saved-media captions that cannot be scanned: %j', async captions => {
+    const response = await appWithOrg(ORG_ID).request('/', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ modelId: MODEL_ID, assetId: X_CONNECTION_ID, captions }) });
+    expect(response.status).toBe(400);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
   it('creates a bundle in generated state with captions and audits', async () => {
     mockState.result = [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated' }];
     const res = await appWithOrg(ORG_ID).request('/', {

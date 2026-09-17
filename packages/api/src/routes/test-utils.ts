@@ -10,7 +10,8 @@ export const mockState: {
   results: unknown[];
   updates: unknown[];
   conflictUpdates: unknown[];
-} = { result: [], results: [], updates: [], conflictUpdates: [] };
+  insertValues: unknown[];
+} = { result: [], results: [], updates: [], conflictUpdates: [], insertValues: [] };
 
 export function makeChain(): any {
   const handler = {
@@ -26,6 +27,9 @@ export function makeChain(): any {
           mockState.updates.push(values);
           return makeChain();
         };
+      }
+      if (prop === 'values') {
+        return (values: unknown) => { mockState.insertValues.push(values); return makeChain(); };
       }
       if (prop === 'onConflictDoUpdate') {
         return (values: unknown) => {

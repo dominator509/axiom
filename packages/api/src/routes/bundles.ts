@@ -35,6 +35,7 @@ const router = new Hono<AppBindings>();
 
 const createBundleSchema = z.object({
   modelId: z.string().uuid(),
+  assetId: z.string().uuid().optional(),
   captions: z.record(z.string(), z.string()).default({}),
   hashtags: z.array(z.string()).default([]),
 });
@@ -170,29 +171,52 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
+  if (body.assetId) {
+    const entries = Object.entries(body.captions);
+    if (!entries.length || entries.length > 11 || entries.some(([, caption]) => !caption.trim() || caption.length > 10_000)
+      || body.hashtags.length > 100 || body.hashtags.some(tag => tag.length > 100))
+      return apiError(c, 400, statusTitle(400), 'Saved media requires bounded captions for at least one platform');
+    try { entries.forEach(([platform]) => asPlatform(platform)); }
+    catch { return apiError(c, 400, statusTitle(400), 'Unsupported target platform'); }
+  }
 
   const inserted = await withOrgContext(orgId, async (tx) => {
     if ((await modelOrgId(tx, body.modelId)) !== orgId) return null;
+    if (body.assetId) {
+      const [asset] = await tx.select().from(schema.asset).where(and(
+        eq(schema.asset.id, body.assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, body.modelId),
+      )).limit(1).for('share');
+      if (!asset || asset.id !== body.assetId || asset.orgId !== orgId || asset.modelId !== body.modelId
+        || !['image/jpeg', 'image/png', 'video/mp4'].includes(asset.mimeType)) return null;
+      try {
+        await assetPreview(asset, new Request('http://internal/media', { method: 'HEAD', signal: c.req.raw.signal }),
+          process.env.AXIOM_MEDIA_ROOT ?? 'var/media');
+      } catch { return null; }
+    }
     const [row] = await tx
       .insert(schema.contentBundle)
       .values({
         orgId,
         modelId: body.modelId,
+        assetId: body.assetId,
         captions: body.captions,
         hashtags: body.hashtags,
         // Compliance reports are produced by the trusted generation/worker
         // path. Never accept a browser-supplied report as an approval input.
-        tosReport: null,
+        tosReport: body.assetId ? { verdict: 'pending', scores: [], reasons: ['Saved media and captions await a fresh ToS scan'] } : null,
         state: 'generated',
       })
       .returning();
     await writeAudit(tx, orgId, userId, 'bundle.create', row.id, {
       modelId: body.modelId,
+      assetId: body.assetId,
       state: 'generated',
     });
+    if (body.assetId) await enqueueJob(tx, { orgId, queue: 'tos', kind: 'tos.scan',
+      payload: { bundleId: row.id }, dedupeParts: ['tos.scan', row.id] });
     return row;
   });
-  if (!inserted) return apiError(c, 404, statusTitle(404), 'model not found');
+  if (!inserted) return apiError(c, 404, statusTitle(404), 'Model or saved media unavailable; review requires JPEG, PNG or MP4');
   return c.json({ data: inserted }, 201);
 });
 
