@@ -5,8 +5,8 @@ This checkpoint preserves the accumulated API, database, worker and dashboard im
 Review findings requiring follow-up:
 
 - Variant outcome follow-up: summaries now use outcomeAt and include conversion counts. Recording first verifies experiment organization/model, then locks the assignment with SELECT FOR UPDATE; identical repeats preserve timestamps. Four route tests and API typecheck pass. Live PostgreSQL concurrency/tenant enforcement and conversion display in the GUI remain open.
-- Scraper response size is checked after response.text() consumes the entire response. Stream and bound the response before allocation; verify model egress routing through the actual sidecar.
-- Media transform and scrape executors write failed state and then throw within the job transaction. Verify rollback behavior before claiming persistent failure visibility.
+- Scraper response consumption now uses the shared bounded streaming reader at 512 KB with a 30-second body deadline, cancels HTTP-error bodies and rejects malformed/empty envelopes without echoing response content. Nine focused tests and worker typecheck pass. Provider-specific response contracts and model egress routing still require verification.
+- Confirmed from worker processJob: media transform and scrape executors write failed state and throw inside the enclosing db.transaction, which rolls back those writes. Durable run failure/status updates must be integrated with the worker-owned job transition; failure visibility is not complete.
 - The reconciliation plan's earlier source-complete/test assertions need evidence review for the new feature routes; typechecking does not prove functional completeness.
 
 Current verification:

@@ -1,8 +1,24 @@
 import { and, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
+import { readBoundedResponseText } from '@axiom/core';
 import type { Executor } from './context.js';
 
 const MAX_RESULT_BYTES = 512 * 1024;
+
+export async function readScrapeResult(response: Response): Promise<Record<string, unknown>> {
+  if (!response.ok) {
+    void response.body?.cancel().catch(() => undefined);
+    throw new Error(`scraper returned HTTP ${response.status}`);
+  }
+  const raw = await readBoundedResponseText(response, MAX_RESULT_BYTES, 'scraper response', 30_000);
+  let result: unknown;
+  try { result = JSON.parse(raw); }
+  catch { throw new Error('scraper returned invalid JSON'); }
+  if (!result || typeof result !== 'object' || Array.isArray(result) || Object.keys(result).length === 0) {
+    throw new Error('scraper returned an empty or invalid result');
+  }
+  return result as Record<string, unknown>;
+}
 
 function scraperOrigin(): string {
   return (process.env.SCRAPER_URL ?? 'http://127.0.0.1:8102').replace(/\/$/, '');
@@ -23,10 +39,7 @@ export const scrapeRun: Executor = async ({ tx, job }) => {
     : { brand_name: run.request.brandName, industry: run.request.industry, platforms: run.request.platforms };
   try {
     const response = await fetch(`${scraperOrigin()}${path}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(request), signal: AbortSignal.timeout(30_000) });
-    const raw = await response.text();
-    if (!response.ok) throw new Error(`scraper returned HTTP ${response.status}`);
-    if (Buffer.byteLength(raw, 'utf8') > MAX_RESULT_BYTES) throw new Error('scraper response exceeded the bounded result size');
-    const result = JSON.parse(raw) as Record<string, unknown>;
+    const result = await readScrapeResult(response);
     await tx.update(schema.scrapeRun).set({ state: 'completed', result, completedAt: new Date(), error: null }).where(eq(schema.scrapeRun.id, run.id));
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : 'scraper request failed';
