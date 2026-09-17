@@ -70,7 +70,7 @@ export function projectExemplar(row: RetrievalRow, modelId: string): ViralExempl
  * API and queued worker paths use the same tenant/share policy without opening
  * a second unscoped connection.
  */
-export async function retrieveTopExemplars(
+export async function retrieveCaptionGuidance(
   tx: any,
   orgId: string,
   modelId: string,
@@ -78,7 +78,7 @@ export async function retrieveTopExemplars(
   limit: number,
   intent = '',
   scheduledFor: Date | string | null = null,
-): Promise<ViralExemplar[]> {
+) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new Error('Exemplar limit must be 1..50');
   let query = embedExemplarIntent(intent);
   if (!query.some(value => value !== 0)) query = embedExemplarIntent(platform);
@@ -122,9 +122,15 @@ export async function retrieveTopExemplars(
   const selected = await selectLearnedGuidance(tx, orgId, modelId, platform, [...new Set(ranked.map(armFor))], scheduledFor);
   const preferred = ranked.findIndex(row => armFor(row) === selected);
   if (preferred > 0) ranked.unshift(ranked.splice(preferred, 1)[0]);
-  return ranked.map((row: RetrievalRow, index: number) => {
+  const exemplars = ranked.map((row: RetrievalRow, index: number) => {
     const exemplar = projectExemplar(row, modelId);
     if (index === 0 && selected) exemplar.aiNotes = `${exemplar.aiNotes ?? ''} Preferred caption structure: ${selected}. Adapt to the current task; do not copy another persona.`.trim();
     return exemplar;
   });
+  return { exemplars, selectedArm: selected, context: learningStructure('', scheduledFor).context };
+}
+
+/** Compatibility reader for consumers that do not persist generated captions. */
+export async function retrieveTopExemplars(...args: Parameters<typeof retrieveCaptionGuidance>): Promise<ViralExemplar[]> {
+  return (await retrieveCaptionGuidance(...args)).exemplars;
 }

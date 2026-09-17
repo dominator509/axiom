@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { db, pool, schema } from '@axiom/db';
-import { retrieveTopExemplars } from './viral-retrieval.js';
+import { retrieveTopExemplars, retrieveCaptionGuidance } from './viral-retrieval.js';
+import { captionGuidanceReceipt } from './caption-guidance.js';
 import { embedExemplarIntent } from './embedding.js';
 import { viralLabel } from './executors/viral.js';
 import type { JobRow } from './types.js';
@@ -98,9 +99,14 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
   it('refreshes one stable recipe and embedding rather than accumulating repeated polls', async () => {
     await fixture(async (tx, modelId) => {
       const bundleId = randomUUID(), targetId = randomUUID();
-      await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId, captions: { instagram: 'Blue ceramic vase' } });
+      const selected = await retrieveCaptionGuidance(tx, orgId, modelId, 'instagram', 3, 'blue vase');
+      const guidance = captionGuidanceReceipt('Blue ceramic vase', selected);
+      await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId, captions: { instagram: 'Blue ceramic vase' },
+        captionGuidance: { instagram: guidance } });
+      const [savedBundle] = await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, bundleId));
+      expect(savedBundle.captionGuidance.instagram).toEqual(guidance);
       await tx.insert(schema.postTarget).values({ id: targetId, orgId, bundleId, platform: 'instagram', state: 'published', remoteId: targetId, idemKey: Buffer.from(randomUUID()),
-        publicationSnapshot: { caption: 'Blue ceramic vase', hashtags: [], modelId, assetId: null, scheduledFor: null } });
+        publicationSnapshot: { caption: 'Blue ceramic vase', hashtags: [], modelId, assetId: null, scheduledFor: null, captionGuidance: guidance } });
       // Both observations use the database transaction clock. Mixing JS wall
       // time with default now() can reverse them when fixture setup exceeds 1s.
       await tx.insert(schema.postMetric).values({ postTargetId: targetId, platform: 'instagram', remoteId: targetId, source: 'provider', views: 10, likes: 1, engagementRate: .1, collectedAt: sql`now() - interval '1 second'` });
@@ -123,6 +129,7 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       expect(recipes[0].id).toBe(first.id);
       expect(recipes[0].realizedMetrics.views).toBe(20);
       expect(recipes[0].recipe.caption).toBe('Blue ceramic vase');
+      expect(recipes[0].recipe.generation_guidance).toEqual(guidance);
       const embeddings = await tx.select().from(schema.viralEmbedding).where(eq(schema.viralEmbedding.recipeId, first.id));
       expect(embeddings).toHaveLength(1);
       expect(embeddings[0].id).toBe(first.id);

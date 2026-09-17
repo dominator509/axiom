@@ -16,8 +16,9 @@ vi.mock('@axiom/llm-gateway', async () => ({
   },
 }));
 vi.mock('../enqueue.js', () => ({ enqueueJob: state.enqueue }));
-vi.mock('../viral-retrieval.js', () => ({ retrieveTopExemplars: vi.fn(async () => []) }));
+vi.mock('../viral-retrieval.js', () => ({ retrieveCaptionGuidance: vi.fn(async () => ({ exemplars: [], selectedArm: null, context: 'learn-v1:scheduled-utc-unknown' })) }));
 import { contentGenerate } from './generate.js';
+import { captionGuidanceReceipt } from '../caption-guidance.js';
 
 function chain(): ExecutorContext['tx'] {
   return new Proxy(function () {}, {
@@ -104,6 +105,10 @@ describe('content.generate caption revisions', () => {
     expect(state.updates).toEqual([
       {
         captions: { instagram: 'Revised IG', threads: 'Revised Threads' },
+        captionGuidance: {
+          instagram: captionGuidanceReceipt('Revised IG', { exemplars: [], selectedArm: null, context: 'learn-v1:scheduled-utc-unknown' }),
+          threads: captionGuidanceReceipt('Revised Threads', { exemplars: [], selectedArm: null, context: 'learn-v1:scheduled-utc-unknown' }),
+        },
         state: 'generated',
         tosReport: { verdict: 'pending', revisionId: 'revision-1' },
         updatedAt: expect.any(Date),

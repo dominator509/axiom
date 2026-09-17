@@ -37,6 +37,22 @@ Source and automated evidence never substitutes for a missing runtime or provide
 - [ ] Full architecture gate: L1 F-15 caption/teaser variants and F-16 automatic winner promotion now have source paths, including published-post attribution, creation-fixed automatic evaluation, frozen evidence, audit, and replay-safe winner reward integration (M242–M264). These are not yet deployed/browser-accepted. Manual self-reported outcomes remain excluded from verified learning. Selected-guidance attribution and richer hook/timing behavior remain incomplete; keep this gate open until runtime acceptance and remaining requirements are satisfied.
 - Current slice: candidate picker/preview, lifecycle, paginated assignment history, stable allocation and observed-outcome controls, confirmed manual winner, frozen completion, and idempotency on nested mutations. Allocations are not counted as proven views. Focused tests/typechecks pass; database concurrency, browser acceptance and deployed workflow remain open.
 - Caption/teaser candidates now flow through owned review bundles, assignment-bound publication attribution, immutable publication snapshots, automatic evaluation and winner rewards (M243–M264). Remaining work includes selected-guidance attribution, richer hook/timing behavior and deployed acceptance; candidate creation alone is not the completion criterion.
+- M338 implements generation-time caption-guidance receipts (migration0048):
+  selected arm, selection context, exemplar identities and SHA256 of actual output.
+  Synchronous enrichment and queued generation/revision persist the receipt only
+  for a successful caption result; fallback/manual/legacy captions have no invented
+  receipt. Queued generation/revision uses a matching existing publish intent's
+  time context when available. First-dispatch snapshots retain guidance only when
+  the final staged caption still matches; subsequent learning uses the immutable
+  snapshot rather than mutable bundle captions. Observed structure remains separate
+  from selected guidance: selection is not evidence of compliance or causality.
+- M338 evidence: 81 focused generation/publication/learning/API tests and seven real
+  PostgreSQL retrieval/learning tests pass after all 49 migrations. Fixture
+  `axiom_workspace_test_390b0d754029ea54` was removed; recovered/live data untouched.
+  DB/worker builds and API typecheck pass; worker lint has existing warnings, with
+  the newly exposed unused catch binding removed. No live migration or deployment.
+  Wider hook/format/timing arms, guidance insight presentation and live acceptance
+  remain incomplete; the full F-84 gate is not closed by receipt persistence.
 
 ### 2. Scraper orchestration — model egress corrected; provider/deployment gate open
 

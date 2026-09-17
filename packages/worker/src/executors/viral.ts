@@ -8,6 +8,7 @@
 
 import { eq, and, gte, desc, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
+import { matchingCaptionGuidance } from '../caption-guidance.js';
 import { embedExemplarIntent } from '../embedding.js';
 import type { Executor, ExecutorContext } from './context.js';
 import { learningStructure, refreshLearningState } from '../learning-state.js';
@@ -163,6 +164,8 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     embedding_version: 'lexical-v1',
     learning_arm: structure.arm,
     learning_context: structure.context,
+    // Selection is not proof that guidance caused the observed outcome.
+    generation_guidance: matchingCaptionGuidance(snapshot.caption, snapshot.captionGuidance),
     platform: target.platform,
     caption: snapshot.caption,
     hashtags: snapshot.hashtags,

@@ -12,6 +12,14 @@ export type ContentBundlePublishIntent = {
   scheduledAt: string | null;
 };
 
+export interface CaptionGuidanceReceipt {
+  version: 'caption-guidance-v1';
+  selectedArm: string | null;
+  context: string;
+  exemplarIds: string[];
+  captionSha256: string;
+}
+
 export const contentBundle = pgTable('content_bundle', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: uuid('org_id')
@@ -23,6 +31,7 @@ export const contentBundle = pgTable('content_bundle', {
   assetId: uuid('asset_id').references(() => asset.id),
   sourceVariantId: uuid('source_variant_id').references(() => assetVariant.id, { onDelete: 'restrict' }),
   captions: jsonb('captions').$type<Record<string, string>>().default({}),
+  captionGuidance: jsonb('caption_guidance').$type<Record<string, CaptionGuidanceReceipt>>().notNull().default({}),
   hashtags: jsonb('hashtags').$type<string[]>().default([]),
   tosReport: jsonb('tos_report').$type<Record<string, unknown>>(),
   publishIntent: jsonb('publish_intent').$type<ContentBundlePublishIntent>(),

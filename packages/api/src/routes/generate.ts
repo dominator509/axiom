@@ -27,7 +27,8 @@ import {
 } from '@axiom/llm-gateway';
 import { LLMGateway, characterLockSnapshot, buildMediaPrompt } from '@axiom/llm-gateway';
 import { evaluateTextToS, PLATFORM_RULES } from '@axiom/fanvue-mcp';
-import { asPlatform, enqueueJob, retrieveTopExemplars, modelPlaybookContext } from '@axiom/worker';
+import { asPlatform, enqueueJob, retrieveCaptionGuidance, captionGuidanceReceipt, modelPlaybookContext } from '@axiom/worker';
+import type { CaptionGuidanceReceipt } from '@axiom/db/schema';
 
 type PromptPlatform =
   | 'instagram'
@@ -293,6 +294,7 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
 
     // 2. Optional LLM enrichment through the gateway (real provider call)
     const enrichedCaptions: Record<string, string> = {};
+    const captionGuidance: Record<string, CaptionGuidanceReceipt> = {};
     const captionEnrichment: Record<string, 'not_requested' | 'enriched' | 'fallback'> = Object.fromEntries(
       platforms.map(platform => [platform, body.enrichWithLlm ? 'fallback' : 'not_requested']),
     );
@@ -303,11 +305,11 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
         // F-83 exemplar injection: retrieve the model's best-performing
         // exemplars from the DB-backed viral memory (L2.8) and feed them
         // into the S2 segment so generation is guided by what worked.
-        const exemplars = await retrieveTopExemplars(tx, orgId, modelId, destination, 3, variants[0].prompt);
+        const guidance = await retrieveCaptionGuidance(tx, orgId, modelId, destination, 3, variants[0].prompt);
         const prompt = assemblePrompt({
           S0: buildS0(profile),
           S1: buildS1(destination as PromptPlatform) + await modelPlaybookContext(tx, orgId, modelId, destination),
-          S2: buildS2(exemplars),
+          S2: buildS2(guidance.exemplars),
           S3: buildS3({
             modelId,
             task: 'Write an engaging caption for the photoshoot, max 200 chars.',
@@ -327,6 +329,7 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
         const caption = chat.content.trim();
         if (caption) {
           enrichedCaptions[destination] = caption;
+          captionGuidance[destination] = captionGuidanceReceipt(caption, guidance);
           captionEnrichment[destination] = 'enriched';
         }
       } catch (err) {
@@ -377,6 +380,7 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
         orgId,
         modelId,
         captions,
+        captionGuidance,
         hashtags: variants[0].hashtags,
         tosReport,
         state: 'generated',

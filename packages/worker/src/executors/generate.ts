@@ -21,7 +21,9 @@ import { enqueueJob } from '../enqueue.js';
 
 import { modelPlaybookContext } from '../playbook-context.js';
 import { asPlatform } from '../connection.js';
-import { retrieveTopExemplars } from '../viral-retrieval.js';
+import { retrieveCaptionGuidance } from '../viral-retrieval.js';
+import { captionGuidanceReceipt } from '../caption-guidance.js';
+import type { CaptionGuidanceReceipt } from '@axiom/db/schema';
 
 export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   const { tx, job } = ctx;
@@ -125,15 +127,17 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
     if (platforms.length === 0)
       throw new Error('content.generate: revision has no target captions');
     const captions: Record<string, string> = {};
+    const captionGuidance: Record<string, CaptionGuidanceReceipt> = {};
     const gateway = new LLMGateway();
     for (const target of platforms) {
       const original = currentCaptions[target];
       if (typeof original !== 'string') throw new Error('content.generate: invalid source caption');
-      const exemplars = await retrieveTopExemplars(tx, job.org_id, modelId, target, 3, `${original} ${payload.revision.instructions}`);
+      const guidance = await retrieveCaptionGuidance(tx, job.org_id, modelId, target, 3, `${original} ${payload.revision.instructions}`,
+        existingBundle.publishIntent?.platform === target ? existingBundle.publishIntent.scheduledAt : null);
       const prompt = assemblePrompt({
         S0: buildS0(profile),
         S1: buildS1(target) + await modelPlaybookContext(tx, job.org_id, modelId, target),
-        S2: buildS2(exemplars),
+        S2: buildS2(guidance.exemplars),
         S3: buildS3({
           modelId,
           platform: target,
@@ -158,6 +162,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
       if (!caption || caption.length > 32000)
         throw new Error('content.generate: invalid revised caption');
       captions[target] = caption;
+      captionGuidance[target] = captionGuidanceReceipt(caption, guidance);
     }
     if (platforms.every((target) => captions[target] === currentCaptions[target])) {
       throw new Error('content.generate: provider returned unchanged captions');
@@ -166,6 +171,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
       .update(schema.contentBundle)
       .set({
         captions,
+        captionGuidance,
         tosReport: { verdict: 'pending', revisionId: payload.revision.id },
         state: 'generated',
         updatedAt: new Date(),
@@ -198,14 +204,16 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   });
 
   let caption = variants[0].caption;
+  const captionGuidance: Record<string, CaptionGuidanceReceipt> = {};
   if (payload.enrichWithLlm) {
     try {
       const gateway = new LLMGateway();
-      const exemplars = await retrieveTopExemplars(tx, job.org_id, modelId, platform, 3, variants[0].prompt);
+      const guidance = await retrieveCaptionGuidance(tx, job.org_id, modelId, platform, 3, variants[0].prompt,
+        existingBundle?.publishIntent?.platform === platform ? existingBundle.publishIntent.scheduledAt : null);
       const prompt = assemblePrompt({
         S0: buildS0(profile),
         S1: buildS1(platform as never) + await modelPlaybookContext(tx, job.org_id, modelId, platform),
-        S2: buildS2(exemplars),
+        S2: buildS2(guidance.exemplars),
         S3: buildS3({
           modelId,
           task: 'Write an engaging caption for the photoshoot, max 200 chars.',
@@ -220,10 +228,13 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
         ],
         { model: payload.model },
       );
-      caption = chat.content.trim();
-    } catch (err) {
+      const enriched = chat.content.trim();
+      if (!enriched || enriched.length > 32000) throw new Error('Invalid enriched caption');
+      caption = enriched;
+      captionGuidance[platform] = captionGuidanceReceipt(caption, guidance);
+    } catch {
       // Best-effort enrichment; prompt engine output still forms the bundle.
-      console.error('content.generate enrich failed:', (err as Error).message);
+      console.error('content.generate enrichment unavailable', { platform });
     }
   }
 
@@ -236,6 +247,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
           orgId: job.org_id,
           modelId,
           captions: { [platform]: caption },
+          captionGuidance,
           hashtags: variants[0].hashtags,
           tosReport: null,
           state: 'generated',
@@ -250,6 +262,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
       .update(schema.contentBundle)
       .set({
         captions: { [platform]: caption },
+        captionGuidance,
         hashtags: variants[0].hashtags,
         tosReport: null,
         state: 'generated',

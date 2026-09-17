@@ -24,7 +24,8 @@ export type {
   ViralMetricSample,
   ViralScore,
 } from './executors/viral.js';
-export { retrieveTopExemplars } from './viral-retrieval.js';
+export { retrieveTopExemplars, retrieveCaptionGuidance } from './viral-retrieval.js';
+export { captionGuidanceReceipt, matchingCaptionGuidance } from './caption-guidance.js';
 export { modelPlaybookContext } from './playbook-context.js';
 export { assessVariantPerformance } from './variant-evaluation.js';
 export { runWorker, workerTick, processJob, readKillSwitch } from './worker.js';

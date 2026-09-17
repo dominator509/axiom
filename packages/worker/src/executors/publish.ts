@@ -15,6 +15,7 @@ import {
   getTosScanState,
 } from '@axiom/db';
 import { asPlatform, connectorForTarget } from '../connection.js';
+import { matchingCaptionGuidance } from '../caption-guidance.js';
 import { enqueueJob } from '../enqueue.js';
 import { ParkJobError } from './context.js';
 import { runPrePostBefore, runPrePostAfter } from './pre_post.js';
@@ -456,6 +457,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const publicationSnapshot = resolvePublicationSnapshot(target, {
     caption: stagedInput.caption, hashtags: stagedInput.hashtags ?? [], modelId: model.id,
     assetId: bundle.assetId ?? null, scheduledFor: input.scheduledFor ?? null,
+    captionGuidance: matchingCaptionGuidance(stagedInput.caption, bundle.captionGuidance?.[target.platform]),
   });
 
   if (result.state === 'pending') {

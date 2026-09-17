@@ -54,6 +54,8 @@ let revisionReply: string | null = null;
 let chatFailure: string | null = null;
 
 import { generateRouter } from './generate.js';
+import { matchingCaptionGuidance } from '@axiom/worker';
+import type { CaptionGuidanceReceipt } from '@axiom/db/schema';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -73,6 +75,7 @@ function appWithOrg(orgId: string | null, userId = 'user-1') {
 beforeEach(() => {
   mockState.result = [];
   mockState.results = [];
+  mockState.insertValues = [];
   mediaQueue.mockClear();
   capturedOptions = null;
   capturedMessages = null;
@@ -124,6 +127,13 @@ describe('POST /models/:id/generate', () => {
     expect(response.status).toBe(201);
     const receipt = await response.json() as { data: { captionEnrichment: Record<string, string> } };
     expect(receipt.data.captionEnrichment).toEqual({ instagram: outcome });
+    const stored = mockState.insertValues.find((value): value is { captions: Record<string, string>; captionGuidance: Record<string, CaptionGuidanceReceipt> } =>
+      Boolean(value && typeof value === 'object' && 'captionGuidance' in value));
+    expect(stored).toBeDefined();
+    if (outcome === 'enriched') {
+      expect(matchingCaptionGuidance(reply, stored!.captionGuidance.instagram)).not.toBeNull();
+      expect(matchingCaptionGuidance('Edited later', stored!.captionGuidance.instagram)).toBeNull();
+    } else expect(stored!.captionGuidance).toEqual({});
   });
   it('uses separate playbook context for each selected destination rather than copying the first platform context', async () => {
     mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
