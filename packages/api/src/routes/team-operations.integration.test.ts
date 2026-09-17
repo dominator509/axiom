@@ -12,6 +12,7 @@ import { modelAssignmentsRouter } from './model-assignments.js';
 import { modelsRouter } from './models.js';
 import { bundlesRouter } from './bundles.js';
 import { mediaUploadRouter } from './media-upload.js';
+import { fansRouter } from './fans.js';
 import { enforceModelAccess, type ScopedHumanRole } from '../model-access.js';
 
 const url = process.env.TEST_DATABASE_URL, orgId = '11111111-1111-4111-8111-111111111111';
@@ -41,6 +42,7 @@ function scopedApp(role: ScopedHumanRole, org = orgId) {
   route.route('/api/v1/models', modelsRouter);
   route.route('/api/v1/bundles', bundlesRouter);
   route.route('/api/v1', mediaUploadRouter);
+  route.route('/api/v1', fansRouter);
   return route;
 }
 const write = (postId: string, org = orgId) => app(org).request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ targetType: 'post', targetId: postId, body: 'Post handoff context' }) });
@@ -259,5 +261,38 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect((await route.request(`/api/v1/bundles/${bundles[0]}/approve`, { method: 'POST' })).status).toBe(403);
     await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
     expect((await route.request(`/api/v1/bundles/${bundles[0]}/media`)).status).toBe(404);
+  });
+  it.each(['model', 'chatter'] as const)('scopes fan timelines, linked requests and revoked reads for %s', async role => {
+    const fanIds = [randomUUID(), randomUUID()], shiftId = randomUUID(), requestId = randomUUID();
+    await scoped(async tx => {
+      await tx.delete(schema.teamShift).where(eq(schema.teamShift.assigneeUserId, assignmentUsers[0]));
+      await tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing();
+      for (let i = 0; i < 2; i++) await tx.insert(schema.fanCrmContact).values({ id: fanIds[i], orgId, modelId: models[i], platform: 'fanvue', externalId: fanIds[i] });
+      await tx.insert(schema.fanTouchpoint).values({ orgId, fanId: fanIds[0], platform: 'fanvue', kind: 'note', content: 'Owned saved timeline' });
+      await tx.insert(schema.customRequest).values([
+        { id: requestId, orgId, modelId: models[0], fanId: fanIds[0], title: 'Owned request' },
+        { orgId, modelId: models[1], fanId: fanIds[0], title: 'Mismatched model must not leak' },
+      ]);
+      if (role === 'chatter') await tx.insert(schema.teamShift).values({ id: shiftId, orgId, modelId: models[0], assigneeUserId: assignmentUsers[0], status: 'active', startsAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() + 600_000) });
+    });
+    const route = scopedApp(role), path = `/api/v1/fans/${fanIds[0]}`;
+    const response = await route.request(path);
+    expect(response.status).toBe(200);
+    const result = await response.json() as { data: { fan: { id: string }; touchpoints: { content: string }[]; requests: { id: string }[] } };
+    expect(result.data.fan.id).toBe(fanIds[0]);
+    expect(result.data.touchpoints.map(row => row.content)).toEqual(['Owned saved timeline']);
+    expect(result.data.requests.map(row => row.id)).toEqual([requestId]);
+    expect((await route.request(`/api/v1/fans/${fanIds[1]}`)).status).toBe(404);
+    expect((await scopedApp(role, foreignOrg).request(path)).status).toBe(404);
+    expect((await scopedApp('content_creator').request(path)).status).toBe(403);
+    const listed = await (await route.request(`/api/v1/models/${models[0]}/fans`)).json() as { data: { id: string }[] };
+    expect(listed.data.map(row => row.id)).toContain(fanIds[0]);
+    expect(listed.data.map(row => row.id)).not.toContain(fanIds[1]);
+    if (role === 'chatter') {
+      await scoped(tx => tx.update(schema.teamShift).set({ endsAt: new Date(Date.now() - 1_000) }).where(eq(schema.teamShift.id, shiftId)));
+      expect((await route.request(path)).status).toBe(404);
+    }
+    await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.userId, assignmentUsers[0])));
+    expect((await route.request(path)).status).toBe(404);
   });
 });

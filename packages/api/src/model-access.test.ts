@@ -21,6 +21,10 @@ it('allows media reads only for models and creators, never publishing or malform
   expect(scopedReadTarget('chatter', 'GET', `/api/v1/models/${id}/media`)).toBeNull();
 });
 it('matches only blueprint read surfaces for each role', () => {
+  expect(scopedReadTarget('chatter', 'GET', `/api/v1/fans/${id}`)).toBe(`fan:${id}`);
+  expect(scopedReadTarget('model', 'GET', `/api/v1/fans/${id}`)).toBe(`fan:${id}`);
+  expect(scopedReadTarget('content_creator', 'GET', `/api/v1/fans/${id}`)).toBeNull();
+  expect(scopedReadTarget('chatter', 'POST', `/api/v1/fans/${id}/touchpoints`)).toBeNull();
   expect(scopedReadTarget('chatter', 'GET', `/api/v1/models/${id}/calendar`)).toBeNull();
   expect(scopedReadTarget('content_creator', 'GET', `/api/v1/models/${id}/fans`)).toBeNull();
   expect(scopedReadTarget('model', 'GET', `/api/v1/models/${id}/fans`)).toBe(id);

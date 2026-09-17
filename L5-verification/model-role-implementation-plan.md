@@ -30,6 +30,14 @@ temporary PNG byte delivery and range responses, foreign model/tenant denial,
 and revocation. Chatter cannot read these media paths. Creator approval and other
 mutations remain denied; roles are still not activated in normal authentication.
 
+Fan list and direct timeline reads now recheck the contact's model assignment
+inside SQL. Model and Chatter may read their scoped CRM; Creator cannot. Chatter
+requires the same active shift on direct fan IDs. Timeline requests must match
+both the fan and its model, and all child records retain explicit tenant scope.
+Real PostgreSQL tests cover active/expired shifts, revoked membership, another
+model/tenant and mismatched request references. This is saved CRM read access,
+not live inbox synchronization or permission to send messages.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including

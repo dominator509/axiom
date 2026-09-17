@@ -33,6 +33,10 @@ export function modelAccessCondition(role: unknown, orgId: string, userId: strin
 export function scopedReadTarget(role: ScopedHumanRole, method: string, path: string): 'discovery' | string | null {
   if (method !== 'GET' && method !== 'HEAD') return null;
   if (path === '/api/v1/models' || path === '/api/v1/models/stats/count') return 'discovery';
+  if (role !== 'content_creator') {
+    const fan = /^\/api\/v1\/fans\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.exec(path);
+    if (fan) return `fan:${fan[1]}`;
+  }
   if (role !== 'chatter') {
     if (path === '/api/v1/bundles') return 'discovery';
     const bundle = /^\/api\/v1\/bundles\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/media)?$/i.exec(path);
@@ -57,6 +61,13 @@ export async function enforceModelAccess(c: Context<AppBindings>, next: Next) {
   if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authenticated workspace required');
   const target = scopedReadTarget(role, c.req.method, c.req.path);
   if (!target) return apiError(c, 403, statusTitle(403), 'operation is not available to this role');
+  if (target.startsWith('fan:')) {
+    const allowed = await withOrgContext(orgId, tx => tx.select({ id: schema.fanCrmContact.id }).from(schema.fanCrmContact)
+      .where(and(eq(schema.fanCrmContact.orgId, orgId), eq(schema.fanCrmContact.id, target.slice(4)),
+        modelAccessCondition(role, orgId, userId, schema.fanCrmContact.modelId))).limit(1));
+    if (!allowed.length) return apiError(c, 404, statusTitle(404), 'fan unavailable');
+    return next();
+  }
   if (target.startsWith('bundle:')) {
     const allowed = await withOrgContext(orgId, tx => tx.select({ id: schema.contentBundle.id }).from(schema.contentBundle)
       .where(and(eq(schema.contentBundle.orgId, orgId), eq(schema.contentBundle.id, target.slice(7)),

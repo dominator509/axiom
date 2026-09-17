@@ -7,6 +7,7 @@ import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js
 import { eq, and, desc } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
+import { modelAccessCondition } from '../model-access.js';
 import {
   withOrgContext,
   modelOrgId,
@@ -60,6 +61,7 @@ router.get('/models/:modelId/fans', async (c) => {
     const conds = [
       eq(schema.fanCrmContact.orgId, orgId),
       eq(schema.fanCrmContact.modelId, modelId),
+      modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.fanCrmContact.modelId),
       ...cursorLt(schema.fanCrmContact.lifetimeValueUsd, schema.fanCrmContact.id, cursor),
     ];
     if (tier) conds.push(eq(schema.fanCrmContact.tier, tier));
@@ -140,19 +142,20 @@ router.get('/fans/:fanId', async (c) => {
     const fans = await tx
       .select()
       .from(schema.fanCrmContact)
-      .where(and(eq(schema.fanCrmContact.id, fanId), eq(schema.fanCrmContact.orgId, orgId)))
+      .where(and(eq(schema.fanCrmContact.id, fanId), eq(schema.fanCrmContact.orgId, orgId),
+        modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.fanCrmContact.modelId)))
       .limit(1);
     if (fans.length === 0) return null;
     const touchpoints = await tx
       .select()
       .from(schema.fanTouchpoint)
-      .where(eq(schema.fanTouchpoint.fanId, fanId))
+      .where(and(eq(schema.fanTouchpoint.fanId, fanId), eq(schema.fanTouchpoint.orgId, orgId)))
       .orderBy(desc(schema.fanTouchpoint.ts))
       .limit(100);
     const requests = await tx
       .select()
       .from(schema.customRequest)
-      .where(eq(schema.customRequest.fanId, fanId))
+      .where(and(eq(schema.customRequest.fanId, fanId), eq(schema.customRequest.orgId, orgId), eq(schema.customRequest.modelId, fans[0].modelId)))
       .orderBy(desc(schema.customRequest.createdAt));
     return { fan: fans[0], touchpoints, requests };
   });
