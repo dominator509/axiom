@@ -220,6 +220,17 @@ describe('buildS2', () => {
 });
 
 describe('buildS3', () => {
+  it('includes dynamic instructions and source context for generation and revision', () => {
+    const prompt = buildS3({
+      modelId: 'model-1',
+      platform: 'instagram',
+      task: 'Revise only the caption',
+      context: JSON.stringify({ caption: 'Original', instructions: 'Warmer tone' }),
+    });
+    expect(prompt).toContain('Instruction: Revise only the caption');
+    expect(prompt).toContain('Original');
+    expect(prompt).toContain('Warmer tone');
+  });
   const task: TaskVariables = { modelId: 'model-1', platform: 'instagram' };
 
   it('uses defaults for missing angle, emojiStyle and cta', () => {

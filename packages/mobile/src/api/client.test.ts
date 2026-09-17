@@ -144,6 +144,31 @@ describe('apiFetch', () => {
     expect(secondHeaders.get('Idempotency-Key')).toBe(firstHeaders.get('Idempotency-Key'));
   });
 
+  it('aborts a hung request at the configured timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock.mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), {
+            once: true,
+          });
+        });
+      });
+
+      const request = apiFetch<unknown>('/api/v1/digests', { timeoutMs: 25 });
+      const outcome = request.then(
+        () => null,
+        (error: unknown) => error,
+      );
+      await vi.advanceTimersByTimeAsync(25);
+
+      await expect(outcome).resolves.toMatchObject({ message: 'network error: aborted' });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('preserves an explicit BFF mutation intent key', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ success: true }));
 

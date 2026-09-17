@@ -50,7 +50,7 @@ export default function LoginScreen({ onAuthed }: LoginScreenProps) {
         <View style={styles.brandMark}>
           <Text style={styles.brandLetter}>A</Text>
         </View>
-        <Text style={styles.logo}>AXIOM</Text>
+        <Text style={styles.logo}>FanThynks</Text>
         <Text style={styles.kicker}>YOUR PRIVATE CREATOR OS</Text>
         <Text style={styles.promise}>Run your world.{`\n`}Beautifully.</Text>
       </View>

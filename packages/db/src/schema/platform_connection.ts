@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, jsonb, unique } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { org } from './org.js';
 import { modelProfile } from './model_profile.js';
@@ -21,7 +21,7 @@ export const platformConnection = pgTable('platform_connection', {
   capabilities: jsonb('capabilities').$type<string[]>().default([]),
   status: text('status').notNull().default('connected'),
   connectedAt: timestamp('connected_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, table => [unique('platform_connection_scope_identity').on(table.orgId, table.modelId, table.id)]);
 
 export const platformConnectionRelations = relations(platformConnection, ({ one, many }) => ({
   org: one(org, {

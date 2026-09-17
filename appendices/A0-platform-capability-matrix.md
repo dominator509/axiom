@@ -11,13 +11,13 @@
 
 | Platform | Publish | Media | Caption limit* | Sched | Metrics | Notes |
 |---|---|---|---|---|---|---|
-| Instagram | api | image, video, carousel, story, reel | ~2,200 | native | webhook + poll | Graph API; creator/business account; reels = video w/ flag. |
+| Instagram | api | image, video, carousel, story, reel | ~2,200 | internal | webhook + poll | AXIOM worker schedules the Graph publish; creator/business account required; reels = video w/ flag. |
 | TikTok | api | video, photo, short | ~2,200 | internal | poll | Content Posting API; audit status before/after. |
-| YouTube | api | video, **short** | title 100 / desc 5,000 | native | poll | Short = vertical ≤ 60s flag on upload. |
-| X (Twitter) | api | image, video, gif | 280 (free tier) | internal | poll | v2 media upload then post. |
-| Facebook | api | image, video, story, reel | ~63,206 | native | webhook + poll | Pages API. |
+| YouTube | api | video, **short** | title 100 / desc 5,000 | internal | poll | AXIOM worker schedules the upload; Short = vertical ≤ 60s flag on upload. |
+| X (Twitter) | api | image, video, gif | 280 (free tier) | internal | poll | v2 media upload then post; one post uses up to four images, one GIF, or one video without mixing types. |
+| Facebook | api | image, video, story, reel | ~63,206 | internal | webhook + poll | AXIOM worker schedules the Page publish. |
 | Reddit | api | image, video, text, link | title 300 | internal | poll | per-subreddit rule engine; flair support. |
-| Threads | api | image, video | ~500 | native | poll | Threads Publishing API. |
+| Threads | api | image, video | ~500 | internal | poll | AXIOM worker schedules container creation and publish. |
 | Discord | link_share | image, video, link | 2,000 (msg) | internal | none | bot/webhook posts content link + rich embed. |
 | Telegram | link_share | image, video, link | 1,024 (caption) | internal | none | bot posts content link + preview. |
 | Snapchat | assisted | image, video, story | n/a | internal | none | no open publish API → Relay hand-off; one-tap post. |

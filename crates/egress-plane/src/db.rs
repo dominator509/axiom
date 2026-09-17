@@ -22,71 +22,43 @@ pub async fn connect(database_url: &str) -> Result<Client, String> {
     Ok(client)
 }
 
-/// Load all egress config rows (optionally filtered by org). RLS is satisfied
-/// by setting `app.current_org_id` per org before reading its rows.
+/// Load all egress config rows through the narrowly scoped, ACL-locked
+/// cross-org resolver. The runtime role remains subject to FORCE RLS; only
+/// the resolver owned by the trusted migration role may enumerate configs.
 pub async fn load_configs(client: &mut Client) -> Result<Vec<NetworkConfig>, String> {
-    // Discover org ids from the rows themselves via a superuser-safe query:
-    // we set the org GUC per distinct org and read that org's rows.
-    let org_rows = client
+    let rows = client
         .query(
-            "SELECT DISTINCT org_id FROM model_network_configs ORDER BY org_id",
+            "SELECT org_id::text, model_id::text, egress_mode, proxy_type, proxy_addr,
+                    wg_public_key, wg_endpoint, wg_allowed_ips, wg_persistent_keepalive,
+                    expected_egress_ip, failover_proxy_addrs, enc_creds, enc_nonce, dek_id
+             FROM load_model_network_configs()",
             &[],
         )
         .await
-        .map_err(|e| format!("distinct org query failed: {e}"))?;
+        .map_err(|e| format!("load configs failed: {e}"))?;
 
-    let mut out = Vec::new();
-    for row in org_rows {
-        let org_id: String = row.get(0);
-        // Set RLS context for this org inside a transaction.
-        let tx = client
-            .transaction()
-            .await
-            .map_err(|e| format!("tx begin failed: {e}"))?;
-        tx.batch_execute(&format!(
-            "SELECT set_config('app.current_org_id', '{org_id}', true)"
-        ))
-        .await
-        .map_err(|e| format!("set org ctx failed: {e}"))?;
-
-        let rows = tx
-            .query(
-                "SELECT org_id, model_id, egress_mode, proxy_type, proxy_addr,
-                        wg_public_key, wg_endpoint, wg_allowed_ips, wg_persistent_keepalive,
-                        expected_egress_ip, failover_proxy_addrs, enc_creds, enc_nonce, dek_id
-                 FROM model_network_configs
-                 WHERE org_id = $1::uuid
-                 ORDER BY model_id",
-                &[&org_id],
-            )
-            .await
-            .map_err(|e| format!("load configs failed: {e}"))?;
-
-        for r in rows {
-            let mode_str: String = r.get(2);
-            let mode = EgressMode::from_str(&mode_str).unwrap_or(EgressMode::Direct);
-            let enc_creds: Option<Vec<u8>> = r.get(11);
-            let enc_nonce: Option<Vec<u8>> = r.get(12);
-            let dek_id: Option<String> = r.get(13);
-            out.push(NetworkConfig {
-                model_id: r.get(1),
-                org_id: r.get(0),
-                mode,
-                proxy_addr: r.get(4),
-                wg_public_key: r.get(5),
-                wg_endpoint: r.get(6),
-                wg_allowed_ips: r.get(7),
-                wg_persistent_keepalive: r.get(8),
-                expected_egress_ip: r.get(9),
-                failover_proxy_addrs: r.get::<_, Option<Vec<String>>>(10).unwrap_or_default(),
-                enc_creds,
-                enc_nonce,
-                dek_id,
-            });
-        }
-        tx.commit()
-            .await
-            .map_err(|e| format!("tx commit failed: {e}"))?;
+    let mut out = Vec::with_capacity(rows.len());
+    for r in rows {
+        let mode_str: String = r.get(2);
+        let mode = EgressMode::from_str(&mode_str).unwrap_or(EgressMode::Direct);
+        let enc_creds: Option<Vec<u8>> = r.get(11);
+        let enc_nonce: Option<Vec<u8>> = r.get(12);
+        let dek_id: Option<String> = r.get(13);
+        out.push(NetworkConfig {
+            model_id: r.get(1),
+            org_id: r.get(0),
+            mode,
+            proxy_addr: r.get(4),
+            wg_public_key: r.get(5),
+            wg_endpoint: r.get(6),
+            wg_allowed_ips: r.get(7),
+            wg_persistent_keepalive: r.get(8),
+            expected_egress_ip: r.get(9),
+            failover_proxy_addrs: r.get::<_, Option<Vec<String>>>(10).unwrap_or_default(),
+            enc_creds,
+            enc_nonce,
+            dek_id,
+        });
     }
     Ok(out)
 }
@@ -123,9 +95,10 @@ pub async fn save_health(
         .transaction()
         .await
         .map_err(|e| format!("tx begin failed: {e}"))?;
-    tx.batch_execute(&format!(
-        "SELECT set_config('app.current_org_id', '{org_id}', true)"
-    ))
+    tx.query_one(
+        "SELECT set_config('app.current_org_id', $1, true)",
+        &[&org_id],
+    )
     .await
     .map_err(|e| format!("set org ctx failed: {e}"))?;
 
@@ -181,7 +154,9 @@ mod tests {
 
     #[test]
     fn dek_parses_hex() {
-        let _lock = ENV_LOCK.lock().expect("DEK test lock should not be poisoned");
+        let _lock = ENV_LOCK
+            .lock()
+            .expect("DEK test lock should not be poisoned");
         // 64 hex chars = 32 bytes of 0xAB
         let hex = "ab".repeat(32);
         std::env::set_var("EGRESS_DEK", &hex);
@@ -193,7 +168,9 @@ mod tests {
 
     #[test]
     fn dek_rejects_bad_length() {
-        let _lock = ENV_LOCK.lock().expect("DEK test lock should not be poisoned");
+        let _lock = ENV_LOCK
+            .lock()
+            .expect("DEK test lock should not be poisoned");
         std::env::set_var("EGRESS_DEK", "abc");
         assert!(dek_from_env().is_none());
         std::env::remove_var("EGRESS_DEK");

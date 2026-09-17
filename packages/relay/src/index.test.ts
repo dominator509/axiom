@@ -4,7 +4,6 @@ import * as relay from './index.js';
 import * as channels from './channels/index.js';
 import * as viral from './viral/index.js';
 import * as observability from './observability/index.js';
-import * as metrics from './metrics/index.js';
 
 describe('@axiom/relay index exports', () => {
   it('exports every public class and function', () => {
@@ -22,7 +21,6 @@ describe('@axiom/relay index exports', () => {
       'MetricsRegistry',
       'IncidentManager',
       'HealthCheckRegistry',
-      'MetricPoller',
     ];
     for (const name of classes) {
       expect(typeof (relay as Record<string, unknown>)[name]).toBe('function');
@@ -65,10 +63,6 @@ describe('sub-barrel exports', () => {
     expect(typeof observability.getCorrelationId).toBe('function');
     expect(typeof observability.runWithCorrelationId).toBe('function');
   });
-
-  it('metrics/index re-exports MetricPoller', () => {
-    expect(metrics.MetricPoller).toBe(relay.MetricPoller);
-  });
 });
 
 describe('constructed instances work through the barrel', () => {
@@ -94,10 +88,13 @@ describe('constructed instances work through the barrel', () => {
     const app = relay.createRelayRoutes({
       cardRenderer: new relay.CardRenderer(),
       commandRouter: new relay.CommandRouter('s'),
-      viralLoop: new relay.ViralLoop(),
       bandit: new relay.Bandit(),
       incidentManager: new relay.IncidentManager(),
       healthRegistry: new relay.HealthCheckRegistry(),
+      viralPersistence: {
+        persist: async () => ({ label: 'baseline' }),
+        listExemplars: async () => [],
+      },
     });
     expect(typeof app.request).toBe('function');
   });

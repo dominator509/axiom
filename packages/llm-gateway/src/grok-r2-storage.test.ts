@@ -1,0 +1,136 @@
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { Hono } from 'hono';
+import { createRouter } from './routes.js';
+import type { LLMGateway } from './gateway.js';
+import { loadR2Storage, saveR2Storage, removeR2Storage, r2StorageStatus, r2ManagedConfig, r2StorageSchema } from './grok-r2-storage.js';
+
+let root: string;
+const scope = { userId: 'test-operator', orgId: 'test-workspace' };
+const config = { endpoint: `https://${'1'.repeat(32)}.r2.cloudflarestorage.com`, bucket: 'test-private-media', accessKeyId: 'a'.repeat(32), secretAccessKey: 'b'.repeat(64) };
+beforeEach(() => {
+  root = mkdtempSync(join(tmpdir(), 'axiom-r2-test-'));
+  vi.stubEnv('AXIOM_SUBSCRIPTION_HOME', root);
+  vi.stubEnv('BETTER_AUTH_SECRET', 'test-only-session-key-not-a-real-secret');
+  vi.stubEnv('BETTER_AUTH_URL', 'https://axiom.example');
+});
+afterEach(() => { vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); });
+it('encrypts at rest, redacts readback, isolates user/workspace and removes only the selected record', () => {
+  saveR2Storage(scope, config);
+  const directory = join(root, 'r2-storage');
+  const disk = readFileSync(join(directory, readdirSync(directory)[0]!));
+  expect(disk.includes(config.secretAccessKey)).toBe(false);
+  expect(disk.includes(config.accessKeyId)).toBe(false);
+  expect(loadR2Storage(scope)).toEqual(config);
+  expect(loadR2Storage({ ...scope, orgId: 'other' })).toBeNull();
+  expect(loadR2Storage({ ...scope, userId: 'other' })).toBeNull();
+  expect(r2StorageStatus(scope)).toEqual({ configured: true, endpoint: config.endpoint, bucket: config.bucket, verified: false });
+  saveR2Storage({ ...scope, orgId: 'other' }, config);
+  removeR2Storage(scope);
+  expect(loadR2Storage(scope)).toBeNull();
+  expect(loadR2Storage({ ...scope, orgId: 'other' })).toEqual(config);
+});
+it('rejects ciphertext tampering and changed encryption keys', () => {
+  saveR2Storage(scope, config);
+  vi.stubEnv('BETTER_AUTH_SECRET', 'different-test-only-session-secret-key');
+  expect(() => loadR2Storage(scope)).toThrow();
+  vi.stubEnv('BETTER_AUTH_SECRET', 'test-only-session-key-not-a-real-secret');
+  const directory = join(root, 'r2-storage'), path = join(directory, readdirSync(directory)[0]!);
+  const bytes = readFileSync(path); bytes[28] = bytes[28]! ^ 1; writeFileSync(path, bytes);
+  expect(() => loadR2Storage(scope)).toThrow();
+});
+it('fails closed without encryption and restricts endpoints and TOML values', () => {
+  vi.stubEnv('BETTER_AUTH_SECRET', '');
+  expect(() => saveR2Storage(scope, config)).toThrow('encryption');
+  for (const endpoint of ['http://localhost', config.endpoint + '/path', config.endpoint + '@evil.example', 'https://example.com'])
+    expect(r2StorageSchema.safeParse({ ...config, endpoint }).success).toBe(false);
+  expect(r2StorageSchema.safeParse({ ...config, bucket: 'x"\nsecret = 1' }).success).toBe(false);
+  const toml = r2ManagedConfig(config, scope);
+  expect(toml).toMatch(/^\[tools\]\ndisable_zdr_incompatible_tools = true\n/);
+  expect(toml).toContain('[tools.zdr_video_output_s3.read_write]');
+  expect(toml).toContain('region = "auto"');
+  expect(toml).not.toContain(scope.userId);
+});
+function app(auth = true) {
+  const instance = new Hono<{ Variables: { userId: string; orgId: string } }>();
+  if (auth) instance.use('*', async (c, next) => { c.set('userId', scope.userId); c.set('orgId', scope.orgId); await next(); });
+  instance.route('/', createRouter({} as LLMGateway));
+  return instance;
+}
+const route = '/subscriptions/grok/r2-storage';
+function put(origin = 'https://axiom.example', body = JSON.stringify(config)) {
+  return { method: 'PUT', headers: { Origin: origin, 'Content-Type': 'application/json' }, body };
+}
+it('requires authentication and exact origin, never returning submitted secrets', async () => {
+  const anonymous = await app(false).request(route, put());
+  expect(anonymous.status).toBe(401);
+  expect(anonymous.headers.get('cache-control')).toBe('no-store');
+  expect((await app().request(route, put('https://evil.example'))).status).toBe(403);
+  const saved = await app().request(route, put());
+  expect(saved.status).toBe(200);
+  expect(saved.headers.get('cache-control')).toBe('no-store');
+  const text = await saved.text();
+  expect(text).not.toContain(config.secretAccessKey); expect(text).not.toContain(config.accessKeyId);
+  expect(await (await app().request(route)).json()).toMatchObject({ configured: true });
+  expect((await app().request(route, { method: 'DELETE', headers: { Origin: 'https://axiom.example' } })).status).toBe(200);
+  expect(await (await app().request(route)).json()).toMatchObject({ configured: false });
+});
+it('rejects insecure setup, malformed and oversized bodies without echoing credentials', async () => {
+  vi.stubEnv('BETTER_AUTH_URL', 'http://public.example');
+  expect((await app().request(route, put('http://public.example'))).status).toBe(503);
+  vi.stubEnv('BETTER_AUTH_URL', 'https://axiom.example');
+  for (const body of ['{', JSON.stringify({ ...config, unexpected: config.secretAccessKey })]) {
+    const response = await app().request(route, put(undefined, body));
+    expect(response.status).toBe(400); expect(await response.text()).not.toContain(config.secretAccessKey);
+  }
+  const oversized = await app().request(route, put(undefined, JSON.stringify({ value: 'x'.repeat(262144) })));
+  expect(oversized.status).toBe(413); expect(oversized.headers.get('cache-control')).toBe('no-store');
+});
+it('binds browser storage changes to authenticated workspace/user despite supplied identities', async () => {
+  const other = { userId: 'other-user', orgId: 'other-workspace' };
+  const otherConfig = { ...config, bucket: 'other-private-media' };
+  saveR2Storage(other, otherConfig);
+  const spoofed = `${route}?userId=${other.userId}&orgId=${other.orgId}`;
+  expect((await app().request(spoofed, put())).status).toBe(200);
+  expect(loadR2Storage(scope)).toEqual(config);
+  expect(loadR2Storage(other)).toEqual(otherConfig);
+  expect(await (await app().request(spoofed)).json()).toMatchObject({ bucket: config.bucket });
+  const bodyWithIdentity = await app().request(route, put(undefined, JSON.stringify({ ...config, ...other })));
+  expect(bodyWithIdentity.status).toBe(400);
+  expect((await app().request(spoofed, { method: 'DELETE', headers: { Origin: 'https://axiom.example' } })).status).toBe(200);
+  expect(loadR2Storage(scope)).toBeNull();
+  expect(loadR2Storage(other)).toEqual(otherConfig);
+});
+it('protects nested verification with authentication and exact-origin checks before provider work', async () => {
+  saveR2Storage(scope, config);
+  const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+  const anonymous = await app(false).request(`${route}/verify`, { method: 'POST', headers: { Origin: 'https://axiom.example' } });
+  expect(anonymous.status).toBe(401);
+  for (const origin of [undefined, 'https://evil.example', 'null', 'https://axiom.example.evil.test']) {
+    const response = await app().request(`${route}/verify`, { method: 'POST', headers: origin ? { Origin: origin } : {} });
+    expect(response.status).toBe(403);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+  }
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+it('verifies private R2 read/write with a temporary tenant-scoped object and cleanup', async () => {
+  saveR2Storage(scope, config);
+  const probe = Buffer.from('FanThynks private storage verification\n');
+  const fetchMock = vi.fn()
+    .mockResolvedValueOnce(new Response(null, { status: 200 }))
+    .mockResolvedValueOnce(new Response(probe, { status: 200 }))
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+  vi.stubGlobal('fetch', fetchMock);
+  const response = await app().request(`${route}/verify`, { method: 'POST', headers: { Origin: 'https://axiom.example' } });
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(await response.json()).toEqual({ configured: true, verified: true });
+  expect(fetchMock).toHaveBeenCalledTimes(3);
+  expect(fetchMock.mock.calls[0]![0]).toMatch(/^https:\/\/11111111111111111111111111111111\.r2\.cloudflarestorage\.com\/test-private-media\/axiom-verification\//);
+  expect(fetchMock.mock.calls[0]![1].headers.Authorization).toMatch(/^AWS4-HMAC-SHA256 Credential=/);
+  expect(fetchMock.mock.calls[0]![1].headers.Authorization).not.toContain(config.secretAccessKey);
+  expect(fetchMock.mock.calls[2]![1].method).toBe('DELETE');
+});

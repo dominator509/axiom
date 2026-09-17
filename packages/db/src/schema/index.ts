@@ -1,4 +1,6 @@
 import { org, orgRelations } from './org.js';
+export { inboxReplyIntent } from './inbox_reply_intent.js';
+export { inboxReplyReview } from './inbox_reply_review.js';
 import { appUser, appUserRelations } from './app_user.js';
 import { modelProfile, modelProfileRelations } from './model_profile.js';
 import { consentRecord, consentRecordRelations } from './consent_record.js';
@@ -43,6 +45,14 @@ import { linkbioAnalytics, linkbioAnalyticsRelations } from './linkbio_analytics
 import { relayBinding, relayBindingRelations } from './relay_binding.js';
 import { agentPermission, agentPermissionRelations } from './agent_permission.js';
 import { crashReport, crashReportRelations } from './crash_report.js';
+import { mcpTokenRevocation } from './mcp_token_revocation.js';
+import { mcpCapabilityToken } from './mcp_capability_token.js';
+import { cascadeTemplate, cascadeTemplateRelations } from './cascade_template.js';
+import { variantExperiment, variantExperimentRelations, variantExperimentAssignment, variantExperimentAssignmentRelations } from './variant_experiment.js';
+import { scrapeRun, scrapeRunRelations } from './scrape_run.js';
+import { teamShift, teamShiftRelations, teamNote, teamNoteRelations } from './team_operations.js';
+import { mediaOperation, mediaOperationRelations } from './media_operation.js';
+import { playbookGuideline, playbookGuidelineRelations, playbookGuidelineRevision } from './playbook_guideline.js';
 
 export { org, orgRelations };
 export { appUser, appUserRelations };
@@ -89,6 +99,16 @@ export { linkbioAnalytics, linkbioAnalyticsRelations };
 export { relayBinding, relayBindingRelations };
 export { agentPermission, agentPermissionRelations };
 export { crashReport, crashReportRelations };
+export { mcpTokenRevocation };
+export { mcpCapabilityToken };
+export { cascadeTemplate, cascadeTemplateRelations };
+export { variantExperiment, variantExperimentRelations, variantExperimentAssignment, variantExperimentAssignmentRelations };
+export { scrapeRun, scrapeRunRelations };
+export { teamShift, teamShiftRelations, teamNote, teamNoteRelations };
+export { mediaOperation, mediaOperationRelations };
+export { playbookGuideline, playbookGuidelineRelations, playbookGuidelineRevision };
+export { mediaGenerationAttempt } from './media_generation_attempt.js';
+export { modelUserAssignment } from './model_user_assignment.js';
 
 export const allRelations = [
   orgRelations,
@@ -135,4 +155,12 @@ export const allRelations = [
   agentPermissionRelations,
   crashReportRelations,
   apiIdempotencyRelations,
+  cascadeTemplateRelations,
+  variantExperimentRelations,
+  variantExperimentAssignmentRelations,
+  scrapeRunRelations,
+  teamShiftRelations,
+  teamNoteRelations,
+  mediaOperationRelations,
+  playbookGuidelineRelations,
 ];

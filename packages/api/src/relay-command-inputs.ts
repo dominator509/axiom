@@ -3,6 +3,23 @@ import type { CardAction } from '@axiom/relay';
 
 export const RELAY_CAPTION_MAX_LENGTH = 10_000;
 
+export function relayConnectionIds(params: Record<string, unknown>): Record<string, string> {
+  const raw = params.connectionIds;
+  if (raw === undefined) return {};
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error('relay command: connectionIds must be an object keyed by platform');
+  }
+
+  const connectionIds: Record<string, string> = {};
+  for (const [platform, connectionId] of Object.entries(raw)) {
+    if (typeof connectionId !== 'string' || connectionId.trim().length === 0) {
+      throw new Error(`relay command: connectionIds.${platform} must be a non-empty string`);
+    }
+    connectionIds[platform] = connectionId;
+  }
+  return connectionIds;
+}
+
 export function relayScheduledFor(
   params: Record<string, unknown>,
   action: CardAction,

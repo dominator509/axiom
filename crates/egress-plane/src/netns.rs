@@ -71,7 +71,11 @@ pub fn delete_netns(name: &str) -> io::Result<()> {
 pub fn set_null_default_route(ns: &str) -> io::Result<()> {
     require_linux_netns()?;
     // Delete any existing default route first
-    let _ = execute_in_netns(ns, &["ip", "route", "del", "default"]);
+    match execute_in_netns(ns, &["ip", "route", "del", "default"]) {
+        Ok(_) => {}
+        Err(error) if is_missing_route_error(&error) => {}
+        Err(error) => return Err(error),
+    }
 
     // Add a blackhole route — all traffic to 0.0.0.0/0 is dropped
     let output = execute_in_netns(ns, &["ip", "route", "add", "blackhole", "default"]);
@@ -100,7 +104,7 @@ pub fn set_null_default_route(ns: &str) -> io::Result<()> {
 pub fn add_allow_rule(ns: &str, host: &str) -> io::Result<()> {
     require_linux_netns()?;
     // Ensure the OUTPUT chain exists and has a default DROP policy
-    let _ = execute_in_netns(ns, &["iptables", "-P", "OUTPUT", "DROP"]);
+    execute_in_netns(ns, &["iptables", "-P", "OUTPUT", "DROP"])?;
 
     // Add an ACCEPT rule for the specific host (insert at position 1)
     let output = execute_in_netns(
@@ -129,7 +133,7 @@ pub fn flush_allow_rules(ns: &str) -> io::Result<()> {
         Ok(out) => {
             info!(netns = %ns, output = %out.trim(), "Flushed all allow rules");
             // After flush, set DROP policy so fail-closed is maintained
-            let _ = execute_in_netns(ns, &["iptables", "-P", "OUTPUT", "DROP"]);
+            execute_in_netns(ns, &["iptables", "-P", "OUTPUT", "DROP"])?;
             Ok(())
         }
         Err(e) => {
@@ -137,6 +141,13 @@ pub fn flush_allow_rules(ns: &str) -> io::Result<()> {
             Err(e)
         }
     }
+}
+
+fn is_missing_route_error(error: &io::Error) -> bool {
+    let message = error.to_string();
+    message.contains("No such process")
+        || message.contains("Cannot find")
+        || message.contains("not exist")
 }
 
 /// Execute a command inside a network namespace via `ip netns exec`.
@@ -386,5 +397,18 @@ mod tests {
     fn test_execute_in_netns_no_ns() {
         let result = execute_in_netns("nonexistent_ns_88888", &["echo", "hello"]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn only_missing_routes_are_safe_to_ignore_during_cleanup() {
+        assert!(is_missing_route_error(&io::Error::other(
+            "RTNETLINK answers: No such process"
+        )));
+        assert!(is_missing_route_error(&io::Error::other(
+            "Cannot find device"
+        )));
+        assert!(!is_missing_route_error(&io::Error::other(
+            "RTNETLINK answers: Operation not permitted"
+        )));
     }
 }

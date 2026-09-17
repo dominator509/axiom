@@ -1,0 +1,10 @@
+[package]
+name = "axiom-event-listener-regression"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+event-listener = "=5.4.2"

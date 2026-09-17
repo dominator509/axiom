@@ -69,11 +69,22 @@ describe('renderBundleCard', () => {
     expect(card.cardId).toBe('card-456');
   });
 
-  it('passes verdict when platform has no ToS score (defaults to 1)', () => {
+  it('fails closed when platform has no ToS score', () => {
     const card = renderer.renderBundleCard(
       makeBundle({ tosScores: {}, targetPlatforms: ['tiktok'] }),
     );
-    expect(card.verdicts[0]).toMatchObject({ passed: true, score: 1, reason: 'ToS check passed' });
+    expect(card.verdicts[0]).toMatchObject({
+      passed: false,
+      score: 0,
+      reason: 'ToS check unavailable — review required',
+    });
+  });
+
+  it('fails closed when the ToS score is non-finite', () => {
+    const card = renderer.renderBundleCard(
+      makeBundle({ tosScores: { tiktok: Number.NaN }, targetPlatforms: ['tiktok'] }),
+    );
+    expect(card.verdicts[0]).toMatchObject({ passed: false, score: 0 });
   });
 
   it('all-passed bundles get the full approve action set', () => {
@@ -244,6 +255,8 @@ describe('toText', () => {
     expect(text).toContain('Actions (reply with the action and its signed token):');
     expect(text).toContain(`approve ${card.commandTokens?.approve}`);
     expect(text).toContain(`edit ${card.commandTokens?.edit_caption} <new caption>`);
-    expect(text).toContain(`schedule ${card.commandTokens?.reschedule} <future ISO-8601 timestamp>`);
+    expect(text).toContain(
+      `schedule ${card.commandTokens?.reschedule} <future ISO-8601 timestamp>`,
+    );
   });
 });

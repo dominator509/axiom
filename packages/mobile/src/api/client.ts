@@ -13,9 +13,11 @@
 
 declare const process: { env: Record<string, string | undefined> } | undefined;
 
+import { AXIOM_JSON_RESPONSE_MAX_BYTES, readBoundedResponseText } from '@axiom/core';
 import { loadSessionCookie, removeSessionCookie, saveSessionCookie } from './storage';
 
 export const DEFAULT_API_BASE_URL = 'http://localhost:3001';
+export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
 /** Resolve the BFF base URL: EXPO_PUBLIC_API_URL env var, else local default. */
 export function resolveBaseUrl(): string {
@@ -120,12 +122,41 @@ export interface ApiRequestOptions {
   idempotencyKey?: string;
   /** Number of network-error retries for BFF mutations; all attempts reuse the key. */
   retries?: number;
+  /** Maximum time allowed for each network attempt. */
+  timeoutMs?: number;
 }
 
 function createIdempotencyKey(): string {
   const randomUuid = globalThis.crypto?.randomUUID;
   if (typeof randomUuid === 'function') return randomUuid.call(globalThis.crypto);
   return `axiom-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function createAttemptSignal(
+  parentSignal: AbortSignal | undefined,
+  timeoutMs: number,
+): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort(new Error(`request timed out after ${timeoutMs}ms`));
+  }, timeoutMs);
+
+  const forwardAbort = () => controller.abort(parentSignal?.reason);
+  if (parentSignal) {
+    if (parentSignal.aborted) {
+      controller.abort(parentSignal.reason);
+    } else {
+      parentSignal.addEventListener('abort', forwardAbort, { once: true });
+    }
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      parentSignal?.removeEventListener('abort', forwardAbort);
+    },
+  };
 }
 
 /**
@@ -153,16 +184,21 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
     : undefined;
   if (idempotencyKey) headers.set('Idempotency-Key', idempotencyKey);
   const retries = isBffMutation ? Math.max(0, options.retries ?? 1) : 0;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new TypeError('timeoutMs must be a positive finite number');
+  }
 
   let res: Response | undefined;
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const attemptSignal = createAttemptSignal(options.signal, timeoutMs);
     try {
       res = await fetch(url, {
         method,
         headers,
         body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-        signal: options.signal,
+        signal: attemptSignal.signal,
       });
       break;
     } catch (err) {
@@ -171,13 +207,19 @@ export async function apiFetch<T>(path: string, options: ApiRequestOptions = {})
         // Network-level failure (BFF down, DNS, CORS preflight) — not an ApiError.
         throw new Error(`network error: ${err instanceof Error ? err.message : String(err)}`);
       }
+    } finally {
+      attemptSignal.cleanup();
     }
   }
   if (!res) throw new Error(`network error: ${String(lastError)}`);
 
   await captureSetCookie(res.headers);
 
-  const raw = await res.text();
+  const raw = await readBoundedResponseText(
+    res,
+    AXIOM_JSON_RESPONSE_MAX_BYTES,
+    'mobile API response',
+  );
   let body: unknown = null;
   if (raw.length > 0) {
     try {

@@ -23,7 +23,7 @@ echo "  PASS: preflight"
 # Check phases complete (ledger lines are timestamped: "… | DONE P0 - …"; anchor on the
 # pipe-delimited structure so prose mentioning "DONE P0-P4" in audit entries can't false-positive)
 for phase in P0 P1 P2 P3 P4; do
-    if grep -q "| DONE $phase" "$LEDGER" 2>/dev/null; then
+    if grep -qE "\| DONE $phase([[:space:]]|$)" "$LEDGER" 2>/dev/null; then
         echo "  PASS: $phase complete"
     else
         echo "  FAIL: $phase not complete"
@@ -33,7 +33,7 @@ done
 
 # Check markers exist for completed phases
 for phase in P0 P1 P2 P3 P4; do
-    if grep -q "| DONE $phase" "$LEDGER" 2>/dev/null; then
+    if grep -qE "\| DONE $phase([[:space:]]|$)" "$LEDGER" 2>/dev/null; then
         marker_dir=".agent/markers/L4.$(( ${phase#P} + 1 ))"
         set -- "$marker_dir"/*.done
         if [ -e "$1" ]; then marker_count=$#; else marker_count=0; fi

@@ -62,7 +62,7 @@ export default function App() {
           <Text style={styles.brandLetter}>A</Text>
         </View>
         <View>
-          <Text style={styles.brand}>AXIOM</Text>
+          <Text style={styles.brand}>FanThynks</Text>
           <Text style={styles.brandDetail}>CREATOR INTELLIGENCE</Text>
         </View>
         <View style={styles.privatePill}>

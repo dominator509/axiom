@@ -1,0 +1,54 @@
+import { readFileSync } from 'node:fs';
+import { Hono } from 'hono';
+import { describe, expect, it } from 'vitest';
+
+// Use the real application's declared paths and Hono matching semantics:
+// wildcard middleware also matches its base path.
+const source = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+const paths = [...source.matchAll(/app\.use\('([^']+)', idempotency\((?:true, 64 \* 1024 \* 1024)?\)\);/g)].map((match) => match[1]);
+
+describe('application idempotency registration', () => {
+  it('places model-role enforcement after session resolution and before REST routes', () => {
+    const boundary = source.indexOf("app.use('/api/v1/*', enforceModelAccess);");
+    expect(boundary).toBeGreaterThan(source.indexOf("app.use('/api/v1/viral/exemplars', requireAuth);"));
+    expect(boundary).toBeLessThan(source.indexOf("app.route('/api/v1/models', modelsRouter);"));
+    expect(boundary).toBeLessThan(source.indexOf("const operationalMutation = requireMutationRole('owner', 'manager', 'operator', 'content_creator', 'chatter');"));
+  });
+  it.each([
+    '/api/v1/models',
+    '/api/v1/models/model',
+    '/api/v1/models/model/generate',
+    '/api/v1/models/model/generate/child',
+    '/api/v1/models/model/media-upload',
+    '/api/v1/models/model/network',
+    '/api/v1/models/model/team-notes',
+    '/api/v1/models/model/inbox/replies',
+    '/api/v1/models/model/inbox/replies/reply/send',
+    '/api/v1/models/model/inbox/replies/reply/cancel',
+    '/api/v1/models/model/inbox/replies/reply/reviews',
+    '/api/v1/members/user/role',
+    '/api/v1/models/model/team-shifts',
+    '/api/v1/models/model/team-shifts/shift',
+    '/api/v1/bundles/bundle/approve',
+    '/api/v1/bundles/bundle/revise',
+    '/api/v1/bundles/bundle/draft',
+    '/api/v1/bundles/bundle/reject',
+    ...paths.flatMap((pattern) => {
+      const concrete = pattern.replace(/:[^/]+/g, 'fixture');
+      return concrete.endsWith('/*')
+        ? [concrete.slice(0, -2), concrete.replaceAll('*', 'child')]
+        : [concrete.replaceAll('*', 'fixture')];
+    }),
+  ])('runs exactly one idempotency layer for %s', async (path) => {
+    expect(paths.length).toBeGreaterThan(0);
+    const app = new Hono();
+    let matched = 0;
+    for (const pattern of paths) app.use(pattern, async (_c, next) => {
+      matched++;
+      await next();
+    });
+    app.post('*', (c) => c.json({ ok: true }));
+    expect((await app.request(path, { method: 'POST' })).status).toBe(200);
+    expect(matched).toBe(1);
+  });
+});

@@ -20,6 +20,7 @@ export const assetVariant = pgTable('asset_variant', {
     .notNull()
     .references(() => asset.id, { onDelete: 'cascade' }),
   variantType: text('variant_type').notNull().default('crop'),
+  outputAssetId: uuid('output_asset_id').references(() => asset.id, { onDelete: 'restrict' }),
   width: integer('width'),
   height: integer('height'),
   storageKey: text('storage_key').notNull(),

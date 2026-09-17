@@ -24,21 +24,29 @@ export interface JobRow {
 /** Job kinds per L3.4 §2. */
 export type JobKind =
   | 'content.generate'
+  | 'media.generate'
   | 'tos.scan'
   | 'relay.card'
   | 'publish.target'
   | 'metrics.poll'
   | 'viral.label'
+  | 'trigger.evaluate'
+  | 'scrape.run'
+  | 'media.transform'
   | 'incident.notify'
   | 'dlq.replay';
 
 export const JOB_KINDS: JobKind[] = [
   'content.generate',
+  'media.generate',
   'tos.scan',
   'relay.card',
   'publish.target',
   'metrics.poll',
   'viral.label',
+  'trigger.evaluate',
+  'scrape.run',
+  'media.transform',
   'incident.notify',
   'dlq.replay',
 ];
@@ -74,3 +82,5 @@ export interface IncidentNotifyPayload {
   incidentId: string;
   severity?: string;
 }
+export interface ScrapeRunPayload { runId: string; modelId: string }
+export interface MediaTransformPayload { operationId: string }

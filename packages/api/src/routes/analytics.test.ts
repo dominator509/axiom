@@ -26,6 +26,7 @@ function appWithOrg(orgId: string | null) {
 
 beforeEach(() => {
   mockState.result = [];
+  mockState.results = [];
 });
 
 afterEach(() => {
@@ -63,6 +64,34 @@ describe('GET /models/:modelId/analytics — aggregates', () => {
     expect(body.data.totals.views).toBe(150);
     expect(body.data.totals.likes).toBe(15);
     expect(body.data.perPlatform).toHaveLength(2);
+  });
+
+  it('maps latest-snapshot aggregates and daily observations from the database', async () => {
+    // The first result is the RLS set_config statement in withOrgContext;
+    // subsequent results are the latest-per-target platform rows, daily rows,
+    // and the distinct post count.
+    mockState.results = [
+      [],
+      [
+        {
+          platform: 'instagram',
+          views: 110,
+          likes: 11,
+          shares: 2,
+          comments: 3,
+          engagementRate: 0.08,
+        },
+      ],
+      [{ day: '2026-09-09', views: 110, likes: 11 }],
+      [{ count: 1 }],
+    ];
+
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/analytics?days=7`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.data.totals).toEqual({ views: 110, likes: 11, shares: 2, comments: 3 });
+    expect(body.data.daily).toEqual([{ day: '2026-09-09', views: 110, likes: 11 }]);
+    expect(body.data.postsWithMetrics).toBe(1);
   });
 
   it('clamps days to the 1..365 window', async () => {

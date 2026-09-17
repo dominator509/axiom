@@ -1,4 +1,7 @@
-import { api } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
+import PlaybookGuidelineManager from '@/components/PlaybookGuidelineManager';
+import { talentDestinationAllowed } from '@/lib/navigation-role';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +19,15 @@ interface PlaybookData {
 
 export default async function PlaybookPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const session = await getSession();
+  if (!talentDestinationAllowed(session?.user?.role, 'playbook')) return <div className="card"><h2>Playbook access unavailable</h2><p>Your role does not include these guidelines.</p><Link href="/">Back to workspace</Link></div>;
+  const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
+  let guidelines = [] as Awaited<ReturnType<typeof api.models.playbookGuidelines>>['data'];
+  let guidelinesUnavailable = false;
+  try { guidelines = (await api.models.playbookGuidelines(id)).data; } catch { guidelinesUnavailable = true; }
+  const guidelinePanel = guidelinesUnavailable
+    ? <div className="card stack" role="alert"><p>Guidelines could not be loaded. Reload before editing; saved values have not been replaced with defaults.</p></div>
+    : <PlaybookGuidelineManager modelId={id} initial={guidelines} canEdit={canEdit} />;
   let data: PlaybookData | null = null;
   try {
     data = (await api.models.playbookScore(id)).data as unknown as PlaybookData;
@@ -25,11 +37,12 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
 
   if (!data) {
     return (
-      <div>
+      <div className="page-stack">
         <h2>Playbook score</h2>
         <div className="card">
           <p style={{ color: 'var(--muted)' }}>Score unavailable.</p>
         </div>
+        {guidelinePanel}
       </div>
     );
   }
@@ -37,7 +50,7 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
   const pct = Math.round(data.score.overall * 100);
 
   return (
-    <div>
+    <div className="page-stack">
       <h2>Playbook score</h2>
       <div className="grid">
         <div className="card">
@@ -86,6 +99,7 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
           </table>
         </div>
       )}
+      {guidelinePanel}
     </div>
   );
 }

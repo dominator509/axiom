@@ -10,8 +10,12 @@ dist
 **/dist
 .next
 **/.next
+.next-*
+**/.next-*
 .turbo
 **/.turbo
+*.tsbuildinfo
+**/*.tsbuildinfo
 target
 **/target
 coverage
@@ -19,3 +23,9 @@ coverage
 .env
 .env.*
 !.env.example
+**/.env
+**/.env.*
+!**/.env.example
+# Local OAuth profiles, runtime configuration, probes and recovery artifacts.
+var
+**/var

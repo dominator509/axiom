@@ -1,4 +1,6 @@
-import { api } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
+import Link from 'next/link';
+import { talentDestinationAllowed } from '@/lib/navigation-role';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +28,8 @@ interface ViralData {
 
 export default async function AnalyticsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!talentDestinationAllowed((await getSession())?.user?.role, 'analytics')) return <div className="card stack"><h2>Analytics access unavailable</h2><p>Your role does not include these performance records.</p><Link href="/">Back to workspace</Link></div>;
+  const reportMonth = new Date().toISOString().slice(0, 7);
   let analytics: AnalyticsData | null = null;
   let viral: ViralData | null = null;
   try {
@@ -40,8 +44,13 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <div>
-      <h2>Performance</h2>
+    <div className="page-stack">
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'end' }}>
+        <h2 style={{ margin: 0 }}>Performance</h2>
+        <a className="btn secondary" href={`/api/v1/models/${encodeURIComponent(id)}/reports/monthly?month=${reportMonth}`}>
+          Download monthly PDF
+        </a>
+      </div>
       {analytics ? (
         <>
           <div className="grid">
@@ -134,7 +143,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
 
       <h2 style={{ marginTop: 24 }}>Viral insights</h2>
       <div className="card">
-        {!viral || viral.totalExemplars === 0 ? (
+        {!viral ? <p role="alert">Viral insights could not be loaded. Reload this page to try again.</p> : viral.totalExemplars === 0 ? (
           <p style={{ color: 'var(--muted)' }}>
             No viral exemplars yet — they accumulate as posts get labeled.
           </p>

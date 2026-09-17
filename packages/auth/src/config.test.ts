@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveAuthConfig } from './config.js';
+import { normalizeAuthOrigin, resolveAuthConfig } from './config.js';
 
 describe('resolveAuthConfig', () => {
   it('retains explicit local-development defaults outside production', () => {
@@ -42,6 +42,42 @@ describe('resolveAuthConfig', () => {
       DATABASE_URL: 'postgresql://db.example/app',
       BETTER_AUTH_SECRET: 'x'.repeat(32),
       BETTER_AUTH_URL: 'https://app.example',
+    });
+    expect(config.baseURL).toBe('https://app.example');
+    expect(config.trustedOrigins).toEqual(['https://app.example']);
+  });
+
+  it.each([' '.repeat(32), '\t'.repeat(32), 'short'.padEnd(32), '\u00a0'.repeat(32)])(
+    'rejects blank or padding-inflated production secrets (case %#)',
+    (secret) => {
+      expect(() => resolveAuthConfig({
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://db.example/app',
+        BETTER_AUTH_SECRET: secret,
+        BETTER_AUTH_URL: 'https://app.example',
+      })).toThrow('at least 32 characters');
+    },
+  );
+
+  it('preserves the exact bytes of a valid padded secret', () => {
+    const secret = `  ${'x'.repeat(32)}  `;
+    expect(resolveAuthConfig({
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://db.example/app',
+      BETTER_AUTH_SECRET: secret,
+      BETTER_AUTH_URL: 'https://app.example',
+    }).secret).toBe(secret);
+  });
+
+  it('canonicalizes a trailing slash and path before auth and browser-origin checks', () => {
+    expect(normalizeAuthOrigin('https://app.example/')).toBe('https://app.example');
+    expect(normalizeAuthOrigin('https://app.example/dashboard')).toBe('https://app.example');
+
+    const config = resolveAuthConfig({
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://db.example/app',
+      BETTER_AUTH_SECRET: 'x'.repeat(32),
+      BETTER_AUTH_URL: 'https://app.example/dashboard/',
     });
     expect(config.baseURL).toBe('https://app.example');
     expect(config.trustedOrigins).toEqual(['https://app.example']);

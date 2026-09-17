@@ -1,5 +1,6 @@
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { consentRecord } from './schema/consent_record.js';
+import { job } from './schema/job.js';
 
 /**
  * A model cannot publish without the baseline legal records plus consent for
@@ -27,6 +28,41 @@ export type ConsentStatus = {
   ok: boolean;
   missing: string[];
 };
+
+export type TosScanState = 'missing' | 'pending' | 'completed' | 'failed';
+
+/**
+ * Return the durable ToS scan state for a bundle.
+ *
+ * Approval and publication must not infer that a stored report is current:
+ * generation creates the report before the queued media scan runs, and the
+ * scan may still be pending (or may have failed). The newest org-scoped
+ * tos.scan job is the existing durable handoff record for that work.
+ */
+export async function getTosScanState(
+  tx: any,
+  orgId: string,
+  bundleId: string,
+): Promise<TosScanState> {
+  const rows = await tx
+    .select({ state: job.state })
+    .from(job)
+    .where(
+      and(
+        eq(job.orgId, orgId),
+        eq(job.kind, 'tos.scan'),
+        sql`${job.payload} ->> 'bundleId' = ${bundleId}`,
+      ),
+    )
+    .orderBy(desc(job.createdAt), desc(job.id))
+    .limit(1);
+
+  const state = rows[0]?.state;
+  if (state === 'done') return 'completed';
+  if (state === 'ready' || state === 'running') return 'pending';
+  if (state === 'failed' || state === 'dead') return 'failed';
+  return 'missing';
+}
 
 function instant(value: Date | string | null): number | null {
   if (value === null) return null;

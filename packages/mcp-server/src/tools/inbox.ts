@@ -5,7 +5,8 @@ import { withModelOrg, schema } from '../org-context.js';
 
 /**
  * Input schema for inbox operations.
- * - action: 'read' to list recent messages, 'reply' to send a DM reply
+ * - action: 'read' to list recent messages, 'reply' is rejected because
+ *   provider delivery is not currently bound
  * - messageId: required for 'reply', optional for 'read'
  * - content: required for 'reply'
  */
@@ -19,16 +20,17 @@ export const InboxInputSchema = z.object({
 export type InboxInput = z.infer<typeof InboxInputSchema>;
 
 /**
- * Inbox tool — read incoming messages and send direct message replies.
+ * Inbox tool — read incoming messages.
  * Available at Operator tier and above. Real DB behaviour (H-2):
  *  - read: fan_touchpoint inbound messages for the model (fan timeline, F-07)
- *  - reply: appends an outbound touchpoint (fan_touchpoint) recording the DM;
- *    live platform delivery requires a bound connector credential and fails
- *    honestly if the referenced fan/message is unknown.
+ *  - reply: rejected until a provider delivery path is bound. Recording an
+ *    outbound timeline row without a delivery worker would falsely imply that
+ *    the provider accepted the message.
  */
 export class InboxTool {
   name = 'inbox_manage';
-  description = 'Read inbox messages and send direct message replies for a model profile.';
+  description =
+    'Read inbound inbox messages for a model profile. Direct-message replies are unavailable until provider delivery is bound.';
   inputSchema = InboxInputSchema;
   tier: Tier = Tier.Operator;
   requiresApproval = false;
@@ -56,10 +58,7 @@ export class InboxTool {
             ts: schema.fanTouchpoint.ts,
           })
           .from(schema.fanTouchpoint)
-          .innerJoin(
-            schema.fanCrmContact,
-            eq(schema.fanTouchpoint.fanId, schema.fanCrmContact.id),
-          )
+          .innerJoin(schema.fanCrmContact, eq(schema.fanTouchpoint.fanId, schema.fanCrmContact.id))
           .where(
             and(
               eq(schema.fanTouchpoint.orgId, orgId),
@@ -95,49 +94,9 @@ export class InboxTool {
       if (!args.messageId || !args.content) {
         throw new Error('messageId and content are required for reply action');
       }
-      // The messageId refers to a fan_touchpoint (the inbound message).
-      await withModelOrg(args.modelId, async (tx, orgId) => {
-        const msg = await tx
-          .select({ fanId: schema.fanTouchpoint.fanId, platform: schema.fanTouchpoint.platform })
-          .from(schema.fanTouchpoint)
-          .innerJoin(
-            schema.fanCrmContact,
-            eq(schema.fanTouchpoint.fanId, schema.fanCrmContact.id),
-          )
-          .where(
-            and(
-              eq(schema.fanTouchpoint.id, args.messageId as string),
-              eq(schema.fanTouchpoint.orgId, orgId),
-              eq(schema.fanCrmContact.orgId, orgId),
-              eq(schema.fanCrmContact.modelId, args.modelId),
-            ),
-          )
-          .limit(1);
-        if (msg.length === 0) {
-          throw new Error(`Message ${args.messageId} not found`);
-        }
-        // Record the outbound reply in the fan timeline (F-07). Live platform
-        // delivery needs a bound connector + credential; this persists the
-        // intent so the worker/relay path can deliver it (fail-closed design).
-        await tx.insert(schema.fanTouchpoint).values({
-          orgId,
-          fanId: msg[0].fanId,
-          platform: msg[0].platform,
-          kind: 'dm_reply',
-          direction: 'outbound',
-          content: args.content,
-          ts: new Date(),
-        });
-      });
-      return {
-        success: true,
-        tool: this.name,
-        action: 'reply',
-        modelId: args.modelId,
-        messageId: args.messageId,
-        preview: args.content.slice(0, 100),
-        message: 'Reply recorded in fan timeline for delivery via relay/worker.',
-      };
+      throw new Error(
+        'Direct-message replies are unavailable: no provider delivery worker is configured',
+      );
     }
 
     throw new Error(`Unknown inbox action: ${args.action}`);

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@axiom/api": "workspace:*",
+    "@axiom/core": "workspace:*",
     "@babel/runtime": "^8.0.0",
     "@expo/metro-runtime": "~57.0.8",
     "expo": "~57.0.11",

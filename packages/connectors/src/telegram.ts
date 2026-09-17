@@ -14,6 +14,7 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
+import { validatePublish } from './validation.js';
 
 const TG_API_BASE = 'https://api.telegram.org/bot';
 
@@ -25,7 +26,13 @@ interface TelegramMessage {
 
 interface TelegramSendResponse {
   ok: boolean;
-  result: TelegramMessage;
+  result?: TelegramMessage;
+  description?: string;
+  error_code?: number;
+}
+
+function escapeTelegramHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 export class TelegramConnector extends BaseConnector implements SocialConnector {
@@ -55,35 +62,23 @@ export class TelegramConnector extends BaseConnector implements SocialConnector 
   }
 
   async validate(input: ConnectorPublishInput): Promise<ValidationReport> {
-    const errors = [];
-
-    if (!input.mediaUrls || input.mediaUrls.length === 0) {
-      errors.push({
-        field: 'mediaUrls',
-        message: 'At least one media URL required for link share',
-        severity: 'error' as const,
-      });
-    }
-
-    return {
-      valid: errors.length === 0,
-      errors,
-      warnings: [],
-      infos: [],
-      tosVerdict: 'pass' as const,
-    };
+    return validatePublish(input, this.capability());
   }
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
     return this.idempotentPublish(input, async () => {
-      const channelId = this.auth.externalUserId || '@channel';
+      const channelId = this.auth.externalUserId?.trim();
+      if (!channelId) {
+        throw new Error('Telegram externalUserId (channel ID or username) is required');
+      }
       const linkUrl = input.mediaUrls[0];
       const caption = input.caption || '';
+      if (!linkUrl) throw new Error('Telegram requires a media URL for link sharing');
 
       // Post content link with preview to Telegram channel
-      const text = `${caption}\n\n${linkUrl}`;
+      const text = `${escapeTelegramHtml(caption)}\n\n${escapeTelegramHtml(linkUrl)}`;
       const hashtags = input.hashtags?.length
-        ? `\n\n${input.hashtags.map((h) => `#${h}`).join(' ')}`
+        ? `\n\n${input.hashtags.map((h) => `#${escapeTelegramHtml(h)}`).join(' ')}`
         : '';
 
       const response = await this.apiPost<TelegramSendResponse>(`${this.apiBase}/sendMessage`, {
@@ -92,6 +87,12 @@ export class TelegramConnector extends BaseConnector implements SocialConnector 
         parse_mode: 'HTML',
         disable_web_page_preview: false,
       });
+
+      if (!response.ok || !response.result || typeof response.result.message_id !== 'number') {
+        throw new Error(
+          `Telegram sendMessage rejected${response.error_code ? ` (${response.error_code})` : ''}: ${response.description ?? 'unknown provider error'}`,
+        );
+      }
 
       this.log(
         'info',
@@ -119,7 +120,12 @@ export class TelegramConnector extends BaseConnector implements SocialConnector 
 
   async revoke(): Promise<void> {
     // Revoke bot token via Telegram API
-    await this.apiPost(`${this.apiBase}/logOut`, {});
+    const response = await this.apiPost<TelegramSendResponse>(`${this.apiBase}/logOut`, {});
+    if (!response.ok) {
+      throw new Error(
+        `Telegram logOut rejected${response.error_code ? ` (${response.error_code})` : ''}: ${response.description ?? 'unknown provider error'}`,
+      );
+    }
     this.log('info', 'revoke', 'Telegram bot logged out');
   }
 }

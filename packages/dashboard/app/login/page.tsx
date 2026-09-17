@@ -6,11 +6,11 @@ export const metadata: Metadata = { title: 'Sign in' };
 export default function LoginPage() {
   return (
     <div className="login-page">
-      <section className="login-story" aria-label="AXIOM introduction">
+      <section className="login-story" aria-label="FanThynks introduction">
         <div className="brand login-brand">
-          <span className="brand-mark">A</span>
+          <span className="brand-mark">F</span>
           <span className="brand-copy">
-            <strong>AXIOM</strong>
+            <strong>FanThynks</strong>
             <small>Creator intelligence</small>
           </span>
         </div>
@@ -37,7 +37,7 @@ export default function LoginPage() {
           <p className="eyebrow">Welcome back</p>
           <h2>Enter your studio</h2>
           <p className="subtle">Sign in to continue to your private workspace.</p>
-          <LoginForm />
+          <LoginForm allowSignup={process.env.AXIOM_ENABLE_LOCAL_SIGNUP === '1'} />
           <p className="login-footnote">Protected by encrypted, tenant-isolated access.</p>
         </div>
       </section>

@@ -176,6 +176,32 @@ describe('PATCH /:id — update model', () => {
   });
 });
 
+describe('versioned character lock', () => {
+  const patch = (body: object) => appWithOrg(ORG_ID).request(`/${MODEL_ID}`, {
+    method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+  });
+  it.each([
+    { characterLockPrompt: 'Character description' }, { characterLockVersion: 0 },
+    { characterLockPrompt: 'x'.repeat(2001), characterLockVersion: 0 },
+    { characterLockPrompt: 'Description', characterLockVersion: -1 },
+  ])('requires a bounded lock and explicit current revision', async body => {
+    expect((await patch(body)).status).toBe(400);
+  });
+  it('reports a stale revision rather than claiming a save succeeded', async () => {
+    expect((await patch({ characterLockPrompt: 'Updated description', characterLockVersion: 2 })).status).toBe(409);
+  });
+  it('returns the saved lock revision', async () => {
+    mockState.result = [{ id: MODEL_ID, characterLockPrompt: 'Description', characterLockVersion: 3 }];
+    const response = await patch({ characterLockPrompt: 'Description', characterLockVersion: 2 });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { characterLockPrompt: 'Description', characterLockVersion: 3 } });
+  });
+  it('allows explicitly clearing a saved lock', async () => {
+    mockState.result = [{ id: MODEL_ID, characterLockPrompt: '', characterLockVersion: 4 }];
+    expect((await patch({ characterLockPrompt: '', characterLockVersion: 3 })).status).toBe(200);
+  });
+});
+
 describe('DELETE /:id — delete model', () => {
   it('soft-deletes and returns success', async () => {
     mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, isActive: false }];

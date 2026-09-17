@@ -5,46 +5,58 @@ import { getSession } from '@/lib/api';
 import KillSwitchBanner from '@/components/KillSwitchBanner';
 import NavLinks from '@/components/NavLinks';
 import SignOutButton from '@/components/SignOutButton';
+import { roleLabel as displayRole } from '@/lib/navigation-role';
 
 export const metadata: Metadata = {
-  title: { default: 'AXIOM — Creator OS', template: '%s · AXIOM' },
+  title: { default: 'FanThynks — Creator OS', template: '%s · FanThynks' },
   description: 'Private creator intelligence and operations.',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
-  const email = (session as { user?: { email?: string } } | null)?.user?.email ?? 'operator';
+  const email = session?.user?.email ?? 'operator';
+  const role = session?.user?.role;
+  const roleLabel = displayRole(role);
 
   return (
     <html lang="en">
       <body>
         {!session ? (
           <main className="auth-shell">{children}</main>
+        ) : !session.user?.orgId ? (
+          <main className="auth-shell">
+            <section className="login-card" aria-labelledby="access-heading">
+              <h1 id="access-heading">Workspace access pending</h1>
+              <p>You are signed in as {email}, but your account has no assigned organization.</p>
+              <p>Contact your workspace administrator to arrange access, or sign out to use another account.</p>
+              <SignOutButton />
+            </section>
+          </main>
         ) : (
           <div className="app-shell">
+            <a href="#main-content" className="skip-link">Skip to page content</a>
             <aside className="sidebar">
-              <Link href="/" className="brand" aria-label="AXIOM home">
-                <span className="brand-mark">A</span>
+              <Link href="/" className="brand" aria-label="FanThynks home">
+                <span className="brand-mark">F</span>
                 <span className="brand-copy">
-                  <strong>AXIOM</strong>
+                  <strong>FanThynks</strong>
                   <small>Creator intelligence</small>
                 </span>
               </Link>
               <p className="nav-kicker">Workspace</p>
-              <NavLinks />
+              <NavLinks role={role} />
               <div className="sidebar-spacer" />
               <div className="system-card">
-                <span className="status-dot" />
                 <div>
-                  <strong>Private cloud</strong>
-                  <span>All systems connected</span>
+                  <strong>Workspace session</strong>
+                  <span>Signed in</span>
                 </div>
               </div>
               <div className="user-card">
                 <span className="user-avatar">{email.slice(0, 1).toUpperCase()}</span>
                 <div>
                   <strong>{email.split('@')[0]}</strong>
-                  <span>Studio owner</span>
+                  <span>{roleLabel}</span>
                 </div>
                 <SignOutButton />
               </div>
@@ -52,8 +64,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="workspace">
               <header className="mobile-bar">
                 <Link href="/" className="brand compact">
-                  <span className="brand-mark">A</span>
-                  <strong>AXIOM</strong>
+                  <span className="brand-mark">F</span>
+                  <strong>FanThynks</strong>
                 </Link>
                 <div className="mobile-actions">
                   <span className="eyebrow">Creator OS</span>
@@ -61,14 +73,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </div>
               </header>
               <div className="mobile-nav">
-                <NavLinks />
+                <NavLinks role={role} />
               </div>
-              <KillSwitchBanner />
-              <main className="main">{children}</main>
+              {role === 'owner' && <KillSwitchBanner />}
+              <main id="main-content" tabIndex={-1} className="main">{children}</main>
               <footer className="footer">
                 <span>Private by design · self-hosted</span>
                 <Link href="/api/v1/health">
-                  <span className="status-dot" /> System health
+                  System health
                 </Link>
               </footer>
             </div>
