@@ -281,5 +281,24 @@ an authenticated provider response. No live provider call or deployment occurred
 Earnings GUI, explicit financial disclosures, live OAuth/egress/account acceptance
 and full new-role activation still remain; this API is not feature completion.
 
+## Earnings surface (M304, 2026-09-17)
+
+Owner/Manager/Model now have an Earnings talent tab. The server page guards roles
+before fetching accounts; an explicit GET-form choice triggers the selected
+account read. No background polling or automatic first-account selection occurs.
+Errors preserve usable account choices without rendering zero earnings. Empty
+accounts, forbidden access, unknown selection and loading have distinct states.
+The page shows all-time/current/prior-month gross and net, nullable comparisons,
+source breakdown and an expandable timeline. USD-cent conversion, provider period,
+observation time, rewards, fees/reversals and non-payout semantics are disclosed.
+Shared grid/stack/action styles and scroll-contained timeline support narrow screens.
+
+40 page/navigation tests, dashboard typecheck and lint pass (three pre-existing
+test warnings). The page tests were rerun after the typed card-layout cleanup.
+These are rendered-markup tests, not authenticated mobile/desktop acceptance.
+No deployment or provider call occurred. Financial account values/scopes and
+role activation remain live acceptance requirements. The original full feature
+reconciliation, including DM operations and all runtime gates, is still open.
+
 Completion requires all applicable steps and live evidence; neither additive role
 names nor empty navigation alone satisfies F-24/F-26.

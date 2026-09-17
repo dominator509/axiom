@@ -12,6 +12,22 @@ import { createIdempotencyKey } from './mutation';
 import { resolveApiOrigin } from './api-origin';
 
 const API_BASE = resolveApiOrigin();
+export interface EarningsObservation {
+  connectionId: string;
+  currency: 'USD';
+  unit: 'cents';
+  observedAt: string;
+  summary: {
+    totals: {
+      allTime: { gross: number; net: number };
+      thisMonth: { gross: number; net: number; previousMonthGross: number; previousMonthNet: number;
+        grossChangePercentage: number | null; netChangePercentage: number | null };
+    };
+    breakdownBySource: Record<string, { gross: number; net: number }>;
+    overTime: Array<{ periodStart: string; gross: number; net: number }>;
+    period: { startDate: string | null; endDate: string | null; granularity: 'day' | 'week'; timezone: string };
+  };
+}
 export const DEFAULT_SERVER_REQUEST_TIMEOUT_MS = 10_000;
 
 function createRequestSignal(
@@ -353,6 +369,10 @@ export const api = {
       apiFetch<{ data: CustomRequest[] }>(`/api/v1/models/${id}/custom-requests`),
     analytics: (id: string, days = 30) =>
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/analytics?days=${days}`),
+    earningsAccounts: (id: string) => apiFetch<{ data: { accounts: Array<{ id: string; displayName: string }> } }>(
+      `/api/v1/models/${encodeURIComponent(id)}/earnings`),
+    earnings: (id: string, connectionId: string) => apiFetch<{ data: EarningsObservation }>(
+      `/api/v1/models/${encodeURIComponent(id)}/earnings?${new URLSearchParams({ connectionId })}`),
     viral: (id: string) => apiFetch<{ data: unknown }>(`/api/v1/models/${id}/viral`),
     playbookScore: (id: string) =>
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/playbook-score`),

@@ -14,6 +14,7 @@ const TABS = [
   { href: 'fans', label: 'Fan contacts' },
   { href: 'linkbio', label: 'Link in bio' },
   { href: 'analytics', label: 'Analytics' },
+  { href: 'earnings', label: 'Earnings' },
   { href: 'playbook', label: 'Playbook' },
   { href: 'network', label: 'Network settings' },
   { href: 'relay', label: 'Relay delivery' },

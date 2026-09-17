@@ -8,6 +8,7 @@ export function workspaceDestinationAllowed(role: string | null | undefined, pat
 }
 export function talentDestinationAllowed(role: string | null | undefined, section: string): boolean {
   if (!section) return true;
+  if (section === 'earnings') return ['owner', 'manager', 'model'].includes(role ?? '');
   if (role === 'chatter') return section === 'fans';
   if (role === 'content_creator') return ['generation', 'media', 'approvals', 'calendar', 'analytics', 'playbook'].includes(section);
   if (role === 'model') return ['media', 'calendar', 'fans', 'analytics'].includes(section);
