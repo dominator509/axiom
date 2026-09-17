@@ -14,6 +14,8 @@ Review findings requiring follow-up:
 
 Current verification:
 
+- Metric source is now explicit (migration0039): provider polls versus operator input, with legacy preserved as unknown. Experiment queries and new viral evaluation exclude manual/legacy observations. Five real PostgreSQL tests with inflated newer non-provider rows pass after40migrations; cleanup confirmed. 53 focused tests and workspace typecheck22/22 pass. Existing exemplars/recipes still need provenance review, and the in-memory Bandit class is not a durable model-scoped implementation of F-84; automatic F-16 winner/reward integration remains open.
+
 - Hosted CI35201077897 on exact0bc26e83a45a9e67e88d5f25d38453318c4a0bcd passed all six jobs. Later commits require a new hosted run. Metrics ingestion now refuses absent denominators/engagement observations and malformed/unsafe counters rather than writing synthetic zero-rate data; seventeen focused tests and worker typecheck pass. This is not a complete availability model for every individual metric and does not establish conversion attribution or automated winner learning.
 
 - Media-only variants now share the same attributed review path: explicit bounded caption for crops/adaptations, immutable stored copy for caption/teaser variants, assignment-platform matching, owned verified output and fresh scan. GUI supports both with stable retry body. 91 API/nine dashboard tests and both typechecks pass. Concurrent review creation and deployed scan/approval/browser acceptance remain open.

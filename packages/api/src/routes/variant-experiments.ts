@@ -37,6 +37,7 @@ router.get('/models/:modelId/variant-experiments/:experimentId/performance', asy
       eq(a.orgId, orgId), eq(a.experimentId, experimentId),
       eq(p.orgId, orgId), eq(b.orgId, orgId), eq(b.modelId, modelId), eq(p.state, 'published'),
       eq(p.platform, experiment.platform), eq(m.platform, p.platform), eq(m.remoteId, p.remoteId),
+      eq(m.source, 'provider'),
       inArray(b.sourceVariantId, experiment.variantIds),
     )).orderBy(p.id, desc(m.collectedAt), desc(m.id)).limit(101);
   });

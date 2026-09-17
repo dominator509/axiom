@@ -46,9 +46,10 @@ describe.skipIf(!url)('published variant performance in PostgreSQL', () => {
         await tx.insert(schema.contentBundle).values({ id: bundles[i], orgId, modelId, assetId, sourceVariantId: variantId, captions: { instagram: 'Fixture' } });
         if (i < 4) await tx.insert(schema.variantExperimentAssignment).values({ orgId, experimentId, variantId, assignmentKey: randomUUID(), reviewBundleId: bundles[i] });
         await tx.insert(schema.postTarget).values({ id: targets[i], orgId, bundleId: bundles[i], platform: i === 3 ? 'x' : 'instagram', state: i === 1 ? 'pending' : 'published', remoteId: `remote-${i}`, idemKey: Buffer.from(randomUUID()) });
-        await tx.insert(schema.postMetric).values({ postTargetId: targets[i], platform: i === 3 ? 'x' : 'instagram', remoteId: i === 2 ? 'wrong-remote' : `remote-${i}`, views: 10, collectedAt: new Date('2026-09-01T00:00:00Z') });
+        await tx.insert(schema.postMetric).values({ postTargetId: targets[i], source: 'provider', platform: i === 3 ? 'x' : 'instagram', remoteId: i === 2 ? 'wrong-remote' : `remote-${i}`, views: 10, collectedAt: new Date('2026-09-01T00:00:00Z') });
       }
-      await tx.insert(schema.postMetric).values({ postTargetId: targets[0], platform: 'instagram', remoteId: 'remote-0', views: 25, collectedAt: new Date('2026-09-02T00:00:00Z') });
+      await tx.insert(schema.postMetric).values({ postTargetId: targets[0], source: 'provider', platform: 'instagram', remoteId: 'remote-0', views: 25, collectedAt: new Date('2026-09-02T00:00:00Z') });
+      for (const source of ['manual', 'legacy'] as const) await tx.insert(schema.postMetric).values({ postTargetId: targets[0], source, platform: 'instagram', remoteId: 'remote-0', views: 999999, collectedAt: new Date('2026-09-03T00:00:00Z') });
     });
   });
   afterAll(async () => {

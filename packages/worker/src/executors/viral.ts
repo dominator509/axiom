@@ -93,6 +93,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     .limit(1);
   if (targets.length === 0) throw new Error(`viral.label: target ${targetId} not found`);
   const target = targets[0];
+  if (target.state !== 'published' || !target.remoteId) return;
 
   const bundles = await tx
     .select()
@@ -125,11 +126,16 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
         eq(schema.contentBundle.orgId, job.org_id),
         eq(schema.contentBundle.modelId, bundle.modelId),
         eq(schema.postMetric.platform, target.platform),
+        eq(schema.postMetric.source, 'provider'),
+        eq(schema.postTarget.state, 'published'),
+        eq(schema.postMetric.remoteId, schema.postTarget.remoteId),
         gte(schema.postMetric.collectedAt, windowStart),
       ),
     )
     .orderBy(desc(schema.postMetric.collectedAt))) as ViralHistorySample[];
   const history = latestMetricSamples(historyRows);
+  // Manual ingestion may request a refresh, but cannot supply learning evidence.
+  if (!history.some(row => row.postTargetId === targetId)) return;
 
   // 2. Perf score: z-score of the target's own engagement against the window.
   let score: ViralScore<(typeof history)[number]>;

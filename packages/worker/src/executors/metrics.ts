@@ -100,6 +100,7 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
     postTargetId: targetId,
     platform,
     remoteId: target.remoteId,
+    source: 'provider',
     views: impressions,
     likes,
     shares,

@@ -115,6 +115,7 @@ export const relayViralPersistence: ViralPersistence = {
         postTargetId: target.id,
         platform: metrics.platform,
         remoteId: postId,
+        source: 'manual',
         views: impressions,
         likes: metrics.likes,
         shares: metrics.shares,
