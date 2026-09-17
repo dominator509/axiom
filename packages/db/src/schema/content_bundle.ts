@@ -3,6 +3,7 @@ import { relations } from 'drizzle-orm';
 import { org } from './org.js';
 import { modelProfile } from './model_profile.js';
 import { asset } from './asset.js';
+import { assetVariant } from './asset_variant.js';
 import { postTarget } from './post_target.js';
 
 export type ContentBundlePublishIntent = {
@@ -20,6 +21,7 @@ export const contentBundle = pgTable('content_bundle', {
     .notNull()
     .references(() => modelProfile.id),
   assetId: uuid('asset_id').references(() => asset.id),
+  sourceVariantId: uuid('source_variant_id').references(() => assetVariant.id, { onDelete: 'restrict' }),
   captions: jsonb('captions').$type<Record<string, string>>().default({}),
   hashtags: jsonb('hashtags').$type<string[]>().default([]),
   tosReport: jsonb('tos_report').$type<Record<string, unknown>>(),

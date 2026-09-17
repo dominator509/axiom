@@ -247,6 +247,25 @@ describe('GET /:id — get bundle', () => {
 });
 
 describe('POST / — create bundle', () => {
+  it('binds a saved copy variant using server-owned copy and media with fresh scan', async () => {
+    mockState.insertValues = [];
+    const asset = { id: X_CONNECTION_ID, orgId: ORG_ID, modelId: MODEL_ID, mimeType: 'image/jpeg' };
+    mockState.results = [[], [{ orgId: ORG_ID }], [{ id: INSTAGRAM_CONNECTION_ID, outputAssetId: asset.id, variantType: 'caption', settings: { copy: { platform: 'instagram', text: 'Saved vase caption' } } }], [asset], [{ id: BUNDLE_ID }]];
+    vi.mocked(assetPreview).mockResolvedValue(new Response(null));
+    const response = await appWithOrg(ORG_ID).request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ modelId: MODEL_ID, variantId: INSTAGRAM_CONNECTION_ID }) });
+    expect(response.status).toBe(201);
+    expect(mockState.insertValues[0]).toMatchObject({ sourceVariantId: INSTAGRAM_CONNECTION_ID, assetId: asset.id, captions: { instagram: 'Saved vase caption' }, tosReport: { verdict: 'pending' } });
+    expect(enqueueJob).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ kind: 'tos.scan' }));
+  });
+  it('rejects overriding copy in an attributed variant review', async () => {
+    const response = await appWithOrg(ORG_ID).request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ modelId: MODEL_ID, variantId: INSTAGRAM_CONNECTION_ID, captions: { instagram: 'Different copy' } }) });
+    expect(response.status).toBe(400); expect(enqueueJob).not.toHaveBeenCalled();
+  });
+  it('rejects a variant that is missing from the scoped model', async () => {
+    mockState.results = [[], [{ orgId: ORG_ID }], []];
+    const response = await appWithOrg(ORG_ID).request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ modelId: MODEL_ID, variantId: INSTAGRAM_CONNECTION_ID }) });
+    expect(response.status).toBe(404); expect(enqueueJob).not.toHaveBeenCalled();
+  });
   it('links owned saved media with fresh pending scan in the bundle transaction', async () => {
     mockState.insertValues = [];
     const asset = { id: X_CONNECTION_ID, orgId: ORG_ID, modelId: MODEL_ID, mimeType: 'image/jpeg' };
@@ -712,6 +731,7 @@ describe('POST /:id/revise — queue generation', () => {
     expect(mockState.updates).toContainEqual(
       expect.objectContaining({
         state: 'revising',
+        sourceVariantId: null,
         tosReport: expect.objectContaining({ verdict: 'pending', revisionId: expect.any(String) }),
       }),
     );

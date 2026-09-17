@@ -36,6 +36,7 @@ const router = new Hono<AppBindings>();
 const createBundleSchema = z.object({
   modelId: z.string().uuid(),
   assetId: z.string().uuid().optional(),
+  variantId: z.string().uuid().optional(),
   captions: z.record(z.string(), z.string()).default({}),
   hashtags: z.array(z.string()).default([]),
 });
@@ -171,6 +172,8 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const body = c.req.valid('json');
   const userId = c.get('userId') ?? 'system';
+  if (body.variantId && (body.assetId || Object.keys(body.captions).length || body.hashtags.length))
+    return apiError(c, 400, statusTitle(400), 'Variant review uses the saved copy and media; overrides are not accepted');
   if (body.assetId) {
     const entries = Object.entries(body.captions);
     if (!entries.length || entries.length > 11 || entries.some(([, caption]) => !caption.trim() || caption.length > 10_000)
@@ -182,6 +185,20 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
 
   const inserted = await withOrgContext(orgId, async (tx) => {
     if ((await modelOrgId(tx, body.modelId)) !== orgId) return null;
+    if (body.variantId) {
+      const [variant] = await tx.select({ id: schema.assetVariant.id, outputAssetId: schema.assetVariant.outputAssetId,
+        variantType: schema.assetVariant.variantType, settings: schema.assetVariant.settings,
+      }).from(schema.assetVariant).innerJoin(schema.asset, eq(schema.asset.id, schema.assetVariant.assetId)).where(and(
+        eq(schema.assetVariant.id, body.variantId), eq(schema.assetVariant.orgId, orgId),
+        eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, body.modelId),
+      )).limit(1).for('share');
+      if (!variant || !variant.outputAssetId || !['caption', 'teaser'].includes(variant.variantType)) return null;
+      const copy = z.object({ platform: z.string().min(1).max(50), text: z.string().trim().min(1).max(10000) }).safeParse(variant.settings?.copy);
+      if (!copy.success) return null;
+      try { asPlatform(copy.data.platform); } catch { return null; }
+      body.assetId = variant.outputAssetId;
+      body.captions = { [copy.data.platform]: copy.data.text };
+    }
     if (body.assetId) {
       const [asset] = await tx.select().from(schema.asset).where(and(
         eq(schema.asset.id, body.assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, body.modelId),
@@ -199,6 +216,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
         orgId,
         modelId: body.modelId,
         assetId: body.assetId,
+        sourceVariantId: body.variantId,
         captions: body.captions,
         hashtags: body.hashtags,
         // Compliance reports are produced by the trusted generation/worker
@@ -210,6 +228,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
     await writeAudit(tx, orgId, userId, 'bundle.create', row.id, {
       modelId: body.modelId,
       assetId: body.assetId,
+      sourceVariantId: body.variantId,
       state: 'generated',
     });
     if (body.assetId) await enqueueJob(tx, { orgId, queue: 'tos', kind: 'tos.scan',

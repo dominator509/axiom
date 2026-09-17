@@ -17,6 +17,7 @@ export async function queueBundleRevision(
     .update(schema.contentBundle)
     .set({
       state: 'revising',
+      sourceVariantId: null,
       tosReport: { verdict: 'pending', revisionId },
       updatedAt: new Date(),
     })

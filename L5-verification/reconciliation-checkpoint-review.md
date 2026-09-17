@@ -14,6 +14,8 @@ Review findings requiring follow-up:
 
 Current verification:
 
+- Saved caption/teaser candidates can now create a review through the existing bundle POST, using server-selected copy/media, an owned sourceVariantId, and a fresh scan. Client overrides are rejected; revision clears attribution. Migration 0036 adds the nullable FK/index. 84 route tests, five UI tests, 122 schema/migration checks, workspace typecheck 22/22, and fresh PostgreSQL rehearsal (37 migrations, 13 worker tests, cleanup confirmed) pass. No live migration/deployment; experiment-assignment-to-post binding and provider outcome learning remain open.
+
 - Caption/teaser candidate storage and media-library creation now use existing asset_variant records. Discovery previews the original owned media and bounded copy, filters private settings, and refuses mismatched experiment platforms. 26 route tests, 69 middleware checks, five dashboard tests and workspace typecheck 22/22 pass. Copy-to-reviewed-post binding and attributable automated promotion/learning are still missing; this is not complete end-to-end A/B publishing.
 
 - Tracking GUI now supports paginated assignment history, stable opaque allocation identifiers, and explicit observed-outcome recording. All nested experiment mutations have one idempotency layer. 106 API/middleware and 11 dashboard tests plus typechecks pass. Architecture recheck identified genuine remaining source gaps: caption/teaser variants and automated, attributable winner-to-bandit/viral learning. Manual winner selection and self-reported outcomes do not satisfy those requirements; the execution plan is corrected accordingly.
