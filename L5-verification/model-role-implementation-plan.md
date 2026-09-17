@@ -1,5 +1,18 @@
 # Model-scoped human roles — implementation queue
 
+## Owner member GUI checkpoint — M323
+
+Owners can now discover `/members` through primary navigation, load paginated
+workspace members and review/confirm role changes. Non-owners see an access
+explanation and no administration controls. The client sends the expected current
+role, retains the exact idempotency key/payload after uncertain responses, fences
+double clicks and validates the saved member identity/role. Terminal conflicts
+require reload rather than silently overwriting another edit. Confirmation warns
+about session revocation and self-demotion; the API remains the authority for
+last-owner protection. Sixteen focused GUI tests, typecheck and lint pass (three
+pre-existing lint warnings). No real member was edited, and deployed desktop/mobile
+acceptance and staged-role activation remain open.
+
 ## Owner member API checkpoint — M322
 
 Authenticated owner member discovery and role mutation are now mounted in the API.

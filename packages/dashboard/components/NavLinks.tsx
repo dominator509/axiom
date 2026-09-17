@@ -7,6 +7,7 @@ import { workspaceDestinationAllowed } from '@/lib/navigation-role';
 const NAV_ITEMS = [
   { href: '/', label: 'Talent', icon: 'talent' },
   { href: '/shifts', label: 'My shifts', icon: 'digest' },
+  { href: '/members', label: 'Members', icon: 'talent' },
   { href: '/connections/grok', label: 'Grok & storage', icon: 'connection' },
   { href: '/audit', label: 'Audit trail', icon: 'audit' },
   { href: '/incidents', label: 'Incidents', icon: 'incident' },
