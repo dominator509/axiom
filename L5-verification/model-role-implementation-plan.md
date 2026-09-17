@@ -93,6 +93,14 @@ profile loading stops secondary requests. Thirteen overview tests plus dashboard
 typecheck pass. Individual generation/media/calendar/playbook action controls and
 deployed role-specific browser acceptance remain to be reconciled.
 
+Media library now permits assigned Creator transform/staging controls without
+exposing the unsupported variant-creation endpoint. Model viewers do not request
+operation history; read-only roles retain previews/pagination without generation
+shortcuts. Gallery and operation-history failures are independent, preventing a
+denied history request from hiding valid media. Failed history suppresses new
+transform controls until refresh. Ten page tests and typecheck pass; generation
+page and its nested controls still require the role reconciliation pass.
+
 The authenticated `/api/v1/models/:modelId/member-assignments` API provides
 cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 `/:assignmentId` revokes one grant. Owner checks apply to all methods, including
