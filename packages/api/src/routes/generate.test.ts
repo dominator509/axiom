@@ -174,6 +174,8 @@ describe('POST /models/:id/generate', () => {
       id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna Vex', handle: 'lunavex',
       bio: null, avatarUrl: null, state: 'generated',
     }];
+    // Scope setup, model lookup, sharing policy, then the empty exemplar pool.
+    mockState.results = [[], mockState.result, [], []];
     const res = await appWithOrg(ORG_ID, userId).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ...validBody, enrichWithLlm: true, userId: 'other-users-profile' }),
@@ -262,7 +264,7 @@ describe('POST /models/:id/generate', () => {
     expect(res.status).toBe(401);
   });
 
-  it('injects real viral exemplars into the S2 segment (F-83)', async () => {
+  it('injects retrieved viral exemplars into the S2 segment (F-83)', async () => {
     // Seed the model row + a top-performing exemplar (viral label + features).
     mockState.result = [
       {
@@ -276,6 +278,9 @@ describe('POST /models/:id/generate', () => {
       },
       {
         id: '33333333-3333-4333-8333-333333333333',
+        modelId: MODEL_ID,
+        embedding: Array.from({ length: 768 }, (_, index) => index === 0 ? 1 : 0),
+        createdAt: new Date(),
         platform: 'instagram',
         label: 'viral',
         perfScore: 2.4,
@@ -287,6 +292,10 @@ describe('POST /models/:id/generate', () => {
         },
       },
     ];
+    const fixtureRows = mockState.result as unknown[];
+    mockState.result = [fixtureRows[0]];
+    // Distinct rows for scope/model/policy/vector retrieval and posterior query.
+    mockState.results = [[], [fixtureRows[0]], [], [fixtureRows[1]], { rows: [] }];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
