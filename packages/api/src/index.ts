@@ -17,6 +17,7 @@ import { fansRouter } from './routes/fans.js';
 import { analyticsRouter } from './routes/analytics.js';
 import { earningsRouter } from './routes/earnings.js';
 import { inboxRouter } from './routes/inbox.js';
+import { inboxRepliesRouter } from './routes/inbox-replies.js';
 import { viralRouter } from './routes/viral.js';
 import { playbookRouter } from './routes/playbook.js';
 import { generateRouter } from './routes/generate.js';
@@ -789,7 +790,8 @@ app.use('/api/v1/*', enforceModelAccess);
 // mutation groups name the operational roles that may change state.
 // Creator operations first pass the narrow, assigned-model allowlist above.
 // Including the role here does not grant approval, scheduling or other routes.
-const operationalMutation = requireMutationRole('owner', 'manager', 'operator', 'content_creator');
+// Chatter writes are restricted above to exact assigned, active-shift reply routes.
+const operationalMutation = requireMutationRole('owner', 'manager', 'operator', 'content_creator', 'chatter');
 const ownerOnly = requireRole('owner');
 app.use('/api/v1/models/:modelId/member-assignments/*', ownerOnly);
 
@@ -901,6 +903,7 @@ app.use('/api/v1/models/:modelId/team-operations', idempotency());
 app.use('/api/v1/models/:modelId/team-shifts', idempotency());
 app.use('/api/v1/models/:modelId/team-shifts/:shiftId', idempotency());
 app.use('/api/v1/models/:modelId/team-notes', idempotency());
+app.use('/api/v1/models/:modelId/inbox/replies', idempotency());
 app.use('/api/v1/models/:modelId/member-assignments', idempotency());
 app.use('/api/v1/models/:modelId/member-assignments/:assignmentId', idempotency());
 app.use('/api/v1/models/:modelId/media-operations', idempotency());
@@ -937,6 +940,7 @@ app.route('/api/v1', fansRouter);
 app.route('/api/v1', analyticsRouter);
 app.route('/api/v1', earningsRouter);
 app.route('/api/v1', inboxRouter);
+app.route('/api/v1', inboxRepliesRouter);
 app.route('/api/v1', viralRouter);
 app.route('/api/v1', playbookRouter);
 app.route('/api/v1', generateRouter);

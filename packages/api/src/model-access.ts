@@ -31,6 +31,9 @@ export function modelAccessCondition(role: unknown, orgId: string, userId: strin
 
 /** Explicit role allowlist. Unimplemented operations stay denied. */
 export function scopedReadTarget(role: ScopedHumanRole, method: string, path: string): 'discovery' | string | null {
+  const replies = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/inbox\/replies$/i.exec(path);
+  if (replies && ((role === 'chatter' && ['GET', 'HEAD', 'POST'].includes(method))
+    || (role === 'model' && ['GET', 'HEAD'].includes(method)))) return replies[1];
   if (role === 'chatter' && ['GET', 'HEAD'].includes(method) && path === '/api/v1/my-shifts') return 'self-shifts';
   if (role === 'content_creator') {
     // Own-user credential lifecycle only. Gateway derives identity from the

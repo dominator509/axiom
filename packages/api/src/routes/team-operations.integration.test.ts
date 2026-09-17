@@ -21,6 +21,7 @@ import { playbookGuidelinesRouter } from './playbook-guidelines.js';
 import { analyticsRouter } from './analytics.js';
 import { earningsRouter } from './earnings.js';
 import { inboxRouter } from './inbox.js';
+import { inboxRepliesRouter } from './inbox-replies.js';
 import { viralRouter } from './viral.js';
 import { reportsRouter } from './reports.js';
 import { enforceModelAccess, type ScopedHumanRole } from '../model-access.js';
@@ -49,7 +50,7 @@ function scopedApp(role: ScopedHumanRole, org = orgId, userId = assignmentUsers[
   const route = new Hono<AppBindings>();
   route.use('*', async (c, next) => { c.set('orgId', org); c.set('userId', userId); c.set('role', role); await next(); });
   route.use('/api/v1/*', enforceModelAccess);
-  route.use('/api/v1/*', requireMutationRole('owner', 'manager', 'operator', 'content_creator'));
+  route.use('/api/v1/*', requireMutationRole('owner', 'manager', 'operator', 'content_creator', 'chatter'));
   route.route('/api/v1/models', modelsRouter);
   route.route('/api/v1/bundles', bundlesRouter);
   route.route('/api/v1', mediaUploadRouter);
@@ -62,6 +63,7 @@ function scopedApp(role: ScopedHumanRole, org = orgId, userId = assignmentUsers[
   route.route('/api/v1', analyticsRouter);
   route.route('/api/v1', earningsRouter);
   route.route('/api/v1', inboxRouter);
+  route.route('/api/v1', inboxRepliesRouter);
   route.route('/api/v1', viralRouter);
   route.route('/api/v1', reportsRouter);
   return route;
@@ -481,6 +483,39 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     const [saved] = await scoped(tx => tx.select().from(schema.inboxReplyIntent).where(eq(schema.inboxReplyIntent.id, success.id)));
     expect(saved).toMatchObject({ state: 'sent', remoteMessageUuid, body: values.body });
     await expect(scoped(tx => tx.update(schema.inboxReplyIntent).set({ remoteMessageUuid: randomUUID() }).where(eq(schema.inboxReplyIntent.id, success.id)))).rejects.toThrow();
+  });
+  it('prepares one audited Chatter reply for a stable intent and rejects changed retries or expired shifts', async () => {
+    const userId = randomUUID(), modelId = randomUUID(), connectionId = randomUUID(), shiftId = randomUUID();
+    await scoped(async tx => {
+      await tx.insert(schema.authUser).values({ id: userId, orgId, name: 'Reply API', email: `${userId}@example.invalid` });
+      await tx.insert(schema.modelProfile).values({ id: modelId, orgId, displayName: 'Reply API', handle: modelId });
+      await tx.insert(schema.modelUserAssignment).values({ orgId, modelId, userId });
+      await tx.insert(schema.platformConnection).values({ id: connectionId, orgId, modelId, platform: 'fanvue', displayName: 'Reply API', encToken: Buffer.from('fixture'), encNonce: Buffer.alloc(12), dekId: 'fixture' });
+      await tx.insert(schema.teamShift).values({ id: shiftId, orgId, modelId, assigneeUserId: userId, status: 'active', startsAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() + 60_000) });
+    });
+    const route = scopedApp('chatter', orgId, userId), path = `/api/v1/models/${modelId}/inbox/replies`;
+    const body = { connectionId, counterpartUuid: randomUUID(), intentKey: randomUUID(), body: 'Approved exact text' };
+    const post = (value = body) => route.request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) });
+    const responses = await Promise.all([post(), post()]);
+    expect(responses.map(r => r.status).sort()).toEqual([200, 201]);
+    const payloads = await Promise.all(responses.map(r => r.json())) as Array<{ data: { id: string; state: string; actorUserId: string } }>;
+    expect(payloads[0].data.id).toBe(payloads[1].data.id);
+    expect(payloads[0].data).toMatchObject({ state: 'pending', actorUserId: userId });
+    expect((await post({ ...body, body: 'Altered retry' })).status).toBe(409);
+    const query = new URLSearchParams({ connectionId, counterpartUuid: body.counterpartUuid });
+    const read = await route.request(`${path}?${query}`);
+    expect(read.status).toBe(200);
+    expect((await read.json() as { data: unknown[] }).data).toHaveLength(1);
+    expect((await route.request(`${path}?${query}&cursor=${randomUUID()}`)).status).toBe(400);
+    const audit = await scoped(tx => tx.select().from(schema.auditLog).where(sql`${schema.auditLog.orgId} = ${orgId} AND ${schema.auditLog.action} = 'inbox.reply.prepare' AND ${schema.auditLog.target} = ${payloads[0].data.id}`));
+    expect(audit).toHaveLength(1);
+    expect(JSON.stringify(audit)).not.toContain(body.body);
+    for (const role of ['model', 'content_creator'] as const) expect((await scopedApp(role, orgId, userId).request(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })).status).toBe(403);
+    expect((await scopedApp('chatter', foreignOrg, userId).request(`${path}?${query}`)).status).toBe(404);
+    await scoped(tx => tx.update(schema.teamShift).set({ endsAt: new Date(Date.now() - 1000) }).where(eq(schema.teamShift.id, shiftId)));
+    expect((await post()).status).toBe(404);
+    expect((await route.request(`${path}?${query}`)).status).toBe(404);
+    // No queue/connector was invoked. Independent retained history is dropped with the fixture.
   });
   it('lists only assigned self shifts before their start without granting early model access', async () => {
     await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[0], userId: assignmentUsers[0] }).onConflictDoNothing());

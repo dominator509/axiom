@@ -4,6 +4,16 @@ import { enforceModelAccess } from './model-access.js';
 import { Hono } from 'hono';
 import type { AppBindings } from './index.js';
 const id = '11111111-1111-4111-8111-111111111111';
+it('permits Chatter reply preparation only on the exact scoped conversation route', () => {
+  const path = `/api/v1/models/${id}/inbox/replies`;
+  for (const method of ['GET', 'HEAD', 'POST']) expect(scopedReadTarget('chatter', method, path)).toBe(id);
+  for (const method of ['PUT', 'PATCH', 'DELETE']) expect(scopedReadTarget('chatter', method, path)).toBeNull();
+  expect(scopedReadTarget('model', 'GET', path)).toBe(id);
+  expect(scopedReadTarget('model', 'POST', path)).toBeNull();
+  expect(scopedReadTarget('content_creator', 'GET', path)).toBeNull();
+  for (const other of [`${path}/send`, `${path}/${id}`, '/api/v1/org-settings', '/api/v1/posts', `/api/v1/bundles/${id}/approve`])
+    expect(scopedReadTarget('chatter', 'POST', other)).toBeNull();
+});
 it('allows only the creator own-user Grok lifecycle, not storage or arbitrary gateway work', () => {
   const base = '/api/v1/llm/subscriptions/grok';
   for (const [path, methods] of [[base, ['GET', 'HEAD', 'DELETE']], [`${base}/login-attempt`, ['GET', 'HEAD', 'POST']], [`${base}/login-attempt/${id}`, ['GET', 'HEAD', 'DELETE']]] as const)
