@@ -1,5 +1,23 @@
 # Model-scoped human roles — implementation queue
 
+## Creator worker authorization checkpoint — M327
+
+The media executor now accepts Content Creators only with an exact organization,
+bundle-model and user assignment. All actors' current roles are re-read inside
+the independent pre-dispatch transaction; Creators' assignments are rechecked
+there after runtime preparation. Denial creates no dispatch marker and does not
+invoke the provider. Workspace-wide operational roles retain their existing path.
+
+Twenty-one executor tests and 23 real PostgreSQL worker tests after 48 migrations
+pass, plus worker typecheck. Database tests cover assigned/missing/wrong-user
+assignments and assignment/role revocation during preparation, with a captured
+provider boundary and no real generation. They verify marker persistence only
+for the allowed case. Fixture df6fdab457af4cdb was removed; recovery DB untouched.
+Initial new unit cases had a parameterized-test row shape error; corrected before
+the passing run. Live provider acceptance and scoped-role authentication activation
+remain open. This closes the specific worker rejection documented in M326, not
+the complete persona or architecture reconciliation.
+
 ## Creator private storage checkpoint — M326
 
 The runtime uses `{userId: payload.userId, orgId: job.org_id}` for video storage;

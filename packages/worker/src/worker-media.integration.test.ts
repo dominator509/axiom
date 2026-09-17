@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { db, pool, schema } from '@axiom/db';
@@ -6,6 +6,8 @@ import { processJob, workerTick } from './worker.js';
 import type { JobRow } from './types.js';
 import { tosScan } from './executors/tos.js';
 import { claimExactMediaJob, claimNextModelMediaJob } from './claim.js';
+import { mediaGenerate } from './executors/media_generate.js';
+import { OfficialSubscriptionTransport } from '@axiom/llm-gateway';
 
 const url = process.env.TEST_DATABASE_URL;
 const orgId = '11111111-1111-4111-8111-111111111111';
@@ -29,6 +31,50 @@ describe.skipIf(!url)('terminal media state in real PostgreSQL', () => {
     expect(role.rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
   });
   afterAll(async () => { await pool.end(); });
+
+  it.each(['assigned', 'missing', 'different-user', 'revoked-during-preparation', 'role-revoked-during-preparation'])('checks Creator generation against real assignments: %s', async mode => {
+    const userId = randomUUID(), otherUserId = randomUUID(), bundleId = randomUUID(), jobId = randomUUID();
+    const assignmentId = randomUUID();
+    const job = await scoped(async tx => {
+      await tx.insert(schema.authUser).values([
+        { id: userId, orgId, role: 'content_creator', name: 'Creator fixture', email: `${userId}@example.invalid` },
+        { id: otherUserId, orgId, role: 'content_creator', name: 'Other fixture', email: `${otherUserId}@example.invalid` },
+      ]);
+      if (mode !== 'missing') await tx.insert(schema.modelUserAssignment).values({ id: assignmentId, orgId, modelId, userId: mode === 'different-user' ? otherUserId : userId });
+      await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId, state: 'generated' });
+      await tx.insert(schema.job).values({ id: jobId, orgId, queue: 'fixture', kind: 'media.generate', state: 'running',
+        payload: { bundleId, userId, kind: 'image', prompt: 'Ceramic vase fixture' } });
+      const result = await tx.execute(sql`SELECT * FROM job WHERE id = ${jobId}`);
+      return result.rows[0] as unknown as JobRow;
+    });
+    let dispatched = false;
+    const transport = vi.spyOn(OfficialSubscriptionTransport.prototype, 'generateMedia').mockImplementation(async (request, beforeDispatch) => {
+      expect(request).toMatchObject({ userId, orgId });
+      if (mode === 'revoked-during-preparation') await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.id, assignmentId)));
+      if (mode === 'role-revoked-during-preparation') await scoped(tx => tx.update(schema.authUser).set({ role: 'analyst' }).where(eq(schema.authUser.id, userId)));
+      await beforeDispatch!();
+      dispatched = true;
+      throw new Error('captured provider boundary; no live request');
+    });
+    try {
+      const execute = scoped(tx => mediaGenerate({ tx, job, workerId: 'fixture', killSwitchEnabled: false,
+        persistSideEffectMarker: operation => scoped(operation), markExternalSideEffect: () => {},
+      }));
+      await expect(execute).rejects.toThrow(mode === 'assigned' ? 'captured provider boundary' : 'authorized');
+      expect(dispatched).toBe(mode === 'assigned');
+      expect(transport).toHaveBeenCalledTimes(['missing', 'different-user'].includes(mode) ? 0 : 1);
+      const attempts = await scoped(tx => tx.select().from(schema.mediaGenerationAttempt).where(eq(schema.mediaGenerationAttempt.jobId, jobId)));
+      expect(attempts).toHaveLength(mode === 'assigned' ? 1 : 0);
+    } finally {
+      transport.mockRestore();
+      await scoped(async tx => {
+        await tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.id, assignmentId));
+        await tx.delete(schema.job).where(eq(schema.job.id, jobId));
+        await tx.delete(schema.contentBundle).where(eq(schema.contentBundle.id, bundleId));
+        for (const id of [userId, otherUserId]) await tx.delete(schema.authUser).where(eq(schema.authUser.id, id));
+      });
+    }
+  });
 
   it.each(['captions', 'hashtags', 'assetId', 'state', 'identical'])('preserves attribution only for unchanged content: %s', async change => {
     const assetId = randomUUID(), variantId = randomUUID(), bundleId = randomUUID();

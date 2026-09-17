@@ -37,7 +37,7 @@ function context(): ExecutorContext {
 beforeEach(() => {
   vi.clearAllMocks();
   state.rows = [[{ id: 'user', role: 'operator' }], [{ id: 'bundle', modelId: 'model', state: 'generated' }], [{ id: 'asset' }]];
-  state.markerRows = [[{ jobId: 'job' }]];
+  state.markerRows = [[{ role: 'operator' }], [{ jobId: 'job' }]];
   state.events = [];
   state.generate.mockImplementation(async (_request, beforeDispatch) => {
     await beforeDispatch();
@@ -105,7 +105,7 @@ describe('one-shot media worker', () => {
     }));
   });
   it('never calls provider again when a durable dispatch already exists', async () => {
-    state.markerRows = [[]];
+    state.markerRows = [[{ role: 'operator' }], []];
     await expect(mediaGenerate(context())).rejects.toThrow('reconciliation');
     expect(state.generate).toHaveBeenCalledOnce(); // Preparation only; callback refuses dispatch.
     expect(state.events).toEqual(['marker', 'side-effect']);
@@ -114,6 +114,34 @@ describe('one-shot media worker', () => {
     state.rows = [[]];
     await expect(mediaGenerate(context())).rejects.toThrow('authorized');
     expect(state.events).toEqual([]);
+  });
+  it('permits assigned Creators and forwards the exact storage identity', async () => {
+    state.rows[0] = [{ id: 'user', role: 'content_creator' }];
+    state.rows.splice(2, 0, [{ id: 'assignment' }]);
+    state.markerRows = [[{ role: 'content_creator' }], [{ id: 'assignment' }], [{ jobId: 'job' }]];
+    await mediaGenerate(context());
+    expect(state.generate).toHaveBeenCalledWith(expect.objectContaining({ userId: 'user', orgId: 'org' }), expect.any(Function));
+    expect(state.events).toEqual(['marker', 'side-effect', 'provider']);
+  });
+  it('rejects unassigned Creators before runtime preparation', async () => {
+    state.rows[0] = [{ id: 'user', role: 'content_creator' }];
+    state.rows.splice(2, 0, []);
+    await expect(mediaGenerate(context())).rejects.toThrow('assignment');
+    expect(state.generate).not.toHaveBeenCalled();
+  });
+  it('rejects a Creator assignment revoked during preparation without dispatch', async () => {
+    state.rows[0] = [{ id: 'user', role: 'content_creator' }];
+    state.rows.splice(2, 0, [{ id: 'assignment' }]);
+    state.markerRows = [[{ role: 'content_creator' }], []];
+    await expect(mediaGenerate(context())).rejects.toThrow('assignment');
+    expect(state.events).toEqual(['marker']);
+    expect(state.store).not.toHaveBeenCalled();
+  });
+  it.each([null, 'analyst', 'chatter', 'model'])('rechecks revoked or changed roles at dispatch (%s)', async role => {
+    state.markerRows = [role ? [{ role }] : []];
+    await expect(mediaGenerate(context())).rejects.toThrow('authorized');
+    expect(state.events).toEqual(['marker']);
+    expect(state.store).not.toHaveBeenCalled();
   });
   it('does not retry or enqueue ToS after provider failure', async () => {
     state.generate.mockImplementation(async (_request, beforeDispatch) => {

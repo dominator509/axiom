@@ -33,13 +33,23 @@ export const mediaGenerate: Executor = async (ctx) => {
   const [actor] = await tx.select().from(schema.authUser).where(and(
     eq(schema.authUser.id, payload.userId), eq(schema.authUser.orgId, job.org_id),
   )).limit(1);
-  if (!actor || !['owner', 'manager', 'operator'].includes(actor.role))
+  if (!actor || !['owner', 'manager', 'operator', 'content_creator'].includes(actor.role))
     throw new Error('media.generate: requesting operator no longer authorized');
   const [bundle] = await tx.select().from(schema.contentBundle).where(and(
     eq(schema.contentBundle.id, payload.bundleId), eq(schema.contentBundle.orgId, job.org_id),
   )).limit(1).for('update');
   if (!bundle || bundle.assetId || bundle.state !== 'generated')
     throw new Error('media.generate: bundle is not awaiting a media asset');
+  async function requireCreatorAssignment(checkTx: typeof tx, role: string) {
+    if (role !== 'content_creator') return;
+    const [assignment] = await checkTx.select({ id: schema.modelUserAssignment.id }).from(schema.modelUserAssignment).where(and(
+      eq(schema.modelUserAssignment.orgId, job.org_id),
+      eq(schema.modelUserAssignment.modelId, bundle.modelId),
+      eq(schema.modelUserAssignment.userId, payload.userId!),
+    )).limit(1);
+    if (!assignment) throw new Error('media.generate: creator model assignment no longer authorized');
+  }
+  await requireCreatorAssignment(tx, actor.role);
   if (!ctx.persistSideEffectMarker || !ctx.markExternalSideEffect)
     throw new Error('media.generate: durable dispatch boundary unavailable');
   const mediaRoot = resolve(process.env.AXIOM_MEDIA_ROOT ?? 'var/media');
@@ -82,12 +92,20 @@ export const mediaGenerate: Executor = async (ctx) => {
     ...(payload.kind === 'image' ? { aspectRatio: payload.aspectRatio ?? 'auto' } : {}),
     ...(image ? { image, duration: (payload.duration ?? 6) as 6 | 10 } : {}),
   }, async () => {
-    const [attempt] = await ctx.persistSideEffectMarker!<Array<{ jobId: string }>>(markerTx =>
-      markerTx.insert(schema.mediaGenerationAttempt).values({
+    const [attempt] = await ctx.persistSideEffectMarker!<Array<{ jobId: string }>>(async markerTx => {
+      // Re-read in the independent dispatch transaction, after runtime/media
+      // preparation. A queued job does not preserve revoked role/assignment rights.
+      const [currentActor] = await markerTx.select({ role: schema.authUser.role }).from(schema.authUser).where(and(
+        eq(schema.authUser.id, payload.userId!), eq(schema.authUser.orgId, job.org_id),
+      )).limit(1);
+      if (!currentActor || !['owner', 'manager', 'operator', 'content_creator'].includes(currentActor.role))
+        throw new Error('media.generate: requesting operator no longer authorized');
+      await requireCreatorAssignment(markerTx, currentActor.role);
+      return markerTx.insert(schema.mediaGenerationAttempt).values({
         jobId: job.id, orgId: job.org_id, bundleId: bundle.id, modelId: bundle.modelId,
         userId: payload.userId!, kind: payload.kind!,
-      }).onConflictDoNothing().returning({ jobId: schema.mediaGenerationAttempt.jobId }),
-    );
+      }).onConflictDoNothing().returning({ jobId: schema.mediaGenerationAttempt.jobId });
+    });
     ctx.markExternalSideEffect!();
     if (!attempt) throw new Error('media.generate: existing dispatch requires provider reconciliation');
   });
