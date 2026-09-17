@@ -67,9 +67,9 @@ pub struct SocialScrapeResponse {
     pub display_name: String,
     pub bio: String,
     pub avatar_url: String,
-    pub followers: u64,
-    pub following: u64,
-    pub posts: u64,
+    pub followers: Option<u64>,
+    pub following: Option<u64>,
+    pub posts: Option<u64>,
     pub scraped_at: String,
 }
 
@@ -85,9 +85,9 @@ pub struct CompetitorRequest {
 pub struct CompetitorResult {
     pub platform: String,
     pub profile_url: String,
-    pub followers: u64,
-    pub posts: u64,
-    pub engagement_rate: f64,
+    pub followers: Option<u64>,
+    pub posts: Option<u64>,
+    pub engagement_rate: Option<f64>,
     pub error: Option<String>,
 }
 
@@ -136,14 +136,14 @@ async fn scrape_social(
         display_name,
         bio,
         avatar_url,
-        followers: counts.followers.unwrap_or(0),
-        following: counts.following.unwrap_or(0),
-        posts: counts.posts.unwrap_or(0),
+        followers: counts.followers,
+        following: counts.following,
+        posts: counts.posts,
         scraped_at: now,
     };
 
     info!(
-        "scraped profile: name={}, followers={}",
+        "scraped profile: name={}, followers={:?}",
         response.display_name, response.followers
     );
     Ok(Json(response))
@@ -175,18 +175,18 @@ async fn scrape_competitor(
                 CompetitorResult {
                     platform: platform.clone(),
                     profile_url,
-                    followers: counts.followers.unwrap_or(0),
-                    posts: counts.posts.unwrap_or(0),
-                    engagement_rate: 0.0,
+                    followers: counts.followers,
+                    posts: counts.posts,
+                    engagement_rate: None,
                     error: None,
                 }
             }
             Err(e) => CompetitorResult {
                 platform: platform.clone(),
                 profile_url,
-                followers: 0,
-                posts: 0,
-                engagement_rate: 0.0,
+                followers: None,
+                posts: None,
+                engagement_rate: None,
                 error: Some(format!("{e}")),
             },
         };
@@ -723,6 +723,21 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unavailable_counts_serialize_as_null_not_zero() {
+        let result = super::CompetitorResult {
+            platform: "instagram".into(),
+            profile_url: "https://instagram.com/example".into(),
+            followers: Some(0),
+            posts: None,
+            engagement_rate: None,
+            error: None,
+        };
+        let json = serde_json::to_value(result).unwrap();
+        assert_eq!(json["followers"], 0);
+        assert!(json["posts"].is_null());
+        assert!(json["engagement_rate"].is_null());
+    }
     use super::*;
     use axum::{body::Body, http::Request as HttpRequest};
     use std::sync::OnceLock;

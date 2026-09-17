@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { readScrapeResult } from './scrape.js';
+import { readScrapeResult, validateScrapeEvidence } from './scrape.js';
 it('reads a valid result', async () => {
   await expect(readScrapeResult(new Response('{"platform":"instagram","followers":12}'))).resolves.toMatchObject({ followers: 12 });
 });
@@ -24,4 +24,12 @@ it.each(['null', '[]', '{}', '42', '"text"'])('rejects invalid result envelope %
 });
 it('does not echo malformed provider content in parsing errors', async () => {
   await expect(readScrapeResult(new Response('private response content'))).rejects.toThrow(/^scraper returned invalid JSON$/);
+});
+it('distinguishes missing counts from observed zero', () => {
+  expect(() => validateScrapeEvidence({ followers: null, posts: null }, 'social')).toThrow('no observable');
+  expect(() => validateScrapeEvidence({ followers: 0, posts: null }, 'social')).not.toThrow();
+});
+it('does not complete a competitor run with only failed or empty lookups', () => {
+  expect(() => validateScrapeEvidence({ results: [{ error: 'HTTP failure', followers: 0 }, { error: null, followers: null }] }, 'competitor')).toThrow('no observable');
+  expect(() => validateScrapeEvidence({ results: [{ error: null, followers: 12 }, { error: 'HTTP failure' }] }, 'competitor')).not.toThrow();
 });

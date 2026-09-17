@@ -5,6 +5,20 @@ import type { Executor } from './context.js';
 
 const MAX_RESULT_BYTES = 512 * 1024;
 
+export function validateScrapeEvidence(result: Record<string, unknown>, kind: string): void {
+  const count = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+  if (kind === 'social') {
+    if (![result.followers, result.following, result.posts].some(count))
+      throw new Error('scraper found no observable profile counts; a login or unsupported page may have been returned');
+    return;
+  }
+  if (kind !== 'competitor' || !Array.isArray(result.results) || result.results.length === 0 || result.results.length > 10)
+    throw new Error('scraper returned an invalid competitor result');
+  const observed = result.results.some(row => row && typeof row === 'object' &&
+    (row.error === null || row.error === undefined) && [row.followers, row.posts].some(count));
+  if (!observed) throw new Error('scraper found no observable competitor counts; all lookups failed or returned unsupported pages');
+}
+
 export async function readScrapeResult(response: Response): Promise<Record<string, unknown>> {
   if (!response.ok) {
     void response.body?.cancel().catch(() => undefined);
@@ -40,6 +54,7 @@ export const scrapeRun: Executor = async ({ tx, job }) => {
   try {
     const response = await fetch(`${scraperOrigin()}${path}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(request), signal: AbortSignal.timeout(30_000) });
     const result = await readScrapeResult(response);
+    validateScrapeEvidence(result, run.kind);
     await tx.update(schema.scrapeRun).set({ state: 'completed', result, completedAt: new Date(), error: null }).where(eq(schema.scrapeRun.id, run.id));
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : 'scraper request failed';
