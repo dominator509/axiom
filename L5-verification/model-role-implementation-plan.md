@@ -1,7 +1,14 @@
 # Model-scoped human roles — implementation queue
 
 Authority: L1.0 personas/RBAC and L1.1 F-24–F-26.
-Status: **not implemented**, except generic workspace roles and team coordination.
+Status: **in progress**. Assignment storage is implemented; role authorization,
+owner management, scoped navigation and the live DM workflow remain incomplete.
+
+Migration 0045 adds user/model assignments with composite organization foreign
+keys, forced tenant RLS and explicit grant/revoke semantics (no runtime UPDATE).
+Parent tenant changes require removing existing assignments first. No existing
+account role is changed and no new role is accepted by authentication yet: the
+current workspace-wide read behavior must be replaced before enabling them.
 
 Current evidence (2026-09-17): core UserRole and auth session validation recognize
 owner, manager, operator, analyst and agent only. Team shifts record human queue

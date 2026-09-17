@@ -1,13 +1,15 @@
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
-import { inArray, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { db, pool, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { teamOperationsRouter } from './team-operations.js';
 
 const url = process.env.TEST_DATABASE_URL, orgId = '11111111-1111-4111-8111-111111111111';
 const models = [randomUUID(), randomUUID()], bundles = [randomUUID(), randomUUID()], posts = [randomUUID(), randomUUID()];
+const assignmentUsers = [randomUUID(), randomUUID()];
+const foreignOrg = randomUUID(), foreignModel = randomUUID();
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 const scoped = <T>(operation: (tx: Transaction) => Promise<T>, org = orgId) => db.transaction(async tx => {
   await tx.execute(sql`SELECT set_config('app.current_org_id', ${org}, true)`); return operation(tx);
@@ -29,19 +31,31 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect(target.pathname).toMatch(/^\/(?:axiom_test|axiom_workspace_test_[0-9a-f]{16})$/);
     expect((await pool.query('SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname=current_user')).rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
     await scoped(async tx => {
+      await tx.insert(schema.authUser).values({ id: assignmentUsers[0], orgId, name: 'Assignment fixture', email: `${assignmentUsers[0]}@example.invalid` });
       await tx.insert(schema.modelProfile).values(models.map(id => ({ id, orgId, displayName: 'Team fixture', handle: id })));
       for (let i = 0; i < 2; i++) {
         await tx.insert(schema.contentBundle).values({ id: bundles[i], orgId, modelId: models[i], captions: { x: 'Test' } });
         await tx.insert(schema.postTarget).values({ id: posts[i], orgId, bundleId: bundles[i], platform: 'x', state: 'pending', idemKey: Buffer.from(randomUUID()) });
       }
     });
+    await scoped(async tx => {
+      await tx.insert(schema.org).values({ id: foreignOrg, name: 'Assignment isolation fixture', slug: foreignOrg });
+      await tx.insert(schema.authUser).values({ id: assignmentUsers[1], orgId: foreignOrg, name: 'Other tenant fixture', email: `${assignmentUsers[1]}@example.invalid` });
+      await tx.insert(schema.modelProfile).values({ id: foreignModel, orgId: foreignOrg, displayName: 'Other tenant model', handle: foreignModel });
+    }, foreignOrg);
   });
   afterAll(async () => {
     await scoped(async tx => {
       await tx.delete(schema.postTarget).where(inArray(schema.postTarget.id, posts));
       await tx.delete(schema.contentBundle).where(inArray(schema.contentBundle.id, bundles));
       await tx.delete(schema.modelProfile).where(inArray(schema.modelProfile.id, models));
+      await tx.delete(schema.authUser).where(eq(schema.authUser.id, assignmentUsers[0]));
     });
+    await scoped(async tx => {
+      await tx.delete(schema.modelProfile).where(eq(schema.modelProfile.id, foreignModel));
+      await tx.delete(schema.authUser).where(eq(schema.authUser.id, assignmentUsers[1]));
+      await tx.delete(schema.org).where(eq(schema.org.id, foreignOrg));
+    }, foreignOrg);
     await pool.end();
   });
   it('persists a post-linked note with the authenticated author', async () => {
@@ -50,6 +64,40 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect(data).toMatchObject({ targetId: posts[0], authorUserId: 'fixture-operator', body: 'Post handoff context' });
     const read = await app().request(`${path}?postId=${posts[0]}`);
     expect((await read.json() as Page).data.map(row => row.id)).toContain(data.id);
+  });
+  it('enforces assignment membership for both model and user at the database boundary', async () => {
+    const insert = (modelId: string, userId: string) => scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId, userId }));
+    await expect(insert(models[0], assignmentUsers[1])).rejects.toMatchObject({ cause: { code: '23503' } });
+    await expect(insert(foreignModel, assignmentUsers[0])).rejects.toMatchObject({ cause: { code: '23503' } });
+    await expect(insert(models[0], randomUUID())).rejects.toMatchObject({ cause: { code: '23503' } });
+    await insert(models[0], assignmentUsers[0]);
+    await expect(insert(models[0], assignmentUsers[0])).rejects.toMatchObject({ cause: { code: '23505' } });
+    // A parent cannot move tenants while a grant still references its old scope.
+    await expect(scoped(tx => tx.update(schema.authUser).set({ orgId: foreignOrg }).where(eq(schema.authUser.id, assignmentUsers[0])))).rejects.toMatchObject({ cause: { code: '23503' } });
+  });
+  it('hides assignments from other tenants, prevents retargeting, and supports explicit revocation', async () => {
+    const [grant] = await scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[1], userId: assignmentUsers[0] }).returning());
+    const select = () => scoped(tx => tx.select().from(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.id, grant.id)));
+    expect(await select()).toHaveLength(1);
+    expect(await scoped(tx => tx.select().from(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.id, grant.id)), foreignOrg)).toEqual([]);
+    expect(await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.id, grant.id)).returning(), foreignOrg)).toEqual([]);
+    await expect(scoped(tx => tx.execute(sql`UPDATE model_user_assignment SET model_id = ${models[0]} WHERE id = ${grant.id}`))).rejects.toMatchObject({ cause: { code: '42501' } });
+    await expect(scoped(tx => tx.insert(schema.modelUserAssignment).values({ orgId, modelId: models[1], userId: assignmentUsers[0] }), foreignOrg)).rejects.toMatchObject({ cause: { code: '42501' } });
+    await scoped(tx => tx.delete(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.id, grant.id)));
+    expect(await select()).toEqual([]);
+  });
+  it.each(['user', 'model'] as const)('removes assignments when the referenced %s is deleted', async target => {
+    await scoped(async tx => {
+      const userId = randomUUID(), modelId = randomUUID();
+      await tx.insert(schema.authUser).values({ id: userId, orgId, name: 'Deletion fixture', email: `${userId}@example.invalid` });
+      await tx.insert(schema.modelProfile).values({ id: modelId, orgId, displayName: 'Deletion fixture', handle: modelId });
+      const [grant] = await tx.insert(schema.modelUserAssignment).values({ orgId, modelId, userId }).returning();
+      if (target === 'user') await tx.delete(schema.authUser).where(eq(schema.authUser.id, userId));
+      else await tx.delete(schema.modelProfile).where(eq(schema.modelProfile.id, modelId));
+      expect(await tx.select().from(schema.modelUserAssignment).where(eq(schema.modelUserAssignment.id, grant.id))).toEqual([]);
+      await tx.delete(schema.authUser).where(eq(schema.authUser.id, userId));
+      await tx.delete(schema.modelProfile).where(eq(schema.modelProfile.id, modelId));
+    });
   });
   it('rejects another model or tenant for reads and writes, and RLS hides rows', async () => {
     expect((await write(posts[1])).status).toBe(404);

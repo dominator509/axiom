@@ -106,6 +106,7 @@ export { teamShift, teamShiftRelations, teamNote, teamNoteRelations };
 export { mediaOperation, mediaOperationRelations };
 export { playbookGuideline, playbookGuidelineRelations, playbookGuidelineRevision };
 export { mediaGenerationAttempt } from './media_generation_attempt.js';
+export { modelUserAssignment } from './model_user_assignment.js';
 
 export const allRelations = [
   orgRelations,
