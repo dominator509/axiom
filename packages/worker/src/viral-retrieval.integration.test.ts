@@ -108,6 +108,15 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       const states = await tx.select().from(schema.banditState).where(eq(schema.banditState.modelId, modelId));
       expect(states).toHaveLength(1);
       expect(states[0]).toMatchObject({ plays: 1, alpha: 1, beta: 2, reward: 0, arm: 'short:statement' });
+      await expect(tx.transaction(async nested => {
+        await nested.update(schema.postTarget).set({ publicationSnapshot: null }).where(eq(schema.postTarget.id, targetId));
+      })).rejects.toThrow();
+      await expect(tx.transaction(async nested => {
+        await nested.update(schema.postTarget).set({ publicationSnapshot: { caption: 'Overwrite', hashtags: [], modelId, assetId: null, scheduledFor: null } }).where(eq(schema.postTarget.id, targetId));
+      })).rejects.toThrow();
+      const [preserved] = await tx.select().from(schema.postTarget).where(eq(schema.postTarget.id, targetId));
+      expect(preserved.publicationSnapshot?.caption).toBe('Blue ceramic vase');
+      await tx.update(schema.postTarget).set({ error: 'Status metadata may still change' }).where(eq(schema.postTarget.id, targetId));
     });
   });
 });

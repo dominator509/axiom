@@ -4,6 +4,7 @@ import {
   isTerminalPublishTargetState,
   publishDispatchMarkerValues,
   publishTarget,
+  resolvePublicationSnapshot,
   resolveProviderAssetUrl,
   shouldEnqueueMetrics,
   validatePublishAsset,
@@ -20,6 +21,20 @@ const asset = {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.useRealTimers();
+});
+
+describe('publication snapshot evidence', () => {
+  const original = { caption: 'Original', hashtags: [], modelId: 'model', assetId: null, scheduledFor: null };
+  const changed = { ...original, caption: 'Edited after dispatch' };
+  it('captures only a first dispatch', () => {
+    expect(resolvePublicationSnapshot({ remoteId: null }, original)).toEqual(original);
+  });
+  it('preserves first-dispatch evidence on status polling', () => {
+    expect(resolvePublicationSnapshot({ remoteId: 'provider-id', publicationSnapshot: original }, changed)).toEqual(original);
+  });
+  it('does not fabricate a snapshot for an older provider resource', () => {
+    expect(resolvePublicationSnapshot({ remoteId: 'provider-id' }, changed)).toBeNull();
+  });
 });
 
 describe('publish schedule handoff', () => {

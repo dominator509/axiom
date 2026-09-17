@@ -23,6 +23,18 @@ import type { Executor, ExecutorContext } from './context.js';
 const KILL_SWITCH_PARK_MS = 60_000;
 const PENDING_PUBLISH_RETRY_MS = 60_000;
 
+type PublicationSnapshot = NonNullable<typeof schema.postTarget.$inferSelect.publicationSnapshot>;
+export function resolvePublicationSnapshot(
+  target: { publicationSnapshot?: PublicationSnapshot | null; remoteId?: string | null },
+  dispatched: PublicationSnapshot,
+): PublicationSnapshot | null {
+  if (target.publicationSnapshot) return target.publicationSnapshot;
+  // An existing provider resource means this is reconciliation/status polling,
+  // not evidence that the current mutable input was sent to that resource.
+  if (target.remoteId) return null;
+  return dispatched;
+}
+
 /** Target states that must not be dispatched to a connector again. */
 export function isTerminalPublishTargetState(state: string): boolean {
   return state === 'published' || state === 'skipped' || state === 'canceled';
@@ -441,10 +453,10 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const result = await connector.publish(stagedInput);
   // Preserve the first dispatched copy across asynchronous status polls.
   // Ledger-only recoveries without this evidence intentionally remain unknown.
-  const publicationSnapshot = target.publicationSnapshot ?? {
+  const publicationSnapshot = resolvePublicationSnapshot(target, {
     caption: stagedInput.caption, hashtags: stagedInput.hashtags ?? [], modelId: model.id,
     assetId: bundle.assetId ?? null, scheduledFor: input.scheduledFor ?? null,
-  };
+  });
 
   if (result.state === 'pending') {
     await tx
