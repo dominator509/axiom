@@ -12,6 +12,7 @@ const TABS = [
   { href: 'approvals', label: 'Review & approve' },
   { href: 'calendar', label: 'Schedule' },
   { href: 'fans', label: 'Fan contacts' },
+  { href: 'inbox', label: 'Inbox' },
   { href: 'linkbio', label: 'Link in bio' },
   { href: 'analytics', label: 'Analytics' },
   { href: 'earnings', label: 'Earnings' },

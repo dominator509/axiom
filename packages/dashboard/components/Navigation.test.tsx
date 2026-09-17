@@ -27,9 +27,9 @@ describe('workspace navigation coverage', () => {
     }
   });
   it.each([
-    ['chatter', ['', 'fans']],
+    ['chatter', ['', 'fans', 'inbox']],
     ['content_creator', ['', 'generation', 'media', 'approvals', 'calendar', 'analytics', 'playbook']],
-    ['model', ['', 'media', 'calendar', 'fans', 'analytics', 'earnings']],
+    ['model', ['', 'media', 'calendar', 'fans', 'inbox', 'analytics', 'earnings']],
   ] as const)('shows precisely the relevant talent destinations for %s', (role, sections) => {
     const html = renderToStaticMarkup(<ModelTabs modelId="assigned" role={role} />);
     const paths = [...html.matchAll(/href="([^"]+)"/g)].map(match => match[1]);

@@ -341,5 +341,24 @@ Fixture `axiom_workspace_test_d10ad2794e58eff7` was removed. No provider was cal
 Next remains inbox GUI, authenticated provider/browser evidence, attachment proxy,
 durable reply intent/delivery/reconciliation, agentic drafts and sync/queue work.
 
+## Inbox read surface (M308, 2026-09-17)
+
+Added the role-filtered Inbox talent tab and active-shift shortcut. The page
+requires explicit account selection, offers paged conversations and message
+history, preserves account/counterpart context on navigation, disables prefetch
+on provider-read links, and uses explicit refresh instead of background polling.
+Unread status is independent of the unread count; sender, source type, team/app
+attribution, payment/purchase and attachment labels are visible. Provider text
+is rendered as escaped text, not HTML. No external GIF/image hotlinks are loaded.
+Loading, denied/expired access, empty results, stale selections and upstream
+failure are distinct. Existing responsive card/action styles are reused.
+
+52 inbox/navigation/shift tests and dashboard typecheck pass; lint has only the
+three existing test warnings. A test query helper needed its undefined optional
+keys reflected in its type; fixed after typecheck caught it. This is markup/unit
+evidence, not authenticated browser acceptance. The page explicitly states reply
+delivery and attachment previews are unavailable; these remain implementation
+requirements, not waived features. No live request, read receipt, send or deployment.
+
 Completion requires all applicable steps and live evidence; neither additive role
 names nor empty navigation alone satisfies F-24/F-26.

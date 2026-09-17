@@ -33,7 +33,7 @@ export default async function MyShiftsPage({ searchParams }: { searchParams?: Pr
             <p>Recorded status: <strong>{shift.status}</strong></p>
             {valid ? <p><time dateTime={shift.startsAt}>{new Date(start).toISOString()}</time> to <time dateTime={shift.endsAt}>{new Date(end).toISOString()}</time> (UTC)</p> : <p role="alert">Shift time is invalid. Contact your operator.</p>}
             {shift.note && <div><h3>Handoff notes</h3><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{shift.note}</p></div>}
-            {accessible ? <><p>Active within its time window at page load. Access is checked again when you open the workspace.</p><Link href={`/models/${encodeURIComponent(shift.modelId)}/fans`} className="btn secondary">Open assigned fan CRM</Link></>
+            {accessible ? <><p>Active within its time window at page load. Access is checked again when you open the workspace.</p><div className="action-row"><Link href={`/models/${encodeURIComponent(shift.modelId)}/inbox`} className="btn" prefetch={false}>Open assigned inbox</Link><Link href={`/models/${encodeURIComponent(shift.modelId)}/fans`} className="btn secondary">Open assigned fan CRM</Link></div></>
               : <p>{valid && now >= end ? 'The time window has ended.' : valid && now < start ? 'The time window has not started.' : 'This shift is not active.'} Refresh after an operator updates the roster.</p>}
           </article>;
         })}</div>}

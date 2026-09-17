@@ -11,6 +11,7 @@ it('renders owned roster, escaped notes and scoped continuation', async () => {
   const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ cursor: 'position' }) }));
   expect(state.list).toHaveBeenCalledWith('position');
   expect(html).toContain('href="/models/assigned/fans"');
+  expect(html).toContain('href="/models/assigned/inbox"');
   expect(html).toContain('&lt;private handoff&gt;');
   expect(html).toContain('href="/shifts?cursor=next-id"');
   expect(html).toContain('not a synchronized live DM inbox');
@@ -22,6 +23,7 @@ it.each([
 ])('does not imply active access for %j', async change => {
   state.list.mockResolvedValue({ data: [{ ...shift, ...change }], meta: { next_cursor: null } });
   expect(renderToStaticMarkup(await Page({}))).not.toContain('/models/assigned/fans');
+  expect(renderToStaticMarkup(await Page({}))).not.toContain('/models/assigned/inbox');
 });
 it.each(['content_creator', 'model', 'analyst', 'unknown'])('makes no roster request for %s', async role => {
   state.role = role;

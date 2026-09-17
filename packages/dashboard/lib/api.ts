@@ -10,6 +10,7 @@ import {
 } from '@axiom/core';
 import { createIdempotencyKey } from './mutation';
 import { resolveApiOrigin } from './api-origin';
+import type { InboxObservation } from './inbox-types';
 
 const API_BASE = resolveApiOrigin();
 export interface EarningsObservation {
@@ -371,6 +372,10 @@ export const api = {
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/analytics?days=${days}`),
     earningsAccounts: (id: string) => apiFetch<{ data: { accounts: Array<{ id: string; displayName: string }> } }>(
       `/api/v1/models/${encodeURIComponent(id)}/earnings`),
+    inboxAccounts: (id: string) => apiFetch<{ data: { accounts: Array<{ id: string; displayName: string }> } }>(
+      `/api/v1/models/${encodeURIComponent(id)}/inbox`),
+    inbox: (id: string, connectionId: string, page: number, userUuid?: string) => apiFetch<{ data: InboxObservation }>(
+      `/api/v1/models/${encodeURIComponent(id)}/inbox?${new URLSearchParams({ connectionId, page: String(page), ...(userUuid ? { userUuid } : {}) })}`),
     earnings: (id: string, connectionId: string) => apiFetch<{ data: EarningsObservation }>(
       `/api/v1/models/${encodeURIComponent(id)}/earnings?${new URLSearchParams({ connectionId })}`),
     viral: (id: string) => apiFetch<{ data: unknown }>(`/api/v1/models/${id}/viral`),
