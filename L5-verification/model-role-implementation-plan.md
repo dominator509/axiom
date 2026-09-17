@@ -2,8 +2,9 @@
 
 Authority: L1.0 personas/RBAC and L1.1 F-24–F-26.
 Status: **in progress**. Assignment storage and owner-only grant/revoke/list API
-are implemented; role authorization, owner GUI, scoped navigation and the live
-DM workflow remain incomplete.
+and owner-only Team-page assignment controls are implemented. Role authorization,
+scoped navigation and the live DM workflow remain incomplete; deployed browser
+acceptance of the assignment controls is also pending.
 
 Migration 0045 adds user/model assignments with composite organization foreign
 keys, forced tenant RLS and explicit grant/revoke semantics (no runtime UPDATE).
@@ -17,8 +18,10 @@ cursor-paged GET and idempotency-protected POST (`{ userId }`); DELETE of
 reads. Grants/revocations and audit entries commit together. Repeated/concurrent
 grants return the original assignment without duplicating the audit. No endpoint
 changes account roles, and these assignments alone do not reduce or expand the
-legacy workspace roles' permissions. GUI language must preserve that distinction
-until the complete role policy is installed.
+legacy workspace roles' permissions. The Team page states this distinction,
+offers paginated loading, explicit revocation confirmation and stable retry
+intent, and never displays the assignment controls to non-owners. Account role
+editing must stay unavailable until the complete role policy is installed.
 
 Current evidence (2026-09-17): core UserRole and auth session validation recognize
 owner, manager, operator, analyst and agent only. Team shifts record human queue
