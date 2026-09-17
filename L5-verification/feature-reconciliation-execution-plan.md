@@ -170,5 +170,22 @@ Source and automated evidence never substitutes for a missing runtime or provide
   callsite propagation and contained non-executing test assertions. No patch was
   applied. Correlated review request `codex-d001-review-20260917` was acknowledged;
   complete source replacements and real helper tests are pending, not verified.
+- M337 adds explicit image/video/audio preview controls and a same-origin byte
+  proxy through the existing model-egress connector. Every request re-resolves
+  exact message membership and rechecks model/shift/account access after bounded
+  buffering. Only HTTPS `media.fanvue.com` (official response-example host) is
+  accepted; no redirects, cookies or bearer headers are sent to the media host.
+  Safe media MIME types, 16 MiB full responses, 8 MiB range chunks, actual byte
+  counts and Content-Range consistency are enforced. Browser responses prohibit
+  caching/transformation and active document execution. No signed URL is exposed.
+- M337 evidence: 73 connector/worker/API and 26 dashboard/page tests pass;
+  connector/worker builds, API/dashboard typechecks and dashboard lint pass
+  (three existing warnings). Tests cover Safari two-byte range probes, malformed
+  or mismatched ranges, oversized streamed bodies, redirect/host/MIME denial,
+  revoked scope, explicit show/hide and failed playback retry. These are not
+  authenticated browser/provider receipts. Live CDN compatibility, seek/playback
+  on mobile/desktop, attachment sending and deployment remain open. Unsupported
+  hosts/formats and large non-range responses fail visibly rather than bypassing
+  bounds; no claim of universal provider-format support is made.
 
 The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.

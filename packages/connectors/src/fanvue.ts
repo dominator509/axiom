@@ -30,6 +30,7 @@ import type { Platform, PublishMode } from '@axiom/core';
 import { mediaTypeHint, validatePublish } from './validation.js';
 import { parseFanvueEarningsSummary, type FanvueEarningsSummary } from './fanvue-earnings.js';
 import { messageMediaQuery, parseMessageMedia, type FanvueMessageMedia } from './fanvue-message-media.js';
+import { fetchFanvuePreview, previewRange, type FanvuePreviewVariant } from './fanvue-media-preview.js';
 import { FanvueMessageDeliveryError, replyText, messageReceipt, inboxPageQuery, inboxUserUuid, parseChatPage, parseMessagePage, type FanvueChatPage, type FanvueMessagePage } from './fanvue-inbox.js';
 
 const FANVUE_API_BASE = 'https://api.fanvue.com';
@@ -449,6 +450,12 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     const query = messageMediaQuery(userUuid, messageUuid, mediaUuids);
     const response = await this.fanvueRequest<unknown>('GET', `/chats/${userUuid}/messages/${messageUuid}/media?${query}`);
     return parseMessageMedia(response, messageUuid, mediaUuids);
+  }
+
+  async fetchMessagePreview(userUuid: string, messageUuid: string, mediaUuid: string, variant: FanvuePreviewVariant, range?: string) {
+    previewRange(range); // Reject malformed ranges before any provider call.
+    const media = await this.fetchMessageMedia(userUuid, messageUuid, [mediaUuid]);
+    return fetchFanvuePreview(media, mediaUuid, variant, this.fetchImpl, range);
   }
 
   async fetchChats(page = 1, size = 25): Promise<FanvueChatPage> {

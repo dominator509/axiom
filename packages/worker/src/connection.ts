@@ -72,6 +72,14 @@ export async function inboxMediaForConnection(connection: PlatformConnectionRow,
   return inboxMediaMetadata(media, messageUuid, mediaUuids);
 }
 
+export async function inboxPreviewForConnection(connection: PlatformConnectionRow, userUuid: string, messageUuid: string,
+  mediaUuid: string, variant: 'main' | 'thumbnail' | 'thumbnail_gallery' | 'blurred', range?: string) {
+  if (connection.platform !== 'fanvue') throw new Error('Inbox preview is only supported for Fanvue');
+  const { connector } = await connectorForConnection(connection);
+  if (!(connector instanceof FanvueConnector)) throw new Error('Fanvue connector unavailable');
+  return { kind: 'preview' as const, ...await connector.fetchMessagePreview(userUuid, messageUuid, mediaUuid, variant, range) };
+}
+
 /** Resolve healthy model egress and credentials without dispatching a reply. */
 export async function prepareReplySender(connection: PlatformConnectionRow) {
   if (connection.platform !== 'fanvue') throw new Error('Replies are only supported for Fanvue');

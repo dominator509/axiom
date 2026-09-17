@@ -41,6 +41,7 @@ export {
   earningsForConnection,
   inboxForConnection,
   inboxMediaForConnection,
+  inboxPreviewForConnection,
   prepareReplySender,
   decryptConnectorAuth,
   parseConnectorAuth,

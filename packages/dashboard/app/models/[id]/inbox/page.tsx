@@ -36,7 +36,7 @@ export default async function InboxPage({ params, searchParams }: { params: Prom
   }
   const inbox = observation?.inbox;
   return <div className="page-stack">
-    <div><h2>Inbox</h2><p>Read Fanvue conversations for this talent. Opening a conversation does not mark it read. Review and explicitly send your prepared replies below a conversation. Attachment previews are not available here yet.</p></div>
+    <div><h2>Inbox</h2><p>Read Fanvue conversations for this talent. Opening a conversation does not mark it read. Review and explicitly send your prepared replies below a conversation. Load attachment details to choose an available preview; this never purchases media.</p></div>
     {error && <div className="card stack" role="alert"><p>{error}</p><Link className="btn secondary" href={path} prefetch={false}>Reload account choices</Link></div>}
     {accounts?.length === 0 && <div className="card stack"><h3>No connected Fanvue account</h3><p>Ask your workspace owner to connect an account for this talent.</p></div>}
     {accounts && accounts.length > 0 && <form action={path} method="get" className="card stack">
@@ -58,7 +58,7 @@ export default async function InboxPage({ params, searchParams }: { params: Prom
       </article>) : inbox.data.map(message => <article className="card stack" key={message.uuid}>
         <h3>@{message.sender.handle}</h3><p>{message.sentAt ?? 'Time unavailable'} · {message.type} · {message.isRead ? 'Read by recipient' : 'Not read by recipient'}</p>
         <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{message.text ?? 'No text in this message.'}</p>
-        {message.hasMedia && <p>{message.mediaType ?? 'Media'} attachment · {message.mediaUuids.length} item(s). Preview unavailable.</p>}
+        {message.hasMedia && <p>{message.mediaType ?? 'Media'} attachment · {message.mediaUuids.length} item(s).</p>}
         {message.hasMedia && userUuid && <InboxAttachments key={`${id}:${connectionId}:${userUuid}:${message.uuid}`}
           modelId={id} connectionId={connectionId} userUuid={userUuid} messageUuid={message.uuid} mediaUuids={message.mediaUuids} />}
         {message.gif && <p>GIF: {message.gif.title ?? message.gif.id}. Preview unavailable.</p>}

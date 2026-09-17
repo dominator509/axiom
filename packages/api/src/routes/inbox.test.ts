@@ -4,8 +4,9 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 const provider = vi.hoisted(() => vi.fn());
 const mediaProvider = vi.hoisted(() => vi.fn());
+const previewProvider = vi.hoisted(() => vi.fn());
 vi.mock('@axiom/db', () => mockDbFactory());
-vi.mock('@axiom/worker', () => ({ inboxForConnection: provider, inboxMediaForConnection: mediaProvider }));
+vi.mock('@axiom/worker', () => ({ inboxForConnection: provider, inboxMediaForConnection: mediaProvider, inboxPreviewForConnection: previewProvider }));
 import { inboxRouter } from './inbox.js';
 import { scopedReadTarget } from '../model-access.js';
 const model = '22222222-2222-4222-8222-222222222222';
@@ -21,7 +22,7 @@ function app(role = 'owner', authenticated = true) {
   a.route('/', inboxRouter); return a;
 }
 function results(...queries: unknown[]) { mockState.results = queries.flatMap(q => [[], q]); }
-beforeEach(() => { mockState.results = []; mockState.result = []; provider.mockReset(); mediaProvider.mockReset(); });
+beforeEach(() => { mockState.results = []; mockState.result = []; provider.mockReset(); mediaProvider.mockReset(); previewProvider.mockReset(); });
 it('requires authentication', async () => {
   expect((await app('owner', false).request(path)).status).toBe(401);
   expect(provider).not.toHaveBeenCalled();
@@ -86,6 +87,29 @@ it('returns a private failure, not an empty inbox, when provider access fails', 
 });
 
 const mediaQuery = `connectionId=${account}&userUuid=${user}&messageUuid=${user}&mediaUuids=${model}`;
+it('returns only approved preview bytes and safe range headers after reauthorization', async () => {
+  results([{ id: model }], [{ id: account }], [{ id: model }], [{ id: account }]);
+  previewProvider.mockResolvedValue({ kind: 'preview', bytes: new Uint8Array([1, 2]), status: 206,
+    contentType: 'video/mp4', contentRange: 'bytes 0-1/100' });
+  const response = await app('chatter').request(`${path}?${mediaQuery}&preview=main`, { headers: { Range: 'bytes=0-1' } });
+  expect(response.status).toBe(206);
+  expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([1, 2]);
+  expect(response.headers.get('content-range')).toBe('bytes 0-1/100');
+  expect(response.headers.get('cache-control')).toBe('private, no-store, no-transform');
+  expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+  expect(previewProvider).toHaveBeenCalledWith({ id: account }, user, user, model, 'main', 'bytes=0-1');
+});
+it('does not return preview bytes after account revocation', async () => {
+  results([{ id: model }], [{ id: account }], [{ id: model }], []);
+  previewProvider.mockResolvedValue({ kind: 'preview', bytes: new TextEncoder().encode('private-video') });
+  const response = await app().request(`${path}?${mediaQuery}&preview=main`);
+  expect(response.status).toBe(404);
+  expect(await response.text()).not.toContain('private-video');
+});
+it.each(['preview=main', `${mediaQuery}&preview=html`, `${mediaQuery},${account}&preview=main`])('rejects invalid preview scope %s', async query => {
+  expect((await app().request(`${path}?${query}`)).status).toBe(400);
+  expect(previewProvider).not.toHaveBeenCalled();
+});
 it.each([`messageUuid=${user}`, `mediaUuids=${model}`, `connectionId=${account}&messageUuid=${user}&mediaUuids=${model}`,
   `${mediaQuery},${model}`, `${mediaQuery},bad`])('rejects incomplete or invalid media scope %s', async query => {
   expect((await app().request(`${path}?${query}`)).status).toBe(400);

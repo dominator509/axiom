@@ -5,7 +5,7 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
     return [hooks.slots[i], (value: unknown) => { hooks.slots[i] = value; }]; },
   useRef: (initial: unknown) => { const i = hooks.index++; return hooks.slots[i] ??= { current: initial }; },
 }));
-import InboxAttachments, { validAttachmentReceipt } from './InboxAttachments';
+import InboxAttachments, { AttachmentPreview, attachmentPreviewPath, validAttachmentReceipt } from './InboxAttachments';
 const id = '11111111-1111-4111-8111-111111111111';
 const scope = { modelId: id, connectionId: id, userUuid: id, messageUuid: id, mediaUuids: [id] };
 const receipt = () => ({ data: { connectionId: id, userUuid: id,
@@ -56,4 +56,37 @@ it('clears stale metadata on a failed refresh and allows an explicit retry', asy
   expect(JSON.stringify(render())).not.toContain('Amount paid: ');
   expect(JSON.stringify(render())).toContain('could not be verified');
   expect(find(render(), 'button')?.props.disabled).toBe(false);
+});
+
+const previewItem = { uuid: id, available: true, mediaType: 'video', variants: [
+  { variantType: 'main', width: 720, height: 1280, lengthMs: 6000 },
+] };
+function preview(item = previewItem) { hooks.index = 0; return AttachmentPreview({ scope, item }); }
+it('uses only same-origin scope-bound proxy URLs, never provider URLs', () => {
+  const value = new URL(attachmentPreviewPath(scope, id, 'main'), 'https://workspace.invalid');
+  expect(value.origin).toBe('https://workspace.invalid');
+  expect(value.searchParams.get('connectionId')).toBe(id);
+  expect(value.searchParams.get('messageUuid')).toBe(id);
+  expect(value.searchParams.get('mediaUuids')).toBe(id);
+  expect(value.searchParams.get('preview')).toBe('main');
+});
+it('loads video only on explicit request and removes the element when hidden', async () => {
+  expect(find(preview(), 'video')).toBeUndefined();
+  await find(preview(), 'button')!.props.onClick!();
+  const video = find(preview(), 'video');
+  expect(video?.props).toMatchObject({ controls: true, playsInline: true, preload: 'metadata', src: attachmentPreviewPath(scope, id, 'main') });
+  await find(preview(), 'button')!.props.onClick!();
+  expect(find(preview(), 'video')).toBeUndefined();
+  expect(hooks.fetch).not.toHaveBeenCalled();
+});
+it('renders only a failure notice and explicit retry after media playback fails', async () => {
+  await find(preview(), 'button')!.props.onClick!();
+  (find(preview(), 'video')!.props as unknown as { onError(): void }).onError();
+  expect(find(preview(), 'video')).toBeUndefined();
+  expect(JSON.stringify(preview())).toContain('Retry preview');
+  expect(JSON.stringify(preview())).toContain('No purchase was made');
+});
+it('does not invent preview controls for missing variants or unsupported documents', () => {
+  expect(find(preview({ ...previewItem, variants: [] }), 'button')).toBeUndefined();
+  expect(find(preview({ ...previewItem, mediaType: 'document' }), 'button')).toBeUndefined();
 });
