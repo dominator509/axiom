@@ -38,9 +38,10 @@ Source and automated evidence never substitutes for a missing runtime or provide
 - Current slice: candidate picker/preview, lifecycle, paginated assignment history, stable allocation and observed-outcome controls, confirmed manual winner, frozen completion, and idempotency on nested mutations. Allocations are not counted as proven views. Focused tests/typechecks pass; database concurrency, browser acceptance and deployed workflow remain open.
 - Caption/teaser candidate creation is now implemented in the media library using existing asset_variant settings and the owned source asset. The experiment picker shows copy and enforces platform matching. Still required: bind the selected copy/variant through review and published-post attribution, then implement evidence-based automatic promotion and learning rewards. Candidate creation alone does not fulfill F-15 end to end.
 
-### 2. Scraper orchestration — source slice complete; deployment gate open
+### 2. Scraper orchestration — model egress corrected; provider/deployment gate open
 
 - Reuse the authenticated Rust scraper sidecar and egress resolver.
+- M265 corrects a discovered bypass: worker includes the persisted model ID; Rust resolves `EGRESS_PLANE_URL` using `EGRESS_PLANE_TOKEN`, requires exact healthy binding plus inactive kill switch, and uses the bound HTTP proxy with no direct fallback. Deployment must provide both egress settings to the scraper, not only to the worker/API. Sixteen Rust tests include a real local CONNECT-proxy rejection test; live VPN/provider and result-quality acceptance remain open.
 - Add durable scrape-run state, model/org ownership, bounded request validation, worker dispatch, status/error reporting, and dashboard controls.
 - Persist only provider responses that pass the existing data-retention and tenant checks; do not report an empty result as success.
 - [x] Gate: worker/API contract tests pass; deployed sidecar rehearsal remains open.

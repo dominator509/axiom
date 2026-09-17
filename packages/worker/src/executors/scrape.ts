@@ -35,8 +35,8 @@ export const scrapeRun: Executor = async ({ tx, job }) => {
   if (!token) throw new Error('scrape.run: AXIOM_SCRAPER_AUTH_TOKEN is not configured');
   const path = run.kind === 'social' ? '/scrape/social' : '/scrape/competitor';
   const request = run.kind === 'social'
-    ? { platform: run.request.platform, profile_url: run.request.profileUrl }
-    : { brand_name: run.request.brandName, industry: run.request.industry, platforms: run.request.platforms };
+    ? { model_id: run.modelId, platform: run.request.platform, profile_url: run.request.profileUrl }
+    : { model_id: run.modelId, brand_name: run.request.brandName, industry: run.request.industry, platforms: run.request.platforms };
   try {
     const response = await fetch(`${scraperOrigin()}${path}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(request), signal: AbortSignal.timeout(30_000) });
     const result = await readScrapeResult(response);

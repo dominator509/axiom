@@ -55,6 +55,7 @@ impl IntoResponse for ScraperError {
 
 #[derive(Debug, Deserialize)]
 pub struct SocialScrapeRequest {
+    pub model_id: String,
     pub platform: String,
     pub profile_url: String,
 }
@@ -74,6 +75,7 @@ pub struct SocialScrapeResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct CompetitorRequest {
+    pub model_id: String,
     pub brand_name: String,
     pub industry: String,
     pub platforms: Vec<String>,
@@ -119,7 +121,8 @@ async fn scrape_social(
     );
 
     // Attempt to fetch the profile page
-    let html = fetch_page(&req.profile_url).await?;
+    let proxy = resolve_model_proxy(&req.model_id).await?;
+    let html = fetch_page(&req.profile_url, &proxy).await?;
 
     // Parse with scraper crate to extract what we can
     let (display_name, bio, avatar_url) = parse_profile_page(&html);
@@ -160,12 +163,13 @@ async fn scrape_competitor(
     );
 
     validate_competitor_platforms(&req.platforms)?;
+    let proxy = resolve_model_proxy(&req.model_id).await?;
 
     let mut results = Vec::with_capacity(req.platforms.len());
 
     for platform in &req.platforms {
         let profile_url = build_platform_url(platform, &req.brand_name);
-        let result = match fetch_page(&profile_url).await {
+        let result = match fetch_page(&profile_url, &proxy).await {
             Ok(html) => {
                 let counts = parse_profile_counts(&html);
                 CompetitorResult {
@@ -200,8 +204,83 @@ async fn scrape_competitor(
 // Helper functions
 // ---------------------------------------------------------------------------
 
-/// Fetch a URL and return the HTML body as a string.
-async fn fetch_page(url: &str) -> Result<String, ScraperError> {
+fn proxy_from_status(status: &serde_json::Value, model_id: &str) -> Result<String, ScraperError> {
+    let denied = || ScraperError::Parse("model egress is unavailable or halted".to_string());
+    if status.get("kill_switch").and_then(|v| v.as_bool()) != Some(false) {
+        return Err(denied());
+    }
+    let models = status
+        .get("models")
+        .and_then(|v| v.as_array())
+        .ok_or_else(denied)?;
+    let model = models
+        .iter()
+        .find(|m| m.get("model_id").and_then(|v| v.as_str()) == Some(model_id))
+        .ok_or_else(denied)?;
+    if model.get("healthy").and_then(|v| v.as_bool()) != Some(true) {
+        return Err(denied());
+    }
+    let ip: std::net::IpAddr = model
+        .get("host_ip")
+        .and_then(|v| v.as_str())
+        .ok_or_else(denied)?
+        .parse()
+        .map_err(|_| denied())?;
+    Ok(format!("http://{}", std::net::SocketAddr::new(ip, 8080)))
+}
+
+async fn resolve_model_proxy(model_id: &str) -> Result<String, ScraperError> {
+    if model_id.len() != 36
+        || !model_id.chars().enumerate().all(|(i, c)| {
+            if [8, 13, 18, 23].contains(&i) {
+                c == '-'
+            } else {
+                c.is_ascii_hexdigit()
+            }
+        })
+    {
+        return Err(ScraperError::Parse(
+            "a valid model_id is required".to_string(),
+        ));
+    }
+    let origin =
+        std::env::var("EGRESS_PLANE_URL").unwrap_or_else(|_| "http://127.0.0.1:9090".to_string());
+    let token = std::env::var("EGRESS_PLANE_TOKEN").unwrap_or_default();
+    if token.trim().is_empty() {
+        return Err(ScraperError::Parse(
+            "egress authentication is not configured".to_string(),
+        ));
+    }
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(5))
+        .build()?;
+    let mut response = client
+        .get(format!("{}/egress/status", origin.trim_end_matches('/')))
+        .header("x-egress-plane-token", token.trim())
+        .send()
+        .await?;
+    if !response.status().is_success() {
+        return Err(ScraperError::Parse(
+            "egress status request failed".to_string(),
+        ));
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if bytes.len() + chunk.len() > 512 * 1024 {
+            return Err(ScraperError::Parse(
+                "egress status exceeds size limit".to_string(),
+            ));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    let status: serde_json::Value = serde_json::from_slice(&bytes)?;
+    proxy_from_status(&status, model_id)
+}
+
+/// Fetch a URL only through the model's authenticated egress-plane binding.
+async fn fetch_page(url: &str, proxy: &str) -> Result<String, ScraperError> {
     let parsed = reqwest::Url::parse(url)
         .map_err(|_| ScraperError::Parse("invalid profile URL".to_string()))?;
     if parsed.scheme() != "https" || !is_allowed_profile_host(parsed.host_str()) {
@@ -211,6 +290,8 @@ async fn fetch_page(url: &str) -> Result<String, ScraperError> {
     }
     info!("fetching: {url}");
     let client = reqwest::Client::builder()
+        .no_proxy()
+        .proxy(reqwest::Proxy::all(proxy)?)
         .timeout(std::time::Duration::from_secs(15))
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= 5 {
@@ -763,6 +844,53 @@ mod tests {
             Some("internal-token")
         ));
         assert!(non_loopback_without_auth("0.0.0.0:8102", Some("  ")));
+    }
+
+    #[test]
+    fn scraper_requires_the_exact_healthy_model_and_open_kill_switch() {
+        let status = serde_json::json!({"kill_switch":false,"models":[
+            {"model_id":"one","healthy":true,"host_ip":"172.30.1.2"},
+            {"model_id":"two","healthy":false,"host_ip":"172.30.2.2"}
+        ]});
+        assert_eq!(
+            proxy_from_status(&status, "one").unwrap(),
+            "http://172.30.1.2:8080"
+        );
+        assert!(proxy_from_status(&status, "two").is_err());
+        assert!(proxy_from_status(&status, "absent").is_err());
+        let mut halted = status.clone();
+        halted["kill_switch"] = serde_json::json!(true);
+        assert!(proxy_from_status(&halted, "one").is_err());
+        halted["kill_switch"] = serde_json::Value::Null;
+        assert!(proxy_from_status(&halted, "one").is_err());
+        let mut invalid = status;
+        invalid["models"][0]["host_ip"] = serde_json::json!("attacker.example/path");
+        assert!(proxy_from_status(&invalid, "one").is_err());
+    }
+
+    #[tokio::test]
+    async fn scraper_uses_bound_proxy_connect_without_direct_fallback() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0u8; 4096];
+            let size = socket.read(&mut buffer).await.unwrap();
+            let request = String::from_utf8_lossy(&buffer[..size]).to_string();
+            socket
+                .write_all(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
+                .await
+                .unwrap();
+            request
+        });
+        let result = fetch_page("https://instagram.com/nasa", &proxy).await;
+        assert!(result.is_err());
+        let request = tokio::time::timeout(std::time::Duration::from_secs(5), server)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(request.starts_with("CONNECT instagram.com:443 "));
     }
 
     #[test]
