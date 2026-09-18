@@ -148,6 +148,37 @@ if (!readFromStdin && !file) {
     if (normalizedType === 'NACK' && !['REJECTED', 'BLOCKED'].includes(normalizedState)) fail('NACK must be REJECTED or BLOCKED');
     if (normalizedType === 'PROGRESS' && normalizedState !== 'IN_PROGRESS') fail('PROGRESS must be IN_PROGRESS');
     if (normalizedType === 'DELIVERY' && normalizedState !== 'DELIVERED') fail('DELIVERY must be DELIVERED');
+
+    const contract = headers.get('CONTRACT');
+    const payloadFields = new Map();
+    if (!legacyAck) {
+      for (const line of lines.slice(payloadIndex + 1, signatureIndex)) {
+        const match = /^(?<key>[A-Z0-9_]+): (?<value>.*)$/.exec(line);
+        if (match) payloadFields.set(match.groups.key, match.groups.value);
+      }
+    }
+    if (contract === 'ACK-NACK-1') {
+      if (legacyAck) fail('ACK-NACK-1 rejects legacy ACK envelopes');
+      if (expectedRole === 'Hermes' && !['sincerely, Hermes', 'sincerely, Hermes (role: bridge-responder)'].includes(lines[signatureIndex])) {
+        fail('ACK-NACK-1 requires the Hermes role signature');
+      }
+      if (normalizedType !== 'TASK' && payloadFields.get('READ_STATUS') !== 'READ') {
+        fail('ACK-NACK-1 requires READ_STATUS: READ on every reply or receipt');
+      }
+      if (normalizedType === 'TASK' && payloadFields.get('READ_STATUS') !== 'NOT_APPLICABLE') {
+        fail('ACK-NACK-1 TASK requires READ_STATUS: NOT_APPLICABLE');
+      }
+      if (normalizedType === 'RECEIPT' && payloadFields.get('RECEIPT_OF') !== headers.get('IN_REPLY_TO')) {
+        fail('ACK-NACK-1 RECEIPT must name the exact WIRE it read');
+      }
+      if (normalizedType === 'ACK') {
+        const expectedOwner = normalizedState === 'READ' ? 'CODEX' : 'HERMES';
+        if (headers.get('NEXT_OWNER') !== expectedOwner) fail(`ACK-NACK-1 ACK/${normalizedState} has the wrong NEXT_OWNER`);
+      }
+      if (normalizedType === 'NACK' && headers.get('NEXT_OWNER') !== 'CODEX') {
+        fail('ACK-NACK-1 NACK must return ownership to CODEX');
+      }
+    }
     if (normalizedType === 'PROGRESS' && !legacyAck) {
       const progressEvidence = lines
         .slice(payloadIndex + 1, signatureIndex)

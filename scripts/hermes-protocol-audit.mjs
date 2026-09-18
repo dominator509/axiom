@@ -224,12 +224,45 @@ function parseBody(envelope) {
   if (roleByType[normalizedType] !== envelope.from) {
     fail(`${envelope.file}: ${normalizedType} cannot be sent by ${envelope.from}`);
   }
-  if (headers.get('TYPE') === 'DELIVERY') {
-    const payloadKeys = new Map();
-    for (const line of lines.slice(payloadIndex + 1, signatureIndex)) {
-      const match = /^(?<key>[A-Z0-9_]+): (?<value>.*)$/.exec(line);
-      if (match) payloadKeys.set(match.groups.key, match.groups.value);
+
+  const contract = headers.get('CONTRACT');
+  const payloadLines = legacyAck ? [] : lines.slice(payloadIndex + 1, signatureIndex);
+  const payloadFields = new Map();
+  for (const line of payloadLines) {
+    const match = /^(?<key>[A-Z0-9_]+): (?<value>.*)$/.exec(line);
+    if (match) payloadFields.set(match.groups.key, match.groups.value);
+  }
+
+  // ACK-NACK-1 is the strict contract for all new lanes. Legacy bridge
+  // replies remain readable for historical journals, but they cannot advance
+  // a strict lane. This is the compatibility boundary that prevents an
+  // ACKNOWLEDGED/CLOSED reply from silently becoming a new task state.
+  if (contract === 'ACK-NACK-1') {
+    if (legacyAck) fail(`${envelope.file}: ACK-NACK-1 rejects legacy ACK envelopes`);
+    if (envelope.from === 'hermes' && !['sincerely, Hermes', 'sincerely, Hermes (role: bridge-responder)'].includes(signature)) {
+      fail(`${envelope.file}: ACK-NACK-1 requires the Hermes role signature`);
     }
+    if (normalizedType !== 'TASK' && payloadFields.get('READ_STATUS') !== 'READ') {
+      fail(`${envelope.file}: ACK-NACK-1 requires READ_STATUS: READ on every reply or receipt`);
+    }
+    if (normalizedType === 'TASK' && payloadFields.get('READ_STATUS') !== 'NOT_APPLICABLE') {
+      fail(`${envelope.file}: ACK-NACK-1 TASK requires READ_STATUS: NOT_APPLICABLE`);
+    }
+    if (normalizedType === 'RECEIPT' && payloadFields.get('RECEIPT_OF') !== headers.get('IN_REPLY_TO')) {
+      fail(`${envelope.file}: ACK-NACK-1 RECEIPT must name the exact WIRE it read`);
+    }
+    if (normalizedType === 'ACK') {
+      const expectedOwner = normalizedState === 'READ' ? 'CODEX' : 'HERMES';
+      if (headers.get('NEXT_OWNER') !== expectedOwner) {
+        fail(`${envelope.file}: ACK-NACK-1 ACK/${normalizedState} has the wrong NEXT_OWNER`);
+      }
+    }
+    if (normalizedType === 'NACK' && headers.get('NEXT_OWNER') !== 'CODEX') {
+      fail(`${envelope.file}: ACK-NACK-1 NACK must return ownership to CODEX`);
+    }
+  }
+  if (headers.get('TYPE') === 'DELIVERY') {
+    const payloadKeys = payloadFields;
     for (const key of ['ARTIFACT', 'SHA256', 'COMMAND', 'EXIT_CODE', 'TEST_RESULT', 'LIVE_ACTIONS']) {
       if (!payloadKeys.has(key)) fail(`${envelope.file}: DELIVERY missing ${key}`);
     }
@@ -257,6 +290,8 @@ function parseBody(envelope) {
         ? 'Publish PROGRESS or DELIVERY'
         : undefined),
     reason: headers.get('REASON') ?? (legacyBlocked ? 'LEGACY_BLOCKED_STATUS' : legacyClosed ? 'LEGACY_CLOSED_ACK' : legacyAck ? 'LEGACY_BRIDGE_ACK' : undefined),
+    contract,
+    signature,
   };
 }
 
@@ -271,6 +306,17 @@ function auditTask(records) {
     seenSeq.set(record.seq, record.file);
   }
   if (sorted[0]?.seq !== 1 || sorted[0]?.type !== 'TASK') fail(`${records[0]?.task}: journal must begin with Codex TASK SEQ 1`);
+  const strictContract = sorted[0]?.contract === 'ACK-NACK-1';
+  if (strictContract) {
+    for (const current of sorted) {
+      if (current.contract !== 'ACK-NACK-1') {
+        fail(`${current.file}: ACK-NACK-1 task contains a message without CONTRACT: ACK-NACK-1`);
+      }
+      if (current.legacy) {
+        fail(`${current.file}: ACK-NACK-1 task cannot use a legacy bridge envelope`);
+      }
+    }
+  }
   for (let index = 0; index < sorted.length; index += 1) {
     const current = sorted[index];
     if (current.seq !== index + 1) fail(`${current.file}: sequence gap before SEQ ${current.seq}`);

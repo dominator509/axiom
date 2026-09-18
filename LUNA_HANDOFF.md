@@ -945,3 +945,33 @@ After each meaningful batch, update this file's SHA/CI/process section, move onl
 evidenced gaps forward, append the ledger, and link a receipt. Record failed
 attempts accurately. Keep source, automated, deployed and provider evidence
 distinct. Credit exhaustion is a handoff condition, not a reason to claim success.
+
+## Coordination milestone — strict ACK-NACK contract
+
+The bridge protocol now has an opt-in strict contract for every new lane:
+`CONTRACT: ACK-NACK-1`. Historical envelopes remain auditable through the
+compatibility path, but they cannot advance a strict lane.
+
+Strict lanes require a contiguous logical `SEQ`, unique `WIRE`, exact
+`IN_REPLY_TO`, `READ_STATUS: READ` on every reply/receipt, and a final role
+signature. `ACK/READ` means read but not owned; `ACK/ACCEPTED` means read and
+owned; `NACK/REJECTED` or `NACK/BLOCKED` is the explicit NOT-ACK result;
+`UNCONFIRMED` means no valid logical reply and therefore not read. A Codex
+receipt names the exact `RECEIPT_OF` wire. Hermes cannot answer a receipt with
+another ACK, and legacy `ACKNOWLEDGED`/`CLOSED` or Ip Man-only signatures are
+rejected on strict lanes. No ordering, retry, liveness or ownership decision
+uses a date, time, timezone, timeout or deadline.
+
+Changed protocol files:
+
+- `scripts/hermes-protocol-audit.mjs`
+- `scripts/hermes-protocol-check.mjs`
+- `scripts/hermes-protocol-audit.test.mjs`
+- `L5-verification/hermes-message-protocol.md`
+
+Evidence: protocol syntax checks pass, `node --test
+scripts/hermes-protocol-audit.test.mjs` passes 20/20, and `git diff --check`
+passes. This is a source/control-plane change only; no runtime, provider,
+database, permission, bridge-service or deployment action occurred. New
+Hermes assignments must opt into `ACK-NACK-1` and use `sincerely, Hermes`;
+Codex uses `sincerely, Codex`.

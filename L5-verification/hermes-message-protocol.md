@@ -65,6 +65,36 @@ message content. Codex uses the exact `sincerely, Codex` line.
 No date, time, timezone, timeout, or relative-duration field is part of this
 protocol.
 
+## Strict ACK-NACK contract for new lanes
+
+All new work uses `CONTRACT: ACK-NACK-1` immediately after `FT-HERMES/1`.
+Historical journals may still be read through the compatibility parser, but a
+strict lane cannot advance on a legacy `ACKNOWLEDGED`, `CLOSED`, `Ip Man`, or
+unsigned reply. This is the boundary that prevents old bridge wording from
+creating a false acceptance or an ACK loop.
+
+Strict-lane rules are intentionally small:
+
+1. Every body carries the same `CONTRACT: ACK-NACK-1`, a unique `WIRE`, the
+   next contiguous `SEQ`, the exact prior `IN_REPLY_TO`, and the sender's
+   final signature.
+2. Every non-`TASK` body carries `READ_STATUS: READ` in `PAYLOAD`. A Codex
+   receipt also carries `RECEIPT_OF: <exact WIRE read>`. A task carries
+   `READ_STATUS: NOT_APPLICABLE`.
+3. `ACK/READ` means read but not owned; `ACK/ACCEPTED` means read and owned;
+   `NACK/REJECTED` or `NACK/BLOCKED` means read and not accepted. The latter
+   two are the only NOT-ACK outcomes.
+4. After a Codex receipt, Hermes may send only `PROGRESS`, `DELIVERY`, or
+   `NACK`; another `ACK` is invalid. A valid `DELIVERY` is the only completion
+   claim.
+5. A lane containing only the task is `UNCONFIRMED` (not read). A malformed,
+   mis-signed, duplicated, or out-of-sequence reply is also not accepted and
+   must be corrected with a new WIRE; it never advances the lane.
+
+The validator enforces this contract only when the task opts in, so the
+historical audit remains reproducible while all newly delegated work is
+fail-closed.
+
 `NEXT_OWNER` is the machine-readable handoff. The validator enforces this
 matrix:
 
@@ -101,7 +131,8 @@ means no further work is assigned on that lane.
 to `DELIVERED`; source completion still requires the strict DELIVERY payload
 and canonical evidence fields. This compatibility rule prevents a real Hermes
 read from being mistaken for an invalid or stalled message without weakening
-the delivery gate.
+the delivery gate. Legacy replies are never valid advancement for a new
+`ACK-NACK-1` lane.
 
 ## State meanings
 

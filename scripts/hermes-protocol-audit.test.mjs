@@ -8,10 +8,11 @@ import { spawnSync } from 'node:child_process';
 const script = path.resolve('scripts/hermes-protocol-audit.mjs');
 const sentinel = '1970-01-01T00:00:00Z';
 
-function body({ type, task, wire, seq, inReplyTo, state, terminal, nextOwner, nextAction, reason = 'NONE', from }) {
+function body({ type, task, wire, seq, inReplyTo, state, terminal, nextOwner, nextAction, reason = 'NONE', from, contract = null, payload = [] }) {
   const signature = from === 'codex' ? 'sincerely, Codex' : 'sincerely, Hermes';
-  return [
+  const headers = [
     'FT-HERMES/1',
+    ...(contract ? [`CONTRACT: ${contract}`] : []),
     `TYPE: ${type}`,
     `TASK: ${task}`,
     `WIRE: ${wire}`,
@@ -24,9 +25,11 @@ function body({ type, task, wire, seq, inReplyTo, state, terminal, nextOwner, ne
     `REASON: ${reason}`,
     'PAYLOAD_SHA256: NONE',
     'PAYLOAD:',
+    ...payload,
     'LIVE_ACTIONS: NONE',
     signature,
-  ].join('\n');
+  ];
+  return headers.join('\n');
 }
 
 function envelope(id, from, messageBody) {
@@ -316,4 +319,61 @@ test('rejects progress without a concrete evidence delta', () => {
   ]);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /PROGRESS requires a concrete PROGRESS_EVIDENCE delta/);
+});
+
+test('strict ACK-NACK contract makes read state, ownership, and signatures unambiguous', () => {
+  const task = 'STRICT-CONTRACT-ACCEPT';
+  const contract = 'ACK-NACK-1';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract, payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
+    ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'hermes', contract, payload: ['READ_STATUS: READ'] }))],
+    ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'codex', contract, payload: ['READ_STATUS: READ', 'RECEIPT_OF: W2'] }))],
+  ], ['--allow-pending']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /state=ACCEPTED/);
+});
+
+test('strict ACK-NACK contract represents a NOT-ACK as terminal NACK/BLOCKED', () => {
+  const task = 'STRICT-CONTRACT-BLOCKED';
+  const contract = 'ACK-NACK-1';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract, payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
+    ['02.json', envelope('m2', 'hermes', body({ type: 'NACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'BLOCKED', terminal: 'YES', nextOwner: 'CODEX', nextAction: 'Provide the named missing input or close the lane', reason: 'MISSING_WRITABLE_SOURCE', from: 'hermes', contract, payload: ['READ_STATUS: READ'] }))],
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /state=BLOCKED/);
+  assert.match(result.stdout, /next_owner=CODEX/);
+});
+
+test('strict ACK-NACK contract rejects legacy ACKNOWLEDGED replies', () => {
+  const task = 'STRICT-CONTRACT-LEGACY';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract: 'ACK-NACK-1', payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
+    ['02.json', envelope('m2', 'hermes', legacyHermesAckBody(task, 'W2', 'W1', 2))],
+  ], ['--allow-pending']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /without CONTRACT: ACK-NACK-1|legacy bridge envelope/);
+});
+
+test('strict ACK-NACK contract rejects a Hermes reply signed as another identity', () => {
+  const task = 'STRICT-CONTRACT-SIGNATURE';
+  const reply = body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'hermes', contract: 'ACK-NACK-1', payload: ['READ_STATUS: READ'] }).replace('sincerely, Hermes', 'sincerely, Ip Man');
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract: 'ACK-NACK-1', payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
+    ['02.json', envelope('m2', 'hermes', reply)],
+  ], ['--allow-pending']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /requires the Hermes role signature/);
+});
+
+test('strict ACK-NACK contract rejects a receipt that does not name what was read', () => {
+  const task = 'STRICT-CONTRACT-RECEIPT';
+  const contract = 'ACK-NACK-1';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract, payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
+    ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'hermes', contract, payload: ['READ_STATUS: READ'] }))],
+    ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'codex', contract, payload: ['READ_STATUS: READ', 'RECEIPT_OF: W1'] }))],
+  ], ['--allow-pending']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /RECEIPT must name the exact WIRE/);
 });
