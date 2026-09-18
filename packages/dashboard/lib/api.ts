@@ -351,6 +351,8 @@ export interface TeamMember { id: string; email: string; role: string }
 export interface TeamShift { id: string; modelId: string; assigneeUserId: string; queue: string; startsAt: string; endsAt: string; status: string; note: string | null }
 export interface TeamNote { id: string; modelId: string; authorUserId: string; targetType: string; targetId: string | null; body: string; createdAt: string }
 export interface MediaOperation { id: string; modelId: string; sourceAssetId: string; resultVariantId: string | null; outputAssetId?: string | null; type: string; options: Record<string, unknown>; state: string; error: string | null; createdAt: string; completedAt: string | null }
+export type MediaOrigin = 'uploaded' | 'generated' | 'transformed' | 'legacy';
+export type MediaKind = 'image' | 'video';
 export interface PlaybookGuideline { id: string; modelId: string; platform: string; optimalTimes: string[]; cadencePerWeek: number; upsellStrategy: string; revision: number; updatedAt: string }
 
 export const api = {
@@ -359,7 +361,14 @@ export const api = {
     get: (id: string) => apiFetch<{ data: FanTimeline }>(`/api/v1/fans/${encodeURIComponent(id)}`),
   },
   models: {
-    media: (id: string, cursor?: string) => apiFetch<{ data: Array<{ id: string; kind: string; origin: string; mimeType: string; fileSize: number; width: number | null; height: number | null; createdAt: string }>; meta?: { next_cursor?: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/media${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
+    media: (id: string, cursor?: string, filters?: { origin?: MediaOrigin; kind?: MediaKind }) => {
+      const query = new URLSearchParams();
+      if (cursor) query.set('cursor', cursor);
+      if (filters?.origin) query.set('origin', filters.origin);
+      if (filters?.kind) query.set('kind', filters.kind);
+      const suffix = query.toString();
+      return apiFetch<{ data: Array<{ id: string; kind: string; origin: string; mimeType: string; fileSize: number; width: number | null; height: number | null; createdAt: string }>; meta?: { next_cursor?: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/media${suffix ? `?${suffix}` : ''}`);
+    },
     list: (cursor?: string) => apiFetch<{
       data: ModelProfile[];
       meta: { total: number; limit: number; next_cursor: string | null };

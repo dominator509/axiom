@@ -1106,3 +1106,26 @@ library; an uncertain response preserves the same idempotency intent, and
 read-only roles do not receive the control. This removes the generation-only
 navigation gap without creating a second upload API. Full cross-lifecycle
 gallery filtering/history and deployed browser/media acceptance remain open.
+
+## Source milestone — M419: media library filters
+
+The existing model-scoped media listing now accepts fail-closed `origin` and
+`kind` filters (`uploaded`, `generated`, `transformed`, `legacy`; `image` or
+`video`). The dashboard exposes accessible filter controls, preserves the
+selected filters across older/latest cursor links, and offers an explicit clear
+action. Focused API filter/error tests (14/14), media-page tests (11/11),
+dashboard typecheck, lint (three pre-existing warnings), and diff-check pass.
+This is a discoverability improvement, not evidence of deployed storage,
+worker playback, or complete cross-lifecycle gallery acceptance.
+
+## Active delegated lane — TEAM-SHIFT-CHATTER-COPY-R4
+
+Codex submitted `codex-team-shift-chatter-copy-r4.json` through the strict
+ACK-NACK-1 bridge. The remote SHA-256 readback matches the local payload:
+`c4e1d5866767826d11972bee3f8453d7805bd5a2be789d7e43014d2aaf444ec5`.
+The task is source-only and asks Hermes to use a new copied-artifact lane for
+assigned-shift/model restrictions, post-note ownership, bounded pagination and
+truthful terminal handoff states. It forbids installer, bridge, deployment,
+database, runtime, provider, permission and credential actions. No Hermes
+feature delivery is accepted yet; the next valid state is a correlated
+ACK/NACK, evidence-backed PROGRESS, DELIVERY, or canonical NACK/BLOCKED.

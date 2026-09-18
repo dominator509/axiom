@@ -155,6 +155,13 @@ health endpoints alone never closes a gate.
   This removes the navigation gap between the gallery and source ingestion without
   adding a second upload contract. The broader all-state gallery and deployed media
   acceptance remain open.
+- M419 adds source and kind filters to the existing model-scoped media listing.
+  Invalid filters fail closed in the API; the dashboard exposes accessible source
+  and image/video selectors, preserves filters across cursor pagination, and offers
+  an explicit clear action. API filter/error tests, media-page tests, dashboard
+  typecheck, lint, and diff-check pass. This improves lifecycle discoverability but
+  does not claim that storage, worker playback, or deployed media acceptance is
+  complete.
 - [x] Gate: route/worker/media-plane contract tests pass; deployed image and video rehearsal remains open.
 
 ### 5. Playbook and guideline management — source slice complete; acceptance gate open

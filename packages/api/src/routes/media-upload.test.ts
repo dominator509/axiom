@@ -35,6 +35,16 @@ it('requires authentication and valid model IDs to list media', async () => {
   expect((await app(false).request(`/models/${modelId}/media`)).status).toBe(401);
   expect((await app().request('/models/bad/media')).status).toBe(400);
 });
+it('rejects unknown media filters instead of silently returning a different library', async () => {
+  expect((await app().request(`/models/${modelId}/media?origin=provider`)).status).toBe(400);
+  expect((await app().request(`/models/${modelId}/media?kind=audio`)).status).toBe(400);
+});
+it('accepts source and kind filters on the tenant-scoped media listing', async () => {
+  mockState.result = [];
+  const response = await app().request(`/models/${modelId}/media?origin=uploaded&kind=image`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ data: [], meta: { next_cursor: null } });
+});
 it.each([
   null,
   { id: '33333333-3333-4333-8333-333333333333', orgId: 'other', modelId },

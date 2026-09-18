@@ -18,12 +18,20 @@ mediaUploadRouter.get('/models/:modelId/media', async c => {
   const orgId = requireOrg(c), modelId = c.req.param('modelId');
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   if (!z.string().uuid().safeParse(modelId).success) return apiError(c, 400, statusTitle(400), 'Invalid model');
+  const origin = c.req.query('origin');
+  const kind = c.req.query('kind');
+  if (origin && !['uploaded', 'generated', 'transformed', 'legacy'].includes(origin))
+    return apiError(c, 400, statusTitle(400), 'Invalid media origin filter');
+  if (kind && !['image', 'video'].includes(kind))
+    return apiError(c, 400, statusTitle(400), 'Invalid media kind filter');
   const { limit, cursor } = parseCursor(c, 20, 100);
   const rows = await withOrgContext(orgId, tx => tx.select({
     id: schema.asset.id, kind: schema.asset.kind, origin: schema.asset.origin, mimeType: schema.asset.mimeType,
     fileSize: schema.asset.fileSize, width: schema.asset.width, height: schema.asset.height, createdAt: schema.asset.createdAt,
   }).from(schema.asset).where(and(eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
     modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.asset.modelId),
+    ...(origin ? [eq(schema.asset.origin, origin)] : []),
+    ...(kind ? [eq(schema.asset.kind, kind)] : []),
     ...cursorLt(schema.asset.createdAt, schema.asset.id, cursor)))
     .orderBy(desc(schema.asset.createdAt), desc(schema.asset.id)).limit(limit));
   const last = rows[rows.length - 1];

@@ -31,6 +31,14 @@ it('renders authenticated image/video previews and model-scoped pagination', asy
   expect(html).toContain('does not mean an asset passed review');
   expect(html).toContain('Upload source media');
 });
+it('passes validated filters to the API and preserves them across pagination', async () => {
+  list.mockResolvedValue({ data: [{ id: 'image', kind: 'image', origin: 'uploaded', fileSize: 2048 }], meta: { next_cursor: 'older' } });
+  const html = renderToStaticMarkup(await MediaPage({ params: Promise.resolve({ id: 'talent' }), searchParams: Promise.resolve({ origin: 'uploaded', kind: 'image' }) }));
+  expect(list).toHaveBeenCalledWith('talent', undefined, { origin: 'uploaded', kind: 'image' });
+  expect(html).toContain('Showing uploaded · image.');
+  expect(html).toContain('/models/talent/media?cursor=older&amp;origin=uploaded&amp;kind=image');
+  expect(html).toContain('Clear filters');
+});
 it('does not disguise an API failure as an empty library', async () => {
   list.mockRejectedValue(new Error('unavailable'));
   const html = renderToStaticMarkup(await MediaPage({ params: Promise.resolve({ id: 'talent' }) }));
