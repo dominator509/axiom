@@ -111,6 +111,23 @@ describe('roleplay persistence contract', () => {
     expect(mockState.insertValues).toHaveLength(0);
   });
 
+  it('returns persisted provider receipts in the reloadable roleplay context', async () => {
+    mockState.results = [
+      [],
+      [{ id: MODEL_ID }],
+      [{ id: 'shift-1', queue: 'chatter', actorType: 'human', actorRef: 'user-1' }],
+      [{ id: 'assigned-1' }],
+      [],
+      [],
+      [],
+      [{ id: 'turn-1', state: 'uncertain', provider: 'grok', providerModel: 'grok-roleplayer', input: 'Continue safely.', providerRequestId: null, errorCode: 'provider-uncertain', createdAt: new Date('2026-01-01T00:00:00Z'), finalizedAt: new Date('2026-01-01T00:00:01Z') }],
+    ];
+    const response = await appWithAuth().request(`/models/${MODEL_ID}/roleplay?actorType=human&actorRef=user-1`);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.data.turns).toEqual([expect.objectContaining({ turnId: 'turn-1', state: 'uncertain', provider: 'grok', errorCode: 'provider-uncertain', content: null })]);
+  });
+
   it('generates one bounded Grok turn and records the provider receipt plus memory', async () => {
     const handoff = {
       currentOwner: { type: 'llm', ref: 'grok-roleplayer' },

@@ -143,11 +143,22 @@ router.get('/models/:modelId/roleplay', async c => {
       eq(schema.roleplayMemoryTurn.orgId, orgId), eq(schema.roleplayMemoryTurn.modelId, modelId),
       eq(schema.roleplayMemoryTurn.conversationKey, conversationKey),
     )).orderBy(desc(schema.roleplayMemoryTurn.sequence)).limit(ROLEPLAY_LIMITS.memoryTurns);
+    const turns = await tx.select().from(schema.roleplayTurn).where(and(
+      eq(schema.roleplayTurn.orgId, orgId), eq(schema.roleplayTurn.modelId, modelId),
+      eq(schema.roleplayTurn.conversationKey, conversationKey),
+    )).orderBy(desc(schema.roleplayTurn.createdAt), desc(schema.roleplayTurn.id)).limit(20);
     return {
       handoff: handoff?.payload ?? null,
       handoffRevision: handoff?.revision ?? 0,
       persona: persona ? { revision: persona.revision, source: persona.source, sourceRef: persona.sourceRef, content: persona.content } : null,
       memory: memory.reverse().map((row: any) => ({ sequence: row.sequence, role: row.role, speaker: { type: row.speakerType, ref: row.speakerRef }, content: row.content })),
+      turns: turns.map((row: any) => ({
+        turnId: row.id, state: row.state, provider: row.provider, providerModel: row.providerModel,
+        input: row.input, content: row.state === 'completed' ? row.output : null,
+        providerRequestId: row.providerRequestId ?? null, errorCode: row.errorCode ?? null,
+        createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+        finalizedAt: row.finalizedAt instanceof Date ? row.finalizedAt.toISOString() : row.finalizedAt ? String(row.finalizedAt) : null,
+      })),
       meta: { nextSequence: (memory[0]?.sequence ?? 0) + 1, activeShiftId: shift.id, queue: shift.queue, actor },
     };
   });

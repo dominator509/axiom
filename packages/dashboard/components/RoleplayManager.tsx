@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { RoleplayActor, RoleplayHandoff, RoleplayMemoryTurn, RoleplayPersona, RoleplayTurnResult } from '@/lib/api';
+import type { RoleplayActor, RoleplayHandoff, RoleplayMemoryTurn, RoleplayPersona, RoleplayTurnReceipt, RoleplayTurnResult } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 
@@ -17,6 +17,7 @@ interface RoleplayContext {
   handoffRevision: number;
   persona: RoleplayPersona | null;
   memory: RoleplayMemoryTurn[];
+  turns: RoleplayTurnReceipt[];
   meta: { nextSequence: number; activeShiftId: string; queue: string; actor: RoleplayActor };
 }
 
@@ -158,7 +159,11 @@ export default function RoleplayManager({ modelId, actorOptions, canEdit }: { mo
       setTurnPrompt('');
       await load();
       setMessage('Grok reply recorded in bounded memory; nothing was published.');
-    } catch (turnError) { setError(turnError instanceof Error ? turnError.message : 'Grok roleplay turn was not confirmed.'); }
+    } catch (turnError) {
+      const detail = turnError instanceof Error ? turnError.message : 'Grok roleplay turn was not confirmed.';
+      await load();
+      setError(detail);
+    }
     finally { setBusy(false); }
   }
 
@@ -199,6 +204,7 @@ export default function RoleplayManager({ modelId, actorOptions, canEdit }: { mo
         <textarea value={turnPrompt} onChange={event => setTurnPrompt(event.target.value)} maxLength={4000} rows={4} disabled={!canEdit || busy || !context} placeholder="Write the next bounded roleplay prompt…" />
         {canEdit ? <button className="btn" type="button" disabled={busy || !context || !turnPrompt.trim()} onClick={() => void generateTurn()}>Generate bounded Grok reply</button> : <p className="subtle">Generating a provider turn requires an owner, manager or operator.</p>}
         {lastTurn && <div className="notice" role="status"><strong>Turn {lastTurn.state}</strong><span>Provider: {lastTurn.provider} · model: {lastTurn.providerModel}</span>{lastTurn.content && <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{lastTurn.content}</p>}{lastTurn.providerRequestId && <span>Provider receipt: {lastTurn.providerRequestId}</span>}{lastTurn.errorCode && <span>Error code: {lastTurn.errorCode}</span>}</div>}
+        <div className="stack"><strong>Recent provider receipts</strong>{context?.turns?.length ? context.turns.map(turn => <article className="card" key={turn.turnId}><strong>{turn.state} · {turn.provider} · {turn.providerModel}</strong><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{turn.state === 'completed' ? turn.content : turn.errorCode ? `No reply stored · ${turn.errorCode}` : 'No reply stored yet.'}</p><span className="subtle">Request: {turn.providerRequestId ?? 'not confirmed'} · Prompt: {turn.input}</span></article>) : <p className="subtle">No provider turns recorded for this conversation.</p>}</div>
       </> : <p className="subtle">The selected actor is human. Use the handoff and bounded memory controls above; provider generation is available only when an active, approved LLM actor owns this chatter shift.</p>}
     </section>
     <section className="card stack">
