@@ -1290,13 +1290,13 @@ production readiness.
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
-ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R7 + MEDIA-GALLERY-LIFECYCLE-COPY-R7 + SCRAPER-RESULT-QUALITY-COPY-R7
+ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R7 + MEDIA-GALLERY-LIFECYCLE-COPY-R7 + SCRAPER-RESULT-QUALITY-COPY-R7 + GROK-ROLEPLAY-DISPATCH-COPY-R1
 LAST_ACCEPTED_CODE: 6b8229d6c247654be7d0f26a100af53a52d54c91
 PUBLISHED_HEAD: 62327368eaa042ac2d0e215183583ea9d2fa7938
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence
-NEXT_REQUIRED: audit either correlated Hermes DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; both lanes now use the verified writable reply root
+NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; all active lanes use verified writable reply-root subdirectories
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
 OPEN_GATES: variant R7 delivery; media gallery R7 delivery; scraper result-quality R7 delivery; migration 0050; Grok roleplay dispatch/receipt; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence
-HERMES_STATUS: superseding variant, media-gallery and scraper R7 tasks target verified writable `work/ipman-replies-out/` subdirectories; no Hermes source artifact has been accepted or integrated
+HERMES_STATUS: superseding variant, media-gallery, scraper R7 and Grok roleplay R1 tasks target verified writable `work/ipman-replies-out/` subdirectories; ACKs are read and no Hermes source artifact has been accepted or integrated
 ```
