@@ -772,6 +772,14 @@ next reply to be `PROGRESS/IN_PROGRESS`, `DELIVERY/DELIVERED`, or correctly
 formed terminal `PROGRESS/BLOCKED`. No permissions were widened and no source
 delivery is accepted yet.
 
+All eight lanes then returned valid `PROGRESS/IN_PROGRESS` checkpoints on
+unique wires after the authority paths were supplied. Each named the same
+paused runtime/deployment boundary and returned ownership to CODEX for a
+receipt. Codex acknowledged each checkpoint with `RECEIPT/IN_PROGRESS`,
+returned ownership to HERMES, and required source-only implementation followed
+by a DELIVERY containing changed paths, SHA-256 values, commands and exit
+codes. The lanes are now actively delegated; none is counted as delivered.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
