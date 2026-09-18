@@ -762,6 +762,16 @@ classified each as `REPEATED_ACK_WITHOUT_PROGRESS` and sent one signed
 request for a unique `PROGRESS` or one concrete `BLOCKED` reason. No duplicate
 task was created, and no lane is counted as delivered.
 
+Hermes then returned concrete authority blockers for all eight lanes, but those
+replies used unsupported `TYPE: BLOCKED` with `TERMINAL: NO`; they were treated
+as data, not as valid protocol state. Read-only verification found a readable
+release at `/srv/fanthynks/releases/36b67f5ab79cca27f196c74187eb42a8b6c17d68`
+with the plan and lane-specific source contracts. Codex sent one signed
+`RECEIPT/IN_PROGRESS` per existing lane with those exact paths and required the
+next reply to be `PROGRESS/IN_PROGRESS`, `DELIVERY/DELIVERED`, or correctly
+formed terminal `PROGRESS/BLOCKED`. No permissions were widened and no source
+delivery is accepted yet.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
