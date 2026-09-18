@@ -564,6 +564,15 @@ M371 protocol hardening: added a stateful regression proving that a Hermes
 Hermes protocol audit suite now has five passing tests, including the exact
 malformed response pattern observed on the active lanes.
 
+M372 opened the independent source-only `F85-INSIGHT-RELAY` lane after
+reconciling the current F-85 rows against the existing digest, viral-recipe,
+learning-state, Relay-card and dashboard paths. The task is limited to
+truthful evidence-backed pattern insights, explicit unavailable
+revenue/conversion attribution, and visible scheduled digest/Relay status and
+recovery. It forbids fabricated provider data, parallel state, external
+publication, and all runtime/deployment actions. Hermes must ACK first, then
+publish a real progress checkpoint and DELIVERY with hashes and exit codes.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
