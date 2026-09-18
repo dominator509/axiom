@@ -1555,8 +1555,8 @@ action is authorized.
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: F90-AFFILIATE-WIRING-R1 + F91-PATREON-WIRING-R1 + F89-LOCALIZATION-WIRING-R1 + TEAM-SHIFT-WIRING-R1 + CHATTER-ROLEPLAY-WIRING-R1 + VARIANT-AB-WIRING-R1 + MEDIA-GALLERY-WIRING-R1 + SCRAPER-QUALITY-WIRING-R1 + PLAYBOOK-GUIDELINE-WIRING-R1 + LEARNING-RECIPE-WIRING-R1 + CLIPPING-ADAPTATION-WIRING-R1 + PROVIDER-OAUTH-WIRING-R1 + R2-STORAGE-WIRING-R1 + VPN-EGRESS-WIRING-R1 + OBSERVABILITY-WIRING-R1 + CI-ENFORCEMENT-WIRING-R1
-LAST_ACCEPTED_CODE: ac1eb66d2003e1dcd6ad62df630de43e42b54d4f
-PUBLISHED_HEAD: ac1eb66d2003e1dcd6ad62df630de43e42b54d4f
+LAST_ACCEPTED_CODE: 4ae72bf49617d40b675fd1c8e8a543a5e5569d39
+PUBLISHED_HEAD: 4ae72bf49617d40b675fd1c8e8a543a5e5569d39
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community sync; locale migration is authored only and not applied
 NEXT_REQUIRED: verify the superseding R2 execution tasks against the current e08148b source archive; consume logical ACK/READ, then verify concrete implementation PROGRESS and integrate only hash-verified reviewed source, run owning tests, commit/push each independent lane, then advance; pure-contract deliveries are integrated but do not close their feature gates; baseline-copy lanes are closed as non-implementations; every active lane requires implementation, then DELIVERY/BLOCKED; no wall-clock or date comparison is part of the bridge protocol
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
