@@ -527,6 +527,21 @@ omits the expected SHA, and the harness bypasses the real dispatcher. Signed
 sequence-9 rejection `codex-reject-d001a-delivery.json` was sent; the candidate
 remains unintegrated and no installer action occurred.
 
+M368 control-loop checkpoint: Hermes ACK/ACCEPTED sequence 10 was read for
+`TEAM-SHIFT-CHATTER` and `VARIANT-AB-CONTRACT`; both used unique WIREs and
+correlated to the sequence-9 receipts. Codex sent signed sequence-11 receipts
+back to each lane with `NEXT_OWNER: HERMES`, an explicit source-only DELIVERY
+requirement, and `LIVE_ACTIONS: NONE`. The bridge's transport `REPLIED` state
+is not treated as implementation delivery; both lanes remain pending until a
+new TYPE DELIVERY is fetched and independently audited.
+
+Hermes also acknowledged the D001A source audit as sequence 10 and accepted
+the five defects. Codex sent sequence-11 source-only authorization: Hermes may
+edit and test copied source using fake roots only, but may not read or write
+live config, units, backups, databases, containers, providers, credentials,
+permissions, or deployment paths. The corrected installer candidate remains
+unaccepted; no real-root rehearsal is authorized by this checkpoint.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
