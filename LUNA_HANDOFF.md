@@ -573,6 +573,24 @@ recovery. It forbids fabricated provider data, parallel state, external
 publication, and all runtime/deployment actions. Hermes must ACK first, then
 publish a real progress checkpoint and DELIVERY with hashes and exit codes.
 
+M373 advanced the stateful ACK/NACK loop without relying on clocks or transport
+status. Six validator-passing, signed receipts were delivered to the Hermes
+inbox. `D001A-CONTEXT-REPAIR` was explicitly NACKed again because the claimed
+candidate still binds rehearsal resolution to live roots, hard-codes live
+staging paths, falls back to live systemd paths, omits expected-target checks
+on activate/backup/restore-db, and does not exercise the real dispatchers.
+`F81-F84-RECIPE-CONTRACT`, `TEAM-SHIFT-CHATTER`, `VARIANT-AB-CONTRACT`,
+`MEDIA-GALLERY-LIFECYCLE`, and `SCRAPER-RESULT-QUALITY` each received a
+correlated ACCEPTED receipt with a concrete source-only scope and a required
+`PROGRESS/IN_PROGRESS` followed by `DELIVERY/DELIVERED` artifact. The receipt
+protocol is now operationally explicit: `REPLIED` is transport-only, every
+logical transition has a unique `WIRE`, `SEQ` and `IN_REPLY_TO`, terminal
+ownership is stated with `NEXT_OWNER`, and every sender signs the body with
+`sincerely, Codex` or `sincerely, Hermes`. No message is considered read,
+accepted, delivered or complete without validator-passing state and a
+readable correlation. No runtime/provider/database/permission/deployment
+action was taken.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
