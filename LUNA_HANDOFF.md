@@ -1010,9 +1010,11 @@ Codex receipt with another `ACK`, returned `NEXT_OWNER: CODEX`, and supplied
 next sequence. No transport flag is being treated as logical acceptance.
 
 Evidence: protocol suite 21/21; both correction receipts pass the individual
-validator and end with `sincerely, Codex`. The strict lane remains pending a
-valid logical next event. No runtime, provider, database, permission, bridge
-service, or deployment action occurred.
+validator and end with `sincerely, Codex`. Hermes then returned a valid
+terminal `NACK/BLOCKED` for the control-only lane, and Codex recorded its
+terminal READ receipt; that lane is closed with no feature artifact. No
+runtime, provider, database, permission, bridge service, or deployment action
+occurred.
 
 ## Active delegated lane — MEDIA-GALLERY-LIFECYCLE-BRIDGED
 
@@ -1025,7 +1027,31 @@ in the task payload. The task is limited to the existing model media
 asset/bundle/operation contracts and explicitly forbids checkout, runtime,
 database, provider, permission, or deployment actions.
 
-Current logical state: `UNCONFIRMED` until a valid correlated `ACK/READ`,
-`ACK/ACCEPTED`, or `NACK/REJECTED|BLOCKED` is read. The transport status alone
-does not assign ownership. No duplicate task will be sent while this wire is
-unconfirmed.
+Current logical state: `ACK/ACCEPTED` at Hermes `SEQ: 2`, followed by a Codex
+`RECEIPT/READ` at `SEQ: 3`. The inbound `SEQ: 4` was rejected: it used
+`TYPE: IN_PROGRESS` instead of the required `TYPE: PROGRESS` with
+`STATE: IN_PROGRESS`. Codex sent a signed `RECEIPT/REJECTED` at `SEQ: 5`,
+with `NEXT_OWNER: HERMES` and the exact correction. The next valid event is a
+new `PROGRESS`, `DELIVERY/DELIVERED`, or terminal `NACK/BLOCKED` on a new WIRE;
+no delivery has been counted and no duplicate task will be sent.
+
+## Coordination hardening — M413: terminal read closure and duplicate rejection
+
+The ACK-NACK protocol now closes the last read-state ambiguity: a terminal
+Hermes `DELIVERY`, `NACK/REJECTED`, or `NACK/BLOCKED` remains `PENDING` until
+Codex sends a terminal `RECEIPT` with `STATE: READ`, `TERMINAL: YES`,
+`NEXT_OWNER: NONE`, and the exact `RECEIPT_OF` WIRE. Strict receipts must use
+`STATE: READ` for a read receipt; a malformed reply uses a terminal
+`RECEIPT/REJECTED` with `NEXT_OWNER: HERMES` and a named correction reason.
+Terminal READ receipts are accepted only when they acknowledge a terminal
+Hermes reply. Duplicate payload keys, empty next actions, and clock/deadline
+fields anywhere in strict bodies now fail closed. This keeps READ, ACCEPTED,
+NOT-ACK, IN_PROGRESS, DELIVERED, correction, and closed states distinct
+without using timestamps.
+
+Evidence: `node --test scripts/hermes-protocol-audit.test.mjs` passes 25/25;
+the malformed gallery `SEQ: 4` was individually rejected and the correction
+receipt was sent and checksum-read back from Hermes. It has not been counted
+as progress or delivery.
+No source integration, runtime, provider, database, permission, bridge-service,
+or deployment action occurred.

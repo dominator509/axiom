@@ -179,7 +179,12 @@ function parseBody(envelope) {
   if (!states.has(normalizedState)) fail(`${envelope.file}: invalid STATE`);
   if (!owners.has(headers.get('NEXT_OWNER'))) fail(`${envelope.file}: invalid NEXT_OWNER`);
   if (!['YES', 'NO'].includes(headers.get('TERMINAL'))) fail(`${envelope.file}: invalid TERMINAL`);
-  const terminal = new Set(['DELIVERED', 'REJECTED', 'BLOCKED']).has(normalizedState);
+  const terminalState = new Set(['DELIVERED', 'REJECTED', 'BLOCKED']).has(normalizedState);
+  const terminalReceipt = normalizedType === 'RECEIPT'
+    && normalizedState === 'READ'
+    && headers.get('TERMINAL') === 'YES'
+    && headers.get('NEXT_OWNER') === 'NONE';
+  const terminal = terminalState || terminalReceipt;
   if (!legacyBlocked && (headers.get('TERMINAL') === 'YES') !== terminal) fail(`${envelope.file}: TERMINAL does not match STATE`);
   if (legacyBlocked && headers.get('NEXT_OWNER') !== 'CODEX') fail(`${envelope.file}: legacy blocked ACK must return ownership to CODEX`);
   if (legacyClosed) {
@@ -204,9 +209,14 @@ function parseBody(envelope) {
       fail(`${envelope.file}: PROGRESS requires a concrete PROGRESS_EVIDENCE delta`);
     }
   }
-  if (!legacyAck && !terminal && headers.get('NEXT_ACTION') === 'NONE') fail(`${envelope.file}: nonterminal message must name NEXT_ACTION`);
+  if (!legacyAck && !headers.get('NEXT_ACTION')?.trim()) fail(`${envelope.file}: NEXT_ACTION must not be empty`);
+  if (!legacyAck && !terminal && /^NONE$/i.test(headers.get('NEXT_ACTION') ?? '')) fail(`${envelope.file}: nonterminal message must name NEXT_ACTION`);
   if (!legacyAck && headers.get('TYPE') === 'NACK' && headers.get('REASON') === 'NONE') fail(`${envelope.file}: NACK must name REASON`);
+  if (!legacyAck && headers.get('TYPE') === 'RECEIPT' && normalizedState === 'REJECTED' && headers.get('REASON') === 'NONE') fail(`${envelope.file}: rejected RECEIPT must name REASON`);
   if (!legacyAck && !/^(NONE|[a-f0-9]{64})$/.test(headers.get('PAYLOAD_SHA256'))) fail(`${envelope.file}: invalid PAYLOAD_SHA256`);
+  if (!legacyAck && /^(DATE|TIME|TIMESTAMP|SENT_AT|CREATED_AT|UPDATED_AT|DEADLINE|TTL):/m.test(lines.slice(1, signatureIndex).join('\n'))) {
+    fail(`${envelope.file}: wall-clock/deadline fields are forbidden anywhere in a strict message`);
+  }
   for (const line of lines.slice(1, headerEnd)) {
     if (/^(DATE|TIME|TIMESTAMP|SENT_AT|CREATED_AT|UPDATED_AT|DEADLINE|TTL):/.test(line)) {
       fail(`${envelope.file}: wall-clock/deadline header is forbidden`);
@@ -230,7 +240,10 @@ function parseBody(envelope) {
   const payloadFields = new Map();
   for (const line of payloadLines) {
     const match = /^(?<key>[A-Z0-9_]+): (?<value>.*)$/.exec(line);
-    if (match) payloadFields.set(match.groups.key, match.groups.value);
+    if (match) {
+      if (payloadFields.has(match.groups.key)) fail(`${envelope.file}: duplicate payload field ${match.groups.key}`);
+      payloadFields.set(match.groups.key, match.groups.value);
+    }
   }
 
   // ACK-NACK-1 is the strict contract for all new lanes. Legacy bridge
@@ -239,6 +252,7 @@ function parseBody(envelope) {
   // ACKNOWLEDGED/CLOSED reply from silently becoming a new task state.
   if (contract === 'ACK-NACK-1') {
     if (legacyAck) fail(`${envelope.file}: ACK-NACK-1 rejects legacy ACK envelopes`);
+    if (normalizedType === 'RECEIPT' && !['READ', 'REJECTED'].includes(normalizedState)) fail(`${envelope.file}: ACK-NACK-1 RECEIPT must use READ or REJECTED state`);
     if (envelope.from === 'hermes' && !['sincerely, Hermes', 'sincerely, Hermes (role: bridge-responder)'].includes(signature)) {
       fail(`${envelope.file}: ACK-NACK-1 requires the Hermes role signature`);
     }
@@ -347,27 +361,41 @@ function auditTask(records) {
             ? 'CODEX'
             : current.type === 'PROGRESS'
               ? 'HERMES'
-              : current.type === 'DELIVERY'
+                : current.type === 'DELIVERY'
                 ? 'CODEX'
+                : current.type === 'RECEIPT' && current.terminal && current.state === 'READ'
+                  ? 'NONE'
                 : 'HERMES';
       if (current.nextOwner !== expectedNextOwner) {
         fail(`${current.file}: ${current.type}/${current.state} must set NEXT_OWNER: ${expectedNextOwner}`);
+      }
+      if (current.type === 'RECEIPT' && current.terminal && current.state === 'READ') {
+        const referenced = sorted.find((candidate) => candidate.wire === current.inReplyTo);
+        if (!referenced?.terminal || referenced.from !== 'hermes') {
+          fail(`${current.file}: terminal READ receipt must acknowledge a terminal Hermes reply`);
+        }
       }
     }
   }
   const last = sorted.at(-1);
   const unconfirmed = sorted.length === 1 && last.type === 'TASK';
-  const pending = !last.terminal && last.nextOwner !== 'NONE';
+  const terminalReplyNeedsReceipt = strictContract && last.from === 'hermes' && last.terminal;
+  const correctionNeedsReply = strictContract && last.type === 'RECEIPT' && last.state === 'REJECTED';
+  const pending = (!last.terminal && last.nextOwner !== 'NONE') || terminalReplyNeedsReceipt || correctionNeedsReply;
+  const effectiveNextOwner = terminalReplyNeedsReceipt ? 'CODEX' : last.nextOwner;
+  const effectiveNextAction = terminalReplyNeedsReceipt
+    ? `Send terminal READ receipt for ${last.wire}`
+    : last.nextAction;
   const status = unconfirmed
     ? 'UNCONFIRMED'
-    : pending && !allowPending
+    : pending && (!allowPending || terminalReplyNeedsReceipt || correctionNeedsReply)
       ? 'PENDING'
       : 'OK';
-  const line = `hermes-protocol-audit: ${status} task=${last.task} messages=${sorted.length} state=${last.state} next_owner=${last.nextOwner} next_action=${last.nextAction}`;
+  const line = `hermes-protocol-audit: ${status} task=${last.task} messages=${sorted.length} state=${last.state} next_owner=${effectiveNextOwner} next_action=${effectiveNextAction}`;
   console.log(line);
   // A missing logical reply is never made successful by --allow-pending. The
   // flag is only for an already acknowledged, nonterminal lane.
-  if (unconfirmed || (pending && !allowPending)) process.exitCode = 2;
+  if (unconfirmed || (pending && (!allowPending || terminalReplyNeedsReceipt || correctionNeedsReply))) process.exitCode = 2;
 }
 
 try {

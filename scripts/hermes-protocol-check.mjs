@@ -135,7 +135,12 @@ if (!readFromStdin && !file) {
     if (!owners.has(headers.get('NEXT_OWNER'))) fail(`invalid NEXT_OWNER: ${headers.get('NEXT_OWNER')}`);
     if (!['YES', 'NO'].includes(headers.get('TERMINAL'))) fail('TERMINAL must be YES or NO');
 
-    const terminal = new Set(['DELIVERED', 'REJECTED', 'BLOCKED']).has(normalizedState);
+    const terminalState = new Set(['DELIVERED', 'REJECTED', 'BLOCKED']).has(normalizedState);
+    const terminalReceipt = normalizedType === 'RECEIPT'
+      && normalizedState === 'READ'
+      && headers.get('TERMINAL') === 'YES'
+      && headers.get('NEXT_OWNER') === 'NONE';
+    const terminal = terminalState || terminalReceipt;
     if (!legacyBlocked && (headers.get('TERMINAL') === 'YES') !== terminal) fail('TERMINAL does not match STATE');
     if (legacyBlocked && headers.get('NEXT_OWNER') !== 'CODEX') fail('legacy blocked ACK must return ownership to CODEX');
     if (legacyClosed) {
@@ -154,11 +159,15 @@ if (!readFromStdin && !file) {
     if (!legacyAck) {
       for (const line of lines.slice(payloadIndex + 1, signatureIndex)) {
         const match = /^(?<key>[A-Z0-9_]+): (?<value>.*)$/.exec(line);
-        if (match) payloadFields.set(match.groups.key, match.groups.value);
+        if (match) {
+          if (payloadFields.has(match.groups.key)) fail(`duplicate payload field: ${match.groups.key}`);
+          payloadFields.set(match.groups.key, match.groups.value);
+        }
       }
     }
     if (contract === 'ACK-NACK-1') {
       if (legacyAck) fail('ACK-NACK-1 rejects legacy ACK envelopes');
+      if (normalizedType === 'RECEIPT' && !['READ', 'REJECTED'].includes(normalizedState)) fail('ACK-NACK-1 RECEIPT must use READ or REJECTED state');
       if (expectedRole === 'Hermes' && !['sincerely, Hermes', 'sincerely, Hermes (role: bridge-responder)'].includes(lines[signatureIndex])) {
         fail('ACK-NACK-1 requires the Hermes role signature');
       }
@@ -177,6 +186,9 @@ if (!readFromStdin && !file) {
       }
       if (normalizedType === 'NACK' && headers.get('NEXT_OWNER') !== 'CODEX') {
         fail('ACK-NACK-1 NACK must return ownership to CODEX');
+      }
+      if (normalizedType === 'RECEIPT' && normalizedState === 'REJECTED' && headers.get('REASON') === 'NONE') {
+        fail('ACK-NACK-1 rejected RECEIPT must name REASON');
       }
     }
     if (normalizedType === 'PROGRESS' && !legacyAck) {
@@ -204,7 +216,9 @@ if (!readFromStdin && !file) {
               ? 'HERMES'
               : normalizedType === 'DELIVERY'
                 ? 'CODEX'
-                : 'HERMES';
+                : normalizedType === 'RECEIPT' && terminalReceipt
+                  ? 'NONE'
+                  : 'HERMES';
       if (headers.get('NEXT_OWNER') !== expectedNextOwner) {
         fail(`${file ?? 'message'}: ${normalizedType}/${normalizedState} must set NEXT_OWNER: ${expectedNextOwner}`);
       }
@@ -212,7 +226,9 @@ if (!readFromStdin && !file) {
 
     const digest = legacyAck ? 'NONE' : headers.get('PAYLOAD_SHA256');
     if (digest !== 'NONE' && !/^[a-f0-9]{64}$/.test(digest ?? '')) fail('PAYLOAD_SHA256 must be NONE or lowercase SHA-256');
-    for (const line of lines.slice(1, headerEnd)) {
+    if (!legacyAck && !headers.get('NEXT_ACTION')?.trim()) fail('NEXT_ACTION must not be empty');
+    if (!legacyAck && !terminal && /^NONE$/i.test(headers.get('NEXT_ACTION') ?? '')) fail('nonterminal message must name NEXT_ACTION');
+    for (const line of lines.slice(1, signatureIndex)) {
       if (/^(DATE|TIME|TIMESTAMP|SENT_AT|CREATED_AT|UPDATED_AT|DEADLINE|TTL):/.test(line)) {
         fail('wall-clock or deadline header is forbidden');
       }

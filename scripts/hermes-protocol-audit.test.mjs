@@ -327,10 +327,10 @@ test('strict ACK-NACK contract makes read state, ownership, and signatures unamb
   const result = run([
     ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract, payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
     ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'hermes', contract, payload: ['READ_STATUS: READ'] }))],
-    ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'codex', contract, payload: ['READ_STATUS: READ', 'RECEIPT_OF: W2'] }))],
+    ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'READ', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'codex', contract, payload: ['READ_STATUS: READ', 'RECEIPT_OF: W2'] }))],
   ], ['--allow-pending']);
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /state=ACCEPTED/);
+  assert.match(result.stdout, /state=READ/);
 });
 
 test('strict ACK-NACK contract represents a NOT-ACK as terminal NACK/BLOCKED', () => {
@@ -339,10 +339,11 @@ test('strict ACK-NACK contract represents a NOT-ACK as terminal NACK/BLOCKED', (
   const result = run([
     ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract, payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
     ['02.json', envelope('m2', 'hermes', body({ type: 'NACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'BLOCKED', terminal: 'YES', nextOwner: 'CODEX', nextAction: 'Provide the named missing input or close the lane', reason: 'MISSING_WRITABLE_SOURCE', from: 'hermes', contract, payload: ['READ_STATUS: READ'] }))],
+    ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'READ', terminal: 'YES', nextOwner: 'NONE', nextAction: 'NONE', from: 'codex', contract, payload: ['READ_STATUS: READ', 'RECEIPT_OF: W2'] }))],
   ]);
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /state=BLOCKED/);
-  assert.match(result.stdout, /next_owner=CODEX/);
+  assert.match(result.stdout, /state=READ/);
+  assert.match(result.stdout, /next_owner=NONE/);
 });
 
 test('strict ACK-NACK contract rejects legacy ACKNOWLEDGED replies', () => {
@@ -366,16 +367,41 @@ test('strict ACK-NACK contract rejects a Hermes reply signed as another identity
   assert.match(result.stderr, /requires the Hermes role signature/);
 });
 
+test('strict ACK-NACK contract rejects duplicate payload fields', () => {
+  const task = 'STRICT-CONTRACT-DUPLICATE-PAYLOAD';
+  const contract = 'ACK-NACK-1';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract, payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
+    ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'hermes', contract, payload: ['READ_STATUS: READ', 'READ_STATUS: READ'] }))],
+  ], ['--allow-pending']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /duplicate payload field READ_STATUS/);
+});
+
 test('strict ACK-NACK contract rejects a receipt that does not name what was read', () => {
   const task = 'STRICT-CONTRACT-RECEIPT';
   const contract = 'ACK-NACK-1';
   const result = run([
     ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract, payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
     ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'hermes', contract, payload: ['READ_STATUS: READ'] }))],
-    ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'codex', contract, payload: ['READ_STATUS: READ', 'RECEIPT_OF: W1'] }))],
+    ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'READ', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'codex', contract, payload: ['READ_STATUS: READ', 'RECEIPT_OF: W1'] }))],
   ], ['--allow-pending']);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /RECEIPT must name the exact WIRE/);
+});
+
+test('strict ACK-NACK contract lets Codex reject a reply and return ownership for correction', () => {
+  const task = 'STRICT-CONTRACT-RECEIPT-REJECTED';
+  const contract = 'ACK-NACK-1';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract, payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
+    ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'hermes', contract, payload: ['READ_STATUS: READ'] }))],
+    ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'REJECTED', terminal: 'YES', nextOwner: 'HERMES', nextAction: 'Correct the reply with TYPE: PROGRESS and a new WIRE', reason: 'INVALID_TYPE', from: 'codex', contract, payload: ['READ_STATUS: READ', 'RECEIPT_OF: W2'] }))],
+  ], ['--allow-pending']);
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stdout, /PENDING/);
+  assert.match(result.stdout, /next_owner=HERMES/);
+  assert.match(result.stdout, /Correct the reply/);
 });
 
 test('strict ACK-NACK contract rejects contradictory terminal state', () => {
@@ -387,4 +413,33 @@ test('strict ACK-NACK contract rejects contradictory terminal state', () => {
   ]);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /TERMINAL does not match STATE/);
+});
+
+test('strict ACK-NACK contract keeps a terminal delivery pending until Codex reads it', () => {
+  const task = 'STRICT-CONTRACT-TERMINAL-READ';
+  const contract = 'ACK-NACK-1';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract, payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
+    ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'hermes', contract, payload: ['READ_STATUS: READ'] }))],
+    ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'READ', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish delivery', from: 'codex', contract, payload: ['READ_STATUS: READ', 'RECEIPT_OF: W2'] }))],
+    ['04.json', envelope('m4', 'hermes', body({ type: 'DELIVERY', task, wire: 'W4', seq: 4, inReplyTo: 'W3', state: 'DELIVERED', terminal: 'YES', nextOwner: 'CODEX', nextAction: 'Read delivery and send terminal receipt', from: 'hermes', contract, payload: ['READ_STATUS: READ', 'ARTIFACT: reply-tree/artifact.txt', 'SHA256: 0000000000000000000000000000000000000000000000000000000000000000', 'COMMAND: node --test focused.test.mjs', 'EXIT_CODE: 0', 'TEST_RESULT: PASS'] }))],
+  ], ['--allow-pending']);
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stdout, /PENDING/);
+  assert.match(result.stdout, /Send terminal READ receipt for W4/);
+});
+
+test('strict ACK-NACK contract closes only after a terminal READ receipt', () => {
+  const task = 'STRICT-CONTRACT-TERMINAL-CLOSE';
+  const contract = 'ACK-NACK-1';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract, payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
+    ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'hermes', contract, payload: ['READ_STATUS: READ'] }))],
+    ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'READ', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish delivery', from: 'codex', contract, payload: ['READ_STATUS: READ', 'RECEIPT_OF: W2'] }))],
+    ['04.json', envelope('m4', 'hermes', body({ type: 'DELIVERY', task, wire: 'W4', seq: 4, inReplyTo: 'W3', state: 'DELIVERED', terminal: 'YES', nextOwner: 'CODEX', nextAction: 'Read delivery and send terminal receipt', from: 'hermes', contract, payload: ['READ_STATUS: READ', 'ARTIFACT: reply-tree/artifact.txt', 'SHA256: 0000000000000000000000000000000000000000000000000000000000000000', 'COMMAND: node --test focused.test.mjs', 'EXIT_CODE: 0', 'TEST_RESULT: PASS'] }))],
+    ['05.json', envelope('m5', 'codex', body({ type: 'RECEIPT', task, wire: 'W5', seq: 5, inReplyTo: 'W4', state: 'READ', terminal: 'YES', nextOwner: 'NONE', nextAction: 'NONE', from: 'codex', contract, payload: ['READ_STATUS: READ', 'RECEIPT_OF: W4'] }))],
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /state=READ/);
+  assert.match(result.stdout, /next_owner=NONE/);
 });
