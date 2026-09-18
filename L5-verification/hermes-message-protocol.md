@@ -110,6 +110,21 @@ It fails closed on malformed correlation fields, invalid state/type combinations
 missing delivery evidence, wrong signatures, duplicate headers, and protocol-level
 wall-clock/deadline fields.
 
+For a conversation journal, use the stateful audit as well:
+
+```text
+rtk node scripts/hermes-protocol-audit.mjs <message.json|directory> [TASK] [--allow-pending]
+```
+
+The audit is the anti-stall gate. It ignores the legacy `sent_at`/`replied_at`
+transport fields entirely, orders only by the logical `SEQ`, requires a unique
+`WIRE`, requires every `IN_REPLY_TO` to name an earlier readable message, enforces
+Codex/Hermes role ownership and alternating receipt turns, and reports an
+accepted nonterminal lane as `PENDING` when `NEXT_OWNER` still has work. A
+transport `REPLIED` file without a valid logical journal remains unconfirmed.
+Use `--allow-pending` only when recording a valid nonterminal checkpoint; it does
+not turn a missing ACK, collision, skipped sequence or bad signature into success.
+
 ## Failure handling
 
 The receiver never waits for an implied deadline. It acts on the state:

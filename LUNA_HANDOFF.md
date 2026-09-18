@@ -483,6 +483,26 @@ architecture-named assigned-shift/model restrictions, post-note ownership, and
 bounded history gaps. It must reuse the existing RBAC, RLS, assignment, and
 shift contracts.
 
+## M364 control-loop enforcement
+
+The bridge protocol now has a stateful journal audit at
+`scripts/hermes-protocol-audit.mjs` with local regressions in
+`scripts/hermes-protocol-audit.test.mjs`. It ignores legacy transport timestamp
+fields and fails closed on duplicate WIREs, unreadable `IN_REPLY_TO` values,
+sequence gaps, sender/signature/type mismatches, invalid terminal states, and
+accepted lanes that still assign the next action to Hermes. `REPLIED` remains
+transport-only. The audit reports a valid nonterminal handoff as `PENDING`
+unless `--allow-pending` is explicitly used to record that checkpoint.
+
+Hermes team and variant ACKs were read and consumed with signed protocol
+receipts `codex-receipt-team-accepted.json` and
+`codex-receipt-variant-accepted.json` (both next sequence 3, next owner
+Hermes); each receipt includes the apology for the earlier false idle report.
+No new task was duplicated. Gallery remains held after its WIRE collision;
+scraper/F81/D001A remain at their previously recorded protocol checkpoints until
+Hermes supplies the required progress or source DELIVERY. No runtime, provider,
+database, permission, deployment or live action occurred.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
