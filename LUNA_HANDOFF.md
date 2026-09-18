@@ -805,6 +805,14 @@ per lane. The lanes are now logically active with no acknowledgement owed;
 the next accepted event is an evidence-backed `DELIVERY/DELIVERED` or a
 terminal `NACK`. No source artifact has been integrated yet.
 
+The follow-up `PROGRESS-013` replies were not accepted as progress: all eight
+said `DELIVERY_STATE: NOT_READY` without a concrete evidence delta, changed
+path, checkpoint, or test result. The validator now requires a non-placeholder
+`PROGRESS_EVIDENCE` line for every nonterminal progress message; the local
+protocol suite is 14/14. Codex sent eight signed `RECEIPT/REJECTED` `SEQ: 14`
+NOT-ACK messages with the same exact correction: publish the complete
+`DELIVERY-012`, or return a terminal `NACK/BLOCKED` naming the single blocker.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only

@@ -290,8 +290,20 @@ test('rejects progress that hands Hermes-owned implementation back to Codex', ()
     ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read task', from: 'codex' }))],
     ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish progress', from: 'hermes' }))],
     ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish delivery', from: 'codex' }))],
-    ['04.json', envelope('m4', 'hermes', body({ type: 'PROGRESS', task, wire: 'W4', seq: 4, inReplyTo: 'W3', state: 'IN_PROGRESS', terminal: 'NO', nextOwner: 'CODEX', nextAction: 'Await delivery', from: 'hermes' }))],
+    ['04.json', envelope('m4', 'hermes', body({ type: 'PROGRESS', task, wire: 'W4', seq: 4, inReplyTo: 'W3', state: 'IN_PROGRESS', terminal: 'NO', nextOwner: 'CODEX', nextAction: 'Await delivery', from: 'hermes' }).replace('sincerely, Hermes', 'PROGRESS_EVIDENCE: copied source paths audited; no artifact delivered\nsincerely, Hermes'))],
   ]);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /PROGRESS\/IN_PROGRESS must set NEXT_OWNER: HERMES/);
+});
+
+test('rejects progress without a concrete evidence delta', () => {
+  const task = 'NO-PROGRESS-EVIDENCE';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read task', from: 'codex' }))],
+    ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish progress', from: 'hermes' }))],
+    ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'IN_PROGRESS', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish delivery', from: 'codex' }))],
+    ['04.json', envelope('m4', 'hermes', body({ type: 'PROGRESS', task, wire: 'W4', seq: 4, inReplyTo: 'W3', state: 'IN_PROGRESS', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Continue implementation', from: 'hermes' }))],
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /PROGRESS requires a concrete PROGRESS_EVIDENCE delta/);
 });

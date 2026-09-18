@@ -107,7 +107,7 @@ the delivery gate.
 
 - `READ` means the receiver parsed the message. It does not mean the task was accepted.
 - `ACCEPTED` means the named owner has taken responsibility. It does not mean the work is complete.
-- `IN_PROGRESS` is a nonterminal checkpoint. It must name the next concrete action and may not claim an artifact that was not returned.
+- `IN_PROGRESS` is a nonterminal checkpoint. It must name the next concrete action, include a non-placeholder `PROGRESS_EVIDENCE` delta in its payload, and may not claim an artifact that was not returned.
 - `DELIVERED` is terminal only with exact artifact paths, SHA-256 values, command lines, and real exit codes in the payload.
 - `REJECTED` is terminal for the submitted artifact or request. It must name the violated acceptance rule.
 - `BLOCKED` is terminal for the current attempt and must name the single missing input or decision. It is never a vague “waiting” state.
@@ -161,6 +161,12 @@ An implementation may move directly from `ACCEPTED` to `DELIVERED` when the arti
     artifact; each still requires its own ACK, delivery, audit, and receipt.
 
 ## Required delivery payload
+
+Every nonterminal `PROGRESS` payload must include one bounded line of the form
+`PROGRESS_EVIDENCE: <new fact>`. `NONE`, `NOT_READY`, and `NO_CHANGE` are
+rejected. If there is no new evidence, the sender must publish a concrete
+`NACK/BLOCKED` reason or complete the required `DELIVERY`; repeating “still
+working” is not progress.
 
 For source work, `PAYLOAD` must contain:
 

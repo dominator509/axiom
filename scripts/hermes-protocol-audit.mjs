@@ -194,6 +194,16 @@ function parseBody(envelope) {
   if (normalizedType === 'NACK' && !['REJECTED', 'BLOCKED'].includes(normalizedState)) fail(`${envelope.file}: NACK state invalid`);
   if (normalizedType === 'PROGRESS' && normalizedState !== 'IN_PROGRESS') fail(`${envelope.file}: PROGRESS must be IN_PROGRESS`);
   if (normalizedType === 'DELIVERY' && normalizedState !== 'DELIVERED') fail(`${envelope.file}: DELIVERY must be DELIVERED`);
+  if (normalizedType === 'PROGRESS' && !legacyAck) {
+    const progressEvidence = lines
+      .slice(payloadIndex + 1, signatureIndex)
+      .find((line) => line.startsWith('PROGRESS_EVIDENCE: '))
+      ?.slice('PROGRESS_EVIDENCE: '.length)
+      .trim();
+    if (!progressEvidence || /^(?:NONE|NOT_READY|NO_CHANGE)$/i.test(progressEvidence)) {
+      fail(`${envelope.file}: PROGRESS requires a concrete PROGRESS_EVIDENCE delta`);
+    }
+  }
   if (!legacyAck && !terminal && headers.get('NEXT_ACTION') === 'NONE') fail(`${envelope.file}: nonterminal message must name NEXT_ACTION`);
   if (!legacyAck && headers.get('TYPE') === 'NACK' && headers.get('REASON') === 'NONE') fail(`${envelope.file}: NACK must name REASON`);
   if (!legacyAck && !/^(NONE|[a-f0-9]{64})$/.test(headers.get('PAYLOAD_SHA256'))) fail(`${envelope.file}: invalid PAYLOAD_SHA256`);

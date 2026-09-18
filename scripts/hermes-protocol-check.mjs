@@ -148,6 +148,16 @@ if (!readFromStdin && !file) {
     if (normalizedType === 'NACK' && !['REJECTED', 'BLOCKED'].includes(normalizedState)) fail('NACK must be REJECTED or BLOCKED');
     if (normalizedType === 'PROGRESS' && normalizedState !== 'IN_PROGRESS') fail('PROGRESS must be IN_PROGRESS');
     if (normalizedType === 'DELIVERY' && normalizedState !== 'DELIVERED') fail('DELIVERY must be DELIVERED');
+    if (normalizedType === 'PROGRESS' && !legacyAck) {
+      const progressEvidence = lines
+        .slice(payloadIndex + 1, signatureIndex)
+        .find((line) => line.startsWith('PROGRESS_EVIDENCE: '))
+        ?.slice('PROGRESS_EVIDENCE: '.length)
+        .trim();
+      if (!progressEvidence || /^(?:NONE|NOT_READY|NO_CHANGE)$/i.test(progressEvidence)) {
+        fail(`${file ?? 'message'}: PROGRESS requires a concrete PROGRESS_EVIDENCE delta`);
+      }
+    }
 
     // NEXT_OWNER is the machine-readable handoff. Do not allow a message to
     // say that Hermes is still implementing while handing the next action to
