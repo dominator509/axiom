@@ -813,6 +813,30 @@ protocol suite is 14/14. Codex sent eight signed `RECEIPT/REJECTED` `SEQ: 14`
 NOT-ACK messages with the same exact correction: publish the complete
 `DELIVERY-012`, or return a terminal `NACK/BLOCKED` naming the single blocker.
 
+## Coordination checkpoint — M403
+
+Hermes supplied a concrete blocker response for each of the eight source lanes:
+its bridge identity cannot write the old root-owned `work/ipman-d001a-slice1`
+or `slice2` trees, and its bounded bridge view did not contain the named
+authority files. No source DELIVERY was claimed or accepted. This is now a
+resolvable data-path issue, not permission authority: read-only verification
+confirmed that Hermes can read the deployed source tree at
+`/srv/fanthynks/releases/da09f66`, including `L5-verification`, and can write
+the existing bridge-owned `replies` directory.
+
+Codex sent eight new, validator-passing TASK envelopes that explicitly
+supersede only those blocked attempts. Each names the exact authority plan and
+current reconciliation matrix under `/srv/fanthynks/releases/da09f66`, a
+lane-specific delivery directory under
+`/srv/fanthynks-bridge/hermes/replies`, and the prohibition against using the
+root-owned scratch trees. The eight remote SHA-256 readbacks match the sent
+envelopes. The new tasks remain source-only: Hermes may copy/edit/test within
+the named delivery root, but may not touch the checkout, installer, bridge
+implementation, runtime, database, providers, credentials, permissions,
+network, deployment or external services. The next accepted event per lane is
+one correlated ACK/NACK, then evidence-backed PROGRESS or DELIVERY. No product
+artifact has been integrated and no runtime action has occurred.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
