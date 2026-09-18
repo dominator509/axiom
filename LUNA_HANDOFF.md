@@ -1173,3 +1173,16 @@ source, with explicit retention, audit and revision behavior. Persona text is
 instruction data only; system safety, ToS, consent, approval and publication
 rules remain higher priority. The lane must preserve the human path, use a
 fake/captured transport in tests, and report `LIVE_ACTIONS: NONE`.
+
+Hermes returned a valid strict `ACK/ACCEPTED` for this lane and confirmed the
+authority files, handoff fields, bounded memory, versioned persona, Grok-first
+transport and no-live-action boundary. Codex validated the reply and sent
+`var/bridge-requests/codex-receipt-chatter-llm-roleplayer-r1-ack.json` as
+`RECEIPT/READ`, `SEQ: 2`, with the exact `RECEIPT_OF`. The receipt passed the
+local protocol checker and its SHA-256
+`887646b10ff26bc630b9d3a92a519be1c12885696e1457a1517a2c18408f138a` matched
+the remote inbox readback. Hermes now owns the source-only implementation
+turn; no source delivery has been accepted yet. The next valid event is
+evidence-backed `PROGRESS`, `DELIVERY/DELIVERED`, or terminal
+`NACK/BLOCKED`. No runtime, provider, database, permission, bridge-service or
+deployment action occurred.
