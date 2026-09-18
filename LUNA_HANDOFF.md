@@ -416,6 +416,21 @@ A ready `relay.card` job had uncertain external effects and was deliberately not
 replayed. Do not start an unscoped worker as a shortcut. Broad user authorization
 does not make an ambiguous external side effect safe to repeat.
 
+## Hermes bridge communication protocol
+
+The canonical logical-clock protocol is [hermes-message-protocol.md](L5-verification/hermes-message-protocol.md).
+The bridge's `REPLIED` status is transport-only; it is not a task ACK or a
+delivery claim. Every exchange must use a stable task id, monotonic `SEQ`, exact
+`IN_REPLY_TO` correlation, explicit `READ`/`ACCEPTED`/`IN_PROGRESS`/`DELIVERED`
+or `NACK` state, and a final `sincerely, Codex` or `sincerely, Hermes` line.
+Wall-clock fields are never used for ordering, liveness, retry, or completion.
+
+Current protocol transition: `codex-resume-d001a-with-delivery` was sent as a
+source-only resume request. The D001A correction remains unaccepted until an
+actual corrected artifact and executable evidence arrive. F81/F84 remains
+queued behind that receipt. No new task should be created merely because a
+bridge status says `REPLIED`.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
