@@ -1291,8 +1291,9 @@ STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: CHATTER-LLM-ROLEPLAYER-COPY-R1
 LAST_ACCEPTED_CODE: 9e766a3935276e0d37701cb7df037098c952c6f1
+PUBLISHED_HEAD: 8b8590edc24b7b56dd65daabeffc900412cd5de2
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence
-NEXT_REQUIRED: publish the committed M431 SHA if authorized, then schedule migration and provider/browser gates separately
+NEXT_REQUIRED: schedule migration and provider/browser gates separately; do not treat source/CI evidence as runtime/provider acceptance
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
 OPEN_GATES: migration 0050; Grok roleplay dispatch/receipt; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence
