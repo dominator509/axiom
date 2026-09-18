@@ -1329,18 +1329,29 @@ commit is `b0008d717cb76c37cecd64ca7dfffa9d54b93e87`, pushed to
 receipts, browser acceptance and deployment remain open. This milestone does
 not claim production readiness.
 
+## Hermes source lane — TEAM-SHIFT-CHATTER-COPY-R8
+
+Hermes has been assigned a bounded source-only team/Chatter reconciliation from
+the exact pushed ref `2da0710b2db0bc54f9d1dbdc872495c549a6a135`. The lane targets
+the documented gap in `team-operations`: role-scoped visibility for management
+roles versus assigned human chatter/approved LLM actors, bounded stable cursor
+pagination for GUI data, and truthful empty/next-page metadata. It must reuse
+the existing RBAC/RLS, model-access, shift, note, terminal-state and idempotency
+contracts, and must return a concrete NACK if the existing schema cannot support
+a requested behavior. No delivery has been accepted yet.
+
 ### Machine/LLM resume card
 
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
-ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R8 + MEDIA-GALLERY-LIFECYCLE-COPY-R8 + SCRAPER-RESULT-QUALITY-COPY-R8
+ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R8 + MEDIA-GALLERY-LIFECYCLE-COPY-R8 + SCRAPER-RESULT-QUALITY-COPY-R8 + TEAM-SHIFT-CHATTER-COPY-R8
 LAST_ACCEPTED_CODE: b0008d717cb76c37cecd64ca7dfffa9d54b93e87
 PUBLISHED_HEAD: b0008d717cb76c37cecd64ca7dfffa9d54b93e87
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts
 NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; all active lanes use verified writable reply-root subdirectories
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
-OPEN_GATES: variant R8 delivery; media gallery R8 delivery; scraper result-quality R8 delivery; migrations 0050 and 0051; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence
-HERMES_STATUS: variant, media-gallery and scraper R8 tasks target verified writable `work/ipman-replies-out/` subdirectories and require exact source commit `bc3ff61d05570363ba9d3becf819652c7395a105` readback before work; the older Grok roleplay R1 task is terminally blocked by authority-release mismatch and acknowledged; no Hermes source artifact has been accepted or integrated
+OPEN_GATES: variant R8 delivery; media gallery R8 delivery; scraper result-quality R8 delivery; team visibility/pagination R8 delivery; migrations 0050 and 0051; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence
+HERMES_STATUS: variant, media-gallery and scraper R8 tasks target verified writable `work/ipman-replies-out/` subdirectories and require exact source commit `bc3ff61d05570363ba9d3becf819652c7395a105` readback before work; team R8 targets `work/ipman-replies-out/team-shift-r8` and requires exact source commit `2da0710b2db0bc54f9d1dbdc872495c549a6a135` readback; the older Grok roleplay R1 task is terminally blocked by authority-release mismatch and acknowledged; no Hermes source artifact has been accepted or integrated
 ```
