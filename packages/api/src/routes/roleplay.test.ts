@@ -124,7 +124,7 @@ describe('roleplay persistence contract', () => {
     ];
     const response = await appWithAuth().request(`/models/${MODEL_ID}/roleplay?actorType=human&actorRef=user-1`);
     expect(response.status).toBe(200);
-    const body = await response.json();
+    const body = (await response.json()) as { data: { turns: unknown } };
     expect(body.data.turns).toEqual([expect.objectContaining({ turnId: 'turn-1', state: 'uncertain', provider: 'grok', errorCode: 'provider-uncertain', content: null })]);
   });
 
