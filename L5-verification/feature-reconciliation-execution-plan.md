@@ -1,12 +1,17 @@
 # FanThynks Feature Reconciliation and Production Execution Plan
 
-Date: 2026-09-16
+Date: 2026-09-18 (reconciled against L1/L2/L3 and the current static audit)
 Repository: `dominator509/axiom`
 Working branch: `codex/telegram-webhook-hardening`
 
 **Agent continuation entry point:** `../LUNA_HANDOFF.md` contains the current
 SHA/CI checkpoint, ordered next actions, gap list and Hermes review status. Keep
 it synchronized with this cumulative plan and `.agent/state/LEDGER.md`.
+
+The current source-grounded reconciliation is recorded in
+`L5-verification/architecture-reconciliation-current.md`. It is the factual
+status companion to this execution plan; it does not waive runtime/provider
+gates or convert planned architecture into implemented functionality.
 
 ## Purpose
 
@@ -30,30 +35,55 @@ batch at a time. Hermes may not invoke the installed deployment helper or touch
 live state. Codex audits the delivered source and tests, integrates only after
 review, runs the owning checks, commits and pushes, then advances the queue.
 
-1. **M354 target-context repair (active):** eliminate ambient live DB/service/
+1. **Active target-context repair (M354):** eliminate ambient live DB/service/
    rollback target resolution in the installer and bridge; add positive and
    negative tests for the three prior incident classes and verify exact source
    hashes before integration.
-2. **M355–M360 product contracts:** close the remaining variant/A-B evidence,
-   scraper orchestration quality, team/shift/post-note restrictions, clipping
-   adaptation status, playbook consumer coverage, and F-81/F-84/F-85 recipe,
-   revenue, hook/format/timing and Relay delivery gaps.
-3. **M361–M364 media/storage:** finish source/generated gallery and playback,
-   thumbnail/transform/approval/retry state, and real R2 application
-   round-trips with checksum/retention/delete evidence.
-4. **M365–M368 provider/network:** finish official provider contracts, OAuth
-   refresh/revoke/publish receipts, and customer BYOVPN/WireGuard isolation;
-   keep AWS fixtures clearly labeled as rehearsal-only.
-5. **M369–M372 UX acceptance:** reconcile all backend capabilities to the
+2. **Next product-contract nodes (not numbered until committed):** close only
+   the open L1/L2/L5 rows: variant/A-B evidence, scraper result quality,
+   team/shift/post-note restrictions, clipping/adaptation, playbook consumers,
+   F-81/F-84/F-85 recipe/reward/insight gaps, and Relay delivery/reconciliation.
+3. **Media/storage node:** the static audit says the persistent uploaded/
+   generated image/video gallery is incomplete. Complete it using existing
+   asset/media-operation/storage contracts, then prove playback, transforms,
+   approval/retry visibility and the configured R2 application round-trip.
+   The existing sanitizer is file-level only and explicitly reports
+   `externalProvenanceErased: false`; C2PA/external provenance/fingerprint
+   removal is not an established feature and must not be claimed.
+4. **Provider/network nodes:** preserve L2.4's boundary: Native link-in-bio
+   is production-enabled; Fanlynks/Linktree/Beacons are optional planned
+   adapters, not required or enabled by a database row. Verify only explicitly
+   enabled provider contracts/OAuth/publish receipts, and finish customer
+   BYOVPN/WireGuard per-model fail-closed egress. AWS is rehearsal evidence.
+5. **UX acceptance node:** reconcile all backend capabilities to the
    signed-in desktop/mobile navigation, error/loading/empty states, dead-link
    repairs, retry flows, gallery controls and responsive visual QA.
-6. **M373+ release gates:** isolated migration/rollback and immutable TEST
+6. **Release gates (numbered only when committed):** isolated migration/
+   rollback and immutable TEST
    deployment, worker/media/data-path readiness, observability/alerts,
    exact-SHA CI, branch protection and final operator/provider acceptance.
 
 Every numbered item stays open until source, automated, runtime and
 provider/operator evidence are individually recorded. Passing local tests or
 health endpoints alone never closes a gate.
+
+### Architecture fidelity constraints
+
+- L1.1 is the feature catalog; L2 documents the intended boundaries; L3
+  defines contracts; the L5 static audit records what is actually wired. A
+  navigation label, table, unit test, or health endpoint is not feature or
+  runtime acceptance by itself.
+- L2.4 explicitly keeps external link-in-bio adapters optional and hidden until
+  their provisioning/OAuth/revocation/synchronization/analytics lifecycle is
+  implemented. The Native provider is the current default.
+- L2.9 explicitly distinguishes the repository's internal crash sink from the
+  external GlitchTip/Sentry, Loki, Prometheus/Grafana and OpenTelemetry runtime
+  integrations. Those integrations remain deployment evidence, not current
+  bundled capability.
+- `packages/worker/src/media-sanitizer.ts` and its scripts are source evidence
+  for bounded file/container sanitization only. They do not establish removal
+  of external provenance or byte-level identity, and the current CLI reports
+  that limitation.
 
 ## Ordered execution queue
 

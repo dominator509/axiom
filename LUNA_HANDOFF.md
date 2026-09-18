@@ -30,19 +30,10 @@ real F-81 increment, not completion: provider format, thumbnail feature
 descriptors, revenue/conversion attribution, and richer shoot-config capture
 remain open where the current publication contract does not persist them.
 
-Hermes's R4 repair is still pending. I declined the proposed home-directory
-ACL widening and sent a bridge-only data-delivery protocol; no permission,
-installer, database, migration, or service change is authorized.
-
-R4 is now delivered and independently verified: the three bridge-delivered
-artifact hashes match Hermes's manifest, and the source visibly contains the
-assigned endpoint, `net:[inode]` identity comparisons, and exact
-`direct-supervision` requirement. It remains a review artifact, not integrated
-source. The next Hermes node is `codex-d001a-r4-callsite-inventory-20260918`:
-a read-only, path/line-specific inventory of every installer/bridge database,
-configuration, service, and rollback target-resolution sink. Its bridge status
-is currently PENDING; do not dispatch integration or invoke the installed
-installer until that inventory is reviewed.
+Hermes's R4 type/test artifacts were delivered and independently hash-verified;
+they remain review artifacts, not integrated source. I declined the proposed
+home-directory ACL widening and sent a bridge-only data-delivery protocol; no
+permission, installer, database, migration, or service change is authorized.
 
 Hermes delivered the callsite inventory at
 `D001a-R4-CALLSITE-INVENTORY.md`; its independently verified SHA-256 is
@@ -141,6 +132,9 @@ merely because credits or the current turn are ending.
 - `L5-verification/feature-reconciliation-execution-plan.md`: cumulative work
   plan and milestone evidence. Some early bullets predate later fixes; trace the
   later milestone and current source before calling an old gap still missing.
+- `L5-verification/architecture-reconciliation-current.md`: current
+  source-grounded status matrix. It distinguishes source-wired, partial,
+  internal, optional/not-enabled, and runtime/provider-open claims.
 - `L5-verification/model-role-implementation-plan.md` and role/team/member
   receipts: assignment/shift/RBAC implementation and remaining acceptance.
 - `L5-verification/reconciliation-runtime-receipt-f1378c4.md`: latest complete
@@ -286,7 +280,8 @@ This is the execution queue, not a new audit report. Hermes receives one bounded
 coding node at a time; Codex owns source review, integration, tests, commits,
 pushes, and the handoff. A node is not complete from an acknowledgement or a
 unit test count: its source, automated, runtime, and provider/operator gates
-must be marked separately.
+must be marked separately. Future node numbers are intentionally not invented;
+they are assigned only when an actual commit exists.
 
 1. **Deployment safety foundation — active M354.** Hermes first patches the
    installer DB/service/rollback sinks, then the bridge sinks, using copied
@@ -294,22 +289,28 @@ must be marked separately.
    incident regressions and keep the installed installer prohibited. Exit
    criteria: source audit, focused security tests, static/build gates, exact
    commit and remote readback.
-2. **Product contract completion — F-15/F-16, F-25, F-55/F-56, F-81/F-84/F-85.**
-   Finish the remaining variant/A-B evidence, revenue/format/hook/time arms,
-   scraper result quality, post-note/team shift restrictions, playbook
-   consumers, clipping/adaptation status, and Relay delivery/reconciliation.
-   Each slice must use the existing schema/RLS/queue contracts and expose a
-   discoverable GUI path where a user operates it.
-3. **Media and storage — gallery plus R2.** Complete source/generated media
-   library views, thumbnails/previews, transforms, approval/retry visibility,
-   upload/download/checksum/retention/delete through the storage abstraction,
-   and the optional metadata/provenance sanitizer as a clearly labeled privacy
-   control. Keep generated and source assets distinguishable and tenant scoped.
-4. **Provider and network operations.** Complete official provider contract
-   fixtures, OAuth refresh/revoke/disconnect, live publishing receipts, and
-   customer-supplied VPN/WireGuard profile isolation with fail-closed DNS,
-   MTU, dual-stack, route, and per-org/model egress controls. AWS fixtures are
-   rehearsal evidence only, not SaaS readiness.
+2. **Product contract reconciliation — L1/L2 feature IDs only.** Work through
+   the open rows in the backend/frontend audit: F-15/F-16, F-25/F-26,
+   F-55/F-56, F-81/F-84/F-85, scraper result quality, clipping/adaptation,
+   and Relay delivery/reconciliation. Each slice must use the existing
+   schema/RLS/queue contracts and expose a discoverable GUI path where the
+   architecture calls for an operator control.
+3. **Media and storage — known audit gap.** The audit explicitly says a
+   persistent gallery for uploaded/generated image/video is incomplete. Close
+   that gap using the existing asset/media-operation/storage contracts, then
+   prove thumbnails/previews, transform and approval/retry visibility, and the
+   configured R2 application round-trip. The current sanitizer is a real
+   file-level feature, but it explicitly reports `externalProvenanceErased:
+   false` and does not prove C2PA/external provenance or fingerprint removal;
+   do not describe it as maximum provenance removal.
+4. **Provider and network operations — optionality preserved.** L2.3/L2.4
+   require capability-honest provider contracts and state that Native is the
+   only production-enabled link-in-bio provider; Fanlynks, Linktree and
+   Beacons remain optional planned adapters until their lifecycle is actually
+   implemented. Verify OAuth refresh/revoke/disconnect and any explicitly
+   enabled publish receipt, plus customer-supplied VPN/WireGuard profile
+   isolation with fail-closed per-model egress. AWS fixtures are rehearsal
+   evidence only, not SaaS readiness.
 5. **Operator surface and acceptance.** Reconcile every backend capability to
    navigation, permissions, empty/loading/error states, retry flows, gallery
    playback, responsive spacing, and desktop/mobile browser acceptance. Fix
