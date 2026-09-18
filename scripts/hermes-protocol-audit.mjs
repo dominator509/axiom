@@ -230,6 +230,7 @@ function parseBody(envelope) {
   }
   return {
     ...envelope,
+    legacy: legacyAck,
     type: normalizedType,
     task: headers.get('TASK'),
     wire: headers.get('WIRE'),
@@ -279,6 +280,22 @@ function auditTask(records) {
     if (current.seq === 2) {
       if (!['ACK', 'NACK'].includes(current.type) || current.inReplyTo !== sorted[0].wire) {
         fail(`${current.file}: SEQ 2 must be a correlated ACK or NACK for the TASK`);
+      }
+    }
+    if (!current.legacy) {
+      const expectedNextOwner = current.type === 'TASK'
+        ? 'HERMES'
+        : current.type === 'ACK'
+          ? (current.state === 'READ' ? 'CODEX' : 'HERMES')
+          : current.type === 'NACK'
+            ? 'CODEX'
+            : current.type === 'PROGRESS'
+              ? 'HERMES'
+              : current.type === 'DELIVERY'
+                ? 'CODEX'
+                : 'HERMES';
+      if (current.nextOwner !== expectedNextOwner) {
+        fail(`${current.file}: ${current.type}/${current.state} must set NEXT_OWNER: ${expectedNextOwner}`);
       }
     }
   }

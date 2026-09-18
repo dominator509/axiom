@@ -65,6 +65,23 @@ message content. Codex uses the exact `sincerely, Codex` line.
 No date, time, timezone, timeout, or relative-duration field is part of this
 protocol.
 
+`NEXT_OWNER` is the machine-readable handoff. The validator enforces this
+matrix:
+
+| Message | Required `NEXT_OWNER` |
+| --- | --- |
+| `TASK` | `HERMES` |
+| `ACK/READ` | `CODEX` |
+| `ACK/ACCEPTED` | `HERMES` |
+| `NACK/*` | `CODEX` |
+| `PROGRESS/IN_PROGRESS` | `HERMES` |
+| `DELIVERY/DELIVERED` | `CODEX` |
+| `RECEIPT/*` | `HERMES` |
+
+This prevents a message from simultaneously claiming that Hermes is still
+implementing and that Codex owns the next action. That contradiction is a
+protocol rejection, not a pending state.
+
 The deployed bridge also has a legacy ACK envelope that Hermes may emit while
 the transport is being upgraded: it uses `STATE: ACKNOWLEDGED`, may include a
 `PAYLOAD:` section containing `SCOPE_ACK`, `DELIVERY_ACCEPTED`,

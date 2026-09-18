@@ -21,7 +21,7 @@
 - `pnpm test:unit` — unit tests
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture` — local full build/test matrix using a fresh database in the existing labeled CI container on loopback port 55432; requires host process-control access and Docker, removes only the disposable database afterward, never loads `.env`
 - `node scripts/test-security-gate.mjs` — isolated regressions for fail-closed advisory checks and filename-only secret reporting; no network or real credentials
-- `node scripts/hermes-protocol-audit.mjs <message.json|directory> [TASK] [--allow-pending]` — fail-closed logical ACK/NACK journal audit; ignores legacy transport timestamps and rejects WIRE collisions, unreadable correlations, sequence gaps, wrong signatures/roles, and silent pending ownership
+- `node scripts/hermes-protocol-audit.mjs <message.json|directory> [TASK] [--allow-pending]` — fail-closed logical ACK/NACK journal audit; ignores legacy transport timestamps and rejects WIRE collisions, unreadable correlations, sequence gaps, wrong signatures/roles, contradictory NEXT_OWNER handoffs, and silent pending ownership
 - `node --test scripts/hermes-protocol-audit.test.mjs` — local protocol journal regressions; no network, bridge, credentials or runtime changes
 - `cargo test --workspace` — run all Rust tests
 

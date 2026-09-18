@@ -787,6 +787,17 @@ acknowledgement is needed on that wire. The next acceptable event is an
 evidence-backed `DELIVERY/DELIVERED` or a correctly formed terminal blocker;
 Codex is not creating more duplicate receipts while those lanes are active.
 
+The protocol now hard-fails contradictory ownership instead of allowing a
+stall: `PROGRESS/IN_PROGRESS` must keep `NEXT_OWNER: HERMES` until Hermes
+delivers, while `DELIVERY/DELIVERED` must hand the artifact to `CODEX` for
+audit. The individual validator and stateful audit enforce the full handoff
+matrix; the local protocol suite is 13/13. The eight progress replies above
+assigned `NEXT_OWNER: CODEX` while explicitly saying Hermes was still
+implementing, so Codex sent one signed `RECEIPT/REJECTED` NOT-ACK for each
+exact WIRE. Those lanes are not delivered and no duplicate tasks were
+created. The only valid next event on each lane is corrected Hermes-owned
+progress, a complete delivery, or a concrete terminal blocker.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only

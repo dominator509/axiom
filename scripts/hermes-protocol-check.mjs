@@ -149,6 +149,26 @@ if (!readFromStdin && !file) {
     if (normalizedType === 'PROGRESS' && normalizedState !== 'IN_PROGRESS') fail('PROGRESS must be IN_PROGRESS');
     if (normalizedType === 'DELIVERY' && normalizedState !== 'DELIVERED') fail('DELIVERY must be DELIVERED');
 
+    // NEXT_OWNER is the machine-readable handoff. Do not allow a message to
+    // say that Hermes is still implementing while handing the next action to
+    // Codex (or vice versa); that contradiction creates silent stalls.
+    if (!legacyAck) {
+      const expectedNextOwner = normalizedType === 'TASK'
+        ? 'HERMES'
+        : normalizedType === 'ACK'
+          ? (normalizedState === 'READ' ? 'CODEX' : 'HERMES')
+          : normalizedType === 'NACK'
+            ? 'CODEX'
+            : normalizedType === 'PROGRESS'
+              ? 'HERMES'
+              : normalizedType === 'DELIVERY'
+                ? 'CODEX'
+                : 'HERMES';
+      if (headers.get('NEXT_OWNER') !== expectedNextOwner) {
+        fail(`${file ?? 'message'}: ${normalizedType}/${normalizedState} must set NEXT_OWNER: ${expectedNextOwner}`);
+      }
+    }
+
     const digest = legacyAck ? 'NONE' : headers.get('PAYLOAD_SHA256');
     if (digest !== 'NONE' && !/^[a-f0-9]{64}$/.test(digest ?? '')) fail('PAYLOAD_SHA256 must be NONE or lowercase SHA-256');
     for (const line of lines.slice(1, headerEnd)) {
