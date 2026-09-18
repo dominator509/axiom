@@ -812,3 +812,4 @@
 2026-09-18T22:35:00Z | [P4][M491/HANDOFF-HEAD-SYNC] Synchronized the machine resume card to the pushed Hermes execution-lane handoff commit 4ae72bf49617d40b675fd1c8e8a543a5e5569d39. Current R2 source archive remains e08148b for the already dispatched implementation lanes; no product or runtime state changed.
 2026-09-18T22:44:08Z | M492: F90 SaaS affiliate scope clarified and owner-authorized R3 Hermes task reissued after the R2 owner-gate NACK; no runtime or deployment action.
 2026-09-18T22:46:45Z | M493: Hermes functional-delivery standard dispatched; contract-only, plan-only and ACK-only responses are explicitly non-deliveries.
+2026-09-18T22:50:53Z | M494: Reissued F90 as accepted-form implementation wire after Hermes owner-gate rejection; functional route/persistence/UI/test evidence remains mandatory.
