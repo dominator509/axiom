@@ -874,6 +874,24 @@ canonical signature). Local and remote SHA-256 readback matched for all eight
 receipts. Until corrected replies arrive, all eight lanes remain
 `UNCONFIRMED`/not accepted; no source work is counted.
 
+## Coordination checkpoint — M406
+
+Hermes returned a second response for all eight R3 lanes after the first
+NOT-ACK. Those responses corrected the sequence to `SEQ: 3` and supplied the
+canonical role signature, but each used `STATE: ACKNOWLEDGED`. That value is
+not a protocol state and cannot establish ownership; the repository validator
+rejected all eight with `ACK state invalid`. This is a logical NOT-ACK, not a
+transport failure.
+
+Codex added a regression test covering a canonical `ACK` with
+`STATE: ACKNOWLEDGED`, generated eight `RECEIPT/REJECTED` envelopes with
+`REASON: INVALID_ACK_STATE`, `SEQ: 4`, and the required correction
+(`STATE: ACCEPTED` or an explicit NACK at `SEQ: 5`), and sent them to Hermes.
+All eight envelopes passed the local validator and their local/remote
+SHA-256 values matched. No source work, deployment, migration, provider,
+database, permission, or service action has occurred; all eight lanes remain
+unconfirmed until a valid `ACK/ACCEPTED` or NACK arrives.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only

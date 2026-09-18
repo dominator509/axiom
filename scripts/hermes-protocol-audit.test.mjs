@@ -244,6 +244,16 @@ test('fails closed when Hermes labels progress as ACK/IN_PROGRESS', () => {
   assert.match(result.stderr, /ACK state invalid/);
 });
 
+test('fails closed when Hermes sends ACKNOWLEDGED without the required legacy ACK contract', () => {
+  const task = 'INVALID-ACKNOWLEDGED-STATE';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read task', from: 'codex' }))],
+    ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACKNOWLEDGED', terminal: 'YES', nextOwner: 'CODEX', nextAction: 'None', from: 'hermes' }))],
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /legacy ACK missing header DELIVERY_ACCEPTED/);
+});
+
 test('fails closed when Hermes reuses the task WIRE', () => {
   const task = 'WIRE-COLLISION';
   const result = run([
