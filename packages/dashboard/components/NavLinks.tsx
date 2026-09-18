@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { href: '/killswitch', label: 'Safety', icon: 'safety' },
   { href: '/settings', label: 'Settings', icon: 'settings' },
   { href: '/digests', label: 'Digests', icon: 'digest' },
+  { href: '/affiliate', label: 'Affiliate', icon: 'affiliate' },
 ] as const;
 
 function NavIcon({ name }: { name: (typeof NAV_ITEMS)[number]['icon'] }) {
@@ -31,6 +32,7 @@ function NavIcon({ name }: { name: (typeof NAV_ITEMS)[number]['icon'] }) {
     ),
     settings: <path d="M10 3v2m0 10v2M3 10h2m10 0h2M5.05 5.05l1.4 1.4m7.1 7.1 1.4 1.4m0-9.9-1.4 1.4m-7.1 7.1-1.4 1.4M13.5 10a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" />,
     digest: <path d="M4 4.5h12v11H4zM7 8h6M7 11h4M6 2.5v4M14 2.5v4" />,
+    affiliate: <path d="M7.5 13.5 4 17m8.5-11L16 3m-9.5 4.5 6 6m-7.25-8a2.75 2.75 0 1 1-3.9 3.9 2.75 2.75 0 0 1 3.9-3.9Zm7.5 7.5a2.75 2.75 0 1 1 3.9 3.9 2.75 2.75 0 0 1-3.9-3.9Z" />,
   } as const;
 
   return (

@@ -86,6 +86,7 @@ describe('platform affiliate API', () => {
     expect(await response.json()).toMatchObject({
       data: {
         program: { slug: 'fanthynks' },
+        holds: [],
         summary: {
           partners: 1,
           campaigns: 1,

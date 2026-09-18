@@ -362,6 +362,73 @@ export type MediaOrigin = 'uploaded' | 'generated' | 'transformed' | 'legacy';
 export type MediaKind = 'image' | 'video';
 export interface PlaybookGuideline { id: string; modelId: string; platform: string; optimalTimes: string[]; cadencePerWeek: number; upsellStrategy: string; revision: number; updatedAt: string }
 
+export interface AffiliateProgram {
+  id: string;
+  slug: string;
+  name: string;
+  status: 'active' | 'paused' | 'ended' | string;
+  termsVersion: string;
+  defaultCommissionBps: number;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface AffiliatePartner {
+  id: string;
+  programId: string;
+  displayName: string;
+  email: string;
+  status: 'invited' | 'active' | 'suspended' | 'revoked' | string;
+  termsVersion: string | null;
+  disclosureAcceptedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface AffiliateCampaign {
+  id: string;
+  programId: string;
+  partnerId: string;
+  name: string;
+  slug: string;
+  referralToken: string;
+  status: 'draft' | 'active' | 'paused' | 'ended' | string;
+  commissionBps: number;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface AffiliateHold {
+  id: string;
+  programId: string;
+  partnerId: string;
+  commissionId: string | null;
+  reason: 'fraud_suspected' | 'chargeback' | 'self_referral' | 'terms_violation' | string;
+  state: 'open' | 'resolved' | string;
+  resolvedByUserId: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+export interface AffiliateSummary {
+  partners: number;
+  campaigns: number;
+  attributionEvents: number;
+  conversions: number;
+  accruedCents: number;
+  reversedCents: number;
+  openHolds: number;
+}
+export interface AffiliateProgramSnapshot {
+  program: AffiliateProgram;
+  partners: AffiliatePartner[];
+  campaigns: AffiliateCampaign[];
+  holds: AffiliateHold[];
+  summary: AffiliateSummary;
+}
+export interface AffiliateCampaignReport {
+  campaign: Pick<AffiliateCampaign, 'id' | 'name' | 'slug' | 'status' | 'commissionBps' | 'referralToken'>;
+  attribution: { clicks: number; visits: number; identityStitches: number };
+  conversions: number;
+  commissions: { accruedCents: number; reversedCents: number; exportableCents: number; openHold: boolean };
+}
+
 export const api = {
   myShifts: (cursor?: string) => apiFetch<{ data: Array<Omit<TeamShift, 'assigneeUserId'> & { modelName: string }>; meta: { next_cursor: string | null } }>(`/api/v1/my-shifts${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
   fans: {
@@ -524,6 +591,18 @@ export const api = {
   },
   orgSettings: {
     get: () => apiFetch<{ data: { viralSharing: boolean; publishingEnabled: boolean; weeklyDigestEnabled: boolean; weeklyDigestScheduleId: string | null } }>('/api/v1/org-settings'),
+  },
+  platformAffiliate: {
+    getProgram: () => apiFetch<{ data: AffiliateProgramSnapshot }>('/api/v1/platform/affiliate/program'),
+    createPartner: (body: { displayName: string; email: string; termsVersion: string; status: 'invited' | 'active'; disclosureAccepted: boolean }) =>
+      apiFetch<{ data: AffiliatePartner }>('/api/v1/platform/affiliate/partners', { method: 'POST', body: JSON.stringify(body) }),
+    updatePartner: (partnerId: string, body: { displayName?: string; email?: string; termsVersion?: string; status?: AffiliatePartner['status']; disclosureAccepted?: boolean }) =>
+      apiFetch<{ data: AffiliatePartner }>(`/api/v1/platform/affiliate/partners/${encodeURIComponent(partnerId)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    createCampaign: (body: { partnerId: string; name: string; slug: string; status: 'draft' | 'active'; commissionBps?: number }) =>
+      apiFetch<{ data: AffiliateCampaign }>('/api/v1/platform/affiliate/campaigns', { method: 'POST', body: JSON.stringify(body) }),
+    campaignReport: (campaignId: string) => apiFetch<{ data: AffiliateCampaignReport }>(`/api/v1/platform/affiliate/campaigns/${encodeURIComponent(campaignId)}/report`),
+    resolveHold: (holdId: string, resolution: 'released' | 'upheld') =>
+      apiFetch<{ data: AffiliateHold; resolution: string }>(`/api/v1/platform/affiliate/holds/${encodeURIComponent(holdId)}/resolve`, { method: 'POST', body: JSON.stringify({ resolution }) }),
   },
   digests: {
     list: (cursor?: string) => apiFetch<{ data: Array<{ id: string; title: string; description: string | null; state: string; createdAt: string; config: Record<string, unknown> | null }>; schedule?: { enabled: boolean; workspacePermitted: boolean; latest: { state: string; runAfter: string; attempts: number } | null } | null; meta?: { next_cursor?: string | null } }>(`/api/v1/digests${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),

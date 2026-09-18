@@ -146,6 +146,7 @@ router.get('/program', async (c) => {
       program,
       partners,
       campaigns,
+      holds,
       summary: {
         partners: partners.length,
         campaigns: campaigns.length,
