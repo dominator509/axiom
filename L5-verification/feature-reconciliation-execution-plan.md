@@ -142,6 +142,13 @@ health endpoints alone never closes a gate.
 - Wire dashboard clip/resize/transcode controls to the existing media-plane operations.
 - Persist operation intent/status and support platform adaptation of captions and formats without bypassing ToS, consent, approval, or idempotency.
 - Keep adaptation separate from publication; failed or pending transforms must be visible and retry-safe.
+- M417 makes the media-operation lifecycle explicit in the dashboard: queued, running,
+  failed, completed, and unknown states have bounded user-facing explanations; status
+  can be reconciled through the existing authenticated GET contract; failed operations
+  can retry their original validated options with a fresh idempotency key; raw provider
+  errors are not rendered. Four focused control tests, ten media-page tests, dashboard
+  typecheck, lint, and diff-check pass. This closes the transform-status UI gap only;
+  it does not claim a unified persistent gallery for every uploaded/generated asset.
 - [x] Gate: route/worker/media-plane contract tests pass; deployed image and video rehearsal remains open.
 
 ### 5. Playbook and guideline management — source slice complete; acceptance gate open

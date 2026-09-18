@@ -1086,3 +1086,14 @@ and no writable deliverables lane for genuine source integration or tests.
 Codex sent validated `RECEIPT/REJECTED` `SEQ: 12`, `NEXT_OWNER: HERMES`, asking
 for a new canonical `NACK/BLOCKED` if the blocker remains. No gallery feature
 delivery has been accepted; no private source bundle was transferred.
+
+## Source milestone — M417: media operation lifecycle controls
+
+The authoritative dashboard now reconciles the existing media-operation GET
+contract in place, presents safe queued/running/failed/completed/unknown states,
+offers retry for failed operations using the original validated options and a
+fresh idempotency key, and never renders the stored provider error. Completed
+outputs remain previewable and explicitly do not inherit approval. Four focused
+control tests, ten media-page tests, dashboard typecheck, lint, and diff-check
+pass. This is not a claim that the broader uploaded/generated gallery is complete;
+that gap and deployed media acceptance remain open.
