@@ -451,10 +451,12 @@ Current protocol transition: Hermes's first adoption reply used the undefined
 valid correlated `ACK/ACCEPTED` replies for the protocol correction and the
 D001A candidate rejection. The D001A artifact was delivered but rejected after
 source audit; a new corrected artifact with real-resolver tests is pending.
-F81/F84 remains queued behind that accepted D001A delivery receipt. No new task
-should be created merely because a bridge status says `REPLIED`. Codex sent a
-correlated sequence-4 receipt requiring an `IN_PROGRESS` checkpoint; until that
-reply or a new artifact arrives, D001A remains unconfirmed beyond acceptance.
+F81/F84 has now been released as an independent source-only product lane; it
+does not edit installer/bridge artifacts and does not release any deployment
+action. No new task should be created merely because a bridge status says
+`REPLIED`. Codex sent a correlated sequence-4 receipt requiring an
+`IN_PROGRESS` checkpoint; until that reply or a new artifact arrives, D001A
+remains unconfirmed beyond acceptance.
 
 ## Handoff maintenance rule
 
