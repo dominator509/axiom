@@ -32,7 +32,7 @@ describe('workspace navigation coverage', () => {
     expect(html).toContain('Grok &amp; storage');
   });
   it.each([
-    ['chatter', ['', 'fans', 'inbox']],
+    ['chatter', ['', 'fans', 'inbox', 'roleplay']],
     ['content_creator', ['', 'generation', 'media', 'approvals', 'calendar', 'analytics', 'playbook']],
     ['model', ['', 'media', 'calendar', 'fans', 'inbox', 'analytics', 'earnings']],
   ] as const)('shows precisely the relevant talent destinations for %s', (role, sections) => {

@@ -348,8 +348,13 @@ export interface ScrapeRun {
 }
 
 export interface TeamMember { id: string; email: string; role: string }
-export interface TeamShift { id: string; modelId: string; assigneeUserId: string; queue: string; startsAt: string; endsAt: string; status: string; note: string | null }
+export interface TeamShift { id: string; modelId: string; assigneeUserId: string | null; assigneeType: 'human' | 'llm'; assigneeAgentRef: string | null; queue: string; startsAt: string; endsAt: string; status: string; note: string | null }
 export interface TeamNote { id: string; modelId: string; authorUserId: string; targetType: string; targetId: string | null; body: string; createdAt: string }
+export interface TeamAgentPermission { id: string; agentRef: string; tier: string; canEdit: boolean; canPublish: boolean }
+export interface RoleplayActor { type: 'human' | 'llm'; ref: string }
+export interface RoleplayMemoryTurn { sequence: number; role: 'user' | 'assistant'; speaker: RoleplayActor; content: string }
+export interface RoleplayPersona { revision: number; source: 'soul.md' | 'model_profile' | 'playbook'; sourceRef: string; content: string }
+export interface RoleplayHandoff { currentOwner: RoleplayActor; actor: RoleplayActor; orgId: string; modelId: string; shiftId: string; queue: string; conversationCursor: string | null; lastSafeSummary: string; pendingIntentId: string | null; memoryPolicy: { maxTurns: number; maxCharacters: number }; personaSource: { orgId: string; modelId: string; source: RoleplayPersona['source']; revision: number; sourceRef: string } | null; allowedNextAction: string; terminal: boolean; unresolvedUncertainty: string | null; evidenceReferences: string[] }
 export interface MediaOperation { id: string; modelId: string; sourceAssetId: string; resultVariantId: string | null; outputAssetId?: string | null; type: string; options: Record<string, unknown>; state: string; error: string | null; createdAt: string; completedAt: string | null }
 export type MediaOrigin = 'uploaded' | 'generated' | 'transformed' | 'legacy';
 export type MediaKind = 'image' | 'video';
@@ -437,7 +442,17 @@ export const api = {
     scrapeRuns: (id: string) =>
       apiFetch<{ data: ScrapeRun[] }>(`/api/v1/models/${id}/scrape-runs`),
     teamOperations: (id: string) =>
-      apiFetch<{ data: { members: TeamMember[]; shifts: TeamShift[]; notes: TeamNote[] } }>(`/api/v1/models/${id}/team-operations`),
+      apiFetch<{ data: { members: TeamMember[]; shifts: TeamShift[]; notes: TeamNote[]; agentPermissions: TeamAgentPermission[] } }>(`/api/v1/models/${id}/team-operations`),
+    roleplay: (id: string, conversationKey = 'default', actor?: RoleplayActor) => {
+      const query = new URLSearchParams({ conversationKey, ...(actor ? { actorType: actor.type, actorRef: actor.ref } : {}) });
+      return apiFetch<{ data: { handoff: RoleplayHandoff | null; handoffRevision: number; persona: RoleplayPersona | null; memory: RoleplayMemoryTurn[]; meta: { nextSequence: number; activeShiftId: string; queue: string; actor: RoleplayActor } } }>(`/api/v1/models/${encodeURIComponent(id)}/roleplay?${query}`);
+    },
+    saveRoleplayHandoff: (id: string, body: { conversationKey: string; expectedRevision: number; handoff: RoleplayHandoff }) =>
+      apiFetch<{ data: { revision: number; handoff: RoleplayHandoff } }>(`/api/v1/models/${encodeURIComponent(id)}/roleplay/handoff`, { method: 'PUT', body: JSON.stringify(body) }),
+    saveRoleplayPersona: (id: string, body: { expectedRevision: number; sourceRef?: string; content: string }) =>
+      apiFetch<{ data: RoleplayPersona }>(`/api/v1/models/${encodeURIComponent(id)}/roleplay/persona`, { method: 'PUT', body: JSON.stringify(body) }),
+    appendRoleplayMemory: (id: string, body: { conversationKey: string; sequence: number; role: 'user' | 'assistant'; speaker: RoleplayActor; content: string }) =>
+      apiFetch<{ data: RoleplayMemoryTurn }>(`/api/v1/models/${encodeURIComponent(id)}/roleplay/memory`, { method: 'POST', body: JSON.stringify(body) }),
     mediaOperations: (id: string) =>
       apiFetch<{ data: MediaOperation[] }>(`/api/v1/models/${id}/media-operations`),
     playbookGuidelines: (id: string) =>

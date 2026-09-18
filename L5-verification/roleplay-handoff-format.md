@@ -60,6 +60,30 @@ publication rules. Grok is the first roleplay provider through the existing
 subscription gateway; provider selection and live calls remain outside this
 context formatter. Venice remains a future provider-compatible option.
 
+## Durable source and user workflow
+
+The source implementation persists this contract without creating a second
+permission system:
+
+| Surface | Contract | Boundary |
+| --- | --- | --- |
+| `team_shift` | `assignee_type` is `human` or `llm`; the corresponding user or agent reference is required. | An LLM shift additionally requires an editable model-scoped `agent_permission` and an active shift window. |
+| `roleplay_persona_revision` | Immutable, tenant/model-scoped revisions of `soul.md` guidance. | Only the logical `soul.md` reference and bounded revision/content are accepted; the API never accepts a filesystem path. |
+| `roleplay_memory_turn` | Ordered, tenant/model/conversation-scoped turns. | The persisted tail is capped at 50 turns and each turn is capped at 4,000 characters; prompt assembly applies the 16,000-character policy bound. |
+| `roleplay_handoff` | One versioned handoff payload per tenant/model/conversation. | The actor and shift are rechecked before save; optimistic revisions reject stale writers. |
+
+The API routes are `GET /api/v1/models/:modelId/roleplay`,
+`GET /persona`, `POST /memory`, `PUT /persona`, and `PUT /handoff` under that
+model prefix. The model workspace exposes them through the **Chatter &
+roleplay** tab. A human can paste guidance or load a local `soul.md`/text
+prompt in the browser; the browser sends file contents only after review, and
+the server stores a logical `soul.md` revision rather than a local path.
+
+This milestone is source and automated evidence only. Migration `0050` has
+not been applied to any database, and the roleplay editor deliberately does
+not dispatch a provider call. Grok dispatch, real provider receipts,
+authenticated desktop/mobile acceptance and deployment remain separate gates.
+
 ## Example envelope
 
 ```json

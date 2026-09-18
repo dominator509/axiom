@@ -97,6 +97,12 @@ import {
   mediaOperationRelations,
   playbookGuideline,
   playbookGuidelineRelations,
+  roleplayPersonaRevision,
+  roleplayPersonaRevisionRelations,
+  roleplayMemoryTurn,
+  roleplayMemoryTurnRelations,
+  roleplayHandoff,
+  roleplayHandoffRelations,
   allRelations,
 } from './schema/index.js';
 
@@ -213,10 +219,16 @@ describe('schema index', () => {
     expect(mediaOperationRelations).toBeDefined();
     expect(playbookGuideline).toBeDefined();
     expect(playbookGuidelineRelations).toBeDefined();
+    expect(roleplayPersonaRevision).toBeDefined();
+    expect(roleplayPersonaRevisionRelations).toBeDefined();
+    expect(roleplayMemoryTurn).toBeDefined();
+    expect(roleplayMemoryTurnRelations).toBeDefined();
+    expect(roleplayHandoff).toBeDefined();
+    expect(roleplayHandoffRelations).toBeDefined();
   });
 
   it('allRelations contains exactly the relation configs', () => {
-    expect(allRelations).toHaveLength(52);
+    expect(allRelations).toHaveLength(55);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -272,6 +284,9 @@ describe('schema index', () => {
         'team_note',
         'media_operation',
         'playbook_guideline',
+        'roleplay_persona_revision',
+        'roleplay_memory_turn',
+        'roleplay_handoff',
       ].sort(),
     );
   });
@@ -295,6 +310,75 @@ describe('schema index', () => {
     expect(cols.encToken.dataType).toBe('custom');
     expect(cols.encToken.columnType).toBe('PgCustomColumn');
     expect(cols.encToken.notNull).toBe(true);
+  });
+});
+
+describe('roleplay persistence tables', () => {
+  it('keeps persona revisions bounded and tenant/model scoped', () => {
+    expect(tableName(roleplayPersonaRevision)).toBe('roleplay_persona_revision');
+    const cols = columnsOf(roleplayPersonaRevision);
+    expect(cols.orgId.notNull).toBe(true);
+    expect(cols.modelId.notNull).toBe(true);
+    expect(cols.source.notNull).toBe(true);
+    expect(cols.revision.notNull).toBe(true);
+    expect(cols.content.notNull).toBe(true);
+    expect(cols.createdByUserId.notNull).toBe(true);
+    expect(relationNames(roleplayPersonaRevisionRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
+      createdBy: {
+        type: 'One',
+        table: 'auth_user',
+        fieldName: 'createdBy',
+        fields: ['created_by_user_id'],
+        references: ['id'],
+      },
+    });
+  });
+
+  it('keeps memory turns ordered, attributed, and bounded', () => {
+    expect(tableName(roleplayMemoryTurn)).toBe('roleplay_memory_turn');
+    const cols = columnsOf(roleplayMemoryTurn);
+    expect(cols.conversationKey.notNull).toBe(true);
+    expect(cols.sequence.notNull).toBe(true);
+    expect(cols.role.notNull).toBe(true);
+    expect(cols.speakerType.notNull).toBe(true);
+    expect(cols.content.notNull).toBe(true);
+    expect(relationNames(roleplayMemoryTurnRelations)).toMatchObject({
+      org: { type: 'One', table: 'org' },
+      model: { type: 'One', table: 'model_profile' },
+    });
+  });
+
+  it('stores one resumable handoff per conversation', () => {
+    expect(tableName(roleplayHandoff)).toBe('roleplay_handoff');
+    const cols = columnsOf(roleplayHandoff);
+    expect(cols.actorType.notNull).toBe(true);
+    expect(cols.actorRef.notNull).toBe(true);
+    expect(cols.revision.notNull).toBe(true);
+    expect(cols.payload.notNull).toBe(true);
+    expect(relationNames(roleplayHandoffRelations)).toMatchObject({
+      org: { type: 'One', table: 'org' },
+      model: { type: 'One', table: 'model_profile' },
+      shift: { type: 'One', table: 'team_shift' },
+    });
+  });
+});
+
+describe('team_shift actor assignment', () => {
+  it('supports both human and LLM assignees without weakening the queue contract', () => {
+    const cols = columnsOf(teamShift);
+    expect(cols.assigneeUserId.notNull).toBe(false);
+    expect(cols.assigneeType.notNull).toBe(true);
+    expect(cols.assigneeType.default).toBe('human');
+    expect(cols.assigneeAgentRef.notNull).toBe(false);
+    expect(cols.queue.notNull).toBe(true);
   });
 });
 

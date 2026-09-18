@@ -45,6 +45,7 @@ import { modelAssignmentsRouter } from './routes/model-assignments.js';
 import { enforceModelAccess } from './model-access.js';
 import { mediaOperationsRouter } from './routes/media-operations.js';
 import { playbookGuidelinesRouter } from './routes/playbook-guidelines.js';
+import { roleplayRouter } from './routes/roleplay.js';
 import {
   auth,
   normalizeAuthOrigin,
@@ -769,6 +770,7 @@ app.use('/api/v1/models/:modelId/team-operations/*', requireAuth);
 app.use('/api/v1/models/:modelId/media-operations', requireAuth);
 app.use('/api/v1/models/:modelId/media-operations/*', requireAuth);
 app.use('/api/v1/models/:modelId/playbook-guidelines', requireAuth);
+app.use('/api/v1/models/:modelId/roleplay/*', requireAuth);
 app.use('/api/v1/org-settings/*', requireAuth);
 // LLM requests can spend provider credits and reveal provider/runtime state.
 app.use('/api/v1/llm/*', requireAuth);
@@ -835,6 +837,7 @@ app.use('/api/v1/models/:modelId/team-operations/*', operationalMutation);
 app.use('/api/v1/models/:modelId/media-operations', operationalMutation);
 app.use('/api/v1/models/:modelId/media-operations/*', operationalMutation);
 app.use('/api/v1/models/:modelId/playbook-guidelines', operationalMutation);
+app.use('/api/v1/models/:modelId/roleplay/*', operationalMutation);
 app.use('/api/v1/models/:modelId/playbook-score/record', operationalMutation);
 app.use('/api/v1/incidents', operationalMutation);
 app.use('/api/v1/incidents/*', operationalMutation);
@@ -917,6 +920,7 @@ app.use('/api/v1/members/:userId/role', idempotency());
 app.use('/api/v1/models/:modelId/member-assignments/:assignmentId', idempotency());
 app.use('/api/v1/models/:modelId/media-operations', idempotency());
 app.use('/api/v1/models/:modelId/playbook-guidelines', idempotency());
+app.use('/api/v1/models/:modelId/roleplay/*', idempotency());
 app.use('/api/v1/models/:modelId/linkbio/*', idempotency());
 app.use('/api/v1/posts', idempotency());
 app.use('/api/v1/posts/:id', idempotency());
@@ -974,6 +978,7 @@ app.route('/api/v1', teamOperationsRouter);
 app.route('/api/v1', modelAssignmentsRouter);
 app.route('/api/v1', mediaOperationsRouter);
 app.route('/api/v1', playbookGuidelinesRouter);
+app.route('/api/v1', roleplayRouter);
 
 // LLM gateway — unified multi-provider chat completions
 const llmGateway = new LLMGateway();

@@ -54,6 +54,7 @@ import { scrapeRun, scrapeRunRelations } from './scrape_run.js';
 import { teamShift, teamShiftRelations, teamNote, teamNoteRelations } from './team_operations.js';
 import { mediaOperation, mediaOperationRelations } from './media_operation.js';
 import { playbookGuideline, playbookGuidelineRelations, playbookGuidelineRevision } from './playbook_guideline.js';
+import { roleplayPersonaRevisionRelations, roleplayMemoryTurnRelations, roleplayHandoffRelations } from './roleplay.js';
 
 export { org, orgRelations };
 export { appUser, appUserRelations };
@@ -108,6 +109,14 @@ export { scrapeRun, scrapeRunRelations };
 export { teamShift, teamShiftRelations, teamNote, teamNoteRelations };
 export { mediaOperation, mediaOperationRelations };
 export { playbookGuideline, playbookGuidelineRelations, playbookGuidelineRevision };
+export {
+  roleplayPersonaRevision,
+  roleplayPersonaRevisionRelations,
+  roleplayMemoryTurn,
+  roleplayMemoryTurnRelations,
+  roleplayHandoff,
+  roleplayHandoffRelations,
+} from './roleplay.js';
 export { mediaGenerationAttempt } from './media_generation_attempt.js';
 export { modelUserAssignment } from './model_user_assignment.js';
 
@@ -164,4 +173,7 @@ export const allRelations = [
   teamNoteRelations,
   mediaOperationRelations,
   playbookGuidelineRelations,
+  roleplayPersonaRevisionRelations,
+  roleplayMemoryTurnRelations,
+  roleplayHandoffRelations,
 ];

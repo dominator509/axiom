@@ -14,7 +14,7 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
   const allowed = (section: string) => talentDestinationAllowed(session?.user?.role, section);
   const tools = [
     ['media', 'Media library'], ['consent', 'Consent vault'], ['linkbio', 'Link in bio'],
-    ['analytics', 'Analytics'], ['playbook', 'Playbook'], ['relay', 'Relay delivery'],
+    ['analytics', 'Analytics'], ['playbook', 'Playbook'], ['roleplay', 'Chatter & roleplay'], ['relay', 'Relay delivery'],
     ['agents', 'Agent access'], ['cascades', 'Cascade schedules'], ['triggers', 'Automation rules'],
   ].filter(([section]) => allowed(section));
   let model;

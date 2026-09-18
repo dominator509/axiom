@@ -398,4 +398,19 @@ evidence only. Hermes's pending lane must provide the durable DB/API/dashboard
 assignment and memory/persona persistence wiring, then Codex must audit it for
 overlap before integration.
 
+M431 implements that missing durable source slice locally after no Hermes
+delivery artifact became available. The DB schema/migration adds dual-actor
+shift columns plus tenant-scoped roleplay persona revisions, bounded memory
+turns and resumable handoffs. API routes enforce active-shift assignment,
+model-scoped editable LLM permission, optimistic revisions, audit writes and
+bounded/traversal-safe content. The dashboard makes the workflow visible and
+can read a local `soul.md`/persona file as browser text for review before
+saving a revision. DB tests pass 151/151; the targeted API route, middleware
+registration and mounted-index suite passes 160/160; dashboard navigation
+tests pass 40/40; roleplay gateway tests pass 12/12. This is source and
+automated evidence, not a migrated database, provider dispatch, browser
+acceptance or deployed readiness receipt. Grok remains the first intended
+roleplayer provider and Venice remains future-compatible, but neither has a
+live roleplay receipt here.
+
 The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.

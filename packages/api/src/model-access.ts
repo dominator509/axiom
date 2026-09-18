@@ -30,7 +30,7 @@ export function modelAccessCondition(role: unknown, orgId: string, userId: strin
 }
 
 /** Explicit role allowlist. Unimplemented operations stay denied. */
-export function scopedReadTarget(role: ScopedHumanRole, method: string, path: string): 'discovery' | string | null {
+export function scopedReadTarget(role: unknown, method: string, path: string): 'discovery' | string | null {
   const relayCards = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/relay-cards$/i.exec(path);
   if (relayCards && ['GET', 'HEAD'].includes(method)) return relayCards[1];
   const reviews = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/inbox\/replies\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/reviews$/i.exec(path);
@@ -40,6 +40,9 @@ export function scopedReadTarget(role: ScopedHumanRole, method: string, path: st
   const replies = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/inbox\/replies$/i.exec(path);
   if (replies && ((role === 'chatter' && ['GET', 'HEAD', 'POST'].includes(method))
     || (role === 'model' && ['GET', 'HEAD'].includes(method)))) return replies[1];
+  const roleplay = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/roleplay(?:\/(?:handoff|memory|persona))?$/i.exec(path);
+  if (roleplay && ['GET', 'HEAD', 'POST', 'PUT'].includes(method)
+    && (role === 'owner' || role === 'manager' || role === 'operator' || role === 'chatter')) return roleplay[1];
   if (role === 'chatter' && ['GET', 'HEAD'].includes(method) && path === '/api/v1/my-shifts') return 'self-shifts';
   if (role === 'content_creator') {
     const draft = /^\/api\/v1\/bundles\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/draft$/i.exec(path);

@@ -22,6 +22,8 @@ vi.mock('@axiom/llm-gateway', () => ({
     passed: true,
     minimumThreshold: 0.5,
   })),
+  ROLEPLAY_LIMITS: { personaCharacters: 8_000, memoryTurns: 50 },
+  parseRoleplayHandoff: vi.fn(),
 }));
 
 import { playbookRouter, playbookWindowStart } from './playbook.js';

@@ -74,6 +74,9 @@ const TS_TO_SQL: Record<string, string> = {
   modelUserAssignment: 'model_user_assignment',
   inboxReplyIntent: 'inbox_reply_intent',
   inboxReplyReview: 'inbox_reply_review',
+  roleplayPersonaRevision: 'roleplay_persona_revision',
+  roleplayMemoryTurn: 'roleplay_memory_turn',
+  roleplayHandoff: 'roleplay_handoff',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -540,6 +543,50 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
           'UNIQUE (agent_ref, model_id)',
         ],
       ],
+      [
+        'team_shift',
+        [
+          'ADD COLUMN IF NOT EXISTS assignee_type TEXT NOT NULL DEFAULT',
+          'ADD COLUMN IF NOT EXISTS assignee_agent_ref TEXT',
+          'ALTER COLUMN assignee_user_id DROP NOT NULL',
+          'team_shift_actor_shape',
+          "assignee_type IN ('human', 'llm')",
+          'idx_team_shift_actor',
+        ],
+      ],
+      [
+        'roleplay_persona_revision',
+        [
+          'org_id UUID NOT NULL REFERENCES org(id) ON DELETE CASCADE',
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          'source TEXT NOT NULL',
+          'revision INTEGER NOT NULL',
+          'content TEXT NOT NULL',
+          'roleplay_persona_scope_revision',
+        ],
+      ],
+      [
+        'roleplay_memory_turn',
+        [
+          'conversation_key TEXT NOT NULL',
+          'sequence INTEGER NOT NULL',
+          "role TEXT NOT NULL CHECK (role IN ('user', 'assistant'))",
+          "speaker_type TEXT NOT NULL CHECK (speaker_type IN ('human', 'llm'))",
+          'content TEXT NOT NULL',
+          'roleplay_memory_scope_sequence',
+        ],
+      ],
+      [
+        'roleplay_handoff',
+        [
+          'conversation_key TEXT NOT NULL',
+          "actor_type TEXT NOT NULL CHECK (actor_type IN ('human', 'llm'))",
+          'actor_ref TEXT NOT NULL',
+          'shift_id UUID NOT NULL REFERENCES team_shift(id)',
+          'payload JSONB NOT NULL',
+          'roleplay_handoff_scope_conversation',
+        ],
+      ],
     ];
     for (const [tsName, fragments] of expectations) {
       const tableSql = sqlTableName(tsName);
@@ -610,7 +657,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
     // Includes the durable MCP revocation and capability-registry indexes.
-    expect(indexStatements).toHaveLength(83);
+    expect(indexStatements).toHaveLength(87);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(

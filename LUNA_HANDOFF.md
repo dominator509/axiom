@@ -122,8 +122,9 @@ merely because credits or the current turn are ending.
   intervening documentation SHA `466a55420722501dcbf450e1d58d4970807dabb1`.
 - Worktree was clean immediately before this documentation update. Inspect it
   again on arrival; this handoff's own commit will be newer than M342.
-- Current application migrations: **50**, ending
-  `0049_weekly_digest_schedule.sql`. Migration0048 adds caption guidance.
+- Current applied migrations: **50**, ending
+  `0049_weekly_digest_schedule.sql`. Source now contains unapplied migration
+  `0050_roleplay_handoff_memory_persona.sql`; it has not been run anywhere.
 - Latest full-matrix source: `d53787420f4b880d911818ca9ed45b3f271c541c`;
   later application changes have focused evidence recorded below.
 - Hosted CI **35285232940** exact `d537874` and **35284764547** exact
@@ -1236,22 +1237,64 @@ The handoff format is documented in
 conversation storage, API/dashboard assignment controls, Grok dispatch, live
 provider behavior, or deployment acceptance.
 
-### Machine/LLM resume card
+### Historical machine/LLM resume card (superseded by M431 below)
 
 ```text
-STATE: ACTIVE_PARTIAL
-CURRENT_OWNER: HERMES
+STATE: HISTORICAL_CHECKPOINT
+CURRENT_OWNER: CODEX
 ACTIVE_LANE: CHATTER-LLM-ROLEPLAYER-COPY-R1
 LAST_ACCEPTED_CODE: ddd8314
 ACCEPTED_SOURCE: llm-gateway roleplay-context contract
-NEXT_REQUIRED: evidence-backed Hermes PROGRESS or DELIVERY for durable DB/API/dashboard wiring
+NEXT_REQUIRED: superseded; use the M431 resume card below
 INTEGRATION_RULE: audit delivered source against ddd8314; integrate only non-overlapping, tested changes
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
 OPEN_GATES: durable memory/persona persistence; actor assignment/revocation; Grok roleplay dispatch; browser/runtime/provider acceptance
 ```
 
-Hermes's last read-only poll still showed transport `REPLIED` with no
-roleplay delivery files. That is not source progress or completion; the lane
-remains with Hermes until a valid evidence-backed PROGRESS, DELIVERY, or
-canonical NACK/BLOCKED response arrives. No runtime, provider, database,
-permission, bridge-service, or deployment action occurred.
+At that checkpoint, Hermes's read-only poll showed transport `REPLIED` with no
+roleplay delivery files. That historical transport state is not source progress
+or completion; the current owner and next actions are defined by M431 below.
+
+## Source milestone — M431: durable dual-actor roleplay state
+
+Codex completed the missing source/API/dashboard slice in the current working
+tree after Hermes produced no deliverable artifact for the accepted roleplayer
+lane. The implementation is architecture-faithful and keeps the existing
+assignment, agent-permission, RLS, audit, consent, approval, idempotency and
+publication boundaries:
+
+- `team_shift` now represents either a human assignee or an approved LLM
+  actor, with the actor shape enforced in the schema and API.
+- `roleplay_persona_revision` stores immutable, bounded `soul.md` revisions;
+  `roleplay_memory_turn` stores ordered tenant/model/conversation memory with
+  tail retention; `roleplay_handoff` stores one optimistic-revision resume
+  card per conversation.
+- API routes expose read, persona, memory and handoff operations under the
+  model workspace. Active shift and model-scoped editable-agent checks happen
+  server-side before writes; audit records are emitted for accepted writes.
+- The dashboard exposes **Chatter & roleplay** for human or LLM actors and
+  lets an authorized operator paste or load a local `soul.md`/persona prompt
+  as text before saving a revision. No local path is sent to the server.
+
+Evidence: DB 151/151 tests, targeted API 160/160 tests, dashboard navigation
+40/40 tests, roleplay gateway 12/12 tests, and all four package typechecks
+pass. The full gateway suite still has four pre-existing Windows
+subscription-process termination failures. The source migration `0050` is
+not applied; provider dispatch, Grok receipts, Venice integration, browser
+acceptance and deployment remain open. This milestone does not claim
+production readiness.
+
+### Machine/LLM resume card
+
+```text
+STATE: ACTIVE_PARTIAL
+CURRENT_OWNER: CODEX
+ACTIVE_LANE: CHATTER-LLM-ROLEPLAYER-COPY-R1
+LAST_ACCEPTED_CODE: 8d381f2 (durable source slice pending commit)
+ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence
+NEXT_REQUIRED: run final source audit, commit/push M431, then schedule migration and provider/browser gates separately
+INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
+FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
+OPEN_GATES: migration 0050; Grok roleplay dispatch/receipt; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence
+HERMES_STATUS: roleplayer lane has ACK/REPLIED transport only and no delivery artifact; no Hermes source was integrated
+```

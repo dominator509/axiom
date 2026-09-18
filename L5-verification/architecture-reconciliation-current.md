@@ -34,7 +34,7 @@ receipts. Historical audit baselines are not silently treated as current source.
 | Uploaded/generated media | Upload is reachable directly from the model media library; source and kind filters now fail closed and persist across cursor pagination; generated-asset storage, source-image selection, bounded previews and media operations exist in source; transform status is explicit and refreshable, with safe failed-operation retry. | The static audit still has no complete persistent gallery for uploaded and generated image/video across every lifecycle state, and deployed media/runtime acceptance remains open. |
 | Sanitization | `packages/worker/src/media-sanitizer.ts`, `scripts/sanitize-media.mjs` and the rehearsal script are real source. They rebuild supported JPEG/PNG/MP4 outputs and expose an opt-in path. | The CLI reports `externalProvenanceErased: false`; no claim is made for C2PA/external provenance removal or byte-fingerprint anonymity. |
 | Variants and A/B (F-13/F-15/F-16) | Model-scoped lifecycle, assignments, exposure/outcome capture, attribution and winner/reward source paths exist. | Remaining guidance/hook/timing evidence, statistical/runtime acceptance and deployed worker/provider acceptance. |
-| Team and shifts (F-24/F-25/F-26) | RBAC, shift lifecycle, handoff/post-note routes and dashboard controls exist. | Dedicated Chatter restrictions, complete pagination and authenticated multi-user browser/RLS acceptance. The explicit owner extension for human-or-LLM Chatter, actor-agnostic handoffs, bounded conversation memory and versioned `soul.md`/persona loading is not yet source-implemented. |
+| Team and shifts (F-24/F-25/F-26) | RBAC, shift lifecycle, handoff/post-note routes and dashboard controls exist. The dual-actor Chatter source slice now adds human/LLM shift records, active-shift/agent-permission checks, durable roleplay handoffs, bounded memory and revisioned `soul.md` persona storage/API/UI. | Dedicated Chatter pagination, authenticated multi-user browser/RLS acceptance, Grok roleplay dispatch/provider receipts and deployed migration/runtime acceptance remain open. |
 | Playbook (F-54/F-55/F-56/F-57) | Revisioned guideline storage/editor, calendar checks and generation enrichment exist in source. | All consumer coverage, stale-editor/history browser acceptance and deployed migration acceptance. |
 | Scraper and research (F-17/F-18) | Authenticated bounded scrape runs, worker dispatch, model egress binding and partial-result/error handling exist. | Deployed sidecar/provider isolation, benchmark history and result-quality acceptance. |
 | Viral loop (F-79–F-86) | Metric/evidence filtering, labels, recipes, embeddings/retrieval and parts of reward/digest logic exist. | Full recipe fields, revenue/conversion attribution, all contextual arms, cross-model opt-in behavior, scheduled insight/Relay delivery and runtime acceptance. |
@@ -100,3 +100,18 @@ filesystem paths or follow symlinks. Evidence is 12 focused roleplay tests,
 gateway typecheck, lint with the existing 16 warnings, and diff-check on
 commit `ddd8314`. Durable storage, API/dashboard assignment controls, Grok
 dispatch and runtime/provider acceptance remain open.
+
+M431 wires the durable source slice without inventing a second assignment or
+permission system. `packages/db/src/schema/roleplay.ts` and migration `0050`
+add actor-aware shifts, immutable persona revisions, ordered bounded memory
+turns, and one resumable handoff per conversation with tenant RLS and explicit
+least-privilege grants. `packages/api/src/routes/roleplay.ts` rechecks model
+access, active shifts, LLM edit permission, optimistic revisions and bounded
+payloads before persistence; the dashboard exposes the Chatter & roleplay tab,
+human/LLM shift selection, handoff editing, memory retention and local
+`soul.md`/persona text loading. DB tests pass 151/151, targeted API tests pass
+160/160 and targeted dashboard navigation tests pass 40/40. The gateway's
+roleplay tests pass 12/12; its full suite still has four pre-existing
+Windows subscription-process termination failures. Migration `0050` has not
+been run, and no provider call, live action or deployment acceptance is
+claimed.

@@ -61,7 +61,7 @@ describe('talent overview recovery and navigation', () => {
   it.each([
     ['content_creator', ['calendar', 'generation', 'approvals', 'media', 'analytics', 'playbook']],
     ['model', ['calendar', 'fans', 'media', 'analytics']],
-    ['chatter', ['fans']],
+    ['chatter', ['fans', 'roleplay']],
     ['unknown', []],
   ] as const)('matches scoped destinations and queries for %s', async (role, expected) => {
     vi.mocked(getSession).mockResolvedValue({ user: { role } } as Awaited<ReturnType<typeof getSession>>);

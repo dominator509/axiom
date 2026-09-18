@@ -26,7 +26,8 @@ router.get('/my-shifts', async c => {
       modelAccessCondition('content_creator', orgId, userId, schema.teamShift.modelId));
     const [before] = cursor ? await tx.select().from(schema.teamShift).where(and(scope, eq(schema.teamShift.id, cursor))).limit(1) : [];
     if (cursor && !before) return null;
-    const rows = await tx.select({ id: schema.teamShift.id, modelId: schema.teamShift.modelId,
+      const rows = await tx.select({ id: schema.teamShift.id, modelId: schema.teamShift.modelId,
+      assigneeType: schema.teamShift.assigneeType, assigneeAgentRef: schema.teamShift.assigneeAgentRef,
       modelName: schema.modelProfile.displayName, queue: schema.teamShift.queue,
       startsAt: schema.teamShift.startsAt, endsAt: schema.teamShift.endsAt, status: schema.teamShift.status,
       note: schema.teamShift.note,
@@ -38,7 +39,18 @@ router.get('/my-shifts', async c => {
   if (!result) return apiError(c, 400, statusTitle(400), 'invalid shift cursor');
   return c.json(result);
 });
-const shiftSchema = z.object({ assigneeUserId: z.string().trim().min(1).max(200), queue: z.string().trim().min(1).max(100).default('inbox'), startsAt: z.string().datetime(), endsAt: z.string().datetime(), note: z.string().trim().max(2_000).optional() }).strict();
+const shiftSchema = z.object({
+  assigneeType: z.enum(['human', 'llm']).default('human'),
+  assigneeUserId: z.string().trim().min(1).max(200).optional(),
+  assigneeAgentRef: z.string().trim().min(1).max(128).optional(),
+  queue: z.string().trim().min(1).max(100).default('inbox'),
+  startsAt: z.string().datetime(),
+  endsAt: z.string().datetime(),
+  note: z.string().trim().max(2_000).optional(),
+}).strict().superRefine((value, ctx) => {
+  if (value.assigneeType === 'human' && (!value.assigneeUserId || value.assigneeAgentRef)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'human shifts require assigneeUserId only' });
+  if (value.assigneeType === 'llm' && (!value.assigneeAgentRef || value.assigneeUserId)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'LLM shifts require assigneeAgentRef only' });
+});
 const shiftPatchSchema = z.object({ status: z.enum(['scheduled', 'active', 'completed', 'cancelled']), note: z.string().trim().max(2_000).optional() }).strict();
 const noteSchema = z.object({ targetType: z.enum(['model', 'post']).default('model'), targetId: z.string().uuid().optional(), body: z.string().trim().min(1).max(4_000) }).strict().refine(value => value.targetType === 'post' ? !!value.targetId : value.targetId === undefined);
 
@@ -99,12 +111,13 @@ router.get('/models/:modelId/team-operations', async (c) => {
   const data = await withOrgContext(orgId, async (tx) => {
     const [model] = await tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile).where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId))).limit(1);
     if (!model) return null;
-    const [members, shifts, notes] = await Promise.all([
+    const [members, shifts, notes, agentPermissions] = await Promise.all([
       tx.select({ id: schema.authUser.id, email: schema.authUser.email, role: schema.authUser.role }).from(schema.authUser).where(eq(schema.authUser.orgId, orgId)).orderBy(asc(schema.authUser.email)),
       tx.select().from(schema.teamShift).where(and(eq(schema.teamShift.orgId, orgId), eq(schema.teamShift.modelId, modelId))).orderBy(asc(schema.teamShift.startsAt)).limit(100),
       tx.select().from(schema.teamNote).where(and(eq(schema.teamNote.orgId, orgId), eq(schema.teamNote.modelId, modelId))).orderBy(desc(schema.teamNote.createdAt)).limit(100),
+      tx.select({ id: schema.agentPermission.id, agentRef: schema.agentPermission.agentRef, tier: schema.agentPermission.tier, canEdit: schema.agentPermission.canEdit, canPublish: schema.agentPermission.canPublish }).from(schema.agentPermission).where(and(eq(schema.agentPermission.orgId, orgId), eq(schema.agentPermission.modelId, modelId))).orderBy(asc(schema.agentPermission.agentRef)),
     ]);
-    return { members, shifts, notes };
+    return { members, shifts, notes, agentPermissions };
   });
   if (!data) return apiError(c, 404, statusTitle(404), 'model not found');
   return c.json({ data });
@@ -120,10 +133,19 @@ router.post('/models/:modelId/team-shifts', async (c) => {
   const modelId = c.req.param('modelId');
   const saved = await withOrgContext(orgId, async (tx) => {
     if (!(await modelExists(tx, orgId, modelId))) return { status: 404 as const, error: 'model not found' };
-    const [member] = await tx.select({ id: schema.authUser.id }).from(schema.authUser).where(and(eq(schema.authUser.id, parsed.data.assigneeUserId), eq(schema.authUser.orgId, orgId))).limit(1);
-    if (!member) return { status: 409 as const, error: 'assignee is not a member of this workspace' };
-    const [row] = await tx.insert(schema.teamShift).values({ orgId, modelId, assigneeUserId: parsed.data.assigneeUserId, queue: parsed.data.queue, startsAt: new Date(parsed.data.startsAt), endsAt: new Date(parsed.data.endsAt), note: parsed.data.note }).returning();
-    if (row) await writeAudit(tx, orgId, c.get('userId') ?? 'system', 'team.shift.create', row.id, { modelId, assigneeUserId: row.assigneeUserId, queue: row.queue });
+    if (parsed.data.assigneeType === 'human') {
+      const [member] = await tx.select({ id: schema.authUser.id }).from(schema.authUser).where(and(eq(schema.authUser.id, parsed.data.assigneeUserId!), eq(schema.authUser.orgId, orgId))).limit(1);
+      if (!member) return { status: 409 as const, error: 'assignee is not a member of this workspace' };
+    } else {
+      if (!['owner', 'manager', 'operator'].includes(c.get('role') ?? '')) return { status: 403 as const, error: 'LLM shifts require an owner, manager or operator role' };
+      const [permission] = await tx.select({ id: schema.agentPermission.id }).from(schema.agentPermission).where(and(
+        eq(schema.agentPermission.orgId, orgId), eq(schema.agentPermission.modelId, modelId),
+        eq(schema.agentPermission.agentRef, parsed.data.assigneeAgentRef!), eq(schema.agentPermission.canEdit, true),
+      )).limit(1);
+      if (!permission) return { status: 409 as const, error: 'LLM actor requires an editable model-scoped agent permission' };
+    }
+    const [row] = await tx.insert(schema.teamShift).values({ orgId, modelId, assigneeType: parsed.data.assigneeType, assigneeUserId: parsed.data.assigneeUserId, assigneeAgentRef: parsed.data.assigneeAgentRef, queue: parsed.data.queue, startsAt: new Date(parsed.data.startsAt), endsAt: new Date(parsed.data.endsAt), note: parsed.data.note }).returning();
+    if (row) await writeAudit(tx, orgId, c.get('userId') ?? 'system', 'team.shift.create', row.id, { modelId, assigneeType: row.assigneeType, assigneeUserId: row.assigneeUserId, assigneeAgentRef: row.assigneeAgentRef, queue: row.queue });
     return row ? { status: 201 as const, data: row } : { status: 500 as const, error: 'shift could not be saved' };
   });
   if (saved.status !== 201) return apiError(c, saved.status, statusTitle(saved.status), saved.error);

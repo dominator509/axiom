@@ -25,6 +25,7 @@ const TABS = [
   { href: 'experiments', label: 'Variant experiments' },
   { href: 'scraping', label: 'Trend & competitor radar' },
   { href: 'team', label: 'Team & shifts' },
+  { href: 'roleplay', label: 'Chatter & roleplay' },
 ] as const;
 
 export default function ModelTabs({ modelId, role }: { modelId: string; role?: string | null }) {
