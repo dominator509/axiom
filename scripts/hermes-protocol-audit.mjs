@@ -5,7 +5,8 @@ import path from 'node:path';
 
 const args = process.argv.slice(2);
 const allowPending = args.includes('--allow-pending');
-const positional = args.filter((arg) => arg !== '--allow-pending');
+const asJson = args.includes('--json');
+const positional = args.filter((arg) => !['--allow-pending', '--json'].includes(arg));
 const input = positional[0];
 const taskFilter = positional[1] ?? null;
 
@@ -13,8 +14,10 @@ function fail(message) {
   throw new Error(message);
 }
 
+const forbiddenClockField = (key) => /(?:DATE|TIME|TIMESTAMP|DEADLINE|TTL|EPOCH|CLOCK|EXPIRES?|_AT$)/i.test(key);
+
 function usage() {
-  console.error('usage: hermes-protocol-audit.mjs <message.json|directory> [TASK] [--allow-pending]');
+    console.error('usage: hermes-protocol-audit.mjs <message.json|directory> [TASK] [--allow-pending] [--json]');
   process.exitCode = 2;
 }
 
@@ -128,6 +131,7 @@ function parseBody(envelope) {
       if (legacyAck) continue;
       fail(`${envelope.file}: invalid header ${line}`);
     }
+    if (forbiddenClockField(match.groups.key)) fail(`${envelope.file}: clock/date field is forbidden: ${match.groups.key}`);
     if (headers.has(match.groups.key)) fail(`${envelope.file}: duplicate header ${match.groups.key}`);
     headers.set(match.groups.key, match.groups.value);
   }
@@ -241,6 +245,7 @@ function parseBody(envelope) {
   for (const line of payloadLines) {
     const match = /^(?<key>[A-Z0-9_]+): (?<value>.*)$/.exec(line);
     if (match) {
+      if (forbiddenClockField(match.groups.key)) fail(`${envelope.file}: clock/date field is forbidden: ${match.groups.key}`);
       if (payloadFields.has(match.groups.key)) fail(`${envelope.file}: duplicate payload field ${match.groups.key}`);
       payloadFields.set(match.groups.key, match.groups.value);
     }
@@ -391,8 +396,19 @@ function auditTask(records) {
     : pending && (!allowPending || terminalReplyNeedsReceipt || correctionNeedsReply)
       ? 'PENDING'
       : 'OK';
-  const line = `hermes-protocol-audit: ${status} task=${last.task} messages=${sorted.length} state=${last.state} next_owner=${effectiveNextOwner} next_action=${effectiveNextAction}`;
-  console.log(line);
+  const summary = {
+    status,
+    task: last.task,
+    messages: sorted.length,
+    state: last.state,
+    next_owner: effectiveNextOwner,
+    next_action: effectiveNextAction,
+  };
+  if (asJson) {
+    console.log(JSON.stringify(summary));
+  } else {
+    console.log(`hermes-protocol-audit: ${status} task=${last.task} messages=${sorted.length} state=${last.state} next_owner=${effectiveNextOwner} next_action=${effectiveNextAction}`);
+  }
   // A missing logical reply is never made successful by --allow-pending. The
   // flag is only for an already acknowledged, nonterminal lane.
   if (unconfirmed || (pending && (!allowPending || terminalReplyNeedsReceipt || correctionNeedsReply))) process.exitCode = 2;

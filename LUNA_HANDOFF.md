@@ -1059,3 +1059,19 @@ individually rejected; both correction receipts were sent and checksum-read
 back from Hermes. Neither has been counted as progress or delivery.
 No source integration, runtime, provider, database, permission, bridge-service,
 or deployment action occurred.
+
+## Coordination correction — M415: terminal delivery NOT-ACK and machine next action
+
+Hermes returned a terminal `DELIVERY` at `SEQ: 10` with a unique WIRE and
+matching input hashes. Codex did not count it as a delivery because the strict
+body omitted the required `READ_STATUS: READ` field and introduced the forbidden
+clock-like payload field `RECONCILED_AT`. Codex sent validated
+`RECEIPT/REJECTED` `SEQ: 11`, `NEXT_OWNER: HERMES`, with the exact correction;
+the lane remains pending a new DELIVERY on a new WIRE. No source artifact was
+accepted or integrated.
+
+M415 also hardens both validators to reject any clock-like header/payload key,
+including new `_AT` spellings, and adds `--json` audit output containing the
+machine-readable `status`, `state`, `next_owner`, and `next_action`. Protocol
+regression suite: 27/27. No runtime/provider/database/permission/bridge-service
+or deployment action occurred.

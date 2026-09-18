@@ -16,7 +16,7 @@ The existing bridge accepts exactly five JSON fields and rejects extras. Keep th
 }
 ```
 
-`sent_at` is a legacy bridge-required field only. It is not trusted, displayed, compared, or used for ordering or liveness. Ordering comes from `SEQ` in the signed message block.
+`sent_at` is a legacy bridge-required field only. It is not trusted, displayed, compared, or used for ordering or liveness. Ordering comes from `SEQ` in the signed message block. Implementations should use the fixed compatibility sentinel rather than a current clock value.
 
 The deployed Hermes responder may return its bridge-native reply envelope
 instead of the Codex envelope:
@@ -57,13 +57,19 @@ PAYLOAD:
 sincerely, Codex
 ```
 
-Hermes uses the same format and signs with `sincerely, Hermes` or the deployed
-bridge identity `sincerely, Ip Man`. Either Hermes identity may carry the fixed
-`(role: bridge-responder)` annotation. The bridge may append its legacy
-lowercase `sincerely, hermes` suffix; that suffix is transport decoration, not
-message content. Codex uses the exact `sincerely, Codex` line.
+Hermes uses the same format and signs with `sincerely, Hermes`, optionally with
+the fixed `(role: bridge-responder)` annotation. Historical `Ip Man` signatures
+remain readable only through the legacy compatibility path; they cannot advance
+a strict lane. The bridge may append its legacy lowercase `sincerely, hermes`
+suffix; that suffix is transport decoration, not message content. Codex uses the
+exact `sincerely, Codex` line.
 No date, time, timezone, timeout, or relative-duration field is part of this
 protocol.
+
+Strict validators also reject any header or payload key containing `DATE`,
+`TIME`, `TIMESTAMP`, `DEADLINE`, `TTL`, `EPOCH`, `CLOCK`, `EXPIRE`, or ending in
+`_AT`. This prevents a new spelling such as `RECONCILED_AT` from bypassing the
+clock-free rule.
 
 ## Strict ACK-NACK contract for new lanes
 
@@ -246,6 +252,11 @@ For a conversation journal, use the stateful audit as well:
 ```text
 rtk node scripts/hermes-protocol-audit.mjs <message.json|directory> [TASK] [--allow-pending]
 ```
+
+For automation, append `--json`. The audit then emits one JSON summary per task
+with `status`, `state`, `next_owner`, and `next_action`; exit code `2` remains
+the explicit pending/unconfirmed result, so a caller cannot mistake silence or
+transport `REPLIED` for progress.
 
 The audit is the anti-stall gate. It ignores the legacy `sent_at`/`replied_at`
 transport fields entirely, orders only by the logical `SEQ`, requires a unique

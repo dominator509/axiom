@@ -6,6 +6,7 @@ const args = process.argv.slice(2);
 const readFromStdin = args[0] === '--stdin';
 const file = readFromStdin ? null : args[0];
 const expectedRole = readFromStdin ? args[1] : args[1];
+const forbiddenClockField = (key) => /(?:DATE|TIME|TIMESTAMP|DEADLINE|TTL|EPOCH|CLOCK|EXPIRES?|_AT$)/i.test(key);
 
 function fail(message) {
   console.error(`hermes-protocol: FAIL: ${message}`);
@@ -79,6 +80,7 @@ if (!readFromStdin && !file) {
         fail(`invalid header line: ${line}`);
         continue;
       }
+      if (forbiddenClockField(match.groups.key)) fail(`clock/date field is forbidden: ${match.groups.key}`);
       if (headers.has(match.groups.key)) fail(`duplicate header: ${match.groups.key}`);
       headers.set(match.groups.key, match.groups.value);
     }
@@ -160,6 +162,7 @@ if (!readFromStdin && !file) {
       for (const line of lines.slice(payloadIndex + 1, signatureIndex)) {
         const match = /^(?<key>[A-Z0-9_]+): (?<value>.*)$/.exec(line);
         if (match) {
+          if (forbiddenClockField(match.groups.key)) fail(`clock/date field is forbidden: ${match.groups.key}`);
           if (payloadFields.has(match.groups.key)) fail(`duplicate payload field: ${match.groups.key}`);
           payloadFields.set(match.groups.key, match.groups.value);
         }
