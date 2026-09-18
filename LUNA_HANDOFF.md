@@ -780,6 +780,13 @@ returned ownership to HERMES, and required source-only implementation followed
 by a DELIVERY containing changed paths, SHA-256 values, commands and exit
 codes. The lanes are now actively delegated; none is counted as delivered.
 
+Hermes has read all eight implementation receipts and returned valid unique
+`PROGRESS/IN_PROGRESS` checkpoints. Each says the copied implementation is in
+progress, the runtime/deployment gates remain paused, and no further
+acknowledgement is needed on that wire. The next acceptable event is an
+evidence-backed `DELIVERY/DELIVERED` or a correctly formed terminal blocker;
+Codex is not creating more duplicate receipts while those lanes are active.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
