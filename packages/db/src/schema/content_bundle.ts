@@ -20,6 +20,16 @@ export interface CaptionGuidanceReceipt {
   captionSha256: string;
 }
 
+/** Existing photoshoot controls captured for immutable publication evidence. */
+export interface PhotoshootRecipe {
+  style: string;
+  outfit: string;
+  location: string;
+  mood: string;
+  lighting: string;
+  aspectRatio: string;
+}
+
 export const contentBundle = pgTable('content_bundle', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: uuid('org_id')
@@ -33,6 +43,7 @@ export const contentBundle = pgTable('content_bundle', {
   captions: jsonb('captions').$type<Record<string, string>>().default({}),
   captionGuidance: jsonb('caption_guidance').$type<Record<string, CaptionGuidanceReceipt>>().notNull().default({}),
   hashtags: jsonb('hashtags').$type<string[]>().default([]),
+  generationRecipe: jsonb('generation_recipe').$type<PhotoshootRecipe | null>(),
   tosReport: jsonb('tos_report').$type<Record<string, unknown>>(),
   publishIntent: jsonb('publish_intent').$type<ContentBundlePublishIntent>(),
   state: text('state').notNull().default('generated'),

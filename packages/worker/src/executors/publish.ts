@@ -62,6 +62,7 @@ export function buildPublicationSnapshot(input: {
   captionGuidance?: PublicationSnapshot['captionGuidance'];
   tosReport?: PublicationSnapshot['tosReport'];
   media?: PublicationSnapshot['media'];
+  shootConfig?: PublicationSnapshot['shootConfig'];
 }): PublicationSnapshot {
   return {
     caption: input.caption,
@@ -72,6 +73,7 @@ export function buildPublicationSnapshot(input: {
     captionGuidance: input.captionGuidance ?? null,
     tosReport: input.tosReport ?? null,
     media: input.media ?? null,
+    shootConfig: input.shootConfig ?? null,
   };
 }
 
@@ -489,6 +491,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     assetId: bundle.assetId ?? null, scheduledFor: input.scheduledFor ?? null,
     captionGuidance: matchingCaptionGuidance(stagedInput.caption, bundle.captionGuidance?.[target.platform]),
     tosReport: bundle.tosReport ?? null,
+    shootConfig: bundle.generationRecipe ?? null,
     media: asset ? {
       kind: asset.kind,
       mimeType: asset.mimeType ?? 'application/octet-stream',

@@ -40,9 +40,10 @@ describe('publication snapshot evidence', () => {
   it('captures dispatched media metadata and immutable ToS evidence', () => {
     expect(buildPublicationSnapshot({ ...original, media: {
       kind: 'image', mimeType: 'image/jpeg', width: 864, height: 1152, duration: null,
-    } })).toMatchObject({
+    }, shootConfig: { style: 'studio', outfit: 'dress', location: 'studio', mood: 'calm', lighting: 'soft', aspectRatio: '4:5' } })).toMatchObject({
       tosReport: { verdict: 'pass' },
       media: { kind: 'image', mimeType: 'image/jpeg', width: 864, height: 1152, duration: null },
+      shootConfig: { style: 'studio', outfit: 'dress', location: 'studio', mood: 'calm', lighting: 'soft', aspectRatio: '4:5' },
     });
   });
 });

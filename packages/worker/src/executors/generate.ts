@@ -23,7 +23,7 @@ import { modelPlaybookContext } from '../playbook-context.js';
 import { asPlatform } from '../connection.js';
 import { retrieveCaptionGuidance } from '../viral-retrieval.js';
 import { captionGuidanceReceipt } from '../caption-guidance.js';
-import type { CaptionGuidanceReceipt } from '@axiom/db/schema';
+import type { CaptionGuidanceReceipt, PhotoshootRecipe } from '@axiom/db/schema';
 
 export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   const { tx, job } = ctx;
@@ -192,14 +192,17 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
     return;
   }
 
-  const variants = generatePhotoshootPrompts({
-    modelName: model.displayName,
+  const generationRecipe: PhotoshootRecipe = {
     style: payload.style ?? 'studio',
     outfit: payload.outfit ?? 'summer dress',
     location: payload.location ?? 'studio',
     mood: payload.mood ?? 'energetic',
     lighting: payload.lighting ?? 'soft studio',
     aspectRatio: payload.aspectRatio ?? '4:5',
+  };
+  const variants = generatePhotoshootPrompts({
+    modelName: model.displayName,
+    ...generationRecipe,
     platform: platform as never,
   });
 
@@ -246,6 +249,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
         .values({
           orgId: job.org_id,
           modelId,
+          generationRecipe,
           captions: { [platform]: caption },
           captionGuidance,
           hashtags: variants[0].hashtags,
@@ -261,6 +265,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
     await tx
       .update(schema.contentBundle)
       .set({
+        generationRecipe,
         captions: { [platform]: caption },
         captionGuidance,
         hashtags: variants[0].hashtags,

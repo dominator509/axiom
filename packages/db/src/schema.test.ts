@@ -812,6 +812,12 @@ describe('content_bundle table', () => {
     expect(cols.hashtags.default).toEqual([]);
   });
 
+  it('stores the optional bounded photoshoot recipe for publication evidence', () => {
+    const cols = columnsOf(contentBundle);
+    expect(cols.generationRecipe.notNull).toBe(false);
+    expect(cols.generationRecipe.dataType).toBe('json');
+  });
+
   it('asset_id is a nullable FK to asset', () => {
     const assetId = columnsOf(contentBundle).assetId;
     expect(assetId.notNull).toBe(false);

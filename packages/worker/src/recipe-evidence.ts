@@ -1,3 +1,5 @@
+import type { PhotoshootRecipe } from '@axiom/db/schema';
+
 /** Publication evidence only: never reconstruct historical input from an editable bundle. */
 export function recipeEvidence(
   snapshot: {
@@ -11,6 +13,7 @@ export function recipeEvidence(
       height: number | null;
       duration: number | null;
     } | null;
+    shootConfig?: PhotoshootRecipe | null;
   },
   publishedAt: Date | null,
 ) {
@@ -25,5 +28,8 @@ export function recipeEvidence(
     published_hour_utc: published?.getUTCHours() ?? null,
     tos_report_at_publication: snapshot.tosReport ?? null,
     media: snapshot.media ?? null,
+    // These are the exact bounded controls submitted to the prompt engine;
+    // thumbnail descriptors remain absent until a trusted vision receipt exists.
+    shoot_config: snapshot.shootConfig ?? null,
   };
 }

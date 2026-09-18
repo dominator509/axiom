@@ -286,6 +286,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
         'content_bundle',
         [
           'asset_id UUID REFERENCES asset(id)',
+          'generation_recipe JSONB',
           'tos_report JSONB',
           "state TEXT NOT NULL DEFAULT 'generated'",
         ],

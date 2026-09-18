@@ -135,6 +135,20 @@ describe('POST /models/:id/generate', () => {
       expect(matchingCaptionGuidance('Edited later', stored!.captionGuidance.instagram)).toBeNull();
     } else expect(stored!.captionGuidance).toEqual({});
   });
+  it('persists the exact photoshoot controls alongside the generated bundle', async () => {
+    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
+    const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(validBody),
+    });
+    expect(response.status).toBe(201);
+    const stored = mockState.insertValues.find((value): value is { generationRecipe: Record<string, string> } =>
+      Boolean(value && typeof value === 'object' && 'generationRecipe' in value));
+    expect(stored?.generationRecipe).toEqual({
+      style: 'beach', outfit: 'summer dress', location: 'Miami Beach',
+      mood: 'energetic', lighting: 'golden hour', aspectRatio: '4:5',
+    });
+  });
   it('uses separate playbook context for each selected destination rather than copying the first platform context', async () => {
     mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
     const guideline = (strategy: string) => [{ optimalTimes: [], cadencePerWeek: 1, upsellStrategy: strategy, revision: 1 }];
