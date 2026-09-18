@@ -721,6 +721,12 @@ They do not claim live OAuth, R2, VPN, observability, hosted CI or branch-rule
 evidence, and each remains `UNCONFIRMED` until Hermes returns a valid logical
 reply.
 
+`SCRAPER-RESULT-QUALITY-COPY` and `F85-INSIGHT-RELAY-COPY` have now returned
+valid correlated `ACK/ACCEPTED` replies. Codex independently validated both,
+recorded the F85 authority-path limitation (the feature plan is present; the
+architecture matrix is not readable on Hermes's release tree), and sent signed
+receipts. Neither lane has delivered source artifacts yet.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
