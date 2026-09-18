@@ -25,6 +25,14 @@ export const postTarget = pgTable(
     publicationSnapshot: jsonb('publication_snapshot').$type<{
       caption: string; hashtags: string[]; modelId: string; assetId: string | null; scheduledFor: string | null;
       captionGuidance?: CaptionGuidanceReceipt | null;
+      tosReport?: Record<string, unknown> | null;
+      media?: {
+        kind: string;
+        mimeType: string;
+        width: number | null;
+        height: number | null;
+        duration: number | null;
+      } | null;
     }>(),
     error: text('error'),
     // Idempotency key = H(model_id, asset_sha, platform, slot) (LBI-05).

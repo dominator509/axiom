@@ -5,6 +5,7 @@ import {
   publishDispatchMarkerValues,
   publishTarget,
   resolvePublicationSnapshot,
+  buildPublicationSnapshot,
   resolveProviderAssetUrl,
   shouldEnqueueMetrics,
   validatePublishAsset,
@@ -24,8 +25,9 @@ afterEach(() => {
 });
 
 describe('publication snapshot evidence', () => {
-  const original = { caption: 'Original', hashtags: [], modelId: 'model', assetId: null, scheduledFor: null };
-  const changed = { ...original, caption: 'Edited after dispatch' };
+  const original = { caption: 'Original', hashtags: [], modelId: 'model', assetId: null, scheduledFor: null,
+    tosReport: { verdict: 'pass', score: 0.1 } };
+  const changed = { ...original, caption: 'Edited after dispatch', tosReport: { verdict: 'fail', score: 0.9 } };
   it('captures only a first dispatch', () => {
     expect(resolvePublicationSnapshot({ remoteId: null }, original)).toEqual(original);
   });
@@ -34,6 +36,14 @@ describe('publication snapshot evidence', () => {
   });
   it('does not fabricate a snapshot for an older provider resource', () => {
     expect(resolvePublicationSnapshot({ remoteId: 'provider-id' }, changed)).toBeNull();
+  });
+  it('captures dispatched media metadata and immutable ToS evidence', () => {
+    expect(buildPublicationSnapshot({ ...original, media: {
+      kind: 'image', mimeType: 'image/jpeg', width: 864, height: 1152, duration: null,
+    } })).toMatchObject({
+      tosReport: { verdict: 'pass' },
+      media: { kind: 'image', mimeType: 'image/jpeg', width: 864, height: 1152, duration: null },
+    });
   });
 });
 

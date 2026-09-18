@@ -13,6 +13,7 @@ import { embedExemplarIntent } from '../embedding.js';
 import type { Executor, ExecutorContext } from './context.js';
 import { learningStructure, refreshLearningState } from '../learning-state.js';
 import { evaluateAutomaticVariants } from '../variant-auto-evaluation.js';
+import { recipeEvidence } from '../recipe-evidence.js';
 
 const LABEL_THRESHOLDS = { viral: 2, strong: 1, baseline: -1, weak: -Infinity };
 
@@ -160,6 +161,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
   // 4. Feature record + embedding (L3.5 §1.4).
   const structure = learningStructure(snapshot.caption, snapshot.scheduledFor);
   const features: Record<string, unknown> = {
+    ...recipeEvidence(snapshot, target.publishedAt),
     evidence_source: 'published-provider-snapshot-v2',
     embedding_version: 'lexical-v1',
     learning_arm: structure.arm,

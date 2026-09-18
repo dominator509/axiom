@@ -1,6 +1,6 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: 2026-09-17, after milestone M349. This is a continuation checkpoint,
+Updated: 2026-09-18, after milestone M351. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
 ## Latest deployment-repair review (after M349)
@@ -16,6 +16,23 @@ that installed helpers have been repaired. R3 tests have not been independently
 executed. Bounded R4 corrections are assigned in bridge message
 `codex-d001a-r3-corrections-20260917`; check its reply next. No live mutation is
 authorized by that assignment. Keep the installed installer prohibited.
+
+## Latest application source milestone (M351)
+
+The worker now records additional immutable publication-recipe evidence in
+`post_target.publication_snapshot`: the dispatched ToS report, media kind/MIME
+and dimensions/duration, first-line hook, scheduled timestamp, and actual UTC
+publication timestamp/hour/day. The viral-label recipe consumes that snapshot;
+it does not reconstruct edited bundle fields for historical posts. Focused worker
+evidence passed: database package build, worker typecheck, and 24 tests across
+recipe evidence, viral labeling, and publication snapshot behavior. This is a
+real F-81 increment, not completion: provider format, thumbnail feature
+descriptors, revenue/conversion attribution, and richer shoot-config capture
+remain open where the current publication contract does not persist them.
+
+Hermes's R4 repair is still pending. I declined the proposed home-directory
+ACL widening and sent a bridge-only data-delivery protocol; no permission,
+installer, database, migration, or service change is authorized.
 
 ## Mission and authority
 

@@ -47,7 +47,33 @@ type PublishAsset = {
   modelId: string;
   kind: string;
   storageKey: string;
+  mimeType?: string;
+  width?: number | null;
+  height?: number | null;
+  duration?: number | null;
 };
+
+export function buildPublicationSnapshot(input: {
+  caption: string;
+  hashtags: string[];
+  modelId: string;
+  assetId: string | null;
+  scheduledFor: string | null;
+  captionGuidance?: PublicationSnapshot['captionGuidance'];
+  tosReport?: PublicationSnapshot['tosReport'];
+  media?: PublicationSnapshot['media'];
+}): PublicationSnapshot {
+  return {
+    caption: input.caption,
+    hashtags: input.hashtags,
+    modelId: input.modelId,
+    assetId: input.assetId,
+    scheduledFor: input.scheduledFor,
+    captionGuidance: input.captionGuidance ?? null,
+    tosReport: input.tosReport ?? null,
+    media: input.media ?? null,
+  };
+}
 
 /**
  * Keep media publication tenant- and model-scoped, and reject kinds for which
@@ -337,6 +363,10 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
           modelId: schema.asset.modelId,
           kind: schema.asset.kind,
           storageKey: schema.asset.storageKey,
+          mimeType: schema.asset.mimeType,
+          width: schema.asset.width,
+          height: schema.asset.height,
+          duration: schema.asset.duration,
         })
         .from(schema.asset)
         .where(
@@ -454,11 +484,19 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const result = await connector.publish(stagedInput);
   // Preserve the first dispatched copy across asynchronous status polls.
   // Ledger-only recoveries without this evidence intentionally remain unknown.
-  const publicationSnapshot = resolvePublicationSnapshot(target, {
+  const publicationSnapshot = resolvePublicationSnapshot(target, buildPublicationSnapshot({
     caption: stagedInput.caption, hashtags: stagedInput.hashtags ?? [], modelId: model.id,
     assetId: bundle.assetId ?? null, scheduledFor: input.scheduledFor ?? null,
     captionGuidance: matchingCaptionGuidance(stagedInput.caption, bundle.captionGuidance?.[target.platform]),
-  });
+    tosReport: bundle.tosReport ?? null,
+    media: asset ? {
+      kind: asset.kind,
+      mimeType: asset.mimeType ?? 'application/octet-stream',
+      width: asset.width ?? null,
+      height: asset.height ?? null,
+      duration: asset.duration ?? null,
+    } : null,
+  }));
 
   if (result.state === 'pending') {
     await tx
