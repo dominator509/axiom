@@ -397,6 +397,27 @@ replies are not a reason to stop.
   share it as data rather than granting access to private home/configuration.
   Its23:48:41Z response and three artifact hashes are now verified above.
 
+## Latest D001A artifact review
+
+Hermes delivered a source-only candidate under
+`codex-resume-d001a-with-delivery.parts/`. The fetched hashes match its
+manifest: corrected installer `fee3b3b440c9207a7e7761591d671506ef3a63cb3f14420efd0d8ea9f9594baf`, patch
+`ec019302b6bdf43faf986d7a60c6c771ecbbd29f1064688ad48b14d43`, and
+harness `c3487150cdd00daa6512fe165b00e7ce02bdb1e04fcfa34008ff10ba9857bd53`.
+The candidate parses, and the harness reaches 35/0 under Git Bash when its
+child-shell PATH is controlled. The ordinary Windows invocation is not evidence
+because the child `bash` launch is denied.
+
+The candidate is **rejected** and not integrated. Its real `resolve_mode`
+rehearsal path still passes the live default releases/config/state/backup roots
+and the default system unit directory into `ctx_resolve`; the harness tested a
+synthetic direct constructor instead. Its `activate` call omits the expected
+release SHA when calling `take_pinned_backup`, and its `restore-db` dispatcher
+omits the expected SHA when calling `restore_db`, defeating the exact-SHA live
+gate at those callsites. Hermes must return a new artifact with real-resolver
+negative tests and corrected callsites. No installed helper, live DB, service,
+container, permission, credential, or deployment action occurred.
+
 ## Deployment incident constraints
 
 Historical last recovery report (not freshly re-attested here): TEST release
@@ -425,10 +446,11 @@ delivery claim. Every exchange must use a stable task id, monotonic `SEQ`, exact
 or `NACK` state, and a final `sincerely, Codex` or `sincerely, Hermes` line.
 Wall-clock fields are never used for ordering, liveness, retry, or completion.
 
-Current protocol transition: `codex-resume-d001a-with-delivery` was sent as a
-source-only resume request. The D001A correction remains unaccepted until an
-actual corrected artifact and executable evidence arrive. F81/F84 remains
-queued behind that receipt. No new task should be created merely because a
+Current protocol transition: Hermes's adoption reply used the undefined
+`STATE: ACKED` and was rejected with `INVALID_STATE_ACKED`; it must return
+`STATE: ACCEPTED`, `TERMINAL: NO` for a valid protocol ACK. The D001A artifact
+was delivered but rejected after source audit. F81/F84 remains queued behind a
+new accepted D001A receipt. No new task should be created merely because a
 bridge status says `REPLIED`.
 
 ## Handoff maintenance rule

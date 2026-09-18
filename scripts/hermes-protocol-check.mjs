@@ -32,16 +32,33 @@ if (!readFromStdin && !file) {
     }
 
     const lines = body.replaceAll('\r\n', '\n').split('\n');
-    const signature = lines.at(-1);
+    while (lines.at(-1) === '') lines.pop();
     const validRoles = new Set(['Codex', 'Hermes']);
     if (!validRoles.has(expectedRole ?? '')) fail('expected signer must be Codex or Hermes');
-    if (signature !== `sincerely, ${expectedRole}`) fail('signature is missing, not final, or signed by the wrong role');
+    let signatureIndex = lines.length - 1;
+    if (expectedRole === 'Hermes' && lines.at(-1) === 'sincerely, hermes') {
+      signatureIndex -= 1;
+      while (signatureIndex >= 0 && lines[signatureIndex] === '') signatureIndex -= 1;
+      if (lines[signatureIndex] !== 'sincerely, Hermes') {
+        fail('Hermes bridge suffix is present without the canonical Hermes signature');
+      }
+    }
+    if (lines[signatureIndex] !== `sincerely, ${expectedRole}`) fail('signature is missing, not final, or signed by the wrong role');
+    const trailing = lines.slice(signatureIndex + 1);
+    if (expectedRole === 'Hermes') {
+      const nonBlankTrailing = trailing.filter((line) => line !== '');
+      if (nonBlankTrailing.length !== 1 || nonBlankTrailing[0] !== 'sincerely, hermes') {
+        fail('unexpected content follows the Hermes role signature');
+      }
+    } else if (trailing.length !== 0) {
+      fail('unexpected content follows the role signature');
+    }
     if (lines[0] !== 'FT-HERMES/1') fail('missing FT-HERMES/1 header');
     if (lines.length < 14) fail('message block is incomplete');
 
     const payloadIndex = lines.indexOf('PAYLOAD:');
-    if (payloadIndex < 0 || payloadIndex === lines.length - 1) fail('missing payload delimiter or signature');
-    if (payloadIndex >= lines.length - 2) fail('payload must precede the final signature');
+    if (payloadIndex < 0 || payloadIndex === signatureIndex - 1) fail('missing payload delimiter or signature');
+    if (payloadIndex >= signatureIndex - 1) fail('payload must precede the role signature');
 
     const headers = new Map();
     for (const line of lines.slice(1, payloadIndex)) {
@@ -93,7 +110,7 @@ if (!readFromStdin && !file) {
     }
 
     if (headers.get('TYPE') === 'DELIVERY') {
-      const payload = lines.slice(payloadIndex + 1, -1);
+      const payload = lines.slice(payloadIndex + 1, signatureIndex);
       const payloadKeys = new Map();
       for (const line of payload) {
         const match = /^(?<key>[A-Z0-9_]+): (?<value>.*)$/.exec(line);

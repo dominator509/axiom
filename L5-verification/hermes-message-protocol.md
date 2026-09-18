@@ -40,7 +40,11 @@ PAYLOAD:
 sincerely, Codex
 ```
 
-Hermes uses the same format and ends with `sincerely, Hermes`. No date, time, timezone, timeout, or relative-duration field is part of this protocol.
+Hermes uses the same format and signs with `sincerely, Hermes`. The current
+bridge may append its legacy lowercase `sincerely, hermes` suffix after that
+canonical signature; the suffix is transport decoration, not message content.
+No date, time, timezone, timeout, or relative-duration field is part of this
+protocol.
 
 ## State meanings
 
