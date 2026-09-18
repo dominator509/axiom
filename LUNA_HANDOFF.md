@@ -1285,18 +1285,46 @@ not applied; provider dispatch, Grok receipts, Venice integration, browser
 acceptance and deployment remain open. This milestone does not claim
 production readiness.
 
+## Source milestone — M441: bounded Grok roleplay turn dispatch
+
+Codex completed the missing provider-turn source slice after Hermes confirmed
+that its older authority release did not contain the roleplay contracts and
+correctly returned a terminal source-mismatch NACK. The new `roleplay_turn`
+ledger is a one-way, tenant/model-scoped provider receipt record, not a second
+inbox or publication permission system. The API requires an
+owner/manager/operator, an active assigned LLM shift, matching editable
+`agent_permission`, a canonical persisted handoff and explicit confirmation;
+it uses the existing Grok gateway, bounded persona/memory prompt context,
+intent-key idempotency and sanitized rejected/uncertain outcomes. Completed
+turns append user/assistant memory under the existing memory cap and never
+publish externally. Human actors remain supported through the existing
+handoff and bounded-memory controls.
+
+The dashboard now exposes the provider action on the existing Chatter &
+roleplay page only for an assigned LLM actor, while retaining the human
+handoff path and local `soul.md` loading. Source files are
+`packages/db/src/schema/roleplay.ts`, migration `0051`, the roleplay API
+route/tests, and `RoleplayManager.tsx`.
+
+Evidence: roleplay API 8/8, DB schema/migration tests 127/127, API/DB/dashboard
+typechecks pass, dashboard lint has only the repository's existing three
+warnings. The full LLM-gateway suite still has four pre-existing Windows
+subscription-process termination failures. Migrations `0050` and `0051` are
+not applied; real Grok/provider receipt, browser acceptance and deployment
+remain open. This milestone does not claim production readiness.
+
 ### Machine/LLM resume card
 
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
-ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R7 + MEDIA-GALLERY-LIFECYCLE-COPY-R7 + SCRAPER-RESULT-QUALITY-COPY-R7 + GROK-ROLEPLAY-DISPATCH-COPY-R1
-LAST_ACCEPTED_CODE: 6b8229d6c247654be7d0f26a100af53a52d54c91
-PUBLISHED_HEAD: ad75c61fd81b57086906a00f80781f89505ec3e7
-ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence
+ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R7 + MEDIA-GALLERY-LIFECYCLE-COPY-R7 + SCRAPER-RESULT-QUALITY-COPY-R7
+LAST_ACCEPTED_CODE: bc3ff61d05570363ba9d3becf819652c7395a105
+PUBLISHED_HEAD: bc3ff61d05570363ba9d3becf819652c7395a105
+ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch
 NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; all active lanes use verified writable reply-root subdirectories
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
-OPEN_GATES: variant R7 delivery; media gallery R7 delivery; scraper result-quality R7 delivery; migration 0050; Grok roleplay dispatch/receipt; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence
-HERMES_STATUS: superseding variant, media-gallery, scraper R7 and Grok roleplay R1 tasks target verified writable `work/ipman-replies-out/` subdirectories; ACKs are read and no Hermes source artifact has been accepted or integrated
+OPEN_GATES: variant R7 delivery; media gallery R7 delivery; scraper result-quality R7 delivery; migrations 0050 and 0051; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence
+HERMES_STATUS: superseding variant, media-gallery and scraper R7 tasks target verified writable `work/ipman-replies-out/` subdirectories; the older Grok roleplay R1 task is terminally blocked by authority-release mismatch and has been acknowledged; no Hermes source artifact has been accepted or integrated
 ```
