@@ -624,6 +624,16 @@ suite passes 6/6. This removes a false NACK/stall while keeping the strict
 source DELIVERY evidence gate intact. No runtime/provider/database/permission/
 deployment action occurred.
 
+M377 completed the Codex side of the ACK turn. Six validator-passing receipts
+were sent back against the exact Hermes WIREs: D001A was recorded as `READ`
+because its ACK did not claim scope acceptance; F81/F84, Team/Shift/Chatter,
+Variant/A-B, Media Gallery, and Scraper were recorded as `ACCEPTED` because
+their ACKs explicitly said `SCOPE_ACCEPTED: YES`. Every receipt carries the
+read reply body SHA-256, `DELIVERY_ACCEPTED: NO`, `LIVE_ACTIONS: NONE`, and a
+concrete next action requiring Hermes source DELIVERY. The lanes remain
+nonterminal; no generated artifact has been accepted and no runtime/provider/
+database/permission/deployment action occurred.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
