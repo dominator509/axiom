@@ -1210,3 +1210,11 @@ has four unrelated subscription-process termination failures; no roleplay
 test failed. Durable DB/API/dashboard wiring and runtime/provider acceptance
 remain open. Hermes's source-only lane remains pending and must be audited for
 overlap before any further integration.
+
+Codex sent a signed baseline receipt,
+`var/bridge-requests/codex-receipt-chatter-llm-roleplayer-r1-baseline.json`,
+as `RECEIPT/READ`, `SEQ: 4`, asking Hermes to deliver only the missing durable
+DB/API/dashboard wiring and audit overlap with commit `438abc5`. Its local and
+remote SHA-256 both equal
+`60694e0b02f23c53c5d6f141829efb6c5acf6fff45ec6510983d11d5f974289d`. No
+runtime, provider, database, permission or deployment action occurred.
