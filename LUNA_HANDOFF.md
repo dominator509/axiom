@@ -475,6 +475,9 @@ The fifth independent lane, `VARIANT-AB-CONTRACT`, is now OPEN for the
 architecture-named selected-guidance attribution and richer hook/timing/
 format/thumbnail contract gaps. It must preserve the existing evidence,
 consent, idempotency, and no-direct-publication boundaries.
+Hermes has returned a scope-valid gallery ACK, but reused the task WIRE in the
+ACK. Codex rejected that correlation as `WIRE_COLLISION` and sent receipt
+sequence 3 requiring a unique reply WIRE before the gallery lane advances.
 
 ## Handoff maintenance rule
 
