@@ -1135,3 +1135,18 @@ paths against the readable `36b67f5ab79cca27f196c74187eb42a8b6c17d68` release;
 the local/remote payload hashes are recorded in the ledger. The next valid
 state is a correlated strict ACK/NACK, evidence-backed PROGRESS, DELIVERY, or
 canonical NACK/BLOCKED.
+
+## Coordination checkpoint — M422: team lane accepted
+
+Hermes returned a valid strict `ACK/ACCEPTED` for `TEAM-SHIFT-CHATTER-COPY-R5`
+using the corrected authority root and canonical `sincerely, Hermes` role
+signature. Codex validated the reply and sent
+`var/bridge-requests/codex-receipt-team-shift-chatter-r5-ack.json` as
+`RECEIPT/READ`, `SEQ: 2`, with `READ_STATUS: READ` and the exact
+`RECEIPT_OF`. The receipt passed the local protocol checker and its SHA-256
+`fc8fc4024ff5842711adefd48ff43ebe81882e78912fa5396fbe8716e5c1ef64` matched
+the remote inbox readback. Hermes now owns the source-only implementation
+turn; no feature delivery has been accepted yet. The only acceptable next
+event is evidence-backed `PROGRESS`, `DELIVERY/DELIVERED`, or terminal
+`NACK/BLOCKED`. No runtime, provider, database, permission, bridge-service or
+deployment action occurred.
