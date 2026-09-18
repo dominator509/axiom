@@ -149,6 +149,12 @@ health endpoints alone never closes a gate.
   errors are not rendered. Four focused control tests, ten media-page tests, dashboard
   typecheck, lint, and diff-check pass. This closes the transform-status UI gap only;
   it does not claim a unified persistent gallery for every uploaded/generated asset.
+- M418 adds the existing upload workflow directly to the model media library. A
+  confirmed upload refreshes the authoritative asset list; uncertain uploads keep
+  the original idempotency key, and read-only roles receive no upload control.
+  This removes the navigation gap between the gallery and source ingestion without
+  adding a second upload contract. The broader all-state gallery and deployed media
+  acceptance remain open.
 - [x] Gate: route/worker/media-plane contract tests pass; deployed image and video rehearsal remains open.
 
 ### 5. Playbook and guideline management — source slice complete; acceptance gate open

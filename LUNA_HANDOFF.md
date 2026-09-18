@@ -1097,3 +1097,12 @@ outputs remain previewable and explicitly do not inherit approval. Four focused
 control tests, ten media-page tests, dashboard typecheck, lint, and diff-check
 pass. This is not a claim that the broader uploaded/generated gallery is complete;
 that gap and deployed media acceptance remain open.
+
+## Source milestone — M418: direct gallery upload path
+
+The model media library now renders the existing `MediaUpload` workflow for
+roles allowed to edit media. A confirmed upload refreshes the authoritative
+library; an uncertain response preserves the same idempotency intent, and
+read-only roles do not receive the control. This removes the generation-only
+navigation gap without creating a second upload API. Full cross-lifecycle
+gallery filtering/history and deployed browser/media acceptance remain open.

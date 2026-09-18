@@ -5,7 +5,7 @@ import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 
 export default function MediaUpload({ modelId, onUploaded }: {
-  modelId: string; onUploaded: (asset: { id: string; mimeType: string }) => void;
+  modelId: string; onUploaded?: (asset: { id: string; mimeType: string }) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [sanitize, setSanitize] = useState(false);
@@ -40,7 +40,8 @@ export default function MediaUpload({ modelId, onUploaded }: {
         || typeof data.exactFileHashChanged !== 'boolean' || (!saved.sanitize && data.exactFileHashChanged)
         || !['image/png', 'image/jpeg', 'video/mp4'].includes(data.mimeType)) throw new Error('Invalid upload response');
       setMessage(`Stored asset ${data.id}${data.sanitized ? ' with embedded metadata and C2PA removed' : ''}. Exact-file SHA-256 ${data.exactFileHashChanged ? 'changed' : 'unchanged'}. This does not prevent perceptual matching. Not yet ToS-scanned or approved.`);
-      onUploaded(data); intent.current = null; setFile(null); setPending(false);
+      if (onUploaded) onUploaded(data); else window.location.reload();
+      intent.current = null; setFile(null); setPending(false);
       setFileInputVersion(fileInputVersion + 1);
     } catch { setMessage('Upload outcome unconfirmed. Check the same request before uploading again.'); }
     finally { active.current = false; setBusy(false); }

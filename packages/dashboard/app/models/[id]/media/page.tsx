@@ -4,6 +4,7 @@ import BundleMedia from '@/components/BundleMedia';
 import MediaOperationControls from '@/components/MediaOperationControls';
 import MediaBundleCreate from '@/components/MediaBundleCreate';
 import CopyVariantCreate from '@/components/CopyVariantCreate';
+import MediaUpload from '@/components/MediaUpload';
 import { getSession } from '@/lib/api';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
 
@@ -33,6 +34,7 @@ export default async function MediaPage({ params, searchParams }: {
     <h2>Media library</h2>
     <p>Saved uploads and generated media for this talent. Being in this library does not mean an asset passed review or is approved for publication.</p>
     <div className="action-row">{canEdit && <Link href={`${base}/generation`}>Upload or create media</Link>}{talentDestinationAllowed(role, 'approvals') && <Link href={`${base}/approvals`}>Review content bundles</Link>}</div>
+    {canEdit && <MediaUpload modelId={id} />}
     {operationsFailed && <p role="alert">Transformation status could not be loaded. Saved media is still available; refresh before starting another transformation.</p>}
     {!result ? <p role="alert">Media could not be loaded. Refresh to try again.</p> : result.data.length === 0 ? <p>No saved media in this page.</p> : <div className="grid">
       {result.data.map(asset => {

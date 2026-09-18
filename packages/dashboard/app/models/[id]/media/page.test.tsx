@@ -29,6 +29,7 @@ it('renders authenticated image/video previews and model-scoped pagination', asy
   expect(html).toContain('/models/talent/media?cursor=next+token');
   expect(html).toContain('/models/talent/generation?sourceAssetId=image');
   expect(html).toContain('does not mean an asset passed review');
+  expect(html).toContain('Upload source media');
 });
 it('does not disguise an API failure as an empty library', async () => {
   list.mockRejectedValue(new Error('unavailable'));
@@ -44,6 +45,7 @@ it.each(['content_creator', 'model', 'analyst', 'agent'])('renders usable media 
   expect(html.includes('Stage bundle controls')).toBe(role === 'content_creator');
   expect(html.includes('Transform controls')).toBe(role === 'content_creator');
   expect(html.includes('Use for video')).toBe(role === 'content_creator');
+  expect(html.includes('Upload source media')).toBe(role === 'content_creator');
   expect(html).not.toContain('Variant controls');
   expect(operations).toHaveBeenCalledTimes(role === 'model' ? 0 : 1);
 });
