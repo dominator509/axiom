@@ -494,6 +494,13 @@ accepted lanes that still assign the next action to Hermes. `REPLIED` remains
 transport-only. The audit reports a valid nonterminal handoff as `PENDING`
 unless `--allow-pending` is explicitly used to record that checkpoint.
 
+Implementation commit: `cd3b9619631f278075437fb367119a57b24c0f8c`, pushed to
+`origin/codex/telegram-webhook-hardening`. Validation: four protocol journal
+regressions passed, `git diff --check` passed, and both new Codex receipts passed
+the individual protocol validator. The two receipt envelopes are present in the
+Hermes inbox; reply/status artifacts are not present yet, so their state is
+`UNCONFIRMED`, not idle and not complete.
+
 Hermes team and variant ACKs were read and consumed with signed protocol
 receipts `codex-receipt-team-accepted.json` and
 `codex-receipt-variant-accepted.json` (both next sequence 3, next owner
