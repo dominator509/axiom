@@ -1292,7 +1292,7 @@ STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R7 + MEDIA-GALLERY-LIFECYCLE-COPY-R7 + SCRAPER-RESULT-QUALITY-COPY-R7
 LAST_ACCEPTED_CODE: 6b8229d6c247654be7d0f26a100af53a52d54c91
-PUBLISHED_HEAD: 6b8229d6c247654be7d0f26a100af53a52d54c91
+PUBLISHED_HEAD: 334e5de8961cbff22673dcaa12ba6356dbfd9da1
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence
 NEXT_REQUIRED: audit either correlated Hermes DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; both lanes now use the verified writable reply root
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
