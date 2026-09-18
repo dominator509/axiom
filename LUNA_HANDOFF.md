@@ -1218,3 +1218,40 @@ DB/API/dashboard wiring and audit overlap with commit `438abc5`. Its local and
 remote SHA-256 both equal
 `60694e0b02f23c53c5d6f141829efb6c5acf6fff45ec6510983d11d5f974289d`. No
 runtime, provider, database, permission or deployment action occurred.
+
+## Source milestone — M429: canonical human/LLM roleplay handoff
+
+Codex extended the roleplay context contract in commit `ddd8314`. The same
+validated state can now be carried as a versioned JSON envelope or rendered as
+a compact human/LLM-readable resume card. `formatRoleplayPromptContext` joins
+that handoff to bounded conversation memory and persona guidance. The new
+`loadRoleplaySoulSnapshot` API accepts an approved tenant/model-scoped reader
+result for a versioned `soul.md`; it never resolves an arbitrary path, reads
+the filesystem, follows a symlink, or creates a second permission system.
+
+Evidence: 12 focused roleplay tests pass, gateway typecheck passes, gateway
+lint reports only the existing 16 warnings, and `git diff --check` passes.
+The handoff format is documented in
+`L5-verification/roleplay-handoff-format.md`. This does not claim durable
+conversation storage, API/dashboard assignment controls, Grok dispatch, live
+provider behavior, or deployment acceptance.
+
+### Machine/LLM resume card
+
+```text
+STATE: ACTIVE_PARTIAL
+CURRENT_OWNER: HERMES
+ACTIVE_LANE: CHATTER-LLM-ROLEPLAYER-COPY-R1
+LAST_ACCEPTED_CODE: ddd8314
+ACCEPTED_SOURCE: llm-gateway roleplay-context contract
+NEXT_REQUIRED: evidence-backed Hermes PROGRESS or DELIVERY for durable DB/API/dashboard wiring
+INTEGRATION_RULE: audit delivered source against ddd8314; integrate only non-overlapping, tested changes
+FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
+OPEN_GATES: durable memory/persona persistence; actor assignment/revocation; Grok roleplay dispatch; browser/runtime/provider acceptance
+```
+
+Hermes's last read-only poll still showed transport `REPLIED` with no
+roleplay delivery files. That is not source progress or completion; the lane
+remains with Hermes until a valid evidence-backed PROGRESS, DELIVERY, or
+canonical NACK/BLOCKED response arrives. No runtime, provider, database,
+permission, bridge-service, or deployment action occurred.

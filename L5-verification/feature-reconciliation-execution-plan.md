@@ -388,4 +388,14 @@ typecheck and lint pass with the existing 16 warnings. This is not durable
 memory, assignment persistence, an API route, a dashboard workflow, or Grok
 provider evidence; those gates remain open.
 
+M429 extends the same contract without creating a second storage or permission
+system: `serializeRoleplayHandoff`/`parseRoleplayHandoff` provide a versioned
+JSON envelope, `formatRoleplayPromptContext` combines the handoff with bounded
+memory/persona guidance, and `loadRoleplaySoulSnapshot` accepts only an
+approved tenant/model-scoped reader. Twelve focused tests pass; gateway
+typecheck and lint pass with the existing 16 warnings. This is still source
+evidence only. Hermes's pending lane must provide the durable DB/API/dashboard
+assignment and memory/persona persistence wiring, then Codex must audit it for
+overlap before integration.
+
 The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.

@@ -91,3 +91,12 @@ revisioned persona snapshot validator and `soul.md`-style source-reference
 contract. It performs no filesystem reads, persistence or provider calls. The
 DB/API/dashboard assignment, durable memory/persona storage and runtime
 acceptance gates remain open.
+
+M429 extends that source contract with a versioned canonical JSON envelope and
+round-trip parser, a human/LLM prompt-context formatter, bounded persona
+guidance rendering, and `loadRoleplaySoulSnapshot`. The loader accepts only an
+approved tenant/model-scoped reader result; it does not resolve arbitrary
+filesystem paths or follow symlinks. Evidence is 12 focused roleplay tests,
+gateway typecheck, lint with the existing 16 warnings, and diff-check on
+commit `ddd8314`. Durable storage, API/dashboard assignment controls, Grok
+dispatch and runtime/provider acceptance remain open.
