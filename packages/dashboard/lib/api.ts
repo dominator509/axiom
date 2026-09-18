@@ -238,6 +238,19 @@ export interface RelayBinding {
   createdAt: string;
 }
 
+export interface RelayCardHistory {
+  id: string;
+  bundleId: string | null;
+  channel: string | null;
+  state: string;
+  title: string;
+  description: string | null;
+  icon: string | null;
+  enabled: boolean;
+  priority: number;
+  createdAt: string;
+}
+
 export interface AgentTokenMetadata {
   tokenId: string;
   expiresAt: string;
@@ -394,6 +407,14 @@ export const api = {
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio/analytics`),
     relayBindings: (id: string) =>
       apiFetch<{ data: RelayBinding[]; meta?: { total: number } }>(`/api/v1/models/${id}/relay-bindings`),
+    relayCards: (id: string, cursor?: string) => {
+      const query = cursor
+        ? `?limit=20&cursor=${encodeURIComponent(cursor)}`
+        : '?limit=20';
+      return apiFetch<{ data: RelayCardHistory[]; meta: { total: number; limit: number; next_cursor: string | null } }>(
+        `/api/v1/models/${id}/relay-cards${query}`,
+      );
+    },
     agentPermissions: (id: string) =>
       apiFetch<{ data: AgentPermission[] }>(`/api/v1/models/${id}/agent-permissions`),
     cascadeTemplates: (id: string) =>

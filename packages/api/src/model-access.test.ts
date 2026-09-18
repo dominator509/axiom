@@ -84,6 +84,16 @@ it('matches only blueprint read surfaces for each role', () => {
   expect(isScopedHumanRole('owner')).toBe(false);
   expect(isScopedHumanRole(null)).toBe(false);
 });
+it('allows read-only model Relay-card history for every scoped human role', () => {
+  const path = `/api/v1/models/${id}/relay-cards`;
+  for (const role of ['chatter', 'content_creator', 'model'] as const) {
+    expect(scopedReadTarget(role, 'GET', path)).toBe(id);
+    expect(scopedReadTarget(role, 'HEAD', path)).toBe(id);
+    for (const method of ['POST', 'PATCH', 'PUT', 'DELETE']) expect(scopedReadTarget(role, method, path)).toBeNull();
+  }
+  expect(scopedReadTarget('model', 'GET', `/api/v1/models/${id}/relay-cards/extra`)).toBeNull();
+  expect(scopedReadTarget('model', 'GET', '/api/v1/models/not-a-uuid/relay-cards')).toBeNull();
+});
 it('permits only explicit creator preparation operations, not administrative or approval writes', () => {
   for (const action of ['generate', 'media-upload', 'media-operations']) {
     expect(scopedReadTarget('content_creator', 'POST', `/api/v1/models/${id}/${action}`)).toBe(id);

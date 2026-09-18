@@ -292,6 +292,22 @@ Evidence: model route 23-test suite, profile/lifecycle/overview 14 focused
 dashboard tests, API/dashboard typechecks, and diff check pass. No live profile
 was changed; role, deployed, and browser acceptance remain open.
 
+# Current source update — M408
+
+The current checkout now exposes the previously missing model-scoped Relay-card
+history workflow without weakening the external-delivery boundary:
+
+- `packages/api/src/routes/relay-cards.ts` serves cursor-paginated history only
+  through the model's owning organization and role/model access condition.
+- The response projection and an explicit response sanitizer omit
+  `externalRef` and `config`, which may contain provider routing details.
+- `packages/dashboard/app/models/[id]/relay/page.tsx` and
+  `packages/dashboard/components/RelayCardHistory.tsx` expose the history,
+  empty/error states, older-page navigation and an approval-workflow link.
+- Focused API authorization/serialization tests, dashboard tests, package
+  typechecks and linters pass. This remains source evidence only; it does not
+  prove external Relay delivery or deployed browser acceptance.
+
 # M221: Relay binding workflow
 
 Added model-scoped Relay binding GET/POST/PATCH contracts over the existing

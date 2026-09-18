@@ -907,6 +907,38 @@ Codex sent eight signed `RECEIPT/REJECTED` envelopes at `SEQ: 6` with
 for all eight and local/remote SHA-256 readback matched. No source artifact,
 runtime, provider, database, permission, or deployment action occurred.
 
+## Source milestone — M408: model Relay-card history
+
+The next non-overlapping source gap from the reconciliation audit is now
+implemented and verified. `GET /api/v1/models/:modelId/relay-cards` is mounted
+and role-gated as a read-only model surface; it joins cards to the model's
+bundle, applies organization/RLS/model-access conditions, cursor-paginates
+newest-first, and explicitly sanitizes provider routing/config fields from the
+response. The dashboard Relay page now includes history, safe status context,
+empty/error states, older-page navigation and a link back to the approval
+workflow.
+
+Changed source:
+
+- `packages/api/src/routes/relay-cards.ts`
+- `packages/api/src/routes/relay-cards.test.ts`
+- `packages/api/src/index.ts`
+- `packages/api/src/model-access.ts`
+- `packages/api/src/model-access.test.ts`
+- `packages/dashboard/lib/api.ts`
+- `packages/dashboard/app/models/[id]/relay/page.tsx`
+- `packages/dashboard/components/RelayCardHistory.tsx`
+- `packages/dashboard/components/RelayCardHistory.test.tsx`
+
+Evidence: focused API tests 14/14, dashboard tests 2/2, API/dashboard
+typechecks pass, API/dashboard linters pass, API build/OpenAPI generation
+passes. Dashboard production compilation and static page generation pass with
+the required loopback `API_ORIGIN`; the final standalone trace copy is blocked
+only by this Windows checkout's symlink privilege (`EPERM`), not by TypeScript,
+route, or page compilation. No runtime, provider, database, permission or
+deployment action occurred. The external Relay delivery and authenticated
+browser gates remain open.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
