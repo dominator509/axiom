@@ -837,6 +837,43 @@ network, deployment or external services. The next accepted event per lane is
 one correlated ACK/NACK, then evidence-backed PROGRESS or DELIVERY. No product
 artifact has been integrated and no runtime action has occurred.
 
+## Coordination checkpoint — M404
+
+The FT-HERMES control protocol is now the required no-stall operating rule.
+Hermes has acknowledged that `REPLIED` is transport-only, `ACK/READ` is not
+ownership, `ACK/ACCEPTED` is ownership, `NACK/REJECTED` and `NACK/BLOCKED` are
+the NOT-ACK outcomes, and `UNCONFIRMED` is the explicit no-valid-reply state.
+After a Codex receipt, Hermes must emit only evidence-backed PROGRESS, DELIVERY,
+or BLOCKED; a repeated ACK is rejected as an ACK loop. No date, time, deadline,
+TTL, or polling age participates in state.
+
+The eight prior retry tasks correctly returned `NACK/BLOCKED` because their
+authority path was wrong. Read-only checks found the exact candidate source
+context and corrected all eight envelopes to use:
+
+- source root: `/srv/fanthynks/releases/36b67f5ab79cca27f196c74187eb42a8b6c17d68`
+- plan: `L5-verification/feature-reconciliation-execution-plan.md`
+- coverage audit: `L5-verification/backend-frontend-coverage-audit.md`
+- delivery roots: bridge-owned `replies/delivery-*-r3` directories
+
+Each corrected task has a new WIRE, `REASON: SUPERSEDES:<old WIRE>`, source-only
+scope, and `LIVE_ACTIONS: NONE`. Local and remote SHA-256 readback matched for
+all eight envelopes. The only acceptable next event for each lane is one
+correlated ACK/NACK. Codex will send exactly one receipt, then Hermes must send
+PROGRESS, DELIVERY, or a concrete BLOCKED result. No source artifact has been
+integrated and no runtime, provider, database, permission, or deployment action
+has occurred.
+
+The first eight R3 replies were not accepted as ACKs. Each used `SEQ: 1` again
+instead of the required next sequence and ended with only the lowercase bridge
+decoration `sincerely, hermes`, without the canonical Hermes role signature.
+The individual validator rejected all eight. Codex sent eight signed
+`RECEIPT/REJECTED` NOT-ACK envelopes with `REASON: INVALID_SIGNATURE`, the
+observed defects, and the required corrected response (`SEQ: 3`, new WIRE,
+canonical signature). Local and remote SHA-256 readback matched for all eight
+receipts. Until corrected replies arrive, all eight lanes remain
+`UNCONFIRMED`/not accepted; no source work is counted.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only

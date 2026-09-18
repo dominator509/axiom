@@ -217,4 +217,47 @@ The receiver never waits for an implied deadline. It acts on the state:
 - `DELIVERED`: audit immediately; accept or reject with a correlated receipt.
 - `REJECTED`: correct the named defect in a new WIRE id; never relabel the old artifact.
 
+## No-stall operator card
+
+This is the complete exchange rule. Both sides use it; neither side invents a
+missing state from a transport file, a quiet poll, or a human-readable claim.
+
+1. The sender writes one `TASK` and records its `TASK` and `WIRE`. One active
+   WIRE is allowed for a work lane. A replacement task must use a new WIRE and
+   include `REASON: SUPERSEDES:<old WIRE>`.
+2. The receiver returns exactly one initial result:
+   - `ACK/READ`: read successfully, but no ownership was accepted. The sender
+     must clarify or close the task; this result never counts as work started.
+   - `ACK/ACCEPTED`: the named owner accepted the work. The receiver owns the
+     next substantive event.
+   - `NACK/REJECTED`: the request or artifact violates a named contract.
+   - `NACK/BLOCKED`: one concrete input or decision is missing. This is the
+     NOT-ACK result, not a vague waiting state.
+3. The receiver records one `RECEIPT` for that result. A receipt proves that
+   the result was read; it never transfers work and never authorizes runtime,
+   provider, database, permission, or deployment actions.
+4. After `ACK/ACCEPTED` and its receipt, the owner must publish either a
+   concrete `PROGRESS/IN_PROGRESS`, a complete `DELIVERY/DELIVERED`, or a
+   terminal `NACK/BLOCKED`. A second `ACK` is invalid and is rejected as an
+   ACK loop.
+5. `UNCONFIRMED` means no valid correlated logical reply was found. It is the
+   explicit NOT-READ result. Keep the original WIRE, do not create a duplicate
+   task, and do not call the lane active, complete, or blocked until a valid
+   reply is present.
+6. Every nonterminal progress message must add one new, concrete
+   `PROGRESS_EVIDENCE` fact. `NONE`, `NOT_READY`, and `NO_CHANGE` are not
+   progress. Every delivery must include the artifact path, SHA-256, command,
+   exit code, test result, and `LIVE_ACTIONS: NONE`.
+7. A `NACK` is handled only by its named owner: satisfy the exact blocker, or
+   issue one superseding WIRE. Never resend the same WIRE, and never convert a
+   transport `REPLIED` marker into an ACK, progress, or delivery.
+8. If a reply fails validation, the receiver emits one `RECEIPT/REJECTED` at
+   the next unused sequence, correlates it to the rejected reply WIRE, and
+   names the exact correction. The sender then resends with a new reply WIRE
+   at the following sequence. The malformed reply never counts as READ,
+   ACCEPTED, progress, or delivery.
+9. No rule in this card uses dates, times, time zones, deadlines, TTLs, or
+   polling age. Ordering and correlation come only from `SEQ`, `WIRE`, and
+   `IN_REPLY_TO`; signatures identify the sender role.
+
 This makes “read,” “accepted,” “working,” and “done” distinct, auditable facts without relying on either agent's clock.
