@@ -47,6 +47,18 @@ decoration, not message content. Codex uses the exact `sincerely, Codex` line.
 No date, time, timezone, timeout, or relative-duration field is part of this
 protocol.
 
+The deployed bridge also has a legacy ACK envelope that Hermes may emit while
+the transport is being upgraded: it uses `STATE: ACKNOWLEDGED`, may include
+`SCOPE_ACCEPTED`, `DELIVERY_ACCEPTED`, `RUNTIME_ACCEPTANCE`, `LIVE_ACTIONS`,
+and free-form scope lines, and may carry `sincerely, Ip Man` before the fixed
+lowercase bridge suffix. The checked-in validators normalize this form to
+`READ` unless `SCOPE_ACCEPTED: YES` explicitly promotes it to `ACCEPTED`.
+`DELIVERY_ACCEPTED: YES` is never inferred, and legacy ACKs can never normalize
+to `DELIVERED`; source completion still requires the strict DELIVERY payload
+and canonical evidence fields. This compatibility rule prevents a real Hermes
+read from being mistaken for an invalid or stalled message without weakening
+the delivery gate.
+
 ## State meanings
 
 - `READ` means the receiver parsed the message. It does not mean the task was accepted.

@@ -33,6 +33,26 @@ function envelope(id, from, messageBody) {
   return { msg_id: id, from, sent_at: sentinel, subject: id, body: messageBody };
 }
 
+function legacyHermesAckBody(task, wire, inReplyTo, seq) {
+  return [
+    'FT-HERMES/1',
+    'TYPE: ACK',
+    `TASK: ${task}`,
+    `WIRE: ${wire}`,
+    `SEQ: ${seq}`,
+    `IN_REPLY_TO: ${inReplyTo}`,
+    'STATE: ACKNOWLEDGED',
+    'TERMINAL: NO',
+    'NEXT_OWNER: HERMES',
+    'DELIVERY_ACCEPTED: NO',
+    'SCOPE_ACCEPTED: YES - bounded source node only',
+    'LIVE_ACTIONS: NONE',
+    'sincerely, Ip Man',
+    '',
+    'sincerely, hermes',
+  ].join('\n');
+}
+
 function run(messages, extra = []) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ft-hermes-protocol-'));
   for (const [name, message] of messages) fs.writeFileSync(path.join(dir, name), JSON.stringify(message));
@@ -48,6 +68,17 @@ test('accepts a correlated ACK and explicit nonterminal handoff', () => {
   ], ['--allow-pending']);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /state=IN_PROGRESS/);
+});
+
+test('normalizes the deployed bridge ACKNOWLEDGED envelope without accepting delivery', () => {
+  const task = 'LEGACY-BRIDGE-ACK';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read task', from: 'codex' }))],
+    ['02.json', envelope('m2', 'hermes', legacyHermesAckBody(task, 'W2', 'W1', 2))],
+  ], ['--allow-pending']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /state=ACCEPTED/);
+  assert.doesNotMatch(result.stdout, /DELIVERED/);
 });
 
 test('fails closed when Hermes labels progress as ACK/IN_PROGRESS', () => {

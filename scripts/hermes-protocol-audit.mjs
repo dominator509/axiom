@@ -71,32 +71,40 @@ function parseBody(envelope) {
   if (lines[0] !== 'FT-HERMES/1') fail(`${envelope.file}: missing FT-HERMES/1 header`);
 
   let signatureIndex = lines.length - 1;
-  let legacyHermesSuffix = false;
-  if (envelope.from === 'hermes' && lines.at(-1) === 'sincerely, hermes') {
-    legacyHermesSuffix = true;
+  const legacyHermesSuffix = envelope.from === 'hermes' && lines.at(-1) === 'sincerely, hermes';
+  if (legacyHermesSuffix) {
     signatureIndex -= 1;
     while (signatureIndex >= 0 && lines[signatureIndex] === '') signatureIndex -= 1;
   }
   const signature = lines[signatureIndex];
   const expected = envelope.from === 'codex'
     ? 'sincerely, Codex'
-    : /^sincerely, Hermes(?: \(role: bridge-responder\))?$/;
+    : /^(?:sincerely, Hermes(?: \(role: bridge-responder\))?|sincerely, Ip Man)$/;
   if (envelope.from === 'codex' ? signature !== expected : !expected.test(signature ?? '')) {
     fail(`${envelope.file}: canonical signature missing or wrong`);
   }
   if (envelope.from === 'codex' && signatureIndex !== lines.length - 1) {
     fail(`${envelope.file}: content follows the Codex signature`);
   }
-  if (envelope.from === 'hermes' && legacyHermesSuffix && lines.length - 1 !== signatureIndex + 1) {
-    fail(`${envelope.file}: unexpected content follows the Hermes signature`);
+  if (envelope.from === 'hermes' && legacyHermesSuffix) {
+    const nonBlankTrailing = lines.slice(signatureIndex + 1).filter((line) => line !== '');
+    if (nonBlankTrailing.length !== 1 || nonBlankTrailing[0] !== 'sincerely, hermes') {
+      fail(`${envelope.file}: unexpected content follows the Hermes signature`);
+    }
   }
 
   const payloadIndex = lines.indexOf('PAYLOAD:');
-  if (payloadIndex < 0 || payloadIndex >= signatureIndex) fail(`${envelope.file}: missing payload delimiter`);
+  const typeLine = lines.find((line) => line.startsWith('TYPE: '));
+  const legacyAck = envelope.from === 'hermes' && typeLine === 'TYPE: ACK' && payloadIndex < 0;
+  if (!legacyAck && (payloadIndex < 0 || payloadIndex >= signatureIndex)) fail(`${envelope.file}: missing payload delimiter`);
   const headers = new Map();
-  for (const line of lines.slice(1, payloadIndex)) {
+  const headerEnd = legacyAck ? signatureIndex : payloadIndex;
+  for (const line of lines.slice(1, headerEnd)) {
     const match = /^(?<key>[A-Z0-9_]+): (?<value>.*)$/.exec(line);
-    if (!match) fail(`${envelope.file}: invalid header ${line}`);
+    if (!match) {
+      if (legacyAck) continue;
+      fail(`${envelope.file}: invalid header ${line}`);
+    }
     if (headers.has(match.groups.key)) fail(`${envelope.file}: duplicate header ${match.groups.key}`);
     headers.set(match.groups.key, match.groups.value);
   }
@@ -104,7 +112,15 @@ function parseBody(envelope) {
     'TYPE', 'TASK', 'WIRE', 'SEQ', 'IN_REPLY_TO', 'STATE', 'TERMINAL',
     'NEXT_OWNER', 'NEXT_ACTION', 'REASON', 'PAYLOAD_SHA256',
   ];
-  for (const key of requiredHeaders) if (!headers.has(key)) fail(`${envelope.file}: missing header ${key}`);
+  if (legacyAck) {
+    for (const key of ['TYPE', 'TASK', 'WIRE', 'SEQ', 'IN_REPLY_TO', 'STATE', 'TERMINAL', 'NEXT_OWNER', 'DELIVERY_ACCEPTED', 'LIVE_ACTIONS']) {
+      if (!headers.has(key)) fail(`${envelope.file}: legacy ACK missing header ${key}`);
+    }
+    if (headers.get('DELIVERY_ACCEPTED') !== 'NO') fail(`${envelope.file}: legacy ACK cannot claim delivery`);
+    if (headers.get('LIVE_ACTIONS') !== 'NONE') fail(`${envelope.file}: legacy ACK must declare LIVE_ACTIONS NONE`);
+  } else {
+    for (const key of requiredHeaders) if (!headers.has(key)) fail(`${envelope.file}: missing header ${key}`);
+  }
 
   const identifier = /^[A-Za-z0-9._-]+$/;
   for (const key of ['TASK', 'WIRE']) {
@@ -115,23 +131,27 @@ function parseBody(envelope) {
   const types = new Set(['TASK', 'ACK', 'NACK', 'RECEIPT', 'PROGRESS', 'DELIVERY']);
   const states = new Set(['OPEN', 'READ', 'ACCEPTED', 'IN_PROGRESS', 'DELIVERED', 'REJECTED', 'BLOCKED']);
   const owners = new Set(['CODEX', 'HERMES', 'NONE']);
+  const rawState = headers.get('STATE');
+  const normalizedState = legacyAck && rawState === 'ACKNOWLEDGED'
+    ? (headers.get('SCOPE_ACCEPTED')?.startsWith('YES') ? 'ACCEPTED' : 'READ')
+    : rawState;
   if (!types.has(headers.get('TYPE'))) fail(`${envelope.file}: invalid TYPE`);
-  if (!states.has(headers.get('STATE'))) fail(`${envelope.file}: invalid STATE`);
+  if (!states.has(normalizedState)) fail(`${envelope.file}: invalid STATE`);
   if (!owners.has(headers.get('NEXT_OWNER'))) fail(`${envelope.file}: invalid NEXT_OWNER`);
   if (!['YES', 'NO'].includes(headers.get('TERMINAL'))) fail(`${envelope.file}: invalid TERMINAL`);
-  const terminal = new Set(['DELIVERED', 'REJECTED', 'BLOCKED']).has(headers.get('STATE'));
+  const terminal = new Set(['DELIVERED', 'REJECTED', 'BLOCKED']).has(normalizedState);
   if ((headers.get('TERMINAL') === 'YES') !== terminal) fail(`${envelope.file}: TERMINAL does not match STATE`);
-  if (headers.get('TYPE') === 'TASK' && (headers.get('STATE') !== 'OPEN' || seq !== 1 || headers.get('IN_REPLY_TO') !== 'NONE')) {
+  if (headers.get('TYPE') === 'TASK' && (normalizedState !== 'OPEN' || seq !== 1 || headers.get('IN_REPLY_TO') !== 'NONE')) {
     fail(`${envelope.file}: TASK must be SEQ 1 / OPEN / IN_REPLY_TO NONE`);
   }
-  if (headers.get('TYPE') === 'ACK' && !['READ', 'ACCEPTED'].includes(headers.get('STATE'))) fail(`${envelope.file}: ACK state invalid`);
-  if (headers.get('TYPE') === 'NACK' && !['REJECTED', 'BLOCKED'].includes(headers.get('STATE'))) fail(`${envelope.file}: NACK state invalid`);
-  if (headers.get('TYPE') === 'PROGRESS' && headers.get('STATE') !== 'IN_PROGRESS') fail(`${envelope.file}: PROGRESS must be IN_PROGRESS`);
-  if (headers.get('TYPE') === 'DELIVERY' && headers.get('STATE') !== 'DELIVERED') fail(`${envelope.file}: DELIVERY must be DELIVERED`);
-  if (!terminal && headers.get('NEXT_ACTION') === 'NONE') fail(`${envelope.file}: nonterminal message must name NEXT_ACTION`);
-  if (headers.get('TYPE') === 'NACK' && headers.get('REASON') === 'NONE') fail(`${envelope.file}: NACK must name REASON`);
-  if (!/^(NONE|[a-f0-9]{64})$/.test(headers.get('PAYLOAD_SHA256'))) fail(`${envelope.file}: invalid PAYLOAD_SHA256`);
-  for (const line of lines.slice(1, payloadIndex)) {
+  if (headers.get('TYPE') === 'ACK' && !['READ', 'ACCEPTED'].includes(normalizedState)) fail(`${envelope.file}: ACK state invalid`);
+  if (headers.get('TYPE') === 'NACK' && !['REJECTED', 'BLOCKED'].includes(normalizedState)) fail(`${envelope.file}: NACK state invalid`);
+  if (headers.get('TYPE') === 'PROGRESS' && normalizedState !== 'IN_PROGRESS') fail(`${envelope.file}: PROGRESS must be IN_PROGRESS`);
+  if (headers.get('TYPE') === 'DELIVERY' && normalizedState !== 'DELIVERED') fail(`${envelope.file}: DELIVERY must be DELIVERED`);
+  if (!legacyAck && !terminal && headers.get('NEXT_ACTION') === 'NONE') fail(`${envelope.file}: nonterminal message must name NEXT_ACTION`);
+  if (!legacyAck && headers.get('TYPE') === 'NACK' && headers.get('REASON') === 'NONE') fail(`${envelope.file}: NACK must name REASON`);
+  if (!legacyAck && !/^(NONE|[a-f0-9]{64})$/.test(headers.get('PAYLOAD_SHA256'))) fail(`${envelope.file}: invalid PAYLOAD_SHA256`);
+  for (const line of lines.slice(1, headerEnd)) {
     if (/^(DATE|TIME|TIMESTAMP|SENT_AT|CREATED_AT|UPDATED_AT|DEADLINE|TTL):/.test(line)) {
       fail(`${envelope.file}: wall-clock/deadline header is forbidden`);
     }
@@ -169,11 +189,11 @@ function parseBody(envelope) {
     wire: headers.get('WIRE'),
     seq,
     inReplyTo: headers.get('IN_REPLY_TO'),
-    state: headers.get('STATE'),
+    state: normalizedState,
     terminal,
     nextOwner: headers.get('NEXT_OWNER'),
-    nextAction: headers.get('NEXT_ACTION'),
-    reason: headers.get('REASON'),
+    nextAction: headers.get('NEXT_ACTION') ?? (legacyAck ? 'Publish PROGRESS or DELIVERY' : undefined),
+    reason: headers.get('REASON') ?? (legacyAck ? 'LEGACY_BRIDGE_ACK' : undefined),
   };
 }
 

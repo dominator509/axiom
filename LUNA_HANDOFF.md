@@ -612,6 +612,18 @@ inbox files were not evidence of a polling failure. Replies also carry the
 Hermes-side and Ip Man signatures, and no runtime/provider/database/permission/
 deployment action occurred.
 
+M376 reconciled the validator with the deployed bridge's actual Hermes ACK
+envelope. Hermes ACKs use `STATE: ACKNOWLEDGED`, may carry scope and invariant
+lines without a `PAYLOAD:` delimiter, and the bridge appends lowercase
+`sincerely, hermes` after the agent's `sincerely, Ip Man` attestation. The
+validators now normalize this legacy form to `READ`, or to `ACCEPTED` only
+when `SCOPE_ACCEPTED: YES` is present; `DELIVERY_ACCEPTED: NO` and
+`LIVE_ACTIONS: NONE` are required, and the form can never become `DELIVERED`.
+All six actual Hermes replies now pass individual validation; the stateful
+suite passes 6/6. This removes a false NACK/stall while keeping the strict
+source DELIVERY evidence gate intact. No runtime/provider/database/permission/
+deployment action occurred.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
