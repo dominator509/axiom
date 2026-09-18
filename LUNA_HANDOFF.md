@@ -465,7 +465,10 @@ pending while the D001A gate is held. A third independent source-only lane,
 `SCRAPER-RESULT-QUALITY`, is now OPEN with a protocol task covering only the
 architecture-named result-quality gaps. Its ACK/IN_PROGRESS/DELIVERY state is
 separate from D001A and F81/F84. No lane grants runtime, provider, database,
-permission, or deployment authority.
+permission, or deployment authority. A fourth independent lane,
+`MEDIA-GALLERY-LIFECYCLE`, is now OPEN. It is constrained to the existing
+asset/content-bundle/media-operation/job contracts and must close the missing
+cross-lifecycle gallery states without creating a parallel storage model.
 
 ## Handoff maintenance rule
 
