@@ -351,6 +351,33 @@ health endpoints alone never closes a gate.
   rehearsal allowlist, rejects the legitimate rehearsal prefix/replica role,
   and admits a trailing newline in directly constructed SHAs. Precise fixes
   and a database-callsite inventory were delegated in
-  `codex-d001a-r2-review-20260917`; no installed script was changed or executed.
+`codex-d001a-r2-review-20260917`; no installed script was changed or executed.
+
+### Explicit owner extension — human-or-LLM Chatter roleplayer
+
+The owner has requested that Chatter support either a real human actor or an
+approved model-scoped LLM actor, with Grok as the first roleplayer provider
+and Venice left behind the existing provider abstraction for later work. This
+is a new reconciliation requirement; it is not currently complete.
+
+The implementation lane must compose the existing human shift/assignment
+policy, model-scoped `agent_permission`, persona/playbook prompt context,
+Grok subscription transport and audited reply-intent contracts rather than
+creating a second inbox or permission system. Human Chatter behavior must
+remain unchanged. LLM actors require server-side assignment and revocation
+checks, actor attribution, bounded draft/reply intents and the same consent,
+safety, approval, idempotency and uncertain-delivery gates.
+
+The handoff contract must be usable by both humans and LLMs and explicitly
+carry actor type/reference, org/model, active shift, conversation cursor,
+queue, last safe summary, pending intent, memory policy, persona source and
+persona revision. Roleplay needs bounded tenant/model-scoped conversation
+memory with explicit retention/truncation and audit semantics, plus an
+optional versioned `soul.md`/persona source loaded only from an approved
+persisted tenant/model-scoped source. It must be size-bounded, sanitized,
+revisioned, audited, traversal-safe and treated as instruction data below
+system safety, ToS, consent, approval and publication rules. If the existing
+storage/dispatch contracts cannot support this safely, the implementation
+must return a concrete blocker rather than inventing unsafe semantics.
 
 The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.

@@ -1150,3 +1150,24 @@ turn; no feature delivery has been accepted yet. The only acceptable next
 event is evidence-backed `PROGRESS`, `DELIVERY/DELIVERED`, or terminal
 `NACK/BLOCKED`. No runtime, provider, database, permission, bridge-service or
 deployment action occurred.
+
+## Explicit owner extension — CHATTER-LLM-ROLEPLAYER-COPY-R1
+
+The owner has extended Chatter so its actor may be either a real human or an
+approved model-scoped LLM, with Grok as the first roleplayer provider. The
+existing source has human Chatter shifts, model-scoped agent permissions,
+Grok subscription transport, persona/playbook prompt segments and audited
+reply intents as separate contracts; their safe composition is not yet
+implemented or accepted.
+
+Codex prepared a strict source-only Hermes task in
+`var/bridge-requests/codex-chatter-llm-roleplayer-copy-r1.json`. Its required
+handoff is actor-agnostic and human/LLM readable: actor type/reference,
+org/model, active shift, conversation cursor, queue, last safe handoff
+summary, pending intent, memory policy, persona source and persona revision.
+LLM roleplay must add bounded tenant/model-scoped conversation memory and an
+optional versioned, size-bounded and traversal-safe `soul.md`-style persona
+source, with explicit retention, audit and revision behavior. Persona text is
+instruction data only; system safety, ToS, consent, approval and publication
+rules remain higher priority. The lane must preserve the human path, use a
+fake/captured transport in tests, and report `LIVE_ACTIONS: NONE`.

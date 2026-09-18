@@ -34,7 +34,7 @@ receipts. Historical audit baselines are not silently treated as current source.
 | Uploaded/generated media | Upload is reachable directly from the model media library; source and kind filters now fail closed and persist across cursor pagination; generated-asset storage, source-image selection, bounded previews and media operations exist in source; transform status is explicit and refreshable, with safe failed-operation retry. | The static audit still has no complete persistent gallery for uploaded and generated image/video across every lifecycle state, and deployed media/runtime acceptance remains open. |
 | Sanitization | `packages/worker/src/media-sanitizer.ts`, `scripts/sanitize-media.mjs` and the rehearsal script are real source. They rebuild supported JPEG/PNG/MP4 outputs and expose an opt-in path. | The CLI reports `externalProvenanceErased: false`; no claim is made for C2PA/external provenance removal or byte-fingerprint anonymity. |
 | Variants and A/B (F-13/F-15/F-16) | Model-scoped lifecycle, assignments, exposure/outcome capture, attribution and winner/reward source paths exist. | Remaining guidance/hook/timing evidence, statistical/runtime acceptance and deployed worker/provider acceptance. |
-| Team and shifts (F-24/F-25/F-26) | RBAC, shift lifecycle, handoff/post-note routes and dashboard controls exist. | Dedicated Chatter restrictions, complete pagination and authenticated multi-user browser/RLS acceptance. |
+| Team and shifts (F-24/F-25/F-26) | RBAC, shift lifecycle, handoff/post-note routes and dashboard controls exist. | Dedicated Chatter restrictions, complete pagination and authenticated multi-user browser/RLS acceptance. The explicit owner extension for human-or-LLM Chatter, actor-agnostic handoffs, bounded conversation memory and versioned `soul.md`/persona loading is not yet source-implemented. |
 | Playbook (F-54/F-55/F-56/F-57) | Revisioned guideline storage/editor, calendar checks and generation enrichment exist in source. | All consumer coverage, stale-editor/history browser acceptance and deployed migration acceptance. |
 | Scraper and research (F-17/F-18) | Authenticated bounded scrape runs, worker dispatch, model egress binding and partial-result/error handling exist. | Deployed sidecar/provider isolation, benchmark history and result-quality acceptance. |
 | Viral loop (F-79–F-86) | Metric/evidence filtering, labels, recipes, embeddings/retrieval and parts of reward/digest logic exist. | Full recipe fields, revenue/conversion attribution, all contextual arms, cross-model opt-in behavior, scheduled insight/Relay delivery and runtime acceptance. |
@@ -62,3 +62,25 @@ schedule before refreshing. It also renders advisory time windows derived from
 verified viral-performance buckets without scheduling or publishing. This
 changes only the source-wired column; authenticated browser/mobile interaction,
 provider execution, and deployed runtime acceptance remain open.
+
+## Explicit owner extension — dual-actor Chatter roleplayer
+
+The owner has extended the Chatter requirement: the assigned actor may be a
+real human or an approved model-scoped LLM, with Grok as the first roleplayer
+provider and Venice preserved as a future provider-compatible option. This is
+an architecture extension, not evidence that the feature already exists.
+The current source has human Chatter assignment/shift policy, model-scoped
+agent permissions, Grok subscription transport, persona/playbook prompt
+segments, and audited reply intents as separate contracts. It does not yet
+prove their safe composition.
+
+The required implementation must keep one assignment, consent, safety,
+approval, idempotency, audit and uncertain-delivery boundary for both actor
+types. Its handoff must be actor-agnostic and readable by humans and LLMs,
+including actor type/reference, org/model, active shift, conversation cursor,
+queue, last safe summary, pending intent, memory policy, persona source and
+persona revision. LLM roleplay additionally requires bounded
+tenant/model-scoped conversation memory and an optional versioned
+`soul.md`-style persona source with size, traversal, revision, audit and
+instruction-data safeguards. No provider, deployment, live OAuth, or
+publication evidence is implied until separately demonstrated.
