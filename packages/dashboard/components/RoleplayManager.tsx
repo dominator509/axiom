@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { RoleplayActor, RoleplayHandoff, RoleplayMemoryTurn, RoleplayPersona, RoleplayTurnReceipt, RoleplayTurnResult } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import { getRoleplayPersonalitySuggestion, ROLEPLAY_PERSONALITY_SUGGESTIONS, type RoleplayPersonalityKey } from '@/lib/roleplay-personality';
 
 export interface RoleplayActorOption {
   actor: RoleplayActor;
@@ -26,6 +27,8 @@ export default function RoleplayManager({ modelId, actorOptions, canEdit }: { mo
   const [conversationKey, setConversationKey] = useState('default');
   const [context, setContext] = useState<RoleplayContext | null>(null);
   const [personaText, setPersonaText] = useState('');
+  const [personaMode, setPersonaMode] = useState<'suggested' | 'manual'>('manual');
+  const [suggestionKey, setSuggestionKey] = useState<RoleplayPersonalityKey>(ROLEPLAY_PERSONALITY_SUGGESTIONS[0].key);
   const [summary, setSummary] = useState('');
   const [nextAction, setNextAction] = useState('Review the next bounded roleplay turn');
   const [memoryRole, setMemoryRole] = useState<'user' | 'assistant'>('user');
@@ -85,11 +88,29 @@ export default function RoleplayManager({ modelId, actorOptions, canEdit }: { mo
         setError('Persona file is too large; keep the source under 8,000 characters.');
         return;
       }
+      setPersonaMode('manual');
       setPersonaText(text);
       setMessage(`Loaded ${file.name}. Review it before saving a new revision.`);
     } catch {
       setError('The persona file could not be read in this browser.');
     }
+  }
+
+  function useSuggestedPersonality() {
+    if (!canEdit || busy) return;
+    const suggestion = getRoleplayPersonalitySuggestion(suggestionKey);
+    if (!suggestion) return;
+    setError('');
+    setPersonaMode('suggested');
+    setPersonaText(suggestion.content);
+    setMessage(`Loaded “${suggestion.label}” into the editor. Review it before saving a new revision.`);
+  }
+
+  function enableManualPersonality() {
+    if (!canEdit || busy) return;
+    setError('');
+    setPersonaMode('manual');
+    setMessage('Manual mode enabled. Existing persona text was kept; write or revise it before saving.');
   }
 
   function savePersona() {
@@ -184,6 +205,15 @@ export default function RoleplayManager({ modelId, actorOptions, canEdit }: { mo
       <section className="card stack">
         <h3>Persona · soul.md</h3>
         <p className="subtle">The stored source is versioned and size-limited. The gateway loads it through an approved tenant/model reader; arbitrary filesystem paths are never accepted.</p>
+        <div className="stack" aria-label="Persona authoring options">
+          <label>Suggested personality<select value={suggestionKey} disabled={!canEdit || busy} onChange={event => setSuggestionKey(event.target.value as RoleplayPersonalityKey)}>{ROLEPLAY_PERSONALITY_SUGGESTIONS.map(suggestion => <option key={suggestion.key} value={suggestion.key}>{suggestion.label}</option>)}</select></label>
+          <p className="subtle">{getRoleplayPersonalitySuggestion(suggestionKey)?.description}</p>
+          <div className="row">
+            <button className={`btn${personaMode === 'suggested' ? '' : ' secondary'}`} type="button" disabled={!canEdit || busy} aria-pressed={personaMode === 'suggested'} onClick={useSuggestedPersonality}>Use suggested personality</button>
+            <button className={`btn${personaMode === 'manual' ? '' : ' secondary'}`} type="button" disabled={!canEdit || busy} aria-pressed={personaMode === 'manual'} onClick={enableManualPersonality}>Write manually</button>
+          </div>
+          <p className="subtle">Mode: {personaMode === 'suggested' ? 'suggested text loaded into the editor' : 'manual editing'} · suggestions are editable guidance only and are not saved until you choose Save.</p>
+        </div>
         <label>Load a local soul.md or persona prompt<input type="file" accept=".md,.txt,text/markdown,text/plain" disabled={!canEdit || busy} onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ''; if (file) void loadPersonaFile(file); }} /></label>
         <textarea value={personaText} onChange={event => setPersonaText(event.target.value)} maxLength={8000} rows={12} placeholder="Write bounded character guidance…" disabled={!canEdit || busy} />
         <p className="subtle">Revision: {context?.persona?.revision ?? 0} · {personaText.length}/8000 characters</p>
