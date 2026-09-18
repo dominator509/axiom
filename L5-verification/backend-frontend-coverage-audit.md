@@ -52,6 +52,8 @@ runtime-accepted merely because its unit tests pass.
 | F-86 | **Wired setting/partial**: org-level sharing toggle and scoped viral retrieval exist | Cross-model sharing acceptance and privacy rehearsal remain open |
 | F-87 | **Wired source/UI**: metadata-only consent vault, revoke, and publication gate are reachable | Encrypted document-store/provider and expiry rehearsal remain open |
 | F-88 | **Partial**: Expo app restores auth and exposes settings/digest/Relay | It is not feature-parity with the responsive dashboard; mobile browser and native acceptance remain open |
+| F-89 | **Absent/new extension**: no shared locale catalog, persisted UI-language preference or complete web/native switch was found; several UI formatters are hard-coded to `en-US` | Six launch locales, fallback/catalog completeness, locale persistence, email/operator coverage, content-vs-UI locale separation and desktop/mobile acceptance are open |
+| F-90 | **Absent/new extension**: no FanThynks affiliate/referral/reseller control plane was found; provider earnings referrals are not an affiliate system | Attribution, immutable commission/reversal ledger, fraud/payout controls, partner/reseller portal, white-label scope, licensing/security review and payout acceptance are open |
 
 ### Executed remediation queue
 
@@ -108,13 +110,15 @@ Backend paths below are relative to `/api/v1` unless noted. Evidence paths are r
 2. **Saving is not activation.** NetworkForm only calls the metadata PUT. Credential fields and plane bind/sync are separate backend contracts with no corresponding workflow. A successful metadata save cannot mean a tunnel is ready.
 3. **Frontend parity differs by platform.** Native mobile has digest and sharing controls missing from the responsive website. Native mobile's endpoint wrappers do not prove every operation is rendered or permitted; mobile browsers use the dashboard, not Expo.
 4. **Persistent media management is incomplete.** Bundle media preview and source-image selection exist, but neither constitutes a gallery for uploaded/generated image/video across all lifecycle states.
-5. **The documented all-feature gate is not established.** `L5.0-test-matrix.md` promises an F-01..F-88 preservation check. Existing navigation tests establish reachability of existing pages, not presence and usability of every required feature.
+5. **The documented all-feature gate is not established.** `L5.0-test-matrix.md` promises an F-01..F-88 preservation check, and F-89/F-90 are now owner extensions. Existing navigation tests establish reachability of existing pages, not presence and usability of every required feature.
+6. **Localization is not a cross-cutting contract yet.** The dashboard, mobile app, emails and operator errors do not share a typed catalog or persisted locale precedence, so adding isolated translated labels would create inconsistent language behavior.
+7. **Affiliate/reseller state is not present.** Existing provider earnings/referral fields must not be repurposed; attribution, commission, payout, fraud and reseller branding require a separate tenant-safe contract.
 
 ## Required acceptance evidence before closing these findings
 
 For every operator capability: name its architecture feature, mounted backend contract, permitted roles, reachable UI control, validated payload, visible success/error/empty states, persistence after reload, and desktop/mobile browser result. Test forbidden roles as well as allowed roles. Destructive operations need confirmation; retries must preserve user-intent idempotency; asynchronous operations need terminal status and reconciliation. Do not bypass safety gates or dispatch publication merely to satisfy coverage.
 
-Remaining audit depth: complete field-by-field and role-by-role runtime execution; inspect all worker-only architectural features for missing orchestration rather than merely missing buttons; verify every F-01..F-88 requirement individually. This document is a coverage finding, not a new execution plan, and does not certify architecture completeness or production readiness.
+Remaining audit depth: complete field-by-field and role-by-role runtime execution; inspect all worker-only architectural features for missing orchestration rather than merely missing buttons; verify every F-01..F-90 requirement individually. This document is a coverage finding, not a new execution plan, and does not certify architecture completeness or production readiness.
 
 ## Remediation evidence after baseline
 

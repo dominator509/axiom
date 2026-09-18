@@ -1473,6 +1473,24 @@ the existing RBAC/RLS, model-access, shift, note, terminal-state and idempotency
 contracts, and must return a concrete NACK if the existing schema cannot support
 a requested behavior. No delivery has been accepted yet.
 
+## Owner extension checkpoint — localization and affiliate/reseller stack
+
+F-89 and F-90 are now architecture requirements, not completed features.
+Localization must support `en`, `es`, `ja`, `it`, `pt-BR` and `de` across the
+dashboard, native mobile, auth, email and operator surfaces with persisted
+user/org locale precedence, typed catalogs, English fallback and locale-aware
+formatting. UI locale must remain separate from creator/model content language.
+
+F-90 requires a tenant-safe platform/organization affiliate and reseller plane
+with immutable attribution events, derived commissions, reversals/refunds,
+fraud holds, payout export/adapters, disclosures, audit/idempotency and
+white-label controls. No such FanThynks plane exists today; provider earnings
+`referrals` is not a substitute. OpenPartner and Refferq are MIT license-fit
+candidates, but neither is accepted as hardened or imported. RefKit's
+application is AGPL-3.0 and is not the default for a proprietary white-label
+deployment. The plan is to evaluate OpenPartner from a pinned isolated copy,
+then build F-90 natively if the source/dependency/security review fails.
+
 ### Machine/LLM resume card
 
 Bridge checkpoint: the cron report describing the original R9 intake is stale as
@@ -1498,6 +1516,6 @@ ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bou
 NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; R9 proceed envelopes are in flight; all active lanes use verified writable reply-root subdirectories
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
-OPEN_GATES: variant R9 delivery; media gallery R9 delivery; scraper result-quality R9 delivery; team R5 DELIVERY; roleplayer R1 DELIVERY; roleplay suggestion/manual browser acceptance; migrations 0050, 0051 and 0052; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence; trusted thumbnail descriptors; conversion dimensions; scheduled Relay delivery
+OPEN_GATES: variant R9 delivery; media gallery R9 delivery; scraper result-quality R9 delivery; team R5 DELIVERY; roleplayer R1 DELIVERY; F-89 localization implementation/catalog/browser acceptance; F-90 affiliate license/security decision and implementation/browser acceptance; roleplay suggestion/manual browser acceptance; migrations 0050, 0051 and 0052; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence; trusted thumbnail descriptors; conversion dimensions; scheduled Relay delivery
 HERMES_STATUS: the four original R9 lanes returned ACK_READ only; signed proceed envelopes now require execution from the verified pin. Team R5 has a copied source tree plus PROGRESS, not DELIVERY; roleplayer R1 has PROGRESS, not DELIVERY. No Hermes source artifact has been accepted or integrated; no runtime/provider/database/permission/migration/deployment action is authorized.
 ```

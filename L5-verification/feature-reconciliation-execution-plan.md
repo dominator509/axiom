@@ -241,6 +241,22 @@ health endpoints alone never closes a gate.
 - [x] Classic branch protection API readback on 2026-09-17 confirms strict six required checks (typecheck, lint, test, build, security, container), one approving review, stale-review dismissal, admin enforcement, no force pushes and no deletions. This proves current enforcement, not permanent configuration or CI success on subsequent commits.
 - Gate: hosted CI success for the audited commit and branch/ruleset readback. If GitHub credentials are unavailable, leave a precise operator command and mark the external gate open.
 
+### 14. Localization and language switching — new owner extension; source work not started
+
+- Define the shared F-89 locale contract for `en`, `es`, `ja`, `it`, `pt-BR` and `de`; normalize BCP-47 tags and keep UI locale separate from creator/model content locale.
+- Add persisted user preference plus organization default with explicit user choice taking precedence over browser detection; preserve the setting across dashboard, native mobile, auth, email and operator surfaces.
+- Create a typed shared message-catalog package with English fallback, ICU plural/select messages, `Intl` number/currency/date/time-zone formatting, accessible `lang` metadata and a missing-key test that fails closed.
+- Replace inline user-facing strings and hard-coded `en-US` formatting only in touched surfaces; do not translate user/provider/generated content implicitly. Translation actions must be explicit, bounded and audited.
+- Acceptance gate: catalog completeness for all six launch locales, locale switch persistence after reload/sign-in, server/client parity, mobile parity, language-tag accessibility checks, fallback/error-state tests and browser coverage at desktop and narrow mobile widths.
+
+### 15. Affiliate, referral and reseller stack — new owner extension; evaluate then build
+
+- Define the F-90 event-sourced contract in the existing tenant/RLS/API/worker/dashboard architecture: platform and organization program scope, partner identity, campaign/link, click, identity stitch, conversion, commission, reversal/refund, payout export, fraud hold, disclosure/consent, audit and idempotency.
+- Evaluate OpenPartner from a pinned commit in an isolated source-only copy. Verify MIT license obligations, all dependency licenses, SBOM/vulnerability state, authentication/session boundaries, tenant isolation, signed webhooks, replay/idempotency, refund/chargeback handling, payout controls, export/deletion and operational tests. Do not import from README claims alone.
+- Keep Refferq as a secondary MIT comparison. Reject RefKit's AGPL application as the default unless the product explicitly accepts network-copyleft/source-disclosure obligations; its MIT SDK pieces do not make the application AGPL-free.
+- If no candidate passes the hardening gate, implement the F-90 stack natively: immutable attribution events, derived commission ledger, review/hold states, payout adapter boundary, partner portal, reseller/white-label controls, tenant-scoped exports and audit-safe reconciliation. Never reuse provider earnings `referrals` as affiliate state.
+- Acceptance gate: source/license/dependency review receipt, cross-tenant and role/RLS tests, signed webhook/replay tests, conversion idempotency under retries, reversal/refund and payout-hold tests, disclosure/consent tests, export/deletion tests, desktop/mobile browser coverage, and an explicit human/legal review of the selected licensing model. No live payouts are claimed by source tests.
+
 ## Completion definition
 
 ### Inbox delivery checkpoint — 2026-09-17, M311

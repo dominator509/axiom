@@ -40,6 +40,8 @@ receipts. Historical audit baselines are not silently treated as current source.
 | Viral loop (F-79–F-86) | Metric/evidence filtering, publication-bound recipe evidence (hook, scheduled/actual time, bounded shoot controls, media format and ToS verdict), labels, recipes, embeddings/retrieval and parts of reward/digest logic exist. | Trusted thumbnail descriptors, revenue/conversion attribution, all contextual arms, cross-model opt-in behavior, scheduled insight/Relay delivery and runtime acceptance. |
 | Connectors and OAuth (F-03/F-31/F-58–F-67) | Static connector contracts and capability declarations exist for supported paths. | Live OAuth, refresh/revoke/disconnect, account onboarding, provider upload/publish/metrics receipts and browser acceptance. Snapchat remains capability-honest manual-assist where its API does not support organic posting. |
 | Link-in-bio (F-48–F-53) | The Native provider is the current production-enabled default. | Fanlynks, Linktree and Beacons are optional planned adapters and must remain hidden/rejected until their full lifecycle exists; a database row is not evidence of a connection. |
+| Localization and language switching (F-89) | **New owner extension:** no shared locale catalog, persisted UI-language preference, or complete mobile/web language switch is currently established. Existing formatting still contains hard-coded `en-US` paths. | Add `en`, `es`, `ja`, `it`, `pt-BR`, and `de` UI locales with an explicit user switch, organization default, browser-first-run detection, BCP-47 normalization, ICU messages, locale-aware formatting, accessible `lang` metadata, and parity across dashboard, native mobile, auth, emails and operator errors. Content language and UI language must remain separate. |
+| Affiliate, referral and reseller stack (F-90) | **New owner extension:** no FanThynks affiliate-program, partner, conversion, commission, payout or reseller-control plane was found. Fanvue earnings `referrals` is provider data, not this feature. | Add a tenant-safe attribution and immutable commission ledger, affiliate/reseller portal, conversion/reversal and fraud states, payout export/provider adapter, disclosures, audit/idempotency, platform-vs-tenant scope and white-label controls. No third-party stack is approved until its source, dependency, security and license review passes. |
 | R2 media storage | Grok R2 credential storage/status/verify routes, encrypted managed config and tests exist. | A real configured bucket round-trip through the deployed application, retention/delete evidence and operator acceptance. |
 | Relay and operator controls (F-68–F-72) | Cards, signed/replay-protected command paths, several approval/revision/review workflows, and a model-scoped cursor-paginated/redacted Relay-card history with an approval deep-link are source-wired. | Attachment sending, external delivery, uncertain-outcome reconciliation and deployed channel acceptance. |
 | Observability (F-73–F-78) | Internal crash sink, error boundary, correlation and durable DLQ-related source paths exist. | GlitchTip/Sentry, Loki, Prometheus/Grafana, OpenTelemetry, alerts, crash-loop paging and deployed failed-job recovery. L2.9 explicitly treats those as runtime integrations, not bundled proof. |
@@ -115,3 +117,74 @@ roleplay tests pass 12/12; its full suite still has four pre-existing
 Windows subscription-process termination failures. Migration `0050` has not
 been run, and no provider call, live action or deployment acceptance is
 claimed.
+
+## Explicit owner extensions — localization and affiliate/reseller stack
+
+### F-89: multilingual product surface
+
+The product must support English (`en`), Spanish (`es`), Japanese (`ja`),
+Italian (`it`), Brazilian Portuguese (`pt-BR`) and German (`de`) at launch.
+Portuguese is intentionally represented as `pt-BR` rather than an ambiguous
+`pt`; `pt-PT` can be added as a catalog extension without changing the
+contract. Locale selection is a user-visible setting with this precedence:
+explicit user choice, organization default, browser `Accept-Language` on first
+visit, then English. The selected locale must persist across web, native
+mobile and authentication flows.
+
+All UI, validation, API error presentation, email/operator notifications and
+accessible labels use versioned, typed message keys in a shared catalog. ICU
+plural/select formatting and `Intl` number, currency, date, time-zone and
+relative-time formatting are required. Missing translations fall back to
+English and emit a test-visible diagnostic; raw keys must never be shown to
+users. User/creator text, provider text and generated content are not silently
+translated: UI locale and model/content locale are separate fields and any
+translation action is explicit and audited.
+
+### F-90: affiliate/referral/reseller control plane
+
+The architecture needs both a FanThynks platform acquisition program and an
+optional organization-scoped referral program without cross-tenant reads. The
+minimum durable contract is: program, partner/affiliate, campaign/link,
+click/visit, identity stitch, conversion, commission accrual, review,
+reversal/refund, payout batch/export, fraud/hold state, disclosure/consent,
+idempotency and audit. Attribution events are immutable; commission and payout
+views are derived and re-computable. No affiliate event can create a
+publication, billing or payout side effect without its own approval and
+idempotency fence.
+
+The affiliate/reseller UI must support partner onboarding/revocation, link and
+campaign management, conversion/commission review, payout export, fraud holds,
+program terms, white-label branding/custom-domain configuration and role-aware
+tenant administration. A reseller may rebrand and sell a permitted FanThynks
+offering, but cannot see another tenant's customers, creators, attribution or
+payout records.
+
+#### License and import decision
+
+OpenPartner (`getcoherence/openpartner`) and Refferq (`Refferq/Refferq`) are
+MIT-licensed candidates. MIT permits modification, distribution, sublicensing
+and sale, subject to preserving copyright/license notices; their upstream
+trademarks and third-party dependencies remain separate obligations. RefKit's
+application is AGPL-3.0 while its SDK/CLI/MCP are MIT; AGPL permits commercial
+distribution but carries network-copyleft/source-notice obligations and is not
+the default for a proprietary white-label FanThynks deployment. These are
+license-fit findings, not a security or production-hardening certification.
+
+No candidate currently satisfies the stronger requirement “already made and
+hardened” on the evidence available to this repository. OpenPartner is the
+first isolated evaluation candidate because its documented event-sourced
+click→identity→conversion→attribution→payout shape and Stripe Connect path
+best match the contract. It must pass a pinned-source dependency/SBOM review,
+auth/session and tenant-isolation review, webhook-signature/idempotency review,
+fraud/chargeback/payout review, data-export/deletion review and focused tests
+before import. If it fails any gate, FanThynks builds F-90 in its existing
+PostgreSQL/RLS/API/worker/dashboard architecture; no unreviewed affiliate
+repository is copied into production.
+
+License/source references for the candidate review: OpenPartner README and MIT
+license at `https://github.com/getcoherence/openpartner` and
+`https://raw.githubusercontent.com/getcoherence/openpartner/main/LICENSE`;
+Refferq README and MIT license at `https://github.com/Refferq/Refferq` and
+`https://raw.githubusercontent.com/Refferq/Refferq/main/LICENSE`; RefKit's
+application/SDK license split at `https://refkit.net/` and
+`https://raw.githubusercontent.com/refkitnet/RefKit/main/LICENSE`.
