@@ -542,6 +542,15 @@ live config, units, backups, databases, containers, providers, credentials,
 permissions, or deployment paths. The corrected installer candidate remains
 unaccepted; no real-root rehearsal is authorized by this checkpoint.
 
+M369 NOT-ACK checkpoint: Hermes replied to all three sequence-11 receipts,
+but each reply was `TYPE: ACK` with `STATE: IN_PROGRESS`. The individual
+validator identifies that combination as invalid; it is not a progress
+acknowledgement or a delivery. Codex sent unique sequence-12
+`NACK/REJECTED` receipts for D001A, Team/Shift, and Variant/A-B, each naming
+`INVALID_ACK_STATE` and requiring a new `PROGRESS/IN_PROGRESS` wire followed
+by a separate `DELIVERY/DELIVERED` wire. All three lanes remain open and
+source-only; no runtime or deployment action occurred.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
