@@ -559,6 +559,11 @@ instead of a valid progress message, so Codex sent signed sequence-7
 `NACK/REJECTED` `codex-nack-f81-ack-state-7`. No product DELIVERY has been
 accepted on these lanes; each remains source-only and open.
 
+M371 protocol hardening: added a stateful regression proving that a Hermes
+`ACK` carrying `STATE: IN_PROGRESS` fails closed as `ACK state invalid`. The
+Hermes protocol audit suite now has five passing tests, including the exact
+malformed response pattern observed on the active lanes.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only

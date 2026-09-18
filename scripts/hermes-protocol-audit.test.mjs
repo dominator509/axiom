@@ -50,6 +50,16 @@ test('accepts a correlated ACK and explicit nonterminal handoff', () => {
   assert.match(result.stdout, /state=IN_PROGRESS/);
 });
 
+test('fails closed when Hermes labels progress as ACK/IN_PROGRESS', () => {
+  const task = 'INVALID-ACK-STATE';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read task', from: 'codex' }))],
+    ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'IN_PROGRESS', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Implement', from: 'hermes' }))],
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /ACK state invalid/);
+});
+
 test('fails closed when Hermes reuses the task WIRE', () => {
   const task = 'WIRE-COLLISION';
   const result = run([
