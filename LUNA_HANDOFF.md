@@ -690,6 +690,19 @@ not-read/no-reply from `ACK/READ`, `ACK/ACCEPTED`, and the terminal
 `NACK/REJECTED` or `NACK/BLOCKED` NOT-ACK outcomes without using transport
 timestamps or wall-clock assumptions.
 
+Independent Hermes readback also exposed and closed a signature compatibility
+gap: `sincerely, Ip Man (role: bridge-responder)` is now accepted alongside
+the existing Hermes signatures, with a regression test. The Codex signature
+remains exact and final; the bridge's lowercase suffix remains decoration.
+
+The signed `HERMES-PROTOCOL-HANDSHAKE` was accepted by Hermes and its receipt
+was sent. The gallery and F81/F84 copied-artifact lanes returned correlated
+`ACK/ACCEPTED` replies; the source-copy lane returned valid `PROGRESS`, and
+D001A returned valid `PROGRESS` after correcting its earlier malformed ACK.
+Codex sent a receipt for each reply. No product `DELIVERY` has been accepted
+yet, so these lanes remain nonterminal and no source integration or runtime
+acceptance is claimed.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only

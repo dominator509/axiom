@@ -73,6 +73,26 @@ function legacyHermesBlockedAckBody(task, wire, inReplyTo, seq) {
   ].join('\n');
 }
 
+function annotatedHermesAckBody(task, wire, inReplyTo, seq) {
+  return [
+    'FT-HERMES/1',
+    'TYPE: ACK',
+    `TASK: ${task}`,
+    `WIRE: ${wire}`,
+    `SEQ: ${seq}`,
+    `IN_REPLY_TO: ${inReplyTo}`,
+    'STATE: ACCEPTED',
+    'TERMINAL: NO',
+    'NEXT_OWNER: HERMES',
+    'NEXT_ACTION: Publish progress',
+    'REASON: NONE',
+    'PAYLOAD_SHA256: NONE',
+    'PAYLOAD:',
+    'LIVE_ACTIONS: NONE',
+    'sincerely, Ip Man (role: bridge-responder)',
+  ].join('\n');
+}
+
 function run(messages, extra = []) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ft-hermes-protocol-'));
   for (const [name, message] of messages) fs.writeFileSync(path.join(dir, name), JSON.stringify(message));
@@ -114,6 +134,16 @@ test('normalizes a legacy ACK with explicit STATUS BLOCKED into a terminal NOT-A
   assert.match(result.stdout, /next_owner=CODEX/);
   assert.match(result.stdout, /Resolve the named blocker or close the task/);
   assert.doesNotMatch(result.stderr, /ACK loop/);
+});
+
+test('accepts the annotated Ip Man Hermes signature', () => {
+  const task = 'ANNOTATED-HERMES-SIGNATURE';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read task', from: 'codex' }))],
+    ['02.json', envelope('m2', 'hermes', annotatedHermesAckBody(task, 'W2', 'W1', 2))],
+  ], ['--allow-pending']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /state=ACCEPTED/);
 });
 
 test('fails closed when Hermes ACKs a receipt instead of progressing', () => {

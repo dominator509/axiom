@@ -42,7 +42,7 @@ if (!readFromStdin && !file) {
       while (signatureIndex >= 0 && lines[signatureIndex] === '') signatureIndex -= 1;
     }
     const canonicalSignature = expectedRole === 'Hermes'
-      ? /^(?:sincerely, Hermes(?: \(role: bridge-responder\))?|sincerely, Ip Man)$/
+      ? /^(?:sincerely, Hermes(?: \(role: bridge-responder\))?|sincerely, Ip Man(?: \(role: bridge-responder\))?)$/
       : /^sincerely, Codex$/;
     if (!canonicalSignature.test(lines[signatureIndex] ?? '')) fail('signature is missing, not final, or signed by the wrong role');
     const trailing = lines.slice(signatureIndex + 1);

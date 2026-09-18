@@ -79,7 +79,7 @@ function parseBody(envelope) {
   const signature = lines[signatureIndex];
   const expected = envelope.from === 'codex'
     ? 'sincerely, Codex'
-    : /^(?:sincerely, Hermes(?: \(role: bridge-responder\))?|sincerely, Ip Man)$/;
+    : /^(?:sincerely, Hermes(?: \(role: bridge-responder\))?|sincerely, Ip Man(?: \(role: bridge-responder\))?)$/;
   if (envelope.from === 'codex' ? signature !== expected : !expected.test(signature ?? '')) {
     fail(`${envelope.file}: canonical signature missing or wrong`);
   }

@@ -40,10 +40,11 @@ PAYLOAD:
 sincerely, Codex
 ```
 
-Hermes uses the same format and signs with `sincerely, Hermes`. The bridge
-responder may add the fixed role annotation `(role: bridge-responder)` and may
-append its legacy lowercase `sincerely, hermes` suffix; those are transport
-decoration, not message content. Codex uses the exact `sincerely, Codex` line.
+Hermes uses the same format and signs with `sincerely, Hermes` or the deployed
+bridge identity `sincerely, Ip Man`. Either Hermes identity may carry the fixed
+`(role: bridge-responder)` annotation. The bridge may append its legacy
+lowercase `sincerely, hermes` suffix; that suffix is transport decoration, not
+message content. Codex uses the exact `sincerely, Codex` line.
 No date, time, timezone, timeout, or relative-duration field is part of this
 protocol.
 
