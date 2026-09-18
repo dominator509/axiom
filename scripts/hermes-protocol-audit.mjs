@@ -240,10 +240,18 @@ function auditTask(records) {
     }
   }
   const last = sorted.at(-1);
+  const unconfirmed = sorted.length === 1 && last.type === 'TASK';
   const pending = !last.terminal && last.nextOwner !== 'NONE';
-  const line = `hermes-protocol-audit: ${pending && !allowPending ? 'PENDING' : 'OK'} task=${last.task} messages=${sorted.length} state=${last.state} next_owner=${last.nextOwner} next_action=${last.nextAction}`;
+  const status = unconfirmed
+    ? 'UNCONFIRMED'
+    : pending && !allowPending
+      ? 'PENDING'
+      : 'OK';
+  const line = `hermes-protocol-audit: ${status} task=${last.task} messages=${sorted.length} state=${last.state} next_owner=${last.nextOwner} next_action=${last.nextAction}`;
   console.log(line);
-  if (pending && !allowPending) process.exitCode = 2;
+  // A missing logical reply is never made successful by --allow-pending. The
+  // flag is only for an already acknowledged, nonterminal lane.
+  if (unconfirmed || (pending && !allowPending)) process.exitCode = 2;
 }
 
 try {

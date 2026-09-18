@@ -167,3 +167,13 @@ test('reports an accepted task as pending instead of silently complete', () => {
   assert.equal(result.status, 2, result.stderr);
   assert.match(result.stdout, /PENDING/);
 });
+
+test('reports a task with no logical Hermes reply as unconfirmed even with allow-pending', () => {
+  const task = 'UNCONFIRMED-TASK';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Return ACK or NACK', from: 'codex' }))],
+  ], ['--allow-pending']);
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stdout, /UNCONFIRMED/);
+  assert.doesNotMatch(result.stdout, /OK/);
+});

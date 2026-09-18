@@ -684,6 +684,12 @@ Codex accepted that turn and dispatched the first resumed product lane,
 still requires a correctly typed `PROGRESS`, then a reviewed `DELIVERY`; no
 source checkout, runtime, deployment or live action is counted.
 
+The protocol audit now emits `UNCONFIRMED` when a task has no valid logical
+Hermes reply. `--allow-pending` cannot promote that state. This distinguishes
+not-read/no-reply from `ACK/READ`, `ACK/ACCEPTED`, and the terminal
+`NACK/REJECTED` or `NACK/BLOCKED` NOT-ACK outcomes without using transport
+timestamps or wall-clock assumptions.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only

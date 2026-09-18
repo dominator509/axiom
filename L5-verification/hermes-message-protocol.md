@@ -73,6 +73,20 @@ the delivery gate.
 - `BLOCKED` is terminal for the current attempt and must name the single missing input or decision. It is never a vague “waiting” state.
 - `OPEN` is used only by a newly issued task. “Queued” is not a protocol state.
 
+The receiver classifies every lane into one of four operational outcomes:
+
+| Result | Meaning | Allowed next action |
+| --- | --- | --- |
+| `ACK/READ` | The message was parsed, but the task was not accepted. | The sender must clarify ownership or close the lane; no work is counted. |
+| `ACK/ACCEPTED` | The named owner accepted responsibility. | The owner must emit `PROGRESS/IN_PROGRESS` or `DELIVERY/DELIVERED`. |
+| `NACK/REJECTED` or `NACK/BLOCKED` (the NOT-ACK result) | The request/artifact was refused or the named blocker prevents the current attempt. | Return ownership to the named owner, resolve the blocker, or supersede the lane with a new WIRE. |
+| `UNCONFIRMED` | No valid logical reply exists yet. A transport `REPLIED` flag does not change this. | Poll the same correlation once through the bridge; never infer read, ownership, progress, or completion. |
+
+`UNCONFIRMED` is a deliberate fail-closed result. The stateful audit emits it
+for a journal containing only the original Codex `TASK`, and `--allow-pending`
+cannot promote it to success. This is the explicit NOT-READ state required to
+prevent a missing reply from becoming an invisible stall.
+
 The only valid forward transitions are:
 
 ```text
