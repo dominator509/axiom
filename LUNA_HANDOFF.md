@@ -754,6 +754,14 @@ protocol tests pass, and all seven newly read Hermes replies now classify
 without clocks: six are `ACK/READ` or `ACK/ACCEPTED`, and the closed handshake
 is `NACK/REJECTED`. No product delivery has arrived yet.
 
+The eight remaining copied-artifact lanes (team, variant, playbook,
+provider/OAuth, R2, VPN/egress, observability and CI) also returned correlated
+`ACK/ACCEPTED` replies to their Codex receipts instead of `PROGRESS`. Codex
+classified each as `REPEATED_ACK_WITHOUT_PROGRESS` and sent one signed
+`RECEIPT/REJECTED` per existing lane, with `NEXT_OWNER: HERMES` and an explicit
+request for a unique `PROGRESS` or one concrete `BLOCKED` reason. No duplicate
+task was created, and no lane is counted as delivered.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
