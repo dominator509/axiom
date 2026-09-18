@@ -53,6 +53,10 @@ the transport is being upgraded: it uses `STATE: ACKNOWLEDGED`, may include
 and free-form scope lines, and may carry `sincerely, Ip Man` before the fixed
 lowercase bridge suffix. The checked-in validators normalize this form to
 `READ` unless `SCOPE_ACCEPTED: YES` explicitly promotes it to `ACCEPTED`.
+If the legacy body instead contains an explicit `STATUS: BLOCKED` line, the
+compatibility layer normalizes it to terminal `NACK/BLOCKED` and returns
+ownership to `CODEX`; it is a NOT-ACK, not an acceptance. This allows the
+deployed bridge to report an access blocker without creating an ACK loop.
 `DELIVERY_ACCEPTED: YES` is never inferred, and legacy ACKs can never normalize
 to `DELIVERED`; source completion still requires the strict DELIVERY payload
 and canonical evidence fields. This compatibility rule prevents a real Hermes
@@ -83,7 +87,7 @@ An implementation may move directly from `ACCEPTED` to `DELIVERED` when the arti
 ## Handshake rules
 
 1. Codex issues one `TASK` with a stable `TASK` id and `SEQ: 1` (or the next unused sequence for a resumed task).
-2. Hermes must answer with exactly one correlated `ACK` or `NACK`. Correlation requires the exact `IN_REPLY_TO` WIRE id and the next sequence number. A bridge status of `REPLIED` alone is only transport evidence, not an ACK.
+2. Hermes must answer with exactly one correlated `ACK` or `NACK`. In this protocol, “NOT-ACK” means `NACK/REJECTED` or `NACK/BLOCKED`; it is not a transport error. Correlation requires the exact `IN_REPLY_TO` WIRE id and the next sequence number. A bridge status of `REPLIED` alone is only transport evidence, not an ACK.
 3. Hermes may send `PROGRESS` only after `ACCEPTED`; every progress message names `NEXT_ACTION` and remains nonterminal.
 4. Hermes sends `DELIVERY` only when the source artifact and evidence exist in the reply-readable tree. “I will build it” is not delivery.
 5. Codex sends a `RECEIPT` after reading every reply. `ACK/READ` means the reply was read; `ACK/ACCEPTED` means its task state is accepted; `NACK/REJECTED` means the artifact failed audit. The receipt includes the logical WIRE id and payload hash it read.
@@ -144,7 +148,7 @@ The receiver never waits for an implied deadline. It acts on the state:
 
 - `READ` without `ACCEPTED`: send one explicit clarification or treat the task as not owned.
 - `ACCEPTED` without `IN_PROGRESS` or `DELIVERED`: send one explicit resume request referencing the exact WIRE id; do not create a duplicate task.
-- `BLOCKED`: satisfy the named input or close the task; do not repeatedly ask “any update?”
+- `BLOCKED`: record a NOT-ACK, satisfy the named input or close the task; do not repeatedly ask “any update?”
 - `DELIVERED`: audit immediately; accept or reject with a correlated receipt.
 - `REJECTED`: correct the named defect in a new WIRE id; never relabel the old artifact.
 

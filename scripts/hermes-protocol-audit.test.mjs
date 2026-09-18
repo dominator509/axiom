@@ -53,6 +53,26 @@ function legacyHermesAckBody(task, wire, inReplyTo, seq) {
   ].join('\n');
 }
 
+function legacyHermesBlockedAckBody(task, wire, inReplyTo, seq) {
+  return [
+    'FT-HERMES/1',
+    'TYPE: ACK',
+    `TASK: ${task}`,
+    `WIRE: ${wire}`,
+    `SEQ: ${seq}`,
+    `IN_REPLY_TO: ${inReplyTo}`,
+    'STATE: ACKNOWLEDGED',
+    'TERMINAL: NO',
+    'NEXT_OWNER: CODEX',
+    'DELIVERY_ACCEPTED: NO',
+    'STATUS: BLOCKED - source tree is not writable by the Hermes account',
+    'LIVE_ACTIONS: NONE',
+    'sincerely, Ip Man',
+    '',
+    'sincerely, hermes',
+  ].join('\n');
+}
+
 function run(messages, extra = []) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ft-hermes-protocol-'));
   for (const [name, message] of messages) fs.writeFileSync(path.join(dir, name), JSON.stringify(message));
@@ -79,6 +99,20 @@ test('normalizes the deployed bridge ACKNOWLEDGED envelope without accepting del
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /state=ACCEPTED/);
   assert.doesNotMatch(result.stdout, /DELIVERED/);
+});
+
+test('normalizes a legacy ACK with explicit STATUS BLOCKED into a terminal NOT-ACK', () => {
+  const task = 'LEGACY-BRIDGE-BLOCKED';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read task', from: 'codex' }))],
+    ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish progress', from: 'hermes' }))],
+    ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish source delivery', from: 'codex' }))],
+    ['04.json', envelope('m4', 'hermes', legacyHermesBlockedAckBody(task, 'W4', 'W3', 4))],
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /state=BLOCKED/);
+  assert.match(result.stdout, /next_owner=CODEX/);
+  assert.doesNotMatch(result.stderr, /ACK loop/);
 });
 
 test('fails closed when Hermes ACKs a receipt instead of progressing', () => {

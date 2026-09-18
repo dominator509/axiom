@@ -102,21 +102,26 @@ if (!readFromStdin && !file) {
     const states = new Set(['OPEN', 'READ', 'ACCEPTED', 'IN_PROGRESS', 'DELIVERED', 'REJECTED', 'BLOCKED']);
     const owners = new Set(['CODEX', 'HERMES', 'NONE']);
     const rawState = headers.get('STATE');
-    const normalizedState = legacyAck && rawState === 'ACKNOWLEDGED'
-      ? (headers.get('SCOPE_ACCEPTED')?.startsWith('YES') ? 'ACCEPTED' : 'READ')
-      : rawState;
-    if (!types.has(headers.get('TYPE'))) fail(`invalid TYPE: ${headers.get('TYPE')}`);
+    const legacyBlocked = legacyAck && headers.get('STATUS')?.startsWith('BLOCKED');
+    const normalizedType = legacyBlocked ? 'NACK' : headers.get('TYPE');
+    const normalizedState = legacyBlocked
+      ? 'BLOCKED'
+      : legacyAck && rawState === 'ACKNOWLEDGED'
+        ? (headers.get('SCOPE_ACCEPTED')?.startsWith('YES') ? 'ACCEPTED' : 'READ')
+        : rawState;
+    if (!types.has(normalizedType)) fail(`invalid TYPE: ${headers.get('TYPE')}`);
     if (!states.has(normalizedState)) fail(`invalid STATE: ${rawState}`);
     if (!owners.has(headers.get('NEXT_OWNER'))) fail(`invalid NEXT_OWNER: ${headers.get('NEXT_OWNER')}`);
     if (!['YES', 'NO'].includes(headers.get('TERMINAL'))) fail('TERMINAL must be YES or NO');
 
     const terminal = new Set(['DELIVERED', 'REJECTED', 'BLOCKED']).has(normalizedState);
-    if ((headers.get('TERMINAL') === 'YES') !== terminal) fail('TERMINAL does not match STATE');
-    if (headers.get('TYPE') === 'TASK' && normalizedState !== 'OPEN') fail('TASK must begin in OPEN state');
-    if (headers.get('TYPE') === 'ACK' && !['READ', 'ACCEPTED'].includes(normalizedState)) fail('ACK must be READ or ACCEPTED');
-    if (headers.get('TYPE') === 'NACK' && !['REJECTED', 'BLOCKED'].includes(normalizedState)) fail('NACK must be REJECTED or BLOCKED');
-    if (headers.get('TYPE') === 'PROGRESS' && normalizedState !== 'IN_PROGRESS') fail('PROGRESS must be IN_PROGRESS');
-    if (headers.get('TYPE') === 'DELIVERY' && normalizedState !== 'DELIVERED') fail('DELIVERY must be DELIVERED');
+    if (!legacyBlocked && (headers.get('TERMINAL') === 'YES') !== terminal) fail('TERMINAL does not match STATE');
+    if (legacyBlocked && headers.get('NEXT_OWNER') !== 'CODEX') fail('legacy blocked ACK must return ownership to CODEX');
+    if (normalizedType === 'TASK' && normalizedState !== 'OPEN') fail('TASK must begin in OPEN state');
+    if (normalizedType === 'ACK' && !['READ', 'ACCEPTED'].includes(normalizedState)) fail('ACK must be READ or ACCEPTED');
+    if (normalizedType === 'NACK' && !['REJECTED', 'BLOCKED'].includes(normalizedState)) fail('NACK must be REJECTED or BLOCKED');
+    if (normalizedType === 'PROGRESS' && normalizedState !== 'IN_PROGRESS') fail('PROGRESS must be IN_PROGRESS');
+    if (normalizedType === 'DELIVERY' && normalizedState !== 'DELIVERED') fail('DELIVERY must be DELIVERED');
 
     const digest = legacyAck ? 'NONE' : headers.get('PAYLOAD_SHA256');
     if (digest !== 'NONE' && !/^[a-f0-9]{64}$/.test(digest ?? '')) fail('PAYLOAD_SHA256 must be NONE or lowercase SHA-256');
@@ -143,7 +148,12 @@ if (!readFromStdin && !file) {
     }
 
     if ((process.exitCode ?? 0) === 0) {
-      console.log(`hermes-protocol: OK: ${headers.get('TYPE')}/${normalizedState}${legacyAck ? ' (legacy ACKNOWLEDGED normalized)' : ''} task=${headers.get('TASK')} seq=${seq}`);
+      const compatibility = legacyBlocked
+        ? ' (legacy STATUS: BLOCKED normalized to NACK)'
+        : legacyAck
+          ? ' (legacy ACKNOWLEDGED normalized)'
+          : '';
+      console.log(`hermes-protocol: OK: ${normalizedType}/${normalizedState}${compatibility} task=${headers.get('TASK')} seq=${seq}`);
     }
   }
 }

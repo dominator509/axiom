@@ -132,22 +132,27 @@ function parseBody(envelope) {
   const states = new Set(['OPEN', 'READ', 'ACCEPTED', 'IN_PROGRESS', 'DELIVERED', 'REJECTED', 'BLOCKED']);
   const owners = new Set(['CODEX', 'HERMES', 'NONE']);
   const rawState = headers.get('STATE');
-  const normalizedState = legacyAck && rawState === 'ACKNOWLEDGED'
-    ? (headers.get('SCOPE_ACCEPTED')?.startsWith('YES') ? 'ACCEPTED' : 'READ')
-    : rawState;
-  if (!types.has(headers.get('TYPE'))) fail(`${envelope.file}: invalid TYPE`);
+  const legacyBlocked = legacyAck && headers.get('STATUS')?.startsWith('BLOCKED');
+  const normalizedType = legacyBlocked ? 'NACK' : headers.get('TYPE');
+  const normalizedState = legacyBlocked
+    ? 'BLOCKED'
+    : legacyAck && rawState === 'ACKNOWLEDGED'
+      ? (headers.get('SCOPE_ACCEPTED')?.startsWith('YES') ? 'ACCEPTED' : 'READ')
+      : rawState;
+  if (!types.has(normalizedType)) fail(`${envelope.file}: invalid TYPE`);
   if (!states.has(normalizedState)) fail(`${envelope.file}: invalid STATE`);
   if (!owners.has(headers.get('NEXT_OWNER'))) fail(`${envelope.file}: invalid NEXT_OWNER`);
   if (!['YES', 'NO'].includes(headers.get('TERMINAL'))) fail(`${envelope.file}: invalid TERMINAL`);
   const terminal = new Set(['DELIVERED', 'REJECTED', 'BLOCKED']).has(normalizedState);
-  if ((headers.get('TERMINAL') === 'YES') !== terminal) fail(`${envelope.file}: TERMINAL does not match STATE`);
-  if (headers.get('TYPE') === 'TASK' && (normalizedState !== 'OPEN' || seq !== 1 || headers.get('IN_REPLY_TO') !== 'NONE')) {
+  if (!legacyBlocked && (headers.get('TERMINAL') === 'YES') !== terminal) fail(`${envelope.file}: TERMINAL does not match STATE`);
+  if (legacyBlocked && headers.get('NEXT_OWNER') !== 'CODEX') fail(`${envelope.file}: legacy blocked ACK must return ownership to CODEX`);
+  if (normalizedType === 'TASK' && (normalizedState !== 'OPEN' || seq !== 1 || headers.get('IN_REPLY_TO') !== 'NONE')) {
     fail(`${envelope.file}: TASK must be SEQ 1 / OPEN / IN_REPLY_TO NONE`);
   }
-  if (headers.get('TYPE') === 'ACK' && !['READ', 'ACCEPTED'].includes(normalizedState)) fail(`${envelope.file}: ACK state invalid`);
-  if (headers.get('TYPE') === 'NACK' && !['REJECTED', 'BLOCKED'].includes(normalizedState)) fail(`${envelope.file}: NACK state invalid`);
-  if (headers.get('TYPE') === 'PROGRESS' && normalizedState !== 'IN_PROGRESS') fail(`${envelope.file}: PROGRESS must be IN_PROGRESS`);
-  if (headers.get('TYPE') === 'DELIVERY' && normalizedState !== 'DELIVERED') fail(`${envelope.file}: DELIVERY must be DELIVERED`);
+  if (normalizedType === 'ACK' && !['READ', 'ACCEPTED'].includes(normalizedState)) fail(`${envelope.file}: ACK state invalid`);
+  if (normalizedType === 'NACK' && !['REJECTED', 'BLOCKED'].includes(normalizedState)) fail(`${envelope.file}: NACK state invalid`);
+  if (normalizedType === 'PROGRESS' && normalizedState !== 'IN_PROGRESS') fail(`${envelope.file}: PROGRESS must be IN_PROGRESS`);
+  if (normalizedType === 'DELIVERY' && normalizedState !== 'DELIVERED') fail(`${envelope.file}: DELIVERY must be DELIVERED`);
   if (!legacyAck && !terminal && headers.get('NEXT_ACTION') === 'NONE') fail(`${envelope.file}: nonterminal message must name NEXT_ACTION`);
   if (!legacyAck && headers.get('TYPE') === 'NACK' && headers.get('REASON') === 'NONE') fail(`${envelope.file}: NACK must name REASON`);
   if (!legacyAck && !/^(NONE|[a-f0-9]{64})$/.test(headers.get('PAYLOAD_SHA256'))) fail(`${envelope.file}: invalid PAYLOAD_SHA256`);
@@ -165,8 +170,8 @@ function parseBody(envelope) {
     PROGRESS: 'hermes',
     DELIVERY: 'hermes',
   };
-  if (roleByType[headers.get('TYPE')] !== envelope.from) {
-    fail(`${envelope.file}: ${headers.get('TYPE')} cannot be sent by ${envelope.from}`);
+  if (roleByType[normalizedType] !== envelope.from) {
+    fail(`${envelope.file}: ${normalizedType} cannot be sent by ${envelope.from}`);
   }
   if (headers.get('TYPE') === 'DELIVERY') {
     const payloadKeys = new Map();
@@ -184,7 +189,7 @@ function parseBody(envelope) {
   }
   return {
     ...envelope,
-    type: headers.get('TYPE'),
+    type: normalizedType,
     task: headers.get('TASK'),
     wire: headers.get('WIRE'),
     seq,
@@ -221,7 +226,7 @@ function auditTask(records) {
     if (index > 0 && current.from === sorted[index - 1].from) {
       fail(`${current.file}: sender repeated without a receipt/reply turn`);
     }
-    if (index > 0 && current.from === 'hermes' && current.type === 'ACK' && sorted[index - 1].type === 'RECEIPT' && sorted[index - 1].from === 'codex') {
+    if (index > 0 && current.from === 'hermes' && current.type === 'ACK' && current.state !== 'BLOCKED' && sorted[index - 1].type === 'RECEIPT' && sorted[index - 1].from === 'codex') {
       fail(`${current.file}: Hermes ACK after Codex RECEIPT is an ACK loop; require PROGRESS, DELIVERY, or BLOCKED`);
     }
     if (current.seq === 2) {

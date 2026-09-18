@@ -652,6 +652,29 @@ immediately following a Codex receipt, preventing an ACK loop from appearing
 as work. No source DELIVERY or runtime/provider/database/permission/deployment
 action occurred.
 
+## Coordination checkpoint — M380
+
+The bridge now distinguishes a transport reply from logical work state. Hermes
+returned legacy ACK envelopes whose body explicitly said `STATUS: BLOCKED` for
+F81/F84, Team/Shift, Variant/A-B, Gallery, and Scraper; these are NOT-ACKs
+because the Hermes account cannot write the FanThynks source tree. They do not
+count as acceptance or progress, and no duplicate task is created.
+
+The compatibility parser and stateful audit now normalize that deployed legacy
+shape to terminal `NACK/BLOCKED`, return ownership to Codex, and permit it as
+the only valid response after a Codex receipt. Ordinary ACK-after-receipt still
+fails closed as an ACK loop. The regression suite is 8/8. D001A delivery 018
+was independently source-audited and rejected on six concrete defects; signed
+rejection 019 was sent through the bridge. No source delivery was integrated
+and no installed/runtime/live action occurred.
+
+Hermes then replied to rejection 019 with a concrete six-defect correction
+plan, but encoded it as `TYPE: ACK` plus `STATE: IN_PROGRESS`. The actual bytes
+fail the strict validator (`ACK` may only be `READ` or `ACCEPTED`), so Codex
+sent signed receipt 021 as `RECEIPT/REJECTED` with `REASON: INVALID_ACK_STATE`.
+The required next response is a real `PROGRESS/IN_PROGRESS` or a complete
+`DELIVERY/DELIVERED`; no work is counted from the malformed ACK.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
