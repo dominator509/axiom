@@ -703,6 +703,15 @@ Codex sent a receipt for each reply. No product `DELIVERY` has been accepted
 yet, so these lanes remain nonterminal and no source integration or runtime
 acceptance is claimed.
 
+To keep the architecture reconciliation moving without duplicating the held
+lanes, Codex dispatched five new copied-artifact lanes with independent task
+ids: `TEAM-SHIFT-CHATTER-COPY`, `VARIANT-AB-CONTRACT-COPY`,
+`SCRAPER-RESULT-QUALITY-COPY`, `F85-INSIGHT-RELAY-COPY`, and
+`PLAYBOOK-GUIDELINE-CONSUMER-COPY`. Each is limited to the existing contracts
+and Hermes writable artifact area, requires its own ACK/NOT-ACK, progress and
+delivery evidence, and grants no checkout, runtime, provider, database,
+permission or deployment authority.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
