@@ -1013,3 +1013,19 @@ Evidence: protocol suite 21/21; both correction receipts pass the individual
 validator and end with `sincerely, Codex`. The strict lane remains pending a
 valid logical next event. No runtime, provider, database, permission, bridge
 service, or deployment action occurred.
+
+## Active delegated lane — MEDIA-GALLERY-LIFECYCLE-BRIDGED
+
+The control-only handshake is closed as a valid `NACK/BLOCKED`; it produced no
+feature artifact. The next real source-only lane is a fresh strict task,
+`MEDIA-GALLERY-LIFECYCLE-BRIDGED`, with `SEQ: 1` and wire
+`CODEX-MEDIA-GALLERY-BRIDGED-TASK-001`. Eight non-secret media UI source/test
+files were copied into Hermes's designated inbox and their SHA-256 values are
+in the task payload. The task is limited to the existing model media
+asset/bundle/operation contracts and explicitly forbids checkout, runtime,
+database, provider, permission, or deployment actions.
+
+Current logical state: `UNCONFIRMED` until a valid correlated `ACK/READ`,
+`ACK/ACCEPTED`, or `NACK/REJECTED|BLOCKED` is read. The transport status alone
+does not assign ownership. No duplicate task will be sent while this wire is
+unconfirmed.
