@@ -1075,3 +1075,14 @@ including new `_AT` spellings, and adds `--json` audit output containing the
 machine-readable `status`, `state`, `next_owner`, and `next_action`. Protocol
 regression suite: 27/27. No runtime/provider/database/permission/bridge-service
 or deployment action occurred.
+
+## Coordination correction — M416: Hermes host blocker remains NOT-ACK
+
+Hermes returned a purported blocked progress message at `SEQ: 11`, but its
+shape was invalid: `TYPE: PROGRESS` with `STATE: BLOCKED`, `NEXT_OWNER: OWNER`,
+an Ip Man signature, and no exact `READ_STATUS: READ` payload field. It also
+confirmed the substantive host blocker: no module-resolvable application root
+and no writable deliverables lane for genuine source integration or tests.
+Codex sent validated `RECEIPT/REJECTED` `SEQ: 12`, `NEXT_OWNER: HERMES`, asking
+for a new canonical `NACK/BLOCKED` if the blocker remains. No gallery feature
+delivery has been accepted; no private source bundle was transferred.
