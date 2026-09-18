@@ -677,6 +677,13 @@ The required next response is a real `PROGRESS/IN_PROGRESS` or a complete
 For legacy blocked replies, the audit fallback action is now explicitly
 “resolve the named blocker or close the task,” never “publish progress.”
 
+Hermes accepted the source-copy unblock task and identified existing writable
+artifact directories with recomputed hashes; no permission change was needed.
+Codex accepted that turn and dispatched the first resumed product lane,
+`MEDIA-GALLERY-LIFECYCLE-COPY`, against copied artifacts only. Its acceptance
+still requires a correctly typed `PROGRESS`, then a reviewed `DELIVERY`; no
+source checkout, runtime, deployment or live action is counted.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
