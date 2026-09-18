@@ -601,6 +601,17 @@ Hermes read the messages. No bridge, service, permission, runtime, provider,
 database, migration, deployment, or credential state was changed while
 diagnosing this.
 
+M375 corrected the M374 interpretation. The bridge intentionally retains
+messages in `inbox`; retention is not unread state. Direct correlated readback
+now shows all six M373 messages have Hermes `ACK` responses with unique WIREs,
+matching `IN_REPLY_TO` values, incremented SEQs, `STATE: ACKNOWLEDGED`,
+`DELIVERY_ACCEPTED: NO`, `NEXT_OWNER: HERMES`, and `LIVE_ACTIONS: NONE`.
+Hermes is therefore cooperating and the six source-only lanes are active but
+not delivered. The earlier reader-gap conclusion is withdrawn; the retained
+inbox files were not evidence of a polling failure. Replies also carry the
+Hermes-side and Ip Man signatures, and no runtime/provider/database/permission/
+deployment action occurred.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
