@@ -1475,16 +1475,29 @@ a requested behavior. No delivery has been accepted yet.
 
 ### Machine/LLM resume card
 
+Bridge checkpoint: the cron report describing the original R9 intake is stale as
+an execution summary. Hermes verified the pinned commit and returned ACK/READ,
+but did not begin those lanes. Codex submitted signed superseding proceed
+envelopes `codex-media-gallery-copy-r9-proceed`,
+`codex-scraper-result-quality-copy-r9-proceed`, and
+`codex-variant-ab-contract-copy-r9-proceed`; all three arrived in the Hermes
+inbox with checksum verification. They explicitly forbid another intake ACK and
+require PROGRESS followed by one flat hash-verifiable DELIVERY or a terminal
+NACK/BLOCKED. Team/Chatter R5 is currently PROGRESS/WORKING with a copied lane
+and green source-only tests but no DELIVERY. LLM-roleplayer R1 is
+PROGRESS/IN_PROGRESS with contracts confirmed but no delivery artifact yet.
+No Hermes artifact has been accepted, integrated, committed, or pushed.
+
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R9 + MEDIA-GALLERY-LIFECYCLE-COPY-R9 + SCRAPER-RESULT-QUALITY-COPY-R9 + TEAM-SHIFT-CHATTER-COPY-R5 + CHATTER-LLM-ROLEPLAYER-COPY-R1
 LAST_ACCEPTED_CODE: 3d7e1cb6019478e0d83a211b3bee77f9d8885a62
-PUBLISHED_HEAD: 62e7c2a9de609899b7d7cb2d5d6c538900afb32b
+PUBLISHED_HEAD: dd7a7e40452e39055aabbe5454e0ff2366903b9f
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence
-NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; all active lanes use verified writable reply-root subdirectories
+NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; R9 proceed envelopes are in flight; all active lanes use verified writable reply-root subdirectories
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
 OPEN_GATES: variant R9 delivery; media gallery R9 delivery; scraper result-quality R9 delivery; team R5 DELIVERY; roleplayer R1 DELIVERY; roleplay suggestion/manual browser acceptance; migrations 0050, 0051 and 0052; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence; trusted thumbnail descriptors; conversion dimensions; scheduled Relay delivery
-HERMES_STATUS: the four original R9 lanes returned ACK_READ only and their declared roots were empty. Team R5 now has a copied source tree plus PROGRESS, not DELIVERY; roleplayer R1 has ACK only. Codex sent signed next-action receipts requiring hash-verifiable DELIVERY or NACK/BLOCKED. No Hermes source artifact has been accepted or integrated; no runtime/provider/database/permission/migration/deployment action is authorized.
+HERMES_STATUS: the four original R9 lanes returned ACK_READ only; signed proceed envelopes now require execution from the verified pin. Team R5 has a copied source tree plus PROGRESS, not DELIVERY; roleplayer R1 has PROGRESS, not DELIVERY. No Hermes source artifact has been accepted or integrated; no runtime/provider/database/permission/migration/deployment action is authorized.
 ```
