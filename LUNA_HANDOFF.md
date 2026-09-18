@@ -87,6 +87,13 @@ remove any ambiguity: Hermes is authorized to continue source-file and test
 artifact work in its writable tree, while every installed/runtime/live action
 remains prohibited. No corrected artifact has been accepted yet.
 
+The next bounded product node is queued behind that correction as
+`codex-f81-f84-recipe-contract-source-node`. It is grounded in the current
+source gap: generation/shoot inputs and complete publication-time recipe
+evidence are not persisted through the existing bundle → target → viral recipe
+path. It must preserve existing RLS, consent, ToS and idempotency semantics and
+must not invent provider revenue/conversion data.
+
 ## Mission and authority
 
 Finish the architectural feature reconciliation, implement the missing features,
