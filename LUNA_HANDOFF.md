@@ -1127,5 +1127,11 @@ The task is source-only and asks Hermes to use a new copied-artifact lane for
 assigned-shift/model restrictions, post-note ownership, bounded pagination and
 truthful terminal handoff states. It forbids installer, bridge, deployment,
 database, runtime, provider, permission and credential actions. No Hermes
-feature delivery is accepted yet; the next valid state is a correlated
-ACK/NACK, evidence-backed PROGRESS, DELIVERY, or canonical NACK/BLOCKED.
+feature delivery is accepted yet. Hermes returned a substantive blocker saying
+the `da09f66` release does not contain the named authority docs, but used the
+legacy `Ip Man` signature, so Codex rejected that protocol turn with a signed
+receipt. Codex then submitted corrected `TEAM-SHIFT-CHATTER-COPY-R5` authority
+paths against the readable `36b67f5ab79cca27f196c74187eb42a8b6c17d68` release;
+the local/remote payload hashes are recorded in the ledger. The next valid
+state is a correlated strict ACK/NACK, evidence-backed PROGRESS, DELIVERY, or
+canonical NACK/BLOCKED.
