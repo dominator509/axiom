@@ -1160,8 +1160,10 @@ Grok subscription transport, persona/playbook prompt segments and audited
 reply intents as separate contracts; their safe composition is not yet
 implemented or accepted.
 
-Codex prepared a strict source-only Hermes task in
-`var/bridge-requests/codex-chatter-llm-roleplayer-copy-r1.json`. Its required
+Codex submitted the strict source-only Hermes task in
+`var/bridge-requests/codex-chatter-llm-roleplayer-copy-r1.json`; local and
+remote payload SHA-256 both equal
+`26ab8d432585df027ae359e441b187159dad8192383fbdf6bd4cb09d0ae0a70c`. Its required
 handoff is actor-agnostic and human/LLM readable: actor type/reference,
 org/model, active shift, conversation cursor, queue, last safe handoff
 summary, pending intent, memory policy, persona source and persona revision.
