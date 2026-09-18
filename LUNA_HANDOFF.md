@@ -3,6 +3,20 @@
 Updated: 2026-09-17, after milestone M349. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
+## Latest deployment-repair review (after M349)
+
+R3 is not accepted. Read-only inspection of its delivered validator confirmed:
+it rejects the assigned rehearsal PG endpoint `10.77.0.3:5432`; its namespace
+regex accepts `net:123` rather than Linux `net:[123]`; it does not require the
+current namespace identity to equal the expected identity; and service-manager
+validation is a blacklist rather than the authorized `direct-supervision` value.
+No delivered code or installed installer was executed during this review.
+The callsite inventory is evidence for the next integration work, not proof
+that installed helpers have been repaired. R3 tests have not been independently
+executed. Bounded R4 corrections are assigned in bridge message
+`codex-d001a-r3-corrections-20260917`; check its reply next. No live mutation is
+authorized by that assignment. Keep the installed installer prohibited.
+
 ## Mission and authority
 
 Finish the architectural feature reconciliation, implement the missing features,
