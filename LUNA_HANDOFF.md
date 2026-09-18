@@ -591,6 +591,16 @@ accepted, delivered or complete without validator-passing state and a
 readable correlation. No runtime/provider/database/permission/deployment
 action was taken.
 
+M374 bridge readback found a coordination-reader gap, not a product DELIVERY.
+The six M373 receipts are still present under the Hermes `inbox` and have no
+correlated Hermes-authored `PROGRESS`, `ACK`, `NACK`, or `DELIVERY` artifact.
+The host shows a running Hermes gateway process and a codex bridge daemon, but
+no codex-readable Hermes timer or cron entry was exposed. Transport status
+`REPLIED` therefore remains non-terminal and cannot be used as proof that
+Hermes read the messages. No bridge, service, permission, runtime, provider,
+database, migration, deployment, or credential state was changed while
+diagnosing this.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
