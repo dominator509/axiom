@@ -712,6 +712,15 @@ and Hermes writable artifact area, requires its own ACK/NOT-ACK, progress and
 delivery evidence, and grants no checkout, runtime, provider, database,
 permission or deployment authority.
 
+The next source-only batch is also dispatched with independent correlations:
+`PROVIDER-OAUTH-PUBLISHING-COPY`, `R2-STORAGE-ROUNDTRIP-COPY`,
+`VPN-EGRESS-ISOLATION-COPY`, `OBSERVABILITY-CONTRACT-COPY`, and
+`CI-RELEASE-GOVERNANCE-COPY`. These tasks close only verified source gaps in
+the existing connector, storage, egress, telemetry and workflow contracts.
+They do not claim live OAuth, R2, VPN, observability, hosted CI or branch-rule
+evidence, and each remains `UNCONFIRMED` until Hermes returns a valid logical
+reply.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
