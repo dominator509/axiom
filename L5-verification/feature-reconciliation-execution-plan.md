@@ -23,6 +23,38 @@ Each workstream is complete only when all applicable levels are recorded:
 
 Source and automated evidence never substitutes for a missing runtime or provider gate.
 
+## Active execution sequence — M354 onward
+
+Codex leads the integration loop and Hermes performs one bounded source-coding
+batch at a time. Hermes may not invoke the installed deployment helper or touch
+live state. Codex audits the delivered source and tests, integrates only after
+review, runs the owning checks, commits and pushes, then advances the queue.
+
+1. **M354 target-context repair (active):** eliminate ambient live DB/service/
+   rollback target resolution in the installer and bridge; add positive and
+   negative tests for the three prior incident classes and verify exact source
+   hashes before integration.
+2. **M355–M360 product contracts:** close the remaining variant/A-B evidence,
+   scraper orchestration quality, team/shift/post-note restrictions, clipping
+   adaptation status, playbook consumer coverage, and F-81/F-84/F-85 recipe,
+   revenue, hook/format/timing and Relay delivery gaps.
+3. **M361–M364 media/storage:** finish source/generated gallery and playback,
+   thumbnail/transform/approval/retry state, and real R2 application
+   round-trips with checksum/retention/delete evidence.
+4. **M365–M368 provider/network:** finish official provider contracts, OAuth
+   refresh/revoke/publish receipts, and customer BYOVPN/WireGuard isolation;
+   keep AWS fixtures clearly labeled as rehearsal-only.
+5. **M369–M372 UX acceptance:** reconcile all backend capabilities to the
+   signed-in desktop/mobile navigation, error/loading/empty states, dead-link
+   repairs, retry flows, gallery controls and responsive visual QA.
+6. **M373+ release gates:** isolated migration/rollback and immutable TEST
+   deployment, worker/media/data-path readiness, observability/alerts,
+   exact-SHA CI, branch protection and final operator/provider acceptance.
+
+Every numbered item stays open until source, automated, runtime and
+provider/operator evidence are individually recorded. Passing local tests or
+health endpoints alone never closes a gate.
+
 ## Ordered execution queue
 
 ### 0. Baseline and control plane — source gates complete; release gates open
