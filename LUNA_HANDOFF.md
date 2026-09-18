@@ -1423,7 +1423,25 @@ shoot metadata, revenue/conversion attribution, broader contextual arms,
 scheduled Relay delivery, browser/provider acceptance and deployment remain
 open.
 
-## Hermes coordination checkpoint — R9 source-only lanes
+## Source milestone — M459: preserve photoshoot recipe evidence
+
+Codex closed the source-level shoot-control portion of F-81 without inventing
+thumbnail or conversion evidence. The existing style, outfit, location, mood,
+lighting and aspect-ratio controls are now persisted on `content_bundle`, copied
+into the first immutable publication snapshot and recorded as `shoot_config` in
+viral recipe evidence. Historical bundles remain explicitly null because their
+controls were not captured; editable prompts are never used to reconstruct
+history. Migration `0052_publication_recipe_shoot_config.sql` is source-only
+and has not been applied to any database.
+
+Source commit: `3d7e1cb6019478e0d83a211b3bee77f9d8885a62`.
+Evidence: DB schema/migration tests 128/128, worker recipe/publication tests
+21/21, API generation tests 49/49, DB/worker/API typechecks pass, and
+`git diff --check` passes. Trusted thumbnail descriptors, conversion
+attribution, broader contextual arms, scheduled Relay delivery, browser/
+provider acceptance and deployment remain open.
+
+## Hermes coordination checkpoint — R9/R5 source-only lanes
 
 Codex superseded the stale R8 lane references with four independent R9 tasks
 against source commit `73254399034aa33d71aa0d86bf235233a53c6c40`: variant/A-B
@@ -1435,6 +1453,14 @@ empty when checked. Codex sent validator-passing `RECEIPT/READ` messages that
 require a concrete `PROGRESS`, `DELIVERY`, or `NACK/BLOCKED`; no Hermes source
 artifact has been accepted or integrated. No runtime, provider, database,
 permission, migration or deployment action occurred.
+
+Hermes subsequently published a `PROGRESS` receipt for `TEAM-SHIFT-CHATTER-
+COPY-R5` and created a copied packages/api + packages/dashboard tree, but it
+did not publish the required flat `DELIVERY` envelope or a reviewed source
+delta. The roleplayer lane `CHATTER-LLM-ROLEPLAYER-COPY-R1` remains an `ACK`
+with no implementation delivery. Codex sent signed receipts requiring either
+hash-verifiable DELIVERY or a concrete NACK/BLOCKED; untouched copies will not
+be committed or pushed.
 
 ## Hermes source lane — TEAM-SHIFT-CHATTER-COPY-R8
 
@@ -1452,13 +1478,13 @@ a requested behavior. No delivery has been accepted yet.
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
-ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R9 + MEDIA-GALLERY-LIFECYCLE-COPY-R9 + SCRAPER-RESULT-QUALITY-COPY-R9 + TEAM-SHIFT-CHATTER-COPY-R9
-LAST_ACCEPTED_CODE: 17ffc8e6d2a8c57783e4c575edfca377df936184
+ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R9 + MEDIA-GALLERY-LIFECYCLE-COPY-R9 + SCRAPER-RESULT-QUALITY-COPY-R9 + TEAM-SHIFT-CHATTER-COPY-R5 + CHATTER-LLM-ROLEPLAYER-COPY-R1
+LAST_ACCEPTED_CODE: 3d7e1cb6019478e0d83a211b3bee77f9d8885a62
 PUBLISHED_HEAD: a28b3ae5ad157ea0af287504437237ec7aa20ee4
-ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions in verified insights
+ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence
 NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; all active lanes use verified writable reply-root subdirectories
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
-OPEN_GATES: variant R9 delivery; media gallery R9 delivery; scraper result-quality R9 delivery; team visibility/pagination R9 delivery; roleplay suggestion/manual browser acceptance; migrations 0050 and 0051; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence; thumbnail/shoot and conversion dimensions; scheduled Relay delivery
-HERMES_STATUS: all four R9 tasks resolved the exact pinned source after a named-ref fetch but returned ACK_READ only; Codex sent signed read receipts requiring PROGRESS/DELIVERY/NACK and found all four declared copy roots empty. No Hermes source artifact has been accepted or integrated. The older Grok roleplay R1 task remains terminally blocked by authority-release mismatch; no runtime/provider/database/permission/deployment action is authorized.
+OPEN_GATES: variant R9 delivery; media gallery R9 delivery; scraper result-quality R9 delivery; team R5 DELIVERY; roleplayer R1 DELIVERY; roleplay suggestion/manual browser acceptance; migrations 0050, 0051 and 0052; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence; trusted thumbnail descriptors; conversion dimensions; scheduled Relay delivery
+HERMES_STATUS: the four original R9 lanes returned ACK_READ only and their declared roots were empty. Team R5 now has a copied source tree plus PROGRESS, not DELIVERY; roleplayer R1 has ACK only. Codex sent signed next-action receipts requiring hash-verifiable DELIVERY or NACK/BLOCKED. No Hermes source artifact has been accepted or integrated; no runtime/provider/database/permission/migration/deployment action is authorized.
 ```

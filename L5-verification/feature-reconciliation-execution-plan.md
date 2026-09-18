@@ -356,6 +356,15 @@ health endpoints alone never closes a gate.
   package typechecks pass. Thumbnail/shoot metadata, conversion attribution,
   broader contextual arms, scheduled Relay delivery and runtime acceptance
   remain open.
+- M459 persists the exact bounded photoshoot controls already accepted by the
+  prompt engine (style, outfit, location, mood, lighting and aspect ratio) on
+  the content bundle, carries them into the first immutable publication
+  snapshot, and records them in viral recipe evidence. Historical bundles stay
+  explicitly null; no prompt or caption is reverse-engineered. DB schema and
+  migration tests pass 128/128, worker recipe/publication tests pass 21/21,
+  API generation tests pass 49/49, and DB/worker/API typechecks pass. Trusted
+  thumbnail descriptors, conversion attribution, broader arms, Relay delivery
+  and runtime acceptance remain open.
 - Hermes R2 parser source was actually delivered and reviewed. It fixes direct
   construction and fingerprinting but still does not enforce the requested
   rehearsal allowlist, rejects the legitimate rehearsal prefix/replica role,
