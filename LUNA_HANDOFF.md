@@ -456,7 +456,10 @@ does not edit installer/bridge artifacts and does not release any deployment
 action. No new task should be created merely because a bridge status says
 `REPLIED`. Codex sent a correlated sequence-4 receipt requiring an
 `IN_PROGRESS` checkpoint; until that reply or a new artifact arrives, D001A
-remains unconfirmed beyond acceptance.
+remains unconfirmed beyond acceptance. Hermes has now returned a valid
+`PROGRESS/IN_PROGRESS` checkpoint for D001A with its writable artifact path and
+accepted next repairs. F81/F84 has returned `ACK/ACCEPTED`; both lanes have
+validator-passing Codex receipts, but neither has delivered source artifacts.
 
 ## Handoff maintenance rule
 
