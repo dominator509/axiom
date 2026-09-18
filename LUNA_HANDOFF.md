@@ -82,6 +82,11 @@ installed helper remains untouched. The correction is still source-only and
 must return a new candidate plus executable sink-level regressions before any
 integration decision.
 
+Codex sent the follow-up `codex-installer-correction-proceed-source-only` to
+remove any ambiguity: Hermes is authorized to continue source-file and test
+artifact work in its writable tree, while every installed/runtime/live action
+remains prohibited. No corrected artifact has been accepted yet.
+
 ## Mission and authority
 
 Finish the architectural feature reconciliation, implement the missing features,
