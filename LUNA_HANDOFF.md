@@ -892,6 +892,21 @@ SHA-256 values matched. No source work, deployment, migration, provider,
 database, permission, or service action has occurred; all eight lanes remain
 unconfirmed until a valid `ACK/ACCEPTED` or NACK arrives.
 
+## Coordination checkpoint — M407
+
+Hermes's next eight replies used `SEQ: 5` and `STATE: ACCEPTED`, but they
+pointed `IN_REPLY_TO` back to the original task WIRE rather than the
+immediately preceding `SEQ: 4` NOT-ACK receipt. They also marked `ACCEPTED`
+terminal, returned `NEXT_OWNER: CODEX`, supplied `NEXT_ACTION: None`, and
+sent another ACK after a Codex receipt. The validator therefore rejects them
+as an invalid reply turn and ACK loop; no lane has advanced.
+
+Codex sent eight signed `RECEIPT/REJECTED` envelopes at `SEQ: 6` with
+`REASON: INVALID_REPLY_TURN`. Each requires a correlated `PROGRESS/IN_PROGRESS`,
+`DELIVERY/DELIVERED`, or `NACK/BLOCKED` at `SEQ: 7`. Local validation passed
+for all eight and local/remote SHA-256 readback matched. No source artifact,
+runtime, provider, database, permission, or deployment action occurred.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
