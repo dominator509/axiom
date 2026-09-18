@@ -78,6 +78,7 @@ const TS_TO_SQL: Record<string, string> = {
   roleplayMemoryTurn: 'roleplay_memory_turn',
   roleplayHandoff: 'roleplay_handoff',
   roleplayTurn: 'roleplay_turn',
+  uiLocalePreference: 'ui_locale_preference',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -587,6 +588,16 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
           'shift_id UUID NOT NULL REFERENCES team_shift(id)',
           'payload JSONB NOT NULL',
           'roleplay_handoff_scope_conversation',
+        ],
+      ],
+      [
+        'uiLocalePreference',
+        [
+          'org_id uuid NOT NULL REFERENCES org(id) ON DELETE CASCADE',
+          'user_id text REFERENCES auth_user(id) ON DELETE CASCADE',
+          'scope text NOT NULL',
+          'locale text NOT NULL',
+          'ui_locale_preference_locale_supported',
         ],
       ],
     ];

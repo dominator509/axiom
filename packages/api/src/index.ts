@@ -1334,3 +1334,13 @@ export async function initializeRuntime(): Promise<void> {
 export default app;
 
 export type AppType = typeof app;
+
+// Pure contracts are exported for route/UI consumers so the same ownership,
+// lifecycle, privacy, and presentation rules are not reimplemented per
+// surface. They perform no I/O and do not authorize external side effects.
+export * from './affiliate-contract.js';
+export * from './media-gallery-contract.js';
+export * from './roleplay-contract.js';
+export * from './scraper-quality-contract.js';
+export * from './team-shift-access.js';
+export * from './variant-ab-contract.js';

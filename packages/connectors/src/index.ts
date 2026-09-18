@@ -21,6 +21,33 @@ export type { FanvueChatPage, FanvueMessagePage } from './fanvue-inbox.js';
 export type { FanvueMessageMedia } from './fanvue-message-media.js';
 export { FanvueMessageDeliveryError } from './fanvue-inbox.js';
 
+// Community integrations are read/sync/event-only unless a connector
+// explicitly declares a publish capability. Patreon deliberately has none.
+export {
+  PatreonCommunityConnector,
+  PATREON_DENIED_ACTIONS,
+  CAMPAIGN_FIELDS,
+  MEMBER_FIELDS,
+  POST_FIELDS,
+  MEMBER_INCLUDES,
+  createMemoryLedger,
+  timingSafeEqual,
+} from './patreon.js';
+export type {
+  CommunityCapability,
+  PatreonDeniedAction,
+  ManualAssistResult,
+  PatreonCampaign,
+  PatreonMembership,
+  PatreonPost,
+  PatreonWebhookEvent,
+  PatreonTransport,
+  PatreonConnectorConfig,
+  SyncPage,
+  WebhookVerification,
+  IdempotencyLedger,
+} from './patreon.js';
+
 export {
   register,
   connectorFor,

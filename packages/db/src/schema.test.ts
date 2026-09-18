@@ -105,6 +105,8 @@ import {
   roleplayHandoffRelations,
   roleplayTurn,
   roleplayTurnRelations,
+  uiLocalePreference,
+  uiLocalePreferenceRelations,
   allRelations,
 } from './schema/index.js';
 
@@ -227,10 +229,12 @@ describe('schema index', () => {
     expect(roleplayMemoryTurnRelations).toBeDefined();
     expect(roleplayHandoff).toBeDefined();
     expect(roleplayHandoffRelations).toBeDefined();
+    expect(uiLocalePreference).toBeDefined();
+    expect(uiLocalePreferenceRelations).toBeDefined();
   });
 
   it('allRelations contains exactly the relation configs', () => {
-    expect(allRelations).toHaveLength(56);
+    expect(allRelations).toHaveLength(57);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -290,6 +294,7 @@ describe('schema index', () => {
         'roleplay_memory_turn',
         'roleplay_handoff',
         'roleplay_turn',
+        'ui_locale_preference',
       ].sort(),
     );
   });

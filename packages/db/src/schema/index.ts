@@ -55,6 +55,7 @@ import { teamShift, teamShiftRelations, teamNote, teamNoteRelations } from './te
 import { mediaOperation, mediaOperationRelations } from './media_operation.js';
 import { playbookGuideline, playbookGuidelineRelations, playbookGuidelineRevision } from './playbook_guideline.js';
 import { roleplayPersonaRevisionRelations, roleplayMemoryTurnRelations, roleplayHandoffRelations, roleplayTurnRelations } from './roleplay.js';
+import { uiLocalePreference, uiLocalePreferenceRelations } from './ui_locale_preference.js';
 
 export { org, orgRelations };
 export { appUser, appUserRelations };
@@ -121,6 +122,7 @@ export {
 } from './roleplay.js';
 export { mediaGenerationAttempt } from './media_generation_attempt.js';
 export { modelUserAssignment } from './model_user_assignment.js';
+export { uiLocalePreference, uiLocalePreferenceRelations };
 
 export const allRelations = [
   orgRelations,
@@ -179,4 +181,5 @@ export const allRelations = [
   roleplayMemoryTurnRelations,
   roleplayHandoffRelations,
   roleplayTurnRelations,
+  uiLocalePreferenceRelations,
 ];
