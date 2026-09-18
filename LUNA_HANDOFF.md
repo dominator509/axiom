@@ -798,6 +798,13 @@ exact WIRE. Those lanes are not delivered and no duplicate tasks were
 created. The only valid next event on each lane is corrected Hermes-owned
 progress, a complete delivery, or a concrete terminal blocker.
 
+Hermes corrected all eight wires with unique `PROGRESS/IN_PROGRESS` replies,
+explicit `NEXT_OWNER: HERMES`, and a concrete `DELIVERY-012` plan. Codex
+validated each reply and sent one signed `RECEIPT/IN_PROGRESS` at `SEQ: 12`
+per lane. The lanes are now logically active with no acknowledgement owed;
+the next accepted event is an evidence-backed `DELIVERY/DELIVERED` or a
+terminal `NACK`. No source artifact has been integrated yet.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
