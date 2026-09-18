@@ -1387,6 +1387,23 @@ dashboard typecheck passes, dashboard lint exits 0 with only the repository's
 three pre-existing warnings, and `git diff --check` passes. Browser/provider,
 migration and deployment acceptance remain open.
 
+## Source milestone — M454: playbook context on analytics
+
+Codex closed the verified playbook consumer gap on the analytics surface. The
+model analytics page now reads the existing tenant/model-scoped guideline API
+and renders each saved platform guideline's revision, cadence target, posting
+time guidance and upsell strategy as explicitly advisory context, with a link
+back to the editor. Guideline failure and empty state are fail-closed and do
+not hide real metrics, invent defaults, reinterpret performance or schedule
+anything.
+
+Source commit: `700a116eef6aeffe2c65a845a91b6c5a451a827f`, pushed to
+`origin/codex/telegram-webhook-hardening`.
+Evidence: analytics page tests 5/5, related playbook/roleplay tests 14/14,
+dashboard typecheck passes, dashboard lint exits 0 with only the repository's
+three pre-existing warnings, and `git diff --check` passes. Browser, deployed
+migration and provider acceptance remain open.
+
 ## Hermes source lane — TEAM-SHIFT-CHATTER-COPY-R8
 
 Hermes has been assigned a bounded source-only team/Chatter reconciliation from
@@ -1404,9 +1421,9 @@ a requested behavior. No delivery has been accepted yet.
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R8 + MEDIA-GALLERY-LIFECYCLE-COPY-R8 + SCRAPER-RESULT-QUALITY-COPY-R8 + TEAM-SHIFT-CHATTER-COPY-R8
-LAST_ACCEPTED_CODE: 98568e05f5c074aa5c9076e4357a0ab1ad0e1f3d
-PUBLISHED_HEAD: 98568e05f5c074aa5c9076e4357a0ab1ad0e1f3d
-ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history
+LAST_ACCEPTED_CODE: 700a116eef6aeffe2c65a845a91b6c5a451a827f
+PUBLISHED_HEAD: 700a116eef6aeffe2c65a845a91b6c5a451a827f
+ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context
 NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; all active lanes use verified writable reply-root subdirectories
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
