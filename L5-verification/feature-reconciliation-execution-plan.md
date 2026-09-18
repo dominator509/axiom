@@ -257,6 +257,15 @@ health endpoints alone never closes a gate.
 - If no candidate passes the hardening gate, implement the F-90 stack natively: immutable attribution events, derived commission ledger, review/hold states, payout adapter boundary, partner portal, reseller/white-label controls, tenant-scoped exports and audit-safe reconciliation. Never reuse provider earnings `referrals` as affiliate state.
 - Acceptance gate: source/license/dependency review receipt, cross-tenant and role/RLS tests, signed webhook/replay tests, conversion idempotency under retries, reversal/refund and payout-hold tests, disclosure/consent tests, export/deletion tests, desktop/mobile browser coverage, and an explicit human/legal review of the selected licensing model. No live payouts are claimed by source tests.
 
+### 16. Patreon creator/community integration — new owner extension; v2-only, read/sync-first
+
+- Add F-91 to the existing model-scoped connection/capability architecture without treating Patreon as an eleventh automated publisher. Reuse OAuth state/PKCE, encrypted credentials, model egress, RLS, worker queue, audit and idempotency; do not create a parallel account or permission system.
+- Implement a Patreon API v2 contract adapter for `identity`, `campaigns`, `identity.memberships`, `campaigns.members` and `campaigns.posts`, with explicit `fields`/`include` requests, cursor pagination, null-safe/identity-masked fields, and least-privilege scope disclosure in the GUI. Do not request member email/address scopes by default.
+- Add campaign webhook lifecycle management using `w:campaigns.webhook`, HMAC verification of `X-Patreon-Signature`, event idempotency, replay/reconciliation state and safe secret handling. Webhook post lifecycle triggers are inbound observations only.
+- Add dashboard/mobile integration status, campaign/member/tier/post-history views, sync health, webhook health and a truthful manual-assist handoff. Keep Patreon out of automated `publish.target` execution until an official write contract exists; no DM, payout, member mutation or unverified analytics controls.
+- Use redacted v2 fixtures and signature/pagination vectors because Patreon documents no public sandbox. The provider gate requires an owner-approved creator account, OAuth/refresh/revoke/disconnect receipt, one webhook delivery, sync reconciliation, cleanup and desktop/mobile acceptance. API v1 retirement on 2026-10-07 is a hard constraint.
+- Acceptance gate: source adapter and CommunityConnector contract tests, RLS/role tests, cursor/idempotency/replay tests, webhook signature tests, browser/mobile visibility and truthful unsupported-state tests, then separately approved live provider receipts. This architecture change alone does not implement or authorize live Patreon activity.
+
 ## Completion definition
 
 ### Inbox delivery checkpoint — 2026-09-17, M311

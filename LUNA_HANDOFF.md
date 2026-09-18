@@ -1491,6 +1491,19 @@ application is AGPL-3.0 and is not the default for a proprietary white-label
 deployment. The plan is to evaluate OpenPartner from a pinned isolated copy,
 then build F-90 natively if the source/dependency/security review fails.
 
+## Owner extension checkpoint — Patreon creator/community integration
+
+F-91 is now an architecture requirement, not an implemented connector. Patreon
+is tracked as a creator/community integration alongside the ten publishing
+social networks. The v2 contract supports OAuth, creator/campaign identity,
+membership/tier and post reads, cursor pagination and campaign webhooks; it
+does not document a general post-publish write scope. The product must expose
+truthful sync/manual-assist states and must not invent Patreon publishing, DMs,
+payouts or unsupported analytics. Use minimum scopes, encrypted credentials,
+model egress, tenant/model RLS, idempotent cursor/webhook reconciliation and
+the existing Relay/audit path. API v1 retirement on 2026-10-07 is a hard
+constraint. Official reference: https://docs.patreon.com/.
+
 ### Machine/LLM resume card
 
 Bridge checkpoint: the cron report describing the original R9 intake is stale as
@@ -1511,11 +1524,11 @@ STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R9 + MEDIA-GALLERY-LIFECYCLE-COPY-R9 + SCRAPER-RESULT-QUALITY-COPY-R9 + TEAM-SHIFT-CHATTER-COPY-R5 + CHATTER-LLM-ROLEPLAYER-COPY-R1
 LAST_ACCEPTED_CODE: 3d7e1cb6019478e0d83a211b3bee77f9d8885a62
-PUBLISHED_HEAD: dd4a5c6da6b8f6af372fc93a6c1d921b204d9f9a
+PUBLISHED_HEAD: de8ed2b5a744d9967369d789e31dda186ebd5c91
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence
 NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; R9 proceed envelopes are in flight; all active lanes use verified writable reply-root subdirectories
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
-OPEN_GATES: variant R9 delivery; media gallery R9 delivery; scraper result-quality R9 delivery; team R5 DELIVERY; roleplayer R1 DELIVERY; F-89 localization implementation/catalog/browser acceptance; F-90 affiliate license/security decision and implementation/browser acceptance; roleplay suggestion/manual browser acceptance; migrations 0050, 0051 and 0052; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence; trusted thumbnail descriptors; conversion dimensions; scheduled Relay delivery
+OPEN_GATES: variant R9 delivery; media gallery R9 delivery; scraper result-quality R9 delivery; team R5 DELIVERY; roleplayer R1 DELIVERY; F-89 localization implementation/catalog/browser acceptance; F-90 affiliate license/security decision and implementation/browser acceptance; F-91 Patreon v2 adapter/OAuth/sync/webhook/manual-assist implementation and provider/browser acceptance; roleplay suggestion/manual browser acceptance; migrations 0050, 0051 and 0052; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence; trusted thumbnail descriptors; conversion dimensions; scheduled Relay delivery
 HERMES_STATUS: the four original R9 lanes returned ACK_READ only; signed proceed envelopes now require execution from the verified pin. Team R5 has a copied source tree plus PROGRESS, not DELIVERY; roleplayer R1 has PROGRESS, not DELIVERY. No Hermes source artifact has been accepted or integrated; no runtime/provider/database/permission/migration/deployment action is authorized.
 ```

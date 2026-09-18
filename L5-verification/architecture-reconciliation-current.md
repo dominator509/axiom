@@ -39,6 +39,7 @@ receipts. Historical audit baselines are not silently treated as current source.
 | Scraper and research (F-17/F-18) | Authenticated bounded scrape runs, worker dispatch, model egress binding and partial-result/error handling exist. | Deployed sidecar/provider isolation, benchmark history and result-quality acceptance. |
 | Viral loop (F-79–F-86) | Metric/evidence filtering, publication-bound recipe evidence (hook, scheduled/actual time, bounded shoot controls, media format and ToS verdict), labels, recipes, embeddings/retrieval and parts of reward/digest logic exist. | Trusted thumbnail descriptors, revenue/conversion attribution, all contextual arms, cross-model opt-in behavior, scheduled insight/Relay delivery and runtime acceptance. |
 | Connectors and OAuth (F-03/F-31/F-58–F-67) | Static connector contracts and capability declarations exist for supported paths. | Live OAuth, refresh/revoke/disconnect, account onboarding, provider upload/publish/metrics receipts and browser acceptance. Snapchat remains capability-honest manual-assist where its API does not support organic posting. |
+| Patreon creator/community integration (F-91) | **New owner extension:** no Patreon connector, OAuth route, membership sync, post-history reader or webhook consumer is source-wired in this checkout. The architecture now records Patreon as a read/sync/event integration, not a fabricated publisher. | Implement API v2 OAuth with minimum scopes, campaign/member/tier/post sync, cursor checkpoints, signed webhook verification, tenant/model RLS, encrypted secrets, manual-assist UI and reconciliation receipts. No publish/DM/payout/unsupported analytics claim without an official contract. |
 | Link-in-bio (F-48–F-53) | The Native provider is the current production-enabled default. | Fanlynks, Linktree and Beacons are optional planned adapters and must remain hidden/rejected until their full lifecycle exists; a database row is not evidence of a connection. |
 | Localization and language switching (F-89) | **New owner extension:** no shared locale catalog, persisted UI-language preference, or complete mobile/web language switch is currently established. Existing formatting still contains hard-coded `en-US` paths. | Add `en`, `es`, `ja`, `it`, `pt-BR`, and `de` UI locales with an explicit user switch, organization default, browser-first-run detection, BCP-47 normalization, ICU messages, locale-aware formatting, accessible `lang` metadata, and parity across dashboard, native mobile, auth, emails and operator errors. Content language and UI language must remain separate. |
 | Affiliate, referral and reseller stack (F-90) | **New owner extension:** no FanThynks affiliate-program, partner, conversion, commission, payout or reseller-control plane was found. Fanvue earnings `referrals` is provider data, not this feature. | Add a tenant-safe attribution and immutable commission ledger, affiliate/reseller portal, conversion/reversal and fraud states, payout export/provider adapter, disclosures, audit/idempotency, platform-vs-tenant scope and white-label controls. No third-party stack is approved until its source, dependency, security and license review passes. |
@@ -188,3 +189,35 @@ Refferq README and MIT license at `https://github.com/Refferq/Refferq` and
 `https://raw.githubusercontent.com/Refferq/Refferq/main/LICENSE`; RefKit's
 application/SDK license split at `https://refkit.net/` and
 `https://raw.githubusercontent.com/refkitnet/RefKit/main/LICENSE`.
+
+### F-91: Patreon creator/community integration
+
+Patreon is added as an architecture-level provider integration for creators who
+use Patreon alongside Fanvue and the other social surfaces. It is not counted
+as one of the ten publishing social networks. The planned integration reuses
+the existing model/org-scoped connection, OAuth state/PKCE, encrypted token,
+model egress, worker queue, webhook ingress, idempotency, audit, RLS and
+dashboard integration contracts.
+
+The official [Patreon API Reference](https://docs.patreon.com/) documents API
+v2 OAuth and the scopes `identity`, `identity.memberships`, `campaigns`,
+`campaigns.members`, `campaigns.posts`, and `w:campaigns.webhook`. Those
+surfaces support creator/campaign identity, membership/tier synchronization,
+post read history and campaign webhooks. Sensitive email/address scopes are
+optional and must not be requested by default. API v1 is scheduled to retire
+on 2026-10-07; the implementation is v2-only.
+
+The provider matrix is capability-honest: Patreon publish is `none` in the
+current documented contract, with `manual-assist` as the only content handoff
+option. Patreon webhook triggers named `posts:publish`, `posts:update` and
+`posts:delete` are inbound notifications, not write authority. The product
+must not expose Patreon DMs, payouts, member mutations, or normalized
+performance analytics until official documentation and scopes prove them.
+Member identity may be masked by the member, so null/hidden values are valid
+and must never be replaced with guessed data.
+
+No public Patreon sandbox is documented. Source contract tests will therefore
+use redacted JSON fixtures, pagination samples and HMAC signature vectors; a
+live creator account, OAuth receipt, webhook delivery, sync receipt and manual
+browser acceptance remain separate open gates. This architecture addition does
+not implement or authorize live provider activity.
