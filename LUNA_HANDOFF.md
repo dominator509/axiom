@@ -1349,6 +1349,27 @@ lint remains error-free with only the repository's three existing warnings.
 This is a source/UI milestone only; browser acceptance, provider/runtime
 acceptance, migrations and deployment remain open.
 
+## Source milestone — M450: paginated scraper history
+
+Codex closed the non-overlapping saved-research history gap in the existing
+scraper contract. The model-scoped scrape-run API now uses the repository's
+standard descending `(created_at, id)` keyset cursor, bounded limits and
+truthful `next_cursor` metadata instead of an unpaged hard-coded first 50.
+The dashboard forwards the cursor, distinguishes an exhausted page from an
+empty history, and exposes `Latest research` / `Older research` navigation
+without changing the queueing, egress, result-quality or publication
+contracts. The API path remains tenant-scoped and existing role middleware
+continues to govern access.
+
+Source commit: `87c0927d65f96fe15b07d753c264330a2b3e8f78`, pushed to
+`origin/codex/telegram-webhook-hardening`.
+Evidence: scraper API route tests 3/3, dashboard scraper/page tests 8/8,
+worker scraper tests 11/11, API/dashboard typechecks pass, and both package
+linters exit 0 with only the repository's pre-existing warnings. The
+scraper-result-quality Hermes lane remains separate and unaccepted; this
+milestone does not claim provider parsing, deployed sidecar, browser or
+production readiness.
+
 ## Hermes source lane — TEAM-SHIFT-CHATTER-COPY-R8
 
 Hermes has been assigned a bounded source-only team/Chatter reconciliation from
@@ -1366,12 +1387,12 @@ a requested behavior. No delivery has been accepted yet.
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R8 + MEDIA-GALLERY-LIFECYCLE-COPY-R8 + SCRAPER-RESULT-QUALITY-COPY-R8 + TEAM-SHIFT-CHATTER-COPY-R8
-LAST_ACCEPTED_CODE: f4a0c8b5b92920f0533e7a5abbc86d384524174f
-PUBLISHED_HEAD: f4a0c8b5b92920f0533e7a5abbc86d384524174f
-ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring
+LAST_ACCEPTED_CODE: 87c0927d65f96fe15b07d753c264330a2b3e8f78
+PUBLISHED_HEAD: 87c0927d65f96fe15b07d753c264330a2b3e8f78
+ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring + paginated scraper history
 NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; all active lanes use verified writable reply-root subdirectories
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
 OPEN_GATES: variant R8 delivery; media gallery R8 delivery; scraper result-quality R8 delivery; team visibility/pagination R8 delivery; roleplay suggestion/manual browser acceptance; migrations 0050 and 0051; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence
-HERMES_STATUS: variant, media-gallery and scraper R8 tasks target verified writable `work/ipman-replies-out/` subdirectories and require exact source commit `bc3ff61d05570363ba9d3becf819652c7395a105` readback before work; team R8 targets `work/ipman-replies-out/team-shift-r8` and requires exact source commit `2da0710b2db0bc54f9d1dbdc872495c549a6a135` readback; the older Grok roleplay R1 task is terminally blocked by authority-release mismatch and acknowledged; no Hermes source artifact has been accepted or integrated
+HERMES_STATUS: variant, media-gallery and scraper R8 tasks target verified writable `work/ipman-replies-out/` subdirectories; variant/media-gallery remain source-precheck-only, scraper R8 remains limited to result-quality/provider-response semantics and is separate from M450 pagination; team R8 targets `work/ipman-replies-out/team-shift-r8`; all active lanes require exact source readback, correlated PROGRESS/DELIVERY, hashes, commands and real exit codes; the older Grok roleplay R1 task is terminally blocked by authority-release mismatch and acknowledged; no Hermes source artifact has been accepted or integrated
 ```
