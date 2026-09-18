@@ -1556,7 +1556,7 @@ STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R9 + MEDIA-GALLERY-LIFECYCLE-COPY-R9 + SCRAPER-RESULT-QUALITY-COPY-R9 + TEAM-SHIFT-CHATTER-COPY-R5 + CHATTER-LLM-ROLEPLAYER-COPY-R1 + LOCALIZATION-MULTILINGUAL-COPY-R2 + AFFILIATE-PLATFORM-COPY-R2 + PATREON-COMMUNITY-COPY-R2
 LAST_ACCEPTED_CODE: 3d7e1cb6019478e0d83a211b3bee77f9d8885a62
-PUBLISHED_HEAD: 0a068e0ced3f3decb1935ab7426a7773b4bbb50d
+PUBLISHED_HEAD: cf1fca7902122af3713c2de1f8812da966b613c4
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence
 NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; R9 proceed envelopes and the exact-head R2 owner-extension tasks are in flight; all active lanes use verified writable reply-root subdirectories and exact source pins
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
