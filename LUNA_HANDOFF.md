@@ -551,6 +551,14 @@ acknowledgement or a delivery. Codex sent unique sequence-12
 by a separate `DELIVERY/DELIVERED` wire. All three lanes remain open and
 source-only; no runtime or deployment action occurred.
 
+M370 lane readback: the Scraper ACK was valid and was consumed with signed
+sequence-5 receipt `codex-receipt-scraper-ack-5`; the Gallery WIRE correction
+was valid and was consumed with signed sequence-5 receipt
+`codex-receipt-gallery-ack-5`. F81/F84 returned another `ACK/IN_PROGRESS`
+instead of a valid progress message, so Codex sent signed sequence-7
+`NACK/REJECTED` `codex-nack-f81-ack-state-7`. No product DELIVERY has been
+accepted on these lanes; each remains source-only and open.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
