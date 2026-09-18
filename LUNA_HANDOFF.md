@@ -1546,8 +1546,10 @@ validly accepted `AFFILIATE-PLATFORM-COPY-R2`; Codex sent the correlated
 `RECEIPT/READ` and is awaiting source-only PROGRESS/DELIVERY. The malformed
 Localization R1 and Patreon R1 lanes were superseded by exact-head R2 tasks
 `LOCALIZATION-MULTILINGUAL-COPY-R2` and `PATREON-COMMUNITY-COPY-R2` against
-the pushed source head below. They require source/test evidence only; no
-runtime, provider, migration, permission or deployment action is authorized.
+the pushed source head below. Hermes has now validly accepted both R2 lanes
+and Codex has sent correlated READ receipts. They require source/test
+evidence only; no runtime, provider, migration, permission or deployment
+action is authorized.
 
 ```text
 STATE: ACTIVE_PARTIAL
@@ -1560,5 +1562,5 @@ NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewe
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
 OPEN_GATES: variant R9 delivery; media gallery R9 delivery; scraper result-quality R9 delivery; team R5 DELIVERY; roleplayer R1 DELIVERY; F-89 localization implementation/catalog/browser acceptance; F-90 affiliate license/security decision and implementation/browser acceptance; F-91 Patreon v2 adapter/OAuth/sync/webhook/manual-assist implementation and provider/browser acceptance; roleplay suggestion/manual browser acceptance; migrations 0050, 0051 and 0052; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence; trusted thumbnail descriptors; conversion dimensions; scheduled Relay delivery
-HERMES_STATUS: the four original R9 lanes returned ACK_READ only; signed proceed envelopes now require execution from the verified pin. Team R5 has a copied source tree plus PROGRESS, not DELIVERY; roleplayer R1 has no accepted delivery. Localization R1 and Patreon R1 returned invalid legacy ACK states and remain uncounted; exact-head R2 superseding tasks are now in the inbox. Affiliate Platform R2 returned valid ACK/ACCEPTED and Codex sent RECEIPT/READ; it remains pending source PROGRESS/DELIVERY. No Hermes source artifact has been accepted or integrated; no runtime/provider/database/permission/migration/deployment action is authorized.
+HERMES_STATUS: the four original R9 lanes returned ACK_READ only; signed proceed envelopes now require execution from the verified pin. Team R5 has a copied source tree plus PROGRESS, not DELIVERY; roleplayer R1 has no accepted delivery. Localization R1 and Patreon R1 returned invalid legacy ACK states and remain uncounted; exact-head Localization R2 and Patreon R2 returned valid ACK/ACCEPTED and Codex sent RECEIPT/READ. Affiliate Platform R2 also returned valid ACK/ACCEPTED and has a RECEIPT/READ. All three owner-extension lanes are pending concrete source PROGRESS/DELIVERY or one named blocker. No Hermes source artifact has been accepted or integrated; no runtime/provider/database/permission/migration/deployment action is authorized.
 ```
