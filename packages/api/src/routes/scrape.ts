@@ -11,6 +11,7 @@ import type { AppBindings } from '../index.js';
 import type { Context } from 'hono';
 import { withOrgContext, requireOrg, apiError, statusTitle, writeAudit } from './helpers.js';
 import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
+import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 
 const router = new Hono<AppBindings>();
 const socialSchema = z.object({ kind: z.literal('social'), platform: z.string().trim().min(1).max(50), profileUrl: z.string().url().max(2_000) }).strict();
@@ -36,10 +37,20 @@ function supportedPlatform(value: string): boolean {
 router.get('/models/:modelId/scrape-runs', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const { limit, cursor } = parseCursor(c, 20, 100);
   const rows = await withOrgContext(orgId, (tx) => tx.select().from(schema.scrapeRun)
-    .where(and(eq(schema.scrapeRun.orgId, orgId), eq(schema.scrapeRun.modelId, c.req.param('modelId'))))
-    .orderBy(desc(schema.scrapeRun.createdAt)).limit(50));
-  return c.json({ data: rows });
+    .where(and(
+      eq(schema.scrapeRun.orgId, orgId),
+      eq(schema.scrapeRun.modelId, c.req.param('modelId')),
+      ...cursorLt(schema.scrapeRun.createdAt, schema.scrapeRun.id, cursor),
+    ))
+    .orderBy(desc(schema.scrapeRun.createdAt), desc(schema.scrapeRun.id)).limit(limit));
+  const last = rows[rows.length - 1];
+  return c.json({ data: rows, meta: {
+    total: rows.length,
+    limit,
+    next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length),
+  } });
 });
 
 router.post('/models/:modelId/scrape-runs', async (c) => {

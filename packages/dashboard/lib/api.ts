@@ -441,8 +441,8 @@ export const api = {
       apiFetch<{ data: VariantExperiment[] }>(`/api/v1/models/${id}/variant-experiments`),
     variantCandidates: (id: string, cursor?: string) =>
       apiFetch<{ data: VariantCandidate[]; meta: { next_cursor: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/variant-experiments/candidates${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
-    scrapeRuns: (id: string) =>
-      apiFetch<{ data: ScrapeRun[] }>(`/api/v1/models/${id}/scrape-runs`),
+    scrapeRuns: (id: string, cursor?: string) =>
+      apiFetch<{ data: ScrapeRun[]; meta: { next_cursor: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/scrape-runs${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
     teamOperations: (id: string) =>
       apiFetch<{ data: { members: TeamMember[]; shifts: TeamShift[]; notes: TeamNote[]; agentPermissions: TeamAgentPermission[] } }>(`/api/v1/models/${id}/team-operations`),
     roleplay: (id: string, conversationKey = 'default', actor?: RoleplayActor) => {
