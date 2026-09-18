@@ -59,7 +59,14 @@ if (!readFromStdin && !file) {
 
     const payloadIndex = lines.indexOf('PAYLOAD:');
     const typeLine = lines.find((line) => line.startsWith('TYPE: '));
-    const legacyAck = expectedRole === 'Hermes' && typeLine === 'TYPE: ACK' && payloadIndex < 0;
+    const rawStateLine = lines.find((line) => line.startsWith('STATE: '));
+    const rawStateLineValue = rawStateLine?.slice('STATE: '.length);
+    // The deployed bridge's legacy ACK format may contain a human-readable
+    // PAYLOAD section. Its state is the discriminator; modern ACKs use only
+    // READ/ACCEPTED and never ACKNOWLEDGED/CLOSED.
+    const legacyAck = expectedRole === 'Hermes'
+      && typeLine === 'TYPE: ACK'
+      && (payloadIndex < 0 || ['ACKNOWLEDGED', 'CLOSED'].includes(rawStateLineValue));
     if (!legacyAck && (payloadIndex < 0 || payloadIndex === signatureIndex - 1)) fail('missing payload delimiter or signature');
     if (!legacyAck && payloadIndex >= signatureIndex - 1) fail('payload must precede the role signature');
 
@@ -76,16 +83,27 @@ if (!readFromStdin && !file) {
       headers.set(match.groups.key, match.groups.value);
     }
 
+    const legacyPayloadText = legacyAck && payloadIndex >= 0
+      ? lines.slice(payloadIndex + 1, signatureIndex).join('\n')
+      : '';
+    const legacyField = (key) => {
+      const headerValue = headers.get(key);
+      if (headerValue !== undefined) return headerValue;
+      const match = new RegExp(`${key}:\\s*([^\\n]*)`).exec(legacyPayloadText);
+      return match?.[1]?.trim();
+    };
+
     const required = [
       'TYPE', 'TASK', 'WIRE', 'SEQ', 'IN_REPLY_TO', 'STATE', 'TERMINAL',
       'NEXT_OWNER', 'NEXT_ACTION', 'REASON', 'PAYLOAD_SHA256',
     ];
     if (legacyAck) {
       for (const key of ['TYPE', 'TASK', 'WIRE', 'SEQ', 'IN_REPLY_TO', 'STATE', 'TERMINAL', 'NEXT_OWNER', 'DELIVERY_ACCEPTED', 'LIVE_ACTIONS']) {
-        if (!headers.has(key)) fail(`legacy ACK missing header: ${key}`);
+        const value = ['DELIVERY_ACCEPTED', 'LIVE_ACTIONS'].includes(key) ? legacyField(key) : headers.get(key);
+        if (value === undefined) fail(`legacy ACK missing header: ${key}`);
       }
-      if (headers.get('DELIVERY_ACCEPTED') !== 'NO') fail('legacy ACK cannot claim delivery');
-      if (headers.get('LIVE_ACTIONS') !== 'NONE') fail('legacy ACK must declare LIVE_ACTIONS: NONE');
+      if (!legacyField('DELIVERY_ACCEPTED')?.startsWith('NO')) fail('legacy ACK cannot claim delivery');
+      if (!legacyField('LIVE_ACTIONS')?.startsWith('NONE')) fail('legacy ACK must declare LIVE_ACTIONS: NONE');
     } else {
       for (const key of required) if (!headers.has(key)) fail(`missing header: ${key}`);
     }
@@ -102,12 +120,15 @@ if (!readFromStdin && !file) {
     const states = new Set(['OPEN', 'READ', 'ACCEPTED', 'IN_PROGRESS', 'DELIVERED', 'REJECTED', 'BLOCKED']);
     const owners = new Set(['CODEX', 'HERMES', 'NONE']);
     const rawState = headers.get('STATE');
-    const legacyBlocked = legacyAck && headers.get('STATUS')?.startsWith('BLOCKED');
-    const normalizedType = legacyBlocked ? 'NACK' : headers.get('TYPE');
+    const legacyBlocked = legacyAck && legacyField('STATUS')?.startsWith('BLOCKED');
+    const legacyClosed = legacyAck && rawState === 'CLOSED';
+    const normalizedType = legacyBlocked || legacyClosed ? 'NACK' : headers.get('TYPE');
     const normalizedState = legacyBlocked
       ? 'BLOCKED'
+      : legacyClosed
+        ? 'REJECTED'
       : legacyAck && rawState === 'ACKNOWLEDGED'
-        ? (headers.get('SCOPE_ACCEPTED')?.startsWith('YES') ? 'ACCEPTED' : 'READ')
+        ? (legacyField('SCOPE_ACCEPTED')?.startsWith('YES') || legacyField('SCOPE_ACK') ? 'ACCEPTED' : 'READ')
         : rawState;
     if (!types.has(normalizedType)) fail(`invalid TYPE: ${headers.get('TYPE')}`);
     if (!states.has(normalizedState)) fail(`invalid STATE: ${rawState}`);
@@ -117,6 +138,11 @@ if (!readFromStdin && !file) {
     const terminal = new Set(['DELIVERED', 'REJECTED', 'BLOCKED']).has(normalizedState);
     if (!legacyBlocked && (headers.get('TERMINAL') === 'YES') !== terminal) fail('TERMINAL does not match STATE');
     if (legacyBlocked && headers.get('NEXT_OWNER') !== 'CODEX') fail('legacy blocked ACK must return ownership to CODEX');
+    if (legacyClosed) {
+      if (headers.get('TERMINAL') !== 'YES') fail('legacy CLOSED ACK must be terminal');
+      if (!['CODEX', 'NONE'].includes(headers.get('NEXT_OWNER'))) fail('legacy CLOSED ACK has invalid NEXT_OWNER');
+      if (!headers.get('REASON') || headers.get('REASON') === 'NONE') fail('legacy CLOSED ACK must name REASON');
+    }
     if (normalizedType === 'TASK' && normalizedState !== 'OPEN') fail('TASK must begin in OPEN state');
     if (normalizedType === 'ACK' && !['READ', 'ACCEPTED'].includes(normalizedState)) fail('ACK must be READ or ACCEPTED');
     if (normalizedType === 'NACK' && !['REJECTED', 'BLOCKED'].includes(normalizedState)) fail('NACK must be REJECTED or BLOCKED');
@@ -150,6 +176,8 @@ if (!readFromStdin && !file) {
     if ((process.exitCode ?? 0) === 0) {
       const compatibility = legacyBlocked
         ? ' (legacy STATUS: BLOCKED normalized to NACK)'
+        : legacyClosed
+          ? ' (legacy CLOSED normalized to terminal NACK)'
         : legacyAck
           ? ' (legacy ACKNOWLEDGED normalized)'
           : '';

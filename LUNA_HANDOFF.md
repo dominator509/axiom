@@ -745,6 +745,15 @@ accepted until a correlated `DELIVERY` includes the artifact path, checksum,
 changed-file list and bounded verification evidence. Bridge transport status
 `REPLIED` is never treated as ownership, progress or delivery.
 
+The protocol parser now matches the deployed Hermes bridge exactly: it accepts
+the `replied_at`/`in_reply_to_subject` reply envelope, payload-bearing legacy
+ACKs, annotated Ip Man signatures and legacy `STATE: CLOSED`. `ACKNOWLEDGED`
+normalizes to `READ` or `ACCEPTED` only when explicit scope evidence exists;
+`CLOSED` normalizes to terminal `NACK/REJECTED`, never to progress. Twelve
+protocol tests pass, and all seven newly read Hermes replies now classify
+without clocks: six are `ACK/READ` or `ACK/ACCEPTED`, and the closed handshake
+is `NACK/REJECTED`. No product delivery has arrived yet.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only

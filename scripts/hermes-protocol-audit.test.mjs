@@ -33,6 +33,16 @@ function envelope(id, from, messageBody) {
   return { msg_id: id, from, sent_at: sentinel, subject: id, body: messageBody };
 }
 
+function deployedHermesReplyEnvelope(id, subject, messageBody) {
+  return {
+    msg_id: id,
+    from: 'hermes',
+    replied_at: 'transport-ignored',
+    in_reply_to_subject: subject,
+    body: messageBody,
+  };
+}
+
 function legacyHermesAckBody(task, wire, inReplyTo, seq) {
   return [
     'FT-HERMES/1',
@@ -93,6 +103,28 @@ function annotatedHermesAckBody(task, wire, inReplyTo, seq) {
   ].join('\n');
 }
 
+function deployedHermesClosedAckBody(task, wire, inReplyTo, seq) {
+  return [
+    'FT-HERMES/1',
+    'TYPE: ACK',
+    `TASK: ${task}`,
+    `WIRE: ${wire}`,
+    `SEQ: ${seq}`,
+    `IN_REPLY_TO: ${inReplyTo}`,
+    'STATE: CLOSED',
+    'TERMINAL: YES',
+    'NEXT_OWNER: NONE',
+    'NEXT_ACTION: None; lane is closed',
+    'REASON: SEQUENCE_REUSE',
+    'PAYLOAD_SHA256: NONE',
+    'PAYLOAD:',
+    'RECEIPT_READ: YES. DELIVERY_ACCEPTED: NO, LIVE_ACTIONS: NONE.',
+    'sincerely, Ip Man (role: bridge-responder)',
+    '',
+    'sincerely, hermes',
+  ].join('\n');
+}
+
 function run(messages, extra = []) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ft-hermes-protocol-'));
   for (const [name, message] of messages) fs.writeFileSync(path.join(dir, name), JSON.stringify(message));
@@ -144,6 +176,50 @@ test('accepts the annotated Ip Man Hermes signature', () => {
   ], ['--allow-pending']);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /state=ACCEPTED/);
+});
+
+test('accepts the deployed Hermes reply envelope and payload-bearing legacy ACK', () => {
+  const task = 'DEPLOYED-REPLY-ENVELOPE';
+  const reply = [
+    'FT-HERMES/1',
+    'TYPE: ACK',
+    `TASK: ${task}`,
+    'WIRE: W2',
+    'SEQ: 2',
+    'IN_REPLY_TO: W1',
+    'STATE: ACKNOWLEDGED',
+    'TERMINAL: NO',
+    'NEXT_OWNER: HERMES',
+    'NEXT_ACTION: Publish progress',
+    'REASON: NONE',
+    'PAYLOAD_SHA256: NONE',
+    'PAYLOAD:',
+    'RECEIPT_READ: YES. DELIVERY_ACCEPTED: NO, LIVE_ACTIONS: NONE.',
+    'SCOPE_ACK: bounded source-only responsibility',
+    'sincerely, Ip Man (role: bridge-responder)',
+    '',
+    'sincerely, hermes',
+  ].join('\n');
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read task', from: 'codex' }))],
+    ['02.json', deployedHermesReplyEnvelope('m2', task, reply)],
+  ], ['--allow-pending']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /state=ACCEPTED/);
+});
+
+test('normalizes a deployed terminal CLOSED ACK into a terminal NOT-ACK', () => {
+  const task = 'DEPLOYED-CLOSED-REPLY';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read task', from: 'codex' }))],
+    ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish progress', from: 'hermes' }))],
+    ['03.json', envelope('m3', 'codex', body({ type: 'RECEIPT', task, wire: 'W3', seq: 3, inReplyTo: 'W2', state: 'IN_PROGRESS', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Publish delivery', from: 'codex' }))],
+    ['04.json', deployedHermesReplyEnvelope('m4', task, deployedHermesClosedAckBody(task, 'W4', 'W3', 4))],
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /state=REJECTED/);
+  assert.match(result.stdout, /next_owner=NONE/);
+  assert.doesNotMatch(result.stderr, /ACK loop/);
 });
 
 test('fails closed when Hermes ACKs a receipt instead of progressing', () => {

@@ -47,13 +47,20 @@ function parseEnvelope(file) {
   const required = new Set(['msg_id', 'from', 'sent_at', 'subject', 'body']);
   const keys = Object.keys(envelope);
   const isHermes = envelope.from === 'hermes';
+  const deployedHermesReply = isHermes
+    && 'replied_at' in envelope
+    && 'in_reply_to_subject' in envelope
+    && !('sent_at' in envelope || 'subject' in envelope);
   const allowedLegacyHermes = new Set(['replied_at', 'in_reply_to_subject']);
   for (const key of keys) {
     if (!required.has(key) && !(isHermes && allowedLegacyHermes.has(key))) {
       fail(`${file}: unexpected envelope field ${key}`);
     }
   }
-  for (const key of required) {
+  const requiredKeys = deployedHermesReply
+    ? ['msg_id', 'from', 'replied_at', 'in_reply_to_subject', 'body']
+    : [...required];
+  for (const key of requiredKeys) {
     if (!(key in envelope)) fail(`${file}: missing envelope field ${key}`);
     if (typeof envelope[key] !== 'string') fail(`${file}: envelope field ${key} must be a string`);
   }
@@ -61,8 +68,17 @@ function parseEnvelope(file) {
   if (envelope.from === 'codex' && keys.length !== required.size) {
     fail(`${file}: Codex envelope must contain exactly five fields`);
   }
-  // sent_at is a legacy transport field. It is deliberately not parsed or compared.
-  return { ...envelope, file };
+  if (isHermes && !deployedHermesReply && !('sent_at' in envelope && 'subject' in envelope)) {
+    fail(`${file}: Hermes envelope must use either the canonical or deployed reply field pair`);
+  }
+  // sent_at/replied_at are transport fields. They are deliberately not parsed,
+  // compared, or used for ordering; logical SEQ is the only ordering signal.
+  return {
+    ...envelope,
+    subject: envelope.subject ?? envelope.in_reply_to_subject,
+    sent_at: envelope.sent_at ?? envelope.replied_at,
+    file,
+  };
 }
 
 function parseBody(envelope) {
@@ -95,7 +111,14 @@ function parseBody(envelope) {
 
   const payloadIndex = lines.indexOf('PAYLOAD:');
   const typeLine = lines.find((line) => line.startsWith('TYPE: '));
-  const legacyAck = envelope.from === 'hermes' && typeLine === 'TYPE: ACK' && payloadIndex < 0;
+  const rawStateLine = lines.find((line) => line.startsWith('STATE: '));
+  const rawStateLineValue = rawStateLine?.slice('STATE: '.length);
+  // The deployed bridge's legacy ACK format may contain a human-readable
+  // PAYLOAD section. Its state is the discriminator; modern ACKs use only
+  // READ/ACCEPTED and never ACKNOWLEDGED/CLOSED.
+  const legacyAck = envelope.from === 'hermes'
+    && typeLine === 'TYPE: ACK'
+    && (payloadIndex < 0 || ['ACKNOWLEDGED', 'CLOSED'].includes(rawStateLineValue));
   if (!legacyAck && (payloadIndex < 0 || payloadIndex >= signatureIndex)) fail(`${envelope.file}: missing payload delimiter`);
   const headers = new Map();
   const headerEnd = legacyAck ? signatureIndex : payloadIndex;
@@ -108,16 +131,26 @@ function parseBody(envelope) {
     if (headers.has(match.groups.key)) fail(`${envelope.file}: duplicate header ${match.groups.key}`);
     headers.set(match.groups.key, match.groups.value);
   }
+  const legacyPayloadText = legacyAck && payloadIndex >= 0
+    ? lines.slice(payloadIndex + 1, signatureIndex).join('\n')
+    : '';
+  const legacyField = (key) => {
+    const headerValue = headers.get(key);
+    if (headerValue !== undefined) return headerValue;
+    const match = new RegExp(`${key}:\\s*([^\\n]*)`).exec(legacyPayloadText);
+    return match?.[1]?.trim();
+  };
   const requiredHeaders = [
     'TYPE', 'TASK', 'WIRE', 'SEQ', 'IN_REPLY_TO', 'STATE', 'TERMINAL',
     'NEXT_OWNER', 'NEXT_ACTION', 'REASON', 'PAYLOAD_SHA256',
   ];
   if (legacyAck) {
     for (const key of ['TYPE', 'TASK', 'WIRE', 'SEQ', 'IN_REPLY_TO', 'STATE', 'TERMINAL', 'NEXT_OWNER', 'DELIVERY_ACCEPTED', 'LIVE_ACTIONS']) {
-      if (!headers.has(key)) fail(`${envelope.file}: legacy ACK missing header ${key}`);
+      const value = ['DELIVERY_ACCEPTED', 'LIVE_ACTIONS'].includes(key) ? legacyField(key) : headers.get(key);
+      if (value === undefined) fail(`${envelope.file}: legacy ACK missing header ${key}`);
     }
-    if (headers.get('DELIVERY_ACCEPTED') !== 'NO') fail(`${envelope.file}: legacy ACK cannot claim delivery`);
-    if (headers.get('LIVE_ACTIONS') !== 'NONE') fail(`${envelope.file}: legacy ACK must declare LIVE_ACTIONS NONE`);
+    if (!legacyField('DELIVERY_ACCEPTED')?.startsWith('NO')) fail(`${envelope.file}: legacy ACK cannot claim delivery`);
+    if (!legacyField('LIVE_ACTIONS')?.startsWith('NONE')) fail(`${envelope.file}: legacy ACK must declare LIVE_ACTIONS NONE`);
   } else {
     for (const key of requiredHeaders) if (!headers.has(key)) fail(`${envelope.file}: missing header ${key}`);
   }
@@ -132,12 +165,15 @@ function parseBody(envelope) {
   const states = new Set(['OPEN', 'READ', 'ACCEPTED', 'IN_PROGRESS', 'DELIVERED', 'REJECTED', 'BLOCKED']);
   const owners = new Set(['CODEX', 'HERMES', 'NONE']);
   const rawState = headers.get('STATE');
-  const legacyBlocked = legacyAck && headers.get('STATUS')?.startsWith('BLOCKED');
-  const normalizedType = legacyBlocked ? 'NACK' : headers.get('TYPE');
+  const legacyBlocked = legacyAck && legacyField('STATUS')?.startsWith('BLOCKED');
+  const legacyClosed = legacyAck && rawState === 'CLOSED';
+  const normalizedType = legacyBlocked || legacyClosed ? 'NACK' : headers.get('TYPE');
   const normalizedState = legacyBlocked
     ? 'BLOCKED'
+    : legacyClosed
+      ? 'REJECTED'
     : legacyAck && rawState === 'ACKNOWLEDGED'
-      ? (headers.get('SCOPE_ACCEPTED')?.startsWith('YES') ? 'ACCEPTED' : 'READ')
+      ? (legacyField('SCOPE_ACCEPTED')?.startsWith('YES') || legacyField('SCOPE_ACK') ? 'ACCEPTED' : 'READ')
       : rawState;
   if (!types.has(normalizedType)) fail(`${envelope.file}: invalid TYPE`);
   if (!states.has(normalizedState)) fail(`${envelope.file}: invalid STATE`);
@@ -146,6 +182,11 @@ function parseBody(envelope) {
   const terminal = new Set(['DELIVERED', 'REJECTED', 'BLOCKED']).has(normalizedState);
   if (!legacyBlocked && (headers.get('TERMINAL') === 'YES') !== terminal) fail(`${envelope.file}: TERMINAL does not match STATE`);
   if (legacyBlocked && headers.get('NEXT_OWNER') !== 'CODEX') fail(`${envelope.file}: legacy blocked ACK must return ownership to CODEX`);
+  if (legacyClosed) {
+    if (headers.get('TERMINAL') !== 'YES') fail(`${envelope.file}: legacy CLOSED ACK must be terminal`);
+    if (!['CODEX', 'NONE'].includes(headers.get('NEXT_OWNER'))) fail(`${envelope.file}: legacy CLOSED ACK has invalid NEXT_OWNER`);
+    if (!headers.get('REASON') || headers.get('REASON') === 'NONE') fail(`${envelope.file}: legacy CLOSED ACK must name REASON`);
+  }
   if (normalizedType === 'TASK' && (normalizedState !== 'OPEN' || seq !== 1 || headers.get('IN_REPLY_TO') !== 'NONE')) {
     fail(`${envelope.file}: TASK must be SEQ 1 / OPEN / IN_REPLY_TO NONE`);
   }
@@ -199,10 +240,12 @@ function parseBody(envelope) {
     nextOwner: headers.get('NEXT_OWNER'),
     nextAction: headers.get('NEXT_ACTION') ?? (legacyBlocked
       ? 'Resolve the named blocker or close the task'
+      : legacyClosed
+        ? 'Close the lane; no further work is assigned'
       : legacyAck
         ? 'Publish PROGRESS or DELIVERY'
         : undefined),
-    reason: headers.get('REASON') ?? (legacyBlocked ? 'LEGACY_BLOCKED_STATUS' : legacyAck ? 'LEGACY_BRIDGE_ACK' : undefined),
+    reason: headers.get('REASON') ?? (legacyBlocked ? 'LEGACY_BLOCKED_STATUS' : legacyClosed ? 'LEGACY_CLOSED_ACK' : legacyAck ? 'LEGACY_BRIDGE_ACK' : undefined),
   };
 }
 
