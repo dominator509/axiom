@@ -634,6 +634,15 @@ concrete next action requiring Hermes source DELIVERY. The lanes remain
 nonterminal; no generated artifact has been accepted and no runtime/provider/
 database/permission/deployment action occurred.
 
+M378 read back the next Hermes turn for all six receipt WIREs. Each response
+is a correlated legacy `ACKNOWLEDGED` with a unique next WIRE and SEQ,
+`NEXT_OWNER: HERMES`, `DELIVERY_ACCEPTED: NO`, `RUNTIME_ACCEPTANCE: UNCLAIMED`,
+and `LIVE_ACTIONS: NONE`. The replies explicitly state that source-only
+DELIVERY remains pending; none claims changed source bytes, tests, deployment,
+or provider execution. This is a verified active checkpoint, not an idle or
+complete state. No runtime/provider/database/permission/deployment action
+occurred.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
