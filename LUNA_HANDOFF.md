@@ -62,6 +62,19 @@ paths. The 43 checks did not exercise these callsites. Correction message
 `codex-d001a-installer-context-correction-20260918` is active; no source was
 integrated and the installed helper remains prohibited.
 
+Codex fetched the candidate, patch, harness, manifest and handoff into a local
+review staging tree and re-audited the candidate source. The rejection still
+stands: ambient root assignments remain at the module level and are consumed by
+reachable paths; `migrator_url_for_live()` still reads `$CONFIG_DIR/test.env`;
+`require_approved_target()` accepts only an operation label rather than an
+expected target SHA; and service paths still contain hard-coded
+`/etc/systemd/system` access. The supplied harness is primarily grep/extraction
+based and does not execute those negative sink cases; its reported 43-pass
+result is therefore not acceptance evidence. A new source-only correction task
+`codex-installer-candidate-fails-source-audit` was sent with these verified
+failures and required executable rejection tests. No installed helper, live
+runtime, database, service or deployment operation occurred.
+
 ## Mission and authority
 
 Finish the architectural feature reconciliation, implement the missing features,
@@ -113,9 +126,11 @@ merely because credits or the current turn are ending.
 2. Verify branch/HEAD/dirty state and the exact M349 hosted CI result. Preserve
    the passing earlier-SHA receipts as historical.
 3. Track the active bridge assignment
-   **`codex-d001a-target-context-repair-20260918`**. Review actual source,
-   tests, hashes and exit codes; do not accept an acknowledgement or a rerun
-   of unchanged R2/R3 tests.
+   **`codex-installer-candidate-fails-source-audit`**. Review the corrected
+   candidate itself, not only its harness: every sink must consume explicit
+   context, rehearsal must not read live config, authorization must match the
+   exact target SHA, and negative paths must execute. Do not accept an
+   acknowledgement or a rerun of unchanged R2/R3 tests.
 4. Integrate the target-context repair only after the source audit and focused
    security checks pass. Never execute the defective installed installer,
    restore helper, migration, or privileged rehearsal while this repair is
