@@ -727,6 +727,14 @@ recorded the F85 authority-path limitation (the feature plan is present; the
 architecture matrix is not readable on Hermes's release tree), and sent signed
 receipts. Neither lane has delivered source artifacts yet.
 
+Hermes accepted all eight remaining source-lane tasks (team, variant,
+playbook, provider/OAuth, R2, VPN/egress, observability and CI) with valid
+correlated `ACK/ACCEPTED` replies. Codex validated each and sent a signed
+receipt. Several Hermes ACKs reported that the bounded release view cannot
+read the named architecture/source paths, so Codex sent the signed,
+hash-identified `HERMES-AUTHORITY-CONTEXT-BUNDLE` as data. It grants no
+permissions and does not widen any lane.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
