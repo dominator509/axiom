@@ -1193,3 +1193,20 @@ as `RECEIPT/READ`, `SEQ: 3`, requiring concrete writable-copy progress or a
 canonical blocker. Its local and remote SHA-256 both equal
 `8445bcfd73f6f9b8722bf5b7df7526a40da46964021666c2028603f3d8d3f941`. This is
 not a duplicate task; it is the next correlated turn after the accepted ACK.
+
+## Source progress — M427: roleplay context contract
+
+Because Hermes had not produced a source artifact after the accepted lane and
+continuation receipt, Codex implemented a narrow architecture-faithful source
+slice locally in `packages/llm-gateway/src/roleplay-context.ts`. It provides a
+single human/LLM-readable handoff shape, bounded tail memory formatting,
+revisioned persona snapshots and safe `soul.md`-style source references. It
+does not read arbitrary files, persist data, call Grok, or bypass assignment,
+consent, safety, approval, idempotency or publication controls.
+
+Evidence: focused tests 8/8, gateway typecheck clean, gateway lint clean with
+16 pre-existing warnings, and diff-check clean. The full gateway suite still
+has four unrelated subscription-process termination failures; no roleplay
+test failed. Durable DB/API/dashboard wiring and runtime/provider acceptance
+remain open. Hermes's source-only lane remains pending and must be audited for
+overlap before any further integration.

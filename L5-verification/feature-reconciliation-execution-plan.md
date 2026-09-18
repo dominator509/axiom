@@ -380,4 +380,12 @@ system safety, ToS, consent, approval and publication rules. If the existing
 storage/dispatch contracts cannot support this safely, the implementation
 must return a concrete blocker rather than inventing unsafe semantics.
 
+M427 adds the first source contract slice in
+`packages/llm-gateway/src/roleplay-context.ts`: actor-agnostic handoff
+formatting, bounded tail memory, revisioned persona metadata and safe
+`soul.md`-style source references. Eight focused tests pass; gateway
+typecheck and lint pass with the existing 16 warnings. This is not durable
+memory, assignment persistence, an API route, a dashboard workflow, or Grok
+provider evidence; those gates remain open.
+
 The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.

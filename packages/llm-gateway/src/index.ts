@@ -63,3 +63,26 @@ export { OfficialSubscriptionTransport } from './providers/subscription.js';
 export { characterLockSnapshot, buildMediaPrompt } from './media-prompt.js';
 export type { CharacterLockSnapshot } from './media-prompt.js';
 export type { GrokMediaRequest } from './providers/subscription.js';
+export {
+  boundRoleplayMemory,
+  formatRoleplayHandoff,
+  formatRoleplayMemory,
+  validateRoleplayHandoff,
+  validateRoleplayMemoryPolicy,
+  validateRoleplayPersonaSnapshot,
+  ROLEPLAY_ACTOR_TYPES,
+  ROLEPLAY_LIMITS,
+  ROLEPLAY_MEMORY_ROLES,
+  ROLEPLAY_PERSONA_SOURCES,
+} from './roleplay-context.js';
+export type {
+  RoleplayActor,
+  RoleplayActorType,
+  RoleplayHandoff,
+  RoleplayMemoryPolicy,
+  RoleplayMemoryRole,
+  RoleplayMemoryTurn,
+  RoleplayPersonaSnapshot,
+  RoleplayPersonaMetadata,
+  RoleplayPersonaSource,
+} from './roleplay-context.js';

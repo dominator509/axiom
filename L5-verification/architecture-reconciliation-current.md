@@ -84,3 +84,10 @@ tenant/model-scoped conversation memory and an optional versioned
 `soul.md`-style persona source with size, traversal, revision, audit and
 instruction-data safeguards. No provider, deployment, live OAuth, or
 publication evidence is implied until separately demonstrated.
+
+Current source progress: `packages/llm-gateway/src/roleplay-context.ts` now
+exports a shared actor-agnostic handoff formatter, bounded memory window,
+revisioned persona snapshot validator and `soul.md`-style source-reference
+contract. It performs no filesystem reads, persistence or provider calls. The
+DB/API/dashboard assignment, durable memory/persona storage and runtime
+acceptance gates remain open.
