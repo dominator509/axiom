@@ -112,6 +112,7 @@ test('normalizes a legacy ACK with explicit STATUS BLOCKED into a terminal NOT-A
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /state=BLOCKED/);
   assert.match(result.stdout, /next_owner=CODEX/);
+  assert.match(result.stdout, /Resolve the named blocker or close the task/);
   assert.doesNotMatch(result.stderr, /ACK loop/);
 });
 

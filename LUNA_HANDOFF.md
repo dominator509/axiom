@@ -674,6 +674,8 @@ fail the strict validator (`ACK` may only be `READ` or `ACCEPTED`), so Codex
 sent signed receipt 021 as `RECEIPT/REJECTED` with `REASON: INVALID_ACK_STATE`.
 The required next response is a real `PROGRESS/IN_PROGRESS` or a complete
 `DELIVERY/DELIVERED`; no work is counted from the malformed ACK.
+For legacy blocked replies, the audit fallback action is now explicitly
+“resolve the named blocker or close the task,” never “publish progress.”
 
 ## Handoff maintenance rule
 

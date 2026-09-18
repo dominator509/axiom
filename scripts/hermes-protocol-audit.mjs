@@ -197,8 +197,12 @@ function parseBody(envelope) {
     state: normalizedState,
     terminal,
     nextOwner: headers.get('NEXT_OWNER'),
-    nextAction: headers.get('NEXT_ACTION') ?? (legacyAck ? 'Publish PROGRESS or DELIVERY' : undefined),
-    reason: headers.get('REASON') ?? (legacyAck ? 'LEGACY_BRIDGE_ACK' : undefined),
+    nextAction: headers.get('NEXT_ACTION') ?? (legacyBlocked
+      ? 'Resolve the named blocker or close the task'
+      : legacyAck
+        ? 'Publish PROGRESS or DELIVERY'
+        : undefined),
+    reason: headers.get('REASON') ?? (legacyBlocked ? 'LEGACY_BLOCKED_STATUS' : legacyAck ? 'LEGACY_BRIDGE_ACK' : undefined),
   };
 }
 
