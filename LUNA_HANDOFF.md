@@ -1370,6 +1370,23 @@ scraper-result-quality Hermes lane remains separate and unaccepted; this
 milestone does not claim provider parsing, deployed sidecar, browser or
 production readiness.
 
+## Source milestone — M452: roleplay personality interaction coverage
+
+Codex added a component-level behavior suite for the existing roleplay
+personality authoring controls. It verifies the user-visible contract rather
+than only checking rendered labels: clicking `Use suggested personality`
+copies a bounded preset into the persona editor, and clicking `Write manually`
+keeps that text editable so the operator can replace it with a custom prompt.
+The existing review-before-save behavior and tenant/model-scoped persona
+revision boundary remain unchanged.
+
+Source commit: `98568e05f5c074aa5c9076e4357a0ab1ad0e1f3d`, pushed to
+`origin/codex/telegram-webhook-hardening`.
+Evidence: roleplay behavior tests 2/2, roleplay markup/personality tests 3/3,
+dashboard typecheck passes, dashboard lint exits 0 with only the repository's
+three pre-existing warnings, and `git diff --check` passes. Browser/provider,
+migration and deployment acceptance remain open.
+
 ## Hermes source lane — TEAM-SHIFT-CHATTER-COPY-R8
 
 Hermes has been assigned a bounded source-only team/Chatter reconciliation from
@@ -1387,9 +1404,9 @@ a requested behavior. No delivery has been accepted yet.
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R8 + MEDIA-GALLERY-LIFECYCLE-COPY-R8 + SCRAPER-RESULT-QUALITY-COPY-R8 + TEAM-SHIFT-CHATTER-COPY-R8
-LAST_ACCEPTED_CODE: 87c0927d65f96fe15b07d753c264330a2b3e8f78
-PUBLISHED_HEAD: 87c0927d65f96fe15b07d753c264330a2b3e8f78
-ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring + paginated scraper history
+LAST_ACCEPTED_CODE: 98568e05f5c074aa5c9076e4357a0ab1ad0e1f3d
+PUBLISHED_HEAD: 98568e05f5c074aa5c9076e4357a0ab1ad0e1f3d
+ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history
 NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; all active lanes use verified writable reply-root subdirectories
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
