@@ -478,6 +478,10 @@ consent, idempotency, and no-direct-publication boundaries.
 Hermes has returned a scope-valid gallery ACK, but reused the task WIRE in the
 ACK. Codex rejected that correlation as `WIRE_COLLISION` and sent receipt
 sequence 3 requiring a unique reply WIRE before the gallery lane advances.
+The sixth independent lane, `TEAM-SHIFT-CHATTER`, is now OPEN for the
+architecture-named assigned-shift/model restrictions, post-note ownership, and
+bounded history gaps. It must reuse the existing RBAC, RLS, assignment, and
+shift contracts.
 
 ## Handoff maintenance rule
 
