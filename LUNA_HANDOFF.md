@@ -1313,15 +1313,31 @@ subscription-process termination failures. Migrations `0050` and `0051` are
 not applied; real Grok/provider receipt, browser acceptance and deployment
 remain open. This milestone does not claim production readiness.
 
+## Source milestone — M444: reloadable roleplay provider receipts
+
+The existing roleplay context now returns the latest 20 persisted provider
+turn receipts for the tenant/model/conversation scope. The Chatter & roleplay
+dashboard reloads that context after a rejected or uncertain provider turn and
+shows pending, completed, rejected and uncertain receipt state without
+inventing assistant content. This remains a read-only view over the existing
+`roleplay_turn` ledger; it adds no inbox, publication or second permission
+system. API coverage is 9/9 for this route, including an uncertain receipt
+reload case. API and dashboard typechecks pass, and dashboard lint remains
+error-free with only the repository's three existing warnings. The source
+commit is `b0008d717cb76c37cecd64ca7dfffa9d54b93e87`, pushed to
+`origin/codex/telegram-webhook-hardening`. Migration `0051`, real Grok/provider
+receipts, browser acceptance and deployment remain open. This milestone does
+not claim production readiness.
+
 ### Machine/LLM resume card
 
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R8 + MEDIA-GALLERY-LIFECYCLE-COPY-R8 + SCRAPER-RESULT-QUALITY-COPY-R8
-LAST_ACCEPTED_CODE: bc3ff61d05570363ba9d3becf819652c7395a105
-PUBLISHED_HEAD: bc3ff61d05570363ba9d3becf819652c7395a105
-ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch
+LAST_ACCEPTED_CODE: b0008d717cb76c37cecd64ca7dfffa9d54b93e87
+PUBLISHED_HEAD: b0008d717cb76c37cecd64ca7dfffa9d54b93e87
+ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts
 NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; all active lanes use verified writable reply-root subdirectories
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
