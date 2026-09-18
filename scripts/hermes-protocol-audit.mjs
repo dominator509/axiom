@@ -221,6 +221,9 @@ function auditTask(records) {
     if (index > 0 && current.from === sorted[index - 1].from) {
       fail(`${current.file}: sender repeated without a receipt/reply turn`);
     }
+    if (index > 0 && current.from === 'hermes' && current.type === 'ACK' && sorted[index - 1].type === 'RECEIPT' && sorted[index - 1].from === 'codex') {
+      fail(`${current.file}: Hermes ACK after Codex RECEIPT is an ACK loop; require PROGRESS, DELIVERY, or BLOCKED`);
+    }
     if (current.seq === 2) {
       if (!['ACK', 'NACK'].includes(current.type) || current.inReplyTo !== sorted[0].wire) {
         fail(`${current.file}: SEQ 2 must be a correlated ACK or NACK for the TASK`);

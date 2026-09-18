@@ -643,6 +643,15 @@ or provider execution. This is a verified active checkpoint, not an idle or
 complete state. No runtime/provider/database/permission/deployment action
 occurred.
 
+M379 detected and rejected a repeated Hermes ACK turn on all six lanes. Each
+Hermes response acknowledged the Codex receipt again without emitting
+`PROGRESS`, `DELIVERY`, or `BLOCKED`, so Codex sent a validator-passing
+`RECEIPT/REJECTED` with `REASON: REPEATED_ACK_WITHOUT_PROGRESS` and a concrete
+required next response. The stateful audit now fails closed on any Hermes ACK
+immediately following a Codex receipt, preventing an ACK loop from appearing
+as work. No source DELIVERY or runtime/provider/database/permission/deployment
+action occurred.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
