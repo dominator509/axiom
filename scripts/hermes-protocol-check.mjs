@@ -39,11 +39,14 @@ if (!readFromStdin && !file) {
     if (expectedRole === 'Hermes' && lines.at(-1) === 'sincerely, hermes') {
       signatureIndex -= 1;
       while (signatureIndex >= 0 && lines[signatureIndex] === '') signatureIndex -= 1;
-      if (lines[signatureIndex] !== 'sincerely, Hermes') {
+      if (!/^sincerely, Hermes(?: \(role: bridge-responder\))?$/.test(lines[signatureIndex] ?? '')) {
         fail('Hermes bridge suffix is present without the canonical Hermes signature');
       }
     }
-    if (lines[signatureIndex] !== `sincerely, ${expectedRole}`) fail('signature is missing, not final, or signed by the wrong role');
+    const canonicalSignature = expectedRole === 'Hermes'
+      ? /^sincerely, Hermes(?: \(role: bridge-responder\))?$/
+      : /^sincerely, Codex$/;
+    if (!canonicalSignature.test(lines[signatureIndex] ?? '')) fail('signature is missing, not final, or signed by the wrong role');
     const trailing = lines.slice(signatureIndex + 1);
     if (expectedRole === 'Hermes') {
       const nonBlankTrailing = trailing.filter((line) => line !== '');

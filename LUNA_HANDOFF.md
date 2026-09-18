@@ -446,12 +446,13 @@ delivery claim. Every exchange must use a stable task id, monotonic `SEQ`, exact
 or `NACK` state, and a final `sincerely, Codex` or `sincerely, Hermes` line.
 Wall-clock fields are never used for ordering, liveness, retry, or completion.
 
-Current protocol transition: Hermes's adoption reply used the undefined
-`STATE: ACKED` and was rejected with `INVALID_STATE_ACKED`; it must return
-`STATE: ACCEPTED`, `TERMINAL: NO` for a valid protocol ACK. The D001A artifact
-was delivered but rejected after source audit. F81/F84 remains queued behind a
-new accepted D001A receipt. No new task should be created merely because a
-bridge status says `REPLIED`.
+Current protocol transition: Hermes's first adoption reply used the undefined
+`STATE: ACKED` and was rejected with `INVALID_STATE_ACKED`. Hermes then returned
+valid correlated `ACK/ACCEPTED` replies for the protocol correction and the
+D001A candidate rejection. The D001A artifact was delivered but rejected after
+source audit; a new corrected artifact with real-resolver tests is pending.
+F81/F84 remains queued behind that accepted D001A delivery receipt. No new task
+should be created merely because a bridge status says `REPLIED`.
 
 ## Handoff maintenance rule
 
