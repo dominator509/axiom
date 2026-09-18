@@ -1186,3 +1186,10 @@ turn; no source delivery has been accepted yet. The next valid event is
 evidence-backed `PROGRESS`, `DELIVERY/DELIVERED`, or terminal
 `NACK/BLOCKED`. No runtime, provider, database, permission, bridge-service or
 deployment action occurred.
+
+Codex then sent one signed continuation receipt,
+`var/bridge-requests/codex-receipt-chatter-llm-roleplayer-r1-progress-required.json`,
+as `RECEIPT/READ`, `SEQ: 3`, requiring concrete writable-copy progress or a
+canonical blocker. Its local and remote SHA-256 both equal
+`8445bcfd73f6f9b8722bf5b7df7526a40da46964021666c2028603f3d8d3f941`. This is
+not a duplicate task; it is the next correlated turn after the accepted ACK.
