@@ -1,6 +1,6 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: 2026-09-18, after milestone M354 assignment. This is a continuation checkpoint,
+Updated: 2026-09-18, after milestone M431 and the variant delivery assignment. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
 ## Latest deployment-repair review (after M349)
@@ -117,16 +117,17 @@ merely because credits or the current turn are ending.
 
 - Repository: `dominator509/axiom`; branch `codex/telegram-webhook-hardening`;
   existing PR #14. Do not open a duplicate PR or force-push.
-- Latest application milestone: **M349 exploratory performance patterns**, in
-  this handoff's commit. Prior application SHA `4be39a68b91dd4c9fb24a99ece86b8019974ffad`;
-  intervening documentation SHA `466a55420722501dcbf450e1d58d4970807dabb1`.
+- Latest application milestone: **M431 durable dual-actor roleplay state**,
+  commit `6b8229d6c247654be7d0f26a100af53a52d54c91`. The roleplay source/API/
+  dashboard slice is integrated and pushed; its migration, provider, browser,
+  and deployed-runtime gates remain open.
 - Worktree was clean immediately before this documentation update. Inspect it
   again on arrival; this handoff's own commit will be newer than M342.
 - Current applied migrations: **50**, ending
   `0049_weekly_digest_schedule.sql`. Source now contains unapplied migration
   `0050_roleplay_handoff_memory_persona.sql`; it has not been run anywhere.
-- Latest full-matrix source: `d53787420f4b880d911818ca9ed45b3f271c541c`;
-  later application changes have focused evidence recorded below.
+- Latest full-matrix source receipt remains `d53787420f4b880d911818ca9ed45b3f271c541c`;
+  later application changes have proportionate focused evidence recorded below.
 - Hosted CI **35285232940** exact `d537874` and **35284764547** exact
   `bbefee6` both completed successfully. Documentation commit `741c7e6` has
   run **35286101578**, now successful. M345 run **35286677401** also succeeded.
@@ -143,8 +144,8 @@ merely because credits or the current turn are ending.
 
 1. Read this file, the private local operator companion
    `var/handoff/luna-operator.md`, and the authoritative documents below.
-2. Verify branch/HEAD/dirty state and the exact M349 hosted CI result. Preserve
-   the passing earlier-SHA receipts as historical.
+2. Verify branch/HEAD/dirty state and the focused M431 receipts. Preserve the
+   passing earlier-SHA receipts as historical.
 3. Track the active bridge assignment
    **`codex-installer-candidate-fails-source-audit`**. Review the corrected
    candidate itself, not only its harness: every sink must consume explicit
@@ -155,10 +156,10 @@ merely because credits or the current turn are ending.
    security checks pass. Never execute the defective installed installer,
    restore helper, migration, or privileged rehearsal while this repair is
    unintegrated.
-5. After the M354 commit/push, dispatch the next bounded product node from the
-   active completion sequence. Continue the full gap list in parallel across
-   learning, media/storage, providers/network, UX and release operations; do
-   not let a completed Hermes reply become a stopping point.
+5. The current bounded product node is `VARIANT-AB-CONTRACT-COPY`. Hermes must
+   return a source-only DELIVERY or one concrete BLOCKED reason; ACK/REPLIED
+   transport is not delivery. After Codex audits and integrates that artifact,
+   commit/push it and advance one node at a time through the remaining gap list.
 6. The full **50-migration** local matrix now passed on `d537874`, exit0,
    24/24 tasks, fixture removed. See
    `L5-verification/reconciliation-runtime-receipt-d537874.md`. After subsequent
@@ -1289,13 +1290,13 @@ production readiness.
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
-ACTIVE_LANE: CHATTER-LLM-ROLEPLAYER-COPY-R1
-LAST_ACCEPTED_CODE: 9e766a3935276e0d37701cb7df037098c952c6f1
-PUBLISHED_HEAD: 8b8590edc24b7b56dd65daabeffc900412cd5de2
+ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY
+LAST_ACCEPTED_CODE: 6b8229d6c247654be7d0f26a100af53a52d54c91
+PUBLISHED_HEAD: 6b8229d6c247654be7d0f26a100af53a52d54c91
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence
-NEXT_REQUIRED: schedule migration and provider/browser gates separately; do not treat source/CI evidence as runtime/provider acceptance
+NEXT_REQUIRED: audit Hermes's variant DELIVERY-014, integrate only reviewed source, run owning tests, commit/push, then advance to the next open source node; keep migration/provider/browser/runtime gates separate
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
-OPEN_GATES: migration 0050; Grok roleplay dispatch/receipt; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence
-HERMES_STATUS: roleplayer lane has ACK/REPLIED transport only and no delivery artifact; no Hermes source was integrated
+OPEN_GATES: variant DELIVERY-014; migration 0050; Grok roleplay dispatch/receipt; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence
+HERMES_STATUS: variant lane has a correlated delivery receipt in transit; no Hermes source artifact has been accepted or integrated
 ```
