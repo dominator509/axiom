@@ -115,7 +115,7 @@ describe('patreon capability honesty', () => {
   it('never claims an analytics revenue capability', () => {
     const { transport } = makeTransport([]);
     const connector = makeConnector(transport);
-    const cap = connector.capability() as Record<string, unknown>;
+    const cap = connector.capability();
     expect(Object.keys(cap)).not.toContain('metrics');
     expect(Object.keys(cap)).not.toContain('analytics');
     expect(connector.supports('analytics_revenue')).toBe(false);
