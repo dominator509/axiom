@@ -52,12 +52,15 @@ live database during a guarded rehearsal: `DB=fanthynks_test` is a module
 constant and all installer DB sinks are ambient-live. It also identifies the
 undefined bridge `SCHEMA_CHANGING_FROM`, unused `LIVE_PORTS`, hard-coded live
 unit reads, and the exact context-threading sinks. No source integration or
-live operation has occurred; deployment remains paused. The next bounded coding
-node is `codex-d001a-target-context-repair-20260918`: Hermes must deliver a
-source-only immutable TargetContext patch and adversarial tests. Codex will
-audit the actual artifacts, integrate only the reviewed source, run the owning
-gates, commit and push it, then dispatch the next node. No installed helper is
-trusted or executable until that loop proves target identity end to end.
+live operation has occurred; deployment remains paused. Hermes's reply to
+`codex-d001a-target-context-repair-20260918` is accurately recorded as PARTIAL:
+the immutable TargetContext type and 98 parser tests exist, but no installer or
+bridge sink is threaded. The active split node is
+`codex-d001a-installer-context-slice-20260918`; Hermes is editing a copied
+source under its writable bridge reply tree, never the installed helper. Codex
+will audit the actual artifacts, integrate only the reviewed source, run the
+owning gates, commit and push it, then dispatch the bridge slice. No installed
+helper is trusted or executable until target identity is proven end to end.
 
 ## Mission and authority
 
@@ -285,11 +288,12 @@ pushes, and the handoff. A node is not complete from an acknowledgement or a
 unit test count: its source, automated, runtime, and provider/operator gates
 must be marked separately.
 
-1. **Deployment safety foundation — active M354.** Thread one explicit,
-   immutable target context through every installer and bridge DB/service/
-   rollback sink; add the incident regressions; keep the installed installer
-   prohibited. Exit criteria: Codex source audit, focused security tests,
-   static/build gates, exact commit and remote readback.
+1. **Deployment safety foundation — active M354.** Hermes first patches the
+   installer DB/service/rollback sinks, then the bridge sinks, using copied
+   source-only artifacts; Codex reviews and integrates each slice. Add the
+   incident regressions and keep the installed installer prohibited. Exit
+   criteria: source audit, focused security tests, static/build gates, exact
+   commit and remote readback.
 2. **Product contract completion — F-15/F-16, F-25, F-55/F-56, F-81/F-84/F-85.**
    Finish the remaining variant/A-B evidence, revenue/format/hook/time arms,
    scraper result quality, post-note/team shift restrictions, playbook
