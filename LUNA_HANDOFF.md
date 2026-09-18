@@ -1404,6 +1404,38 @@ dashboard typecheck passes, dashboard lint exits 0 with only the repository's
 three pre-existing warnings, and `git diff --check` passes. Browser, deployed
 migration and provider acceptance remain open.
 
+## Source milestone — M456: verified recipe dimensions in pattern insights
+
+Codex extended the existing publication-bound viral pattern query and dashboard
+consumer without creating a parallel learning model. Patterns now carry the
+captured media format, ToS verdict at publication and actual publication-hour
+bucket in addition to the existing caption arm and scheduled-time context.
+The query remains tenant/model scoped and evidence-gated by published provider
+observations; the UI labels these as observations and does not infer thumbnail
+quality, conversion lift, causality or recommendations.
+
+Source commit: `17ffc8e6d2a8c57783e4c575edfca377df936184`, pushed to
+`origin/codex/telegram-webhook-hardening`.
+Evidence: API viral/insights tests 17/17, dashboard pattern/analytics tests
+7/7, API and dashboard typechecks pass, both package linters exit 0 with only
+the repository's existing warnings, and `git diff --check` passes. Thumbnail/
+shoot metadata, revenue/conversion attribution, broader contextual arms,
+scheduled Relay delivery, browser/provider acceptance and deployment remain
+open.
+
+## Hermes coordination checkpoint — R9 source-only lanes
+
+Codex superseded the stale R8 lane references with four independent R9 tasks
+against source commit `73254399034aa33d71aa0d86bf235233a53c6c40`: variant/A-B
+contract, media-gallery lifecycle, scraper result quality and team/shift/
+Chatter visibility. Hermes successfully fetched and resolved the exact pinned
+commit in its isolated clone, but each reply was `ACK_READ` and explicitly said
+copy/implementation had not begun. The four declared writable copy roots were
+empty when checked. Codex sent validator-passing `RECEIPT/READ` messages that
+require a concrete `PROGRESS`, `DELIVERY`, or `NACK/BLOCKED`; no Hermes source
+artifact has been accepted or integrated. No runtime, provider, database,
+permission, migration or deployment action occurred.
+
 ## Hermes source lane — TEAM-SHIFT-CHATTER-COPY-R8
 
 Hermes has been assigned a bounded source-only team/Chatter reconciliation from
@@ -1420,13 +1452,13 @@ a requested behavior. No delivery has been accepted yet.
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
-ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R8 + MEDIA-GALLERY-LIFECYCLE-COPY-R8 + SCRAPER-RESULT-QUALITY-COPY-R8 + TEAM-SHIFT-CHATTER-COPY-R8
-LAST_ACCEPTED_CODE: 700a116eef6aeffe2c65a845a91b6c5a451a827f
-PUBLISHED_HEAD: 700a116eef6aeffe2c65a845a91b6c5a451a827f
-ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context
+ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R9 + MEDIA-GALLERY-LIFECYCLE-COPY-R9 + SCRAPER-RESULT-QUALITY-COPY-R9 + TEAM-SHIFT-CHATTER-COPY-R9
+LAST_ACCEPTED_CODE: 17ffc8e6d2a8c57783e4c575edfca377df936184
+PUBLISHED_HEAD: 17ffc8e6d2a8c57783e4c575edfca377df936184
+ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions in verified insights
 NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; all active lanes use verified writable reply-root subdirectories
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
-OPEN_GATES: variant R8 delivery; media gallery R8 delivery; scraper result-quality R8 delivery; team visibility/pagination R8 delivery; roleplay suggestion/manual browser acceptance; migrations 0050 and 0051; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence
-HERMES_STATUS: variant, media-gallery and scraper R8 tasks target verified writable `work/ipman-replies-out/` subdirectories; variant/media-gallery remain source-precheck-only, scraper R8 remains limited to result-quality/provider-response semantics and is separate from M450 pagination; team R8 targets `work/ipman-replies-out/team-shift-r8`; all active lanes require exact source readback, correlated PROGRESS/DELIVERY, hashes, commands and real exit codes; the older Grok roleplay R1 task is terminally blocked by authority-release mismatch and acknowledged; no Hermes source artifact has been accepted or integrated
+OPEN_GATES: variant R9 delivery; media gallery R9 delivery; scraper result-quality R9 delivery; team visibility/pagination R9 delivery; roleplay suggestion/manual browser acceptance; migrations 0050 and 0051; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence; thumbnail/shoot and conversion dimensions; scheduled Relay delivery
+HERMES_STATUS: all four R9 tasks resolved the exact pinned source after a named-ref fetch but returned ACK_READ only; Codex sent signed read receipts requiring PROGRESS/DELIVERY/NACK and found all four declared copy roots empty. No Hermes source artifact has been accepted or integrated. The older Grok roleplay R1 task remains terminally blocked by authority-release mismatch; no runtime/provider/database/permission/deployment action is authorized.
 ```

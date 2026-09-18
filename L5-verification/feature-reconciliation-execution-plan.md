@@ -346,6 +346,16 @@ health endpoints alone never closes a gate.
   Terminal job failure still needs operator intervention; schedule/job health
   presentation and live recurring execution remain acceptance work. External
   Relay delivery and richer insight patterns remain open F-85 requirements.
+- M456 exposes the publication-bound recipe dimensions that already exist in
+  verified exemplar evidence: media format, ToS verdict at publication and the
+  actual publication-hour bucket, alongside the existing caption arm and
+  scheduled-time context. The API groups only tenant/model-scoped exemplars
+  backed by published provider observations; the dashboard labels the fields as
+  observational and does not infer recommendations, causality, thumbnail
+  quality or conversion lift. Focused API and dashboard tests plus both
+  package typechecks pass. Thumbnail/shoot metadata, conversion attribution,
+  broader contextual arms, scheduled Relay delivery and runtime acceptance
+  remain open.
 - Hermes R2 parser source was actually delivered and reviewed. It fixes direct
   construction and fingerprinting but still does not enforce the requested
   rehearsal allowlist, rejects the legitimate rehearsal prefix/replica role,
