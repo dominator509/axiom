@@ -508,13 +508,24 @@ Hermes); each receipt includes the apology for the earlier false idle report.
 Hermes then replied with `ACK/IN_PROGRESS` for both lanes, which is an invalid
 ACK state. Signed sequence-5 rejection receipts were sent with
 `REASON: INVALID_ACK_STATE`; the lanes remain open and require a unique
-`PROGRESS/IN_PROGRESS` checkpoint. A separate signed
+`PROGRESS/IN_PROGRESS` checkpoint. Hermes corrected those replies to valid
+`ACK/ACCEPTED` messages, resolving the authority path on its release tree;
+signed sequence-7 receipts were sent and the next owner remains Hermes. A separate signed
 `AUTHORITY-CONTEXT-TRANSFER` task supplied the hash-identified plan excerpt
 because Hermes could not resolve the cited path; its response is currently
 `UNCONFIRMED`. No new product task was duplicated. Gallery remains held after
 its WIRE collision; scraper/F81/D001A remain at their previous protocol
 checkpoints until Hermes supplies valid progress or source DELIVERY. No runtime,
 provider, database, permission, deployment or live action occurred.
+
+Hermes later claimed the D001A artifact set was a protocol DELIVERY, but the
+reply was actually `ACK/IN_PROGRESS` and the source audit found the same
+defects previously recorded: the real rehearsal resolver still passes live
+default roots and unit directory, `stage_release` contains hard-coded live
+paths, `activate` omits the expected SHA for its backup sink, `restore-db`
+omits the expected SHA, and the harness bypasses the real dispatcher. Signed
+sequence-9 rejection `codex-reject-d001a-delivery.json` was sent; the candidate
+remains unintegrated and no installer action occurred.
 
 ## Handoff maintenance rule
 
