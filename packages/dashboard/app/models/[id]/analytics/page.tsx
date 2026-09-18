@@ -1,4 +1,5 @@
 import { api, getSession } from '@/lib/api';
+import type { PlaybookGuideline } from '@/lib/api';
 import Link from 'next/link';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
 import PerformancePatterns, { type PerformancePattern } from '@/components/PerformancePatterns';
@@ -34,6 +35,8 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
   const reportMonth = new Date().toISOString().slice(0, 7);
   let analytics: AnalyticsData | null = null;
   let viral: ViralData | null = null;
+  let playbookGuidelines: PlaybookGuideline[] | null = null;
+  let playbookUnavailable = false;
   try {
     analytics = (await api.models.analytics(id, 30)).data as unknown as AnalyticsData;
   } catch {
@@ -43,6 +46,11 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
     viral = (await api.models.viral(id)).data as unknown as ViralData;
   } catch {
     viral = null;
+  }
+  try {
+    playbookGuidelines = (await api.models.playbookGuidelines(id)).data;
+  } catch {
+    playbookUnavailable = true;
   }
 
   return (
@@ -142,6 +150,24 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
           <p style={{ color: 'var(--muted)' }}>Analytics unavailable.</p>
         </div>
       )}
+
+      <section className="card stack" aria-label="Playbook analytics context">
+        <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <div>
+            <h3 style={{ marginBottom: 4 }}>Playbook guidance context</h3>
+            <p className="subtle" style={{ margin: 0 }}>Saved model/platform guidance is advisory context for this report; it does not reinterpret metrics or schedule anything.</p>
+          </div>
+          <Link href={`/models/${encodeURIComponent(id)}/playbook`}>Review playbook</Link>
+        </div>
+        {playbookUnavailable ? <p role="alert">Playbook guidance could not be loaded. No guideline-derived interpretation is shown.</p>
+          : !playbookGuidelines?.length ? <p className="subtle">No playbook guidelines saved for this talent. Analytics remain unopinionated.</p>
+          : <div className="grid">{playbookGuidelines.map(guideline => <article className="card" key={guideline.id} style={{ background: 'var(--panel2)' }}>
+            <strong>{guideline.platform} · revision {guideline.revision}</strong>
+            <p>Cadence target: {guideline.cadencePerWeek} posts/week.</p>
+            <p>Suggested posting times: {guideline.optimalTimes.length ? guideline.optimalTimes.join(', ') : 'none saved'}.</p>
+            <p className="subtle">Upsell strategy: {guideline.upsellStrategy || 'none configured'}.</p>
+          </article>)}</div>}
+      </section>
 
       <h2 style={{ marginTop: 24 }}>Viral insights</h2>
       <PerformancePatterns patterns={viral?.patterns} />
