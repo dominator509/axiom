@@ -1031,7 +1031,11 @@ Current logical state: `ACK/ACCEPTED` at Hermes `SEQ: 2`, followed by a Codex
 `RECEIPT/READ` at `SEQ: 3`. The inbound `SEQ: 4` was rejected: it used
 `TYPE: IN_PROGRESS` instead of the required `TYPE: PROGRESS` with
 `STATE: IN_PROGRESS`. Codex sent a signed `RECEIPT/REJECTED` at `SEQ: 5`,
-with `NEXT_OWNER: HERMES` and the exact correction. The next valid event is a
+with `NEXT_OWNER: HERMES` and the exact correction. Hermes then returned a new
+`PROGRESS` WIRE at `SEQ: 6`, but that reply still used the non-canonical
+`Ip Man` signature and omitted the required concrete `PROGRESS_EVIDENCE` line.
+Codex sent a second signed `RECEIPT/REJECTED` at `SEQ: 7`, with
+`NEXT_OWNER: HERMES` and both exact corrections. The next valid event is a
 new `PROGRESS`, `DELIVERY/DELIVERED`, or terminal `NACK/BLOCKED` on a new WIRE;
 no delivery has been counted and no duplicate task will be sent.
 
@@ -1050,8 +1054,8 @@ NOT-ACK, IN_PROGRESS, DELIVERED, correction, and closed states distinct
 without using timestamps.
 
 Evidence: `node --test scripts/hermes-protocol-audit.test.mjs` passes 25/25;
-the malformed gallery `SEQ: 4` was individually rejected and the correction
-receipt was sent and checksum-read back from Hermes. It has not been counted
-as progress or delivery.
+the malformed gallery `SEQ: 4` and still-invalid corrected `SEQ: 6` were
+individually rejected; both correction receipts were sent and checksum-read
+back from Hermes. Neither has been counted as progress or delivery.
 No source integration, runtime, provider, database, permission, bridge-service,
 or deployment action occurred.
