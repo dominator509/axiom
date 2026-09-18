@@ -34,6 +34,16 @@ Hermes's R4 repair is still pending. I declined the proposed home-directory
 ACL widening and sent a bridge-only data-delivery protocol; no permission,
 installer, database, migration, or service change is authorized.
 
+R4 is now delivered and independently verified: the three bridge-delivered
+artifact hashes match Hermes's manifest, and the source visibly contains the
+assigned endpoint, `net:[inode]` identity comparisons, and exact
+`direct-supervision` requirement. It remains a review artifact, not integrated
+source. The next Hermes node is `codex-d001a-r4-callsite-inventory-20260918`:
+a read-only, path/line-specific inventory of every installer/bridge database,
+configuration, service, and rollback target-resolution sink. Its bridge status
+is currently PENDING; do not dispatch integration or invoke the installed
+installer until that inventory is reviewed.
+
 ## Mission and authority
 
 Finish the architectural feature reconciliation, implement the missing features,
