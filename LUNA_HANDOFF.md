@@ -1,6 +1,6 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: 2026-09-18, after milestone M351. This is a continuation checkpoint,
+Updated: 2026-09-18, after milestone M353. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
 ## Latest deployment-repair review (after M349)
@@ -43,6 +43,16 @@ a read-only, path/line-specific inventory of every installer/bridge database,
 configuration, service, and rollback target-resolution sink. Its bridge status
 is currently PENDING; do not dispatch integration or invoke the installed
 installer until that inventory is reviewed.
+
+Hermes delivered the callsite inventory at
+`D001a-R4-CALLSITE-INVENTORY.md`; its independently verified SHA-256 is
+`d82a364960680837623f3b3937e925d601096f11baa95ebabdd4f68c915a8cc6`
+(381 lines, 22,788 bytes). It confirms the installed installer can target the
+live database during a guarded rehearsal: `DB=fanthynks_test` is a module
+constant and all installer DB sinks are ambient-live. It also identifies the
+undefined bridge `SCHEMA_CHANGING_FROM`, unused `LIVE_PORTS`, hard-coded live
+unit reads, and the exact context-threading sinks. No source integration or
+live operation has occurred; deployment remains paused.
 
 ## Mission and authority
 
