@@ -42,7 +42,7 @@ receipts. Historical audit baselines are not silently treated as current source.
 | Patreon creator/community integration (F-91) | **New owner extension:** no Patreon connector, OAuth route, membership sync, post-history reader or webhook consumer is source-wired in this checkout. The architecture now records Patreon as a read/sync/event integration, not a fabricated publisher. | Implement API v2 OAuth with minimum scopes, campaign/member/tier/post sync, cursor checkpoints, signed webhook verification, tenant/model RLS, encrypted secrets, manual-assist UI and reconciliation receipts. No publish/DM/payout/unsupported analytics claim without an official contract. |
 | Link-in-bio (F-48–F-53) | The Native provider is the current production-enabled default. | Fanlynks, Linktree and Beacons are optional planned adapters and must remain hidden/rejected until their full lifecycle exists; a database row is not evidence of a connection. |
 | Localization and language switching (F-89) | **New owner extension:** no shared locale catalog, persisted UI-language preference, or complete mobile/web language switch is currently established. Existing formatting still contains hard-coded `en-US` paths. | Add `en`, `es`, `ja`, `it`, `pt-BR`, and `de` UI locales with an explicit user switch, organization default, browser-first-run detection, BCP-47 normalization, ICU messages, locale-aware formatting, accessible `lang` metadata, and parity across dashboard, native mobile, auth, emails and operator errors. Content language and UI language must remain separate. |
-| Affiliate, referral and reseller stack (F-90) | **New owner extension:** no FanThynks affiliate-program, partner, conversion, commission, payout or reseller-control plane was found. Fanvue earnings `referrals` is provider data, not this feature. | Add a tenant-safe attribution and immutable commission ledger, affiliate/reseller portal, conversion/reversal and fraud states, payout export/provider adapter, disclosures, audit/idempotency, platform-vs-tenant scope and white-label controls. No third-party stack is approved until its source, dependency, security and license review passes. |
+| FanThynks platform affiliate program (F-90) | **New owner extension:** no FanThynks platform-acquisition affiliate, partner, conversion, commission or payout-control plane was found. Fanvue earnings `referrals` is provider data, not this feature. | Add platform-scoped attribution and immutable commission events, partner portal, SaaS conversion/reversal and fraud states, payout export/provider adapter, disclosures and audit/idempotency. Tenant-owned affiliate programs and creator resale controls are out of scope for this lane. No third-party stack is approved until its source, dependency, security and license review passes. |
 | R2 media storage | Grok R2 credential storage/status/verify routes, encrypted managed config and tests exist. | A real configured bucket round-trip through the deployed application, retention/delete evidence and operator acceptance. |
 | Relay and operator controls (F-68–F-72) | Cards, signed/replay-protected command paths, several approval/revision/review workflows, and a model-scoped cursor-paginated/redacted Relay-card history with an approval deep-link are source-wired. | Attachment sending, external delivery, uncertain-outcome reconciliation and deployed channel acceptance. |
 | Observability (F-73–F-78) | Internal crash sink, error boundary, correlation and durable DLQ-related source paths exist. | GlitchTip/Sentry, Loki, Prometheus/Grafana, OpenTelemetry, alerts, crash-loop paging and deployed failed-job recovery. L2.9 explicitly treats those as runtime integrations, not bundled proof. |
@@ -119,7 +119,7 @@ Windows subscription-process termination failures. Migration `0050` has not
 been run, and no provider call, live action or deployment acceptance is
 claimed.
 
-## Explicit owner extensions — localization and affiliate/reseller stack
+## Explicit owner extensions — localization and platform affiliate stack
 
 ### F-89: multilingual product surface
 
@@ -141,24 +141,27 @@ users. User/creator text, provider text and generated content are not silently
 translated: UI locale and model/content locale are separate fields and any
 translation action is explicit and audited.
 
-### F-90: affiliate/referral/reseller control plane
+### F-90: FanThynks platform affiliate/referral control plane
 
-The architecture needs both a FanThynks platform acquisition program and an
-optional organization-scoped referral program without cross-tenant reads. The
-minimum durable contract is: program, partner/affiliate, campaign/link,
-click/visit, identity stitch, conversion, commission accrual, review,
-reversal/refund, payout batch/export, fraud/hold state, disclosure/consent,
-idempotency and audit. Attribution events are immutable; commission and payout
-views are derived and re-computable. No affiliate event can create a
-publication, billing or payout side effect without its own approval and
-idempotency fence.
+F-90 is the Axiom/FanThynks platform-acquisition program for partners who refer
+creators to the FanThynks SaaS. It is not a tenant-facing affiliate-program
+builder, creator referral program or customer resale control plane. The minimum
+durable contract is: platform program, partner/affiliate, campaign/link,
+click/visit, identity stitch, referred-creator SaaS conversion, commission
+accrual, review, reversal/refund, payout batch/export, fraud/hold state,
+disclosure/consent, idempotency and audit. Attribution events are immutable;
+commission and payout views are derived and re-computable. No affiliate event
+can create a publication, billing or payout side effect without its own
+approval and idempotency fence.
 
-The affiliate/reseller UI must support partner onboarding/revocation, link and
+The platform affiliate UI must support partner onboarding/revocation, link and
 campaign management, conversion/commission review, payout export, fraud holds,
-program terms, white-label branding/custom-domain configuration and role-aware
-tenant administration. A reseller may rebrand and sell a permitted FanThynks
-offering, but cannot see another tenant's customers, creators, attribution or
-payout records.
+program terms, disclosures, export/deletion and role-aware platform
+administration. Partners may see only their own attribution and payout views;
+they cannot see another partner's or referred creator's unrelated customers,
+content, credentials or records. White-label/resale permissions remain a
+license-selection requirement for any imported component, not a tenant-facing
+F-90 feature.
 
 #### License and import decision
 

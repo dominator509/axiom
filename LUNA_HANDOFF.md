@@ -1473,7 +1473,7 @@ the existing RBAC/RLS, model-access, shift, note, terminal-state and idempotency
 contracts, and must return a concrete NACK if the existing schema cannot support
 a requested behavior. No delivery has been accepted yet.
 
-## Owner extension checkpoint — localization and affiliate/reseller stack
+## Owner extension checkpoint — localization and FanThynks platform affiliate stack
 
 F-89 and F-90 are now architecture requirements, not completed features.
 Localization must support `en`, `es`, `ja`, `it`, `pt-BR` and `de` across the
@@ -1481,15 +1481,16 @@ dashboard, native mobile, auth, email and operator surfaces with persisted
 user/org locale precedence, typed catalogs, English fallback and locale-aware
 formatting. UI locale must remain separate from creator/model content language.
 
-F-90 requires a tenant-safe platform/organization affiliate and reseller plane
-with immutable attribution events, derived commissions, reversals/refunds,
-fraud holds, payout export/adapters, disclosures, audit/idempotency and
-white-label controls. No such FanThynks plane exists today; provider earnings
-`referrals` is not a substitute. OpenPartner and Refferq are MIT license-fit
+F-90 is the Axiom/FanThynks platform-acquisition affiliate program: partners
+refer creators to the FanThynks SaaS and receive attributable commissions under
+immutable event, reversal/refund, fraud-hold, payout-export, disclosure,
+audit and idempotency controls. It is not a tenant-facing affiliate builder,
+creator referral program or customer resale control plane; provider earnings
+`referrals` is not a substitute. OpenPartner and Refferq remain MIT license-fit
 candidates, but neither is accepted as hardened or imported. RefKit's
-application is AGPL-3.0 and is not the default for a proprietary white-label
-deployment. The plan is to evaluate OpenPartner from a pinned isolated copy,
-then build F-90 natively if the source/dependency/security review fails.
+application is AGPL-3.0 and is not the default for a proprietary deployment.
+The stack must pass pinned source, dependency, security and license review;
+otherwise F-90 is built natively.
 
 ## Owner extension checkpoint — Patreon creator/community integration
 
