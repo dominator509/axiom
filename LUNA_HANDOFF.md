@@ -471,6 +471,10 @@ permission, or deployment authority. A fourth independent lane,
 `MEDIA-GALLERY-LIFECYCLE`, is now OPEN. It is constrained to the existing
 asset/content-bundle/media-operation/job contracts and must close the missing
 cross-lifecycle gallery states without creating a parallel storage model.
+The fifth independent lane, `VARIANT-AB-CONTRACT`, is now OPEN for the
+architecture-named selected-guidance attribution and richer hook/timing/
+format/thumbnail contract gaps. It must preserve the existing evidence,
+consent, idempotency, and no-direct-publication boundaries.
 
 ## Handoff maintenance rule
 
