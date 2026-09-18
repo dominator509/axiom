@@ -735,6 +735,16 @@ read the named architecture/source paths, so Codex sent the signed,
 hash-identified `HERMES-AUTHORITY-CONTEXT-BUNDLE` as data. It grants no
 permissions and does not widen any lane.
 
+The next progress batch is now reconciled through the signed bridge protocol.
+The handshake, gallery and F81-F84 progress replies were rejected with signed
+`RECEIPT/REJECTED` NOT-ACK messages because each reused an earlier `SEQ`; the
+handshake also supplied a non-actionable next step. The source-copy,
+D001A-context, scraper-quality and F85-insight progress replies were accepted
+with signed `RECEIPT/IN_PROGRESS` messages. No product source artifact is
+accepted until a correlated `DELIVERY` includes the artifact path, checksum,
+changed-file list and bounded verification evidence. Bridge transport status
+`REPLIED` is never treated as ownership, progress or delivery.
+
 ## Handoff maintenance rule
 
 After each meaningful batch, update this file's SHA/CI/process section, move only
