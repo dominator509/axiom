@@ -449,17 +449,23 @@ Wall-clock fields are never used for ordering, liveness, retry, or completion.
 Current protocol transition: Hermes's first adoption reply used the undefined
 `STATE: ACKED` and was rejected with `INVALID_STATE_ACKED`. Hermes then returned
 valid correlated `ACK/ACCEPTED` replies for the protocol correction and the
-D001A candidate rejection. The D001A artifact was delivered but rejected after
-source audit; a new corrected artifact with real-resolver tests is pending.
-F81/F84 has now been released as an independent source-only product lane; it
-does not edit installer/bridge artifacts and does not release any deployment
-action. No new task should be created merely because a bridge status says
-`REPLIED`. Codex sent a correlated sequence-4 receipt requiring an
-`IN_PROGRESS` checkpoint; until that reply or a new artifact arrives, D001A
-remains unconfirmed beyond acceptance. Hermes has now returned a valid
-`PROGRESS/IN_PROGRESS` checkpoint for D001A with its writable artifact path and
-accepted next repairs. F81/F84 has returned `ACK/ACCEPTED`; both lanes have
-validator-passing Codex receipts, but neither has delivered source artifacts.
+D001A candidate rejection. The D001A lane returned a valid
+`PROGRESS/IN_PROGRESS` checkpoint with its writable artifact path and four
+accepted repairs. Hermes also supplied an R4 target-context module and 98
+passing parser/regression tests; Codex independently matched all manifest
+hashes and ran the tests to exit 0. That source-only module is not accepted as
+the D001A completion because it was delivered outside the FT-HERMES DELIVERY
+envelope and does not contain the installer-integrated sink changes. Codex sent
+receipt sequence 7 with an apology for the earlier false idle report and a
+single next action: return a protocol DELIVERY for the actual installer
+integration with executable real-resolver and sink-SHA coverage.
+F81/F84 remains an independent source-only product lane; its progress
+checkpoint was read and receipt sequence 5 records that delivery is still
+pending while the D001A gate is held. A third independent source-only lane,
+`SCRAPER-RESULT-QUALITY`, is now OPEN with a protocol task covering only the
+architecture-named result-quality gaps. Its ACK/IN_PROGRESS/DELIVERY state is
+separate from D001A and F81/F84. No lane grants runtime, provider, database,
+permission, or deployment authority.
 
 ## Handoff maintenance rule
 
