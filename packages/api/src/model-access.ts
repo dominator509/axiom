@@ -40,7 +40,7 @@ export function scopedReadTarget(role: unknown, method: string, path: string): '
   const replies = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/inbox\/replies$/i.exec(path);
   if (replies && ((role === 'chatter' && ['GET', 'HEAD', 'POST'].includes(method))
     || (role === 'model' && ['GET', 'HEAD'].includes(method)))) return replies[1];
-  const roleplay = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/roleplay(?:\/(?:handoff|memory|persona))?$/i.exec(path);
+  const roleplay = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/roleplay(?:\/(?:handoff|memory|persona|turn))?$/i.exec(path);
   if (roleplay && ['GET', 'HEAD', 'POST', 'PUT'].includes(method)
     && (role === 'owner' || role === 'manager' || role === 'operator' || role === 'chatter')) return roleplay[1];
   if (role === 'chatter' && ['GET', 'HEAD'].includes(method) && path === '/api/v1/my-shifts') return 'self-shifts';

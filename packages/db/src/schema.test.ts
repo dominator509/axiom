@@ -103,6 +103,8 @@ import {
   roleplayMemoryTurnRelations,
   roleplayHandoff,
   roleplayHandoffRelations,
+  roleplayTurn,
+  roleplayTurnRelations,
   allRelations,
 } from './schema/index.js';
 
@@ -228,7 +230,7 @@ describe('schema index', () => {
   });
 
   it('allRelations contains exactly the relation configs', () => {
-    expect(allRelations).toHaveLength(55);
+    expect(allRelations).toHaveLength(56);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -287,6 +289,7 @@ describe('schema index', () => {
         'roleplay_persona_revision',
         'roleplay_memory_turn',
         'roleplay_handoff',
+        'roleplay_turn',
       ].sort(),
     );
   });
@@ -364,6 +367,23 @@ describe('roleplay persistence tables', () => {
     expect(cols.revision.notNull).toBe(true);
     expect(cols.payload.notNull).toBe(true);
     expect(relationNames(roleplayHandoffRelations)).toMatchObject({
+      org: { type: 'One', table: 'org' },
+      model: { type: 'One', table: 'model_profile' },
+      shift: { type: 'One', table: 'team_shift' },
+    });
+  });
+
+  it('stores one-way provider outcomes without creating a second inbox', () => {
+    expect(tableName(roleplayTurn)).toBe('roleplay_turn');
+    const cols = columnsOf(roleplayTurn);
+    expect(cols.intentKey.notNull).toBe(true);
+    expect(cols.actorType.notNull).toBe(true);
+    expect(cols.shiftId.notNull).toBe(true);
+    expect(cols.provider.notNull).toBe(true);
+    expect(cols.input.notNull).toBe(true);
+    expect(cols.state.notNull).toBe(true);
+    expect(cols.output.notNull).toBe(false);
+    expect(relationNames(roleplayTurnRelations)).toMatchObject({
       org: { type: 'One', table: 'org' },
       model: { type: 'One', table: 'model_profile' },
       shift: { type: 'One', table: 'team_shift' },

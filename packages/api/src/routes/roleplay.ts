@@ -1,14 +1,15 @@
 // ─── Actor-agnostic Chatter roleplay state ─────────────────────────────────
 // This route persists bounded handoffs, memory turns and versioned soul.md
-// content. It does not call a provider or send a reply. Existing assignment,
-// active-shift, agent-permission, consent, approval and publication gates stay
-// authoritative at the later draft/dispatch boundary.
+// content, and exposes an explicit, auditable provider-turn boundary for an
+// assigned LLM actor. Provider dispatch never publishes externally; existing
+// assignment, active-shift, agent-permission, consent, approval and
+// publication gates remain authoritative.
 
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { z } from 'zod';
 import { and, desc, eq, sql } from 'drizzle-orm';
-import { parseRoleplayHandoff, ROLEPLAY_LIMITS, type RoleplayHandoff } from '@axiom/llm-gateway';
+import { formatRoleplayPromptContext, LLMGateway, parseRoleplayHandoff, ROLEPLAY_LIMITS, type RoleplayHandoff, type RoleplayMemoryTurn, type RoleplayPersonaSnapshot } from '@axiom/llm-gateway';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { modelAccessCondition } from '../model-access.js';
@@ -36,8 +37,19 @@ const personaBodySchema = z.object({
   sourceRef: z.string().regex(/^soul\.md(?::[A-Za-z0-9._-]{1,128})?$/).default('soul.md'),
   content: z.string().trim().min(1).max(ROLEPLAY_LIMITS.personaCharacters),
 }).strict();
+const turnBodySchema = z.object({
+  conversationKey: conversationKeySchema,
+  intentKey: uuid,
+  actor: actorSchema,
+  content: z.string().trim().min(1).max(4_000),
+  confirm: z.literal(true),
+}).strict();
 
 const managementRoles = new Set(['owner', 'manager', 'operator']);
+const ROLEPLAY_PROVIDER_MODEL = 'grok-roleplayer';
+
+/** The provider boundary is injectable in tests and never publishes anything. */
+export const roleplayGateway = new LLMGateway();
 
 async function readBody(c: Context<AppBindings>): Promise<unknown> {
   try { return await readBoundedJson(c.req.raw, 64 * 1024); }
@@ -267,6 +279,142 @@ router.put('/models/:modelId/roleplay/handoff', async c => {
   if (result === 'shift') return apiError(c, 409, statusTitle(409), 'handoff actor does not match the active shift');
   if (result === 'conflict') return apiError(c, 409, statusTitle(409), 'handoff changed since you opened it; reload before saving');
   return c.json({ data: { revision: result.revision, handoff: result.payload } }, parsed.data.expectedRevision === 0 ? 201 : 200);
+});
+
+function providerFailure(error: unknown): { state: 'rejected' | 'uncertain'; status: number; errorCode: string; message: string } {
+  const status = typeof error === 'object' && error !== null && 'status' in error && Number.isInteger(Number(error.status))
+    ? Number(error.status) : 503;
+  if (status >= 400 && status < 500) {
+    return { state: 'rejected', status, errorCode: status === 401 ? 'provider-auth-required' : 'provider-rejected', message: 'roleplay provider rejected the turn; no reply was published' };
+  }
+  return { state: 'uncertain', status: 503, errorCode: 'provider-uncertain', message: 'roleplay provider outcome is uncertain; reconcile the turn before retrying' };
+}
+
+function roleplayTurnResponse(row: any) {
+  return {
+    data: {
+      turnId: row.id,
+      state: row.state,
+      provider: row.provider,
+      providerModel: row.providerModel,
+      content: row.state === 'completed' ? row.output : null,
+      providerRequestId: row.providerRequestId ?? null,
+      errorCode: row.errorCode ?? null,
+    },
+  } as const;
+}
+
+router.post('/models/:modelId/roleplay/turn', async c => {
+  const orgId = requireOrg(c), userId = c.get('userId'), role = c.get('role'), modelId = c.req.param('modelId');
+  if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authenticated workspace required');
+  if (!managementRoles.has(role ?? '')) return apiError(c, 403, statusTitle(403), 'roleplay provider turns are owner-managed');
+  if (!uuid.safeParse(modelId).success) return apiError(c, 400, statusTitle(400), 'valid model required');
+  let payload: unknown;
+  try { payload = await readBody(c); } catch (error) { if (error instanceof RequestBodyTooLargeError) return apiError(c, 413, statusTitle(413), 'roleplay turn body too large'); payload = {}; }
+  const parsed = turnBodySchema.safeParse(payload);
+  if (!parsed.success) return apiError(c, 400, statusTitle(400), 'invalid confirmed roleplay turn');
+  if (parsed.data.actor.type !== 'llm') return apiError(c, 409, statusTitle(409), 'provider turns require an assigned LLM actor');
+
+  const prepared = await withOrgContext(orgId, async tx => {
+    if (!await modelReadable(tx, orgId, modelId, role, userId)) return null;
+    const shift = await actorShift(tx, orgId, modelId, parsed.data.actor);
+    if (!shift) return 'actor' as const;
+    const [existing] = await tx.select().from(schema.roleplayTurn).where(and(
+      eq(schema.roleplayTurn.orgId, orgId), eq(schema.roleplayTurn.modelId, modelId), eq(schema.roleplayTurn.intentKey, parsed.data.intentKey),
+    )).limit(1);
+    if (existing) {
+      if (existing.conversationKey !== parsed.data.conversationKey || existing.actorType !== parsed.data.actor.type || existing.actorRef !== parsed.data.actor.ref || existing.input !== parsed.data.content) return 'conflict' as const;
+      return { kind: 'existing' as const, row: existing };
+    }
+    const [handoffRow] = await tx.select().from(schema.roleplayHandoff).where(and(
+      eq(schema.roleplayHandoff.orgId, orgId), eq(schema.roleplayHandoff.modelId, modelId), eq(schema.roleplayHandoff.conversationKey, parsed.data.conversationKey),
+    )).limit(1);
+    if (!handoffRow) return 'handoff' as const;
+    let handoff: RoleplayHandoff;
+    try {
+      handoff = parseRoleplayHandoff(JSON.stringify({
+        schema: 'axiom.roleplay-handoff',
+        version: 1,
+        handoff: handoffRow.payload,
+      }));
+    } catch { return 'handoff' as const; }
+    if (handoff.actor.type !== parsed.data.actor.type || handoff.actor.ref !== parsed.data.actor.ref) return 'handoff' as const;
+    const [personaRow] = await tx.select().from(schema.roleplayPersonaRevision).where(and(
+      eq(schema.roleplayPersonaRevision.orgId, orgId), eq(schema.roleplayPersonaRevision.modelId, modelId), eq(schema.roleplayPersonaRevision.source, 'soul.md'),
+    )).orderBy(desc(schema.roleplayPersonaRevision.revision)).limit(1);
+    const memoryRows = await tx.select().from(schema.roleplayMemoryTurn).where(and(
+      eq(schema.roleplayMemoryTurn.orgId, orgId), eq(schema.roleplayMemoryTurn.modelId, modelId), eq(schema.roleplayMemoryTurn.conversationKey, parsed.data.conversationKey),
+    )).orderBy(desc(schema.roleplayMemoryTurn.sequence)).limit(ROLEPLAY_LIMITS.memoryTurns);
+    const persona: RoleplayPersonaSnapshot | null = personaRow ? {
+      orgId, modelId, source: personaRow.source, revision: personaRow.revision, sourceRef: personaRow.sourceRef, content: personaRow.content,
+    } : null;
+    const memory: RoleplayMemoryTurn[] = memoryRows.reverse().map((row: any) => ({ sequence: row.sequence, role: row.role, content: row.content }));
+    const [row] = await tx.insert(schema.roleplayTurn).values({
+      orgId, modelId, conversationKey: parsed.data.conversationKey, intentKey: parsed.data.intentKey,
+      actorType: parsed.data.actor.type, actorRef: parsed.data.actor.ref, shiftId: shift.id,
+      provider: 'grok', providerModel: ROLEPLAY_PROVIDER_MODEL, personaRevision: persona?.revision ?? null,
+      input: parsed.data.content, state: 'pending',
+    }).returning();
+    if (row) await writeAudit(tx, orgId, userId, 'roleplay.turn.prepare', row.id, { modelId, actorType: row.actorType, provider: row.provider });
+    return row ? { kind: 'new' as const, row, handoff, persona, memory } : null;
+  });
+  if (!prepared) return apiError(c, 404, statusTitle(404), 'model unavailable');
+  if (prepared === 'actor') return apiError(c, 404, statusTitle(404), 'LLM assignment or active shift unavailable');
+  if (prepared === 'handoff') return apiError(c, 409, statusTitle(409), 'roleplay handoff is missing, stale or assigned to another actor');
+  if (prepared === 'conflict') return apiError(c, 409, statusTitle(409), 'intent key already belongs to different roleplay content');
+  if (prepared.kind === 'existing') {
+    if (prepared.row.state === 'completed') return c.json(roleplayTurnResponse(prepared.row), 200);
+    if (prepared.row.state === 'uncertain') return apiError(c, 503, statusTitle(503), 'roleplay provider outcome is uncertain; reconcile the turn before retrying');
+    if (prepared.row.state === 'rejected') return apiError(c, 409, statusTitle(409), 'roleplay turn was rejected; create a new intent after correcting the issue');
+    return apiError(c, 409, statusTitle(409), 'roleplay turn is pending; do not retry');
+  }
+
+  let result: Awaited<ReturnType<LLMGateway['chat']>>;
+  try {
+    const promptContext = formatRoleplayPromptContext({ handoff: prepared.handoff, persona: prepared.persona, memory: prepared.memory });
+    result = await roleplayGateway.chat([
+      { role: 'system', content: promptContext },
+      { role: 'user', content: prepared.row.input },
+    ], { provider: 'grok', model: ROLEPLAY_PROVIDER_MODEL, userId, maxTokens: 2_000, temperature: 0.8 });
+    if (!result.content.trim() || result.content.length > 8_000) throw Object.assign(new Error('bounded provider response required'), { status: 502 });
+  } catch (error) {
+    const failure = providerFailure(error);
+    await withOrgContext(orgId, async tx => {
+      await tx.update(schema.roleplayTurn).set({ state: failure.state, providerStatus: failure.status, errorCode: failure.errorCode, finalizedAt: sql`clock_timestamp()` })
+        .where(and(eq(schema.roleplayTurn.id, prepared.row.id), eq(schema.roleplayTurn.state, 'pending')));
+      await writeAudit(tx, orgId, userId, `roleplay.turn.${failure.state}`, prepared.row.id, { modelId, provider: 'grok', providerStatus: failure.status, errorCode: failure.errorCode });
+    });
+    return apiError(c, failure.status, statusTitle(failure.status), failure.message);
+  }
+
+  try {
+    const finalized = await withOrgContext(orgId, async tx => {
+      const [current] = await tx.select().from(schema.roleplayTurn).where(and(eq(schema.roleplayTurn.id, prepared.row.id), eq(schema.roleplayTurn.state, 'pending'))).limit(1).for('update');
+      if (!current) return null;
+      const [tail] = await tx.select({ maxSequence: sql<number>`coalesce(max(${schema.roleplayMemoryTurn.sequence}), 0)` }).from(schema.roleplayMemoryTurn).where(and(
+        eq(schema.roleplayMemoryTurn.orgId, orgId), eq(schema.roleplayMemoryTurn.modelId, modelId), eq(schema.roleplayMemoryTurn.conversationKey, prepared.row.conversationKey),
+      ));
+      const nextSequence = Number(tail?.maxSequence ?? 0) + 1;
+      await tx.insert(schema.roleplayMemoryTurn).values([
+        { orgId, modelId, conversationKey: prepared.row.conversationKey, sequence: nextSequence, role: 'user', speakerType: 'human', speakerRef: 'conversation', content: prepared.row.input },
+        { orgId, modelId, conversationKey: prepared.row.conversationKey, sequence: nextSequence + 1, role: 'assistant', speakerType: 'llm', speakerRef: prepared.row.actorRef, content: result.content },
+      ]);
+      await tx.execute(sql`DELETE FROM roleplay_memory_turn WHERE org_id = ${orgId} AND model_id = ${modelId} AND conversation_key = ${prepared.row.conversationKey} AND id NOT IN (SELECT id FROM roleplay_memory_turn WHERE org_id = ${orgId} AND model_id = ${modelId} AND conversation_key = ${prepared.row.conversationKey} ORDER BY sequence DESC LIMIT ${ROLEPLAY_LIMITS.memoryTurns})`);
+      const [row] = await tx.update(schema.roleplayTurn).set({ state: 'completed', output: result.content, providerRequestId: result.id, providerStatus: 200, finalizedAt: sql`clock_timestamp()` })
+        .where(and(eq(schema.roleplayTurn.id, prepared.row.id), eq(schema.roleplayTurn.state, 'pending'))).returning();
+      if (!row) return null;
+      await writeAudit(tx, orgId, userId, 'roleplay.turn.completed', row.id, { modelId, provider: row.provider, providerRequestId: row.providerRequestId });
+      return row;
+    });
+    if (!finalized) return apiError(c, 503, statusTitle(503), 'roleplay result could not be durably recorded; reconcile the turn before retrying');
+    return c.json(roleplayTurnResponse(finalized), 201);
+  } catch {
+    await withOrgContext(orgId, async tx => {
+      await tx.update(schema.roleplayTurn).set({ state: 'uncertain', providerStatus: 503, errorCode: 'persistence-uncertain', finalizedAt: sql`clock_timestamp()` })
+        .where(and(eq(schema.roleplayTurn.id, prepared.row.id), eq(schema.roleplayTurn.state, 'pending')));
+    });
+    return apiError(c, 503, statusTitle(503), 'roleplay result persistence is uncertain; reconcile the turn before retrying');
+  }
 });
 
 export { router as roleplayRouter };

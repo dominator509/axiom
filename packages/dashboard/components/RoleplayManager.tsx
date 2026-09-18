@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { RoleplayActor, RoleplayHandoff, RoleplayMemoryTurn, RoleplayPersona } from '@/lib/api';
+import type { RoleplayActor, RoleplayHandoff, RoleplayMemoryTurn, RoleplayPersona, RoleplayTurnResult } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 
@@ -29,6 +29,8 @@ export default function RoleplayManager({ modelId, actorOptions, canEdit }: { mo
   const [nextAction, setNextAction] = useState('Review the next bounded roleplay turn');
   const [memoryRole, setMemoryRole] = useState<'user' | 'assistant'>('user');
   const [memoryText, setMemoryText] = useState('');
+  const [turnPrompt, setTurnPrompt] = useState('');
+  const [lastTurn, setLastTurn] = useState<RoleplayTurnResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -54,7 +56,7 @@ export default function RoleplayManager({ modelId, actorOptions, canEdit }: { mo
     finally { setBusy(false); }
   }
 
-  useEffect(() => { void load(); }, [actorKey, conversationKey]);
+  useEffect(() => { setLastTurn(null); void load(); }, [actorKey, conversationKey]);
 
   async function mutate(path: string, body: Record<string, unknown>, success: string) {
     if (busy) return;
@@ -135,6 +137,31 @@ export default function RoleplayManager({ modelId, actorOptions, canEdit }: { mo
     finally { setBusy(false); }
   }
 
+  async function generateTurn() {
+    if (!canEdit || !context || !actor || actor.actor.type !== 'llm' || !turnPrompt.trim()) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const response = await mutationFetch(`/api/v1/models/${encodeURIComponent(modelId)}/roleplay/turn`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          conversationKey,
+          intentKey: globalThis.crypto.randomUUID(),
+          actor: actor.actor,
+          content: turnPrompt.trim(),
+          confirm: true,
+        }),
+      }, { idempotencyKey: createIdempotencyKey(), retries: 0 });
+      if (!response.ok) { const details = await readDashboardError(response); throw new Error(details?.error?.message ?? 'Grok roleplay turn was not accepted.'); }
+      const body = await readDashboardJson<{ data: RoleplayTurnResult }>(response);
+      setLastTurn(body.data);
+      setTurnPrompt('');
+      await load();
+      setMessage('Grok reply recorded in bounded memory; nothing was published.');
+    } catch (turnError) { setError(turnError instanceof Error ? turnError.message : 'Grok roleplay turn was not confirmed.'); }
+    finally { setBusy(false); }
+  }
+
   const actorLabel = useMemo(() => actor ? actor.label : 'No active actor', [actor]);
   return <div className="page-stack">
     <div className="card stack">
@@ -144,7 +171,7 @@ export default function RoleplayManager({ modelId, actorOptions, canEdit }: { mo
         <label>Conversation key<input value={conversationKey} onChange={event => setConversationKey(event.target.value)} maxLength={128} /></label>
         <label>Active actor<select value={actorKey} onChange={event => setActor(actorOptions.find(option => `${option.actor.type}:${option.actor.ref}` === event.target.value) ?? null)}>{actorOptions.length === 0 && <option value="">No active actor</option>}{actorOptions.map(option => <option key={`${option.actor.type}:${option.actor.ref}`} value={`${option.actor.type}:${option.actor.ref}`}>{option.label}</option>)}</select></label>
       </div>
-      <p className="subtle">Selected: {actorLabel} · queue {context?.meta.queue ?? actor?.queue ?? '—'} · provider dispatch is intentionally not performed by this state editor.</p>
+      <p className="subtle">Selected: {actorLabel} · queue {context?.meta.queue ?? actor?.queue ?? '—'} · human owners can hand off or append memory; assigned LLM owners can use the explicit Grok turn action below.</p>
       {error && <p className="notice error" role="alert">{error}</p>}{message && <p role="status">{message}</p>}
       <button className="btn secondary" type="button" disabled={busy || !actor} onClick={() => void load()}>Reload bounded context</button>
     </div>
@@ -165,6 +192,15 @@ export default function RoleplayManager({ modelId, actorOptions, canEdit }: { mo
         <button className="btn" type="button" disabled={busy || !context || !selectedShiftId} onClick={saveHandoff}>Save handoff</button>
       </section>
     </div>
+    <section className="card stack">
+      <h3>Grok roleplay turn</h3>
+      {actor?.actor.type === 'llm' ? <>
+        <p className="subtle">This is an explicit, auditable provider call for the selected LLM shift. The response is bounded, stored in this conversation’s memory, and never publishes to a social account.</p>
+        <textarea value={turnPrompt} onChange={event => setTurnPrompt(event.target.value)} maxLength={4000} rows={4} disabled={!canEdit || busy || !context} placeholder="Write the next bounded roleplay prompt…" />
+        {canEdit ? <button className="btn" type="button" disabled={busy || !context || !turnPrompt.trim()} onClick={() => void generateTurn()}>Generate bounded Grok reply</button> : <p className="subtle">Generating a provider turn requires an owner, manager or operator.</p>}
+        {lastTurn && <div className="notice" role="status"><strong>Turn {lastTurn.state}</strong><span>Provider: {lastTurn.provider} · model: {lastTurn.providerModel}</span>{lastTurn.content && <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{lastTurn.content}</p>}{lastTurn.providerRequestId && <span>Provider receipt: {lastTurn.providerRequestId}</span>}{lastTurn.errorCode && <span>Error code: {lastTurn.errorCode}</span>}</div>}
+      </> : <p className="subtle">The selected actor is human. Use the handoff and bounded memory controls above; provider generation is available only when an active, approved LLM actor owns this chatter shift.</p>}
+    </section>
     <section className="card stack">
       <h3>Bounded chat memory</h3>
       <p className="subtle">Only the most recent configured turns are retained. Each turn is labeled as user or assistant data and attributed to the selected actor.</p>

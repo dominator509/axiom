@@ -355,6 +355,7 @@ export interface RoleplayActor { type: 'human' | 'llm'; ref: string }
 export interface RoleplayMemoryTurn { sequence: number; role: 'user' | 'assistant'; speaker: RoleplayActor; content: string }
 export interface RoleplayPersona { revision: number; source: 'soul.md' | 'model_profile' | 'playbook'; sourceRef: string; content: string }
 export interface RoleplayHandoff { currentOwner: RoleplayActor; actor: RoleplayActor; orgId: string; modelId: string; shiftId: string; queue: string; conversationCursor: string | null; lastSafeSummary: string; pendingIntentId: string | null; memoryPolicy: { maxTurns: number; maxCharacters: number }; personaSource: { orgId: string; modelId: string; source: RoleplayPersona['source']; revision: number; sourceRef: string } | null; allowedNextAction: string; terminal: boolean; unresolvedUncertainty: string | null; evidenceReferences: string[] }
+export interface RoleplayTurnResult { turnId: string; state: 'pending' | 'completed' | 'uncertain' | 'rejected'; provider: string; providerModel: string; content: string | null; providerRequestId: string | null; errorCode: string | null }
 export interface MediaOperation { id: string; modelId: string; sourceAssetId: string; resultVariantId: string | null; outputAssetId?: string | null; type: string; options: Record<string, unknown>; state: string; error: string | null; createdAt: string; completedAt: string | null }
 export type MediaOrigin = 'uploaded' | 'generated' | 'transformed' | 'legacy';
 export type MediaKind = 'image' | 'video';

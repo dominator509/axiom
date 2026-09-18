@@ -77,6 +77,7 @@ const TS_TO_SQL: Record<string, string> = {
   roleplayPersonaRevision: 'roleplay_persona_revision',
   roleplayMemoryTurn: 'roleplay_memory_turn',
   roleplayHandoff: 'roleplay_handoff',
+  roleplayTurn: 'roleplay_turn',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -657,7 +658,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
     // Includes the durable MCP revocation and capability-registry indexes.
-    expect(indexStatements).toHaveLength(87);
+    expect(indexStatements).toHaveLength(88);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(

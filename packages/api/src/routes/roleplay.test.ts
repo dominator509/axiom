@@ -11,13 +11,14 @@ vi.mock('@axiom/db', () => mockDbFactory({
   roleplayPersonaRevision: {},
   roleplayMemoryTurn: {},
   roleplayHandoff: {},
+  roleplayTurn: {},
 }));
 vi.mock('./helpers.js', async original => ({
   ...await original<typeof import('./helpers.js')>(),
   writeAudit: vi.fn(),
 }));
 
-import { roleplayRouter } from './roleplay.js';
+import { roleplayGateway, roleplayRouter } from './roleplay.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -108,5 +109,74 @@ describe('roleplay persistence contract', () => {
     });
     expect(response.status).toBe(400);
     expect(mockState.insertValues).toHaveLength(0);
+  });
+
+  it('generates one bounded Grok turn and records the provider receipt plus memory', async () => {
+    const handoff = {
+      currentOwner: { type: 'llm', ref: 'grok-roleplayer' },
+      actor: { type: 'llm', ref: 'grok-roleplayer' },
+      orgId: ORG_ID,
+      modelId: MODEL_ID,
+      shiftId: '33333333-3333-4333-8333-333333333333',
+      queue: 'chatter',
+      conversationCursor: null,
+      lastSafeSummary: 'Continue the bounded conversation.',
+      pendingIntentId: null,
+      memoryPolicy: { maxTurns: 20, maxCharacters: 8_000 },
+      personaSource: null,
+      allowedNextAction: 'Generate one bounded roleplay turn',
+      terminal: false,
+      unresolvedUncertainty: null,
+      evidenceReferences: [],
+    };
+    mockState.results = [
+      [],
+      [{ id: MODEL_ID }],
+      [{ id: handoff.shiftId, queue: 'chatter', actorType: 'llm', actorRef: 'grok-roleplayer' }],
+      [{ id: 'permission-1' }],
+      [],
+      [{ payload: handoff }],
+      [],
+      [],
+      [{ id: 'turn-1', orgId: ORG_ID, modelId: MODEL_ID, conversationKey: 'default', intentKey: '44444444-4444-4444-8444-444444444444', actorType: 'llm', actorRef: 'grok-roleplayer', shiftId: handoff.shiftId, provider: 'grok', providerModel: 'grok-roleplayer', state: 'pending', input: 'Say hello safely.' }],
+      [],
+      [{ id: 'turn-1', state: 'pending', conversationKey: 'default', input: 'Say hello safely.', actorRef: 'grok-roleplayer' }],
+      [{ maxSequence: 0 }],
+      [],
+      [],
+      [{ id: 'turn-1', state: 'completed', provider: 'grok', providerModel: 'grok-roleplayer', output: 'Hello, safely and warmly.', providerRequestId: 'provider-receipt-1', errorCode: null }],
+    ];
+    const chat = vi.spyOn(roleplayGateway, 'chat').mockResolvedValue({
+      id: 'provider-receipt-1', content: 'Hello, safely and warmly.', model: 'grok-roleplayer', provider: 'grok', cost: 0,
+      tokens: { prompt: 10, completion: 5, total: 15 }, latency: 12, cached: false,
+    });
+    const response = await appWithAuth().request(`/models/${MODEL_ID}/roleplay/turn`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ conversationKey: 'default', intentKey: '44444444-4444-4444-8444-444444444444', actor: { type: 'llm', ref: 'grok-roleplayer' }, content: 'Say hello safely.', confirm: true }),
+    });
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ data: expect.objectContaining({ turnId: 'turn-1', state: 'completed', provider: 'grok', content: 'Hello, safely and warmly.', providerRequestId: 'provider-receipt-1' }) });
+    expect(chat).toHaveBeenCalledOnce();
+    expect(mockState.insertValues).toContainEqual(expect.objectContaining({ intentKey: '44444444-4444-4444-8444-444444444444', actorType: 'llm', provider: 'grok', state: 'pending' }));
+    expect(mockState.insertValues).toContainEqual(expect.arrayContaining([expect.objectContaining({ role: 'user', content: 'Say hello safely.' }), expect.objectContaining({ role: 'assistant', content: 'Hello, safely and warmly.' })]));
+  });
+
+  it('does not call Grok again for a pending idempotent turn', async () => {
+    mockState.results = [
+      [],
+      [{ id: MODEL_ID }],
+      [{ id: 'shift-1', queue: 'chatter', actorType: 'llm', actorRef: 'grok-roleplayer' }],
+      [{ id: 'permission-1' }],
+      [{ id: 'turn-1', state: 'pending', conversationKey: 'default', actorType: 'llm', actorRef: 'grok-roleplayer', input: 'Already claimed.' }],
+    ];
+    const chat = vi.spyOn(roleplayGateway, 'chat');
+    const response = await appWithAuth().request(`/models/${MODEL_ID}/roleplay/turn`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ conversationKey: 'default', intentKey: '44444444-4444-4444-8444-444444444444', actor: { type: 'llm', ref: 'grok-roleplayer' }, content: 'Already claimed.', confirm: true }),
+    });
+    expect(response.status).toBe(409);
+    expect(chat).not.toHaveBeenCalled();
   });
 });
