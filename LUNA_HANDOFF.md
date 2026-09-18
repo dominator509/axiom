@@ -53,6 +53,15 @@ will audit the actual artifacts, integrate only the reviewed source, run the
 owning gates, commit and push it, then dispatch the bridge slice. No installed
 helper is trusted or executable until target identity is proven end to end.
 
+The first installer candidate was audited and rejected. Exact defects: rehearsal
+still receives live `RELEASES`/`CONFIG_DIR`/`STATE`/`BACKUPS` roots; the
+migrator URL still reads `$CONFIG_DIR/test.env`; live authorization is only
+format-checked rather than matched to the target SHA at every destructive sink;
+and undefined legacy `$PG`/`$DB` references remain in backup/restore output
+paths. The 43 checks did not exercise these callsites. Correction message
+`codex-d001a-installer-context-correction-20260918` is active; no source was
+integrated and the installed helper remains prohibited.
+
 ## Mission and authority
 
 Finish the architectural feature reconciliation, implement the missing features,
