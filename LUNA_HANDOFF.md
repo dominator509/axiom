@@ -975,3 +975,25 @@ passes. This is a source/control-plane change only; no runtime, provider,
 database, permission, bridge-service or deployment action occurred. New
 Hermes assignments must opt into `ACK-NACK-1` and use `sincerely, Hermes`;
 Codex uses `sincerely, Codex`.
+
+## Source milestone — M410: visual calendar scheduling surface
+
+Implemented the next verified dashboard gap without adding a parallel schedule
+model. `CalendarBoard` renders a Monday-first UTC month/week grid, links each
+target to its existing detail card, and allows only editable pending targets to
+request a guarded day move through the existing post PATCH route. The response
+must confirm the same post, pending state, and exact computed UTC slot before a
+refresh; the UI states that provider/worker publication gates still apply.
+`CalendarOptimalTimes` consumes existing verified viral-performance buckets as
+advisory evidence only and links to model analytics.
+
+Changed source: `packages/dashboard/components/CalendarBoard.tsx`,
+`CalendarBoard.test.tsx`, `CalendarOptimalTimes.tsx`,
+`CalendarOptimalTimes.test.tsx`, and
+`packages/dashboard/app/models/[id]/calendar/page.tsx`.
+
+Evidence: focused dashboard tests 16/16, dashboard typecheck pass, dashboard
+lint with three pre-existing warnings and no errors, and `git diff --check`.
+No runtime, provider, database, permission, or deployment action occurred.
+Authenticated desktop/mobile browser acceptance and deployed worker/provider
+acceptance remain open.

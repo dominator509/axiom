@@ -441,3 +441,21 @@ integration cannot manage that endpoint. Security scan evidence is clean for tra
 secrets, patched-dependency fixtures, pnpm audit, and `.env` handling; cargo-audit could
 not refresh the RustSec advisory database because this workstation could not reach the
 GitHub advisory repository.
+
+# M410: Visual calendar scheduling surface
+
+The model calendar now has a real responsive month/week board instead of a
+details-only list. It groups scheduled targets into a Monday-first UTC grid,
+provides link access to the corresponding post details, and exposes a drag
+affordance only for editable pending targets that have not been handed to a
+provider. A drop uses the existing authenticated `PATCH /api/v1/posts/:id`
+contract with an idempotency key, verifies the returned identity/state/time
+before refreshing, and states that publication still requires the normal
+worker/provider gates.
+
+The calendar also consumes existing verified viral-performance buckets as
+advisory time-window suggestions. It never schedules, publishes, or claims
+causality, and links back to the model analytics evidence. Focused calendar
+tests (16/16), dashboard typecheck, lint (three pre-existing warnings only),
+and diff-check pass. Browser/mobile interaction, provider execution, and
+deployed runtime acceptance remain open.
