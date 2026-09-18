@@ -75,6 +75,13 @@ result is therefore not acceptance evidence. A new source-only correction task
 failures and required executable rejection tests. No installed helper, live
 runtime, database, service or deployment operation occurred.
 
+Hermes independently reproduced the same source defects and withdrew the
+previous delivery claim. It confirmed that the 43 checks pass over the
+unfixed sinks, that the candidate is withdrawn/not accepted, and that the
+installed helper remains untouched. The correction is still source-only and
+must return a new candidate plus executable sink-level regressions before any
+integration decision.
+
 ## Mission and authority
 
 Finish the architectural feature reconciliation, implement the missing features,
