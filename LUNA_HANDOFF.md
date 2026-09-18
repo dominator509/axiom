@@ -1290,13 +1290,13 @@ production readiness.
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
-ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY
+ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY + MEDIA-GALLERY-LIFECYCLE-COPY-R6
 LAST_ACCEPTED_CODE: 6b8229d6c247654be7d0f26a100af53a52d54c91
 PUBLISHED_HEAD: 6b8229d6c247654be7d0f26a100af53a52d54c91
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence
-NEXT_REQUIRED: audit Hermes's variant DELIVERY-014, integrate only reviewed source, run owning tests, commit/push, then advance to the next open source node; keep migration/provider/browser/runtime gates separate
+NEXT_REQUIRED: audit either correlated Hermes DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; keep migration/provider/browser/runtime gates separate
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
-OPEN_GATES: variant DELIVERY-014; migration 0050; Grok roleplay dispatch/receipt; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence
-HERMES_STATUS: variant lane has a correlated delivery receipt in transit; no Hermes source artifact has been accepted or integrated
+OPEN_GATES: variant DELIVERY-014; media gallery lifecycle delivery; migration 0050; Grok roleplay dispatch/receipt; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence
+HERMES_STATUS: variant delivery remains unconfirmed; strict media-gallery task R6 was transmitted and validated; no Hermes source artifact has been accepted or integrated
 ```
