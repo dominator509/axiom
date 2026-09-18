@@ -56,6 +56,17 @@ import { mediaOperation, mediaOperationRelations } from './media_operation.js';
 import { playbookGuideline, playbookGuidelineRelations, playbookGuidelineRevision } from './playbook_guideline.js';
 import { roleplayPersonaRevisionRelations, roleplayMemoryTurnRelations, roleplayHandoffRelations, roleplayTurnRelations } from './roleplay.js';
 import { uiLocalePreference, uiLocalePreferenceRelations } from './ui_locale_preference.js';
+import {
+  affiliateProgramRelations,
+  affiliatePartnerRelations,
+  affiliateCampaignRelations,
+  affiliateAttributionEventRelations,
+  affiliateConversionRelations,
+  affiliateCommissionEventRelations,
+  affiliateHoldRelations,
+  affiliatePayoutExportRelations,
+  affiliateAuditEventRelations,
+} from './affiliate.js';
 
 export { org, orgRelations };
 export { appUser, appUserRelations };
@@ -123,6 +134,26 @@ export {
 export { mediaGenerationAttempt } from './media_generation_attempt.js';
 export { modelUserAssignment } from './model_user_assignment.js';
 export { uiLocalePreference, uiLocalePreferenceRelations };
+export {
+  affiliateProgram,
+  affiliateProgramRelations,
+  affiliatePartner,
+  affiliatePartnerRelations,
+  affiliateCampaign,
+  affiliateCampaignRelations,
+  affiliateAttributionEvent,
+  affiliateAttributionEventRelations,
+  affiliateConversion,
+  affiliateConversionRelations,
+  affiliateCommissionEvent,
+  affiliateCommissionEventRelations,
+  affiliateHold,
+  affiliateHoldRelations,
+  affiliatePayoutExport,
+  affiliatePayoutExportRelations,
+  affiliateAuditEvent,
+  affiliateAuditEventRelations,
+} from './affiliate.js';
 
 export const allRelations = [
   orgRelations,
@@ -182,4 +213,13 @@ export const allRelations = [
   roleplayHandoffRelations,
   roleplayTurnRelations,
   uiLocalePreferenceRelations,
+  affiliateProgramRelations,
+  affiliatePartnerRelations,
+  affiliateCampaignRelations,
+  affiliateAttributionEventRelations,
+  affiliateConversionRelations,
+  affiliateCommissionEventRelations,
+  affiliateHoldRelations,
+  affiliatePayoutExportRelations,
+  affiliateAuditEventRelations,
 ];

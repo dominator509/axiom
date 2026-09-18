@@ -79,6 +79,15 @@ const TS_TO_SQL: Record<string, string> = {
   roleplayHandoff: 'roleplay_handoff',
   roleplayTurn: 'roleplay_turn',
   uiLocalePreference: 'ui_locale_preference',
+  affiliateProgram: 'affiliate_program',
+  affiliatePartner: 'affiliate_partner',
+  affiliateCampaign: 'affiliate_campaign',
+  affiliateAttributionEvent: 'affiliate_attribution_event',
+  affiliateConversion: 'affiliate_conversion',
+  affiliateCommissionEvent: 'affiliate_commission_event',
+  affiliateHold: 'affiliate_hold',
+  affiliatePayoutExport: 'affiliate_payout_export',
+  affiliateAuditEvent: 'affiliate_audit_event',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -623,6 +632,16 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
       // The denylist is deliberately global so every API instance can reject
       // a revoked capability before model/org resolution.
       'mcp_token_revocation',
+      // FanThynks SaaS acquisition state is platform-owned, not tenant data.
+      'affiliate_program',
+      'affiliate_partner',
+      'affiliate_campaign',
+      'affiliate_attribution_event',
+      'affiliate_conversion',
+      'affiliate_commission_event',
+      'affiliate_hold',
+      'affiliate_payout_export',
+      'affiliate_audit_event',
     ]);
     // 0000/0001 emit literal ALTER statements; 0002 emits the same statements
     // through a DO block with format('...', t) — both patterns are valid.
@@ -669,8 +688,9 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 15 tables in 0000 (org_id + key lookup) + 1 in 0001 (org_id) +
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
-    // Includes the durable MCP revocation and capability-registry indexes.
-    expect(indexStatements).toHaveLength(88);
+    // Includes the durable MCP revocation and capability-registry indexes plus
+    // the seven platform affiliate lookup indexes.
+    expect(indexStatements).toHaveLength(95);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(

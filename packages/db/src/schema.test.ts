@@ -107,6 +107,24 @@ import {
   roleplayTurnRelations,
   uiLocalePreference,
   uiLocalePreferenceRelations,
+  affiliateProgram,
+  affiliateProgramRelations,
+  affiliatePartner,
+  affiliatePartnerRelations,
+  affiliateCampaign,
+  affiliateCampaignRelations,
+  affiliateAttributionEvent,
+  affiliateAttributionEventRelations,
+  affiliateConversion,
+  affiliateConversionRelations,
+  affiliateCommissionEvent,
+  affiliateCommissionEventRelations,
+  affiliateHold,
+  affiliateHoldRelations,
+  affiliatePayoutExport,
+  affiliatePayoutExportRelations,
+  affiliateAuditEvent,
+  affiliateAuditEventRelations,
   allRelations,
 } from './schema/index.js';
 
@@ -231,10 +249,28 @@ describe('schema index', () => {
     expect(roleplayHandoffRelations).toBeDefined();
     expect(uiLocalePreference).toBeDefined();
     expect(uiLocalePreferenceRelations).toBeDefined();
+    expect(affiliateProgram).toBeDefined();
+    expect(affiliateProgramRelations).toBeDefined();
+    expect(affiliatePartner).toBeDefined();
+    expect(affiliatePartnerRelations).toBeDefined();
+    expect(affiliateCampaign).toBeDefined();
+    expect(affiliateCampaignRelations).toBeDefined();
+    expect(affiliateAttributionEvent).toBeDefined();
+    expect(affiliateAttributionEventRelations).toBeDefined();
+    expect(affiliateConversion).toBeDefined();
+    expect(affiliateConversionRelations).toBeDefined();
+    expect(affiliateCommissionEvent).toBeDefined();
+    expect(affiliateCommissionEventRelations).toBeDefined();
+    expect(affiliateHold).toBeDefined();
+    expect(affiliateHoldRelations).toBeDefined();
+    expect(affiliatePayoutExport).toBeDefined();
+    expect(affiliatePayoutExportRelations).toBeDefined();
+    expect(affiliateAuditEvent).toBeDefined();
+    expect(affiliateAuditEventRelations).toBeDefined();
   });
 
   it('allRelations contains exactly the relation configs', () => {
-    expect(allRelations).toHaveLength(57);
+    expect(allRelations).toHaveLength(66);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -295,6 +331,15 @@ describe('schema index', () => {
         'roleplay_handoff',
         'roleplay_turn',
         'ui_locale_preference',
+        'affiliate_program',
+        'affiliate_partner',
+        'affiliate_campaign',
+        'affiliate_attribution_event',
+        'affiliate_conversion',
+        'affiliate_commission_event',
+        'affiliate_hold',
+        'affiliate_payout_export',
+        'affiliate_audit_event',
       ].sort(),
     );
   });

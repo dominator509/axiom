@@ -80,7 +80,16 @@ describe('@axiom/db index', () => {
     expect(schema.linkbioAnalytics).toBeDefined();
     expect(schema.relayBinding).toBeDefined();
     expect(schema.agentPermission).toBeDefined();
-    expect(schema.allRelations).toHaveLength(57);
+    expect(schema.affiliateProgram).toBeDefined();
+    expect(schema.affiliatePartner).toBeDefined();
+    expect(schema.affiliateCampaign).toBeDefined();
+    expect(schema.affiliateAttributionEvent).toBeDefined();
+    expect(schema.affiliateConversion).toBeDefined();
+    expect(schema.affiliateCommissionEvent).toBeDefined();
+    expect(schema.affiliateHold).toBeDefined();
+    expect(schema.affiliatePayoutExport).toBeDefined();
+    expect(schema.affiliateAuditEvent).toBeDefined();
+    expect(schema.allRelations).toHaveLength(66);
   });
 
   it('exposes a usable drizzle query builder without a live database', () => {

@@ -46,6 +46,7 @@ import { enforceModelAccess } from './model-access.js';
 import { mediaOperationsRouter } from './routes/media-operations.js';
 import { playbookGuidelinesRouter } from './routes/playbook-guidelines.js';
 import { roleplayRouter } from './routes/roleplay.js';
+import { platformAffiliateRouter } from './routes/platform-affiliate.js';
 import {
   auth,
   normalizeAuthOrigin,
@@ -772,6 +773,7 @@ app.use('/api/v1/models/:modelId/media-operations/*', requireAuth);
 app.use('/api/v1/models/:modelId/playbook-guidelines', requireAuth);
 app.use('/api/v1/models/:modelId/roleplay/*', requireAuth);
 app.use('/api/v1/org-settings/*', requireAuth);
+app.use('/api/v1/platform/affiliate/*', requireAuth);
 // LLM requests can spend provider credits and reveal provider/runtime state.
 app.use('/api/v1/llm/*', requireAuth);
 app.use('/api/v1/my-shifts', requireAuth);
@@ -862,6 +864,10 @@ app.use('/api/v1/kill-switch', ownerOnly);
 app.use('/api/v1/kill-switch/*', ownerOnly);
 app.use('/api/v1/org-settings', ownerOnly);
 app.use('/api/v1/org-settings/*', ownerOnly);
+// The affiliate program is FanThynks-owned SaaS acquisition state, not a
+// tenant feature. Keep every read/write behind the platform owner boundary.
+app.use('/api/v1/platform/affiliate', ownerOnly);
+app.use('/api/v1/platform/affiliate/*', ownerOnly);
 
 // L3.0: durable mutations require Idempotency-Key. This reservation is
 // committed before the handler runs, so a lost response cannot repeat a DB,
@@ -938,6 +944,12 @@ app.use('/api/v1/custom-requests/:id', idempotency());
 app.use('/api/v1/models/:modelId/playbook-score/record', idempotency());
 app.use('/api/v1/connectors/fanvue/refresh', idempotency());
 app.use('/api/v1/viral/ingest', idempotency());
+app.use('/api/v1/platform/affiliate/partners', idempotency());
+app.use('/api/v1/platform/affiliate/partners/:partnerId', idempotency());
+app.use('/api/v1/platform/affiliate/campaigns', idempotency());
+app.use('/api/v1/platform/affiliate/attribution', idempotency());
+app.use('/api/v1/platform/affiliate/conversions/reconcile', idempotency());
+app.use('/api/v1/platform/affiliate/holds/:holdId/resolve', idempotency());
 
 app.route('/api/v1/models', modelsRouter);
 app.route('/api/v1/bundles', bundlesRouter);
@@ -979,6 +991,7 @@ app.route('/api/v1', modelAssignmentsRouter);
 app.route('/api/v1', mediaOperationsRouter);
 app.route('/api/v1', playbookGuidelinesRouter);
 app.route('/api/v1', roleplayRouter);
+app.route('/api/v1/platform/affiliate', platformAffiliateRouter);
 
 // LLM gateway — unified multi-provider chat completions
 const llmGateway = new LLMGateway();
