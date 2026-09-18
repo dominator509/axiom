@@ -1520,26 +1520,29 @@ and green source-only tests but no DELIVERY. LLM-roleplayer R1 is
 PROGRESS/IN_PROGRESS with contracts confirmed but no delivery artifact yet.
 No Hermes product artifact has been accepted, integrated, committed, or pushed.
 
-Codex has now submitted three additional strict source-only lanes against the
-exact pushed head `77d098f8ec36a1427cc6a5aed25ad06f9ab09e09`, with instructions
-to fetch that commit into a lane-local copy rather than relying on the older
-server release or an inaccessible private clone: `LOCALIZATION-MULTILINGUAL-
-COPY-R1`, `AFFILIATE-STACK-COPY-R1`, and `PATREON-COMMUNITY-COPY-R1`. Each
-requires one correlated ACK/NACK, then evidence-backed PROGRESS and a flat,
-hash-verifiable DELIVERY or one concrete BLOCKED result. These assignments are
-source-only and do not authorize runtime, provider, database, permission or
-deployment actions.
+Codex submitted strict source-only lanes against the exact pushed head
+`77d098f8ec36a1427cc6a5aed25ad06f9ab09e09`, with instructions to fetch that
+commit into lane-local copies rather than relying on the older server release
+or an inaccessible private clone: `LOCALIZATION-MULTILINGUAL-COPY-R1`,
+`AFFILIATE-STACK-COPY-R1`, and `PATREON-COMMUNITY-COPY-R1`. The affiliate
+lane was then superseded after owner clarification by
+`AFFILIATE-PLATFORM-COPY-R2` against exact source
+`ab7ce6b1730efff165bc04715cf357b27384a80e`; it is platform-acquisition only.
+Each active lane requires one correlated ACK/NACK, then evidence-backed
+PROGRESS and a flat, hash-verifiable DELIVERY or one concrete BLOCKED result.
+These assignments are source-only and do not authorize runtime, provider,
+database, permission or deployment actions.
 
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
-ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R9 + MEDIA-GALLERY-LIFECYCLE-COPY-R9 + SCRAPER-RESULT-QUALITY-COPY-R9 + TEAM-SHIFT-CHATTER-COPY-R5 + CHATTER-LLM-ROLEPLAYER-COPY-R1 + LOCALIZATION-MULTILINGUAL-COPY-R1 + AFFILIATE-STACK-COPY-R1 + PATREON-COMMUNITY-COPY-R1
+ACTIVE_LANE: VARIANT-AB-CONTRACT-COPY-R9 + MEDIA-GALLERY-LIFECYCLE-COPY-R9 + SCRAPER-RESULT-QUALITY-COPY-R9 + TEAM-SHIFT-CHATTER-COPY-R5 + CHATTER-LLM-ROLEPLAYER-COPY-R1 + LOCALIZATION-MULTILINGUAL-COPY-R1 + AFFILIATE-PLATFORM-COPY-R2 + PATREON-COMMUNITY-COPY-R1
 LAST_ACCEPTED_CODE: 3d7e1cb6019478e0d83a211b3bee77f9d8885a62
-PUBLISHED_HEAD: 77d098f8ec36a1427cc6a5aed25ad06f9ab09e09
+PUBLISHED_HEAD: ab7ce6b1730efff165bc04715cf357b27384a80e
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence
-NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; R9 proceed envelopes and the three owner-extension tasks are in flight; all active lanes use verified writable reply-root subdirectories and exact source pins
+NEXT_REQUIRED: audit correlated Hermes PROGRESS/DELIVERY, integrate only reviewed source, run the owning tests, commit/push each independent lane, then advance; R9 proceed envelopes and the corrected owner-extension tasks are in flight; all active lanes use verified writable reply-root subdirectories and exact source pins
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
 OPEN_GATES: variant R9 delivery; media gallery R9 delivery; scraper result-quality R9 delivery; team R5 DELIVERY; roleplayer R1 DELIVERY; F-89 localization implementation/catalog/browser acceptance; F-90 affiliate license/security decision and implementation/browser acceptance; F-91 Patreon v2 adapter/OAuth/sync/webhook/manual-assist implementation and provider/browser acceptance; roleplay suggestion/manual browser acceptance; migrations 0050, 0051 and 0052; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence; trusted thumbnail descriptors; conversion dimensions; scheduled Relay delivery
-HERMES_STATUS: the four original R9 lanes returned ACK_READ only; signed proceed envelopes now require execution from the verified pin. Team R5 has a copied source tree plus PROGRESS, not DELIVERY; roleplayer R1 has no accepted delivery. The three owner-extension tasks were submitted to the strict inbox with exact-pin acquisition and are pending their correlated protocol replies. No Hermes source artifact has been accepted or integrated; no runtime/provider/database/permission/migration/deployment action is authorized.
+HERMES_STATUS: the four original R9 lanes returned ACK_READ only; signed proceed envelopes now require execution from the verified pin. Team R5 has a copied source tree plus PROGRESS, not DELIVERY; roleplayer R1 has no accepted delivery. Localization R1 and Patreon R1 remain pending their correlated protocol replies; the broader Affiliate R1 is superseded and must not be executed, while Affiliate Platform R2 is queued against the corrected exact pin. No Hermes source artifact has been accepted or integrated; no runtime/provider/database/permission/migration/deployment action is authorized.
 ```
