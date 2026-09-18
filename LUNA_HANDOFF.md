@@ -970,7 +970,7 @@ Changed protocol files:
 - `L5-verification/hermes-message-protocol.md`
 
 Evidence: protocol syntax checks pass, `node --test
-scripts/hermes-protocol-audit.test.mjs` passes 20/20, and `git diff --check`
+scripts/hermes-protocol-audit.test.mjs` passes 21/21, and `git diff --check`
 passes. This is a source/control-plane change only; no runtime, provider,
 database, permission, bridge-service or deployment action occurred. New
 Hermes assignments must opt into `ACK-NACK-1` and use `sincerely, Hermes`;
@@ -997,3 +997,19 @@ lint with three pre-existing warnings and no errors, and `git diff --check`.
 No runtime, provider, database, permission, or deployment action occurred.
 Authenticated desktop/mobile browser acceptance and deployed worker/provider
 acceptance remain open.
+
+## Coordination correction — M411: strict handshake fail-closed
+
+The first Hermes response to `HERMES-PROTOCOL-ACK-NACK-1` was not counted as
+accepted because it declared `STATE: ACCEPTED` with `TERMINAL: YES`. Codex
+sent a validated `RECEIPT/REJECTED` at the next sequence naming
+`INVALID_TERMINAL_STATE`. Hermes then corrected that field but answered the
+Codex receipt with another `ACK`, returned `NEXT_OWNER: CODEX`, and supplied
+`NEXT_ACTION: NONE`; that turn is also invalid. Codex sent a second validated
+`RECEIPT/REJECTED` requiring `PROGRESS`, `DELIVERY`, or `NACK/BLOCKED` at the
+next sequence. No transport flag is being treated as logical acceptance.
+
+Evidence: protocol suite 21/21; both correction receipts pass the individual
+validator and end with `sincerely, Codex`. The strict lane remains pending a
+valid logical next event. No runtime, provider, database, permission, bridge
+service, or deployment action occurred.

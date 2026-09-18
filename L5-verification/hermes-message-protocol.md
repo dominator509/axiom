@@ -144,6 +144,11 @@ the delivery gate. Legacy replies are never valid advancement for a new
 - `BLOCKED` is terminal for the current attempt and must name the single missing input or decision. It is never a vague “waiting” state.
 - `OPEN` is used only by a newly issued task. “Queued” is not a protocol state.
 
+`TERMINAL` is derived from `STATE`: only `DELIVERED`, `REJECTED`, and
+`BLOCKED` are terminal. `READ`, `ACCEPTED`, and `IN_PROGRESS` must carry
+`TERMINAL: NO`; a contradictory flag is invalid and must be returned as a
+`RECEIPT/REJECTED` correction, never treated as an ACK.
+
 The receiver classifies every lane into one of four operational outcomes:
 
 | Result | Meaning | Allowed next action |

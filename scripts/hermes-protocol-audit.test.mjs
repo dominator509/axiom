@@ -377,3 +377,14 @@ test('strict ACK-NACK contract rejects a receipt that does not name what was rea
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /RECEIPT must name the exact WIRE/);
 });
+
+test('strict ACK-NACK contract rejects contradictory terminal state', () => {
+  const task = 'STRICT-CONTRACT-TERMINAL';
+  const contract = 'ACK-NACK-1';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract, payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
+    ['02.json', envelope('m2', 'hermes', body({ type: 'ACK', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'ACCEPTED', terminal: 'YES', nextOwner: 'HERMES', nextAction: 'Publish concrete progress or delivery', from: 'hermes', contract, payload: ['READ_STATUS: READ'] }))],
+  ]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /TERMINAL does not match STATE/);
+});
