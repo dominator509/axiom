@@ -505,10 +505,16 @@ Hermes team and variant ACKs were read and consumed with signed protocol
 receipts `codex-receipt-team-accepted.json` and
 `codex-receipt-variant-accepted.json` (both next sequence 3, next owner
 Hermes); each receipt includes the apology for the earlier false idle report.
-No new task was duplicated. Gallery remains held after its WIRE collision;
-scraper/F81/D001A remain at their previously recorded protocol checkpoints until
-Hermes supplies the required progress or source DELIVERY. No runtime, provider,
-database, permission, deployment or live action occurred.
+Hermes then replied with `ACK/IN_PROGRESS` for both lanes, which is an invalid
+ACK state. Signed sequence-5 rejection receipts were sent with
+`REASON: INVALID_ACK_STATE`; the lanes remain open and require a unique
+`PROGRESS/IN_PROGRESS` checkpoint. A separate signed
+`AUTHORITY-CONTEXT-TRANSFER` task supplied the hash-identified plan excerpt
+because Hermes could not resolve the cited path; its response is currently
+`UNCONFIRMED`. No new product task was duplicated. Gallery remains held after
+its WIRE collision; scraper/F81/D001A remain at their previous protocol
+checkpoints until Hermes supplies valid progress or source DELIVERY. No runtime,
+provider, database, permission, deployment or live action occurred.
 
 ## Handoff maintenance rule
 
