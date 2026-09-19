@@ -2753,3 +2753,28 @@ passes TypeScript plus Expo web export. Source commit
 existing branch. This closes the source gate for this mobile slice only; native
 device, browser interaction, deployed runtime, migration/RLS and provider
 acceptance remain open. The rejected Hermes review directory remains untouched.
+
+## M587 — Hermes R11/R4 delivery audit and source truth
+
+Codex independently retrieved and hash-verified the six recent Hermes claims
+for gallery, scraper quality, team/shift/Chatter, variant/A-B, localization,
+and Patreon. Gallery, team/shift, and variant source/test pairs were byte-
+identical to the current branch, so they contained no new implementation.
+The scraper artifact was a smaller stale subset and would discard the current
+partial/unknown result reconciliation; the localization artifact was a stale
+subset that would discard later affiliate, incident, safety, mobile, digest
+and Relay catalog keys; and the Patreon artifact omitted current connector
+capability and sync safeguards. Current owning evidence is API gallery,
+scraper, team and variant 97/97, core localization 40/40, and Patreon
+connector 26/26.
+
+All six Hermes envelopes were also malformed as terminal deliveries (`STATE:
+DONE` with `TERMINAL: NO`). Codex sent protocol-valid terminal rejection
+receipts through the bridge: `codex-receipt-gallery-r11-rejected`,
+`codex-receipt-scraper-r11-rejected`, `codex-receipt-team-r7-rejected`,
+`codex-receipt-variant-r11-rejected`, `codex-receipt-localization-r4-rejected`,
+and `codex-receipt-patreon-r4-rejected`. Local protocol validation passed for
+all six and remote checksum readback matched. No weaker or duplicate source
+was integrated. The accepted inbox-agentic-drafting R2 lane remains Hermes'
+next substantive source-only responsibility; no runtime, provider, database,
+migration, permission, deployment or service action occurred.
