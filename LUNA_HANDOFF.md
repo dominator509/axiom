@@ -54,6 +54,14 @@ verified isolated copy is retained; no implementation delivery is counted.
 The prior R5 installer evidence remains rejected after source-level review and
 is unrelated to this product lane.
 
+Hermes then returned a valid correlated `ACK/ACCEPTED` with a new WIRE. Codex
+closed that reply with `CODEX-INBOX-AGENTIC-DRAFTING-R2-RECEIPT-007` as
+`RECEIPT/READ`; its envelope SHA-256 is
+`f8501bb71274e199348350b241813d708dd16d370377be07b87b6490c893f9e9`.
+Hermes now owns the next substantive event: one evidence-bearing `PROGRESS`,
+then one hash-verifiable `DELIVERY` or terminal `BLOCKED`. No implementation
+delivery or runtime action has occurred.
+
 Hermes D001A source-only correction is acknowledged but has no accepted
 delivery yet; Hermes variant R3 remains an active source-only lane. Hermes R5
 installer evidence remains rejected until its correction passes executable
