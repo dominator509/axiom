@@ -1,13 +1,13 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: after milestone M588 and the agentic-drafting/localization/vision delivery assignments. The active agentic-drafting
+Updated: after milestone M590 and the agentic-drafting/localization/vision delivery assignments. The active agentic-drafting
 supersession is tracked below. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
-## Current continuation checkpoint — M588
+## Current continuation checkpoint — M590
 
-The accepted product source head is the reviewed M588 Patreon mobile
-localization milestone `f039987691f61f8fb0b648220a099d738869754e`; the current
+The accepted product source head is the reviewed M590 mobile authentication
+localization milestone `6b777deed7c47e4ed7e3e0210c58d187729aae42`; the current
 pushed branch tip is the same commit on
 `origin/codex/telegram-webhook-hardening`. M578 wires the existing bounded
 `CaptionGuidanceReceipt` into the real copy-variant and review-bundle paths:
