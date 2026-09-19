@@ -913,3 +913,18 @@ suite, dashboard typecheck and lint pass with only pre-existing warnings. This
 closes those mounted page slices of F-89, not every child-component label or
 browser/native acceptance gate. No provider, database, migration, runtime or
 deployment action occurred.
+
+### M603 — reusable agent-permission localization
+
+The `AgentPermissionManager` child surface is now wired to the six launch
+catalogs. Capability explanations, tier labels, publishing/edit scopes,
+token lifecycle controls, confirmations, validation and owner-only messaging
+are localized while agent references, tokens and timestamps remain untouched
+data. Mounted-render coverage proves non-English output for editable and
+read-only states.
+
+Core 74/74, focused component 2/2, full dashboard 755/755, core build/lint
+and dashboard typecheck pass; dashboard lint retains only three pre-existing
+warnings. Source commit `f920eb07bfe09fabb2ecdd96fe862f862df09d7c` is the
+reviewed milestone. Remaining child surfaces, browser/native, provider,
+migration/RLS, runtime and deployment acceptance remain open.

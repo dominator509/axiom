@@ -1726,9 +1726,10 @@ audited. The corrected artifact-gate wire is
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 LAST_ACCEPTED_CODE: 8e5695f7605c9be57d0840ff1e58dd3090c048b7
-PUBLISHED_HEAD: 98f710111d7e1bcf98c51b77a351737f865019e2
+PUBLISHED_HEAD: f920eb07bfe09fabb2ecdd96fe862f862df09d7c
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + asset/hash-bound trusted Rust vision descriptors + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state, model dashboard and native mobile model/status/read/sync surface with scoped role boundaries are source-wired; F-10 source-wired visual month/week calendar with guarded drag and accessible date rescheduling plus advisory timing guidance; incidents/crash triage and recovery are source-wired and localized; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
 ACTIVE_LANE: INBOX-AGENTIC-DRAFTING-R4-CURRENT-SOURCE (source-only implementation against exact source 236a40141b36c05289ca8d54f86bda3c1b0dd296; Hermes codes in an isolated copy, Codex audits/integrates/commits/pushes)
+HERMES_R4_READ_RECEIPT: `CODEX-INBOX-AGENTIC-DRAFTING-R4-READ-RECEIPT-003` was protocol-validated as RECEIPT/READ and remote checksum-verified as `7338898235e15853e8b0d8f126a9c5b790c22297e5e4c9888b80cbd26ed56453`; Hermes must now return evidence-bearing PROGRESS then DELIVERY or terminal BLOCKED, not another ACK.
 NEXT_REQUIRED: Hermes must verify exact source `236a40141b36c05289ca8d54f86bda3c1b0dd296`, then return one evidence-bearing PROGRESS and one hash-verifiable DELIVERY or terminal BLOCKED. Codex must independently hash/review the artifact, run owning checks, integrate only passing source, commit/push and then advance to the next finite architecture gap. Keep provider credentials, R2 round-trip, migration/RLS, browser, operator and deployment gates explicitly open. Do not reissue the rejected Team/Chatter R5 copy. No wall-clock or date comparison is part of the bridge protocol
 CONTINUATION_WIRE: `CODEX-R2-STORAGE-CURRENT-R4-002` was the continuation tied to Hermes ACK `HERMES-R2-STORAGE-CURRENT-R4-ACK-001`; it is historical and superseded by accepted local M571. Envelope `L5-verification/hermes-r2-storage-current-r4-followup.json`, SHA-256 `50af5b9835dea283d026fa2796efe85b987e5f88770a605abdb91f3e2418ea3d`.
 CORRECTION_WIRE: `CODEX-R2-STORAGE-CURRENT-R4-003` was the single permitted correction to the helper-only PROGRESS; it is historical and superseded by accepted local M571. Envelope `L5-verification/hermes-r2-storage-current-r4-correction.json`, SHA-256 `38c6019e52e6ba133f61fb57a53bf315acd33bc45cbbfe8d6adb17552a8c645d`.
@@ -2877,4 +2878,16 @@ server-locale UTC formatting, and access/empty/unavailable/no-state-change
 states are localized. Existing approval/playbook behavior tests, the full
 dashboard suite and dashboard typecheck pass; lint has only existing warnings.
 Reusable child-component labels, browser/native acceptance, provider,
+migration/RLS, runtime and deployment gates remain open.
+
+## M603 — reusable agent-permission localization
+
+The reusable `AgentPermissionManager` now consumes typed messages from all six
+launch catalogs for capability explanations, tier labels, publishing/edit
+scopes, token issuance/revocation, confirmations, validation, retry and the
+owner-only boundary. Agent references, bearer tokens and token timestamps
+remain data and are not translated. Core tests/build/lint, focused mounted
+component tests, the full dashboard suite and dashboard typecheck passed;
+dashboard lint retains only three pre-existing warnings. Source commit:
+`f920eb07bfe09fabb2ecdd96fe862f862df09d7c`. Browser/native, provider,
 migration/RLS, runtime and deployment gates remain open.

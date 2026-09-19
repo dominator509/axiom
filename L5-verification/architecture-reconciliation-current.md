@@ -389,6 +389,22 @@ backend errors. Existing approval, playbook and full dashboard behavior tests
 remain green; typecheck is clean and lint has only pre-existing warnings.
 Reusable child components and browser/native acceptance remain separate gates.
 
+### M603 source checkpoint
+
+The reusable `AgentPermissionManager` now consumes typed six-locale messages
+for capability-scope explanations, tier labels, token issuance/revocation,
+owner-only boundaries, confirmations, validation and retry states. Agent
+references, bearer tokens and token timestamps remain data; only the UI copy
+is translated. Mounted-render coverage covers Spanish and German editable and
+read-only controls without emitting the English labels in those paths.
+
+Evidence: core tests 74/74, core build and lint pass, focused
+agent-permission tests 2/2, full dashboard tests 755/755, dashboard typecheck
+pass and dashboard lint has only the three pre-existing warnings in
+`MediaBundleCreate.behavior.test.tsx`. Source commit
+`f920eb07bfe09fabb2ecdd96fe862f862df09d7c`. Browser/native, provider,
+migration/RLS, runtime and deployment gates remain open.
+
 ### M584 source-lane checkpoint
 
 The desktop operator-formatting lane's corrected WIRE was unique, but its ACK

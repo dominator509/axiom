@@ -616,6 +616,17 @@ is localized; raw backend errors are not surfaced. Existing page behavior,
 dashboard, typecheck and lint gates pass with only existing warnings. Child
 component catalog adoption and browser/native acceptance remain open.
 
+# M603: AgentPermissionManager localization
+
+The reusable `AgentPermissionManager` is now connected to the typed six-locale
+catalog rather than emitting English-only capability, tier, token lifecycle,
+confirmation, validation and owner-boundary copy. Agent references, token
+values and token timestamps remain unmodified data. Core catalog coverage,
+focused mounted rendering and the full dashboard suite pass; source commit is
+`f920eb07bfe09fabb2ecdd96fe862f862df09d7c`. This closes one reusable child
+surface only; remaining raw child labels, browser/native, provider,
+migration/RLS, runtime and deployment evidence remain open.
+
 # M586: F-89 mobile Relay localization integrated
 
 The readable Hermes mobile delivery was independently audited and integrated at
