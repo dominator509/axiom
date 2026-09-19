@@ -545,3 +545,11 @@ language/delivery labels and host-locale date/count formatting despite the
 existing persisted selector. A bounded Hermes source-only task now targets
 those screens through the existing six-locale catalog. Native/browser,
 deployed, migration/RLS and runtime evidence remain open.
+
+# M582: strict Hermes ACK correlation
+
+The desktop operator-formatting lane is not accepted because its Hermes ACK
+reused the task WIRE as the reply WIRE. Codex issued a strict correction
+receipt requiring a unique correlated ACK. No implementation or source
+delivery is counted until that receipt is followed by a valid ACK and a
+hash-verifiable DELIVERY; the five named operator surfaces remain open.

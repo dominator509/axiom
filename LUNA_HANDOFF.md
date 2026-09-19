@@ -1,13 +1,13 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: after milestone M581 and the agentic-drafting/localization delivery assignments. This is a continuation checkpoint,
+Updated: after milestone M582 and the agentic-drafting/localization delivery assignments. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
-## Current continuation checkpoint — M581
+## Current continuation checkpoint — M582
 
 The accepted product source head is the variant guidance provenance milestone
 `ce2f15bf73fb0855b97fc6dddd173a1f3e4827c3`; the current pushed branch tip is
-`7bdd125d80c4facbd790ac148ce67e9cc62a7511` on
+`df227fc00fd7166c3dc9b560be12e9538ebcb6d7` on
 `origin/codex/telegram-webhook-hardening`. M578 wires the existing bounded
 `CaptionGuidanceReceipt` into the real copy-variant and review-bundle paths:
 the server rechecks same-org/model/asset ownership, exact caption hash and
@@ -2608,3 +2608,17 @@ matches
 `fa95b7614329326d1f048c770dd3b7ba780c84c6a2cf88284912a3f9104b8bd1`.
 No provider, database, migration, runtime, permission, installer or
 deployment action is authorized.
+
+## M582 — operator-lane ACK correction and current Hermes state
+
+The desktop operator-formatting lane returned transport evidence, but its ACK
+reused the task WIRE as both `WIRE` and `IN_REPLY_TO`. Codex rejected that
+envelope with the strict correction receipt
+`CODEX-F89-DASHBOARD-OPERATOR-FORMATTING-R1-RECEIPT-003`; the receipt was
+protocol-validated locally and copied to the bridge with remote SHA-256
+`f481b3159b80f3991ea1f069c2b369b5529e2802b206ddea720bb9599b78801b`.
+Hermes must reissue a unique correlated ACK before this lane is counted as
+accepted. No source edit or delivery is accepted yet. The agentic inbox
+drafting lane has a valid transport ACK but no implementation delivery, and
+the mobile Relay lane has no logical reply. All three remain source-only,
+with no runtime/provider/database/migration/permission/deployment action.

@@ -801,3 +801,16 @@ database, migration, runtime, permission, network, installer or deployment
 action occurred; native/browser/deployed evidence remains separate.
 The envelope was protocol-validated locally and remote checksum readback
 matched `fa95b7614329326d1f048c770dd3b7ba780c84c6a2cf88284912a3f9104b8bd1`.
+
+### M582 — strict ACK correlation correction
+
+Hermes' desktop operator-formatting reply reused the task WIRE as both its
+reply WIRE and `IN_REPLY_TO`, so it cannot advance the lane under the strict
+ACK-NACK contract. Codex sent the terminal correction receipt
+`CODEX-F89-DASHBOARD-OPERATOR-FORMATTING-R1-RECEIPT-003`, requiring Hermes to
+reissue a unique correlated ACK before implementation is counted. The local
+envelope passed protocol validation and remote checksum readback matched
+`f481b3159b80f3991ea1f069c2b369b5529e2802b206ddea720bb9599b78801b`.
+This rejects the envelope only; it does not change the five-surface scope.
+No runtime, provider, database, migration, permission, installer or
+deployment action occurred.

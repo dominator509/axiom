@@ -339,3 +339,11 @@ date/count formatting still mounted in `DashboardScreen` and `RelayScreen`.
 The bounded `F89-MOBILE-RELAY-FORMATTING-R1` task is assigned to Hermes against
 the current pushed branch tip. This is source-only; native/browser, deployed
 migration/RLS/runtime and external provider evidence remain open.
+
+### M582 source-lane checkpoint
+
+The desktop operator-formatting ACK was rejected for WIRE collision: Hermes
+reused the task WIRE in the reply and `IN_REPLY_TO`. A strict correction
+receipt now requires a unique correlated ACK before the lane can advance. No
+operator source delivery is accepted; the existing five-surface localization
+gap remains open alongside the agentic-drafting and mobile lanes.
