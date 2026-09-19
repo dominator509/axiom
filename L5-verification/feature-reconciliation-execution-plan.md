@@ -943,3 +943,17 @@ the three pre-existing warnings in `MediaBundleCreate.behavior.test.tsx`.
 Source commit `ea3ad70c33399edb8a8fc37dd76e04b9856ec661` is the reviewed
 milestone. Browser/native, provider, migration/RLS, runtime and deployment
 acceptance remain open.
+
+### M609 — reusable playbook-guideline localization
+
+The `PlaybookGuidelineManager` child surface is now wired to the six launch
+catalogs. Editor labels, revision state, placeholders, save/retry/error
+feedback, owner-only messaging and restored-draft status are localized while
+platform identifiers and authored upsell strategy text remain data.
+
+Core 74/74, focused component 2/2, full dashboard 759/759, core build/lint,
+dashboard typecheck and `git diff --check` pass. Dashboard lint retains only
+the three pre-existing warnings in `MediaBundleCreate.behavior.test.tsx`.
+Source commit `ee4fceedabeb8308055cd7af260584e25f8d214b` is the reviewed
+milestone. Browser/native, provider, migration/RLS, runtime and deployment
+acceptance remain open.

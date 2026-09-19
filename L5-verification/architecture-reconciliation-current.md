@@ -422,6 +422,21 @@ pre-existing warnings in `MediaBundleCreate.behavior.test.tsx`, and `git diff
 Browser/native, provider, migration/RLS, runtime and deployment gates remain
 open.
 
+### M609 source checkpoint
+
+The reusable `PlaybookGuidelineManager` now consumes typed six-locale messages
+for editor labels, revision state, placeholders, save/retry/error feedback and
+the owner-only boundary. Platform identifiers and authored upsell strategy
+text remain data. Mounted-render coverage proves Spanish editable controls and
+German read-only controls without the English save labels in those paths.
+
+Evidence: core 74/74, core build/lint, focused playbook-manager tests 2/2, full
+dashboard 759/759, dashboard typecheck, dashboard lint with only the three
+pre-existing warnings in `MediaBundleCreate.behavior.test.tsx`, and `git diff
+--check` pass. Source commit `ee4fceedabeb8308055cd7af260584e25f8d214b`.
+Browser/native, provider, migration/RLS, runtime and deployment gates remain
+open.
+
 ### M584 source-lane checkpoint
 
 The desktop operator-formatting lane's corrected WIRE was unique, but its ACK

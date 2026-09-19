@@ -2906,3 +2906,15 @@ checks passed. Dashboard lint retains only the three pre-existing warnings in
 `MediaBundleCreate.behavior.test.tsx`. Source commit:
 `ea3ad70c33399edb8a8fc37dd76e04b9856ec661`. Browser/native, provider,
 migration/RLS, runtime and deployment gates remain open.
+
+## M609 — reusable playbook-guideline localization
+
+The reusable `PlaybookGuidelineManager` now consumes typed messages from all
+six launch catalogs for editor labels, revision state, placeholders,
+save/retry/error feedback, restored-draft status and the owner-only boundary.
+Platform identifiers and authored upsell strategy text remain data. Core 74/74,
+core build/lint, focused playbook-manager tests 2/2, full dashboard 759/759,
+dashboard typecheck and diff checks passed. Dashboard lint retains only the
+three pre-existing warnings in `MediaBundleCreate.behavior.test.tsx`. Source
+commit: `ee4fceedabeb8308055cd7af260584e25f8d214b`. Browser/native, provider,
+migration/RLS, runtime and deployment gates remain open.

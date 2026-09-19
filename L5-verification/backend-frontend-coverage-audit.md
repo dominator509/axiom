@@ -642,6 +642,19 @@ lint retains only the three pre-existing warnings in
 `ea3ad70c33399edb8a8fc37dd76e04b9856ec661`. Browser/native, provider,
 migration/RLS, runtime and deployment evidence remain open.
 
+# M609: PlaybookGuidelineManager localization
+
+The reusable `PlaybookGuidelineManager` now uses the typed six-locale catalog
+for editor labels, revision state, placeholders, save/retry/error feedback,
+restored-draft status and the owner-only boundary. Platform identifiers and
+authored upsell strategy text remain data. Focused Spanish editable and German
+read-only mounted-render coverage passes without the English save labels.
+Core 74/74, focused component 2/2, full dashboard 759/759, core build/lint,
+dashboard typecheck and diff checks pass. Dashboard lint retains only the
+three pre-existing warnings in `MediaBundleCreate.behavior.test.tsx`. Source
+commit is `ee4fceedabeb8308055cd7af260584e25f8d214b`. Browser/native, provider,
+migration/RLS, runtime and deployment evidence remain open.
+
 # M586: F-89 mobile Relay localization integrated
 
 The readable Hermes mobile delivery was independently audited and integrated at
