@@ -970,3 +970,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19 | [AXIOM][P4][M649] Rejected Hermes control reply using invalid RESPONSE/CLOSED state and duplicate signatures; sent one correlated protocol-valid NOT-ACK correction, no feature or live action
 2026-09-19 | [AXIOM][P4][M650] Synchronized PUBLISHED_HEAD to pushed M649 control-plane correction db40b856; no product or live behavior changed
 2026-09-19 | [AXIOM][P4][M651] Prepared exact-source F-31 assigned-LLM inbox-drafting lane and archive, held unsent behind the malformed control-reply correction; no feature or live action
+2026-09-19 | [AXIOM][P4][M652] Closed the corrected Hermes control exchange with strict ACK/ACCEPTED readback and terminal Codex READ receipt; F-31 inbox-drafting is the sole prepared next lane
