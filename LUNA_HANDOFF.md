@@ -2438,3 +2438,31 @@ PROGRESS and one terminal DELIVERY or exact BLOCKED, and must not rerun R1.
 
 No deployment, installer, database, migration, provider, credential,
 permission, network, runtime or service action was authorized.
+
+## M576 — variant contract blocker narrowed; existing-bundle R3 dispatched
+
+Hermes audited the archive-backed R2 and confirmed the real gap: the pure
+GuidanceEvidence contract is not reached by the authenticated variant route or
+performance UI, and an arbitrary client receipt cannot prove same-org/model
+provenance. Its reply was malformed (`PROGRESS` with `STATE: REJECTED` and
+terminal `YES`), so Codex sent
+`CODEX-VARIANT-GUIDANCE-HOOK-TIMING-R2-RECEIPT-003`; the substantive blocker
+was preserved, not treated as delivery.
+
+The source audit identified the existing safe provenance path: an experiment
+assignment already links to `content_bundle` through `review_bundle_id`, and
+that bundle carries org/model, asset/source-variant identity and stored
+caption-guidance. Codex expanded the exact-source archive to include the bundle
+creation, generation, worker guidance, media-page and copy-variant surfaces.
+Archive SHA-256:
+`c936ed8c7656e820c6ba80eb96ce3d161e1ebf74d599eb7bab739ecd84d809da`; remote
+hash and manifest were read back.
+
+Superseding task `CODEX-VARIANT-GUIDANCE-HOOK-TIMING-R3` was sent with the
+explicit existing-bundle provenance rule: no arbitrary receipt IDs, no new
+table/migration, server-side org/model/asset/source-variant and caption-hash
+checks, bounded optional JSONB provenance, reachable operator controls and
+truthful unknown states. Envelope SHA-256
+`cc991508e06a758bcde0c529ed2bcfccb6261125b6b666521e5c1c16d51e6e7a` matches
+remote readback. Hermes must return real route/UI source changes or one exact
+terminal BLOCKED; helper-only work is not accepted.
