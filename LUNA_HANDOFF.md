@@ -1603,11 +1603,11 @@ audited. The corrected artifact-gate wire is
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
-ACTIVE_LANE: HERMES-R2-STORAGE-CONTRACT-CURRENT-R4 (source-only implementation against the exact pushed head; Codex audits and integrates)
+ACTIVE_LANE: HERMES-SCRAPER-RESULT-QUALITY-CURRENT-R1 (source-only implementation against exact source 278cfcaa; Codex audits and integrates)
 LAST_ACCEPTED_CODE: 8e5695f7605c9be57d0840ff1e58dd3090c048b7
 PUBLISHED_HEAD: 70c07c485c362dba74337062a65995557129293f
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state, model dashboard and native mobile model/status/read/sync surface with scoped role boundaries are source-wired; F-10 source-wired visual month/week calendar with guarded drag and accessible date rescheduling plus advisory timing guidance; incidents/crash triage and recovery are source-wired and localized; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
-NEXT_REQUIRED: M571 is the accepted local source closure for the R2 descriptor lane. Codex must independently review any later Hermes artifact as duplicate or stronger evidence before integration, then advance to the next finite architecture gap. Keep provider credentials, R2 round-trip, migration/RLS, browser, operator and deployment gates explicitly open. Do not reissue the rejected Team/Chatter R5 copy. No wall-clock or date comparison is part of the bridge protocol
+NEXT_REQUIRED: Hermes must complete `SCRAPER-RESULT-QUALITY-CURRENT-R1` with one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED against exact source `278cfcaa83ada6053bd9f0906417bc764385f514`. Codex must independently hash/review the artifact, run owning checks, integrate only passing source, commit/push and then advance to the next finite architecture gap. Keep provider credentials, R2 round-trip, migration/RLS, browser, operator and deployment gates explicitly open. Do not reissue the rejected Team/Chatter R5 copy. No wall-clock or date comparison is part of the bridge protocol
 CONTINUATION_WIRE: `CODEX-R2-STORAGE-CURRENT-R4-002` was the continuation tied to Hermes ACK `HERMES-R2-STORAGE-CURRENT-R4-ACK-001`; it is historical and superseded by accepted local M571. Envelope `L5-verification/hermes-r2-storage-current-r4-followup.json`, SHA-256 `50af5b9835dea283d026fa2796efe85b987e5f88770a605abdb91f3e2418ea3d`.
 CORRECTION_WIRE: `CODEX-R2-STORAGE-CURRENT-R4-003` was the single permitted correction to the helper-only PROGRESS; it is historical and superseded by accepted local M571. Envelope `L5-verification/hermes-r2-storage-current-r4-correction.json`, SHA-256 `38c6019e52e6ba133f61fb57a53bf315acd33bc45cbbfe8d6adb17552a8c645d`.
 ADJUDICATION_WIRE: `CODEX-R2-STORAGE-CURRENT-R4-005` authorized source-only callsite wiring against existing contracts; it is historical and superseded by accepted local M571. Envelope `L5-verification/hermes-r2-storage-current-r4-adjudication.json`, SHA-256 `9f1d4401fe7b1995713ba6f06165bcb2893a4b50fb9c77257bb77116f7e94520`.
@@ -2329,3 +2329,23 @@ LLM builds passed; package lint exited 0 with existing warnings; `git diff
 remote branch. Hermes' R2 copy had not reached source edit or terminal
 DELIVERY, so it was not integrated. Live R2 configuration, bucket round-trip,
 retention/deletion, deployed media and browser/mobile acceptance remain open.
+
+## M572 — current Hermes scraper result-quality lane
+
+The R2 storage lane is closed by accepted local M571. The next bounded
+source-only task is `SCRAPER-RESULT-QUALITY-CURRENT-R1` against exact source
+`278cfcaa83ada6053bd9f0906417bc764385f514`, with isolated COPY_ROOT
+`/srv/fanthynks-bridge/hermes/codex-scraper-quality-current-r1`. It supersedes
+the stale R9 copy. Hermes must audit and, if needed, implement only the
+existing F-17/F-18 result-quality contract: safe API projection and dashboard
+rendering, truthful completed/partial/failed/empty/queued states, bounded
+fields and items, tenant/model/egress boundaries, observed-zero versus
+unavailable semantics, and retry/unavailable behavior. The current raw
+research-response details block must not leak unbounded provider payloads.
+
+Passage requires real changed source, behavior tests for positive/partial/all-
+failed/invalid/bounded/no-raw-payload cases, focused API/worker/dashboard
+tests, typecheck/build/lint exits, per-file SHA-256 and one terminal DELIVERY
+or exact BLOCKED. No database, migration, provider, credential, permission,
+network, runtime or deployment action is authorized. Codex retains audit,
+integration, commit and push ownership.
