@@ -311,6 +311,7 @@ function parseBody(envelope) {
     reason: headers.get('REASON') ?? (legacyBlocked ? 'LEGACY_BLOCKED_STATUS' : legacyClosed ? 'LEGACY_CLOSED_ACK' : legacyAck ? 'LEGACY_BRIDGE_ACK' : undefined),
     contract,
     signature,
+    payloadFields,
   };
 }
 
@@ -338,6 +339,15 @@ function auditTask(records) {
   }
   for (let index = 0; index < sorted.length; index += 1) {
     const current = sorted[index];
+    const firstReplyCorrection = index === 1
+      && current.from === 'codex'
+      && current.type === 'RECEIPT'
+      && current.state === 'REJECTED'
+      && current.terminal
+      && sorted[0].type === 'TASK'
+      && current.inReplyTo === sorted[0].wire
+      && current.payloadFields?.get('REJECTED_ENVELOPE_ID')
+      && current.payloadFields?.get('REJECTED_WIRE') === sorted[0].wire;
     if (current.seq !== index + 1) fail(`${current.file}: sequence gap before SEQ ${current.seq}`);
     if (current.inReplyTo !== 'NONE') {
       const referenced = sorted.find((candidate) => candidate.wire === current.inReplyTo);
@@ -346,15 +356,25 @@ function auditTask(records) {
     } else if (current.seq !== 1) {
       fail(`${current.file}: only SEQ 1 may use IN_REPLY_TO NONE`);
     }
-    if (index > 0 && current.from === sorted[index - 1].from) {
+    if (index > 0 && current.from === sorted[index - 1].from && !firstReplyCorrection) {
       fail(`${current.file}: sender repeated without a receipt/reply turn`);
     }
     if (index > 0 && current.from === 'hermes' && current.type === 'ACK' && current.state !== 'BLOCKED' && sorted[index - 1].type === 'RECEIPT' && sorted[index - 1].from === 'codex') {
       fail(`${current.file}: Hermes ACK after Codex RECEIPT is an ACK loop; require PROGRESS, DELIVERY, or BLOCKED`);
     }
     if (current.seq === 2) {
-      if (!['ACK', 'NACK'].includes(current.type) || current.inReplyTo !== sorted[0].wire) {
-        fail(`${current.file}: SEQ 2 must be a correlated ACK or NACK for the TASK`);
+      const correlatedReply = ['ACK', 'NACK'].includes(current.type) && current.inReplyTo === sorted[0].wire;
+      const malformedReplyCorrection = firstReplyCorrection;
+      if (!correlatedReply && !malformedReplyCorrection) {
+        fail(`${current.file}: SEQ 2 must be a correlated ACK/NACK or a malformed-reply correction RECEIPT for the TASK`);
+      }
+    }
+    if (firstReplyCorrection) {
+      if (current.payloadFields?.get('RECEIPT_OF') !== current.inReplyTo) {
+        fail(`${current.file}: malformed-reply correction must name the prior task WIRE in RECEIPT_OF`);
+      }
+      if (current.reason === 'NONE') {
+        fail(`${current.file}: malformed-reply correction must name REASON`);
       }
     }
     if (!current.legacy) {

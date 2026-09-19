@@ -57,12 +57,11 @@ PAYLOAD:
 sincerely, Codex
 ```
 
-Hermes uses the same format and signs with `sincerely, Hermes`, optionally with
-the fixed `(role: bridge-responder)` annotation. Historical `Ip Man` signatures
-remain readable only through the legacy compatibility path; they cannot advance
-a strict lane. The bridge may append its legacy lowercase `sincerely, hermes`
-suffix; that suffix is transport decoration, not message content. Codex uses the
-exact `sincerely, Codex` line.
+Hermes uses the same format and signs with exactly one final `sincerely, Hermes`
+line, optionally with the fixed `(role: bridge-responder)` annotation. Historical
+`Ip Man` signatures and the lowercase bridge suffix remain readable only through
+the legacy compatibility path; they cannot advance a strict `ACK-NACK-1` lane.
+Codex uses exactly one final `sincerely, Codex` line.
 No date, time, timezone, timeout, or relative-duration field is part of this
 protocol.
 
@@ -83,7 +82,8 @@ Strict-lane rules are intentionally small:
 
 1. Every body carries the same `CONTRACT: ACK-NACK-1`, a unique `WIRE`, the
    next contiguous `SEQ`, the exact prior `IN_REPLY_TO`, and the sender's
-   final signature.
+   final signature. A reply/receipt WIRE must differ from its `IN_REPLY_TO`;
+   `TASK` is always `SEQ: 1` with `IN_REPLY_TO: NONE`.
 2. Every non-`TASK` body carries `READ_STATUS: READ` in `PAYLOAD`. A Codex
    receipt also carries `RECEIPT_OF: <exact WIRE read>`. A task carries
    `READ_STATUS: NOT_APPLICABLE`.
@@ -100,8 +100,12 @@ Strict-lane rules are intentionally small:
    must be corrected with a new WIRE; it never advances the lane.
    Codex records that correction as a strict `RECEIPT` with
    `STATE: REJECTED`, `TERMINAL: YES`, `NEXT_OWNER: HERMES`, a non-`NONE`
-   `REASON`, and the exact `RECEIPT_OF` WIRE. That is a correction handoff,
-   not lane closure; Hermes must answer with a new valid WIRE.
+   `REASON`, and the exact `RECEIPT_OF` WIRE. For a malformed first reply,
+   the correction may be `SEQ: 2` directly after the task and must also carry
+   `REJECTED_ENVELOPE_ID` and `REJECTED_WIRE` in its payload. This records the
+   rejected transport artifact without treating its malformed WIRE as part of
+   the canonical sequence. It is a correction handoff, not lane closure;
+   Hermes must answer with a new valid WIRE.
 
 The validator enforces this contract only when the task opts in, so the
 historical audit remains reproducible while all newly delegated work is

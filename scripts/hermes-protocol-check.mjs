@@ -150,7 +150,9 @@ if (!readFromStdin && !file) {
       if (!['CODEX', 'NONE'].includes(headers.get('NEXT_OWNER'))) fail('legacy CLOSED ACK has invalid NEXT_OWNER');
       if (!headers.get('REASON') || headers.get('REASON') === 'NONE') fail('legacy CLOSED ACK must name REASON');
     }
-    if (normalizedType === 'TASK' && normalizedState !== 'OPEN') fail('TASK must begin in OPEN state');
+    if (normalizedType === 'TASK' && (normalizedState !== 'OPEN' || seq !== 1 || headers.get('IN_REPLY_TO') !== 'NONE')) {
+      fail('TASK must be SEQ 1 / OPEN / IN_REPLY_TO NONE');
+    }
     if (normalizedType === 'ACK' && !['READ', 'ACCEPTED'].includes(normalizedState)) fail('ACK must be READ or ACCEPTED');
     if (normalizedType === 'NACK' && !['REJECTED', 'BLOCKED'].includes(normalizedState)) fail('NACK must be REJECTED or BLOCKED');
     if (normalizedType === 'PROGRESS' && normalizedState !== 'IN_PROGRESS') fail('PROGRESS must be IN_PROGRESS');
@@ -170,6 +172,17 @@ if (!readFromStdin && !file) {
     }
     if (contract === 'ACK-NACK-1') {
       if (legacyAck) fail('ACK-NACK-1 rejects legacy ACK envelopes');
+      if (normalizedType !== 'TASK' && headers.get('WIRE') === headers.get('IN_REPLY_TO')) {
+        fail('ACK-NACK-1 reply WIRE must be new and distinct from IN_REPLY_TO');
+      }
+      const canonicalHermesSignatures = lines.filter((line) => line === 'sincerely, Hermes' || line === 'sincerely, Hermes (role: bridge-responder)');
+      const canonicalCodexSignatures = lines.filter((line) => line === 'sincerely, Codex');
+      if (expectedRole === 'Hermes' && (legacyHermesSuffix || canonicalHermesSignatures.length !== 1)) {
+        fail('ACK-NACK-1 Hermes messages require exactly one canonical final signature');
+      }
+      if (expectedRole === 'Codex' && canonicalCodexSignatures.length !== 1) {
+        fail('ACK-NACK-1 Codex messages require exactly one canonical final signature');
+      }
       if (normalizedType === 'RECEIPT' && !['READ', 'REJECTED'].includes(normalizedState)) fail('ACK-NACK-1 RECEIPT must use READ or REJECTED state');
       if (expectedRole === 'Hermes' && !['sincerely, Hermes', 'sincerely, Hermes (role: bridge-responder)'].includes(lines[signatureIndex])) {
         fail('ACK-NACK-1 requires the Hermes role signature');

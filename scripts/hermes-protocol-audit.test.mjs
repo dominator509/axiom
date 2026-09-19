@@ -404,6 +404,18 @@ test('strict ACK-NACK contract lets Codex reject a reply and return ownership fo
   assert.match(result.stdout, /Correct the reply/);
 });
 
+test('strict ACK-NACK contract repairs a malformed first Hermes reply without opening a new lane', () => {
+  const task = 'STRICT-CONTRACT-MALFORMED-REPLY-CORRECTION';
+  const contract = 'ACK-NACK-1';
+  const result = run([
+    ['01.json', envelope('m1', 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract, payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
+    ['02.json', envelope('m2', 'codex', body({ type: 'RECEIPT', task, wire: 'W2', seq: 2, inReplyTo: 'W1', state: 'REJECTED', terminal: 'YES', nextOwner: 'HERMES', nextAction: 'Reissue the reply with a fresh WIRE', reason: 'INVALID_HERMES_REPLY', from: 'codex', contract, payload: ['READ_STATUS: READ', 'RECEIPT_OF: W1', 'REJECTED_ENVELOPE_ID: hermes-reply-1', 'REJECTED_WIRE: W1'] }))],
+  ]);
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stdout, /state=REJECTED/);
+  assert.match(result.stdout, /next_owner=HERMES/);
+});
+
 test('strict ACK-NACK contract rejects contradictory terminal state', () => {
   const task = 'STRICT-CONTRACT-TERMINAL';
   const contract = 'ACK-NACK-1';
