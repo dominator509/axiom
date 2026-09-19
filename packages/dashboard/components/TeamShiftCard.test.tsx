@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import TeamShiftCard from './TeamShiftCard';
-const shift = { id: 's', modelId: 'm', assigneeUserId: 'u', queue: 'inbox', startsAt: '2030-01-01T00:00:00Z', endsAt: '2030-01-01T08:00:00Z', status: 'active', note: 'Pending conversation needs follow-up' };
+const shift = { id: 's', modelId: 'm', assigneeUserId: 'u', assigneeType: 'human' as const, assigneeAgentRef: null, queue: 'inbox', startsAt: '2030-01-01T00:00:00Z', endsAt: '2030-01-01T08:00:00Z', status: 'active', note: 'Pending conversation needs follow-up' };
 it('shows active shift status, existing context and completion handoff editor', () => {
   const html = renderToStaticMarkup(<TeamShiftCard shift={shift} assignee="Operator" canEdit disabled={false} onUpdate={vi.fn()} />);
   expect(html).toContain('active'); expect(html).toContain('Pending conversation');

@@ -1,10 +1,16 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-const state = vi.hoisted(() => ({ role: 'chatter', list: vi.fn() }));
-vi.mock('@/lib/api', () => ({ getSession: async () => ({ user: { role: state.role } }), api: { myShifts: state.list } }));
+const state = vi.hoisted(() => ({ role: 'chatter', locale: 'en', list: vi.fn() }));
+vi.mock('@/lib/api', () => ({
+  getSession: async () => ({ user: { role: state.role } }),
+  api: {
+    myShifts: state.list,
+    uiLocale: { get: async () => ({ data: { locale: state.locale, source: 'user' } }) },
+  },
+}));
 import Page from './page';
 const shift = { id: 'shift', modelId: 'assigned', modelName: 'Assigned talent', queue: 'inbox', startsAt: '2030-01-01T00:00:00Z', endsAt: '2030-01-01T08:00:00Z', status: 'active', note: '<private handoff>' };
-beforeEach(() => { state.role = 'chatter'; state.list.mockReset(); vi.useFakeTimers(); vi.setSystemTime(new Date('2030-01-01T04:00:00Z')); });
+beforeEach(() => { state.role = 'chatter'; state.locale = 'en'; state.list.mockReset(); vi.useFakeTimers(); vi.setSystemTime(new Date('2030-01-01T04:00:00Z')); });
 afterEach(() => vi.useRealTimers());
 it('renders owned roster, escaped notes and scoped continuation', async () => {
   state.list.mockResolvedValue({ data: [shift], meta: { next_cursor: 'next-id' } });
@@ -35,4 +41,13 @@ it('distinguishes failure from an empty roster', async () => {
   const html = renderToStaticMarkup(await Page({}));
   expect(html).toContain('could not be loaded');
   expect(html).not.toContain('No assigned shifts'); expect(html).not.toContain('private backend error');
+});
+it('uses the persisted interface locale for the server-rendered roster', async () => {
+  state.locale = 'es';
+  state.list.mockResolvedValue({ data: [shift], meta: { next_cursor: null } });
+  const html = renderToStaticMarkup(await Page({}));
+  expect(html).toContain('Mis turnos');
+  expect(html).toContain('Actualizar turnos');
+  expect(html).toContain('Notas de entrega');
+  expect(html).not.toContain('My shifts');
 });
