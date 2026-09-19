@@ -17,6 +17,8 @@ HERMES_IMPLEMENTATION_OWNER: `HERMES`
 NEXT_ACTION: `await-evidence-bearing-PROGRESS-then-terminal-DELIVERY-or-BLOCKED`
 ACTIVE_LANE_ACK_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-ACK-002`
 ACTIVE_LANE_ACK_SHA256: `714a690740793e0b8728f14043c74387f123bf1fd7082423089f7a231560e6a5`
+ACTIVE_LANE_CHECKPOINT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-PROGRESS-CHECK-003`
+ACTIVE_LANE_CHECKPOINT_SHA256: `9fa139d49034eaedd07ed1296e4a8f897a717d41600629090dffef792ccd22bd`
 RECONCILIATION_STATE: `COMPLETE_READ_ONLY_WITH_SIGNATURE_ANOMALY`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
@@ -61,8 +63,10 @@ BLOCKED. No old R5 wire may resume.
 Hermes returned protocol-valid `ACK/ACCEPTED` wire
 `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-ACK-002` and confirmed the source
 commit is an ancestor of the published branch tip. No source delivery exists
-yet; Hermes owns the isolated copy and the next event is implementation
-evidence, not another ACK.
+yet; Hermes owns the isolated copy. The correlated checkpoint above records
+that read-only checks found no changed files or delivery artifacts and requires
+real PROGRESS followed by terminal DELIVERY or BLOCKED; another intake ACK is
+not acceptable.
 
 Coordination rules: use message IDs, WIRE, SEQ, IN_REPLY_TO, STATE,
 NEXT_OWNER and terminal status; do not use wall-clock dates or timestamps to
