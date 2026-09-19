@@ -553,3 +553,12 @@ reused the task WIRE as the reply WIRE. Codex issued a strict correction
 receipt requiring a unique correlated ACK. No implementation or source
 delivery is counted until that receipt is followed by a valid ACK and a
 hash-verifiable DELIVERY; the five named operator surfaces remain open.
+
+# M583: F-81/F-84 trusted vision evidence
+
+The current source still omits thumbnail descriptors from publication-bound
+recipe evidence because the local vision result is not yet carried as a
+trusted, asset-bound receipt. A bounded Hermes source-only lane now targets
+the existing vision/client/ToS/recipe path. Conversion attribution remains
+explicitly unavailable without an authoritative provider field; no inferred
+or synthetic conversion evidence is accepted.

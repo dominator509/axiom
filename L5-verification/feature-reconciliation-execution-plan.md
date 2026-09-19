@@ -814,3 +814,17 @@ envelope passed protocol validation and remote checksum readback matched
 This rejects the envelope only; it does not change the five-surface scope.
 No runtime, provider, database, migration, permission, installer or
 deployment action occurred.
+
+### M583 — current-source F81/F84 trusted-vision lane
+
+The current Rust vision response exposes ToS classification and bounded image
+analysis, but the worker deliberately leaves `thumbnail_features` absent from
+publication recipe evidence. Hermes was assigned a current-source, source-only
+lane to wire a versioned trusted local-vision receipt through the existing
+publication snapshot and viral recipe/exemplar paths. The lane must reject
+overrides, heuristic fallback, asset-identity mismatch and malformed data, and
+must not fabricate Fanvue conversion attribution. The envelope was validated
+locally and remote checksum readback matched
+`4426322a6c413f3adf7ffe6c928b560c02c4f7f9ab3f33a227c3319554936fae`.
+No runtime, provider, database, migration, permission, installer or
+deployment action occurred.

@@ -2622,3 +2622,22 @@ accepted. No source edit or delivery is accepted yet. The agentic inbox
 drafting lane has a valid transport ACK but no implementation delivery, and
 the mobile Relay lane has no logical reply. All three remain source-only,
 with no runtime/provider/database/migration/permission/deployment action.
+
+## M583 — current-source F81/F84 trusted-vision lane dispatched
+
+The architecture audit confirmed that F-81/F-84 still lacks trusted thumbnail
+descriptors: the current local vision path exposes ToS scores, while
+`recipe-evidence.ts` explicitly omits descriptors. Hermes was assigned the
+bounded `F81-F84-CURRENT-RECIPE-VISION-R1` task against exact pushed source
+`ac7961b9444fea4ec538e84c5980afca84e69ea6`. It must reuse the local Rust
+vision response, bind any descriptor receipt to the exact asset identity and
+publication snapshot, reject overrides/fallbacks/mismatches, and propagate
+only bounded evidence into existing viral recipe/exemplar features. It must
+not invent conversion attribution or provider fields; if the current contract
+cannot support a trusted descriptor, it must return an exact terminal BLOCKED.
+
+The task envelope passed local protocol validation and remote SHA-256 readback
+matched
+`4426322a6c413f3adf7ffe6c928b560c02c4f7f9ab3f33a227c3319554936fae`.
+This supersedes stale F81/F84 copied-artifact lanes; no runtime, provider,
+database, migration, permission, installer or deployment action is authorized.

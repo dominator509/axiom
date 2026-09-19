@@ -347,3 +347,12 @@ reused the task WIRE in the reply and `IN_REPLY_TO`. A strict correction
 receipt now requires a unique correlated ACK before the lane can advance. No
 operator source delivery is accepted; the existing five-surface localization
 gap remains open alongside the agentic-drafting and mobile lanes.
+
+### M583 source-lane checkpoint
+
+F-81/F-84 remains source-partial because `recipe-evidence.ts` explicitly omits
+thumbnail descriptors until a trusted vision receipt exists, while the local
+vision wire currently exposes only ToS/analysis data. A bounded current-source
+Hermes task now targets that existing Rust -> TypeScript -> worker -> viral
+recipe path. Conversion attribution remains unavailable unless an authoritative
+provider field is present; no synthetic metric is permitted.
