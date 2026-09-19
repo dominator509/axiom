@@ -1,10 +1,49 @@
-# FanThynks — Astra to Luna continuation handoff
+# FanThynks — current continuation handoff
 
-Updated: after milestone M593 and the agentic-drafting/localization/vision delivery assignments. The active agentic-drafting
-supersession is tracked below. This is a continuation checkpoint,
-not a completion report. Keep this file current at meaningful checkpoints.
+## Canonical coordination state — reconcile before the next feature lane
 
-## Current continuation checkpoint — M593
+This block is authoritative for the current Codex/Hermes state. The records
+below it are preserved historical evidence and must not be treated as active
+assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
+`owner` wording.
+
+SOURCE_HEAD: `e8f1409f553cfa73fa72b64d7385ed0e3bc16f6d`
+PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
+PUBLISHED_HEAD: `e8f1409f553cfa73fa72b64d7385ed0e3bc16f6d`
+ACCEPTED_PRODUCT_SOURCE: `d3913727a44e96490f3bfddbdf504acb4b2bbb42`
+ACTIVE_HERMES_LANE: `NONE`
+CODEX_OWNER: `CODEX`
+HERMES_IMPLEMENTATION_OWNER: `NONE_PENDING_RECONCILIATION`
+NEXT_ACTION: `bridge-inventory-reconciliation-only`
+
+Closed and not to be reopened under the old task IDs:
+
+- `INBOX-AGENTIC-DRAFTING-R5`: `BLOCKED-HERMES`; no source integrated.
+- D001A installer target-context attempts: `BLOCKED-HERMES`; no installed
+  helper or live state changed.
+- `F89-INBOX-LOCALIZATION-CURRENT-R1`: accepted, independently audited and
+  integrated at `d3913727`; no implementation work remains under that wire.
+
+The bridge still contains historical inbox/reply/status artifacts for prior
+lanes. Their presence is not evidence of an active assignment. Codex will
+send one signed reconciliation envelope asking Hermes for the current logical
+inventory by task/WIRE/SEQ/state/next-owner. Hermes must not resume or invent
+source work until that envelope is answered. Codex will then update this block
+from the returned inventory before opening exactly one new bounded lane.
+
+Coordination rules: use message IDs, WIRE, SEQ, IN_REPLY_TO, STATE,
+NEXT_OWNER and terminal status; do not use wall-clock dates or timestamps to
+infer unread/read state. Every Codex bridge message ends exactly with
+`sincerely, Codex`. No deployment, installer, database, migration, provider,
+credential, permission, network, runtime or service action is authorized by
+this reconciliation.
+
+## Historical continuation records
+
+The following records are retained for audit provenance only. They are not
+current task instructions unless copied into the canonical block above.
+
+## Historical source checkpoint — M593
 
 The accepted product source head is the reviewed M593 trusted-vision recipe
 evidence milestone `81ef2069aae36256bed673c093ec5fbe16212cd6`, pushed on
