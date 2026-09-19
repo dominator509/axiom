@@ -2349,3 +2349,16 @@ tests, typecheck/build/lint exits, per-file SHA-256 and one terminal DELIVERY
 or exact BLOCKED. No database, migration, provider, credential, permission,
 network, runtime or deployment action is authorized. Codex retains audit,
 integration, commit and push ownership.
+
+## M572B — scraper lane progress follow-up
+
+Hermes returned only the correlated `ACK_ACCEPTED` for
+`SCRAPER-RESULT-QUALITY-CURRENT-R1`; its isolated copy was still byte-identical
+to the pinned source and no evidence-bearing PROGRESS or terminal DELIVERY
+existed. Codex sent the signed follow-up
+`CODEX-SCRAPER-RESULT-QUALITY-R1-PROGRESS-REQUIRED-003`, tied to Hermes ACK
+`HERMES-SCRAPER-RESULT-QUALITY-CURRENT-R1-ACK-002`. The follow-up requires a
+real source/test delta or a terminal BLOCKED with the exact contract conflict;
+it adds no runtime, provider, database, migration, permission, network,
+installer, bridge-service, commit or deployment authorization. Envelope
+SHA-256: `686aee09a26294fd39f27fd271e0242d32a2115fdf3c2009c193ae8c53ca29f4`.
