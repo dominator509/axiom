@@ -2,7 +2,7 @@
 
 Date: 2026-09-18  
 Repository: `dominator509/axiom`  
-Source checkpoint: `cf5055d32885000ccafda9ce0949bb42b83329fa`
+Source checkpoint: `789edae3ba0c357e9e5a8ffb67329281c1076a65`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -41,7 +41,7 @@ receipts. Historical audit baselines are not silently treated as current source.
 | Connectors and OAuth (F-03/F-31/F-58–F-67) | Static connector contracts and capability declarations exist for supported paths. | Live OAuth, refresh/revoke/disconnect, account onboarding, provider upload/publish/metrics receipts and browser acceptance. Snapchat remains capability-honest manual-assist where its API does not support organic posting. |
 | Patreon creator/community integration (F-91) | **Wired/partial:** the pure v2 community connector is now wired through authored migration 0055, tenant/model-scoped campaign/member/post/sync/webhook tables with RLS, model-egress OAuth/PKCE and encrypted account persistence, bounded cursor sync, durable replay guards, signed webhook ingress, a model dashboard, and a native mobile community surface with assigned-model scoping, redacted status/read views and operator-only sync controls. | Deployed migration/RLS/runtime acceptance, real provider OAuth/webhook/sync receipts, browser/mobile acceptance and operational reconciliation remain open. No publish/DM/payout/member-mutation/unsupported-analytics claim. |
 | Link-in-bio (F-48–F-53) | The Native provider is the current production-enabled default. | Fanlynks, Linktree and Beacons are optional planned adapters and must remain hidden/rejected until their full lifecycle exists; a database row is not evidence of a connection. |
-| Localization and language switching (F-89) | **Source-wired/partial:** the shared six-locale catalog, BCP-47 normalization, precedence resolution, persisted user/org preference API, dashboard provider/navigation/settings wiring, authenticated shell workspace/home/role/pending/footer/system-health copy, login hero/form labels/errors/session advice, reusable team-shift controls and TeamOperationsManager labels/errors/roles/notes with locale-aware UTC timestamps, accessible `lang` metadata, and mobile selector/dashboard labels now consume the same catalog. UI language remains separate from authored content language. | Complete catalog adoption across remaining dashboard/email/operator surfaces, browser/mobile acceptance, locale-aware formatting audit for every date/number/currency surface, and deployed migration/RLS/runtime evidence remain open. |
+| Localization and language switching (F-89) | **Source-wired/partial:** the shared six-locale catalog, BCP-47 normalization, precedence resolution, persisted user/org preference API, dashboard provider/navigation/settings wiring, authenticated shell workspace/home/role/pending/footer/system-health copy, login hero/form labels/errors/session advice, assigned shifts, team-shift controls, TeamOperationsManager labels/errors/roles/notes, digest page/scheduling/recovery controls and Relay history/delivery surfaces with locale-aware UTC timestamps, accessible `lang` metadata, and mobile selector/dashboard labels now consume the same catalog. UI language remains separate from authored content language. | Complete catalog adoption across remaining dashboard/email/operator surfaces, browser/mobile acceptance, locale-aware formatting audit for every date/number/currency surface, and deployed migration/RLS/runtime evidence remain open. |
 | FanThynks platform affiliate program (F-90) | **Wired/partial:** native platform-level affiliate schema and authored migration 0054, owner-gated API routes, disclosure-gated partner/campaign controls, attribution/conversion/commission/hold state, audit/idempotency and non-transfer payout CSV generation exist; no third-party affiliate stack was imported. | Migration application, native license/security/legal review, browser acceptance, billing/reconciliation integration, payout-provider/operator acceptance and export/deletion evidence remain open. Tenant-owned affiliate builders and creator resale controls are out of scope. |
 | R2 media storage | Grok R2 credential storage/status/verify routes, encrypted managed config and tests exist. | A real configured bucket round-trip through the deployed application, retention/delete evidence and operator acceptance. |
 | Relay and operator controls (F-68–F-72) | Cards, signed/replay-protected command paths, several approval/revision/review workflows, and a model-scoped cursor-paginated/redacted Relay-card history with an approval deep-link are source-wired. | Attachment sending, external delivery, uncertain-outcome reconciliation and deployed channel acceptance. |
@@ -157,6 +157,26 @@ tests passed 7/7, the full dashboard suite passed 734/734 and dashboard
 typecheck passed. This is a source/UI improvement only: role policy, shift
 transitions, migrations, provider/runtime, browser and deployment gates remain
 open.
+
+### M560 — digest and Relay surface localization
+
+Hermes' scoped R3 archive was independently audited before integration. The
+archive SHA-256 is
+`de033fae7281a2ae93b91b31946bc24dfbd3bd75694a0e294a7b31b85140fbbd`; the
+12 declared changed source paths were copied individually and every declared
+file SHA-256 matched the delivery. The merge preserved the already accepted
+TeamShiftCard and TeamOperationsManager locale keys rather than replacing the
+current branch catalog wholesale.
+
+The digest page, digest generation/schedule/recovery controls, Relay page and
+cursor-paginated Relay-card history now consume the shared six-locale catalog.
+Stored-vs-external-delivery wording, authored card data, safe local API
+accessors and UTC timestamps remain explicit; no provider or publication claim
+is inferred from a stored card. Core tests passed 65/65, the focused digest and
+Relay suite passed 19/19, the full dashboard suite passed 739/739 and dashboard
+typecheck passed. Source commit `789edae3ba0c357e9e5a8ffb67329281c1076a65`.
+This is source/UI evidence only: worker delivery, external Relay, migration,
+provider, browser, mobile and deployment gates remain open.
 
 ## Explicit owner extensions — localization and platform affiliate stack
 

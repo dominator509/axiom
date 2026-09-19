@@ -550,3 +550,21 @@ errors, using the existing six-locale catalog. Focused state/auth/layout/digest
 tests passed, dashboard typecheck passed, and the elevated production build
 passed. Remaining catalog adoption, formatting, browser/mobile, migration/RLS,
 provider, runtime and deployment gates remain open.
+
+### M560 — F-89 digest and Relay catalog adoption
+
+Hermes' scoped R3 delivery was accepted only after individual retrieval and
+SHA-256 verification of its 12 declared changed source paths. Codex merged the
+digest page, digest generation/schedule/recovery controls, Relay page and
+cursor-paginated Relay-card history into the current branch while preserving
+the already accepted TeamShiftCard and TeamOperationsManager locale keys.
+The archive SHA-256 was
+`de033fae7281a2ae93b91b31946bc24dfbd3bd75694a0e294a7b31b85140fbbd` and the
+source commit is `789edae3ba0c357e9e5a8ffb67329281c1076a65`.
+
+Core tests passed 65/65, the focused digest/Relay suite passed 19/19, the full
+dashboard suite passed 739/739 and dashboard typecheck passed. The Hermes
+delivery had no live actions and its response signature was duplicated, so the
+artifact—not the transport acknowledgment—was the acceptance subject. Worker,
+external Relay, provider, migration, browser/mobile and deployment evidence
+remain open.
