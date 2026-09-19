@@ -978,3 +978,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19 | [AXIOM][P4][M657] Updated the canonical handoff to the pushed branch head while preserving the strict Hermes correction as the sole open feature-lane action
 2026-09-19 | [AXIOM][P4][M658] Verified current R3 transport filenames equal msg_id; quarantined historical filename mismatches from the active Hermes lane
 2026-09-19 | [AXIOM][P4][M659] Rejected Hermes R3 accepted-terminal contradiction; sent the final narrow correction requiring nonterminal acceptance before implementation
+2026-09-19 | [AXIOM][P4][M660] Validated Hermes nonterminal ACK/ACCEPTED seq6 and sent Codex READ receipt seq7; implementation ownership is now Hermes pending concrete PROGRESS
