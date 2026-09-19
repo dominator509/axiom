@@ -9,6 +9,7 @@ import SavedGenerationRetry from '@/components/SavedGenerationRetry';
 import AdaptationControls from '@/components/AdaptationControls';
 import DraftEditor from '@/components/DraftEditor';
 import CaptionGuidance from '@/components/CaptionGuidance';
+import { getServerLocale } from '@/lib/server-locale';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,10 +23,11 @@ export default async function ApprovalsPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const { t, dateTime } = await getServerLocale();
   const session = await getSession();
   const role = session?.user?.role;
   if (!talentDestinationAllowed(role, 'approvals')) return (
-    <div className="card"><h2>Review access unavailable</h2><p>Your role does not include this review queue.</p><Link href="/">Back to workspace</Link></div>
+    <div className="card"><h2>{t('review.accessUnavailable')}</h2><p>{t('review.accessDescription')}</p><Link href="/">{t('review.back')}</Link></div>
   );
   const canApprove = ['owner', 'manager', 'operator'].includes(role ?? '');
   const query = (await searchParams) ?? {};
@@ -63,10 +65,10 @@ export default async function ApprovalsPage({
   return (
     <div>
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h2>{canApprove ? 'Approvals' : 'Review drafts'}</h2>
-        <span style={{ color: 'var(--muted)' }}>{bundles.length} shown for review</span>
+        <h2>{canApprove ? t('review.approvals') : t('review.drafts')}</h2>
+        <span style={{ color: 'var(--muted)' }}>{t('review.shown', { count: bundles.length })}</span>
       </div>
-      {!canApprove && <p>You can inspect saved drafts and media here. An owner, manager or operator must review and approve them before publication.</p>}
+      {!canApprove && <p>{t('review.draftDescription')}</p>}
       {error && (
         <div className="card" style={{ color: 'var(--bad)' }}>
           {error}
@@ -75,18 +77,16 @@ export default async function ApprovalsPage({
       {bundles.length === 0 && !error && (
         <div className="card">
           <p style={{ color: 'var(--muted)', margin: 0 }}>
-            {cursors.size
-              ? 'No bundles on these review pages. Return to newest work.'
-              : 'No bundles awaiting review. Run Generation to create one.'}
+            {cursors.size ? t('review.noBundlesPaged') : t('review.noBundles')}
           </p>
         </div>
       )}
-      <nav className="row" aria-label="Review queue pages">
-        {cursors.size > 0 && <a href={firstPage}>Newest review work</a>}
+      <nav className="row" aria-label={t('review.queuePages')}>
+        {cursors.size > 0 && <a href={firstPage}>{t('review.newest')}</a>}
         {!error &&
           olderPages.map(({ state, href }) => (
             <a key={state} href={href}>
-              Older {state} bundles
+              {t('review.olderBundles', { state: state === 'generated' ? t('review.generated') : state === 'revising' ? t('review.revising') : t('review.hold') })}
             </a>
           ))}
       </nav>
@@ -97,25 +97,25 @@ export default async function ApprovalsPage({
               <div>
                 <span className="mono">{b.id.slice(0, 8)}</span>
                 <span className="badge warn" style={{ marginLeft: 8 }}>
-                  {b.state === 'generated' ? b.assetId ? 'Media saved' : 'Brief saved' : b.state}
+                  {b.state === 'generated' ? b.assetId ? t('review.mediaSaved') : t('review.briefSaved') : b.state === 'revising' ? t('review.revising') : t('review.hold')}
                 </span>
                 {b.tosReport && (
                   <span
                     className={`badge ${b.tosReport.verdict === 'pass' ? 'good' : b.tosReport.verdict === 'review' ? 'warn' : 'bad'}`}
                     style={{ marginLeft: 8 }}
                   >
-                    ToS: {b.tosReport.verdict}{b.tosReport.decisionSource === 'human-review' ? ' (operator reviewed)' : ''}
+                    {t('review.tos', { value: b.tosReport.verdict })}{b.tosReport.decisionSource === 'human-review' ? ` (${t('review.operatorReviewed')})` : ''}
                   </span>
                 )}
               </div>
               <span style={{ color: 'var(--muted)' }}>
-                {new Date(b.createdAt).toLocaleString()}
+                {dateTime(b.createdAt)}
               </span>
             </div>
             <div className="stack" style={{ marginTop: 10 }}>
               <RequestedSchedule intent={b.publishIntent} />
               {b.assetId && <BundleMedia key={b.assetId} bundleId={b.id} />}
-              {!b.assetId && <p>No media is attached to this bundle. Saved captions do not mean image or video generation has completed.</p>}
+              {!b.assetId && <p>{t('review.noMedia')}</p>}
               {Object.entries(b.captions ?? {}).map(([platform, caption]) => (
                 <div key={platform}>
                   <strong>{platform}:</strong> {caption}
@@ -140,8 +140,7 @@ export default async function ApprovalsPage({
               )}
               {b.state === 'revising' ? (
                 <p role="status">
-                  Caption revision pending. Refresh after generation and ToS scanning complete. If
-                  processing fails, contact a workspace operator.
+                  {t('review.captionRevisionPending')} {t('review.captionRevisionHelp')}
                 </p>
               ) : canApprove ? (
                 <ApproveButtons
