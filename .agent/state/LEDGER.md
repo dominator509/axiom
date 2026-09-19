@@ -946,3 +946,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19T16:57:00Z | [AXIOM][P4][M623] Reconcile stale historical R5 active-lane text; mark R5 superseded and keep F89 as the sole active Hermes lane, with no source or live action
 2026-09-19 | [AXIOM][P4][M625] Audit and integrate corrected F89 Inbox localization DELIVERY; seven hashes match, core 80/80 and dashboard 777/777 pass, source pushed as d3913727, no live action
 2026-09-19 | [AXIOM][P4][M626] Reconcile Codex/Hermes control state before new work; mark historical lanes non-authoritative, active lane NONE pending bridge inventory, no source or live action
+2026-09-19 | [AXIOM][P4][M627] Reject malformed Hermes reconciliation ACK; send one protocol-valid correction, keep active lane NONE and no source/live action

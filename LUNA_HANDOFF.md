@@ -15,6 +15,10 @@ ACTIVE_HERMES_LANE: `NONE`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `NONE_PENDING_RECONCILIATION`
 NEXT_ACTION: `bridge-inventory-reconciliation-only`
+RECONCILIATION_STATE: `CORRECTION_SENT_PENDING_VALID_ACK`
+RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
+RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
+RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
 
 Closed and not to be reopened under the old task IDs:
 
@@ -30,6 +34,13 @@ send one signed reconciliation envelope asking Hermes for the current logical
 inventory by task/WIRE/SEQ/state/next-owner. Hermes must not resume or invent
 source work until that envelope is answered. Codex will then update this block
 from the returned inventory before opening exactly one new bounded lane.
+
+Hermes' first response to the reconciliation was rejected: it used an
+invalid terminal flag for `ACK/READ`, included a forbidden clock field and
+duplicated its signature. The response is not an accepted inventory. One
+bounded correction was sent under the WIRE recorded above; no further
+correction or feature assignment is authorized until that response is
+validated.
 
 Coordination rules: use message IDs, WIRE, SEQ, IN_REPLY_TO, STATE,
 NEXT_OWNER and terminal status; do not use wall-clock dates or timestamps to
