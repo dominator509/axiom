@@ -938,3 +938,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19T16:09:39Z | [AXIOM][P4][M615] Reconcile local branch and Hermes R5 ownership; correct handoff head/owner fields; no new source lane or live action
 2026-09-19T16:11:06Z | [AXIOM][P4][M616] Clarify source baseline versus handoff-only reconciliation commit; preserve Hermes R5 ownership and local implementation freeze
 2026-09-19T16:14:19Z | [AXIOM][P4][M617] Audit Hermes R5 behavior-test progress; return unreadable root-owned test artifact to Hermes; no source integration
+2026-09-19T16:16:43Z | [AXIOM][P4][M618] Clarify graph ALL_DONE is phase-marker state only; architecture release gates remain open while Hermes R5 is active
