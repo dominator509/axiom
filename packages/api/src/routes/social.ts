@@ -5,12 +5,19 @@
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { zValidator } from '@hono/zod-validator';
+import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { capabilityNames, connectorForConnection, resolveCapabilities } from '@axiom/worker';
+import { capabilityNames, connectorForConnection, patreonConnectorForConnection, resolveCapabilities } from '@axiom/worker';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, modelOrgId, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
+import {
+  withOrgContext,
+  modelOrgId,
+  requireOrg,
+  writeAudit,
+  apiError,
+  statusTitle,
+} from './helpers.js';
 
 const router = new Hono<AppBindings>();
 
@@ -26,6 +33,7 @@ const PLATFORMS = [
   'facebook',
   'snapchat',
   'fanvue',
+  'patreon',
 ] as const;
 
 const connectSchema = z.object({
@@ -39,6 +47,27 @@ const connectSchema = z.object({
   dekId: z.string().min(1),
 });
 
+/** Return only connection metadata; never expose the encrypted credential envelope. */
+function publicConnection(row: {
+  id: string;
+  modelId: string;
+  platform: string;
+  displayName: string;
+  capabilities?: string[] | null;
+  status: string;
+  connectedAt: Date;
+}) {
+  return {
+    id: row.id,
+    modelId: row.modelId,
+    platform: row.platform,
+    displayName: row.displayName,
+    capabilities: row.capabilities ?? [],
+    status: row.status,
+    connectedAt: row.connectedAt,
+  };
+}
+
 // GET /api/v1/social-accounts?modelId=... — connected accounts
 router.get('/', async (c) => {
   const orgId = requireOrg(c);
@@ -49,12 +78,20 @@ router.get('/', async (c) => {
     const conds = [eq(schema.platformConnection.orgId, orgId)];
     if (modelId) conds.push(eq(schema.platformConnection.modelId, modelId));
     return tx
-      .select()
+      .select({
+        id: schema.platformConnection.id,
+        modelId: schema.platformConnection.modelId,
+        platform: schema.platformConnection.platform,
+        displayName: schema.platformConnection.displayName,
+        capabilities: schema.platformConnection.capabilities,
+        status: schema.platformConnection.status,
+        connectedAt: schema.platformConnection.connectedAt,
+      })
       .from(schema.platformConnection)
       .where(and(...conds))
       .orderBy(schema.platformConnection.connectedAt);
   });
-  return c.json({ data: rows, meta: { total: rows.length } });
+  return c.json({ data: rows.map(publicConnection), meta: { total: rows.length } });
 });
 
 // POST /api/v1/social-accounts — connect a platform account
@@ -65,17 +102,15 @@ router.post('/', zValidator('json', connectSchema), async (c) => {
   const userId = c.get('userId') ?? 'system';
   const modelId = c.req.query('modelId');
   if (!modelId) return apiError(c, 400, statusTitle(400), 'modelId query required');
+  if (body.platform === 'patreon') {
+    return apiError(c, 400, statusTitle(400), 'Patreon connections must use the Patreon OAuth flow');
+  }
 
   let capabilities: string[];
   try {
     capabilities = capabilityNames(resolveCapabilities(body.platform));
   } catch {
-    return apiError(
-      c,
-      503,
-      statusTitle(503),
-      `connector for '${body.platform}' is unavailable`,
-    );
+    return apiError(c, 503, statusTitle(503), `connector for '${body.platform}' is unavailable`);
   }
 
   const inserted = await withOrgContext(orgId, async (tx) => {
@@ -115,7 +150,7 @@ router.post('/', zValidator('json', connectSchema), async (c) => {
       modelId,
       displayName: body.displayName,
     });
-    return row;
+    return row ? publicConnection(row) : null;
   });
   if (!inserted) return apiError(c, 404, statusTitle(404), 'model not found');
   return c.json({ data: inserted }, 201);
@@ -139,8 +174,13 @@ router.delete('/:id', async (c) => {
   if (!connection) return apiError(c, 404, statusTitle(404), 'connection not found');
 
   try {
-    const { connector } = await connectorForConnection(connection);
-    await connector.revoke();
+    if (connection.platform === 'patreon') {
+      const { connector } = await patreonConnectorForConnection(connection);
+      await connector.revoke();
+    } else {
+      const { connector } = await connectorForConnection(connection);
+      await connector.revoke();
+    }
   } catch {
     // Keep the encrypted row so the operator can retry. Deleting it after a
     // failed provider revoke would leave a live remote credential orphaned.

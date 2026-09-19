@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { resolveRelaySecret } from '@axiom/core';
+import { isProductionEnvironment, resolveRelaySecret, type UserRole } from '@axiom/core';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
@@ -10,13 +10,20 @@ import { socialRouter } from './routes/social.js';
 import { killswitchRouter } from './routes/killswitch.js';
 import { egressRouter } from './routes/egress.js';
 import { networkRouter } from './routes/network.js';
-import { postsRouter } from './routes/posts.js';
-import { linkbioRouter } from './routes/linkbio.js';
+import { postsRouter, hasUnknownPublishOutcome } from './routes/posts.js';
+import { queueBundleRevision } from './bundle-revision.js';
+import { linkbioRouter, publicLinkbioRouter } from './routes/linkbio.js';
 import { fansRouter } from './routes/fans.js';
 import { analyticsRouter } from './routes/analytics.js';
+import { earningsRouter } from './routes/earnings.js';
+import { inboxRouter } from './routes/inbox.js';
+import { inboxRepliesRouter } from './routes/inbox-replies.js';
+import { inboxReviewsRouter } from './routes/inbox-reviews.js';
+import { membersRouter } from './routes/members.js';
 import { viralRouter } from './routes/viral.js';
 import { playbookRouter } from './routes/playbook.js';
 import { generateRouter } from './routes/generate.js';
+import { mediaUploadRouter } from './routes/media-upload.js';
 import { auditRouter } from './routes/audit.js';
 import { incidentsRouter } from './routes/incidents.js';
 import { digestsRouter } from './routes/digests.js';
@@ -24,11 +31,34 @@ import { crashReportsRouter } from './routes/crash-reports.js';
 import { orgSettingsRouter } from './routes/org-settings.js';
 import { fanvueAuthRouter } from './routes/fanvue-auth.js';
 import { threadsAuthRouter } from './routes/threads-auth.js';
+import { patreonRouter } from './routes/patreon.js';
 import { consentRouter } from './routes/consent.js';
-import { auth, requireAuth } from '@axiom/auth';
+import { relayBindingsRouter } from './routes/relay-bindings.js';
+import { relayCardsRouter } from './routes/relay-cards.js';
+import { reportsRouter } from './routes/reports.js';
+import { agentPermissionsRouter } from './routes/agent-permissions.js';
+import { cascadeTemplatesRouter } from './routes/cascade-templates.js';
+import { triggerRulesRouter } from './routes/trigger-rules.js';
+import { variantExperimentsRouter } from './routes/variant-experiments.js';
+import { scrapeRouter } from './routes/scrape.js';
+import { teamOperationsRouter } from './routes/team-operations.js';
+import { modelAssignmentsRouter } from './routes/model-assignments.js';
+import { enforceModelAccess } from './model-access.js';
+import { mediaOperationsRouter } from './routes/media-operations.js';
+import { playbookGuidelinesRouter } from './routes/playbook-guidelines.js';
+import { roleplayRouter } from './routes/roleplay.js';
+import { platformAffiliateRouter } from './routes/platform-affiliate.js';
+import { uiLocaleRouter } from './routes/ui-locale.js';
+import {
+  auth,
+  normalizeAuthOrigin,
+  requireAuth,
+  requireMutationRole,
+  requireRole,
+} from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { asPlatform, enqueueJob, registerConnectors, resolveCapabilities } from '@axiom/worker';
-import { createMcpServer } from '@axiom/mcp-server';
+import { createMcpServerAsync, isModelKillSwitchEnabled, withModelOrg } from '@axiom/mcp-server';
 import {
   TelegramAdapter,
   DiscordAdapter,
@@ -38,7 +68,6 @@ import {
   createRelayRoutes,
   CardRenderer,
   CommandRouter,
-  ViralLoop,
   Bandit,
   IncidentManager,
   HealthCheckRegistry,
@@ -51,15 +80,30 @@ import { relayIncidentPageHandler } from './relay-incidents.js';
 import { correlationId, onError, idempotency, rateLimit } from './contract.js';
 import {
   checkDatabase,
+  db,
   schema,
   getPublishingConsentStatus,
   consentRequirementMessage,
+  getTosScanState,
 } from '@axiom/db';
 import { sql, eq, and } from 'drizzle-orm';
-import { withOrgContext, writeAudit } from './routes/helpers.js';
-import { relayCaptionUpdate, relayScheduledFor } from './relay-command-inputs.js';
+import {
+  resolvePublishConnections,
+  tosApprovalFailure,
+  withOrgContext,
+  writeAudit,
+} from './routes/helpers.js';
+import {
+  relayCaptionUpdate,
+  relayConnectionIds,
+  relayScheduledFor,
+} from './relay-command-inputs.js';
+import { relayCommandAlreadyRecorded } from './relay-command-guard.js';
 import { validateProductionRelayConfig } from './production-config.js';
-import { timingSafeEqual } from 'node:crypto';
+import { readBoundedJson, readBoundedText, RequestBodyTooLargeError } from './webhook-body.js';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
+
+const MCP_MAX_BODY_BYTES = 256 * 1024;
 
 type InboundRelayAdapter = {
   onCommand(
@@ -69,6 +113,30 @@ type InboundRelayAdapter = {
 };
 
 type InboundRelayChannel = 'telegram' | 'discord' | 'signal' | 'imessage';
+
+type PublishIntent = {
+  action: 'schedule' | 'publish';
+  platform: string;
+  scheduledAt: string | null;
+};
+
+function parsePublishIntent(value: unknown): PublishIntent | null {
+  if (!value || typeof value !== 'object') return null;
+  const intent = value as Record<string, unknown>;
+  if (intent.action !== 'schedule' && intent.action !== 'publish') return null;
+  if (typeof intent.platform !== 'string' || intent.platform.length === 0) return null;
+  if (intent.scheduledAt !== null && typeof intent.scheduledAt !== 'string') return null;
+  return {
+    action: intent.action,
+    platform: intent.platform,
+    scheduledAt: intent.scheduledAt,
+  };
+}
+
+// Route construction creates the adapter without provider I/O. Runtime startup
+// reuses this instance so webhook delivery and outbound relay commands share the
+// same registered handlers and command router.
+let telegramRuntimeAdapter: TelegramAdapter | undefined;
 
 function registerRelayHandlers(
   adapter: InboundRelayAdapter,
@@ -110,7 +178,7 @@ function matchesWebhookSecret(expected: string, supplied: string | undefined): b
  * (HTTP signed commands carry no session; provider callbacks additionally
  * carry a channel identity that must match the persisted card binding).
  */
-async function relayCommandExecutor(
+export async function relayCommandExecutor(
   action: CardAction,
   cardId: string,
   params: Record<string, unknown>,
@@ -130,10 +198,17 @@ async function relayCommandExecutor(
 
   return withOrgContext(orgId, async (tx) => {
     const relayCards = await tx
-      .select({ channel: schema.relayCard.channel, externalRef: schema.relayCard.externalRef })
+      .select({
+        channel: schema.relayCard.channel,
+        externalRef: schema.relayCard.externalRef,
+        config: schema.relayCard.config,
+      })
       .from(schema.relayCard)
       .where(and(eq(schema.relayCard.id, cardId), eq(schema.relayCard.orgId, orgId)))
-      .limit(1);
+      .limit(1)
+      // Serialize callbacks for one card so the durable command check below
+      // closes the race between duplicate provider deliveries.
+      .for('update');
     const relayCard = relayCards[0];
     if (!relayCard) throw new Error(`relay command: card ${cardId} not found`);
     if (
@@ -141,6 +216,13 @@ async function relayCommandExecutor(
       (context.channel !== relayCard.channel || context.sourceId !== relayCard.externalRef)
     ) {
       throw new Error('relay command: source is not bound to this relay card');
+    }
+
+    if (await relayCommandAlreadyRecorded(tx, orgId, cardId, action)) {
+      // Provider callbacks may be replayed after an API restart. The durable
+      // ledger makes the signed command one-use across processes; report a
+      // successful no-op so the provider does not retry the same delivery.
+      return `relay command ${action} already processed`;
     }
 
     let note: string | undefined;
@@ -157,10 +239,16 @@ async function relayCommandExecutor(
         .select()
         .from(schema.contentBundle)
         .where(and(eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, orgId)))
-        .limit(1);
+        .limit(1)
+        .for('update');
       if (bundle.length === 0) throw new Error(`relay command: bundle ${bundleId} not found`);
 
       const currentState = bundle[0].state as string;
+      if ((relayCard.config?.revisionId ?? null) !== (bundle[0].tosReport?.revisionId ?? null)) {
+        throw new Error(
+          'relay command: this card is superseded; use the card for the latest revision',
+        );
+      }
       if (
         action === 'approve' ||
         action === 'approve_all' ||
@@ -173,17 +261,14 @@ async function relayCommandExecutor(
           );
         }
 
-        const tos = (bundle[0].tosReport ?? {}) as {
-          verdict?: string;
-          scores?: Array<{ platform: string; verdict: string }>;
-        };
-        if (tos.verdict === 'block') {
-          throw new Error('relay command: ToS block prevents approval');
-        }
-
         const captions = (bundle[0].captions as Record<string, string> | null) ?? {};
+        const publishIntent = parsePublishIntent(bundle[0].publishIntent);
         const requestedPlatforms =
-          Object.keys(captions).length > 0 ? Object.keys(captions) : ['instagram'];
+          Object.keys(captions).length > 0
+            ? Object.keys(captions)
+            : publishIntent?.platform
+              ? [publishIntent.platform]
+              : ['instagram'];
         const platforms = requestedPlatforms.map((value) => {
           try {
             return asPlatform(value);
@@ -191,11 +276,19 @@ async function relayCommandExecutor(
             throw new Error(`relay command: unsupported target platform '${value}'`);
           }
         });
-        for (const platform of platforms) {
-          const score = (tos.scores ?? []).find((item) => item.platform === platform);
-          if (score?.verdict === 'block') {
-            throw new Error(`relay command: ToS block on ${platform} prevents approval`);
-          }
+        const tosFailure = tosApprovalFailure(bundle[0].tosReport, platforms);
+        if (tosFailure) {
+          throw new Error(`relay command: ${tosFailure}`);
+        }
+        const tosScanState = await getTosScanState(tx, orgId, bundleId);
+        if (tosScanState !== 'completed') {
+          throw new Error(
+            tosScanState === 'pending'
+              ? 'relay command: ToS scan is still running; approval must wait for completion'
+              : tosScanState === 'failed'
+                ? 'relay command: ToS scan failed; approval is blocked'
+                : 'relay command: ToS scan is missing; approval is blocked',
+          );
         }
         for (const platform of platforms) {
           const consent = await getPublishingConsentStatus(tx, orgId, bundle[0].modelId, platform);
@@ -218,6 +311,32 @@ async function relayCommandExecutor(
           }
         }
 
+        if (bundle[0].assetId) {
+          const assets = await tx
+            .select({ id: schema.asset.id, orgId: schema.asset.orgId, modelId: schema.asset.modelId, kind: schema.asset.kind })
+            .from(schema.asset)
+            .where(and(
+              eq(schema.asset.id, bundle[0].assetId),
+              eq(schema.asset.orgId, orgId),
+              eq(schema.asset.modelId, bundle[0].modelId),
+            ))
+            .limit(1);
+          const asset = assets[0];
+          if (!asset || asset.id !== bundle[0].assetId || asset.orgId !== orgId ||
+              asset.modelId !== bundle[0].modelId || (asset.kind !== 'image' && asset.kind !== 'video')) {
+            throw new Error('relay command: bundle references an unavailable or unsupported media asset; approval cannot continue');
+          }
+          for (const platform of platforms) {
+            let supported: boolean;
+            try {
+              supported = resolveCapabilities(platform).media.includes(asset.kind);
+            } catch {
+              throw new Error(`relay command: cannot resolve ${platform} capabilities; media support is unknown`);
+            }
+            if (!supported) throw new Error(`relay command: ${platform} does not support ${asset.kind} assets; approval cannot continue`);
+          }
+        }
+
         const rawSlot =
           action === 'reschedule'
             ? relayScheduledFor(params, action).toISOString()
@@ -226,17 +345,32 @@ async function relayCommandExecutor(
               : typeof params.scheduledFor === 'string'
                 ? params.scheduledFor
                 : undefined;
+        const immediateIntent = !rawSlot && publishIntent?.action === 'publish';
         const slot =
-          action === 'publish_now'
+          action === 'publish_now' || immediateIntent
             ? new Date()
             : rawSlot
               ? new Date(rawSlot)
-              : new Date(Date.now() + 3600_000);
+              : publishIntent?.scheduledAt
+                ? new Date(publishIntent.scheduledAt)
+                : new Date(Date.now() + 3600_000);
         if (
           action !== 'publish_now' &&
+          !immediateIntent &&
           (Number.isNaN(slot.getTime()) || slot.getTime() <= Date.now())
         ) {
           throw new Error('relay command: approval slot must be a valid future timestamp');
+        }
+
+        const connectionResolution = await resolvePublishConnections(
+          tx,
+          orgId,
+          bundle[0].modelId,
+          platforms,
+          relayConnectionIds(params),
+        );
+        if ('error' in connectionResolution) {
+          throw new Error(`relay command: ${connectionResolution.error}`);
         }
 
         const transitioned = await tx
@@ -261,6 +395,7 @@ async function relayCommandExecutor(
               orgId,
               bundleId,
               platform,
+              connectionId: connectionResolution.connections.get(platform),
               scheduledFor: slot,
               state: 'pending',
               remoteId: null,
@@ -295,19 +430,40 @@ async function relayCommandExecutor(
             `relay command: bundle is already ${currentState}; caption edits are no longer allowed`,
           );
         }
-        const targets: Array<{ id: string; state: string }> = await tx
-          .select({ id: schema.postTarget.id, state: schema.postTarget.state })
+        const targets: Array<{ id: string; state: string; remoteId: string | null }> = await tx
+          .select({
+            id: schema.postTarget.id,
+            state: schema.postTarget.state,
+            remoteId: schema.postTarget.remoteId,
+          })
           .from(schema.postTarget)
-          .where(and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)));
-        if (targets.some((target) => target.state !== 'pending')) {
+          .where(and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)))
+          .orderBy(schema.postTarget.id)
+          .for('update');
+        if (
+          targets.some(
+            (target) =>
+              (target.state !== 'pending' && target.state !== 'canceled') || target.remoteId,
+          )
+        ) {
           throw new Error('relay command: caption edits are not allowed after publication begins');
+        }
+        for (const target of targets) {
+          if (await hasUnknownPublishOutcome(tx, orgId, target.id)) {
+            throw new Error(
+              'relay command: provider outcome is unknown; reconcile before editing captions',
+            );
+          }
         }
         const currentCaptions = (bundle[0].captions as Record<string, string> | null) ?? {};
         const update = relayCaptionUpdate(params, currentCaptions);
+        const revisionId = randomUUID();
         const transitioned = await tx
           .update(schema.contentBundle)
           .set({
             captions: { ...currentCaptions, [update.platform]: update.caption },
+            state: 'generated',
+            tosReport: { verdict: 'pending', revisionId },
             updatedAt: new Date(),
           })
           .where(
@@ -321,7 +477,27 @@ async function relayCommandExecutor(
         if (transitioned.length === 0) {
           throw new Error('relay command: bundle changed while caption edit was being applied');
         }
-        note = `bundle ${bundleId} → caption updated for ${update.platform}`;
+        // Existing scheduled jobs may already be claimed. The target lock
+        // serializes with publish.target; its terminal-state guard makes a
+        // canceled target a no-op even for jobs claimed before this edit.
+        await tx
+          .update(schema.postTarget)
+          .set({ state: 'canceled', error: 'caption edited; fresh approval required' })
+          .where(
+            and(
+              eq(schema.postTarget.bundleId, bundleId),
+              eq(schema.postTarget.orgId, orgId),
+              eq(schema.postTarget.state, 'pending'),
+            ),
+          );
+        await enqueueJob(tx, {
+          orgId,
+          queue: 'tos',
+          kind: 'tos.scan',
+          payload: { bundleId },
+          dedupeParts: ['tos.scan', bundleId, revisionId],
+        });
+        note = `bundle ${bundleId} → caption updated for ${update.platform}; fresh ToS scan and approval required`;
       } else if (action === 'reschedule') {
         if (currentState !== 'approved') {
           throw new Error(
@@ -329,19 +505,36 @@ async function relayCommandExecutor(
           );
         }
         const scheduledFor = relayScheduledFor(params, action);
-        const targets: Array<{ id: string; platform: string; state: string }> = await tx
+        const targets: Array<{
+          id: string;
+          platform: string;
+          state: string;
+          remoteId: string | null;
+        }> = await tx
           .select({
             id: schema.postTarget.id,
             platform: schema.postTarget.platform,
             state: schema.postTarget.state,
+            remoteId: schema.postTarget.remoteId,
           })
           .from(schema.postTarget)
-          .where(and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)));
+          .where(and(eq(schema.postTarget.bundleId, bundleId), eq(schema.postTarget.orgId, orgId)))
+          // Match dashboard/worker lock ownership and order multiple targets
+          // consistently when commands from different relay cards race.
+          .orderBy(schema.postTarget.id)
+          .for('update');
         if (targets.length === 0) {
           throw new Error('relay command: approved bundle has no publish targets to reschedule');
         }
-        if (targets.some((target) => target.state !== 'pending')) {
+        if (targets.some((target) => target.state !== 'pending' || target.remoteId)) {
           throw new Error('relay command: reschedule is not allowed after publication begins');
+        }
+        for (const target of targets) {
+          if (await hasUnknownPublishOutcome(tx, orgId, target.id)) {
+            throw new Error(
+              'relay command: provider outcome is unknown; reconcile before rescheduling',
+            );
+          }
         }
         for (const target of targets) {
           const updated = await tx
@@ -379,12 +572,31 @@ async function relayCommandExecutor(
           `);
         }
         note = `bundle ${bundleId} → rescheduled for ${scheduledFor.toISOString()}`;
+      } else if (action === 'revise' || action === 'regenerate') {
+        if (currentState !== 'generated' && currentState !== 'hold') {
+          throw new Error(
+            `relay command: bundle is already ${currentState}; revision requires a generated or held bundle`,
+          );
+        }
+        const supplied = params.instructions;
+        if (
+          supplied !== undefined &&
+          (typeof supplied !== 'string' || !supplied.trim() || supplied.trim().length > 2000)
+        ) {
+          throw new Error('relay command: revision instructions must contain 1 to 2000 characters');
+        }
+        const instructions =
+          typeof supplied === 'string'
+            ? supplied.trim()
+            : action === 'revise'
+              ? 'Revise the caption to comply with the platform ToS rules while preserving its intent.'
+              : 'Write a distinct new caption for the same content and platform, following the ToS rules.';
+        await queueBundleRevision(tx, orgId, bundleId, currentState, instructions);
+        note = `bundle ${bundleId} → caption revision queued; fresh ToS review required`;
       } else {
         const stateByAction: Partial<Record<CardAction, string>> = {
           reject: 'rejected',
           hold: 'hold',
-          revise: 'generated',
-          regenerate: 'generated',
         };
         const nextState = stateByAction[action];
         if (nextState && currentState !== 'generated' && currentState !== 'hold') {
@@ -443,6 +655,7 @@ export type AppBindings = {
   Variables: {
     userId: string;
     orgId: string;
+    role: UserRole | null;
   };
 };
 
@@ -464,7 +677,7 @@ const app = new Hono<AppBindings>();
 app.use(
   '*',
   cors({
-    origin: process.env.BETTER_AUTH_URL ?? 'http://127.0.0.1:3001',
+    origin: normalizeAuthOrigin(process.env.BETTER_AUTH_URL ?? 'http://127.0.0.1:3001'),
     credentials: true,
   }),
 );
@@ -473,6 +686,9 @@ app.use('*', secureHeaders());
 // L3.0 contract: correlation_id on every request, then per-token rate limits.
 app.use('*', correlationId);
 app.use('/api/v1/*', rateLimit());
+// MCP is an authenticated agent surface, but it is outside the REST prefix;
+// apply the same per-credential bucket before JSON-RPC dispatch.
+app.use('/api/mcp', rateLimit());
 app.onError(onError);
 
 // Health check
@@ -494,9 +710,19 @@ app.get('/api/v1/openapi.json', (c) => {
   return c.json(
     existsSync(specUrl)
       ? JSON.parse(readFileSync(specUrl, 'utf8'))
-      : { openapi: '3.0.3', info: { title: 'AXIOM FanvueCRM API', version: '0.1.0' }, paths: {} },
+      : { openapi: '3.0.3', info: { title: 'FanThynks API', version: '0.1.0' }, paths: {} },
   );
 });
+
+// Public Native Link-in-Bio page and click redirects. Operator CRUD remains
+// under /api/v1 and is session-authenticated below.
+app.route('/linkbio', publicLinkbioRouter);
+
+// Better Auth is a public password/account-processing boundary, so it needs
+// its own anonymous budget rather than inheriting only the /api/v1 limiter.
+// Keep this before the handler so every auth method, including future ones,
+// receives the same abuse-control boundary and Retry-After response.
+app.use('/api/auth/*', rateLimit({ capacity: 20, refillPerSec: 1, maxBuckets: 100_000 }));
 
 // ── Better Auth — mounted at /api/auth/* (replaces the 501 placeholder) ──
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));
@@ -506,6 +732,7 @@ console.log('Better Auth mounted at /api/auth/*');
 // Every route group behind requireAuth: session → userId/orgId injected,
 // orgId then scopes all RLS transactions (LBI-02).
 app.use('/api/v1/models/*', requireAuth);
+app.use('/api/v1/members/*', requireAuth);
 app.use('/api/v1/bundles/*', requireAuth);
 app.use('/api/v1/social-accounts/*', requireAuth);
 app.use('/api/v1/egress/*', requireAuth);
@@ -530,15 +757,40 @@ app.use('/api/v1/digests/*', requireAuth);
 app.use('/api/v1/crash-reports/*', requireAuth);
 app.use('/api/v1/models/:modelId/consent-records/*', requireAuth);
 app.use('/api/v1/models/:modelId/consent-status', requireAuth);
+app.use('/api/v1/models/:modelId/relay-bindings', requireAuth);
+app.use('/api/v1/models/:modelId/relay-bindings/*', requireAuth);
+app.use('/api/v1/models/:modelId/reports/*', requireAuth);
+app.use('/api/v1/models/:modelId/agent-permissions', requireAuth);
+app.use('/api/v1/models/:modelId/agent-permissions/*', requireAuth);
+app.use('/api/v1/models/:modelId/cascade-templates', requireAuth);
+app.use('/api/v1/models/:modelId/cascade-templates/*', requireAuth);
+app.use('/api/v1/models/:modelId/variant-experiments', requireAuth);
+app.use('/api/v1/models/:modelId/variant-experiments/*', requireAuth);
+app.use('/api/v1/models/:modelId/scrape-runs', requireAuth);
+app.use('/api/v1/models/:modelId/scrape-runs/*', requireAuth);
+app.use('/api/v1/models/:modelId/team-operations', requireAuth);
+app.use('/api/v1/models/:modelId/team-operations/*', requireAuth);
+app.use('/api/v1/models/:modelId/media-operations', requireAuth);
+app.use('/api/v1/models/:modelId/media-operations/*', requireAuth);
+app.use('/api/v1/models/:modelId/playbook-guidelines', requireAuth);
+app.use('/api/v1/models/:modelId/roleplay/*', requireAuth);
 app.use('/api/v1/org-settings/*', requireAuth);
+app.use('/api/v1/platform/affiliate/*', requireAuth);
+app.use('/api/v1/ui-locale', requireAuth);
+app.use('/api/v1/ui-locale/*', requireAuth);
 // LLM requests can spend provider credits and reveal provider/runtime state.
 app.use('/api/v1/llm/*', requireAuth);
+app.use('/api/v1/my-shifts', requireAuth);
 // OAuth initiation and token refresh are session-authenticated. The sealed
 // callback state carries the org/model target, so public provider callbacks
 // cannot attach credentials to another tenant or a deployment-wide .env file.
 app.use('/api/v1/connectors/fanvue/authorize', requireAuth);
 app.use('/api/v1/connectors/fanvue/refresh', requireAuth);
 app.use('/api/v1/connectors/threads/authorize', requireAuth);
+app.use('/api/v1/connectors/patreon/authorize', requireAuth);
+app.use('/api/v1/connectors/patreon/status', requireAuth);
+app.use('/api/v1/connectors/patreon/data', requireAuth);
+app.use('/api/v1/connectors/patreon/sync', requireAuth);
 // Card rendering is an operator surface. Signed relay commands, provider
 // webhooks, metrics, and health probes retain their protocol-specific access.
 app.use('/api/v1/relay/card', requireAuth);
@@ -546,16 +798,99 @@ app.use('/api/v1/relay/card', requireAuth);
 // orgId comes from the auth context, never from the request body.
 app.use('/api/v1/viral/ingest', requireAuth);
 app.use('/api/v1/viral/exemplars', requireAuth);
+app.use('/api/v1/*', enforceModelAccess);
+
+// REST role enforcement (L3.0 / L1.0). The session role is loaded from the
+// server-owned auth_user.role field by requireAuth; it is never accepted from
+// request input. Read routes remain available to authenticated roles, while
+// mutation groups name the operational roles that may change state.
+// Creator operations first pass the narrow, assigned-model allowlist above.
+// Including the role here does not grant approval, scheduling or other routes.
+// Chatter writes are restricted above to exact assigned, active-shift reply routes.
+const operationalMutation = requireMutationRole('owner', 'manager', 'operator', 'content_creator', 'chatter');
+const ownerOnly = requireRole('owner');
+app.use('/api/v1/models/:modelId/member-assignments/*', ownerOnly);
+
+app.use('/api/v1/models', operationalMutation);
+app.use('/api/v1/models/*', operationalMutation);
+app.use('/api/v1/bundles', operationalMutation);
+app.use('/api/v1/bundles/*', operationalMutation);
+app.use('/api/v1/social-accounts', operationalMutation);
+app.use('/api/v1/social-accounts/*', operationalMutation);
+app.use('/api/v1/posts', operationalMutation);
+app.use('/api/v1/posts/*', operationalMutation);
+app.use('/api/v1/models/:modelId/linkbio', operationalMutation);
+app.use('/api/v1/models/:modelId/linkbio/*', operationalMutation);
+app.use('/api/v1/models/:modelId/fans/*', operationalMutation);
+app.use('/api/v1/fans/*', operationalMutation);
+app.use('/api/v1/custom-requests', operationalMutation);
+app.use('/api/v1/custom-requests/*', operationalMutation);
+app.use('/api/v1/models/:modelId/custom-requests/*', operationalMutation);
+app.use('/api/v1/models/:modelId/generate', operationalMutation);
+app.use('/api/v1/models/:modelId/generate/*', operationalMutation);
+app.use('/api/v1/models/:modelId/consent-records', operationalMutation);
+app.use('/api/v1/models/:modelId/consent-records/*', operationalMutation);
+app.use('/api/v1/models/:modelId/relay-bindings', operationalMutation);
+app.use('/api/v1/models/:modelId/relay-bindings/*', operationalMutation);
+app.use('/api/v1/models/:modelId/agent-permissions', ownerOnly);
+app.use('/api/v1/models/:modelId/agent-permissions/*', ownerOnly);
+app.use('/api/v1/models/:modelId/cascade-templates', operationalMutation);
+app.use('/api/v1/models/:modelId/cascade-templates/*', operationalMutation);
+app.use('/api/v1/models/:modelId/trigger-rules', operationalMutation);
+app.use('/api/v1/models/:modelId/trigger-rules/*', operationalMutation);
+app.use('/api/v1/models/:modelId/variant-experiments', operationalMutation);
+app.use('/api/v1/models/:modelId/variant-experiments/*', operationalMutation);
+app.use('/api/v1/models/:modelId/scrape-runs', operationalMutation);
+app.use('/api/v1/models/:modelId/scrape-runs/*', operationalMutation);
+app.use('/api/v1/models/:modelId/team-operations', operationalMutation);
+app.use('/api/v1/models/:modelId/team-operations/*', operationalMutation);
+app.use('/api/v1/models/:modelId/media-operations', operationalMutation);
+app.use('/api/v1/models/:modelId/media-operations/*', operationalMutation);
+app.use('/api/v1/models/:modelId/playbook-guidelines', operationalMutation);
+app.use('/api/v1/models/:modelId/roleplay/*', operationalMutation);
+app.use('/api/v1/models/:modelId/playbook-score/record', operationalMutation);
+app.use('/api/v1/incidents', operationalMutation);
+app.use('/api/v1/incidents/*', operationalMutation);
+app.use('/api/v1/crash-reports/*', operationalMutation);
+app.use('/api/v1/digests/generate', operationalMutation);
+app.use('/api/v1/llm/*', operationalMutation);
+app.use('/api/v1/connectors/fanvue/*', operationalMutation);
+app.use('/api/v1/connectors/threads/*', operationalMutation);
+app.use('/api/v1/connectors/patreon/sync', operationalMutation);
+app.use('/api/v1/relay/card', operationalMutation);
+app.use('/api/v1/viral/ingest', operationalMutation);
+app.use('/api/v1/viral/exemplars', operationalMutation);
+
+// Network and deployment controls are owner-only, including read access to
+// the sensitive egress state and kill-switch/org control surfaces.
+app.use('/api/v1/egress', ownerOnly);
+app.use('/api/v1/egress/*', ownerOnly);
+app.use('/api/v1/models/:modelId/network', ownerOnly);
+app.use('/api/v1/models/:modelId/network/*', ownerOnly);
+app.use('/api/v1/killswitch', ownerOnly);
+app.use('/api/v1/killswitch/*', ownerOnly);
+app.use('/api/v1/kill-switch', ownerOnly);
+app.use('/api/v1/kill-switch/*', ownerOnly);
+app.use('/api/v1/org-settings', ownerOnly);
+app.use('/api/v1/org-settings/*', ownerOnly);
+// The affiliate program is FanThynks-owned SaaS acquisition state, not a
+// tenant feature. Keep every read/write behind the platform owner boundary.
+app.use('/api/v1/platform/affiliate', ownerOnly);
+app.use('/api/v1/platform/affiliate/*', ownerOnly);
 
 // L3.0: durable mutations require Idempotency-Key. This reservation is
 // committed before the handler runs, so a lost response cannot repeat a DB,
 // queue, or provider-side effect when the caller retries its intent.
-app.use('/api/v1/models/:modelId/generate', idempotency());
+// Hono's wildcard includes the base path; register once to avoid hashing and
+// reserving the same request twice.
 app.use('/api/v1/models/:modelId/generate/*', idempotency());
+app.use('/api/v1/models/:modelId/media-upload', idempotency(true, 64 * 1024 * 1024));
 app.use('/api/v1/models/:id', idempotency());
 app.use('/api/v1/bundles/*/approve', idempotency());
 app.use('/api/v1/bundles/*/revise', idempotency());
+app.use('/api/v1/bundles/*/draft', idempotency());
 app.use('/api/v1/bundles/*/reject', idempotency());
+app.use('/api/v1/bundles/*/video-review', idempotency());
 app.use('/api/v1/bundles', idempotency());
 // DLQ replay resets a durable job and requeues its side effect. Protect the
 // dashboard retry action with the same durable key/replay contract.
@@ -568,11 +903,39 @@ app.use('/api/v1/models', idempotency());
 app.use('/api/v1/models/:modelId/network', idempotency());
 app.use('/api/v1/org-settings', idempotency());
 app.use('/api/v1/digests/generate', idempotency());
-app.use('/api/v1/crash-reports', idempotency());
 app.use('/api/v1/crash-reports/*', idempotency());
-app.use('/api/v1/models/:modelId/consent-records', idempotency());
 app.use('/api/v1/models/:modelId/consent-records/*', idempotency());
-app.use('/api/v1/models/:modelId/linkbio', idempotency());
+app.use('/api/v1/models/:modelId/relay-bindings', idempotency());
+app.use('/api/v1/models/:modelId/relay-bindings/:id', idempotency());
+app.use('/api/v1/models/:modelId/agent-permissions', idempotency());
+app.use('/api/v1/models/:modelId/agent-permissions/:permissionId', idempotency());
+app.use('/api/v1/models/:modelId/agent-permissions/:permissionId/tokens', idempotency());
+app.use('/api/v1/models/:modelId/agent-permissions/:permissionId/tokens/:tokenId/revoke', idempotency());
+app.use('/api/v1/models/:modelId/cascade-templates', idempotency());
+app.use('/api/v1/models/:modelId/cascade-templates/:templateId', idempotency());
+app.use('/api/v1/models/:modelId/cascade-templates/:templateId/expand', idempotency());
+app.use('/api/v1/models/:modelId/trigger-rules', idempotency());
+app.use('/api/v1/models/:modelId/trigger-rules/:ruleId', idempotency());
+app.use('/api/v1/models/:modelId/variant-experiments', idempotency());
+app.use('/api/v1/models/:modelId/variant-experiments/:experimentId', idempotency());
+app.use('/api/v1/models/:modelId/variant-experiments/:experimentId/assign', idempotency());
+app.use('/api/v1/models/:modelId/variant-experiments/:experimentId/outcomes', idempotency());
+app.use('/api/v1/models/:modelId/variant-experiments/:experimentId/promote', idempotency());
+app.use('/api/v1/models/:modelId/scrape-runs', idempotency());
+app.use('/api/v1/models/:modelId/team-operations', idempotency());
+app.use('/api/v1/models/:modelId/team-shifts', idempotency());
+app.use('/api/v1/models/:modelId/team-shifts/:shiftId', idempotency());
+app.use('/api/v1/models/:modelId/team-notes', idempotency());
+app.use('/api/v1/models/:modelId/inbox/replies', idempotency());
+app.use('/api/v1/models/:modelId/inbox/replies/:replyId/send', idempotency());
+app.use('/api/v1/models/:modelId/inbox/replies/:replyId/cancel', idempotency());
+app.use('/api/v1/models/:modelId/inbox/replies/:replyId/reviews', idempotency());
+app.use('/api/v1/models/:modelId/member-assignments', idempotency());
+app.use('/api/v1/members/:userId/role', idempotency());
+app.use('/api/v1/models/:modelId/member-assignments/:assignmentId', idempotency());
+app.use('/api/v1/models/:modelId/media-operations', idempotency());
+app.use('/api/v1/models/:modelId/playbook-guidelines', idempotency());
+app.use('/api/v1/models/:modelId/roleplay/*', idempotency());
 app.use('/api/v1/models/:modelId/linkbio/*', idempotency());
 app.use('/api/v1/posts', idempotency());
 app.use('/api/v1/posts/:id', idempotency());
@@ -580,36 +943,68 @@ app.use('/api/v1/social-accounts', idempotency());
 app.use('/api/v1/social-accounts/:id', idempotency());
 app.use('/api/v1/egress', idempotency());
 app.use('/api/v1/egress/:id', idempotency());
-app.use('/api/v1/egress/plane/*', idempotency());
+app.use('/api/v1/egress/plane/bind', idempotency());
+app.use('/api/v1/egress/plane/unbind', idempotency());
+app.use('/api/v1/egress/plane/sync', idempotency());
 app.use('/api/v1/models/:modelId/fans', idempotency());
 app.use('/api/v1/fans/:fanId/touchpoints', idempotency());
 app.use('/api/v1/custom-requests', idempotency());
 app.use('/api/v1/custom-requests/:id', idempotency());
 app.use('/api/v1/models/:modelId/playbook-score/record', idempotency());
 app.use('/api/v1/connectors/fanvue/refresh', idempotency());
+app.use('/api/v1/connectors/patreon/sync', idempotency());
 app.use('/api/v1/viral/ingest', idempotency());
+app.use('/api/v1/platform/affiliate/partners', idempotency());
+app.use('/api/v1/platform/affiliate/partners/:partnerId', idempotency());
+app.use('/api/v1/platform/affiliate/campaigns', idempotency());
+app.use('/api/v1/platform/affiliate/attribution', idempotency());
+app.use('/api/v1/platform/affiliate/conversions/reconcile', idempotency());
+app.use('/api/v1/platform/affiliate/holds/:holdId/resolve', idempotency());
+app.use('/api/v1/ui-locale', idempotency());
 
 app.route('/api/v1/models', modelsRouter);
 app.route('/api/v1/bundles', bundlesRouter);
 app.route('/api/v1/social-accounts', socialRouter);
 app.route('/api/v1/connectors/fanvue', fanvueAuthRouter);
 app.route('/api/v1/connectors/threads', threadsAuthRouter);
+app.route('/api/v1', patreonRouter);
 app.route('/api/v1', killswitchRouter);
 app.route('/api/v1/egress', egressRouter);
-app.route('/api/v1', networkRouter);
+app.route('/api/v1/models', networkRouter);
 app.route('/api/v1', postsRouter);
 app.route('/api/v1', linkbioRouter);
 app.route('/api/v1', fansRouter);
 app.route('/api/v1', analyticsRouter);
+app.route('/api/v1', earningsRouter);
+app.route('/api/v1', inboxRouter);
+app.route('/api/v1', inboxRepliesRouter);
+app.route('/api/v1', inboxReviewsRouter);
+app.route('/api/v1', membersRouter);
 app.route('/api/v1', viralRouter);
 app.route('/api/v1', playbookRouter);
 app.route('/api/v1', generateRouter);
+app.route('/api/v1', mediaUploadRouter);
 app.route('/api/v1', auditRouter);
 app.route('/api/v1', incidentsRouter);
 app.route('/api/v1', digestsRouter);
 app.route('/api/v1', crashReportsRouter);
 app.route('/api/v1', consentRouter);
 app.route('/api/v1', orgSettingsRouter);
+app.route('/api/v1', relayBindingsRouter);
+app.route('/api/v1', relayCardsRouter);
+app.route('/api/v1', reportsRouter);
+app.route('/api/v1', agentPermissionsRouter);
+app.route('/api/v1', cascadeTemplatesRouter);
+app.route('/api/v1', triggerRulesRouter);
+app.route('/api/v1', variantExperimentsRouter);
+app.route('/api/v1', scrapeRouter);
+app.route('/api/v1', teamOperationsRouter);
+app.route('/api/v1', modelAssignmentsRouter);
+app.route('/api/v1', mediaOperationsRouter);
+app.route('/api/v1', playbookGuidelinesRouter);
+app.route('/api/v1', roleplayRouter);
+app.route('/api/v1/platform/affiliate', platformAffiliateRouter);
+app.route('/api/v1', uiLocaleRouter);
 
 // LLM gateway — unified multi-provider chat completions
 const llmGateway = new LLMGateway();
@@ -625,18 +1020,98 @@ app.post('/api/mcp', async (c) => {
   if (authHeader) headers.authorization = authHeader;
   let body: Record<string, unknown> = {};
   try {
-    body = await c.req.json();
-  } catch {
-    // empty body → params fallback only
+    const parsed = await readBoundedJson<unknown>(c.req.raw, MCP_MAX_BODY_BYTES);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return c.json(
+        { jsonrpc: '2.0', error: { code: -32600, message: 'Invalid request' }, id: null },
+        400,
+      );
+    }
+    body = parsed as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return c.json(
+        { jsonrpc: '2.0', error: { code: -32000, message: 'Request body too large' }, id: null },
+        413,
+      );
+    }
+    return c.json(
+      { jsonrpc: '2.0', error: { code: -32700, message: 'Parse error' }, id: null },
+      400,
+    );
   }
+  let server: Awaited<ReturnType<typeof createMcpServerAsync>>;
   try {
-    const server = createMcpServer({ headers, params: body as Record<string, unknown> });
-    const response = await server.handleRequest(body as never);
-    return c.json(response);
-  } catch (err) {
+    server = await createMcpServerAsync(
+      { headers, params: body as Record<string, unknown> },
+      {
+        isTokenRevoked: async (tokenId) => {
+          const result = await db.execute(
+            sql`SELECT 1 FROM mcp_token_revocation WHERE token_id = ${tokenId} LIMIT 1`,
+          );
+          return ((result?.rows ?? []) as unknown[]).length > 0;
+        },
+        isTokenAllowed: async (permission) => {
+          if (!permission.tokenId) return false;
+          try {
+            return await withModelOrg(permission.modelId, async (tx) => {
+              const result = await tx.execute(sql`
+                SELECT 1
+                FROM mcp_capability_token t
+                INNER JOIN agent_permission p ON p.id = t.permission_id
+                WHERE t.token_id = ${permission.tokenId}
+                  AND t.model_id = ${permission.modelId}
+                  AND t.agent_ref = ${permission.agentId}
+                  AND t.tier = ${permission.tier}
+                  AND t.revoked_at IS NULL
+                  AND t.expires_at > now()
+                  AND p.model_id = ${permission.modelId}
+                  AND p.agent_ref = ${permission.agentId}
+                  AND p.tier = ${permission.tier}
+                LIMIT 1
+              `);
+              return ((result?.rows ?? []) as unknown[]).length > 0;
+            });
+          } catch {
+            return false;
+          }
+        },
+        onToolCall: async ({ agentId, modelId, tier, toolName, requestId }) => {
+          await withModelOrg(modelId, async (tx, orgId) => {
+            await writeAudit(tx, orgId, `mcp:${agentId}`, 'mcp.tool.call', toolName, {
+              modelId,
+              tier,
+              requestId,
+            });
+          });
+        },
+      },
+    );
+  } catch {
     return c.json(
       { jsonrpc: '2.0', error: { code: -32000, message: 'Authentication failed' }, id: null },
       401,
+    );
+  }
+  const requestId =
+    typeof body.id === 'string' || typeof body.id === 'number' || body.id === null ? body.id : null;
+  try {
+    if (await isModelKillSwitchEnabled(server.getModelId())) {
+      return c.json(
+        { jsonrpc: '2.0', error: { code: -32003, message: 'MCP surface disabled' }, id: requestId },
+        423,
+      );
+    }
+    const response = await server.handleRequest(body as never);
+    return c.json(response);
+  } catch {
+    return c.json(
+      {
+        jsonrpc: '2.0',
+        error: { code: -32603, message: 'MCP service unavailable' },
+        id: requestId,
+      },
+      503,
     );
   }
 });
@@ -652,7 +1127,6 @@ export function createRelayApp(): Hono {
   validateProductionRelayConfig(process.env);
   const cardRenderer = new CardRenderer();
   const commandRouter = getRelayCommandRouter();
-  const viralLoop = new ViralLoop();
   const bandit = new Bandit();
   const incidentManager = new IncidentManager();
   // F-78 (L2.9): sev-1 / crash-loop incidents auto-page into the Relay —
@@ -663,19 +1137,79 @@ export function createRelayApp(): Hono {
   const relay = createRelayRoutes({
     cardRenderer,
     commandRouter,
-    viralLoop,
     bandit,
     incidentManager,
     healthRegistry,
     viralPersistence: relayViralPersistence,
   });
+  // Provider webhooks are public transport surfaces. Apply the same
+  // transport-aware limiter used by the REST API before any body parsing or
+  // signature work, so a valid secret is not an unlimited memory/CPU budget.
+  relay.use('/webhooks/*', rateLimit({ capacity: 120, refillPerSec: 2, maxBuckets: 100_000 }));
+
+  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+  const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.trim();
+  const telegramWebhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+  if (telegramToken) {
+    if (telegramWebhookUrl && !telegramWebhookSecret) {
+      throw new Error('Telegram webhook configuration requires TELEGRAM_WEBHOOK_SECRET');
+    }
+    const telegram = new TelegramAdapter(
+      {
+        token: telegramToken,
+        webhookUrl: telegramWebhookUrl,
+        webhookSecret: telegramWebhookSecret,
+      },
+      commandRouter,
+    );
+    registerRelayHandlers(telegram, 'telegram', commandRouter);
+    telegramRuntimeAdapter = telegram;
+
+    if (telegramWebhookUrl && telegramWebhookSecret) {
+      relay.post('/webhooks/telegram', async (c) => {
+        if (
+          !matchesWebhookSecret(
+            telegramWebhookSecret,
+            c.req.header('X-Telegram-Bot-Api-Secret-Token'),
+          )
+        ) {
+          return c.json({ error: 'unauthorized' }, 401);
+        }
+
+        let payload: unknown;
+        try {
+          payload = await readBoundedJson(c.req.raw);
+        } catch (error) {
+          return c.json(
+            {
+              error:
+                error instanceof RequestBodyTooLargeError
+                  ? 'payload too large'
+                  : 'invalid JSON payload',
+            },
+            error instanceof RequestBodyTooLargeError ? 413 : 400,
+          );
+        }
+        try {
+          await telegram.handleWebhook(payload as Parameters<TelegramAdapter['handleWebhook']>[0]);
+          return c.json({ ok: true });
+        } catch (error) {
+          console.error('Telegram relay webhook failed', error);
+          return c.json({ error: 'relay command failed' }, 500);
+        }
+      });
+      console.log('Telegram webhook route mounted at /webhooks/telegram');
+    }
+  }
 
   // Initialize Threads adapter if client ID configured
   const threadsClientId = process.env.THREADS_CLIENT_ID;
   const threadsClientSecret = process.env.THREADS_CLIENT_SECRET;
   const configuredThreadsVerifyToken = process.env.THREADS_WEBHOOK_VERIFY_TOKEN;
+  const environment = (process.env.AXIOM_ENV ?? process.env.NODE_ENV)?.trim();
+  const localDevelopment = environment === 'development' || environment === 'test';
   if (
-    process.env.NODE_ENV === 'production' &&
+    !localDevelopment &&
     threadsClientId &&
     threadsClientSecret &&
     !configuredThreadsVerifyToken
@@ -698,10 +1232,32 @@ export function createRelayApp(): Hono {
     });
 
     relay.post('/webhooks/threads', async (c) => {
-      const rawBody = await c.req.text();
-      const payload = JSON.parse(rawBody);
+      let rawBody: string;
+      try {
+        rawBody = await readBoundedText(c.req.raw);
+      } catch (error) {
+        return c.json(
+          {
+            error:
+              error instanceof RequestBodyTooLargeError
+                ? 'payload too large'
+                : 'invalid request body',
+          },
+          error instanceof RequestBodyTooLargeError ? 413 : 400,
+        );
+      }
+      let payload: unknown;
+      try {
+        payload = JSON.parse(rawBody);
+      } catch {
+        return c.json({ error: 'invalid JSON payload' }, 400);
+      }
       const signature = c.req.header('X-Hub-Signature-256') || undefined;
-      const result = await threads.handleWebhook(payload, rawBody, signature);
+      const result = await threads.handleWebhook(
+        payload as Parameters<ThreadsAdapter['handleWebhook']>[0],
+        rawBody,
+        signature,
+      );
       return c.body(result.body, result.status as 200 | 400 | 403);
     });
 
@@ -712,7 +1268,7 @@ export function createRelayApp(): Hono {
   const blueBubblesPassword = process.env.BLUEBUBBLES_PASSWORD ?? process.env.BLUEBUBBLES_API_KEY;
   const blueBubblesWebhookSecret = process.env.BLUEBUBBLES_WEBHOOK_SECRET;
   if (blueBubblesUrl && blueBubblesPassword) {
-    if (!blueBubblesWebhookSecret && process.env.NODE_ENV === 'production') {
+    if (!blueBubblesWebhookSecret && isProductionEnvironment(process.env)) {
       throw new Error('BLUEBUBBLES_WEBHOOK_SECRET is required when iMessage is enabled');
     }
     if (blueBubblesWebhookSecret) {
@@ -727,9 +1283,17 @@ export function createRelayApp(): Hono {
         }
         let payload: unknown;
         try {
-          payload = await c.req.json();
-        } catch {
-          return c.json({ error: 'invalid JSON payload' }, 400);
+          payload = await readBoundedJson(c.req.raw);
+        } catch (error) {
+          return c.json(
+            {
+              error:
+                error instanceof RequestBodyTooLargeError
+                  ? 'payload too large'
+                  : 'invalid JSON payload',
+            },
+            error instanceof RequestBodyTooLargeError ? 413 : 400,
+          );
         }
         try {
           const handled = await imessage.handleWebhook(payload);
@@ -769,14 +1333,9 @@ export async function initializeRuntime(): Promise<void> {
     console.log('Discord adapter initialized');
   }
 
-  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
-  if (telegramToken) {
-    const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
-    const telegram = new TelegramAdapter(
-      { token: telegramToken, webhookUrl: telegramWebhookUrl },
-      commandRouter,
-    );
-    registerRelayHandlers(telegram, 'telegram', commandRouter);
+  const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.trim();
+  if (telegramRuntimeAdapter) {
+    const telegram = telegramRuntimeAdapter;
     if (telegramWebhookUrl) {
       await telegram.setWebhook(telegramWebhookUrl);
     } else {
@@ -801,3 +1360,13 @@ export async function initializeRuntime(): Promise<void> {
 export default app;
 
 export type AppType = typeof app;
+
+// Pure contracts are exported for route/UI consumers so the same ownership,
+// lifecycle, privacy, and presentation rules are not reimplemented per
+// surface. They perform no I/O and do not authorize external side effects.
+export * from './affiliate-contract.js';
+export * from './media-gallery-contract.js';
+export * from './roleplay-contract.js';
+export * from './scraper-quality-contract.js';
+export * from './team-shift-access.js';
+export * from './variant-ab-contract.js';

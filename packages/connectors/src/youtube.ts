@@ -1,7 +1,14 @@
 // ─── YouTube Connector ───
 // Uses the YouTube Data API v3 with resumable uploads, shorts detection, and OAuth management.
 
-import { BaseConnector } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  readResponseBytes,
+  readResponseJson,
+  readResponseText,
+  redactProviderText,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -18,6 +25,10 @@ import { validatePublish } from './validation.js';
 
 const YT_API_BASE = 'https://www.googleapis.com';
 const YT_UPLOAD_BASE = 'https://www.googleapis.com/upload/youtube/v3';
+// This implementation buffers the source before opening the resumable upload
+// session; advertise and enforce the actual bounded implementation limit
+// instead of the provider's much larger theoretical maximum.
+const YOUTUBE_MAX_BUFFERED_MEDIA_BYTES = 536_870_912;
 
 interface YtVideoResponse {
   id: string;
@@ -53,11 +64,13 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
     return {
       publish: true,
       media: ['video' as MediaType, 'short' as MediaType],
-      maxMediaBytes: 274_877_906_944, // 256 GB
+      maxMediaBytes: YOUTUBE_MAX_BUFFERED_MEDIA_BYTES,
       maxMediaCount: 1,
       caption: true,
       maxCaptionLength: 5_000,
-      scheduling: 'native' as const,
+      // The worker owns the scheduled slot; the upload path does not send a
+      // future publishAt value to YouTube.
+      scheduling: 'internal' as const,
       metrics: ['views', 'likes', 'comments'],
       refreshMetrics: true,
     };
@@ -103,6 +116,30 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
         },
       };
 
+      // Download before opening the resumable session so the session metadata
+      // contains the actual byte count and MIME type. The worker does not
+      // have a videoSize option; sending an empty X-Upload-Content-Length
+      // header causes the provider contract to reject the session.
+      const videoResponse = await this.fetchImpl(videoUrl);
+      if (!videoResponse.ok) {
+        throw new Error(`Failed to download video from ${videoUrl}: ${videoResponse.status}`);
+      }
+
+      const videoBuffer = await readResponseBytes(
+        videoResponse,
+        YOUTUBE_MAX_BUFFERED_MEDIA_BYTES,
+        'YouTube video',
+      );
+      if (videoBuffer.byteLength === 0) {
+        throw new Error('YouTube video must not be empty');
+      }
+      const responseContentType = videoResponse.headers.get('content-type')?.split(';', 1)[0];
+      const uploadContentType =
+        responseContentType === 'application/octet-stream' ||
+        responseContentType?.startsWith('video/')
+          ? responseContentType
+          : 'video/*';
+
       // Step 1: Initiate resumable upload session
       const metadataJson = JSON.stringify(metadata);
 
@@ -113,17 +150,21 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
           headers: {
             Authorization: `Bearer ${this.auth.accessToken}`,
             'Content-Type': 'application/json; charset=UTF-8',
-            'X-Upload-Content-Length': String(input.options?.videoSize ?? ''),
-            'X-Upload-Content-Type': 'video/*',
+            'X-Upload-Content-Length': String(videoBuffer.byteLength),
+            'X-Upload-Content-Type': uploadContentType,
           },
           body: metadataJson,
         },
       );
 
       if (!initResponse.ok) {
-        const initBody = await initResponse.text().catch(() => '');
+        const initBody = await readResponseText(
+          initResponse,
+          CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+          'provider error response',
+        ).catch(() => '');
         throw new Error(
-          `YouTube resumable upload init failed: ${initResponse.status} — ${initBody}`,
+          `YouTube resumable upload init failed: ${initResponse.status} — ${redactProviderText(initBody)}`,
         );
       }
 
@@ -134,31 +175,27 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
 
       this.log('info', 'publish', `YouTube resumable upload session created`);
 
-      // Step 2: Download the video and upload it to the resumable URL
-      const videoResponse = await this.fetchImpl(videoUrl);
-      if (!videoResponse.ok) {
-        throw new Error(`Failed to download video from ${videoUrl}: ${videoResponse.status}`);
-      }
-
-      const videoBuffer = await videoResponse.arrayBuffer();
-
       const uploadResp = await this.fetchImpl(uploadUrl, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'video/*',
+          'Content-Type': uploadContentType,
           'Content-Length': String(videoBuffer.byteLength),
         },
         body: videoBuffer,
       });
 
       if (!uploadResp.ok) {
-        const uploadBody = await uploadResp.text().catch(() => '');
+        const uploadBody = await readResponseText(
+          uploadResp,
+          CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+          'provider error response',
+        ).catch(() => '');
         throw new Error(
-          `YouTube video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${uploadBody}`,
+          `YouTube video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${redactProviderText(uploadBody)}`,
         );
       }
 
-      const videoData = (await uploadResp.json()) as YtVideoResponse;
+      const videoData = await readResponseJson<YtVideoResponse>(uploadResp);
       const remoteId = videoData.id;
 
       this.log('info', 'publish', `YouTube video published`, { remoteId });
@@ -203,19 +240,25 @@ export class YouTubeConnector extends BaseConnector implements SocialConnector {
     const token = this.auth.accessToken;
 
     // Revoke the OAuth token at Google's revocation endpoint
-    const revokeUrl = `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`;
+    const revokeUrl = 'https://oauth2.googleapis.com/revoke';
 
     const response = await this.fetchImpl(revokeUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
+      body: new URLSearchParams({ token }),
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      this.log('warn', 'revoke', `YouTube token revocation warned: ${response.status} — ${body}`);
-      // Don't throw — token may already be revoked
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      throw new Error(
+        `YouTube token revocation failed: HTTP ${response.status} — ${redactProviderText(body)}`,
+      );
     } else {
       this.log('info', 'revoke', `YouTube OAuth token revoked successfully`);
     }

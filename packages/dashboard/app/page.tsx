@@ -4,14 +4,24 @@ import NewModelForm from '@/components/NewModelForm';
 
 export const dynamic = 'force-dynamic';
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const query = await searchParams;
+  const cursor = typeof query?.cursor === 'string' ? query.cursor : undefined;
   let models: Awaited<ReturnType<typeof api.models.list>>['data'] = [];
+  let nextCursor: string | null = null;
+  let totalCount: number | null = null;
   let error: string | null = null;
-  try {
-    models = (await api.models.list()).data;
-  } catch (caught) {
+  const [page, count] = await Promise.allSettled([api.models.list(cursor), api.models.count()]);
+  if (page.status === 'fulfilled') {
+    models = page.value.data;
+    nextCursor = page.value.meta.next_cursor;
+  } else {
+    const caught: unknown = page.reason;
     error = caught instanceof Error ? caught.message : String(caught);
   }
+  if (count.status === 'fulfilled') totalCount = count.value.data.count;
 
   const activeCount = models.filter((model) => model.isActive).length;
 
@@ -28,21 +38,30 @@ export default async function HomePage() {
         <NewModelForm />
       </section>
 
+      <section className="card stack" aria-labelledby="getting-started-heading">
+        <h2 id="getting-started-heading">What would you like to do?</h2>
+        <p className="subtle">Start with a talent profile below. Create content, review the saved media, then choose a publishing time in its workspace. Creating content does not publish it.</p>
+        <div className="row" style={{ flexWrap: 'wrap' }}>
+          <Link href="/connections/grok" className="btn secondary">Set up Grok &amp; media storage</Link>
+          <a href="#talent-profiles" className="btn secondary">Choose a talent profile</a>
+        </div>
+      </section>
+
       <section className="stat-grid" aria-label="Portfolio summary">
         <div className="stat-card">
           <span>Total talent</span>
-          <strong>{models.length}</strong>
-          <small>profiles in your studio</small>
+          <strong>{totalCount ?? 'Unavailable'}</strong>
+          <small>{totalCount === null ? 'Profile count could not be loaded' : 'profiles in your studio'}</small>
         </div>
         <div className="stat-card">
-          <span>Active now</span>
+          <span>Active on this page</span>
           <strong>{activeCount}</strong>
-          <small>ready for publishing</small>
+          <small>profiles marked active</small>
         </div>
         <div className="stat-card accent">
-          <span>Studio status</span>
-          <strong>{error ? 'Needs attention' : 'Ready'}</strong>
-          <small>{error ? 'API connection unavailable' : 'private systems connected'}</small>
+          <span>Profile list</span>
+          <strong>{error ? 'Unavailable' : 'Loaded'}</strong>
+          <small>{error ? 'Profile request failed' : `${models.length} profiles shown`}</small>
         </div>
       </section>
 
@@ -56,9 +75,9 @@ export default async function HomePage() {
       {models.length === 0 && !error && (
         <div className="empty-state card">
           <span className="empty-mark">A</span>
-          <h2>Your studio is ready.</h2>
+          <h2>{cursor ? 'No more profiles on this page.' : 'No talent profiles yet.'}</h2>
           <p>
-            Create your first talent profile to begin shaping her brand, content, and growth engine.
+            {cursor ? 'Return to the first page to view your roster.' : 'Create your first talent profile to begin.'}
           </p>
         </div>
       )}
@@ -69,12 +88,13 @@ export default async function HomePage() {
             <p className="eyebrow">Your roster</p>
             <h2>Talent profiles</h2>
           </div>
-          <span>{models.length} total</span>
+          <span>{models.length} shown</span>
         </div>
       )}
-      <div className="grid talent-grid">
+      <div id="talent-profiles" className="grid talent-grid" tabIndex={-1}>
         {models.map((model) => (
-          <Link key={model.id} href={`/models/${model.id}`} className="model-link">
+          <div key={model.id}>
+          <Link href={`/models/${model.id}`} className="model-link">
             <article className="card model-card">
               <div className="model-card-top">
                 <span className="talent-avatar small">
@@ -100,8 +120,19 @@ export default async function HomePage() {
               </span>
             </article>
           </Link>
+          <div className="row" style={{ flexWrap: 'wrap', marginTop: 12 }}>
+            <Link href={`/models/${model.id}/generation`} className="btn">Generate image or video</Link>
+            <Link href={`/models/${model.id}/approvals`} className="btn secondary">Review content</Link>
+          </div>
+          </div>
         ))}
       </div>
+      {(cursor || nextCursor) && (
+        <nav aria-label="Talent pagination" className="section-heading">
+          {cursor && <Link href="/">First page</Link>}
+          {!error && nextCursor && <Link href={`/?${new URLSearchParams({ cursor: nextCursor })}`}>Next page</Link>}
+        </nav>
+      )}
     </div>
   );
 }

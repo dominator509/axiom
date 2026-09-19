@@ -3,16 +3,18 @@
 // executor → mark done. Errors: backoff into ready, or dead (DLQ) at
 // max_attempts. Kill-switch parks re-queue with a delay instead of failing.
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db, schema } from '@axiom/db';
 import { backoffDelayMs } from './backoff.js';
-import { claimNextJob } from './claim.js';
+import { claimNextJob, claimNextModelMediaJob, type MediaWorkerScope } from './claim.js';
 import { defaultExecutors } from './executors/index.js';
-import { ParkJobError } from './executors/context.js';
+import { EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX, ParkJobError } from './executors/context.js';
 import type { Executor } from './executors/context.js';
 import type { JobRow } from './types.js';
 
 export interface WorkerOptions {
+  /** Explicit model-only media operation; no publishing or retry recovery. */
+  mediaScope?: MediaWorkerScope;
   workerId?: string;
   /** Milliseconds to sleep when the queue is empty. Default 1000. */
   pollIntervalMs?: number;
@@ -36,6 +38,17 @@ export interface WorkerStats {
 }
 
 const JOB_LEASE_HEARTBEAT_MS = 5 * 60_000;
+
+class JobLeaseLostError extends Error {
+  constructor(jobId: string) {
+    super(`worker: job ${jobId} lease ownership lost during execution`);
+    this.name = 'JobLeaseLostError';
+  }
+}
+
+interface LeaseState {
+  lost: JobLeaseLostError | null;
+}
 
 function ownedRunningJob(job: JobRow, workerId: string) {
   return and(
@@ -66,19 +79,60 @@ async function updateOwnedJob(
   if (!Array.isArray(rows) || rows.length !== 1) {
     throw new Error(`worker: job ${job.id} lease ownership lost before state transition`);
   }
+  // Executor writes roll back on failure. Persist the user-facing operation
+  // state in this same lease-checked recovery transaction instead.
+  if (values.state === 'ready' || values.state === 'dead') {
+    const table = job.kind === 'scrape.run' ? schema.scrapeRun
+      : job.kind === 'media.transform' ? schema.mediaOperation : null;
+    const operationId = job.kind === 'scrape.run' ? job.payload?.runId : job.payload?.operationId;
+    if (table && typeof operationId === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(operationId)) {
+      const terminal = values.state === 'dead';
+      await tx.update(table).set({
+        state: terminal ? 'failed' : 'queued',
+        error: terminal ? 'Processing failed. Check Incidents for job details.' : 'Processing will retry automatically.',
+        completedAt: terminal ? new Date() : null,
+      }).where(and(eq(table.id, operationId), eq(table.orgId, job.org_id),
+        sql`${table.state} <> 'completed'`));
+    }
+  }
+}
+
+/** A terminal media job must not leave its review card looking queued forever.
+ * Run in the same transaction as the owned job transition; a lost lease rolls
+ * both back. Lock the bundle first, matching the API's bundle/job lock order.
+ * Hold is not retry authorization: durable dispatch evidence still governs it.
+ */
+async function holdUnfinishedMediaBundle(tx: Parameters<Parameters<typeof db.transaction>[0]>[0], job: JobRow): Promise<void> {
+  const bundleId = job.payload?.bundleId;
+  if (job.kind !== 'media.generate' || typeof bundleId !== 'string'
+    || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(bundleId)) return;
+  await tx.update(schema.contentBundle).set({ state: 'hold', updatedAt: new Date() }).where(and(
+    eq(schema.contentBundle.id, bundleId), eq(schema.contentBundle.orgId, job.org_id),
+    eq(schema.contentBundle.state, 'generated'), isNull(schema.contentBundle.assetId),
+  ));
 }
 
 /** Renew a claimed job's lease without holding the executor transaction open. */
 async function renewJobLease(job: JobRow, workerId: string): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
-    await tx.update(schema.job).set({ lockedAt: new Date() }).where(ownedRunningJob(job, workerId));
+    const rows = await tx
+      .update(schema.job)
+      .set({ lockedAt: new Date() })
+      .where(ownedRunningJob(job, workerId))
+      .returning({ id: schema.job.id });
+    if (!Array.isArray(rows) || rows.length !== 1) {
+      throw new JobLeaseLostError(job.id);
+    }
   });
 }
 
-function startJobLeaseHeartbeat(job: JobRow, workerId: string): () => void {
+function startJobLeaseHeartbeat(job: JobRow, workerId: string, leaseState: LeaseState): () => void {
   const timer = setInterval(() => {
     void renewJobLease(job, workerId).catch((err: unknown) => {
+      if (!leaseState.lost) {
+        leaseState.lost = err instanceof JobLeaseLostError ? err : new JobLeaseLostError(job.id);
+      }
       console.error('[worker] job lease renewal failed:', (err as Error).message ?? String(err));
     });
   }, JOB_LEASE_HEARTBEAT_MS);
@@ -92,8 +146,9 @@ export async function readKillSwitch(tx: any, orgId: string): Promise<boolean> {
     .from(schema.orgSettings)
     .where(sql`${schema.orgSettings.orgId} = ${orgId}`)
     .limit(1);
-  if (rows.length === 0) return false; // default: publishing enabled
-  return !rows[0].publishingEnabled;
+  // A missing or malformed safety record must halt publishing until an
+  // operator has explicitly established the desired state.
+  return rows.length === 0 || rows[0]?.publishingEnabled !== true;
 }
 
 /**
@@ -111,7 +166,9 @@ export async function processJob(
     throw new Error(`worker: no executor for kind '${job.kind}'`);
   }
 
-  const stopLeaseHeartbeat = startJobLeaseHeartbeat(job, workerId);
+  const leaseState: LeaseState = { lost: null };
+  const stopLeaseHeartbeat = startJobLeaseHeartbeat(job, workerId, leaseState);
+  let externalSideEffectStarted = false;
   try {
     // claim_job set the org context only for ITS transaction; this executor
     // runs in a fresh txn, so set the org context from the claimed job first
@@ -119,7 +176,26 @@ export async function processJob(
     const result = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
       const killSwitchEnabled = await readKillSwitch(tx, job.org_id);
-      await executor({ tx, job, workerId, killSwitchEnabled });
+      await executor({
+        tx,
+        job,
+        workerId,
+        killSwitchEnabled,
+        markExternalSideEffect: () => {
+          if (leaseState.lost) throw leaseState.lost;
+          externalSideEffectStarted = true;
+        },
+        persistSideEffectMarker: async <T>(operation: (markerTx: any) => Promise<T>) => {
+          if (leaseState.lost) throw leaseState.lost;
+          return db.transaction(async (markerTx) => {
+            await markerTx.execute(
+              sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`,
+            );
+            return operation(markerTx);
+          });
+        },
+      });
+      if (leaseState.lost) throw leaseState.lost;
       await updateOwnedJob(tx, job, workerId, {
         state: 'done',
         completedAt: new Date(),
@@ -129,9 +205,40 @@ export async function processJob(
       });
       return 'done' as const;
     });
+    // Keep the claimed row's local snapshot aligned with the durable state so
+    // workerTick can report a useful outcome to the long-running loop.
+    job.last_error = null;
     return result;
   } catch (err) {
+    // A lost lease means another worker may own the row, or may reclaim it
+    // once the stale-lease window expires. Do not mutate it from this worker;
+    // leaving it running lets the database recovery path decide the next
+    // state without risking a conflicting retry or dead-letter transition.
+    if (err instanceof JobLeaseLostError || leaseState.lost) {
+      throw leaseState.lost ?? err;
+    }
+
+    // Once provider I/O has started, a later failure has an unknown external
+    // outcome. Retrying would be unsafe: the provider may already have
+    // accepted the publish/card. Dead-letter it for reconciliation instead.
+    if (externalSideEffectStarted) {
+      const message = (err as Error).message ?? String(err);
+      job.last_error = `${EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX} ${message}`;
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
+        await holdUnfinishedMediaBundle(tx, job);
+        await updateOwnedJob(tx, job, workerId, {
+          state: 'dead',
+          lastError: `${EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX} ${message}`,
+          lockedBy: null,
+          lockedAt: null,
+        });
+      });
+      return 'dead';
+    }
+
     if (err instanceof ParkJobError) {
+      job.last_error = err.message;
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
         await updateOwnedJob(tx, job, workerId, {
@@ -146,12 +253,14 @@ export async function processJob(
     }
 
     const message = (err as Error).message ?? String(err);
+    job.last_error = message;
     const attempts = (job.attempts ?? 0) + 1;
     const maxAttempts = opts.maxAttempts ?? job.max_attempts ?? 3;
 
     if (attempts >= maxAttempts) {
       await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`);
+        await holdUnfinishedMediaBundle(tx, job);
         await updateOwnedJob(tx, job, workerId, {
           state: 'dead',
           lastError: message,
@@ -196,8 +305,12 @@ export async function workerTick(opts: WorkerOptions = {}): Promise<WorkerStats>
   };
 
   const claimed = await db.transaction(async (tx) => {
-    const { job, empty } = await claimNextJob(tx, workerId);
+    const { job, empty } = opts.mediaScope
+      ? await claimNextModelMediaJob(tx, workerId, opts.mediaScope)
+      : await claimNextJob(tx, workerId);
     if (empty || !job) return null;
+    if (opts.mediaScope && (job.org_id !== opts.mediaScope.orgId || !['media.generate', 'tos.scan', 'media.transform'].includes(job.kind)))
+      throw new Error('Media worker claim escaped its scope');
     return job;
   });
 
@@ -208,13 +321,18 @@ export async function workerTick(opts: WorkerOptions = {}): Promise<WorkerStats>
 
   stats.claimed = 1;
   const outcome = await processJob(claimed, executors, workerId, {
-    maxAttempts: opts.maxAttempts,
+    // This mode intentionally never claims a second attempt. Do not enqueue a
+    // retry that it cannot process; expose failures for operator reconciliation.
+    maxAttempts: opts.mediaScope ? 1 : opts.maxAttempts,
   });
 
   if (outcome === 'done') stats.done = 1;
   else if (outcome === 'retry') stats.failed = 1;
   else if (outcome === 'dead') stats.dead = 1;
   else stats.parked = 1;
+  if (outcome !== 'done') {
+    stats.lastError = claimed.last_error ?? `job ${claimed.id} ended with ${outcome}`;
+  }
 
   return stats;
 }

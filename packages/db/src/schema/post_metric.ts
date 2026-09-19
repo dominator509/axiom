@@ -22,6 +22,7 @@ export const postMetric = pgTable(
       .references(() => postTarget.id),
     platform: text('platform').notNull(),
     remoteId: text('remote_id').notNull(),
+    source: text('source').$type<'provider' | 'manual' | 'legacy'>().notNull().default('legacy'),
     views: bigint('views', { mode: 'number' }).notNull().default(0),
     likes: bigint('likes', { mode: 'number' }).notNull().default(0),
     shares: bigint('shares', { mode: 'number' }).notNull().default(0),

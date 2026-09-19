@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { relayCaptionUpdate, relayScheduledFor } from './relay-command-inputs.js';
+import {
+  relayCaptionUpdate,
+  relayConnectionIds,
+  relayScheduledFor,
+} from './relay-command-inputs.js';
 
 describe('relay command input validation', () => {
   it('uses the only caption platform when no platform is supplied', () => {
@@ -32,5 +36,17 @@ describe('relay command input validation', () => {
     expect(() =>
       relayCaptionUpdate({ platform: 'not-a-platform', caption: 'Updated' }, {}),
     ).toThrow("unsupported caption platform 'not-a-platform'");
+  });
+
+  it('validates per-platform connection selections', () => {
+    expect(relayConnectionIds({ connectionIds: { instagram: 'connection-1' } })).toEqual({
+      instagram: 'connection-1',
+    });
+    expect(() => relayConnectionIds({ connectionIds: ['connection-1'] })).toThrow(
+      'must be an object keyed by platform',
+    );
+    expect(() => relayConnectionIds({ connectionIds: { instagram: '' } })).toThrow(
+      'must be a non-empty string',
+    );
   });
 });

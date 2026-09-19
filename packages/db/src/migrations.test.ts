@@ -61,6 +61,38 @@ const TS_TO_SQL: Record<string, string> = {
   relayBinding: 'relay_binding',
   agentPermission: 'agent_permission',
   crashReport: 'crash_report',
+  mcpTokenRevocation: 'mcp_token_revocation',
+  mcpCapabilityToken: 'mcp_capability_token',
+  cascadeTemplate: 'cascade_template',
+  variantExperiment: 'variant_experiment',
+  variantExperimentAssignment: 'variant_experiment_assignment',
+  scrapeRun: 'scrape_run',
+  teamShift: 'team_shift',
+  teamNote: 'team_note',
+  mediaOperation: 'media_operation',
+  playbookGuideline: 'playbook_guideline',
+  modelUserAssignment: 'model_user_assignment',
+  inboxReplyIntent: 'inbox_reply_intent',
+  inboxReplyReview: 'inbox_reply_review',
+  roleplayPersonaRevision: 'roleplay_persona_revision',
+  roleplayMemoryTurn: 'roleplay_memory_turn',
+  roleplayHandoff: 'roleplay_handoff',
+  roleplayTurn: 'roleplay_turn',
+  uiLocalePreference: 'ui_locale_preference',
+  affiliateProgram: 'affiliate_program',
+  affiliatePartner: 'affiliate_partner',
+  affiliateCampaign: 'affiliate_campaign',
+  affiliateAttributionEvent: 'affiliate_attribution_event',
+  affiliateConversion: 'affiliate_conversion',
+  affiliateCommissionEvent: 'affiliate_commission_event',
+  affiliateHold: 'affiliate_hold',
+  affiliatePayoutExport: 'affiliate_payout_export',
+  affiliateAuditEvent: 'affiliate_audit_event',
+  patreonCampaign: 'patreon_campaign',
+  patreonMembership: 'patreon_membership',
+  patreonPost: 'patreon_post',
+  patreonSyncState: 'patreon_sync_state',
+  patreonWebhookEvent: 'patreon_webhook_event',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -100,6 +132,9 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(runner).toContain('stream_migration_without_transaction_control');
     expect(runner).toContain('TO axiom_app;');
     expect(runner).toContain("TO axiom_app'");
+    // Database selection must be an option, not a positional argument before
+    // -c: native Windows psql otherwise silently ignores the ledger query.
+    expect(runner.match(/-d "\$MIGRATOR_DATABASE_URL"/g)).toHaveLength(4);
   });
 
   it('reclaims stale worker leases before selecting the next job', () => {
@@ -108,6 +143,48 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(sql).toContain('worker lease expired before completion');
     expect(sql).toContain(
       "state = CASE WHEN attempts + 1 >= max_attempts THEN 'dead' ELSE 'ready' END",
+    );
+  });
+
+  it('dead-letters stale jobs that may have an unknown external side effect', () => {
+    expect(sql).toContain("kind IN ('publish.target', 'relay.card')");
+    expect(sql).toContain('external-side-effect-unknown: worker lease expired before completion');
+  });
+
+  it('enforces the viral exemplar identity used by the worker upsert', () => {
+    expect(sql).toContain('viral_exemplar_identity');
+    expect(sql).toContain('UNIQUE (org_id, model_id, bundle_id, platform)');
+    expect(sql).toContain('deduplicate before applying 0022');
+  });
+
+  it('serializes concurrent pending relay-card dispatch markers', () => {
+    expect(sql).toContain('relay_card_pending_dispatch_unique');
+    expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS relay_card_pending_dispatch_unique');
+    expect(sql).toContain('ON relay_card (org_id, bundle_id, channel, external_ref)');
+    expect(sql).toContain("WHERE state = 'pending';");
+    expect(sql).toContain('deduplicate before applying 0023');
+  });
+
+  it('makes the stored-vs-dispatched relay-card lifecycle explicit', () => {
+    expect(sql).toContain('relay_card_state_allowed');
+    expect(sql).toContain("state NOT IN ('stored', 'pending', 'sent', 'failed', 'unknown')");
+    expect(sql).toContain("CHECK (state IN ('stored', 'pending', 'sent', 'failed', 'unknown'))");
+    expect(sql).toContain('stored means no external dispatch was attempted');
+  });
+
+  it('keeps durable scraper state aligned with partial result projection', () => {
+    expect(sql).toContain('scrape_run_state_check');
+    expect(sql).toContain("CHECK (state IN ('queued', 'running', 'completed', 'partial', 'failed'))");
+  });
+
+  it('locks the trusted cross-org egress resolver to the runtime and migrator roles', () => {
+    expect(sql).toContain('CREATE OR REPLACE FUNCTION load_model_network_configs()');
+    expect(sql).toContain('RETURNS SETOF public.model_network_configs');
+    expect(sql).toContain('SECURITY DEFINER');
+    expect(sql).toContain('REVOKE ALL ON FUNCTION load_model_network_configs() FROM PUBLIC;');
+    expect(sql).toContain('GRANT EXECUTE ON FUNCTION load_model_network_configs() TO axiom_app;');
+    expect(sql).toContain(
+      'GRANT EXECUTE ON FUNCTION load_model_network_configs() TO axiom_migrator;',
     );
   });
 
@@ -156,6 +233,35 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
         ],
       ],
       ['model_profile', ['handle TEXT NOT NULL', 'bio TEXT']],
+      [
+        'mcp_token_revocation',
+        [
+          'token_id TEXT PRIMARY KEY',
+          'revoked_at TIMESTAMPTZ NOT NULL',
+          'expires_at TIMESTAMPTZ NOT NULL',
+        ],
+      ],
+      [
+        'mcp_capability_token',
+        [
+          'token_id TEXT PRIMARY KEY',
+          'org_id UUID NOT NULL REFERENCES org(id) ON DELETE CASCADE',
+          'permission_id UUID NOT NULL REFERENCES agent_permission(id) ON DELETE CASCADE',
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          'expires_at TIMESTAMPTZ NOT NULL',
+          'revoked_at TIMESTAMPTZ',
+        ],
+      ],
+      [
+        'cascade_template',
+        [
+          'org_id UUID NOT NULL REFERENCES org(id) ON DELETE CASCADE',
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          'name TEXT NOT NULL',
+          'steps JSONB NOT NULL DEFAULT',
+          'enabled BOOLEAN NOT NULL DEFAULT true',
+        ],
+      ],
       [
         'consent_record',
         [
@@ -207,6 +313,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
         'content_bundle',
         [
           'asset_id UUID REFERENCES asset(id)',
+          'generation_recipe JSONB',
           'tos_report JSONB',
           "state TEXT NOT NULL DEFAULT 'generated'",
         ],
@@ -465,6 +572,60 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
           'UNIQUE (agent_ref, model_id)',
         ],
       ],
+      [
+        'team_shift',
+        [
+          'ADD COLUMN IF NOT EXISTS assignee_type TEXT NOT NULL DEFAULT',
+          'ADD COLUMN IF NOT EXISTS assignee_agent_ref TEXT',
+          'ALTER COLUMN assignee_user_id DROP NOT NULL',
+          'team_shift_actor_shape',
+          "assignee_type IN ('human', 'llm')",
+          'idx_team_shift_actor',
+        ],
+      ],
+      [
+        'roleplay_persona_revision',
+        [
+          'org_id UUID NOT NULL REFERENCES org(id) ON DELETE CASCADE',
+          'model_id UUID NOT NULL REFERENCES model_profile(id) ON DELETE CASCADE',
+          'source TEXT NOT NULL',
+          'revision INTEGER NOT NULL',
+          'content TEXT NOT NULL',
+          'roleplay_persona_scope_revision',
+        ],
+      ],
+      [
+        'roleplay_memory_turn',
+        [
+          'conversation_key TEXT NOT NULL',
+          'sequence INTEGER NOT NULL',
+          "role TEXT NOT NULL CHECK (role IN ('user', 'assistant'))",
+          "speaker_type TEXT NOT NULL CHECK (speaker_type IN ('human', 'llm'))",
+          'content TEXT NOT NULL',
+          'roleplay_memory_scope_sequence',
+        ],
+      ],
+      [
+        'roleplay_handoff',
+        [
+          'conversation_key TEXT NOT NULL',
+          "actor_type TEXT NOT NULL CHECK (actor_type IN ('human', 'llm'))",
+          'actor_ref TEXT NOT NULL',
+          'shift_id UUID NOT NULL REFERENCES team_shift(id)',
+          'payload JSONB NOT NULL',
+          'roleplay_handoff_scope_conversation',
+        ],
+      ],
+      [
+        'uiLocalePreference',
+        [
+          'org_id uuid NOT NULL REFERENCES org(id) ON DELETE CASCADE',
+          'user_id text REFERENCES auth_user(id) ON DELETE CASCADE',
+          'scope text NOT NULL',
+          'locale text NOT NULL',
+          'ui_locale_preference_locale_supported',
+        ],
+      ],
     ];
     for (const [tsName, fragments] of expectations) {
       const tableSql = sqlTableName(tsName);
@@ -480,7 +641,25 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // Auth identity tables are cross-tenant (session lookup happens before org
     // context exists) — excluded from the RLS sweep. All other tables are
     // org-scoped and must be RLS-protected (LBI-02).
-    const nonTenant = new Set(['auth_user', 'auth_session', 'auth_account', 'auth_verification']);
+    const nonTenant = new Set([
+      'auth_user',
+      'auth_session',
+      'auth_account',
+      'auth_verification',
+      // The denylist is deliberately global so every API instance can reject
+      // a revoked capability before model/org resolution.
+      'mcp_token_revocation',
+      // FanThynks SaaS acquisition state is platform-owned, not tenant data.
+      'affiliate_program',
+      'affiliate_partner',
+      'affiliate_campaign',
+      'affiliate_attribution_event',
+      'affiliate_conversion',
+      'affiliate_commission_event',
+      'affiliate_hold',
+      'affiliate_payout_export',
+      'affiliate_audit_event',
+    ]);
     // 0000/0001 emit literal ALTER statements; 0002 emits the same statements
     // through a DO block with format('...', t) — both patterns are valid.
     const doBlockTables = new Set([
@@ -526,8 +705,9 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 15 tables in 0000 (org_id + key lookup) + 1 in 0001 (org_id) +
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
-    // 29 in 0004 (job_pick + job_dedupe + 27 entity-table hot paths) — exact count.
-    expect(indexStatements).toHaveLength(69);
+    // Includes the durable MCP revocation and capability-registry indexes plus
+    // the seven platform affiliate lookup indexes.
+    expect(indexStatements).toHaveLength(100);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(

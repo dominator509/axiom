@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutationFetch } from '@/lib/mutation';
+import { readDashboardError } from '@/lib/response';
 
 const MODES = ['direct', 'socks5', 'http', 'https', 'wireguard', 'vpn'] as const;
 
 interface NetworkConfig {
-  egressMode?: string;
+  egressMode?: string | null;
   proxyAddr?: string | null;
   expectedEgressIp?: string | null;
 }
@@ -20,7 +21,7 @@ export default function NetworkForm({
   initial: NetworkConfig | null;
 }) {
   const router = useRouter();
-  const [mode, setMode] = useState<string>(initial?.egressMode ?? 'direct');
+  const [mode, setMode] = useState<string>(initial?.egressMode ?? '');
   const [proxyAddr, setProxyAddr] = useState(initial?.proxyAddr ?? '');
   const [expectedIp, setExpectedIp] = useState(initial?.expectedEgressIp ?? '');
   const [busy, setBusy] = useState(false);
@@ -29,20 +30,26 @@ export default function NetworkForm({
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!mode) {
+      setError('Choose an outbound connection before saving.');
+      return;
+    }
     setBusy(true);
     setError(null);
     setDone(false);
     try {
-      const body: Record<string, unknown> = { egressMode: mode };
-      if (proxyAddr) body.proxyAddr = proxyAddr;
-      if (expectedIp) body.expectedEgressIp = expectedIp;
+      const body = {
+        egressMode: mode,
+        proxyAddr: proxyAddr.trim() || null,
+        expectedEgressIp: expectedIp.trim() || null,
+      };
       const res = await mutationFetch(`/api/v1/models/${modelId}/network`, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
+        const b = await readDashboardError(res);
         setError(b?.error?.message ?? 'Save failed');
         return;
       }
@@ -59,7 +66,8 @@ export default function NetworkForm({
     <form onSubmit={onSubmit} className="stack" style={{ maxWidth: 480 }}>
       <div>
         <label htmlFor="mode">Egress mode</label>
-        <select id="mode" value={mode} onChange={(e) => setMode(e.target.value)}>
+        <select id="mode" required value={mode} onChange={(e) => setMode(e.target.value)}>
+          <option value="" disabled>Choose an outbound connection</option>
           {MODES.map((m) => (
             <option key={m} value={m}>
               {m}
@@ -67,6 +75,9 @@ export default function NetworkForm({
           ))}
         </select>
       </div>
+      {mode === 'direct' && (
+        <p role="status">Direct uses the server’s outbound IP without a VPN or proxy. Choose this only if you intend to use an unprotected connection.</p>
+      )}
       <div>
         <label htmlFor="proxyAddr">Proxy address (host:port)</label>
         <input

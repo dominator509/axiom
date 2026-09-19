@@ -1,13 +1,19 @@
 use axum::{
-    extract::Json,
-    http::StatusCode,
+    extract::{Json, Request},
+    http::{header, StatusCode},
+    middleware::{self, Next},
     response::IntoResponse,
+    response::Response,
     routing::{get, post},
     Router,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{info, instrument, warn};
+
+const SCRAPER_AUTH_TOKEN_ENV: &str = "AXIOM_SCRAPER_AUTH_TOKEN";
+const MAX_PROFILE_BODY_BYTES: usize = 2 * 1024 * 1024;
+const MAX_COMPETITOR_PLATFORMS: usize = 10;
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -49,6 +55,7 @@ impl IntoResponse for ScraperError {
 
 #[derive(Debug, Deserialize)]
 pub struct SocialScrapeRequest {
+    pub model_id: String,
     pub platform: String,
     pub profile_url: String,
 }
@@ -60,14 +67,15 @@ pub struct SocialScrapeResponse {
     pub display_name: String,
     pub bio: String,
     pub avatar_url: String,
-    pub followers: u64,
-    pub following: u64,
-    pub posts: u64,
+    pub followers: Option<u64>,
+    pub following: Option<u64>,
+    pub posts: Option<u64>,
     pub scraped_at: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CompetitorRequest {
+    pub model_id: String,
     pub brand_name: String,
     pub industry: String,
     pub platforms: Vec<String>,
@@ -77,9 +85,9 @@ pub struct CompetitorRequest {
 pub struct CompetitorResult {
     pub platform: String,
     pub profile_url: String,
-    pub followers: u64,
-    pub posts: u64,
-    pub engagement_rate: f64,
+    pub followers: Option<u64>,
+    pub posts: Option<u64>,
+    pub engagement_rate: Option<f64>,
     pub error: Option<String>,
 }
 
@@ -113,7 +121,8 @@ async fn scrape_social(
     );
 
     // Attempt to fetch the profile page
-    let html = fetch_page(&req.profile_url).await?;
+    let proxy = resolve_model_proxy(&req.model_id).await?;
+    let html = fetch_page(&req.profile_url, &proxy).await?;
 
     // Parse with scraper crate to extract what we can
     let (display_name, bio, avatar_url) = parse_profile_page(&html);
@@ -127,14 +136,14 @@ async fn scrape_social(
         display_name,
         bio,
         avatar_url,
-        followers: counts.followers.unwrap_or(0),
-        following: counts.following.unwrap_or(0),
-        posts: counts.posts.unwrap_or(0),
+        followers: counts.followers,
+        following: counts.following,
+        posts: counts.posts,
         scraped_at: now,
     };
 
     info!(
-        "scraped profile: name={}, followers={}",
+        "scraped profile: name={}, followers={:?}",
         response.display_name, response.followers
     );
     Ok(Json(response))
@@ -153,33 +162,38 @@ async fn scrape_competitor(
         req.brand_name, req.industry, req.platforms
     );
 
-    let mut results = Vec::with_capacity(req.platforms.len());
+    validate_competitor_platforms(&req.platforms)?;
+    let proxy = resolve_model_proxy(&req.model_id).await?;
 
-    for platform in &req.platforms {
-        let profile_url = build_platform_url(platform, &req.brand_name);
-        let result = match fetch_page(&profile_url).await {
-            Ok(html) => {
-                let counts = parse_profile_counts(&html);
-                CompetitorResult {
+    let brand = req.brand_name.clone();
+    let results = collect_profile_results(req.platforms, move |platform| {
+        let profile_url = build_platform_url(&platform, &brand);
+        let proxy = proxy.clone();
+        async move {
+            match fetch_page(&profile_url, &proxy).await {
+                Ok(html) => {
+                    let counts = parse_profile_counts(&html);
+                    CompetitorResult {
+                        platform: platform.clone(),
+                        profile_url,
+                        followers: counts.followers,
+                        posts: counts.posts,
+                        engagement_rate: None,
+                        error: None,
+                    }
+                }
+                Err(e) => CompetitorResult {
                     platform: platform.clone(),
                     profile_url,
-                    followers: counts.followers.unwrap_or(0),
-                    posts: counts.posts.unwrap_or(0),
-                    engagement_rate: 0.0,
-                    error: None,
-                }
+                    followers: None,
+                    posts: None,
+                    engagement_rate: None,
+                    error: Some(format!("{e}")),
+                },
             }
-            Err(e) => CompetitorResult {
-                platform: platform.clone(),
-                profile_url,
-                followers: 0,
-                posts: 0,
-                engagement_rate: 0.0,
-                error: Some(format!("{e}")),
-            },
-        };
-        results.push(result);
-    }
+        }
+    })
+    .await?;
 
     Ok(Json(CompetitorResponse {
         brand: req.brand_name,
@@ -192,8 +206,108 @@ async fn scrape_competitor(
 // Helper functions
 // ---------------------------------------------------------------------------
 
-/// Fetch a URL and return the HTML body as a string.
-async fn fetch_page(url: &str) -> Result<String, ScraperError> {
+// At most ten independent public-page lookups. Concurrent requests fit inside the
+// worker's 30s deadline (5s egress lookup + 15s page fetch), without multiplying
+// that deadline by the number of providers. Dropping the set aborts unfinished work.
+async fn collect_profile_results<F, Fut>(
+    platforms: Vec<String>,
+    fetch: F,
+) -> Result<Vec<CompetitorResult>, ScraperError>
+where
+    F: Fn(String) -> Fut,
+    Fut: std::future::Future<Output = CompetitorResult> + Send + 'static,
+{
+    validate_competitor_platforms(&platforms)?;
+    let mut pending = tokio::task::JoinSet::new();
+    for (index, platform) in platforms.into_iter().enumerate() {
+        let request = fetch(platform);
+        pending.spawn(async move { (index, request.await) });
+    }
+    let mut results = Vec::new();
+    while let Some(result) = pending.join_next().await {
+        results.push(result.map_err(|_| ScraperError::Parse("profile lookup task failed".into()))?);
+    }
+    results.sort_by_key(|(index, _)| *index);
+    Ok(results.into_iter().map(|(_, result)| result).collect())
+}
+
+fn proxy_from_status(status: &serde_json::Value, model_id: &str) -> Result<String, ScraperError> {
+    let denied = || ScraperError::Parse("model egress is unavailable or halted".to_string());
+    if status.get("kill_switch").and_then(|v| v.as_bool()) != Some(false) {
+        return Err(denied());
+    }
+    let models = status
+        .get("models")
+        .and_then(|v| v.as_array())
+        .ok_or_else(denied)?;
+    let model = models
+        .iter()
+        .find(|m| m.get("model_id").and_then(|v| v.as_str()) == Some(model_id))
+        .ok_or_else(denied)?;
+    if model.get("healthy").and_then(|v| v.as_bool()) != Some(true) {
+        return Err(denied());
+    }
+    let ip: std::net::IpAddr = model
+        .get("host_ip")
+        .and_then(|v| v.as_str())
+        .ok_or_else(denied)?
+        .parse()
+        .map_err(|_| denied())?;
+    Ok(format!("http://{}", std::net::SocketAddr::new(ip, 8080)))
+}
+
+async fn resolve_model_proxy(model_id: &str) -> Result<String, ScraperError> {
+    if model_id.len() != 36
+        || !model_id.chars().enumerate().all(|(i, c)| {
+            if [8, 13, 18, 23].contains(&i) {
+                c == '-'
+            } else {
+                c.is_ascii_hexdigit()
+            }
+        })
+    {
+        return Err(ScraperError::Parse(
+            "a valid model_id is required".to_string(),
+        ));
+    }
+    let origin =
+        std::env::var("EGRESS_PLANE_URL").unwrap_or_else(|_| "http://127.0.0.1:9090".to_string());
+    let token = std::env::var("EGRESS_PLANE_TOKEN").unwrap_or_default();
+    if token.trim().is_empty() {
+        return Err(ScraperError::Parse(
+            "egress authentication is not configured".to_string(),
+        ));
+    }
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(5))
+        .build()?;
+    let mut response = client
+        .get(format!("{}/egress/status", origin.trim_end_matches('/')))
+        .header("x-egress-plane-token", token.trim())
+        .send()
+        .await?;
+    if !response.status().is_success() {
+        return Err(ScraperError::Parse(
+            "egress status request failed".to_string(),
+        ));
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if bytes.len() + chunk.len() > 512 * 1024 {
+            return Err(ScraperError::Parse(
+                "egress status exceeds size limit".to_string(),
+            ));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    let status: serde_json::Value = serde_json::from_slice(&bytes)?;
+    proxy_from_status(&status, model_id)
+}
+
+/// Fetch a URL only through the model's authenticated egress-plane binding.
+async fn fetch_page(url: &str, proxy: &str) -> Result<String, ScraperError> {
     let parsed = reqwest::Url::parse(url)
         .map_err(|_| ScraperError::Parse("invalid profile URL".to_string()))?;
     if parsed.scheme() != "https" || !is_allowed_profile_host(parsed.host_str()) {
@@ -203,6 +317,8 @@ async fn fetch_page(url: &str) -> Result<String, ScraperError> {
     }
     info!("fetching: {url}");
     let client = reqwest::Client::builder()
+        .no_proxy()
+        .proxy(reqwest::Proxy::all(proxy)?)
         .timeout(std::time::Duration::from_secs(15))
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= 5 {
@@ -227,8 +343,43 @@ async fn fetch_page(url: &str) -> Result<String, ScraperError> {
             url
         )));
     }
-    let text = resp.text().await?;
-    Ok(text)
+    if resp
+        .content_length()
+        .map(|length| length > MAX_PROFILE_BODY_BYTES as u64)
+        .unwrap_or(false)
+    {
+        return Err(ScraperError::Parse(format!(
+            "profile response exceeds {MAX_PROFILE_BODY_BYTES} bytes"
+        )));
+    }
+
+    let mut body = Vec::new();
+    let mut resp = resp;
+    while let Some(chunk) = resp.chunk().await? {
+        append_limited_body(&mut body, &chunk)?;
+    }
+
+    String::from_utf8(body)
+        .map_err(|_| ScraperError::Parse("profile response is not valid UTF-8".to_string()))
+}
+
+fn validate_competitor_platforms(platforms: &[String]) -> Result<(), ScraperError> {
+    if platforms.is_empty() || platforms.len() > MAX_COMPETITOR_PLATFORMS {
+        return Err(ScraperError::Parse(format!(
+            "platforms must contain between 1 and {MAX_COMPETITOR_PLATFORMS} entries"
+        )));
+    }
+    Ok(())
+}
+
+fn append_limited_body(body: &mut Vec<u8>, chunk: &[u8]) -> Result<(), ScraperError> {
+    if body.len().saturating_add(chunk.len()) > MAX_PROFILE_BODY_BYTES {
+        return Err(ScraperError::Parse(format!(
+            "profile response exceeds {MAX_PROFILE_BODY_BYTES} bytes"
+        )));
+    }
+    body.extend_from_slice(chunk);
+    Ok(())
 }
 
 fn is_allowed_profile_host(host: Option<&str>) -> bool {
@@ -499,6 +650,75 @@ fn chrono_now_iso() -> String {
     )
 }
 
+/// Protect scrape routes when the sidecar crosses a process or container
+/// boundary. Loopback development remains credential-free, but non-loopback
+/// deployments must configure this token before they start listening.
+async fn require_internal_auth(request: Request, next: Next) -> Response {
+    let Some(expected) = configured_auth_token() else {
+        return next.run(request).await;
+    };
+
+    let authorized = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| bearer_token_authorized(Some(value), &expected))
+        .unwrap_or(false);
+
+    if authorized {
+        next.run(request).await
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, "Bearer")],
+            "scraper authentication required",
+        )
+            .into_response()
+    }
+}
+
+fn configured_auth_token() -> Option<String> {
+    std::env::var(SCRAPER_AUTH_TOKEN_ENV)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn bearer_token_authorized(header_value: Option<&str>, expected: &str) -> bool {
+    header_value
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(|provided| provided == expected)
+        .unwrap_or(false)
+}
+
+fn non_loopback_without_auth(addr: &str, auth_token: Option<&str>) -> bool {
+    let is_loopback = addr
+        .parse::<std::net::SocketAddr>()
+        .map(|socket| socket.ip().is_loopback())
+        .unwrap_or(false);
+    !is_loopback
+        && auth_token
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+}
+
+fn validate_bind_security(addr: &str) {
+    assert!(
+        !non_loopback_without_auth(addr, configured_auth_token().as_deref()),
+        "social-scraper refuses non-loopback bind addresses without {SCRAPER_AUTH_TOKEN_ENV}"
+    );
+}
+
+fn build_app() -> Router {
+    let protected_routes = Router::new()
+        .route("/scrape/social", post(scrape_social))
+        .route("/scrape/competitor", post(scrape_competitor))
+        .layer(middleware::from_fn(require_internal_auth));
+    Router::new()
+        .route("/health", get(health))
+        .merge(protected_routes)
+}
+
 fn is_leap(year: i64) -> bool {
     (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
 }
@@ -516,16 +736,12 @@ async fn main() {
         )
         .init();
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/scrape/social", post(scrape_social))
-        .route("/scrape/competitor", post(scrape_competitor));
-
     let addr = std::env::var("AXIOM_SCRAPER_ADDR").unwrap_or_else(|_| "127.0.0.1:8102".to_string());
+    validate_bind_security(&addr);
     info!("scraper listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, build_app()).await.unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -534,7 +750,62 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn competitor_lookups_overlap_and_preserve_requested_order() {
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(3));
+        let results = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            super::collect_profile_results(
+                vec!["instagram".into(), "tiktok".into(), "x".into()],
+                move |platform| {
+                    let barrier = barrier.clone();
+                    async move {
+                        barrier.wait().await;
+                        super::CompetitorResult {
+                            platform,
+                            profile_url: String::new(),
+                            followers: None,
+                            posts: None,
+                            engagement_rate: None,
+                            error: Some("unavailable".into()),
+                        }
+                    }
+                },
+            ),
+        )
+        .await
+        .expect("serial lookups deadlock at the barrier")
+        .unwrap();
+        assert_eq!(
+            results
+                .iter()
+                .map(|r| r.platform.as_str())
+                .collect::<Vec<_>>(),
+            vec!["instagram", "tiktok", "x"]
+        );
+        assert!(results.iter().all(|r| r.error.is_some()));
+    }
+    #[test]
+    fn unavailable_counts_serialize_as_null_not_zero() {
+        let result = super::CompetitorResult {
+            platform: "instagram".into(),
+            profile_url: "https://instagram.com/example".into(),
+            followers: Some(0),
+            posts: None,
+            engagement_rate: None,
+            error: None,
+        };
+        let json = serde_json::to_value(result).unwrap();
+        assert_eq!(json["followers"], 0);
+        assert!(json["posts"].is_null());
+        assert!(json["engagement_rate"].is_null());
+    }
     use super::*;
+    use axum::{body::Body, http::Request as HttpRequest};
+    use std::sync::OnceLock;
+    use tower::ServiceExt;
+
+    static AUTH_ENV_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 
     const INSTAGRAM_HTML: &str = r#"<html><head>
       <title>NASA (@nasa) • Instagram photos and videos</title>
@@ -638,5 +909,160 @@ mod tests {
         assert!(!is_allowed_profile_host(Some(
             "instagram.com.attacker.example"
         )));
+    }
+
+    #[test]
+    fn non_loopback_scraper_bind_requires_authentication() {
+        assert!(non_loopback_without_auth("0.0.0.0:8102", None));
+        assert!(non_loopback_without_auth("scraper:8102", None));
+        assert!(!non_loopback_without_auth("127.0.0.1:8102", None));
+        assert!(!non_loopback_without_auth(
+            "0.0.0.0:8102",
+            Some("internal-token")
+        ));
+        assert!(non_loopback_without_auth("0.0.0.0:8102", Some("  ")));
+    }
+
+    #[test]
+    fn scraper_requires_the_exact_healthy_model_and_open_kill_switch() {
+        let status = serde_json::json!({"kill_switch":false,"models":[
+            {"model_id":"one","healthy":true,"host_ip":"172.30.1.2"},
+            {"model_id":"two","healthy":false,"host_ip":"172.30.2.2"}
+        ]});
+        assert_eq!(
+            proxy_from_status(&status, "one").unwrap(),
+            "http://172.30.1.2:8080"
+        );
+        assert!(proxy_from_status(&status, "two").is_err());
+        assert!(proxy_from_status(&status, "absent").is_err());
+        let mut halted = status.clone();
+        halted["kill_switch"] = serde_json::json!(true);
+        assert!(proxy_from_status(&halted, "one").is_err());
+        halted["kill_switch"] = serde_json::Value::Null;
+        assert!(proxy_from_status(&halted, "one").is_err());
+        let mut invalid = status;
+        invalid["models"][0]["host_ip"] = serde_json::json!("attacker.example/path");
+        assert!(proxy_from_status(&invalid, "one").is_err());
+    }
+
+    #[tokio::test]
+    async fn scraper_uses_bound_proxy_connect_without_direct_fallback() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0u8; 4096];
+            let size = socket.read(&mut buffer).await.unwrap();
+            let request = String::from_utf8_lossy(&buffer[..size]).to_string();
+            socket
+                .write_all(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
+                .await
+                .unwrap();
+            request
+        });
+        let result = fetch_page("https://instagram.com/nasa", &proxy).await;
+        assert!(result.is_err());
+        let request = tokio::time::timeout(std::time::Duration::from_secs(5), server)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(request.starts_with("CONNECT instagram.com:443 "));
+    }
+
+    #[test]
+    fn scraper_auth_requires_the_exact_bearer_token() {
+        assert!(bearer_token_authorized(
+            Some("Bearer internal-token"),
+            "internal-token"
+        ));
+        assert!(!bearer_token_authorized(None, "internal-token"));
+        assert!(!bearer_token_authorized(
+            Some("Bearer wrong-token"),
+            "internal-token"
+        ));
+        assert!(!bearer_token_authorized(
+            Some("Basic internal-token"),
+            "internal-token"
+        ));
+    }
+
+    #[tokio::test]
+    async fn scrape_routes_require_auth_but_health_remains_public() {
+        let _guard = AUTH_ENV_LOCK
+            .get_or_init(|| tokio::sync::Mutex::new(()))
+            .lock()
+            .await;
+        let previous = std::env::var_os(SCRAPER_AUTH_TOKEN_ENV);
+        unsafe {
+            std::env::set_var(SCRAPER_AUTH_TOKEN_ENV, "internal-token");
+        }
+
+        let body = serde_json::to_vec(&serde_json::json!({
+            "platform": "instagram",
+            "profile_url": "https://instagram.com/nasa"
+        }))
+        .unwrap();
+        let request = |authorization: Option<&str>| {
+            let mut builder = HttpRequest::builder()
+                .method("POST")
+                .uri("/scrape/social")
+                .header("Content-Type", "application/json");
+            if let Some(value) = authorization {
+                builder = builder.header("Authorization", value);
+            }
+            builder.body(Body::from(body.clone())).unwrap()
+        };
+
+        let unauthorized_response = build_app().clone().oneshot(request(None)).await.unwrap();
+        assert_eq!(unauthorized_response.status(), StatusCode::UNAUTHORIZED);
+        let wrong_token_response = build_app()
+            .clone()
+            .oneshot(request(Some("Bearer wrong-token")))
+            .await
+            .unwrap();
+        assert_eq!(wrong_token_response.status(), StatusCode::UNAUTHORIZED);
+        let authorized_response = build_app()
+            .clone()
+            .oneshot(request(Some("Bearer internal-token")))
+            .await
+            .unwrap();
+        assert_ne!(authorized_response.status(), StatusCode::UNAUTHORIZED);
+        let health_response = build_app()
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(health_response.status(), StatusCode::UNAUTHORIZED);
+
+        unsafe {
+            match previous {
+                Some(value) => std::env::set_var(SCRAPER_AUTH_TOKEN_ENV, value),
+                None => std::env::remove_var(SCRAPER_AUTH_TOKEN_ENV),
+            }
+        }
+    }
+
+    #[test]
+    fn competitor_platform_count_is_bounded() {
+        assert!(validate_competitor_platforms(&[]).is_err());
+        assert!(validate_competitor_platforms(&["instagram".to_string()]).is_ok());
+        assert!(validate_competitor_platforms(&vec![
+            "instagram".to_string();
+            MAX_COMPETITOR_PLATFORMS + 1
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn profile_body_limit_rejects_oversize_responses() {
+        let mut body = Vec::new();
+        append_limited_body(&mut body, &vec![b'a'; MAX_PROFILE_BODY_BYTES]).unwrap();
+        assert_eq!(body.len(), MAX_PROFILE_BODY_BYTES);
+        assert!(append_limited_body(&mut body, b"x").is_err());
     }
 }

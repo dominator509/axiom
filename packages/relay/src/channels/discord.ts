@@ -6,7 +6,6 @@ import {
   ButtonStyle,
   EmbedBuilder,
   Interaction,
-  TextChannel,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
@@ -33,7 +32,10 @@ export class DiscordAdapter {
   private commandRouter?: CommandRouter;
   private interactionHandlerRegistered = false;
 
-  constructor(private config: DiscordConfig, commandRouter?: CommandRouter) {
+  constructor(
+    private config: DiscordConfig,
+    commandRouter?: CommandRouter,
+  ) {
     this.client = new Client({
       intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
     });
@@ -45,10 +47,7 @@ export class DiscordAdapter {
     return this.client;
   }
 
-  onCommand(
-    action: CardAction,
-    handler: CommandHandler,
-  ): void {
+  onCommand(action: CardAction, handler: CommandHandler): void {
     this.handlers.set(action, handler);
   }
 
@@ -81,9 +80,17 @@ export class DiscordAdapter {
     }
 
     const channel = await this.client.channels.fetch(channelId);
-    if (channel instanceof TextChannel) {
-      await channel.send({ embeds: [embed], components: rows });
+    if (!channel || typeof (channel as { send?: unknown }).send !== 'function') {
+      throw new Error(`Discord relay channel ${channelId} is not sendable`);
     }
+
+    // Threads, news channels, and DMs can all be valid Discord destinations;
+    // the durable success state depends on the send promise, not on the
+    // concrete TextChannel class.
+    await (channel as { send: (payload: unknown) => Promise<unknown> }).send({
+      embeds: [embed],
+      components: rows,
+    });
   }
 
   async handleInteraction(interaction: Interaction): Promise<void> {
@@ -107,11 +114,10 @@ export class DiscordAdapter {
     if (!sourceId) return;
     const handler = this.handlers.get(command.action);
     if (!handler) return;
-    await handler(command.action, command.cardId, {
+    await this.executeCommandInteraction(interaction, handler, command.action, command.cardId, {
       channel: 'discord',
       sourceId,
     });
-    await interaction.reply({ content: `Action processed`, ephemeral: true });
   }
 
   private async handleModalSubmit(interaction: any): Promise<void> {
@@ -132,12 +138,39 @@ export class DiscordAdapter {
               : {}),
           }
         : { scheduledFor: interaction.fields.getTextInputValue('scheduledFor') };
-    await handler(command.action, command.cardId, {
+    await this.executeCommandInteraction(interaction, handler, command.action, command.cardId, {
       channel: 'discord',
       sourceId,
       params,
     });
-    await interaction.reply({ content: `Action processed`, ephemeral: true });
+  }
+
+  private async executeCommandInteraction(
+    interaction: {
+      deferReply: (options: { ephemeral: boolean }) => Promise<unknown>;
+      editReply: (payload: { content: string }) => Promise<unknown>;
+    },
+    handler: CommandHandler,
+    action: CardAction,
+    cardId: string,
+    context: CommandContext,
+  ): Promise<void> {
+    // Discord requires an initial interaction acknowledgement within three
+    // seconds. Domain handlers may perform database and provider work, so
+    // acknowledge first and edit the deferred response when they finish.
+    await interaction.deferReply({ ephemeral: true });
+    try {
+      await handler(action, cardId, context);
+      await interaction.editReply({ content: 'Action processed' });
+    } catch (error) {
+      try {
+        await interaction.editReply({ content: 'Action failed; please retry.' });
+      } catch {
+        // Preserve the original handler error for the process-level logger if
+        // Discord also rejects the follow-up response.
+      }
+      throw error;
+    }
   }
 
   async login(): Promise<void> {
@@ -190,10 +223,7 @@ function isParameterizedAction(action: CardAction): action is 'edit_caption' | '
   return action === 'edit_caption' || action === 'reschedule';
 }
 
-function createActionModal(
-  action: 'edit_caption' | 'reschedule',
-  token: string,
-): ModalBuilder {
+function createActionModal(action: 'edit_caption' | 'reschedule', token: string): ModalBuilder {
   const modal = new ModalBuilder()
     .setCustomId(token)
     .setTitle(action === 'edit_caption' ? 'Edit caption' : 'Reschedule publish');

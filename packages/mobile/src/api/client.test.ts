@@ -144,6 +144,31 @@ describe('apiFetch', () => {
     expect(secondHeaders.get('Idempotency-Key')).toBe(firstHeaders.get('Idempotency-Key'));
   });
 
+  it('aborts a hung request at the configured timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock.mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), {
+            once: true,
+          });
+        });
+      });
+
+      const request = apiFetch<unknown>('/api/v1/digests', { timeoutMs: 25 });
+      const outcome = request.then(
+        () => null,
+        (error: unknown) => error,
+      );
+      await vi.advanceTimersByTimeAsync(25);
+
+      await expect(outcome).resolves.toMatchObject({ message: 'network error: aborted' });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('preserves an explicit BFF mutation intent key', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ success: true }));
 
@@ -232,6 +257,7 @@ describe('response parsing', () => {
             channel: 'digest',
             createdAt: '2026-08-03T00:00:00.000Z',
             config: { week: '2026-08-03' },
+            externalDelivery: 'not-attempted',
           },
         ],
         meta: { total: 1, limit: 20, next_cursor: 'abc' },
@@ -242,6 +268,7 @@ describe('response parsing', () => {
     expect(page.data).toHaveLength(1);
     expect(page.data[0]?.title).toBe('Weekly digest');
     expect(page.data[0]?.config).toEqual({ week: '2026-08-03' });
+    expect(page.data[0]?.externalDelivery).toBe('not-attempted');
     expect(page.meta.next_cursor).toBe('abc');
   });
 

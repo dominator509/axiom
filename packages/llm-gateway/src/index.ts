@@ -59,3 +59,47 @@ export type {
 // Paid API providers remain internal compatibility code and are intentionally
 // absent from the public package surface.
 export { VLLMProvider } from './providers/vllm.js';
+export { OfficialSubscriptionTransport } from './providers/subscription.js';
+export { characterLockSnapshot, buildMediaPrompt } from './media-prompt.js';
+export type { CharacterLockSnapshot } from './media-prompt.js';
+export type { GrokMediaRequest } from './providers/subscription.js';
+export {
+  normalizeR2ObjectKey,
+  withinR2ObjectLimits,
+} from './grok-r2-storage.js';
+export type { R2ObjectKeyKind, R2ObjectScope } from './grok-r2-storage.js';
+export {
+  boundRoleplayMemory,
+  formatRoleplayHandoff,
+  formatRoleplayMemory,
+  formatRoleplayPersona,
+  formatRoleplayPromptContext,
+  loadRoleplaySoulSnapshot,
+  parseRoleplayHandoff,
+  serializeRoleplayHandoff,
+  validateRoleplayHandoff,
+  validateRoleplayMemoryPolicy,
+  validateRoleplayPersonaSnapshot,
+  ROLEPLAY_ACTOR_TYPES,
+  ROLEPLAY_HANDOFF_SCHEMA,
+  ROLEPLAY_HANDOFF_VERSION,
+  ROLEPLAY_LIMITS,
+  ROLEPLAY_MEMORY_ROLES,
+  ROLEPLAY_PERSONA_SOURCES,
+} from './roleplay-context.js';
+export type {
+  RoleplayActor,
+  RoleplayActorType,
+  RoleplayHandoff,
+  RoleplayMemoryPolicy,
+  RoleplayMemoryRole,
+  RoleplayMemoryTurn,
+  RoleplayPromptContext,
+  RoleplaySoulDocument,
+  RoleplaySoulReader,
+  RoleplaySoulScope,
+  RoleplayHandoffDocument,
+  RoleplayPersonaSnapshot,
+  RoleplayPersonaMetadata,
+  RoleplayPersonaSource,
+} from './roleplay-context.js';

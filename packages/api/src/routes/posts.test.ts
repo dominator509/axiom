@@ -5,16 +5,24 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => ({
-  ...mockDbFactory({ postTarget: {}, contentBundle: {}, asset: {} }),
+  ...mockDbFactory({
+    postTarget: {},
+    contentBundle: {},
+    asset: {},
+    platformConnection: {},
+    job: { id: {}, orgId: {}, kind: {}, state: {}, payload: {}, lastError: {} },
+  }),
   getPublishingConsentStatus: vi.fn(async () => ({ ok: true, missing: [] })),
   consentRequirementMessage: vi.fn(
     (_status: unknown, platform: string) => `consent required for ${platform}`,
   ),
 }));
 vi.mock('@axiom/worker', () => ({
+  EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX: 'external-side-effect-unknown:',
   enqueueJob: vi.fn(async () => ({ id: 'job-1' })),
   resolveCapabilities: vi.fn((platform: string) => ({
-    media: platform === 'x' || platform === 'reddit' ? ['text'] : ['image'],
+    media: platform === 'youtube' || platform === 'tiktok' ? ['video', 'short']
+      : platform === 'x' || platform === 'reddit' ? ['text', 'image', 'video'] : ['image'],
   })),
   asPlatform: vi.fn((platform: string) => {
     const supported = [
@@ -43,6 +51,8 @@ const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 const BUNDLE_ID = '33333333-3333-4333-8333-333333333333';
 const POST_ID = '44444444-4444-4444-8444-444444444444';
+const CONNECTION_ID = '55555555-5555-4555-8555-555555555555';
+const SECOND_CONNECTION_ID = '66666666-6666-4666-8666-666666666666';
 
 function appWithOrg(orgId: string | null) {
   const app = new Hono<AppBindings>();
@@ -58,6 +68,7 @@ function appWithOrg(orgId: string | null) {
 beforeEach(() => {
   mockState.result = [];
   mockState.results = [];
+  mockState.updates = [];
   vi.mocked(enqueueJob).mockClear();
   vi.mocked(getPublishingConsentStatus).mockClear();
 });
@@ -103,6 +114,21 @@ describe('GET /models/:modelId/calendar', () => {
 });
 
 describe('POST /posts', () => {
+  it.each(['POST', 'PATCH'])('rejects unsupported image destinations via %s before mutation', async (method) => {
+    const bundle = { id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'approved', assetId: 'asset-1' };
+    mockState.results = method === 'POST'
+      ? [[], [bundle], [{ id: 'asset-1', kind: 'image' }]]
+      : [[], [{ id: POST_ID, orgId: ORG_ID, bundleId: BUNDLE_ID, platform: 'instagram', state: 'pending' }], [], [], [bundle], [{ id: 'asset-1', kind: 'image' }]];
+    const res = await appWithOrg(ORG_ID).request(method === 'POST' ? '/posts' : `/posts/${POST_ID}`, {
+      method, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...(method === 'POST' ? { bundleId: BUNDLE_ID } : {}), platform: 'youtube', scheduledFor: '2030-08-10T12:00:00Z' }),
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { detail: string }).detail).toContain('youtube does not support image assets');
+    expect(mockState.updates).toHaveLength(0);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
   it('rejects scheduling when the compliance record set is incomplete', async () => {
     mockState.result = [
       {
@@ -148,6 +174,7 @@ describe('POST /posts', () => {
       [],
       [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'approved', assetId: 'asset-1' }],
       [{ id: 'asset-1', kind: 'image' }],
+      [{ id: CONNECTION_ID, platform: 'instagram' }],
       mockState.result,
     ];
     const res = await appWithOrg(ORG_ID).request('/posts', {
@@ -156,6 +183,7 @@ describe('POST /posts', () => {
       body: JSON.stringify({
         bundleId: BUNDLE_ID,
         platform: 'instagram',
+        connectionId: CONNECTION_ID,
         scheduledFor: '2026-08-10T12:00:00Z',
       }),
     });
@@ -306,8 +334,11 @@ describe('PATCH /posts/:id', () => {
     mockState.results = [
       [],
       [pendingPost],
+      [], // no unknown-outcome job
+      [], // no unresolved dispatch marker
       [{ modelId: MODEL_ID, assetId: 'asset-1' }],
       [{ id: 'asset-1', kind: 'image' }],
+      [{ id: CONNECTION_ID, platform: 'instagram' }],
       [pendingPost],
     ];
     const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, {
@@ -338,6 +369,32 @@ describe('PATCH /posts/:id', () => {
     expect(enqueueJob).not.toHaveBeenCalled();
   });
 
+  it('rejects scheduling when multiple accounts require an explicit selection', async () => {
+    mockState.results = [
+      [],
+      [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'approved', assetId: 'asset-1' }],
+      [{ id: 'asset-1', kind: 'image' }],
+      [
+        { id: CONNECTION_ID, platform: 'instagram' },
+        { id: SECOND_CONNECTION_ID, platform: 'instagram' },
+      ],
+    ];
+
+    const res = await appWithOrg(ORG_ID).request('/posts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        bundleId: BUNDLE_ID,
+        platform: 'instagram',
+        scheduledFor: '2026-08-10T12:00:00Z',
+      }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain('multiple connected instagram accounts');
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
   it('rejects retargeting a text-only bundle to a media-only platform', async () => {
     mockState.results = [
       [],
@@ -351,6 +408,8 @@ describe('PATCH /posts/:id', () => {
           state: 'pending',
         },
       ],
+      [],
+      [],
       [{ assetId: null }],
     ];
 
@@ -404,16 +463,86 @@ describe('PATCH /posts/:id', () => {
 });
 
 describe('DELETE /posts/:id', () => {
-  it('unschedules a post (200)', async () => {
-    mockState.result = [{ id: POST_ID }];
+  it('cancels a pending post before provider handoff (200)', async () => {
+    mockState.results = [
+      [],
+      [{ id: POST_ID, state: 'pending', remoteId: null }],
+      [],
+      [],
+      [{ id: POST_ID, state: 'canceled' }],
+    ];
     const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, { method: 'DELETE' });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.success).toBe(true);
+    expect(body.data).toMatchObject({ id: POST_ID, state: 'canceled' });
+  });
+
+  it('rejects cancellation after provider handoff has started (409)', async () => {
+    mockState.results = [[], [{ id: POST_ID, state: 'pending', remoteId: 'provider-publish-id' }]];
+    const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, { method: 'DELETE' });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain(
+      'post cannot be unscheduled after publication begins',
+    );
+  });
+
+  it('preserves a pending target when a prior provider outcome is unknown (409)', async () => {
+    mockState.results = [
+      [],
+      [{ id: POST_ID, state: 'pending', remoteId: null }],
+      [{ id: 'dead-job' }],
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, { method: 'DELETE' });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).detail).toContain(
+      'provider outcome is unknown; reconcile the dead job',
+    );
   });
 
   it('returns 404 when the post is not in the org', async () => {
     const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, { method: 'DELETE' });
     expect(res.status).toBe(404);
+  });
+});
+
+describe('provider handoff guards', () => {
+  it.each(['PATCH', 'DELETE'])(
+    'blocks %s after a crash before dead-letter persistence',
+    async (method) => {
+      mockState.results = [
+        [],
+        [{ id: POST_ID, state: 'pending', remoteId: null }],
+        [], // worker has not yet recorded its dead job
+        [{ id: 'durable-dispatch-marker' }],
+      ];
+      const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, {
+        method,
+        ...(method === 'PATCH'
+          ? {
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ scheduledFor: '2026-08-12T12:00:00Z' }),
+            }
+          : {}),
+      });
+      expect(res.status).toBe(409);
+      expect(await res.json()).toMatchObject({
+        detail: expect.stringContaining('dispatch marker'),
+      });
+      expect(mockState.updates).toHaveLength(0);
+      expect(enqueueJob).not.toHaveBeenCalled();
+    },
+  );
+
+  it('blocks retargeting an asynchronous post with a provider ID', async () => {
+    mockState.results = [[], [{ id: POST_ID, state: 'pending', remoteId: 'provider-id' }]];
+    const res = await appWithOrg(ORG_ID).request(`/posts/${POST_ID}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ platform: 'tiktok' }),
+    });
+    expect(res.status).toBe(409);
+    expect(mockState.updates).toHaveLength(0);
+    expect(enqueueJob).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,4 @@
-import { api } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
 import LinkbioPanel from '@/components/LinkbioPanel';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +9,7 @@ interface ProviderRow {
   enabled: boolean;
   isPrimary: boolean;
   clicks?: number;
+  config?: Record<string, unknown> | null;
 }
 
 interface LinkbioAnalytics {
@@ -25,6 +26,8 @@ interface LinkbioData {
 
 export default async function LinkbioPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const session = await getSession();
+  const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   let data: LinkbioData | null = null;
   let analytics: LinkbioAnalytics | null = null;
   try {
@@ -54,8 +57,16 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
             {data.primary ? ` — primary: ${data.primary.kind}` : ''}
           </p>
         )}
-        <LinkbioPanel modelId={id} providers={data?.providers ?? []} />
+        <LinkbioPanel modelId={id} providers={data?.providers ?? []} canEdit={canEdit} />
       </div>
+      {data?.nativeEnabled && (
+        <p style={{ color: 'var(--muted)', fontSize: 12 }}>
+          Public page:{' '}
+          <a href={`/linkbio/${encodeURIComponent(id)}`} target="_blank" rel="noreferrer">
+            /linkbio/{id}
+          </a>
+        </p>
+      )}
       <p style={{ color: 'var(--muted)', fontSize: 12 }}>
         External Linktree, Beacons, and Fanlynks adapters are not available in this release.
       </p>

@@ -78,6 +78,13 @@ const validBody = {
 };
 
 describe('POST / — create config', () => {
+  it.each(['10.0.0.2', '10.0.0.2/33', '999.0.0.2/32', '10.0.0.2/32/extra'])('rejects invalid tunnel address %s', async wgInterfaceAddress => {
+    const res = await appWithOrg('org-1').request('/', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, wgInterfaceAddress }),
+    });
+    expect(res.status).toBe(400);
+  });
   it('rejects a request without an org context (401)', async () => {
     const res = await appWithOrg(null).request('/', {
       method: 'POST',
@@ -161,6 +168,7 @@ describe('POST / — create config', () => {
         proxyAddr: '127.0.0.1:1080',
         proxyUsername: 'alice\\ops',
         proxyPassword: 's3cret"line\nnext',
+        wgInterfaceAddress: '10.88.0.9/32',
       }),
     });
     expect(res.status).toBe(201);
@@ -174,6 +182,7 @@ describe('POST / — create config', () => {
     expect(JSON.parse(decoded)).toEqual({
       proxy_username: 'alice\\ops',
       proxy_password: 's3cret"line\nnext',
+      iface_addr: '10.88.0.9/32',
     });
     expect(callInit.body).not.toContain('s3cret');
   });
@@ -447,9 +456,9 @@ describe('Plane proxy endpoints', () => {
   });
 
   it('POST /plane/bind cannot override the authenticated organization', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ status: 'bound' }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ status: 'bound' }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
     mockState.result = [{ orgId: 'org-1' }];
     const res = await appWithOrg('org-1').request('/plane/bind', {
@@ -478,9 +487,11 @@ describe('Plane proxy endpoints', () => {
   });
 
   it('POST /plane/unbind requires an owned model before forwarding', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ status: 'unbound', model_id: MODEL_ID }), { status: 200 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ status: 'unbound', model_id: MODEL_ID }), { status: 200 }),
+      );
     vi.stubGlobal('fetch', fetchMock);
     mockState.result = [{ orgId: 'org-1' }];
     const res = await appWithOrg('org-1').request('/plane/unbind', {
@@ -497,25 +508,39 @@ describe('Plane proxy endpoints', () => {
     expect(payload).toEqual({ model_id: MODEL_ID, org_id: 'org-1' });
   });
 
-  it('POST /plane/sync asks the plane to sync configs from the DB', async () => {
+  it('POST /plane/sync scopes reconciliation to the authenticated model', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
         new Response(JSON.stringify({ status: 'synced', bound: 2 }), { status: 200 }),
       );
     vi.stubGlobal('fetch', fetchMock);
-    const res = await appWithOrg('org-1').request('/plane/sync', { method: 'POST' });
+    mockState.result = [{ orgId: 'org-1' }];
+    const res = await appWithOrg('org-1').request('/plane/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model_id: MODEL_ID }) });
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.status).toBe('synced');
     expect(body.data.bound).toBe(2);
+    expect(fetchMock.mock.calls[0][0]).toContain(`model_id=${MODEL_ID}&org_id=org-1`);
+    expect(fetchMock.mock.calls[0][0]).toContain('/egress/sync-model?');
+  });
+  it('rejects unscoped or cross-tenant sync without invoking the plane', async () => {
+    const send = vi.fn(); vi.stubGlobal('fetch', send);
+    expect((await appWithOrg('org-1').request('/plane/sync', { method: 'POST' })).status).toBe(400);
+    mockState.result = [];
+    expect((await appWithOrg('org-1').request('/plane/sync', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model_id: MODEL_ID }) })).status).toBe(404);
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('returns 502 when the plane is unreachable', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new TypeError('connect ECONNREFUSED postgres://db.internal:5432')),
+    );
     const res = await appWithOrg('org-1').request('/plane/status');
     expect(res.status).toBe(502);
     const body = (await res.json()) as any;
     expect(body.detail).toContain('egress plane unreachable');
+    expect(body.detail).not.toContain('db.internal');
   });
 });

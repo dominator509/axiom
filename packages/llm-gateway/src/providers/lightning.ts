@@ -15,6 +15,7 @@ import type {
   BaseProvider,
 } from './types.js';
 import { ProviderError } from './types.js';
+import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
 
 export const LIGHTNING_BASE_URL = 'https://lightning.ai';
 
@@ -29,12 +30,17 @@ export class LightningProvider implements BaseProvider {
   ) {}
 
   async chat(messages: ProviderMessage[], options?: ProviderOptions): Promise<ProviderChatResult> {
-    const res = await callLightning(this.apiKey, {
-      model: this.model,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      temperature: options?.temperature,
-      max_tokens: options?.maxTokens,
-    });
+    const res = await callLightning(
+      this.apiKey,
+      {
+        model: this.model,
+        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        temperature: options?.temperature,
+        max_tokens: options?.maxTokens,
+      },
+      options?.signal,
+      options?.fetchImpl ?? fetch,
+    );
     return {
       content: res.choices[0]?.message?.content ?? '',
       model: res.model ?? this.model,
@@ -52,12 +58,17 @@ export class LightningProvider implements BaseProvider {
     options?: ProviderOptions,
   ): AsyncIterable<ProviderStreamChunk> {
     try {
-      for await (const delta of streamLightning(this.apiKey, {
-        model: this.model,
-        messages: messages.map((m) => ({ role: m.role, content: m.content })),
-        temperature: options?.temperature,
-        max_tokens: options?.maxTokens,
-      })) {
+      for await (const delta of streamLightning(
+        this.apiKey,
+        {
+          model: this.model,
+          messages: messages.map((m) => ({ role: m.role, content: m.content })),
+          temperature: options?.temperature,
+          max_tokens: options?.maxTokens,
+        },
+        options?.signal,
+        options?.fetchImpl ?? fetch,
+      )) {
         yield { type: 'delta', content: delta };
       }
     } catch (err) {
@@ -166,10 +177,10 @@ export async function callLightning(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new Error(`Lightning API error ${res.status}: ${text}`);
   }
-  const data = (await res.json()) as AnthropicMessageResponse;
+  const data = await readProviderJson<AnthropicMessageResponse>(res);
   return toOpenAICompat(data);
 }
 
@@ -205,7 +216,7 @@ export async function* streamLightning(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new Error(`Lightning stream error ${res.status}: ${text}`);
   }
   const reader = res.body?.getReader();

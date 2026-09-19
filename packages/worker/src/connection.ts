@@ -4,12 +4,19 @@ import { schema } from '@axiom/db';
 import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
 import {
   createConnector,
+  FanvueConnector,
+  PatreonCommunityConnector,
   type ConnectorAuth,
   type SocialConnector,
+  type PatreonTransport,
 } from '@axiom/connectors';
-import type { Platform } from '@axiom/core';
+import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson, type Platform } from '@axiom/core';
+import { inboxMediaMetadata } from './inbox-media.js';
 
-const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? 'http://127.0.0.1:3000';
+const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
+const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
+  ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
+  : {};
 
 type PlatformConnectionRow = InferSelectModel<typeof schema.platformConnection>;
 
@@ -21,6 +28,11 @@ export interface TargetConnectionRef {
 export interface ResolvedTargetConnector {
   connection: PlatformConnectionRow;
   connector: SocialConnector;
+}
+
+export interface ResolvedPatreonConnector {
+  connection: PlatformConnectionRow;
+  connector: PatreonCommunityConnector;
 }
 
 /**
@@ -41,6 +53,116 @@ export async function connectorForConnection(
     connection,
     connector: createConnector(platform, auth, buildEgressFetch(proxy)),
   };
+}
+
+/**
+ * Resolve the read/sync-only Patreon community connector. Patreon is kept out
+ * of the SocialConnector registry so generic publish paths cannot select it.
+ */
+export async function patreonConnectorForConnection(
+  connection: PlatformConnectionRow,
+): Promise<ResolvedPatreonConnector> {
+  if (connection.platform !== 'patreon') {
+    throw new Error('connection is not a Patreon account');
+  }
+  const proxy = await resolveEgressProxy(connection.modelId);
+  if (!proxy) throw new Error(`model ${connection.modelId} has no healthy egress sidecar`);
+  const auth = await decryptConnectorAuth(connection);
+  const webhookSecret = auth.extra?.patreonWebhookSecret;
+  if (typeof webhookSecret !== 'string' || webhookSecret.length < 16) {
+    throw new Error('Patreon connection has no valid webhook secret');
+  }
+  const egressFetch = buildEgressFetch(proxy);
+  const json = async (url: string, init?: RequestInit) => {
+    const response = await egressFetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(30_000),
+    });
+    let body: unknown;
+    try {
+      body = await readBoundedResponseJson<unknown>(response);
+    } catch {
+      body = undefined;
+    }
+    return { status: response.status, body };
+  };
+  const transport: PatreonTransport = {
+    getJson: (url) => json(url),
+    postJson: (url, body) => json(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+    delete: async (url) => ({ status: (await json(url, { method: 'DELETE' })).status }),
+  };
+  return {
+    connection,
+    connector: new PatreonCommunityConnector({
+      auth,
+      transport,
+      ledger: createConnectionLedger(),
+      webhookSecret,
+    }),
+  };
+}
+
+/** Request-local replay guard; durable webhook/sync claims are stored by the API. */
+function createConnectionLedger() {
+  const seen = new Set<string>();
+  return {
+    claim(key: string): boolean {
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    },
+    seen(key: string): boolean { return seen.has(key); },
+  };
+}
+
+/** Financial reads share publishing's exact model-egress and encrypted credential boundary. */
+export async function earningsForConnection(connection: PlatformConnectionRow) {
+  if (connection.platform !== 'fanvue') throw new Error('Earnings are only supported for Fanvue');
+  const { connector } = await connectorForConnection(connection);
+  if (!(connector instanceof FanvueConnector)) throw new Error('Fanvue connector unavailable');
+  return connector.fetchEarningsSummary();
+}
+
+/** Read-only inbox access: never mark read, publish, or send a message. */
+export async function inboxForConnection(connection: PlatformConnectionRow, page: number, userUuid?: string) {
+  if (connection.platform !== 'fanvue') throw new Error('Inbox is only supported for Fanvue');
+  const { connector } = await connectorForConnection(connection);
+  if (!(connector instanceof FanvueConnector)) throw new Error('Fanvue connector unavailable');
+  return userUuid
+    ? { kind: 'messages' as const, ...await connector.fetchChatMessages(userUuid, page, 25) }
+    : { kind: 'chats' as const, ...await connector.fetchChats(page, 25) };
+}
+
+/** Resolve attachment metadata within the exact creator account and message.
+ * Signed provider URLs stay server-side; this is not a byte-preview endpoint.
+ */
+export async function inboxMediaForConnection(connection: PlatformConnectionRow, userUuid: string, messageUuid: string, mediaUuids: string[]) {
+  if (connection.platform !== 'fanvue') throw new Error('Inbox media is only supported for Fanvue');
+  const { connector } = await connectorForConnection(connection);
+  if (!(connector instanceof FanvueConnector)) throw new Error('Fanvue connector unavailable');
+  const media = await connector.fetchMessageMedia(userUuid, messageUuid, mediaUuids);
+  return inboxMediaMetadata(media, messageUuid, mediaUuids);
+}
+
+export async function inboxPreviewForConnection(connection: PlatformConnectionRow, userUuid: string, messageUuid: string,
+  mediaUuid: string, variant: 'main' | 'thumbnail' | 'thumbnail_gallery' | 'blurred', range?: string) {
+  if (connection.platform !== 'fanvue') throw new Error('Inbox preview is only supported for Fanvue');
+  const { connector } = await connectorForConnection(connection);
+  if (!(connector instanceof FanvueConnector)) throw new Error('Fanvue connector unavailable');
+  return { kind: 'preview' as const, ...await connector.fetchMessagePreview(userUuid, messageUuid, mediaUuid, variant, range) };
+}
+
+/** Resolve healthy model egress and credentials without dispatching a reply. */
+export async function prepareReplySender(connection: PlatformConnectionRow) {
+  if (connection.platform !== 'fanvue') throw new Error('Replies are only supported for Fanvue');
+  const { connector } = await connectorForConnection(connection);
+  if (!(connector instanceof FanvueConnector)) throw new Error('Fanvue connector unavailable');
+  return (counterpartUuid: string, text: string, beforeDispatch: () => Promise<void>) =>
+    connector.sendTextReply(counterpartUuid, text, beforeDispatch);
 }
 
 /** Resolve a stored platform identifier without allowing arbitrary dispatch. */
@@ -112,10 +234,12 @@ export async function resolvePlatformConnection(
  * fields, so provider identifiers and connector-specific values remain in
  * the same encrypted envelope as the token.
  */
-export async function decryptConnectorAuth(connection: PlatformConnectionRow): Promise<ConnectorAuth> {
+export async function decryptConnectorAuth(
+  connection: PlatformConnectionRow,
+): Promise<ConnectorAuth> {
   const response = await fetch(`${EGRESS_PLANE_URL}/egress/decrypt`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
     body: JSON.stringify({
       enc_token: Buffer.from(connection.encToken as Uint8Array).toString('base64'),
       enc_nonce: Buffer.from(connection.encNonce as Uint8Array).toString('base64'),
@@ -131,7 +255,7 @@ export async function decryptConnectorAuth(connection: PlatformConnectionRow): P
     throw new Error(`connection credential decrypt failed: HTTP ${response.status}`);
   }
 
-  const body = (await response.json()) as { plaintext?: string };
+  const body = await readBoundedResponseJson<{ plaintext?: string }>(response);
   if (!body.plaintext) throw new Error('connection credential decrypt returned no plaintext');
 
   const plaintext = Buffer.from(body.plaintext, 'base64').toString('utf8');
@@ -172,7 +296,8 @@ export function parseConnectorAuth(plaintext: string): ConnectorAuth {
   if (typeof record.refreshToken === 'string') auth.refreshToken = record.refreshToken;
   else if (typeof record.refresh_token === 'string') auth.refreshToken = record.refresh_token;
   if (typeof record.externalUserId === 'string') auth.externalUserId = record.externalUserId;
-  else if (typeof record.external_user_id === 'string') auth.externalUserId = record.external_user_id;
+  else if (typeof record.external_user_id === 'string')
+    auth.externalUserId = record.external_user_id;
   if (typeof record.expiresAt === 'number') auth.expiresAt = record.expiresAt;
   else if (typeof record.expires_at === 'number') auth.expiresAt = record.expires_at;
   if (record.extra && typeof record.extra === 'object' && !Array.isArray(record.extra)) {

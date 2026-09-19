@@ -6,16 +6,32 @@
 //  4. Write viral_exemplar (vector(768) via embedFeatures) + viral_recipe +
 //     viral_embedding (HNSW-indexed) in the same txn.
 
-import { eq, and, gte, desc } from 'drizzle-orm';
+import { eq, and, gte, desc, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { embedFeatures } from '../embedding.js';
+import { matchingCaptionGuidance } from '../caption-guidance.js';
+import { embedExemplarIntent } from '../embedding.js';
 import type { Executor, ExecutorContext } from './context.js';
+import { learningStructure, refreshLearningState } from '../learning-state.js';
+import { evaluateAutomaticVariants } from '../variant-auto-evaluation.js';
+import { recipeEvidence } from '../recipe-evidence.js';
 
 const LABEL_THRESHOLDS = { viral: 2, strong: 1, baseline: -1, weak: -Infinity };
 
 export interface ViralMetricSample {
   postTargetId: string;
   engagementRate: number;
+}
+
+export interface TimestampedViralMetricSample extends ViralMetricSample {
+  collectedAt?: Date | string | null;
+}
+
+interface ViralHistorySample extends TimestampedViralMetricSample {
+  views: number;
+  likes: number;
+  shares: number;
+  comments: number;
+  collectedAt: Date;
 }
 
 export interface ViralScore<T extends ViralMetricSample = ViralMetricSample> {
@@ -30,6 +46,20 @@ export function labelForZ(z: number): 'viral' | 'strong' | 'baseline' | 'weak' {
   if (z >= LABEL_THRESHOLDS.strong) return 'strong';
   if (z >= LABEL_THRESHOLDS.baseline) return 'baseline';
   return 'weak';
+}
+
+/**
+ * Keep the newest observation for each target from a newest-first snapshot
+ * query. Provider metrics are cumulative; scoring every poll would weight
+ * frequently-polled posts more heavily than other posts.
+ */
+export function latestMetricSamples<T extends TimestampedViralMetricSample>(history: T[]): T[] {
+  const seen = new Set<string>();
+  return history.filter((sample) => {
+    if (seen.has(sample.postTargetId)) return false;
+    seen.add(sample.postTargetId);
+    return true;
+  });
 }
 
 /** Score the requested target against the complete model/platform window. */
@@ -64,9 +94,11 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     .select()
     .from(schema.postTarget)
     .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)))
-    .limit(1);
+    .limit(1)
+    .for('update');
   if (targets.length === 0) throw new Error(`viral.label: target ${targetId} not found`);
   const target = targets[0];
+  if (target.state !== 'published' || !target.remoteId) return;
 
   const bundles = await tx
     .select()
@@ -77,10 +109,13 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     .limit(1);
   if (bundles.length === 0) throw new Error(`viral.label: bundle ${target.bundleId} not found`);
   const bundle = bundles[0];
+  const snapshot = target.publicationSnapshot;
+  if (!snapshot || snapshot.modelId !== bundle.modelId || typeof snapshot.caption !== 'string' || !Array.isArray(snapshot.hashtags)) return;
+  await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${job.org_id}:${bundle.modelId}:${target.platform}:learning`},0))`);
 
   // 1. Trailing window of this model+platform's performance (L3.5 §1.1: 72h default).
   const windowStart = new Date(Date.now() - 72 * 3600_000);
-  const history = await tx
+  const historyRows = (await tx
     .select({
       postTargetId: schema.postMetric.postTargetId,
       views: schema.postMetric.views,
@@ -88,6 +123,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
       shares: schema.postMetric.shares,
       comments: schema.postMetric.comments,
       engagementRate: schema.postMetric.engagementRate,
+      collectedAt: schema.postMetric.collectedAt,
     })
     .from(schema.postMetric)
     .innerJoin(schema.postTarget, eq(schema.postTarget.id, schema.postMetric.postTargetId))
@@ -98,10 +134,17 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
         eq(schema.contentBundle.orgId, job.org_id),
         eq(schema.contentBundle.modelId, bundle.modelId),
         eq(schema.postMetric.platform, target.platform),
+        eq(schema.postTarget.platform, target.platform),
+        eq(schema.postMetric.source, 'provider'),
+        eq(schema.postTarget.state, 'published'),
+        eq(schema.postMetric.remoteId, schema.postTarget.remoteId),
         gte(schema.postMetric.collectedAt, windowStart),
       ),
     )
-    .orderBy(desc(schema.postMetric.collectedAt));
+    .orderBy(desc(schema.postMetric.collectedAt), desc(schema.postMetric.id))) as ViralHistorySample[];
+  const history = latestMetricSamples(historyRows);
+  // Manual ingestion may request a refresh, but cannot supply learning evidence.
+  if (!history.some(row => row.postTargetId === targetId)) return;
 
   // 2. Perf score: z-score of the target's own engagement against the window.
   let score: ViralScore<(typeof history)[number]>;
@@ -116,34 +159,29 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
   const label = labelForZ(perfScore);
 
   // 4. Feature record + embedding (L3.5 §1.4).
-  const captions = (bundle.captions as Record<string, string> | null) ?? {};
+  const structure = learningStructure(snapshot.caption, snapshot.scheduledFor);
   const features: Record<string, unknown> = {
+    ...recipeEvidence(snapshot, target.publishedAt),
+    evidence_source: 'published-provider-snapshot-v2',
+    embedding_version: 'lexical-v1',
+    learning_arm: structure.arm,
+    learning_context: structure.context,
+    // Selection is not proof that guidance caused the observed outcome.
+    generation_guidance: matchingCaptionGuidance(snapshot.caption, snapshot.captionGuidance),
     platform: target.platform,
-    caption: captions[target.platform] ?? '',
-    hashtags: bundle.hashtags ?? [],
+    caption: snapshot.caption,
+    hashtags: snapshot.hashtags,
     perf_score: perfScore,
     label,
     window_count: history.length,
     window_mean: mean,
     window_std: std,
   };
-  const embedding = embedFeatures(features);
+  const embedding = embedExemplarIntent(`${features.caption} ${snapshot.hashtags.join(' ')}`);
 
-  // Upsert exemplar keyed by (model_id, bundle_id, platform) — re-labeling an
-  // existing exemplar is idempotent.
-  const existing = await tx
-    .select({ id: schema.viralExemplar.id })
-    .from(schema.viralExemplar)
-    .where(
-      and(
-        eq(schema.viralExemplar.orgId, job.org_id),
-        eq(schema.viralExemplar.modelId, bundle.modelId),
-        eq(schema.viralExemplar.bundleId, bundle.id),
-        eq(schema.viralExemplar.platform, target.platform),
-      ),
-    )
-    .limit(1);
-
+  // Atomically upsert the exemplar keyed by (org, model, bundle, platform).
+  // The unique constraint is the concurrency guard; a select-then-insert
+  // would allow concurrent metrics polls to create duplicate S2 context.
   const exemplarValues = {
     orgId: job.org_id,
     modelId: bundle.modelId,
@@ -155,19 +193,23 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
     label,
   };
 
-  if (existing.length > 0) {
-    await tx
-      .update(schema.viralExemplar)
-      .set(exemplarValues)
-      .where(
-        and(
-          eq(schema.viralExemplar.id, existing[0].id),
-          eq(schema.viralExemplar.orgId, job.org_id),
-        ),
-      );
-  } else {
-    await tx.insert(schema.viralExemplar).values(exemplarValues);
-  }
+  await tx
+    .insert(schema.viralExemplar)
+    .values(exemplarValues)
+    .onConflictDoUpdate({
+      target: [
+        schema.viralExemplar.orgId,
+        schema.viralExemplar.modelId,
+        schema.viralExemplar.bundleId,
+        schema.viralExemplar.platform,
+      ],
+      set: {
+        features: exemplarValues.features,
+        embedding: exemplarValues.embedding,
+        perfScore: exemplarValues.perfScore,
+        label: exemplarValues.label,
+      },
+    });
 
   // Recipe + embedding (L2.8 F-81/F-82).
   const [recipe] = await tx
@@ -176,6 +218,7 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
       orgId: job.org_id,
       modelId: bundle.modelId,
       platform: target.platform,
+      sourceTargetId: targetId,
       label,
       perfScore,
       recipe: features,
@@ -187,16 +230,31 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
         engagementRate: own.engagementRate,
       },
     })
+    .onConflictDoUpdate({
+      target: schema.viralRecipe.sourceTargetId,
+      set: {
+        label, perfScore, recipe: features,
+        realizedMetrics: {
+          views: own.views, likes: own.likes, shares: own.shares,
+          comments: own.comments, engagementRate: own.engagementRate,
+        },
+      },
+    })
     .returning();
 
   await tx
     .insert(schema.viralEmbedding)
     .values({
+      // A stable embedding identity per new attributed recipe avoids multiplying
+      // the learning pool on repeated cumulative provider observations.
+      id: recipe.id,
       orgId: job.org_id,
       recipeId: recipe.id,
       modelId: bundle.modelId,
       platform: target.platform,
       embedding,
     })
-    .onConflictDoNothing();
+    .onConflictDoUpdate({ target: schema.viralEmbedding.id, set: { embedding } });
+  await evaluateAutomaticVariants(tx, job.org_id, bundle.modelId, target.platform);
+  await refreshLearningState(tx, job.org_id, bundle.modelId, target.platform);
 };

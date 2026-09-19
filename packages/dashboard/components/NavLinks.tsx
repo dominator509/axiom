@@ -2,16 +2,25 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { workspaceDestinationAllowed } from '@/lib/navigation-role';
+import { useLocale } from './LocaleProvider';
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Talent', icon: 'talent' },
-  { href: '/audit', label: 'Audit trail', icon: 'audit' },
-  { href: '/incidents', label: 'Incidents', icon: 'incident' },
-  { href: '/killswitch', label: 'Safety', icon: 'safety' },
+  { href: '/', key: 'nav.talent', icon: 'talent' },
+  { href: '/shifts', key: 'nav.shifts', icon: 'digest' },
+  { href: '/members', key: 'nav.members', icon: 'talent' },
+  { href: '/connections/grok', key: 'nav.grokStorage', icon: 'connection' },
+  { href: '/audit', key: 'nav.audit', icon: 'audit' },
+  { href: '/incidents', key: 'nav.incidents', icon: 'incident' },
+  { href: '/killswitch', key: 'nav.safety', icon: 'safety' },
+  { href: '/settings', key: 'nav.settings', icon: 'settings' },
+  { href: '/digests', key: 'nav.digests', icon: 'digest' },
+  { href: '/affiliate', key: 'nav.affiliate', icon: 'affiliate' },
 ] as const;
 
 function NavIcon({ name }: { name: (typeof NAV_ITEMS)[number]['icon'] }) {
   const paths = {
+    connection: <path d="M8 12 12 8M7 13l-1 1a3 3 0 0 1-4-4l4-4a3 3 0 0 1 4 0m0 8a3 3 0 0 0 4 0l4-4a3 3 0 0 0-4-4l-1 1" />,
     talent: (
       <path d="M7.5 10.25a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5ZM2.25 18a5.25 5.25 0 0 1 10.5 0M15.5 7.25v7.5M11.75 11h7.5" />
     ),
@@ -22,6 +31,9 @@ function NavIcon({ name }: { name: (typeof NAV_ITEMS)[number]['icon'] }) {
     safety: (
       <path d="M10 2.25c2.1 1.45 4.08 2.12 6 2.25v4.75c0 4.13-2.38 6.95-6 8.5-3.62-1.55-6-4.37-6-8.5V4.5c1.92-.13 3.9-.8 6-2.25Zm-2.5 7.5 1.7 1.7 3.55-3.7" />
     ),
+    settings: <path d="M10 3v2m0 10v2M3 10h2m10 0h2M5.05 5.05l1.4 1.4m7.1 7.1 1.4 1.4m0-9.9-1.4 1.4m-7.1 7.1-1.4 1.4M13.5 10a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0Z" />,
+    digest: <path d="M4 4.5h12v11H4zM7 8h6M7 11h4M6 2.5v4M14 2.5v4" />,
+    affiliate: <path d="M7.5 13.5 4 17m8.5-11L16 3m-9.5 4.5 6 6m-7.25-8a2.75 2.75 0 1 1-3.9 3.9 2.75 2.75 0 0 1 3.9-3.9Zm7.5 7.5a2.75 2.75 0 1 1 3.9 3.9 2.75 2.75 0 0 1-3.9-3.9Z" />,
   } as const;
 
   return (
@@ -40,16 +52,17 @@ function NavIcon({ name }: { name: (typeof NAV_ITEMS)[number]['icon'] }) {
   );
 }
 
-export default function NavLinks() {
+export default function NavLinks({ role }: { role?: string | null }) {
   const pathname = usePathname();
+  const { t } = useLocale();
 
   return (
-    <nav className="nav" aria-label="Primary navigation">
-      {NAV_ITEMS.map((item) => {
+    <nav className="nav" aria-label={t('nav.primary')}>
+      {NAV_ITEMS.filter(item => workspaceDestinationAllowed(role, item.href)).map((item) => {
         const active =
           item.href === '/'
             ? pathname === '/' || pathname.startsWith('/models/')
-            : pathname.startsWith(item.href);
+            : pathname === item.href || pathname.startsWith(`${item.href}/`);
         return (
           <Link
             key={item.href}
@@ -58,7 +71,7 @@ export default function NavLinks() {
             aria-current={active ? 'page' : undefined}
           >
             <NavIcon name={item.icon} />
-            <span>{item.label}</span>
+            <span>{t(item.key)}</span>
           </Link>
         );
       })}

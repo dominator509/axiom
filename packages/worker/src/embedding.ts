@@ -6,6 +6,14 @@
 
 const DIM = 768;
 
+/** Lexical feature hashing shared by exemplar storage and intent queries. */
+export function embedExemplarIntent(text: string): number[] {
+  const tokens = text.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const features: Record<string, number> = {};
+  for (const token of tokens.slice(0, 4096)) features[`token:${token}`] = 1;
+  return embedFeatures(features);
+}
+
 /** Stable 32-bit hash from a string (FNV-1a). */
 function fnv1a(input: string): number {
   let h = 0x811c9dc5;

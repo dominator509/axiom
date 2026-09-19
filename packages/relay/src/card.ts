@@ -57,28 +57,27 @@ export interface RelayCard {
 // --- CardRenderer ---
 export class CardRenderer {
   renderBundleCard(bundle: BundleContent): RelayCard {
-    const verdicts: PlatformVerdict[] = bundle.targetPlatforms.map((platform) => ({
-      platform,
-      passed: (bundle.tosScores[platform] ?? 1) >= 0.7,
-      score: bundle.tosScores[platform] ?? 1,
-      reason:
-        (bundle.tosScores[platform] ?? 1) >= 0.7
-          ? 'ToS check passed'
-          : 'ToS check failed — score below threshold',
-    }));
+    const verdicts: PlatformVerdict[] = bundle.targetPlatforms.map((platform) => {
+      const rawScore = bundle.tosScores[platform];
+      const hasScore = typeof rawScore === 'number' && Number.isFinite(rawScore);
+      const score = hasScore ? Math.max(0, Math.min(1, rawScore)) : 0;
+      const passed = hasScore && score >= 0.7;
+      return {
+        platform,
+        passed,
+        score,
+        reason: !hasScore
+          ? 'ToS check unavailable — review required'
+          : passed
+            ? 'ToS check passed'
+            : 'ToS check failed — score below threshold',
+      };
+    });
 
     const allPassed = verdicts.every((v) => v.passed);
 
     const actions: CardAction[] = allPassed
-      ? [
-          'approve',
-          'approve_all',
-          'edit_caption',
-          'reschedule',
-          'reject',
-          'hold',
-          'publish_now',
-        ]
+      ? ['approve', 'approve_all', 'edit_caption', 'reschedule', 'reject', 'hold', 'publish_now']
       : ['regenerate', 'revise', 'reject', 'hold'];
 
     return {

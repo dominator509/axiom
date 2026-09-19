@@ -1,78 +1,110 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import './globals.css';
-import { getSession } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
 import KillSwitchBanner from '@/components/KillSwitchBanner';
 import NavLinks from '@/components/NavLinks';
 import SignOutButton from '@/components/SignOutButton';
+import { CATALOGS, LocaleCatalog, normalizeLocale } from '@axiom/core';
+import LocaleProvider from '@/components/LocaleProvider';
 
 export const metadata: Metadata = {
-  title: { default: 'AXIOM — Creator OS', template: '%s · AXIOM' },
+  title: { default: 'FanThynks — Creator OS', template: '%s · FanThynks' },
   description: 'Private creator intelligence and operations.',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
-  const email = (session as { user?: { email?: string } } | null)?.user?.email ?? 'operator';
+  const email = session?.user?.email ?? 'operator';
+  const role = session?.user?.role;
+  let uiLocale = 'en';
+  if (session?.user?.orgId) {
+    try { uiLocale = (await api.uiLocale.get()).data.locale; } catch { /* keep the safe fallback */ }
+  }
+  const locale = normalizeLocale(uiLocale) ?? 'en';
+  const copy = new LocaleCatalog(CATALOGS);
+  const t = (key: string, values?: Record<string, string | number>) => copy.t(locale, key, values);
+  const roleKeys: Record<string, string> = {
+    owner: 'role.owner',
+    manager: 'role.manager',
+    operator: 'role.operator',
+    analyst: 'role.analyst',
+    agent: 'role.agent',
+    chatter: 'role.chatter',
+    content_creator: 'role.contentCreator',
+    model: 'role.model',
+  };
+  const roleLabel = t(roleKeys[role ?? ''] ?? 'role.member');
 
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body>
         {!session ? (
           <main className="auth-shell">{children}</main>
+        ) : !session.user?.orgId ? (
+          <main className="auth-shell">
+            <section className="login-card" aria-labelledby="access-heading">
+              <h1 id="access-heading">{t('layout.authPendingTitle')}</h1>
+              <p>{t('layout.authPendingSignedIn', { email })}</p>
+              <p>{t('layout.authPendingContact')}</p>
+              <SignOutButton label={t('action.signOut')} />
+            </section>
+          </main>
         ) : (
+          <LocaleProvider initialLocale={locale}>
           <div className="app-shell">
+            <a href="#main-content" className="skip-link">{t('ui.skipToContent')}</a>
             <aside className="sidebar">
-              <Link href="/" className="brand" aria-label="AXIOM home">
-                <span className="brand-mark">A</span>
+              <Link href="/" className="brand" aria-label={t('layout.home')}>
+                <span className="brand-mark">F</span>
                 <span className="brand-copy">
-                  <strong>AXIOM</strong>
-                  <small>Creator intelligence</small>
+                  <strong>FanThynks</strong>
+                  <small>{t('brand.creatorIntelligence')}</small>
                 </span>
               </Link>
-              <p className="nav-kicker">Workspace</p>
-              <NavLinks />
+              <p className="nav-kicker">{t('layout.workspace')}</p>
+              <NavLinks role={role} />
               <div className="sidebar-spacer" />
               <div className="system-card">
-                <span className="status-dot" />
                 <div>
-                  <strong>Private cloud</strong>
-                  <span>All systems connected</span>
+                  <strong>{t('system.workspaceSession')}</strong>
+                  <span>{t('system.signedIn')}</span>
                 </div>
               </div>
               <div className="user-card">
                 <span className="user-avatar">{email.slice(0, 1).toUpperCase()}</span>
                 <div>
                   <strong>{email.split('@')[0]}</strong>
-                  <span>Studio owner</span>
+                  <span>{roleLabel}</span>
                 </div>
-                <SignOutButton />
+                <SignOutButton label={t('action.signOut')} />
               </div>
             </aside>
             <div className="workspace">
               <header className="mobile-bar">
                 <Link href="/" className="brand compact">
-                  <span className="brand-mark">A</span>
-                  <strong>AXIOM</strong>
+                  <span className="brand-mark">F</span>
+                  <strong>FanThynks</strong>
                 </Link>
                 <div className="mobile-actions">
-                  <span className="eyebrow">Creator OS</span>
-                  <SignOutButton />
+                  <span className="eyebrow">{t('brand.creatorOs')}</span>
+                  <SignOutButton label={t('action.signOut')} />
                 </div>
               </header>
               <div className="mobile-nav">
-                <NavLinks />
+                <NavLinks role={role} />
               </div>
-              <KillSwitchBanner />
-              <main className="main">{children}</main>
+              {role === 'owner' && <KillSwitchBanner />}
+              <main id="main-content" tabIndex={-1} className="main">{children}</main>
               <footer className="footer">
-                <span>Private by design · self-hosted</span>
+                <span>{t('layout.privateByDesign')}</span>
                 <Link href="/api/v1/health">
-                  <span className="status-dot" /> System health
+                  {t('layout.systemHealth')}
                 </Link>
               </footer>
             </div>
           </div>
+          </LocaleProvider>
         )}
       </body>
     </html>

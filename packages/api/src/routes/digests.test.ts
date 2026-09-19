@@ -72,6 +72,7 @@ describe('GET /digests', () => {
         id: 'card-1',
         orgId: ORG_ID,
         channel: 'digest',
+        state: 'stored',
         title: 'Weekly digest — 2026-08-03',
         createdAt: new Date('2026-08-07T00:00:00Z'),
       },
@@ -81,6 +82,7 @@ describe('GET /digests', () => {
     const body = (await res.json()) as any;
     expect(body.data).toHaveLength(1);
     expect(body.data[0].channel).toBe('digest');
+    expect(body.data[0].externalDelivery).toBe('not-attempted');
     expect(body.meta.next_cursor).toBeNull();
   });
 

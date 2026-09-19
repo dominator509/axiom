@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,17 +11,36 @@ import {
 } from 'react-native';
 
 import { signIn, type SessionUser } from '../api/auth';
+import { getUiLocale } from '../api/endpoints';
+import { CATALOGS, LocaleCatalog, type SupportedLocale } from '@axiom/core';
 import { palette, surfaceShadow } from '../theme';
 
 interface LoginScreenProps {
   onAuthed: (user: SessionUser) => void;
 }
 
+export interface LoginViewProps {
+  locale: SupportedLocale;
+  email: string;
+  password: string;
+  busy: boolean;
+  error: string | null;
+  canSubmit: boolean;
+  onEmailChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onSubmit: () => void;
+}
+
 export default function LoginScreen({ onAuthed }: LoginScreenProps) {
+  const [locale, setLocale] = useState<SupportedLocale>('en');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void getUiLocale().then(snapshot => setLocale(snapshot.locale)).catch(() => undefined);
+  }, []);
 
   async function handleSubmit() {
     if (busy) return;
@@ -30,14 +49,46 @@ export default function LoginScreen({ onAuthed }: LoginScreenProps) {
     try {
       const result = await signIn(email.trim(), password);
       onAuthed(result.user);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+    } catch {
+      setError(new LocaleCatalog(CATALOGS).t(locale, 'auth.signInFailed'));
     } finally {
       setBusy(false);
     }
   }
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !busy;
+
+  return (
+    <LoginView
+      locale={locale}
+      email={email}
+      password={password}
+      busy={busy}
+      error={error}
+      canSubmit={canSubmit}
+      onEmailChange={setEmail}
+      onPasswordChange={setPassword}
+      onSubmit={() => void handleSubmit()}
+    />
+  );
+}
+
+export function LoginView({
+  locale,
+  email,
+  password,
+  busy,
+  error,
+  canSubmit,
+  onEmailChange,
+  onPasswordChange,
+  onSubmit,
+}: LoginViewProps) {
+  const localeCatalog = useMemo(() => new LocaleCatalog(CATALOGS), []);
+  const t = useCallback(
+    (key: string, values?: Record<string, string | number>) => localeCatalog.t(locale, key, values),
+    [locale, localeCatalog],
+  );
 
   return (
     <KeyboardAvoidingView
@@ -50,41 +101,41 @@ export default function LoginScreen({ onAuthed }: LoginScreenProps) {
         <View style={styles.brandMark}>
           <Text style={styles.brandLetter}>A</Text>
         </View>
-        <Text style={styles.logo}>AXIOM</Text>
-        <Text style={styles.kicker}>YOUR PRIVATE CREATOR OS</Text>
-        <Text style={styles.promise}>Run your world.{`\n`}Beautifully.</Text>
+        <Text style={styles.logo}>FanThynks</Text>
+        <Text style={styles.kicker}>{t('auth.privateCreatorOs')}</Text>
+        <Text style={styles.promise}>{t('auth.runWorld')}{`\n`}{t('auth.beautifully')}</Text>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.welcome}>Welcome back</Text>
-        <Text style={styles.subtitle}>Enter your studio to continue.</Text>
+        <Text style={styles.welcome}>{t('auth.welcomeBack')}</Text>
+        <Text style={styles.subtitle}>{t('auth.signInContinue')}</Text>
 
-        <Text style={styles.label}>EMAIL</Text>
+        <Text style={styles.label}>{t('auth.email')}</Text>
         <TextInput
           style={styles.input}
           value={email}
-          onChangeText={setEmail}
-          placeholder="you@studio.com"
+          onChangeText={onEmailChange}
+          placeholder={t('auth.emailPlaceholder')}
           placeholderTextColor={palette.faint}
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
           textContentType="emailAddress"
-          accessibilityLabel="Email"
+          accessibilityLabel={t('auth.email')}
         />
 
-        <Text style={styles.label}>PASSWORD</Text>
+        <Text style={styles.label}>{t('auth.password')}</Text>
         <TextInput
           style={styles.input}
           value={password}
-          onChangeText={setPassword}
+          onChangeText={onPasswordChange}
           placeholder="••••••••"
           placeholderTextColor={palette.faint}
           secureTextEntry
           textContentType="password"
-          accessibilityLabel="Password"
+          accessibilityLabel={t('auth.password')}
           onSubmitEditing={() => {
-            if (canSubmit) void handleSubmit();
+            if (canSubmit) onSubmit();
           }}
         />
 
@@ -95,20 +146,20 @@ export default function LoginScreen({ onAuthed }: LoginScreenProps) {
             !canSubmit && styles.buttonDisabled,
             pressed && canSubmit && styles.buttonPressed,
           ]}
-          onPress={() => void handleSubmit()}
+          onPress={onSubmit}
           disabled={!canSubmit}
           accessibilityRole="button"
-          accessibilityLabel="Sign in"
+          accessibilityLabel={t('auth.signIn')}
         >
           {busy ? (
             <ActivityIndicator color={palette.roseInk} />
           ) : (
-            <Text style={styles.buttonText}>Enter studio</Text>
+            <Text style={styles.buttonText}>{t('auth.signIn')}</Text>
           )}
         </Pressable>
         <View style={styles.securityLine}>
           <View style={styles.liveDot} />
-          <Text style={styles.securityText}>ENCRYPTED · TENANT ISOLATED</Text>
+          <Text style={styles.securityText}>{t('auth.protected')}</Text>
         </View>
       </View>
     </KeyboardAvoidingView>

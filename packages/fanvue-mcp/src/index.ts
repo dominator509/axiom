@@ -12,12 +12,19 @@ export type {
   ReplyResult,
 } from './client.js';
 
-export { ToSEngine, DEFAULT_PLATFORM_THRESHOLDS, PLATFORM_RULES } from './tos-engine.js';
+export {
+  ToSEngine,
+  DEFAULT_PLATFORM_THRESHOLDS,
+  PLATFORM_RULES,
+  evaluateTextToS,
+} from './tos-engine.js';
 export type {
   PlatformScore,
   EvaluationResult,
   ImageClassification,
   PlatformRule,
+  TextToSResult,
+  TrustedVisionAnalysis,
 } from './tos-engine.js';
 
 export { PrePostHook } from './prepost.js';
@@ -35,4 +42,4 @@ export { TokenKillerAssembler, alignBlocks, cacheKey } from './tokenkiller.js';
 export type { TokenKillerSegments, CacheEntry, PrefixVersion } from './tokenkiller.js';
 
 export { VisionEngineClient } from './vision.js';
-export type { TosClassifyResult, NsfwDetectResult, VisionEngineConfig } from './vision.js';
+export type { TosClassifyResult, NsfwDetectResult, VisionAnalysis, VisionEngineConfig } from './vision.js';

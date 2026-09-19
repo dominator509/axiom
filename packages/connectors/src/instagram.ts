@@ -14,12 +14,20 @@ import type {
   MediaType,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
-import { validatePublish } from './validation.js';
+import { mediaTypeHint, validatePublish } from './validation.js';
 
 const IG_GRAPH_BASE = 'https://graph.facebook.com/v22.0';
+const CONTAINER_POLL_INTERVAL_MS = 60_000;
+const CONTAINER_POLL_ATTEMPTS = 5;
 
 interface IgMediaContainerResponse {
   id: string;
+}
+
+interface IgContainerStatusResponse {
+  id: string;
+  status_code?: 'EXPIRED' | 'ERROR' | 'FINISHED' | 'IN_PROGRESS' | 'PUBLISHED';
+  status?: string;
 }
 
 interface IgPublishResponse {
@@ -56,7 +64,9 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
       maxMediaCount: 10,
       caption: true,
       maxCaptionLength: 2_200,
-      scheduling: 'native' as const,
+      // The worker owns the scheduled slot and invokes this connector when
+      // it is due; this connector does not send a provider-side schedule.
+      scheduling: 'internal' as const,
       metrics: ['impressions', 'likes', 'comments', 'shares', 'saves'],
       refreshMetrics: true,
     };
@@ -93,21 +103,21 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
         }
 
         const mediaUrl = input.mediaUrls[0];
-        const mediaType = this.detectMediaType(mediaUrl);
-        const storyBody: Record<string, string> = {
+        const mediaType = this.detectMediaType(mediaUrl, mediaTypeHint(input));
+        const storyParams: Record<string, string> = {
           media_type: 'STORIES',
           access_token: accessToken,
           ...(mediaType === 'video' ? { video_url: mediaUrl } : { image_url: mediaUrl }),
         };
         const storyContainer = await this.apiPost<IgMediaContainerResponse>(
-          `${IG_GRAPH_BASE}/${igUserId}/media`,
-          storyBody,
-          { 'Content-Type': 'application/json' },
+          this.graphUrl(`${IG_GRAPH_BASE}/${igUserId}/media`, storyParams),
         );
+        await this.waitForContainerReady(storyContainer.id);
         const publishResp = await this.apiPost<IgPublishResponse>(
-          `${IG_GRAPH_BASE}/${igUserId}/media_publish`,
-          { creation_id: storyContainer.id, access_token: accessToken },
-          { 'Content-Type': 'application/json' },
+          this.graphUrl(`${IG_GRAPH_BASE}/${igUserId}/media_publish`, {
+            creation_id: storyContainer.id,
+            access_token: accessToken,
+          }),
         );
 
         return {
@@ -124,28 +134,27 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
       const creationIds: string[] = [];
 
       for (const mediaUrl of input.mediaUrls) {
-        const mediaType = this.detectMediaType(mediaUrl);
+        const mediaType = this.detectMediaType(mediaUrl, mediaTypeHint(input));
 
-        const body: Record<string, string> = {
+        const params: Record<string, string> = {
           image_url: mediaUrl,
           access_token: accessToken,
         };
 
         if (mediaType === 'video') {
-          body.media_type = 'VIDEO';
-          body.video_url = mediaUrl;
-          delete body.image_url;
+          params.media_type = input.mediaUrls.length > 1 ? 'VIDEO' : 'REELS';
+          params.video_url = mediaUrl;
+          delete params.image_url;
         }
-        if (input.mediaUrls.length > 1) body.is_carousel_item = 'true';
-        else body.caption = input.caption;
+        if (input.mediaUrls.length > 1) params.is_carousel_item = 'true';
+        else params.caption = input.caption;
 
         const createResp = await this.apiPost<IgMediaContainerResponse>(
-          `${IG_GRAPH_BASE}/${igUserId}/media`,
-          body,
-          { 'Content-Type': 'application/json' },
+          this.graphUrl(`${IG_GRAPH_BASE}/${igUserId}/media`, params),
         );
 
         creationIds.push(createResp.id);
+        await this.waitForContainerReady(createResp.id);
         this.log('info', 'publish', `Created media container ${createResp.id}`, {
           mediaUrl,
           mediaType,
@@ -156,25 +165,25 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
         creationIds.length > 1
           ? (
               await this.apiPost<IgMediaContainerResponse>(
-                `${IG_GRAPH_BASE}/${igUserId}/media`,
-                {
+                this.graphUrl(`${IG_GRAPH_BASE}/${igUserId}/media`, {
                   media_type: 'CAROUSEL',
                   children: creationIds.join(','),
                   caption: input.caption,
                   access_token: accessToken,
-                },
-                { 'Content-Type': 'application/json' },
+                }),
               )
             ).id
           : creationIds[0];
 
       if (!publishCreationId) throw new Error('Instagram did not return a publish container ID');
+      if (creationIds.length > 1) await this.waitForContainerReady(publishCreationId);
 
       // Step 2: Publish the single container (or carousel parent).
       const publishResp = await this.apiPost<IgPublishResponse>(
-        `${IG_GRAPH_BASE}/${igUserId}/media_publish`,
-        { creation_id: publishCreationId, access_token: accessToken },
-        { 'Content-Type': 'application/json' },
+        this.graphUrl(`${IG_GRAPH_BASE}/${igUserId}/media_publish`, {
+          creation_id: publishCreationId,
+          access_token: accessToken,
+        }),
       );
       const lastRemoteId = publishResp.id;
       this.log(
@@ -194,12 +203,9 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
-    const accessToken = this.auth.accessToken;
-
     const metrics = await this.apiGet<IgInsightsResponse>(
       `${IG_GRAPH_BASE}/${remoteId}/insights` +
-        `?metric=impressions,likes,comments,shares,saved` +
-        `&access_token=${accessToken}`,
+        '?metric=impressions,likes,comments,shares,saved',
     );
 
     const result: Partial<Record<string, number>> = {};
@@ -228,21 +234,19 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
   async revoke(): Promise<void> {
     const igUserId = this.auth.externalUserId;
     if (!igUserId) {
-      this.log('warn', 'revoke', 'No externalUserId set; skipping revoke');
-      return;
+      throw new Error('Instagram revoke requires externalUserId (Instagram User ID)');
     }
 
-    const accessToken = this.auth.accessToken;
-
-    await this.apiDelete<IgPermissionsResponse>(
-      `${IG_GRAPH_BASE}/${igUserId}/permissions?delegation&access_token=${accessToken}`,
-    );
+    await this.apiDelete<IgPermissionsResponse>(`${IG_GRAPH_BASE}/${igUserId}/permissions?delegation`);
 
     this.log('info', 'revoke', `Revoked Instagram permissions for user ${igUserId}`);
   }
 
   /** Detect media type from URL extension */
-  private detectMediaType(url: string): 'image' | 'video' {
+  private detectMediaType(url: string, declared?: MediaType): 'image' | 'video' {
+    if (declared === 'video') return 'video';
+    if (declared === 'image') return 'image';
+
     try {
       const pathname = new URL(url).pathname;
       const ext = pathname.split('.').pop()?.toLowerCase() ?? '';
@@ -251,6 +255,38 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
     } catch {
       return 'image';
     }
+  }
+
+  private graphUrl(endpoint: string, params: Record<string, string>): string {
+    const query = new URLSearchParams(params).toString();
+    return `${endpoint}?${query}`;
+  }
+
+  /**
+   * Instagram media containers are processed asynchronously. The provider
+   * requires status_code=FINISHED before media_publish, including carousel
+   * children and the carousel parent itself.
+   */
+  private async waitForContainerReady(containerId: string): Promise<void> {
+    for (let attempt = 0; attempt < CONTAINER_POLL_ATTEMPTS; attempt++) {
+      const status = await this.apiGet<IgContainerStatusResponse>(
+        `${IG_GRAPH_BASE}/${containerId}?fields=status_code,status`,
+      );
+
+      if (status.status_code === 'FINISHED' || status.status_code === 'PUBLISHED') return;
+
+      if (status.status_code === 'ERROR' || status.status_code === 'EXPIRED') {
+        throw new Error(
+          `Instagram container ${containerId} processing ${status.status_code.toLowerCase()}: ${status.status ?? 'unknown provider error'}`,
+        );
+      }
+
+      if (attempt < CONTAINER_POLL_ATTEMPTS - 1) {
+        await new Promise((resolve) => setTimeout(resolve, CONTAINER_POLL_INTERVAL_MS));
+      }
+    }
+
+    throw new Error(`Instagram container ${containerId} processing timed out`);
   }
 }
 

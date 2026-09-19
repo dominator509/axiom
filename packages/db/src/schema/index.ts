@@ -1,4 +1,6 @@
 import { org, orgRelations } from './org.js';
+export { inboxReplyIntent } from './inbox_reply_intent.js';
+export { inboxReplyReview } from './inbox_reply_review.js';
 import { appUser, appUserRelations } from './app_user.js';
 import { modelProfile, modelProfileRelations } from './model_profile.js';
 import { consentRecord, consentRecordRelations } from './consent_record.js';
@@ -7,6 +9,7 @@ import { platformConnection, platformConnectionRelations } from './platform_conn
 import { modelNetworkConfigs, modelNetworkConfigsRelations } from './model_network_configs.js';
 import { asset, assetRelations } from './asset.js';
 import { contentBundle, contentBundleRelations } from './content_bundle.js';
+export type { CaptionGuidanceReceipt, PhotoshootRecipe, ThumbnailFeatures } from './content_bundle.js';
 import { postTarget, postTargetRelations } from './post_target.js';
 import { relayCard, relayCardRelations } from './relay_card.js';
 import { relayCommand, relayCommandRelations } from './relay_command.js';
@@ -43,6 +46,34 @@ import { linkbioAnalytics, linkbioAnalyticsRelations } from './linkbio_analytics
 import { relayBinding, relayBindingRelations } from './relay_binding.js';
 import { agentPermission, agentPermissionRelations } from './agent_permission.js';
 import { crashReport, crashReportRelations } from './crash_report.js';
+import { mcpTokenRevocation } from './mcp_token_revocation.js';
+import { mcpCapabilityToken } from './mcp_capability_token.js';
+import { cascadeTemplate, cascadeTemplateRelations } from './cascade_template.js';
+import { variantExperiment, variantExperimentRelations, variantExperimentAssignment, variantExperimentAssignmentRelations } from './variant_experiment.js';
+import { scrapeRun, scrapeRunRelations } from './scrape_run.js';
+import { teamShift, teamShiftRelations, teamNote, teamNoteRelations } from './team_operations.js';
+import { mediaOperation, mediaOperationRelations } from './media_operation.js';
+import { playbookGuideline, playbookGuidelineRelations, playbookGuidelineRevision } from './playbook_guideline.js';
+import { roleplayPersonaRevisionRelations, roleplayMemoryTurnRelations, roleplayHandoffRelations, roleplayTurnRelations } from './roleplay.js';
+import { uiLocalePreference, uiLocalePreferenceRelations } from './ui_locale_preference.js';
+import {
+  affiliateProgramRelations,
+  affiliatePartnerRelations,
+  affiliateCampaignRelations,
+  affiliateAttributionEventRelations,
+  affiliateConversionRelations,
+  affiliateCommissionEventRelations,
+  affiliateHoldRelations,
+  affiliatePayoutExportRelations,
+  affiliateAuditEventRelations,
+} from './affiliate.js';
+import {
+  patreonCampaignRelations,
+  patreonMembershipRelations,
+  patreonPostRelations,
+  patreonSyncStateRelations,
+  patreonWebhookEventRelations,
+} from './patreon.js';
 
 export { org, orgRelations };
 export { appUser, appUserRelations };
@@ -89,6 +120,59 @@ export { linkbioAnalytics, linkbioAnalyticsRelations };
 export { relayBinding, relayBindingRelations };
 export { agentPermission, agentPermissionRelations };
 export { crashReport, crashReportRelations };
+export { mcpTokenRevocation };
+export { mcpCapabilityToken };
+export { cascadeTemplate, cascadeTemplateRelations };
+export { variantExperiment, variantExperimentRelations, variantExperimentAssignment, variantExperimentAssignmentRelations };
+export { scrapeRun, scrapeRunRelations };
+export { teamShift, teamShiftRelations, teamNote, teamNoteRelations };
+export { mediaOperation, mediaOperationRelations };
+export { playbookGuideline, playbookGuidelineRelations, playbookGuidelineRevision };
+export {
+  roleplayPersonaRevision,
+  roleplayPersonaRevisionRelations,
+  roleplayMemoryTurn,
+  roleplayMemoryTurnRelations,
+  roleplayHandoff,
+  roleplayHandoffRelations,
+  roleplayTurn,
+  roleplayTurnRelations,
+} from './roleplay.js';
+export { mediaGenerationAttempt } from './media_generation_attempt.js';
+export { modelUserAssignment } from './model_user_assignment.js';
+export { uiLocalePreference, uiLocalePreferenceRelations };
+export {
+  affiliateProgram,
+  affiliateProgramRelations,
+  affiliatePartner,
+  affiliatePartnerRelations,
+  affiliateCampaign,
+  affiliateCampaignRelations,
+  affiliateAttributionEvent,
+  affiliateAttributionEventRelations,
+  affiliateConversion,
+  affiliateConversionRelations,
+  affiliateCommissionEvent,
+  affiliateCommissionEventRelations,
+  affiliateHold,
+  affiliateHoldRelations,
+  affiliatePayoutExport,
+  affiliatePayoutExportRelations,
+  affiliateAuditEvent,
+  affiliateAuditEventRelations,
+} from './affiliate.js';
+export {
+  patreonCampaign,
+  patreonCampaignRelations,
+  patreonMembership,
+  patreonMembershipRelations,
+  patreonPost,
+  patreonPostRelations,
+  patreonSyncState,
+  patreonSyncStateRelations,
+  patreonWebhookEvent,
+  patreonWebhookEventRelations,
+} from './patreon.js';
 
 export const allRelations = [
   orgRelations,
@@ -135,4 +219,31 @@ export const allRelations = [
   agentPermissionRelations,
   crashReportRelations,
   apiIdempotencyRelations,
+  cascadeTemplateRelations,
+  variantExperimentRelations,
+  variantExperimentAssignmentRelations,
+  scrapeRunRelations,
+  teamShiftRelations,
+  teamNoteRelations,
+  mediaOperationRelations,
+  playbookGuidelineRelations,
+  roleplayPersonaRevisionRelations,
+  roleplayMemoryTurnRelations,
+  roleplayHandoffRelations,
+  roleplayTurnRelations,
+  uiLocalePreferenceRelations,
+  affiliateProgramRelations,
+  affiliatePartnerRelations,
+  affiliateCampaignRelations,
+  affiliateAttributionEventRelations,
+  affiliateConversionRelations,
+  affiliateCommissionEventRelations,
+  affiliateHoldRelations,
+  affiliatePayoutExportRelations,
+  affiliateAuditEventRelations,
+  patreonCampaignRelations,
+  patreonMembershipRelations,
+  patreonPostRelations,
+  patreonSyncStateRelations,
+  patreonWebhookEventRelations,
 ];

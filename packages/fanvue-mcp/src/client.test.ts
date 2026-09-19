@@ -71,6 +71,7 @@ describe('connect (MCP initialize handshake)', () => {
     const result = await c.connect(CREDS);
 
     expect(result.connected).toBe(true);
+    expect(result.expiresAt).toBeNull();
     expect(result.protocolVersion).toBe('2025-03-26');
     expect(result.tools).toContain('custom__start-image-upload');
     expect(c['connected']).toBe(true);
@@ -86,6 +87,35 @@ describe('connect (MCP initialize handshake)', () => {
     expect(initFrame.params.protocolVersion).toBe('2025-03-26');
     expect(initFrame.params.clientInfo.name).toBe('axiom-fanvue-mcp');
     expect(calls[0][1].headers).toMatchObject({ Authorization: 'Bearer test-oauth-token' });
+  });
+
+  it('preserves a disclosed credential expiry without inventing one', async () => {
+    stubMcpFlow({});
+    const c = new FanvueMcpClient();
+    const result = await c.connect({
+      ...CREDS,
+      expiresAt: '2026-09-10T12:00:00+00:00',
+    });
+
+    expect(result.expiresAt).toBe('2026-09-10T12:00:00.000Z');
+  });
+
+  it('requires an HTTPS endpoint in production and rejects credential-bearing URLs', async () => {
+    const previousEnvironment = process.env.AXIOM_ENV;
+    process.env.AXIOM_ENV = 'production';
+    try {
+      const c = new FanvueMcpClient();
+      await expect(c.connect({ ...CREDS, endpoint: 'http://mcp.fanvue.test' })).rejects.toThrow(
+        'HTTPS in production',
+      );
+
+      await expect(
+        c.connect({ ...CREDS, endpoint: 'https://user:pass@mcp.fanvue.test' }),
+      ).rejects.toThrow('must not contain credentials');
+    } finally {
+      if (previousEnvironment === undefined) delete process.env.AXIOM_ENV;
+      else process.env.AXIOM_ENV = previousEnvironment;
+    }
   });
 
   it('throws FanvueMcpError with MCP error code on JSON-RPC error frame', async () => {

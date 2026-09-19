@@ -5,23 +5,24 @@ import { IncidentManager } from './observability/incidents.js';
 import { HealthCheckRegistry } from './observability/health.js';
 import { CardRenderer, type BundleContent } from './card.js';
 import { CommandRouter, isCardAction } from './commands.js';
-import { ViralLoop, type PostMetrics } from './viral/loop.js';
+import type { PostMetrics } from './viral/loop.js';
 import { Bandit } from './viral/bandit.js';
 import type { ViralPersistence } from './viral/persistence.js';
+import { readBoundedJson, RequestBodyTooLargeError } from './request-body.js';
 
 export interface RelayDependencies {
   cardRenderer: CardRenderer;
   commandRouter: CommandRouter;
-  viralLoop: ViralLoop;
   bandit: Bandit;
   incidentManager: IncidentManager;
   healthRegistry: HealthCheckRegistry;
   /**
-   * Optional DB-backed viral persistence, injected by the API process
-   * (M-7). When present, /viral/ingest and /viral/exemplars persist to
-   * post_metric / viral_exemplar instead of the in-memory loop.
+   * DB-backed viral persistence, injected by the API process (M-7).
+   * /viral/ingest and /viral/exemplars must use post_metric /
+   * viral_exemplar; an in-memory fallback would acknowledge data that is
+   * lost when the process restarts.
    */
-  viralPersistence?: ViralPersistence;
+  viralPersistence: ViralPersistence;
 }
 
 export function createRelayRoutes(deps: RelayDependencies): Hono {
@@ -31,18 +32,21 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
   const app = new Hono() as Hono<{ Variables: { orgId?: string } }>;
   const logger = new Logger('relay-routes');
 
-  // POST /api/v1/relay/card - generate and send card
+  // POST /api/v1/relay/card - render an approval-card preview
   app.post('/api/v1/relay/card', async (c) => {
     try {
-      const body = await c.req.json<BundleContent>();
+      const body = await readBoundedJson<BundleContent>(c.req.raw);
       const card = deps.cardRenderer.renderBundleCard(body);
-      metricsRegistry.incrementCounter('relay_cards_sent', {
+      metricsRegistry.incrementCounter('relay_cards_rendered', {
         platforms: body.targetPlatforms.join(','),
       });
       return c.json({ success: true, card });
     } catch (err) {
-      logger.error('Failed to generate card', err as Error);
-      return c.json({ success: false, error: 'Failed to generate card' }, 500);
+      if (err instanceof RequestBodyTooLargeError) {
+        return c.json({ success: false, error: 'Request body too large' }, 413);
+      }
+      logger.error('Failed to render card preview', err as Error);
+      return c.json({ success: false, error: 'Failed to render card preview' }, 500);
     }
   });
 
@@ -50,8 +54,11 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
   app.post('/api/v1/relay/command', async (c) => {
     let body: unknown;
     try {
-      body = await c.req.json();
-    } catch {
+      body = await readBoundedJson(c.req.raw);
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        return c.json({ success: false, error: 'Request body too large' }, 413);
+      }
       return c.json({ success: false, error: 'Invalid command request body' }, 400);
     }
 
@@ -86,27 +93,25 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
   // POST /api/v1/viral/ingest - ingest metrics
   app.post('/api/v1/viral/ingest', async (c) => {
     try {
-      const { postId, metrics } = await c.req.json<{
+      const { postId, metrics } = await readBoundedJson<{
         postId: string;
         metrics: PostMetrics;
-      }>();
+      }>(c.req.raw);
       // Authenticated org (set by the API's requireAuth middleware when the
       // relay app is mounted at '/' — Hono shares context variables across
-      // the merged app). Fall back to the body only for standalone/tests.
-      const orgId = (c.get('orgId') as string | undefined) ?? undefined;
-      if (deps.viralPersistence) {
-        // DB-backed path (M-7): persist to post_metric + enqueue viral.label.
-        const result = await deps.viralPersistence.persist({ postId, metrics, orgId });
-        metricsRegistry.incrementCounter('generation_count');
-        return c.json({ success: true, label: result.label });
+      // the merged app). Never accept tenant identity from request input.
+      const orgId = authenticatedOrgId(c);
+      if (!orgId) {
+        return c.json({ success: false, error: 'Authenticated organization required' }, 401);
       }
-      // In-memory fallback (tests / standalone relay).
-      deps.viralLoop.ingestMetrics(postId, metrics);
-      const label = deps.viralLoop.labelPost(postId);
-      deps.viralLoop.storeExemplar(postId, label);
+      // DB-backed path (M-7): persist to post_metric + enqueue viral.label.
+      const result = await deps.viralPersistence.persist({ postId, metrics, orgId });
       metricsRegistry.incrementCounter('generation_count');
-      return c.json({ success: true, label });
+      return c.json({ success: true, label: result.label });
     } catch (err) {
+      if (err instanceof RequestBodyTooLargeError) {
+        return c.json({ success: false, error: 'Request body too large' }, 413);
+      }
       logger.error('Failed to ingest metrics', err as Error);
       return c.json({ success: false, error: 'Failed to ingest metrics' }, 500);
     }
@@ -117,13 +122,12 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
     try {
       const platform = c.req.query('platform') ?? 'all';
       const limit = parseInt(c.req.query('limit') ?? '10', 10);
-      if (deps.viralPersistence) {
-        // DB-backed path (M-7): read from viral_exemplar.
-        const orgId = (c.get('orgId') as string | undefined) ?? c.req.query('orgId') ?? undefined;
-        const exemplars = await deps.viralPersistence.listExemplars({ platform, limit, orgId });
-        return c.json({ success: true, exemplars });
+      // DB-backed path (M-7): read from viral_exemplar.
+      const orgId = authenticatedOrgId(c);
+      if (!orgId) {
+        return c.json({ success: false, error: 'Authenticated organization required' }, 401);
       }
-      const exemplars = deps.viralLoop.retrieveExemplars(platform, limit);
+      const exemplars = await deps.viralPersistence.listExemplars({ platform, limit, orgId });
       return c.json({ success: true, exemplars });
     } catch (err) {
       logger.error('Failed to retrieve exemplars', err as Error);
@@ -134,11 +138,11 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
   // POST /api/v1/incidents/report - report incident
   app.post('/api/v1/incidents/report', async (c) => {
     try {
-      const { severity, message, source } = await c.req.json<{
+      const { severity, message, source } = await readBoundedJson<{
         severity: 'sev-1' | 'sev-2' | 'sev-3' | 'sev-4';
         message: string;
         source: string;
-      }>();
+      }>(c.req.raw);
       const incident = deps.incidentManager.reportIncident(
         severity,
         message,
@@ -149,6 +153,9 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
       );
       return c.json({ success: true, incident });
     } catch (err) {
+      if (err instanceof RequestBodyTooLargeError) {
+        return c.json({ success: false, error: 'Request body too large' }, 413);
+      }
       logger.error('Failed to report incident', err as Error);
       return c.json({ success: false, error: 'Failed to report incident' }, 500);
     }
@@ -156,17 +163,23 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
 
   // POST /api/v1/incidents/:id/replay - replay DLQ
   app.post('/api/v1/incidents/:id/replay', async (c) => {
-    try {
-      const dlqId = c.req.param('id');
-      const replayHandler = async (payload: unknown) => {
-        logger.info('Replaying DLQ payload', { payload });
-      };
-      const success = await deps.incidentManager.replayDLQ(dlqId, replayHandler);
-      return c.json({ success });
-    } catch (err) {
-      logger.error('Failed to replay DLQ', err as Error);
-      return c.json({ success: false, error: 'Failed to replay incident' }, 500);
+    const dlqId = c.req.param('id');
+    const entry = deps.incidentManager.getDLQ().find((candidate) => candidate.id === dlqId);
+    if (!entry) {
+      return c.json({ success: false });
     }
+
+    // The relay package has no durable executor callback. Removing an entry
+    // after merely logging its payload would falsely report a replay and lose
+    // the work. The API's DB-backed /incidents/:jobId/replay route owns real
+    // requeueing; standalone Relay callers must use that durable path.
+    return c.json(
+      {
+        success: false,
+        error: 'DLQ replay requires the durable API job replay endpoint',
+      },
+      501,
+    );
   });
 
   // GET /api/v1/metrics - Prometheus format
@@ -185,6 +198,11 @@ export function createRelayRoutes(deps: RelayDependencies): Hono {
   });
 
   return app as unknown as Hono;
+}
+
+function authenticatedOrgId(c: { get(name: string): unknown }): string | undefined {
+  const orgId = c.get('orgId');
+  return typeof orgId === 'string' && orgId.length > 0 ? orgId : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

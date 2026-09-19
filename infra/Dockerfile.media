@@ -1,0 +1,58 @@
+# =============================================================================
+# Dockerfile.media — authenticated Rust media-plane sidecar
+# Multi-stage: builder → runner
+# =============================================================================
+
+# rust:1.97-slim-bookworm manifest digest (resolved 2026-09-09).
+FROM rust:1.97-slim-bookworm@sha256:2775a09d208ff0d7c1f50490c45b62db929e87ba1dcbc3f2132ac71a704bcdd3 AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates/egress-plane/Cargo.toml ./crates/egress-plane/Cargo.toml
+COPY crates/media-plane/Cargo.toml ./crates/media-plane/Cargo.toml
+COPY crates/vision-engine/Cargo.toml ./crates/vision-engine/Cargo.toml
+COPY crates/scraper/Cargo.toml ./crates/scraper/Cargo.toml
+COPY crates/egress-plane/src ./crates/egress-plane/src
+COPY crates/media-plane/src ./crates/media-plane/src
+COPY crates/vision-engine/src ./crates/vision-engine/src
+COPY crates/scraper/src ./crates/scraper/src
+
+RUN cargo build --locked --release --package media-plane
+
+# debian:bookworm-slim manifest digest (resolved 2026-09-09).
+FROM debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171 AS runner
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    ffmpeg \
+    libstdc++6 \
+    && groupadd --system --gid 1001 media \
+    && useradd --system --uid 1001 --gid 1001 --home-dir /nonexistent --no-create-home media \
+    && mkdir -p /app/var/media \
+    && chown -R media:media /app \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /app/target/release/media-plane /app/media-plane
+RUN chown media:media /app/media-plane
+
+USER 1001:1001
+
+ENV NODE_ENV=production
+ENV AXIOM_MEDIA_ADDR=0.0.0.0:8100
+EXPOSE 8100
+
+# Health is intentionally public; all media operations require the internal
+# bearer token when this sidecar binds beyond loopback.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl --fail --silent --show-error http://127.0.0.1:8100/health >/dev/null
+
+ENTRYPOINT ["/app/media-plane"]

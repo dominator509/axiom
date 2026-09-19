@@ -1,11 +1,25 @@
 // ─── McpServer: JSON-RPC dispatch / createMcpServer — Vitest Suite ───
 import { describe, it, expect } from 'vitest';
-import { McpServer, createMcpServer, type McpRequest, type McpResponse } from './server.js';
+import {
+  McpServer,
+  createMcpServer,
+  createMcpServerAsync,
+  type McpRequest,
+  type McpResponse,
+  type McpToolAuditEvent,
+} from './server.js';
 import { Tier, createCapabilityToken, authenticateAgent, type AgentPermission } from './auth.js';
 
 // A model that exists in the live DB — the tools are DB-backed (H-2), so the
 // success-path tests exercise real resolve_model_org + org-scoped queries.
+// They are enabled only for the CI/developer fixture, never for a checkout
+// that happens to expose a live-only DATABASE_URL. This mirrors the other
+// integration suites and keeps an offline package test from attempting an
+// unauthenticated connection.
 const MODEL = '9283b927-b95d-461c-90d0-729bc2d13852';
+const hasTestDatabase = Boolean(
+  process.env.DATABASE_URL?.trim() && process.env.TEST_DATABASE_URL?.trim(),
+);
 
 function permissionFor(tier: Tier, modelId: string = MODEL, agentId = 'agent-1'): AgentPermission {
   const token = createCapabilityToken(modelId, tier, agentId);
@@ -33,6 +47,16 @@ describe('McpServer construction', () => {
     ).toEqual(['analytics_query']);
     expect(makeServer(Tier.Autonomous).listTools()).toHaveLength(5);
   });
+
+  it('async factory enforces the durable revocation checker', async () => {
+    const token = createCapabilityToken(MODEL, Tier.Viewer, 'agent-revoked');
+    await expect(
+      createMcpServerAsync(
+        { headers: { authorization: `Bearer ${token}` } },
+        { isTokenRevoked: async () => true },
+      ),
+    ).rejects.toThrow('Authentication failed: invalid or expired token');
+  });
 });
 
 describe('McpServer.handleRequest — protocol surface', () => {
@@ -43,6 +67,56 @@ describe('McpServer.handleRequest — protocol surface', () => {
       id: 1,
     });
     expect(res).toEqual({ jsonrpc: '2.0', result: { status: 'pong' }, id: 1 });
+  });
+
+  it('runs the injected audit hook before a tool call', async () => {
+    const events: McpToolAuditEvent[] = [];
+    const server = new McpServer(permissionFor(Tier.Viewer), {
+      onToolCall: (event) => {
+        events.push(event);
+      },
+    });
+
+    const response = await server.handleRequest({
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: { name: 'audit_probe', arguments: {} },
+      id: 'audit-1',
+    });
+
+    expect(response).toMatchObject({
+      error: { code: -32603, message: 'Internal error' },
+      id: 'audit-1',
+    });
+    expect(events).toEqual([
+      {
+        agentId: 'agent-1',
+        modelId: MODEL,
+        tier: Tier.Viewer,
+        toolName: 'audit_probe',
+        requestId: 'audit-1',
+      },
+    ]);
+  });
+
+  it('fails closed when the audit hook cannot reserve the call', async () => {
+    const server = new McpServer(permissionFor(Tier.Viewer), {
+      onToolCall: () => {
+        throw new Error('audit unavailable');
+      },
+    });
+
+    const response = await server.handleRequest({
+      jsonrpc: '2.0',
+      method: 'tools/call',
+      params: { name: 'analytics_query', arguments: { modelId: MODEL } },
+      id: 'audit-2',
+    });
+
+    expect(response).toMatchObject({
+      error: { code: -32603, message: 'Internal error' },
+      id: 'audit-2',
+    });
   });
 
   it('lists tools for listTools and tools/list', async () => {
@@ -97,7 +171,7 @@ describe('McpServer.handleRequest — protocol surface', () => {
 });
 
 describe('McpServer.callTool — success paths', () => {
-  it('executes analytics_query for a viewer', async () => {
+  it.skipIf(!hasTestDatabase)('executes analytics_query for a viewer', async () => {
     const server = makeServer(Tier.Viewer);
     const result = await server.callTool('analytics_query', { modelId: MODEL });
     expect(result).toMatchObject({
@@ -108,13 +182,13 @@ describe('McpServer.callTool — success paths', () => {
     });
   });
 
-  it('executes inbox_manage read for an operator', async () => {
+  it.skipIf(!hasTestDatabase)('executes inbox_manage read for an operator', async () => {
     const server = makeServer(Tier.Operator);
     const result = await server.callTool('inbox_manage', { modelId: MODEL, action: 'read' });
     expect(result).toMatchObject({ success: true, action: 'read', messages: [] });
   });
 
-  it('executes generation_photoshoot with default count of 4 for an operator', async () => {
+  it.skipIf(!hasTestDatabase)('executes generation_photoshoot with default count of 4 for an operator', async () => {
     const server = makeServer(Tier.Operator);
     const result = (await server.callTool('generation_photoshoot', {
       modelId: MODEL,
@@ -126,7 +200,7 @@ describe('McpServer.callTool — success paths', () => {
     expect(result.bundleId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it('executes publishing_post for an autonomous agent without approval', async () => {
+  it.skipIf(!hasTestDatabase)('routes autonomous publishing through the approval gate', async () => {
     const server = makeServer(Tier.Autonomous);
     const result = await server.callTool('publishing_post', {
       modelId: MODEL,
@@ -135,14 +209,14 @@ describe('McpServer.callTool — success paths', () => {
     });
     expect(result).toMatchObject({
       success: true,
-      requiresApproval: false,
+      requiresApproval: true,
       action: 'publish',
       platform: 'x',
-      status: 'queued',
+      status: 'pending_approval',
     });
   });
 
-  it('executes publishing_post for a manager with approval required', async () => {
+  it.skipIf(!hasTestDatabase)('executes publishing_post for a manager with approval required', async () => {
     const server = makeServer(Tier.Manager);
     const result = await server.callTool('publishing_post', {
       modelId: MODEL,
@@ -157,18 +231,16 @@ describe('McpServer.callTool — success paths', () => {
     });
   });
 
-  it('executes network_configure for an autonomous agent', async () => {
+  it('fails closed when network configuration has no durable approval executor', async () => {
     const server = makeServer(Tier.Autonomous);
-    const result = await server.callTool('network_configure', {
-      modelId: MODEL,
-      config: { crossPosting: true, autoReplyThreshold: 0.8, repostCadenceHours: 12 },
-    });
-    expect(result).toMatchObject({
-      success: true,
-      requiresApproval: true,
-      status: 'pending_approval',
-      config: { crossPosting: true, autoReplyThreshold: 0.8, repostCadenceHours: 12 },
-    });
+    await expect(
+      server.callTool('network_configure', {
+        modelId: MODEL,
+        config: { crossPosting: true, autoReplyThreshold: 0.8, repostCadenceHours: 12 },
+      }),
+    ).rejects.toThrow(
+      'Network configuration is unavailable: no durable dashboard/Relay approval executor is configured',
+    );
   });
 
   it('validates inbox reply requirements through the server', async () => {
@@ -241,7 +313,7 @@ describe('McpServer.callTool — permission and validation failures', () => {
 });
 
 describe('McpServer.handleRequest — callTool end to end', () => {
-  it('dispatches a full callTool request with arguments', async () => {
+  it.skipIf(!hasTestDatabase)('dispatches a full callTool request with arguments', async () => {
     const server = makeServer(Tier.Viewer);
     const req: McpRequest = {
       jsonrpc: '2.0',

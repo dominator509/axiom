@@ -1,5 +1,5 @@
 import { Platform } from '@axiom/core';
-import { VisionEngineClient, type OverrideVerdict } from './vision.js';
+import { VisionEngineClient, type OverrideVerdict, type VisionAnalysis } from './vision.js';
 
 // ─── Platform Thresholds ───
 
@@ -153,6 +153,85 @@ export const PLATFORM_RULES: Record<Platform, PlatformRule> = {
   },
 };
 
+export interface TextToSResult {
+  verdict: 'pass' | 'review' | 'block';
+  scores: Array<{
+    platform: Platform;
+    score: number;
+    threshold: number;
+    verdict: 'pass' | 'review' | 'block';
+    reasons: string[];
+  }>;
+  reasons: string[];
+}
+
+/**
+ * Evaluate text-only content using the same platform rules as visual ToS
+ * checks. Blocked keywords are hard blocks; provider-enforced caption,
+ * hashtag, and link limits require review instead of being recorded as
+ * non-blocking reasons on an otherwise passing report.
+ */
+export function evaluateTextToS(
+  caption: string,
+  hashtags: readonly string[],
+  platforms: readonly Platform[],
+): TextToSResult {
+  const scores: TextToSResult['scores'] = [];
+  const allReasons = new Set<string>();
+
+  for (const platform of platforms) {
+    const rule = PLATFORM_RULES[platform];
+    const threshold = DEFAULT_PLATFORM_THRESHOLDS[platform];
+    const reasons: string[] = [];
+    const captionLower = caption.toLowerCase();
+    const blocked = rule.blockedKeywords.filter((keyword) =>
+      captionLower.includes(keyword.toLowerCase()),
+    );
+    if (blocked.length > 0) {
+      reasons.push(`Caption contains blocked keywords: ${blocked.join(', ')}`);
+    }
+
+    const lengthViolation = caption.length > rule.maxCaptionLength;
+    if (lengthViolation) {
+      reasons.push(`Caption exceeds ${rule.maxCaptionLength} chars (${caption.length})`);
+    }
+
+    const hashtagViolation = hashtags.length > rule.maxHashtags;
+    if (hashtagViolation) {
+      reasons.push(`Hashtags (${hashtags.length}) exceed limit (${rule.maxHashtags})`);
+    }
+
+    const hasLink = /https?:\/\/\S+|www\.\S+/i.test(caption);
+    const linkViolation = !rule.linksAllowed && hasLink;
+    if (linkViolation) {
+      reasons.push(`Links are not allowed in ${platform} captions`);
+    }
+
+    // Keep the existing 15-point keyword contribution for observability, but
+    // make the contractual severity explicit: one blocked keyword is a block,
+    // while a provider size/format violation is at least a manual review.
+    let score = blocked.length * 15;
+    if (blocked.length > 0) score = Math.max(score, threshold + 15);
+    if (lengthViolation || hashtagViolation || linkViolation) {
+      score = Math.max(score, threshold);
+    }
+    const boundedScore = Math.min(score, 100);
+    const verdict: TextToSResult['scores'][number]['verdict'] =
+      score >= threshold + 15 ? 'block' : score >= threshold ? 'review' : 'pass';
+
+    reasons.forEach((reason) => allReasons.add(reason));
+    scores.push({ platform, score: boundedScore, threshold, verdict, reasons });
+  }
+
+  const hasBlock = scores.some((score) => score.verdict === 'block');
+  const hasReview = scores.some((score) => score.verdict === 'review');
+  return {
+    verdict: hasBlock ? 'block' : hasReview ? 'review' : 'pass',
+    scores,
+    reasons: Array.from(allReasons),
+  };
+}
+
 // ─── Evaluation Types ───
 
 export interface PlatformScore {
@@ -167,6 +246,14 @@ export interface EvaluationResult {
   verdict: 'pass' | 'review' | 'block';
   scores: PlatformScore[];
   reasons: string[];
+  /** Optional trusted Rust-only descriptors; absence is explicit unknown. */
+  visualAnalysis?: TrustedVisionAnalysis;
+}
+
+export interface TrustedVisionAnalysis extends VisionAnalysis {
+  version: 'vision-analysis-v1';
+  source: 'rust_engine';
+  confidence: number;
 }
 
 export interface ImageClassification {
@@ -213,6 +300,38 @@ export class ToSEngine {
   }
 
   /**
+   * Collect descriptors only from an un-overridden Rust response. A missing or
+   * malformed descriptor is deliberately treated as unknown rather than
+   * allowing a heuristic/fallback result into publication learning evidence.
+   */
+  private async trustedVisualAnalysis(
+    imagePath: string,
+    options: { override?: OverrideVerdict },
+  ): Promise<TrustedVisionAnalysis | undefined> {
+    if (options.override) return undefined;
+    try {
+      const result = await this.visionClient.callNsfwDetect(imagePath);
+      if (
+        result.source !== 'rust_engine'
+        || result.overridden
+        || result.overrideSource !== null
+        || result.confidence === null
+        || result.analysis === null
+      ) return undefined;
+      return {
+        version: 'vision-analysis-v1',
+        source: 'rust_engine',
+        confidence: result.confidence,
+        ...result.analysis,
+      };
+    } catch {
+      // ToS classification remains authoritative; descriptor evidence is
+      // optional and must stay unknown when its separate route fails.
+      return undefined;
+    }
+  }
+
+  /**
    * Evaluate an asset for ToS compliance across multiple platforms.
    * `asset.imageData` is an absolute image path the Rust engine reads from
    * disk. Pass `options.override` to force the image verdict.
@@ -223,6 +342,7 @@ export class ToSEngine {
     options: { override?: OverrideVerdict } = {},
   ): Promise<EvaluationResult> {
     const classification = await this.classifyImage(asset.imageData, options);
+    const visualAnalysis = await this.trustedVisualAnalysis(asset.imageData, options);
 
     const scores: PlatformScore[] = [];
     const allReasons = new Set<string>();
@@ -260,6 +380,12 @@ export class ToSEngine {
         );
       }
 
+      const hasLink = /https?:\/\/\S+|www\.\S+/i.test(caption);
+      const linkViolation = !rule.linksAllowed && hasLink;
+      if (linkViolation) {
+        reasons.push(`Links are not allowed in ${platform} captions`);
+      }
+
       // Check review categories
       if (classification.category && rule.reviewCategories.includes(classification.category)) {
         reasons.push(`Image category "${classification.category}" requires review on ${platform}`);
@@ -268,8 +394,19 @@ export class ToSEngine {
       // Build final score combining image classification and rule violations
       let finalScore = imageScore;
       if (blockedInCaption.length > 0) {
-        // Boost score for keyword violations
-        finalScore = Math.min(finalScore + blockedInCaption.length * 15, 100);
+        // Blocked keywords are contractual hard blocks, even when the visual
+        // classifier is otherwise confident that the image is safe.
+        finalScore = Math.max(finalScore, threshold + 15);
+      }
+      if (
+        caption.length > rule.maxCaptionLength ||
+        hashtags.length > rule.maxHashtags ||
+        linkViolation ||
+        (classification.category && rule.reviewCategories.includes(classification.category))
+      ) {
+        // Provider-enforced text/format limits and review categories must not
+        // remain a passing report just because the image score is low.
+        finalScore = Math.max(finalScore, threshold);
       }
 
       // Determine verdict
@@ -303,6 +440,7 @@ export class ToSEngine {
       verdict: hasBlock ? 'block' : hasReview ? 'review' : 'pass',
       scores,
       reasons: Array.from(allReasons),
+      ...(visualAnalysis ? { visualAnalysis } : {}),
     };
   }
 }

@@ -108,26 +108,25 @@ export class ThreadsAdapter {
   }
 
   /** Threads API doesn't support bot-initiated DMs with interactive cards.
-   *  Cards are delivered via Fanvue or companion relay channels (Discord/Telegram). */
+   * Cards are delivered via Fanvue or companion relay channels (Discord/Telegram).
+   * Fail closed so an unsupported delivery is never reported as successful. */
   async sendCard(userId: string, card: RelayCard): Promise<void> {
-    this.log(
-      'info',
-      'send_card_unsupported',
-      `Card delivery not supported via Threads API (user=${userId}, bundle=${card.bundleId})`,
+    throw new Error(
+      `Threads card delivery is not supported (user=${userId}, bundle=${card.bundleId}); use a configured relay channel`,
     );
   }
 
-  /** Start polling for new comments/replies (falls back when webhook not configured) */
+  /**
+   * Threads polling is not implemented. Webhooks are the only supported
+   * inbound event path; resolving here would falsely claim that polling is
+   * active and silently drop comments/replies.
+   */
   async startPolling(
-    threadsUserId: string,
-    accessToken: string,
-    intervalMs = 60_000,
+    _threadsUserId: string,
+    _accessToken: string,
+    _intervalMs = 60_000,
   ): Promise<void> {
-    this.log(
-      'info',
-      'polling_configured',
-      `Polling every ${intervalMs}ms for user ${threadsUserId.slice(0, 6)}... (token length: ${accessToken.length})`,
-    );
+    throw new Error('Threads polling is not implemented; configure the signed webhook path');
   }
 
   private async processChange(

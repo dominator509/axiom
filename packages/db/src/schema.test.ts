@@ -80,6 +80,61 @@ import {
   relayBindingRelations,
   agentPermission,
   agentPermissionRelations,
+  mcpTokenRevocation,
+  cascadeTemplate,
+  cascadeTemplateRelations,
+  variantExperiment,
+  variantExperimentRelations,
+  variantExperimentAssignment,
+  variantExperimentAssignmentRelations,
+  scrapeRun,
+  scrapeRunRelations,
+  teamShift,
+  teamShiftRelations,
+  teamNote,
+  teamNoteRelations,
+  mediaOperation,
+  mediaOperationRelations,
+  playbookGuideline,
+  playbookGuidelineRelations,
+  roleplayPersonaRevision,
+  roleplayPersonaRevisionRelations,
+  roleplayMemoryTurn,
+  roleplayMemoryTurnRelations,
+  roleplayHandoff,
+  roleplayHandoffRelations,
+  roleplayTurn,
+  roleplayTurnRelations,
+  uiLocalePreference,
+  uiLocalePreferenceRelations,
+  affiliateProgram,
+  affiliateProgramRelations,
+  affiliatePartner,
+  affiliatePartnerRelations,
+  affiliateCampaign,
+  affiliateCampaignRelations,
+  affiliateAttributionEvent,
+  affiliateAttributionEventRelations,
+  affiliateConversion,
+  affiliateConversionRelations,
+  affiliateCommissionEvent,
+  affiliateCommissionEventRelations,
+  affiliateHold,
+  affiliateHoldRelations,
+  affiliatePayoutExport,
+  affiliatePayoutExportRelations,
+  affiliateAuditEvent,
+  affiliateAuditEventRelations,
+  patreonCampaign,
+  patreonCampaignRelations,
+  patreonMembership,
+  patreonMembershipRelations,
+  patreonPost,
+  patreonPostRelations,
+  patreonSyncState,
+  patreonSyncStateRelations,
+  patreonWebhookEvent,
+  patreonWebhookEventRelations,
   allRelations,
 } from './schema/index.js';
 
@@ -179,10 +234,63 @@ describe('schema index', () => {
     expect(linkbioAnalytics).toBeDefined();
     expect(relayBinding).toBeDefined();
     expect(agentPermission).toBeDefined();
+    expect(mcpTokenRevocation).toBeDefined();
+    expect(cascadeTemplate).toBeDefined();
+    expect(cascadeTemplateRelations).toBeDefined();
+    expect(variantExperiment).toBeDefined();
+    expect(variantExperimentRelations).toBeDefined();
+    expect(variantExperimentAssignment).toBeDefined();
+    expect(variantExperimentAssignmentRelations).toBeDefined();
+    expect(scrapeRun).toBeDefined();
+    expect(scrapeRunRelations).toBeDefined();
+    expect(teamShift).toBeDefined();
+    expect(teamShiftRelations).toBeDefined();
+    expect(teamNote).toBeDefined();
+    expect(teamNoteRelations).toBeDefined();
+    expect(mediaOperation).toBeDefined();
+    expect(mediaOperationRelations).toBeDefined();
+    expect(playbookGuideline).toBeDefined();
+    expect(playbookGuidelineRelations).toBeDefined();
+    expect(roleplayPersonaRevision).toBeDefined();
+    expect(roleplayPersonaRevisionRelations).toBeDefined();
+    expect(roleplayMemoryTurn).toBeDefined();
+    expect(roleplayMemoryTurnRelations).toBeDefined();
+    expect(roleplayHandoff).toBeDefined();
+    expect(roleplayHandoffRelations).toBeDefined();
+    expect(uiLocalePreference).toBeDefined();
+    expect(uiLocalePreferenceRelations).toBeDefined();
+    expect(affiliateProgram).toBeDefined();
+    expect(affiliateProgramRelations).toBeDefined();
+    expect(affiliatePartner).toBeDefined();
+    expect(affiliatePartnerRelations).toBeDefined();
+    expect(affiliateCampaign).toBeDefined();
+    expect(affiliateCampaignRelations).toBeDefined();
+    expect(affiliateAttributionEvent).toBeDefined();
+    expect(affiliateAttributionEventRelations).toBeDefined();
+    expect(affiliateConversion).toBeDefined();
+    expect(affiliateConversionRelations).toBeDefined();
+    expect(affiliateCommissionEvent).toBeDefined();
+    expect(affiliateCommissionEventRelations).toBeDefined();
+    expect(affiliateHold).toBeDefined();
+    expect(affiliateHoldRelations).toBeDefined();
+    expect(affiliatePayoutExport).toBeDefined();
+    expect(affiliatePayoutExportRelations).toBeDefined();
+    expect(affiliateAuditEvent).toBeDefined();
+    expect(affiliateAuditEventRelations).toBeDefined();
+    expect(patreonCampaign).toBeDefined();
+    expect(patreonCampaignRelations).toBeDefined();
+    expect(patreonMembership).toBeDefined();
+    expect(patreonMembershipRelations).toBeDefined();
+    expect(patreonPost).toBeDefined();
+    expect(patreonPostRelations).toBeDefined();
+    expect(patreonSyncState).toBeDefined();
+    expect(patreonSyncStateRelations).toBeDefined();
+    expect(patreonWebhookEvent).toBeDefined();
+    expect(patreonWebhookEventRelations).toBeDefined();
   });
 
-  it('allRelations contains exactly the 43 relation configs', () => {
-    expect(allRelations).toHaveLength(44);
+  it('allRelations contains exactly the relation configs', () => {
+    expect(allRelations).toHaveLength(71);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -230,6 +338,33 @@ describe('schema index', () => {
         'relay_binding',
         'agent_permission',
         'crash_report',
+        'cascade_template',
+        'variant_experiment',
+        'variant_experiment_assignment',
+        'scrape_run',
+        'team_shift',
+        'team_note',
+        'media_operation',
+        'playbook_guideline',
+        'roleplay_persona_revision',
+        'roleplay_memory_turn',
+        'roleplay_handoff',
+        'roleplay_turn',
+        'ui_locale_preference',
+        'affiliate_program',
+        'affiliate_partner',
+        'affiliate_campaign',
+        'affiliate_attribution_event',
+        'affiliate_conversion',
+        'affiliate_commission_event',
+        'affiliate_hold',
+        'affiliate_payout_export',
+        'affiliate_audit_event',
+        'patreon_campaign',
+        'patreon_membership',
+        'patreon_post',
+        'patreon_sync_state',
+        'patreon_webhook_event',
       ].sort(),
     );
   });
@@ -253,6 +388,92 @@ describe('schema index', () => {
     expect(cols.encToken.dataType).toBe('custom');
     expect(cols.encToken.columnType).toBe('PgCustomColumn');
     expect(cols.encToken.notNull).toBe(true);
+  });
+});
+
+describe('roleplay persistence tables', () => {
+  it('keeps persona revisions bounded and tenant/model scoped', () => {
+    expect(tableName(roleplayPersonaRevision)).toBe('roleplay_persona_revision');
+    const cols = columnsOf(roleplayPersonaRevision);
+    expect(cols.orgId.notNull).toBe(true);
+    expect(cols.modelId.notNull).toBe(true);
+    expect(cols.source.notNull).toBe(true);
+    expect(cols.revision.notNull).toBe(true);
+    expect(cols.content.notNull).toBe(true);
+    expect(cols.createdByUserId.notNull).toBe(true);
+    expect(relationNames(roleplayPersonaRevisionRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: {
+        type: 'One',
+        table: 'model_profile',
+        fieldName: 'model',
+        fields: ['model_id'],
+        references: ['id'],
+      },
+      createdBy: {
+        type: 'One',
+        table: 'auth_user',
+        fieldName: 'createdBy',
+        fields: ['created_by_user_id'],
+        references: ['id'],
+      },
+    });
+  });
+
+  it('keeps memory turns ordered, attributed, and bounded', () => {
+    expect(tableName(roleplayMemoryTurn)).toBe('roleplay_memory_turn');
+    const cols = columnsOf(roleplayMemoryTurn);
+    expect(cols.conversationKey.notNull).toBe(true);
+    expect(cols.sequence.notNull).toBe(true);
+    expect(cols.role.notNull).toBe(true);
+    expect(cols.speakerType.notNull).toBe(true);
+    expect(cols.content.notNull).toBe(true);
+    expect(relationNames(roleplayMemoryTurnRelations)).toMatchObject({
+      org: { type: 'One', table: 'org' },
+      model: { type: 'One', table: 'model_profile' },
+    });
+  });
+
+  it('stores one resumable handoff per conversation', () => {
+    expect(tableName(roleplayHandoff)).toBe('roleplay_handoff');
+    const cols = columnsOf(roleplayHandoff);
+    expect(cols.actorType.notNull).toBe(true);
+    expect(cols.actorRef.notNull).toBe(true);
+    expect(cols.revision.notNull).toBe(true);
+    expect(cols.payload.notNull).toBe(true);
+    expect(relationNames(roleplayHandoffRelations)).toMatchObject({
+      org: { type: 'One', table: 'org' },
+      model: { type: 'One', table: 'model_profile' },
+      shift: { type: 'One', table: 'team_shift' },
+    });
+  });
+
+  it('stores one-way provider outcomes without creating a second inbox', () => {
+    expect(tableName(roleplayTurn)).toBe('roleplay_turn');
+    const cols = columnsOf(roleplayTurn);
+    expect(cols.intentKey.notNull).toBe(true);
+    expect(cols.actorType.notNull).toBe(true);
+    expect(cols.shiftId.notNull).toBe(true);
+    expect(cols.provider.notNull).toBe(true);
+    expect(cols.input.notNull).toBe(true);
+    expect(cols.state.notNull).toBe(true);
+    expect(cols.output.notNull).toBe(false);
+    expect(relationNames(roleplayTurnRelations)).toMatchObject({
+      org: { type: 'One', table: 'org' },
+      model: { type: 'One', table: 'model_profile' },
+      shift: { type: 'One', table: 'team_shift' },
+    });
+  });
+});
+
+describe('team_shift actor assignment', () => {
+  it('supports both human and LLM assignees without weakening the queue contract', () => {
+    const cols = columnsOf(teamShift);
+    expect(cols.assigneeUserId.notNull).toBe(false);
+    expect(cols.assigneeType.notNull).toBe(true);
+    expect(cols.assigneeType.default).toBe('human');
+    expect(cols.assigneeAgentRef.notNull).toBe(false);
+    expect(cols.queue.notNull).toBe(true);
   });
 });
 
@@ -613,6 +834,8 @@ describe('asset table', () => {
     expect(cols.fileSize.dataType).toBe('number');
     expect(cols.fileSize.columnType).toBe('PgInteger');
     expect(cols.storageKey.notNull).toBe(true);
+    expect(cols.origin.notNull).toBe(true);
+    expect(cols.origin.default).toBe('legacy');
   });
 
   it('requires sha256 and kind per L3.1 §11 (content-addressed dedupe)', () => {
@@ -662,6 +885,12 @@ describe('content_bundle table', () => {
     const cols = columnsOf(contentBundle);
     expect(cols.captions.default).toEqual({});
     expect(cols.hashtags.default).toEqual([]);
+  });
+
+  it('stores the optional bounded photoshoot recipe for publication evidence', () => {
+    const cols = columnsOf(contentBundle);
+    expect(cols.generationRecipe.notNull).toBe(false);
+    expect(cols.generationRecipe.dataType).toBe('json');
   });
 
   it('asset_id is a nullable FK to asset', () => {

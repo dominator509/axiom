@@ -118,6 +118,6 @@ metricsRegistry.registerCounter('posts_published', 'Total posts published');
 metricsRegistry.registerCounter('posts_failed', 'Total posts failed');
 metricsRegistry.registerCounter('generation_count', 'Total content generations');
 metricsRegistry.registerCounter('tos_blocked', 'Total posts blocked by ToS');
-metricsRegistry.registerCounter('relay_cards_sent', 'Total relay cards sent');
+metricsRegistry.registerCounter('relay_cards_rendered', 'Total relay card previews rendered');
 metricsRegistry.registerHistogram('publish_latency', 'Post publish latency in seconds');
 metricsRegistry.registerHistogram('generation_latency', 'Content generation latency in seconds');
