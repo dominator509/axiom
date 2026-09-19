@@ -1,7 +1,28 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: 2026-09-18, after milestone M431 and the variant delivery assignment. This is a continuation checkpoint,
+Updated: after milestone M577 and the variant delivery assignment. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
+
+## Current continuation checkpoint — M577
+
+The accepted source head is the scraper persistence reconciliation commit
+`6c5dc48ae9a377bd486d1839dc80d128d78e08b7`. The existing scraper API/UI
+already distinguished mixed evidence as `partial`, but the durable schema did
+not permit that state and the worker persisted valid mixed competitor results
+as `completed`. M577 adds the shared core classifier, DB schema type, migration
+`0057_scrape_partial_state.sql`, worker persistence and authenticated projection
+tests. The migration is authored only and has not been executed anywhere.
+
+M577 evidence: core classifier 4/4, DB migration suite 22/22, API scraper
+contract 33/33, API scrape route 5/5, worker scrape 12/12; core/DB/API/worker
+typechecks, builds and linters pass. Lint reports only existing warnings.
+The intentionally untracked rejected Hermes review directory remains untouched.
+
+Hermes D001A source-only correction is acknowledged but has no accepted
+delivery yet; Hermes variant R3 remains an active source-only lane. Hermes R5
+installer evidence remains rejected until its correction passes executable
+sink-level tests. No installer, database, migration, provider, credential,
+permission, network, systemd, runtime or deployment action was taken.
 
 ## Latest deployment-repair review (after M349)
 
@@ -2466,3 +2487,33 @@ truthful unknown states. Envelope SHA-256
 `cc991508e06a758bcde0c529ed2bcfccb6261125b6b666521e5c1c16d51e6e7a` matches
 remote readback. Hermes must return real route/UI source changes or one exact
 terminal BLOCKED; helper-only work is not accepted.
+
+## M577 — scraper partial-state persistence reconciliation
+
+The scraper result-quality contract already projected mixed competitor evidence
+as `partial`, but the implementation was not durable: `scrape_run` allowed only
+`queued`, `running`, `completed` and `failed`; `projectScrapeRun` coerced a
+persisted `partial` value to `failed`; and the worker always wrote `completed`
+after validation. M577 closes that source-level contract mismatch without
+creating a parallel result model.
+
+The shared `@axiom/core` classifier distinguishes observable social evidence,
+mixed competitor evidence and all-failed/malformed results. The DB schema and
+authenticated API projection now preserve `partial`, and the worker uses the
+same classifier before persisting a terminal state. Migration
+`packages/db/migrations/0057_scrape_partial_state.sql` replaces the existing
+check with the five-state contract; it is authored but deliberately unapplied.
+
+Changed source paths: `packages/core/src/scrape-result.ts`, its focused test,
+`packages/db/src/schema/scrape_run.ts`, migration 0057 and migration test,
+`packages/api/src/scraper-quality-contract.ts` and test, and the worker scrape
+executor/test. Evidence: core classifier 4/4, DB migrations 22/22, API
+scraper contract 33/33, API scrape route 5/5, worker scrape 12/12; all four
+owning typechecks, builds and linters pass, with only pre-existing lint
+warnings. Source commit: `6c5dc48ae9a377bd486d1839dc80d128d78e08b7`.
+
+This closes the source/automated persistence mismatch only. Deployed migration
+application, sidecar/provider isolation, benchmark-history exposure, browser or
+mobile acceptance, and production deployment evidence remain open. No live or
+disposable database, migration runner, provider, runtime, credential,
+permission, network, systemd or deployment action occurred.

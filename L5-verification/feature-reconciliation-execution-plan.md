@@ -129,6 +129,20 @@ health endpoints alone never closes a gate.
 - Persist only provider responses that pass the existing data-retention and tenant checks; do not report an empty result as success.
 - [x] Gate: worker/API contract tests pass; deployed sidecar rehearsal remains open.
 
+#### M577 — durable partial scraper state
+
+The earlier result-quality projection correctly rendered mixed competitor
+evidence as `partial`, but the durable implementation still had three gaps:
+the `scrape_run` check rejected `partial`, the public row projection coerced it
+to `failed`, and the worker persisted every validated response as `completed`.
+M577 adds one shared `@axiom/core` classifier, expands the existing schema
+state contract through authored migration 0057, persists the classified worker
+state, and adds authenticated API, worker, core and migration behavior tests.
+Source commit `6c5dc48ae9a377bd486d1839dc80d128d78e08b7`; focused tests and all
+owning typechecks/builds/linters pass. Migration 0057 is not applied. Deployed
+sidecar/provider isolation, benchmark-history exposure, browser/mobile and
+deployment evidence remain open.
+
 ### 3. Team collaboration and shift management — source and runtime gaps remain
 
 - Add tenant-scoped team membership/role visibility, shift lifecycle, handoff notes, and bounded queue assignment using existing RBAC and RLS conventions.
