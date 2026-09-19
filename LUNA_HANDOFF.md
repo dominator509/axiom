@@ -1662,3 +1662,14 @@ real dashboard/mobile manual-sync/status surfaces using redacted fixtures.
 Patreon publish, DMs, payouts, member mutation and unsupported analytics are
 explicitly prohibited. Passage is governed by the F-91 row in the acceptance
 matrix; no ACK-only, contract-only or backend-only delivery counts.
+## M507 — four core feature lanes dispatched with finite gates
+
+Codex dispatched separate source-only Hermes tasks for
+`VARIANT-AB-FUNCTIONAL-R1`, `MEDIA-GALLERY-FUNCTIONAL-R1`,
+`SCRAPER-QUALITY-FUNCTIONAL-R1`, and `TEAM-SHIFT-CHATTER-FUNCTIONAL-R1`, all
+against pushed head `21f0f347704d2ad0bb0b79c384ec91013debd5e1`. Each task
+supersedes its prior ACK/READ-only lane and points to the canonical matrix.
+Each requires real changed source, behavior tests, actual dashboard/mobile
+wiring where user-operated, per-file hashes and exact exits, followed by one
+DELIVERY or terminal BLOCKED. No task authorizes live/provider/database,
+deployment, credential, permission, service or network activity.
