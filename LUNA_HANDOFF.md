@@ -1726,7 +1726,7 @@ audited. The corrected artifact-gate wire is
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 LAST_ACCEPTED_CODE: 8e5695f7605c9be57d0840ff1e58dd3090c048b7
-PUBLISHED_HEAD: c97e62ec5caa8bd48f886231e005770dd214863d
+PUBLISHED_HEAD: ea3ad70c33399edb8a8fc37dd76e04b9856ec661
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + asset/hash-bound trusted Rust vision descriptors + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state, model dashboard and native mobile model/status/read/sync surface with scoped role boundaries are source-wired; F-10 source-wired visual month/week calendar with guarded drag and accessible date rescheduling plus advisory timing guidance; incidents/crash triage and recovery are source-wired and localized; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
 ACTIVE_LANE: INBOX-AGENTIC-DRAFTING-R5-AUTHORIZED-CURRENT-SOURCE (source-only implementation against exact source 4652075d632766660183e6119465007a90dbf06a; Hermes may create one clean isolated worktree/copy under the authorized COPY_ROOT, Codex audits/integrates/commits/pushes)
 HERMES_R4_READ_RECEIPT: `CODEX-INBOX-AGENTIC-DRAFTING-R4-READ-RECEIPT-003` was protocol-validated as RECEIPT/READ and remote checksum-verified as `7338898235e15853e8b0d8f126a9c5b790c22297e5e4c9888b80cbd26ed56453`; Hermes must now return evidence-bearing PROGRESS then DELIVERY or terminal BLOCKED, not another ACK.
@@ -2892,4 +2892,17 @@ remain data and are not translated. Core tests/build/lint, focused mounted
 component tests, the full dashboard suite and dashboard typecheck passed;
 dashboard lint retains only three pre-existing warnings. Source commit:
 `f920eb07bfe09fabb2ecdd96fe862f862df09d7c`. Browser/native, provider,
+migration/RLS, runtime and deployment gates remain open.
+
+## M607 — reusable trigger-rule localization
+
+The reusable `TriggerRuleManager` now consumes typed messages from all six
+launch catalogs for rule descriptions, metrics, actions, empty/read-only
+states, validation, confirmation, retry and mutation status. Rule names,
+provider identifiers, thresholds and authored styles remain data; last-fired
+timestamps use the selected locale. Core 74/74, core build/lint, focused
+trigger-rule tests 2/2, full dashboard 757/757, dashboard typecheck and diff
+checks passed. Dashboard lint retains only the three pre-existing warnings in
+`MediaBundleCreate.behavior.test.tsx`. Source commit:
+`ea3ad70c33399edb8a8fc37dd76e04b9856ec661`. Browser/native, provider,
 migration/RLS, runtime and deployment gates remain open.

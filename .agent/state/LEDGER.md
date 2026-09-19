@@ -928,3 +928,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19T15:29:52Z | [AXIOM][P4][M605] Synchronize continuation handoff to published branch tip c97e62ec5caa8bd48f886231e005770dd214863d
 2026-09-19T15:33:15Z | [AXIOM][P4][M606] Replace blocked agentic-drafting R4 with owner-authorized current-source R5 isolated-worktree lane; no implementation or live action counted
 2026-09-19T15:41:47Z | [AXIOM][P4][M607] Localize trigger rule controls and status messaging
+2026-09-19T15:45:07Z | [AXIOM][P4][M608] Record trigger-rule localization and live deployment boundary

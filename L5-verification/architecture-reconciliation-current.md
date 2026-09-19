@@ -405,6 +405,23 @@ pass and dashboard lint has only the three pre-existing warnings in
 `f920eb07bfe09fabb2ecdd96fe862f862df09d7c`. Browser/native, provider,
 migration/RLS, runtime and deployment gates remain open.
 
+### M607 source checkpoint
+
+The reusable `TriggerRuleManager` now consumes typed six-locale messages for
+rule descriptions, empty/read-only boundaries, metric and action labels,
+validation, confirmation, retry and mutation status. Rule names, provider
+identifiers, thresholds and authored follow-up styles remain data. Locale-aware
+date formatting is used for last-fired timestamps. Mounted-render coverage
+proves Spanish editable controls and German read-only controls without the
+English labels in those paths.
+
+Evidence: core 74/74, core build/lint, focused trigger-rule tests 2/2, full
+dashboard 757/757, dashboard typecheck, dashboard lint with only the three
+pre-existing warnings in `MediaBundleCreate.behavior.test.tsx`, and `git diff
+--check` pass. Source commit `ea3ad70c33399edb8a8fc37dd76e04b9856ec661`.
+Browser/native, provider, migration/RLS, runtime and deployment gates remain
+open.
+
 ### M584 source-lane checkpoint
 
 The desktop operator-formatting lane's corrected WIRE was unique, but its ACK

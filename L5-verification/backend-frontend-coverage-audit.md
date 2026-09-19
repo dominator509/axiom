@@ -627,6 +627,21 @@ focused mounted rendering and the full dashboard suite pass; source commit is
 surface only; remaining raw child labels, browser/native, provider,
 migration/RLS, runtime and deployment evidence remain open.
 
+# M607: TriggerRuleManager localization
+
+The reusable `TriggerRuleManager` now uses the typed six-locale catalog for
+rule descriptions, metrics, action choices, empty/read-only states,
+validation, confirmation, retry and mutation status. Rule names, provider
+identifiers, thresholds and authored styles remain data, while last-fired
+timestamps use the selected locale. Focused Spanish editable and German
+read-only mounted-render coverage passes; the English control labels are not
+emitted on those paths. Core 74/74, focused component 2/2, full dashboard
+757/757, core build/lint, dashboard typecheck and diff checks pass. Dashboard
+lint retains only the three pre-existing warnings in
+`MediaBundleCreate.behavior.test.tsx`. Source commit is
+`ea3ad70c33399edb8a8fc37dd76e04b9856ec661`. Browser/native, provider,
+migration/RLS, runtime and deployment evidence remain open.
+
 # M586: F-89 mobile Relay localization integrated
 
 The readable Hermes mobile delivery was independently audited and integrated at

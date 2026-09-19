@@ -928,3 +928,18 @@ and dashboard typecheck pass; dashboard lint retains only three pre-existing
 warnings. Source commit `f920eb07bfe09fabb2ecdd96fe862f862df09d7c` is the
 reviewed milestone. Remaining child surfaces, browser/native, provider,
 migration/RLS, runtime and deployment acceptance remain open.
+
+### M607 — reusable trigger-rule localization
+
+The `TriggerRuleManager` child surface is now wired to the six launch
+catalogs. Rule descriptions, metrics, action choices, validation,
+confirmation, retry, mutation status, empty state and owner-only messaging are
+localized; authored rule names, provider identifiers, thresholds and styles
+remain untouched data. Last-fired timestamps use the selected locale.
+
+Core 74/74, focused component 2/2, full dashboard 757/757, core build/lint,
+dashboard typecheck and `git diff --check` pass. Dashboard lint retains only
+the three pre-existing warnings in `MediaBundleCreate.behavior.test.tsx`.
+Source commit `ea3ad70c33399edb8a8fc37dd76e04b9856ec661` is the reviewed
+milestone. Browser/native, provider, migration/RLS, runtime and deployment
+acceptance remain open.
