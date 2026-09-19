@@ -2778,3 +2778,21 @@ all six and remote checksum readback matched. No weaker or duplicate source
 was integrated. The accepted inbox-agentic-drafting R2 lane remains Hermes'
 next substantive source-only responsibility; no runtime, provider, database,
 migration, permission, deployment or service action occurred.
+
+## M588 — Patreon mobile localization completion
+
+The source audit found that the mobile Patreon screen had a six-locale catalog
+but still rendered its mounted loading, connection, synchronization, counts,
+empty, error, retry, role-boundary and record-date copy directly in English.
+The screen now resolves the persisted UI locale, uses catalog-backed copy and
+locale-aware UTC number/date formatting, preserves the operator-versus-viewer
+connection/synchronization boundary, and exposes a testable mounted view.
+
+Added behavior coverage verifies the real default loading surface, Spanish
+copy, Japanese number/date formatting, the non-operator unconnected boundary,
+and truthful empty model scope. Evidence: mobile Patreon tests 5/5, full
+mobile tests 24/24, mobile typecheck and lint pass, and core locale tests
+40/40 with core lint pass. No provider, database, migration, runtime,
+permission, installer or deployment action occurred. Hermes R5 remains
+rejected pending a corrected source delivery that passes executable sink-level
+gates; no R5 artifact was integrated.

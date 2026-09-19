@@ -15,6 +15,7 @@ import {
   getPatreonData,
   getPatreonStatus,
   getSocialConnections,
+  getUiLocale,
   patreonAuthorizeUrl,
   syncPatreon,
   type MobileModelProfile,
@@ -24,11 +25,10 @@ import {
 } from '../api/endpoints';
 import {
   boundedRecordList,
-  capabilityBoundaryCopy,
   canManagePatreon,
   selectVisibleModel,
-  syncButtonLabel,
 } from '../patreon/presentation';
+import { CATALOGS, LocaleCatalog, formatDate, formatNumber, type SupportedLocale } from '@axiom/core';
 import { palette, surfaceShadow } from '../theme';
 
 interface PatreonScreenProps {
@@ -40,7 +40,7 @@ type Records = Record<PatreonResource, MobilePatreonRecord[]>;
 const EMPTY_RECORDS: Records = { campaign: [], members: [], posts: [] };
 const RESOURCES: PatreonResource[] = ['campaign', 'members', 'posts'];
 
-interface PatreonScreenState {
+export interface PatreonScreenState {
   models: MobileModelProfile[];
   selectedModelId: string | null;
   modelsLoading: boolean;
@@ -53,14 +53,36 @@ interface PatreonScreenState {
   busy: PatreonResource | null;
 }
 
-function resourceTitle(resource: PatreonResource): string {
-  if (resource === 'campaign') return 'Campaigns';
-  if (resource === 'members') return 'Members and tiers';
-  return 'Post history';
+function resourceTitle(resource: PatreonResource, t: (key: string) => string): string {
+  if (resource === 'campaign') return t('mobile.patreon.campaigns');
+  if (resource === 'members') return t('mobile.patreon.members');
+  return t('mobile.patreon.posts');
+}
+
+function updatedLabel(value: string, locale: SupportedLocale, t: (key: string, values?: Record<string, string | number>) => string): string {
+  const parsed = new Date(value);
+  const formatted = Number.isNaN(parsed.getTime()) ? value : formatDate(parsed, locale, { timeZone: 'UTC' });
+  return t('mobile.patreon.updated', { value: formatted });
+}
+
+export interface PatreonViewProps {
+  locale: SupportedLocale;
+  state: PatreonScreenState;
+  managePatreon: boolean;
+  onLoadModels: () => void;
+  onSelectModel: (modelId: string) => void;
+  onAuthorize: () => void;
+  onSync: (resource: PatreonResource) => void;
 }
 
 /** Native Patreon surface. It uses the authenticated BFF and never holds provider credentials. */
 export default function PatreonScreen({ user }: PatreonScreenProps) {
+  const [locale, setLocale] = useState<SupportedLocale>('en');
+  const localeCatalog = useMemo(() => new LocaleCatalog(CATALOGS), []);
+  const t = useCallback(
+    (key: string, values?: Record<string, string | number>) => localeCatalog.t(locale, key, values),
+    [locale, localeCatalog],
+  );
   const [state, setState] = useState<PatreonScreenState>({
     models: [],
     selectedModelId: null,
@@ -74,6 +96,10 @@ export default function PatreonScreen({ user }: PatreonScreenProps) {
     busy: null,
   });
   const managePatreon = useMemo(() => canManagePatreon(user.role), [user.role]);
+
+  useEffect(() => {
+    void getUiLocale().then(snapshot => setLocale(snapshot.locale)).catch(() => undefined);
+  }, []);
 
   const loadCommunity = useCallback(async (modelId: string): Promise<boolean> => {
     setState(prev => ({
@@ -111,11 +137,11 @@ export default function PatreonScreen({ user }: PatreonScreenProps) {
       setState(prev => ({
         ...prev,
         communityLoading: false,
-        error: 'Patreon community data could not be loaded. Retry without changing provider data.',
+        error: t('status.error'),
       }));
       return false;
     }
-  }, []);
+  }, [t]);
 
   const loadModels = useCallback(async () => {
     setState(prev => ({ ...prev, modelsLoading: true, error: null }));
@@ -132,9 +158,9 @@ export default function PatreonScreen({ user }: PatreonScreenProps) {
       }));
       if (selected) void loadCommunity(selected.id);
     } catch {
-      setState(prev => ({ ...prev, modelsLoading: false, error: 'Assigned models could not be loaded. Retry.' }));
+      setState(prev => ({ ...prev, modelsLoading: false, error: t('status.error') }));
     }
-  }, [loadCommunity]);
+  }, [loadCommunity, t]);
 
   useEffect(() => {
     void loadModels();
@@ -144,9 +170,9 @@ export default function PatreonScreen({ user }: PatreonScreenProps) {
     if (!state.selectedModelId) return;
     try {
       await Linking.openURL(patreonAuthorizeUrl(state.selectedModelId));
-      setState(prev => ({ ...prev, actionMessage: 'The secure browser handoff opened. Return here and refresh after authorization.' }));
+      setState(prev => ({ ...prev, actionMessage: t('mobile.patreon.secureOpened') }));
     } catch {
-      setState(prev => ({ ...prev, error: 'The secure browser handoff could not be opened.' }));
+      setState(prev => ({ ...prev, error: t('mobile.patreon.secureOpenFailed') }));
     }
   }
 
@@ -162,39 +188,66 @@ export default function PatreonScreen({ user }: PatreonScreenProps) {
           ...prev,
           error: null,
           actionMessage: result.replay
-            ? `${resourceTitle(resource)} were already synchronized for that cursor.`
-            : `${resourceTitle(resource)} synchronized: ${result.count} record${result.count === 1 ? '' : 's'}.`,
+            ? t('mobile.patreon.syncAlready', { resource: resourceTitle(resource, t) })
+            : t('mobile.patreon.syncCompleted', { resource: resourceTitle(resource, t), count: formatNumber(result.count, locale) }),
         }));
       }
     } catch {
-      setState(prev => ({ ...prev, error: `${resourceTitle(resource)} sync failed; no provider payload was displayed.` }));
+      setState(prev => ({ ...prev, error: t('mobile.patreon.syncFailed', { resource: resourceTitle(resource, t) }) }));
     } finally {
       setState(prev => ({ ...prev, busy: null }));
     }
   }
 
+  return (
+    <PatreonView
+      locale={locale}
+      state={state}
+      managePatreon={managePatreon}
+      onLoadModels={() => void loadModels()}
+      onSelectModel={modelId => void loadCommunity(modelId)}
+      onAuthorize={() => void openPatreonAuthorize()}
+      onSync={resource => void runSync(resource)}
+    />
+  );
+}
+
+export function PatreonView({
+  locale,
+  state,
+  managePatreon,
+  onLoadModels,
+  onSelectModel,
+  onAuthorize,
+  onSync,
+}: PatreonViewProps) {
+  const localeCatalog = useMemo(() => new LocaleCatalog(CATALOGS), []);
+  const t = useCallback(
+    (key: string, values?: Record<string, string | number>) => localeCatalog.t(locale, key, values),
+    [locale, localeCatalog],
+  );
   const selectedModel = selectVisibleModel(state.models, state.selectedModelId);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
         <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>COMMUNITY</Text>
+          <Text style={styles.eyebrow}>{t('mobile.patreon.eyebrow')}</Text>
           <Text style={styles.title}>Patreon</Text>
-          <Text style={styles.muted}>Read-only campaigns, memberships and posts.</Text>
+          <Text style={styles.muted}>{t('mobile.patreon.subtitle')}</Text>
         </View>
-        <View style={styles.privatePill}><Text style={styles.privateText}>V2 · READ / SYNC</Text></View>
+        <View style={styles.privatePill}><Text style={styles.privateText}>{t('mobile.patreon.badge')}</Text></View>
       </View>
 
       {state.error ? <Text style={styles.error} accessibilityRole="alert">{state.error}</Text> : null}
       {state.actionMessage ? <Text style={styles.actionMessage} accessibilityLiveRegion="polite">{state.actionMessage}</Text> : null}
 
-      <Text style={styles.sectionTitle}>Model</Text>
+      <Text style={styles.sectionTitle}>{t('mobile.patreon.model')}</Text>
       <View style={styles.card}>
         {state.modelsLoading ? (
-          <View style={styles.centeredRow}><ActivityIndicator color={palette.rose} /><Text style={styles.muted}>Loading assigned models…</Text></View>
+          <View style={styles.centeredRow}><ActivityIndicator color={palette.rose} /><Text style={styles.muted}>{t('mobile.patreon.loadingModels')}</Text></View>
         ) : state.models.length === 0 ? (
-          <Text style={styles.muted}>No models are assigned to this account. The server returned an empty scope.</Text>
+          <Text style={styles.muted}>{t('mobile.patreon.noModels')}</Text>
         ) : (
           <View style={styles.modelList}>
             {state.models.map(model => {
@@ -203,10 +256,10 @@ export default function PatreonScreen({ user }: PatreonScreenProps) {
                 <Pressable
                   key={model.id}
                   style={[styles.modelButton, selected && styles.modelButtonSelected]}
-                  onPress={() => void loadCommunity(model.id)}
+                  onPress={() => onSelectModel(model.id)}
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
-                  accessibilityLabel={`Select ${model.displayName}`}
+                  accessibilityLabel={t('mobile.patreon.selectModel', { name: model.displayName })}
                 >
                   <Text style={[styles.modelName, selected && styles.modelNameSelected]}>{model.displayName}</Text>
                   {model.handle ? <Text style={styles.modelHandle}>@{model.handle}</Text> : null}
@@ -216,45 +269,45 @@ export default function PatreonScreen({ user }: PatreonScreenProps) {
           </View>
         )}
         {state.error && !state.modelsLoading ? (
-          <Pressable style={styles.secondaryButton} onPress={() => void loadModels()} accessibilityRole="button">
-            <Text style={styles.secondaryButtonText}>Retry model list</Text>
+            <Pressable style={styles.secondaryButton} onPress={onLoadModels} accessibilityRole="button">
+            <Text style={styles.secondaryButtonText}>{t('mobile.patreon.retryModels')}</Text>
           </Pressable>
         ) : null}
       </View>
 
       {selectedModel ? (
         <>
-          <Text style={styles.sectionTitle}>{selectedModel.displayName} community</Text>
+          <Text style={styles.sectionTitle}>{selectedModel.displayName} · {t('mobile.patreon.eyebrow')}</Text>
           {state.communityLoading ? (
-            <View style={[styles.card, styles.centeredRow]}><ActivityIndicator color={palette.rose} /><Text style={styles.muted}>Loading Patreon community data…</Text></View>
+            <View style={[styles.card, styles.centeredRow]}><ActivityIndicator color={palette.rose} /><Text style={styles.muted}>{t('mobile.patreon.loadingCommunity')}</Text></View>
           ) : state.connectionId === null ? (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Patreon is not connected</Text>
-              <Text style={styles.muted}>{managePatreon ? 'Connect through the secure browser handoff. This app never receives Patreon secrets.' : capabilityBoundaryCopy(false)}</Text>
+              <Text style={styles.cardTitle}>{t('mobile.patreon.notConnected')}</Text>
+              <Text style={styles.muted}>{managePatreon ? t('mobile.patreon.connectDescription') : t('mobile.patreon.roleView')}</Text>
               {managePatreon ? (
-                <Pressable style={styles.primaryButton} onPress={() => void openPatreonAuthorize()} accessibilityRole="button">
-                  <Text style={styles.primaryButtonText}>Connect Patreon</Text>
+                <Pressable style={styles.primaryButton} onPress={onAuthorize} accessibilityRole="button">
+                  <Text style={styles.primaryButtonText}>{t('integration.patreon.connect')}</Text>
                 </Pressable>
               ) : null}
-              <Text style={styles.boundaryText}>{capabilityBoundaryCopy(managePatreon)}</Text>
+              <Text style={styles.boundaryText}>{t('mobile.patreon.deniedActions')}</Text>
             </View>
           ) : state.status ? (
             <View style={styles.stack}>
               <View style={styles.card}>
                 <View style={styles.row}><Text style={styles.cardTitle}>{state.status.connection.displayName}</Text><Text style={styles.badgeGood}>{state.status.connection.status}</Text></View>
-                <Text style={styles.muted}>Provider credentials remain server-side and encrypted.</Text>
+                <Text style={styles.muted}>{t('mobile.patreon.providerEncrypted')}</Text>
                 <View style={styles.countGrid}>
-                  <Count label="Campaigns" value={state.status.counts.campaigns} />
-                  <Count label="Members" value={state.status.counts.members} />
-                  <Count label="Posts" value={state.status.counts.posts} />
+                  <Count label={t('mobile.patreon.campaigns')} value={formatNumber(state.status.counts.campaigns, locale)} />
+                  <Count label={t('mobile.patreon.members')} value={formatNumber(state.status.counts.members, locale)} />
+                  <Count label={t('mobile.patreon.posts')} value={formatNumber(state.status.counts.posts, locale)} />
                 </View>
               </View>
 
               <View style={styles.card}>
-                <Text style={styles.cardTitle}>Sync controls</Text>
+                <Text style={styles.cardTitle}>{t('mobile.patreon.syncControls')}</Text>
                 {managePatreon ? (
                   <>
-                    <Text style={styles.muted}>Sync is bounded and retry-safe. Existing pages continue from their saved cursor.</Text>
+                    <Text style={styles.muted}>{t('mobile.patreon.syncHint')}</Text>
                     <View style={styles.syncList}>
                       {RESOURCES.map(resource => {
                         const syncState = state.status?.sync.find(item => item.resource === resource);
@@ -262,11 +315,11 @@ export default function PatreonScreen({ user }: PatreonScreenProps) {
                         return (
                           <View style={styles.syncRow} key={resource}>
                             <View style={styles.rowCopy}>
-                              <Text style={styles.rowLabel}>{resourceTitle(resource)}</Text>
-                              <Text style={styles.rowHint}>{syncState?.hasError ? 'Last sync failed; retry is safe.' : syncState?.lastSyncedAt ? 'Last sync completed.' : 'Not synchronized yet.'}</Text>
+                              <Text style={styles.rowLabel}>{resourceTitle(resource, t)}</Text>
+                              <Text style={styles.rowHint}>{syncState?.hasError ? t('mobile.patreon.lastSyncFailed') : syncState?.lastSyncedAt ? t('mobile.patreon.lastSyncCompleted') : t('mobile.patreon.notSynced')}</Text>
                             </View>
-                            <Pressable style={[styles.smallButton, state.busy !== null && !busy && styles.buttonDisabled]} onPress={() => void runSync(resource)} disabled={state.busy !== null} accessibilityRole="button">
-                              {busy ? <ActivityIndicator color={palette.roseInk} size="small" /> : <Text style={styles.smallButtonText}>{syncButtonLabel(resource, syncState?.nextCursor ?? null, false)}</Text>}
+                            <Pressable style={[styles.smallButton, state.busy !== null && !busy && styles.buttonDisabled]} onPress={() => onSync(resource)} disabled={state.busy !== null} accessibilityRole="button">
+                              {busy ? <ActivityIndicator color={palette.roseInk} size="small" /> : <Text style={styles.smallButtonText}>{t('integration.patreon.sync')}</Text>}
                             </Pressable>
                           </View>
                         );
@@ -274,30 +327,30 @@ export default function PatreonScreen({ user }: PatreonScreenProps) {
                     </View>
                   </>
                 ) : (
-                  <Text style={styles.muted}>Your role can view assigned Patreon data. Synchronization is reserved for workspace operators.</Text>
+                  <Text style={styles.muted}>{t('mobile.patreon.roleView')}</Text>
                 )}
-                <Text style={styles.muted}>{state.status.hasWebhook ? 'Signed webhook activity has been received.' : 'No signed webhook activity has been received yet.'}</Text>
+                <Text style={styles.muted}>{state.status.hasWebhook ? t('mobile.patreon.webhookReceived') : t('mobile.patreon.noWebhook')}</Text>
               </View>
 
               {RESOURCES.map(resource => (
                 <View style={styles.card} key={resource}>
-                  <Text style={styles.cardTitle}>{resourceTitle(resource)}</Text>
+                  <Text style={styles.cardTitle}>{resourceTitle(resource, t)}</Text>
                   {boundedRecordList(state.records[resource]).length === 0 ? (
-                    <Text style={styles.muted}>No normalized records synchronized yet.</Text>
+                    <Text style={styles.muted}>{t('mobile.patreon.noRecords')}</Text>
                   ) : boundedRecordList(state.records[resource]).map(record => (
                     <View style={styles.record} key={record.id}>
                       <View style={styles.row}><Text style={styles.rowLabel}>{record.title}</Text><Text style={styles.providerRef}>{record.providerRef}</Text></View>
                       <Text style={styles.rowHint}>{record.detail}</Text>
-                      {record.updatedAt ? <Text style={styles.meta}>Updated {record.updatedAt}</Text> : null}
+                      {record.updatedAt ? <Text style={styles.meta}>{updatedLabel(record.updatedAt, locale, t)}</Text> : null}
                     </View>
                   ))}
                 </View>
               ))}
 
               <View style={styles.card}>
-                <Text style={styles.cardTitle}>Manual-assist boundary</Text>
-                <Text style={styles.muted}>{capabilityBoundaryCopy(managePatreon)}</Text>
-                <Text style={styles.meta}>No publishing, DMs, payouts, member removal, email/address scope or revenue analytics.</Text>
+                <Text style={styles.cardTitle}>{t('mobile.patreon.manualAssistBoundary')}</Text>
+                <Text style={styles.muted}>{managePatreon ? t('mobile.patreon.connectDescription') : t('mobile.patreon.roleView')}</Text>
+                <Text style={styles.meta}>{t('mobile.patreon.deniedActions')}</Text>
               </View>
             </View>
           ) : null}
@@ -307,7 +360,7 @@ export default function PatreonScreen({ user }: PatreonScreenProps) {
   );
 }
 
-function Count({ label, value }: { label: string; value: number }) {
+function Count({ label, value }: { label: string; value: string }) {
   return <View style={styles.count}><Text style={styles.countValue}>{value}</Text><Text style={styles.countLabel}>{label}</Text></View>;
 }
 
