@@ -9,8 +9,8 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4`
-ACCEPTED_PRODUCT_SOURCE: `dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4`
+PUBLISHED_HEAD: `cf95872554a00855e73223d531bd648c7f804211`
+ACCEPTED_PRODUCT_SOURCE: `80284a19db82b37c1c07d6ae807bde855f223e90`
 ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R7 — fresh exact-current source-only lane; R6 and historical F-31 lanes remain closed`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — source-only implementation only after exact-current ACK/ACCEPTED; Codex audits and integrates`
@@ -75,12 +75,12 @@ HERMES_STALE_LANE_POLICY: `Historical lanes remain quarantined; only CODEX-F14-W
 LOCAL_WORKTREE_POLICY: `Codex audits, tests, commits and pushes local milestones; untracked Hermes review artifacts remain untouched`
 NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provider, credential, permission, network or service action`
 
-CURRENT_MILESTONE: `M693 — fresh F-14 R7 task prepared against the verified GitHub/local head 80284a19db82b37c1c07d6ae807bde855f223e90; Hermes must sync before implementation`
-CURRENT_MILESTONE_COMMIT: `80284a19db82b37c1c07d6ae807bde855f223e90`
-CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip verified at 80284a19db82b37c1c07d6ae807bde855f223e90; local HEAD matches; R7 task is the next coordination commit`
+CURRENT_MILESTONE: `M693 — fresh F-14 R7 task prepared against source 80284a19db82b37c1c07d6ae807bde855f223e90; task envelope pushed at cf95872554a00855e73223d531bd648c7f804211; Hermes must sync before implementation`
+CURRENT_MILESTONE_COMMIT: `cf95872554a00855e73223d531bd648c7f804211`
+CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip verified at cf95872554a00855e73223d531bd648c7f804211; R7 SOURCE_COMMIT 80284a19db82b37c1c07d6ae807bde855f223e90 is its exact ancestor; local HEAD matches`
 CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, API index 63/63, API relay-webhooks 2/2, dashboard full 780 passed; no migration execution or live action`
 CURRENT_MILESTONE_OPEN: `Hermes R7 sync ACK and F-14 PROGRESS/DELIVERY remain open; full feature and deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
-LOCAL_MILESTONE_AFTER_TASK: `M693 — F-14 R7 task prepared against 80284a19db82b37c1c07d6ae807bde855f223e90; only this exact filename/msg_id lane is current`
+LOCAL_MILESTONE_AFTER_TASK: `M693 — F-14 R7 task prepared against source 80284a19db82b37c1c07d6ae807bde855f223e90 and pushed in coordination commit cf95872554a00855e73223d531bd648c7f804211; only this exact filename/msg_id lane is current`
 
 ## Current coordination update — M693 fresh F-14 lane
 
