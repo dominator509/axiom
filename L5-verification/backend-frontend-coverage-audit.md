@@ -54,7 +54,7 @@ runtime-accepted merely because its unit tests pass.
 | F-88 | **Partial**: Expo app restores auth and exposes settings/digest/Relay | It is not feature-parity with the responsive dashboard; mobile browser and native acceptance remain open |
 | F-89 | **Source-wired/partial**: shared six-locale catalog and normalization, persisted user/org preference API, dashboard provider/navigation/settings wiring, accessible `lang`, and mobile selector/dashboard labels now consume the same catalog; authored content remains separate | Remaining dashboard/auth/email/operator adoption, every date/number/currency formatting surface, browser/mobile acceptance, and deployed migration/RLS/runtime evidence are open |
 | F-90 | **Wired/partial**: native platform-level affiliate schema/authored migration 0054, owner-gated API and dashboard controls cover partners, campaigns, attribution, SaaS conversion/commission/reversal, fraud holds, audit/idempotency and non-transfer payout CSV output | Migration application, billing/reconciliation integration, license/security/legal review, browser acceptance and payout/operator acceptance remain open; provider earnings referrals are not reused and tenant affiliate/reseller features are out of scope |
-| F-91 | **Wired/partial**: Patreon now has authored migration 0055 and Drizzle tables for campaigns, memberships, posts, sync state and webhook events; model-egress OAuth/PKCE with encrypted persistence; bounded read/sync routes; durable cursor/replay guards; HMAC webhook persistence; and a model dashboard with status, sync, normalized records and unsupported-action messaging | Mobile parity, deployed migration/RLS/runtime acceptance, real provider OAuth/webhook/sync receipts, browser acceptance and operational reconciliation remain open; no publish/DM/payout/member-mutation/unsupported-analytics claim is allowed |
+| F-91 | **Wired/partial**: Patreon now has authored migration 0055 and Drizzle tables for campaigns, memberships, posts, sync state and webhook events; model-egress OAuth/PKCE with encrypted persistence; bounded read/sync routes; durable cursor/replay guards; HMAC webhook persistence; a model dashboard; and a native mobile community surface with model scoping, redacted status/read views and operator-only sync controls | Deployed migration/RLS/runtime acceptance, real provider OAuth/webhook/sync receipts, browser/mobile acceptance and operational reconciliation remain open; no publish/DM/payout/member-mutation/unsupported-analytics claim is allowed |
 
 ### Executed remediation queue
 
@@ -500,8 +500,12 @@ bounded campaign/member/post sync routes, durable cursor replay protection,
 signed webhook event persistence and a model dashboard for status, sync health,
 normalized records and unsupported actions. The campaign normalizer now uses
 the provider creator relationship or OAuth identity fallback and fails closed
-when neither is available. Mobile parity, deployed migration/RLS, provider,
-browser and operational acceptance remain open.
+when neither is available. The native mobile surface now selects only
+server-returned models, keeps provider references redacted and bounded, and
+exposes sync controls only to workspace operators; the model-access middleware
+also scopes social-account and Patreon metadata reads to the assigned model.
+Deployed migration/RLS, provider OAuth/webhook/sync, browser/mobile and
+operational acceptance remain open.
 
 Evidence: 26 connector tests, 3 Patreon route tests, 14 social/OAuth tests,
 128 DB schema/migration tests, API/worker/dashboard typechecks, dashboard

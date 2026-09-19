@@ -98,6 +98,21 @@ export function scopedReadTarget(role: unknown, method: string, path: string): '
   return match[1];
 }
 
+/**
+ * Model-scoped community reads use a connection id in the query rather than
+ * a model id in the path. Keep these explicit so scoped roles can inspect an
+ * assigned Patreon account without making every connector route readable.
+ */
+export function isScopedPatreonMetadataRead(method: string, path: string): boolean {
+  return (path === '/api/v1/connectors/patreon/status' || path === '/api/v1/connectors/patreon/data')
+    && (method === 'GET' || method === 'HEAD');
+}
+
+/** Social metadata reads must always name the model being inspected. */
+export function isScopedSocialAccountRead(method: string, path: string): boolean {
+  return path === '/api/v1/social-accounts' && (method === 'GET' || method === 'HEAD');
+}
+
 // Mount after session middleware and before REST handlers. Scoped roles only
 // receive explicitly classified operations; new route shapes default to denial.
 export async function enforceModelAccess(c: Context<AppBindings>, next: Next) {
@@ -105,6 +120,31 @@ export async function enforceModelAccess(c: Context<AppBindings>, next: Next) {
   if (!isScopedHumanRole(role)) return next();
   const orgId = c.get('orgId'), userId = c.get('userId');
   if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authenticated workspace required');
+
+  if (isScopedSocialAccountRead(c.req.method, c.req.path)) {
+    const modelId = c.req.query('modelId');
+    if (!modelId) return apiError(c, 400, statusTitle(400), 'modelId query required');
+    const allowed = await withOrgContext(orgId, tx => tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile)
+      .where(and(eq(schema.modelProfile.orgId, orgId), eq(schema.modelProfile.id, modelId), modelAccessCondition(role, orgId, userId))).limit(1));
+    if (!allowed.length) return apiError(c, 404, statusTitle(404), 'assigned model or active shift unavailable');
+    return next();
+  }
+
+  if (isScopedPatreonMetadataRead(c.req.method, c.req.path)) {
+    const connectionId = c.req.query('connectionId');
+    if (!connectionId) return apiError(c, 400, statusTitle(400), 'connectionId query required');
+    const allowed = await withOrgContext(orgId, tx => tx.select({ id: schema.platformConnection.id })
+      .from(schema.platformConnection)
+      .where(and(
+        eq(schema.platformConnection.orgId, orgId),
+        eq(schema.platformConnection.id, connectionId),
+        eq(schema.platformConnection.platform, 'patreon'),
+        modelAccessCondition(role, orgId, userId, schema.platformConnection.modelId),
+      )).limit(1));
+    if (!allowed.length) return apiError(c, 404, statusTitle(404), 'assigned Patreon connection unavailable');
+    return next();
+  }
+
   const target = scopedReadTarget(role, c.req.method, c.req.path);
   if (!target) return apiError(c, 403, statusTitle(403), 'operation is not available to this role');
   if (target === 'self-subscription') return next();

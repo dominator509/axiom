@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { scopedReadTarget, isScopedHumanRole } from './model-access.js';
+import { isScopedHumanRole, isScopedPatreonMetadataRead, isScopedSocialAccountRead, scopedReadTarget } from './model-access.js';
 import { enforceModelAccess } from './model-access.js';
 import { Hono } from 'hono';
 import type { AppBindings } from './index.js';
@@ -23,6 +23,17 @@ it('permits Chatter reply preparation only on the exact scoped conversation rout
   for (const method of ['GET', 'PUT', 'DELETE']) expect(scopedReadTarget('chatter', method, `${path}/${id}/send`)).toBeNull();
   for (const other of [`${path}/send`, `${path}/${id}`, '/api/v1/org-settings', '/api/v1/posts', `/api/v1/bundles/${id}/approve`])
     expect(scopedReadTarget('chatter', 'POST', other)).toBeNull();
+});
+it('classifies Patreon and social metadata reads as explicit model-scoped surfaces', () => {
+  for (const path of ['/api/v1/connectors/patreon/status', '/api/v1/connectors/patreon/data']) {
+    expect(isScopedPatreonMetadataRead('GET', path)).toBe(true);
+    expect(isScopedPatreonMetadataRead('HEAD', path)).toBe(true);
+    expect(isScopedPatreonMetadataRead('POST', path)).toBe(false);
+  }
+  expect(isScopedPatreonMetadataRead('GET', '/api/v1/connectors/patreon/sync')).toBe(false);
+  expect(isScopedSocialAccountRead('GET', '/api/v1/social-accounts')).toBe(true);
+  expect(isScopedSocialAccountRead('POST', '/api/v1/social-accounts')).toBe(false);
+  expect(isScopedSocialAccountRead('GET', '/api/v1/social-accounts/connection')).toBe(false);
 });
 it('allows only the creator own-user Grok lifecycle and storage, not arbitrary gateway work', () => {
   const base = '/api/v1/llm/subscriptions/grok';

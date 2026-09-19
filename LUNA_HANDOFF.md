@@ -1603,11 +1603,11 @@ audited. The corrected artifact-gate wire is
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
-ACTIVE_LANE: LOCAL-F10-CALENDAR-ACCESSIBILITY (SOURCE REGRESSION CLOSED) + F-91 PATREON MOBILE PARITY (HERMES SOURCE-ONLY TASK ASSIGNED) + remaining source/external gates; HERMES ACTIVE
+ACTIVE_LANE: LOCAL-F91-PATREON-MOBILE-PARITY (HERMES COPY DID NOT MATERIALIZE; CODEX FALLBACK INTEGRATED) + remaining source/external gates; HERMES ACTIVE
 LAST_ACCEPTED_CODE: 04be09e44914d42cf0671cdb4a872c7cfa7fb3f
 PUBLISHED_HEAD: 28fdf73f06abad7692dcb9012ba9c7c259a0f45b
-ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state and model dashboard are source-wired; F-10 source-wired visual month/week calendar with guarded drag and accessible date rescheduling plus advisory timing guidance; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
-NEXT_REQUIRED: audit the Hermes F-91 Patreon mobile parity delivery against the exact current source ref before integration; F-10 now has a source-wired visual month/week board, guarded drag rescheduling, keyboard/date rescheduling, and advisory playbook/viral timing guidance. Continue auditing the next highest-value source lane against the architecture; integrate only reviewed source, run owning tests, commit/push each independent lane, and keep mobile, migration/RLS, provider, browser, operator and deployment gates explicitly open until evidenced; no wall-clock or date comparison is part of the bridge protocol
+ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state, model dashboard and native mobile model/status/read/sync surface with scoped role boundaries are source-wired; F-10 source-wired visual month/week calendar with guarded drag and accessible date rescheduling plus advisory timing guidance; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
+NEXT_REQUIRED: F-91 source-level mobile parity is now integrated and audited; next audit the highest-value unfinished architecture lane against the exact current source ref. F-10 now has a source-wired visual month/week board, guarded drag rescheduling, keyboard/date rescheduling, and advisory playbook/viral timing guidance. Continue integrating only reviewed source, run owning tests, commit/push each independent lane, and keep mobile, migration/RLS, provider, browser, operator and deployment gates explicitly open until evidenced; no wall-clock or date comparison is part of the bridge protocol
 HERMES_ACCOUNTABILITY: Codex sent `FUNCTIONAL-DELIVERY-STANDARD-R1`; Hermes must produce real source implementation in isolated copies, not plans, pure contracts, baseline copies or ACK-only responses. A DELIVERY is countable only with changed paths, per-file SHA256, exact commands and exit codes, behavior-level tests, and truthful LIVE_ACTIONS NONE; otherwise Hermes must return a terminal BLOCKED result with the exact blocker.
 HERMES_F89_TASK: `LOCALIZATION-MULTILINGUAL-FUNCTIONAL-R3`, WIRE `CODEX-LOCALIZATION-FUNCTIONAL-001`, source ref `57a8c47f8f6fa2d7be2f6920d3da88a374ce15c6`, isolated copy `/root/d001a-deliverable/localization-r3`; the corrective delivery-required message `codex-localization-functional-r3-delivery-required-001` supersedes silent waiting and requires changed source, behavior tests and a signed DELIVERY or exact BLOCKED result.
 HERMES_F89_AUTHORIZATION: Hermes returned a truthful terminal BLOCKED because COPY_ROOT was absent and source writes were not explicitly authorized. Codex has now issued `codex-localization-functional-r3-authorize-source-copy-002` with owner-authorized COPY_ROOT creation and source-only artifact writes; Hermes must not commit/push, and Codex retains review/integration/commit/push ownership.
@@ -1616,7 +1616,8 @@ HERMES_F89_DELIVERY_AUDIT: The readable artifact later arrived and all 12 declar
 HERMES_F91_TASK: Codex dispatched `PATREON-COMMUNITY-FUNCTIONAL-R1` on exact pushed source `bd476f559d9c90bdb3246b2b2376339bd8eddf98` with WIRE `CODEX-PATREON-COMMUNITY-FUNCTIONAL-R1-TASK-001`, owner-authorized isolated source copy `/root/d001a-deliverable/patreon-functional-r1`, and a readable-artifact DELIVERY gate. The lane is source-only and requires strict ACK/NACK, real PROGRESS, then DELIVERY or one exact BLOCKED result; Hermes must not commit or push.
 HERMES_F91_STATUS: Hermes resolved the named authorities and truthfully identified the missing schema/migration, OAuth routes, sync, signed webhook/replay handling and dashboard/mobile wiring, but its ACK reused the Codex TASK WIRE. Codex returned terminal receipt `CODEX-PATREON-COMMUNITY-FUNCTIONAL-R1-RECEIPT-REJECTED-003`; no F-91 ownership or implementation progress is counted until Hermes returns a unique correlated ACK.
 HERMES_F91_MOBILE_TASK: Codex dispatched `codex-f91-mobile-parity-r1` on exact source `0ad5c11a8e3f872a7bacfdacae08fce0bb9a5fa6` with COPY_ROOT `/srv/fanthynks-bridge/hermes/work/codex-f91-mobile-parity-r1`. The source-only lane requires a reachable native mobile model selector and Patreon status/connect/read/sync surface, honest loading/empty/error/retry states, backend role/capability boundaries, bounded redacted rendering, behavior tests, mobile typecheck/export evidence, and one unique signed DELIVERY or exact BLOCKED result. Hermes must not commit/push or touch runtime/provider/database state.
-HERMES_F91_MOBILE_STATUS: Hermes returned a correlated ACK/READ and committed to the source-only sequence; COPY_ROOT was not yet materialized and no edits were made. Codex sent continuation `codex-f91-mobile-parity-start-003`: materialize the copy and start, or return one terminal BLOCKED with the exact blocker. Local baseline before integration is mobile tests 23/23, mobile typecheck exit 0, and mobile web export exit 0. ACK/READ does not count as implementation delivery.
+HERMES_F91_MOBILE_STATUS: Hermes returned a correlated ACK/READ and committed to the source-only sequence; COPY_ROOT was not materialized and no edits were made after the continuation `codex-f91-mobile-parity-start-003`. ACK/READ does not count as implementation delivery. Codex therefore implemented the lane locally from the exact source: mobile tests 31/31, mobile lint, typecheck and web export/build pass; API model-access tests 13/13 and API typecheck pass. The local implementation is the accepted source; Hermes must not duplicate it.
+HERMES_F91_MOBILE_LOCAL_FALLBACK: `packages/mobile/src/screens/PatreonScreen.tsx`, `packages/mobile/src/patreon/presentation.ts`, mobile endpoint parsers/client calls and model-access middleware are source-only local work. The surface selects only authenticated server-scoped models, redacts provider references, exposes truthful loading/empty/error/retry states, uses browser OAuth handoff, and shows sync controls only to owner/manager/operator roles. Deployed migration/RLS, provider, browser/mobile device and runtime acceptance remain open.
 HERMES_TEAM_R5_REVIEW: Codex reviewed `TEAM-SHIFT-CHATTER-COPY-R5` and rejected it as non-terminal and stale. Hermes produced PROGRESS only, with no flat DELIVERY envelope; its copy was based on release `36b67f5...` while the current branch is `0ad5c11...`, and it lacks current LLM/human shift assignee fields, agent-permission checks, cursor-enriched team operations, and current role-surface rules. The signed review NACK is `codex-team-shift-chatter-r5-review-004`; no R5 source was integrated.
 HERMES_F90_RETRY: Hermes terminally NACKed both the explicit-owner R3 and the accepted-form R4 F90 implementation wires because the bridge cannot independently verify owner identity. No Hermes artifact is accepted. Codex therefore implemented the source-only schema, authored migration, owner-gated API routes, payout-file boundary and behavior tests locally in M495, then added the owner dashboard controls and interaction tests in M496; license/security review and browser acceptance remain open.
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
@@ -1929,6 +1930,7 @@ deployed-runtime gates.
 No product or runtime state changed. Hermes remains paused during this
 local-only work period.
 
+
 ## M530 — stale model and fan coverage reconciliation
 
 A source audit found two additional stale detailed rows. The current model
@@ -1941,3 +1943,31 @@ limits still explicit.
 
 No product or runtime state changed. Hermes remains paused during this
 local-only work period.
+
+## M538 — F-91 native mobile parity source slice
+
+Hermes acknowledged the F-91 mobile task but never materialized the assigned
+source copy or produced a delivery artifact. Codex therefore implemented the
+lane locally against the exact current branch instead of counting ACK/READ as
+work. The Expo app now exposes a Community tab with authenticated model
+selection, model-scoped Patreon connection discovery, redacted status/count
+views, bounded campaign/member/post records, operator-only cursor-aware sync
+controls, browser OAuth handoff, and explicit unsupported-action/manual-assist
+copy. Loading, empty, error, retry and sync-refresh states are source behavior
+rather than placeholder text.
+
+The API client validates all mobile response shapes, bounds strings/counts and
+records, masks provider references, preserves idempotency keys for sync retry,
+and never returns credentials or raw provider payloads to the app. Model-access
+middleware now explicitly scopes social-account and Patreon metadata reads to
+the assigned model/active shift for scoped human roles; write/sync controls
+remain denied to those roles and are visible only to owner/manager/operator
+users.
+
+Evidence: mobile tests 31/31, mobile lint, mobile typecheck and web export/build
+pass; API model-access tests 13/13 and API typecheck pass; diff-check is clean.
+No migration, database, provider, OAuth, browser/device, runtime or deployment
+action occurred. F-91 remains partial until deployed migration/RLS, live provider
+OAuth/refresh/revoke/webhook/sync receipts, desktop/mobile browser acceptance
+and operational reconciliation are independently evidenced. Hermes must not
+duplicate this lane.
