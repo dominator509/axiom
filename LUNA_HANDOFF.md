@@ -8,8 +8,9 @@ not a completion report. Keep this file current at meaningful checkpoints.
 
 The accepted product source head is the reviewed M593 trusted-vision recipe
 evidence milestone `81ef2069aae36256bed673c093ec5fbe16212cd6`, pushed on
-`origin/codex/telegram-webhook-hardening`; this documentation checkpoint records
-the source evidence and current delegation state. M578 wires the existing bounded
+`origin/codex/telegram-webhook-hardening`; the current pushed branch tip is
+`190840485dc856559f257b387fe68cc3d9edb0a0`, containing this handoff and audit
+checkpoint. M578 wires the existing bounded
 `CaptionGuidanceReceipt` into the real copy-variant and review-bundle paths:
 the server rechecks same-org/model/asset ownership, exact caption hash and
 stored receipt metadata before persisting bounded provenance; review creation
@@ -1726,7 +1727,7 @@ STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: HERMES-SCRAPER-RESULT-QUALITY-CURRENT-R1 (source-only implementation against exact source 278cfcaa; Codex audits and integrates)
 LAST_ACCEPTED_CODE: 8e5695f7605c9be57d0840ff1e58dd3090c048b7
-PUBLISHED_HEAD: 1ee8cfd9b1ec0a1960b58af84a7cf77a364dfe27
+PUBLISHED_HEAD: 190840485dc856559f257b387fe68cc3d9edb0a0
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state, model dashboard and native mobile model/status/read/sync surface with scoped role boundaries are source-wired; F-10 source-wired visual month/week calendar with guarded drag and accessible date rescheduling plus advisory timing guidance; incidents/crash triage and recovery are source-wired and localized; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
 NEXT_REQUIRED: Hermes must complete `SCRAPER-RESULT-QUALITY-CURRENT-R1` with one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED against exact source `278cfcaa83ada6053bd9f0906417bc764385f514`. Codex must independently hash/review the artifact, run owning checks, integrate only passing source, commit/push and then advance to the next finite architecture gap. Keep provider credentials, R2 round-trip, migration/RLS, browser, operator and deployment gates explicitly open. Do not reissue the rejected Team/Chatter R5 copy. No wall-clock or date comparison is part of the bridge protocol
 CONTINUATION_WIRE: `CODEX-R2-STORAGE-CURRENT-R4-002` was the continuation tied to Hermes ACK `HERMES-R2-STORAGE-CURRENT-R4-ACK-001`; it is historical and superseded by accepted local M571. Envelope `L5-verification/hermes-r2-storage-current-r4-followup.json`, SHA-256 `50af5b9835dea283d026fa2796efe85b987e5f88770a605abdb91f3e2418ea3d`.
