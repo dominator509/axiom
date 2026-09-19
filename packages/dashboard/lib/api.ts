@@ -208,6 +208,22 @@ export interface FanContact {
   lastActiveAt: string | null;
 }
 
+export interface FanvueAnalyticsSnapshot {
+  id: string;
+  ts: string;
+  subscribers: number;
+  earningsUsd: string;
+  messages: number;
+  tips: number;
+  tipEarningsUsd: string;
+  subscriberEventsNew: number;
+  subscriberEventsCancelled: number;
+  unreadMessages: number;
+  topSpenderCount: number;
+  windowStart: string | null;
+  windowEnd: string | null;
+}
+
 export interface CustomRequest {
   id: string;
   modelId: string;
@@ -531,6 +547,13 @@ export const api = {
       `/api/v1/models/${encodeURIComponent(id)}/inbox?${new URLSearchParams({ connectionId, page: String(page), ...(userUuid ? { userUuid } : {}) })}`),
     earnings: (id: string, connectionId: string) => apiFetch<{ data: EarningsObservation }>(
       `/api/v1/models/${encodeURIComponent(id)}/earnings?${new URLSearchParams({ connectionId })}`),
+    fanvueAnalytics: (id: string) => apiFetch<{ data: { metric: FanvueAnalyticsSnapshot | null; contacts: FanContact[] } }>(
+      `/api/v1/models/${encodeURIComponent(id)}/fanvue/analytics`),
+    syncFanvueAnalytics: (id: string, connectionId?: string) => apiFetch<{ data: { jobId: string | null; deduplicated: boolean } }>(
+      `/api/v1/models/${encodeURIComponent(id)}/fanvue/analytics/sync`, {
+        method: 'POST',
+        body: JSON.stringify(connectionId ? { connectionId } : {}),
+      }),
     viral: (id: string) => apiFetch<{ data: unknown }>(`/api/v1/models/${id}/viral`),
     playbookScore: (id: string) =>
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/playbook-score`),

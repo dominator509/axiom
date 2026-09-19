@@ -5,6 +5,7 @@ import FanInteractionForm from '@/components/FanInteractionForm';
 import Link from 'next/link';
 import type { FanTimeline } from '@/lib/api';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
+import FanvueAnalyticsCard from '@/components/FanvueAnalyticsCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +25,7 @@ export default async function FansPage({ params, searchParams }: { params: Promi
   const session = await getSession();
   if (!talentDestinationAllowed(session?.user?.role, 'fans')) return <div className="card stack"><h2>Fan CRM access unavailable</h2><p>Your role does not include these fan records.</p><Link href="/">Back to workspace</Link></div>;
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
+  const canSync = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   let fans: Awaited<ReturnType<typeof api.models.fans>>['data'] = [];
   let requests: Awaited<ReturnType<typeof api.models.customRequests>>['data'] = [];
   const [contactsResult, requestsResult] = await Promise.allSettled([
@@ -48,6 +50,7 @@ export default async function FansPage({ params, searchParams }: { params: Promi
     <div className="page-stack">
       <h2>Fan relationships</h2>
       <p className="subtle">Browse saved fan contacts and track requests for custom content. Lifetime value is the recorded total spent by a fan.</p>
+      <FanvueAnalyticsCard modelId={id} canSync={canSync} />
       {canEdit ? <FanContactForm modelId={id} /> : <p className="subtle">Contact editing requires an owner, manager or operator role.</p>}
       {selected && <section className="card stack" aria-label="Fan timeline">
         <Link href={currentList}>Close fan details</Link>

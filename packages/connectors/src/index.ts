@@ -17,6 +17,23 @@ export { TelegramConnector } from './telegram.js';
 export { SnapchatConnector } from './snapchat.js';
 export { FanvueConnector } from './fanvue.js';
 export type { FanvueEarningsSummary } from './fanvue-earnings.js';
+export {
+  parseFanvueTopSpenders,
+  parseFanvueSubscriberEvents,
+  parseFanvueEarningsPage,
+  parseFanvueSmartLists,
+  parseFanvueFanInsights,
+  parseFanvueUnreadCounts,
+} from './fanvue-insights.js';
+export type {
+  FanvueTopSpender,
+  FanvueTopSpendersPage,
+  FanvueSubscriberEventsPage,
+  FanvueEarningsPage,
+  FanvueSmartList,
+  FanvueFanInsight,
+  FanvueUnreadCounts,
+} from './fanvue-insights.js';
 export type { FanvueChatPage, FanvueMessagePage } from './fanvue-inbox.js';
 export type { FanvueMessageMedia } from './fanvue-message-media.js';
 export { FanvueMessageDeliveryError } from './fanvue-inbox.js';

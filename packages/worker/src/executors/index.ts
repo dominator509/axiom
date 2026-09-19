@@ -14,6 +14,7 @@ import { digestWeekly } from './digest.js';
 import { triggerEvaluate } from './trigger.js';
 import { scrapeRun } from './scrape.js';
 import { mediaTransform } from './media_transform.js';
+import { fanvueAnalyticsSync } from './fanvue_analytics.js';
 
 export type { Executor, ExecutorContext } from './context.js';
 export {
@@ -34,6 +35,7 @@ export {
   triggerEvaluate,
   scrapeRun,
   mediaTransform,
+  fanvueAnalyticsSync,
 };
 
 export const defaultExecutors: Record<string, Executor> = {
@@ -50,4 +52,5 @@ export const defaultExecutors: Record<string, Executor> = {
   'trigger.evaluate': triggerEvaluate,
   'scrape.run': scrapeRun,
   'media.transform': mediaTransform,
+  'fanvue.analytics.sync': fanvueAnalyticsSync,
 };

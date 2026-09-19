@@ -58,6 +58,7 @@ const TS_TO_SQL: Record<string, string> = {
   campaign: 'campaign',
   triggerRule: 'trigger_rule',
   linkbioAnalytics: 'linkbio_analytics',
+  linkbioAttributionEvent: 'linkbio_attribution_event',
   relayBinding: 'relay_binding',
   agentPermission: 'agent_permission',
   crashReport: 'crash_report',
@@ -175,6 +176,16 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
   it('keeps durable scraper state aligned with partial result projection', () => {
     expect(sql).toContain('scrape_run_state_check');
     expect(sql).toContain("CHECK (state IN ('queued', 'running', 'completed', 'partial', 'failed'))");
+  });
+
+  it('adds bounded Fanvue analytics projections and idempotent touchpoint events', () => {
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS subscriber_events_new INTEGER NOT NULL DEFAULT 0');
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS subscriber_events_cancelled INTEGER NOT NULL DEFAULT 0');
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS unread_messages INTEGER NOT NULL DEFAULT 0');
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS top_spender_count INTEGER NOT NULL DEFAULT 0');
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS external_event_id TEXT');
+    expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS fan_touchpoint_external_event_unique');
+    expect(sql).not.toContain('raw_provider_payload');
   });
 
   it('locks the trusted cross-org egress resolver to the runtime and migrator roles', () => {
@@ -705,9 +716,9 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 15 tables in 0000 (org_id + key lookup) + 1 in 0001 (org_id) +
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
-    // Includes the durable MCP revocation and capability-registry indexes plus
-    // the seven platform affiliate lookup indexes.
-    expect(indexStatements).toHaveLength(100);
+    // Includes the durable MCP revocation and capability-registry indexes,
+    // the seven platform affiliate lookup indexes, and link attribution.
+    expect(indexStatements).toHaveLength(103);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(

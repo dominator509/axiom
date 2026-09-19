@@ -29,6 +29,20 @@ import type {
 import type { Platform, PublishMode } from '@axiom/core';
 import { mediaTypeHint, validatePublish } from './validation.js';
 import { parseFanvueEarningsSummary, type FanvueEarningsSummary } from './fanvue-earnings.js';
+import {
+  parseFanvueEarningsPage,
+  parseFanvueFanInsights,
+  parseFanvueSmartLists,
+  parseFanvueSubscriberEvents,
+  parseFanvueTopSpenders,
+  parseFanvueUnreadCounts,
+  type FanvueEarningsPage,
+  type FanvueFanInsight,
+  type FanvueSmartList,
+  type FanvueSubscriberEventsPage,
+  type FanvueTopSpendersPage,
+  type FanvueUnreadCounts,
+} from './fanvue-insights.js';
 import { messageMediaQuery, parseMessageMedia, type FanvueMessageMedia } from './fanvue-message-media.js';
 import { fetchFanvuePreview, previewRange, type FanvuePreviewVariant } from './fanvue-media-preview.js';
 import { FanvueMessageDeliveryError, replyText, messageReceipt, inboxPageQuery, inboxUserUuid, parseChatPage, parseMessagePage, type FanvueChatPage, type FanvueMessagePage } from './fanvue-inbox.js';
@@ -38,6 +52,21 @@ const FANVUE_API_VERSION = '2025-06-26';
 const FANVUE_TOKEN_URL = 'https://auth.fanvue.com/oauth2/token';
 const FANVUE_REVOKE_URL = 'https://auth.fanvue.com/oauth2/revoke';
 const FANVUE_MAX_MEDIA_BYTES = 1_610_612_736;
+
+function insightsQuery(values: Record<string, string | number | undefined>): string {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined) query.set(key, String(value));
+  }
+  return query.toString();
+}
+
+function pageValue(value: number, name: string, max: number): number {
+  if (!Number.isInteger(value) || value < 1 || value > max) {
+    throw new Error(`Fanvue ${name} must be an integer between 1 and ${max}`);
+  }
+  return value;
+}
 
 /** Media type allowed by the upload session API. */
 type FanvueMediaType = 'image' | 'video' | 'audio' | 'document';
@@ -444,6 +473,70 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
       'GET', '/insights/earnings/summary?timezone=UTC&granularity=day',
     );
     return parseFanvueEarningsSummary(response);
+  }
+
+  /** Cursor-paginated transaction facts used for CRM touchpoints. */
+  async fetchEarningsPage(
+    startDate?: string,
+    endDate?: string,
+    cursor?: string,
+    size = 50,
+  ): Promise<FanvueEarningsPage> {
+    const boundedSize = pageValue(size, 'earnings page size', 50);
+    const query = insightsQuery({ startDate, endDate, cursor, size: boundedSize });
+    const response = await this.fanvueRequest<unknown>('GET', `/insights/earnings?${query}`);
+    return parseFanvueEarningsPage(response);
+  }
+
+  /** Paginated top-spender facts. The provider supplies the top-spender flag. */
+  async fetchTopSpenders(
+    startDate?: string,
+    endDate?: string,
+    page = 1,
+    size = 50,
+  ): Promise<FanvueTopSpendersPage> {
+    const query = insightsQuery({
+      startDate,
+      endDate,
+      page: pageValue(page, 'top-spenders page', Number.MAX_SAFE_INTEGER),
+      size: pageValue(size, 'top-spenders page size', 50),
+    });
+    const response = await this.fanvueRequest<unknown>('GET', `/insights/top-spenders?${query}`);
+    return parseFanvueTopSpenders(response);
+  }
+
+  /** Cursor-paginated subscriber acquisition/lapse events (not a snapshot). */
+  async fetchSubscriberEvents(
+    startDate?: string,
+    endDate?: string,
+    cursor?: string,
+    size = 50,
+  ): Promise<FanvueSubscriberEventsPage> {
+    const query = insightsQuery({ startDate, endDate, cursor, size: pageValue(size, 'subscriber page size', 50) });
+    const response = await this.fanvueRequest<unknown>('GET', `/insights/subscribers?${query}`);
+    return parseFanvueSubscriberEvents(response);
+  }
+
+  /** Current subscriber count from the documented smart-list snapshot. */
+  async fetchSmartLists(): Promise<FanvueSmartList[]> {
+    const response = await this.fanvueRequest<unknown>('GET', '/chats/lists/smart');
+    return parseFanvueSmartLists(response);
+  }
+
+  /** Bounded fan-status hydration, limited by the provider to 20 UUIDs. */
+  async fetchFanInsights(userUuids: string[]): Promise<Record<string, FanvueFanInsight | null>> {
+    if (userUuids.length === 0 || userUuids.length > 20) {
+      throw new Error('Fanvue fan insights require between 1 and 20 user UUIDs');
+    }
+    const query = insightsQuery({ fanUuids: userUuids.join(',') });
+    const response = await this.fanvueRequest<unknown>('GET', `/insights/fans?${query}`);
+    return parseFanvueFanInsights(response);
+  }
+
+  /** Read-only unread counts; this endpoint does not mark chats as read. */
+  async fetchUnreadCounts(): Promise<FanvueUnreadCounts> {
+    const response = await this.fanvueRequest<unknown>('GET', '/chats/unread');
+    return parseFanvueUnreadCounts(response);
   }
 
   async fetchMessageMedia(userUuid: string, messageUuid: string, mediaUuids: string[]): Promise<FanvueMessageMedia> {

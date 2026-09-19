@@ -89,7 +89,7 @@ describe('@axiom/db index', () => {
     expect(schema.affiliateHold).toBeDefined();
     expect(schema.affiliatePayoutExport).toBeDefined();
     expect(schema.affiliateAuditEvent).toBeDefined();
-    expect(schema.allRelations).toHaveLength(71);
+    expect(schema.allRelations).toHaveLength(72);
   });
 
   it('exposes a usable drizzle query builder without a live database', () => {

@@ -29,6 +29,7 @@ export type JobKind =
   | 'relay.card'
   | 'publish.target'
   | 'metrics.poll'
+  | 'fanvue.analytics.sync'
   | 'viral.label'
   | 'trigger.evaluate'
   | 'scrape.run'
@@ -43,6 +44,7 @@ export const JOB_KINDS: JobKind[] = [
   'relay.card',
   'publish.target',
   'metrics.poll',
+  'fanvue.analytics.sync',
   'viral.label',
   'trigger.evaluate',
   'scrape.run',
@@ -57,6 +59,12 @@ export interface PublishTargetPayload {
 }
 export interface MetricsPollPayload {
   targetId: string;
+}
+export interface FanvueAnalyticsSyncPayload {
+  modelId: string;
+  connectionId?: string;
+  startDate?: string;
+  endDate?: string;
 }
 export interface ViralLabelPayload {
   targetId: string;

@@ -269,6 +269,7 @@ describe('default executor registry', () => {
         'relay.card',
         'publish.target',
         'metrics.poll',
+        'fanvue.analytics.sync',
         'viral.label',
         'trigger.evaluate',
         'incident.notify',

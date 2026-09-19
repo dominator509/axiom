@@ -33,6 +33,7 @@ export { runWorker, workerTick, processJob, readKillSwitch } from './worker.js';
 export type { WorkerOptions, WorkerStats } from './worker.js';
 export { JOB_KINDS } from './types.js';
 export type { JobRow, JobKind } from './types.js';
+export { FANVUE_ANALYTICS_INTERVAL_MS, classifyFanvueContact } from './executors/fanvue_analytics.js';
 export { registerConnectors } from './connectors.js';
 export type { ConnectorEnv } from './connectors.js';
 export { resolveCapabilities, capabilityNames } from '@axiom/connectors';

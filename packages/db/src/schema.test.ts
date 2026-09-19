@@ -1420,6 +1420,12 @@ describe('fanvue_metric table', () => {
     const cols = columnsOf(fanvueMetric);
     expect(cols.subscribers.default).toBe(0);
     expect(cols.earningsUsd.columnType).toBe('PgNumeric');
+    expect(cols.subscriberEventsNew.default).toBe(0);
+    expect(cols.subscriberEventsCancelled.default).toBe(0);
+    expect(cols.unreadMessages.default).toBe(0);
+    expect(cols.topSpenderCount.default).toBe(0);
+    expect(cols.windowStart.notNull).toBe(false);
+    expect(cols.windowEnd.notNull).toBe(false);
   });
 
   it('relates to org and model', () => {
