@@ -12,7 +12,14 @@ import { Tier, createCapabilityToken, authenticateAgent, type AgentPermission } 
 
 // A model that exists in the live DB — the tools are DB-backed (H-2), so the
 // success-path tests exercise real resolve_model_org + org-scoped queries.
+// They are enabled only for the CI/developer fixture, never for a checkout
+// that happens to expose a live-only DATABASE_URL. This mirrors the other
+// integration suites and keeps an offline package test from attempting an
+// unauthenticated connection.
 const MODEL = '9283b927-b95d-461c-90d0-729bc2d13852';
+const hasTestDatabase = Boolean(
+  process.env.DATABASE_URL?.trim() && process.env.TEST_DATABASE_URL?.trim(),
+);
 
 function permissionFor(tier: Tier, modelId: string = MODEL, agentId = 'agent-1'): AgentPermission {
   const token = createCapabilityToken(modelId, tier, agentId);
@@ -164,7 +171,7 @@ describe('McpServer.handleRequest — protocol surface', () => {
 });
 
 describe('McpServer.callTool — success paths', () => {
-  it('executes analytics_query for a viewer', async () => {
+  it.skipIf(!hasTestDatabase)('executes analytics_query for a viewer', async () => {
     const server = makeServer(Tier.Viewer);
     const result = await server.callTool('analytics_query', { modelId: MODEL });
     expect(result).toMatchObject({
@@ -175,13 +182,13 @@ describe('McpServer.callTool — success paths', () => {
     });
   });
 
-  it('executes inbox_manage read for an operator', async () => {
+  it.skipIf(!hasTestDatabase)('executes inbox_manage read for an operator', async () => {
     const server = makeServer(Tier.Operator);
     const result = await server.callTool('inbox_manage', { modelId: MODEL, action: 'read' });
     expect(result).toMatchObject({ success: true, action: 'read', messages: [] });
   });
 
-  it('executes generation_photoshoot with default count of 4 for an operator', async () => {
+  it.skipIf(!hasTestDatabase)('executes generation_photoshoot with default count of 4 for an operator', async () => {
     const server = makeServer(Tier.Operator);
     const result = (await server.callTool('generation_photoshoot', {
       modelId: MODEL,
@@ -193,7 +200,7 @@ describe('McpServer.callTool — success paths', () => {
     expect(result.bundleId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it('routes autonomous publishing through the approval gate', async () => {
+  it.skipIf(!hasTestDatabase)('routes autonomous publishing through the approval gate', async () => {
     const server = makeServer(Tier.Autonomous);
     const result = await server.callTool('publishing_post', {
       modelId: MODEL,
@@ -209,7 +216,7 @@ describe('McpServer.callTool — success paths', () => {
     });
   });
 
-  it('executes publishing_post for a manager with approval required', async () => {
+  it.skipIf(!hasTestDatabase)('executes publishing_post for a manager with approval required', async () => {
     const server = makeServer(Tier.Manager);
     const result = await server.callTool('publishing_post', {
       modelId: MODEL,
@@ -306,7 +313,7 @@ describe('McpServer.callTool — permission and validation failures', () => {
 });
 
 describe('McpServer.handleRequest — callTool end to end', () => {
-  it('dispatches a full callTool request with arguments', async () => {
+  it.skipIf(!hasTestDatabase)('dispatches a full callTool request with arguments', async () => {
     const server = makeServer(Tier.Viewer);
     const req: McpRequest = {
       jsonrpc: '2.0',
