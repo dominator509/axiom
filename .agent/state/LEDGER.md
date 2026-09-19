@@ -976,3 +976,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19 | [AXIOM][P4][M655] Synchronized the published branch pointer in the canonical handoff with the actual pushed control-plane head
 2026-09-19 | [AXIOM][P4][M656] Rejected the follow-up Hermes R3 signature/correlation defect; source transport is read-only accepted, feature implementation remains blocked until a strict fresh ACK
 2026-09-19 | [AXIOM][P4][M657] Updated the canonical handoff to the pushed branch head while preserving the strict Hermes correction as the sole open feature-lane action
+2026-09-19 | [AXIOM][P4][M658] Verified current R3 transport filenames equal msg_id; quarantined historical filename mismatches from the active Hermes lane
