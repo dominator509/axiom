@@ -1,16 +1,15 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: after milestone M592 and the agentic-drafting/localization/vision delivery assignments. The active agentic-drafting
+Updated: after milestone M593 and the agentic-drafting/localization/vision delivery assignments. The active agentic-drafting
 supersession is tracked below. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
-## Current continuation checkpoint — M592
+## Current continuation checkpoint — M593
 
-The accepted product source head is the reviewed M590 mobile authentication
-localization milestone `6b777deed7c47e4ed7e3e0210c58d187729aae42`; the current
-pushed branch tip is `5fcd53306a74de8d73f6a1e0af6553bf322112c0` on
-`origin/codex/telegram-webhook-hardening`, containing the source milestone plus
-handoff/task-record updates. M578 wires the existing bounded
+The accepted product source head is the reviewed M593 trusted-vision recipe
+evidence milestone `81ef2069aae36256bed673c093ec5fbe16212cd6`, pushed on
+`origin/codex/telegram-webhook-hardening`; this documentation checkpoint records
+the source evidence and current delegation state. M578 wires the existing bounded
 `CaptionGuidanceReceipt` into the real copy-variant and review-bundle paths:
 the server rechecks same-org/model/asset ownership, exact caption hash and
 stored receipt metadata before persisting bounded provenance; review creation
@@ -25,6 +24,17 @@ focused variant suite 7/7, API/dashboard/DB typechecks pass, and API/dashboard
 lint pass with only existing warnings. No migration was authored for this
 JSONB extension; no runtime/provider/database/deployment action occurred.
 The intentionally untracked rejected Hermes review directory remains untouched.
+
+M593 closes the source gate for F-81/F-84 trusted thumbnail descriptors. The
+local Rust vision response is normalized into a versioned `vision-analysis-v1`
+receipt only when it is emitted by `rust_engine`; override, fallback, malformed,
+divergent and wrong-asset results remain unknown. The worker binds the receipt
+to the content asset ID and 32-byte SHA-256, persists it on the existing ToS
+report, copies only validator-approved data into the immutable publication
+snapshot, and emits the same bounded evidence through recipe/viral paths. No
+conversion or revenue attribution is inferred. Fanvue MCP, worker and DB tests,
+typechecks, builds and lints passed; runtime/provider/browser/mobile,
+migration/RLS and deployment gates remain open.
 
 ## M586B — exact-source agentic inbox drafting supersession
 

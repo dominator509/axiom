@@ -870,3 +870,22 @@ locally and remote checksum readback matched
 `4426322a6c413f3adf7ffe6c928b560c02c4f7f9ab3f33a227c3319554936fae`.
 No runtime, provider, database, migration, permission, installer or
 deployment action occurred.
+
+### M593 — trusted vision recipe evidence integrated
+
+Codex integrated the source-only F81/F84 slice at commit
+`81ef2069aae36256bed673c093ec5fbe16212cd6`. The Rust nsfw-detect response now
+normalizes bounded dimensions, brightness, variance, aspect ratio and
+confidence; `ToSEngine` emits a versioned `vision-analysis-v1` receipt only for
+an un-overridden `rust_engine` result. The worker requires consistent receipts
+across caption-group scans, binds the result to the existing asset ID and
+32-byte SHA-256, and persists it without changing the ToS verdict. Publication
+snapshot construction and recipe evidence accept only validator-approved
+receipts, so fallback, override, malformed, divergent and wrong-asset data
+becomes unknown. No conversion, revenue or provider attribution was invented.
+
+Evidence: Fanvue MCP 80/80 tests, worker full suite green including the new
+publication assertion, DB 155 passed with 17 integration tests skipped by the
+local environment, all three package typechecks and builds passed, and the
+owning lints exited 0 with only pre-existing warnings. No migration, runtime,
+provider, permission, installer or deployment action occurred.

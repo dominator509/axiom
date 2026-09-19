@@ -585,6 +585,19 @@ protocol-valid resume task checksum is
 This proves transport only; trusted thumbnail evidence, source tests,
 integration, browser/mobile, provider and deployment gates remain open.
 
+# M593: trusted vision evidence is source-wired
+
+The F-81/F-84 source gate is now closed at commit
+`81ef2069aae36256bed673c093ec5fbe16212cd6`. The local Rust vision receipt is
+versioned and bounded, accepted only when it is un-overridden and sourced from
+the Rust engine, then bound to the existing asset ID and SHA-256 before the
+worker persists it on the ToS report. The publication snapshot and viral recipe
+paths copy only validator-approved descriptors; malformed, fallback,
+override, divergent and asset-mismatched values remain unknown. The owning
+tests, typechecks, builds and lints pass. This closes source wiring only;
+conversion/revenue attribution, runtime/provider/browser/mobile, migrations/RLS
+and deployment acceptance remain open.
+
 # M586: F-89 mobile Relay localization integrated
 
 The readable Hermes mobile delivery was independently audited and integrated at

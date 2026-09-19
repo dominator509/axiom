@@ -37,7 +37,7 @@ receipts. Historical audit baselines are not silently treated as current source.
 | Team and shifts (F-24/F-25/F-26) | RBAC, shift lifecycle, handoff/post-note routes and dashboard controls exist. The dual-actor Chatter source slice adds human/LLM shift records, active-shift/agent-permission checks, durable roleplay handoffs, bounded memory and revisioned `soul.md` persona storage/API/UI. Team history now has bounded keyset pagination with dashboard older-history controls; Chatter roleplay uses its authorized personal shift roster rather than the administrative team endpoint. The next source lane is assigned-LLM inbox drafting into the existing pending-reply review flow. | Authenticated multi-user browser/RLS acceptance, Grok roleplay dispatch/provider receipts, agentic draft composition and deployed migration/runtime acceptance remain open. |
 | Playbook (F-54/F-55/F-56/F-57) | Revisioned guideline storage/editor, calendar checks, generation/caption enrichment and read-only analytics context exist in source. Analytics renders saved platform guidance as advisory context without changing metric calculations or scheduling. | Browser acceptance, stale-editor/history acceptance, deployed migration acceptance, and any future consumer path not covered by the current source audit. |
 | Scraper and research (F-17/F-18) | Authenticated bounded scrape runs, worker dispatch, model egress binding and partial-result/error handling exist. M577 aligns the durable `scrape_run` state, worker persistence and authenticated projection so mixed results remain `partial` end to end. | Deployed sidecar/provider isolation, benchmark history exposure, migration application, browser/mobile and result-quality acceptance. |
-| Viral loop (F-79–F-86) | Metric/evidence filtering, publication-bound recipe evidence (hook, scheduled/actual time, bounded shoot controls, media format and ToS verdict), labels, recipes, embeddings/retrieval, parts of reward/digest logic, and a typed Relay-card lifecycle distinguishing durable `stored` evidence from external-dispatch states exist. | Trusted thumbnail descriptors, revenue/conversion attribution, all contextual arms, cross-model opt-in behavior, scheduled insight/Relay delivery, migration application and runtime acceptance. |
+| Viral loop (F-79–F-86) | Metric/evidence filtering, publication-bound recipe evidence (hook, scheduled/actual time, bounded shoot controls, media format, ToS verdict and asset/hash-bound Rust vision descriptors), labels, recipes, embeddings/retrieval, parts of reward/digest logic, and a typed Relay-card lifecycle distinguishing durable `stored` evidence from external-dispatch states exist. | Revenue/conversion attribution, all contextual arms, cross-model opt-in behavior, scheduled insight/Relay delivery, migration application and runtime acceptance. |
 | Connectors and OAuth (F-03/F-31/F-58–F-67) | Static connector contracts and capability declarations exist for supported paths. | Live OAuth, refresh/revoke/disconnect, account onboarding, provider upload/publish/metrics receipts and browser acceptance. Snapchat remains capability-honest manual-assist where its API does not support organic posting. |
 | Patreon creator/community integration (F-91) | **Wired/partial:** the pure v2 community connector is now wired through authored migration 0055, tenant/model-scoped campaign/member/post/sync/webhook tables with RLS, model-egress OAuth/PKCE and encrypted account persistence, bounded cursor sync, durable replay guards, signed webhook ingress, a model dashboard, and a native mobile community surface with assigned-model scoping, redacted status/read views and operator-only sync controls. | Deployed migration/RLS/runtime acceptance, real provider OAuth/webhook/sync receipts, browser/mobile acceptance and operational reconciliation remain open. No publish/DM/payout/member-mutation/unsupported-analytics claim. |
 | Link-in-bio (F-48–F-53) | The Native provider is the current production-enabled default. | Fanlynks, Linktree and Beacons are optional planned adapters and must remain hidden/rejected until their full lifecycle exists; a database row is not evidence of a connection. |
@@ -356,6 +356,18 @@ vision wire currently exposes only ToS/analysis data. A bounded current-source
 Hermes task now targets that existing Rust -> TypeScript -> worker -> viral
 recipe path. Conversion attribution remains unavailable unless an authoritative
 provider field is present; no synthetic metric is permitted.
+
+### M593 source checkpoint
+
+F-81/F-84 trusted thumbnail evidence is now source-wired through the existing
+Rust vision, ToS, content-bundle, publication-snapshot and viral-recipe paths
+at commit `81ef2069aae36256bed673c093ec5fbe16212cd6`. The receipt is versioned,
+Rust-only, asset-ID/SHA-256 bound and bounded; override, fallback, malformed,
+divergent and wrong-asset inputs remain unknown. Focused and full owning
+package tests, typechecks, builds and lints passed with only pre-existing lint
+warnings. This is not runtime or provider evidence: conversion/revenue
+attribution, migration/RLS, browser/mobile, deployed worker/media and provider
+acceptance remain open.
 
 ### M584 source-lane checkpoint
 
