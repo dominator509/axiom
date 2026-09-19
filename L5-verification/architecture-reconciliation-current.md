@@ -178,6 +178,19 @@ typecheck passed. Source commit `789edae3ba0c357e9e5a8ffb67329281c1076a65`.
 This is source/UI evidence only: worker delivery, external Relay, migration,
 provider, browser, mobile and deployment gates remain open.
 
+### M562 — authenticated workspace-settings localization
+
+The authenticated owner settings page and `OrgSettingsForm` now consume the
+shared six-locale catalog for the workspace heading, load failure, accessible
+form name, viral-sharing/digest/publishing controls, safety explanations,
+success/error states and retry/save actions. Existing settings mutation
+idempotency, response confirmation and retry semantics were preserved.
+Core tests passed 65/65, the focused settings/localization suite passed 6/6,
+the full dashboard suite passed 741/741 and dashboard typecheck passed. Source
+commit `2c51eafef2188cbe7fdbd2fdea9d21b85211fb7b`. This is source/UI evidence
+only: remaining catalog adoption, locale-aware formatting, browser/mobile,
+provider, migration/RLS, runtime and deployment gates remain open.
+
 ## Explicit owner extensions — localization and platform affiliate stack
 
 ### F-89: multilingual product surface

@@ -568,3 +568,16 @@ delivery had no live actions and its response signature was duplicated, so the
 artifact—not the transport acknowledgment—was the acceptance subject. Worker,
 external Relay, provider, migration, browser/mobile and deployment evidence
 remain open.
+
+### M562 — authenticated workspace-settings localization
+
+The owner settings page and `OrgSettingsForm` now use the shared six-locale
+catalog for all visible settings headings, descriptions, accessible labels,
+load/save/error/retry states and controls. Existing idempotency, response
+confirmation and retry behavior remains covered by the original settings tests;
+the new locale tests prove English and Spanish rendering plus persisted checked
+state. Core tests passed 65/65, the focused settings/localization suite passed
+6/6, the full dashboard suite passed 741/741 and dashboard typecheck passed.
+This closes one source/UI slice of F-89 only; remaining dashboard/email/operator
+adoption, formatting, browser/mobile, provider, migration/RLS, runtime and
+deployment evidence stay open.
