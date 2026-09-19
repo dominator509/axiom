@@ -2970,6 +2970,23 @@ No parallel feature lane is active until that next task is explicitly recorded
 and sent; provider, migration/RLS, browser/mobile, runtime, operator and
 deployment evidence remain separate open gates.
 
+## Active delegated lane — F89 inbox localization current source
+
+After closing the R5 and D001A Hermes attempts, Codex opened exactly one new
+source-only lane: `F89-INBOX-LOCALIZATION-CURRENT-R1`. The task is pinned to
+current pushed source `050040f07fc4596e494a6b0c1a8e0678c6d48f5f` and the
+protocol-valid envelope was read back from Hermes with SHA-256
+`effa5da7ef5db7a152f4426c2bf10d1728bf0ca9227328a25938b4572fb55931`.
+Hermes owns only the isolated copy
+`/srv/fanthynks-bridge/hermes/work/ipman-replies-out/f89-inbox-localization-current-r1`.
+The bounded scope is the authenticated model Inbox and delivery-review UI,
+the shared six-locale catalog and tests: localize actual visible copy, use
+selected-locale UTC/date/currency formatting, preserve authored/provider data,
+access/error/empty/retry/idempotency behavior and add behavior evidence. No
+API, worker, DB, migration, roleplay-route, provider, runtime or deployment
+work is authorized. Codex will accept only one correlated evidence-bearing
+PROGRESS followed by one hash-verifiable DELIVERY or terminal BLOCKED.
+
 ## M609 — reusable playbook-guideline localization
 
 The reusable `PlaybookGuidelineManager` now consumes typed messages from all
