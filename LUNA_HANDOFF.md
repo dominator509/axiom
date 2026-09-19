@@ -1608,6 +1608,7 @@ LAST_ACCEPTED_CODE: 2c51eafef2188cbe7fdbd2fdea9d21b85211fb7b
 PUBLISHED_HEAD: 27ca8ef1ee6e39ce9bff7e38e6419e85f712b357
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state, model dashboard and native mobile model/status/read/sync surface with scoped role boundaries are source-wired; F-10 source-wired visual month/week calendar with guarded drag and accessible date rescheduling plus advisory timing guidance; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
 NEXT_REQUIRED: Hermes must complete `CODEX-R2-STORAGE-CURRENT-R4-001` with one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED against exact source `a462ea0e74cec267ba61678909183ef4b652b51d`. Codex must independently hash/review the artifact, run owning checks, integrate only passing source, commit/push and then advance to the next finite lane. Keep provider credentials, R2 round-trip, migration/RLS, browser, operator and deployment gates explicitly open. Do not reissue the rejected Team/Chatter R5 copy. No wall-clock or date comparison is part of the bridge protocol
+CONTINUATION_WIRE: `CODEX-R2-STORAGE-CURRENT-R4-002` is the active follow-up to Hermes ACK `HERMES-R2-STORAGE-CURRENT-R4-ACK-001`; envelope `L5-verification/hermes-r2-storage-current-r4-followup.json`, SHA-256 `50af5b9835dea283d026fa2796efe85b987e5f88770a605abdb91f3e2418ea3d`. Hermes must return one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED; no acknowledgment-only response.
 HERMES_ACCOUNTABILITY: Codex sent `FUNCTIONAL-DELIVERY-STANDARD-R1`; Hermes must produce real source implementation in isolated copies, not plans, pure contracts, baseline copies or ACK-only responses. A DELIVERY is countable only with changed paths, per-file SHA256, exact commands and exit codes, behavior-level tests, and truthful LIVE_ACTIONS NONE; otherwise Hermes must return a terminal BLOCKED result with the exact blocker.
 HERMES_F89_TASK: `LOCALIZATION-MULTILINGUAL-FUNCTIONAL-R3`, WIRE `CODEX-LOCALIZATION-FUNCTIONAL-001`, source ref `57a8c47f8f6fa2d7be2f6920d3da88a374ce15c6`, isolated copy `/root/d001a-deliverable/localization-r3`; the corrective delivery-required message `codex-localization-functional-r3-delivery-required-001` supersedes silent waiting and requires changed source, behavior tests and a signed DELIVERY or exact BLOCKED result.
 HERMES_F89_AUTHORIZATION: Hermes returned a truthful terminal BLOCKED because COPY_ROOT was absent and source writes were not explicitly authorized. Codex has now issued `codex-localization-functional-r3-authorize-source-copy-002` with owner-authorized COPY_ROOT creation and source-only artifact writes; Hermes must not commit/push, and Codex retains review/integration/commit/push ownership.
@@ -2174,3 +2175,14 @@ Evidence: core 65/65; focused settings/localization 6/6; full dashboard
 741/741; dashboard typecheck; diff check. This is source/UI evidence only.
 Remaining F-89 catalog adoption, locale-aware formatting, browser/mobile,
 provider, migration/RLS, runtime and deployment gates remain open.
+
+## M563 — Hermes R2 storage continuation wire
+
+Hermes had returned only the non-terminal acceptance ACK for the active R2
+storage lane. Codex sent one continuation envelope tied to that ACK, requiring
+implementation and evidence rather than another precheck or acknowledgment.
+The envelope is `L5-verification/hermes-r2-storage-current-r4-followup.json`,
+SHA-256 `50af5b9835dea283d026fa2796efe85b987e5f88770a605abdb91f3e2418ea3d`,
+WIRE `CODEX-R2-STORAGE-CURRENT-R4-002`. Scope and no-live-action boundaries
+are unchanged; Hermes must return PROGRESS followed by terminal DELIVERY or
+BLOCKED.
