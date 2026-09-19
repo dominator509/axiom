@@ -1,11 +1,23 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-const hooks = vi.hoisted(() => ({ slots: [] as unknown[], index: 0, send: vi.fn(), fetch: vi.fn() }));
-vi.mock('react', async original => ({ ...await original<typeof import('react')>(),
-  useState: (initial: unknown) => { const i = hooks.index++; if (!(i in hooks.slots)) hooks.slots[i] = initial;
-    return [hooks.slots[i], (value: unknown) => { hooks.slots[i] = typeof value === 'function' ? value(hooks.slots[i]) : value; }]; },
-  useRef: (initial: unknown) => { const i = hooks.index++; return hooks.slots[i] ??= { current: initial }; },
-}));
+import { CATALOGS, LocaleCatalog, type SupportedLocale } from '@axiom/core';
+const hooks = vi.hoisted(() => ({ slots: [] as unknown[], index: 0, send: vi.fn(), fetch: vi.fn(), locale: { value: 'en' as string }, dispatcher: { value: false } }));
+vi.mock('react', async original => {
+  const real = await original<typeof import('react')>();
+  const internals = ((real as unknown as { __CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE?: Record<string, unknown> }).__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE) ?? {};
+  // Read the dispatcher flag dynamically so a test can flip it per-case.
+  Object.defineProperty(internals, 'H', { get: () => (hooks.dispatcher.value ? {} : undefined), configurable: true });
+  return { ...real,
+    __CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE: internals,
+    useState: (initial: unknown) => { const i = hooks.index++; if (!(i in hooks.slots)) hooks.slots[i] = initial;
+      return [hooks.slots[i], (value: unknown) => { hooks.slots[i] = typeof value === 'function' ? value(hooks.slots[i]) : value; }]; },
+    useRef: (initial: unknown) => { const i = hooks.index++; return hooks.slots[i] ??= { current: initial }; },
+  };
+});
 vi.mock('@/lib/mutation', () => ({ mutationFetch: hooks.send }));
+vi.mock('./LocaleProvider', () => ({ useLocale: () => {
+  const catalog = new LocaleCatalog(CATALOGS);
+  return { locale: hooks.locale.value as SupportedLocale, setLocale: () => undefined, t: (k: string, v?: Record<string, string | number>) => catalog.t(hooks.locale.value as SupportedLocale, k, v) };
+} }));
 import InboxReplyReviews, { isReplyReview } from './InboxReplyReviews';
 const id = '11111111-1111-4111-8111-111111111111', key = '22222222-2222-4222-8222-222222222222';
 const review = { id, modelId: id, replyId: id, actorUserId: 'operator', intentKey: key, conclusion: 'unresolved', observedMessageUuid: null, note: 'Reviewed exact conversation.', evidenceSource: 'operator_review', createdAt: '2026-09-17T00:00:00Z' };
@@ -23,7 +35,7 @@ async function load(data: unknown[] = [], cursor: string | null = null) {
   hooks.fetch.mockResolvedValueOnce(Response.json({ data, meta: { next_cursor: cursor } })); click('Load delivery reviews');
   await vi.waitFor(() => expect(find(render(), 'button', 'Load delivery reviews')!.props.disabled).toBe(false));
 }
-beforeEach(() => { hooks.slots = []; hooks.index = 0; hooks.send.mockReset(); hooks.fetch.mockReset(); vi.stubGlobal('fetch', hooks.fetch); vi.stubGlobal('crypto', { randomUUID: () => key }); });
+beforeEach(() => { hooks.slots = []; hooks.index = 0; hooks.send.mockReset(); hooks.fetch.mockReset(); hooks.locale.value = 'en'; hooks.dispatcher.value = false; vi.stubGlobal('fetch', hooks.fetch); vi.stubGlobal('crypto', { randomUUID: () => key }); });
 afterEach(() => vi.unstubAllGlobals());
 it('rejects mismatched identity, fake automated evidence and inconsistent conclusions', () => {
   expect(isReplyReview(review, id, id)).toBe(true);
@@ -72,4 +84,51 @@ it('uses reply-scoped cursors and preserves history when loading older reviews',
   await vi.waitFor(() => expect(find(render(), 'button', 'Load older reviews')).toBeUndefined());
   expect(hooks.fetch.mock.calls[1][0]).toBe(`/api/v1/models/${id}/inbox/replies/${id}/reviews?cursor=${id}`);
   expect(hooks.send).not.toHaveBeenCalled();
+});
+
+// ─── F-89 localization ───
+// With a live provider locale the component must render catalog strings, not
+// hard-coded English. The provider-path strings come from the shared catalog.
+it.each([
+  ['es', 'Evidencia de revisión de entrega', 'Cargar revisiones de entrega'],
+  ['ja', '配信レビューの証拠', '配信レビューを読み込む'],
+  ['it', 'Prova di revisione della consegna', 'Carica revisioni di consegna'],
+  ['pt-BR', 'Evidência de revisão de entrega', 'Carregar revisões de entrega'],
+  ['de', 'Nachweis der Zustellungsüberprüfung', 'Zustellungsüberprüfungen laden'],
+])('renders the review surface in %s rather than English', async (locale, summary, loadLabel) => {
+  hooks.locale.value = locale; hooks.dispatcher.value = true;
+  const tree = render();
+  expect(find(tree, 'summary', summary)).toBeDefined();
+  expect(find(tree, 'button', loadLabel)).toBeDefined();
+  expect(find(tree, 'summary', 'Delivery review evidence')).toBeUndefined();
+});
+
+it('localizes the review form labels and truthful recorded status', async () => {
+  hooks.locale.value = 'de'; hooks.dispatcher.value = true;
+  hooks.fetch.mockResolvedValueOnce(Response.json({ data: [], meta: { next_cursor: null } }));
+  click('Zustellungsüberprüfungen laden');
+  await vi.waitFor(() => expect(find(render(), 'fieldset')!.props.disabled).toBe(false));
+  expect(find(render(), 'legend', 'Erfasse deine externe Überprüfung')).toBeDefined();
+  expect(find(render(), 'button', 'Operator-Überprüfung erfassen')).toBeDefined();
+});
+
+it('formats review timestamps with the selected locale and UTC, not the host locale', async () => {
+  hooks.locale.value = 'de'; hooks.dispatcher.value = true;
+  hooks.fetch.mockResolvedValueOnce(Response.json({ data: [review], meta: { next_cursor: null } }));
+  click('Zustellungsüberprüfungen laden');
+  await vi.waitFor(() => expect(find(render(), 'fieldset')!.props.disabled).toBe(false));
+  const html = JSON.stringify(render());
+  // German medium date/time with explicit UTC for the fixed createdAt.
+  expect(html).toMatch(/17\.09\.2026|17\. Sept\. 2026/);
+  expect(html).not.toContain('9/17/2026');
+});
+
+it('keeps the localized history error honest and free of raw backend detail', async () => {
+  hooks.locale.value = 'es'; hooks.dispatcher.value = true;
+  hooks.fetch.mockRejectedValueOnce(new Error('provider-secret'));
+  click('Cargar revisiones de entrega');
+  await vi.waitFor(() => expect(find(render(), 'p')?.props.children).toBeDefined());
+  const html = JSON.stringify(render());
+  expect(html).toContain('No se pudo verificar el historial de revisiones');
+  expect(html).not.toContain('provider-secret');
 });

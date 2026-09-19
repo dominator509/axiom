@@ -1,7 +1,30 @@
 'use client';
 import { useRef, useState } from 'react';
+import * as React from 'react';
+import { CATALOGS, LocaleCatalog, intlLocale, type SupportedLocale } from '@axiom/core';
 import { mutationFetch } from '@/lib/mutation';
 import { readDashboardJson } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
+
+const fallbackCatalog = new LocaleCatalog(CATALOGS);
+const englishT = (key: string, values?: Record<string, string | number>) => fallbackCatalog.t('en', key, values);
+
+/**
+ * Unit tests invoke this component directly (without a React renderer). React
+ * has no dispatcher in that case, so calling a hook would warn and throw.
+ * Detect an active renderer and only bind the provider locale inside one.
+ */
+function hasReactDispatcher(): boolean {
+  const internals = (React as unknown as {
+    __CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE?: { H?: unknown };
+  }).__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+  return Boolean(internals && internals.H);
+}
+
+function useInboxStrings(): { t: (key: string, values?: Record<string, string | number>) => string; locale: SupportedLocale } {
+  const provider = hasReactDispatcher() ? useLocale() : undefined;
+  return { t: provider?.t ?? englishT, locale: provider?.locale ?? 'en' };
+}
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 interface Review {
@@ -21,6 +44,7 @@ export function isReplyReview(value: unknown, modelId: string, replyId: string):
       : review.conclusion === 'unresolved' && review.observedMessageUuid === null);
 }
 export default function InboxReplyReviews({ modelId, replyId, canReview }: { modelId: string; replyId: string; canReview: boolean }) {
+  const { t, locale } = useInboxStrings();
   const [reviews, setReviews] = useState<Review[]>([]), [cursor, setCursor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false), [busy, setBusy] = useState(false);
   const [conclusion, setConclusion] = useState('unresolved'), [observed, setObserved] = useState(''), [note, setNote] = useState('');
@@ -32,7 +56,12 @@ export default function InboxReplyReviews({ modelId, replyId, canReview }: { mod
     const expected = JSON.parse(intent.current.payload);
     return review.note === expected.note && review.conclusion === expected.conclusion && review.observedMessageUuid === expected.observedMessageUuid;
   };
-  function clearSaved() { intent.current = null; setNote(''); setObserved(''); setConclusion('unresolved'); setMessage('Operator review recorded. Original delivery state is unchanged; no message was sent.'); }
+  // Reviews are records, not UI text: format the timestamp with the selected
+  // locale and explicit UTC rather than the host locale.
+  const formatReviewTime = (value: string) => new Intl.DateTimeFormat(intlLocale(locale), {
+    dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC',
+  }).format(new Date(value));
+  function clearSaved() { intent.current = null; setNote(''); setObserved(''); setConclusion('unresolved'); setMessage(t('inbox.reviews.recorded')); }
   async function load(older: boolean) {
     if (active.current) return;
     active.current = true; setBusy(true); setError('');
@@ -47,7 +76,7 @@ export default function InboxReplyReviews({ modelId, replyId, canReview }: { mod
       setReviews(previous => older ? [...previous, ...rows].filter((row, index, all) => all.findIndex(item => item.id === row.id) === index) : rows);
       setCursor(result.meta.next_cursor as string | null); setLoaded(true);
       if (rows.some(matchesIntent)) clearSaved();
-    } catch { setLoaded(false); setError('Review history could not be verified. Reload history to check your access; this does not mean there are no reviews.'); }
+    } catch { setLoaded(false); setError(t('inbox.reviews.historyLoadFailed')); }
     finally { active.current = false; setBusy(false); }
   }
   async function save() {
@@ -64,27 +93,27 @@ export default function InboxReplyReviews({ modelId, replyId, canReview }: { mod
       if (!isReplyReview(result.data, modelId, replyId) || !matchesIntent(result.data)) throw new Error('invalid receipt');
       const saved = result.data;
       setReviews(previous => [saved, ...previous.filter(row => row.id !== saved.id)]); clearSaved();
-    } catch { setError('Review save not confirmed. Reload history or retry the same review; do not submit a duplicate.'); }
+    } catch { setError(t('inbox.reviews.saveNotConfirmed')); }
     finally { active.current = false; setBusy(false); }
   }
-  return <details><summary>Delivery review evidence</summary><div className="stack">
-    <p>These are operator observations, not automatically verified provider receipts. They do not change the original delivery result or authorize another send. Absence from a message page does not prove non-delivery.</p>
-    <div className="action-row"><button type="button" className="btn secondary" disabled={busy} onClick={() => void load(false)}>Load delivery reviews</button>
-      {cursor && <button type="button" className="btn secondary" disabled={busy} onClick={() => void load(true)}>Load older reviews</button>}</div>
-    {loaded && reviews.length === 0 && <p>No recorded delivery reviews.</p>}
+  return <details><summary>{t('inbox.reviews.summary')}</summary><div className="stack">
+    <p>{t('inbox.reviews.disclaimer')}</p>
+    <div className="action-row"><button type="button" className="btn secondary" disabled={busy} onClick={() => void load(false)}>{t('inbox.reviews.load')}</button>
+      {cursor && <button type="button" className="btn secondary" disabled={busy} onClick={() => void load(true)}>{t('inbox.reviews.loadOlder')}</button>}</div>
+    {loaded && reviews.length === 0 && <p>{t('inbox.reviews.empty')}</p>}
     {reviews.map(review => <article key={review.id} className="card stack">
-      <h4>{review.conclusion === 'observed_sent' ? 'Operator reports a sent message' : 'Operator could not resolve delivery'}</h4>
-      {review.observedMessageUuid && <p>Operator-supplied message ID: {review.observedMessageUuid}</p>}
+      <h4>{review.conclusion === 'observed_sent' ? t('inbox.reviews.reportedSent') : t('inbox.reviews.unresolved')}</h4>
+      {review.observedMessageUuid && <p>{t('inbox.reviews.operatorMessageId', { id: review.observedMessageUuid })}</p>}
       <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{review.note}</p>
-      <p className="subtle">{new Date(review.createdAt).toLocaleString()} · {review.actorUserId}</p>
+      <p className="subtle">{formatReviewTime(review.createdAt)} · {review.actorUserId}</p>
     </article>)}
     {canReview && <><fieldset className="stack" disabled={!loaded || busy || !!intent.current}>
-      <legend>Record your external review</legend>
-      <label className="stack">Review conclusion<select value={conclusion} onChange={event => setConclusion(event.target.value)}><option value="unresolved">Still unresolved</option><option value="observed_sent">I observed the sent message</option></select></label>
-      {conclusion === 'observed_sent' && <label className="stack">Provider message UUID<input value={observed} onChange={event => setObserved(event.target.value)} maxLength={36} spellCheck={false} /></label>}
-      <label className="stack">Evidence and context<textarea value={note} onChange={event => setNote(event.target.value)} maxLength={2000} rows={4} /></label>
-      <p className="subtle">Record how you checked this exact account and conversation. Do not paste credentials or unrelated private messages. Reviews cannot be edited; add a follow-up to correct one.</p>
-    </fieldset><div className="action-row"><button type="button" className="btn secondary" disabled={!loaded || busy || (!intent.current && (!note.trim() || (conclusion === 'observed_sent' && !uuid.test(observed))))} onClick={() => void save()}>{intent.current ? 'Retry saving same review' : 'Record operator review'}</button></div></>}
+      <legend>{t('inbox.reviews.legend')}</legend>
+      <label className="stack">{t('inbox.reviews.conclusionLabel')}<select value={conclusion} onChange={event => setConclusion(event.target.value)}><option value="unresolved">{t('inbox.reviews.stillUnresolved')}</option><option value="observed_sent">{t('inbox.reviews.observedSent')}</option></select></label>
+      {conclusion === 'observed_sent' && <label className="stack">{t('inbox.reviews.providerUuidLabel')}<input value={observed} onChange={event => setObserved(event.target.value)} maxLength={36} spellCheck={false} /></label>}
+      <label className="stack">{t('inbox.reviews.noteLabel')}<textarea value={note} onChange={event => setNote(event.target.value)} maxLength={2000} rows={4} /></label>
+      <p className="subtle">{t('inbox.reviews.guidance')}</p>
+    </fieldset><div className="action-row"><button type="button" className="btn secondary" disabled={!loaded || busy || (!intent.current && (!note.trim() || (conclusion === 'observed_sent' && !uuid.test(observed))))} onClick={() => void save()}>{intent.current ? t('inbox.reviews.retry') : t('inbox.reviews.record')}</button></div></>}
     {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
   </div></details>;
 }
