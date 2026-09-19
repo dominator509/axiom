@@ -1683,3 +1683,17 @@ requires a unique correlated ACK followed by evidence PROGRESS and one
 DELIVERY/BLOCKED, and names behavior-level criteria rather than vague audits.
 Live providers, hosted CI/rulesets, R2 buckets, VPN/network, migrations,
 deployment, credentials and service actions remain external or forbidden.
+## M509 — bridge visibility repaired and exact source supplied
+
+Hermes terminally blocked the matrix task because it could not see the local
+matrix or source commit. Codex corrected the boundary without widening access:
+the matrix was copied to
+`/srv/fanthynks-bridge/hermes/inbox/hermes-functional-acceptance-matrix-r1.md`
+with SHA-256
+`c9ae6acd09a9fcfdaef918b9e735ecbabcd05e40f050b6cae959c0770708d0bd`, and the
+sanitized exact-head git archive was copied to
+`/srv/fanthynks-bridge/hermes/inbox/axiom-source-21f0f347.tar.gz` with SHA-256
+`2e011aa3ab09802ce39635cd04609b1caf9ae28f56acf03aaf52485d8834cda8`.
+Remote checksums match. A new correlated matrix task
+`codex-hermes-functional-acceptance-matrix-r2` points Hermes to both artifacts;
+the prior terminal BLOCKED is not counted as implementation progress.
