@@ -379,6 +379,16 @@ host locale, and backend errors are not rendered raw. Core catalog tests passed
 only pre-existing warnings. Remaining approvals, playbook, agent-access and
 automation-rule operator surfaces still require the same catalog/UTC audit.
 
+### M601 source checkpoint
+
+Approvals/review drafts, playbook score/history, model agent access and
+automation-rule pages now use the shared six-locale catalog. Review and
+playbook timestamps use the server-locale UTC formatter; access, empty,
+unavailable and no-state-change messages are localized without exposing raw
+backend errors. Existing approval, playbook and full dashboard behavior tests
+remain green; typecheck is clean and lint has only pre-existing warnings.
+Reusable child components and browser/native acceptance remain separate gates.
+
 ### M584 source-lane checkpoint
 
 The desktop operator-formatting lane's corrected WIRE was unique, but its ACK

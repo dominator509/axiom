@@ -901,3 +901,15 @@ warnings. This closes only the Audit slice of F-89. Approvals, playbook,
 agent-access and automation-rule surfaces remain the next finite source/UI
 localization node; browser/native, provider, migration/RLS and deployment gates
 remain open.
+
+### M601 — remaining mounted operator-page localization
+
+The approvals/review, playbook, agent-access and automation-rule pages now
+consume the six launch catalogs. Review state labels, access boundaries,
+empty/unavailable/no-state-change copy and playbook score/history labels are
+localized; review and score-history timestamps use explicit UTC formatting.
+The existing approval and playbook behavior suites plus the full dashboard
+suite, dashboard typecheck and lint pass with only pre-existing warnings. This
+closes those mounted page slices of F-89, not every child-component label or
+browser/native acceptance gate. No provider, database, migration, runtime or
+deployment action occurred.

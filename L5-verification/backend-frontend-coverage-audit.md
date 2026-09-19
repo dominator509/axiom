@@ -607,6 +607,15 @@ catalog tests passed 74/74; the dashboard suite, typecheck and lint passed with
 only existing warnings. Approvals, playbook, agent-access and automation-rule
 surfaces remain open for the same operator-formatting treatment.
 
+# M601: mounted operator-page localization
+
+The approvals/review, playbook, agent-access and automation-rule pages now use
+the six launch catalogs and server-locale UTC formatting where they render
+timestamps. Access, empty, unavailable, review-state and no-state-change copy
+is localized; raw backend errors are not surfaced. Existing page behavior,
+dashboard, typecheck and lint gates pass with only existing warnings. Child
+component catalog adoption and browser/native acceptance remain open.
+
 # M586: F-89 mobile Relay localization integrated
 
 The readable Hermes mobile delivery was independently audited and integrated at

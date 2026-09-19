@@ -2866,3 +2866,15 @@ dashboard suite passed, dashboard typecheck/lint passed with only existing
 warnings. Approvals, playbook, agent-access and automation-rule pages remain
 the next finite operator-localization gap. No provider, database, migration,
 runtime, permission, installer or deployment action occurred.
+
+## M601 — mounted operator-page localization
+
+Codex integrated and pushed the remaining mounted operator-page F-89 slice at
+source commit `d472653b7c8ceb979462fb931f38983fe6181744`. Approvals/review
+drafts, playbook score/history, model agent access and automation-rule pages
+now consume the six launch catalogs; review and score-history timestamps use
+server-locale UTC formatting, and access/empty/unavailable/no-state-change
+states are localized. Existing approval/playbook behavior tests, the full
+dashboard suite and dashboard typecheck pass; lint has only existing warnings.
+Reusable child-component labels, browser/native acceptance, provider,
+migration/RLS, runtime and deployment gates remain open.
