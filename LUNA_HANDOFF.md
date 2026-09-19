@@ -1,13 +1,13 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: after milestone M585 and the agentic-drafting/localization/vision delivery assignments. This is a continuation checkpoint,
+Updated: after milestone M586 and the agentic-drafting/localization/vision delivery assignments. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
-## Current continuation checkpoint — M585
+## Current continuation checkpoint — M586
 
-The accepted product source head is the variant guidance provenance milestone
-`ce2f15bf73fb0855b97fc6dddd173a1f3e4827c3`; the current pushed branch tip is
-`ac7961b9444fea4ec538e84c5980afca84e69ea6` on
+The accepted product source head is the reviewed M586 mobile localization
+milestone `94416816354926e2e0282420e360defa1a9655dd`; the current pushed branch
+tip is the same commit on
 `origin/codex/telegram-webhook-hardening`. M578 wires the existing bounded
 `CaptionGuidanceReceipt` into the real copy-variant and review-bundle paths:
 the server rechecks same-org/model/asset ownership, exact caption hash and
@@ -2670,3 +2670,28 @@ root under `ipman-replies-out`; its envelope remote SHA-256 is
 `a9a099c041bb4429f6389f47aab4e925499ef34d6d6246ce6bb0e85bdb0ba1b9`.
 This clears transport only; no source implementation, runtime, provider,
 database, migration, permission, installer or deployment action is counted.
+
+## M586 — F89 mobile Relay localization integrated
+
+Hermes' `F89-MOBILE-RELAY-FORMATTING-R1` source delivery was independently
+reviewed after its test/evidence files were made readable. The delivered source
+was integrated only after the changed paths and behavior were inspected. The
+mounted mobile `DashboardScreen` and `RelayScreen` now use the shared six-locale
+catalog for navigation, language, delivery, status, empty/error/retry and
+locale-aware date/count formatting. The corresponding core catalog-completeness
+and mounted-screen behavior tests are part of the commit.
+
+Codex corrected two delivery issues during integration: the mobile Vitest config
+now resolves the repository root and uses `packages/mobile` as `envDir`, so
+tests cannot load root deployment secrets; and Relay error states no longer
+render contradictory empty-state copy alongside the error. The mobile manifest
+and lockfile include the pinned `@types/react-dom` declaration needed by the
+mounted tests.
+
+Evidence: mobile tests 19/19, core tests 74/74, dashboard tests 753/753,
+mobile/core typechecks and linters pass, and `pnpm --filter @axiom/mobile build`
+passes TypeScript plus Expo web export. Source commit
+`94416816354926e2e0282420e360defa1a9655dd` was pushed and read back from the
+existing branch. This closes the source gate for this mobile slice only; native
+device, browser interaction, deployed runtime, migration/RLS and provider
+acceptance remain open. The rejected Hermes review directory remains untouched.

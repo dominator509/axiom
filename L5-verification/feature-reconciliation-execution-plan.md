@@ -839,6 +839,24 @@ The resume task was protocol-validated and transferred with remote SHA-256
 writable isolated Hermes copy root. This reopens source work only; it is not
 implementation or deployment evidence.
 
+### M586 — F89 mobile Relay localization integrated
+
+The readable Hermes mobile delivery was independently audited and integrated
+into the current source. `DashboardScreen` and `RelayScreen` now consume the
+shared six-locale catalog for mounted navigation/language/delivery/status,
+empty/error/retry copy, and locale-aware date/count formatting. Core catalog
+coverage and mounted-screen behavior tests were added. During review Codex
+corrected the delivered Vitest root/env boundary so tests cannot load the root
+deployment environment, and removed contradictory empty-state copy from Relay
+error rendering.
+
+Evidence: mobile tests 19/19, core tests 74/74, dashboard tests 753/753,
+mobile/core typechecks and linters, and the mobile TypeScript plus Expo web
+export build all passed. Commit
+`94416816354926e2e0282420e360defa1a9655dd` is pushed and read back. This
+closes only the source gate for this mobile slice; native/browser, deployed,
+migration/RLS, runtime and provider acceptance remain open.
+
 ### M583 — current-source F81/F84 trusted-vision lane
 
 The current Rust vision response exposes ToS classification and bounded image
