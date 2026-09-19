@@ -2362,3 +2362,29 @@ real source/test delta or a terminal BLOCKED with the exact contract conflict;
 it adds no runtime, provider, database, migration, permission, network,
 installer, bridge-service, commit or deployment authorization. Envelope
 SHA-256: `686aee09a26294fd39f27fd271e0242d32a2115fdf3c2009c193ae8c53ca29f4`.
+
+## M573 — scraper result projection accepted locally; Hermes helper-only delta rejected
+
+Codex completed and pushed the bounded scraper result projection at
+`bf00aae348a3f9960b17b5c026726acc83a3852d`. The authenticated API now returns
+only the bounded `ScrapeResultView`/`ScrapeRun` contract, the dashboard renders
+truthful state and observed-zero versus unavailable semantics, raw provider
+result/error/request fields are omitted, and the worker regression remains
+green. Evidence: API contract/route 37/37, dashboard result 4/4, worker scrape
+11/11, core/API/worker/dashboard typechecks, core/API/worker builds, API and
+dashboard lint, elevated dashboard production build, and `git diff --check`.
+This source milestone is pushed and the remote ref was read back exactly.
+
+Hermes PROGRESS `HERMES-SCRAPER-RESULT-QUALITY-CURRENT-R1-PROGRESS-002` was
+audited and rejected: it changed only a pure helper, its test and resolver
+harness files; it did not wire the authenticated route or dashboard, and its
+`partial` path collapses to persisted `completed`, which would create a false
+success. The signed protocol receipt
+`CODEX-SCRAPER-RESULT-QUALITY-R1-RECEIPT-004` passed the local checker and was
+uploaded with remote hash readback. Hermes must return one terminal DELIVERY
+with real callsite changes or one terminal BLOCKED naming the exact contract
+conflict; no duplicate ACK or rerun of the rejected helper-only delta.
+
+No deployment, installer, live/disposable database, migration, provider,
+credential, permission, network, runtime or bridge-service action was taken.
+Codex retains audit, integration, commit and push ownership.
