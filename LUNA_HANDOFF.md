@@ -44,9 +44,15 @@ and mounted UI loading/error/recovery tests, with one hash-verifiable
 `DELIVERY` or exact terminal `BLOCKED`. No provider, database, migration,
 credential, permission, runtime or deployment action is authorized.
 
-Hermes has not yet returned a status or reply for this superseding wire; no
-implementation delivery is counted. The prior R5 installer evidence remains
-rejected after source-level review and is unrelated to this product lane.
+Hermes returned a correlated transport reply, but its strict ACK used
+`STATE: OPEN`, which is valid only on a new task and cannot transfer ownership.
+Codex sent the protocol-valid correction receipt
+`CODEX-INBOX-AGENTIC-DRAFTING-R2-RECEIPT-005` (envelope SHA-256
+`6636e09feb9c3a97206b069941f70e57e169a3b6d6f621f64501f807fb320045`), requiring
+a new ACK with `STATE: ACCEPTED` or `READ` before progress is counted. The
+verified isolated copy is retained; no implementation delivery is counted.
+The prior R5 installer evidence remains rejected after source-level review and
+is unrelated to this product lane.
 
 Hermes D001A source-only correction is acknowledged but has no accepted
 delivery yet; Hermes variant R3 remains an active source-only lane. Hermes R5
