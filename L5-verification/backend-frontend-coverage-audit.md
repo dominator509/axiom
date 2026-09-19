@@ -672,7 +672,9 @@ requires the approving human before the existing explicit send action. No
 automatic send or publish path exists. API drafting/inbox tests 28/28 and
 dashboard tests 12/12 pass; full API is 1,097 passed/50 skipped, DB is
 155 passed/17 skipped and the complete build passes. Migration/provider/
-browser/mobile/deployed acceptance remains open; no live action occurred.
+browser/mobile/deployed acceptance remains open; source commit
+`7ff39ea66cc601c1c2e0659d5e2f36cdb942f3d5` is pushed to
+`origin/codex/telegram-webhook-hardening`; no live action occurred.
 
 # M586: F-89 mobile Relay localization integrated
 

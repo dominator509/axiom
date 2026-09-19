@@ -982,7 +982,8 @@ Evidence: API focused drafting/inbox route suite 28/28, dashboard drafting
 suite 12/12, full API suite 1,097 passed and 50 skipped, DB suite 155 passed
 and 17 skipped, worker/API/dashboard package typechecks pass, and the complete
 12-package production build passes with `API_ORIGIN` set to a non-secret test
-origin. The Windows build required elevated symlink capability for Next.js
+origin. Source commit `7ff39ea66cc601c1c2e0659d5e2f36cdb942f3d5` is pushed to
+`origin/codex/telegram-webhook-hardening`. The Windows build required elevated symlink capability for Next.js
 standalone tracing; the code build itself is clean. Migration 0058 is authored
 but unapplied; provider, browser/mobile, live migration/RLS, runtime and
 deployment acceptance remain open. No provider, credential, database,

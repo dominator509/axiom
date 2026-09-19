@@ -7,14 +7,14 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `01493d63037f1b2186d0c7eb9dcca014626af985`
+SOURCE_HEAD: `7ff39ea66cc601c1c2e0659d5e2f36cdb942f3d5`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `01493d63037f1b2186d0c7eb9dcca014626af985`
-ACCEPTED_PRODUCT_SOURCE: `01493d63037f1b2186d0c7eb9dcca014626af985`
+PUBLISHED_HEAD: `7ff39ea66cc601c1c2e0659d5e2f36cdb942f3d5`
+ACCEPTED_PRODUCT_SOURCE: `7ff39ea66cc601c1c2e0659d5e2f36cdb942f3d5`
 ACTIVE_HERMES_LANE: `NONE — HERMES SUSPENDED / STALE LANES QUARANTINED`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `SUSPENDED — no Hermes artifact is eligible; Codex owns local F31 implementation`
-NEXT_ACTION: `run-local-F31-gates-then-commit-push`
+NEXT_ACTION: `select-next-local-architecture-gap-after-M667`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `NONE — historical Hermes lanes are closed/quarantined; no implementation wire is active`
@@ -27,11 +27,11 @@ CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
 NEXT_PREPARED_TASK: `NONE — Hermes suspended`
 NEXT_PREPARED_TASK_WIRE: `NONE`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `01493d63037f1b2186d0c7eb9dcca014626af985`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `7ff39ea66cc601c1c2e0659d5e2f36cdb942f3d5`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NOT_APPLICABLE — exact Git commit binding replaces archive transport`
 NEXT_PREPARED_TASK_STATE: `NOT_APPLICABLE — no Hermes task is open`
 ACTIVE_LANE_TASK_WIRE: `CODEX-LOCAL-F31-ASSIGNED-LLM-DRAFT`
-ACTIVE_LANE_SOURCE_COMMIT: `01493d63037f1b2186d0c7eb9dcca014626af985`
+ACTIVE_LANE_SOURCE_COMMIT: `7ff39ea66cc601c1c2e0659d5e2f36cdb942f3d5`
 ACTIVE_LANE_COPY_ROOT: `LOCAL WORKTREE — Codex-owned`
 ACTIVE_LANE_DELIVERY_ROOT: `LOCAL WORKTREE — Codex-owned`
 ACTIVE_LANE_SOURCE_ARCHIVE: `NOT_USED — exact Git commit mode`
@@ -42,7 +42,7 @@ ACTIVE_LANE_TRANSPORT_NAMING: `NOT_APPLICABLE — no Hermes source transport`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id must equal filename stem; no renames or hand-written replies`
 HISTORICAL_REPLY_MISMATCH_DECISION: `C — do not patch the bridge helper or rename stale inbox files; reissue a fresh superseding task with exact filename/msg_id only when that architecture lane is selected`
 HISTORICAL_REPLY_MISMATCH_SCOPE: `scraper and other non-current lanes; not evidence against the active F-31 R3 transport`
-ACTIVE_LANE_BASELINE: `F-31 assigned-LLM private draft gap; local source implementation, automated gates only`
+ACTIVE_LANE_BASELINE: `M667 F-31 assigned-LLM private draft complete at 7ff39ea; automated gates passed, runtime/provider gates open`
 R3_CLOSURE_REPLY_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-R3-CURRENT-012`
 R3_CLOSURE_REPLY_STATE: `NACK/BLOCKED terminal; source binding and explicit lane authorization blockers upheld`
 R3_CLOSURE_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R3-CURRENT-CLOSE-014`
@@ -59,7 +59,7 @@ ACTIVE_LANE_RECEIPT_WIRE: `NOT_APPLICABLE — Hermes suspended`
 ACTIVE_LANE_RECEIPT_SHA256: `NOT_APPLICABLE`
 ACTIVE_LANE_CHECKPOINT_WIRE: `NOT_APPLICABLE — local Codex gates are authoritative`
 ACTIVE_LANE_CHECKPOINT_SHA256: `NOT_APPLICABLE`
-LAST_COMPLETED_SOURCE_MILESTONE: `M644 — scraper result/history localization at f90e13d5; M667 local F31 implementation is in progress`
+LAST_COMPLETED_SOURCE_MILESTONE: `M667 — assigned-LLM private inbox drafting at 7ff39ea; Hermes suspended`
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`

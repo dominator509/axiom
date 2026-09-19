@@ -492,7 +492,8 @@ rejects unapproved LLM drafts even if a caller bypasses the UI. Migration
 0058 is authored for the new provenance/approval contract but is not applied.
 API focused tests 28/28, dashboard focused tests 12/12, full API 1,097
 passed/50 skipped, DB 155 passed/17 skipped and the complete 12-package build
-pass. This is source/automated evidence only; live migration, provider,
+pass. Source commit `7ff39ea66cc601c1c2e0659d5e2f36cdb942f3d5` is pushed to
+`origin/codex/telegram-webhook-hardening`. This is source/automated evidence only; live migration, provider,
 browser/mobile and deployment evidence remain open.
 
 ### M644 source checkpoint — scraper result/history localization
