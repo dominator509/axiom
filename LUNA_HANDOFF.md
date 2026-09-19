@@ -1705,3 +1705,30 @@ source-only implementation for owner approval. Codex sent terminal receipt
 `codex-receipt-patreon-functional-r2-ack-rejected-003`: Hermes must now send a
 new correlated `ACCEPTED` reply and implement, or return a concrete terminal
 BLOCKED reason. No Patreon source delivery or progress is counted yet.
+## M511 — D001A R4 audited: narrow context fix passes, integration remains unsafe
+
+Hermes delivered the D001A R4 source/test artifact through the bridge under
+`codex-d001a-r4-source-request-20260918.parts/`. The three delivered files
+were copied locally and independently checksum-verified against the manifest:
+`fanthynks-target-context.py` (27,095 bytes,
+`4d9eb9976e5cee7538821b0c8e81f314c7412336ee70bfa002d732946e62a1cd`),
+`test_fanthynks_target_context.py` (23,552 bytes,
+`2213c731653b629ea44fbf63e478fa7648bf7d1d7e5f6045f701dc0977adbdea`) and
+`test_fanthynks_r4_findings.py` (10,921 bytes,
+`07ad8482f911266c26ae0d5048304428d4a388120e4e068b405ecee70009a8f2`).
+Independent execution passed **98/98** tests.
+
+The narrow R4 context contract is real: it accepts the assigned
+`10.77.0.3:5432` endpoint, requires Linux `net:[inode]` identities with
+observed/expected equality and host inequality, and requires the exact
+`direct-supervision` manager value. It is not yet an integrated deployment
+repair. Hermes' callsite inventory independently confirms the installed
+installer and bridge are byte-identical to the review source and still have
+the critical live-targeting defects: `DB=fanthynks_test` is ambient and
+`FANTHYNKS_REHEARSAL_DB` is validated then discarded; migration/backup/restore
+sinks still use the live database; the bridge has undefined
+`SCHEMA_CHANGING_FROM`; `LIVE_PORTS` is unused; and two rollback reads are
+hard-coded to `fanthynks-api`. Therefore R4 is **AUDITED-NOT-INTEGRATED**,
+not production-ready. The next source correction must thread one immutable
+context through every installer/bridge sink and add executable negative tests;
+no installer or live operation is authorized.
