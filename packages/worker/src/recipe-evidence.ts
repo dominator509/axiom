@@ -1,9 +1,11 @@
 import type { PhotoshootRecipe } from '@axiom/db/schema';
+import { readTrustedThumbnailFeatures } from './thumbnail-features.js';
 
 /** Publication evidence only: never reconstruct historical input from an editable bundle. */
 export function recipeEvidence(
   snapshot: {
     caption: string;
+    assetId: string | null;
     scheduledFor: string | null;
     tosReport?: Record<string, unknown> | null;
     media?: {
@@ -14,6 +16,7 @@ export function recipeEvidence(
       duration: number | null;
     } | null;
     shootConfig?: PhotoshootRecipe | null;
+    thumbnailFeatures?: unknown;
   },
   publishedAt: Date | null,
 ) {
@@ -28,8 +31,8 @@ export function recipeEvidence(
     published_hour_utc: published?.getUTCHours() ?? null,
     tos_report_at_publication: snapshot.tosReport ?? null,
     media: snapshot.media ?? null,
-    // These are the exact bounded controls submitted to the prompt engine;
-    // thumbnail descriptors remain absent until a trusted vision receipt exists.
+    // These are the exact bounded controls submitted to the prompt engine.
     shoot_config: snapshot.shootConfig ?? null,
+    thumbnail_features: readTrustedThumbnailFeatures(snapshot.thumbnailFeatures, snapshot.assetId) ?? null,
   };
 }

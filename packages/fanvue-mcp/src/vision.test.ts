@@ -174,6 +174,27 @@ describe('VisionEngineClient', () => {
     expect(result.source).toBe('rust_engine');
     expect(result.score).toBe(0.988);
     expect(result.categories).toEqual(['porn']);
+    expect(result.confidence).toBe(0.99);
+    expect(result.analysis).toEqual({
+      dimensions: { width: 640, height: 480 },
+      avgBrightness: 50,
+      colorVariance: 30,
+      aspectRatio: 1.333,
+    });
+  });
+
+  it('omits malformed descriptors instead of treating them as trusted evidence', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      nsfw_score: 0.2, confidence: 0.8, engine: 'onnx-vit', probabilities: [], labels: [],
+      analysis: {
+        dimensions: { width: 0, height: 480 }, avg_brightness: 50,
+        color_variance: 30, aspect_ratio: 1.333,
+      }, overridden: false, override_source: null,
+    })));
+    const client = new VisionEngineClient({ baseUrl: 'http://engine.test' });
+    const result = await client.callNsfwDetect('/tmp/img.png');
+    expect(result.analysis).toBeNull();
+    expect(result.confidence).toBe(0.8);
   });
 
   it('nsfw detect passes the override through', async () => {

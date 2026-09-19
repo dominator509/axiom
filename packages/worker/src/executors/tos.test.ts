@@ -49,6 +49,7 @@ vi.mock('@axiom/db', () => ({
       modelId: 'asset.model_id',
       kind: 'asset.kind',
       storageKey: 'asset.storage_key',
+      sha256: 'asset.sha256',
     },
     job: {},
   },
@@ -434,6 +435,31 @@ describe('tosScan', () => {
       expect.anything(),
       expect.objectContaining({ kind: 'relay.card', payload: { bundleId: 'bundle-1', revisionId: null } }),
     );
+  });
+
+  it('persists a trusted thumbnail descriptor only when it is bound to the scanned asset hash', async () => {
+    const visualAnalysis = {
+      version: 'vision-analysis-v1' as const,
+      source: 'rust_engine' as const,
+      confidence: 0.93,
+      dimensions: { width: 864, height: 1152 },
+      avgBrightness: 120,
+      colorVariance: 22,
+      aspectRatio: 0.75,
+    };
+    mockState.evaluate.mockResolvedValue({ ...REPORT, visualAnalysis });
+    mockState.results = [
+      [{ id: 'bundle-1', modelId: 'model-1', assetId: 'asset-1', captions: { instagram: 'A safe caption' }, hashtags: [] }],
+      [{ kind: 'image', storageKey: 'models/model-1/image.jpg', sha256: Buffer.alloc(32, 0xab) }],
+      [],
+    ];
+    await tosScan({ tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1' });
+    const report = (mockState.updates[0] as { tosReport: Record<string, unknown> }).tosReport;
+    expect(report.thumbnail_features).toEqual({
+      ...visualAnalysis,
+      assetId: 'asset-1',
+      assetSha256: 'ab'.repeat(32),
+    });
   });
 
   it('rejects an asset missing from the bundle org/model scope', async () => {

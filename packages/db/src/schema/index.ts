@@ -9,7 +9,7 @@ import { platformConnection, platformConnectionRelations } from './platform_conn
 import { modelNetworkConfigs, modelNetworkConfigsRelations } from './model_network_configs.js';
 import { asset, assetRelations } from './asset.js';
 import { contentBundle, contentBundleRelations } from './content_bundle.js';
-export type { CaptionGuidanceReceipt, PhotoshootRecipe } from './content_bundle.js';
+export type { CaptionGuidanceReceipt, PhotoshootRecipe, ThumbnailFeatures } from './content_bundle.js';
 import { postTarget, postTargetRelations } from './post_target.js';
 import { relayCard, relayCardRelations } from './relay_card.js';
 import { relayCommand, relayCommandRelations } from './relay_command.js';

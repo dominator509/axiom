@@ -80,6 +80,45 @@ describe('classifyImage', () => {
 });
 
 describe('evaluate', () => {
+  it('carries only an un-overridden Rust visual receipt as optional evidence', async () => {
+    const fetcher = vi.fn().mockImplementation(async (input: string) => {
+      if (input.endsWith('/vision/nsfw-detect')) {
+        return jsonResponse({
+          nsfw_score: 0.12, confidence: 0.93, engine: 'onnx-vit',
+          probabilities: [0, 0, 0, 0.12, 0], labels: ['drawings', 'hentai', 'neutral', 'porn', 'sexy'],
+          analysis: {
+            dimensions: { width: 864, height: 1152 }, avg_brightness: 120,
+            color_variance: 22, aspect_ratio: 0.75,
+          }, overridden: false, override_source: null,
+        });
+      }
+      return jsonResponse({
+        verdict: 'pass', nsfw_score: 0.12, reasons: [], engine: 'onnx-vit',
+        probabilities: [0, 0, 0, 0.12, 0], labels: ['drawings', 'hentai', 'neutral', 'porn', 'sexy'],
+        overridden: false, override_source: null,
+      });
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const result = await new ToSEngine().evaluate({ imageData: '/tmp/img.png' }, ['instagram']);
+    expect(result.visualAnalysis).toEqual({
+      version: 'vision-analysis-v1', source: 'rust_engine', confidence: 0.93,
+      dimensions: { width: 864, height: 1152 }, avgBrightness: 120,
+      colorVariance: 22, aspectRatio: 0.75,
+    });
+  });
+
+  it('never creates trusted visual evidence for an overridden evaluation', async () => {
+    stubVision(0, 'pass', {
+      overridden: true, override_source: 'request',
+      analysis: {
+        dimensions: { width: 864, height: 1152 }, avg_brightness: 120,
+        color_variance: 22, aspect_ratio: 0.75,
+      }, confidence: 1,
+    });
+    const result = await new ToSEngine().evaluate({ imageData: '/tmp/img.png' }, ['instagram'], { override: 'pass' });
+    expect(result.visualAnalysis).toBeUndefined();
+  });
+
   it.each([null, undefined])('does not produce a passing report from missing score case %#', async (score) => {
     stubVision(0, null, { nsfw_score: score });
     await expect(new ToSEngine().evaluate({ imageData: 'image.png' }, ['tiktok']))

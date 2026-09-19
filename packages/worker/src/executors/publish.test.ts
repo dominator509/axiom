@@ -46,6 +46,24 @@ describe('publication snapshot evidence', () => {
       shootConfig: { style: 'studio', outfit: 'dress', location: 'studio', mood: 'calm', lighting: 'soft', aspectRatio: '4:5' },
     });
   });
+  it('captures only asset-bound trusted thumbnail evidence', () => {
+    const thumbnailFeatures = {
+      version: 'vision-analysis-v1' as const,
+      source: 'rust_engine' as const,
+      assetId: 'asset-1',
+      assetSha256: 'a'.repeat(64),
+      confidence: 0.91,
+      dimensions: { width: 864, height: 1152 },
+      avgBrightness: 120,
+      colorVariance: 22,
+      aspectRatio: 0.75,
+    };
+
+    expect(buildPublicationSnapshot({ ...original, assetId: 'asset-1', thumbnailFeatures })).toMatchObject({
+      assetId: 'asset-1',
+      thumbnailFeatures,
+    });
+  });
 });
 
 describe('publish schedule handoff', () => {

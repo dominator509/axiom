@@ -16,6 +16,7 @@ import {
 import { readBoundedResponseJson, type Platform } from '@axiom/core';
 import type { Executor, ExecutorContext } from './context.js';
 import { enqueueJob } from '../enqueue.js';
+import { makeTrustedThumbnailFeatures } from '../thumbnail-features.js';
 
 type ToSAsset = {
   kind: string;
@@ -209,12 +210,27 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
     })).digest('hex'),
   } : undefined;
 
+  // A thumbnail descriptor is publishable learning evidence only when every
+  // caption-group scan produced the same un-overridden Rust receipt for the
+  // exact content hash. Any missing, fallback, overridden or divergent result
+  // remains unknown rather than being guessed or merged.
+  const visualAnalyses = reports.map(result => result.visualAnalysis);
+  const firstVisualAnalysis = visualAnalyses[0];
+  const consistentVisualAnalysis = asset?.kind === 'image'
+    && visualAnalyses.length === reports.length
+    && Boolean(firstVisualAnalysis)
+    && visualAnalyses.every(result => JSON.stringify(result) === JSON.stringify(firstVisualAnalysis));
+  const thumbnailFeatures = consistentVisualAnalysis
+    ? makeTrustedThumbnailFeatures(firstVisualAnalysis, bundle.assetId, asset?.sha256)
+    : undefined;
+
   await tx
     .update(schema.contentBundle)
     .set({
       tosReport: {
         ...report,
         ...(videoScan ? { videoScan } : {}),
+        ...(thumbnailFeatures ? { thumbnail_features: thumbnailFeatures } : {}),
         ...(bundle.tosReport?.sanitization && typeof bundle.tosReport.sanitization === 'object'
           && 'assetId' in bundle.tosReport.sanitization && bundle.tosReport.sanitization.assetId === bundle.assetId
           ? { sanitization: bundle.tosReport.sanitization } : {}),

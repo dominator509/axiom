@@ -20,6 +20,7 @@ import { enqueueJob } from '../enqueue.js';
 import { ParkJobError } from './context.js';
 import { runPrePostBefore, runPrePostAfter } from './pre_post.js';
 import type { Executor, ExecutorContext } from './context.js';
+import { readTrustedThumbnailFeatures } from '../thumbnail-features.js';
 
 const KILL_SWITCH_PARK_MS = 60_000;
 const PENDING_PUBLISH_RETRY_MS = 60_000;
@@ -63,6 +64,7 @@ export function buildPublicationSnapshot(input: {
   tosReport?: PublicationSnapshot['tosReport'];
   media?: PublicationSnapshot['media'];
   shootConfig?: PublicationSnapshot['shootConfig'];
+  thumbnailFeatures?: PublicationSnapshot['thumbnailFeatures'];
 }): PublicationSnapshot {
   return {
     caption: input.caption,
@@ -74,6 +76,7 @@ export function buildPublicationSnapshot(input: {
     tosReport: input.tosReport ?? null,
     media: input.media ?? null,
     shootConfig: input.shootConfig ?? null,
+    thumbnailFeatures: input.thumbnailFeatures ?? null,
   };
 }
 
@@ -492,6 +495,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     captionGuidance: matchingCaptionGuidance(stagedInput.caption, bundle.captionGuidance?.[target.platform]),
     tosReport: bundle.tosReport ?? null,
     shootConfig: bundle.generationRecipe ?? null,
+    thumbnailFeatures: readTrustedThumbnailFeatures(bundle.tosReport?.thumbnail_features, bundle.assetId ?? null),
     media: asset ? {
       kind: asset.kind,
       mimeType: asset.mimeType ?? 'application/octet-stream',

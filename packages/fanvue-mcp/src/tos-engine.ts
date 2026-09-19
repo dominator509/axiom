@@ -1,5 +1,5 @@
 import { Platform } from '@axiom/core';
-import { VisionEngineClient, type OverrideVerdict } from './vision.js';
+import { VisionEngineClient, type OverrideVerdict, type VisionAnalysis } from './vision.js';
 
 // ─── Platform Thresholds ───
 
@@ -246,6 +246,14 @@ export interface EvaluationResult {
   verdict: 'pass' | 'review' | 'block';
   scores: PlatformScore[];
   reasons: string[];
+  /** Optional trusted Rust-only descriptors; absence is explicit unknown. */
+  visualAnalysis?: TrustedVisionAnalysis;
+}
+
+export interface TrustedVisionAnalysis extends VisionAnalysis {
+  version: 'vision-analysis-v1';
+  source: 'rust_engine';
+  confidence: number;
 }
 
 export interface ImageClassification {
@@ -292,6 +300,38 @@ export class ToSEngine {
   }
 
   /**
+   * Collect descriptors only from an un-overridden Rust response. A missing or
+   * malformed descriptor is deliberately treated as unknown rather than
+   * allowing a heuristic/fallback result into publication learning evidence.
+   */
+  private async trustedVisualAnalysis(
+    imagePath: string,
+    options: { override?: OverrideVerdict },
+  ): Promise<TrustedVisionAnalysis | undefined> {
+    if (options.override) return undefined;
+    try {
+      const result = await this.visionClient.callNsfwDetect(imagePath);
+      if (
+        result.source !== 'rust_engine'
+        || result.overridden
+        || result.overrideSource !== null
+        || result.confidence === null
+        || result.analysis === null
+      ) return undefined;
+      return {
+        version: 'vision-analysis-v1',
+        source: 'rust_engine',
+        confidence: result.confidence,
+        ...result.analysis,
+      };
+    } catch {
+      // ToS classification remains authoritative; descriptor evidence is
+      // optional and must stay unknown when its separate route fails.
+      return undefined;
+    }
+  }
+
+  /**
    * Evaluate an asset for ToS compliance across multiple platforms.
    * `asset.imageData` is an absolute image path the Rust engine reads from
    * disk. Pass `options.override` to force the image verdict.
@@ -302,6 +342,7 @@ export class ToSEngine {
     options: { override?: OverrideVerdict } = {},
   ): Promise<EvaluationResult> {
     const classification = await this.classifyImage(asset.imageData, options);
+    const visualAnalysis = await this.trustedVisualAnalysis(asset.imageData, options);
 
     const scores: PlatformScore[] = [];
     const allReasons = new Set<string>();
@@ -399,6 +440,7 @@ export class ToSEngine {
       verdict: hasBlock ? 'block' : hasReview ? 'review' : 'pass',
       scores,
       reasons: Array.from(allReasons),
+      ...(visualAnalysis ? { visualAnalysis } : {}),
     };
   }
 }

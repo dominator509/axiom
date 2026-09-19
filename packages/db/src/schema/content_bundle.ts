@@ -35,6 +35,23 @@ export interface PhotoshootRecipe {
   aspectRatio: string;
 }
 
+/**
+ * Versioned, bounded local-vision evidence copied into a publication snapshot.
+ * This is descriptive only; it is not a quality score, recommendation or
+ * conversion claim.
+ */
+export interface ThumbnailFeatures {
+  version: 'vision-analysis-v1';
+  source: 'rust_engine';
+  assetId: string;
+  assetSha256: string;
+  confidence: number;
+  dimensions: { width: number; height: number };
+  avgBrightness: number;
+  colorVariance: number;
+  aspectRatio: number;
+}
+
 export const contentBundle = pgTable('content_bundle', {
   id: uuid('id').primaryKey().defaultRandom(),
   orgId: uuid('org_id')

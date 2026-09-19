@@ -4,6 +4,14 @@ import { readBoundedResponseJson } from '@axiom/core';
 
 export type OverrideVerdict = 'pass' | 'review' | 'block';
 
+/** Bounded statistical image descriptors returned by the Rust vision engine. */
+export interface VisionAnalysis {
+  dimensions: { width: number; height: number };
+  avgBrightness: number;
+  colorVariance: number;
+  aspectRatio: number;
+}
+
 export interface TosClassifyResult {
   /** Probability score 0–1 for ToS violation likelihood */
   score: number;
@@ -30,6 +38,10 @@ export interface NsfwDetectResult {
   overridden: boolean;
   /** Override source: 'request' | 'environment' | null */
   overrideSource: string | null;
+  /** Engine confidence, omitted from trust decisions when malformed. */
+  confidence: number | null;
+  /** Bounded statistical descriptors; null when the engine did not provide a valid receipt. */
+  analysis: VisionAnalysis | null;
 }
 
 export interface VisionCallOptions {
@@ -117,6 +129,8 @@ function localNsfwHeuristic(imageData: string): NsfwDetectResult {
     source: 'local_fallback',
     overridden: false,
     overrideSource: null,
+    confidence: null,
+    analysis: null,
   };
 }
 
@@ -135,16 +149,11 @@ interface RustTosClassifyResponse {
 
 interface RustNsfwDetectResponse {
   nsfw_score: number;
-  confidence: number;
+  confidence?: number;
   engine: string;
   probabilities: number[];
   labels: string[];
-  analysis: {
-    dimensions: { width: number; height: number };
-    avg_brightness: number;
-    color_variance: number;
-    aspect_ratio: number;
-  };
+  analysis?: unknown;
   overridden: boolean;
   override_source: string | null;
 }
@@ -158,6 +167,37 @@ function normalizedVisionScore(value: unknown): number {
     throw new InvalidVisionScoreError('Vision engine returned invalid nsfw_score');
   }
   return Math.round(value * 1000) / 1000;
+}
+
+function normalizedOptionalUnit(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) return null;
+  return Math.round(value * 1000) / 1000;
+}
+
+function normalizedVisionAnalysis(value: unknown): VisionAnalysis | null {
+  if (!value || typeof value !== 'object') return null;
+  const analysis = value as Record<string, unknown>;
+  const dimensions = analysis.dimensions;
+  if (!dimensions || typeof dimensions !== 'object') return null;
+  const size = dimensions as Record<string, unknown>;
+  const width = size.width;
+  const height = size.height;
+  const avgBrightness = analysis.avg_brightness;
+  const colorVariance = analysis.color_variance;
+  const aspectRatio = analysis.aspect_ratio;
+  if (
+    typeof width !== 'number' || !Number.isInteger(width) || width < 1 || width > 10_000
+    || typeof height !== 'number' || !Number.isInteger(height) || height < 1 || height > 10_000
+    || typeof avgBrightness !== 'number' || !Number.isFinite(avgBrightness) || avgBrightness < 0 || avgBrightness > 255
+    || typeof colorVariance !== 'number' || !Number.isFinite(colorVariance) || colorVariance < 0 || colorVariance > 255
+    || typeof aspectRatio !== 'number' || !Number.isFinite(aspectRatio) || aspectRatio < 0.01 || aspectRatio > 100
+  ) return null;
+  return {
+    dimensions: { width, height },
+    avgBrightness: Math.round(avgBrightness * 1000) / 1000,
+    colorVariance: Math.round(colorVariance * 1000) / 1000,
+    aspectRatio: Math.round(aspectRatio * 1000) / 1000,
+  };
 }
 
 async function postJson<T>(url: string, body: unknown, config: VisionEngineConfig): Promise<T> {
@@ -264,6 +304,8 @@ export class VisionEngineClient {
         source: 'rust_engine',
         overridden: result.overridden,
         overrideSource: result.override_source,
+        confidence: normalizedOptionalUnit(result.confidence),
+        analysis: normalizedVisionAnalysis(result.analysis),
       };
     } catch (err) {
       if (err instanceof InvalidVisionScoreError || !this.config.allowLocalFallback) throw err;
