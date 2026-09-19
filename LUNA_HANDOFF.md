@@ -1,21 +1,26 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: after milestone M577 and the variant delivery assignment. This is a continuation checkpoint,
+Updated: after milestone M578 and the variant delivery assignment. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
-## Current continuation checkpoint — M577
+## Current continuation checkpoint — M578
 
-The accepted source head is the scraper persistence reconciliation commit
-`6c5dc48ae9a377bd486d1839dc80d128d78e08b7`. The existing scraper API/UI
-already distinguished mixed evidence as `partial`, but the durable schema did
-not permit that state and the worker persisted valid mixed competitor results
-as `completed`. M577 adds the shared core classifier, DB schema type, migration
-`0057_scrape_partial_state.sql`, worker persistence and authenticated projection
-tests. The migration is authored only and has not been executed anywhere.
+The accepted source head is the variant guidance provenance milestone
+`ce2f15bf73fb0855b97fc6dddd173a1f3e4827c3`, pushed to
+`origin/codex/telegram-webhook-hardening`. M578 wires the existing bounded
+`CaptionGuidanceReceipt` into the real copy-variant and review-bundle paths:
+the server rechecks same-org/model/asset ownership, exact caption hash and
+stored receipt metadata before persisting bounded provenance; review creation
+rechecks the source bundle again and fails closed on stale or mismatched data.
+The authenticated guidance-source route and candidate/performance projections
+expose only safe summaries, never hashes, exemplars, storage keys or provider
+payloads. The dashboard can select a verified source or write manually and
+states unavailable evidence explicitly.
 
-M577 evidence: core classifier 4/4, DB migration suite 22/22, API scraper
-contract 33/33, API scrape route 5/5, worker scrape 12/12; core/DB/API/worker
-typechecks, builds and linters pass. Lint reports only existing warnings.
+M578 evidence: API focused route/index/provenance suite 193/193, dashboard
+focused variant suite 7/7, API/dashboard/DB typechecks pass, and API/dashboard
+lint pass with only existing warnings. No migration was authored for this
+JSONB extension; no runtime/provider/database/deployment action occurred.
 The intentionally untracked rejected Hermes review directory remains untouched.
 
 Hermes D001A source-only correction is acknowledged but has no accepted
@@ -2517,3 +2522,26 @@ application, sidecar/provider isolation, benchmark-history exposure, browser or
 mobile acceptance, and production deployment evidence remain open. No live or
 disposable database, migration runner, provider, runtime, credential,
 permission, network, systemd or deployment action occurred.
+
+## M578 — verified variant guidance provenance
+
+The accepted source milestone `ce2f15bf73fb0855b97fc6dddd173a1f3e4827c3`
+wires the existing bounded `CaptionGuidanceReceipt` into the real
+variant/A-B workflow. Candidate creation and review-bundle creation recheck
+same-org/model/asset/source relationships, supported platform, stored receipt
+validity and exact caption hashes server-side. The guidance-source route and
+candidate/performance responses expose only bounded safe summaries; hashes,
+exemplars, storage keys, prompts and provider payloads remain private. The
+dashboard offers eligible-source selection, exact-caption population, manual
+edit invalidation and truthful verified/unavailable evidence.
+
+Evidence: API route/index/provenance tests 193/193, dashboard variant tests
+7/7, API/dashboard/DB typechecks pass, API/dashboard lint exits 0 with only
+existing warnings. No migration was needed for the backward-compatible JSONB
+extension. No runtime/provider/database/deployment action occurred.
+
+This closes the selected-guidance source/UI slice only. Statistical/runtime,
+browser/mobile, worker/provider, migration/RLS and deployed acceptance remain
+open. Hermes gallery R10 remains source-only: its progress proves archive
+verification but not implementation delivery, and the separate R11 gallery
+helper-only delivery is not accepted as route/UI work.

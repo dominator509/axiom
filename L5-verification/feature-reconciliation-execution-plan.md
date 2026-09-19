@@ -719,3 +719,31 @@ lint exited 0 with only existing warnings, and `git diff --check` passed.
 Source commit `8e5695f7605c9be57d0840ff1e58dd3090c048b7` is pushed. Live R2
 configuration, bucket round-trip, retention/deletion, deployed media and
 browser/mobile acceptance remain open.
+
+### M578 — verified variant guidance provenance
+
+The existing bounded `CaptionGuidanceReceipt` is now reachable from the real
+variant/A-B workflow without adding a parallel model or migration. Candidate
+creation accepts only a selected existing guidance bundle whose org, model,
+asset/source relation, supported platform, stored receipt and exact caption
+hash are rechecked server-side. Review-bundle creation repeats those checks so
+stale or edited source captions fail closed. Candidate and published-
+performance responses project only bounded safe guidance summaries; hashes,
+exemplar identities, storage keys, prompts and provider payloads are not
+exposed. The dashboard can select an eligible source, populate its exact
+caption, clear attribution on manual edits and render verified metadata or
+truthful unavailable evidence.
+
+Source commit: `ce2f15bf73fb0855b97fc6dddd173a1f3e4827c3` (pushed to the working
+branch). Focused API route/index/provenance tests passed 193/193, dashboard
+variant tests passed 7/7, API/dashboard/DB typechecks passed, and API/dashboard
+lint exited 0 with only existing warnings. No migration was authored because
+the bounded JSONB extension is backward compatible; no runtime, provider,
+database, deployment or live action occurred.
+
+This closes the selected-guidance source/UI slice only. Statistical evaluation,
+browser/mobile interaction, worker/provider execution, migration/RLS and
+deployed acceptance remain open. Hermes' gallery R10 lane remains source-only:
+its progress reply proves archive verification but not implementation delivery;
+the separate gallery R11 helper-only delivery is not accepted as route/UI
+work.
