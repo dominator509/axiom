@@ -1639,3 +1639,15 @@ clipping, provider/OAuth, R2, VPN/egress, browser/mobile, migration,
 observability and CI lanes each have explicit mandatory criteria in the matrix.
 This is a source-control/documentation change only: no runtime, provider,
 database, permission, migration, deployment or service action occurred.
+## M505 — Hermes acceptance contract dispatched
+
+Codex sent `codex-hermes-functional-acceptance-matrix-r1` through the bridge,
+referencing the pushed matrix at source commit
+`1e3f5740d6b465ee944f50399aef0aa7c5e51082`. Hermes must apply the matrix to
+each existing source-only lane: unique reply WIRE, one evidence-bearing
+PROGRESS, then one DELIVERY or terminal BLOCKED; one correction receipt and one
+correction cycle maximum. No dates, clocks, TTLs or filesystem times are part
+of coordination. The message preserves the source-only boundary and forbids
+installer, deployment, live DB/migrations, providers, credentials,
+permissions, services and network actions. Await Hermes' unique correlated
+ACK; an ACK is ownership only, not implementation delivery.
