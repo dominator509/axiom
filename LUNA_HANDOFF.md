@@ -9,7 +9,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `587efe7703b05fed82260ebb537e21b1cfa048d0`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `587efe7703b05fed82260ebb537e21b1cfa048d0` (source milestone; coordination task commit follows)
+PUBLISHED_HEAD: `d4c0dfdfafa9c2bc1fa7cff0be75aad77ac67cfb`
 ACCEPTED_PRODUCT_SOURCE: `587efe7703b05fed82260ebb537e21b1cfa048d0`
 ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R5 — exact M683 source synchronization; R4 superseded before implementation`
 CODEX_OWNER: `CODEX`
@@ -77,7 +77,7 @@ NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provid
 
 CURRENT_MILESTONE: `M683 — F-06/F-07 Fanvue analytics and CRM sync source integrated; Hermes R5 exact-current F-14 source synchronization is the sole active delegated lane`
 CURRENT_MILESTONE_COMMIT: `587efe7703b05fed82260ebb537e21b1cfa048d0`
-CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip verified at 587efe7703b05fed82260ebb537e21b1cfa048d0 before R5 dispatch; Hermes must independently fetch and verify this source`
+CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip verified at d4c0dfdfafa9c2bc1fa7cff0be75aad77ac67cfb; product source 587efe7703b05fed82260ebb537e21b1cfa048d0 is an exact ancestor and R5 binds both facts`
 CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, dashboard full 780 passed; no migration execution or live action`
 CURRENT_MILESTONE_OPEN: `Hermes R5 ACK/PROGRESS/DELIVERY and Codex artifact audit remain open; isolated API hook suites should be rerun, then full deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
 LOCAL_MILESTONE_AFTER_TASK: `M683 — Fanvue analytics and CRM sync source integrated and pushed at 587efe7703b05fed82260ebb537e21b1cfa048d0; R5 task supersedes stale R4 before implementation`
