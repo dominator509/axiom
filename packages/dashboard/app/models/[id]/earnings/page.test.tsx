@@ -1,11 +1,14 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-const mocks = vi.hoisted(() => ({ session: vi.fn(), accounts: vi.fn(), earnings: vi.fn() }));
-vi.mock('@/lib/api', () => ({ getSession: mocks.session, api: { models: { earningsAccounts: mocks.accounts, earnings: mocks.earnings } } }));
+import { CATALOGS, LocaleCatalog } from '@axiom/core';
+const mocks = vi.hoisted(() => ({ session: vi.fn(), accounts: vi.fn(), earnings: vi.fn(), locale: 'en' }));
+vi.mock('@/lib/api', () => ({ getSession: mocks.session, api: { uiLocale: { get: async () => ({ data: { locale: mocks.locale } }) }, models: { earningsAccounts: mocks.accounts, earnings: mocks.earnings } } }));
 import Page from './page';
+const catalog = new LocaleCatalog(CATALOGS);
 const render = async (connectionId?: string | string[]) => renderToStaticMarkup(await Page({ params: Promise.resolve({ id: 'talent' }), searchParams: Promise.resolve({ connectionId }) }));
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.locale = 'en';
   mocks.session.mockResolvedValue({ user: { role: 'owner' } });
   mocks.accounts.mockResolvedValue({ data: { accounts: [{ id: 'account', displayName: 'My Fanvue' }] } });
   mocks.earnings.mockResolvedValue({ data: { connectionId: 'account', observedAt: '2026-09-17T00:00:00Z', currency: 'USD', unit: 'cents', summary: {
@@ -60,4 +63,12 @@ it('distinguishes failed account discovery from no account', async () => {
   expect(html).toContain('accounts could not be loaded');
   expect(html).not.toContain('No connected Fanvue account');
   expect(mocks.earnings).not.toHaveBeenCalled();
+});
+it('uses the persisted interface locale for financial labels and formatting', async () => {
+  mocks.locale = 'de';
+  const html = await render('account');
+  expect(html).toContain(catalog.t('de', 'earnings.title'));
+  expect(html).toContain(catalog.t('de', 'earnings.gross'));
+  expect(html).not.toContain(catalog.t('en', 'earnings.title'));
+  expect(html).not.toContain('$123.45');
 });

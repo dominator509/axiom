@@ -667,3 +667,20 @@ dashboard typecheck/lint and elevated production build with non-secret
 payout, provider, database, migration, runtime, permission or deployment action
 is included. Browser, legal/license, billing/reconciliation, migration/RLS and
 deployed acceptance remain open.
+
+### M570 — model earnings localization and formatting
+
+The model earnings page now consumes the shared six-locale catalog for access,
+loading, empty, retry, summary, period, source and timeline copy. Its existing
+read-only financial boundary is unchanged: account selection remains explicit,
+foreign/malformed selections are rejected, and the page does not invent provider
+totals or perform mutations. USD amounts, month-over-month percentages and
+observed/period dates now use the selected interface locale; percentages retain
+one decimal place so zero and non-zero changes have a stable visible contract.
+
+Evidence: core 65/65, focused earnings dashboard 15/15, full dashboard 754/754,
+dashboard typecheck and lint pass; lint retains only three pre-existing
+`no-explicit-any` warnings in `MediaBundleCreate.behavior.test.tsx`. No provider,
+database, migration, runtime, permission or deployment action is included.
+Browser/mobile, provider-backed earnings, email/operator adoption, migration/RLS
+and deployed acceptance remain open.
