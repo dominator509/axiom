@@ -1722,13 +1722,17 @@ audited. The corrected artifact-gate wire is
 `887f36bda0d74fb0e958f7327023bc9d276f8b25` is pushed and read back from
 `codex/telegram-webhook-hardening`.
 
+The following state block is a historical snapshot and is superseded by the
+R5 closure and the single F89 lane recorded below. It is retained for audit
+provenance only; it is not an active Hermes assignment.
+
 ```text
-STATE: ACTIVE_PARTIAL
-CURRENT_OWNER: HERMES
+STATE: HISTORICAL_SNAPSHOT_SUPERSEDED
+CURRENT_OWNER: CODEX
 LAST_ACCEPTED_CODE: 8e5695f7605c9be57d0840ff1e58dd3090c048b7
 PUBLISHED_HEAD: cbd879777956a11a93f0d05b9f34c946f9c8e3e0
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + asset/hash-bound trusted Rust vision descriptors + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state, model dashboard and native mobile model/status/read/sync surface with scoped role boundaries are source-wired; F-10 source-wired visual month/week calendar with guarded drag and accessible date rescheduling plus advisory timing guidance; incidents/crash triage and recovery are source-wired and localized; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
-ACTIVE_LANE: INBOX-AGENTIC-DRAFTING-R5-AUTHORIZED-CURRENT-SOURCE (source-only implementation against exact source 4652075d632766660183e6119465007a90dbf06a; Hermes may create one clean isolated worktree/copy under the authorized COPY_ROOT, Codex audits/integrates/commits/pushes)
+ACTIVE_LANE: NONE — historical R5 closed as BLOCKED-HERMES; current active lane is recorded in the F89 section below
 HERMES_R4_READ_RECEIPT: `CODEX-INBOX-AGENTIC-DRAFTING-R4-READ-RECEIPT-003` was protocol-validated as RECEIPT/READ and remote checksum-verified as `7338898235e15853e8b0d8f126a9c5b790c22297e5e4c9888b80cbd26ed56453`; Hermes must now return evidence-bearing PROGRESS then DELIVERY or terminal BLOCKED, not another ACK.
 HERMES_R4_STATUS: Hermes returned terminal BLOCKED because the R4 wire forbade checkout/worktree creation while no isolated worktree already pointed at `236a4014`; no source or tests were changed. This is transport/authorization closure, not an implementation delivery.
 HERMES_R5_AUTHORIZATION: `CODEX-INBOX-AGENTIC-DRAFTING-R5-AUTHORIZED-CURRENT-SOURCE-001` was protocol-validated as TASK/OPEN and remote checksum-verified as `6425d849d1e47c3966673caad61f43b7973cabd5928aba7fcc65c75c8fb2fb49`. It explicitly authorizes a clean isolated worktree/copy at `/srv/fanthynks-bridge/hermes/work/ipman-replies-out/inbox-agentic-drafting-r5-authorized` against exact source `4652075d632766660183e6119465007a90dbf06a`, while forbidding the main source checkout, commit/push, installer, deployment, live/disposable database, migrations, providers, credentials, permissions, network, systemd and runtime actions.
@@ -2891,15 +2895,17 @@ dashboard suite and dashboard typecheck pass; lint has only existing warnings.
 Reusable child-component labels, browser/native acceptance, provider,
 migration/RLS, runtime and deployment gates remain open.
 
-## Current coordination alignment — Hermes R5 delivery closure
+## Historical coordination record — Hermes R5 delivery closure
 
-The active lane remains `INBOX-AGENTIC-DRAFTING-R5-AUTHORIZED-CURRENT-SOURCE`.
-Hermes owns only the authorized isolated copy at
+The R5 lane is closed as `BLOCKED-HERMES`; this section is retained as a
+reconciliation record, not a live assignment. The current active lane is
+`F89-INBOX-LOCALIZATION-CURRENT-R1`, recorded below.
+Hermes owned only the authorized isolated copy at
 `/srv/fanthynks-bridge/hermes/work/ipman-replies-out/inbox-agentic-drafting-r5-authorized`,
 against exact source `4652075d632766660183e6119465007a90dbf06a`. Codex local
-implementation is frozen while this lane is open; the local M607/M609 files
+implementation was frozen while this lane was open; the local M607/M609 files
 and the Hermes R5 files are disjoint. No runtime, provider, database,
-migration, credential, permission, installer, deployment or Git action is
+migration, credential, permission, installer, deployment or Git action was
 authorized in Hermes' lane.
 
 Hermes' terminal DELIVERY response was not accepted. The local protocol
@@ -2908,18 +2914,14 @@ checker found duplicate `SOURCE`, missing `ARTIFACT`/`SHA256`/`COMMAND`/
 The four declared files remain hash-verified and the focused behavior suite is
 4/4; API lint exits 0 with warnings only. The package typecheck truthfully
 exits 1 with 27 baseline errors, with no reported errors in the R5 files.
-Those facts do not repair an invalid delivery envelope.
+Those facts did not repair an invalid delivery envelope.
 
 Codex sent the protocol-valid, checksum-verified correction
 `CODEX-INBOX-AGENTIC-DRAFTING-R5-DELIVERY-REJECTED-012` with
-`STATE: REJECTED`, `TERMINAL: YES`, `NEXT_OWNER: HERMES`, and a one-correction
-budget. Hermes must return exactly one new-WIRE terminal DELIVERY containing
-all required fields and the exact final signature `sincerely, Hermes`, while
-preserving the truthful typecheck exit, or return terminal BLOCKED with the
-exact blocker. A second invalid DELIVERY becomes `BLOCKED-HERMES`; Codex will
-not issue another correction and will not integrate the artifacts. Only after
-independent validation may Codex integrate, run owning checks, commit/push,
-and advance to the next finite architecture gap.
+`STATE: REJECTED`, `TERMINAL: YES`, `NEXT_OWNER: HERMES`, and the one allowed
+correction. Hermes returned a second invalid DELIVERY, so the lane became
+`BLOCKED-HERMES`; Codex did not integrate the artifacts or issue another
+correction. This closure is now superseded operationally by the F89 lane.
 
 ## M603 — reusable agent-permission localization
 
