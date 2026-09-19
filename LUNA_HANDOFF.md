@@ -9,12 +9,20 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `f90e13d5d5e17f2f96c242ca393ac07f7b4e32a0`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `a0e9f2e43ef02792e5cdfae868370c077664a5be`
+PUBLISHED_HEAD: `d660c8ef8a0062335ecf56522a1f12fed6f8df58`
 ACCEPTED_PRODUCT_SOURCE: `f90e13d5d5e17f2f96c242ca393ac07f7b4e32a0`
 ACTIVE_HERMES_LANE: `NONE`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `NONE`
-NEXT_ACTION: `reconcile-current-architecture-matrix-and-select-one-bounded-source-gap`
+NEXT_ACTION: `close-control-reconciliation-002-before-selecting-one-bounded-source-gap`
+CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
+CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
+OPEN_WIRES: `CONTROL-PLANE-RECONCILIATION-002 control-only; no feature lane`
+CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
+CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
+CONTROL_TASK_STATE: `UNCONFIRMED — transport submission succeeded; no logical reply read yet`
+CONTROL_TASK_NEXT_OWNER: `HERMES`
+CONTROL_TASK_LIVE_ACTIONS: `NONE`
 ACTIVE_LANE_TASK_WIRE: `NONE`
 ACTIVE_LANE_SOURCE_COMMIT: `NOT_APPLICABLE`
 ACTIVE_LANE_COPY_ROOT: `NOT_APPLICABLE`
@@ -35,7 +43,7 @@ LAST_COMPLETED_SOURCE_MILESTONE: `M644 — scraper result/history localization a
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `COMPLETE_READ_ONLY_WITH_SIGNATURE_ANOMALY`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; CONTROL_RECONCILIATION_002_UNCONFIRMED`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
@@ -72,9 +80,13 @@ may be resumed without a new reconciled task record.
 Coordination rules: use message IDs, WIRE, SEQ, IN_REPLY_TO, STATE,
 NEXT_OWNER and terminal status; do not use wall-clock dates or timestamps to
 infer unread/read state. Every Codex bridge message ends exactly with
-`sincerely, Codex`. No deployment, installer, database, migration, provider,
-credential, permission, network, runtime or service action is authorized by
-this reconciliation.
+`sincerely, Codex`. Codex is the coordinator, reviewer, integrator and
+commit/push owner; Hermes is the implementation worker only after a fresh
+Codex TASK transfers one bounded lane. `REPLIED` is transport-only. A missing
+or malformed logical reply is `UNCONFIRMED`, never accepted or in progress.
+No deployment, installer, database, migration, provider, credential,
+permission, network, runtime or service action is authorized by this
+reconciliation.
 
 ## Historical continuation records
 
