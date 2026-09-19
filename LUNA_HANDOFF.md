@@ -1673,3 +1673,13 @@ Each requires real changed source, behavior tests, actual dashboard/mobile
 wiring where user-operated, per-file hashes and exact exits, followed by one
 DELIVERY or terminal BLOCKED. No task authorizes live/provider/database,
 deployment, credential, permission, service or network activity.
+## M508 — remaining source lanes dispatched
+
+Codex also dispatched separate matrix-bound source-only tasks for playbook
+guidelines, clipping/adaptation, provider/OAuth contracts, R2 storage,
+customer VPN/egress, observability, CI/release governance, and learning/
+recipe evidence. Each targets pushed head `21f0f347704d2ad0bb0b79c384ec91013debd5e1`,
+requires a unique correlated ACK followed by evidence PROGRESS and one
+DELIVERY/BLOCKED, and names behavior-level criteria rather than vague audits.
+Live providers, hosted CI/rulesets, R2 buckets, VPN/network, migrations,
+deployment, credentials and service actions remain external or forbidden.
