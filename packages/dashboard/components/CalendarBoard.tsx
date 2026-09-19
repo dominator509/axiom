@@ -56,7 +56,7 @@ export function calendarCells(year: number, month: number, view: 'month' | 'week
   });
 }
 
-function movedUtcSlot(post: PostTarget, target: Date) {
+export function movedUtcSlot(post: PostTarget, target: Date) {
   const source = post.scheduledFor ? new Date(post.scheduledFor) : null;
   if (!source || Number.isNaN(source.getTime())) return null;
   return new Date(Date.UTC(
@@ -70,6 +70,7 @@ export default function CalendarBoard({ posts, year, month, view, weekStart, can
   const cells = useMemo(() => calendarCells(year, month, view, weekStart), [month, view, weekStart, year]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [targetDates, setTargetDates] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const byDay = useMemo(() => {
@@ -86,11 +87,9 @@ export default function CalendarBoard({ posts, year, month, view, weekStart, can
     return grouped;
   }, [posts]);
 
-  async function movePost(target: Date) {
-    if (!draggedId || busyId) return;
-    const post = posts.find(candidate => candidate.id === draggedId);
-    setDraggedId(null);
-    if (!post || !canEdit || post.state !== 'pending' || post.remoteId) return;
+  async function submitMove(post: PostTarget | undefined, target: Date) {
+    if (!post || busyId) return;
+    if (!canEdit || post.state !== 'pending' || post.remoteId) return;
     const scheduledFor = movedUtcSlot(post, target);
     if (!scheduledFor) return;
     setBusyId(post.id); setError(''); setMessage('');
@@ -115,6 +114,23 @@ export default function CalendarBoard({ posts, year, month, view, weekStart, can
     }
   }
 
+  async function moveDraggedPost(target: Date) {
+    if (!draggedId) return;
+    const post = posts.find(candidate => candidate.id === draggedId);
+    setDraggedId(null);
+    await submitMove(post, target);
+  }
+
+  async function movePostToDate(post: PostTarget, value: string) {
+    const target = new Date(`${value}T00:00:00.000Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(target.getTime())) {
+      setError('Choose a valid UTC date before moving the post.');
+      setMessage('');
+      return;
+    }
+    await submitMove(post, target);
+  }
+
   return <section className="card stack" aria-label={`${view === 'month' ? 'Month' : 'Week'} visual calendar`}>
     <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
       <div>
@@ -133,7 +149,7 @@ export default function CalendarBoard({ posts, year, month, view, weekStart, can
           key={cell.key}
           aria-label={`Calendar day ${cell.label}`}
           onDragOver={event => { if (canEdit) event.preventDefault(); }}
-          onDrop={event => { event.preventDefault(); void movePost(cell.date); }}
+          onDrop={event => { event.preventDefault(); void moveDraggedPost(cell.date); }}
           style={{ minWidth: 108, minHeight: 128, padding: 8, border: `1px solid ${cell.inCurrentMonth ? 'var(--line)' : 'transparent'}`, borderRadius: 10, background: cell.inCurrentMonth ? 'var(--panel2)' : 'transparent', opacity: cell.inCurrentMonth ? 1 : .65 }}
         >
           <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}><span className="mono" style={{ fontSize: 12 }}>{cell.key}</span>{dayPosts.length > 0 && <span className="badge mute">{dayPosts.length}</span>}</div>
@@ -152,6 +168,24 @@ export default function CalendarBoard({ posts, year, month, view, weekStart, can
                 <Link href={`#post-${post.id}`} style={{ fontWeight: 600 }}>{post.platform}</Link>
                 <span className={`badge ${post.state === 'published' ? 'good' : post.state === 'failed' ? 'bad' : 'mute'}`}>{post.state}</span>
                 <span className="subtle" style={{ fontSize: 12 }}>{post.scheduledFor ? new Date(post.scheduledFor).toISOString().slice(11, 16) : 'unscheduled'} UTC</span>
+                {editable && <div className="stack" style={{ gap: 4, marginTop: 6 }}>
+                  <label htmlFor={`move-date-${post.id}`} className="subtle" style={{ fontSize: 12 }}>Move to UTC date</label>
+                  <div className="row" style={{ gap: 6 }}>
+                    <input
+                      id={`move-date-${post.id}`}
+                      type="date"
+                      value={targetDates[post.id] ?? post.scheduledFor?.slice(0, 10) ?? ''}
+                      onChange={event => setTargetDates(current => ({ ...current, [post.id]: event.target.value }))}
+                      aria-label={`Move ${post.platform} post to UTC date`}
+                    />
+                    <button
+                      className="btn secondary"
+                      type="button"
+                      disabled={busyId !== null}
+                      onClick={() => void movePostToDate(post, targetDates[post.id] ?? post.scheduledFor?.slice(0, 10) ?? '')}
+                    >Move</button>
+                  </div>
+                </div>}
               </article>;
             })}
           </div>

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import CalendarBoard, { calendarCells } from './CalendarBoard';
+import CalendarBoard, { calendarCells, movedUtcSlot } from './CalendarBoard';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
@@ -28,5 +28,12 @@ describe('calendar visual board', () => {
     expect(html).toContain('Visual month view');
     expect(html).toContain('draggable="true"');
     expect(html).toContain('Drag an editable pending post to another day');
+    expect(html).toContain('Move to UTC date');
+    expect(html).toContain('aria-label="Move x post to UTC date"');
+  });
+
+  it('preserves the original UTC time when a keyboard/date move changes the day', () => {
+    expect(movedUtcSlot(post('pending', '2030-02-20T18:30:45.000Z'), new Date('2030-02-24T00:00:00.000Z')))
+      .toBe('2030-02-24T18:30:45.000Z');
   });
 });
