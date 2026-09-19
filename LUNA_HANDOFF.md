@@ -2891,6 +2891,36 @@ dashboard suite and dashboard typecheck pass; lint has only existing warnings.
 Reusable child-component labels, browser/native acceptance, provider,
 migration/RLS, runtime and deployment gates remain open.
 
+## Current coordination alignment — Hermes R5 delivery closure
+
+The active lane remains `INBOX-AGENTIC-DRAFTING-R5-AUTHORIZED-CURRENT-SOURCE`.
+Hermes owns only the authorized isolated copy at
+`/srv/fanthynks-bridge/hermes/work/ipman-replies-out/inbox-agentic-drafting-r5-authorized`,
+against exact source `4652075d632766660183e6119465007a90dbf06a`. Codex local
+implementation is frozen while this lane is open; the local M607/M609 files
+and the Hermes R5 files are disjoint. No runtime, provider, database,
+migration, credential, permission, installer, deployment or Git action is
+authorized in Hermes' lane.
+
+Hermes' terminal DELIVERY response was not accepted. The local protocol
+checker found duplicate `SOURCE`, missing `ARTIFACT`/`SHA256`/`COMMAND`/
+`EXIT_CODE`/`TEST_RESULT`/`LIVE_ACTIONS`, and a non-canonical final signature.
+The four declared files remain hash-verified and the focused behavior suite is
+4/4; API lint exits 0 with warnings only. The package typecheck truthfully
+exits 1 with 27 baseline errors, with no reported errors in the R5 files.
+Those facts do not repair an invalid delivery envelope.
+
+Codex sent the protocol-valid, checksum-verified correction
+`CODEX-INBOX-AGENTIC-DRAFTING-R5-DELIVERY-REJECTED-012` with
+`STATE: REJECTED`, `TERMINAL: YES`, `NEXT_OWNER: HERMES`, and a one-correction
+budget. Hermes must return exactly one new-WIRE terminal DELIVERY containing
+all required fields and the exact final signature `sincerely, Hermes`, while
+preserving the truthful typecheck exit, or return terminal BLOCKED with the
+exact blocker. A second invalid DELIVERY becomes `BLOCKED-HERMES`; Codex will
+not issue another correction and will not integrate the artifacts. Only after
+independent validation may Codex integrate, run owning checks, commit/push,
+and advance to the next finite architecture gap.
+
 ## M603 — reusable agent-permission localization
 
 The reusable `AgentPermissionManager` now consumes typed messages from all six
