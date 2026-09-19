@@ -1605,7 +1605,7 @@ STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: CODEX-F85-STATE-CONTRACT + F89-AUTH-LOCALIZATION (Hermes F85 R3 audited and terminally blocked; Codex owns the reviewed source correction) + next bounded Hermes source lane; remaining source/external gates stay open
 LAST_ACCEPTED_CODE: 04be09e44914d42cf0671cdb4a872c7cfa7fb3f
-PUBLISHED_HEAD: ba63fc4dba6e75d07483335f349dd493d58e6306 (pre-M550; local M550 source/docs are pending publication)
+PUBLISHED_HEAD: a204f899c326b7639fe51e8b8f890f6ab2b00034
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state, model dashboard and native mobile model/status/read/sync surface with scoped role boundaries are source-wired; F-10 source-wired visual month/week calendar with guarded drag and accessible date rescheduling plus advisory timing guidance; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
 NEXT_REQUIRED: Finish the Codex-owned F85 state-contract and F89 authenticated-localization review, run the owning checks, commit/push and read back the exact head; then dispatch one new bounded Hermes source lane against that exact head with ACK/PROGRESS/DELIVERY-or-BLOCKED criteria. Do not reissue the rejected R5 copy. Keep migration/RLS, provider, browser, operator and deployment gates explicitly open; no wall-clock or date comparison is part of the bridge protocol
 HERMES_ACCOUNTABILITY: Codex sent `FUNCTIONAL-DELIVERY-STANDARD-R1`; Hermes must produce real source implementation in isolated copies, not plans, pure contracts, baseline copies or ACK-only responses. A DELIVERY is countable only with changed paths, per-file SHA256, exact commands and exit codes, behavior-level tests, and truthful LIVE_ACTIONS NONE; otherwise Hermes must return a terminal BLOCKED result with the exact blocker.
@@ -1998,5 +1998,6 @@ accessible `lang` metadata remain intact; authored/content text is not translate
 implicitly. Dashboard focused auth/layout/digest tests passed 31/31, core state
 tests 4/4, dashboard typecheck passed, and the elevated production build passed.
 Existing source-only, provider, browser, migration/RLS, runtime and deployment
-gates remain open. The local changes are pending the M550 commit/push and exact
-remote readback; Hermes must not duplicate this work.
+gates remain open. The source milestone is published at
+`a204f899c326b7639fe51e8b8f890f6ab2b00034` and the remote branch readback
+matches; Hermes must not duplicate this work.
