@@ -1,13 +1,13 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: after milestone M582 and the agentic-drafting/localization delivery assignments. This is a continuation checkpoint,
+Updated: after milestone M584 and the agentic-drafting/localization/vision delivery assignments. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
-## Current continuation checkpoint — M582
+## Current continuation checkpoint — M584
 
 The accepted product source head is the variant guidance provenance milestone
 `ce2f15bf73fb0855b97fc6dddd173a1f3e4827c3`; the current pushed branch tip is
-`df227fc00fd7166c3dc9b560be12e9538ebcb6d7` on
+`ac7961b9444fea4ec538e84c5980afca84e69ea6` on
 `origin/codex/telegram-webhook-hardening`. M578 wires the existing bounded
 `CaptionGuidanceReceipt` into the real copy-variant and review-bundle paths:
 the server rechecks same-org/model/asset ownership, exact caption hash and
@@ -2641,3 +2641,18 @@ matched
 `4426322a6c413f3adf7ffe6c928b560c02c4f7f9ab3f33a227c3319554936fae`.
 This supersedes stale F81/F84 copied-artifact lanes; no runtime, provider,
 database, migration, permission, installer or deployment action is authorized.
+
+## M584 — operator ACK state correction
+
+Hermes corrected the desktop operator-formatting reply WIRE, but the corrected
+ACK still used `STATE: OPEN`. Under `ACK-NACK-1`, an ACK must use `STATE:
+ACCEPTED` or `STATE: READ`; `OPEN` is invalid and cannot advance the lane.
+Codex therefore sent the strict receipt
+`CODEX-F89-DASHBOARD-OPERATOR-FORMATTING-R1-RECEIPT-005`, validated locally as
+`RECEIPT/REJECTED`, with `IN_REPLY_TO` set to the invalid ACK's unique WIRE.
+The correction envelope's remote SHA-256 readback is
+`288a5433ab6ba1889a9dc3e13bcd8e6507f75ddf07023a18b6f0725c8b507a4f`.
+The source lane remains unaccepted and no implementation delivery is counted;
+Hermes must reissue a unique correlated ACK with a valid accepted/read state
+before source work advances. No runtime, provider, database, migration,
+permission, installer or deployment action is authorized.

@@ -356,3 +356,13 @@ vision wire currently exposes only ToS/analysis data. A bounded current-source
 Hermes task now targets that existing Rust -> TypeScript -> worker -> viral
 recipe path. Conversion attribution remains unavailable unless an authoritative
 provider field is present; no synthetic metric is permitted.
+
+### M584 source-lane checkpoint
+
+The desktop operator-formatting lane's corrected WIRE was unique, but its ACK
+used invalid `STATE: OPEN`. Codex rejected that transport envelope with a
+validated strict receipt requiring a valid `ACCEPTED` or `READ` ACK state and a
+unique correlation. The correction readback SHA-256 is
+`288a5433ab6ba1889a9dc3e13bcd8e6507f75ddf07023a18b6f0725c8b507a4f`.
+The five-surface operator localization gap remains open; no source delivery is
+accepted and no runtime/provider/database/deployment action occurred.

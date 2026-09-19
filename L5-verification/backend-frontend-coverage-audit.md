@@ -562,3 +562,14 @@ trusted, asset-bound receipt. A bounded Hermes source-only lane now targets
 the existing vision/client/ToS/recipe path. Conversion attribution remains
 explicitly unavailable without an authoritative provider field; no inferred
 or synthetic conversion evidence is accepted.
+
+# M584: operator ACK state correction
+
+Hermes' corrected desktop operator-formatting reply fixed the prior WIRE
+collision but still declared `STATE: OPEN`, which is invalid for an ACK under
+the strict transport contract. Codex sent and validated a unique correlated
+rejection receipt; remote SHA-256 is
+`288a5433ab6ba1889a9dc3e13bcd8e6507f75ddf07023a18b6f0725c8b507a4f`.
+The operator source lane remains open until a valid `ACCEPTED` or `READ` ACK
+and then a hash-verifiable implementation delivery are received. This does
+not alter the separate browser, mobile, deployed, provider or runtime gates.

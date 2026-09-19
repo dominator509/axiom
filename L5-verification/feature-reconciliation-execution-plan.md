@@ -815,6 +815,18 @@ This rejects the envelope only; it does not change the five-surface scope.
 No runtime, provider, database, migration, permission, installer or
 deployment action occurred.
 
+### M584 — operator ACK state correction
+
+Hermes corrected the desktop operator-formatting WIRE collision but returned
+`STATE: OPEN`, which is invalid for an ACK under `ACK-NACK-1`. Codex sent a
+strict `RECEIPT/REJECTED` correction with a unique correlated WIRE,
+`CODEX-F89-DASHBOARD-OPERATOR-FORMATTING-R1-RECEIPT-005`; local validation
+passed and the remote checksum is
+`288a5433ab6ba1889a9dc3e13bcd8e6507f75ddf07023a18b6f0725c8b507a4f`.
+The lane remains open and unaccepted until Hermes returns `ACK` with
+`STATE: ACCEPTED` or `STATE: READ`; no source delivery is counted from the
+invalid envelope.
+
 ### M583 — current-source F81/F84 trusted-vision lane
 
 The current Rust vision response exposes ToS classification and bounded image
