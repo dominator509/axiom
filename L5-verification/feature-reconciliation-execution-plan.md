@@ -889,3 +889,15 @@ publication assertion, DB 155 passed with 17 integration tests skipped by the
 local environment, all three package typechecks and builds passed, and the
 owning lints exited 0 with only pre-existing warnings. No migration, runtime,
 provider, permission, installer or deployment action occurred.
+
+### M599 — Audit operator surface localization
+
+The mounted `/audit` page now uses the shared six-locale catalog for trust and
+activity copy, chain verification states, table headings, empty state and
+localized failure copy. Its timestamps use the server-locale UTC formatter and
+raw backend error text is not exposed to operators. Core catalog tests passed
+74/74; the dashboard suite, typecheck and lint passed with only existing
+warnings. This closes only the Audit slice of F-89. Approvals, playbook,
+agent-access and automation-rule surfaces remain the next finite source/UI
+localization node; browser/native, provider, migration/RLS and deployment gates
+remain open.

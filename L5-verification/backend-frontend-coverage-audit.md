@@ -598,6 +598,15 @@ tests, typechecks, builds and lints pass. This closes source wiring only;
 conversion/revenue attribution, runtime/provider/browser/mobile, migrations/RLS
 and deployment acceptance remain open.
 
+# M599: Audit surface localization
+
+The mounted Audit page now consumes the shared six-locale catalog and the
+server-locale UTC formatter. Chain validity, entry labels, empty and failure
+states are localized, and raw backend error text is no longer rendered. Core
+catalog tests passed 74/74; the dashboard suite, typecheck and lint passed with
+only existing warnings. Approvals, playbook, agent-access and automation-rule
+surfaces remain open for the same operator-formatting treatment.
+
 # M586: F-89 mobile Relay localization integrated
 
 The readable Hermes mobile delivery was independently audited and integrated at

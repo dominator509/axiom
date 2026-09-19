@@ -2854,3 +2854,15 @@ ACK, then one evidence-bearing PROGRESS and one hash-verifiable DELIVERY or
 terminal BLOCKED. Hermes may edit only its isolated copy; Codex retains review,
 integration, commit and push ownership. No runtime, provider, database,
 migration, permission, installer or deployment action is authorized.
+
+## M599 — Audit operator localization
+
+Codex integrated and pushed the finite F-89 Audit slice at source commit
+`4d11f4469cf374de4053e99c29d48ddc9a5a5062`. The mounted Audit page now uses
+the shared six-locale catalog for chain state, entry headings, empty/error copy
+and trust/activity labels; timestamps use the server-locale UTC formatter and
+raw backend errors are not shown. Core catalog tests passed 74/74, the full
+dashboard suite passed, dashboard typecheck/lint passed with only existing
+warnings. Approvals, playbook, agent-access and automation-rule pages remain
+the next finite operator-localization gap. No provider, database, migration,
+runtime, permission, installer or deployment action occurred.

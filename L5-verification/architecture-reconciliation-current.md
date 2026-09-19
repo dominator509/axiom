@@ -369,6 +369,16 @@ warnings. This is not runtime or provider evidence: conversion/revenue
 attribution, migration/RLS, browser/mobile, deployed worker/media and provider
 acceptance remain open.
 
+### M599 source checkpoint
+
+The mounted Audit page now consumes the shared six-locale catalog for its
+heading, chain-valid/broken state, entry labels, empty state and load failure.
+Audit timestamps use the existing server-locale UTC formatter rather than the
+host locale, and backend errors are not rendered raw. Core catalog tests passed
+74/74 and the full dashboard suite, dashboard typecheck and lint passed with
+only pre-existing warnings. Remaining approvals, playbook, agent-access and
+automation-rule operator surfaces still require the same catalog/UTC audit.
+
 ### M584 source-lane checkpoint
 
 The desktop operator-formatting lane's corrected WIRE was unique, but its ACK
