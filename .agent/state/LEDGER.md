@@ -979,3 +979,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19 | [AXIOM][P4][M658] Verified current R3 transport filenames equal msg_id; quarantined historical filename mismatches from the active Hermes lane
 2026-09-19 | [AXIOM][P4][M659] Rejected Hermes R3 accepted-terminal contradiction; sent the final narrow correction requiring nonterminal acceptance before implementation
 2026-09-19 | [AXIOM][P4][M660] Validated Hermes nonterminal ACK/ACCEPTED seq6 and sent Codex READ receipt seq7; implementation ownership is now Hermes pending concrete PROGRESS
+2026-09-19 | [AXIOM][P4][M661] Sent one explicit resume receipt seq8 after accepted Hermes ownership remained without PROGRESS; no duplicate feature task opened
