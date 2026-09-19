@@ -1595,19 +1595,22 @@ Focused API/core tests passed (185/185), the dashboard suite passed (109 files,
 has only produced PROGRESS so far; its root-only copy is not accepted as a
 delivery until the exact changed source is readable to Codex and independently
 audited. The corrected artifact-gate wire is
-`CODEX-LOCALIZATION-FUNCTIONAL-R3-ARTIFACT-GATE-004`.
+`CODEX-LOCALIZATION-FUNCTIONAL-R3-ARTIFACT-GATE-004`. Commit
+`887f36bda0d74fb0e958f7327023bc9d276f8b25` is pushed and read back from
+`codex/telegram-webhook-hardening`.
 
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: F89-LOCALIZATION-FUNCTIONAL-R3 (HERMES) + F90-AFFILIATE-WIRING-R1 + F91-PATREON-WIRING-R1 + TEAM-SHIFT-WIRING-R1 + CHATTER-ROLEPLAY-WIRING-R1 + VARIANT-AB-WIRING-R1 + MEDIA-GALLERY-WIRING-R1 + SCRAPER-QUALITY-WIRING-R1 + PLAYBOOK-GUIDELINE-WIRING-R1 + LEARNING-RECIPE-WIRING-R1 + CLIPPING-ADAPTATION-WIRING-R1 + PROVIDER-OAUTH-WIRING-R1 + R2-STORAGE-WIRING-R1 + VPN-EGRESS-WIRING-R1 + OBSERVABILITY-WIRING-R1 + CI-ENFORCEMENT-WIRING-R1
-LAST_ACCEPTED_CODE: 59980176c563f04d970ac66df167e4edb3e776ae
-PUBLISHED_HEAD: 59980176c563f04d970ac66df167e4edb3e776ae
+LAST_ACCEPTED_CODE: 887f36bda0d74fb0e958f7327023bc9d276f8b25
+PUBLISHED_HEAD: 887f36bda0d74fb0e958f7327023bc9d276f8b25
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community sync + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; locale and affiliate migrations are authored only and not applied
 NEXT_REQUIRED: first obtain a real PROGRESS and then DELIVERY or terminal BLOCKED for the active Hermes F89 functional task; reject ACK-only, plan-only, contract-only and archive-copy responses; then complete F90 license/security/browser acceptance and take the next highest-value unimplemented lane; integrate only hash-verified reviewed source, run owning tests, commit/push each independent lane, then advance; pure-contract deliveries are integrated but do not close their feature gates; baseline-copy lanes are closed as non-implementations; every active lane requires implementation, then DELIVERY/BLOCKED; no wall-clock or date comparison is part of the bridge protocol
 HERMES_ACCOUNTABILITY: Codex sent `FUNCTIONAL-DELIVERY-STANDARD-R1`; Hermes must produce real source implementation in isolated copies, not plans, pure contracts, baseline copies or ACK-only responses. A DELIVERY is countable only with changed paths, per-file SHA256, exact commands and exit codes, behavior-level tests, and truthful LIVE_ACTIONS NONE; otherwise Hermes must return a terminal BLOCKED result with the exact blocker.
 HERMES_F89_TASK: `LOCALIZATION-MULTILINGUAL-FUNCTIONAL-R3`, WIRE `CODEX-LOCALIZATION-FUNCTIONAL-001`, source ref `57a8c47f8f6fa2d7be2f6920d3da88a374ce15c6`, isolated copy `/root/d001a-deliverable/localization-r3`; the corrective delivery-required message `codex-localization-functional-r3-delivery-required-001` supersedes silent waiting and requires changed source, behavior tests and a signed DELIVERY or exact BLOCKED result.
 HERMES_F89_AUTHORIZATION: Hermes returned a truthful terminal BLOCKED because COPY_ROOT was absent and source writes were not explicitly authorized. Codex has now issued `codex-localization-functional-r3-authorize-source-copy-002` with owner-authorized COPY_ROOT creation and source-only artifact writes; Hermes must not commit/push, and Codex retains review/integration/commit/push ownership.
+HERMES_F89_GATE: Hermes produced real PROGRESS from the exact detached source checkout and 61 behavior tests, but the `/root/d001a-deliverable/localization-r3` tree is not readable to Codex, so no delivery is accepted. The earlier artifact-gate envelope reused Hermes' wire identifier; Codex superseded it with the unique `CODEX-LOCALIZATION-FUNCTIONAL-R3-ARTIFACT-GATE-004` at the next logical sequence and requires one readable DELIVERY or one exact BLOCKED result. No wall-clock state is inferred.
 HERMES_F90_RETRY: Hermes terminally NACKed both the explicit-owner R3 and the accepted-form R4 F90 implementation wires because the bridge cannot independently verify owner identity. No Hermes artifact is accepted. Codex therefore implemented the source-only schema, authored migration, owner-gated API routes, payout-file boundary and behavior tests locally in M495, then added the owner dashboard controls and interaction tests in M496; license/security review and browser acceptance remain open.
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
