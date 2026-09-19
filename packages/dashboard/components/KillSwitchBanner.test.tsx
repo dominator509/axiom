@@ -5,6 +5,13 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
   useState: () => [hooks.state, (value: unknown) => { hooks.state = value; }],
   useEffect: (effect: () => () => void) => { hooks.effect = effect; },
 }));
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ t: (key: string) => ({
+  'safety.checking': 'Checking workspace safety status…',
+  'safety.unavailable': 'Safety status unavailable',
+  'safety.unavailableDescription': 'Publishing permission could not be confirmed. Reload or sign in again if this persists.',
+  'safety.globalEnabled': '⚠ GLOBAL KILL SWITCH ENABLED',
+  'safety.publishingHalted': 'Publishing is halted',
+}[key] ?? key) }) }));
 import KillSwitchBanner from './KillSwitchBanner';
 let stop: (() => void) | undefined;
 const fetcher = vi.fn();

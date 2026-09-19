@@ -2233,3 +2233,20 @@ dashboard production build and `git diff --check` pass. Source commit
 `8dc9b127ec262bec8682427e56d8160fbc21e29b` is the reviewed milestone. This
 does not claim deployed crash sinks/paging, browser/mobile acceptance,
 runtime/RLS or deployment readiness.
+
+## M567 — publishing-safety localization and coverage reconciliation
+
+The owner-only publishing-safety route, emergency control, and global banner
+were real but still contained English copy, while the detailed coverage audit
+classified the route as only partial. The shared six-locale catalog now covers
+the Safety page, owner-denial explanation, fail-closed unknown state, localized
+halted/not-halted status, reason/start time, emergency controls, and banner
+states. Start times use explicit UTC locale-aware formatting. The audit also
+now records the existing Fanvue/Threads/Patreon account OAuth-entry and
+disconnect UI, Relay-card history/deep-link behavior, and RelayBindingManager
+instead of claiming those source surfaces are absent.
+
+Evidence: core 65/65, focused Safety/banner tests 17/17, dashboard 744/744,
+dashboard typecheck, elevated dashboard production build, and `git diff --check`
+pass. This is source/UI evidence only; provider OAuth, external Relay, browser
+and mobile acceptance, migration/RLS, runtime and deployment gates remain open.

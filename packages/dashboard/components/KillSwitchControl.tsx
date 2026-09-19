@@ -4,8 +4,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutationFetch } from '@/lib/mutation';
 import { readDashboardError } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 export default function KillSwitchControl({ enabled }: { enabled: boolean }) {
+  const { t } = useLocale();
   const router = useRouter();
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -25,12 +27,12 @@ export default function KillSwitchControl({ enabled }: { enabled: boolean }) {
       );
       if (!res.ok) {
         const b = await readDashboardError(res);
-        setError(b?.error?.message ?? 'Action failed');
+        setError(b?.error?.message ?? t('safety.actionFailed'));
         return;
       }
       router.refresh();
     } catch {
-      setError('Network error');
+      setError(t('safety.networkError'));
     } finally {
       setBusy(false);
     }
@@ -40,23 +42,23 @@ export default function KillSwitchControl({ enabled }: { enabled: boolean }) {
     <div className="stack">
       {!enabled && (
         <div>
-          <label htmlFor="ks-reason">Reason (recorded in audit)</label>
+          <label htmlFor="ks-reason">{t('safety.reasonLabel')}</label>
           <input
             id="ks-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Emergency — platform flagged account"
+            placeholder={t('safety.reasonPlaceholder')}
           />
         </div>
       )}
       {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
       {enabled ? (
         <button className="btn" type="button" disabled={busy} onClick={() => flip(false)}>
-          {busy ? 'Restoring…' : 'Restore publishing'}
+          {busy ? t('safety.restoring') : t('safety.restore')}
         </button>
       ) : (
         <button className="btn danger" type="button" disabled={busy} onClick={() => flip(true)}>
-          {busy ? 'Engaging…' : 'ENGAGE KILL SWITCH'}
+          {busy ? t('safety.engaging') : t('safety.engage')}
         </button>
       )}
     </div>

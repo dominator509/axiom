@@ -610,3 +610,22 @@ Evidence: core 65/65, dashboard 743/743, dashboard typecheck, elevated
 dashboard production build, and `git diff --check` pass. This is source/UI
 evidence only; deployed crash sinks/paging, browser/mobile acceptance,
 runtime/RLS and deployment gates remain open.
+
+### M567 — publishing-safety UI localization and coverage reconciliation
+
+The owner-only publishing-safety surface was real but still contained English
+copy and the detailed coverage audit incorrectly classified the route as only
+partial. The Safety page, emergency control, and global safety banner now use
+the shared six-locale catalog. The page loads the persisted interface locale,
+keeps the owner denial path separate from the restricted status API, fails
+closed when the status is invalid/unavailable, and formats the recorded start
+time with explicit UTC locale-aware formatting. The audit now records the
+actual Fanvue/Threads/Patreon account OAuth-entry and disconnect UI, the Relay
+history/deep-link surface, and RelayBindingManager rather than claiming those
+surfaces are absent. Source status is not promoted to provider, browser,
+runtime, migration/RLS, or deployed acceptance.
+
+Evidence: core 65/65, focused Safety/banner tests 17/17, full dashboard suite
+744/744, dashboard typecheck, elevated dashboard production build, and
+`git diff --check` pass. No runtime/provider/database/migration/permission/
+deployment action is included.

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { fetchWithTimeout } from '@/lib/request';
 import { readDashboardJson } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 interface KillSwitchState {
   enabled: boolean;
@@ -11,6 +12,7 @@ interface KillSwitchState {
 
 /** Global kill switch banner (F-12) — shown when publishing is halted. */
 export default function KillSwitchBanner() {
+  const { t } = useLocale();
   const [state, setState] = useState<KillSwitchState | 'unavailable' | null>(null);
 
   useEffect(() => {
@@ -39,19 +41,19 @@ export default function KillSwitchBanner() {
     return () => { controller.abort(); clearTimeout(next); };
   }, []);
 
-  if (state === null) return <div className="banner" role="status">Checking workspace safety status…</div>;
+  if (state === null) return <div className="banner" role="status">{t('safety.checking')}</div>;
   if (state === 'unavailable') return (
     <div className="banner" role="alert">
-      <strong>Safety status unavailable</strong>
-      <span>Publishing permission could not be confirmed. Reload or sign in again if this persists.</span>
+      <strong>{t('safety.unavailable')}</strong>
+      <span>{t('safety.unavailableDescription')}</span>
     </div>
   );
   if (!state.enabled) return null;
 
   return (
     <div className="banner" role="alert">
-      <strong>⚠ GLOBAL KILL SWITCH ENABLED</strong>
-      <span>Publishing is halted{state.reason ? ` — ${state.reason}` : ''}.</span>
+      <strong>{t('safety.globalEnabled')}</strong>
+      <span>{t('safety.publishingHalted')}{state.reason ? ` — ${state.reason}` : '.'}</span>
     </div>
   );
 }
