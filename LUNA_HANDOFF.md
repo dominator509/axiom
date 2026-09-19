@@ -2268,3 +2268,23 @@ Evidence: core 65/65, API model-access 13/13, dashboard focused provider/Grok
 tests 27/27, full dashboard suite 750/750, API typecheck/build and dashboard
 typecheck pass. This is source/UI evidence only; provider CLI/OAuth, browser,
 mobile, runtime, migration/RLS, bucket and deployment acceptance remain open.
+
+## M569 — platform affiliate workflow localization
+
+The FanThynks SaaS referral workflow was already owner-gated and source-wired,
+but its owner page still emitted English-only copy and fixed `en-US` money/date
+formatting. The affiliate page now resolves the persisted interface locale for
+owner-denial and program-load errors, while `PlatformAffiliateManager` consumes
+the shared six-locale catalog for onboarding, campaign, report, hold and action
+copy. Currency, commission percentages and hold dates use the selected locale;
+dynamic partner/campaign/hold statuses are translated through bounded catalog
+keys. The direct-invocation test fallback remains English-only and does not
+change runtime provider behavior.
+
+Evidence: core 65/65, affiliate-focused dashboard 5/5, full dashboard 753/753,
+dashboard typecheck/lint and elevated production build with non-secret
+`API_ORIGIN=http://127.0.0.1:3302` pass; lint retains only three pre-existing
+`no-explicit-any` warnings in `MediaBundleCreate.behavior.test.tsx`. No billing,
+payout, provider, database, migration, runtime, permission or deployment action
+is included. Browser, legal/license, billing/reconciliation, migration/RLS and
+deployed acceptance remain open.

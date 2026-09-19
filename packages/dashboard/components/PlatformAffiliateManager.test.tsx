@@ -80,7 +80,7 @@ it('creates a partner through the owner API with disclosure and an idempotency k
   tree = render();
   namedInput(tree, 'disclosureAccepted').props.onChange!({ target: { checked: true } });
   tree = render();
-  const form = find(tree, node => node.type === 'form' && node.props['aria-label'] === 'Create affiliate partner');
+  const form = find(tree, node => node.type === 'form' && node.props['aria-label'] === 'Create partner');
   expect(form).toBeDefined();
   form!.props.onSubmit!({ preventDefault: vi.fn() });
   await vi.waitFor(() => expect(hooks.send).toHaveBeenCalledOnce());
@@ -103,7 +103,7 @@ it('creates campaigns only from disclosed partners and renders report and payout
   tree = render(activeSnapshot);
   namedSelect(tree, 'campaignStatus').props.onChange!({ target: { value: 'draft' } });
   tree = render(activeSnapshot);
-  const form = find(tree, node => node.type === 'form' && node.props['aria-label'] === 'Create affiliate campaign');
+  const form = find(tree, node => node.type === 'form' && node.props['aria-label'] === 'Create a campaign');
   expect(form).toBeDefined();
   form!.props.onSubmit!({ preventDefault: vi.fn() });
   await vi.waitFor(() => expect(hooks.send).toHaveBeenCalledOnce());
