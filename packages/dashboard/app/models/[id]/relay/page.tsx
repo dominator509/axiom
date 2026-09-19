@@ -1,4 +1,5 @@
 import { api, getSession } from '@/lib/api';
+import { CATALOGS, LocaleCatalog, normalizeLocale } from '@axiom/core';
 import RelayBindingManager from '@/components/RelayBindingManager';
 import RelayCardHistory from '@/components/RelayCardHistory';
 
@@ -17,6 +18,13 @@ export default async function RelayPage({
   const query = searchParams ? await searchParams : {};
   const rawCursor = query.cards_cursor;
   const cardsCursor = Array.isArray(rawCursor) ? rawCursor[0] : rawCursor;
+
+  let uiLocale = 'en';
+  try { uiLocale = (await api.uiLocale.get()).data.locale; } catch { /* keep the safe fallback */ }
+  const locale = normalizeLocale(uiLocale) ?? 'en';
+  const copy = new LocaleCatalog(CATALOGS);
+  const t = (key: string, values?: Record<string, string | number>) => copy.t(locale, key, values);
+
   let bindings = [] as Awaited<ReturnType<typeof api.models.relayBindings>>['data'];
   let cards = [] as Awaited<ReturnType<typeof api.models.relayCards>>['data'];
   let cardsMeta: Awaited<ReturnType<typeof api.models.relayCards>>['meta'] = { total: 0, limit: 20, next_cursor: null };
@@ -31,19 +39,19 @@ export default async function RelayPage({
     cardsFailed = true;
   }
   return <div className="page-stack">
-    <h2>Relay delivery</h2>
+    <h2>{t('relay.title')}</h2>
     <div className="card">
-      <h3>Approval-card destinations</h3>
-      {failed ? <p role="alert">Relay destinations could not be loaded. Refresh to try again; no saved binding was changed.</p> : <RelayBindingManager modelId={id} bindings={bindings} canEdit={canEdit} />}
+      <h3>{t('relay.destinations.heading')}</h3>
+      {failed ? <p role="alert">{t('relay.destinations.loadFailed')}</p> : <RelayBindingManager modelId={id} bindings={bindings} canEdit={canEdit} />}
     </div>
     <div className="card stack">
-      <h3>Relay-card history</h3>
-      <p className="subtle">Review the signed control cards recorded for this talent. A recorded card is not proof that an external channel delivered it.</p>
-      {cardsFailed ? <p role="alert">Relay-card history could not be loaded. Refresh to try again; no card state was changed.</p> : <RelayCardHistory modelId={id} cards={cards} nextCursor={cardsMeta.next_cursor} />}
+      <h3>{t('relay.history.heading')}</h3>
+      <p className="subtle">{t('relay.history.subtle')}</p>
+      {cardsFailed ? <p role="alert">{t('relay.history.loadFailed')}</p> : <RelayCardHistory modelId={id} cards={cards} nextCursor={cardsMeta.next_cursor} />}
     </div>
     <div className="card">
-      <h3>How this works</h3>
-      <p className="subtle">Generation still passes through ToS review and dashboard approval. Relay only delivers a signed control card; it cannot bypass approval or publish by itself. If a channel adapter is not configured on the server, the worker keeps the job parked and reports the reason.</p>
+      <h3>{t('relay.howItWorks.heading')}</h3>
+      <p className="subtle">{t('relay.howItWorks.description')}</p>
     </div>
   </div>;
 }

@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { CATALOGS, LocaleCatalog, MESSAGE_KEYS, SUPPORTED_LOCALES } from '@axiom/core';
+import LocaleProvider from './LocaleProvider';
 import RelayCardHistory from './RelayCardHistory';
 
 const card = {
@@ -28,5 +30,34 @@ describe('RelayCardHistory', () => {
     const html = renderToStaticMarkup(<RelayCardHistory modelId="model-1" cards={[]} nextCursor={null} />);
     expect(html).toContain('No Relay cards have been recorded');
     expect(html).not.toContain('delivered');
+  });
+
+  it('renders localized labels under a non-English locale', () => {
+    const catalog = new LocaleCatalog(CATALOGS);
+    const html = renderToStaticMarkup(
+      <LocaleProvider initialLocale="ja">
+        <RelayCardHistory modelId="model-1" cards={[card]} nextCursor="next" />
+      </LocaleProvider>,
+    );
+    expect(html).toContain(catalog.t('ja', 'relay.card.openApproval'));
+    expect(html).toContain(catalog.t('ja', 'relay.card.older'));
+    // Creator-authored card content is never translated.
+    expect(html).toContain('Approval ready');
+    expect(html).toContain('telegram');
+  });
+
+  it('covers every digest/relay key in all six catalogs without English fallback', () => {
+    const keys = MESSAGE_KEYS.filter(k => k.startsWith('digest.') || k.startsWith('relay.'));
+    expect(keys.length).toBeGreaterThan(0);
+    for (const locale of SUPPORTED_LOCALES) {
+      for (const key of keys) {
+        expect(typeof CATALOGS[locale][key], `${locale}.${key}`).toBe('string');
+        expect(CATALOGS[locale][key].length, `${locale}.${key}`).toBeGreaterThan(0);
+      }
+    }
+    for (const locale of SUPPORTED_LOCALES.filter(l => l !== 'en')) {
+      const identical = keys.filter(k => CATALOGS[locale][k] === CATALOGS.en[k]);
+      expect(identical, `untranslated in ${locale}: ${identical.join(', ')}`).toEqual([]);
+    }
   });
 });
