@@ -1925,3 +1925,16 @@ deployed-runtime gates.
 
 No product or runtime state changed. Hermes remains paused during this
 local-only work period.
+
+## M530 — stale model and fan coverage reconciliation
+
+A source audit found two additional stale detailed rows. The current model
+detail surface already wires profile editing, activation/deactivation,
+soft-delete and character-lock controls; the current Fans surface already
+wires bounded pagination, fan detail/timeline loading, contact upsert,
+touchpoints and custom-request status controls. The audit now records those
+as source-wired/partial with browser, provider-sync, RLS and deployed-runtime
+limits still explicit.
+
+No product or runtime state changed. Hermes remains paused during this
+local-only work period.
