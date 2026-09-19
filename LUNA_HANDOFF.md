@@ -1697,3 +1697,11 @@ sanitized exact-head git archive was copied to
 Remote checksums match. A new correlated matrix task
 `codex-hermes-functional-acceptance-matrix-r2` points Hermes to both artifacts;
 the prior terminal BLOCKED is not counted as implementation progress.
+## M510 — Patreon ACK rejected under finite protocol
+
+Hermes returned an ACK for the Patreon lane that reused the Codex TASK WIRE,
+used invalid `STATE: ACKNOWLEDGED`, and incorrectly held explicitly authorized
+source-only implementation for owner approval. Codex sent terminal receipt
+`codex-receipt-patreon-functional-r2-ack-rejected-003`: Hermes must now send a
+new correlated `ACCEPTED` reply and implement, or return a concrete terminal
+BLOCKED reason. No Patreon source delivery or progress is counted yet.
