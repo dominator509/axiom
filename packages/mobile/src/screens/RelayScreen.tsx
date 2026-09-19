@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -8,7 +8,8 @@ import {
   View,
 } from 'react-native';
 
-import { getCrashReports, getDigests, type CrashReport, type DigestCard } from '../api/endpoints';
+import { getCrashReports, getDigests, getUiLocale, type CrashReport, type DigestCard } from '../api/endpoints';
+import { CATALOGS, LocaleCatalog, formatDate, formatNumber, type SupportedLocale } from '@axiom/core';
 import { palette, surfaceShadow } from '../theme';
 
 interface RelayScreenState {
@@ -19,10 +20,146 @@ interface RelayScreenState {
   error: string | null;
 }
 
+const FALLBACK_LOCALE: SupportedLocale = 'en';
+
+/** The product contract renders timestamps in UTC; the calendar format follows
+ * the selected interface locale. */
+const UTC_DATE_TIME: Intl.DateTimeFormatOptions = { timeZone: 'UTC' };
+
+export interface RelayViewProps {
+  locale: SupportedLocale;
+  digests: DigestCard[];
+  crashReports: CrashReport[];
+  loading: boolean;
+  refreshing: boolean;
+  error: string | null;
+  onRefresh: () => void;
+}
+
+/**
+ * The real mounted Relay surface. Every visible string and date renders through
+ * the persisted interface locale; creator/provider-authored content is never
+ * translated. Exported so the screen's own behaviour can be tested directly.
+ */
+export function RelayView({
+  locale,
+  digests,
+  crashReports,
+  loading,
+  refreshing,
+  error,
+  onRefresh,
+}: RelayViewProps) {
+  const localeCatalog = useMemo(() => new LocaleCatalog(CATALOGS), []);
+  const t = useCallback(
+    (key: string, values?: Record<string, string | number>) => localeCatalog.t(locale, key, values),
+    [locale, localeCatalog],
+  );
+  const dateTime = useCallback(
+    (value: string | number | Date) => formatDate(new Date(value), locale, UTC_DATE_TIME),
+    [locale],
+  );
+  const count = useCallback((value: number) => formatNumber(value, locale), [locale]);
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={palette.rose} />
+        <Text style={styles.muted}>{t('mobile.relayLoading')}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.rose} />
+      }
+    >
+      <Text style={styles.eyebrow}>{t('mobile.relayEyebrow')}</Text>
+      <Text style={styles.title}>{t('mobile.relayTitle')}</Text>
+      <Text style={styles.subtitle}>{t('mobile.relaySubtitle')}</Text>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      <Text style={styles.sectionTitle}>{t('mobile.incidents')}</Text>
+      <View style={styles.card}>
+        {crashReports.length === 0 ? (
+          error ? null : <Text style={styles.muted}>{t('mobile.noIncidents')}</Text>
+        ) : (
+          crashReports.map((report) => (
+            <View key={report.id} style={styles.listItem}>
+              <View style={styles.row}>
+                <Text
+                  style={[
+                    styles.icon,
+                    report.severity === 'sev-1'
+                      ? styles.sevOne
+                      : report.severity === 'sev-2'
+                        ? styles.sevTwo
+                        : styles.sevOther,
+                  ]}
+                >
+                  ●
+                </Text>
+                <View style={styles.rowText}>
+                  <Text style={styles.itemTitle}>{report.service}</Text>
+                  <Text style={styles.itemSubtitle}>
+                    {report.message || t('mobile.noReportMessage')} · {t('mobile.crashCount', { count: count(report.count) })}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.itemMeta}>
+                {t('mobile.crashStatus', { status: report.status, value: dateTime(report.lastSeen) })}
+              </Text>
+            </View>
+          ))
+        )}
+      </View>
+
+      <Text style={styles.sectionTitle}>{t('mobile.digestCards')}</Text>
+      <View style={styles.card}>
+        {digests.length === 0 ? (
+          error ? null : <Text style={styles.muted}>{t('mobile.noDigestCards')}</Text>
+        ) : (
+          digests.map((digest) => (
+            <View key={digest.id} style={styles.listItem}>
+              <View style={styles.row}>
+                <Text style={styles.digestIcon}>✦</Text>
+                <View style={styles.rowText}>
+                  <Text style={styles.itemTitle}>{digest.title || t('mobile.untitledDigest')}</Text>
+                  {digest.description ? (
+                    <Text style={styles.itemSubtitle}>{digest.description}</Text>
+                  ) : null}
+                </View>
+              </View>
+              <Text style={styles.itemMeta}>
+                {t('mobile.digestMeta', {
+                  channel: digest.channel ?? t('mobile.unknownChannel'),
+                  value: dateTime(digest.createdAt),
+                  delivery:
+                    digest.externalDelivery === 'not-attempted'
+                      ? t('mobile.storedOnly')
+                      : digest.externalDelivery === 'attempted'
+                        ? t('mobile.dispatchAttempted')
+                        : t('mobile.outcomeUnknown'),
+                })}
+              </Text>
+            </View>
+          ))
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
 /**
  * Relay: digest cards and crash incidents pushed through the relay channel.
+ * Resolves the persisted interface locale, then renders the Relay surface.
  */
 export default function RelayScreen() {
+  const [uiLocale, setUiLocale] = useState<SupportedLocale | null>(null);
   const [state, setState] = useState<RelayScreenState>({
     digests: [],
     crashReports: [],
@@ -34,7 +171,12 @@ export default function RelayScreen() {
   const load = useCallback(async (refreshing = false) => {
     if (!refreshing) setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const [digests, crashReports] = await Promise.all([getDigests(), getCrashReports()]);
+      const [digests, crashReports, localeSnapshot] = await Promise.all([
+        getDigests(),
+        getCrashReports(),
+        getUiLocale(),
+      ]);
+      setUiLocale(localeSnapshot.locale);
       setState((prev) => ({
         ...prev,
         digests: digests.data,
@@ -57,91 +199,16 @@ export default function RelayScreen() {
     void load();
   }, [load]);
 
-  if (state.loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={palette.rose} />
-        <Text style={styles.muted}>Loading relay…</Text>
-      </View>
-    );
-  }
-
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={state.refreshing}
-          onRefresh={() => void load(true)}
-          tintColor={palette.rose}
-        />
-      }
-    >
-      <Text style={styles.eyebrow}>LIVE SIGNALS</Text>
-      <Text style={styles.title}>Relay</Text>
-      <Text style={styles.subtitle}>The pulse of your private studio.</Text>
-      {state.error ? <Text style={styles.error}>{state.error}</Text> : null}
-
-      <Text style={styles.sectionTitle}>Incidents</Text>
-      <View style={styles.card}>
-        {state.crashReports.length === 0 ? (
-          <Text style={styles.muted}>No incidents. The relay is quiet.</Text>
-        ) : (
-          state.crashReports.map((report) => (
-            <View key={report.id} style={styles.listItem}>
-              <View style={styles.row}>
-                <Text
-                  style={[
-                    styles.icon,
-                    report.severity === 'sev-1'
-                      ? styles.sevOne
-                      : report.severity === 'sev-2'
-                        ? styles.sevTwo
-                        : styles.sevOther,
-                  ]}
-                >
-                  ●
-                </Text>
-                <View style={styles.rowText}>
-                  <Text style={styles.itemTitle}>{report.service}</Text>
-                  <Text style={styles.itemSubtitle}>
-                    {report.message || '(no message)'} · ×{report.count}
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.itemMeta}>
-                {report.status} · last seen {new Date(report.lastSeen).toLocaleString()}
-              </Text>
-            </View>
-          ))
-        )}
-      </View>
-
-      <Text style={styles.sectionTitle}>Digest cards</Text>
-      <View style={styles.card}>
-        {state.digests.length === 0 ? (
-          <Text style={styles.muted}>No digest cards relayed yet.</Text>
-        ) : (
-          state.digests.map((digest) => (
-            <View key={digest.id} style={styles.listItem}>
-              <View style={styles.row}>
-                <Text style={styles.digestIcon}>✦</Text>
-                <View style={styles.rowText}>
-                  <Text style={styles.itemTitle}>{digest.title || 'Untitled digest'}</Text>
-                  {digest.description ? (
-                    <Text style={styles.itemSubtitle}>{digest.description}</Text>
-                  ) : null}
-                </View>
-              </View>
-              <Text style={styles.itemMeta}>
-                {digest.channel ?? 'relay'} · {new Date(digest.createdAt).toLocaleString()} · {digest.externalDelivery === 'not-attempted' ? 'Stored only' : digest.externalDelivery === 'attempted' ? 'Dispatch attempted' : 'Outcome unknown'}
-              </Text>
-            </View>
-          ))
-        )}
-      </View>
-    </ScrollView>
+    <RelayView
+      locale={uiLocale ?? FALLBACK_LOCALE}
+      digests={state.digests}
+      crashReports={state.crashReports}
+      loading={state.loading}
+      refreshing={state.refreshing}
+      error={state.error}
+      onRefresh={() => void load(true)}
+    />
   );
 }
 

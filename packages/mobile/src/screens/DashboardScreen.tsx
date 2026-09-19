@@ -25,8 +25,12 @@ import {
   type UiLocaleSnapshot,
 } from '../api/endpoints';
 import LocaleSelector from '../components/LocaleSelector';
-import { CATALOGS, LocaleCatalog, type SupportedLocale } from '@axiom/core';
+import { CATALOGS, LocaleCatalog, formatDate, formatNumber, type SupportedLocale } from '@axiom/core';
 import { palette, surfaceShadow } from '../theme';
+
+/** The product contract renders relay/digest timestamps in UTC; the calendar
+ * format follows the selected interface locale. */
+const UTC_DATE_TIME: Intl.DateTimeFormatOptions = { timeZone: 'UTC' };
 
 interface DashboardScreenProps {
   user: SessionUser;
@@ -46,12 +50,189 @@ interface DashboardState {
   savingLocale: boolean;
 }
 
+export interface DashboardViewProps {
+  user: SessionUser;
+  settings: OrgSettings | null;
+  uiLocale: UiLocaleSnapshot | null;
+  digests: DigestCard[];
+  crashReports: CrashReport[];
+  loading: boolean;
+  error: string | null;
+  actionMessage: string | null;
+  togglingViral: boolean;
+  generating: boolean;
+  savingLocale: boolean;
+  onToggleViralSharing: (next: boolean) => void;
+  onSaveLocale: (locale: SupportedLocale) => void;
+  onGenerateDigest: () => void;
+  onSignOut: () => void;
+}
+
+/**
+ * The real mounted dashboard surface. Every visible string and date renders
+ * through the persisted interface locale; creator/provider-authored content is
+ * never translated. Exported so the screen's own behaviour can be tested.
+ */
+export function DashboardView({
+  user,
+  settings,
+  uiLocale,
+  digests,
+  crashReports,
+  loading,
+  error,
+  actionMessage,
+  togglingViral,
+  generating,
+  savingLocale,
+  onToggleViralSharing,
+  onSaveLocale,
+  onGenerateDigest,
+  onSignOut,
+}: DashboardViewProps) {
+  const localeCatalog = useMemo(() => new LocaleCatalog(CATALOGS), []);
+  const locale = uiLocale?.locale ?? 'en';
+  const t = useCallback((key: string, values?: Record<string, string | number>) => localeCatalog.t(locale, key, values), [locale, localeCatalog]);
+  const dateTime = useCallback(
+    (value: string | number | Date) => formatDate(new Date(value), locale, UTC_DATE_TIME),
+    [locale],
+  );
+  const count = useCallback((value: number) => formatNumber(value, locale), [locale]);
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={palette.rose} />
+        <Text style={styles.muted}>{t('mobile.loadingDashboard')}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={styles.eyebrow}>{t('mobile.studioOverview')}</Text>
+          <Text style={styles.title}>{t('mobile.greeting', { name: user.email.split('@')[0] })}</Text>
+          <Text style={styles.muted}>{t('mobile.privateWorkspace')}</Text>
+        </View>
+        <Pressable style={styles.signOutButton} onPress={onSignOut}>
+          <Text style={styles.signOutText}>{t('mobile.signOut')}</Text>
+        </Pressable>
+      </View>
+
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {actionMessage ? <Text style={styles.actionMessage}>{actionMessage}</Text> : null}
+
+      {/* Org settings */}
+      <Text style={styles.sectionTitle}>{t('mobile.orgSettings')}</Text>
+      <View style={styles.card}>
+        {settings ? (
+          <>
+            <View style={styles.row}>
+              <View style={styles.rowText}>
+                <Text style={styles.rowLabel}>{t('mobile.viralSharing')}</Text>
+                <Text style={styles.rowHint}>{t('mobile.viralSharingHint')}</Text>
+              </View>
+              {togglingViral ? (
+                <ActivityIndicator color={palette.rose} />
+              ) : (
+                <Switch
+                  value={settings.viralSharing}
+                  onValueChange={onToggleViralSharing}
+                  trackColor={{ true: palette.rose, false: palette.line }}
+                  thumbColor={palette.text}
+                  accessibilityLabel={t('mobile.viralSharing')}
+                />
+              )}
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.row}>
+              <View style={styles.rowText}>
+                <Text style={styles.rowLabel}>{t('mobile.publishingEnabled')}</Text>
+                <Text style={styles.rowHint}>{t('mobile.publishingHint')}</Text>
+              </View>
+              <Text style={settings.publishingEnabled ? styles.badgeOn : styles.badgeOff}>
+                {settings.publishingEnabled ? t('mobile.on') : t('mobile.off')}
+              </Text>
+            </View>
+          </>
+        ) : (
+          <Text style={styles.muted}>{t('mobile.noOrgSettings')}</Text>
+        )}
+      </View>
+
+      {uiLocale ? (
+        <>
+          <Text style={styles.sectionTitle}>{t('mobile.language')}</Text>
+          <LocaleSelector snapshot={uiLocale} saving={savingLocale} onSave={onSaveLocale} />
+        </>
+      ) : null}
+
+      {/* Weekly digests */}
+      <View style={styles.sectionRow}>
+        <Text style={styles.sectionTitle}>{t('mobile.weeklyDigests')}</Text>
+        <Pressable
+          style={[styles.smallButton, generating && styles.buttonDisabled]}
+          onPress={onGenerateDigest}
+          disabled={generating}
+        >
+          {generating ? (
+            <ActivityIndicator color={palette.roseInk} size="small" />
+          ) : (
+            <Text style={styles.smallButtonText}>{t('mobile.generate')}</Text>
+          )}
+        </Pressable>
+      </View>
+      <View style={styles.card}>
+        {digests.length === 0 ? (
+          <Text style={styles.muted}>{t('mobile.digestEmpty')}</Text>
+        ) : (
+          digests.map((digest) => (
+            <View key={digest.id} style={styles.listItem}>
+              <Text style={styles.itemTitle}>{digest.title || t('mobile.untitledDigest')}</Text>
+              {digest.description ? (
+                <Text style={styles.itemSubtitle}>{digest.description}</Text>
+              ) : null}
+              <Text style={styles.itemMeta}>
+                {dateTime(digest.createdAt)} ·{' '}
+                {digest.channel ?? t('mobile.unknownChannel')} ·{' '}
+                {digest.externalDelivery === 'not-attempted' ? t('mobile.storedOnly') : digest.externalDelivery === 'attempted' ? t('mobile.dispatchAttempted') : t('mobile.outcomeUnknown')}
+              </Text>
+            </View>
+          ))
+        )}
+      </View>
+
+      {/* Crash reports */}
+      <Text style={styles.sectionTitle}>{t('mobile.crashReports')}</Text>
+      <View style={styles.card}>
+        {crashReports.length === 0 ? (
+          <Text style={styles.muted}>{t('mobile.noCrashes')}</Text>
+        ) : (
+          crashReports.map((report) => (
+            <View key={report.id} style={styles.listItem}>
+              <View style={styles.row}>
+                <Text style={styles.itemTitle}>{report.service}</Text>
+                <Text style={styles.badgeOff}>{report.status}</Text>
+              </View>
+              <Text style={styles.itemSubtitle}>{report.message || t('mobile.noMessage')}</Text>
+              <Text style={styles.itemMeta}>
+                {t('mobile.crashCount', { count: count(report.count) })} · {t('mobile.lastSeen', { value: dateTime(report.lastSeen) })}
+              </Text>
+            </View>
+          ))
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
 /**
  * Org settings (viral-sharing toggle, publishing), weekly digest cards and
  * crash reports — all fetched from the BFF /api/v1/* with the session cookie.
  */
 export default function DashboardScreen({ user, onSignOut }: DashboardScreenProps) {
-  const localeCatalog = useMemo(() => new LocaleCatalog(CATALOGS), []);
   const [state, setState] = useState<DashboardState>({
     settings: null,
     uiLocale: null,
@@ -66,6 +247,7 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
   });
   const localeIntent = useRef<string | null>(null);
   const locale = state.uiLocale?.locale ?? 'en';
+  const localeCatalog = useMemo(() => new LocaleCatalog(CATALOGS), []);
   const t = useCallback((key: string, values?: Record<string, string | number>) => localeCatalog.t(locale, key, values), [locale, localeCatalog]);
 
   const loadAll = useCallback(async () => {
@@ -160,134 +342,24 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
     }
   }
 
-  if (state.loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={palette.rose} />
-        <Text style={styles.muted}>{t('mobile.loadingDashboard')}</Text>
-      </View>
-    );
-  }
-
-  const settings = state.settings;
-
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.eyebrow}>{t('mobile.studioOverview')}</Text>
-          <Text style={styles.title}>Hello, {user.email.split('@')[0]}</Text>
-          <Text style={styles.muted}>{t('mobile.privateWorkspace')}</Text>
-        </View>
-        <Pressable style={styles.signOutButton} onPress={() => void handleSignOut()}>
-          <Text style={styles.signOutText}>{t('mobile.signOut')}</Text>
-        </Pressable>
-      </View>
-
-      {state.error ? <Text style={styles.error}>{state.error}</Text> : null}
-      {state.actionMessage ? <Text style={styles.actionMessage}>{state.actionMessage}</Text> : null}
-
-      {/* Org settings */}
-      <Text style={styles.sectionTitle}>{t('mobile.orgSettings')}</Text>
-      <View style={styles.card}>
-        {settings ? (
-          <>
-            <View style={styles.row}>
-              <View style={styles.rowText}>
-                <Text style={styles.rowLabel}>{t('mobile.viralSharing')}</Text>
-                <Text style={styles.rowHint}>{t('mobile.viralSharingHint')}</Text>
-              </View>
-              {state.togglingViral ? (
-                <ActivityIndicator color={palette.rose} />
-              ) : (
-                <Switch
-                  value={settings.viralSharing}
-                  onValueChange={(next) => void handleToggleViralSharing(next)}
-                  trackColor={{ true: palette.rose, false: palette.line }}
-                  thumbColor={palette.text}
-                  accessibilityLabel={t('mobile.viralSharing')}
-                />
-              )}
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.row}>
-              <View style={styles.rowText}>
-                <Text style={styles.rowLabel}>{t('mobile.publishingEnabled')}</Text>
-                <Text style={styles.rowHint}>{t('mobile.publishingHint')}</Text>
-              </View>
-              <Text style={settings.publishingEnabled ? styles.badgeOn : styles.badgeOff}>
-                {settings.publishingEnabled ? t('mobile.on') : t('mobile.off')}
-              </Text>
-            </View>
-          </>
-        ) : (
-          <Text style={styles.muted}>{t('mobile.noOrgSettings')}</Text>
-        )}
-      </View>
-
-      {state.uiLocale ? (
-        <>
-          <Text style={styles.sectionTitle}>Language</Text>
-          <LocaleSelector snapshot={state.uiLocale} saving={state.savingLocale} onSave={(locale) => void handleSaveLocale(locale)} />
-        </>
-      ) : null}
-
-      {/* Weekly digests */}
-      <View style={styles.sectionRow}>
-        <Text style={styles.sectionTitle}>{t('mobile.weeklyDigests')}</Text>
-        <Pressable
-          style={[styles.smallButton, state.generating && styles.buttonDisabled]}
-          onPress={() => void handleGenerateDigest()}
-          disabled={state.generating}
-        >
-          {state.generating ? (
-            <ActivityIndicator color={palette.roseInk} size="small" />
-          ) : (
-            <Text style={styles.smallButtonText}>{t('mobile.generate')}</Text>
-          )}
-        </Pressable>
-      </View>
-      <View style={styles.card}>
-        {state.digests.length === 0 ? (
-          <Text style={styles.muted}>{t('mobile.digestEmpty')}</Text>
-        ) : (
-          state.digests.map((digest) => (
-            <View key={digest.id} style={styles.listItem}>
-              <Text style={styles.itemTitle}>{digest.title || t('mobile.untitledDigest')}</Text>
-              {digest.description ? (
-                <Text style={styles.itemSubtitle}>{digest.description}</Text>
-              ) : null}
-              <Text style={styles.itemMeta}>
-                {new Date(digest.createdAt).toLocaleString(locale)} ·{' '}
-                {digest.channel ?? t('mobile.unknownChannel')} ·{' '}
-                {digest.externalDelivery === 'not-attempted' ? 'Stored only' : digest.externalDelivery === 'attempted' ? 'Dispatch attempted' : 'Outcome unknown'}
-              </Text>
-            </View>
-          ))
-        )}
-      </View>
-
-      {/* Crash reports */}
-      <Text style={styles.sectionTitle}>{t('mobile.crashReports')}</Text>
-      <View style={styles.card}>
-        {state.crashReports.length === 0 ? (
-          <Text style={styles.muted}>{t('mobile.noCrashes')}</Text>
-        ) : (
-          state.crashReports.map((report) => (
-            <View key={report.id} style={styles.listItem}>
-              <View style={styles.row}>
-                <Text style={styles.itemTitle}>{report.service}</Text>
-                <Text style={styles.badgeOff}>{report.status}</Text>
-              </View>
-              <Text style={styles.itemSubtitle}>{report.message || t('mobile.noMessage')}</Text>
-              <Text style={styles.itemMeta}>
-                {t('mobile.crashCount', { count: report.count })} · {t('mobile.lastSeen', { value: new Date(report.lastSeen).toLocaleString(locale) })}
-              </Text>
-            </View>
-          ))
-        )}
-      </View>
-    </ScrollView>
+    <DashboardView
+      user={user}
+      settings={state.settings}
+      uiLocale={state.uiLocale}
+      digests={state.digests}
+      crashReports={state.crashReports}
+      loading={state.loading}
+      error={state.error}
+      actionMessage={state.actionMessage}
+      togglingViral={state.togglingViral}
+      generating={state.generating}
+      savingLocale={state.savingLocale}
+      onToggleViralSharing={(next) => void handleToggleViralSharing(next)}
+      onSaveLocale={(nextLocale) => void handleSaveLocale(nextLocale)}
+      onGenerateDigest={() => void handleGenerateDigest()}
+      onSignOut={() => void handleSignOut()}
+    />
   );
 }
 
