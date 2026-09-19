@@ -53,8 +53,8 @@ runtime-accepted merely because its unit tests pass.
 | F-87 | **Wired source/UI**: metadata-only consent vault, revoke, and publication gate are reachable | Encrypted document-store/provider and expiry rehearsal remain open |
 | F-88 | **Partial**: Expo app restores auth and exposes settings/digest/Relay | It is not feature-parity with the responsive dashboard; mobile browser and native acceptance remain open |
 | F-89 | **Absent/new extension**: no shared locale catalog, persisted UI-language preference or complete web/native switch was found; several UI formatters are hard-coded to `en-US` | Six launch locales, fallback/catalog completeness, locale persistence, email/operator coverage, content-vs-UI locale separation and desktop/mobile acceptance are open |
-| F-90 | **Absent/new extension**: no FanThynks platform-acquisition affiliate/referral control plane was found; provider earnings referrals are not an affiliate system | Partner attribution, SaaS conversion, immutable commission/reversal ledger, fraud/payout controls, partner portal, licensing/security review and payout acceptance are open; tenant-owned affiliate/reseller features are out of scope |
-| F-91 | **Absent/new extension**: no Patreon connector, OAuth flow, campaign/member/post sync or webhook consumer was found; the current connector registry is publish-oriented and has no read/sync-only community adapter | Patreon v2 OAuth, minimum-scope disclosure, campaign/member/tier/post reads, cursor/idempotency/reconciliation, signed webhooks, manual-assist UI, RLS and desktop/mobile/provider acceptance are open; no publish/DM/payout/unsupported analytics claim is allowed |
+| F-90 | **Wired/partial**: native platform-level affiliate schema/authored migration 0054, owner-gated API and dashboard controls cover partners, campaigns, attribution, SaaS conversion/commission/reversal, fraud holds, audit/idempotency and non-transfer payout CSV output | Migration application, billing/reconciliation integration, license/security/legal review, browser acceptance and payout/operator acceptance remain open; provider earnings referrals are not reused and tenant affiliate/reseller features are out of scope |
+| F-91 | **Partial/internal**: the pure Patreon community connector covers explicit v2 read/sync/event capability declarations, cursor/idempotency normalization, masked/null-safe member fields, HMAC replay checks and manual-assist denials | OAuth/account persistence, campaign/member/post sync routes/tables, webhook ingress/replay persistence, dashboard/mobile views, RLS, migration and desktop/mobile/provider acceptance remain open; no publish/DM/payout/unsupported analytics claim is allowed |
 
 ### Executed remediation queue
 
@@ -113,7 +113,7 @@ Backend paths below are relative to `/api/v1` unless noted. Evidence paths are r
 4. **Persistent media management is source-wired but not runtime-accepted.** The model media library now provides authenticated image/video previews, upload/generated provenance, cursor-filtered listing, operation lifecycle projection, source/result relationships, and transform/retry visibility over the existing asset/media-operation tables. Deployed worker/playback, R2 round-trip, browser/mobile, and approval/runtime evidence remain open.
 5. **The documented all-feature gate is not established.** `L5.0-test-matrix.md` promises an F-01..F-88 preservation check, and F-89/F-90/F-91 are now owner extensions. Existing navigation tests establish reachability of existing pages, not presence and usability of every required feature.
 6. **Localization is not a cross-cutting contract yet.** The dashboard, mobile app, emails and operator errors do not share a typed catalog or persisted locale precedence, so adding isolated translated labels would create inconsistent language behavior.
-7. **Platform affiliate state is not present.** Existing provider earnings/referral fields must not be repurposed; FanThynks partner attribution, SaaS conversion, commission, payout and fraud state require a separate platform-owned contract. Tenant-owned affiliate/reseller features are not part of F-90.
+7. **Platform affiliate state is source-wired but not operationally accepted.** The native F-90 contract is separate from provider earnings/referral fields and now has schema/API/dashboard source paths. Migration application, billing/reconciliation, license/security/legal, browser, payout and operator acceptance remain open. Tenant-owned affiliate programs are not part of F-90.
 
 ## Required acceptance evidence before closing these findings
 
@@ -481,3 +481,27 @@ Evidence: API media-upload route tests 15/15, dashboard media-page tests 11/11,
 API typecheck, and dashboard typecheck pass. No migration, runtime service,
 provider, R2, database, browser, or deployment action occurred. Deployed media
 playback/R2 round-trip and full desktop/mobile acceptance remain open.
+
+# M517: F-90/F-91 source-state reconciliation correction
+
+The earlier static rows for the owner extensions were stale relative to the
+current checkout. F-90 is source-wired as a native FanThynks SaaS acquisition
+program: authored migration 0054 and Drizzle tables cover platform programs,
+partners, campaigns, attribution, conversions, commission events, holds,
+payout exports and audit; authenticated owner-only API routes and the `/affiliate`
+dashboard cover disclosure-gated partner/campaign operations, reports, holds
+and non-transfer CSV export. No third-party affiliate repository was imported,
+and provider earnings `referrals` remains separate.
+
+F-91 is only partially source-wired. `packages/connectors/src/patreon.ts` is a
+pure v2 read/sync/event contract with explicit fields/includes, opaque cursor
+handling, replay-safe event verification, null-safe member normalization and
+truthful manual-assist denials. No Patreon OAuth/account persistence, normalized
+sync tables/routes, webhook ingress persistence, dashboard/mobile views or live
+provider receipt exists yet.
+
+Evidence: current source inspection, existing F-90 route tests and dashboard
+tests, and the existing Patreon connector test contract. This correction does
+not close migration, billing/reconciliation, license/security/legal, browser,
+RLS, provider or deployment gates; no live action occurred. Source baseline
+remains `3ecb3eae397f31331d99aa27352d4a242eb70f83`.

@@ -1816,3 +1816,20 @@ database, browser or deployment action occurred. Source commit
 `3ecb3eae397f31331d99aa27352d4a242eb70f83` is pushed to
 `codex/telegram-webhook-hardening`. Hermes is paused during this local-only
 work period.
+
+## M517 — Owner-extension source-state reconciliation correction
+
+The current checkout was re-audited so the gap list no longer says F-90 is
+absent when it is source-wired. F-90 now has native authored migration 0054,
+Drizzle schema, owner-gated API routes, `/affiliate` dashboard controls,
+disclosure-gated partners/campaigns, attribution/conversion/commission state,
+fraud holds, audit/idempotency and non-transfer payout CSV generation. It is
+still blocked from completion by migration application, billing/reconciliation,
+license/security/legal, browser and payout/operator evidence.
+
+F-91 remains partial only: the pure Patreon v2 community connector exists with
+explicit read/sync/event capabilities, cursor/idempotency normalization,
+null-safe member handling, HMAC replay verification and truthful manual-assist
+denials. OAuth/account persistence, normalized sync tables/routes, webhook
+ingress persistence, dashboard/mobile views and provider receipts are still
+open. No live or provider action occurred; Hermes remains paused.

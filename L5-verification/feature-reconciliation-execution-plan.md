@@ -260,12 +260,12 @@ health endpoints alone never closes a gate.
 - Replace inline user-facing strings and hard-coded `en-US` formatting only in touched surfaces; do not translate user/provider/generated content implicitly. Translation actions must be explicit, bounded and audited.
 - Acceptance gate: catalog completeness for all six launch locales, locale switch persistence after reload/sign-in, server/client parity, mobile parity, language-tag accessibility checks, fallback/error-state tests and browser coverage at desktop and narrow mobile widths.
 
-### 15. FanThynks platform affiliate/referral stack — new owner extension; evaluate then build
+### 15. FanThynks platform affiliate/referral stack — source slice implemented; acceptance gates open
 
-- Define the F-90 platform-acquisition contract in the existing authorization/RLS/API/worker/dashboard architecture: FanThynks program, partner identity, campaign/link, click, identity stitch, referred-creator SaaS conversion, commission, reversal/refund, payout export, fraud hold, disclosure/consent, audit and idempotency. Do not create an organization-scoped affiliate builder or reuse provider earnings `referrals`.
+- The native F-90 source slice now defines the platform-acquisition contract in the existing authorization/API/dashboard architecture: FanThynks program, partner identity, campaign/link, click, identity stitch, referred-creator SaaS conversion, commission, reversal/refund, payout export, fraud hold, disclosure/consent, audit and idempotency. It does not create an organization-scoped affiliate builder or reuse provider earnings `referrals`.
 - Evaluate OpenPartner from a pinned commit in an isolated source-only copy. Verify MIT license obligations, all dependency licenses, SBOM/vulnerability state, authentication/session boundaries, tenant isolation, signed webhooks, replay/idempotency, refund/chargeback handling, payout controls, export/deletion and operational tests. Do not import from README claims alone.
 - Keep Refferq as a secondary MIT comparison. Reject RefKit's AGPL application as the default unless the product explicitly accepts network-copyleft/source-disclosure obligations; its MIT SDK pieces do not make the application AGPL-free.
-- If no candidate passes the hardening gate, implement the F-90 stack natively: immutable platform attribution events, derived commission ledger, review/hold states, payout adapter boundary, partner portal, platform-level exports and audit-safe reconciliation. Never reuse provider earnings `referrals` as affiliate state.
+- The native implementation is the selected path: immutable platform attribution events, derived commission ledger, review/hold states, a non-transfer payout export boundary, owner partner/campaign portal and audit-safe reconciliation are source-wired. Migration, billing/reconciliation, license/security/legal, browser and payout/operator gates remain open. Never reuse provider earnings `referrals` as affiliate state.
 - Acceptance gate: source/license/dependency review receipt, partner authorization and creator-data isolation tests, signed webhook/replay tests, SaaS conversion idempotency under retries, reversal/refund and payout-hold tests, disclosure/consent tests, export/deletion tests, desktop/mobile browser coverage, and an explicit human/legal review of the selected licensing model. No live payouts are claimed by source tests.
 
 ### 16. Patreon creator/community integration — new owner extension; v2-only, read/sync-first
@@ -469,6 +469,23 @@ roleplayer provider and Venice remains future-compatible, but neither has a
 live roleplay receipt here.
 
 The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.
+
+### M517 — F-90/F-91 source-state reconciliation correction
+
+The owner-extension audit was corrected against the current checkout. F-90 is
+not absent: the native platform-level affiliate stack has authored migration
+0054, Drizzle schema, owner-gated API routes, `/affiliate` dashboard controls,
+idempotent/audited attribution and commission state, fraud holds and a
+non-transfer payout CSV boundary. It remains open for migration application,
+billing/reconciliation, license/security/legal, browser and payout/operator
+acceptance.
+
+F-91 is not complete: the existing Patreon connector is a pure v2
+read/sync/event contract with explicit field/include requests, cursor and
+replay handling, null-safe normalization and manual-assist denials. OAuth,
+encrypted account persistence, normalized sync routes/tables, webhook ingress
+persistence, dashboard/mobile views and provider receipts remain to be built.
+No third-party affiliate repository or live provider action was introduced.
 
 ### M515 — Team history pagination and Chatter roleplay access correction
 
