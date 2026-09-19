@@ -1,6 +1,7 @@
 import { api, getSession } from '@/lib/api';
 import ReplayButton from '@/components/ReplayButton';
 import ResolveCrashButton from '@/components/ResolveCrashButton';
+import { CATALOGS, LocaleCatalog, formatDate, normalizeLocale } from '@axiom/core';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,18 @@ export default async function IncidentsPage({ searchParams }: { searchParams?: P
       if (value) params.set(key, value); else params.delete(key);
     }
     return `/incidents?${params}`;
+  };
+  let uiLocale = 'en';
+  try { uiLocale = (await api.uiLocale.get()).data.locale; } catch { /* keep the safe fallback */ }
+  const locale = normalizeLocale(uiLocale) ?? 'en';
+  const copy = new LocaleCatalog(CATALOGS);
+  const t = (key: string, values?: Record<string, string | number>) => copy.t(locale, key, values);
+  const statusLabels: Record<string, string> = {
+    open: t('incidents.open'), resolved: t('incidents.resolved'), ignored: t('incidents.ignored'),
+  };
+  const formatUtc = (value: unknown) => {
+    const parsed = new Date(String(value));
+    return Number.isNaN(parsed.valueOf()) ? String(value) : formatDate(parsed, locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
   };
   let crashes: Awaited<ReturnType<typeof api.incidents.crashes>>['data'] = [];
   let crashCursor: string | null | undefined;
@@ -37,23 +50,23 @@ export default async function IncidentsPage({ searchParams }: { searchParams?: P
 
   return (
     <div className="page-stack">
-      <h1>Incidents &amp; recovery</h1>
-      <section className="stack" aria-label="Application crash reports">
-        <h2>Application crash reports</h2>
-        <p>Review recorded application errors. Marking a report resolved records your triage decision; it does not repair the cause or replay a job.</p>
-        <nav className="action-row" aria-label="Crash report status">{['open', 'resolved', 'ignored'].map(value => <Link key={value} href={pageHref({ status: value, crashCursor: undefined })} aria-current={status === value ? 'page' : undefined}>{value}</Link>)}</nav>
-        {crashError ? <p role="alert">Crash reports could not be loaded.</p> : crashes.length === 0 ? <p>No {status} crash reports in this page.</p> : crashes.map(report => <article key={report.id} className="card stack">
-          <h3>{report.service}</h3><p>{report.severity} · {report.count} occurrences · {report.status}</p>
+      <h1>{t('incidents.title')}</h1>
+      <section className="stack" aria-label={t('incidents.crashReports')}>
+        <h2>{t('incidents.crashReports')}</h2>
+        <p>{t('incidents.crashReportsDescription')}</p>
+        <nav className="action-row" aria-label={t('incidents.crashReportStatus')}>{['open', 'resolved', 'ignored'].map(value => <Link key={value} href={pageHref({ status: value, crashCursor: undefined })} aria-current={status === value ? 'page' : undefined}>{statusLabels[value]}</Link>)}</nav>
+        {crashError ? <p role="alert">{t('incidents.crashReportsLoadFailed')}</p> : crashes.length === 0 ? <p>{t('incidents.noCrashReports', { status: statusLabels[status] })}</p> : crashes.map(report => <article key={report.id} className="card stack">
+          <h3>{report.service}</h3><p>{report.severity} · {t('incidents.occurrences', { count: report.count })} · {report.status}</p>
           <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{report.message}</p>
-          <p className="subtle">Last seen: {report.lastSeen}</p>
+          <p className="subtle">{t('incidents.lastSeen', { value: formatUtc(report.lastSeen) })}</p>
           {canEdit && report.status === 'open' && <ResolveCrashButton reportId={report.id} />}
         </article>)}
-        <nav className="action-row" aria-label="Crash report pages">
-          {cursor && <Link href={pageHref({ crashCursor: undefined })}>Latest reports</Link>}
-          {crashCursor && <Link href={pageHref({ crashCursor })}>Older reports</Link>}
+        <nav className="action-row" aria-label={t('incidents.crashReportPages')}>
+          {cursor && <Link href={pageHref({ crashCursor: undefined })}>{t('incidents.latestReports')}</Link>}
+          {crashCursor && <Link href={pageHref({ crashCursor })}>{t('incidents.olderReports')}</Link>}
         </nav>
       </section>
-      <h2>Job recovery</h2>
+      <h2>{t('incidents.jobRecovery')}</h2>
       {error && (
         <div className="card" role="alert" style={{ color: 'var(--bad)' }}>
           {error}
@@ -62,7 +75,7 @@ export default async function IncidentsPage({ searchParams }: { searchParams?: P
       {incidents.length === 0 && !error && (
         <div className="card">
           <p style={{ color: 'var(--muted)', margin: 0 }}>
-            No failed jobs returned in this page. This does not establish overall queue health.
+            {t('incidents.noFailedJobs')}
           </p>
         </div>
       )}
@@ -70,11 +83,11 @@ export default async function IncidentsPage({ searchParams }: { searchParams?: P
         <table>
           <thead>
             <tr>
-              <th>Kind</th>
-              <th>State</th>
-              <th>Attempts</th>
-              <th>Error</th>
-              <th>Created</th>
+              <th>{t('incidents.kind')}</th>
+              <th>{t('incidents.state')}</th>
+              <th>{t('incidents.attempts')}</th>
+              <th>{t('incidents.error')}</th>
+              <th>{t('incidents.created')}</th>
               <th></th>
             </tr>
           </thead>
@@ -89,20 +102,20 @@ export default async function IncidentsPage({ searchParams }: { searchParams?: P
                   {String(j.attempts)}/{String(j.maxAttempts)}
                 </td>
                 <td className="mono" style={{ color: 'var(--bad)' }}>
-                  <details><summary>Error details</summary><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{String(j.lastError ?? 'No error detail recorded.')}</p></details>
+                  <details><summary>{t('incidents.errorDetails')}</summary><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{String(j.lastError ?? t('incidents.noErrorDetail'))}</p></details>
                 </td>
-                <td>{new Date(String(j.createdAt)).toLocaleString()}</td>
+                <td>{formatUtc(j.createdAt)}</td>
                 <td>
-                  {String(j.lastError ?? '').startsWith('external-side-effect-unknown:') ? <span>Reconcile provider outcome before replay.</span> : canEdit && ['dead', 'failed'].includes(String(j.state)) ? <ReplayButton jobId={String(j.id)} /> : null}
+                  {String(j.lastError ?? '').startsWith('external-side-effect-unknown:') ? <span>{t('incidents.reconcileBeforeReplay')}</span> : canEdit && ['dead', 'failed'].includes(String(j.state)) ? <ReplayButton jobId={String(j.id)} /> : null}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <nav className="action-row" aria-label="Recovery job pages">
-        {jobCursor && <Link href={pageHref({ jobCursor: undefined })}>Latest failed jobs</Link>}
-        {nextJobCursor && <Link href={pageHref({ jobCursor: nextJobCursor })}>Older failed jobs</Link>}
+      <nav className="action-row" aria-label={t('incidents.recoveryJobPages')}>
+        {jobCursor && <Link href={pageHref({ jobCursor: undefined })}>{t('incidents.latestFailedJobs')}</Link>}
+        {nextJobCursor && <Link href={pageHref({ jobCursor: nextJobCursor })}>{t('incidents.olderFailedJobs')}</Link>}
       </nav>
     </div>
   );

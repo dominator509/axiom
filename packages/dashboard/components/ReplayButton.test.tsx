@@ -12,6 +12,7 @@ vi.mock('react', async (original) => ({
   useRef: (initial: unknown) => hooks.refs[hooks.refIndex++] ??= { current: initial },
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ t: (key: string) => ({ 'incidents.replayFailed': 'Replay failed', 'incidents.requeued': 'Requeued', 'incidents.replayNotConfirmed': 'Replay could not be confirmed. Retry to check the same request.', 'incidents.replay': 'Replay' }[key] ?? key) }) }));
 import ReplayButton from './ReplayButton';
 
 beforeEach(() => { hooks.values = []; hooks.refs = []; hooks.refresh.mockReset(); });

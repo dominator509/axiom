@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({ send: vi.fn(), refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: state.refresh }) }));
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ t: (key: string, values?: Record<string, string | number>) => key === 'incidents.resolutionNotConfirmed' ? `Resolution not confirmed (HTTP ${values?.status}). Refresh the list before retrying.` : key === 'incidents.resolvedNotice' ? 'Marked resolved. This does not replay jobs or fix the underlying cause.' : key === 'incidents.retryResolution' ? 'Resolution not confirmed. Retry to check the same request.' : key === 'incidents.saving' ? 'Saving…' : 'Mark resolved' }) }));
 vi.mock('react', async original => ({ ...await original<typeof import('react')>(),
   useState: (value: unknown) => [value, vi.fn()], useRef: (current: unknown) => ({ current }),
 }));

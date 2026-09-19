@@ -1,11 +1,11 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-const state = vi.hoisted(() => ({ role: 'operator', crashes: vi.fn(), jobs: vi.fn() }));
-vi.mock('@/lib/api', () => ({ getSession: async () => ({ user: { role: state.role } }), api: { incidents: { crashes: state.crashes, list: state.jobs } } }));
+const state = vi.hoisted(() => ({ role: 'operator', locale: 'en', crashes: vi.fn(), jobs: vi.fn() }));
+vi.mock('@/lib/api', () => ({ getSession: async () => ({ user: { role: state.role } }), api: { uiLocale: { get: vi.fn(async () => ({ data: { locale: state.locale } })) }, incidents: { crashes: state.crashes, list: state.jobs } } }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 import IncidentsPage from './page';
 beforeEach(() => {
-  state.role = 'operator'; state.crashes.mockReset(); state.jobs.mockReset();
+  state.role = 'operator'; state.locale = 'en'; state.crashes.mockReset(); state.jobs.mockReset();
   state.crashes.mockResolvedValue({ data: [{ id: 'crash', service: 'worker', message: '<script>bad</script>', severity: 'sev-2', count: 2, status: 'open', lastSeen: '2026-09-15' }], meta: { next_cursor: 'older token' } });
   state.jobs.mockResolvedValue({ data: [{ id: 'job', kind: 'publish.target', state: 'dead', lastError: 'external-side-effect-unknown: reconcile', createdAt: '2026-09-15' }] });
 });
@@ -40,4 +40,12 @@ it('does not forward ambiguous cursor values', async () => {
   await IncidentsPage({ searchParams: Promise.resolve({ crashCursor: ['one', 'two'], jobCursor: ['one', 'two'] }) });
   expect(state.jobs).toHaveBeenCalledWith(undefined);
   expect(state.crashes).toHaveBeenCalledWith('open', undefined);
+});
+it('renders incidents and dates through the selected locale', async () => {
+  state.locale = 'es';
+  const html = renderToStaticMarkup(await IncidentsPage({}));
+  expect(html).toContain('Incidentes y recuperación');
+  expect(html).toContain('Informes de errores de la aplicación');
+  expect(html).toContain('Última vez:');
+  expect(html).not.toContain('Incidents &amp; recovery');
 });

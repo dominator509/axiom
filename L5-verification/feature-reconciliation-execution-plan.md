@@ -593,3 +593,20 @@ analytics/settings focused dashboard slice passed 10/10, the full dashboard
 suite passed 742/742 and dashboard typecheck passed. This is a source/UI slice;
 provider, browser/PDF, mobile, migration/RLS, runtime and deployment evidence
 remain open.
+
+### M566 — incidents and crash-recovery localization reconciliation
+
+The crash-report ingestion/list/resolve contracts were already real in the API
+and the Incidents page, but the detailed coverage audit still marked the
+dashboard workflow absent. Codex reconciled that stale row and localized the
+actual incident/recovery surface through the existing six-locale catalog. Crash
+status tabs, empty/error states, resolve/retry messages, recovery headings,
+table labels and replay/reconciliation copy now use the selected locale; crash
+and job timestamps use explicit UTC `Intl.DateTimeFormat` output. The existing
+role gate, independent cursors, idempotency and provider-uncertain replay
+guard are unchanged.
+
+Evidence: core 65/65, dashboard 743/743, dashboard typecheck, elevated
+dashboard production build, and `git diff --check` pass. This is source/UI
+evidence only; deployed crash sinks/paging, browser/mobile acceptance,
+runtime/RLS and deployment gates remain open.

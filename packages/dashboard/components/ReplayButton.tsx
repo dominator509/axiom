@@ -4,8 +4,10 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 export default function ReplayButton({ jobId }: { jobId: string }) {
+  const { t } = useLocale();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -26,14 +28,14 @@ export default function ReplayButton({ jobId }: { jobId: string }) {
       });
       if (!res.ok) {
         const b = await readDashboardError(res);
-        setMsg(b?.error?.message ?? 'Replay failed');
+        setMsg(b?.error?.message ?? t('incidents.replayFailed'));
       } else {
         intent.current = null;
-        setMsg('Requeued');
+        setMsg(t('incidents.requeued'));
         router.refresh();
       }
     } catch {
-      setMsg('Replay could not be confirmed. Retry to check the same request.');
+      setMsg(t('incidents.replayNotConfirmed'));
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -49,7 +51,7 @@ export default function ReplayButton({ jobId }: { jobId: string }) {
         onClick={replay}
         style={{ padding: '4px 10px', fontSize: 12 }}
       >
-        {busy ? '…' : 'Replay'}
+        {busy ? '…' : t('incidents.replay')}
       </button>
       {msg && <span role="status" style={{ color: 'var(--muted)', marginLeft: 6, fontSize: 12 }}>{msg}</span>}
     </span>
