@@ -72,3 +72,8 @@ export async function cancelGrok(id: string, signal: AbortSignal): Promise<GrokA
   if (result.id !== id) throw new Error('Grok login attempt changed');
   return result;
 }
+
+export async function disconnectGrok(signal: AbortSignal): Promise<void> {
+  const result = await request(endpoint, signal, 'DELETE') as { provider?: unknown; connected?: unknown };
+  if (result?.provider !== 'grok' || result.connected !== false) throw new Error('Grok disconnect not confirmed');
+}

@@ -2250,3 +2250,21 @@ Evidence: core 65/65, focused Safety/banner tests 17/17, dashboard 744/744,
 dashboard typecheck, elevated dashboard production build, and `git diff --check`
 pass. This is source/UI evidence only; provider OAuth, external Relay, browser
 and mobile acceptance, migration/RLS, runtime and deployment gates remain open.
+
+## M568 — subscription-provider lifecycle surface
+
+The LLM gateway already exposed authenticated status, streamed login and
+disconnect operations for official OpenAI, Anthropic and Grok subscription
+transports, but the dashboard only exposed Grok's resumable login and had no
+explicit Grok disconnect control. The model-access classifier now admits only
+the authenticated user's OpenAI/Anthropic status/login/disconnect paths along
+with the existing Grok lifecycle. The shared connections page now renders
+localized OpenAI and Anthropic status, bounded SSE login instructions, explicit
+disconnect confirmation and retry/unconfirmed states; Grok disconnect requires
+the gateway's `{ provider, connected: false }` response. No credential, token,
+password, provider payload or entitlement is rendered or accepted.
+
+Evidence: core 65/65, API model-access 13/13, dashboard focused provider/Grok
+tests 27/27, full dashboard suite 750/750, API typecheck/build and dashboard
+typecheck pass. This is source/UI evidence only; provider CLI/OAuth, browser,
+mobile, runtime, migration/RLS, bucket and deployment acceptance remain open.

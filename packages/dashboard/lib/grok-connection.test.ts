@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cancelGrok, connectGrok, grokConnectionStatus, resumeGrok } from './grok-connection';
+import { cancelGrok, connectGrok, disconnectGrok, grokConnectionStatus, resumeGrok } from './grok-connection';
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 const id = '11111111-1111-4111-8111-111111111111';
 const signal = () => new AbortController().signal;
@@ -43,6 +43,12 @@ it('only explicit cancellation deletes the exact attempt', async () => {
   vi.stubGlobal('fetch', fetcher);
   expect((await cancelGrok(id, signal())).state).toBe('cancelling');
   expect(fetcher.mock.calls[0]).toEqual(['/api/v1/llm/subscriptions/grok/login-attempt/' + id, expect.objectContaining({ method: 'DELETE' })]);
+});
+it('disconnects only after the gateway confirms the Grok subscription is disconnected', async () => {
+  const fetcher = vi.fn().mockResolvedValue(Response.json({ provider: 'grok', connected: false }));
+  vi.stubGlobal('fetch', fetcher);
+  await expect(disconnectGrok(signal())).resolves.toBeUndefined();
+  expect(fetcher.mock.calls[0]).toEqual(['/api/v1/llm/subscriptions/grok', expect.objectContaining({ method: 'DELETE', credentials: 'same-origin' })]);
 });
 it.each(['failed', 'cancelled', 'timed_out'])('does not report %s as successful login', async terminal => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(state(terminal, []))));

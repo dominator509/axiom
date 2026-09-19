@@ -1,5 +1,6 @@
 import GrokConnection from '@/components/GrokConnection';
 import GrokR2Storage from '@/components/GrokR2Storage';
+import SubscriptionConnections from '@/components/SubscriptionConnections';
 import Link from 'next/link';
 import { getSession } from '@/lib/api';
 import { workspaceDestinationAllowed } from '@/lib/navigation-role';
@@ -16,6 +17,7 @@ export default async function GrokConnectionPage() {
     <h1>Connect your Grok account</h1>
     <p>This only connects your account. It does not generate or publish media.</p>
     <GrokConnection />
+    <SubscriptionConnections />
     <p>Storage is private to your account in this workspace. Another team member’s saved configuration is not shared with your generation jobs.</p>
     <GrokR2Storage />
   </section>;

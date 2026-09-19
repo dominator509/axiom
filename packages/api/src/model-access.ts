@@ -49,12 +49,18 @@ export function scopedReadTarget(role: unknown, method: string, path: string): '
     if (draft && method === 'PATCH') return `bundle:${draft[1]}`;
     // Own-user credential lifecycle only. Gateway derives identity from the
     // authenticated context, never a model, request body or supplied user ID.
+    const subscription = /^\/api\/v1\/llm\/subscriptions\/(openai|anthropic|grok)$/i.exec(path);
+    // Provider subscription credentials are always owned by the authenticated
+    // user. Status, login and disconnect never accept a user/model id in the
+    // request and never grant access to another account.
+    if (subscription && ['GET', 'HEAD', 'DELETE'].includes(method)) return 'self-subscription';
+    const subscriptionLogin = /^\/api\/v1\/llm\/subscriptions\/(openai|anthropic)\/login$/i.exec(path);
+    if (subscriptionLogin && method === 'POST') return 'self-subscription';
     const grok = '/api/v1/llm/subscriptions/grok';
     // Generation uses the requesting user's workspace-scoped encrypted R2
     // record. Self-service setup never grants access to another user's storage.
     if (path === `${grok}/r2-storage` && ['GET', 'HEAD', 'PUT', 'DELETE'].includes(method)) return 'self-subscription';
     if (path === `${grok}/r2-storage/verify` && method === 'POST') return 'self-subscription';
-    if (path === grok && ['GET', 'HEAD', 'DELETE'].includes(method)) return 'self-subscription';
     if (path === `${grok}/login-attempt` && ['GET', 'HEAD', 'POST'].includes(method)) return 'self-subscription';
     const notes = /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/team-notes$/i.exec(path);
     if (notes && ['GET', 'HEAD', 'POST'].includes(method)) return notes[1];

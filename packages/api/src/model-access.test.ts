@@ -35,7 +35,7 @@ it('classifies Patreon and social metadata reads as explicit model-scoped surfac
   expect(isScopedSocialAccountRead('POST', '/api/v1/social-accounts')).toBe(false);
   expect(isScopedSocialAccountRead('GET', '/api/v1/social-accounts/connection')).toBe(false);
 });
-it('allows only the creator own-user Grok lifecycle and storage, not arbitrary gateway work', () => {
+it('allows only the creator own-user subscription lifecycle and storage, not arbitrary gateway work', () => {
   const base = '/api/v1/llm/subscriptions/grok';
   for (const [path, methods] of [[base, ['GET', 'HEAD', 'DELETE']], [`${base}/login-attempt`, ['GET', 'HEAD', 'POST']], [`${base}/login-attempt/${id}`, ['GET', 'HEAD', 'DELETE']]] as const)
     for (const method of methods) {
@@ -49,8 +49,18 @@ it('allows only the creator own-user Grok lifecycle and storage, not arbitrary g
     }
   expect(scopedReadTarget('content_creator', 'POST', `${base}/r2-storage`)).toBeNull();
   for (const method of ['GET', 'PUT', 'DELETE', 'PATCH']) expect(scopedReadTarget('content_creator', method, `${base}/r2-storage/verify`)).toBeNull();
-  for (const path of [`${base}/r2-storage/other-user`, `${base}/r2-storage/verify/extra`, `${base}/login`, `${base}/login-attempt/not-a-uuid`, `${base}/login-attempt/${id}/extra`, '/api/v1/llm/chat', '/api/v1/llm/subscriptions/openai'])
+  for (const path of [`${base}/r2-storage/other-user`, `${base}/r2-storage/verify/extra`, `${base}/login`, `${base}/login-attempt/not-a-uuid`, `${base}/login-attempt/${id}/extra`, '/api/v1/llm/chat', '/api/v1/llm/subscriptions/deepseek'])
     for (const method of ['GET', 'POST', 'PUT', 'DELETE']) expect(scopedReadTarget('content_creator', method, path)).toBeNull();
+  for (const provider of ['openai', 'anthropic']) {
+    const endpoint = `/api/v1/llm/subscriptions/${provider}`;
+    for (const method of ['GET', 'HEAD', 'DELETE']) {
+      expect(scopedReadTarget('content_creator', method, endpoint)).toBe('self-subscription');
+      expect(scopedReadTarget('model', method, endpoint)).toBeNull();
+    }
+    expect(scopedReadTarget('content_creator', 'POST', `${endpoint}/login`)).toBe('self-subscription');
+    expect(scopedReadTarget('content_creator', 'GET', `${endpoint}/login`)).toBeNull();
+    expect(scopedReadTarget('content_creator', 'POST', `${endpoint}/login/extra`)).toBeNull();
+  }
 });
 it.each([['user', 'org', 200], ['', 'org', 401], ['user', '', 401]])('requires authenticated identity for own-user subscription (%s/%s)', async (userId, orgId, status) => {
   const app = new Hono<AppBindings>();
