@@ -172,6 +172,11 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(sql).toContain('stored means no external dispatch was attempted');
   });
 
+  it('keeps durable scraper state aligned with partial result projection', () => {
+    expect(sql).toContain('scrape_run_state_check');
+    expect(sql).toContain("CHECK (state IN ('queued', 'running', 'completed', 'partial', 'failed'))");
+  });
+
   it('locks the trusted cross-org egress resolver to the runtime and migrator roles', () => {
     expect(sql).toContain('CREATE OR REPLACE FUNCTION load_model_network_configs()');
     expect(sql).toContain('RETURNS SETOF public.model_network_configs');

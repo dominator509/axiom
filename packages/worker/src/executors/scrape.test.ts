@@ -1,4 +1,5 @@
 import { expect, it, vi } from 'vitest';
+import { classifyPersistedScrapeRunState } from '@axiom/core';
 import { readScrapeResult, validateScrapeEvidence } from './scrape.js';
 it('reads a valid result', async () => {
   await expect(readScrapeResult(new Response('{"platform":"instagram","followers":12}'))).resolves.toMatchObject({ followers: 12 });
@@ -32,4 +33,7 @@ it('distinguishes missing counts from observed zero', () => {
 it('does not complete a competitor run with only failed or empty lookups', () => {
   expect(() => validateScrapeEvidence({ results: [{ error: 'HTTP failure', followers: 0 }, { error: null, followers: null }] }, 'competitor')).toThrow('no observable');
   expect(() => validateScrapeEvidence({ results: [{ error: null, followers: 12 }, { error: 'HTTP failure' }] }, 'competitor')).not.toThrow();
+});
+it('persists a mixed competitor response as partial', () => {
+  expect(classifyPersistedScrapeRunState('competitor', { results: [{ followers: 12 }, { error: 'HTTP failure' }] })).toBe('partial');
 });

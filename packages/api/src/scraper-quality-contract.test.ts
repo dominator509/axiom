@@ -319,4 +319,17 @@ describe('authenticated scraper result projection', () => {
     expect(failed).toMatchObject({ state: 'failed', error: 'unavailable', result: { state: 'failed' } });
     expect(JSON.stringify(failed)).not.toContain('stack trace');
   });
+
+  it('preserves a persisted partial state at the authenticated boundary', () => {
+    const partial = projectScrapeRun({
+      id: 'r3',
+      modelId: 'm1',
+      kind: 'competitor',
+      state: 'partial',
+      result: { results: [{ followers: 12 }, { error: 'provider detail must not be exposed' }] },
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    });
+    expect(partial).toMatchObject({ state: 'partial', error: null, result: { state: 'partial', observedProfiles: 1, failedProfiles: 1 } });
+    expect(JSON.stringify(partial)).not.toContain('provider detail');
+  });
 });

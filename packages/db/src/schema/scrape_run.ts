@@ -4,7 +4,7 @@ import { org } from './org.js';
 import { modelProfile } from './model_profile.js';
 
 export type ScrapeRunKind = 'social' | 'competitor';
-export type ScrapeRunState = 'queued' | 'running' | 'completed' | 'failed';
+export type ScrapeRunState = 'queued' | 'running' | 'completed' | 'partial' | 'failed';
 
 export const scrapeRun = pgTable('scrape_run', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -155,7 +155,7 @@ export function projectScrapeResult(kind: ScrapeResultKind, value: unknown): Scr
   return { kind, state, profiles, observedProfiles, failedProfiles, totalItems, missingCount: missingCount(raw) };
 }
 
-export type PublicScrapeRunState = 'queued' | 'running' | 'completed' | 'failed';
+export type PublicScrapeRunState = 'queued' | 'running' | 'completed' | 'partial' | 'failed';
 
 export interface PublicScrapeRun {
   id: string;
@@ -187,7 +187,7 @@ function iso(value: Date | string | null | undefined): string | null {
 
 /** Project a DB row without exposing org scope, request JSON, raw result, or internal error text. */
 export function projectScrapeRun(row: ScrapeRunRowLike): PublicScrapeRun {
-  const state: PublicScrapeRunState = row.state === 'queued' || row.state === 'running' || row.state === 'completed'
+  const state: PublicScrapeRunState = row.state === 'queued' || row.state === 'running' || row.state === 'completed' || row.state === 'partial'
     ? row.state
     : 'failed';
   return {

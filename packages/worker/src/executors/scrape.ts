@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { readBoundedResponseText } from '@axiom/core';
+import { classifyPersistedScrapeRunState, readBoundedResponseText } from '@axiom/core';
 import type { Executor } from './context.js';
 
 const MAX_RESULT_BYTES = 512 * 1024;
@@ -55,7 +55,8 @@ export const scrapeRun: Executor = async ({ tx, job }) => {
     const response = await fetch(`${scraperOrigin()}${path}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(request), signal: AbortSignal.timeout(30_000) });
     const result = await readScrapeResult(response);
     validateScrapeEvidence(result, run.kind);
-    await tx.update(schema.scrapeRun).set({ state: 'completed', result, completedAt: new Date(), error: null }).where(eq(schema.scrapeRun.id, run.id));
+    const state = classifyPersistedScrapeRunState(run.kind, result);
+    await tx.update(schema.scrapeRun).set({ state, result, completedAt: new Date(), error: null }).where(eq(schema.scrapeRun.id, run.id));
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : 'scraper request failed';
     await tx.update(schema.scrapeRun).set({ state: 'failed', error: message, completedAt: new Date() }).where(eq(schema.scrapeRun.id, run.id));
