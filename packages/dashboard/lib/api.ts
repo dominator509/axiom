@@ -535,8 +535,20 @@ export const api = {
       apiFetch<{ data: VariantCandidate[]; meta: { next_cursor: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/variant-experiments/candidates${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
     scrapeRuns: (id: string, cursor?: string) =>
       apiFetch<{ data: ScrapeRun[]; meta: { next_cursor: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/scrape-runs${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
-    teamOperations: (id: string) =>
-      apiFetch<{ data: { members: TeamMember[]; shifts: TeamShift[]; notes: TeamNote[]; agentPermissions: TeamAgentPermission[] } }>(`/api/v1/models/${id}/team-operations`),
+    teamOperations: (id: string, cursors: { shiftCursor?: string; noteCursor?: string } = {}) => {
+      const query = new URLSearchParams({
+        ...(cursors.shiftCursor ? { shiftCursor: cursors.shiftCursor } : {}),
+        ...(cursors.noteCursor ? { noteCursor: cursors.noteCursor } : {}),
+      }).toString();
+      return apiFetch<{ data: {
+        members: TeamMember[];
+        shifts: TeamShift[];
+        shiftsMeta: { next_cursor: string | null };
+        notes: TeamNote[];
+        notesMeta: { next_cursor: string | null };
+        agentPermissions: TeamAgentPermission[];
+      } }>(`/api/v1/models/${id}/team-operations${query ? `?${query}` : ''}`);
+    },
     roleplay: (id: string, conversationKey = 'default', actor?: RoleplayActor) => {
       const query = new URLSearchParams({ conversationKey, ...(actor ? { actorType: actor.type, actorRef: actor.ref } : {}) });
       return apiFetch<{ data: { handoff: RoleplayHandoff | null; handoffRevision: number; persona: RoleplayPersona | null; memory: RoleplayMemoryTurn[]; meta: { nextSequence: number; activeShiftId: string; queue: string; actor: RoleplayActor } } }>(`/api/v1/models/${encodeURIComponent(id)}/roleplay?${query}`);

@@ -37,6 +37,19 @@ it.each([{ targetType: 'post', body: 'Missing target' }, { targetType: 'anything
 it('returns no notes for an unavailable post', async () => {
   mockState.results = [[], []]; expect((await noteRequest()).status).toBe(404);
 });
+it('exposes bounded team pagination metadata and rejects malformed cursors', async () => {
+  const app = new Hono<AppBindings>();
+  app.use('*', async (c, next) => { c.set('orgId', 'org'); c.set('userId', 'operator'); c.set('role', 'manager'); await next(); });
+  app.route('/', teamOperationsRouter);
+  mockState.results = [[], [{ id: 'model' }], [{ id: 'member', email: 'member@example.test', role: 'operator' }], [{ id: 'shift' }], [{ id: 'note' }], [{ id: 'agent' }]];
+  const response = await app.request('/models/model/team-operations');
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ data: {
+    shifts: [{ id: 'shift' }], shiftsMeta: { next_cursor: null },
+    notes: [{ id: 'note' }], notesMeta: { next_cursor: null },
+  } });
+  expect((await app.request('/models/model/team-operations?noteCursor=bad')).status).toBe(400);
+});
 it('allows only forward shift transitions and exact status replay', () => {
   const allowed = new Set(['scheduled:scheduled', 'scheduled:active', 'scheduled:cancelled', 'active:active', 'active:completed', 'active:cancelled', 'completed:completed', 'cancelled:cancelled']);
   for (const from of ['scheduled', 'active', 'completed', 'cancelled', 'unknown'])

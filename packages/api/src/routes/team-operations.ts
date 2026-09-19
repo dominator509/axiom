@@ -108,18 +108,41 @@ router.get('/models/:modelId/team-operations', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const modelId = c.req.param('modelId');
+  const shiftCursor = c.req.query('shiftCursor');
+  const noteCursor = c.req.query('noteCursor');
+  if ((shiftCursor && !z.string().uuid().safeParse(shiftCursor).success)
+    || (noteCursor && !z.string().uuid().safeParse(noteCursor).success)) {
+    return apiError(c, 400, statusTitle(400), 'invalid team operations cursor');
+  }
   const data = await withOrgContext(orgId, async (tx) => {
-    const [model] = await tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile).where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId))).limit(1);
+    const [model] = await tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile).where(and(
+      eq(schema.modelProfile.id, modelId),
+      eq(schema.modelProfile.orgId, orgId),
+      modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.modelProfile.id),
+    )).limit(1);
     if (!model) return null;
+    const shiftScope = and(eq(schema.teamShift.orgId, orgId), eq(schema.teamShift.modelId, modelId));
+    const noteScope = and(eq(schema.teamNote.orgId, orgId), eq(schema.teamNote.modelId, modelId));
+    const [beforeShift] = shiftCursor ? await tx.select().from(schema.teamShift).where(and(shiftScope, eq(schema.teamShift.id, shiftCursor))).limit(1) : [];
+    const [beforeNote] = noteCursor ? await tx.select().from(schema.teamNote).where(and(noteScope, eq(schema.teamNote.id, noteCursor))).limit(1) : [];
+    if ((shiftCursor && !beforeShift) || (noteCursor && !beforeNote)) return 'invalid-cursor' as const;
     const [members, shifts, notes, agentPermissions] = await Promise.all([
       tx.select({ id: schema.authUser.id, email: schema.authUser.email, role: schema.authUser.role }).from(schema.authUser).where(eq(schema.authUser.orgId, orgId)).orderBy(asc(schema.authUser.email)),
-      tx.select().from(schema.teamShift).where(and(eq(schema.teamShift.orgId, orgId), eq(schema.teamShift.modelId, modelId))).orderBy(asc(schema.teamShift.startsAt)).limit(100),
-      tx.select().from(schema.teamNote).where(and(eq(schema.teamNote.orgId, orgId), eq(schema.teamNote.modelId, modelId))).orderBy(desc(schema.teamNote.createdAt)).limit(100),
+      tx.select().from(schema.teamShift).where(and(shiftScope, beforeShift ? or(gt(schema.teamShift.startsAt, beforeShift.startsAt), and(eq(schema.teamShift.startsAt, beforeShift.startsAt), gt(schema.teamShift.id, beforeShift.id))) : undefined)).orderBy(asc(schema.teamShift.startsAt), asc(schema.teamShift.id)).limit(101),
+      tx.select().from(schema.teamNote).where(and(noteScope, beforeNote ? or(lt(schema.teamNote.createdAt, beforeNote.createdAt), and(eq(schema.teamNote.createdAt, beforeNote.createdAt), lt(schema.teamNote.id, beforeNote.id))) : undefined)).orderBy(desc(schema.teamNote.createdAt), desc(schema.teamNote.id)).limit(101),
       tx.select({ id: schema.agentPermission.id, agentRef: schema.agentPermission.agentRef, tier: schema.agentPermission.tier, canEdit: schema.agentPermission.canEdit, canPublish: schema.agentPermission.canPublish }).from(schema.agentPermission).where(and(eq(schema.agentPermission.orgId, orgId), eq(schema.agentPermission.modelId, modelId))).orderBy(asc(schema.agentPermission.agentRef)),
     ]);
-    return { members, shifts, notes, agentPermissions };
+    return {
+      members,
+      shifts: shifts.slice(0, 100),
+      shiftsMeta: { next_cursor: shifts.length > 100 ? shifts[100 - 1].id : null },
+      notes: notes.slice(0, 100),
+      notesMeta: { next_cursor: notes.length > 100 ? notes[100 - 1].id : null },
+      agentPermissions,
+    };
   });
   if (!data) return apiError(c, 404, statusTitle(404), 'model not found');
+  if (data === 'invalid-cursor') return apiError(c, 400, statusTitle(400), 'invalid team operations cursor');
   return c.json({ data });
 });
 
