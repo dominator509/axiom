@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -10,16 +10,22 @@ import {
 } from 'react-native';
 
 import { signOut, type SessionUser } from '../api/auth';
+import { createIdempotencyKey } from '../api/client';
 import {
   getCrashReports,
   getDigests,
   getOrgSettings,
   generateDigest,
   patchViralSharing,
+  getUiLocale,
+  patchUiLocale,
   type CrashReport,
   type DigestCard,
   type OrgSettings,
+  type UiLocaleSnapshot,
 } from '../api/endpoints';
+import LocaleSelector from '../components/LocaleSelector';
+import type { SupportedLocale } from '@axiom/core';
 import { palette, surfaceShadow } from '../theme';
 
 interface DashboardScreenProps {
@@ -29,6 +35,7 @@ interface DashboardScreenProps {
 
 interface DashboardState {
   settings: OrgSettings | null;
+  uiLocale: UiLocaleSnapshot | null;
   digests: DigestCard[];
   crashReports: CrashReport[];
   loading: boolean;
@@ -36,6 +43,7 @@ interface DashboardState {
   actionMessage: string | null;
   togglingViral: boolean;
   generating: boolean;
+  savingLocale: boolean;
 }
 
 /**
@@ -45,6 +53,7 @@ interface DashboardState {
 export default function DashboardScreen({ user, onSignOut }: DashboardScreenProps) {
   const [state, setState] = useState<DashboardState>({
     settings: null,
+    uiLocale: null,
     digests: [],
     crashReports: [],
     loading: true,
@@ -52,19 +61,23 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
     actionMessage: null,
     togglingViral: false,
     generating: false,
+    savingLocale: false,
   });
+  const localeIntent = useRef<string | null>(null);
 
   const loadAll = useCallback(async () => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const [settings, digests, crashReports] = await Promise.all([
+      const [settings, digests, crashReports, uiLocale] = await Promise.all([
         getOrgSettings(),
         getDigests(),
         getCrashReports(),
+        getUiLocale(),
       ]);
       setState((prev) => ({
         ...prev,
         settings,
+        uiLocale,
         digests: digests.data,
         crashReports: crashReports.data,
         loading: false,
@@ -99,6 +112,20 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
       }));
     } finally {
       setState((prev) => ({ ...prev, togglingViral: false }));
+    }
+  }
+
+  async function handleSaveLocale(locale: SupportedLocale) {
+    if (state.savingLocale) return;
+    localeIntent.current ??= createIdempotencyKey();
+    setState((prev) => ({ ...prev, savingLocale: true, actionMessage: null, error: null }));
+    try {
+      const updated = await patchUiLocale(locale, 'user', localeIntent.current);
+      if (updated.locale !== locale || updated.userLocale !== locale) throw new Error('unconfirmed language preference');
+      localeIntent.current = null;
+      setState((prev) => ({ ...prev, uiLocale: updated, savingLocale: false, actionMessage: `Language saved as ${locale}` }));
+    } catch (err) {
+      setState((prev) => ({ ...prev, savingLocale: false, error: err instanceof Error ? err.message : String(err) }));
     }
   }
 
@@ -194,6 +221,13 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
           <Text style={styles.muted}>No org settings returned.</Text>
         )}
       </View>
+
+      {state.uiLocale ? (
+        <>
+          <Text style={styles.sectionTitle}>Language</Text>
+          <LocaleSelector snapshot={state.uiLocale} saving={state.savingLocale} onSave={(locale) => void handleSaveLocale(locale)} />
+        </>
+      ) : null}
 
       {/* Weekly digests */}
       <View style={styles.sectionRow}>

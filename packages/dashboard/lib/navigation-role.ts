@@ -6,6 +6,7 @@ export function workspaceDestinationAllowed(role: string | null | undefined, pat
   if (path === '/connections/grok') return ['owner', 'manager', 'operator', 'content_creator'].includes(role ?? '');
   if (path === '/shifts') return ['owner', 'manager', 'operator', 'chatter'].includes(role ?? '');
   if (path === '/affiliate') return role === 'owner';
+  if (path === '/settings') return typeof role === 'string' && role.length > 0;
   if (!role || !legacyRoles.has(role)) return false;
   return role === 'owner' || !['/killswitch', '/settings'].includes(path);
 }

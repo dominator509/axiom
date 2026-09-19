@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import './globals.css';
-import { getSession } from '@/lib/api';
+import { api, getSession } from '@/lib/api';
 import KillSwitchBanner from '@/components/KillSwitchBanner';
 import NavLinks from '@/components/NavLinks';
 import SignOutButton from '@/components/SignOutButton';
@@ -17,9 +17,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const email = session?.user?.email ?? 'operator';
   const role = session?.user?.role;
   const roleLabel = displayRole(role);
+  let uiLocale = 'en';
+  if (session?.user?.orgId) {
+    try { uiLocale = (await api.uiLocale.get()).data.locale; } catch { /* keep the safe fallback */ }
+  }
 
   return (
-    <html lang="en">
+    <html lang={uiLocale}>
       <body>
         {!session ? (
           <main className="auth-shell">{children}</main>

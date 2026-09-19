@@ -47,6 +47,7 @@ import { mediaOperationsRouter } from './routes/media-operations.js';
 import { playbookGuidelinesRouter } from './routes/playbook-guidelines.js';
 import { roleplayRouter } from './routes/roleplay.js';
 import { platformAffiliateRouter } from './routes/platform-affiliate.js';
+import { uiLocaleRouter } from './routes/ui-locale.js';
 import {
   auth,
   normalizeAuthOrigin,
@@ -774,6 +775,8 @@ app.use('/api/v1/models/:modelId/playbook-guidelines', requireAuth);
 app.use('/api/v1/models/:modelId/roleplay/*', requireAuth);
 app.use('/api/v1/org-settings/*', requireAuth);
 app.use('/api/v1/platform/affiliate/*', requireAuth);
+app.use('/api/v1/ui-locale', requireAuth);
+app.use('/api/v1/ui-locale/*', requireAuth);
 // LLM requests can spend provider credits and reveal provider/runtime state.
 app.use('/api/v1/llm/*', requireAuth);
 app.use('/api/v1/my-shifts', requireAuth);
@@ -950,6 +953,7 @@ app.use('/api/v1/platform/affiliate/campaigns', idempotency());
 app.use('/api/v1/platform/affiliate/attribution', idempotency());
 app.use('/api/v1/platform/affiliate/conversions/reconcile', idempotency());
 app.use('/api/v1/platform/affiliate/holds/:holdId/resolve', idempotency());
+app.use('/api/v1/ui-locale', idempotency());
 
 app.route('/api/v1/models', modelsRouter);
 app.route('/api/v1/bundles', bundlesRouter);
@@ -992,6 +996,7 @@ app.route('/api/v1', mediaOperationsRouter);
 app.route('/api/v1', playbookGuidelinesRouter);
 app.route('/api/v1', roleplayRouter);
 app.route('/api/v1/platform/affiliate', platformAffiliateRouter);
+app.route('/api/v1', uiLocaleRouter);
 
 // LLM gateway — unified multi-provider chat completions
 const llmGateway = new LLMGateway();

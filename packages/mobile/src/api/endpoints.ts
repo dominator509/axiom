@@ -4,7 +4,8 @@
 // TYPE-ONLY so Metro never tries to bundle the Hono server at runtime.
 
 import type { AppType } from '@axiom/api';
-import { apiFetch } from './client';
+import { normalizeLocale, SUPPORTED_LOCALES, type SupportedLocale } from '@axiom/core';
+import { apiFetch, createIdempotencyKey } from './client';
 
 /** The BFF Hono app type — type-only documentation of the shared contract. */
 export type BffApp = AppType;
@@ -48,6 +49,15 @@ export interface OrgSettings {
   orgId: string;
   publishingEnabled: boolean;
   viralSharing: boolean;
+}
+
+export interface UiLocaleSnapshot {
+  locale: SupportedLocale;
+  source: 'user' | 'org' | 'accept-language' | 'default';
+  userLocale: SupportedLocale | null;
+  orgLocale: SupportedLocale | null;
+  supportedLocales: SupportedLocale[];
+  canSetOrg: boolean;
 }
 
 // ─── Shape guards ───────────────────────────────────────────────────────────
@@ -133,6 +143,36 @@ export function parseOrgSettings(value: unknown): OrgSettings {
   };
 }
 
+export function parseUiLocaleSnapshot(value: unknown): UiLocaleSnapshot {
+  if (!isRecord(value)) throw new Error('response shape: ui locale must be an object');
+  const locale = normalizeLocale(typeof value['locale'] === 'string' ? value['locale'] : undefined);
+  if (!locale) throw new Error('response shape: unsupported ui locale');
+  const source = value['source'];
+  if (source !== 'user' && source !== 'org' && source !== 'accept-language' && source !== 'default') {
+    throw new Error('response shape: invalid ui locale source');
+  }
+  const parseOptional = (key: string): SupportedLocale | null => {
+    const raw = value[key];
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw !== 'string') throw new Error(`response shape: ${key} must be a locale or null`);
+    const parsed = normalizeLocale(raw);
+    if (!parsed) throw new Error(`response shape: unsupported ${key}`);
+    return parsed;
+  };
+  const supportedRaw = value['supportedLocales'];
+  if (!Array.isArray(supportedRaw) || supportedRaw.length !== SUPPORTED_LOCALES.length || supportedRaw.some(item => typeof item !== 'string' || !SUPPORTED_LOCALES.includes(item as SupportedLocale))) {
+    throw new Error('response shape: invalid supported ui locales');
+  }
+  return {
+    locale,
+    source,
+    userLocale: parseOptional('userLocale'),
+    orgLocale: parseOptional('orgLocale'),
+    supportedLocales: supportedRaw as SupportedLocale[],
+    canSetOrg: value['canSetOrg'] === true,
+  };
+}
+
 /** Parse + validate a cursor-paginated envelope into CursorPage<T>. */
 export function parseCursorPage<T>(value: unknown, parseItem: (item: unknown) => T): CursorPage<T> {
   if (!isRecord(value)) {
@@ -197,6 +237,24 @@ export async function patchViralSharing(enabled: boolean): Promise<OrgSettings> 
     throw new Error('response shape: org settings envelope must be an object');
   }
   return parseOrgSettings(body['data']);
+}
+
+/** GET /api/v1/ui-locale → the resolved locale and persistence metadata. */
+export async function getUiLocale(): Promise<UiLocaleSnapshot> {
+  const body = await apiFetch<unknown>('/api/v1/ui-locale');
+  if (!isRecord(body)) throw new Error('response shape: ui locale envelope must be an object');
+  return parseUiLocaleSnapshot(body['data']);
+}
+
+/** PATCH /api/v1/ui-locale with a stable retry key for one user intent. */
+export async function patchUiLocale(locale: SupportedLocale, scope: 'user' | 'org' = 'user', idempotencyKey: string = createIdempotencyKey()): Promise<UiLocaleSnapshot> {
+  const body = await apiFetch<unknown>('/api/v1/ui-locale', {
+    method: 'PATCH',
+    body: { scope, locale },
+    idempotencyKey,
+  });
+  if (!isRecord(body)) throw new Error('response shape: ui locale envelope must be an object');
+  return parseUiLocaleSnapshot(body['data']);
 }
 
 /** GET /api/v1/digests → CursorPage<DigestCard>. */

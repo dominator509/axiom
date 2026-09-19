@@ -1581,6 +1581,22 @@ activation, non-transfer payout CSV output and the remaining human/legal,
 dependency/SBOM, browser, migration and runtime gates. This is not a claim of
 legal approval, live payout readiness or production acceptance.
 
+Latest local implementation milestone (M499): F-89 now has a real authenticated
+UI-locale API backed by the existing `ui_locale_preference` contract, including
+user-over-organization-over-`Accept-Language` resolution, owner-only
+organization-default writes, RLS context setup, idempotent mutation handling
+and audit events. The dashboard settings surface persists all six launch
+locales and updates the document language; the mobile dashboard loads and
+persists the same preference through an accessible responsive selector. The
+implementation reuses the existing core locale catalog and migration 0053;
+it authored no migration and executed no database/runtime/provider action.
+Focused API/core tests passed (185/185), the dashboard suite passed (109 files,
+726 tests), and mobile tests/typechecks passed. Hermes' separate R3 checkout
+has only produced PROGRESS so far; its root-only copy is not accepted as a
+delivery until the exact changed source is readable to Codex and independently
+audited. The corrected artifact-gate wire is
+`CODEX-LOCALIZATION-FUNCTIONAL-R3-ARTIFACT-GATE-004`.
+
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX

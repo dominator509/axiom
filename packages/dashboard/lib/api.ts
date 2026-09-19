@@ -2,11 +2,12 @@
 // Server Components fetch the Hono BFF through the same-origin rewrite
 // (/api/* → API_ORIGIN). Cookies are forwarded so Better Auth sessions work.
 
-import { cookies } from 'next/headers';
+import { cookies, headers as nextHeaders } from 'next/headers';
 import {
   AXIOM_ERROR_RESPONSE_MAX_BYTES,
   readBoundedResponseJson,
   readBoundedResponseText,
+  type SupportedLocale,
 } from '@axiom/core';
 import { createIdempotencyKey } from './mutation';
 import { resolveApiOrigin } from './api-origin';
@@ -68,6 +69,7 @@ export class ApiError extends Error {
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const cookieStore = await cookies();
+  const acceptLanguage = path === '/api/v1/ui-locale' ? (await nextHeaders()).get('accept-language') : null;
   const cookieHeader = cookieStore
     .getAll()
     .map((c) => `${c.name}=${c.value}`)
@@ -76,6 +78,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers({
     'content-type': 'application/json',
     ...(cookieHeader ? { cookie: cookieHeader } : {}),
+    ...(acceptLanguage ? { 'accept-language': acceptLanguage } : {}),
     ...(init?.headers ?? {}),
   });
   const method = (init?.method ?? 'GET').toUpperCase();
@@ -429,6 +432,15 @@ export interface AffiliateCampaignReport {
   commissions: { accruedCents: number; reversedCents: number; exportableCents: number; openHold: boolean };
 }
 
+export interface UiLocaleSnapshot {
+  locale: SupportedLocale;
+  source: 'user' | 'org' | 'accept-language' | 'default';
+  userLocale: SupportedLocale | null;
+  orgLocale: SupportedLocale | null;
+  supportedLocales: SupportedLocale[];
+  canSetOrg: boolean;
+}
+
 export const api = {
   myShifts: (cursor?: string) => apiFetch<{ data: Array<Omit<TeamShift, 'assigneeUserId'> & { modelName: string }>; meta: { next_cursor: string | null } }>(`/api/v1/my-shifts${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
   fans: {
@@ -591,6 +603,14 @@ export const api = {
   },
   orgSettings: {
     get: () => apiFetch<{ data: { viralSharing: boolean; publishingEnabled: boolean; weeklyDigestEnabled: boolean; weeklyDigestScheduleId: string | null } }>('/api/v1/org-settings'),
+  },
+  uiLocale: {
+    get: () => apiFetch<{ data: UiLocaleSnapshot }>('/api/v1/ui-locale'),
+    set: (scope: 'user' | 'org', locale: SupportedLocale) =>
+      apiFetch<{ data: UiLocaleSnapshot }>('/api/v1/ui-locale', {
+        method: 'PATCH',
+        body: JSON.stringify({ scope, locale }),
+      }),
   },
   platformAffiliate: {
     getProgram: () => apiFetch<{ data: AffiliateProgramSnapshot }>('/api/v1/platform/affiliate/program'),

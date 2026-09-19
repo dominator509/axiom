@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [] }) }));
+vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [] }), headers: async () => new Headers() }));
 vi.mock('next/navigation', () => ({
   usePathname: () => '/',
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),

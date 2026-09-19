@@ -17,14 +17,12 @@ function pages(directory: string, prefix = ''): string[] {
 }
 
 describe('workspace navigation coverage', () => {
-  it.each(['manager', 'operator', 'analyst', 'agent', 'chatter', 'content_creator', 'model', undefined])('keeps owner settings out of primary navigation for %s', role => {
+  it.each(['manager', 'operator', 'analyst', 'agent', 'chatter', 'content_creator', 'model', undefined])('keeps safety restricted while exposing language settings for %s', role => {
     const html = renderToStaticMarkup(<NavLinks role={role} />);
     expect(html).not.toContain('href="/killswitch"');
-    expect(html).not.toContain('href="/settings"');
-    if (!role || ['chatter', 'content_creator', 'model'].includes(role)) {
-      expect(html.match(/href="/g)).toHaveLength(role === 'chatter' || role === 'content_creator' ? 2 : 1);
-      expect(html).toContain('href="/"');
-    }
+    if (role) expect(html).toContain('href="/settings"');
+    else expect(html).not.toContain('href="/settings"');
+    expect(html).toContain('href="/"');
   });
   it('exposes Creator own-account connection and storage setup', () => {
     const html = renderToStaticMarkup(<NavLinks role="content_creator" />);
