@@ -1,9 +1,9 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: after milestone M578 and the variant delivery assignment. This is a continuation checkpoint,
+Updated: after milestone M579 and the agentic-drafting delivery assignment. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
-## Current continuation checkpoint — M578
+## Current continuation checkpoint — M579
 
 The accepted source head is the variant guidance provenance milestone
 `ce2f15bf73fb0855b97fc6dddd173a1f3e4827c3`, pushed to
@@ -28,6 +28,28 @@ delivery yet; Hermes variant R3 remains an active source-only lane. Hermes R5
 installer evidence remains rejected until its correction passes executable
 sink-level tests. No installer, database, migration, provider, credential,
 permission, network, systemd, runtime or deployment action was taken.
+
+## M579 — assigned-LLM Chatter inbox drafting lane
+
+The architecture and model-role plan still leave agentic inbox drafting open.
+The existing source already has actor-aware shifts, LLM agent permission,
+bounded roleplay handoffs, versioned `soul.md` persona revisions, bounded
+conversation memory, Grok roleplay-turn persistence and immutable text-only
+`inboxReplyIntent` dispatch. Hermes was assigned a source-only implementation
+against exact source `85bf2f6502b4016d20bc5145087afd0f48b4d5b6` in
+`INBOX-AGENTIC-DRAFTING-R1`.
+
+The required result is a real authenticated draft path that composes those
+existing contracts and persists a pending, reviewable inbox reply without
+sending it. It must retain assignment/shift/agent-permission/model/tenant,
+idempotency, audit, consent and safety boundaries; use injectable LLM tests;
+and expose a truthful dashboard action with explicit human confirmation
+before the existing text-only Fanvue send. Provider errors must not create a
+sendable draft. A helper-only artifact, route-only claim, invented provider
+attachment API, or missing behavior tests is not accepted. Hermes must return
+one hash-verifiable DELIVERY or one terminal BLOCKED result with exact evidence.
+No installer, database, migration, provider, credential, permission, runtime
+or deployment action is authorized.
 
 ## Latest deployment-repair review (after M349)
 

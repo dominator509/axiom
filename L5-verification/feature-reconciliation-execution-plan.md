@@ -747,3 +747,24 @@ deployed acceptance remain open. Hermes' gallery R10 lane remains source-only:
 its progress reply proves archive verification but not implementation delivery;
 the separate gallery R11 helper-only delivery is not accepted as route/UI
 work.
+
+### M579 — assigned-LLM Chatter inbox drafting dispatched
+
+The architecture still has one concrete inbox gap after the existing text
+reply, durable dispatch, uncertain-delivery review, actor-aware shift,
+`soul.md` persona and bounded-memory slices: an assigned LLM must be able to
+propose a bounded private reply that becomes a reviewable pending intent
+without sending it. Hermes was assigned `INBOX-AGENTIC-DRAFTING-R1` against
+exact source `85bf2f6502b4016d20bc5145087afd0f48b4d5b6` in an isolated copy.
+
+Passage requires a real authenticated API and reachable inbox/roleplay UI
+composition using the existing roleplay gateway, handoff/persona/memory,
+inboxReplyIntent and dispatch fences; exact tenant/model/connection/
+counterpart/active-shift/agent-permission checks; bounded provider output;
+immutable pending persistence; duplicate-intent protection; and explicit
+human confirmation before the existing text-only Fanvue send. Rejected or
+uncertain LLM outcomes must not create a sendable reply. Behavior tests must
+exercise authorization, persistence, replay, provider failure and UI
+loading/error/recovery states. No provider, migration, deployment or live
+action is allowed. Hermes delivery is not yet accepted; Codex will hash,
+review and test any artifact before integration.
