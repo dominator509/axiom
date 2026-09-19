@@ -2413,3 +2413,28 @@ instead of inventing a migration or unscoped identifier storage.
 No deployment, installer, database, migration, provider, credential,
 permission, network, runtime or service action is authorized. Codex retains
 audit, integration, commit and push ownership; Hermes must not commit or push.
+
+## M575 — variant R1 reply corrected; archive-backed R2 seeded
+
+Hermes replied to R1 with a source-resolution blocker, but the reply reused the
+Codex task WIRE and declared `STATE: BLOCKED` with `TERMINAL: NO`, so it could
+not advance the lane. Codex sent the protocol-valid correction receipt
+`CODEX-VARIANT-GUIDANCE-HOOK-TIMING-R1-RECEIPT-002`, which records the exact
+invalid wire/terminal state and does not accept Hermes' unsupported claim that
+the product gap was already delivered.
+
+To remove the stale-object-store blocker without granting network or runtime
+authority, Codex created a narrow archive from the exact current source and
+placed it in the bridge inbox. Archive:
+`/srv/fanthynks-bridge/hermes/inbox/hermes-variant-guidance-hook-timing-r2-scope.tar`
+with SHA-256
+`b1f47b7b82d1069553c3fb91849f500387b50a5247c12256e2198de04066375a`; the
+remote hash and named manifest were read back. Superseding task
+`CODEX-VARIANT-GUIDANCE-HOOK-TIMING-R2` was sent against source
+`a856f04e71a6e64d78ff8b35bfc36a349c857cac`, with envelope SHA-256
+`b713b5c7929b419860434123c7db8c8609dd5fabdf9c0ae80ce1aa8bd8082dc0` matching
+remote readback. Hermes must use only the supplied scope, return one real
+PROGRESS and one terminal DELIVERY or exact BLOCKED, and must not rerun R1.
+
+No deployment, installer, database, migration, provider, credential,
+permission, network, runtime or service action was authorized.
