@@ -1604,9 +1604,9 @@ audited. The corrected artifact-gate wire is
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: LOCAL-F10-CALENDAR-ACCESSIBILITY (SOURCE REGRESSION CLOSED) + remaining source/external gates; HERMES PAUSED
-LAST_ACCEPTED_CODE: cf5055d32885000ccafda9ce0949bb42b83329fa
-PUBLISHED_HEAD: cf5055d32885000ccafda9ce0949bb42b83329fa
-ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state and model dashboard are source-wired; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
+LAST_ACCEPTED_CODE: 04be09e44914d42cf0671cdb4a872c7cfa7fb3f
+PUBLISHED_HEAD: 04be09e44914d42cf0671cdb4a872c7cfa7fb3f
+ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state and model dashboard are source-wired; F-10 source-wired visual month/week calendar with guarded drag and accessible date rescheduling plus advisory timing guidance; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
 NEXT_REQUIRED: keep Hermes paused during this local-only work period; F-10 now has a source-wired visual month/week board, guarded drag rescheduling, keyboard/date rescheduling, and advisory playbook/viral timing guidance. Continue auditing the next highest-value source lane against the architecture; integrate only reviewed source, run owning tests, commit/push each independent lane, and keep mobile, migration/RLS, provider, browser, operator and deployment gates explicitly open until evidenced; no wall-clock or date comparison is part of the bridge protocol
 HERMES_ACCOUNTABILITY: Codex sent `FUNCTIONAL-DELIVERY-STANDARD-R1`; Hermes must produce real source implementation in isolated copies, not plans, pure contracts, baseline copies or ACK-only responses. A DELIVERY is countable only with changed paths, per-file SHA256, exact commands and exit codes, behavior-level tests, and truthful LIVE_ACTIONS NONE; otherwise Hermes must return a terminal BLOCKED result with the exact blocker.
 HERMES_F89_TASK: `LOCALIZATION-MULTILINGUAL-FUNCTIONAL-R3`, WIRE `CODEX-LOCALIZATION-FUNCTIONAL-001`, source ref `57a8c47f8f6fa2d7be2f6920d3da88a374ce15c6`, isolated copy `/root/d001a-deliverable/localization-r3`; the corrective delivery-required message `codex-localization-functional-r3-delivery-required-001` supersedes silent waiting and requires changed source, behavior tests and a signed DELIVERY or exact BLOCKED result.
@@ -1914,3 +1914,14 @@ provider-backed scheduling, deployed runtime and live data-path gates remain
 open. No runtime, provider, database, migration, permission, network, service
 or deployment action occurred. Hermes remains paused during this local-only
 work period.
+
+## M529 — stale coverage row reconciliation
+
+The detailed backend/frontend audit now matches the current source for F-10
+calendar controls and F-28 digest controls. The architecture note explicitly
+records the accessible date move path alongside visual month/week scheduling;
+neither update changes the remaining browser, provider, worker, migration or
+deployed-runtime gates.
+
+No product or runtime state changed. Hermes remains paused during this
+local-only work period.

@@ -59,12 +59,13 @@ changes.
 ## Current source correction — calendar surface
 
 The calendar row above is now additionally source-wired for a responsive
-month/week visual board and guarded pending-post day moves. The board reuses the
-existing post PATCH contract and verifies the returned identity, state, and
-schedule before refreshing. It also renders advisory time windows derived from
-verified viral-performance buckets without scheduling or publishing. This
-changes only the source-wired column; authenticated browser/mobile interaction,
-provider execution, and deployed runtime acceptance remain open.
+month/week visual board, guarded pending-post day moves, and an accessible
+keyboard/date move control. The board reuses the existing post PATCH contract
+and verifies the returned identity, state, and schedule before refreshing. It
+also renders advisory time windows derived from verified viral-performance
+buckets without scheduling or publishing. This changes only the source-wired
+column; authenticated browser/mobile interaction, provider execution, and
+deployed runtime acceptance remain open.
 
 ## Explicit owner extension — dual-actor Chatter roleplayer
 
