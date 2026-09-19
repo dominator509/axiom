@@ -366,3 +366,15 @@ unique correlation. The correction readback SHA-256 is
 `288a5433ab6ba1889a9dc3e13bcd8e6507f75ddf07023a18b6f0725c8b507a4f`.
 The five-surface operator localization gap remains open; no source delivery is
 accepted and no runtime/provider/database/deployment action occurred.
+
+### M585 source-lane checkpoint
+
+The F81/F84 lane was blocked only because Hermes could not fetch the exact
+current source commit. Codex supplied and hash-verified a tracked-source
+archive from `ac7961b9444fea4ec538e84c5980afca84e69ea6` and reissued the task
+against a writable isolated copy root. Archive SHA-256 is
+`92fffb7bf4d02352420ba3d7ece86411e41afa2bc590234c7f7577df18e92e11`; task
+envelope SHA-256 is
+`a9a099c041bb4429f6389f47aab4e925499ef34d6d6246ce6bb0e85bdb0ba1b9`.
+No implementation delivery is accepted until Hermes returns changed paths,
+tests and hashes.

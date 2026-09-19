@@ -827,6 +827,18 @@ The lane remains open and unaccepted until Hermes returns `ACK` with
 `STATE: ACCEPTED` or `STATE: READ`; no source delivery is counted from the
 invalid envelope.
 
+### M585 — F81/F84 exact-source transport
+
+Hermes' terminal BLOCKED response identified a real source transport gap: the
+exact current commit was absent from its local object store. Codex supplied a
+tracked-source archive generated from `ac7961b9444fea4ec538e84c5980afca84e69ea6`
+and verified the bridge copy at SHA-256
+`92fffb7bf4d02352420ba3d7ece86411e41afa2bc590234c7f7577df18e92e11`.
+The resume task was protocol-validated and transferred with remote SHA-256
+`a9a099c041bb4429f6389f47aab4e925499ef34d6d6246ce6bb0e85bdb0ba1b9`, using a
+writable isolated Hermes copy root. This reopens source work only; it is not
+implementation or deployment evidence.
+
 ### M583 — current-source F81/F84 trusted-vision lane
 
 The current Rust vision response exposes ToS classification and bounded image

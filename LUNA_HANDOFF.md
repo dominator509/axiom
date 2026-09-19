@@ -1,9 +1,9 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: after milestone M584 and the agentic-drafting/localization/vision delivery assignments. This is a continuation checkpoint,
+Updated: after milestone M585 and the agentic-drafting/localization/vision delivery assignments. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
-## Current continuation checkpoint — M584
+## Current continuation checkpoint — M585
 
 The accepted product source head is the variant guidance provenance milestone
 `ce2f15bf73fb0855b97fc6dddd173a1f3e4827c3`; the current pushed branch tip is
@@ -2656,3 +2656,17 @@ The source lane remains unaccepted and no implementation delivery is counted;
 Hermes must reissue a unique correlated ACK with a valid accepted/read state
 before source work advances. No runtime, provider, database, migration,
 permission, installer or deployment action is authorized.
+
+## M585 — F81/F84 exact-source transport cleared
+
+Hermes returned a terminal BLOCKED for F81/F84 because the exact current
+commit was not fetchable on its host. Codex generated a tracked-source tar
+from exact commit `ac7961b9444fea4ec538e84c5980afca84e69ea6`, transferred it to
+the authorized bridge inbox, and independently verified the remote archive
+SHA-256 as
+`92fffb7bf4d02352420ba3d7ece86411e41afa2bc590234c7f7577df18e92e11`.
+The protocol-valid resume task uses that archive and a writable Hermes copy
+root under `ipman-replies-out`; its envelope remote SHA-256 is
+`a9a099c041bb4429f6389f47aab4e925499ef34d6d6246ce6bb0e85bdb0ba1b9`.
+This clears transport only; no source implementation, runtime, provider,
+database, migration, permission, installer or deployment action is counted.

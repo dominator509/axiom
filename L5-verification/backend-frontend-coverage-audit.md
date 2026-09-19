@@ -573,3 +573,14 @@ rejection receipt; remote SHA-256 is
 The operator source lane remains open until a valid `ACCEPTED` or `READ` ACK
 and then a hash-verifiable implementation delivery are received. This does
 not alter the separate browser, mobile, deployed, provider or runtime gates.
+
+# M585: F81/F84 source transport cleared
+
+The F81/F84 vision lane's source-access block was cleared with an exact
+tracked-source archive from commit `ac7961b9444fea4ec538e84c5980afca84e69ea6`.
+The bridge archive checksum is
+`92fffb7bf4d02352420ba3d7ece86411e41afa2bc590234c7f7577df18e92e11`, and the
+protocol-valid resume task checksum is
+`a9a099c041bb4429f6389f47aab4e925499ef34d6d6246ce6bb0e85bdb0ba1b9`.
+This proves transport only; trusted thumbnail evidence, source tests,
+integration, browser/mobile, provider and deployment gates remain open.
