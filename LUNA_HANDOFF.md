@@ -7,17 +7,17 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `587efe7703b05fed82260ebb537e21b1cfa048d0`
+SOURCE_HEAD: `dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `8c03346336db6a999738b85c2e41b50272c017d0`
-ACCEPTED_PRODUCT_SOURCE: `587efe7703b05fed82260ebb537e21b1cfa048d0`
-ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R6 — execute exact M683 source synchronization; R5 superseded after repeated transport-only READs`
+PUBLISHED_HEAD: `dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4`
+ACCEPTED_PRODUCT_SOURCE: `dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4`
+ACTIVE_HERMES_LANE: `NONE — stale F-14 R6 and historical F-31 lanes are closed; issue one fresh task only after this exact-current source reset`
 CODEX_OWNER: `CODEX`
-HERMES_IMPLEMENTATION_OWNER: `HERMES — source-only F-14 implementation only after ACK/ACCEPTED; Codex audits and integrates`
-NEXT_ACTION: `R6 sync gate is accepted with evidence; Hermes must publish PROGRESS with a concrete implementation delta, then DELIVERY or terminal BLOCKED; Codex audits bytes before integration`
+HERMES_IMPLEMENTATION_OWNER: `HERMES — source-only implementation only after exact-current ACK/ACCEPTED; Codex audits and integrates`
+NEXT_ACTION: `No feature lane is active. Publish one fresh task bound to dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4, then require exact-current sync evidence before implementation.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `CODEX-F14-WATERMARK-POLICY-SOURCE-R6-001 — one active source-only lane with mandatory exact-current checkout synchronization`
+OPEN_WIRES: `NONE — prior wires are historical evidence only and cannot authorize work`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -25,15 +25,15 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `F14-MODEL-WATERMARK-POLICY-SOURCE-R6`
-NEXT_PREPARED_TASK_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R6-001`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `587efe7703b05fed82260ebb537e21b1cfa048d0`
+NEXT_PREPARED_TASK: `F14-MODEL-WATERMARK-POLICY-SOURCE — fresh exact-current lane to be issued`
+NEXT_PREPARED_TASK_WIRE: `NOT_ISSUED`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NOT_APPLICABLE — exact Git commit binding replaces archive transport`
-NEXT_PREPARED_TASK_STATE: `OPEN — Hermes must execute the sync gate; another ACK/READ is not acceptable`
-ACTIVE_LANE_TASK_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R6-001`
-ACTIVE_LANE_SOURCE_COMMIT: `587efe7703b05fed82260ebb537e21b1cfa048d0`
-ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f14-watermark-policy-source-r6`
-ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/deliveries/codex-f14-watermark-policy-source-r6`
+NEXT_PREPARED_TASK_STATE: `NOT_ISSUED — stale lanes are closed before a new task is published`
+ACTIVE_LANE_TASK_WIRE: `NONE`
+ACTIVE_LANE_SOURCE_COMMIT: `NONE — next task must bind dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4`
+ACTIVE_LANE_COPY_ROOT: `NONE`
+ACTIVE_LANE_DELIVERY_ROOT: `NONE`
 ACTIVE_LANE_SOURCE_ARCHIVE: `NOT_USED — exact Git commit mode`
 ACTIVE_LANE_SOURCE_ARCHIVE_SHA256: `NOT_APPLICABLE`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — local source implementation`
@@ -55,49 +55,51 @@ R4_ARCHIVE_BINDING: `NOT_USED — Hermes must fetch the named ref, verify the ex
 ACTIVE_LANE_TRANSPORT_CLOSE_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R3-001 — superseded by R4 sync gate`
 ACTIVE_LANE_TRANSPORT_CLOSE_REASON: `R3 ACK was read but Hermes checkout was stale; no R3 implementation or delivery is accepted`
 LOCAL_FALLBACK_SCOPE: `CODEX AUTHORIZED — local source-only implementation lanes; no live action`
-ACTIVE_LANE_ACK_WIRE: `HERMES-F14-WATERMARK-POLICY-SOURCE-R6-EXEC-SYNC-001`
+ACTIVE_LANE_ACK_WIRE: `NONE — prior R6 ACK is closed historical evidence`
 ACTIVE_LANE_ACK_SHA256: `ba1f0cbe39c15341355146bf18292610c2bac66c8f16fecbed0a36508a9df24e`
 ACTIVE_LANE_RECEIPT_WIRE: `HERMES-F14-WATERMARK-POLICY-SOURCE-R5-READ-RECEIPT-ACK-003 — superseded transport-only read`
 ACTIVE_LANE_RECEIPT_SHA256: `NOT_APPLICABLE`
-ACTIVE_LANE_CHECKPOINT_WIRE: `HERMES-F14-WATERMARK-POLICY-SOURCE-R6-EXEC-SYNC-001 — sync accepted; PROGRESS implementation delta next`
-ACTIVE_LANE_CHECKPOINT_SHA256: `ba1f0cbe39c15341355146bf18292610c2bac66c8f16fecbed0a36508a9df24e`
+ACTIVE_LANE_CHECKPOINT_WIRE: `NONE`
+ACTIVE_LANE_CHECKPOINT_SHA256: `NOT_APPLICABLE`
 LAST_COMPLETED_SOURCE_MILESTONE: `M675 — F-22/F-23 first-party Fanvue attribution at 950fa921; F-14 R3 lane newly opened`
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; CONTROL_RECONCILIATION_002_CLOSED; F-14 R3/R4/R5 quarantined after stale checkout, WIRE collision and repeated transport-only READs; R6 is the sole active exact-current source lane and requires execution evidence`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; all stale F-14/F-31 and historical Hermes lanes closed; no active implementation lane; fresh task must bind exact branch head dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
 RECONCILIATION_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-RECEIPT-005`
 RECONCILIATION_RECEIPT_SHA256: `9b44ae04f313a03f8a7ebd38d48a74b69b0c4dbb0d43ac6d233fb753e0a47d84`
-HERMES_STALE_LANE_POLICY: `Historical lanes remain quarantined; only CODEX-F14-WATERMARK-POLICY-SOURCE-R6-001 is active and it is bound to 587efe7703b05fed82260ebb537e21b1cfa048d0 with a mandatory published-branch sync gate`
+HERMES_STALE_LANE_POLICY: `Historical lanes remain quarantined; no Hermes task is active until a fresh exact-msg_id task binds dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4 and proves the fetched branch state before source work`
 LOCAL_WORKTREE_POLICY: `Codex audits, tests, commits and pushes local milestones; untracked Hermes review artifacts remain untouched`
 NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provider, credential, permission, network or service action`
 
-CURRENT_MILESTONE: `M683 — F-06/F-07 Fanvue analytics and CRM sync source integrated; Hermes R5 exact-current F-14 source synchronization is the sole active delegated lane`
-CURRENT_MILESTONE_COMMIT: `587efe7703b05fed82260ebb537e21b1cfa048d0`
-CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip verified at 472f8968720f84f10bbea61889e4c8a2a44bade4; product source 587efe7703b05fed82260ebb537e21b1cfa048d0 is an exact ancestor and R6 binds both facts`
+CURRENT_MILESTONE: `M691 — control-plane reconciliation reset; GitHub and local branch both verified at dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4; no Hermes feature lane is active`
+CURRENT_MILESTONE_COMMIT: `dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4`
+CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip verified at dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4; local HEAD matches; Hermes receipts observed older heads and are quarantined`
 CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, API index 63/63, API relay-webhooks 2/2, dashboard full 780 passed; no migration execution or live action`
-CURRENT_MILESTONE_OPEN: `Hermes R6 implementation PROGRESS/DELIVERY and Codex artifact audit remain open; full deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
-LOCAL_MILESTONE_AFTER_TASK: `M683 — Fanvue analytics and CRM sync source integrated and pushed at 587efe7703b05fed82260ebb537e21b1cfa048d0; R5 task supersedes stale R4 before implementation`
+CURRENT_MILESTONE_OPEN: `Fresh Hermes source lane has not been issued; full feature and deployment/readiness gates remain open including F-14 policy wiring, migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
+LOCAL_MILESTONE_AFTER_TASK: `M691 — branch and handoff reconciled at dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4; old Hermes R6/F-31 receipts are historical and cannot authorize implementation`
 
-## Current coordination update — M683 and Hermes R5
+## Current coordination update — M691 source reset
 
-M683 is the current product source, not an unreviewed Hermes artifact. It adds
+M683 remains the last product-feature source milestone, not an unreviewed Hermes artifact. It adds
 bounded Fanvue analytics projections, scoped worker synchronization, idempotent
 earnings touchpoints, model-scoped API access, and a Fans dashboard summary.
 The source milestone is pushed and the focused connector, worker, database,
 API, and dashboard gates passed. The two resource-sensitive API hook files
 also pass in isolation: index 63/63 and relay-webhooks 2/2.
 
-Hermes R4 is quarantined. Its evidence was tied to the older `950fa921`
-checkout and its first ACK reused the task WIRE. R5 is the only active Hermes
-lane, bound to `587efe7703b05fed82260ebb537e21b1cfa048d0`; Hermes must fetch
-the named branch, prove that commit and a clean checkout, then work only in
-the declared isolated copy. Transport `REPLIED` is not progress, and no R5
-delivery is eligible until Codex audits changed bytes, hashes, tests, and
-scope.
+All previous Hermes lanes are quarantined. The R6 receipt proved an older
+checkout and isolated copy, but produced no delivery; the later Hermes F-31
+resync receipt was also bound to an older branch/handoff and would duplicate
+the F-31 source work already integrated at M667. Neither receipt authorizes
+current work. The next task must bind the exact current branch head
+`dbe9c3307f312cf4b66d2381a99a56a2c2fb14c4`, prove the fetched ref and clean
+checkout, then work only in its declared isolated copy. Transport `REPLIED`
+is not progress, and no delivery is eligible until Codex audits changed bytes,
+hashes, tests and scope.
 
 Coordination rule: Codex owns source review, tests, integration, commits, and
 pushes. Hermes owns only the R5 source copy after correlated ACK/ACCEPTED.
