@@ -941,3 +941,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19T16:16:43Z | [AXIOM][P4][M618] Clarify graph ALL_DONE is phase-marker state only; architecture release gates remain open while Hermes R5 is active
 2026-09-19T16:23:19Z | [AXIOM][P4][M619] Independently audit Hermes R5 behavior tests and route wiring; pass evidence gate and request terminal DELIVERY
 2026-09-19T16:37:54Z | [AXIOM][P4][M620] Reconcile Hermes R5 terminal delivery: reject invalid envelope, preserve truthful typecheck baseline, send one bounded correction, freeze local lane and source integration
+2026-09-19T16:53:13Z | [AXIOM][P4][M621] Close Hermes R5 inbox drafting and D001A installer attempts as BLOCKED-HERMES after independent protocol and executable-test audits; preserve no integration/live action and select next lane from current architecture matrix

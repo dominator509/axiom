@@ -2946,6 +2946,30 @@ checks passed. Dashboard lint retains only the three pre-existing warnings in
 `ea3ad70c33399edb8a8fc37dd76e04b9856ec661`. Browser/native, provider,
 migration/RLS, runtime and deployment gates remain open.
 
+## Current lane closure and next source gap
+
+The agentic inbox-drafting R5 lane is closed as `BLOCKED-HERMES`. Hermes' second
+terminal DELIVERY was independently retrieved; all four declared source hashes
+match and its isolated focused suite passes 4/4, but the local protocol checker
+still fails because the required DELIVERY payload fields are not parsed and the
+reply contains duplicate/non-canonical signature lines. No artifact is
+integrated.
+
+The D001A installer-context correction is also closed as `BLOCKED-HERMES` for
+this attempt. The delivered candidate and tests have the declared hashes and
+the adversarial source scan reports 18/18 only because its baseline comparison
+is skipped. The owning context harness exits 1 while creating its temporary
+extraction file (`Permission denied`, then `FATAL: extract failed`). This is
+not executable evidence for safe installer integration. The installed helper,
+bridge sinks, live database, services and deployment remain untouched.
+
+Codex sent protocol-valid terminal receipts for both closures. The next lane
+must be selected from the current architecture matrix, use the current pushed
+source head, and remain source-only with one bounded DELIVERY/BLOCKED gate.
+No parallel feature lane is active until that next task is explicitly recorded
+and sent; provider, migration/RLS, browser/mobile, runtime, operator and
+deployment evidence remain separate open gates.
+
 ## M609 — reusable playbook-guideline localization
 
 The reusable `PlaybookGuidelineManager` now consumes typed messages from all
