@@ -581,3 +581,15 @@ state. Core tests passed 65/65, the focused settings/localization suite passed
 This closes one source/UI slice of F-89 only; remaining dashboard/email/operator
 adoption, formatting, browser/mobile, provider, migration/RLS, runtime and
 deployment evidence stay open.
+
+### M564 — analytics surface localization and formatting
+
+The analytics page now uses the shared six-locale catalog for access, report,
+metric, playbook, viral and empty/error copy. Count and engagement-percentage
+formatting uses `Intl.NumberFormat` for the selected UI locale while provider
+and authored content remain unmodified. Spanish rendering and locale-aware
+grouping are covered by a focused regression test. Core tests passed 65/65, the
+analytics/settings focused dashboard slice passed 10/10, the full dashboard
+suite passed 742/742 and dashboard typecheck passed. This is a source/UI slice;
+provider, browser/PDF, mobile, migration/RLS, runtime and deployment evidence
+remain open.

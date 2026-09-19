@@ -191,6 +191,18 @@ commit `2c51eafef2188cbe7fdbd2fdea9d21b85211fb7b`. This is source/UI evidence
 only: remaining catalog adoption, locale-aware formatting, browser/mobile,
 provider, migration/RLS, runtime and deployment gates remain open.
 
+### M564 — analytics surface localization and formatting
+
+The model analytics page now consumes the shared six-locale catalog for access
+states, report actions, metric labels, playbook context, viral insight copy and
+empty/error states. Counts and engagement percentages use the selected locale's
+`Intl.NumberFormat`; authored platform names, labels and provider observations
+remain data rather than being silently translated. Core tests passed 65/65, the
+analytics/settings focused dashboard slice passed 10/10, the full dashboard
+suite passed 742/742 and dashboard typecheck passed. Source commit
+`beac9152634bfeddf61755b2d7c0f33c735e7043`. Provider, browser/PDF, mobile,
+migration/RLS, runtime and deployment evidence remain open.
+
 ## Explicit owner extensions — localization and platform affiliate stack
 
 ### F-89: multilingual product surface
