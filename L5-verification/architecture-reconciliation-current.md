@@ -2,7 +2,7 @@
 
 Date: 2026-09-18  
 Repository: `dominator509/axiom`  
-Source checkpoint: `bad8345f6c839ac2d0f1553c25054d8b34fa97a7`
+Source checkpoint: `05ac7900f771feb52f679b5219e9cb14398358be`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the

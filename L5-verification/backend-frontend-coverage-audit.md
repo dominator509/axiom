@@ -1,6 +1,6 @@
 # Backend-to-frontend coverage audit
 
-Source baseline: `8c48f71df3bbfa8f2beb43f89c03332962a89f64`.
+Source baseline: `05ac7900f771feb52f679b5219e9cb14398358be`.
 
 ## Verdict and evidence boundary
 
