@@ -23,6 +23,17 @@ it('shows conversion counts to read-only users without experiment mutation contr
   expect(html).not.toContain('Save experiment');
   expect(html).not.toContain('Pause');
 });
+it('shows verified guidance provenance and truthful missing-evidence copy', () => {
+  const html = renderToStaticMarkup(<VariantExperimentManager modelId="model" experiments={[]} canEdit candidates={[
+    { id: 'copy', variantType: 'caption', outputAssetId: 'asset', createdAt: '', copy: { platform: 'instagram', text: 'A vase' }, guidance: {
+      guidanceReceiptId: 'bundle:instagram', sourceBundleId: 'bundle', sourceVariantId: null, platform: 'instagram', selectedArm: 'short:question', context: 'learn-v1:scheduled-utc-unknown', hookType: 'question',
+    } },
+    { id: 'copy-missing', variantType: 'teaser', outputAssetId: 'asset', createdAt: '', copy: { platform: 'instagram', text: 'A teaser' }, guidance: null },
+  ]} />);
+  expect(html).toContain('Verified guidance attribution');
+  expect(html).toContain('recorded provenance only');
+  expect(html).toContain('Guidance attribution unavailable');
+});
 it.each([0, 1])('requires candidate outcomes before offering winner selection: %s', outcomes => {
   const html = renderToStaticMarkup(<VariantExperimentManager modelId="model" canEdit experiments={[
     { id: 'experiment', modelId: 'model', name: 'Creative test', platform: 'x', variantIds: ['variant'], status: 'running',

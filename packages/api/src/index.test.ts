@@ -98,6 +98,7 @@ describe('mounted route groups', () => {
     ['POST', '/incidents/:id/replay'], ['GET', '/social-accounts'], ['GET', '/llm/providers'],
     ['GET', '/crash-reports'], ['PATCH', '/crash-reports/:id/resolve'],
     ['GET', '/models/:id/media'], ['GET', '/models/:id/media/:assetId'],
+    ['GET', '/models/:id/variant-experiments/guidance-sources'],
   ])('mounts the dashboard contract %s %s', (method, path) => {
     const normalize = (value: string) => value.replace(/:[^/]+/g, ':param');
     const paths = app.routes

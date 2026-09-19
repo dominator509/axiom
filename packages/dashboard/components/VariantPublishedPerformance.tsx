@@ -2,8 +2,10 @@
 
 import { useRef, useState } from 'react';
 import { readDashboardJson } from '@/lib/response';
+import type { VariantGuidanceSummary } from '@/lib/api';
+import GuidanceSummary from './VariantGuidanceSummary';
 
-type Observation = { targetId: string; variantId: string; collectedAt: string; views: number; likes: number; shares: number; comments: number; engagementRate: number };
+type Observation = { targetId: string; variantId: string; collectedAt: string; views: number; likes: number; shares: number; comments: number; engagementRate: number; guidance?: VariantGuidanceSummary | null };
 export default function VariantPublishedPerformance({ modelId, experimentId }: { modelId: string; experimentId: string }) {
   const [rows, setRows] = useState<Observation[]>([]), [busy, setBusy] = useState(false), [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(''), [truncated, setTruncated] = useState(false);
@@ -41,6 +43,7 @@ export default function VariantPublishedPerformance({ modelId, experimentId }: {
       <span>{row.views} views · {row.likes} likes · {row.shares} shares · {row.comments} comments</span>
       <span>Engagement rate: {(row.engagementRate * 100).toFixed(2)}%</span>
       <span className="subtle">Collected: {row.collectedAt}</span>
+      <GuidanceSummary guidance={row.guidance} />
     </article>)}</div>
     {error && <p role="alert">{error}</p>}
   </details>;

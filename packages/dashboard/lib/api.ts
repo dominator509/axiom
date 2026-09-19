@@ -134,7 +134,8 @@ export interface ModelProfile {
 
 export interface ContentBundle {
   captionGuidance?: Record<string, { version: 'caption-guidance-v1'; selectedArm: string | null;
-    context: string; exemplarIds: string[]; captionSha256: string }>;
+    context: string; exemplarIds: string[]; captionSha256: string; hookType?: string; format?: string;
+    postingHourUtc?: number; timingBucket?: 'morning' | 'afternoon' | 'evening' | 'night' }>;
   publishIntent?: { action: 'schedule' | 'publish'; platform: string; scheduledAt: string | null } | null;
   assetId?: string | null;
   id: string;
@@ -345,7 +346,28 @@ export interface VariantExperiment {
   updatedAt: string;
 }
 
-export interface VariantCandidate { id: string; variantType: string; outputAssetId: string | null; createdAt: string; copy?: { platform: string; text: string } | null }
+export interface VariantGuidanceSummary {
+  guidanceReceiptId: string;
+  sourceBundleId: string;
+  sourceVariantId: string | null;
+  platform: string;
+  selectedArm: string | null;
+  context: string;
+  hookType?: string;
+  format?: string;
+  postingHourUtc?: number;
+  timingBucket?: 'morning' | 'afternoon' | 'evening' | 'night';
+}
+
+export interface VariantGuidanceSource {
+  id: string;
+  sourceVariantId: string | null;
+  platform: string;
+  caption: string;
+  guidance: VariantGuidanceSummary;
+}
+
+export interface VariantCandidate { id: string; variantType: string; outputAssetId: string | null; createdAt: string; copy?: { platform: string; text: string } | null; guidance?: VariantGuidanceSummary | null }
 
 export interface ScrapeRun {
   id: string;
@@ -541,6 +563,8 @@ export const api = {
       apiFetch<{ data: VariantExperiment[] }>(`/api/v1/models/${id}/variant-experiments`),
     variantCandidates: (id: string, cursor?: string) =>
       apiFetch<{ data: VariantCandidate[]; meta: { next_cursor: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/variant-experiments/candidates${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
+    variantGuidanceSources: (id: string, assetId: string, platform: string) =>
+      apiFetch<{ data: VariantGuidanceSource[] }>(`/api/v1/models/${encodeURIComponent(id)}/variant-experiments/guidance-sources?${new URLSearchParams({ assetId, platform })}`),
     scrapeRuns: (id: string, cursor?: string) =>
       apiFetch<{ data: ScrapeRun[]; meta: { next_cursor: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/scrape-runs${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
     teamOperations: (id: string, cursors: { shiftCursor?: string; noteCursor?: string } = {}) => {

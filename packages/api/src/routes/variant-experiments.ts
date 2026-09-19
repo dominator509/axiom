@@ -13,10 +13,11 @@ import type { Context } from 'hono';
 import { withOrgContext, requireOrg, apiError, statusTitle, writeAudit } from './helpers.js';
 import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
+import { projectStoredVariantGuidance, readVerifiedGuidance, type StoredVariantGuidance } from '../variant-guidance.js';
 
 const router = new Hono<AppBindings>();
 const copySettingsSchema = z.object({ platform: z.string().min(1).max(50), text: z.string().trim().min(1).max(10000) });
-const copyVariantSchema = copySettingsSchema.extend({ assetId: z.string().uuid(), type: z.enum(['caption', 'teaser']) }).strict();
+const copyVariantSchema = copySettingsSchema.extend({ assetId: z.string().uuid(), type: z.enum(['caption', 'teaser']), guidanceBundleId: z.string().uuid().optional() }).strict();
 
 router.get('/models/:modelId/variant-experiments/:experimentId/performance', async c => {
   const orgId = requireOrg(c), modelId = c.req.param('modelId'), experimentId = c.req.param('experimentId');
@@ -34,7 +35,9 @@ router.get('/models/:modelId/variant-experiments/:experimentId/performance', asy
     // Cumulative provider counts: select one latest snapshot per published target.
     return tx.selectDistinctOn([p.id], { targetId: p.id, variantId: b.sourceVariantId, collectedAt: m.collectedAt,
       views: m.views, likes: m.likes, shares: m.shares, comments: m.comments, engagementRate: m.engagementRate,
+      settings: schema.assetVariant.settings,
     }).from(m).innerJoin(p, eq(p.id, m.postTargetId)).innerJoin(b, eq(b.id, p.bundleId))
+      .innerJoin(schema.assetVariant, eq(schema.assetVariant.id, b.sourceVariantId))
       .innerJoin(a, and(eq(a.reviewBundleId, b.id), eq(a.variantId, b.sourceVariantId))).where(and(
       eq(a.orgId, orgId), eq(a.experimentId, experimentId),
       eq(p.orgId, orgId), eq(b.orgId, orgId), eq(b.modelId, modelId), eq(p.state, 'published'),
@@ -44,7 +47,37 @@ router.get('/models/:modelId/variant-experiments/:experimentId/performance', asy
     )).orderBy(p.id, desc(m.collectedAt), desc(m.id)).limit(101);
   });
   if (!rows) return apiError(c, 404, statusTitle(404), 'variant experiment not found');
-  return c.json({ data: rows.slice(0, 100), assessment: assessVariantPerformance(candidateIds, rows, rows.length > 100), meta: { truncated: rows.length > 100, source: 'published-target-metrics' } });
+  const data = rows.slice(0, 100).map(({ settings, ...row }) => ({ ...row, guidance: projectStoredVariantGuidance(settings) }));
+  return c.json({ data, assessment: assessVariantPerformance(candidateIds, rows, rows.length > 100), meta: { truncated: rows.length > 100, source: 'published-target-metrics' } });
+});
+
+router.get('/models/:modelId/variant-experiments/guidance-sources', async c => {
+  const orgId = requireOrg(c), modelId = c.req.param('modelId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  if (!z.string().uuid().safeParse(modelId).success) return apiError(c, 400, statusTitle(400), 'Invalid model');
+  const assetId = c.req.query('assetId');
+  const platform = canonicalPlatform(c.req.query('platform') ?? '');
+  if (!assetId || !z.string().uuid().safeParse(assetId).success || !platform) {
+    return apiError(c, 400, statusTitle(400), 'assetId and a supported platform are required');
+  }
+  const rows = await withOrgContext(orgId, tx => tx.select({
+    id: schema.contentBundle.id,
+    sourceVariantId: schema.contentBundle.sourceVariantId,
+    assetId: schema.contentBundle.assetId,
+    captions: schema.contentBundle.captions,
+    captionGuidance: schema.contentBundle.captionGuidance,
+  }).from(schema.contentBundle).where(and(
+    eq(schema.contentBundle.orgId, orgId),
+    eq(schema.contentBundle.modelId, modelId),
+    eq(schema.contentBundle.assetId, assetId),
+  )).orderBy(desc(schema.contentBundle.createdAt), desc(schema.contentBundle.id)).limit(20));
+  const data = rows.flatMap(row => {
+    const caption = row.captions?.[platform];
+    const verified = row.assetId === assetId && typeof caption === 'string' ? readVerifiedGuidance(row, platform, caption) : null;
+    if (!verified) return [];
+    return [{ id: row.id, sourceVariantId: row.sourceVariantId, platform, caption, guidance: verified.summary }];
+  });
+  return c.json({ data });
 });
 
 router.post('/models/:modelId/variant-experiments/candidates', async c => {
@@ -65,14 +98,39 @@ router.post('/models/:modelId/variant-experiments/candidates', async c => {
       eq(schema.asset.id, parsed.data.assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
     )).limit(1);
     if (!asset) return null;
+    let guidance: StoredVariantGuidance | undefined;
+    if (parsed.data.guidanceBundleId) {
+      const [sourceBundle] = await tx.select({
+        id: schema.contentBundle.id,
+        sourceVariantId: schema.contentBundle.sourceVariantId,
+        assetId: schema.contentBundle.assetId,
+        captions: schema.contentBundle.captions,
+        captionGuidance: schema.contentBundle.captionGuidance,
+      }).from(schema.contentBundle).where(and(
+        eq(schema.contentBundle.id, parsed.data.guidanceBundleId),
+        eq(schema.contentBundle.orgId, orgId),
+        eq(schema.contentBundle.modelId, modelId),
+        eq(schema.contentBundle.assetId, asset.id),
+      )).limit(1);
+      const verified = sourceBundle && sourceBundle.assetId === asset.id ? readVerifiedGuidance(sourceBundle, platform, parsed.data.text) : null;
+      if (!verified) return { invalidGuidance: true as const };
+      guidance = verified.provenance;
+    }
     const [variant] = await tx.insert(schema.assetVariant).values({ orgId, assetId: asset.id, outputAssetId: asset.id,
-      variantType: parsed.data.type, storageKey: asset.storageKey, settings: { copy: { platform, text: parsed.data.text } },
+      variantType: parsed.data.type, storageKey: asset.storageKey, settings: {
+        copy: { platform, text: parsed.data.text },
+        ...(guidance ? { guidance } : {}),
+      },
     }).returning({ id: schema.assetVariant.id });
     if (!variant) throw new Error('Copy variant could not be saved');
-    await writeAudit(tx, orgId, c.get('userId') ?? 'system', 'variant.copy.create', variant.id, { modelId, assetId: asset.id, type: parsed.data.type, platform });
+    await writeAudit(tx, orgId, c.get('userId') ?? 'system', 'variant.copy.create', variant.id, {
+      modelId, assetId: asset.id, type: parsed.data.type, platform,
+      guidanceBundleId: parsed.data.guidanceBundleId ?? null,
+    });
     return variant;
   });
   if (!saved) return apiError(c, 404, statusTitle(404), 'asset not found');
+  if ('invalidGuidance' in saved) return apiError(c, 409, statusTitle(409), 'Selected guidance is unavailable, changed, or does not match this asset and caption');
   return c.json({ data: saved }, 201);
 });
 
@@ -92,7 +150,7 @@ router.get('/models/:modelId/variant-experiments/candidates', async c => {
   const last = rows[rows.length - 1];
   return c.json({ data: rows.map(({ settings, ...row }: Pick<typeof schema.assetVariant.$inferSelect, 'id' | 'variantType' | 'outputAssetId' | 'createdAt' | 'settings'>) => {
     const copy = ['caption', 'teaser'].includes(row.variantType) ? copySettingsSchema.safeParse(settings?.copy) : null;
-    return { ...row, copy: copy?.success ? copy.data : null };
+    return { ...row, copy: copy?.success ? copy.data : null, guidance: projectStoredVariantGuidance(settings) };
   }), meta: { next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length) } });
 });
 

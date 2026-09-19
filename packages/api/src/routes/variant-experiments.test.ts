@@ -2,10 +2,26 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockDbFactory, mockState } from './test-utils.js';
+import { captionSha256 } from '../variant-guidance.js';
 vi.mock('@axiom/db', () => mockDbFactory());
 vi.mock('@axiom/worker', async importOriginal => ({ ...(await importOriginal<Record<string, unknown>>()), asPlatform: (value: string) => value }));
 import { variantExperimentsRouter } from './variant-experiments.js';
 const id = '11111111-1111-4111-8111-111111111111';
+const sourceBundleId = '22222222-2222-4222-8222-222222222222';
+const guidanceText = 'A ceramic vase';
+
+function guidanceSource() {
+  return {
+    id: sourceBundleId,
+    sourceVariantId: null,
+    assetId: id,
+    captions: { instagram: guidanceText },
+    captionGuidance: { instagram: {
+      version: 'caption-guidance-v1', selectedArm: 'short:question', context: 'learn-v1:scheduled-utc-unknown',
+      exemplarIds: [], captionSha256: captionSha256(guidanceText), hookType: 'question', format: 'single',
+    } },
+  };
+}
 it('returns bounded published performance without conflating manual outcomes', async () => {
   mockState.results = [[], [{ id, platform: 'instagram', variantIds: [id] }], Array.from({ length: 101 }, () => ({ targetId: id, variantId: id, views: 5 }))];
   const response = await app().request(`/models/${id}/variant-experiments/${id}/performance`);
@@ -33,7 +49,7 @@ function outcome(converted = true) {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ assignmentId: id, converted }),
   });
 }
-beforeEach(() => { mockState.results = []; mockState.result = []; mockState.updates = []; });
+beforeEach(() => { mockState.results = []; mockState.result = []; mockState.updates = []; mockState.insertValues = []; });
 function promote(variantId = id) {
   return app().request(`/models/${id}/variant-experiments/${id}/promote`, { method: 'POST',
     headers: { 'content-type': 'application/json' }, body: JSON.stringify({ variantId }) });
@@ -137,6 +153,20 @@ it.each(['caption', 'teaser'])('saves owned %s copy without exposing storage or 
   const response = await copyVariant({ assetId: id, type, platform: 'instagram', text: 'A ceramic vase' });
   expect(response.status).toBe(201); expect(await response.json()).toEqual({ data: { id } });
 });
+it('accepts only a same-org/model/asset guidance source and stores bounded provenance', async () => {
+  mockState.results = [[], [{ id, storageKey: '/private/source.jpg' }], [guidanceSource()], [{ id }]];
+  const response = await copyVariant({ assetId: id, type: 'caption', platform: 'instagram', text: guidanceText, guidanceBundleId: sourceBundleId });
+  expect(response.status).toBe(201);
+  const settings = (mockState.insertValues[0] as any).settings;
+  expect(settings.guidance).toMatchObject({ sourceBundleId, platform: 'instagram', sourceVariantId: null });
+  expect(settings.guidance).not.toHaveProperty('exemplarIds');
+});
+it('rejects a missing or mismatched guidance source before inserting a candidate', async () => {
+  mockState.results = [[], [{ id, storageKey: '/private/source.jpg' }], []];
+  const response = await copyVariant({ assetId: id, type: 'caption', platform: 'instagram', text: guidanceText, guidanceBundleId: sourceBundleId });
+  expect(response.status).toBe(409);
+  expect(mockState.insertValues).toEqual([]);
+});
 it('does not save copy against another model asset', async () => {
   mockState.results = [[], []];
   expect((await copyVariant({ assetId: id, type: 'caption', platform: 'instagram', text: 'A vase' })).status).toBe(404);
@@ -150,6 +180,20 @@ it('returns only bounded copy settings from candidate discovery', async () => {
   const body = await response.json() as { data: Record<string, unknown>[] };
   expect(body.data[0].copy).toEqual({ platform: 'instagram', text: 'A vase' });
   expect(body.data[0]).not.toHaveProperty('settings');
+});
+it('projects stored guidance without exposing its fingerprint', async () => {
+  const verified = (await import('../variant-guidance.js')).readVerifiedGuidance(guidanceSource(), 'instagram', guidanceText)!;
+  mockState.results = [[], [{ id, variantType: 'caption', settings: { copy: { platform: 'instagram', text: guidanceText }, guidance: verified.provenance }, createdAt: new Date() }]];
+  const response = await app().request(`/models/${id}/variant-experiments/candidates`);
+  const body = await response.json() as { data: Record<string, unknown>[] };
+  expect(body.data[0].guidance).toMatchObject({ sourceBundleId, hookType: 'question' });
+  expect(body.data[0].guidance).not.toHaveProperty('captionSha256');
+});
+it('lists only eligible guidance sources for the requested asset and platform', async () => {
+  mockState.results = [[], [guidanceSource()]];
+  const response = await app().request(`/models/${id}/variant-experiments/guidance-sources?assetId=${id}&platform=instagram`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ data: [{ id: sourceBundleId, caption: guidanceText, guidance: { platform: 'instagram' } }] });
 });
 it('rejects copy variants for a different experiment platform', async () => {
   const other = '22222222-2222-4222-8222-222222222222';

@@ -11,6 +11,7 @@ import VariantEvaluationReport from './VariantEvaluationReport';
 import Link from 'next/link';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import VariantGuidanceSummary from './VariantGuidanceSummary';
 
 type Intent = { path: string; method: 'POST' | 'PATCH'; body?: string; key: string };
 
@@ -239,6 +240,7 @@ export default function VariantExperimentManager({
           {available.length === 0 && <p>No variants yet. <Link href={`/models/${encodeURIComponent(modelId)}/media`}>Create crops or adaptations in the media library</Link>.</p>}
           <div className="grid">{available.map(candidate => <div className="card stack" key={candidate.id}>
             {candidate.copy && <div><p className="subtle">{candidate.copy.platform} copy</p><p style={{ whiteSpace: 'pre-wrap' }}>{candidate.copy.text}</p></div>}
+            {candidate.copy && <VariantGuidanceSummary guidance={candidate.guidance} />}
             {candidate.outputAssetId && <VariantReviewCreate modelId={modelId} variantId={candidate.id} requiresCaption={!candidate.copy} />}
             <label className="checkbox-option"><input type="checkbox" disabled={Boolean(candidate.copy && candidate.copy.platform !== platform)} checked={variantIds.split(' ').includes(candidate.id)}
               onChange={event => setVariantIds(previous => {

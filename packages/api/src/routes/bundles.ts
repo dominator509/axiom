@@ -14,6 +14,7 @@ import {
   consentRequirementMessage,
   getTosScanState,
 } from '@axiom/db';
+import type { CaptionGuidanceReceipt } from '@axiom/db/schema';
 import type { AppBindings } from '../index.js';
 import {
   withOrgContext,
@@ -32,6 +33,7 @@ import { queueBundleRevision } from '../bundle-revision.js';
 import { assetPreview } from '../asset-preview.js';
 import { isScopedHumanRole, modelAccessCondition } from '../model-access.js';
 import { reviewedVideoReport, videoReviewRequest } from '../video-review.js';
+import { readVerifiedGuidance, sameGuidanceProvenance } from '../variant-guidance.js';
 
 const router = new Hono<AppBindings>();
 
@@ -192,6 +194,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
   }
 
   const inserted = await withOrgContext(orgId, async (tx) => {
+    let bundleCaptionGuidance: Record<string, CaptionGuidanceReceipt> = {};
     if ((await modelOrgId(tx, body.modelId)) !== orgId) return null;
     if (isScopedHumanRole(c.get('role'))) {
       const [assigned] = await tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile).where(and(
@@ -217,7 +220,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
       assignmentPlatform = experiment.platform;
     }
     if (body.variantId) {
-      const [variant] = await tx.select({ id: schema.assetVariant.id, outputAssetId: schema.assetVariant.outputAssetId,
+      const [variant] = await tx.select({ id: schema.assetVariant.id, assetId: schema.assetVariant.assetId, outputAssetId: schema.assetVariant.outputAssetId,
         variantType: schema.assetVariant.variantType, settings: schema.assetVariant.settings,
       }).from(schema.assetVariant).innerJoin(schema.asset, eq(schema.asset.id, schema.assetVariant.assetId)).where(and(
         eq(schema.assetVariant.id, body.variantId), eq(schema.assetVariant.orgId, orgId),
@@ -233,6 +236,28 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
       try { asPlatform(copy.data.platform); } catch { return null; }
       body.assetId = variant.outputAssetId;
       body.captions = { [copy.data.platform]: copy.data.text };
+      const rawGuidance = variant.settings && typeof variant.settings === 'object'
+        ? (variant.settings as Record<string, unknown>).guidance
+        : undefined;
+      if (rawGuidance !== undefined) {
+        if (!isCopy || !rawGuidance || typeof rawGuidance !== 'object') return { invalidGuidance: true as const };
+        const sourceBundleId = (rawGuidance as Record<string, unknown>).sourceBundleId;
+        const [sourceBundle] = typeof sourceBundleId === 'string' ? await tx.select({
+          id: schema.contentBundle.id,
+          sourceVariantId: schema.contentBundle.sourceVariantId,
+          assetId: schema.contentBundle.assetId,
+          captions: schema.contentBundle.captions,
+          captionGuidance: schema.contentBundle.captionGuidance,
+        }).from(schema.contentBundle).where(and(
+          eq(schema.contentBundle.id, sourceBundleId),
+          eq(schema.contentBundle.orgId, orgId),
+          eq(schema.contentBundle.modelId, body.modelId),
+          eq(schema.contentBundle.assetId, variant.assetId),
+        )).limit(1) : [];
+        const verified = sourceBundle && sourceBundle.assetId === variant.assetId ? readVerifiedGuidance(sourceBundle, copy.data.platform, copy.data.text) : null;
+        if (!verified || !sameGuidanceProvenance(rawGuidance, verified.provenance)) return { invalidGuidance: true as const };
+        bundleCaptionGuidance = { [copy.data.platform]: verified.receipt };
+      }
     }
     if (body.scheduleRequest && !Object.hasOwn(body.captions, body.scheduleRequest.platform)) return null;
     if (body.assetId) {
@@ -255,6 +280,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
         sourceVariantId: body.variantId,
         publishIntent: body.scheduleRequest ? { action: 'schedule', platform: body.scheduleRequest.platform, scheduledAt: body.scheduleRequest.scheduledAt } : null,
         captions: body.captions,
+        captionGuidance: bundleCaptionGuidance,
         hashtags: body.hashtags,
         // Compliance reports are produced by the trusted generation/worker
         // path. Never accept a browser-supplied report as an approval input.
@@ -275,6 +301,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
       payload: { bundleId: row.id }, dedupeParts: ['tos.scan', row.id] });
     return row;
   });
+  if (inserted && 'invalidGuidance' in inserted) return apiError(c, 409, statusTitle(409), 'Variant guidance could not be re-verified against the source bundle');
   if (!inserted) return apiError(c, 404, statusTitle(404), 'Model or saved media unavailable; review requires JPEG, PNG or MP4');
   return c.json({ data: inserted }, 201);
 });

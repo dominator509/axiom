@@ -18,6 +18,11 @@ export interface CaptionGuidanceReceipt {
   context: string;
   exemplarIds: string[];
   captionSha256: string;
+  /** Optional bounded evidence; absence means the value was not known. */
+  hookType?: string;
+  format?: string;
+  postingHourUtc?: number;
+  timingBucket?: 'morning' | 'afternoon' | 'evening' | 'night';
 }
 
 /** Existing photoshoot controls captured for immutable publication evidence. */

@@ -46,12 +46,14 @@ import { assetPreview } from '../asset-preview.js';
 vi.mock('../asset-preview.js', () => ({ assetPreview: vi.fn() }));
 import { enqueueJob, resolveCapabilities } from '@axiom/worker';
 import { getPublishingConsentStatus, getTosScanState } from '@axiom/db';
+import { captionSha256 } from '../variant-guidance.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 const BUNDLE_ID = '33333333-3333-4333-8333-333333333333';
 const INSTAGRAM_CONNECTION_ID = '44444444-4444-4444-8444-444444444444';
 const X_CONNECTION_ID = '55555555-5555-4555-8555-555555555555';
+const GUIDANCE_BUNDLE_ID = '66666666-6666-4666-8666-666666666666';
 
 describe('generation safety snapshot', () => {
   it.each(['failed', 'pending', 'completed', 'missing'] as const)('reports durable scan state %s without redispatching', async state => {
@@ -198,6 +200,7 @@ beforeEach(() => {
   mockState.updates = [];
   mockState.result = [];
   mockState.results = [];
+  mockState.insertValues = [];
   vi.mocked(enqueueJob).mockClear();
   vi.mocked(getPublishingConsentStatus).mockClear();
   vi.mocked(getTosScanState).mockReset().mockResolvedValue('completed');
@@ -289,6 +292,30 @@ describe('POST / — create bundle', () => {
     expect(response.status).toBe(201);
     expect(mockState.insertValues[0]).toMatchObject({ sourceVariantId: INSTAGRAM_CONNECTION_ID, assetId: asset.id, captions: { instagram: 'Saved vase caption' }, tosReport: { verdict: 'pending' } });
     expect(enqueueJob).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ kind: 'tos.scan' }));
+  });
+  it('re-verifies stored guidance against its source bundle before creating review', async () => {
+    mockState.insertValues = [];
+    const caption = 'Saved vase caption';
+    const receipt = { version: 'caption-guidance-v1' as const, selectedArm: 'short:question', context: 'learn-v1:scheduled-utc-unknown', exemplarIds: [], captionSha256: captionSha256(caption), hookType: 'question' };
+    const sourceBundle = { id: GUIDANCE_BUNDLE_ID, sourceVariantId: null, assetId: X_CONNECTION_ID, captions: { instagram: caption }, captionGuidance: { instagram: receipt } };
+    const { exemplarIds: _exemplarIds, ...receiptWithoutExemplars } = receipt;
+    const provenance = { ...receiptWithoutExemplars, sourceBundleId: GUIDANCE_BUNDLE_ID, sourceVariantId: null, platform: 'instagram' };
+    const asset = { id: X_CONNECTION_ID, orgId: ORG_ID, modelId: MODEL_ID, mimeType: 'image/jpeg' };
+    mockState.results = [[], [{ orgId: ORG_ID }], [{ id: INSTAGRAM_CONNECTION_ID, assetId: asset.id, outputAssetId: asset.id, variantType: 'caption', settings: { copy: { platform: 'instagram', text: caption }, guidance: provenance } }], [sourceBundle], [asset], [{ id: BUNDLE_ID }]];
+    vi.mocked(assetPreview).mockResolvedValue(new Response(null));
+    const response = await appWithOrg(ORG_ID).request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ modelId: MODEL_ID, variantId: INSTAGRAM_CONNECTION_ID }) });
+    expect(response.status).toBe(201);
+    expect(mockState.insertValues[0]).toMatchObject({ captionGuidance: { instagram: receipt } });
+  });
+  it('blocks review when stored guidance no longer matches the source bundle', async () => {
+    const caption = 'Saved vase caption';
+    const receipt = { version: 'caption-guidance-v1' as const, selectedArm: null, context: 'learn-v1:scheduled-utc-unknown', exemplarIds: [], captionSha256: captionSha256(caption) };
+    const { exemplarIds: _exemplarIds, ...receiptWithoutExemplars } = receipt;
+    const provenance = { ...receiptWithoutExemplars, sourceBundleId: GUIDANCE_BUNDLE_ID, sourceVariantId: null, platform: 'instagram' };
+    mockState.results = [[], [{ orgId: ORG_ID }], [{ id: INSTAGRAM_CONNECTION_ID, assetId: X_CONNECTION_ID, outputAssetId: X_CONNECTION_ID, variantType: 'caption', settings: { copy: { platform: 'instagram', text: caption }, guidance: provenance } }], [{ id: GUIDANCE_BUNDLE_ID, sourceVariantId: null, assetId: X_CONNECTION_ID, captions: { instagram: 'Edited source' }, captionGuidance: { instagram: receipt } }]];
+    const response = await appWithOrg(ORG_ID).request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ modelId: MODEL_ID, variantId: INSTAGRAM_CONNECTION_ID }) });
+    expect(response.status).toBe(409);
+    expect(mockState.insertValues).toEqual([]);
   });
   it('rejects overriding copy in an attributed variant review', async () => {
     const response = await appWithOrg(ORG_ID).request('/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ modelId: MODEL_ID, variantId: INSTAGRAM_CONNECTION_ID, captions: { instagram: 'Different copy' } }) });
