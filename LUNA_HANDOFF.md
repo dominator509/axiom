@@ -40,6 +40,8 @@ ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R3-CURRENT-TASK`
 ACTIVE_LANE_SOURCE_TRANSPORT: `VERIFIED — remote checksum matches; implementation not yet started`
 ACTIVE_LANE_TRANSPORT_NAMING: `VERIFIED — current task and correction filenames equal msg_id; historical mismatches are ineligible and untouched`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id must equal filename stem; no renames or hand-written replies`
+HISTORICAL_REPLY_MISMATCH_DECISION: `C — do not patch the bridge helper or rename stale inbox files; reissue a fresh superseding task with exact filename/msg_id only when that architecture lane is selected`
+HISTORICAL_REPLY_MISMATCH_SCOPE: `scraper and other non-current lanes; not evidence against the active F-31 R3 transport`
 ACTIVE_LANE_BASELINE: `F-31 assigned-LLM private draft gap; source-only, no runtime/provider/live action`
 ACTIVE_LANE_TRANSPORT_CLOSE_WIRE: `NOT_APPLICABLE`
 ACTIVE_LANE_TRANSPORT_CLOSE_REASON: `NOT_APPLICABLE`

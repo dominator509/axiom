@@ -980,3 +980,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19 | [AXIOM][P4][M659] Rejected Hermes R3 accepted-terminal contradiction; sent the final narrow correction requiring nonterminal acceptance before implementation
 2026-09-19 | [AXIOM][P4][M660] Validated Hermes nonterminal ACK/ACCEPTED seq6 and sent Codex READ receipt seq7; implementation ownership is now Hermes pending concrete PROGRESS
 2026-09-19 | [AXIOM][P4][M661] Sent one explicit resume receipt seq8 after accepted Hermes ownership remained without PROGRESS; no duplicate feature task opened
+2026-09-19 | [AXIOM][P4][M662] Chose the no-mutation bridge decision for stale filename-mismatched lanes; current F-31 transport remains canonical and unaffected
