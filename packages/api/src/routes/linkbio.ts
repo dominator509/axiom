@@ -6,7 +6,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
-import { sql, eq, and, desc } from 'drizzle-orm';
+import { sql, eq, and, desc, inArray } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
@@ -33,6 +33,24 @@ const PROVIDER_KINDS = ['native'] as const;
 const UTM_KEY = /^utm_[a-z][a-z0-9_]{0,31}$/;
 const MAX_UTM_VALUE_LENGTH = 120;
 
+const attributionUtmSchema = z.object({
+  utm_source: z.string().trim().min(1).max(MAX_UTM_VALUE_LENGTH).optional(),
+  utm_medium: z.string().trim().min(1).max(MAX_UTM_VALUE_LENGTH).optional(),
+  utm_campaign: z.string().trim().min(1).max(MAX_UTM_VALUE_LENGTH).optional(),
+  utm_content: z.string().trim().min(1).max(MAX_UTM_VALUE_LENGTH).optional(),
+  utm_term: z.string().trim().min(1).max(MAX_UTM_VALUE_LENGTH).optional(),
+}).strict().default({});
+
+const attributionEventSchema = z.object({
+  eventKey: z.string().trim().min(1).max(240),
+  kind: z.enum(['subscription', 'ppv_purchase', 'subscription_refund']),
+  amountCents: z.number().int().min(0).max(1_000_000_000),
+  currency: z.string().regex(/^[A-Z]{3}$/).default('USD'),
+  occurredAt: z.string().datetime({ offset: true }),
+  shortLinkId: z.string().uuid().optional(),
+  utm: attributionUtmSchema,
+}).strict();
+
 const nativeLinkInput = z.object({
   label: z.string().trim().min(1).max(120),
   url: z.string().trim().min(1).max(2048).refine((value) => {
@@ -51,6 +69,9 @@ const enableSchema = z.object({
 
 type NativeLink = { label: string; url: string; utm: Record<string, string> };
 type PublicNativeLink = NativeLink & { slug: string };
+type AttributionLink = { id: string; utm: Record<string, string> | null };
+type AttributionReportLink = { id: string; slug: string; targetUrl: string };
+type AttributionEventSummary = { shortLinkId: string | null; kind: string; amountCents: number };
 
 function nativeLinks(config: unknown): NativeLink[] {
   if (!config || typeof config !== 'object' || Array.isArray(config)) return [];
@@ -411,6 +432,150 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
   return c.json({ data });
 });
 
+// POST /models/:id/linkbio/attribution-events — ingest one authoritative,
+// idempotent Fanvue subscription/PPV fact. This is an ingestion seam for the
+// connector/MCP path; it never calls a provider and never stores raw payloads.
+router.post(
+  '/models/:modelId/linkbio/attribution-events',
+  zValidator('json', attributionEventSchema),
+  async (c) => {
+    const orgId = requireOrg(c);
+    const userId = c.get('userId');
+    if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authenticated workspace required');
+    const modelId = c.req.param('modelId');
+    const body = c.req.valid('json');
+
+    const result = await withOrgContext(orgId, async (tx) => {
+      const models = await tx.select({ id: schema.modelProfile.id })
+        .from(schema.modelProfile)
+        .where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId)))
+        .limit(1);
+      if (models.length === 0) return { status: 404 as const, error: 'model not found' };
+
+      const links = await tx.select({ id: schema.shortLink.id, utm: schema.shortLink.utm })
+        .from(schema.shortLink)
+        .where(and(eq(schema.shortLink.orgId, orgId), eq(schema.shortLink.modelId, modelId)))
+        .limit(1001) as AttributionLink[];
+      if (links.length > 1000) return { status: 409 as const, error: 'too many model short links to resolve attribution safely' };
+
+      let shortLinkId: string | null = null;
+      if (body.shortLinkId) {
+        if (!links.some((link) => link.id === body.shortLinkId)) {
+          return { status: 404 as const, error: 'short link is not assigned to this model' };
+        }
+        shortLinkId = body.shortLinkId;
+      } else {
+        const matching = links.filter((link) => {
+          const saved = (link.utm ?? {}) as Record<string, string>;
+          return Object.entries(body.utm).every(([key, value]) => saved[key] === value);
+        });
+        if (matching.length > 1) return { status: 409 as const, error: 'attribution UTM context matches multiple short links' };
+        if (matching.length === 1) shortLinkId = matching[0].id;
+      }
+
+      const values = {
+        orgId,
+        modelId,
+        shortLinkId,
+        source: 'fanvue' as const,
+        eventKey: body.eventKey,
+        kind: body.kind,
+        amountCents: body.amountCents,
+        currency: body.currency,
+        utm: body.utm,
+        occurredAt: new Date(body.occurredAt),
+      };
+      const inserted = await tx.insert(schema.linkbioAttributionEvent).values(values)
+        .onConflictDoNothing({
+          target: [schema.linkbioAttributionEvent.orgId, schema.linkbioAttributionEvent.source, schema.linkbioAttributionEvent.eventKey],
+        })
+        .returning();
+      if (inserted.length > 0) {
+        await writeAudit(tx, orgId, userId, 'linkbio.attribution.ingest', modelId, {
+          source: 'fanvue', kind: body.kind, attributed: Boolean(shortLinkId),
+        });
+        return { status: 201 as const, data: inserted[0], duplicate: false };
+      }
+
+      const existing = await tx.select().from(schema.linkbioAttributionEvent).where(and(
+        eq(schema.linkbioAttributionEvent.orgId, orgId),
+        eq(schema.linkbioAttributionEvent.source, 'fanvue'),
+        eq(schema.linkbioAttributionEvent.eventKey, body.eventKey),
+      )).limit(1);
+      if (existing.length === 0) return { status: 409 as const, error: 'attribution event could not be reconciled' };
+      const prior = existing[0];
+      if (prior.modelId !== modelId || prior.kind !== body.kind || prior.amountCents !== body.amountCents || prior.currency !== body.currency) {
+        return { status: 409 as const, error: 'event key is already bound to a different attribution event' };
+      }
+      return { status: 200 as const, data: prior, duplicate: true };
+    });
+
+    if ('error' in result) return apiError(c, result.status, statusTitle(result.status), result.error ?? 'attribution event rejected');
+    return c.json({ data: result.data, duplicate: result.duplicate }, result.status);
+  },
+);
+
+// GET /models/:id/linkbio/attribution — bounded first-party revenue join.
+// ROI is intentionally reported as unavailable until campaign cost data is an
+// architecture-backed contract; revenue and conversion counts are real facts.
+router.get('/models/:modelId/linkbio/attribution', async (c) => {
+  const orgId = requireOrg(c);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const modelId = c.req.param('modelId');
+
+  const data = await withOrgContext(orgId, async (tx) => {
+    const models = await tx.select({ id: schema.modelProfile.id })
+      .from(schema.modelProfile)
+      .where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId)))
+      .limit(1);
+    if (models.length === 0) return null;
+    const links = await tx.select({ id: schema.shortLink.id, slug: schema.shortLink.slug, targetUrl: schema.shortLink.targetUrl })
+      .from(schema.shortLink)
+      .where(and(eq(schema.shortLink.orgId, orgId), eq(schema.shortLink.modelId, modelId)))
+      .limit(1001) as AttributionReportLink[];
+    if (links.length > 1000) return null;
+    const shortLinkIds = links.map((link) => link.id);
+    const clicks: Array<{ shortLinkId: string | null }> = shortLinkIds.length === 0 ? [] : await tx.select({ shortLinkId: schema.linkbioClick.shortLinkId })
+      .from(schema.linkbioClick)
+      .where(and(eq(schema.linkbioClick.orgId, orgId), inArray(schema.linkbioClick.shortLinkId, shortLinkIds)));
+    const events = await tx.select({
+      shortLinkId: schema.linkbioAttributionEvent.shortLinkId,
+      kind: schema.linkbioAttributionEvent.kind,
+      amountCents: schema.linkbioAttributionEvent.amountCents,
+    }).from(schema.linkbioAttributionEvent).where(and(
+      eq(schema.linkbioAttributionEvent.orgId, orgId),
+      eq(schema.linkbioAttributionEvent.modelId, modelId),
+    )) as AttributionEventSummary[];
+    const clicksByLink = new Map<string, number>();
+    for (const click of clicks) if (click.shortLinkId) clicksByLink.set(click.shortLinkId, (clicksByLink.get(click.shortLinkId) ?? 0) + 1);
+    const eventsByLink = new Map<string, { conversions: number; revenueCents: number }>();
+    let unattributedConversions = 0;
+    for (const event of events) {
+      if (!event.shortLinkId) { unattributedConversions += 1; continue; }
+      const current = eventsByLink.get(event.shortLinkId) ?? { conversions: 0, revenueCents: 0 };
+      current.conversions += 1;
+      current.revenueCents += event.kind === 'subscription_refund' ? -event.amountCents : event.amountCents;
+      eventsByLink.set(event.shortLinkId, current);
+    }
+    const rows = links.map((link) => {
+      const event = eventsByLink.get(link.id) ?? { conversions: 0, revenueCents: 0 };
+      return { ...link, clicks: clicksByLink.get(link.id) ?? 0, ...event };
+    });
+    const totalClicks = rows.reduce((sum, row) => sum + row.clicks, 0);
+    const attributedConversions = rows.reduce((sum, row) => sum + row.conversions, 0);
+    return {
+      currency: 'USD', totalClicks, attributedConversions, unattributedConversions,
+      attributedRevenueCents: rows.reduce((sum, row) => sum + row.revenueCents, 0),
+      conversionRate: totalClicks > 0 ? attributedConversions / totalClicks : 0,
+      roi: null,
+      roiStatus: 'unavailable_without_campaign_costs',
+      links: rows,
+    };
+  });
+  if (!data) return apiError(c, 404, statusTitle(404), 'model not found');
+  return c.json({ data });
+});
+
 // POST /linkbio/clicks — record a click (used by the served native page)
 router.post(
   '/linkbio/clicks',
@@ -499,6 +664,7 @@ async function recordNativeShortLinkClick(
   await tx.insert(schema.linkbioClick).values({
     orgId,
     providerId: page.provider.id,
+    shortLinkId: updated[0].id,
     target: link.url,
     source,
     ts: new Date(),

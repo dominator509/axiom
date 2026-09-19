@@ -2,6 +2,7 @@ import { pgTable, uuid, text, timestamp } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { org } from './org.js';
 import { linkbioProvider } from './linkbio_provider.js';
+import { shortLink } from './short_link.js';
 
 export const linkbioClick = pgTable('linkbio_click', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -11,6 +12,7 @@ export const linkbioClick = pgTable('linkbio_click', {
   providerId: uuid('provider_id')
     .notNull()
     .references(() => linkbioProvider.id, { onDelete: 'cascade' }),
+  shortLinkId: uuid('short_link_id').references(() => shortLink.id, { onDelete: 'set null' }),
   target: text('target').notNull(),
   source: text('source'),
   ts: timestamp('ts', { withTimezone: true }).notNull().defaultNow(),
@@ -24,5 +26,9 @@ export const linkbioClickRelations = relations(linkbioClick, ({ one }) => ({
   provider: one(linkbioProvider, {
     fields: [linkbioClick.providerId],
     references: [linkbioProvider.id],
+  }),
+  shortLink: one(shortLink, {
+    fields: [linkbioClick.shortLinkId],
+    references: [shortLink.id],
   }),
 }));

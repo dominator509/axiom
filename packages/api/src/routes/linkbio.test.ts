@@ -37,6 +37,7 @@ beforeEach(() => {
   mockState.results = [];
   mockState.updates = [];
   mockState.conflictUpdates = [];
+  mockState.insertValues = [];
 });
 
 afterEach(() => {
@@ -249,6 +250,75 @@ describe('GET /models/:modelId/linkbio/analytics', () => {
     const body = (await res.json()) as any;
     expect(body.data.providers).toBeDefined();
     expect(body.data.totalClicks).toBe(0);
+  });
+});
+
+describe('Fanvue attribution events', () => {
+  const SHORT_LINK_ID = '44444444-4444-4444-8444-444444444444';
+
+  it('ingests one model-scoped event, resolves the UTM short link, and is idempotent by event key', async () => {
+    mockState.results = [
+      [],
+      [{ id: MODEL_ID }],
+      [{ id: SHORT_LINK_ID, utm: { utm_source: 'axiom', utm_medium: 'linkbio', utm_content: 'native-1' } }],
+      [{ id: '55555555-5555-4555-8555-555555555555', modelId: MODEL_ID, kind: 'subscription', amountCents: 1200, currency: 'USD' }],
+      [],
+      [],
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/attribution-events`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        eventKey: 'fanvue-event-1', kind: 'subscription', amountCents: 1200,
+        occurredAt: '2026-01-01T00:00:00.000Z',
+        utm: { utm_source: 'axiom', utm_medium: 'linkbio', utm_content: 'native-1' },
+      }),
+    });
+    expect(res.status).toBe(201);
+    expect(mockState.insertValues[0]).toMatchObject({
+      orgId: ORG_ID, modelId: MODEL_ID, shortLinkId: SHORT_LINK_ID,
+      source: 'fanvue', eventKey: 'fanvue-event-1', amountCents: 1200,
+    });
+
+    mockState.results = [
+      [],
+      [{ id: MODEL_ID }],
+      [{ id: SHORT_LINK_ID, utm: { utm_source: 'axiom', utm_medium: 'linkbio', utm_content: 'native-1' } }],
+      [],
+      [{ id: '55555555-5555-4555-8555-555555555555', modelId: MODEL_ID, kind: 'subscription', amountCents: 1200, currency: 'USD' }],
+    ];
+    const duplicate = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/attribution-events`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        eventKey: 'fanvue-event-1', kind: 'subscription', amountCents: 1200,
+        occurredAt: '2026-01-01T00:00:00.000Z',
+        utm: { utm_source: 'axiom', utm_medium: 'linkbio', utm_content: 'native-1' },
+      }),
+    });
+    expect(duplicate.status).toBe(200);
+    expect(await duplicate.json()).toMatchObject({ duplicate: true });
+  });
+
+  it('reports attributed revenue separately from unattributed events and does not invent ROI', async () => {
+    mockState.results = [
+      [],
+      [{ id: MODEL_ID }],
+      [{ id: SHORT_LINK_ID, slug: 'native-one', targetUrl: 'https://fanvue.example/creator' }],
+      [{ shortLinkId: SHORT_LINK_ID }, { shortLinkId: null }],
+      [
+        { shortLinkId: SHORT_LINK_ID, kind: 'subscription', amountCents: 1200 },
+        { shortLinkId: null, kind: 'ppv_purchase', amountCents: 500 },
+      ],
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/attribution`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ data: {
+      totalClicks: 1, attributedConversions: 1, unattributedConversions: 1,
+      attributedRevenueCents: 1200, roi: null,
+      roiStatus: 'unavailable_without_campaign_costs',
+      links: [{ slug: 'native-one', clicks: 1, conversions: 1, revenueCents: 1200 }],
+    } });
   });
 });
 

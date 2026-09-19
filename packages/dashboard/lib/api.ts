@@ -543,6 +543,8 @@ export const api = {
     linkbio: (id: string) => apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio`),
     linkbioAnalytics: (id: string) =>
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio/analytics`),
+    linkbioAttribution: (id: string) =>
+      apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio/attribution`),
     relayBindings: (id: string) =>
       apiFetch<{ data: RelayBinding[]; meta?: { total: number } }>(`/api/v1/models/${id}/relay-bindings`),
     relayCards: (id: string, cursor?: string) => {

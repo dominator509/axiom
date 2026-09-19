@@ -18,6 +18,18 @@ interface LinkbioAnalytics {
   topTargets: Array<{ target: string; count: number }>;
 }
 
+interface LinkbioAttribution {
+  currency: string;
+  totalClicks: number;
+  attributedConversions: number;
+  unattributedConversions: number;
+  attributedRevenueCents: number;
+  conversionRate: number;
+  roi: number | null;
+  roiStatus: string;
+  links: Array<{ slug: string; targetUrl: string; clicks: number; conversions: number; revenueCents: number }>;
+}
+
 interface LinkbioData {
   providers: ProviderRow[];
   primary: ProviderRow | null;
@@ -30,6 +42,7 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   let data: LinkbioData | null = null;
   let analytics: LinkbioAnalytics | null = null;
+  let attribution: LinkbioAttribution | null = null;
   try {
     data = (await api.models.linkbio(id)).data as unknown as LinkbioData;
   } catch {
@@ -39,6 +52,11 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
     analytics = (await api.models.linkbioAnalytics(id)).data as unknown as LinkbioAnalytics;
   } catch {
     analytics = null;
+  }
+  try {
+    attribution = (await api.models.linkbioAttribution(id)).data as unknown as LinkbioAttribution;
+  } catch {
+    attribution = null;
   }
 
   return (
@@ -90,6 +108,34 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {attribution && (
+        <div className="card">
+          <h3>Fanvue attribution</h3>
+          <p style={{ color: 'var(--muted)', fontSize: 12 }}>
+            Revenue facts joined from authoritative Fanvue events. ROI stays unavailable until campaign cost data is configured.
+          </p>
+          <div className="row" style={{ gap: 16, flexWrap: 'wrap' }}>
+            <span><strong>{attribution.totalClicks}</strong> tracked clicks</span>
+            <span><strong>{attribution.attributedConversions}</strong> attributed conversions</span>
+            <span><strong>{attribution.unattributedConversions}</strong> unattributed conversions</span>
+            <span><strong>{(attribution.attributedRevenueCents / 100).toFixed(2)} {attribution.currency}</strong> attributed revenue</span>
+            <span><strong>{(attribution.conversionRate * 100).toFixed(2)}%</strong> click-to-conversion</span>
+          </div>
+          {attribution.links.length > 0 && (
+            <table style={{ marginTop: 8 }}>
+              <thead><tr><th>Short link</th><th>Clicks</th><th>Conversions</th><th>Revenue</th></tr></thead>
+              <tbody>{attribution.links.map((link) => (
+                <tr key={link.slug}>
+                  <td>{link.slug}</td>
+                  <td>{link.clicks}</td>
+                  <td>{link.conversions}</td>
+                  <td>{(link.revenueCents / 100).toFixed(2)} {attribution.currency}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          )}
         </div>
       )}
     </div>

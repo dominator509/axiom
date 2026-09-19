@@ -43,6 +43,7 @@ import { fanvueMetric, fanvueMetricRelations } from './fanvue_metric.js';
 import { campaign, campaignRelations } from './campaign.js';
 import { triggerRule, triggerRuleRelations } from './trigger_rule.js';
 import { linkbioAnalytics, linkbioAnalyticsRelations } from './linkbio_analytics.js';
+import { linkbioAttributionEvent, linkbioAttributionEventRelations } from './linkbio_attribution_event.js';
 import { relayBinding, relayBindingRelations } from './relay_binding.js';
 import { agentPermission, agentPermissionRelations } from './agent_permission.js';
 import { crashReport, crashReportRelations } from './crash_report.js';
@@ -117,6 +118,7 @@ export { fanvueMetric, fanvueMetricRelations };
 export { campaign, campaignRelations };
 export { triggerRule, triggerRuleRelations };
 export { linkbioAnalytics, linkbioAnalyticsRelations };
+export { linkbioAttributionEvent, linkbioAttributionEventRelations };
 export { relayBinding, relayBindingRelations };
 export { agentPermission, agentPermissionRelations };
 export { crashReport, crashReportRelations };
@@ -215,6 +217,7 @@ export const allRelations = [
   campaignRelations,
   triggerRuleRelations,
   linkbioAnalyticsRelations,
+  linkbioAttributionEventRelations,
   relayBindingRelations,
   agentPermissionRelations,
   crashReportRelations,

@@ -76,6 +76,8 @@ import {
   triggerRuleRelations,
   linkbioAnalytics,
   linkbioAnalyticsRelations,
+  linkbioAttributionEvent,
+  linkbioAttributionEventRelations,
   relayBinding,
   relayBindingRelations,
   agentPermission,
@@ -232,6 +234,8 @@ describe('schema index', () => {
     expect(campaign).toBeDefined();
     expect(triggerRule).toBeDefined();
     expect(linkbioAnalytics).toBeDefined();
+    expect(linkbioAttributionEvent).toBeDefined();
+    expect(linkbioAttributionEventRelations).toBeDefined();
     expect(relayBinding).toBeDefined();
     expect(agentPermission).toBeDefined();
     expect(mcpTokenRevocation).toBeDefined();
@@ -290,7 +294,7 @@ describe('schema index', () => {
   });
 
   it('allRelations contains exactly the relation configs', () => {
-    expect(allRelations).toHaveLength(71);
+    expect(allRelations).toHaveLength(72);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -365,6 +369,7 @@ describe('schema index', () => {
         'patreon_post',
         'patreon_sync_state',
         'patreon_webhook_event',
+        'linkbio_attribution_event',
       ].sort(),
     );
   });
@@ -1494,6 +1499,28 @@ describe('linkbio_analytics table', () => {
         fields: ['provider_id'],
         references: ['id'],
       },
+    });
+  });
+});
+
+describe('linkbio_attribution_event table', () => {
+  it('is append-only provider revenue evidence with bounded identity fields', () => {
+    expect(tableName(linkbioAttributionEvent)).toBe('linkbio_attribution_event');
+    const cols = columnsOf(linkbioAttributionEvent);
+    expect(cols.source.default).toBe('fanvue');
+    expect(cols.eventKey.notNull).toBe(true);
+    expect(cols.amountCents.notNull).toBe(true);
+    expect(cols.utm.notNull).toBe(true);
+    expect(foreignKeysOf(linkbioAttributionEvent).map((fk) => tableName(fk.foreignTable))).toEqual(
+      expect.arrayContaining(['org', 'model_profile', 'short_link']),
+    );
+  });
+
+  it('relates to org, model and short link without exposing provider payloads', () => {
+    expect(relationNames(linkbioAttributionEventRelations)).toEqual({
+      org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      shortLink: { type: 'One', table: 'short_link', fieldName: 'shortLink', fields: ['short_link_id'], references: ['id'] },
     });
   });
 });
