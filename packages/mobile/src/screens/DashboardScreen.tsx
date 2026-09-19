@@ -259,7 +259,8 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
               ) : null}
               <Text style={styles.itemMeta}>
                 {new Date(digest.createdAt).toLocaleString(locale)} ·{' '}
-                {digest.channel ?? t('mobile.unknownChannel')}
+                {digest.channel ?? t('mobile.unknownChannel')} ·{' '}
+                {digest.externalDelivery === 'not-attempted' ? 'Stored only' : digest.externalDelivery === 'attempted' ? 'Dispatch attempted' : 'Outcome unknown'}
               </Text>
             </View>
           ))

@@ -1,46 +1,53 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import LoginForm from '@/components/LoginForm';
+import LocaleProvider from '@/components/LocaleProvider';
+import { CATALOGS, LocaleCatalog, resolveLocale } from '@axiom/core';
 
 export const metadata: Metadata = { title: 'Sign in' };
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const requestHeaders = await headers();
+  const locale = resolveLocale({ acceptLanguage: requestHeaders.get('accept-language') }).locale;
+  const copy = new LocaleCatalog(CATALOGS);
+  const t = (key: string, values?: Record<string, string | number>) => copy.t(locale, key, values);
+
   return (
+    <LocaleProvider initialLocale={locale}>
     <div className="login-page">
-      <section className="login-story" aria-label="FanThynks introduction">
+      <section className="login-story" aria-label={t('auth.introduction')}>
         <div className="brand login-brand">
           <span className="brand-mark">F</span>
           <span className="brand-copy">
             <strong>FanThynks</strong>
-            <small>Creator intelligence</small>
+            <small>{t('brand.creatorIntelligence')}</small>
           </span>
         </div>
         <div className="login-story-copy">
-          <p className="eyebrow">Your private creator OS</p>
+          <p className="eyebrow">{t('auth.privateCreatorOs')}</p>
           <h1>
-            Run your world.
+            {t('auth.runWorld')}
             <br />
-            <em>Beautifully.</em>
+            <em>{t('auth.beautifully')}</em>
           </h1>
-          <p>
-            One elegant command center for content, community, growth, and the business behind your
-            brand.
-          </p>
+          <p>{t('auth.description')}</p>
         </div>
         <div className="trust-row">
-          <span>Private by design</span>
-          <span>Self-hosted</span>
-          <span>Always in control</span>
+          <span>{t('auth.privateByDesign')}</span>
+          <span>{t('auth.selfHosted')}</span>
+          <span>{t('auth.alwaysInControl')}</span>
         </div>
       </section>
       <section className="login-panel">
         <div className="login-card">
-          <p className="eyebrow">Welcome back</p>
-          <h2>Enter your studio</h2>
-          <p className="subtle">Sign in to continue to your private workspace.</p>
+          <p className="eyebrow">{t('auth.welcomeBack')}</p>
+          <h2>{t('auth.enterStudio')}</h2>
+          <p className="subtle">{t('auth.signInContinue')}</p>
           <LoginForm allowSignup={process.env.AXIOM_ENABLE_LOCAL_SIGNUP === '1'} />
-          <p className="login-footnote">Protected by encrypted, tenant-isolated access.</p>
+          <p className="login-footnote">{t('auth.protected')}</p>
         </div>
       </section>
     </div>
+    </LocaleProvider>
   );
 }

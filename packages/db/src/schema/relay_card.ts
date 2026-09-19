@@ -9,6 +9,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
+import type { RelayCardState } from '@axiom/core';
 import { org } from './org.js';
 import { contentBundle } from './content_bundle.js';
 import { relayCommand } from './relay_command.js';
@@ -26,7 +27,7 @@ export const relayCard = pgTable(
     bundleId: uuid('bundle_id').references(() => contentBundle.id),
     channel: text('channel'),
     externalRef: text('external_ref'),
-    state: text('state').notNull().default('sent'),
+    state: text('state').$type<RelayCardState>().notNull().default('sent'),
     title: text('title').notNull().default(''),
     description: text('description'),
     icon: text('icon'),

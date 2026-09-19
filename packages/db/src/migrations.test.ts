@@ -165,6 +165,13 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(sql).toContain('deduplicate before applying 0023');
   });
 
+  it('makes the stored-vs-dispatched relay-card lifecycle explicit', () => {
+    expect(sql).toContain('relay_card_state_allowed');
+    expect(sql).toContain("state NOT IN ('stored', 'pending', 'sent', 'failed', 'unknown')");
+    expect(sql).toContain("CHECK (state IN ('stored', 'pending', 'sent', 'failed', 'unknown'))");
+    expect(sql).toContain('stored means no external dispatch was attempted');
+  });
+
   it('locks the trusted cross-org egress resolver to the runtime and migrator roles', () => {
     expect(sql).toContain('CREATE OR REPLACE FUNCTION load_model_network_configs()');
     expect(sql).toContain('RETURNS SETOF public.model_network_configs');

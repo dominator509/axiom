@@ -254,7 +254,7 @@ health endpoints alone never closes a gate.
 
 ### 14. Localization and language switching — new owner extension; source slice in progress
 
-- Define the shared F-89 locale contract for `en`, `es`, `ja`, `it`, `pt-BR` and `de`; normalize BCP-47 tags and keep UI locale separate from creator/model content locale. The source slice now consumes that contract in the dashboard shell/navigation/settings and mobile dashboard/selector; the authenticated dashboard shell now also localizes workspace, home, role, pending-access, footer and system-health copy. Remaining surfaces and browser/deployed evidence stay open.
+- Define the shared F-89 locale contract for `en`, `es`, `ja`, `it`, `pt-BR` and `de`; normalize BCP-47 tags and keep UI locale separate from creator/model content locale. The source slice now consumes that contract in the dashboard shell/navigation/settings, authenticated login hero/form/error/session copy, and mobile dashboard/selector; the authenticated dashboard shell also localizes workspace, home, role, pending-access, footer and system-health copy. Remaining dashboard/email/operator surfaces and browser/deployed evidence stay open.
 - Add persisted user preference plus organization default with explicit user choice taking precedence over browser detection; preserve the setting across dashboard, native mobile, auth, email and operator surfaces.
 - Create a typed shared message-catalog package with English fallback, ICU plural/select messages, `Intl` number/currency/date/time-zone formatting, accessible `lang` metadata and a missing-key test that fails closed.
 - Replace inline user-facing strings and hard-coded `en-US` formatting only in touched surfaces; do not translate user/provider/generated content implicitly. Translation actions must be explicit, bounded and audited.
@@ -532,3 +532,21 @@ auth 28/28 and mobile 23/23 passed; dashboard production build and mobile
 web export passed. The disposable fixture was removed. No live, provider,
 migration, database, permission, service, browser or deployment action
 occurred; external and operational acceptance gates remain open.
+
+### M550 — F-85 state contract and F-89 authenticated localization correction
+
+Hermes F-85 R3 was reviewed as terminal `BLOCKED`, not accepted delivery: its
+source correction introduced a persisted `stored` Relay-card state without a
+shared type/schema/migration contract. Codex implemented the missing contract
+locally. Relay-card states are now closed and fail-closed; authored migration
+0056 validates existing values and constrains future rows; digest creation
+records durable `stored` evidence with `externalDelivery: not-attempted`; API,
+dashboard and mobile surfaces distinguish storage from attempted external
+delivery. No migration was executed and no provider was contacted.
+
+The same correction extends F-89 localization into the actual login page/form,
+including hero copy, labels, placeholders, account actions, session advice and
+errors, using the existing six-locale catalog. Focused state/auth/layout/digest
+tests passed, dashboard typecheck passed, and the elevated production build
+passed. Remaining catalog adoption, formatting, browser/mobile, migration/RLS,
+provider, runtime and deployment gates remain open.

@@ -140,11 +140,13 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
   await tx.insert(schema.relayCard).values({
     orgId: job.org_id,
     channel: 'digest',
-    state: 'sent',
+    // The digest executor only stores an operator-visible card. It never
+    // invokes a channel adapter, so it must not claim external delivery.
+    state: 'stored',
     title: `Weekly digest — ${since.toISOString().slice(0, 10)}`,
     description,
     icon: '📊',
-    config: { digest },
+    config: { digest, externalDelivery: 'not-attempted' },
     priority: 5,
   });
   if (typeof automaticId === 'string') await enqueueWeeklyDigest(tx, job.org_id, automaticId, until);

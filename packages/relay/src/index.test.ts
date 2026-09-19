@@ -26,6 +26,8 @@ describe('@axiom/relay index exports', () => {
       expect(typeof (relay as Record<string, unknown>)[name]).toBe('function');
     }
     expect(typeof relay.createRelayRoutes).toBe('function');
+    expect(typeof relay.isExternallyDispatched).toBe('function');
+    expect(typeof relay.relayCardExternalDelivery).toBe('function');
     expect(typeof (relay as Record<string, unknown>).metricsRegistry).toBe('undefined'); // not exported from root
   });
 

@@ -1603,11 +1603,11 @@ audited. The corrected artifact-gate wire is
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
-ACTIVE_LANE: HERMES-F85-INSIGHT-RELAY-R3 (source-only implementation reissued with writable bridge-directory copy root) + Codex audit/integration; remaining source/external gates stay open
+ACTIVE_LANE: CODEX-F85-STATE-CONTRACT + F89-AUTH-LOCALIZATION (Hermes F85 R3 audited and terminally blocked; Codex owns the reviewed source correction) + next bounded Hermes source lane; remaining source/external gates stay open
 LAST_ACCEPTED_CODE: 04be09e44914d42cf0671cdb4a872c7cfa7fb3f
-PUBLISHED_HEAD: 38ffefd3497380b122e2379c65eed80505644a12
+PUBLISHED_HEAD: ba63fc4dba6e75d07483335f349dd493d58e6306 (pre-M550; local M550 source/docs are pending publication)
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state, model dashboard and native mobile model/status/read/sync surface with scoped role boundaries are source-wired; F-10 source-wired visual month/week calendar with guarded drag and accessible date rescheduling plus advisory timing guidance; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
-NEXT_REQUIRED: Audit Hermes F-85 insight/Relay delivery only after a unique evidence-bearing PROGRESS and terminal DELIVERY or BLOCKED correlated to WIRE CODEX-F85-INSIGHT-RELAY-R3-START-001. Integrate only hash-verified current source, run owning tests, commit/push the reviewed milestone, and keep migration/RLS, provider, browser, operator and deployment gates explicitly open; no wall-clock or date comparison is part of the bridge protocol
+NEXT_REQUIRED: Finish the Codex-owned F85 state-contract and F89 authenticated-localization review, run the owning checks, commit/push and read back the exact head; then dispatch one new bounded Hermes source lane against that exact head with ACK/PROGRESS/DELIVERY-or-BLOCKED criteria. Do not reissue the rejected R5 copy. Keep migration/RLS, provider, browser, operator and deployment gates explicitly open; no wall-clock or date comparison is part of the bridge protocol
 HERMES_ACCOUNTABILITY: Codex sent `FUNCTIONAL-DELIVERY-STANDARD-R1`; Hermes must produce real source implementation in isolated copies, not plans, pure contracts, baseline copies or ACK-only responses. A DELIVERY is countable only with changed paths, per-file SHA256, exact commands and exit codes, behavior-level tests, and truthful LIVE_ACTIONS NONE; otherwise Hermes must return a terminal BLOCKED result with the exact blocker.
 HERMES_F89_TASK: `LOCALIZATION-MULTILINGUAL-FUNCTIONAL-R3`, WIRE `CODEX-LOCALIZATION-FUNCTIONAL-001`, source ref `57a8c47f8f6fa2d7be2f6920d3da88a374ce15c6`, isolated copy `/root/d001a-deliverable/localization-r3`; the corrective delivery-required message `codex-localization-functional-r3-delivery-required-001` supersedes silent waiting and requires changed source, behavior tests and a signed DELIVERY or exact BLOCKED result.
 HERMES_F89_AUTHORIZATION: Hermes returned a truthful terminal BLOCKED because COPY_ROOT was absent and source writes were not explicitly authorized. Codex has now issued `codex-localization-functional-r3-authorize-source-copy-002` with owner-authorized COPY_ROOT creation and source-only artifact writes; Hermes must not commit/push, and Codex retains review/integration/commit/push ownership.
@@ -1622,8 +1622,8 @@ HERMES_TEAM_R5_REVIEW: Codex reviewed `TEAM-SHIFT-CHATTER-COPY-R5` and rejected 
 HERMES_F85_TASK: R1 is terminally BLOCKED because its source pin was absent on Hermes' host and its copy root was not materializable. It produced no source change and is not accepted as delivery.
 HERMES_F85_R2_TASK: Codex reissued `CODEX-F85-INSIGHT-RELAY-R2` on exact source `48e10ea9959fcfeb5e5f49ebace7a5a4e5afa25c`, WIRE `CODEX-F85-INSIGHT-RELAY-R2-START-001`, and isolated COPY_ROOT `/srv/fanthynks-bridge/hermes/work/codex-f85-insight-relay-r2`. Hermes must first fetch/verify that exact SHA from `dominator509/axiom` (or return a concrete fetch failure), then copy only that SHA into the isolated root. The lane is limited to source-level F-85/F-28 insight evidence and truthful stored/queued/failed/unknown Relay status using existing contracts. Hermes must return unique ACK/ACCEPTED, one evidence-bearing PROGRESS, then one terminal DELIVERY or BLOCKED with changed paths, per-file hashes, focused behavior tests and exact exits; no commit, push, runtime, provider, database, migration or deployment action. All messages must use logical WIRE/SEQ/IN_REPLY_TO state and end with `sincerely, Codex` when sent by Codex.
 HERMES_F85_R2_TASK: R2 is terminally BLOCKED after resolving the exact source pin because `/srv/fanthynks-bridge/hermes/work` is not writable by Hermes. No source change or test was performed; no permission change is authorized.
-HERMES_F85_R3_TASK: Codex sent `CODEX-F85-INSIGHT-RELAY-R3` on exact source `ebc22f3d2502ca860e8072aaeb0ee874c07da244`, WIRE `CODEX-F85-INSIGHT-RELAY-R3-START-001`, and bridge-directory COPY_ROOT `/srv/fanthynks-bridge/hermes/codex-f85-insight-relay-r3`, whose parent Hermes verified writable. This is the one correction for the bridge-copy boundary. Hermes must return unique correlated ACK/ACCEPTED, one evidence-bearing PROGRESS, then terminal DELIVERY or BLOCKED with changed paths, per-file hashes, focused behavior tests and exact exits; no commit, push, runtime, provider, database, migration or deployment action.
-LOCAL_F89_SHELL_PROGRESS: On pushed head `7acd52c2cdd9488953d0de77ba3e72651b8a694f`, the dashboard shell now consumes the shared six-locale catalog for home/workspace/role/pending-access/footer/system-health copy with escaped email interpolation. Core 61/61, dashboard 730/730, dashboard typecheck and elevated `API_ORIGIN=http://127.0.0.1:3302 pnpm --filter @axiom/dashboard build` pass. Remaining page/auth/email/operator catalog adoption, locale formatting, browser/mobile and deployed gates stay open.
+HERMES_F85_R3_TASK: Codex sent `CODEX-F85-INSIGHT-RELAY-R3` on exact source `ebc22f3d2502ca860e8072aaeb0ee874c07da244`, WIRE `CODEX-F85-INSIGHT-RELAY-R3-START-001`, and bridge-directory COPY_ROOT `/srv/fanthynks-bridge/hermes/codex-f85-insight-relay-r3`, whose parent Hermes verified writable. Hermes returned a terminal BLOCKED after repairing the endpoint/namespace/direct-supervision source blockers but identifying the missing persisted `stored` state/schema contract; no Hermes source was integrated. Codex has now authored the explicit relay-card state contract and migration 0056 locally, with focused tests and UI/API truthfulness. No commit, push, runtime, provider, database, migration or deployment action occurred in the Hermes lane.
+LOCAL_F89_SHELL_PROGRESS: On pushed head `7acd52c2cdd9488953d0de77ba3e72651b8a694f`, the dashboard shell consumes the shared six-locale catalog for home/workspace/role/pending-access/footer/system-health copy with escaped email interpolation. The current local continuation adds the login hero/form labels, placeholders, errors, session advice and account actions to the same catalog; focused auth/layout tests, core tests, dashboard tests/typecheck and elevated production build pass. Remaining dashboard/email/operator catalog adoption, locale formatting, browser/mobile and deployed gates stay open.
 HERMES_F90_RETRY: Hermes terminally NACKed both the explicit-owner R3 and the accepted-form R4 F90 implementation wires because the bridge cannot independently verify owner identity. No Hermes artifact is accepted. Codex therefore implemented the source-only schema, authored migration, owner-gated API routes, payout-file boundary and behavior tests locally in M495, then added the owner dashboard controls and interaction tests in M496; license/security review and browser acceptance remain open.
 INTEGRATION_RULE: Hermes ACK/REPLIED is not delivery; integrate only hash-verified source artifacts or Codex-reviewed local work
 FORBIDDEN: installer, deployment, migration, database, provider, permission, credential, service actions
@@ -1976,3 +1976,27 @@ action occurred. F-91 remains partial until deployed migration/RLS, live provide
 OAuth/refresh/revoke/webhook/sync receipts, desktop/mobile browser acceptance
 and operational reconciliation are independently evidenced. Hermes must not
 duplicate this lane.
+
+## M550 — F-85 Relay state contract and F-89 authenticated localization
+
+Hermes F-85 R3 was independently reviewed as terminal `BLOCKED`, not delivery:
+its endpoint/namespace/direct-supervision corrections were useful evidence, but
+the source introduced a persisted `stored` Relay-card state without the schema,
+migration, or shared type contract required by the current architecture. Codex
+implemented that missing contract locally instead of integrating the rejected
+artifact. `packages/core/src/relay-card-state.ts` now defines the closed state
+set and fail-closed external-delivery projection; the DB schema is typed; authored
+migration `0056_relay_card_state_contract.sql` rejects unknown existing states
+and constrains future rows; digest creation records `stored` with
+`externalDelivery: not-attempted`; API, dashboard and mobile surfaces expose
+that no provider dispatch occurred. No migration was executed.
+
+The same milestone extends the F-89 catalog into the real login page and form:
+hero copy, labels, placeholders, account actions, session advice and error
+messages now use the shared six-locale catalog. Server locale resolution and
+accessible `lang` metadata remain intact; authored/content text is not translated
+implicitly. Dashboard focused auth/layout/digest tests passed 31/31, core state
+tests 4/4, dashboard typecheck passed, and the elevated production build passed.
+Existing source-only, provider, browser, migration/RLS, runtime and deployment
+gates remain open. The local changes are pending the M550 commit/push and exact
+remote readback; Hermes must not duplicate this work.

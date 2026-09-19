@@ -4,9 +4,11 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchWithTimeout } from '@/lib/request';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 export default function LoginForm({ allowSignup = false }: { allowSignup?: boolean }) {
   const router = useRouter();
+  const { t } = useLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +33,7 @@ export default function LoginForm({ allowSignup = false }: { allowSignup?: boole
       });
       if (!res.ok) {
         const body = await readDashboardError(res);
-        setError(body?.message ?? (signup ? 'Account creation failed' : 'Sign-in failed'));
+        setError(body?.message ?? (signup ? t('auth.accountCreationFailed') : t('auth.signInFailed')));
         return;
       }
       // A successful POST does not prove the browser retained the session cookie.
@@ -50,13 +52,15 @@ export default function LoginForm({ allowSignup = false }: { allowSignup?: boole
           throw new Error('No usable session');
         }
       } catch {
-        setError(`${signup ? 'Account creation was accepted' : 'Sign-in was accepted'}, but your browser session could not be confirmed. Check that cookies are allowed for this site, then reload. ${signup ? 'Do not create another account; use Sign in if needed.' : 'If this continues, contact your administrator.'}`);
+        const action = signup ? t('auth.accountCreationAccepted') : t('auth.signInAccepted');
+        const advice = signup ? t('auth.sessionSignupAdvice') : t('auth.sessionSigninAdvice');
+        setError(t('auth.sessionNotConfirmed', { action, advice }));
         return;
       }
       router.push('/');
       router.refresh();
     } catch {
-      setError('Network error — is the API reachable?');
+      setError(t('auth.networkError'));
     } finally {
       setPassword('');
       active.current = false;
@@ -67,7 +71,7 @@ export default function LoginForm({ allowSignup = false }: { allowSignup?: boole
   return (
     <form onSubmit={onSubmit} className="stack">
       <div>
-        <label htmlFor="email">Email</label>
+        <label htmlFor="email">{t('auth.email')}</label>
         <input
           id="email"
           type="email"
@@ -75,11 +79,11 @@ export default function LoginForm({ allowSignup = false }: { allowSignup?: boole
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="operator@axiom.local"
+          placeholder={t('auth.emailPlaceholder')}
         />
       </div>
       <div>
-        <label htmlFor="password">Password</label>
+        <label htmlFor="password">{t('auth.password')}</label>
         <input
           id="password"
           type="password"
@@ -93,13 +97,13 @@ export default function LoginForm({ allowSignup = false }: { allowSignup?: boole
       </div>
       {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
       <button className="btn" type="submit" disabled={busy}>
-        {busy ? 'Please wait…' : creating ? 'Create FanThynks account' : 'Sign in'}
+        {busy ? t('auth.wait') : creating ? t('auth.createAccount') : t('auth.signIn')}
       </button>
       {allowSignup && <>
         <button className="btn" type="button" disabled={busy} onClick={() => {
           setCreating(!creating); setPassword(''); setError(null);
-        }}>{creating ? 'Use existing FanThynks account' : 'First time? Create FanThynks account'}</button>
-        {creating && <p>Choose a new FanThynks password, not your Grok password. Account creation does not grant workspace access; your administrator must assign it before you can connect Grok.</p>}
+        }}>{creating ? t('auth.useExisting') : t('auth.firstTime')}</button>
+        {creating && <p>{t('auth.passwordHint')}</p>}
       </>}
     </form>
   );

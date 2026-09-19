@@ -257,6 +257,7 @@ describe('response parsing', () => {
             channel: 'digest',
             createdAt: '2026-08-03T00:00:00.000Z',
             config: { week: '2026-08-03' },
+            externalDelivery: 'not-attempted',
           },
         ],
         meta: { total: 1, limit: 20, next_cursor: 'abc' },
@@ -267,6 +268,7 @@ describe('response parsing', () => {
     expect(page.data).toHaveLength(1);
     expect(page.data[0]?.title).toBe('Weekly digest');
     expect(page.data[0]?.config).toEqual({ week: '2026-08-03' });
+    expect(page.data[0]?.externalDelivery).toBe('not-attempted');
     expect(page.meta.next_cursor).toBe('abc');
   });
 

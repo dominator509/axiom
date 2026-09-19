@@ -8,6 +8,27 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
     return [hooks.values[i], (value: unknown) => { hooks.values[i] = value; }];
   },
   useRef: (initial: unknown) => hooks.refs[hooks.r++] ??= { current: initial },
+  useContext: () => ({
+    t: (key: string, values?: Record<string, string | number>) => {
+      const messages: Record<string, string> = {
+        'auth.accountCreationFailed': 'Account creation failed',
+        'auth.signInFailed': 'Sign-in failed',
+        'auth.accountCreationAccepted': 'Account creation was accepted',
+        'auth.signInAccepted': 'Sign-in was accepted',
+        'auth.sessionNotConfirmed': '{action}, but your browser session could not be confirmed. Check that cookies are allowed for this site, then reload. {advice}',
+        'auth.sessionSignupAdvice': 'Do not create another account; use Sign in if needed.',
+        'auth.sessionSigninAdvice': 'If this continues, contact your administrator.',
+        'auth.networkError': 'Network error — is the API reachable?',
+        'auth.email': 'Email', 'auth.password': 'Password',
+        'auth.emailPlaceholder': 'operator@axiom.local', 'auth.wait': 'Please wait…',
+        'auth.createAccount': 'Create FanThynks account', 'auth.signIn': 'Sign in',
+        'auth.useExisting': 'Use existing FanThynks account',
+        'auth.firstTime': 'First time? Create FanThynks account',
+        'auth.passwordHint': 'Choose a new FanThynks password, not your Grok password. Account creation does not grant workspace access; your administrator must assign it before you can connect Grok.',
+      };
+      return (messages[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
+    },
+  }),
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: hooks.push, refresh: hooks.refresh }) }));
 vi.mock('@/lib/request', () => ({ fetchWithTimeout: hooks.fetch }));

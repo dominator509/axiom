@@ -109,6 +109,8 @@ describe('digestWeekly executor', () => {
     expect(mockState.values[0].description).toContain('5.20% average per-post engagement');
     expect(mockState.values[0].description).toContain('not views gained during the week');
     expect(mockState.values[0].description).toContain('5 published posts');
+    expect(mockState.values[0].state).toBe('stored');
+    expect(mockState.values[0].config.externalDelivery).toBe('not-attempted');
     expect(mockState.values[0].config.digest.avgEngagement).toBe(0.052);
   });
 

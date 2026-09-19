@@ -30,6 +30,7 @@ export interface DigestCard {
   channel: string | null;
   createdAt: string;
   config: Record<string, unknown>;
+  externalDelivery: 'not-attempted' | 'attempted' | 'unknown';
 }
 
 /** A grouped crash issue (crash_report row). */
@@ -283,6 +284,9 @@ export function parseDigestCard(value: unknown): DigestCard {
     channel: optionalString(value, 'channel'),
     createdAt: requireString(value, 'createdAt'),
     config: isRecord(value['config']) ? value['config'] : {},
+    externalDelivery: value['externalDelivery'] === 'not-attempted'
+      ? 'not-attempted'
+      : value['externalDelivery'] === 'attempted' ? 'attempted' : 'unknown',
   };
 }
 

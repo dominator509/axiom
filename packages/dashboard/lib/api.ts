@@ -663,7 +663,7 @@ export const api = {
       apiFetch<{ data: AffiliateHold; resolution: string }>(`/api/v1/platform/affiliate/holds/${encodeURIComponent(holdId)}/resolve`, { method: 'POST', body: JSON.stringify({ resolution }) }),
   },
   digests: {
-    list: (cursor?: string) => apiFetch<{ data: Array<{ id: string; title: string; description: string | null; state: string; createdAt: string; config: Record<string, unknown> | null }>; schedule?: { enabled: boolean; workspacePermitted: boolean; latest: { state: string; runAfter: string; attempts: number } | null } | null; meta?: { next_cursor?: string | null } }>(`/api/v1/digests${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
+    list: (cursor?: string) => apiFetch<{ data: Array<{ id: string; title: string; description: string | null; state: string; externalDelivery?: 'not-attempted' | 'attempted' | 'unknown'; createdAt: string; config: Record<string, unknown> | null }>; schedule?: { enabled: boolean; workspacePermitted: boolean; latest: { state: string; runAfter: string; attempts: number } | null } | null; meta?: { next_cursor?: string | null } }>(`/api/v1/digests${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
   },
 };
 

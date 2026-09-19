@@ -33,7 +33,7 @@ describe('dashboard session presentation', () => {
     expect(html).toContain('FanThynks home');
     expect(html).toContain('brand-mark">F</span>');
     expect(html).not.toContain('AXIOM');
-    const login = renderToStaticMarkup(<LoginPage />);
+    const login = renderToStaticMarkup(await LoginPage());
     expect(login).toContain('FanThynks introduction');
     expect(login).not.toContain('AXIOM');
   });

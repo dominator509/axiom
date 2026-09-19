@@ -10,6 +10,7 @@ import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 import { readDigestScheduleStatus } from '../digest-schedule-status.js';
+import { relayCardExternalDelivery } from '@axiom/relay';
 
 const router = new Hono<AppBindings>();
 
@@ -61,8 +62,13 @@ router.get('/digests', async (c) => {
   );
   const last = rows[rows.length - 1];
   const schedule = await withOrgContext(orgId, tx => readDigestScheduleStatus(tx, orgId));
+  const data = (rows as Array<typeof schema.relayCard.$inferSelect>).map((row) => ({
+    ...row,
+    // Keep the API explicit: a durable row is not a provider receipt.
+    externalDelivery: relayCardExternalDelivery(row.state),
+  }));
   return c.json({
-    data: rows,
+    data,
     schedule,
     meta: {
       total: rows.length,

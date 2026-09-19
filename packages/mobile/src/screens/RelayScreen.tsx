@@ -135,7 +135,7 @@ export default function RelayScreen() {
                 </View>
               </View>
               <Text style={styles.itemMeta}>
-                {digest.channel ?? 'relay'} · {new Date(digest.createdAt).toLocaleString()}
+                {digest.channel ?? 'relay'} · {new Date(digest.createdAt).toLocaleString()} · {digest.externalDelivery === 'not-attempted' ? 'Stored only' : digest.externalDelivery === 'attempted' ? 'Dispatch attempted' : 'Outcome unknown'}
               </Text>
             </View>
           ))
