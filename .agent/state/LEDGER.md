@@ -934,3 +934,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19T15:55:02Z | [AXIOM][P4][M611] Reconcile Hermes R5 progress and continuation receipt
 2026-09-19T15:56:59Z | [AXIOM][P4][M612] Freeze implementation and reconcile Hermes R5 ownership
 2026-09-19T15:58:31Z | [AXIOM][P4][M613] Reconcile Hermes R5 in-progress receipt and freeze local lane
+2026-09-19T16:03:41Z | [AXIOM][P4][M614] Issue R5 evidence checkpoint without opening a new lane
