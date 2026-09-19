@@ -7,17 +7,17 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `f90e13d5d5e17f2f96c242ca393ac07f7b4e32a0`
+SOURCE_HEAD: `7a4a25e604e2d23ce550d93ddc686d7bf5f3d941`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `c251a0be52cc420cf764a061e378f33989b16ab2`
+PUBLISHED_HEAD: `7a4a25e604e2d23ce550d93ddc686d7bf5f3d941`
 ACCEPTED_PRODUCT_SOURCE: `f90e13d5d5e17f2f96c242ca393ac07f7b4e32a0`
 ACTIVE_HERMES_LANE: `INBOX-AGENTIC-DRAFTING-R4-BOUND-SOURCE`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES after valid ACK/ACCEPTED; no work counted before ACK`
-NEXT_ACTION: `await-INBOX-AGENTIC-DRAFTING-R4-BOUND-SOURCE-ACK`
+NEXT_ACTION: `await-INBOX-AGENTIC-DRAFTING-R4-CURRENT-SOURCE-ACK`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `R3 closed by terminal Hermes NACK seq13 and Codex READ receipt seq14; R4 task seq1 sent; awaiting correlated ACK/NACK`
+OPEN_WIRES: `R3 closed by terminal Hermes NACK seq13 and Codex READ receipt seq14; bound-source R4 superseded before ACK; current-source sync task seq1 sent; awaiting correlated ACK/NACK`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -25,19 +25,19 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `INBOX-AGENTIC-DRAFTING-R4-BOUND-SOURCE`
-NEXT_PREPARED_TASK_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R4-BOUND-SOURCE-TASK`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `73babe239b206e943cd4cfccf9c5c029e04ef852`
-NEXT_PREPARED_TASK_ARCHIVE_SHA256: `692e67023f62439c40fec9eb93bd10e06bb40d9b2838e5bc5b744c98b4601352`
-NEXT_PREPARED_TASK_STATE: `R4 task sent as exact msg_id filename; remote SHA readback matches; awaiting correlated ACK/NACK`
-ACTIVE_LANE_TASK_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R4-BOUND-SOURCE-TASK`
-ACTIVE_LANE_SOURCE_COMMIT: `73babe239b206e943cd4cfccf9c5c029e04ef852`
-ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/work/ipman-replies-out/inbox-agentic-drafting-r4-bound-source`
-ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/replies/delivery-inbox-agentic-drafting-r4-bound-source`
-ACTIVE_LANE_SOURCE_ARCHIVE: `/srv/fanthynks-bridge/hermes/inbox/codex-inbox-agentic-drafting-r3-source.tar`
-ACTIVE_LANE_SOURCE_ARCHIVE_SHA256: `692e67023f62439c40fec9eb93bd10e06bb40d9b2838e5bc5b744c98b4601352`
-ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R4-BOUND-SOURCE-TASK`
-ACTIVE_LANE_SOURCE_TRANSPORT: `VERIFIED — R4 task remote SHA matches local; archive binding is required before implementation`
+NEXT_PREPARED_TASK: `INBOX-AGENTIC-DRAFTING-R4-CURRENT-SOURCE`
+NEXT_PREPARED_TASK_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R4-CURRENT-SOURCE-TASK`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `7a4a25e604e2d23ce550d93ddc686d7bf5f3d941`
+NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NOT_APPLICABLE — exact Git commit binding replaces archive transport`
+NEXT_PREPARED_TASK_STATE: `Current-source sync task sent as exact msg_id filename; remote SHA readback matches; awaiting correlated ACK/NACK`
+ACTIVE_LANE_TASK_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R4-CURRENT-SOURCE-TASK`
+ACTIVE_LANE_SOURCE_COMMIT: `7a4a25e604e2d23ce550d93ddc686d7bf5f3d941`
+ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/work/ipman-replies-out/inbox-agentic-drafting-r4-current-source`
+ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/replies/delivery-inbox-agentic-drafting-r4-current-source`
+ACTIVE_LANE_SOURCE_ARCHIVE: `NOT_USED — exact Git commit mode`
+ACTIVE_LANE_SOURCE_ARCHIVE_SHA256: `NOT_APPLICABLE`
+ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R4-CURRENT-SOURCE-TASK`
+ACTIVE_LANE_SOURCE_TRANSPORT: `CURRENT-SOURCE GATE — Hermes must fetch the named ref and prove it resolves exactly to 7a4a25e before copying or editing`
 ACTIVE_LANE_TRANSPORT_NAMING: `VERIFIED — current task and correction filenames equal msg_id; historical mismatches are ineligible and untouched`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id must equal filename stem; no renames or hand-written replies`
 HISTORICAL_REPLY_MISMATCH_DECISION: `C — do not patch the bridge helper or rename stale inbox files; reissue a fresh superseding task with exact filename/msg_id only when that architecture lane is selected`
@@ -47,11 +47,11 @@ R3_CLOSURE_REPLY_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-R3-CURRENT-012`
 R3_CLOSURE_REPLY_STATE: `NACK/BLOCKED terminal; source binding and explicit lane authorization blockers upheld`
 R3_CLOSURE_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R3-CURRENT-CLOSE-014`
 R3_CLOSURE_RECEIPT_SHA256: `1ee188b5f59b70add92a86195bbd7d03367a9fc7cb568fa6834778f469b62078`
-R4_TASK_ENVELOPE_SHA256: `a93774699947686e4fe4458cc9e594c615f8028a0a30ca7f8e22bfd6fb4052b3`
-R4_TASK_REMOTE_SHA256: `a93774699947686e4fe4458cc9e594c615f8028a0a30ca7f8e22bfd6fb4052b3`
-R4_ARCHIVE_BINDING: `Hermes must fetch the named public ref, verify exact commit and archive SHA, then compare every extracted file byte-for-byte with git show SOURCE_COMMIT:path before implementation`
+R4_TASK_ENVELOPE_SHA256: `7e984278100f6e4ce4b47d75019f14a02dc2092da5ed9dbc17374e5ea0872591`
+R4_TASK_REMOTE_SHA256: `7e984278100f6e4ce4b47d75019f14a02dc2092da5ed9dbc17374e5ea0872591`
+R4_ARCHIVE_BINDING: `NOT_USED — Hermes must fetch the named ref, verify the exact current commit, then create the isolated copy from that commit; stale local main and cached branch refs are ineligible`
 ACTIVE_LANE_TRANSPORT_CLOSE_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R3-CURRENT-CLOSE-014`
-ACTIVE_LANE_TRANSPORT_CLOSE_REASON: `R3 terminal NACK accepted; superseded by fresh R4 exact-source task`
+ACTIVE_LANE_TRANSPORT_CLOSE_REASON: `R3 terminal NACK accepted; bound-source R4 superseded by current-source synchronization gate`
 LOCAL_FALLBACK_SCOPE: `NOT_ALLOWED WHILE THIS HERMES LANE IS OPEN`
 ACTIVE_LANE_ACK_WIRE: `PENDING — Hermes must correlate ACK/NACK to CODEX-INBOX-AGENTIC-DRAFTING-R4-BOUND-SOURCE-TASK`
 ACTIVE_LANE_ACK_SHA256: `PENDING`
