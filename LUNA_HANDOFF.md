@@ -7,30 +7,31 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `248fc2851b5553c6bb1b3a6aafff58378e351b11`
+SOURCE_HEAD: `f90e13d5d5e17f2f96c242ca393ac07f7b4e32a0`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `cb226df69ced45a50a6d60ec0c09e08e5e514a0f`
-ACCEPTED_PRODUCT_SOURCE: `d3913727a44e96490f3bfddbdf504acb4b2bbb42`
-ACTIVE_HERMES_LANE: `NONE — F89-SCRAPER-RESULT-LOCALE-R1 TRANSPORT BLOCKED; CODEX LOCAL FALLBACK`
+PUBLISHED_HEAD: `f90e13d5d5e17f2f96c242ca393ac07f7b4e32a0`
+ACCEPTED_PRODUCT_SOURCE: `f90e13d5d5e17f2f96c242ca393ac07f7b4e32a0`
+ACTIVE_HERMES_LANE: `NONE`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `NONE`
-NEXT_ACTION: `implement-local-F89-scraper-result-locale-scope-then-test-audit-and-integrate`
-ACTIVE_LANE_TASK_WIRE: `CODEX-F89-SCRAPER-RESULT-LOCALE-R1-TASK-001`
-ACTIVE_LANE_SOURCE_COMMIT: `248fc2851b5553c6bb1b3a6aafff58378e351b11`
-ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/work/f89-scraper-result-locale-r1`
-ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/replies/delivery-f89-scraper-result-locale-r1`
-ACTIVE_LANE_SOURCE_ARCHIVE: `/srv/fanthynks-bridge/hermes/inbox/axiom-scraper-locale-source-248fc.tar`
-ACTIVE_LANE_SOURCE_ARCHIVE_SHA256: `d44f4686af07f8ac28be0f91e3e3d0c972e1095fc73ddc5726b2ffef0574f870`
-ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `CODEX-F89-SCRAPER-RESULT-LOCALE-R1-SOURCE-BUNDLE-002`
-ACTIVE_LANE_SOURCE_TRANSPORT: `EXACT_ARCHIVE_TRANSFERRED_HERMES_VERIFICATION_PENDING`
-ACTIVE_LANE_BASELINE: `core locale 28/28; API scraper contract/routes 38/38; dashboard scraper surfaces 10/10; no source changes integrated`
+NEXT_ACTION: `reconcile-current-architecture-matrix-and-select-one-bounded-source-gap`
+ACTIVE_LANE_TASK_WIRE: `NONE`
+ACTIVE_LANE_SOURCE_COMMIT: `NOT_APPLICABLE`
+ACTIVE_LANE_COPY_ROOT: `NOT_APPLICABLE`
+ACTIVE_LANE_DELIVERY_ROOT: `NOT_APPLICABLE`
+ACTIVE_LANE_SOURCE_ARCHIVE: `NOT_APPLICABLE`
+ACTIVE_LANE_SOURCE_ARCHIVE_SHA256: `NOT_APPLICABLE`
+ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE`
+ACTIVE_LANE_SOURCE_TRANSPORT: `CLOSED — exact archive transport was not processed by Hermes`
+ACTIVE_LANE_BASELINE: `M644 complete: six-locale scraper result/history source slice; core 80/80; dashboard 779/779`
 ACTIVE_LANE_TRANSPORT_CLOSE_WIRE: `CODEX-F89-SCRAPER-RESULT-LOCALE-R1-TRANSPORT-CLOSE-003`
-ACTIVE_LANE_TRANSPORT_CLOSE_REASON: `BRIDGE_DID_NOT_PROCESS_SOURCE_BUNDLE`
-LOCAL_FALLBACK_SCOPE: `F89 scraper result UI localization and locale-aware formatting; Hermes artifacts from the closed wire are not eligible for integration`
-ACTIVE_LANE_ACK_WIRE: `PENDING`
-ACTIVE_LANE_ACK_SHA256: `PENDING`
-ACTIVE_LANE_CHECKPOINT_WIRE: `PENDING`
-ACTIVE_LANE_CHECKPOINT_SHA256: `PENDING`
+ACTIVE_LANE_TRANSPORT_CLOSE_REASON: `BRIDGE_DID_NOT_PROCESS_SOURCE_BUNDLE; LOCAL FALLBACK COMPLETED`
+LOCAL_FALLBACK_SCOPE: `CLOSED — M644 integrated and pushed; Hermes artifacts remain ineligible`
+ACTIVE_LANE_ACK_WIRE: `NOT_APPLICABLE`
+ACTIVE_LANE_ACK_SHA256: `NOT_APPLICABLE`
+ACTIVE_LANE_CHECKPOINT_WIRE: `NOT_APPLICABLE`
+ACTIVE_LANE_CHECKPOINT_SHA256: `NOT_APPLICABLE`
+LAST_COMPLETED_SOURCE_MILESTONE: `M644 — scraper result/history localization at f90e13d5; no active Hermes lane`
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
@@ -52,7 +53,8 @@ Closed and not to be reopened under the old task IDs:
 The bridge still contains historical inbox/reply/status artifacts for prior
 lanes. Their presence is not evidence of an active assignment. The signed
 reconciliation above is closed; Hermes must not resume any historical lane.
-The fresh task recorded below is the only current implementation assignment.
+No implementation lane is active now; any future lane must be selected from
+the current architecture matrix, recorded here, and sent with a new WIRE.
 
 Hermes' first response to the reconciliation was rejected: it used an
 invalid terminal flag for `ACK/READ`, included a forbidden clock field and
@@ -63,25 +65,9 @@ receipt above, explicitly preserved the signature anomaly, and did not treat
 it as feature delivery or authorization. Hermes reports zero OPEN or
 IN_PROGRESS lanes, no edited source copy and no resume without a new WIRE.
 
-Fresh lane now opened after that reconciliation: task
-`INBOX-AGENTIC-DRAFTING-CURRENT-R1`, WIRE
-`CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-TASK-001`, exact source head
-`361d75dfe2650619446853b2ec5630b78b6427c9`, envelope SHA-256
-`840e8ce474bf78c76cbd756087a55acf7be0117265382ecd51b2ee6ba8898587`,
-COPY_ROOT `/srv/fanthynks-bridge/hermes/work/inbox-agentic-drafting-current-r1`.
-This is the architecture-named next gap: compose assigned-LLM Grok roleplay,
-soul.md persona, bounded memory and active-shift/permission contracts into a
-reviewable pending inbox reply without auto-send. It is source-only; Hermes
-must return one evidence-bearing PROGRESS and one terminal DELIVERY or
-BLOCKED. No old R5 wire may resume.
-
-Hermes returned protocol-valid `ACK/ACCEPTED` wire
-`HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-ACK-002` and confirmed the source
-commit is an ancestor of the published branch tip. No source delivery exists
-yet; Hermes owns the isolated copy. The correlated checkpoint above records
-that read-only checks found no changed files or delivery artifacts and requires
-real PROGRESS followed by terminal DELIVERY or BLOCKED; another intake ACK is
-not acceptable.
+The historical agentic-drafting and scraper transport attempts are retained
+below for audit provenance only. Neither is an active assignment, and neither
+may be resumed without a new reconciled task record.
 
 Coordination rules: use message IDs, WIRE, SEQ, IN_REPLY_TO, STATE,
 NEXT_OWNER and terminal status; do not use wall-clock dates or timestamps to
@@ -3108,3 +3094,23 @@ dashboard typecheck and diff checks passed. Dashboard lint retains only the
 three pre-existing warnings in `MediaBundleCreate.behavior.test.tsx`. Source
 commit: `ee4fceedabeb8308055cd7af260584e25f8d214b`. Browser/native, provider,
 migration/RLS, runtime and deployment gates remain open.
+## M644 — scraper result and history localization
+
+Codex completed the bounded local fallback after the Hermes scraper transport
+lane was closed without a processed source bundle. The mounted scraper result,
+refresh, and run-history controls now consume the shared six-locale catalog.
+Result states, profile/count labels, lookup failures, empty states, pagination,
+queue/retry controls and user-facing errors are localized. Profile and
+provider-authored values remain data. Counts use the selected locale, and
+completed timestamps use an explicit UTC formatter instead of the host locale.
+Existing queue idempotency, authorization, API payloads and retry semantics were
+preserved.
+
+Evidence: core tests 80/80, dashboard tests 779/779, core/dashboard
+typechecks pass, core lint passes, dashboard lint has only the three
+pre-existing warnings in `MediaBundleCreate.behavior.test.tsx`, and
+`git diff --check` passes. Source commit:
+`f90e13d5d5e17f2f96c242ca393ac07f7b4e32a0`, read back from the remote branch.
+This closes only the scraper UI localization source slice. Browser/mobile
+acceptance, deployed migration/RLS/runtime, provider isolation and deployment
+gates remain open. No Hermes artifact was integrated.
