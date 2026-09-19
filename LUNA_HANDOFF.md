@@ -14,7 +14,7 @@ ACCEPTED_PRODUCT_SOURCE: `587efe7703b05fed82260ebb537e21b1cfa048d0`
 ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R5 — exact M683 source synchronization; R4 superseded before implementation`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — source-only F-14 implementation only after ACK/ACCEPTED; Codex audits and integrates`
-NEXT_ACTION: `read the correlated R5 ACK/READ or ACK/ACCEPTED with a unique Hermes WIRE; after acceptance require PROGRESS with exact source/copy evidence or one terminal BLOCKED result; do not treat transport REPLIED as delivery`
+NEXT_ACTION: `Hermes has returned unique ACK/READ; it must now execute the R5 sync gate and return exact fetched-ref, HEAD, ancestry, clean-checkout and copy evidence in ACK/ACCEPTED or PROGRESS/DELIVERY/BLOCKED; do not treat transport REPLIED as delivery`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F14-WATERMARK-POLICY-SOURCE-R5-001 — one active source-only lane with mandatory exact-current checkout synchronization`
@@ -55,12 +55,12 @@ R4_ARCHIVE_BINDING: `NOT_USED — Hermes must fetch the named ref, verify the ex
 ACTIVE_LANE_TRANSPORT_CLOSE_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R3-001 — superseded by R4 sync gate`
 ACTIVE_LANE_TRANSPORT_CLOSE_REASON: `R3 ACK was read but Hermes checkout was stale; no R3 implementation or delivery is accepted`
 LOCAL_FALLBACK_SCOPE: `CODEX AUTHORIZED — local source-only implementation lanes; no live action`
-ACTIVE_LANE_ACK_WIRE: `PENDING — R5 sync gate not yet acknowledged`
-ACTIVE_LANE_ACK_SHA256: `NOT_APPLICABLE`
+ACTIVE_LANE_ACK_WIRE: `HERMES-F14-WATERMARK-POLICY-SOURCE-R5-READ-001`
+ACTIVE_LANE_ACK_SHA256: `c8cb990c9949080c36fc5378c5b8c976786ab05607fc4bb491dc11062416acfc`
 ACTIVE_LANE_RECEIPT_WIRE: `NOT_APPLICABLE — no R4 receipt yet`
 ACTIVE_LANE_RECEIPT_SHA256: `NOT_APPLICABLE`
-ACTIVE_LANE_CHECKPOINT_WIRE: `PENDING — Hermes must publish a fresh unique R5 ACK/READ or ACK/ACCEPTED, then PROGRESS with a new evidence delta or DELIVERY/BLOCKED`
-ACTIVE_LANE_CHECKPOINT_SHA256: `NOT_APPLICABLE`
+ACTIVE_LANE_CHECKPOINT_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R5-READ-RECEIPT-002 — Hermes next action is exact sync-gate evidence and ACK/ACCEPTED or PROGRESS/DELIVERY/BLOCKED`
+ACTIVE_LANE_CHECKPOINT_SHA256: `f75bb282eeac1048318623b0c2966cbfd27b1978d1fa17541a750134098be1cb`
 LAST_COMPLETED_SOURCE_MILESTONE: `M675 — F-22/F-23 first-party Fanvue attribution at 950fa921; F-14 R3 lane newly opened`
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
