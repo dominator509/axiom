@@ -983,3 +983,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19 | [AXIOM][P4][M662] Chose the no-mutation bridge decision for stale filename-mismatched lanes; current F-31 transport remains canonical and unaffected
 2026-09-19 | [AXIOM][P4][M663] Closed F-31 R3 after validating Hermes terminal NACK seq13 and sent Codex terminal READ receipt seq14; dispatched bound-source R4 with exact msg_id filename and remote SHA readback
 2026-09-19 | [AXIOM][P4][M664] Verified Hermes visible checkout/cache lagged the published branch; superseded bound-source R4 with an exact-current-SHA synchronization gate and verified its remote envelope SHA
+2026-09-19 | [AXIOM][P4][M665] Superseded the unacknowledged long R4 task with one concise control-only current-source resync envelope; no feature work authorized until Hermes returns correlated ACK/READ or terminal NACK
