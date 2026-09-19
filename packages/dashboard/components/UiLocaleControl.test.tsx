@@ -4,6 +4,26 @@ const hooks = vi.hoisted(() => ({ slots: [] as unknown[], index: 0, send: vi.fn(
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
 vi.mock('@/lib/mutation', () => ({ createIdempotencyKey: () => 'locale-intent', mutationFetch: hooks.send }));
+vi.mock('./LocaleProvider', () => ({
+  useLocale: () => ({
+    t: (key: string, values?: Record<string, string | number>) => {
+      if (key === 'settings.savedAs') return `Language saved as ${values?.locale ?? ''}.`;
+      if (key === 'settings.currentResolution') return `Current resolution: ${values?.locale ?? ''} (${values?.source ?? ''}).`;
+      if (key === 'error.network') return 'Network problem. Please try again.';
+      if (key === 'settings.retrySameLanguage') return 'Retry same language';
+      if (key === 'settings.saving') return 'Saving…';
+      if (key === 'settings.saveLanguage') return 'Save language';
+      if (key === 'settings.language') return 'Language';
+      if (key === 'settings.language.description') return 'Choose the interface language.';
+      if (key === 'settings.appliesTo') return 'Applies to';
+      if (key === 'settings.myAccount') return 'My account';
+      if (key === 'settings.workspaceDefault') return 'Workspace default';
+      if (key === 'settings.interfaceLanguage') return 'Interface language';
+      return key;
+    },
+    setLocale: vi.fn(),
+  }),
+}));
 
 import UiLocaleControl from './UiLocaleControl';
 import type { UiLocaleSnapshot } from '@/lib/api';
@@ -69,7 +89,7 @@ it('persists a user-selected locale with a stable intent key and refreshes the d
   expect(selects).toHaveLength(2);
   selects[1]!.props.onChange?.({ target: { value: 'de' } });
   tree = render();
-  const form = findAll(tree, node => node.type === 'form' && node.props['aria-label'] === 'Language settings')[0];
+  const form = findAll(tree, node => node.type === 'form')[0];
   expect(form).toBeDefined();
   form!.props.onSubmit?.({ preventDefault: vi.fn() });
   await vi.waitFor(() => expect(hooks.send).toHaveBeenCalledOnce());

@@ -6,6 +6,7 @@ import type { SupportedLocale } from '@axiom/core';
 import type { UiLocaleSnapshot } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 const LOCALE_LABELS: Record<SupportedLocale, string> = {
   en: 'English',
@@ -18,9 +19,10 @@ const LOCALE_LABELS: Record<SupportedLocale, string> = {
 
 export default function UiLocaleControl({ initial }: { initial: UiLocaleSnapshot }) {
   const router = useRouter();
+  const { t, setLocale } = useLocale();
   const [snapshot, setSnapshot] = useState(initial);
   const [scope, setScope] = useState<'user' | 'org'>('user');
-  const [locale, setLocale] = useState<SupportedLocale>(initial.userLocale ?? initial.locale);
+  const [locale, setSelectedLocale] = useState<SupportedLocale>(initial.userLocale ?? initial.locale);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -48,7 +50,7 @@ export default function UiLocaleControl({ initial }: { initial: UiLocaleSnapshot
           intent.current = null;
           setPending(false);
         }
-        setError(data?.error?.message ?? 'Language preference was not saved.');
+        setError(data?.error?.message ?? t('error.network'));
         return;
       }
       const result = await readDashboardJson<{ data?: UiLocaleSnapshot }>(response);
@@ -58,41 +60,41 @@ export default function UiLocaleControl({ initial }: { initial: UiLocaleSnapshot
       setSnapshot(result.data);
       intent.current = null;
       setPending(false);
-      if (typeof document !== 'undefined') document.documentElement.lang = result.data.locale;
-      setMessage(`Language saved as ${LOCALE_LABELS[result.data.locale]}.`);
+      setLocale(result.data.locale);
+      setMessage(t('settings.savedAs', { locale: LOCALE_LABELS[result.data.locale] }));
       router.refresh();
     } catch {
-      setError('Language preference was not confirmed. Retry without changing the selection.');
+      setError(t('settings.retrySameLanguage'));
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <form className="card stack" aria-label="Language settings" onSubmit={event => { event.preventDefault(); void save(); }}>
-      <h2>Language</h2>
-      <p className="subtle">Choose the interface language. Creator content, captions and persona text keep their own content language.</p>
+    <form className="card stack" aria-label={t('settings.language')} onSubmit={event => { event.preventDefault(); void save(); }}>
+      <h2>{t('settings.language')}</h2>
+      <p className="subtle">{t('settings.language.description')}</p>
       <fieldset disabled={busy}>
         {snapshot.canSetOrg && (
           <label>
-            Applies to
+            {t('settings.appliesTo')}
             <select value={scope} onChange={event => { setScope(event.target.value as 'user' | 'org'); intent.current = null; }}>
-              <option value="user">My account</option>
-              <option value="org">Workspace default</option>
+              <option value="user">{t('settings.myAccount')}</option>
+              <option value="org">{t('settings.workspaceDefault')}</option>
             </select>
           </label>
         )}
         <label>
-          Interface language
-          <select value={locale} onChange={event => { setLocale(event.target.value as SupportedLocale); intent.current = null; }}>
+          {t('settings.interfaceLanguage')}
+          <select value={locale} onChange={event => { setSelectedLocale(event.target.value as SupportedLocale); intent.current = null; }}>
             {snapshot.supportedLocales.map(option => <option key={option} value={option}>{LOCALE_LABELS[option]}</option>)}
           </select>
         </label>
       </fieldset>
-      <p className="subtle">Current resolution: {LOCALE_LABELS[snapshot.locale]} ({snapshot.source}).</p>
+      <p className="subtle">{t('settings.currentResolution', { locale: LOCALE_LABELS[snapshot.locale], source: snapshot.source })}</p>
       {error && <p role="alert">{error}</p>}
       {message && <p role="status">{message}</p>}
-      <button type="submit" disabled={busy}>{busy ? 'Saving…' : pending ? 'Retry same language' : 'Save language'}</button>
+      <button type="submit" disabled={busy}>{busy ? t('settings.saving') : pending ? t('settings.retrySameLanguage') : t('settings.saveLanguage')}</button>
     </form>
   );
 }

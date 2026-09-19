@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { fetchWithTimeout } from '@/lib/request';
 
-export default function SignOutButton() {
+export default function SignOutButton({ label = 'Sign out' }: { label?: string } = {}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export default function SignOutButton() {
         type="button"
         onClick={signOut}
         disabled={busy}
-        aria-label="Sign out"
+        aria-label={label}
       >
       {busy ? '…' : '↗'}
       </button>

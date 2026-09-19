@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { UiLocaleSnapshot } from '../api/endpoints';
-import type { SupportedLocale } from '@axiom/core';
+import { CATALOGS, LocaleCatalog, type SupportedLocale } from '@axiom/core';
 import { palette } from '../theme';
 
 const LABELS: Record<SupportedLocale, string> = {
@@ -14,6 +14,8 @@ const LABELS: Record<SupportedLocale, string> = {
   de: 'Deutsch',
 };
 
+const catalog = new LocaleCatalog(CATALOGS);
+
 interface LocaleSelectorProps {
   snapshot: UiLocaleSnapshot;
   saving: boolean;
@@ -21,10 +23,11 @@ interface LocaleSelectorProps {
 }
 
 export default function LocaleSelector({ snapshot, saving, onSave }: LocaleSelectorProps) {
+  const t = (key: string) => catalog.t(snapshot.locale, key);
   return (
-    <View style={styles.card} accessibilityLabel="Language settings">
-      <Text style={styles.title}>Language</Text>
-      <Text style={styles.hint}>Choose the interface language. Creator content keeps its own content language.</Text>
+    <View style={styles.card} accessibilityLabel={t('settings.language')}>
+      <Text style={styles.title}>{t('settings.language')}</Text>
+      <Text style={styles.hint}>{t('settings.language.description')}</Text>
       <View style={styles.options}>
         {snapshot.supportedLocales.map((locale) => {
           const selected = snapshot.locale === locale || snapshot.userLocale === locale;
@@ -33,7 +36,7 @@ export default function LocaleSelector({ snapshot, saving, onSave }: LocaleSelec
               key={locale}
               accessibilityRole="button"
               accessibilityState={{ selected, disabled: saving }}
-              accessibilityLabel={`Use ${LABELS[locale]}`}
+              accessibilityLabel={`${t('settings.interfaceLanguage')}: ${LABELS[locale]}`}
               disabled={saving}
               onPress={() => onSave(locale)}
               style={[styles.option, selected && styles.optionSelected, saving && styles.optionDisabled]}
@@ -43,7 +46,7 @@ export default function LocaleSelector({ snapshot, saving, onSave }: LocaleSelec
           );
         })}
       </View>
-      {saving ? <Text style={styles.hint}>Saving language…</Text> : null}
+      {saving ? <Text style={styles.hint}>{t('settings.saving')}</Text> : null}
     </View>
   );
 }

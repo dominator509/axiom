@@ -254,7 +254,7 @@ health endpoints alone never closes a gate.
 
 ### 14. Localization and language switching — new owner extension; source work not started
 
-- Define the shared F-89 locale contract for `en`, `es`, `ja`, `it`, `pt-BR` and `de`; normalize BCP-47 tags and keep UI locale separate from creator/model content locale.
+- Define the shared F-89 locale contract for `en`, `es`, `ja`, `it`, `pt-BR` and `de`; normalize BCP-47 tags and keep UI locale separate from creator/model content locale. The source slice now consumes that contract in the dashboard shell/navigation/settings and mobile dashboard/selector; remaining surfaces and browser/deployed evidence stay open.
 - Add persisted user preference plus organization default with explicit user choice taking precedence over browser detection; preserve the setting across dashboard, native mobile, auth, email and operator surfaces.
 - Create a typed shared message-catalog package with English fallback, ICU plural/select messages, `Intl` number/currency/date/time-zone formatting, accessible `lang` metadata and a missing-key test that fails closed.
 - Replace inline user-facing strings and hard-coded `en-US` formatting only in touched surfaces; do not translate user/provider/generated content implicitly. Translation actions must be explicit, bounded and audited.

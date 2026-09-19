@@ -3,18 +3,19 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { workspaceDestinationAllowed } from '@/lib/navigation-role';
+import { useLocale } from './LocaleProvider';
 
 const NAV_ITEMS = [
-  { href: '/', label: 'Talent', icon: 'talent' },
-  { href: '/shifts', label: 'My shifts', icon: 'digest' },
-  { href: '/members', label: 'Members', icon: 'talent' },
-  { href: '/connections/grok', label: 'Grok & storage', icon: 'connection' },
-  { href: '/audit', label: 'Audit trail', icon: 'audit' },
-  { href: '/incidents', label: 'Incidents', icon: 'incident' },
-  { href: '/killswitch', label: 'Safety', icon: 'safety' },
-  { href: '/settings', label: 'Settings', icon: 'settings' },
-  { href: '/digests', label: 'Digests', icon: 'digest' },
-  { href: '/affiliate', label: 'Affiliate', icon: 'affiliate' },
+  { href: '/', key: 'nav.talent', icon: 'talent' },
+  { href: '/shifts', key: 'nav.shifts', icon: 'digest' },
+  { href: '/members', key: 'nav.members', icon: 'talent' },
+  { href: '/connections/grok', key: 'nav.grokStorage', icon: 'connection' },
+  { href: '/audit', key: 'nav.audit', icon: 'audit' },
+  { href: '/incidents', key: 'nav.incidents', icon: 'incident' },
+  { href: '/killswitch', key: 'nav.safety', icon: 'safety' },
+  { href: '/settings', key: 'nav.settings', icon: 'settings' },
+  { href: '/digests', key: 'nav.digests', icon: 'digest' },
+  { href: '/affiliate', key: 'nav.affiliate', icon: 'affiliate' },
 ] as const;
 
 function NavIcon({ name }: { name: (typeof NAV_ITEMS)[number]['icon'] }) {
@@ -53,9 +54,10 @@ function NavIcon({ name }: { name: (typeof NAV_ITEMS)[number]['icon'] }) {
 
 export default function NavLinks({ role }: { role?: string | null }) {
   const pathname = usePathname();
+  const { t } = useLocale();
 
   return (
-    <nav className="nav" aria-label="Primary navigation">
+    <nav className="nav" aria-label={t('nav.primary')}>
       {NAV_ITEMS.filter(item => workspaceDestinationAllowed(role, item.href)).map((item) => {
         const active =
           item.href === '/'
@@ -69,7 +71,7 @@ export default function NavLinks({ role }: { role?: string | null }) {
             aria-current={active ? 'page' : undefined}
           >
             <NavIcon name={item.icon} />
-            <span>{item.label}</span>
+            <span>{t(item.key)}</span>
           </Link>
         );
       })}

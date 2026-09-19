@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -25,7 +25,7 @@ import {
   type UiLocaleSnapshot,
 } from '../api/endpoints';
 import LocaleSelector from '../components/LocaleSelector';
-import type { SupportedLocale } from '@axiom/core';
+import { CATALOGS, LocaleCatalog, type SupportedLocale } from '@axiom/core';
 import { palette, surfaceShadow } from '../theme';
 
 interface DashboardScreenProps {
@@ -51,6 +51,7 @@ interface DashboardState {
  * crash reports — all fetched from the BFF /api/v1/* with the session cookie.
  */
 export default function DashboardScreen({ user, onSignOut }: DashboardScreenProps) {
+  const localeCatalog = useMemo(() => new LocaleCatalog(CATALOGS), []);
   const [state, setState] = useState<DashboardState>({
     settings: null,
     uiLocale: null,
@@ -64,6 +65,8 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
     savingLocale: false,
   });
   const localeIntent = useRef<string | null>(null);
+  const locale = state.uiLocale?.locale ?? 'en';
+  const t = useCallback((key: string, values?: Record<string, string | number>) => localeCatalog.t(locale, key, values), [locale, localeCatalog]);
 
   const loadAll = useCallback(async () => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
@@ -103,7 +106,7 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
       setState((prev) => ({
         ...prev,
         settings: updated,
-        actionMessage: `Viral sharing ${updated.viralSharing ? 'enabled' : 'disabled'}`,
+        actionMessage: `${t('mobile.viralSharing')} ${updated.viralSharing ? t('mobile.on') : t('mobile.off')}`,
       }));
     } catch (err) {
       setState((prev) => ({
@@ -123,7 +126,7 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
       const updated = await patchUiLocale(locale, 'user', localeIntent.current);
       if (updated.locale !== locale || updated.userLocale !== locale) throw new Error('unconfirmed language preference');
       localeIntent.current = null;
-      setState((prev) => ({ ...prev, uiLocale: updated, savingLocale: false, actionMessage: `Language saved as ${locale}` }));
+      setState((prev) => ({ ...prev, uiLocale: updated, savingLocale: false, actionMessage: t('mobile.languageSaved', { locale }) }));
     } catch (err) {
       setState((prev) => ({ ...prev, savingLocale: false, error: err instanceof Error ? err.message : String(err) }));
     }
@@ -136,7 +139,7 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
       const result = await generateDigest();
       setState((prev) => ({
         ...prev,
-        actionMessage: `Digest job enqueued (${result.jobId})`,
+        actionMessage: t('mobile.digestEnqueued', { jobId: result.jobId }),
       }));
       await loadAll();
     } catch (err) {
@@ -161,7 +164,7 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={palette.rose} />
-        <Text style={styles.muted}>Loading dashboard…</Text>
+        <Text style={styles.muted}>{t('mobile.loadingDashboard')}</Text>
       </View>
     );
   }
@@ -172,12 +175,12 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.eyebrow}>STUDIO OVERVIEW</Text>
+          <Text style={styles.eyebrow}>{t('mobile.studioOverview')}</Text>
           <Text style={styles.title}>Hello, {user.email.split('@')[0]}</Text>
-          <Text style={styles.muted}>Your private workspace is ready.</Text>
+          <Text style={styles.muted}>{t('mobile.privateWorkspace')}</Text>
         </View>
         <Pressable style={styles.signOutButton} onPress={() => void handleSignOut()}>
-          <Text style={styles.signOutText}>Sign out</Text>
+          <Text style={styles.signOutText}>{t('mobile.signOut')}</Text>
         </Pressable>
       </View>
 
@@ -185,14 +188,14 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
       {state.actionMessage ? <Text style={styles.actionMessage}>{state.actionMessage}</Text> : null}
 
       {/* Org settings */}
-      <Text style={styles.sectionTitle}>Org settings</Text>
+      <Text style={styles.sectionTitle}>{t('mobile.orgSettings')}</Text>
       <View style={styles.card}>
         {settings ? (
           <>
             <View style={styles.row}>
               <View style={styles.rowText}>
-                <Text style={styles.rowLabel}>Viral sharing</Text>
-                <Text style={styles.rowHint}>Share winning patterns across models in this org</Text>
+                <Text style={styles.rowLabel}>{t('mobile.viralSharing')}</Text>
+                <Text style={styles.rowHint}>{t('mobile.viralSharingHint')}</Text>
               </View>
               {state.togglingViral ? (
                 <ActivityIndicator color={palette.rose} />
@@ -202,23 +205,23 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
                   onValueChange={(next) => void handleToggleViralSharing(next)}
                   trackColor={{ true: palette.rose, false: palette.line }}
                   thumbColor={palette.text}
-                  accessibilityLabel="Viral sharing toggle"
+                  accessibilityLabel={t('mobile.viralSharing')}
                 />
               )}
             </View>
             <View style={styles.divider} />
             <View style={styles.row}>
               <View style={styles.rowText}>
-                <Text style={styles.rowLabel}>Publishing enabled</Text>
-                <Text style={styles.rowHint}>Allow scheduled posts to go live</Text>
+                <Text style={styles.rowLabel}>{t('mobile.publishingEnabled')}</Text>
+                <Text style={styles.rowHint}>{t('mobile.publishingHint')}</Text>
               </View>
               <Text style={settings.publishingEnabled ? styles.badgeOn : styles.badgeOff}>
-                {settings.publishingEnabled ? 'ON' : 'OFF'}
+                {settings.publishingEnabled ? t('mobile.on') : t('mobile.off')}
               </Text>
             </View>
           </>
         ) : (
-          <Text style={styles.muted}>No org settings returned.</Text>
+          <Text style={styles.muted}>{t('mobile.noOrgSettings')}</Text>
         )}
       </View>
 
@@ -231,7 +234,7 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
 
       {/* Weekly digests */}
       <View style={styles.sectionRow}>
-        <Text style={styles.sectionTitle}>Weekly digests</Text>
+        <Text style={styles.sectionTitle}>{t('mobile.weeklyDigests')}</Text>
         <Pressable
           style={[styles.smallButton, state.generating && styles.buttonDisabled]}
           onPress={() => void handleGenerateDigest()}
@@ -240,23 +243,23 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
           {state.generating ? (
             <ActivityIndicator color={palette.roseInk} size="small" />
           ) : (
-            <Text style={styles.smallButtonText}>Generate</Text>
+            <Text style={styles.smallButtonText}>{t('mobile.generate')}</Text>
           )}
         </Pressable>
       </View>
       <View style={styles.card}>
         {state.digests.length === 0 ? (
-          <Text style={styles.muted}>No digests yet — generate this week's digest.</Text>
+          <Text style={styles.muted}>{t('mobile.digestEmpty')}</Text>
         ) : (
           state.digests.map((digest) => (
             <View key={digest.id} style={styles.listItem}>
-              <Text style={styles.itemTitle}>{digest.title || 'Untitled digest'}</Text>
+              <Text style={styles.itemTitle}>{digest.title || t('mobile.untitledDigest')}</Text>
               {digest.description ? (
                 <Text style={styles.itemSubtitle}>{digest.description}</Text>
               ) : null}
               <Text style={styles.itemMeta}>
-                {new Date(digest.createdAt).toLocaleString()} ·{' '}
-                {digest.channel ?? 'unknown channel'}
+                {new Date(digest.createdAt).toLocaleString(locale)} ·{' '}
+                {digest.channel ?? t('mobile.unknownChannel')}
               </Text>
             </View>
           ))
@@ -264,10 +267,10 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
       </View>
 
       {/* Crash reports */}
-      <Text style={styles.sectionTitle}>Crash reports</Text>
+      <Text style={styles.sectionTitle}>{t('mobile.crashReports')}</Text>
       <View style={styles.card}>
         {state.crashReports.length === 0 ? (
-          <Text style={styles.muted}>No crashes recorded. All systems nominal.</Text>
+          <Text style={styles.muted}>{t('mobile.noCrashes')}</Text>
         ) : (
           state.crashReports.map((report) => (
             <View key={report.id} style={styles.listItem}>
@@ -275,9 +278,9 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
                 <Text style={styles.itemTitle}>{report.service}</Text>
                 <Text style={styles.badgeOff}>{report.status}</Text>
               </View>
-              <Text style={styles.itemSubtitle}>{report.message || '(no message)'}</Text>
+              <Text style={styles.itemSubtitle}>{report.message || t('mobile.noMessage')}</Text>
               <Text style={styles.itemMeta}>
-                ×{report.count} · last seen {new Date(report.lastSeen).toLocaleString()}
+                {t('mobile.crashCount', { count: report.count })} · {t('mobile.lastSeen', { value: new Date(report.lastSeen).toLocaleString(locale) })}
               </Text>
             </View>
           ))
