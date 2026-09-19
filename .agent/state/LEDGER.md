@@ -960,3 +960,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19 | [AXIOM][P4][M638] Establish local baseline for active F89 scraper lane: core locale 28/28, API scraper 38/38, dashboard scraper 10/10; no source delivery or integration claimed
 2026-09-19 | [AXIOM][P4][M639] Synchronize PUBLISHED_HEAD to pushed scraper-lane baseline evidence; Hermes remains the sole implementation owner for the declared copy
 2026-09-19 | [AXIOM][P4][M640] Transfer exact 248fc scraper source archive after Hermes provenance ACK; remote SHA verified and correlated source-bundle receipt sent, no implementation or live action
+2026-09-19 | [AXIOM][P4][M641] Synchronize PUBLISHED_HEAD to pushed exact-source transport correction; Hermes remains bound to the same F89 wire
