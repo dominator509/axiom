@@ -1732,3 +1732,40 @@ hard-coded to `fanthynks-api`. Therefore R4 is **AUDITED-NOT-INTEGRATED**,
 not production-ready. The next source correction must thread one immutable
 context through every installer/bridge sink and add executable negative tests;
 no installer or live operation is authorized.
+
+## M512 — D001A R5 installer slice independently audited: correction required
+
+Hermes delivered the installer-only R5 candidate and two source-only harnesses
+through the bridge. Local checksum readback matches the reported artifacts:
+`fanthynks-test-install.candidate` (64,251 bytes,
+`32e8cbfc8a1e6648e421d4b8c9260fc5cb5fb7bbd87537a8e23ba01301770d6d`),
+`test_installer_context.sh` (12,521 bytes,
+`0c49b5981cc541e9c9be822cb20bc58710a4ee991730580542307189344bc98f`) and
+`test_r5_adversarial.sh` (7,888 bytes,
+`a43f5877eee8f3762e731cfb2f54f1de279561a059e03dc550d700989ba93c98`).
+The candidate and both harnesses pass shell syntax validation. Static review
+confirms the installer slice removes executable ambient DB/PG/SUPER sinks,
+uses explicit rehearsal roots, binds the exact deployment authorization,
+adds context provenance/revalidation and context-derived unit names. It is
+still a source artifact only; the installed script, bridge and live system
+are untouched.
+
+The delivery is **not accepted**: executing the delivered R5 adversarial
+harness against the exact candidate produced **17 passed / 1 failed**. The
+failure is the test's defect-1 grep, which scans the entire `resolve_mode()`
+function and flags the legitimate live-mode `"$RELEASES" "$CONFIG_DIR"`
+call even though the rehearsal branch passes `REH_RELEASES`/`REH_CONFIG`.
+The harness therefore does not meet the matrix's zero-failure criterion. The
+context harness could not complete locally because its nested `bash` resolved
+to the unavailable Windows WSL launcher; this is an environment limitation,
+not counted as source evidence. Hermes' claimed 43/43 and 20/20 results are
+not accepted in place of the reproducible local result.
+
+Next action: send one narrowly scoped correction requiring the R5 harness to
+test only the rehearsal branch (and to fail on the rejected baseline), then
+rerun syntax, context, and adversarial tests with exact exits. Keep the
+installer patch source-only and separately audit bridge slice 2; the known
+bridge `psql()` live default, undefined `SCHEMA_CHANGING_FROM`, duplicate
+`prerequisites_recorded`, and deployment/live-operation prohibitions remain
+open. No installer, database, migration, service, permission or deployment
+action is authorized.
