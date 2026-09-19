@@ -252,9 +252,9 @@ health endpoints alone never closes a gate.
 - [x] Classic branch protection API readback on 2026-09-17 confirms strict six required checks (typecheck, lint, test, build, security, container), one approving review, stale-review dismissal, admin enforcement, no force pushes and no deletions. This proves current enforcement, not permanent configuration or CI success on subsequent commits.
 - Gate: hosted CI success for the audited commit and branch/ruleset readback. If GitHub credentials are unavailable, leave a precise operator command and mark the external gate open.
 
-### 14. Localization and language switching — new owner extension; source work not started
+### 14. Localization and language switching — new owner extension; source slice in progress
 
-- Define the shared F-89 locale contract for `en`, `es`, `ja`, `it`, `pt-BR` and `de`; normalize BCP-47 tags and keep UI locale separate from creator/model content locale. The source slice now consumes that contract in the dashboard shell/navigation/settings and mobile dashboard/selector; remaining surfaces and browser/deployed evidence stay open.
+- Define the shared F-89 locale contract for `en`, `es`, `ja`, `it`, `pt-BR` and `de`; normalize BCP-47 tags and keep UI locale separate from creator/model content locale. The source slice now consumes that contract in the dashboard shell/navigation/settings and mobile dashboard/selector; the authenticated dashboard shell now also localizes workspace, home, role, pending-access, footer and system-health copy. Remaining surfaces and browser/deployed evidence stay open.
 - Add persisted user preference plus organization default with explicit user choice taking precedence over browser detection; preserve the setting across dashboard, native mobile, auth, email and operator surfaces.
 - Create a typed shared message-catalog package with English fallback, ICU plural/select messages, `Intl` number/currency/date/time-zone formatting, accessible `lang` metadata and a missing-key test that fails closed.
 - Replace inline user-facing strings and hard-coded `en-US` formatting only in touched surfaces; do not translate user/provider/generated content implicitly. Translation actions must be explicit, bounded and audited.

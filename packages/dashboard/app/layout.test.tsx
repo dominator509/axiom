@@ -12,8 +12,11 @@ import LoginPage from './login/page';
 
 afterEach(() => vi.unstubAllGlobals());
 
-async function render(user: Record<string, unknown> | null) {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(user ? { user } : null))));
+async function render(user: Record<string, unknown> | null, uiLocale = 'en') {
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    if (String(input).includes('/api/v1/ui-locale')) return new Response(JSON.stringify({ data: { locale: uiLocale } }));
+    return new Response(JSON.stringify(user ? { user } : null));
+  }));
   return renderToStaticMarkup(await RootLayout({ children: <p>Workspace contents</p> }));
 }
 
@@ -66,4 +69,11 @@ describe('dashboard session presentation', () => {
       expect(html).not.toContain('Studio owner');
     },
   );
+  it('localizes the authenticated shell and role label', async () => {
+    const html = await render({ id: 'user', email: 'miembro@example.invalid', orgId: 'org', role: 'content_creator' }, 'es');
+    expect(html).toContain('<html lang="es">');
+    expect(html).toContain('Espacio de trabajo');
+    expect(html).toContain('Creador de contenido');
+    expect(html).toContain('Estado del sistema');
+  });
 });

@@ -5,7 +5,6 @@ import { api, getSession } from '@/lib/api';
 import KillSwitchBanner from '@/components/KillSwitchBanner';
 import NavLinks from '@/components/NavLinks';
 import SignOutButton from '@/components/SignOutButton';
-import { roleLabel as displayRole } from '@/lib/navigation-role';
 import { CATALOGS, LocaleCatalog, normalizeLocale } from '@axiom/core';
 import LocaleProvider from '@/components/LocaleProvider';
 
@@ -18,7 +17,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const session = await getSession();
   const email = session?.user?.email ?? 'operator';
   const role = session?.user?.role;
-  const roleLabel = displayRole(role);
   let uiLocale = 'en';
   if (session?.user?.orgId) {
     try { uiLocale = (await api.uiLocale.get()).data.locale; } catch { /* keep the safe fallback */ }
@@ -26,6 +24,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const locale = normalizeLocale(uiLocale) ?? 'en';
   const copy = new LocaleCatalog(CATALOGS);
   const t = (key: string, values?: Record<string, string | number>) => copy.t(locale, key, values);
+  const roleKeys: Record<string, string> = {
+    owner: 'role.owner',
+    manager: 'role.manager',
+    operator: 'role.operator',
+    analyst: 'role.analyst',
+    agent: 'role.agent',
+    chatter: 'role.chatter',
+    content_creator: 'role.contentCreator',
+    model: 'role.model',
+  };
+  const roleLabel = t(roleKeys[role ?? ''] ?? 'role.member');
 
   return (
     <html lang={locale}>
@@ -35,9 +44,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         ) : !session.user?.orgId ? (
           <main className="auth-shell">
             <section className="login-card" aria-labelledby="access-heading">
-              <h1 id="access-heading">Workspace access pending</h1>
-              <p>You are signed in as {email}, but your account has no assigned organization.</p>
-              <p>Contact your workspace administrator to arrange access, or sign out to use another account.</p>
+              <h1 id="access-heading">{t('layout.authPendingTitle')}</h1>
+              <p>{t('layout.authPendingSignedIn', { email })}</p>
+              <p>{t('layout.authPendingContact')}</p>
               <SignOutButton label={t('action.signOut')} />
             </section>
           </main>
@@ -46,14 +55,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="app-shell">
             <a href="#main-content" className="skip-link">{t('ui.skipToContent')}</a>
             <aside className="sidebar">
-              <Link href="/" className="brand" aria-label="FanThynks home">
+              <Link href="/" className="brand" aria-label={t('layout.home')}>
                 <span className="brand-mark">F</span>
                 <span className="brand-copy">
                   <strong>FanThynks</strong>
                   <small>{t('brand.creatorIntelligence')}</small>
                 </span>
               </Link>
-              <p className="nav-kicker">Workspace</p>
+              <p className="nav-kicker">{t('layout.workspace')}</p>
               <NavLinks role={role} />
               <div className="sidebar-spacer" />
               <div className="system-card">
@@ -78,7 +87,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <strong>FanThynks</strong>
                 </Link>
                 <div className="mobile-actions">
-                  <span className="eyebrow">Creator OS</span>
+                  <span className="eyebrow">{t('brand.creatorOs')}</span>
                   <SignOutButton label={t('action.signOut')} />
                 </div>
               </header>
@@ -88,9 +97,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {role === 'owner' && <KillSwitchBanner />}
               <main id="main-content" tabIndex={-1} className="main">{children}</main>
               <footer className="footer">
-                <span>Private by design · self-hosted</span>
+                <span>{t('layout.privateByDesign')}</span>
                 <Link href="/api/v1/health">
-                  System health
+                  {t('layout.systemHealth')}
                 </Link>
               </footer>
             </div>
