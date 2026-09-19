@@ -9,7 +9,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `f90e13d5d5e17f2f96c242ca393ac07f7b4e32a0`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `95355e64d9e3a76afcbe0d2f2ecc6a44237123df`
+PUBLISHED_HEAD: `a0e9f2e43ef02792e5cdfae868370c077664a5be`
 ACCEPTED_PRODUCT_SOURCE: `f90e13d5d5e17f2f96c242ca393ac07f7b4e32a0`
 ACTIVE_HERMES_LANE: `NONE`
 CODEX_OWNER: `CODEX`
