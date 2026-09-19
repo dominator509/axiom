@@ -988,3 +988,23 @@ standalone tracing; the code build itself is clean. Migration 0058 is authored
 but unapplied; provider, browser/mobile, live migration/RLS, runtime and
 deployment acceptance remain open. No provider, credential, database,
 permission, network, installer or live service action occurred.
+
+### M669 — F-89 Calendar localization source slice
+
+The authenticated model Calendar page and its client surfaces now consume the
+shared six-locale catalog instead of embedding English labels. Month/week
+navigation, invalid-query messages, creator scheduling guidance, empty/error
+states, post details and state labels are localized. The visual board derives
+weekday and day labels from the selected locale, while drag/date movement,
+locked-target guidance, guarded mutation feedback and UTC wording remain
+unchanged. The schedule form localizes confirmation/retry/error states, and
+advisory optimal-time windows use localized catalog labels plus locale-aware
+numeric formatting. The media-library link remains a normal navigable route.
+
+The six locale catalogs now contain the Calendar key family (English,
+Spanish, Japanese, Italian, Brazilian Portuguese and German). Evidence:
+Calendar page/board/schedule/optimal-time tests 20/20, core tests 80/80,
+core build, dashboard typecheck and `git diff --check` pass. This is source
+and automated evidence only; remaining dashboard catalog adoption,
+browser/mobile acceptance, provider, migration/RLS, runtime and deployment
+gates remain open.

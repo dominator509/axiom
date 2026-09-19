@@ -7,6 +7,7 @@ import type { PostTarget } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError } from '@/lib/response';
 import { readBoundedResponseJson } from '@axiom/core';
+import { useLocale } from './LocaleProvider';
 
 const DAY_MS = 86_400_000;
 
@@ -36,13 +37,13 @@ function startOfUtcWeek(value: Date) {
   return date;
 }
 
-export function calendarCells(year: number, month: number, view: 'month' | 'week', weekStart?: string): CalendarCell[] {
+export function calendarCells(year: number, month: number, view: 'month' | 'week', weekStart?: string, locale = 'en'): CalendarCell[] {
   if (view === 'week') {
     const parsed = weekStart ? new Date(`${weekStart}T00:00:00.000Z`) : new Date(Date.UTC(year, month - 1, 1));
     const start = startOfUtcWeek(Number.isNaN(parsed.getTime()) ? new Date(Date.UTC(year, month - 1, 1)) : parsed);
     return Array.from({ length: 7 }, (_, index) => {
       const date = new Date(start.getTime() + index * DAY_MS);
-      return { key: utcDayKey(date), label: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }), date, inCurrentMonth: date.getUTCMonth() === month - 1 };
+      return { key: utcDayKey(date), label: date.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }), date, inCurrentMonth: date.getUTCMonth() === month - 1 };
     });
   }
 
@@ -52,7 +53,7 @@ export function calendarCells(year: number, month: number, view: 'month' | 'week
   const cellCount = ((gridStart.getUTCDate() + daysInMonth - 1) > 35) ? 42 : 35;
   return Array.from({ length: cellCount }, (_, index) => {
     const date = new Date(gridStart.getTime() + index * DAY_MS);
-    return { key: utcDayKey(date), label: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }), date, inCurrentMonth: date.getUTCMonth() === month - 1 };
+    return { key: utcDayKey(date), label: date.toLocaleDateString(locale, { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' }), date, inCurrentMonth: date.getUTCMonth() === month - 1 };
   });
 }
 
@@ -66,8 +67,10 @@ export function movedUtcSlot(post: PostTarget, target: Date) {
 }
 
 export default function CalendarBoard({ posts, year, month, view, weekStart, canEdit }: CalendarBoardProps) {
+  const { locale, t } = useLocale();
   const router = useRouter();
-  const cells = useMemo(() => calendarCells(year, month, view, weekStart), [month, view, weekStart, year]);
+  const cells = useMemo(() => calendarCells(year, month, view, weekStart, locale), [locale, month, view, weekStart, year]);
+  const weekdays = useMemo(() => Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, index + 1)))), [locale]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [targetDates, setTargetDates] = useState<Record<string, string>>({});
@@ -99,16 +102,16 @@ export default function CalendarBoard({ posts, year, month, view, weekStart, can
       }, { idempotencyKey: createIdempotencyKey(), retries: 0 });
       if (!response.ok) {
         const details = await readDashboardError(response);
-        throw new Error(details?.error?.message ?? 'Schedule change was not accepted.');
+        throw new Error(details?.error?.message ?? t('calendar.scheduleChangeNotAccepted'));
       }
       const result = await readBoundedResponseJson(response) as { data?: { id?: unknown; state?: unknown; scheduledFor?: unknown } } | null;
       if (result?.data?.id !== post.id || result.data.state !== 'pending' || result.data.scheduledFor !== scheduledFor) {
-        throw new Error('Unconfirmed schedule response.');
+        throw new Error(t('calendar.unconfirmedScheduleResponse'));
       }
-      setMessage(`Moved ${post.platform} to ${scheduledFor.slice(0, 10)} UTC. Publication still requires the normal worker and provider gates.`);
+      setMessage(`${t('calendar.movedNotice', { platform: post.platform, date: scheduledFor.slice(0, 10) })} ${t('calendar.publicationGates')}`);
       router.refresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Schedule change was not confirmed. Refresh before retrying.');
+      setError(cause instanceof Error ? cause.message : t('calendar.changeNotConfirmed'));
     } finally {
       setBusyId(null);
     }
@@ -124,30 +127,36 @@ export default function CalendarBoard({ posts, year, month, view, weekStart, can
   async function movePostToDate(post: PostTarget, value: string) {
     const target = new Date(`${value}T00:00:00.000Z`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(target.getTime())) {
-      setError('Choose a valid UTC date before moving the post.');
+      setError(t('calendar.validUtcDate'));
       setMessage('');
       return;
     }
     await submitMove(post, target);
   }
 
-  return <section className="card stack" aria-label={`${view === 'month' ? 'Month' : 'Week'} visual calendar`}>
+  const viewLabel = t(view === 'month' ? 'calendar.month' : 'calendar.week');
+  const stateLabel = (state: string) => {
+    const key = `calendar.state.${state}`;
+    const translated = t(key);
+    return translated === key ? state : translated;
+  };
+  return <section className="card stack" aria-label={t('calendar.visualView', { view: viewLabel })}>
     <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
       <div>
-        <h3 style={{ margin: 0 }}>Visual {view} view</h3>
-        <p className="subtle" style={{ marginBottom: 0 }}>Times are shown in UTC. Drag an editable pending post to another day to request a guarded reschedule.</p>
+        <h3 style={{ margin: 0 }}>{t('calendar.visualView', { view: viewLabel })}</h3>
+        <p className="subtle" style={{ marginBottom: 0 }}>{t('calendar.dragHint')}</p>
       </div>
-      <span className="badge mute">{posts.length} loaded</span>
+      <span className="badge mute">{t('calendar.loaded', { count: posts.length })}</span>
     </div>
     {message && <p role="status">{message}</p>}
     {error && <p role="alert">{error}</p>}
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8, overflowX: 'auto' }}>
-      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => <strong key={day} style={{ minWidth: 108, color: 'var(--muted)', fontSize: 12 }}>{day}</strong>)}
+      {weekdays.map(day => <strong key={day} style={{ minWidth: 108, color: 'var(--muted)', fontSize: 12 }}>{day}</strong>)}
       {cells.map(cell => {
         const dayPosts = byDay.get(cell.key) ?? [];
         return <div
           key={cell.key}
-          aria-label={`Calendar day ${cell.label}`}
+          aria-label={t('calendar.dayAria', { label: cell.label })}
           onDragOver={event => { if (canEdit) event.preventDefault(); }}
           onDrop={event => { event.preventDefault(); void moveDraggedPost(cell.date); }}
           style={{ minWidth: 108, minHeight: 128, padding: 8, border: `1px solid ${cell.inCurrentMonth ? 'var(--line)' : 'transparent'}`, borderRadius: 10, background: cell.inCurrentMonth ? 'var(--panel2)' : 'transparent', opacity: cell.inCurrentMonth ? 1 : .65 }}
@@ -166,24 +175,24 @@ export default function CalendarBoard({ posts, year, month, view, weekStart, can
                 style={{ padding: 8, cursor: editable ? 'grab' : 'default' }}
               >
                 <Link href={`#post-${post.id}`} style={{ fontWeight: 600 }}>{post.platform}</Link>
-                <span className={`badge ${post.state === 'published' ? 'good' : post.state === 'failed' ? 'bad' : 'mute'}`}>{post.state}</span>
-                <span className="subtle" style={{ fontSize: 12 }}>{post.scheduledFor ? new Date(post.scheduledFor).toISOString().slice(11, 16) : 'unscheduled'} UTC</span>
+                <span className={`badge ${post.state === 'published' ? 'good' : post.state === 'failed' ? 'bad' : 'mute'}`}>{stateLabel(post.state)}</span>
+                <span className="subtle" style={{ fontSize: 12 }}>{post.scheduledFor ? new Date(post.scheduledFor).toISOString().slice(11, 16) : t('calendar.unscheduled')} {t('calendar.utc')}</span>
                 {editable && <div className="stack" style={{ gap: 4, marginTop: 6 }}>
-                  <label htmlFor={`move-date-${post.id}`} className="subtle" style={{ fontSize: 12 }}>Move to UTC date</label>
+                  <label htmlFor={`move-date-${post.id}`} className="subtle" style={{ fontSize: 12 }}>{t('calendar.moveToUtcDate')}</label>
                   <div className="row" style={{ gap: 6 }}>
                     <input
                       id={`move-date-${post.id}`}
                       type="date"
                       value={targetDates[post.id] ?? post.scheduledFor?.slice(0, 10) ?? ''}
                       onChange={event => setTargetDates(current => ({ ...current, [post.id]: event.target.value }))}
-                      aria-label={`Move ${post.platform} post to UTC date`}
+                      aria-label={t('calendar.movePostToDate', { platform: post.platform })}
                     />
                     <button
                       className="btn secondary"
                       type="button"
                       disabled={busyId !== null}
                       onClick={() => void movePostToDate(post, targetDates[post.id] ?? post.scheduledFor?.slice(0, 10) ?? '')}
-                    >Move</button>
+                    >{t('calendar.move')}</button>
                   </div>
                 </div>}
               </article>;
@@ -192,7 +201,7 @@ export default function CalendarBoard({ posts, year, month, view, weekStart, can
         </div>;
       })}
     </div>
-    {busyId && <p className="subtle" role="status">Saving the original drag request…</p>}
-    <p className="subtle" style={{ marginBottom: 0 }}>A drag changes only an editable pending target. Published, handed-off, failed, canceled, or uncertain targets remain locked by the API.</p>
+    {busyId && <p className="subtle" role="status">{t('calendar.savingOriginal')}</p>}
+    <p className="subtle" style={{ marginBottom: 0 }}>{t('calendar.lockedExplanation')}</p>
   </section>;
 }

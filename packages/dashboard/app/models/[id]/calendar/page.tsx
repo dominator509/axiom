@@ -1,4 +1,5 @@
 import { api, getSession } from '@/lib/api';
+import { getServerLocale } from '@/lib/server-locale';
 import Link from 'next/link';
 import PostScheduleForm from '@/components/PostScheduleForm';
 import PostTeamNotes from '@/components/PostTeamNotes';
@@ -16,8 +17,9 @@ export default async function CalendarPage({ params, searchParams }: {
 }) {
   const { id } = await params;
   const session = await getSession();
+  const { t } = await getServerLocale();
   const role = session?.user?.role;
-  if (!talentDestinationAllowed(role, 'calendar')) return <div className="card"><h2>Calendar access unavailable</h2><p>Your role does not include this calendar.</p><Link href="/">Back to workspace</Link></div>;
+  if (!talentDestinationAllowed(role, 'calendar')) return <div className="card"><h2>{t('calendar.accessUnavailable')}</h2><p>{t('calendar.accessDescription')}</p><Link href="/">{t('calendar.back')}</Link></div>;
   const showCadence = talentDestinationAllowed(role, 'playbook');
   const showReview = talentDestinationAllowed(role, 'approvals');
   const showTeamNotes = ['owner', 'manager', 'operator', 'analyst', 'agent', 'content_creator'].includes(role ?? '');
@@ -80,51 +82,61 @@ export default async function CalendarPage({ params, searchParams }: {
     }
   } catch { cadenceUnavailable = true; }
 
+  const viewLabel = t(view === 'month' ? 'calendar.month' : 'calendar.week');
+  const stateLabels: Record<string, string> = {
+    pending: t('calendar.state.pending'),
+    published: t('calendar.state.published'),
+    failed: t('calendar.state.failed'),
+    canceled: t('calendar.state.canceled'),
+    handed_off: t('calendar.state.handed_off'),
+  };
+  const stateLabel = (state: string) => stateLabels[state] ?? state;
+
   return (
     <div className="page-stack">
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <h2>Content calendar</h2>
-        <span style={{ color: 'var(--muted)' }}>{error ? 'Calendar unavailable' : `${posts.length} ${posts.length === 1 ? 'post' : 'posts'} in this ${view}`}</span>
+        <h2>{t('calendar.title')}</h2>
+        <span style={{ color: 'var(--muted)' }}>{error ? t('calendar.unavailable') : t('calendar.postsInView', { count: posts.length, noun: t(posts.length === 1 ? 'calendar.post' : 'calendar.posts'), view: viewLabel })}</span>
       </div>
-      <nav className="row" aria-label="Calendar navigation">
+      <nav className="row" aria-label={t('calendar.navigation')}>
         {view === 'month' ? <>
-          {year > 1000 || monthNumber > 1 ? <Link href={monthHref(previous)}>Previous month</Link> : null}
-          <strong>{month} (UTC)</strong>
-          {year < 9999 || monthNumber < 12 ? <Link href={monthHref(next)}>Next month</Link> : null}
-          {month !== currentMonth && <Link href={calendarPath}>Current month</Link>}
+          {year > 1000 || monthNumber > 1 ? <Link href={monthHref(previous)}>{t('calendar.previousMonth')}</Link> : null}
+          <strong>{month} ({t('calendar.utc')})</strong>
+          {year < 9999 || monthNumber < 12 ? <Link href={monthHref(next)}>{t('calendar.nextMonth')}</Link> : null}
+          {month !== currentMonth && <Link href={calendarPath}>{t('calendar.currentMonth')}</Link>}
         </> : <>
-          <Link href={weekHref(previousWeek)}>Previous week</Link>
-          <strong>Week of {weekStart} (UTC)</strong>
-          <Link href={weekHref(nextWeek)}>Next week</Link>
-          <Link href={weekHref(now.toISOString().slice(0, 10))}>Current week</Link>
+          <Link href={weekHref(previousWeek)}>{t('calendar.previousWeek')}</Link>
+          <strong>{t('calendar.weekOf', { date: weekStart })}</strong>
+          <Link href={weekHref(nextWeek)}>{t('calendar.nextWeek')}</Link>
+          <Link href={weekHref(now.toISOString().slice(0, 10))}>{t('calendar.currentWeek')}</Link>
         </>}
-        <Link href={monthViewHref}>Month view</Link>
-        <Link href={weekHref(weekStart)}>Week view</Link>
+        <Link href={monthViewHref}>{t('calendar.monthView')}</Link>
+        <Link href={weekHref(weekStart)}>{t('calendar.weekView')}</Link>
       </nav>
       {view === 'month' && <form action={calendarPath} className="row">
-        <label>Month (UTC) <input type="month" name="month" defaultValue={month} min="1000-01" max="9999-12" required /></label>
-        <button className="btn secondary" type="submit">Show month</button>
+        <label>{t('calendar.monthUtc')} <input type="month" name="month" defaultValue={month} min="1000-01" max="9999-12" required /></label>
+        <button className="btn secondary" type="submit">{t('calendar.showMonth')}</button>
       </form>}
-      {invalidMonth && <p role="alert">Invalid or repeated month parameter. Showing the current UTC month.</p>}
-      {invalidWeek && <p role="alert">Invalid week parameter. Showing the current UTC week.</p>}
-      {invalidView && <p role="alert">Unknown calendar view. Showing the month view.</p>}
+      {invalidMonth && <p role="alert">{t('calendar.invalidMonth')}</p>}
+      {invalidWeek && <p role="alert">{t('calendar.invalidWeek')}</p>}
+      {invalidView && <p role="alert">{t('calendar.invalidView')}</p>}
       {showCadence && <PlaybookCadence modelId={id} guidelines={guidelines} posts={weekPosts} {...week} unavailable={cadenceUnavailable} />}
       {showCadence && <CalendarOptimalTimes modelId={id} patterns={viralPatterns} />}
-      {role === 'content_creator' && <p>To propose a posting time, stage a saved asset from the <Link href={`/models/${encodeURIComponent(id)}/media`}>media library</Link> with a schedule request. An operator must approve it before publication.</p>}
+      {role === 'content_creator' && <p>{t('calendar.creatorProposalBefore')}<Link href={`/models/${encodeURIComponent(id)}/media`}>{t('calendar.mediaLibrary')}</Link>{t('calendar.creatorProposalAfter')}</p>}
       {error && (
         <div className="card" style={{ color: 'var(--bad)' }}>
-          {error}
+          {t('calendar.loadFailed')}
         </div>
       )}
       {posts.length === 0 && !error && (
         <div className="card">
           <p style={{ color: 'var(--muted)', margin: 0 }}>
-            No scheduled posts in the window.{canEdit ? ' Approve a generated bundle to schedule.' : ' Approved posting plans will appear here.'}
+            {t('calendar.noScheduledPosts')} {canEdit ? t('calendar.approveGeneratedBundle') : t('calendar.approvedPlansAppear')}
           </p>
         </div>
       )}
       <CalendarBoard posts={posts} year={year} month={monthNumber} view={view} weekStart={weekStart} canEdit={canEdit} />
-      <h3>Post details</h3>
+      <h3>{t('calendar.postDetails')}</h3>
       <div className="grid">
         {posts.map((p) => (
           <div key={p.id} id={`post-${p.id}`} className="card">
@@ -133,18 +145,18 @@ export default async function CalendarPage({ params, searchParams }: {
               <span
                 className={`badge ${p.state === 'published' ? 'good' : p.state === 'failed' ? 'bad' : 'mute'}`}
               >
-                {p.state}
+                {stateLabel(p.state)}
               </span>
             </div>
             <div style={{ marginTop: 8 }}>
-              {p.scheduledFor ? `${new Date(p.scheduledFor).toISOString()} (UTC)` : 'not scheduled'}
+              {p.scheduledFor ? `${new Date(p.scheduledFor).toISOString()} (${t('calendar.utc')})` : t('calendar.notScheduled')}
             </div>
             {p.error && (
               <div style={{ color: 'var(--bad)', marginTop: 6 }} className="mono">
                 {p.error}
               </div>
             )}
-            {showReview && <Link href={`/models/${encodeURIComponent(id)}/approvals`}>{role === 'content_creator' ? 'Review drafts' : 'View bundles and approvals'}</Link>}
+            {showReview && <Link href={`/models/${encodeURIComponent(id)}/approvals`}>{role === 'content_creator' ? t('calendar.reviewDrafts') : t('calendar.viewBundlesApprovals')}</Link>}
             {showTeamNotes && <PostTeamNotes key={`notes:${p.id}`} modelId={id} postId={p.id} canEdit={canEdit || role === 'content_creator'} />}
             {canEdit && p.state === 'pending' && !p.remoteId && <PostScheduleForm key={`${p.id}:${p.scheduledFor}`} postId={p.id} />}
           </div>

@@ -3,6 +3,23 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import CalendarBoard, { calendarCells, movedUtcSlot } from './CalendarBoard';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({
+  locale: 'en',
+  t: (key: string, values?: Record<string, string | number>) => ({
+    'calendar.month': 'month',
+    'calendar.visualView': `Visual ${values?.view ?? 'month'} view`,
+    'calendar.dragHint': 'Times are shown in UTC. Drag an editable pending post to another day to request a guarded reschedule.',
+    'calendar.loaded': `${values?.count ?? 0} loaded`,
+    'calendar.dayAria': `Calendar day ${values?.label ?? ''}`,
+    'calendar.moveToUtcDate': 'Move to UTC date',
+    'calendar.movePostToDate': `Move ${values?.platform ?? ''} post to UTC date`,
+    'calendar.move': 'Move',
+    'calendar.utc': 'UTC',
+    'calendar.unscheduled': 'unscheduled',
+    'calendar.savingOriginal': 'Saving the original drag request…',
+    'calendar.lockedExplanation': 'A drag changes only an editable pending target. Published, handed-off, failed, canceled, or uncertain targets remain locked by the API.',
+  }[key] ?? key),
+}) }));
 
 const post = (id: string, scheduledFor: string, state = 'pending', remoteId: string | null = null) => ({
   id, bundleId: 'bundle', platform: 'x', scheduledFor, state, remoteId, error: null,

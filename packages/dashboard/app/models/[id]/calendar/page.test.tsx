@@ -3,6 +3,49 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import CalendarPage from './page';
 const session = vi.hoisted(() => ({ role: 'operator' }));
 vi.mock('@/lib/api', async original => ({ ...await original<typeof import('@/lib/api')>(), getSession: async () => ({ user: { role: session.role } }) }));
+vi.mock('@/lib/server-locale', () => ({ getServerLocale: async () => ({
+  locale: 'en',
+  dateTime: (value: string | Date) => new Date(value).toISOString(),
+  t: (key: string, values?: Record<string, string | number>) => ({
+    'calendar.accessUnavailable': 'Calendar access unavailable',
+    'calendar.accessDescription': 'Your role does not include this calendar.',
+    'calendar.back': 'Back to workspace',
+    'calendar.title': 'Content calendar',
+    'calendar.unavailable': 'Calendar unavailable',
+    'calendar.postsInView': `${values?.count ?? 0} ${values?.noun ?? ''} in this ${values?.view ?? ''}`,
+    'calendar.post': 'post',
+    'calendar.posts': 'posts',
+    'calendar.month': 'month',
+    'calendar.week': 'week',
+    'calendar.navigation': 'Calendar navigation',
+    'calendar.previousMonth': 'Previous month',
+    'calendar.nextMonth': 'Next month',
+    'calendar.currentMonth': 'Current month',
+    'calendar.previousWeek': 'Previous week',
+    'calendar.weekOf': `Week of ${values?.date ?? ''} (UTC)`,
+    'calendar.nextWeek': 'Next week',
+    'calendar.currentWeek': 'Current week',
+    'calendar.monthView': 'Month view',
+    'calendar.weekView': 'Week view',
+    'calendar.monthUtc': 'Month (UTC)',
+    'calendar.showMonth': 'Show month',
+    'calendar.invalidMonth': 'Invalid or repeated month parameter. Showing the current UTC month.',
+    'calendar.invalidWeek': 'Invalid week parameter. Showing the current UTC week.',
+    'calendar.invalidView': 'Unknown calendar view. Showing the month view.',
+    'calendar.creatorProposalBefore': 'To propose a posting time, stage a saved asset from the ',
+    'calendar.mediaLibrary': 'media library',
+    'calendar.creatorProposalAfter': ' with a schedule request. An operator must approve it before publication.',
+    'calendar.loadFailed': 'Calendar data could not be loaded.',
+    'calendar.noScheduledPosts': 'No scheduled posts in the window.',
+    'calendar.approveGeneratedBundle': 'Approve a generated bundle to schedule.',
+    'calendar.approvedPlansAppear': 'Approved posting plans will appear here.',
+    'calendar.postDetails': 'Post details',
+    'calendar.utc': 'UTC',
+    'calendar.notScheduled': 'not scheduled',
+    'calendar.reviewDrafts': 'Review drafts',
+    'calendar.viewBundlesApprovals': 'View bundles and approvals',
+  }[key] ?? key),
+}) }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [] }) }));

@@ -1,6 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import CalendarOptimalTimes, { deriveCalendarTimeSuggestions } from './CalendarOptimalTimes';
+
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({
+  locale: 'en',
+  t: (key: string, values?: Record<string, string | number>) => ({
+    'calendar.timeWindow.1': '06:00–11:59 UTC',
+    'calendar.timeWindow.3': '18:00–23:59 UTC',
+    'calendar.observedSuggestionsAria': 'Observed calendar time suggestions',
+    'calendar.observedTimeSuggestions': 'Observed time suggestions',
+    'calendar.advisoryWindows': 'These are advisory windows from verified published exemplars. They do not schedule, publish, or imply causal lift.',
+    'calendar.noVerifiedWindow': 'No verified time window is strong enough to suggest yet.',
+    'calendar.verifiedExemplarsScore': `${values?.sampleSize ?? 0} verified exemplars · mean relative score ${values?.score ?? ''}`,
+    'calendar.reviewEvidence': 'Review the evidence behind these windows',
+  }[key] ?? key),
+}) }));
 
 const groups = [
   { platform: 'x', arm: 'short:question', context: 'learn-v1:scheduled-utc-3', sampleSize: 9, meanScore: 1.2 },

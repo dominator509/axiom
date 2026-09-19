@@ -2,6 +2,20 @@ import { afterEach, expect, it, vi } from 'vitest';
 import type { FormEvent } from 'react';
 const state = vi.hoisted(() => ({ send: vi.fn(), refresh: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: state.refresh }) }));
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({
+  locale: 'en',
+  t: (key: string) => ({
+    'calendar.confirmScheduleFirst': 'Confirm the schedule change first.',
+    'calendar.chooseAction': 'Choose a schedule action.',
+    'calendar.futureDateTime': 'Choose a future date and time to reschedule.',
+    'calendar.checkScheduleFields': 'Check the schedule fields.',
+    'calendar.changeNotConfirmed': 'Change not confirmed.',
+    'calendar.unconfirmedScheduleResponse': 'Unconfirmed schedule response.',
+    'calendar.canceledNotice': 'Scheduled post canceled.',
+    'calendar.updatedNotice': 'Schedule updated.',
+    'calendar.checkCalendarRetry': 'Change not confirmed.',
+  }[key] ?? key),
+}) }));
 vi.mock('react', async original => ({ ...await original<typeof import('react')>(),
   useState: (value: unknown) => [value, vi.fn()], useRef: (current: unknown) => ({ current }),
 }));

@@ -1,11 +1,18 @@
 import Link from 'next/link';
 import type { PerformancePattern } from './PerformancePatterns';
+import { useLocale } from './LocaleProvider';
 
 const timeLabels: Record<string, string> = {
   'learn-v1:scheduled-utc-0': '00:00–05:59 UTC',
   'learn-v1:scheduled-utc-1': '06:00–11:59 UTC',
   'learn-v1:scheduled-utc-2': '12:00–17:59 UTC',
   'learn-v1:scheduled-utc-3': '18:00–23:59 UTC',
+};
+const timeLabelKeys: Record<string, string> = {
+  'learn-v1:scheduled-utc-0': 'calendar.timeWindow.0',
+  'learn-v1:scheduled-utc-1': 'calendar.timeWindow.1',
+  'learn-v1:scheduled-utc-2': 'calendar.timeWindow.2',
+  'learn-v1:scheduled-utc-3': 'calendar.timeWindow.3',
 };
 
 export interface CalendarTimeSuggestion {
@@ -15,7 +22,7 @@ export interface CalendarTimeSuggestion {
   meanScore: number;
 }
 
-export function deriveCalendarTimeSuggestions(input?: { groups?: PerformancePattern[]; minimumSample?: number }): CalendarTimeSuggestion[] {
+export function deriveCalendarTimeSuggestions(input?: { groups?: PerformancePattern[]; minimumSample?: number }, labelForContext: (context: string) => string = context => timeLabels[context]): CalendarTimeSuggestion[] {
   if (!input || !Array.isArray(input.groups)) return [];
   const candidateMinimum = input.minimumSample;
   const minimum = typeof candidateMinimum === 'number'
@@ -27,20 +34,22 @@ export function deriveCalendarTimeSuggestions(input?: { groups?: PerformancePatt
     .filter(group => timeLabels[group.context] && Number.isSafeInteger(group.sampleSize) && group.sampleSize >= minimum && Number.isFinite(group.meanScore))
     .sort((left, right) => right.meanScore - left.meanScore || right.sampleSize - left.sampleSize)
     .slice(0, 4)
-    .map(group => ({ platform: group.platform, window: timeLabels[group.context], sampleSize: group.sampleSize, meanScore: group.meanScore }));
+    .map(group => ({ platform: group.platform, window: labelForContext(group.context), sampleSize: group.sampleSize, meanScore: group.meanScore }));
 }
 
 export default function CalendarOptimalTimes({ modelId, patterns }: { modelId: string; patterns?: { groups: PerformancePattern[]; minimumSample: number } }) {
-  const suggestions = deriveCalendarTimeSuggestions(patterns);
-  return <section className="card stack" aria-label="Observed calendar time suggestions">
-    <h3>Observed time suggestions</h3>
-    <p className="subtle">These are advisory windows from verified published exemplars. They do not schedule, publish, or imply causal lift.</p>
+  const { locale, t } = useLocale();
+  const suggestions = deriveCalendarTimeSuggestions(patterns, context => t(timeLabelKeys[context] ?? context));
+  const scoreFormatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
+  return <section className="card stack" aria-label={t('calendar.observedSuggestionsAria')}>
+    <h3>{t('calendar.observedTimeSuggestions')}</h3>
+    <p className="subtle">{t('calendar.advisoryWindows')}</p>
     {suggestions.length === 0
-      ? <p>No verified time window is strong enough to suggest yet. Review the performance evidence as it accumulates.</p>
+      ? <p>{t('calendar.noVerifiedWindow')}</p>
       : <div className="grid">{suggestions.map(suggestion => <article className="card stack" key={`${suggestion.platform}:${suggestion.window}`}>
         <strong>{suggestion.platform} · {suggestion.window}</strong>
-        <span>{suggestion.sampleSize} verified exemplars · mean relative score {suggestion.meanScore.toFixed(2)}</span>
+        <span>{t('calendar.verifiedExemplarsScore', { sampleSize: suggestion.sampleSize, score: scoreFormatter.format(suggestion.meanScore) })}</span>
       </article>)}</div>}
-    <Link href={`/models/${encodeURIComponent(modelId)}/analytics`}>Review the evidence behind these windows</Link>
+    <Link href={`/models/${encodeURIComponent(modelId)}/analytics`}>{t('calendar.reviewEvidence')}</Link>
   </section>;
 }

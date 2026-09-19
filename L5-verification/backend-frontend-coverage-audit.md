@@ -676,6 +676,22 @@ browser/mobile/deployed acceptance remains open; source commit
 `7ff39ea66cc601c1c2e0659d5e2f36cdb942f3d5` is pushed to
 `origin/codex/telegram-webhook-hardening`; no live action occurred.
 
+# M669: F-89 Calendar localization source coverage
+
+The model Calendar page now uses the shared server locale resolver for access,
+navigation, empty/error, creator scheduling, post details and status copy. Its
+visual board uses the selected locale for weekday/day labels and accessible
+calendar-cell names, and its guarded date-move feedback is localized without
+changing mutation or publication gates. The schedule form localizes action,
+confirmation, retry and failure states. Advisory optimal-time windows are
+catalog-backed and their scores use `Intl.NumberFormat` for the selected
+locale. All six launch catalogs contain the Calendar key family.
+
+Evidence: Calendar page/board/schedule/optimal-time tests 20/20, core tests
+80/80, core build, dashboard typecheck and `git diff --check` pass. This is
+source evidence only; browser/native-mobile rendering, remaining catalog
+adoption, deployed migration/RLS/runtime and provider acceptance remain open.
+
 # M586: F-89 mobile Relay localization integrated
 
 The readable Hermes mobile delivery was independently audited and integrated at
