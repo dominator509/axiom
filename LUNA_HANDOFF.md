@@ -2388,3 +2388,28 @@ conflict; no duplicate ACK or rerun of the rejected helper-only delta.
 No deployment, installer, live/disposable database, migration, provider,
 credential, permission, network, runtime or bridge-service action was taken.
 Codex retains audit, integration, commit and push ownership.
+
+## M574 — Hermes variant guidance/hook/timing lane dispatched
+
+After closing the scraper lane, Codex audited the existing variant source. The
+repository already has bounded `GuidanceEvidence` validation and attribution in
+`packages/api/src/variant-ab-contract.ts`, plus authenticated experiment,
+candidate and published-performance surfaces, but the route/UI path does not
+yet persist or expose the selected guidance, hook, format and posting-timing
+evidence. This is the next finite architecture gap; it is not a request for a
+new parallel media model or generic variant CRUD.
+
+Hermes task `CODEX-VARIANT-GUIDANCE-HOOK-TIMING-R1` was sent against exact
+source `a856f04e71a6e64d78ff8b35bfc36a349c857cac` with COPY_ROOT
+`/srv/fanthynks-bridge/hermes/codex-variant-guidance-hook-timing-r1`. Envelope
+SHA-256 is
+`5bdd959a5f7ad030d4a017569eeea08bd7bcee0d32615965ef52196b35de004b`, matching
+the remote readback. Passage requires real authenticated route and dashboard
+callsite changes, bounded existing-contract evidence, tenant/model proof,
+behavior tests and exact source/build evidence. If the current JSONB/contracts
+cannot safely verify the attribution, Hermes must return one exact BLOCKED
+instead of inventing a migration or unscoped identifier storage.
+
+No deployment, installer, database, migration, provider, credential,
+permission, network, runtime or service action is authorized. Codex retains
+audit, integration, commit and push ownership; Hermes must not commit or push.
