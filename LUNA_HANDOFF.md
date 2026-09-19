@@ -1,15 +1,16 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: after milestone M590 and the agentic-drafting/localization/vision delivery assignments. The active agentic-drafting
+Updated: after milestone M592 and the agentic-drafting/localization/vision delivery assignments. The active agentic-drafting
 supersession is tracked below. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
-## Current continuation checkpoint — M590
+## Current continuation checkpoint — M592
 
 The accepted product source head is the reviewed M590 mobile authentication
 localization milestone `6b777deed7c47e4ed7e3e0210c58d187729aae42`; the current
-pushed branch tip is the same commit on
-`origin/codex/telegram-webhook-hardening`. M578 wires the existing bounded
+pushed branch tip is `5fcd53306a74de8d73f6a1e0af6553bf322112c0` on
+`origin/codex/telegram-webhook-hardening`, containing the source milestone plus
+handoff/task-record updates. M578 wires the existing bounded
 `CaptionGuidanceReceipt` into the real copy-variant and review-bundle paths:
 the server rechecks same-org/model/asset ownership, exact caption hash and
 stored receipt metadata before persisting bounded provenance; review creation
@@ -27,12 +28,15 @@ The intentionally untracked rejected Hermes review directory remains untouched.
 
 ## M586B — exact-source agentic inbox drafting supersession
 
-The active Hermes product lane is `INBOX-AGENTIC-DRAFTING-R2`, dispatched against
-the exact pushed source `9cb5bbcf27c854a9a2ed2f022ae6938711cb2f22`. Codex
-provided Hermes a tracked-source archive with SHA-256
-`14d6732aa9da554ddf9a6dd5843b7dec5a53bf456a86c95ef95ba9317aa5b8b2` and a
-protocol-valid task envelope with SHA-256
-`cf14327b06af4fa0bab8e36a8234ac8a8ec8699136893f6521c13beb6e2c68fa`.
+The active Hermes product lane is now the superseding
+`INBOX-AGENTIC-DRAFTING-R3`, dispatched against the exact pushed source
+`5fcd53306a74de8d73f6a1e0af6553bf322112c0`. The signed current-head task
+envelope was sent through the bridge and independently read back with SHA-256
+`e1c8b6f23244d0e56923d1c9a12619167bd28129c7a2f0df893668b07a2bc98b`.
+No full source archive was uploaded; Hermes must resolve and verify the exact
+commit from its permitted source clone or return terminal BLOCKED. The prior
+R2 lane is superseded because its source was stale and produced no substantive
+delivery.
 
 The required implementation is source-only in Hermes' isolated copy: an
 authenticated assigned-LLM draft must compose the existing actor/shift,
@@ -2811,3 +2815,16 @@ typecheck and lint pass. The architecture matrix now records LoginScreen and
 PatreonScreen alongside the already localized mobile DashboardScreen and
 RelayScreen. No provider, database, migration, runtime, permission, installer
 or deployment action occurred. Hermes R5 remains rejected and unintegrated.
+
+## M592 — current-head inbox drafting supersession
+
+Hermes' accepted `INBOX-AGENTIC-DRAFTING-R2` lane produced no substantive
+progress or delivery and was pinned to an older source head. Codex sent the
+superseding `INBOX-AGENTIC-DRAFTING-R3` task against exact current commit
+`5fcd53306a74de8d73f6a1e0af6553bf322112c0`; the envelope SHA-256 is
+`e1c8b6f23244d0e56923d1c9a12619167bd28129c7a2f0df893668b07a2bc98b`, matching
+the bridge readback. The task requires Hermes to resolve the exact commit from
+its permitted clone, work only in an isolated copy, and return a real source
+delta with executable authorization/persistence/UI tests or one terminal
+BLOCKED result. No full source archive was uploaded, and no runtime, provider,
+database, migration, permission, installer or deployment action occurred.
