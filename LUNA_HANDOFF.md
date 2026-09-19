@@ -1,6 +1,7 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: after milestone M586 and the agentic-drafting/localization/vision delivery assignments. This is a continuation checkpoint,
+Updated: after milestone M586 and the agentic-drafting/localization/vision delivery assignments. The active agentic-drafting
+supersession is tracked below. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
 ## Current continuation checkpoint — M586
@@ -23,6 +24,29 @@ focused variant suite 7/7, API/dashboard/DB typechecks pass, and API/dashboard
 lint pass with only existing warnings. No migration was authored for this
 JSONB extension; no runtime/provider/database/deployment action occurred.
 The intentionally untracked rejected Hermes review directory remains untouched.
+
+## M586B — exact-source agentic inbox drafting supersession
+
+The active Hermes product lane is `INBOX-AGENTIC-DRAFTING-R2`, dispatched against
+the exact pushed source `9cb5bbcf27c854a9a2ed2f022ae6938711cb2f22`. Codex
+provided Hermes a tracked-source archive with SHA-256
+`14d6732aa9da554ddf9a6dd5843b7dec5a53bf456a86c95ef95ba9317aa5b8b2` and a
+protocol-valid task envelope with SHA-256
+`cf14327b06af4fa0bab8e36a8234ac8a8ec8699136893f6521c13beb6e2c68fa`.
+
+The required implementation is source-only in Hermes' isolated copy: an
+authenticated assigned-LLM draft must compose the existing actor/shift,
+agent-permission, model/tenant, roleplay handoff/persona/memory and
+`inboxReplyIntent` contracts, persist an immutable reviewable pending text
+reply, and never send it automatically. Passage requires provider failure,
+authorization, mismatch, bounds, idempotency/replay, immutable persistence,
+and mounted UI loading/error/recovery tests, with one hash-verifiable
+`DELIVERY` or exact terminal `BLOCKED`. No provider, database, migration,
+credential, permission, runtime or deployment action is authorized.
+
+Hermes has not yet returned a status or reply for this superseding wire; no
+implementation delivery is counted. The prior R5 installer evidence remains
+rejected after source-level review and is unrelated to this product lane.
 
 Hermes D001A source-only correction is acknowledged but has no accepted
 delivery yet; Hermes variant R3 remains an active source-only lane. Hermes R5
