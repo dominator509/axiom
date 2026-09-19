@@ -1604,8 +1604,8 @@ audited. The corrected artifact-gate wire is
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: LOCAL-FULL-ISOLATED-MATRIX-REPAIR (SOURCE REGRESSIONS CLOSED) + remaining source/external gates; HERMES PAUSED
-LAST_ACCEPTED_CODE: f4add9446d8073360eb7b2098c5908ef1c903db0
-PUBLISHED_HEAD: f4add9446d8073360eb7b2098c5908ef1c903db0
+LAST_ACCEPTED_CODE: cf5055d32885000ccafda9ce0949bb42b83329fa
+PUBLISHED_HEAD: cf5055d32885000ccafda9ce0949bb42b83329fa
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state and model dashboard are source-wired; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
 NEXT_REQUIRED: keep Hermes paused during this local-only work period; continue with the next highest-value source lane only after auditing its current checkout implementation against the architecture; integrate only reviewed source, run owning tests, commit/push each independent lane, and keep mobile, migration/RLS, provider, browser, operator and deployment gates explicitly open until evidenced; no wall-clock or date comparison is part of the bridge protocol
 HERMES_ACCOUNTABILITY: Codex sent `FUNCTIONAL-DELIVERY-STANDARD-R1`; Hermes must produce real source implementation in isolated copies, not plans, pure contracts, baseline copies or ACK-only responses. A DELIVERY is countable only with changed paths, per-file SHA256, exact commands and exit codes, behavior-level tests, and truthful LIVE_ACTIONS NONE; otherwise Hermes must return a terminal BLOCKED result with the exact blocker.
@@ -1895,5 +1895,5 @@ the required non-secret `API_ORIGIN` build input; mobile web export/build
 passes; `git diff --check` passes. No runtime, provider, database, migration,
 permission, network, service or deployment action occurred. Hermes remains
 paused during this local-only work period. Source commit
-`f4add9446d8073360eb7b2098c5908ef1c903db0` is pushed and read back from
+`cf5055d32885000ccafda9ce0949bb42b83329fa` is pushed and read back from
 `codex/telegram-webhook-hardening`.
