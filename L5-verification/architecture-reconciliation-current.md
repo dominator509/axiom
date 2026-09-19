@@ -120,6 +120,21 @@ Windows subscription-process termination failures. Migration `0050` has not
 been run, and no provider call, live action or deployment acceptance is
 claimed.
 
+### M556 — assigned-shift server localization
+
+The authenticated `/shifts` page now resolves the persisted UI locale through a
+server-side catalog helper instead of emitting English-only copy. Access
+denials, roster description/warnings, refresh and load-failure states, empty
+rosters, handoff notes, queue/status labels, active-window guidance, terminal
+states, pagination labels and time-range labels are covered by all six launch
+catalogs. Valid shift times render through `Intl.DateTimeFormat` in UTC while
+machine-readable `<time>` values remain ISO timestamps; user/provider/shift
+content is not translated. Focused shifts tests (13/13), the full dashboard
+suite (731/731), core suite (65/65), dashboard typecheck and elevated
+production build passed. No migration, provider, runtime, browser or
+deployment evidence is claimed; remaining F-89 catalog adoption and external
+acceptance gates stay open.
+
 ## Explicit owner extensions — localization and platform affiliate stack
 
 ### F-89: multilingual product surface
