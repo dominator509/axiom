@@ -61,7 +61,7 @@ describe('variant guidance provenance', () => {
     raw.captionGuidance.instagram = {
       version: 'caption-guidance-v1', selectedArm: null, context: 'learn-v1:scheduled-utc-unknown',
       exemplarIds: [], captionSha256: captionSha256(text),
-    };
+    } as unknown as typeof raw.captionGuidance.instagram;
     const result = readVerifiedGuidance(raw, 'instagram', text);
     expect(result?.summary).toMatchObject({ selectedArm: null, sourceVariantId: null });
     expect(result?.summary).not.toHaveProperty('hookType');

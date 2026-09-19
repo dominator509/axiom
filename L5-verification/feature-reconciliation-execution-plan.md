@@ -957,3 +957,33 @@ the three pre-existing warnings in `MediaBundleCreate.behavior.test.tsx`.
 Source commit `ee4fceedabeb8308055cd7af260584e25f8d214b` is the reviewed
 milestone. Browser/native, provider, migration/RLS, runtime and deployment
 acceptance remain open.
+
+### M667 — assigned-LLM private inbox drafting implemented locally
+
+The stale Hermes implementation lane was quarantined after source/protocol
+divergence; no Hermes artifact is counted. Codex implemented the F-31 gap in
+the existing architecture. `roleplay-runtime.ts` now provides one injectable
+Grok roleplayer gateway for both Chatter turns and inbox drafting. The new
+assigned-LLM draft path composes the exact tenant/model access boundary, active
+team shift, `agent_permission.can_edit`, active Fanvue connection, roleplay
+handoff actor, latest `soul.md` revision and bounded conversation memory.
+
+Migration 0058 extends `inbox_reply_intent` with draft provenance, roleplay
+turn identity and human approval fields. Drafts are persisted pending and
+unapproved; intent/turn replay is idempotent, scope mismatches are conflicts,
+provider failures become rejected/uncertain and never become sendable text,
+and the database transition trigger keeps draft identity/body/turn immutable.
+The existing text-only Fanvue dispatch path now requires the approving human
+for an LLM draft, while the dashboard exposes private generation, review,
+approval and the existing separate send confirmation. No automatic send or
+publication path was added.
+
+Evidence: API focused drafting/inbox route suite 28/28, dashboard drafting
+suite 12/12, full API suite 1,097 passed and 50 skipped, DB suite 155 passed
+and 17 skipped, worker/API/dashboard package typechecks pass, and the complete
+12-package production build passes with `API_ORIGIN` set to a non-secret test
+origin. The Windows build required elevated symlink capability for Next.js
+standalone tracing; the code build itself is clean. Migration 0058 is authored
+but unapplied; provider, browser/mobile, live migration/RLS, runtime and
+deployment acceptance remain open. No provider, credential, database,
+permission, network, installer or live service action occurred.

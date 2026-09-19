@@ -655,6 +655,25 @@ three pre-existing warnings in `MediaBundleCreate.behavior.test.tsx`. Source
 commit is `ee4fceedabeb8308055cd7af260584e25f8d214b`. Browser/native, provider,
 migration/RLS, runtime and deployment evidence remain open.
 
+# M667: F-31 assigned-LLM inbox drafting source coverage
+
+The local source now covers the previously open agentic inbox-drafting path.
+`inbox-agent-draft.ts` verifies tenant/model access, active LLM shift,
+`agent_permission.can_edit`, active exact Fanvue connection, roleplay handoff,
+latest `soul.md`, bounded memory and bounded Grok output before creating a
+pending LLM draft. Migration 0058 adds draft provenance, roleplay-turn linkage
+and human approval state; the transition trigger prevents post-creation
+identity/body/turn mutation. Replay is idempotent and scope/provider failures
+are fail-closed.
+
+The authenticated API mounts private draft generation and human approval. The
+dashboard renders actor provenance and approval state, while `reply-dispatch`
+requires the approving human before the existing explicit send action. No
+automatic send or publish path exists. API drafting/inbox tests 28/28 and
+dashboard tests 12/12 pass; full API is 1,097 passed/50 skipped, DB is
+155 passed/17 skipped and the complete build passes. Migration/provider/
+browser/mobile/deployed acceptance remains open; no live action occurred.
+
 # M586: F-89 mobile Relay localization integrated
 
 The readable Hermes mobile delivery was independently audited and integrated at

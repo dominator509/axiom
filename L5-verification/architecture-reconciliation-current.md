@@ -474,6 +474,27 @@ typechecks and linters pass; mobile TypeScript plus Expo web export passes.
 This is source evidence only. Native/browser, deployed migration/RLS/runtime,
 provider and complete remaining catalog-adoption gates remain open.
 
+### M667 — F-31 assigned-LLM private inbox drafting
+
+The previously stale Hermes lane is quarantined; no Hermes artifact is treated
+as source evidence. The local source now connects the existing Chatter
+roleplay runtime to a private assigned-LLM inbox-draft workflow. Authorization
+requires the same org/model boundary, an active LLM team shift, agent edit
+permission, an active exact Fanvue connection, a matching roleplay handoff,
+the latest `soul.md` persona and bounded memory. A bounded Grok result becomes
+an immutable pending `inbox_reply_intent` linked to a roleplay turn; replay is
+idempotent, scope mismatches conflict, and provider rejection/uncertainty is
+not sendable.
+
+The dashboard exposes generation and provenance, then requires explicit human
+approval before the existing text-only send confirmation. `reply-dispatch`
+rejects unapproved LLM drafts even if a caller bypasses the UI. Migration
+0058 is authored for the new provenance/approval contract but is not applied.
+API focused tests 28/28, dashboard focused tests 12/12, full API 1,097
+passed/50 skipped, DB 155 passed/17 skipped and the complete 12-package build
+pass. This is source/automated evidence only; live migration, provider,
+browser/mobile and deployment evidence remain open.
+
 ### M644 source checkpoint — scraper result/history localization
 
 The mounted scraper result, refresh and run-history surfaces now consume the

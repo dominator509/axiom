@@ -47,7 +47,10 @@ router.get('/models/:modelId/variant-experiments/:experimentId/performance', asy
     )).orderBy(p.id, desc(m.collectedAt), desc(m.id)).limit(101);
   });
   if (!rows) return apiError(c, 404, statusTitle(404), 'variant experiment not found');
-  const data = rows.slice(0, 100).map(({ settings, ...row }) => ({ ...row, guidance: projectStoredVariantGuidance(settings) }));
+  const data = rows.slice(0, 100).map((entry: { settings: unknown; [key: string]: unknown }) => {
+    const { settings, ...row } = entry;
+    return { ...row, guidance: projectStoredVariantGuidance(settings) };
+  });
   return c.json({ data, assessment: assessVariantPerformance(candidateIds, rows, rows.length > 100), meta: { truncated: rows.length > 100, source: 'published-target-metrics' } });
 });
 
@@ -71,7 +74,13 @@ router.get('/models/:modelId/variant-experiments/guidance-sources', async c => {
     eq(schema.contentBundle.modelId, modelId),
     eq(schema.contentBundle.assetId, assetId),
   )).orderBy(desc(schema.contentBundle.createdAt), desc(schema.contentBundle.id)).limit(20));
-  const data = rows.flatMap(row => {
+  const data = rows.flatMap((row: {
+    id: string;
+    sourceVariantId: string | null;
+    assetId: string | null;
+    captions: Record<string, unknown> | null;
+    captionGuidance: unknown;
+  }) => {
     const caption = row.captions?.[platform];
     const verified = row.assetId === assetId && typeof caption === 'string' ? readVerifiedGuidance(row, platform, caption) : null;
     if (!verified) return [];
@@ -148,7 +157,9 @@ router.get('/models/:modelId/variant-experiments/candidates', async c => {
       ...cursorLt(schema.assetVariant.createdAt, schema.assetVariant.id, cursor)))
     .orderBy(desc(schema.assetVariant.createdAt), desc(schema.assetVariant.id)).limit(limit));
   const last = rows[rows.length - 1];
-  return c.json({ data: rows.map(({ settings, ...row }: Pick<typeof schema.assetVariant.$inferSelect, 'id' | 'variantType' | 'outputAssetId' | 'createdAt' | 'settings'>) => {
+  type VariantCandidateRow = Pick<typeof schema.assetVariant.$inferSelect, 'id' | 'variantType' | 'outputAssetId' | 'createdAt' | 'settings'>;
+  return c.json({ data: rows.map((entry: VariantCandidateRow) => {
+    const { settings, ...row } = entry;
     const copy = ['caption', 'teaser'].includes(row.variantType) ? copySettingsSchema.safeParse(settings?.copy) : null;
     return { ...row, copy: copy?.success ? copy.data : null, guidance: projectStoredVariantGuidance(settings) };
   }), meta: { next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length) } });

@@ -7,17 +7,17 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `7a4a25e604e2d23ce550d93ddc686d7bf5f3d941`
+SOURCE_HEAD: `01493d63037f1b2186d0c7eb9dcca014626af985`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `7a4a25e604e2d23ce550d93ddc686d7bf5f3d941`
-ACCEPTED_PRODUCT_SOURCE: `f90e13d5d5e17f2f96c242ca393ac07f7b4e32a0`
-ACTIVE_HERMES_LANE: `HERMES-STALE-LANE-CLOSE`
+PUBLISHED_HEAD: `01493d63037f1b2186d0c7eb9dcca014626af985`
+ACCEPTED_PRODUCT_SOURCE: `01493d63037f1b2186d0c7eb9dcca014626af985`
+ACTIVE_HERMES_LANE: `NONE — HERMES SUSPENDED / STALE LANES QUARANTINED`
 CODEX_OWNER: `CODEX`
-HERMES_IMPLEMENTATION_OWNER: `HERMES after valid ACK/ACCEPTED; no work counted before ACK`
-NEXT_ACTION: `await-HERMES-STALE-LANE-CLOSE-ACK`
+HERMES_IMPLEMENTATION_OWNER: `SUSPENDED — no Hermes artifact is eligible; Codex owns local F31 implementation`
+NEXT_ACTION: `run-local-F31-gates-then-commit-push`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `R3/R4 and stale product lanes superseded; hard-stop control envelope sent; awaiting correlated ACK/READ or terminal NACK`
+OPEN_WIRES: `NONE — historical Hermes lanes are closed/quarantined; no implementation wire is active`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -25,24 +25,24 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `HERMES-STALE-LANE-CLOSE`
-NEXT_PREPARED_TASK_WIRE: `CODEX-HERMES-STALE-LANE-CLOSE-TASK`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `7a4a25e604e2d23ce550d93ddc686d7bf5f3d941`
+NEXT_PREPARED_TASK: `NONE — Hermes suspended`
+NEXT_PREPARED_TASK_WIRE: `NONE`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `01493d63037f1b2186d0c7eb9dcca014626af985`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NOT_APPLICABLE — exact Git commit binding replaces archive transport`
-NEXT_PREPARED_TASK_STATE: `Hard-stop control envelope sent as exact msg_id filename; remote SHA readback matches; awaiting correlated ACK/READ or NACK`
-ACTIVE_LANE_TASK_WIRE: `CODEX-HERMES-STALE-LANE-CLOSE-TASK`
-ACTIVE_LANE_SOURCE_COMMIT: `7a4a25e604e2d23ce550d93ddc686d7bf5f3d941`
-ACTIVE_LANE_COPY_ROOT: `NOT_APPLICABLE — control-only resync`
-ACTIVE_LANE_DELIVERY_ROOT: `NOT_APPLICABLE — control-only resync`
+NEXT_PREPARED_TASK_STATE: `NOT_APPLICABLE — no Hermes task is open`
+ACTIVE_LANE_TASK_WIRE: `CODEX-LOCAL-F31-ASSIGNED-LLM-DRAFT`
+ACTIVE_LANE_SOURCE_COMMIT: `01493d63037f1b2186d0c7eb9dcca014626af985`
+ACTIVE_LANE_COPY_ROOT: `LOCAL WORKTREE — Codex-owned`
+ACTIVE_LANE_DELIVERY_ROOT: `LOCAL WORKTREE — Codex-owned`
 ACTIVE_LANE_SOURCE_ARCHIVE: `NOT_USED — exact Git commit mode`
 ACTIVE_LANE_SOURCE_ARCHIVE_SHA256: `NOT_APPLICABLE`
-ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `CODEX-HERMES-STALE-LANE-CLOSE-TASK`
-ACTIVE_LANE_SOURCE_TRANSPORT: `CONTROL STOP — no feature source transport is authorized until Hermes acknowledges closure and current-source reconciliation`
-ACTIVE_LANE_TRANSPORT_NAMING: `VERIFIED — current task and correction filenames equal msg_id; historical mismatches are ineligible and untouched`
+ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — local source implementation`
+ACTIVE_LANE_SOURCE_TRANSPORT: `LOCAL CODEX IMPLEMENTATION — Hermes transport is not part of this lane`
+ACTIVE_LANE_TRANSPORT_NAMING: `NOT_APPLICABLE — no Hermes source transport`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id must equal filename stem; no renames or hand-written replies`
 HISTORICAL_REPLY_MISMATCH_DECISION: `C — do not patch the bridge helper or rename stale inbox files; reissue a fresh superseding task with exact filename/msg_id only when that architecture lane is selected`
 HISTORICAL_REPLY_MISMATCH_SCOPE: `scraper and other non-current lanes; not evidence against the active F-31 R3 transport`
-ACTIVE_LANE_BASELINE: `F-31 assigned-LLM private draft gap; source-only, no runtime/provider/live action`
+ACTIVE_LANE_BASELINE: `F-31 assigned-LLM private draft gap; local source implementation, automated gates only`
 R3_CLOSURE_REPLY_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-R3-CURRENT-012`
 R3_CLOSURE_REPLY_STATE: `NACK/BLOCKED terminal; source binding and explicit lane authorization blockers upheld`
 R3_CLOSURE_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R3-CURRENT-CLOSE-014`
@@ -50,25 +50,28 @@ R3_CLOSURE_RECEIPT_SHA256: `1ee188b5f59b70add92a86195bbd7d03367a9fc7cb568fa68347
 R4_TASK_ENVELOPE_SHA256: `a7d36c39ecc7f0dfdb8e62b9a2f970b9c7ce5c8a53bead12be626f117ddb144a`
 R4_TASK_REMOTE_SHA256: `a7d36c39ecc7f0dfdb8e62b9a2f970b9c7ce5c8a53bead12be626f117ddb144a`
 R4_ARCHIVE_BINDING: `NOT_USED — Hermes must fetch the named ref, verify the exact current commit, then create the isolated copy from that commit; stale local main and cached branch refs are ineligible`
-ACTIVE_LANE_TRANSPORT_CLOSE_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R3-CURRENT-CLOSE-014`
+ACTIVE_LANE_TRANSPORT_CLOSE_WIRE: `NOT_APPLICABLE — Hermes suspended`
 ACTIVE_LANE_TRANSPORT_CLOSE_REASON: `All stale/unacknowledged Hermes lanes explicitly superseded; no implementation lane open`
-LOCAL_FALLBACK_SCOPE: `NOT_ALLOWED WHILE THIS HERMES LANE IS OPEN`
-ACTIVE_LANE_ACK_WIRE: `PENDING — Hermes must correlate ACK/READ or NACK to CODEX-HERMES-STALE-LANE-CLOSE-TASK`
-ACTIVE_LANE_ACK_SHA256: `PENDING`
-ACTIVE_LANE_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R3-CURRENT-CLOSE-014`
-ACTIVE_LANE_RECEIPT_SHA256: `1ee188b5f59b70add92a86195bbd7d03367a9fc7cb568fa6834778f469b62078`
-ACTIVE_LANE_CHECKPOINT_WIRE: `PENDING — Hermes must publish PROGRESS`
-ACTIVE_LANE_CHECKPOINT_SHA256: `PENDING`
-LAST_COMPLETED_SOURCE_MILESTONE: `M644 — scraper result/history localization at f90e13d5; R4 is the current F-31 source-only lane`
+LOCAL_FALLBACK_SCOPE: `CODEX AUTHORIZED — F31 source-only; no live action`
+ACTIVE_LANE_ACK_WIRE: `NOT_APPLICABLE — Hermes suspended`
+ACTIVE_LANE_ACK_SHA256: `NOT_APPLICABLE`
+ACTIVE_LANE_RECEIPT_WIRE: `NOT_APPLICABLE — Hermes suspended`
+ACTIVE_LANE_RECEIPT_SHA256: `NOT_APPLICABLE`
+ACTIVE_LANE_CHECKPOINT_WIRE: `NOT_APPLICABLE — local Codex gates are authoritative`
+ACTIVE_LANE_CHECKPOINT_SHA256: `NOT_APPLICABLE`
+LAST_COMPLETED_SOURCE_MILESTONE: `M644 — scraper result/history localization at f90e13d5; M667 local F31 implementation is in progress`
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; CONTROL_RECONCILIATION_002_CLOSED; stale Hermes lanes hard-stopped; awaiting closure ACK`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; CONTROL_RECONCILIATION_002_CLOSED; Hermes suspended; local Codex F31 lane active`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
 RECONCILIATION_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-RECEIPT-005`
 RECONCILIATION_RECEIPT_SHA256: `9b44ae04f313a03f8a7ebd38d48a74b69b0c4dbb0d43ac6d233fb753e0a47d84`
+HERMES_STALE_LANE_POLICY: `Do not poll for or integrate stale Hermes work during M667; resume only after a fresh exact-source lane is explicitly created`
+LOCAL_WORKTREE_POLICY: `Codex audits, tests, commits and pushes local F31 work; untracked Hermes review artifacts remain untouched`
+NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provider, credential, permission, network or service action`
 
 Closed and not to be reopened under the old task IDs:
 
@@ -81,16 +84,13 @@ Closed and not to be reopened under the old task IDs:
 The bridge still contains historical inbox/reply/status artifacts for prior
 lanes. Their presence is not evidence of an active assignment. The signed
 reconciliation above is closed; Hermes must not resume any historical lane.
-No implementation lane is active now; any future lane must be selected from
-the current architecture matrix, recorded here, and sent with a new WIRE. The
-fresh control-only WIRE `CONTROL-PLANE-RECONCILIATION-002-TASK` was intentionally
-used to test the live handoff, not to open product work. Hermes answered with
-an invalid `RESPONSE/CLOSED` envelope and duplicate/noncanonical signatures;
-Codex sent `CONTROL-PLANE-RECONCILIATION-002-REJECT-003` as one terminal
-NOT-ACK correction. Until Hermes returns a strict correlated ACK or NACK, the
-control lane is now closed by a strict terminal READ receipt. The prepared
-F-31 task is the sole next feature lane; it will be sent with a new WIRE and
-must not be mixed with any historical task.
+The fresh control-only WIRE `CONTROL-PLANE-RECONCILIATION-002-TASK` was
+intentionally used to test the live handoff, not to open product work. Hermes
+answered with an invalid `RESPONSE/CLOSED` envelope and duplicate/noncanonical
+signatures; Codex closed the exchange with a strict terminal receipt. Later
+Hermes R3/R4/R5 work became stale or unrepliable and is quarantined. Codex
+therefore owns the local F31 implementation; no Hermes response is a
+prerequisite for this milestone.
 
 Hermes' first response to the reconciliation was rejected: it used an
 invalid terminal flag for `ACK/READ`, included a forbidden clock field and

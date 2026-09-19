@@ -5,6 +5,10 @@ function boundedNumber(value: unknown, min: number, max: number): value is numbe
   return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max;
 }
 
+function boundedInteger(value: unknown, min: number, max: number): value is number {
+  return Number.isInteger(value) && typeof value === 'number' && value >= min && value <= max;
+}
+
 /** Return only the bounded fields allowed in immutable publication evidence. */
 export function readTrustedThumbnailFeatures(
   value: unknown,
@@ -16,14 +20,16 @@ export function readTrustedThumbnailFeatures(
   if (!dimensions || typeof dimensions !== 'object') return undefined;
   const size = dimensions as Record<string, unknown>;
   const assetSha256 = input.assetSha256;
+  const width = size.width;
+  const height = size.height;
   if (
     input.version !== 'vision-analysis-v1'
     || input.source !== 'rust_engine'
     || input.assetId !== expectedAssetId
     || typeof assetSha256 !== 'string'
     || !/^[0-9a-f]{64}$/.test(assetSha256)
-    || !Number.isInteger(size.width) || size.width < 1 || size.width > 10_000
-    || !Number.isInteger(size.height) || size.height < 1 || size.height > 10_000
+    || !boundedInteger(width, 1, 10_000)
+    || !boundedInteger(height, 1, 10_000)
     || !boundedNumber(input.confidence, 0, 1)
     || !boundedNumber(input.avgBrightness, 0, 255)
     || !boundedNumber(input.colorVariance, 0, 255)
@@ -35,7 +41,7 @@ export function readTrustedThumbnailFeatures(
     assetId: expectedAssetId,
     assetSha256,
     confidence: input.confidence,
-    dimensions: { width: size.width, height: size.height },
+    dimensions: { width, height },
     avgBrightness: input.avgBrightness,
     colorVariance: input.colorVariance,
     aspectRatio: input.aspectRatio,
