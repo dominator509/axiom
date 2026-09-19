@@ -9,7 +9,7 @@ not a completion report. Keep this file current at meaningful checkpoints.
 The accepted product source head is the reviewed M593 trusted-vision recipe
 evidence milestone `81ef2069aae36256bed673c093ec5fbe16212cd6`, pushed on
 `origin/codex/telegram-webhook-hardening`; the current pushed branch tip is
-`190840485dc856559f257b387fe68cc3d9edb0a0`, containing this handoff and audit
+`98f710111d7e1bcf98c51b77a351737f865019e2`, containing this handoff and audit
 checkpoint. M578 wires the existing bounded
 `CaptionGuidanceReceipt` into the real copy-variant and review-bundle paths:
 the server rechecks same-org/model/asset ownership, exact caption hash and
@@ -1726,7 +1726,7 @@ audited. The corrected artifact-gate wire is
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 LAST_ACCEPTED_CODE: 8e5695f7605c9be57d0840ff1e58dd3090c048b7
-PUBLISHED_HEAD: 190840485dc856559f257b387fe68cc3d9edb0a0
+PUBLISHED_HEAD: 98f710111d7e1bcf98c51b77a351737f865019e2
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + asset/hash-bound trusted Rust vision descriptors + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state, model dashboard and native mobile model/status/read/sync surface with scoped role boundaries are source-wired; F-10 source-wired visual month/week calendar with guarded drag and accessible date rescheduling plus advisory timing guidance; incidents/crash triage and recovery are source-wired and localized; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
 ACTIVE_LANE: INBOX-AGENTIC-DRAFTING-R4-CURRENT-SOURCE (source-only implementation against exact source 236a40141b36c05289ca8d54f86bda3c1b0dd296; Hermes codes in an isolated copy, Codex audits/integrates/commits/pushes)
 NEXT_REQUIRED: Hermes must verify exact source `236a40141b36c05289ca8d54f86bda3c1b0dd296`, then return one evidence-bearing PROGRESS and one hash-verifiable DELIVERY or terminal BLOCKED. Codex must independently hash/review the artifact, run owning checks, integrate only passing source, commit/push and then advance to the next finite architecture gap. Keep provider credentials, R2 round-trip, migration/RLS, browser, operator and deployment gates explicitly open. Do not reissue the rejected Team/Chatter R5 copy. No wall-clock or date comparison is part of the bridge protocol
