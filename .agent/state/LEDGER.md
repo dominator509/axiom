@@ -967,3 +967,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19 | [AXIOM][P4][M646] Synchronized PUBLISHED_HEAD to the pushed M645 handoff commit 95355e64; no product or live behavior changed
 2026-09-19 | [AXIOM][P4][M647] Synchronized PUBLISHED_HEAD to the pushed M646 handoff commit a0e9f2e4; no product or live behavior changed
 2026-09-19 | [AXIOM][P4][M648] Sent one fresh control-only FT-HERMES/1 ACK-NACK-1 reconciliation task with no clock fields or runtime authority; no feature lane or live action opened
+2026-09-19 | [AXIOM][P4][M649] Rejected Hermes control reply using invalid RESPONSE/CLOSED state and duplicate signatures; sent one correlated protocol-valid NOT-ACK correction, no feature or live action

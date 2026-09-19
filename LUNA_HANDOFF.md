@@ -20,9 +20,10 @@ CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CONTROL-PLANE-RECONCILIATION-002 control-only; no feature lane`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
-CONTROL_TASK_STATE: `UNCONFIRMED — transport submission succeeded; no logical reply read yet`
+CONTROL_TASK_STATE: `NOT-ACK CORRECTION SENT — Hermes reply was malformed; corrected ACK is unconfirmed`
 CONTROL_TASK_NEXT_OWNER: `HERMES`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
+CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 ACTIVE_LANE_TASK_WIRE: `NONE`
 ACTIVE_LANE_SOURCE_COMMIT: `NOT_APPLICABLE`
 ACTIVE_LANE_COPY_ROOT: `NOT_APPLICABLE`
@@ -43,7 +44,7 @@ LAST_COMPLETED_SOURCE_MILESTONE: `M644 — scraper result/history localization a
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; CONTROL_RECONCILIATION_002_UNCONFIRMED`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; CONTROL_RECONCILIATION_002_NOT_ACK_CORRECTION_UNCONFIRMED`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
@@ -62,7 +63,13 @@ The bridge still contains historical inbox/reply/status artifacts for prior
 lanes. Their presence is not evidence of an active assignment. The signed
 reconciliation above is closed; Hermes must not resume any historical lane.
 No implementation lane is active now; any future lane must be selected from
-the current architecture matrix, recorded here, and sent with a new WIRE.
+the current architecture matrix, recorded here, and sent with a new WIRE. The
+fresh control-only WIRE `CONTROL-PLANE-RECONCILIATION-002-TASK` was intentionally
+used to test the live handoff, not to open product work. Hermes answered with
+an invalid `RESPONSE/CLOSED` envelope and duplicate/noncanonical signatures;
+Codex sent `CONTROL-PLANE-RECONCILIATION-002-REJECT-003` as one terminal
+NOT-ACK correction. Until Hermes returns a strict correlated ACK or NACK, the
+control lane is `UNCONFIRMED` and no feature lane may open.
 
 Hermes' first response to the reconciliation was rejected: it used an
 invalid terminal flag for `ACK/READ`, included a forbidden clock field and
