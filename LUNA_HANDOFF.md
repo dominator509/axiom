@@ -2796,3 +2796,18 @@ mobile tests 24/24, mobile typecheck and lint pass, and core locale tests
 permission, installer or deployment action occurred. Hermes R5 remains
 rejected pending a corrected source delivery that passes executable sink-level
 gates; no R5 artifact was integrated.
+
+## M590 — mobile authentication localization completion
+
+The mobile login surface was the remaining mounted authentication screen that
+still emitted English-only hero, labels, placeholders, accessibility labels,
+failure copy, button copy and security text despite the shared six-locale
+catalog. It now resolves the persisted UI locale, uses the existing `auth.*`
+catalog, and exposes a testable view while preserving the authenticated
+submission boundary and generic localized failure behavior.
+
+Evidence: LoginScreen tests 4/4, Patreon regression tests 5/5, mobile
+typecheck and lint pass. The architecture matrix now records LoginScreen and
+PatreonScreen alongside the already localized mobile DashboardScreen and
+RelayScreen. No provider, database, migration, runtime, permission, installer
+or deployment action occurred. Hermes R5 remains rejected and unintegrated.
