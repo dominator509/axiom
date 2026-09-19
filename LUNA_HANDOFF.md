@@ -11,10 +11,10 @@ SOURCE_HEAD: `950fa921306d20eca59467428266b16792736d27`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `5c9828b9c6e57c2cedce3b04b1bb0c05a98726f7`
 ACCEPTED_PRODUCT_SOURCE: `950fa921306d20eca59467428266b16792736d27`
-ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R4 — sync gate uploaded; awaiting correlated ACK/READ or ACK/ACCEPTED`
+ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R4 — sync verified, but Hermes ACK rejected for reusing the task WIRE; awaiting fresh unique ACK`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — source-only F-14 implementation only after ACK/ACCEPTED; Codex audits and integrates`
-NEXT_ACTION: `read the correlated R4 ACK/READ or ACK/ACCEPTED; after acceptance require PROGRESS with sync/copy evidence or one terminal BLOCKED result; do not treat transport REPLIED as delivery`
+NEXT_ACTION: `read the corrected R4 ACK/READ or ACK/ACCEPTED with a unique Hermes WIRE; after acceptance require PROGRESS with sync/copy evidence or one terminal BLOCKED result; do not treat transport REPLIED as delivery`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F14-WATERMARK-POLICY-SOURCE-R4-001 — one active source-only lane with mandatory checkout synchronization`
@@ -29,7 +29,7 @@ NEXT_PREPARED_TASK: `F14-MODEL-WATERMARK-POLICY-SOURCE-R4`
 NEXT_PREPARED_TASK_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R4-001`
 NEXT_PREPARED_TASK_SOURCE_COMMIT: `950fa921306d20eca59467428266b16792736d27`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NOT_APPLICABLE — exact Git commit binding replaces archive transport`
-NEXT_PREPARED_TASK_STATE: `OPEN — R4 supersedes the stale-cache R3 lane; Hermes must acknowledge the sync gate before implementation`
+NEXT_PREPARED_TASK_STATE: `CORRECTION_REQUIRED — sync gate passed, but the ACK reused the task WIRE; Hermes must return one fresh unique correlated ACK before implementation`
 ACTIVE_LANE_TASK_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R4-001`
 ACTIVE_LANE_SOURCE_COMMIT: `950fa921306d20eca59467428266b16792736d27`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f14-watermark-policy-source-r4`
@@ -49,6 +49,8 @@ R3_CLOSURE_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R3-CURRENT-CLOSE-014`
 R3_CLOSURE_RECEIPT_SHA256: `1ee188b5f59b70add92a86195bbd7d03367a9fc7cb568fa6834778f469b62078`
 R4_TASK_ENVELOPE_SHA256: `233675c6b29b11a4709422308fce5f9506e70a7287c2890ad97b516d1bf4639c`
 R4_TASK_REMOTE_SHA256: `233675c6b29b11a4709422308fce5f9506e70a7287c2890ad97b516d1bf4639c`
+R4_ACK_SHA256: `df35738c4ce70d03568f5ff335636b2297cb6ee56837603f54647acfbb5271ed`
+R4_CORRECTION_RECEIPT_SHA256: `1a34e3dc7d106e120e062a7562e3f5f66b48df35f3ec393675a39f6e19aad6f0`
 R4_ARCHIVE_BINDING: `NOT_USED — Hermes must fetch the named ref, verify the exact current commit, then create the isolated copy from that commit; stale local main and cached branch refs are ineligible`
 ACTIVE_LANE_TRANSPORT_CLOSE_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R3-001 — superseded by R4 sync gate`
 ACTIVE_LANE_TRANSPORT_CLOSE_REASON: `R3 ACK was read but Hermes checkout was stale; no R3 implementation or delivery is accepted`
@@ -57,13 +59,13 @@ ACTIVE_LANE_ACK_WIRE: `PENDING — R4 sync gate not yet acknowledged`
 ACTIVE_LANE_ACK_SHA256: `NOT_APPLICABLE`
 ACTIVE_LANE_RECEIPT_WIRE: `NOT_APPLICABLE — no R4 receipt yet`
 ACTIVE_LANE_RECEIPT_SHA256: `NOT_APPLICABLE`
-ACTIVE_LANE_CHECKPOINT_WIRE: `PENDING — Hermes must publish ACK/READ or ACK/ACCEPTED after sync, then PROGRESS with a new evidence delta or DELIVERY/BLOCKED`
+ACTIVE_LANE_CHECKPOINT_WIRE: `PENDING — Hermes must publish a fresh unique ACK/READ or ACK/ACCEPTED after the wire correction, then PROGRESS with a new evidence delta or DELIVERY/BLOCKED`
 ACTIVE_LANE_CHECKPOINT_SHA256: `NOT_APPLICABLE`
 LAST_COMPLETED_SOURCE_MILESTONE: `M675 — F-22/F-23 first-party Fanvue attribution at 950fa921; F-14 R3 lane newly opened`
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; CONTROL_RECONCILIATION_002_CLOSED; F-14 R3 superseded after stale Hermes checkout confirmation; fresh R4 sync gate open against 950fa921; historical lanes remain quarantined`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; CONTROL_RECONCILIATION_002_CLOSED; F-14 R3 superseded after stale Hermes checkout confirmation; R4 sync passed but its ACK was rejected for WIRE collision; fresh unique ACK required before implementation; historical lanes remain quarantined`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
@@ -75,9 +77,9 @@ NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provid
 
 CURRENT_MILESTONE: `F-14-MODEL-WATERMARK-POLICY-SOURCE-R4 — Hermes checkout synchronization pending; F-22/F-23 attribution source integrated`
 CURRENT_MILESTONE_COMMIT: `950fa921306d20eca59467428266b16792736d27`
-CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip is 5c9828b; Hermes cache was read at stale ref 01493d6 and must fetch the published branch before using any source; F-14 remains bound to product source commit 950fa921`
+CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip is 1f128f6; Hermes fetched through 1f128f6, verified 6c42f90 exists and 950fa921 is an ancestor; its ACK reused the task WIRE and was rejected before implementation`
 CURRENT_MILESTONE_EVIDENCE: `F-22/F-23 API attribution ingest/report, idempotency, schema and mounted dashboard evidence passed; API 1,099 passed/50 skipped, DB schema 110/110, DB build and API/dashboard typechecks passed; no migration execution or live action`
-CURRENT_MILESTONE_OPEN: `Hermes checkout synchronization, R4 ACK/PROGRESS/DELIVERY, Codex artifact audit and integration remain open; migration/RLS, CDN/R2, deployed sidecar, browser/mobile, provider, runtime and deployment gates remain open`
+CURRENT_MILESTONE_OPEN: `Hermes unique R4 ACK, PROGRESS/DELIVERY, Codex artifact audit and integration remain open; migration/RLS, CDN/R2, deployed sidecar, browser/mobile, provider, runtime and deployment gates remain open`
 LOCAL_MILESTONE_AFTER_TASK: `M675 — first-party Fanvue attribution facts and per-link conversion/revenue reporting integrated with truthful ROI-unavailable state; pushed at 950fa921`
 
 Closed and not to be reopened under the old task IDs:
