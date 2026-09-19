@@ -957,3 +957,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19 | [AXIOM][P4][M635] Synchronize PUBLISHED_HEAD to pushed terminal-blocked lane closure; no active Hermes implementation lane remains
 2026-09-19 | [AXIOM][P4][M636] Dispatch one reconciled F89 scraper UI localization lane against exact source 248fc285; bounded to mounted result surfaces and locale formatting, no runtime or live action
 2026-09-19 | [AXIOM][P4][M637] Synchronize PUBLISHED_HEAD to pushed F89 scraper lane dispatch; Hermes owns only the declared source copy until DELIVERY or BLOCKED
+2026-09-19 | [AXIOM][P4][M638] Establish local baseline for active F89 scraper lane: core locale 28/28, API scraper 38/38, dashboard scraper 10/10; no source delivery or integration claimed

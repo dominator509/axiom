@@ -19,6 +19,7 @@ ACTIVE_LANE_TASK_WIRE: `CODEX-F89-SCRAPER-RESULT-LOCALE-R1-TASK-001`
 ACTIVE_LANE_SOURCE_COMMIT: `248fc2851b5553c6bb1b3a6aafff58378e351b11`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/work/f89-scraper-result-locale-r1`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/replies/delivery-f89-scraper-result-locale-r1`
+ACTIVE_LANE_BASELINE: `core locale 28/28; API scraper contract/routes 38/38; dashboard scraper surfaces 10/10; no source changes integrated`
 ACTIVE_LANE_ACK_WIRE: `PENDING`
 ACTIVE_LANE_ACK_SHA256: `PENDING`
 ACTIVE_LANE_CHECKPOINT_WIRE: `PENDING`
