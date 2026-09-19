@@ -321,3 +321,13 @@ field, the DB relation-count invariant matches the exported roleplay relations,
 and the mobile locale selector uses the existing panel theme token. This is a
 source/build correction only. Deployed migration/RLS, provider
 OAuth/webhook/sync, browser/mobile and operational acceptance remain open.
+
+### M580 source-lane checkpoint
+
+The source audit identified a distinct remaining F-89 slice in mounted
+operator surfaces: Audit, Approvals, Playbook history, AgentPermissionManager
+and TriggerRuleManager still contain raw visible English and/or host-locale
+date/count/percentage formatting. The bounded
+`F89-DASHBOARD-OPERATOR-FORMATTING-R1` task is assigned to Hermes against the
+current pushed branch tip. This is a source-only lane; browser/mobile,
+deployed migration/RLS/runtime and external provider evidence remain open.

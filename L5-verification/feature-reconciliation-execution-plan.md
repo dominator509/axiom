@@ -768,3 +768,20 @@ exercise authorization, persistence, replay, provider failure and UI
 loading/error/recovery states. No provider, migration, deployment or live
 action is allowed. Hermes delivery is not yet accepted; Codex will hash,
 review and test any artifact before integration.
+
+### M580 — F-89 operator formatting lane dispatched
+
+The current source audit found a separate remaining F-89 slice in actual
+mounted dashboard/operator surfaces: Audit, Approvals, Playbook history,
+AgentPermissionManager and TriggerRuleManager still contain raw visible
+English and/or host-locale date/count/percentage formatting. Hermes was given
+`F89-DASHBOARD-OPERATOR-FORMATTING-R1` against exact pushed source
+`7bdd125d80c4facbd790ac148ce67e9cc62a7511`. It must reuse the existing
+six-locale catalog and formatting helpers, preserve authorization, idempotency
+and safety behavior, add reachable-surface and catalog-completeness tests, and
+return one hash-verifiable DELIVERY or one terminal BLOCKED result. A
+helper-only change, unused catalog key, or route-only claim is not accepted.
+The envelope was protocol-validated locally and remote checksum readback
+matched `ed83c13067a93e6c15e49ea341ddefdf085385612e2b86b9dde6cd4ee3bc77a3`.
+No provider, database, migration, runtime, permission, network, installer or
+deployment action occurred; browser/mobile/deployed evidence remains separate.

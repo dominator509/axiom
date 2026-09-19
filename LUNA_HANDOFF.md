@@ -1,12 +1,13 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: after milestone M579 and the agentic-drafting delivery assignment. This is a continuation checkpoint,
+Updated: after milestone M580 and the agentic-drafting/localization delivery assignments. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
-## Current continuation checkpoint — M579
+## Current continuation checkpoint — M580
 
-The accepted source head is the variant guidance provenance milestone
-`ce2f15bf73fb0855b97fc6dddd173a1f3e4827c3`, pushed to
+The accepted product source head is the variant guidance provenance milestone
+`ce2f15bf73fb0855b97fc6dddd173a1f3e4827c3`; the current pushed branch tip is
+`7bdd125d80c4facbd790ac148ce67e9cc62a7511` on
 `origin/codex/telegram-webhook-hardening`. M578 wires the existing bounded
 `CaptionGuidanceReceipt` into the real copy-variant and review-bundle paths:
 the server rechecks same-org/model/asset ownership, exact caption hash and
@@ -2567,3 +2568,25 @@ browser/mobile, worker/provider, migration/RLS and deployed acceptance remain
 open. Hermes gallery R10 remains source-only: its progress proves archive
 verification but not implementation delivery, and the separate R11 gallery
 helper-only delivery is not accepted as route/UI work.
+
+## M580 — F-89 operator formatting lane dispatched
+
+The source audit confirmed a distinct localization gap in real mounted dashboard
+surfaces: Audit, Approvals, Playbook history, AgentPermissionManager and
+TriggerRuleManager still contain raw visible English and/or host-locale date,
+count or percentage formatting. Hermes was assigned the bounded
+`F89-DASHBOARD-OPERATOR-FORMATTING-R1` source-only lane against exact source
+`7bdd125d80c4facbd790ac148ce67e9cc62a7511`, with a writable isolated copy and
+the existing six-locale catalog/formatting contract. The task requires reachable
+surface changes, six-catalog completeness, non-English rendering tests,
+locale-aware formatting tests and exact command evidence; helper-only or
+catalog-only changes fail.
+
+The envelope passed local protocol validation and was copied to the bridge;
+remote SHA-256 readback is
+`ed83c13067a93e6c15e49ea341ddefdf085385612e2b86b9dde6cd4ee3bc77a3`.
+Hermes has not delivered code for this lane. The independent agentic inbox
+drafting lane is logically accepted but likewise has no delivery yet. Codex
+will audit either artifact, run owning tests, integrate only a passing source
+delivery, commit and push it, and keep browser/mobile/deployed/external gates
+separate. No live action is authorized.

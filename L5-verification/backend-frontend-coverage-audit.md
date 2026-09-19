@@ -527,3 +527,13 @@ plus real PostgreSQL integration, MCP 91, LLM gateway 387, core 61, auth 28
 and mobile 23. Dashboard production build and mobile web export passed, and
 the disposable fixture was removed. No live, provider, migration, database,
 permission, service or deployment action occurred.
+
+# M580: F-89 operator formatting lane
+
+The current source audit confirmed that the mounted Audit, Approvals, Playbook
+history, AgentPermissionManager and TriggerRuleManager surfaces still contain
+raw visible English and/or host-locale date/count/percentage formatting. A
+bounded Hermes source-only task now targets those exact callsites using the
+existing six-locale catalog and formatting contract. This does not claim the
+source lane complete and does not change the separate browser/mobile, deployed,
+migration/RLS or runtime evidence requirements.
