@@ -9,12 +9,12 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `587efe7703b05fed82260ebb537e21b1cfa048d0`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `472f8968720f84f10bbea61889e4c8a2a44bade4`
+PUBLISHED_HEAD: `8c03346336db6a999738b85c2e41b50272c017d0`
 ACCEPTED_PRODUCT_SOURCE: `587efe7703b05fed82260ebb537e21b1cfa048d0`
 ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R6 — execute exact M683 source synchronization; R5 superseded after repeated transport-only READs`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — source-only F-14 implementation only after ACK/ACCEPTED; Codex audits and integrates`
-NEXT_ACTION: `R6 forbids another transport-only ACK/READ; Hermes must execute the sync gate and return evidence-bearing ACK/ACCEPTED, PROGRESS/DELIVERY, or terminal BLOCKED; do not treat transport REPLIED as delivery`
+NEXT_ACTION: `R6 sync gate is accepted with evidence; Hermes must publish PROGRESS with a concrete implementation delta, then DELIVERY or terminal BLOCKED; Codex audits bytes before integration`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F14-WATERMARK-POLICY-SOURCE-R6-001 — one active source-only lane with mandatory exact-current checkout synchronization`
@@ -55,12 +55,12 @@ R4_ARCHIVE_BINDING: `NOT_USED — Hermes must fetch the named ref, verify the ex
 ACTIVE_LANE_TRANSPORT_CLOSE_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R3-001 — superseded by R4 sync gate`
 ACTIVE_LANE_TRANSPORT_CLOSE_REASON: `R3 ACK was read but Hermes checkout was stale; no R3 implementation or delivery is accepted`
 LOCAL_FALLBACK_SCOPE: `CODEX AUTHORIZED — local source-only implementation lanes; no live action`
-ACTIVE_LANE_ACK_WIRE: `PENDING — R6 requires evidence-bearing ACK/ACCEPTED or terminal BLOCKED`
-ACTIVE_LANE_ACK_SHA256: `NOT_APPLICABLE`
+ACTIVE_LANE_ACK_WIRE: `HERMES-F14-WATERMARK-POLICY-SOURCE-R6-EXEC-SYNC-001`
+ACTIVE_LANE_ACK_SHA256: `ba1f0cbe39c15341355146bf18292610c2bac66c8f16fecbed0a36508a9df24e`
 ACTIVE_LANE_RECEIPT_WIRE: `HERMES-F14-WATERMARK-POLICY-SOURCE-R5-READ-RECEIPT-ACK-003 — superseded transport-only read`
 ACTIVE_LANE_RECEIPT_SHA256: `NOT_APPLICABLE`
-ACTIVE_LANE_CHECKPOINT_WIRE: `PENDING — R6 execution evidence is required; no further read-only checkpoint`
-ACTIVE_LANE_CHECKPOINT_SHA256: `NOT_APPLICABLE`
+ACTIVE_LANE_CHECKPOINT_WIRE: `HERMES-F14-WATERMARK-POLICY-SOURCE-R6-EXEC-SYNC-001 — sync accepted; PROGRESS implementation delta next`
+ACTIVE_LANE_CHECKPOINT_SHA256: `ba1f0cbe39c15341355146bf18292610c2bac66c8f16fecbed0a36508a9df24e`
 LAST_COMPLETED_SOURCE_MILESTONE: `M675 — F-22/F-23 first-party Fanvue attribution at 950fa921; F-14 R3 lane newly opened`
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
@@ -79,7 +79,7 @@ CURRENT_MILESTONE: `M683 — F-06/F-07 Fanvue analytics and CRM sync source inte
 CURRENT_MILESTONE_COMMIT: `587efe7703b05fed82260ebb537e21b1cfa048d0`
 CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip verified at 472f8968720f84f10bbea61889e4c8a2a44bade4; product source 587efe7703b05fed82260ebb537e21b1cfa048d0 is an exact ancestor and R6 binds both facts`
 CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, API index 63/63, API relay-webhooks 2/2, dashboard full 780 passed; no migration execution or live action`
-CURRENT_MILESTONE_OPEN: `Hermes R6 execution evidence and Codex artifact audit remain open; full deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
+CURRENT_MILESTONE_OPEN: `Hermes R6 implementation PROGRESS/DELIVERY and Codex artifact audit remain open; full deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
 LOCAL_MILESTONE_AFTER_TASK: `M683 — Fanvue analytics and CRM sync source integrated and pushed at 587efe7703b05fed82260ebb537e21b1cfa048d0; R5 task supersedes stale R4 before implementation`
 
 ## Current coordination update — M683 and Hermes R5
