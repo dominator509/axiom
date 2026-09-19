@@ -9,7 +9,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `950fa921306d20eca59467428266b16792736d27`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `950fa921306d20eca59467428266b16792736d27`
+PUBLISHED_HEAD: `08a60d05dcd008d3e5f144b267ca0397b08a0656`
 ACCEPTED_PRODUCT_SOURCE: `950fa921306d20eca59467428266b16792736d27`
 ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R3 — exact pushed-source lane; awaiting correlated ACK/NACK`
 CODEX_OWNER: `CODEX`
@@ -75,7 +75,7 @@ NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provid
 
 CURRENT_MILESTONE: `F-14-MODEL-WATERMARK-POLICY-SOURCE-R3 — Hermes source delivery pending audit; F-22/F-23 attribution source integrated`
 CURRENT_MILESTONE_COMMIT: `950fa921306d20eca59467428266b16792736d27`
-CURRENT_MILESTONE_REMOTE_READBACK: `local and GitHub branch both resolve to 950fa921; Hermes R3 task is bound to this exact source commit`
+CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip is 08a60d05; Hermes R3 task is bound to product source commit 950fa921 and must fetch that exact commit from the branch`
 CURRENT_MILESTONE_EVIDENCE: `F-22/F-23 API attribution ingest/report, idempotency, schema and mounted dashboard evidence passed; API 1,099 passed/50 skipped, DB schema 110/110, DB build and API/dashboard typechecks passed; no migration execution or live action`
 CURRENT_MILESTONE_OPEN: `Hermes R3 ACK/PROGRESS/DELIVERY, Codex artifact audit and integration remain open; migration/RLS, CDN/R2, deployed sidecar, browser/mobile, provider, runtime and deployment gates remain open`
 LOCAL_MILESTONE_AFTER_TASK: `M675 — first-party Fanvue attribution facts and per-link conversion/revenue reporting integrated with truthful ROI-unavailable state; pushed at 950fa921`
