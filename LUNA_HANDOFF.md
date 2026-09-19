@@ -1620,3 +1620,22 @@ FORBIDDEN: installer, deployment, migration, database, provider, permission, cre
 OPEN_GATES: F90 license/security/browser acceptance; variant/A-B route and dashboard wiring; media gallery route, preview and source/generated UI wiring; scraper dispatch/result-quality route and dashboard wiring; team helper enforcement in routes/UI; roleplay helper wiring plus browser acceptance; F-89 locale persistence/API/dashboard/mobile selector and catalog/browser acceptance; F-91 Patreon OAuth/social-account persistence, sync/webhook/manual-assist routes/UI and provider/browser acceptance; migrations 0050-0054; real Grok provider receipt/runtime acceptance; human multi-user and mobile/desktop browser acceptance; deployed runtime/provider evidence; trusted thumbnail descriptors; conversion dimensions; scheduled Relay delivery
 HERMES_STATUS: The original sixteen source-only R1 wiring tasks reached PROGRESS but Hermes terminally NACKed all sixteen because no implementation artifact had been created; Codex did not accept invented delivery evidence. Sixteen superseding R2 execution tasks were dispatched against the current pushed source archive e08148bafd60052dd027026eed71e99028e8 and required concrete PROGRESS followed by one hash-verifiable DELIVERY or one terminal BLOCKED result. Hermes terminally NACKed the F90 implementation R3 and R4 wires for an owner-gate protocol mismatch, with no files written or tests run; Codex did not accept those as delivery. The current F89 functional R3 wire has no readable bridge status or reply, so the corrective delivery-required task is active and no F89 progress is counted. F90 remains strictly the FanThynks/Axiom SaaS acquisition referral program: partners refer creators to the platform and receive attributable commissions; tenant affiliate builders, creator resale, provider referrals and white-label controls remain out of scope. M495 is the first real F90 schema/API implementation, M496 adds the owner dashboard controls, and M497 records the native license/import review. DB 153/153 focused tests, API build and route behavior tests 5/5, dashboard 108/108 files and 725/725 tests, dashboard production build, and remote commit readback at 59980176 are recorded; migration 0054 is authored only. Pure contracts remain integrated but do not close feature gates. No runtime/provider/database/permission/migration/deployment action is authorized; source deliveries, license/security acceptance, browser acceptance and migration rehearsal remain open.
 ```
+## M504 — finite Hermes passage criteria
+
+`L5-verification/hermes-functional-acceptance-matrix.md` is now the canonical
+pass/fail contract for delegated source work. It binds every lane to finite
+behavior, authorization, scope, UI, test and evidence criteria instead of
+accepting route existence, pure contracts, ACK-only messages, copied baselines
+or hash-only claims. It explicitly separates SOURCE-PASS from EXTERNAL-PENDING
+for live providers, browsers, R2, hosted CI, deployment and operator gates.
+
+The control loop is bounded: unique reply WIRE and exact correlation; one
+evidence-bearing PROGRESS; one DELIVERY or terminal BLOCKED; at most one Codex
+correction receipt and one Hermes correction cycle. Repeated failure of the
+same criterion becomes `BLOCKED-HERMES`, and Codex advances to the next
+independent lane. No dates, clocks, TTLs or filesystem times are used. F-89,
+F-90, F-91, variant/A-B, gallery, scraper, team/shift/Chatter, playbook,
+clipping, provider/OAuth, R2, VPN/egress, browser/mobile, migration,
+observability and CI lanes each have explicit mandatory criteria in the matrix.
+This is a source-control/documentation change only: no runtime, provider,
+database, permission, migration, deployment or service action occurred.
