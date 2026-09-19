@@ -684,3 +684,24 @@ dashboard typecheck and lint pass; lint retains only three pre-existing
 database, migration, runtime, permission or deployment action is included.
 Browser/mobile, provider-backed earnings, email/operator adoption, migration/RLS
 and deployed acceptance remain open.
+
+### M571 — bounded R2 media descriptor wiring
+
+The source-only R2 contract is now wired through the existing media lifecycle
+without introducing a schema, provider, retention policy or runtime action.
+`packages/llm-gateway/src/grok-r2-storage.ts` owns the shared tenant/model
+object-key validator and MIME/size bounds; its public export is consumed by
+generated-asset storage, media transforms, authenticated upload/preview routes,
+and bundle preview paths. Asset keys must remain under the authenticated
+`generated/{orgId}/{modelId}/...` scope; operation keys are UUID-derived
+media-plane outputs. Invalid scope, traversal, URL-like keys, unsupported media
+types and out-of-bounds sizes fail closed.
+
+Evidence: API full suite 1,069 passed with 50 explicit integration skips;
+worker full suite 269 passed with 32 explicit integration skips; LLM gateway
+full suite 388/388; focused R2 helper 9/9, worker storage/transform 18/18 and
+API upload/preview/bundle 121/121. API, worker and LLM builds passed, package
+lint exited 0 with only existing warnings, and `git diff --check` passed.
+Source commit `8e5695f7605c9be57d0840ff1e58dd3090c048b7` is pushed. Live R2
+configuration, bucket round-trip, retention/deletion, deployed media and
+browser/mobile acceptance remain open.

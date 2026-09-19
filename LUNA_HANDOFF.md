@@ -1604,13 +1604,13 @@ audited. The corrected artifact-gate wire is
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
 ACTIVE_LANE: HERMES-R2-STORAGE-CONTRACT-CURRENT-R4 (source-only implementation against the exact pushed head; Codex audits and integrates)
-LAST_ACCEPTED_CODE: 4fd08bca0946131cc72daf1f6419af5ebb9257ef
-PUBLISHED_HEAD: 821c081702e18cb08c2fac6032c36b5d0c523ae1
+LAST_ACCEPTED_CODE: 8e5695f7605c9be57d0840ff1e58dd3090c048b7
+PUBLISHED_HEAD: 8e5695f7605c9be57d0840ff1e58dd3090c048b7
 ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state, model dashboard and native mobile model/status/read/sync surface with scoped role boundaries are source-wired; F-10 source-wired visual month/week calendar with guarded drag and accessible date rescheduling plus advisory timing guidance; incidents/crash triage and recovery are source-wired and localized; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
-NEXT_REQUIRED: Hermes must complete the adjudicated `CODEX-R2-STORAGE-CURRENT-R4-005` with one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED against exact source `a462ea0e74cec267ba61678909183ef4b652b51d`. Codex must independently hash/review the artifact, run owning checks, integrate only passing source, commit/push and then advance to the next finite lane. Keep provider credentials, R2 round-trip, migration/RLS, browser, operator and deployment gates explicitly open. Do not reissue the rejected Team/Chatter R5 copy. No wall-clock or date comparison is part of the bridge protocol
-CONTINUATION_WIRE: `CODEX-R2-STORAGE-CURRENT-R4-002` is the active follow-up to Hermes ACK `HERMES-R2-STORAGE-CURRENT-R4-ACK-001`; envelope `L5-verification/hermes-r2-storage-current-r4-followup.json`, SHA-256 `50af5b9835dea283d026fa2796efe85b987e5f88770a605abdb91f3e2418ea3d`. Hermes must return one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED; no acknowledgment-only response.
-CORRECTION_WIRE: `CODEX-R2-STORAGE-CURRENT-R4-003` is the single permitted correction to the helper-only PROGRESS. Envelope `L5-verification/hermes-r2-storage-current-r4-correction.json`, SHA-256 `38c6019e52e6ba133f61fb57a53bf315acd33bc45cbbfe8d6adb17552a8c645d`. The correction requires callsite wiring and behavior evidence for existing upload/generated/preview/unknown/retry contracts; no parallel lane or live action.
-ADJUDICATION_WIRE: `CODEX-R2-STORAGE-CURRENT-R4-005` resolves Hermes' owner-adjudication request. Envelope `L5-verification/hermes-r2-storage-current-r4-adjudication.json`, SHA-256 `9f1d4401fe7b1995713ba6f06165bcb2893a4b50fb9c77257bb77116f7e94520`. It authorizes source-only callsite wiring against existing contracts, explicitly forbids schema/provider/retention-policy invention, and requires terminal DELIVERY or exact BLOCKED; no live action.
+NEXT_REQUIRED: M571 is the accepted local source closure for the R2 descriptor lane. Codex must independently review any later Hermes artifact as duplicate or stronger evidence before integration, then advance to the next finite architecture gap. Keep provider credentials, R2 round-trip, migration/RLS, browser, operator and deployment gates explicitly open. Do not reissue the rejected Team/Chatter R5 copy. No wall-clock or date comparison is part of the bridge protocol
+CONTINUATION_WIRE: `CODEX-R2-STORAGE-CURRENT-R4-002` was the continuation tied to Hermes ACK `HERMES-R2-STORAGE-CURRENT-R4-ACK-001`; it is historical and superseded by accepted local M571. Envelope `L5-verification/hermes-r2-storage-current-r4-followup.json`, SHA-256 `50af5b9835dea283d026fa2796efe85b987e5f88770a605abdb91f3e2418ea3d`.
+CORRECTION_WIRE: `CODEX-R2-STORAGE-CURRENT-R4-003` was the single permitted correction to the helper-only PROGRESS; it is historical and superseded by accepted local M571. Envelope `L5-verification/hermes-r2-storage-current-r4-correction.json`, SHA-256 `38c6019e52e6ba133f61fb57a53bf315acd33bc45cbbfe8d6adb17552a8c645d`.
+ADJUDICATION_WIRE: `CODEX-R2-STORAGE-CURRENT-R4-005` authorized source-only callsite wiring against existing contracts; it is historical and superseded by accepted local M571. Envelope `L5-verification/hermes-r2-storage-current-r4-adjudication.json`, SHA-256 `9f1d4401fe7b1995713ba6f06165bcb2893a4b50fb9c77257bb77116f7e94520`.
 HERMES_ACCOUNTABILITY: Codex sent `FUNCTIONAL-DELIVERY-STANDARD-R1`; Hermes must produce real source implementation in isolated copies, not plans, pure contracts, baseline copies or ACK-only responses. A DELIVERY is countable only with changed paths, per-file SHA256, exact commands and exit codes, behavior-level tests, and truthful LIVE_ACTIONS NONE; otherwise Hermes must return a terminal BLOCKED result with the exact blocker.
 HERMES_F89_TASK: `LOCALIZATION-MULTILINGUAL-FUNCTIONAL-R3`, WIRE `CODEX-LOCALIZATION-FUNCTIONAL-001`, source ref `57a8c47f8f6fa2d7be2f6920d3da88a374ce15c6`, isolated copy `/root/d001a-deliverable/localization-r3`; the corrective delivery-required message `codex-localization-functional-r3-delivery-required-001` supersedes silent waiting and requires changed source, behavior tests and a signed DELIVERY or exact BLOCKED result.
 HERMES_F89_AUTHORIZATION: Hermes returned a truthful terminal BLOCKED because COPY_ROOT was absent and source writes were not explicitly authorized. Codex has now issued `codex-localization-functional-r3-authorize-source-copy-002` with owner-authorized COPY_ROOT creation and source-only artifact writes; Hermes must not commit/push, and Codex retains review/integration/commit/push ownership.
@@ -2305,3 +2305,27 @@ dashboard typecheck and lint pass; lint retains only three pre-existing
 database, migration, runtime, permission or deployment action is included.
 Browser/mobile, provider-backed earnings, email/operator adoption, migration/RLS
 and deployed acceptance remain open.
+
+## M571 — bounded R2 media descriptor wiring
+
+The accepted local source milestone closes the shared descriptor contract across
+the existing media lifecycle. `packages/llm-gateway/src/grok-r2-storage.ts`
+now owns tenant/model-scoped object-key normalization and MIME/size bounds,
+re-exported through the gateway package and consumed by generated-asset
+storage, media transforms, authenticated upload/preview routes and bundle
+preview paths. Asset keys must remain under
+`generated/{orgId}/{modelId}/...`; operation outputs are UUID-derived
+media-plane keys. URL-like, traversal, cross-tenant/model, unsupported-type and
+out-of-bounds inputs fail closed. No schema, provider, retention policy or
+runtime action was invented.
+
+Evidence: API full suite 1,069 passed with 50 explicit integration skips;
+worker full suite 269 passed with 32 explicit integration skips; LLM gateway
+full suite 388/388. Focused R2 helper tests passed 9/9, worker
+storage/transform 18/18 and API upload/preview/bundle 121/121. API, worker and
+LLM builds passed; package lint exited 0 with existing warnings; `git diff
+--check` passed. Source commit
+`8e5695f7605c9be57d0840ff1e58dd3090c048b7` is pushed and read back from the
+remote branch. Hermes' R2 copy had not reached source edit or terminal
+DELIVERY, so it was not integrated. Live R2 configuration, bucket round-trip,
+retention/deletion, deployed media and browser/mobile acceptance remain open.
