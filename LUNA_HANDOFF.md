@@ -7,18 +7,20 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `e8f1409f553cfa73fa72b64d7385ed0e3bc16f6d`
+SOURCE_HEAD: `b0300dab997485104a870274300a57df97b1cdc3`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `e8f1409f553cfa73fa72b64d7385ed0e3bc16f6d`
+PUBLISHED_HEAD: `b0300dab997485104a870274300a57df97b1cdc3`
 ACCEPTED_PRODUCT_SOURCE: `d3913727a44e96490f3bfddbdf504acb4b2bbb42`
 ACTIVE_HERMES_LANE: `NONE`
 CODEX_OWNER: `CODEX`
-HERMES_IMPLEMENTATION_OWNER: `NONE_PENDING_RECONCILIATION`
-NEXT_ACTION: `bridge-inventory-reconciliation-only`
-RECONCILIATION_STATE: `CORRECTION_SENT_PENDING_VALID_ACK`
+HERMES_IMPLEMENTATION_OWNER: `NONE`
+NEXT_ACTION: `select-one-fresh-architecture-gap`
+RECONCILIATION_STATE: `COMPLETE_READ_ONLY_WITH_SIGNATURE_ANOMALY`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
+RECONCILIATION_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-RECEIPT-005`
+RECONCILIATION_RECEIPT_SHA256: `9b44ae04f313a03f8a7ebd38d48a74b69b0c4dbb0d43ac6d233fb753e0a47d84`
 
 Closed and not to be reopened under the old task IDs:
 
@@ -37,10 +39,12 @@ from the returned inventory before opening exactly one new bounded lane.
 
 Hermes' first response to the reconciliation was rejected: it used an
 invalid terminal flag for `ACK/READ`, included a forbidden clock field and
-duplicated its signature. The response is not an accepted inventory. One
-bounded correction was sent under the WIRE recorded above; no further
-correction or feature assignment is authorized until that response is
-validated.
+duplicated its signature. The bounded correction returned the same logical
+inventory with a nonterminal ACK, but used a lowercase noncanonical signature.
+Codex recorded the substantive inventory as read-only data in the terminal
+receipt above, explicitly preserved the signature anomaly, and did not treat
+it as feature delivery or authorization. Hermes reports zero OPEN or
+IN_PROGRESS lanes, no edited source copy and no resume without a new WIRE.
 
 Coordination rules: use message IDs, WIRE, SEQ, IN_REPLY_TO, STATE,
 NEXT_OWNER and terminal status; do not use wall-clock dates or timestamps to
