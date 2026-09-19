@@ -134,7 +134,7 @@ health endpoints alone never closes a gate.
 - Add tenant-scoped team membership/role visibility, shift lifecycle, handoff notes, and bounded queue assignment using existing RBAC and RLS conventions.
 - Expose the human workflow in a dedicated team/operations surface; keep infrastructure and secret controls out of content-team roles.
 - M274 adds row-locked shift lifecycle transitions and explicit completion handoff notes; terminal shifts cannot be reopened/rewritten. Existing generic workspace operational roles do not yet satisfy the L1.0 Chatter persona restricted to assigned shifts/models. F-25 post-specific note ownership/UI and historical list pagination also remain open. Do not label the team feature complete from generic CRUD or navigation tests.
-- M275 adds F-25 post-note ownership checks and the calendar read/write/pagination panel, with actual team mutation idempotency registrations. Focused route/UI checks pass; live multi-user acceptance and dedicated PostgreSQL post-note isolation evidence remain open. Chatter permissions and general team-list pagination remain incomplete.
+- M275 adds F-25 post-note ownership checks and the calendar read/write/pagination panel, with actual team mutation idempotency registrations. Focused route/UI checks pass; live multi-user acceptance and dedicated PostgreSQL post-note isolation evidence remain open. Chatter permissions and general team-list pagination remain incomplete at this historical checkpoint; see M515 for the current source state.
 - [x] Gate: authorization/RLS and dashboard navigation tests pass; multi-user browser acceptance remains open.
 
 ### 4. Clipping and adaptation controls — source slice complete; deployment gate open
@@ -469,3 +469,29 @@ roleplayer provider and Venice remains future-compatible, but neither has a
 live roleplay receipt here.
 
 The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.
+
+### M515 — Team history pagination and Chatter roleplay access correction
+
+The model-scoped `team-operations` read now validates optional UUID cursors and
+uses stable keyset pagination for shifts ordered by `(startsAt,id)` and notes
+ordered by `(createdAt,id)`. Responses are bounded to 100 rows with explicit
+`next_cursor` metadata, and the dashboard exposes separate Load older controls
+for each history stream while preserving current rows and reporting failures.
+The model-access condition is applied before pagination, and malformed or
+foreign cursors fail closed.
+
+The Chatter roleplay page no longer calls the administrative team-operations
+endpoint, which is intentionally outside the scoped-role allowlist. Chatter
+roleplay now consumes the existing authorized `/my-shifts` roster and exposes
+only the current user's active human assignment; owner/manager/operator
+roleplay continues to discover active human or editable assigned-LLM actors
+through team operations. This keeps the dual-actor architecture without
+expanding team roster visibility.
+
+Evidence: API team-operation tests 11/11, API model-access/roleplay/team tests
+32/32, dashboard roleplay page tests 2/2, dashboard team-page tests 6/6, API
+build, API/dashboard typechecks and diff-check pass. The PostgreSQL integration
+file was collected but all 40 tests were skipped because no approved disposable
+`TEST_DATABASE_URL` was available. No migration, runtime, provider, database,
+browser or deployment action occurred. Source commit
+`3ecb3eae397f31331d99aa27352d4a242eb70f83` is pushed; Hermes remains paused.

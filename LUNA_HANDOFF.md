@@ -1791,3 +1791,28 @@ desktop/mobile acceptance remain open. Commit
 `05ac7900f771feb52f679b5219e9cb14398358be` is pushed to
 `codex/telegram-webhook-hardening`. Hermes is intentionally paused while this
 local-only work period continues.
+
+## M515 — Team history pagination and Chatter roleplay access correction
+
+The model-scoped `team-operations` read now accepts validated shift/note UUID
+cursors and returns stable, bounded keyset pages with explicit `next_cursor`
+metadata. The dashboard preserves loaded shifts/notes and exposes separate
+Load older controls with bounded failure states. Model access is applied before
+pagination, and malformed or out-of-scope cursors fail closed.
+
+The Chatter roleplay page previously called the administrative team-operations
+endpoint even though scoped-role middleware correctly denies that endpoint to
+Chatter. It now uses the already-authorized `/my-shifts` roster and exposes only
+the current user's active human assignment. Owner/manager/operator roleplay
+continues to use team operations to discover active human or editable LLM
+actors; no roster visibility was widened.
+
+Evidence: API team-operation tests 11/11; API model-access, roleplay and team
+tests 32/32; dashboard roleplay page tests 2/2; dashboard team page tests 6/6;
+API build; API/dashboard typechecks; and diff-check pass. The PostgreSQL team
+integration file collected but skipped all 40 tests because no approved
+disposable `TEST_DATABASE_URL` was present. No migration, runtime, provider,
+database, browser or deployment action occurred. Source commit
+`3ecb3eae397f31331d99aa27352d4a242eb70f83` is pushed to
+`codex/telegram-webhook-hardening`. Hermes is paused during this local-only
+work period.
