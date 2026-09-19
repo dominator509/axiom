@@ -5,6 +5,7 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
   useEffect: (effect: () => (() => void) | undefined) => { hooks.effect = effect; },
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ t: (key: string) => key }) }));
 import ResearchRefresh from './ResearchRefresh';
 let stop: (() => void) | undefined;
 beforeEach(() => { vi.useFakeTimers(); hooks.refresh.mockReset(); hooks.pending = false; vi.stubGlobal('document', { visibilityState: 'visible' }); });

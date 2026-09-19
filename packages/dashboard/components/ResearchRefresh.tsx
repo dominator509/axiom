@@ -2,9 +2,11 @@
 
 import { useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale } from './LocaleProvider';
 
 export default function ResearchRefresh({ active }: { active: boolean }) {
   const router = useRouter();
+  const { t } = useLocale();
   const [pending, startTransition] = useTransition();
   useEffect(() => {
     if (!active || pending) return;
@@ -14,9 +16,9 @@ export default function ResearchRefresh({ active }: { active: boolean }) {
     return () => clearInterval(timer);
   }, [active, pending, router]);
   return <div className="stack">
-    {active && <p role="status">Research is queued or running. This page checks for updates every 10 seconds while visible.</p>}
+    {active && <p role="status">{t('scrape.refreshActive')}</p>}
     <button className="btn secondary" type="button" disabled={pending} onClick={() => startTransition(() => router.refresh())}>
-      {pending ? 'Refreshing research…' : 'Refresh research results'}
+      {pending ? t('scrape.refreshing') : t('scrape.refresh')}
     </button>
   </div>;
 }
