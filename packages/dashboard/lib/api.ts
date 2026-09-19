@@ -7,6 +7,7 @@ import {
   AXIOM_ERROR_RESPONSE_MAX_BYTES,
   readBoundedResponseJson,
   readBoundedResponseText,
+  type ScrapeResultView,
   type SupportedLocale,
 } from '@axiom/core';
 import { createIdempotencyKey } from './mutation';
@@ -350,10 +351,9 @@ export interface ScrapeRun {
   id: string;
   modelId: string;
   kind: 'social' | 'competitor' | string;
-  request: Record<string, unknown>;
-  result: Record<string, unknown> | null;
+  result: ScrapeResultView | null;
   state: 'queued' | 'running' | 'completed' | 'failed' | string;
-  error: string | null;
+  error: 'unavailable' | null;
   createdAt: string;
   completedAt: string | null;
 }

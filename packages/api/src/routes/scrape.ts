@@ -12,6 +12,7 @@ import type { Context } from 'hono';
 import { withOrgContext, requireOrg, apiError, statusTitle, writeAudit } from './helpers.js';
 import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
+import { projectScrapeRun } from '../scraper-quality-contract.js';
 
 const router = new Hono<AppBindings>();
 const socialSchema = z.object({ kind: z.literal('social'), platform: z.string().trim().min(1).max(50), profileUrl: z.string().url().max(2_000) }).strict();
@@ -46,7 +47,7 @@ router.get('/models/:modelId/scrape-runs', async (c) => {
     ))
     .orderBy(desc(schema.scrapeRun.createdAt), desc(schema.scrapeRun.id)).limit(limit));
   const last = rows[rows.length - 1];
-  return c.json({ data: rows, meta: {
+  return c.json({ data: rows.map(projectScrapeRun), meta: {
     total: rows.length,
     limit,
     next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length),
@@ -74,7 +75,7 @@ router.post('/models/:modelId/scrape-runs', async (c) => {
     return run;
   });
   if (!saved) return apiError(c, 404, statusTitle(404), 'model not found');
-  return c.json({ data: saved }, 202);
+  return c.json({ data: projectScrapeRun(saved) }, 202);
 });
 
 export { router as scrapeRouter };

@@ -12,6 +12,8 @@ import {
   effectiveConcurrency,
   effectiveTimeout,
   paginateScrapeHistory,
+  projectScrapeResult,
+  projectScrapeRun,
   rejectAllFailedOutcome,
   scrapePresentation,
   validateScrapeRequest,
@@ -238,5 +240,83 @@ describe('scraper responsive states', () => {
   it('reports ready only for a genuinely completed run', () => {
     const completed = aggregateScrapeOutcome([{ target: 'a', ok: true, items: ['x'] }]);
     expect(scrapePresentation(completed).state).toBe('ready');
+  });
+});
+
+describe('authenticated scraper result projection', () => {
+  it('projects social evidence while dropping raw fields and preserving zero', () => {
+    const result = projectScrapeResult('social', {
+      platform: 'instagram',
+      display_name: '<b>Public name</b>',
+      profile_url: 'https://example.com/profile',
+      bio: 'A bounded bio',
+      followers: 0,
+      following: null,
+      posts: 12,
+      items: ['one', 'two'],
+      provider_token: 'secret-token',
+      raw_html: '<html>private</html>',
+    });
+    expect(result).toMatchObject({ kind: 'social', state: 'completed', observedProfiles: 1, failedProfiles: 0, totalItems: 2 });
+    expect(result.profiles[0]).toEqual({
+      platform: 'instagram',
+      displayName: '<b>Public name</b>',
+      profileUrl: 'https://example.com/profile',
+      bio: 'A bounded bio',
+      followers: 0,
+      following: null,
+      posts: 12,
+      items: ['one', 'two'],
+      error: null,
+    });
+    expect(JSON.stringify(result)).not.toContain('secret-token');
+    expect(JSON.stringify(result)).not.toContain('raw_html');
+  });
+
+  it('reports partial competitor evidence without echoing provider errors', () => {
+    const result = projectScrapeResult('competitor', {
+      results: [
+        { platform: 'instagram', followers: 1200, posts: 4 },
+        { platform: 'tiktok', error: 'provider secret and internal URL' },
+      ],
+    });
+    expect(result.state).toBe('partial');
+    expect(result.observedProfiles).toBe(1);
+    expect(result.failedProfiles).toBe(1);
+    expect(result.profiles[1]).toMatchObject({ platform: 'tiktok', error: 'unavailable' });
+    expect(JSON.stringify(result)).not.toContain('provider secret');
+  });
+
+  it('distinguishes empty, all-failed, malformed and unavailable results', () => {
+    expect(projectScrapeResult('competitor', { results: [] }).state).toBe('empty');
+    expect(projectScrapeResult('competitor', { results: [{ error: 'no access' }] }).state).toBe('failed');
+    expect(projectScrapeResult('competitor', { results: [{ followers: null, posts: null }] }).state).toBe('empty');
+    expect(projectScrapeResult('social', null).state).toBe('unavailable');
+  });
+
+  it('bounds profiles, items, strings and counts while rejecting unsafe URLs', () => {
+    const result = projectScrapeResult('competitor', {
+      results: Array.from({ length: 12 }, (_, index) => ({
+        platform: 'x'.repeat(800),
+        display_name: 'name',
+        profile_url: index === 0 ? 'http://localhost/private' : 'https://example.com/profile',
+        followers: Number.MAX_SAFE_INTEGER,
+        items: Array.from({ length: 25 }, () => 'item'),
+      })),
+    });
+    expect(result.state).toBe('partial');
+    expect(result.profiles).toHaveLength(10);
+    expect(result.profiles[0].platform?.length).toBe(500);
+    expect(result.profiles[0].profileUrl).toBeNull();
+    expect(result.profiles[0].followers).toBeNull();
+    expect(result.profiles[0].items).toHaveLength(20);
+  });
+
+  it('projects queued and failed runs without request or internal error data', () => {
+    const queued = projectScrapeRun({ id: 'r1', modelId: 'm1', kind: 'social', state: 'queued', createdAt: new Date('2026-01-01T00:00:00Z'), request: { secret: 'x' } });
+    const failed = projectScrapeRun({ id: 'r2', modelId: 'm1', kind: 'social', state: 'failed', result: { error: 'internal secret' }, error: 'stack trace' , createdAt: new Date('2026-01-01T00:00:00Z') });
+    expect(queued).toMatchObject({ state: 'queued', result: null, error: null });
+    expect(failed).toMatchObject({ state: 'failed', error: 'unavailable', result: { state: 'failed' } });
+    expect(JSON.stringify(failed)).not.toContain('stack trace');
   });
 });

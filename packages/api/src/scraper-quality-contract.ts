@@ -5,6 +5,13 @@
 // call, no VPN, no browser. Deployed sidecar/VPN/provider acceptance remains
 // unclaimed.
 
+import {
+  SCRAPE_RESULT_VIEW_LIMITS,
+  type ScrapeProfileView,
+  type ScrapeResultKind,
+  type ScrapeResultView,
+} from '@axiom/core';
+
 export type ScrapeRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'partial';
 
 /** Durable scrape-run state owned by exactly one org/model scope. */
@@ -27,6 +34,173 @@ export const SCRAPE_LIMITS = {
   minTimeoutMs: 1_000,
   maxConcurrency: 5,
 } as const;
+
+type JsonRecord = Record<string, unknown>;
+
+function record(value: unknown): JsonRecord | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as JsonRecord
+    : null;
+}
+
+function safeText(value: unknown, maxLength: number): string | null {
+  if (typeof value !== 'string') return null;
+  const cleaned = Array.from(value)
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return !((code >= 0 && code <= 8) || code === 11 || code === 12 || (code >= 14 && code <= 31) || code === 127);
+    })
+    .join('')
+    .trim();
+  return cleaned.length > 0 ? cleaned.slice(0, maxLength) : null;
+}
+
+function safeCount(value: unknown): number | null {
+  return typeof value === 'number'
+    && Number.isSafeInteger(value)
+    && value >= 0
+    && value <= SCRAPE_RESULT_VIEW_LIMITS.maxCount
+    ? value
+    : null;
+}
+
+function safePublicUrl(value: unknown): string | null {
+  const candidate = safeText(value, SCRAPE_RESULT_VIEW_LIMITS.maxProfileUrlLength);
+  if (!candidate) return null;
+  try {
+    const parsed = new URL(candidate);
+    const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    const privateIpv4 = /^(10\.|127\.|169\.254\.|192\.168\.)/.test(hostname)
+      || /^172\.(?:1[6-9]|2\d|3[01])\./.test(hostname);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.port
+      || hostname === 'localhost' || hostname.endsWith('.localhost') || privateIpv4
+      || hostname === '::1' || hostname.includes(':')) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+function safeItems(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, SCRAPE_RESULT_VIEW_LIMITS.maxItemsPerProfile)
+    .map((item) => safeText(item, SCRAPE_RESULT_VIEW_LIMITS.maxStringLength))
+    .filter((item): item is string => item !== null);
+}
+
+function hasError(value: JsonRecord): boolean {
+  return value.error !== undefined && value.error !== null;
+}
+
+function projectProfile(value: unknown): { view: ScrapeProfileView; observed: boolean; failed: boolean } {
+  const raw = record(value);
+  if (!raw) {
+    return {
+      view: { platform: null, displayName: null, profileUrl: null, bio: null, followers: null, following: null, posts: null, items: [], error: 'unavailable' },
+      observed: false,
+      failed: true,
+    };
+  }
+  const view: ScrapeProfileView = {
+    platform: safeText(raw.platform, SCRAPE_RESULT_VIEW_LIMITS.maxStringLength),
+    displayName: safeText(raw.display_name ?? raw.displayName, SCRAPE_RESULT_VIEW_LIMITS.maxStringLength),
+    profileUrl: safePublicUrl(raw.profile_url ?? raw.profileUrl),
+    bio: safeText(raw.bio, SCRAPE_RESULT_VIEW_LIMITS.maxBioLength),
+    followers: safeCount(raw.followers),
+    following: safeCount(raw.following),
+    posts: safeCount(raw.posts),
+    items: safeItems(raw.items),
+    error: hasError(raw) ? 'unavailable' : null,
+  };
+  const observed = view.error === null && (
+    view.displayName !== null || view.profileUrl !== null || view.bio !== null
+    || view.followers !== null || view.following !== null || view.posts !== null || view.items.length > 0
+  );
+  return { view, observed, failed: view.error !== null };
+}
+
+function missingCount(value: JsonRecord): number | null {
+  return safeCount(value.missingCount ?? value.missing_count);
+}
+
+/** Convert persisted sidecar JSON into the bounded authenticated UI view. */
+export function projectScrapeResult(kind: ScrapeResultKind, value: unknown): ScrapeResultView {
+  const raw = record(value);
+  if (!raw) {
+    return { kind, state: 'unavailable', profiles: [], observedProfiles: 0, failedProfiles: 0, totalItems: 0, missingCount: null };
+  }
+  const values = kind === 'competitor'
+    ? (Array.isArray(raw.results) ? raw.results : null)
+    : [raw];
+  if (values === null) {
+    return { kind, state: 'unavailable', profiles: [], observedProfiles: 0, failedProfiles: 0, totalItems: 0, missingCount: null };
+  }
+  if (values.length === 0) {
+    return { kind, state: 'empty', profiles: [], observedProfiles: 0, failedProfiles: 0, totalItems: 0, missingCount: missingCount(raw) };
+  }
+
+  const boundedValues = values.slice(0, SCRAPE_RESULT_VIEW_LIMITS.maxProfiles);
+  const projections = boundedValues.map(projectProfile);
+  const profiles = projections.map(({ view }) => view);
+  const observedProfiles = projections.filter(({ observed }) => observed).length;
+  const failedProfiles = projections.filter(({ failed }) => failed).length;
+  const totalItems = profiles.reduce((sum, profile) => sum + profile.items.length, 0);
+  const truncated = values.length > boundedValues.length;
+  let state: ScrapeResultView['state'];
+  if (observedProfiles === 0 && failedProfiles === projections.length) state = 'failed';
+  else if (observedProfiles === 0) state = 'empty';
+  else if (failedProfiles > 0 || truncated) state = 'partial';
+  else state = 'completed';
+
+  return { kind, state, profiles, observedProfiles, failedProfiles, totalItems, missingCount: missingCount(raw) };
+}
+
+export type PublicScrapeRunState = 'queued' | 'running' | 'completed' | 'failed';
+
+export interface PublicScrapeRun {
+  id: string;
+  modelId: string;
+  kind: ScrapeResultKind;
+  state: PublicScrapeRunState;
+  result: ScrapeResultView | null;
+  error: 'unavailable' | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+type ScrapeRunRowLike = {
+  id: string;
+  modelId: string;
+  kind: ScrapeResultKind;
+  state: string;
+  request?: unknown;
+  result?: unknown;
+  error?: unknown;
+  createdAt: Date | string;
+  completedAt?: Date | string | null;
+};
+
+function iso(value: Date | string | null | undefined): string | null {
+  if (value instanceof Date) return value.toISOString();
+  return typeof value === 'string' ? value : null;
+}
+
+/** Project a DB row without exposing org scope, request JSON, raw result, or internal error text. */
+export function projectScrapeRun(row: ScrapeRunRowLike): PublicScrapeRun {
+  const state: PublicScrapeRunState = row.state === 'queued' || row.state === 'running' || row.state === 'completed'
+    ? row.state
+    : 'failed';
+  return {
+    id: row.id,
+    modelId: row.modelId,
+    kind: row.kind,
+    state,
+    result: row.result === null || row.result === undefined ? null : projectScrapeResult(row.kind, row.result),
+    error: state === 'failed' || (row.error !== undefined && row.error !== null) ? 'unavailable' : null,
+    createdAt: iso(row.createdAt) ?? '',
+    completedAt: iso(row.completedAt),
+  };
+}
 
 export interface ScrapeRequest {
   orgId: string;
