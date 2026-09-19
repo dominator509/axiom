@@ -9,7 +9,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `47d8f9ef1b5692503c84bdb168cf3652241b7edc`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `bac74c68eea2a88cd9307bb34ecfba37ff433f93`
+PUBLISHED_HEAD: `0205681fe3d93cd1b8e6e0a0a4524300ef7a6487`
 ACCEPTED_PRODUCT_SOURCE: `80284a19db82b37c1c07d6ae807bde855f223e90`
 ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R8 — canonical exact-current source-only lane; R7 is quarantined before acceptance`
 CODEX_OWNER: `CODEX`
@@ -42,6 +42,8 @@ ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — local source implementation`
 ACTIVE_LANE_SOURCE_TRANSPORT: `Hermes exact-commit isolated copy; Codex must audit delivery bytes before integration`
 ACTIVE_LANE_TRANSPORT_NAMING: `NOT_APPLICABLE — no Hermes source transport`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id must equal filename stem; no renames or hand-written replies`
+BRIDGE_EXECUTION_MODEL: `The bridge poller reports inbox traffic only; it does not execute Hermes tasks. A valid inbox file is transport evidence, not ACK, ownership, progress or delivery.`
+R8_TRANSPORT_STATE: `UNCONFIRMED — exact task is present and checksum-verified; no correlated Hermes WIRE or status artifact exists`
 HISTORICAL_REPLY_MISMATCH_DECISION: `C — do not patch the bridge helper or rename stale inbox files; reissue a fresh superseding task with exact filename/msg_id only when that architecture lane is selected`
 HISTORICAL_REPLY_MISMATCH_SCOPE: `scraper, F-31 and other historical lanes; no current implementation lane may rely on those files`
 ACTIVE_LANE_BASELINE: `M669 F-89 Calendar localization complete at d1c20a0; source gates passed, browser/mobile/provider/migration/runtime/deployment gates open`
@@ -77,9 +79,9 @@ HERMES_STALE_LANE_POLICY: `Historical lanes and R7 remain quarantined; only CODE
 LOCAL_WORKTREE_POLICY: `Codex audits, tests, commits and pushes local milestones; untracked Hermes review artifacts remain untouched`
 NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provider, credential, permission, network or service action`
 
-CURRENT_MILESTONE: `M698 — canonical R8 task sent through the exact filename/msg_id bridge; local and remote task checksums match; no source delivery accepted yet`
+CURRENT_MILESTONE: `M700 — documented the report-only bridge execution boundary; R8 remains the sole unconfirmed task and no source delivery is accepted`
 CURRENT_MILESTONE_COMMIT: `bac74c68eea2a88cd9307bb34ecfba37ff433f93`
-CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as bac74c68eea2a88cd9307bb34ecfba37ff433f93; R8 task checksum 7aee002d742da9b80676f67dd8c34737e79ad1b8cc10c7145751bf3724da3c23 matched through the Hermes bridge`
+CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as 0205681fe3d93cd1b8e6e0a0a4524300ef7a6487; R8 task checksum 7aee002d742da9b80676f67dd8c34737e79ad1b8cc10c7145751bf3724da3c23 matched through the Hermes bridge`
 CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, API index 63/63, API relay-webhooks 2/2, dashboard full 780 passed; no migration execution or live action`
 CURRENT_MILESTONE_OPEN: `R8 exact-source ACK and F-14 PROGRESS/DELIVERY remain open; full feature and deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
 LOCAL_MILESTONE_AFTER_TASK: `M697 — standalone and stateful validators reject reply-WIRE reuse and invalid TASK sequence; malformed first replies are corrected by SEQ 2 RECEIPT; R7 is quarantined and R8 is the sole current task`
