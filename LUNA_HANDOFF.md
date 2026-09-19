@@ -1651,3 +1651,14 @@ of coordination. The message preserves the source-only boundary and forbids
 installer, deployment, live DB/migrations, providers, credentials,
 permissions, services and network actions. Await Hermes' unique correlated
 ACK; an ACK is ownership only, not implementation delivery.
+## M506 — Patreon functional implementation lane dispatched
+
+Codex dispatched `codex-patreon-functional-implementation-r2` against pushed
+head `21f0f347704d2ad0bb0b79c384ec91013debd5e1`. The lane is source-only and
+independent of deployment repair. Hermes must implement OAuth/PKCE, encrypted
+model-scoped connection state, cursor-based campaign/member/tier/post sync,
+signed webhook verification/replay protection, reconciliation receipts and
+real dashboard/mobile manual-sync/status surfaces using redacted fixtures.
+Patreon publish, DMs, payouts, member mutation and unsupported analytics are
+explicitly prohibited. Passage is governed by the F-91 row in the acceptance
+matrix; no ACK-only, contract-only or backend-only delivery counts.
