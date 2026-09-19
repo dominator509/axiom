@@ -537,3 +537,11 @@ bounded Hermes source-only task now targets those exact callsites using the
 existing six-locale catalog and formatting contract. This does not claim the
 source lane complete and does not change the separate browser/mobile, deployed,
 migration/RLS or runtime evidence requirements.
+
+# M581: F-89 mobile Relay localization lane
+
+The mounted mobile `DashboardScreen` and `RelayScreen` still contain raw
+language/delivery labels and host-locale date/count formatting despite the
+existing persisted selector. A bounded Hermes source-only task now targets
+those screens through the existing six-locale catalog. Native/browser,
+deployed, migration/RLS and runtime evidence remain open.

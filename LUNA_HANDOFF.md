@@ -1,9 +1,9 @@
 # FanThynks — Astra to Luna continuation handoff
 
-Updated: after milestone M580 and the agentic-drafting/localization delivery assignments. This is a continuation checkpoint,
+Updated: after milestone M581 and the agentic-drafting/localization delivery assignments. This is a continuation checkpoint,
 not a completion report. Keep this file current at meaningful checkpoints.
 
-## Current continuation checkpoint — M580
+## Current continuation checkpoint — M581
 
 The accepted product source head is the variant guidance provenance milestone
 `ce2f15bf73fb0855b97fc6dddd173a1f3e4827c3`; the current pushed branch tip is
@@ -2590,3 +2590,21 @@ drafting lane is logically accepted but likewise has no delivery yet. Codex
 will audit either artifact, run owning tests, integrate only a passing source
 delivery, commit and push it, and keep browser/mobile/deployed/external gates
 separate. No live action is authorized.
+
+## M581 — F-89 mobile Relay lane dispatched
+
+The source audit found a separate mobile localization gap in the real
+`DashboardScreen` and `RelayScreen`: the persisted selector existed, but the
+screens still emitted raw language/delivery labels and host-locale date/count
+formatting. Hermes was assigned `F89-MOBILE-RELAY-FORMATTING-R1` against exact
+source `7bdd125d80c4facbd790ac148ce67e9cc62a7511` in an isolated copy. The
+lane must use the existing six-locale catalog and persisted preference, keep
+creator/provider-authored content unchanged, add mounted-screen tests for
+non-English rendering, truthful delivery states and locale-aware UTC dates,
+and return one hash-verifiable DELIVERY or terminal BLOCKED result.
+
+The envelope passed local protocol validation and its remote SHA-256 readback
+matches
+`fa95b7614329326d1f048c770dd3b7ba780c84c6a2cf88284912a3f9104b8bd1`.
+No provider, database, migration, runtime, permission, installer or
+deployment action is authorized.

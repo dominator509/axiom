@@ -785,3 +785,19 @@ The envelope was protocol-validated locally and remote checksum readback
 matched `ed83c13067a93e6c15e49ea341ddefdf085385612e2b86b9dde6cd4ee3bc77a3`.
 No provider, database, migration, runtime, permission, network, installer or
 deployment action occurred; browser/mobile/deployed evidence remains separate.
+
+### M581 — F-89 mobile Relay lane dispatched
+
+The source audit found a separate mobile localization gap in the real
+`DashboardScreen` and `RelayScreen`: the persisted selector existed, but the
+screens still emitted raw language/delivery labels and host-locale date/count
+formatting. Hermes was assigned `F89-MOBILE-RELAY-FORMATTING-R1` against exact
+source `7bdd125d80c4facbd790ac148ce67e9cc62a7511`. It must reuse the existing
+six-locale catalog and persisted preference, keep creator/provider-authored
+content unchanged, add mounted-screen tests for non-English rendering,
+truthful delivery states and locale-aware UTC dates, and return one
+hash-verifiable DELIVERY or one terminal BLOCKED result. No provider,
+database, migration, runtime, permission, network, installer or deployment
+action occurred; native/browser/deployed evidence remains separate.
+The envelope was protocol-validated locally and remote checksum readback
+matched `fa95b7614329326d1f048c770dd3b7ba780c84c6a2cf88284912a3f9104b8bd1`.

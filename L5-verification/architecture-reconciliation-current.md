@@ -331,3 +331,11 @@ date/count/percentage formatting. The bounded
 `F89-DASHBOARD-OPERATOR-FORMATTING-R1` task is assigned to Hermes against the
 current pushed branch tip. This is a source-only lane; browser/mobile,
 deployed migration/RLS/runtime and external provider evidence remain open.
+
+### M581 source-lane checkpoint
+
+The mobile F-89 audit found raw language/delivery labels and host-locale
+date/count formatting still mounted in `DashboardScreen` and `RelayScreen`.
+The bounded `F89-MOBILE-RELAY-FORMATTING-R1` task is assigned to Hermes against
+the current pushed branch tip. This is source-only; native/browser, deployed
+migration/RLS/runtime and external provider evidence remain open.
