@@ -17,7 +17,7 @@ export default async function RoleplayPage({ params }: { params: Promise<{ id: s
         .filter(shift => shift.modelId === id && shift.status === 'active' && session?.user?.id)
         .map(shift => ({
           actor: { type: 'human', ref: session!.user!.id } as const,
-          label: `Human · ${session?.user?.email ?? 'assigned chatter'}`,
+          label: `Human · ${session?.user?.name ?? session?.user?.email ?? 'assigned chatter'}`,
           shiftId: shift.id,
           queue: shift.queue,
         }))

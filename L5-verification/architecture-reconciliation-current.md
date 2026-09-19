@@ -227,3 +227,13 @@ persistence and a dashboard surface. A live creator account, OAuth receipt,
 webhook delivery, sync receipt, mobile/manual browser acceptance and deployed
 migration/RLS receipt remain separate open gates. The source implementation
 does not authorize live provider activity.
+
+### M521 source validation correction
+
+The full disposable source matrix found and closed four local regressions: the
+Patreon community route is now reachable from the talent workspace tabs,
+Chatter human actors prefer the authenticated display name with a typed session
+field, the DB relation-count invariant matches the exported roleplay relations,
+and the mobile locale selector uses the existing panel theme token. This is a
+source/build correction only. Mobile Patreon parity, deployed migration/RLS,
+provider OAuth/webhook/sync, browser and operational acceptance remain open.

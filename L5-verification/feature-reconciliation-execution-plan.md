@@ -518,3 +518,17 @@ file was collected but all 40 tests were skipped because no approved disposable
 `TEST_DATABASE_URL` was available. No migration, runtime, provider, database,
 browser or deployment action occurred. Source commit
 `3ecb3eae397f31331d99aa27352d4a242eb70f83` is pushed; Hermes remains paused.
+
+### M521 — Full isolated matrix regression closure
+
+The final disposable workspace run passed 24/24 tasks after correcting four
+source-level regressions: Patreon is linked from the talent tabs, Chatter
+prefers the authenticated display name with a typed session contract, the DB
+relation-count invariant includes roleplay relations, and the mobile locale
+selector uses the existing panel token. API 1,117/1,117, dashboard 728/728,
+DB 165 plus 5 skipped, connectors 413/413, relay 272/272, worker 301/301
+plus real PostgreSQL integration, MCP 91/91, LLM gateway 387/387, core 61/61,
+auth 28/28 and mobile 23/23 passed; dashboard production build and mobile
+web export passed. The disposable fixture was removed. No live, provider,
+migration, database, permission, service, browser or deployment action
+occurred; external and operational acceptance gates remain open.

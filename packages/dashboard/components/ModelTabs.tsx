@@ -18,6 +18,7 @@ const TABS = [
   { href: 'earnings', label: 'Earnings' },
   { href: 'playbook', label: 'Playbook' },
   { href: 'network', label: 'Network settings' },
+  { href: 'patreon', label: 'Patreon community' },
   { href: 'relay', label: 'Relay delivery' },
   { href: 'agents', label: 'Agent access' },
   { href: 'cascades', label: 'Cascade schedules' },

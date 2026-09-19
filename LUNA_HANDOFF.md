@@ -1603,10 +1603,10 @@ audited. The corrected artifact-gate wire is
 ```text
 STATE: ACTIVE_PARTIAL
 CURRENT_OWNER: CODEX
-ACTIVE_LANE: LOCAL-F91-PATREON-COMMUNITY-LIFECYCLE (SOURCE SLICE COMPLETE) + remaining source/external gates; HERMES PAUSED
+ACTIVE_LANE: LOCAL-FULL-ISOLATED-MATRIX-REPAIR (SOURCE REGRESSIONS CLOSED) + remaining source/external gates; HERMES PAUSED
 LAST_ACCEPTED_CODE: 71505ad2991fc750ba91c70fbdfa1ead10f3f6e1
 PUBLISHED_HEAD: 71505ad2991fc750ba91c70fbdfa1ead10f3f6e1
-ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state and model dashboard are source-wired; locale, affiliate and Patreon migrations are authored only and not applied
+ACCEPTED_SOURCE: dual-actor shifts + roleplay DB/API/dashboard persistence + bounded Grok turn dispatch + reloadable provider receipts + suggested/manual personality authoring and interaction coverage + paginated scraper history + playbook analytics context + publication-bound recipe dimensions + persisted photoshoot recipe evidence + hash-verified pure contracts for variant/A-B, media gallery, scraper quality, team-shift access, human/LLM roleplay, FanThynks SaaS referrals, six-locale UI support and Patreon community lifecycle + platform-level F90 referral schema, authored migration 0054, owner-gated API routes and owner dashboard controls; F-91 authored migration 0055, encrypted OAuth persistence, normalized sync/data routes, durable cursor/webhook replay state and model dashboard are source-wired; M521 closes full-matrix regressions for Patreon navigation, Chatter display-name rendering, the DB relation-count invariant and mobile locale palette; locale, affiliate and Patreon migrations are authored only and not applied
 NEXT_REQUIRED: keep Hermes paused during this local-only work period; continue with the next highest-value source lane only after auditing its current checkout implementation against the architecture; integrate only reviewed source, run owning tests, commit/push each independent lane, and keep mobile, migration/RLS, provider, browser, operator and deployment gates explicitly open until evidenced; no wall-clock or date comparison is part of the bridge protocol
 HERMES_ACCOUNTABILITY: Codex sent `FUNCTIONAL-DELIVERY-STANDARD-R1`; Hermes must produce real source implementation in isolated copies, not plans, pure contracts, baseline copies or ACK-only responses. A DELIVERY is countable only with changed paths, per-file SHA256, exact commands and exit codes, behavior-level tests, and truthful LIVE_ACTIONS NONE; otherwise Hermes must return a terminal BLOCKED result with the exact blocker.
 HERMES_F89_TASK: `LOCALIZATION-MULTILINGUAL-FUNCTIONAL-R3`, WIRE `CODEX-LOCALIZATION-FUNCTIONAL-001`, source ref `57a8c47f8f6fa2d7be2f6920d3da88a374ce15c6`, isolated copy `/root/d001a-deliverable/localization-r3`; the corrective delivery-required message `codex-localization-functional-r3-delivery-required-001` supersedes silent waiting and requires changed source, behavior tests and a signed DELIVERY or exact BLOCKED result.
@@ -1847,3 +1847,25 @@ build was corrected to use the typed session email field. No live, provider,
 database, migration or deployment action occurred; Hermes remains paused.
 Source commit `71505ad2991fc750ba91c70fbdfa1ead10f3f6e1` is the exact local
 head being synchronized by this handoff checkpoint.
+
+## M521 — Full isolated matrix regression closure
+
+The disposable isolated workspace matrix was rerun after the M519/M520 source
+slice and found two real dashboard regressions plus two stale source
+expectations. The dashboard now links the Patreon community page from the
+talent workspace tabs; Chatter actor labels prefer the authenticated user's
+display name and fall back to email; the dashboard session type carries that
+optional display name; the DB relation-count invariant reflects the exported
+roleplay relations; and the mobile locale selector uses the existing panel
+theme token instead of a nonexistent palette field.
+
+The final isolated run completed 24/24 workspace tasks successfully. Evidence
+includes API 1,117/1,117, dashboard 728/728, DB 165 passed plus 5 intentional
+skips, connectors 413/413, relay 272/272, worker 301/301 plus real PostgreSQL
+integration suites, MCP server 91/91, LLM gateway 387/387, core 61/61, auth
+28/28, mobile 23/23, dashboard production build, and mobile web export/build.
+The disposable fixture was removed and the recovery database was verified
+untouched. No live database, migration, provider, credential, permission,
+service, network, browser or deployment action occurred; Hermes remains
+paused. The exact source commit is recorded by the following handoff-head
+sync checkpoint.

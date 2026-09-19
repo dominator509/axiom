@@ -49,7 +49,7 @@ export default function LocaleSelector({ snapshot, saving, onSave }: LocaleSelec
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: palette.card, borderColor: palette.line, borderRadius: 18, borderWidth: 1, gap: 10, padding: 16 },
+  card: { backgroundColor: palette.panel, borderColor: palette.line, borderRadius: 18, borderWidth: 1, gap: 10, padding: 16 },
   title: { color: palette.text, fontSize: 17, fontWeight: '700' },
   hint: { color: palette.muted, fontSize: 13, lineHeight: 19 },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

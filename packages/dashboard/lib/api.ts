@@ -683,7 +683,7 @@ export async function getSession() {
     });
     if (!res.ok) return null;
     const body = await readBoundedResponseJson<{
-      user?: { id: string; email?: string; orgId?: string | null; role?: string };
+      user?: { id: string; name?: string | null; email?: string; orgId?: string | null; role?: string };
     } | null>(res);
     return body?.user ? body : null;
   } catch {

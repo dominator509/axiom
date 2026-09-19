@@ -508,3 +508,18 @@ Evidence: 26 connector tests, 3 Patreon route tests, 14 social/OAuth tests,
 navigation tests and API/dashboard production builds pass. This update does
 not close migration application, license/security/legal, browser, mobile,
 provider or deployment gates; no live action occurred.
+
+# M521: Full isolated matrix regression closure
+
+The disposable workspace matrix exposed and closed two reachable-surface
+regressions and two stale source expectations. The Patreon model page is now
+linked from `ModelTabs`; Chatter actor labels prefer the authenticated
+display name with email fallback; the dashboard session type declares that
+field; the DB relation-count assertion includes exported roleplay relations;
+and the mobile locale selector uses the existing `panel` theme token. The
+final isolated run passed all 24 workspace tasks, including API 1,117,
+dashboard 728, DB 165 plus 5 skipped, connectors 413, relay 272, worker 301
+plus real PostgreSQL integration, MCP 91, LLM gateway 387, core 61, auth 28
+and mobile 23. Dashboard production build and mobile web export passed, and
+the disposable fixture was removed. No live, provider, migration, database,
+permission, service or deployment action occurred.
