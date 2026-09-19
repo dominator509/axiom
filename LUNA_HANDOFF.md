@@ -2972,7 +2972,7 @@ No parallel feature lane is active until that next task is explicitly recorded
 and sent; provider, migration/RLS, browser/mobile, runtime, operator and
 deployment evidence remain separate open gates.
 
-## Active delegated lane — F89 inbox localization current source
+## Closed delegated lane — F89 inbox localization current source
 
 After closing the R5 and D001A Hermes attempts, Codex opened exactly one new
 source-only lane: `F89-INBOX-LOCALIZATION-CURRENT-R1`. The task is pinned to
@@ -2986,8 +2986,25 @@ the shared six-locale catalog and tests: localize actual visible copy, use
 selected-locale UTC/date/currency formatting, preserve authored/provider data,
 access/error/empty/retry/idempotency behavior and add behavior evidence. No
 API, worker, DB, migration, roleplay-route, provider, runtime or deployment
-work is authorized. Codex will accept only one correlated evidence-bearing
-PROGRESS followed by one hash-verifiable DELIVERY or terminal BLOCKED.
+work is authorized. The first DELIVERY was rejected because the strict checker
+found missing parsed artifact/hash/command/exit/test fields and duplicate
+sign-off lines; no source was accepted from that envelope.
+
+The corrected Hermes wire
+`HERMES-F89-INBOX-LOCALIZATION-CURRENT-R1-DELIVERY-013` (SEQ 4) passed
+`scripts/hermes-protocol-check.mjs` as `DELIVERY/DELIVERED`. Its reply
+SHA-256 is `e97d183a45e67bc4254b0b7bf0fbbebffea1235908db59acf879e3b104209ad7`.
+All seven declared artifact hashes matched independently. Core ran 80/80
+tests, dashboard ran 777/777 tests, the focused Inbox/review tests ran 42/42,
+core and dashboard typechecks passed, core lint passed, and dashboard lint
+had 0 errors with the three pre-existing warnings in
+`MediaBundleCreate.behavior.test.tsx`.
+
+The reviewed source is integrated and pushed in commit
+`d3913727a44e96490f3bfddbdf504acb4b2bbb42`. The lane is closed; no Hermes
+implementation lane is active until the next finite architecture gap is
+selected and recorded. No installer, deployment, database, migration,
+provider, credential, permission, network or runtime action occurred.
 
 ## M609 — reusable playbook-guideline localization
 
