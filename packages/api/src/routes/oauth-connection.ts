@@ -4,6 +4,7 @@
 
 import { and, eq } from 'drizzle-orm';
 import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson } from '@axiom/core';
+import { PATREON_CAPABILITY_NAMES } from '@axiom/connectors';
 import { schema } from '@axiom/db';
 import { capabilityNames, resolveCapabilities } from '@axiom/worker';
 import { modelOrgId, withOrgContext, writeAudit } from './helpers.js';
@@ -14,7 +15,7 @@ const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TO
   : {};
 const EGRESS_DEK_ID = process.env.EGRESS_DEK_ID ?? 'egress-dek';
 
-export type OAuthPlatform = 'fanvue' | 'threads';
+export type OAuthPlatform = 'fanvue' | 'threads' | 'patreon';
 
 export type OAuthCredentialEnvelope = {
   accessToken: string;
@@ -31,6 +32,8 @@ export type OAuthConnectionInput = {
   displayName: string;
   credentials: OAuthCredentialEnvelope;
   actorRef: string;
+  /** Community integrations are not SocialConnectors and supply their own names. */
+  capabilities?: string[];
 };
 
 export type EncryptedCredentialEnvelope = {
@@ -84,7 +87,11 @@ export async function persistOAuthConnection(
   if (!ownsModel) return null;
 
   const envelope = await encryptOAuthCredentials(input.credentials);
-  const capabilities = capabilityNames(resolveCapabilities(input.platform));
+  const capabilities = input.capabilities ?? (
+    input.platform === 'patreon'
+      ? [...PATREON_CAPABILITY_NAMES]
+      : capabilityNames(resolveCapabilities(input.platform))
+  );
 
   return withOrgContext(input.orgId, async (tx) => {
     // Re-check ownership in the write transaction so a deleted/reassigned

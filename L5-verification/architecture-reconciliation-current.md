@@ -39,7 +39,7 @@ receipts. Historical audit baselines are not silently treated as current source.
 | Scraper and research (F-17/F-18) | Authenticated bounded scrape runs, worker dispatch, model egress binding and partial-result/error handling exist. | Deployed sidecar/provider isolation, benchmark history and result-quality acceptance. |
 | Viral loop (F-79–F-86) | Metric/evidence filtering, publication-bound recipe evidence (hook, scheduled/actual time, bounded shoot controls, media format and ToS verdict), labels, recipes, embeddings/retrieval and parts of reward/digest logic exist. | Trusted thumbnail descriptors, revenue/conversion attribution, all contextual arms, cross-model opt-in behavior, scheduled insight/Relay delivery and runtime acceptance. |
 | Connectors and OAuth (F-03/F-31/F-58–F-67) | Static connector contracts and capability declarations exist for supported paths. | Live OAuth, refresh/revoke/disconnect, account onboarding, provider upload/publish/metrics receipts and browser acceptance. Snapchat remains capability-honest manual-assist where its API does not support organic posting. |
-| Patreon creator/community integration (F-91) | **Partial/source-wired:** the pure Patreon community connector declares read/sync/event capabilities, explicit v2 field/include requests, cursor/idempotency handling, masked/null-safe normalization, HMAC verification and truthful manual-assist denials. | OAuth/account persistence, tenant/model sync tables and routes, webhook ingress/replay persistence, dashboard/mobile views, RLS/runtime/provider receipts and migration acceptance remain open. No publish/DM/payout/unsupported analytics claim. |
+| Patreon creator/community integration (F-91) | **Wired/partial:** the pure v2 community connector is now wired through authored migration 0055, tenant/model-scoped campaign/member/post/sync/webhook tables with RLS, model-egress OAuth/PKCE and encrypted account persistence, bounded cursor sync, durable replay guards, signed webhook ingress and a model dashboard with status, manual sync and normalized record views. | Mobile parity, deployed migration/RLS/runtime acceptance, real provider OAuth/webhook/sync receipts, browser acceptance and operational reconciliation remain open. No publish/DM/payout/member-mutation/unsupported-analytics claim. |
 | Link-in-bio (F-48–F-53) | The Native provider is the current production-enabled default. | Fanlynks, Linktree and Beacons are optional planned adapters and must remain hidden/rejected until their full lifecycle exists; a database row is not evidence of a connection. |
 | Localization and language switching (F-89) | **New owner extension:** no shared locale catalog, persisted UI-language preference, or complete mobile/web language switch is currently established. Existing formatting still contains hard-coded `en-US` paths. | Add `en`, `es`, `ja`, `it`, `pt-BR`, and `de` UI locales with an explicit user switch, organization default, browser-first-run detection, BCP-47 normalization, ICU messages, locale-aware formatting, accessible `lang` metadata, and parity across dashboard, native mobile, auth, emails and operator errors. Content language and UI language must remain separate. |
 | FanThynks platform affiliate program (F-90) | **Wired/partial:** native platform-level affiliate schema and authored migration 0054, owner-gated API routes, disclosure-gated partner/campaign controls, attribution/conversion/commission/hold state, audit/idempotency and non-transfer payout CSV generation exist; no third-party affiliate stack was imported. | Migration application, native license/security/legal review, browser acceptance, billing/reconciliation integration, payout-provider/operator acceptance and export/deletion evidence remain open. Tenant-owned affiliate builders and creator resale controls are out of scope. |
@@ -219,8 +219,11 @@ performance analytics until official documentation and scopes prove them.
 Member identity may be masked by the member, so null/hidden values are valid
 and must never be replaced with guessed data.
 
-No public Patreon sandbox is documented. Source contract tests will therefore
-use redacted JSON fixtures, pagination samples and HMAC signature vectors; a
-live creator account, OAuth receipt, webhook delivery, sync receipt and manual
-browser acceptance remain separate open gates. This architecture addition does
-not implement or authorize live provider activity.
+No public Patreon sandbox is documented. The source implementation uses redacted
+JSON fixtures, pagination samples and HMAC signature vectors. It now includes
+the source-side OAuth callback, encrypted connection persistence, normalized
+campaign/member/post reads, durable cursor/replay state, signed webhook event
+persistence and a dashboard surface. A live creator account, OAuth receipt,
+webhook delivery, sync receipt, mobile/manual browser acceptance and deployed
+migration/RLS receipt remain separate open gates. The source implementation
+does not authorize live provider activity.

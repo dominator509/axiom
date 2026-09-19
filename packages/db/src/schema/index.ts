@@ -67,6 +67,13 @@ import {
   affiliatePayoutExportRelations,
   affiliateAuditEventRelations,
 } from './affiliate.js';
+import {
+  patreonCampaignRelations,
+  patreonMembershipRelations,
+  patreonPostRelations,
+  patreonSyncStateRelations,
+  patreonWebhookEventRelations,
+} from './patreon.js';
 
 export { org, orgRelations };
 export { appUser, appUserRelations };
@@ -154,6 +161,18 @@ export {
   affiliateAuditEvent,
   affiliateAuditEventRelations,
 } from './affiliate.js';
+export {
+  patreonCampaign,
+  patreonCampaignRelations,
+  patreonMembership,
+  patreonMembershipRelations,
+  patreonPost,
+  patreonPostRelations,
+  patreonSyncState,
+  patreonSyncStateRelations,
+  patreonWebhookEvent,
+  patreonWebhookEventRelations,
+} from './patreon.js';
 
 export const allRelations = [
   orgRelations,
@@ -222,4 +241,9 @@ export const allRelations = [
   affiliateHoldRelations,
   affiliatePayoutExportRelations,
   affiliateAuditEventRelations,
+  patreonCampaignRelations,
+  patreonMembershipRelations,
+  patreonPostRelations,
+  patreonSyncStateRelations,
+  patreonWebhookEventRelations,
 ];

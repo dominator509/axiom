@@ -2,7 +2,14 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { InferSelectModel } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
-import { createConnector, FanvueConnector, type ConnectorAuth, type SocialConnector } from '@axiom/connectors';
+import {
+  createConnector,
+  FanvueConnector,
+  PatreonCommunityConnector,
+  type ConnectorAuth,
+  type SocialConnector,
+  type PatreonTransport,
+} from '@axiom/connectors';
 import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson, type Platform } from '@axiom/core';
 import { inboxMediaMetadata } from './inbox-media.js';
 
@@ -23,6 +30,11 @@ export interface ResolvedTargetConnector {
   connector: SocialConnector;
 }
 
+export interface ResolvedPatreonConnector {
+  connection: PlatformConnectionRow;
+  connector: PatreonCommunityConnector;
+}
+
 /**
  * Build a connector for an already-resolved tenant connection. Provider
  * traffic remains bound to the model's healthy egress sidecar, including
@@ -40,6 +52,70 @@ export async function connectorForConnection(
   return {
     connection,
     connector: createConnector(platform, auth, buildEgressFetch(proxy)),
+  };
+}
+
+/**
+ * Resolve the read/sync-only Patreon community connector. Patreon is kept out
+ * of the SocialConnector registry so generic publish paths cannot select it.
+ */
+export async function patreonConnectorForConnection(
+  connection: PlatformConnectionRow,
+): Promise<ResolvedPatreonConnector> {
+  if (connection.platform !== 'patreon') {
+    throw new Error('connection is not a Patreon account');
+  }
+  const proxy = await resolveEgressProxy(connection.modelId);
+  if (!proxy) throw new Error(`model ${connection.modelId} has no healthy egress sidecar`);
+  const auth = await decryptConnectorAuth(connection);
+  const webhookSecret = auth.extra?.patreonWebhookSecret;
+  if (typeof webhookSecret !== 'string' || webhookSecret.length < 16) {
+    throw new Error('Patreon connection has no valid webhook secret');
+  }
+  const egressFetch = buildEgressFetch(proxy);
+  const json = async (url: string, init?: RequestInit) => {
+    const response = await egressFetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(30_000),
+    });
+    let body: unknown;
+    try {
+      body = await readBoundedResponseJson<unknown>(response);
+    } catch {
+      body = undefined;
+    }
+    return { status: response.status, body };
+  };
+  const transport: PatreonTransport = {
+    getJson: (url) => json(url),
+    postJson: (url, body) => json(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+    delete: async (url) => ({ status: (await json(url, { method: 'DELETE' })).status }),
+  };
+  return {
+    connection,
+    connector: new PatreonCommunityConnector({
+      auth,
+      transport,
+      ledger: createConnectionLedger(),
+      webhookSecret,
+    }),
+  };
+}
+
+/** Request-local replay guard; durable webhook/sync claims are stored by the API. */
+function createConnectionLedger() {
+  const seen = new Set<string>();
+  return {
+    claim(key: string): boolean {
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    },
+    seen(key: string): boolean { return seen.has(key); },
   };
 }
 

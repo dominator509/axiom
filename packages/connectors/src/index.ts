@@ -26,6 +26,7 @@ export { FanvueMessageDeliveryError } from './fanvue-inbox.js';
 export {
   PatreonCommunityConnector,
   PATREON_DENIED_ACTIONS,
+  PATREON_CAPABILITY_NAMES,
   CAMPAIGN_FIELDS,
   MEMBER_FIELDS,
   POST_FIELDS,

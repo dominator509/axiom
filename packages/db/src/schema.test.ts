@@ -125,6 +125,16 @@ import {
   affiliatePayoutExportRelations,
   affiliateAuditEvent,
   affiliateAuditEventRelations,
+  patreonCampaign,
+  patreonCampaignRelations,
+  patreonMembership,
+  patreonMembershipRelations,
+  patreonPost,
+  patreonPostRelations,
+  patreonSyncState,
+  patreonSyncStateRelations,
+  patreonWebhookEvent,
+  patreonWebhookEventRelations,
   allRelations,
 } from './schema/index.js';
 
@@ -267,10 +277,20 @@ describe('schema index', () => {
     expect(affiliatePayoutExportRelations).toBeDefined();
     expect(affiliateAuditEvent).toBeDefined();
     expect(affiliateAuditEventRelations).toBeDefined();
+    expect(patreonCampaign).toBeDefined();
+    expect(patreonCampaignRelations).toBeDefined();
+    expect(patreonMembership).toBeDefined();
+    expect(patreonMembershipRelations).toBeDefined();
+    expect(patreonPost).toBeDefined();
+    expect(patreonPostRelations).toBeDefined();
+    expect(patreonSyncState).toBeDefined();
+    expect(patreonSyncStateRelations).toBeDefined();
+    expect(patreonWebhookEvent).toBeDefined();
+    expect(patreonWebhookEventRelations).toBeDefined();
   });
 
   it('allRelations contains exactly the relation configs', () => {
-    expect(allRelations).toHaveLength(66);
+    expect(allRelations).toHaveLength(71);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -340,6 +360,11 @@ describe('schema index', () => {
         'affiliate_hold',
         'affiliate_payout_export',
         'affiliate_audit_event',
+        'patreon_campaign',
+        'patreon_membership',
+        'patreon_post',
+        'patreon_sync_state',
+        'patreon_webhook_event',
       ].sort(),
     );
   });

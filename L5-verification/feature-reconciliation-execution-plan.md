@@ -268,14 +268,14 @@ health endpoints alone never closes a gate.
 - The native implementation is the selected path: immutable platform attribution events, derived commission ledger, review/hold states, a non-transfer payout export boundary, owner partner/campaign portal and audit-safe reconciliation are source-wired. Migration, billing/reconciliation, license/security/legal, browser and payout/operator gates remain open. Never reuse provider earnings `referrals` as affiliate state.
 - Acceptance gate: source/license/dependency review receipt, partner authorization and creator-data isolation tests, signed webhook/replay tests, SaaS conversion idempotency under retries, reversal/refund and payout-hold tests, disclosure/consent tests, export/deletion tests, desktop/mobile browser coverage, and an explicit human/legal review of the selected licensing model. No live payouts are claimed by source tests.
 
-### 16. Patreon creator/community integration — new owner extension; v2-only, read/sync-first
+### 16. Patreon creator/community integration — source slice implemented; v2-only, read/sync-first
 
 - Add F-91 to the existing model-scoped connection/capability architecture without treating Patreon as an eleventh automated publisher. Reuse OAuth state/PKCE, encrypted credentials, model egress, RLS, worker queue, audit and idempotency; do not create a parallel account or permission system.
 - Implement a Patreon API v2 contract adapter for `identity`, `campaigns`, `identity.memberships`, `campaigns.members` and `campaigns.posts`, with explicit `fields`/`include` requests, cursor pagination, null-safe/identity-masked fields, and least-privilege scope disclosure in the GUI. Do not request member email/address scopes by default.
-- Add campaign webhook lifecycle management using `w:campaigns.webhook`, HMAC verification of `X-Patreon-Signature`, event idempotency, replay/reconciliation state and safe secret handling. Webhook post lifecycle triggers are inbound observations only.
-- Add dashboard/mobile integration status, campaign/member/tier/post-history views, sync health, webhook health and a truthful manual-assist handoff. Keep Patreon out of automated `publish.target` execution until an official write contract exists; no DM, payout, member mutation or unverified analytics controls.
+- The source slice now adds migration 0055 and tenant/model-scoped campaign, membership, post, sync-state and webhook-event records with explicit RLS; OAuth/PKCE callback persistence through the model egress boundary; bounded data and manual sync routes; durable cursor/replay guards; signed webhook verification and event persistence; and a dashboard status/sync/normalized-record/manual-assist surface. The campaign identity normalizer fails closed rather than treating a campaign ID as a creator ID.
+- Mobile parity remains open. Keep Patreon out of automated `publish.target` execution until an official write contract exists; no DM, payout, member mutation or unverified analytics controls.
 - Use redacted v2 fixtures and signature/pagination vectors because Patreon documents no public sandbox. The provider gate requires an owner-approved creator account, OAuth/refresh/revoke/disconnect receipt, one webhook delivery, sync reconciliation, cleanup and desktop/mobile acceptance. API v1 retirement on 2026-10-07 is a hard constraint.
-- Acceptance gate: source adapter and CommunityConnector contract tests, RLS/role tests, cursor/idempotency/replay tests, webhook signature tests, browser/mobile visibility and truthful unsupported-state tests, then separately approved live provider receipts. This architecture change alone does not implement or authorize live Patreon activity.
+- Acceptance gate: source adapter and CommunityConnector contract tests, schema/migration/RLS review, OAuth/account persistence tests, cursor/idempotency/replay tests, webhook signature tests, dashboard/mobile visibility and truthful unsupported-state tests, then separately approved live provider OAuth/refresh/revoke, webhook, sync reconciliation and cleanup receipts. Authored source does not claim applied migrations or authorize live Patreon activity.
 
 ## Completion definition
 
@@ -470,7 +470,7 @@ live roleplay receipt here.
 
 The requested feature-completion goal is achieved only when the full architectural requirements and their source, automated, runtime and provider/operator gates are evidenced on the deployed immutable release. Recording a blocker documents incomplete work; it does not complete the goal. Progress reports must contain commit SHA, test/build receipts, runtime URLs, migration receipt, provider receipts and unresolved gates as applicable; they must not label the product production-ready while any required gate is open.
 
-### M517 — F-90/F-91 source-state reconciliation correction
+### M519 — F-91 Patreon source wiring and production-readiness reconciliation
 
 The owner-extension audit was corrected against the current checkout. F-90 is
 not absent: the native platform-level affiliate stack has authored migration
@@ -480,12 +480,18 @@ non-transfer payout CSV boundary. It remains open for migration application,
 billing/reconciliation, license/security/legal, browser and payout/operator
 acceptance.
 
-F-91 is not complete: the existing Patreon connector is a pure v2
-read/sync/event contract with explicit field/include requests, cursor and
-replay handling, null-safe normalization and manual-assist denials. OAuth,
-encrypted account persistence, normalized sync routes/tables, webhook ingress
-persistence, dashboard/mobile views and provider receipts remain to be built.
-No third-party affiliate repository or live provider action was introduced.
+F-91 is source-wired but not complete. Migration 0055, the matching schema,
+encrypted OAuth persistence, bounded normalized sync/data routes, durable cursor
+replay guards, signed webhook event persistence and the model dashboard are in
+the checkout. Mobile parity, migration/RLS deployment, provider/browser and
+operational receipts remain open. No third-party affiliate repository or live
+provider action was introduced.
+
+Evidence: 26 Patreon connector tests; 3 Patreon route tests; 11 social route
+tests; 128 DB schema/migration tests; API, worker and dashboard typechecks;
+dashboard navigation tests; API build; and elevated dashboard production build
+all pass. A separate roleplay page session-field defect found by the production
+build was corrected to use the typed session email field.
 
 ### M515 — Team history pagination and Chatter roleplay access correction
 

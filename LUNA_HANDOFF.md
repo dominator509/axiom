@@ -1495,7 +1495,7 @@ otherwise F-90 is built natively.
 
 ## Owner extension checkpoint — Patreon creator/community integration
 
-F-91 is now an architecture requirement, not an implemented connector. Patreon
+F-91 is now a source-wired but partial architecture requirement. Patreon
 is tracked as a creator/community integration alongside the ten publishing
 social networks. The v2 contract supports OAuth, creator/campaign identity,
 membership/tier and post reads, cursor pagination and campaign webhooks; it
@@ -1817,7 +1817,7 @@ database, browser or deployment action occurred. Source commit
 `codex/telegram-webhook-hardening`. Hermes is paused during this local-only
 work period.
 
-## M517 — Owner-extension source-state reconciliation correction
+## M519 — Patreon community lifecycle source wiring and reconciliation correction
 
 The current checkout was re-audited so the gap list no longer says F-90 is
 absent when it is source-wired. F-90 now has native authored migration 0054,
@@ -1827,9 +1827,21 @@ fraud holds, audit/idempotency and non-transfer payout CSV generation. It is
 still blocked from completion by migration application, billing/reconciliation,
 license/security/legal, browser and payout/operator evidence.
 
-F-91 remains partial only: the pure Patreon v2 community connector exists with
-explicit read/sync/event capabilities, cursor/idempotency normalization,
-null-safe member handling, HMAC replay verification and truthful manual-assist
-denials. OAuth/account persistence, normalized sync tables/routes, webhook
-ingress persistence, dashboard/mobile views and provider receipts are still
-open. No live or provider action occurred; Hermes remains paused.
+F-91 is now source-wired but remains partial at the production-readiness
+boundary. The checkout adds authored migration 0055 and matching Drizzle tables
+for campaigns, memberships, posts, sync state and webhook events; model-egress
+OAuth/PKCE with encrypted connection persistence; bounded normalized data/sync
+routes with durable cursor replay guards; signed webhook verification with
+durable event replay protection; and a model-scoped dashboard with counts,
+sync/webhook health, normalized records and truthful unsupported-action states.
+The campaign normalizer now uses the provider creator relationship or OAuth
+identity fallback and fails closed when neither exists, rather than treating a
+campaign ID as a creator ID. Mobile parity, deployed migration/RLS, real
+provider OAuth/webhook/sync, browser and operational acceptance remain open.
+
+Evidence for M519: 26 Patreon connector tests, 3 Patreon route tests, 11 social
+route tests, 128 DB schema/migration tests, API/worker/dashboard typechecks,
+dashboard navigation tests, API build and elevated dashboard production build
+pass. A separate roleplay page session-field defect exposed by the production
+build was corrected to use the typed session email field. No live, provider,
+database, migration or deployment action occurred; Hermes remains paused.

@@ -163,6 +163,7 @@ describe('patreon campaign identity', () => {
     const connector = makeConnector(transport);
     const campaign = await connector.syncCampaign();
     expect(campaign.providerCampaignId).toBe('camp-123');
+    expect(campaign.creatorProviderId).toBe('creator-1');
     expect(campaign.name).toBe('Studio North');
     expect(campaign.patronCount).toBe(42);
     expect(calls[0]).toContain('fields%5Bcampaign%5D=');
@@ -175,6 +176,12 @@ describe('patreon campaign identity', () => {
     const { transport } = makeTransport([{ status: 200, body: { data: { attributes: {} } } }]);
     const connector = makeConnector(transport);
     await expect(connector.syncCampaign()).rejects.toThrow(/missing campaign id/);
+  });
+
+  it('fails loud when no creator identity is available', async () => {
+    const { transport } = makeTransport([CAMPAIGN_RESPONSE]);
+    const connector = makeConnector(transport, { auth: { accessToken: ACCESS_TOKEN } });
+    await expect(connector.syncCampaign()).rejects.toThrow(/missing creator id/);
   });
 
   it('fails loud on a non-200 campaign response', async () => {

@@ -40,6 +40,7 @@ export {
   asPlatform,
   resolvePlatformConnection,
   connectorForConnection,
+  patreonConnectorForConnection,
   earningsForConnection,
   inboxForConnection,
   inboxMediaForConnection,
@@ -49,5 +50,5 @@ export {
   parseConnectorAuth,
   connectorForTarget,
 } from './connection.js';
-export type { TargetConnectionRef, ResolvedTargetConnector } from './connection.js';
+export type { TargetConnectionRef, ResolvedTargetConnector, ResolvedPatreonConnector } from './connection.js';
 export { storeGeneratedAsset } from './generated-asset-store.js';

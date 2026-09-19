@@ -11,8 +11,8 @@ export const dynamic = 'force-dynamic';
 export default async function NetworkPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ oauth?: string | string[]; platform?: string | string[] } | undefined> }) {
   const { id } = await params;
   const query = (await searchParams) ?? {};
-  const oauthConnected = query?.oauth === 'connected' && (query.platform === 'fanvue' || query.platform === 'threads');
-  const oauthPlatform = query?.platform === 'fanvue' ? 'Fanvue' : 'Threads';
+  const oauthConnected = query?.oauth === 'connected' && (query.platform === 'fanvue' || query.platform === 'threads' || query.platform === 'patreon');
+  const oauthPlatform = query?.platform === 'fanvue' ? 'Fanvue' : query?.platform === 'threads' ? 'Threads' : 'Patreon';
   const session = await getSession();
   const owner = session?.user?.role === 'owner';
   const canManageAccounts = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
@@ -74,6 +74,8 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
         {canManageAccounts ? <div className="action-row">
           <a className="btn secondary" href={`/api/v1/connectors/fanvue/authorize?modelId=${encodeURIComponent(id)}`}>Connect Fanvue</a>
           <a className="btn secondary" href={`/api/v1/connectors/threads/authorize?modelId=${encodeURIComponent(id)}`}>Connect Threads</a>
+          <a className="btn secondary" href={`/api/v1/connectors/patreon/authorize?modelId=${encodeURIComponent(id)}`}>Connect Patreon</a>
+          <a className="btn secondary" href={`/models/${encodeURIComponent(id)}/patreon`}>Patreon community</a>
         </div> : <p className="subtle">Connecting accounts requires an owner, manager or operator role.</p>}
       </div>
       <div className="card">

@@ -88,6 +88,11 @@ const TS_TO_SQL: Record<string, string> = {
   affiliateHold: 'affiliate_hold',
   affiliatePayoutExport: 'affiliate_payout_export',
   affiliateAuditEvent: 'affiliate_audit_event',
+  patreonCampaign: 'patreon_campaign',
+  patreonMembership: 'patreon_membership',
+  patreonPost: 'patreon_post',
+  patreonSyncState: 'patreon_sync_state',
+  patreonWebhookEvent: 'patreon_webhook_event',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -690,7 +695,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
     // Includes the durable MCP revocation and capability-registry indexes plus
     // the seven platform affiliate lookup indexes.
-    expect(indexStatements).toHaveLength(95);
+    expect(indexStatements).toHaveLength(100);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(

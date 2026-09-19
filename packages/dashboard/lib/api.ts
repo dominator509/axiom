@@ -188,6 +188,14 @@ export interface SocialConnection {
   connectedAt: string;
 }
 
+export interface PatreonStatus {
+  connection: SocialConnection & { orgId: string };
+  counts: { campaigns: number; members: number; posts: number };
+  sync: Array<{ resource: string; lastCursor?: string | null; nextCursor: string | null; lastSyncedAt: string | null; lastError: string | null; updatedAt: string }>;
+  lastWebhook: { providerEventId: string; eventType: string; receivedAt: string } | null;
+  deniedActions: string[];
+}
+
 export interface FanContact {
   id: string;
   modelId: string;
@@ -622,6 +630,11 @@ export const api = {
   social: {
     list: (modelId: string) =>
       apiFetch<{ data: SocialConnection[] }>(`/api/v1/social-accounts?modelId=${modelId}`),
+  },
+  patreon: {
+    status: (connectionId: string) => apiFetch<{ data: PatreonStatus }>(`/api/v1/connectors/patreon/status?connectionId=${encodeURIComponent(connectionId)}`),
+    data: (connectionId: string, resource: 'campaign' | 'members' | 'posts') => apiFetch<{ data: Array<Record<string, unknown>> }>(`/api/v1/connectors/patreon/data?${new URLSearchParams({ connectionId, resource })}`),
+    sync: (connectionId: string, resource: 'campaign' | 'members' | 'posts', cursor?: string) => apiFetch<{ data: { resource: string; count: number; nextCursor: string | null } }>(`/api/v1/connectors/patreon/sync?connectionId=${encodeURIComponent(connectionId)}`, { method: 'POST', body: JSON.stringify({ resource, ...(cursor ? { cursor } : {}) }) }),
   },
   llm: {
     providers: () => apiFetch<{ providers: string[] }>('/api/v1/llm/providers'),

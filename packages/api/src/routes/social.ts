@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { eq, and } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { capabilityNames, connectorForConnection, resolveCapabilities } from '@axiom/worker';
+import { capabilityNames, connectorForConnection, patreonConnectorForConnection, resolveCapabilities } from '@axiom/worker';
 import type { AppBindings } from '../index.js';
 import {
   withOrgContext,
@@ -33,6 +33,7 @@ const PLATFORMS = [
   'facebook',
   'snapchat',
   'fanvue',
+  'patreon',
 ] as const;
 
 const connectSchema = z.object({
@@ -101,6 +102,9 @@ router.post('/', zValidator('json', connectSchema), async (c) => {
   const userId = c.get('userId') ?? 'system';
   const modelId = c.req.query('modelId');
   if (!modelId) return apiError(c, 400, statusTitle(400), 'modelId query required');
+  if (body.platform === 'patreon') {
+    return apiError(c, 400, statusTitle(400), 'Patreon connections must use the Patreon OAuth flow');
+  }
 
   let capabilities: string[];
   try {
@@ -170,8 +174,13 @@ router.delete('/:id', async (c) => {
   if (!connection) return apiError(c, 404, statusTitle(404), 'connection not found');
 
   try {
-    const { connector } = await connectorForConnection(connection);
-    await connector.revoke();
+    if (connection.platform === 'patreon') {
+      const { connector } = await patreonConnectorForConnection(connection);
+      await connector.revoke();
+    } else {
+      const { connector } = await connectorForConnection(connection);
+      await connector.revoke();
+    }
   } catch {
     // Keep the encrypted row so the operator can retry. Deleting it after a
     // failed provider revoke would leave a live remote credential orphaned.

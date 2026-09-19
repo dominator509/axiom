@@ -32,6 +32,19 @@ export const PATREON_DENIED_ACTIONS = [
   'member_removal',
 ] as const;
 
+/**
+ * Names persisted on platform_connection for the read/sync/event contract.
+ * These are deliberately not SocialConnector capability names: Patreon is
+ * never eligible for publish target resolution.
+ */
+export const PATREON_CAPABILITY_NAMES = [
+  'community.identity',
+  'community.campaigns',
+  'community.memberships',
+  'community.posts.read',
+  'community.webhooks',
+] as const;
+
 export type PatreonDeniedAction = (typeof PATREON_DENIED_ACTIONS)[number];
 
 /** Result envelope for a capability probe against an unsupported action. */
@@ -271,10 +284,16 @@ export class PatreonCommunityConnector {
     if (!providerCampaignId) {
       throw new Error('patreon: syncCampaign response missing campaign id');
     }
+    const relationships = asRecord(data.relationships);
+    const creatorData = asRecord(asRecord(relationships.creator).data);
+    const creatorProviderId = asString(creatorData.id, this.auth.externalUserId ?? '');
+    if (!creatorProviderId) {
+      throw new Error('patreon: syncCampaign response missing creator id');
+    }
     this.campaignId = providerCampaignId;
     return {
       providerCampaignId,
-      creatorProviderId: asString(asRecord(root.data).id),
+      creatorProviderId,
       name: asString(attributes.creation_name ?? attributes.name),
       createdAt: asString(attributes.created_at),
       publishedAt: asString(attributes.published_at) || undefined,
