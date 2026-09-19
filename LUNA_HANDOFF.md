@@ -7,14 +7,14 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `b0300dab997485104a870274300a57df97b1cdc3`
+SOURCE_HEAD: `361d75dfe2650619446853b2ec5630b78b6427c9`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `b0300dab997485104a870274300a57df97b1cdc3`
+PUBLISHED_HEAD: `361d75dfe2650619446853b2ec5630b78b6427c9`
 ACCEPTED_PRODUCT_SOURCE: `d3913727a44e96490f3bfddbdf504acb4b2bbb42`
-ACTIVE_HERMES_LANE: `NONE`
+ACTIVE_HERMES_LANE: `INBOX-AGENTIC-DRAFTING-CURRENT-R1`
 CODEX_OWNER: `CODEX`
-HERMES_IMPLEMENTATION_OWNER: `NONE`
-NEXT_ACTION: `select-one-fresh-architecture-gap`
+HERMES_IMPLEMENTATION_OWNER: `HERMES_PENDING_ACK`
+NEXT_ACTION: `await-ACK-then-auditable-PROGRESS-or-terminal-DELIVERY-BLOCKED`
 RECONCILIATION_STATE: `COMPLETE_READ_ONLY_WITH_SIGNATURE_ANOMALY`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
@@ -31,11 +31,9 @@ Closed and not to be reopened under the old task IDs:
   integrated at `d3913727`; no implementation work remains under that wire.
 
 The bridge still contains historical inbox/reply/status artifacts for prior
-lanes. Their presence is not evidence of an active assignment. Codex will
-send one signed reconciliation envelope asking Hermes for the current logical
-inventory by task/WIRE/SEQ/state/next-owner. Hermes must not resume or invent
-source work until that envelope is answered. Codex will then update this block
-from the returned inventory before opening exactly one new bounded lane.
+lanes. Their presence is not evidence of an active assignment. The signed
+reconciliation above is closed; Hermes must not resume any historical lane.
+The fresh task recorded below is the only current implementation assignment.
 
 Hermes' first response to the reconciliation was rejected: it used an
 invalid terminal flag for `ACK/READ`, included a forbidden clock field and
@@ -45,6 +43,18 @@ Codex recorded the substantive inventory as read-only data in the terminal
 receipt above, explicitly preserved the signature anomaly, and did not treat
 it as feature delivery or authorization. Hermes reports zero OPEN or
 IN_PROGRESS lanes, no edited source copy and no resume without a new WIRE.
+
+Fresh lane now opened after that reconciliation: task
+`INBOX-AGENTIC-DRAFTING-CURRENT-R1`, WIRE
+`CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-TASK-001`, exact source head
+`361d75dfe2650619446853b2ec5630b78b6427c9`, envelope SHA-256
+`840e8ce474bf78c76cbd756087a55acf7be0117265382ecd51b2ee6ba8898587`,
+COPY_ROOT `/srv/fanthynks-bridge/hermes/work/inbox-agentic-drafting-current-r1`.
+This is the architecture-named next gap: compose assigned-LLM Grok roleplay,
+soul.md persona, bounded memory and active-shift/permission contracts into a
+reviewable pending inbox reply without auto-send. It is source-only; Hermes
+must return one evidence-bearing PROGRESS and one terminal DELIVERY or
+BLOCKED. No old R5 wire may resume.
 
 Coordination rules: use message IDs, WIRE, SEQ, IN_REPLY_TO, STATE,
 NEXT_OWNER and terminal status; do not use wall-clock dates or timestamps to
