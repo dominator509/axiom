@@ -41,7 +41,7 @@ receipts. Historical audit baselines are not silently treated as current source.
 | Connectors and OAuth (F-03/F-31/F-58–F-67) | Static connector contracts and capability declarations exist for supported paths. | Live OAuth, refresh/revoke/disconnect, account onboarding, provider upload/publish/metrics receipts and browser acceptance. Snapchat remains capability-honest manual-assist where its API does not support organic posting. |
 | Patreon creator/community integration (F-91) | **Wired/partial:** the pure v2 community connector is now wired through authored migration 0055, tenant/model-scoped campaign/member/post/sync/webhook tables with RLS, model-egress OAuth/PKCE and encrypted account persistence, bounded cursor sync, durable replay guards, signed webhook ingress, a model dashboard, and a native mobile community surface with assigned-model scoping, redacted status/read views and operator-only sync controls. | Deployed migration/RLS/runtime acceptance, real provider OAuth/webhook/sync receipts, browser/mobile acceptance and operational reconciliation remain open. No publish/DM/payout/member-mutation/unsupported-analytics claim. |
 | Link-in-bio (F-48–F-53) | The Native provider is the current production-enabled default. | Fanlynks, Linktree and Beacons are optional planned adapters and must remain hidden/rejected until their full lifecycle exists; a database row is not evidence of a connection. |
-| Localization and language switching (F-89) | **Source-wired/partial:** the shared six-locale catalog, BCP-47 normalization, precedence resolution, persisted user/org preference API, dashboard provider/navigation/settings wiring, authenticated shell workspace/home/role/pending/footer/system-health copy, login hero/form labels/errors/session advice, reusable team-shift controls with locale-aware UTC timestamps, accessible `lang` metadata, and mobile selector/dashboard labels now consume the same catalog. UI language remains separate from authored content language. | Complete catalog adoption across remaining dashboard/email/operator surfaces, browser/mobile acceptance, locale-aware formatting audit for every date/number/currency surface, and deployed migration/RLS/runtime evidence remain open. |
+| Localization and language switching (F-89) | **Source-wired/partial:** the shared six-locale catalog, BCP-47 normalization, precedence resolution, persisted user/org preference API, dashboard provider/navigation/settings wiring, authenticated shell workspace/home/role/pending/footer/system-health copy, login hero/form labels/errors/session advice, reusable team-shift controls and TeamOperationsManager labels/errors/roles/notes with locale-aware UTC timestamps, accessible `lang` metadata, and mobile selector/dashboard labels now consume the same catalog. UI language remains separate from authored content language. | Complete catalog adoption across remaining dashboard/email/operator surfaces, browser/mobile acceptance, locale-aware formatting audit for every date/number/currency surface, and deployed migration/RLS/runtime evidence remain open. |
 | FanThynks platform affiliate program (F-90) | **Wired/partial:** native platform-level affiliate schema and authored migration 0054, owner-gated API routes, disclosure-gated partner/campaign controls, attribution/conversion/commission/hold state, audit/idempotency and non-transfer payout CSV generation exist; no third-party affiliate stack was imported. | Migration application, native license/security/legal review, browser acceptance, billing/reconciliation integration, payout-provider/operator acceptance and export/deletion evidence remain open. Tenant-owned affiliate builders and creator resale controls are out of scope. |
 | R2 media storage | Grok R2 credential storage/status/verify routes, encrypted managed config and tests exist. | A real configured bucket round-trip through the deployed application, retention/delete evidence and operator acceptance. |
 | Relay and operator controls (F-68–F-72) | Cards, signed/replay-protected command paths, several approval/revision/review workflows, and a model-scoped cursor-paginated/redacted Relay-card history with an approval deep-link are source-wired. | Attachment sending, external delivery, uncertain-outcome reconciliation and deployed channel acceptance. |
@@ -145,6 +145,18 @@ than translated content. Core tests/build, the TeamShiftCard locale test and
 dashboard typecheck passed; the full dashboard suite passed 732/732. This is a
 source/UI improvement only: role policy, shift transitions, migrations,
 provider/runtime, browser and deployment gates remain open.
+
+### M559 — team operations manager localization
+
+The reusable `TeamOperationsManager` now consumes the shared six-locale catalog
+for shift and note labels, actor types, role labels, validation/errors, retry
+controls and pagination controls. Note timestamps use explicit UTC formatting;
+human/LLM references and authored note content remain interpolated or preserved
+as data rather than translated. Core tests passed 65/65, focused team-operation
+tests passed 7/7, the full dashboard suite passed 734/734 and dashboard
+typecheck passed. This is a source/UI improvement only: role policy, shift
+transitions, migrations, provider/runtime, browser and deployment gates remain
+open.
 
 ## Explicit owner extensions — localization and platform affiliate stack
 
