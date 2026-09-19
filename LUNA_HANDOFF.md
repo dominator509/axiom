@@ -340,10 +340,11 @@ they are assigned only when an actual commit exists.
    and Relay delivery/reconciliation. Each slice must use the existing
    schema/RLS/queue contracts and expose a discoverable GUI path where the
    architecture calls for an operator control.
-3. **Media and storage — known audit gap.** The audit explicitly says a
-   persistent gallery for uploaded/generated image/video is incomplete. Close
-   that gap using the existing asset/media-operation/storage contracts, then
-   prove thumbnails/previews, transform and approval/retry visibility, and the
+3. **Media and storage — source gallery slice now implemented (M513).** The
+   model media library now projects existing asset/media-operation/asset-variant
+   lifecycle state, source/result relationships, authenticated previews, and
+   transform/retry visibility without creating a parallel gallery store. Next
+   prove thumbnails/previews, worker playback, approval/retry visibility and the
    configured R2 application round-trip. The current sanitizer is a real
    file-level feature, but it explicitly reports `externalProvenanceErased:
    false` and does not prove C2PA/external provenance or fingerprint removal;
@@ -1769,3 +1770,22 @@ bridge `psql()` live default, undefined `SCHEMA_CHANGING_FROM`, duplicate
 `prerequisites_recorded`, and deployment/live-operation prohibitions remain
 open. No installer, database, migration, service, permission or deployment
 action is authorized.
+
+## M513 — Media gallery lifecycle projection implemented and audited
+
+The existing model media library now projects the tenant/model-scoped
+`asset`, `media_operation`, and `asset_variant` state into one gallery response.
+Each item reports the newest operation status when one exists, an explicit
+`unknown` state when an asset has no attached operation, the operation ID, and
+source/result asset IDs. The API omits operation errors, storage keys,
+provider responses, and credentials. The dashboard renders authenticated
+previews, lifecycle badges, same-page source/result links, and the existing
+transform/retry controls; gallery presence and transform completion do not
+imply ToS approval or publication.
+
+Evidence: API media-upload tests 15/15, dashboard media-page tests 11/11, API
+typecheck, and dashboard typecheck pass. No migration, runtime service,
+provider, R2, database, browser, or deployment action occurred. R2 round-trip,
+deployed worker/media playback, approval/runtime behavior, and full
+desktop/mobile acceptance remain open. Hermes is intentionally paused while
+this local-only work period continues.

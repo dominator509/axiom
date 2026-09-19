@@ -453,7 +453,20 @@ export const api = {
       if (filters?.origin) query.set('origin', filters.origin);
       if (filters?.kind) query.set('kind', filters.kind);
       const suffix = query.toString();
-      return apiFetch<{ data: Array<{ id: string; kind: string; origin: string; mimeType: string; fileSize: number; width: number | null; height: number | null; createdAt: string }>; meta?: { next_cursor?: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/media${suffix ? `?${suffix}` : ''}`);
+      return apiFetch<{ data: Array<{
+        id: string;
+        kind: string;
+        origin: string;
+        mimeType: string;
+        fileSize: number;
+        width: number | null;
+        height: number | null;
+        createdAt: string;
+        status: 'queued' | 'running' | 'failed' | 'completed' | 'unknown' | string;
+        operationId?: string;
+        sourceAssetId?: string;
+        resultAssetIds: string[];
+      }>; meta?: { next_cursor?: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/media${suffix ? `?${suffix}` : ''}`);
     },
     list: (cursor?: string) => apiFetch<{
       data: ModelProfile[];

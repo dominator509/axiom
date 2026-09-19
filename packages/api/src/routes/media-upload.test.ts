@@ -45,6 +45,27 @@ it('accepts source and kind filters on the tenant-scoped media listing', async (
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({ data: [], meta: { next_cursor: null } });
 });
+it('projects transform lifecycle and source/result relationships without exposing operation errors', async () => {
+  const sourceId = '33333333-3333-4333-8333-333333333333';
+  const resultId = '44444444-4444-4444-8444-444444444444';
+  const operationId = '55555555-5555-4555-8555-555555555555';
+  mockState.results = [
+    [],
+    [
+      { id: sourceId, kind: 'image', origin: 'uploaded', mimeType: 'image/png', fileSize: 24, width: 100, height: 100, createdAt: '2026-09-15T00:00:00.000Z' },
+      { id: resultId, kind: 'image', origin: 'transformed', mimeType: 'image/png', fileSize: 30, width: 50, height: 50, createdAt: '2026-09-14T00:00:00.000Z' },
+    ],
+    [
+      { operation: { id: operationId, sourceAssetId: sourceId, state: 'running', error: 'secret provider detail' }, outputAssetId: resultId },
+    ],
+  ];
+  const response = await app().request(`/models/${modelId}/media`);
+  expect(response.status).toBe(200);
+  const body = await response.json() as { data: Array<Record<string, unknown>> };
+  expect(body.data[0]).toMatchObject({ status: 'running', operationId, resultAssetIds: [resultId] });
+  expect(body.data[1]).toMatchObject({ status: 'unknown', sourceAssetId: sourceId, resultAssetIds: [] });
+  expect(body.data[0]).not.toHaveProperty('error');
+});
 it.each([
   null,
   { id: '33333333-3333-4333-8333-333333333333', orgId: 'other', modelId },

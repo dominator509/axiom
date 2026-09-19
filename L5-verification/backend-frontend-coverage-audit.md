@@ -82,9 +82,9 @@ Backend paths below are relative to `/api/v1` unless noted. Evidence paths are r
 | Calendar and post schedule/reschedule/cancel (`routes/posts.ts`) | Calendar reads month-filtered cards; approval can schedule, but existing-post PATCH/DELETE controls are absent; no drag/drop week/month view | Partial |
 | Cascade template CRUD/expansion (`routes/cascade-templates.ts`) | Model workspace Cascade schedules page creates, enables/disables, deletes and expands templates with stable mutation identity | Wired source/UI; runtime/provider acceptance remains open |
 | Trigger-rule CRUD/evaluation (`routes/trigger-rules.ts`, `worker/executors/trigger.ts`) | Model workspace Automation rules page configures threshold/action rules; metrics polling enqueues evaluation | Wired source/UI/internal worker; provider metrics, churn events, moderation adapters, and live acceptance remain open |
-| Bundle list/detail/create/media/approve/revise/reject/video-review (`routes/bundles.ts`) | Approval controls, `BundleMedia`, `VideoReview`; creation also occurs through generation/upload. Media operations now expose explicit queued/running/failed/completed status, refresh, safe retry, and transformed-result preview. Arbitrary raw bundle creation does not need a duplicate UI. No general all-state media/history library | Partial |
+| Bundle list/detail/create/media/approve/revise/reject/video-review (`routes/bundles.ts`) | Approval controls, `BundleMedia`, `VideoReview`; creation also occurs through generation/upload. Media operations expose explicit queued/running/failed/completed status, refresh, safe retry, and transformed-result preview. The model media library now projects the existing asset/media-operation source/result graph and renders saved/unknown lifecycle state without implying approval. Arbitrary raw bundle creation does not need a duplicate UI. | Wired source/UI; deployed media acceptance remains open |
 | Generation, source-image selection, retry, prompt suggestion (`routes/generate.ts`) | `GenerateForm`, `GenerationProgress`, `GenerationRetry`, `SavedGenerationRetry`, `MediaPromptSuggestion` provide call paths | Wired; runtime acceptance incomplete |
-| Image/video upload (`routes/media-upload.ts`) | `MediaUpload` is reachable from generation and directly from the model media library; confirmed uploads refresh the saved asset list and preserve uncertain-request reconciliation | Persistent cross-lifecycle browsing/filtering and deployed upload/browser acceptance remain open |
+| Image/video upload (`routes/media-upload.ts`) | `MediaUpload` is reachable from generation and directly from the model media library; confirmed uploads refresh the saved asset list and preserve uncertain-request reconciliation. The listing now projects operation status and source/result relationships from existing tables, with explicit unknown state when no operation is attached. | Deployed upload/playback, R2 round-trip, browser/mobile and approval/runtime acceptance remain open |
 | Native link-in-bio CRUD/analytics (`routes/linkbio.ts`) | `LinkbioPanel` enables/disables native provider and edits links; analytics page call exists. External adapters explicitly unavailable | Wired native only |
 | Analytics/viral exemplars (`routes/analytics.ts`, `viral.ts`) | Analytics page displays 30-day data and viral data; broader filtering/detail controls not established | Partial |
 | Monthly PDF report (`routes/reports.ts`) | Analytics page exposes a model-scoped download link; generated artifact is private and no-store | Wired; browser/PDF visual acceptance remains open |
@@ -110,7 +110,7 @@ Backend paths below are relative to `/api/v1` unless noted. Evidence paths are r
 1. **Permission-aware UI is incomplete.** API registration makes egress, network, kill switch and org settings owner-only. Network page catches load failure as `null` and still renders an editable form. Social account load failure is converted to an empty account list. An operator can see an apparently configurable surface that cannot succeed. Do not resolve this by removing backend authorization.
 2. **Saving is not activation.** NetworkForm only calls the metadata PUT. Credential fields and plane bind/sync are separate backend contracts with no corresponding workflow. A successful metadata save cannot mean a tunnel is ready.
 3. **Frontend parity differs by platform.** Native mobile has digest and sharing controls missing from the responsive website. Native mobile's endpoint wrappers do not prove every operation is rendered or permitted; mobile browsers use the dashboard, not Expo.
-4. **Persistent media management is incomplete.** Bundle media preview and source-image selection exist, but neither constitutes a gallery for uploaded/generated image/video across all lifecycle states.
+4. **Persistent media management is source-wired but not runtime-accepted.** The model media library now provides authenticated image/video previews, upload/generated provenance, cursor-filtered listing, operation lifecycle projection, source/result relationships, and transform/retry visibility over the existing asset/media-operation tables. Deployed worker/playback, R2 round-trip, browser/mobile, and approval/runtime evidence remain open.
 5. **The documented all-feature gate is not established.** `L5.0-test-matrix.md` promises an F-01..F-88 preservation check, and F-89/F-90/F-91 are now owner extensions. Existing navigation tests establish reachability of existing pages, not presence and usability of every required feature.
 6. **Localization is not a cross-cutting contract yet.** The dashboard, mobile app, emails and operator errors do not share a typed catalog or persisted locale precedence, so adding isolated translated labels would create inconsistent language behavior.
 7. **Platform affiliate state is not present.** Existing provider earnings/referral fields must not be repurposed; FanThynks partner attribution, SaaS conversion, commission, payout and fraud state require a separate platform-owned contract. Tenant-owned affiliate/reseller features are not part of F-90.
@@ -464,3 +464,20 @@ causality, and links back to the model analytics evidence. Focused calendar
 tests (16/16), dashboard typecheck, lint (three pre-existing warnings only),
 and diff-check pass. Browser/mobile interaction, provider execution, and
 deployed runtime acceptance remain open.
+
+# M513: Media gallery lifecycle projection
+
+The model media library now projects the existing `asset`, `media_operation`, and
+`asset_variant` records into one tenant/model-scoped gallery response. Each item
+reports the newest operation state when one exists, an explicit `unknown` state
+when an asset has no attached operation, the operation identity, and source/result
+asset IDs. The API deliberately omits operation errors, storage keys, provider
+responses, and credentials. The dashboard renders authenticated previews, source
+and result anchors for the current page, lifecycle badges, and the existing
+transform/retry controls; it never treats gallery presence or transform completion
+as ToS approval or publication authorization.
+
+Evidence: API media-upload route tests 15/15, dashboard media-page tests 11/11,
+API typecheck, and dashboard typecheck pass. No migration, runtime service,
+provider, R2, database, browser, or deployment action occurred. Deployed media
+playback/R2 round-trip and full desktop/mobile acceptance remain open.

@@ -162,6 +162,17 @@ health endpoints alone never closes a gate.
   typecheck, lint, and diff-check pass. This improves lifecycle discoverability but
   does not claim that storage, worker playback, or deployed media acceptance is
   complete.
+- M513 closes the source-level gallery lifecycle gap without introducing a second
+  media store. The existing model-scoped media listing now projects the latest
+  media-operation status, operation identity, source/result asset relationships,
+  and an explicit `unknown` state for stored assets with no attached operation.
+  The dashboard renders saved/queued/processing/failed/completed/unavailable
+  states, authenticated previews, same-page source/result navigation, and the
+  existing transform/retry controls. Operation errors and storage/provider
+  details remain server-side. API gallery projection tests (15/15), dashboard
+  media tests (11/11), and API/dashboard typechecks pass. R2 round-trip,
+  deployed worker/media playback, browser/mobile interaction, and approval/
+  publication acceptance remain open.
 - [x] Gate: route/worker/media-plane contract tests pass; deployed image and video rehearsal remains open.
 
 ### 5. Playbook and guideline management — source slice complete; acceptance gate open

@@ -25,17 +25,80 @@ mediaUploadRouter.get('/models/:modelId/media', async c => {
   if (kind && !['image', 'video'].includes(kind))
     return apiError(c, 400, statusTitle(400), 'Invalid media kind filter');
   const { limit, cursor } = parseCursor(c, 20, 100);
-  const rows = await withOrgContext(orgId, tx => tx.select({
-    id: schema.asset.id, kind: schema.asset.kind, origin: schema.asset.origin, mimeType: schema.asset.mimeType,
-    fileSize: schema.asset.fileSize, width: schema.asset.width, height: schema.asset.height, createdAt: schema.asset.createdAt,
-  }).from(schema.asset).where(and(eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
-    modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.asset.modelId),
-    ...(origin ? [eq(schema.asset.origin, origin)] : []),
-    ...(kind ? [eq(schema.asset.kind, kind)] : []),
-    ...cursorLt(schema.asset.createdAt, schema.asset.id, cursor)))
-    .orderBy(desc(schema.asset.createdAt), desc(schema.asset.id)).limit(limit));
-  const last = rows[rows.length - 1];
-  return c.json({ data: rows, meta: { next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length) } });
+  const { rows, operationRows } = await withOrgContext(orgId, async tx => {
+    const rows = await tx.select({
+      id: schema.asset.id, kind: schema.asset.kind, origin: schema.asset.origin, mimeType: schema.asset.mimeType,
+      fileSize: schema.asset.fileSize, width: schema.asset.width, height: schema.asset.height, createdAt: schema.asset.createdAt,
+    }).from(schema.asset).where(and(eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
+      modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.asset.modelId),
+      ...(origin ? [eq(schema.asset.origin, origin)] : []),
+      ...(kind ? [eq(schema.asset.kind, kind)] : []),
+      ...cursorLt(schema.asset.createdAt, schema.asset.id, cursor)))
+      .orderBy(desc(schema.asset.createdAt), desc(schema.asset.id)).limit(limit);
+
+    // Lifecycle and source/result relationships are projections over existing
+    // operation state. Keep this query bounded and tenant/model scoped; never
+    // expose operation.error, storage keys, provider responses, or credentials.
+    const operationRows = await tx.select({
+      operation: schema.mediaOperation,
+      outputAssetId: schema.assetVariant.outputAssetId,
+    }).from(schema.mediaOperation)
+      .leftJoin(schema.assetVariant, and(
+        eq(schema.assetVariant.id, schema.mediaOperation.resultVariantId),
+        eq(schema.assetVariant.orgId, orgId),
+        eq(schema.assetVariant.assetId, schema.mediaOperation.sourceAssetId),
+      ))
+      .where(and(
+        eq(schema.mediaOperation.orgId, orgId),
+        eq(schema.mediaOperation.modelId, modelId),
+        modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.mediaOperation.modelId),
+      ))
+      .orderBy(desc(schema.mediaOperation.createdAt)).limit(100);
+    return { rows, operationRows };
+  });
+
+  type OperationRow = {
+    operation: typeof schema.mediaOperation.$inferSelect;
+    outputAssetId: string | null;
+  };
+  const typedOperations = operationRows as OperationRow[];
+  const operationsBySource = new Map<string, OperationRow[]>();
+  const sourceByOutput = new Map<string, string>();
+  for (const row of typedOperations) {
+    const sourceRows = operationsBySource.get(row.operation.sourceAssetId) ?? [];
+    sourceRows.push(row);
+    operationsBySource.set(row.operation.sourceAssetId, sourceRows);
+    if (row.outputAssetId && !sourceByOutput.has(row.outputAssetId)) {
+      sourceByOutput.set(row.outputAssetId, row.operation.sourceAssetId);
+    }
+  }
+
+  type GalleryAssetRow = {
+    id: string;
+    kind: string;
+    origin: string;
+    mimeType: string;
+    fileSize: number;
+    width: number | null;
+    height: number | null;
+    createdAt: Date;
+  };
+  const galleryRows = rows as GalleryAssetRow[];
+  const data = galleryRows.map((row: GalleryAssetRow) => {
+    const sourceOperations = operationsBySource.get(row.id) ?? [];
+    const latest = sourceOperations[0];
+    return {
+      ...row,
+      // An asset without a media operation is stored, but its processing state
+      // is unknown. It must not be mistaken for a completed transform.
+      status: latest?.operation.state ?? 'unknown',
+      operationId: latest?.operation.id,
+      sourceAssetId: sourceByOutput.get(row.id),
+      resultAssetIds: [...new Set(sourceOperations.map(item => item.outputAssetId).filter((id): id is string => !!id))],
+    };
+  });
+  const last = galleryRows[galleryRows.length - 1];
+  return c.json({ data, meta: { next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length) } });
 });
 mediaUploadRouter.get('/models/:modelId/media/:assetId', async c => {
   const orgId = requireOrg(c), modelId = c.req.param('modelId'), assetId = c.req.param('assetId');
