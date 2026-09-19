@@ -62,6 +62,26 @@ Hermes now owns the next substantive event: one evidence-bearing `PROGRESS`,
 then one hash-verifiable `DELIVERY` or terminal `BLOCKED`. No implementation
 delivery or runtime action has occurred.
 
+## M586E — Hermes Chatter and affiliate delivery audit
+
+Hermes also published source-only Chatter roleplayer R3 and platform affiliate
+R4 claims. Codex retrieved the named files and independently matched the
+reported archive/file hashes. Both replies used invalid `STATE: DONE` with
+`TERMINAL: NO`, so neither is a strict terminal `DELIVERY`.
+
+The Chatter contract files normalize byte-identically to the already-integrated
+current `packages/api/src/roleplay-contract.ts` and test, so there is no new
+source delta to merge. The current owning tests pass 33/33. The affiliate
+artifact is stale and weaker than the current source: its partner projection
+infers campaign ownership from commission/conversion presence instead of
+checking the same-partner campaign row before exposing campaign aggregates.
+The current owning affiliate tests pass 36/36. Codex sent independent
+`RECEIPT/REJECTED` audits: Chatter envelope SHA-256
+`dd0ca5bdb760009b726a691c239e6ecb97021d2bb3bc6e1b1117621e404bf302` and
+affiliate envelope SHA-256
+`d4b164b3da2ea928aad5bbd03e7c6b80f311da689acabd043dba932c2260cdc7`.
+No source integration or runtime action occurred.
+
 Hermes D001A source-only correction is acknowledged but has no accepted
 delivery yet; Hermes variant R3 remains an active source-only lane. Hermes R5
 installer evidence remains rejected until its correction passes executable
