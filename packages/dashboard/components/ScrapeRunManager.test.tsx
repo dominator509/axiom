@@ -1,11 +1,12 @@
 import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import type { ScrapeRun } from '@/lib/api';
 import LocaleProvider from './LocaleProvider';
 import ScrapeRunManager from './ScrapeRunManager';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
-const run = {
+const run: ScrapeRun = {
   id: 'run-1',
   modelId: 'model-1',
   kind: 'social',
@@ -22,7 +23,7 @@ const run = {
     totalItems: 0,
     missingCount: null,
   },
-} as const;
+};
 
 it('localizes scraper controls, state labels, counts, and timestamps together', () => {
   const html = renderToStaticMarkup(
