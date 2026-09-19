@@ -9,7 +9,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `587efe7703b05fed82260ebb537e21b1cfa048d0`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `92bbef623460ac005651ef06b9098834ae07a3b1`
+PUBLISHED_HEAD: `472f8968720f84f10bbea61889e4c8a2a44bade4`
 ACCEPTED_PRODUCT_SOURCE: `587efe7703b05fed82260ebb537e21b1cfa048d0`
 ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R6 — execute exact M683 source synchronization; R5 superseded after repeated transport-only READs`
 CODEX_OWNER: `CODEX`
@@ -77,7 +77,7 @@ NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provid
 
 CURRENT_MILESTONE: `M683 — F-06/F-07 Fanvue analytics and CRM sync source integrated; Hermes R5 exact-current F-14 source synchronization is the sole active delegated lane`
 CURRENT_MILESTONE_COMMIT: `587efe7703b05fed82260ebb537e21b1cfa048d0`
-CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip verified at 92bbef623460ac005651ef06b9098834ae07a3b1; product source 587efe7703b05fed82260ebb537e21b1cfa048d0 is an exact ancestor and R6 binds both facts`
+CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip verified at 472f8968720f84f10bbea61889e4c8a2a44bade4; product source 587efe7703b05fed82260ebb537e21b1cfa048d0 is an exact ancestor and R6 binds both facts`
 CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, API index 63/63, API relay-webhooks 2/2, dashboard full 780 passed; no migration execution or live action`
 CURRENT_MILESTONE_OPEN: `Hermes R6 execution evidence and Codex artifact audit remain open; full deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
 LOCAL_MILESTONE_AFTER_TASK: `M683 — Fanvue analytics and CRM sync source integrated and pushed at 587efe7703b05fed82260ebb537e21b1cfa048d0; R5 task supersedes stale R4 before implementation`
