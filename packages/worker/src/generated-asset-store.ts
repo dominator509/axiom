@@ -2,6 +2,7 @@ import { constants } from 'node:fs';
 import { mkdir, open, realpath, unlink } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { normalizeR2ObjectKey, withinR2ObjectLimits } from '@axiom/llm-gateway';
 import { sanitizeMedia } from './media-sanitizer.js';
 
 export interface GeneratedAssetInput {
@@ -20,6 +21,7 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuid.test(scope.orgId) || !uuid.test(scope.modelId)) throw new Error('Invalid asset tenant scope');
   if (scope.sanitizeMetadata && input.mimeType === 'video/webm') throw new Error('WebM sanitization is not supported');
+  if (!withinR2ObjectLimits(input.mimeType, input.byteLength)) throw new Error('Invalid generated asset metadata');
   const limit = input.mimeType.startsWith('video/') ? 256 * 1024 * 1024 : 20 * 1024 * 1024;
   const extensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'video/mp4': 'mp4', 'video/webm': 'webm' };
   const extension = Object.hasOwn(extensions, input.mimeType) ? extensions[input.mimeType] : undefined;
@@ -93,6 +95,7 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
         copied = sanitized.bytes.length;
         hash.update(sanitized.bytes);
       }
+      if (!withinR2ObjectLimits(mimeType, copied)) throw new Error('Generated asset exceeds storage limits');
       await writer.sync();
     } finally { await writer.close(); }
     // Linux deployment requires directory-entry durability as well as file data.
@@ -102,8 +105,9 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
         try { await handle.sync(); } finally { await handle.close(); }
       }
     }
+    const storageKey = normalizeR2ObjectKey(`generated/${scope.orgId}/${scope.modelId}/${fileName}`, scope);
     return {
-      storageKey: ['generated', scope.orgId, scope.modelId, fileName].join('/'),
+      storageKey,
       fileName, fileSize: copied, sha256: hash.digest(), mimeType, exactFileHashChanged,
     };
   } catch (error) {

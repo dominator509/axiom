@@ -109,7 +109,7 @@ mediaUploadRouter.get('/models/:modelId/media/:assetId', async c => {
     modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.asset.modelId),
   )).limit(1))[0]);
   if (!asset || asset.id !== assetId || asset.orgId !== orgId || asset.modelId !== modelId) return apiError(c, 404, statusTitle(404), 'Media unavailable');
-  try { return await assetPreview(asset, c.req.raw, process.env.AXIOM_MEDIA_ROOT ?? 'var/media'); }
+  try { return await assetPreview(asset, c.req.raw, process.env.AXIOM_MEDIA_ROOT ?? 'var/media', { orgId, modelId }); }
   catch { return apiError(c, 404, statusTitle(404), 'Media unavailable'); }
 });
 mediaUploadRouter.post('/models/:modelId/media-upload', async c => {

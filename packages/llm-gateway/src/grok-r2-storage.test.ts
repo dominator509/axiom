@@ -5,11 +5,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
 import { createRouter } from './routes.js';
 import type { LLMGateway } from './gateway.js';
-import { loadR2Storage, saveR2Storage, removeR2Storage, r2StorageStatus, r2ManagedConfig, r2StorageSchema } from './grok-r2-storage.js';
+import { loadR2Storage, saveR2Storage, removeR2Storage, r2StorageStatus, r2ManagedConfig, r2StorageSchema, normalizeR2ObjectKey, withinR2ObjectLimits } from './grok-r2-storage.js';
 
 let root: string;
 const scope = { userId: 'test-operator', orgId: 'test-workspace' };
 const config = { endpoint: `https://${'1'.repeat(32)}.r2.cloudflarestorage.com`, bucket: 'test-private-media', accessKeyId: 'a'.repeat(32), secretAccessKey: 'b'.repeat(64) };
+const objectScope = { orgId: '00000000-0000-4000-8000-000000000001', modelId: '00000000-0000-4000-8000-000000000002' };
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'axiom-r2-test-'));
   vi.stubEnv('AXIOM_SUBSCRIPTION_HOME', root);
@@ -17,6 +18,21 @@ beforeEach(() => {
   vi.stubEnv('BETTER_AUTH_URL', 'https://axiom.example');
 });
 afterEach(() => { vi.unstubAllEnvs(); rmSync(root, { recursive: true, force: true }); });
+it('bounds content and canonicalizes tenant/model asset and operation keys', () => {
+  expect(withinR2ObjectLimits('image/png', 12)).toBe(true);
+  expect(withinR2ObjectLimits('video/mp4', 256 * 1024 * 1024)).toBe(true);
+  expect(withinR2ObjectLimits('image/png', 20 * 1024 * 1024 + 1)).toBe(false);
+  expect(withinR2ObjectLimits('image/svg+xml', 12)).toBe(false);
+  const assetKey = `generated/${objectScope.orgId}/${objectScope.modelId}/abc-123.png`;
+  expect(normalizeR2ObjectKey(assetKey, objectScope)).toBe(assetKey);
+  expect(normalizeR2ObjectKey(`operations/${objectScope.modelId}-00000000-0000-4000-8000-000000000003.mp4`, objectScope, 'operation'))
+    .toContain('operations/');
+  for (const key of [
+    '../image.png', '/absolute.png', 's3://bucket/key',
+    `generated/${objectScope.orgId}/00000000-0000-4000-8000-000000000003/other.png`,
+    `generated/${objectScope.orgId}/${objectScope.modelId}/../other.png`,
+  ]) expect(() => normalizeR2ObjectKey(key, objectScope)).toThrow();
+});
 it('encrypts at rest, redacts readback, isolates user/workspace and removes only the selected record', () => {
   saveR2Storage(scope, config);
   const directory = join(root, 'r2-storage');

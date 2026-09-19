@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { readBoundedResponseText } from '@axiom/core';
+import { normalizeR2ObjectKey } from '@axiom/llm-gateway';
 import type { Executor } from './context.js';
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -37,7 +38,10 @@ export const mediaTransform: Executor = async ({ tx, job }) => {
   const token = process.env.MEDIA_PLANE_AUTH_TOKEN?.trim();
   if (!token) throw new Error('media.transform: MEDIA_PLANE_AUTH_TOKEN is not configured');
   // Each execution writes a new file, including after an uncertain transaction.
-  const outputKey = `operations/${operation.id}-${randomUUID()}.${operation.type.endsWith('transcode') ? (operation.options.targetFormat === 'webm' ? 'webm' : 'mp4') : source.kind === 'video' ? 'mp4' : 'jpg'}`;
+  const outputKey = normalizeR2ObjectKey(
+    `operations/${operation.id}-${randomUUID()}.${operation.type.endsWith('transcode') ? (operation.options.targetFormat === 'webm' ? 'webm' : 'mp4') : source.kind === 'video' ? 'mp4' : 'jpg'}`,
+    { orgId: job.org_id, modelId: operation.modelId }, 'operation',
+  );
   const options = operation.options;
   const path = operation.type === 'image_clip' ? '/media/clip' : operation.type === 'image_resize' ? '/media/resize' : operation.type === 'video_clip' ? '/media/video/clip' : '/media/video/transcode';
   const body = operation.type === 'image_clip'

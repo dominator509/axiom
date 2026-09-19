@@ -3,6 +3,7 @@ import { open, realpath } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
+import { normalizeR2ObjectKey, withinR2ObjectLimits, type R2ObjectScope } from '@axiom/llm-gateway';
 
 export interface PreviewAsset {
   storageKey: string;
@@ -14,15 +15,15 @@ export interface PreviewAsset {
 /** The caller must authorize the asset's organization AND model first.
  * Never accept a client-supplied path. Keep the media root private to services.
  */
-export async function assetPreview(asset: PreviewAsset, request: Request, root: string): Promise<Response> {
-  const limit = asset.mimeType.startsWith('video/') ? 256 * 1024 * 1024 : 20 * 1024 * 1024;
-  if (!['image/jpeg', 'image/png', 'video/mp4', 'video/webm'].includes(asset.mimeType)
-    || !Number.isSafeInteger(asset.fileSize) || asset.fileSize < 12 || asset.fileSize > limit
-    || asset.sha256.length !== 32) throw new Error('Preview unavailable');
+export async function assetPreview(asset: PreviewAsset, request: Request, root: string, scope: R2ObjectScope): Promise<Response> {
+  let storageKey: string;
+  try { storageKey = normalizeR2ObjectKey(asset.storageKey, scope); }
+  catch { throw new Error('Preview unavailable'); }
+  if (!withinR2ObjectLimits(asset.mimeType, asset.fileSize) || asset.sha256.length !== 32) throw new Error('Preview unavailable');
   const base = resolve(root);
-  const path = resolve(base, asset.storageKey);
+  const path = resolve(base, storageKey);
   const local = relative(base, path);
-  if (isAbsolute(asset.storageKey) || !local || isAbsolute(local) || local.split(sep).includes('..')
+  if (isAbsolute(storageKey) || !local || isAbsolute(local) || local.split(sep).includes('..')
     || await realpath(base) !== base || await realpath(path) !== path)
     throw new Error('Preview unavailable');
   const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));

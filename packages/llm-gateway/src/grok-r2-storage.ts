@@ -13,6 +13,51 @@ export const r2StorageSchema = z.object({
 }).strict();
 export type R2Storage = z.infer<typeof r2StorageSchema>;
 export type R2Scope = { userId: string; orgId: string };
+export type R2ObjectScope = { orgId: string; modelId: string };
+export type R2ObjectKeyKind = 'asset' | 'operation';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SAFE_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,255}$/;
+const ASSET_KEY = /^generated\/([0-9a-f-]{36})\/([0-9a-f-]{36})\/([A-Za-z0-9][A-Za-z0-9._-]{0,255})$/i;
+const OPERATION_KEY = /^operations\/([0-9a-f-]{36})-([0-9a-f-]{36})\.(?:jpg|mp4|webm)$/i;
+const R2_MIME_LIMITS: Readonly<Record<string, number>> = {
+  'image/jpeg': 20 * 1024 * 1024,
+  'image/png': 20 * 1024 * 1024,
+  'video/mp4': 256 * 1024 * 1024,
+  'video/webm': 256 * 1024 * 1024,
+};
+
+/** Validate a media descriptor's bounded content contract without contacting R2. */
+export function withinR2ObjectLimits(mimeType: string, fileSize: number): boolean {
+  const limit = R2_MIME_LIMITS[mimeType];
+  return limit !== undefined && Number.isSafeInteger(fileSize) && fileSize >= 12 && fileSize <= limit;
+}
+
+/**
+ * Return one canonical, tenant-scoped object key or fail closed.
+ * Asset keys must carry their org/model prefix; operation keys are short-lived
+ * media-plane outputs and must be UUID-derived. No URL, absolute path,
+ * traversal segment, backslash or encoded path is accepted.
+ */
+export function normalizeR2ObjectKey(key: string, scope: R2ObjectScope, kind: R2ObjectKeyKind = 'asset'): string {
+  if (!UUID.test(scope.orgId) || !UUID.test(scope.modelId)) throw new Error('Invalid R2 object scope');
+  if (typeof key !== 'string' || key.length === 0 || key.length > 512 || key !== key.trim()
+    || key.includes('\\') || key.includes('://') || key.includes('%') || key.startsWith('/')
+    || key.split('/').some(segment => !segment || segment === '.' || segment === '..' || segment.includes(':'))) {
+    throw new Error('Invalid R2 object key');
+  }
+  if (kind === 'operation') {
+    const match = OPERATION_KEY.exec(key);
+    if (!match || !UUID.test(match[1]!) || !UUID.test(match[2]!)) throw new Error('Invalid R2 operation key');
+    return key;
+  }
+  const match = ASSET_KEY.exec(key);
+  if (!match || match[1]!.toLowerCase() !== scope.orgId.toLowerCase()
+    || match[2]!.toLowerCase() !== scope.modelId.toLowerCase() || !SAFE_FILE.test(match[3]!)) {
+    throw new Error('R2 object key is outside the tenant/model scope');
+  }
+  return key;
+}
 
 function identity(scope: R2Scope) {
   if (!scope.userId || !scope.orgId) throw new Error('Authenticated workspace required');

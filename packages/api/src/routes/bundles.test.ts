@@ -309,7 +309,12 @@ describe('POST / — create bundle', () => {
     expect(response.status).toBe(201);
     expect(mockState.insertValues[0]).toMatchObject({ assetId: asset.id, state: 'generated', tosReport: { verdict: 'pending', scores: [] } });
     expect(enqueueJob).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ kind: 'tos.scan', payload: { bundleId: BUNDLE_ID } }));
-    expect(assetPreview).toHaveBeenCalledWith(asset, expect.objectContaining({ method: 'HEAD' }), expect.any(String));
+    expect(assetPreview).toHaveBeenCalledWith(
+      asset,
+      expect.objectContaining({ method: 'HEAD' }),
+      expect.any(String),
+      { orgId: ORG_ID, modelId: MODEL_ID },
+    );
   });
   it.each(['other-org', 'other-model', 'missing', 'webm', 'missing-file'])('rejects unusable saved media: %s', async failure => {
     mockState.insertValues = [];

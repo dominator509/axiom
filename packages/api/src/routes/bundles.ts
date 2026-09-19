@@ -124,7 +124,7 @@ router.get('/:id/media', async (c) => {
   });
   if (!asset) return apiError(c, 404, statusTitle(404), 'media unavailable');
   try {
-    return await assetPreview(asset, c.req.raw, process.env.AXIOM_MEDIA_ROOT ?? 'var/media');
+    return await assetPreview(asset, c.req.raw, process.env.AXIOM_MEDIA_ROOT ?? 'var/media', { orgId, modelId: asset.modelId });
   } catch {
     // Filesystem errors must never reveal paths or asset metadata.
     return apiError(c, 404, statusTitle(404), 'media unavailable');
@@ -158,7 +158,7 @@ router.post('/:id/video-review', zValidator('json', videoReviewRequest), async (
       report = reviewedVideoReport(bundle, Buffer.from(asset.sha256).toString('hex'), input, userId, new Date());
       // Confirm that the bytes still match the scan, without delivering a body.
       await assetPreview(asset, new Request('http://internal/media', { method: 'HEAD', signal: c.req.raw.signal }),
-        process.env.AXIOM_MEDIA_ROOT ?? 'var/media');
+        process.env.AXIOM_MEDIA_ROOT ?? 'var/media', { orgId, modelId: asset.modelId });
     } catch {
       return { status: 409 as const, error: 'Video review could not be accepted: refresh and check the current scan and media' };
     }
@@ -243,7 +243,7 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
         || !['image/jpeg', 'image/png', 'video/mp4'].includes(asset.mimeType)) return null;
       try {
         await assetPreview(asset, new Request('http://internal/media', { method: 'HEAD', signal: c.req.raw.signal }),
-          process.env.AXIOM_MEDIA_ROOT ?? 'var/media');
+          process.env.AXIOM_MEDIA_ROOT ?? 'var/media', { orgId, modelId: asset.modelId });
       } catch { return null; }
     }
     const [row] = await tx

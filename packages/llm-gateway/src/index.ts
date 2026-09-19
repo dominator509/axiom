@@ -64,6 +64,11 @@ export { characterLockSnapshot, buildMediaPrompt } from './media-prompt.js';
 export type { CharacterLockSnapshot } from './media-prompt.js';
 export type { GrokMediaRequest } from './providers/subscription.js';
 export {
+  normalizeR2ObjectKey,
+  withinR2ObjectLimits,
+} from './grok-r2-storage.js';
+export type { R2ObjectKeyKind, R2ObjectScope } from './grok-r2-storage.js';
+export {
   boundRoleplayMemory,
   formatRoleplayHandoff,
   formatRoleplayMemory,
