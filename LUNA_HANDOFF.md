@@ -78,8 +78,8 @@ NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provid
 CURRENT_MILESTONE: `M683 — F-06/F-07 Fanvue analytics and CRM sync source integrated; Hermes R5 exact-current F-14 source synchronization is the sole active delegated lane`
 CURRENT_MILESTONE_COMMIT: `587efe7703b05fed82260ebb537e21b1cfa048d0`
 CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip verified at d4c0dfdfafa9c2bc1fa7cff0be75aad77ac67cfb; product source 587efe7703b05fed82260ebb537e21b1cfa048d0 is an exact ancestor and R5 binds both facts`
-CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, dashboard full 780 passed; no migration execution or live action`
-CURRENT_MILESTONE_OPEN: `Hermes R5 ACK/PROGRESS/DELIVERY and Codex artifact audit remain open; isolated API hook suites should be rerun, then full deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
+CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, API index 63/63, API relay-webhooks 2/2, dashboard full 780 passed; no migration execution or live action`
+CURRENT_MILESTONE_OPEN: `Hermes R5 ACK/PROGRESS/DELIVERY and Codex artifact audit remain open; full deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
 LOCAL_MILESTONE_AFTER_TASK: `M683 — Fanvue analytics and CRM sync source integrated and pushed at 587efe7703b05fed82260ebb537e21b1cfa048d0; R5 task supersedes stale R4 before implementation`
 
 ## Current coordination update — M683 and Hermes R5
@@ -88,8 +88,8 @@ M683 is the current product source, not an unreviewed Hermes artifact. It adds
 bounded Fanvue analytics projections, scoped worker synchronization, idempotent
 earnings touchpoints, model-scoped API access, and a Fans dashboard summary.
 The source milestone is pushed and the focused connector, worker, database,
-API, and dashboard gates passed; two resource-sensitive API hook files remain
-to be rerun in isolation before the source milestone is called fully green.
+API, and dashboard gates passed. The two resource-sensitive API hook files
+also pass in isolation: index 63/63 and relay-webhooks 2/2.
 
 Hermes R4 is quarantined. Its evidence was tied to the older `950fa921`
 checkout and its first ACK reused the task WIRE. R5 is the only active Hermes
