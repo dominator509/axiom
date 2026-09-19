@@ -929,3 +929,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-19T15:33:15Z | [AXIOM][P4][M606] Replace blocked agentic-drafting R4 with owner-authorized current-source R5 isolated-worktree lane; no implementation or live action counted
 2026-09-19T15:41:47Z | [AXIOM][P4][M607] Localize trigger rule controls and status messaging
 2026-09-19T15:45:07Z | [AXIOM][P4][M608] Record trigger-rule localization and live deployment boundary
+2026-09-19T15:51:36Z | [AXIOM][P4][M609] Localize playbook guideline editor controls and owner states
