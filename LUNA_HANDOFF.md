@@ -7,9 +7,9 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `6e5838e5547f741d538d4cd9e9d30a269fdd7455`
+SOURCE_HEAD: `78d15a19c3e545eeceb3c645dbb90ad72c850d91`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `6e5838e5547f741d538d4cd9e9d30a269fdd7455`
+PUBLISHED_HEAD: `78d15a19c3e545eeceb3c645dbb90ad72c850d91`
 ACCEPTED_PRODUCT_SOURCE: `d1c20a0efddc138b2d572c6aed1f2c31b5b48e6d`
 ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R1 — fresh exact-source lane; awaiting correlated ACK/NACK`
 CODEX_OWNER: `CODEX`
@@ -75,9 +75,10 @@ NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provid
 
 CURRENT_MILESTONE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R1 — Hermes source delivery pending audit`
 CURRENT_MILESTONE_COMMIT: `6e5838e5547f741d538d4cd9e9d30a269fdd7455`
-CURRENT_MILESTONE_REMOTE_READBACK: `local HEAD matches the pushed branch tip; remote readback was unavailable in this turn`
-CURRENT_MILESTONE_EVIDENCE: `Protocol-valid task published and remote SHA readback matched local task envelope; no source or live action yet`
+CURRENT_MILESTONE_REMOTE_READBACK: `local HEAD 78d15a19 was pushed successfully; Hermes task remains bound to exact source 6e5838e`
+CURRENT_MILESTONE_EVIDENCE: `Protocol-valid F-14 task published and remote SHA readback matched its envelope; independent M673 dashboard package suite passed and dashboard typecheck passed`
 CURRENT_MILESTONE_OPEN: `Hermes ACK/PROGRESS/DELIVERY, Codex artifact audit and integration remain open; CDN/R2/deployed sidecar/browser/mobile/migration/runtime/deployment gates remain open`
+LOCAL_MILESTONE_AFTER_TASK: `M673 — approvalSlot now accepts an explicit IANA zone with browser-local default; Windows-independent DST tests and typed scraper fixture; pushed at 78d15a19`
 
 Closed and not to be reopened under the old task IDs:
 
