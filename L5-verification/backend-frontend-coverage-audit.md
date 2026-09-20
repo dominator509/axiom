@@ -1126,3 +1126,22 @@ production build passed with explicit non-secret `API_ORIGIN`; and
 slice. Remaining evidence gates are browser/mobile, provider, deployed
 migration/RLS/runtime, observability, CI governance and production acceptance.
 No live action occurred.
+
+# M853: Fan CRM workflow localization and safe errors
+
+The Fan CRM route, fan-contact form, interaction form and custom-request form
+now use a complete six-locale feature catalog. Fixed UI copy, system enum
+labels, validation feedback, HTTP/status retry states, empty states and
+timeline/currency presentation are localized. The forms no longer render raw
+backend error.message or detail values. Existing API payloads,
+idempotency/retry intent, role gates, model/fan scoping and record-only
+no-message semantics are unchanged; user/provider data is not translated.
+
+Evidence: focused tests 30/30; full dashboard 145 files/886 tests; core
+19 files/105 tests; typecheck passed; lint exited 0 with four pre-existing
+any warnings; touched-file Prettier and diff-check passed; production build
+passed with explicit non-secret API_ORIGIN; source commit
+4a22f17f683930c8c8338d6a3a6be46b698e923f is pushed/read-back candidate.
+Remaining evidence gates are browser/mobile, provider, deployed migration/RLS/
+runtime, observability, CI governance and production acceptance. No live action
+occurred.

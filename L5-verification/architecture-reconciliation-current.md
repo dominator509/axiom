@@ -997,3 +997,25 @@ commit. This closes only the M852 consent-vault localization source/UI slice;
 browser/native, provider, deployed migration/RLS/runtime and production
 acceptance remain open. No live, database, migration, provider, credential,
 permission, network or deployment action occurred.
+
+### M853 — F-05/F-08 Fan CRM workflow localization
+
+The mounted Fan CRM route now consumes a feature-owned six-locale catalog for
+access boundaries, contact and interaction controls, custom-request controls,
+enum labels, empty states, retry states and safe HTTP/status errors. The route
+uses the persisted server UI locale, formats timeline timestamps in UTC and
+formats recorded USD values with the selected locale. Provider identifiers,
+fan display names, authored request titles/descriptions and interaction content
+remain data; the workflow still records existing activity and never sends a
+message or charges a fan.
+
+Evidence: core build and full tests 19 files/105 tests passed; focused Fan CRM
+dashboard tests 4 files/30 tests passed; full dashboard matrix 145 files/886
+tests passed; dashboard typecheck passed; dashboard lint exited 0 with four
+pre-existing any warnings; touched-file Prettier and diff-check passed;
+dashboard production build passed with non-secret API_ORIGIN and Windows
+symlink capability. Source commit
+4a22f17f683930c8c8338d6a3a6be46b698e923f is the reviewed product source
+commit. This closes only the M853 Fan CRM source/UI slice; browser/mobile,
+provider, deployed migration/RLS/runtime, observability, CI governance and
+production acceptance remain open. No live action occurred.
