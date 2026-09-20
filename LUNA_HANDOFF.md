@@ -9,21 +9,21 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `47d8f9ef1b5692503c84bdb168cf3652241b7edc`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `4e5faf509b14bb222d3470b04dc8709d0c2a35f9`
+PUBLISHED_HEAD: `1912fef07b0bea870eca41be760d3f03a80043dc`
 ACCEPTED_PRODUCT_SOURCE: `80284a19db82b37c1c07d6ae807bde855f223e90`
 ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R8 — canonical exact-current source-only lane; R7 is quarantined before acceptance`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — source-only implementation only after exact-current ACK/ACCEPTED; Codex audits and integrates`
-NEXT_ACTION: `Hermes has read the exact R8 corrective ACK receipt and now owns the next substantive event: publish one concrete F-14 PROGRESS at logical SEQ 9, then DELIVERY or terminal BLOCKED. The bridge control lane must likewise publish corrected PROGRESS at logical SEQ 9; Codex audits delivery bytes.`
+NEXT_ACTION: `Hermes must close the control lane with terminal DELIVERY and close R8 with terminal NACK/BLOCKED; Codex then sends terminal READ receipts and opens one superseding F-14 implementation lane bound to the pushed head, with explicit sole-writer/source-only authority.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F14-WATERMARK-POLICY-SOURCE-R8-001 — one active source-only lane; R7 and its malformed-reply correction are quarantined`
 OPEN_CONTROL_WIRE: `CODEX-CONTROL-PLANE-HERMES-LOOP-R1-001 — separate bridge-only repair lane; no product or live action`
-OPEN_CONTROL_TASK_STATE: `CORRECTIVE_ACK_READ — Hermes accepted the ownership correction in ACK-007; Codex read it with RECEIPT-008 and returned ownership for one evidence-bearing PROGRESS turn`
-OPEN_CONTROL_TASK_REPLY_WIRE: `HERMES-CONTROL-PLANE-HERMES-LOOP-R1-ACK-007`
-OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-HERMES-LOOP-R1-RECEIPT-008`
-OPEN_CONTROL_TASK_RECEIPT_SHA256: `d0ed6cadd82662bbf7ab45356286efd0291cee1316ab4098381b8e0466cf1065`
-OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must publish the retained helper patch evidence as PROGRESS at logical SEQ 9 with NEXT_OWNER HERMES, then DELIVERY or terminal BLOCKED; the ACK prose mentioned SEQ 8, but RECEIPT-008 occupies SEQ 8 and the contiguous logical sequence is authoritative`
+OPEN_CONTROL_TASK_STATE: `DELIVERY_PENDING_AFTER_HEADER_REJECTION — Hermes’ PROGRESS-009 republished the retained helper evidence but used STATE BLOCKED with TERMINAL NO and NEXT_OWNER CODEX; Codex rejected only that envelope in RECEIPT-010`
+OPEN_CONTROL_TASK_REPLY_WIRE: `HERMES-CONTROL-PLANE-HERMES-LOOP-R1-PROGRESS-009`
+OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-HERMES-LOOP-R1-RECEIPT-010`
+OPEN_CONTROL_TASK_RECEIPT_SHA256: `3e6920f390560058eef7f901a1dbf132ba4ecf21404c0d88c4af8edca0fd7769`
+OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must reissue the already-verified helper evidence as one terminal DELIVERY with the exact artifact, before/after hashes, validation commands and exits; no rerun or patch change`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -49,10 +49,10 @@ ACTIVE_LANE_SOURCE_TRANSPORT: `Hermes exact-commit isolated copy; Codex must aud
 ACTIVE_LANE_TRANSPORT_NAMING: `NOT_APPLICABLE — no Hermes source transport`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id must equal filename stem; no renames or hand-written replies`
 BRIDGE_EXECUTION_MODEL: `The bridge poller reports inbox traffic only; it does not execute Hermes tasks. A valid inbox file is transport evidence, not ACK, ownership, progress or delivery.`
-R8_TRANSPORT_STATE: `CORRECTIVE_ACK_READ — Hermes issued valid ACK-007 with NEXT_OWNER HERMES; Codex read it with RECEIPT-008 and returned ownership for concrete F-14 PROGRESS`
-R8_INVALID_REPLY_WIRE: `HERMES-F14-WATERMARK-POLICY-SOURCE-R8-ACK-005`
-R8_CORRECTION_RECEIPT_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R8-RECEIPT-008`
-R8_CORRECTION_RECEIPT_SHA256: `07fbe585b1ba3769da05a0f40df01132ebefd12c8f414de82346941c2e61cfff`
+R8_TRANSPORT_STATE: `CLOSURE_PENDING_BLOCKED — Hermes’ PROGRESS-009 truthfully reported no authorized source delta but used invalid nonterminal BLOCKED headers; Codex rejected only the envelope in RECEIPT-010`
+R8_INVALID_REPLY_WIRE: `HERMES-F14-WATERMARK-POLICY-SOURCE-R8-PROGRESS-009`
+R8_CORRECTION_RECEIPT_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R8-RECEIPT-010`
+R8_CORRECTION_RECEIPT_SHA256: `24fbc9e1d295f20db77541225a2034af500d70662621cc4d465f7db386e5054a`
 HISTORICAL_REPLY_MISMATCH_DECISION: `C — do not patch the bridge helper or rename stale inbox files; reissue a fresh superseding task with exact filename/msg_id only when that architecture lane is selected`
 HISTORICAL_REPLY_MISMATCH_SCOPE: `scraper, F-31 and other historical lanes; no current implementation lane may rely on those files`
 ACTIVE_LANE_BASELINE: `M669 F-89 Calendar localization complete at d1c20a0; source gates passed, browser/mobile/provider/migration/runtime/deployment gates open`
@@ -70,9 +70,9 @@ ACTIVE_LANE_TRANSPORT_CLOSE_REASON: `R3 ACK was read but Hermes checkout was sta
 LOCAL_FALLBACK_SCOPE: `CODEX AUTHORIZED — local source-only implementation lanes; no live action`
 ACTIVE_LANE_ACK_WIRE: `HERMES-F14-WATERMARK-POLICY-SOURCE-R8-ACK-007`
 ACTIVE_LANE_ACK_SHA256: `a27597baff2f65f1b88d1baf7eeec740466f9348a68e14e3cdb03dcdb1ec0540`
-ACTIVE_LANE_RECEIPT_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R8-RECEIPT-008`
-ACTIVE_LANE_RECEIPT_SHA256: `07fbe585b1ba3769da05a0f40df01132ebefd12c8f414de82346941c2e61cfff`
-ACTIVE_LANE_CHECKPOINT_WIRE: `PENDING — R8 receipt read; concrete PROGRESS at logical SEQ 9 required`
+ACTIVE_LANE_RECEIPT_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R8-RECEIPT-010`
+ACTIVE_LANE_RECEIPT_SHA256: `24fbc9e1d295f20db77541225a2034af500d70662621cc4d465f7db386e5054a`
+ACTIVE_LANE_CHECKPOINT_WIRE: `PENDING — Hermes must issue terminal NACK/BLOCKED for R8; no implementation is counted in R8`
 ACTIVE_LANE_CHECKPOINT_SHA256: `NOT_APPLICABLE`
 LAST_COMPLETED_SOURCE_MILESTONE: `M675 — F-22/F-23 first-party Fanvue attribution at 950fa921; F-14 R3 lane newly opened`
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
@@ -106,13 +106,13 @@ LOOP_GIT_RULE: `Hermes fetches and edits only the exact SOURCE_COMMIT in its dec
 LOOP_RESYNC_RULE: `after every Codex push, the next task must bind the new remote branch SHA; Hermes must not continue from a moving ref or an older local checkout`
 LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with changed paths, tests, exact exits, and LIVE_ACTIONS NONE; transport flags, ACKs, claims and stale artifacts never count`
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
-LOOP_CURRENT_ACTION: `Both corrected ACK-007 wires are transport-verified and both receipt-008 files are bridge-verified; validate Hermes PROGRESS at the next contiguous SEQ, then audit DELIVERY bytes before any feature implementation is counted`
+LOOP_CURRENT_ACTION: `Receipt-010 files are bridge-verified; validate terminal control DELIVERY and terminal R8 NACK/BLOCKED, close both with READ receipts, then issue one explicit-current F-14 implementation task`
 
-CURRENT_MILESTONE: `M716 — bounded corrective-ACK exception implemented, pushed, and both corrected Hermes ACK-007 wires read with receipt-008; no feature or live action`
-CURRENT_MILESTONE_COMMIT: `4e5faf509b14bb222d3470b04dc8709d0c2a35f9`
-CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as 4e5faf509b14bb222d3470b04dc8709d0c2a35f9; protocol tests passed 30/30; control receipt-008 SHA d0ed6cadd82662bbf7ab45356286efd0291cee1316ab4098381b8e0466cf1065; R8 receipt-008 SHA 07fbe585b1ba3769da05a0f40df01132ebefd12c8f414de82346941c2e61cfff; Hermes control ACK-007 SHA a4020e5fad82bfab8c5613084974bb5f272c491b9ce8d7a6f6c790823260aae7; Hermes R8 ACK-007 SHA a27597baff2f65f1b88d1baf7eeec740466f9348a68e14e3cdb03dcdb1ec0540; no feature or live action`
+CURRENT_MILESTONE: `M717 — rejected contradictory BLOCKED progress headers without discarding evidence; both lanes now have deterministic terminal next actions; no feature or live action`
+CURRENT_MILESTONE_COMMIT: `1912fef07b0bea870eca41be760d3f03a80043dc`
+CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as 1912fef07b0bea870eca41be760d3f03a80043dc; protocol tests passed 30/30; control receipt-010 SHA 3e6920f390560058eef7f901a1dbf132ba4ecf21404c0d88c4af8edca0fd7769; R8 receipt-010 SHA 24fbc9e1d295f20db77541225a2034af500d70662621cc4d465f7db386e5054a; Hermes control PROGRESS-009 SHA pending readback; Hermes R8 PROGRESS-009 SHA 9ecaf28521ce835c1173cdda4ee6561a3a6f8b11cf75b9dc2c1dd18f9250b61d; no feature or live action`
 CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, API index 63/63, API relay-webhooks 2/2, dashboard full 780 passed; no migration execution or live action`
-CURRENT_MILESTONE_OPEN: `Bridge-helper corrected PROGRESS/DELIVERY and F-14 PROGRESS/DELIVERY remain open; both must use the next contiguous logical sequence and concrete evidence; full feature and deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
+CURRENT_MILESTONE_OPEN: `Control terminal DELIVERY and R8 terminal NACK/BLOCKED remain open; after closure the superseding F-14 source task must bind this pushed head and explicitly authorize one Hermes writer; full feature and deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
 LOCAL_MILESTONE_AFTER_TASK: `M697 — standalone and stateful validators reject reply-WIRE reuse and invalid TASK sequence; malformed first replies are corrected by SEQ 2 RECEIPT; R7 is quarantined and R8 is the sole current task`
 
 ## Current coordination update — M697 canonical R8 lane
