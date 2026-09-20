@@ -13,25 +13,25 @@ PUBLISHED_HEAD: `f91a39cf3e76e803a4b59e23a207278415dc933f` (latest branch ref re
 COORDINATION_HEAD: `f91a39cf3e76e803a4b59e23a207278415dc933f` (exact branch head shared with Hermes)
 ACCEPTED_PRODUCT_SOURCE: `22d97aff50dc5169d3a00783bf866a8aeee68b3b`
 LAST_COMPLETED_SOURCE_MILESTONE: `M851 — six-locale network child controls localization; source/UI only`
-ACTIVE_HERMES_LANE: `ACTIVE — F89-CONSENT-VAULT-L10N-R1 task uploaded; awaiting one correlated ACK; no Hermes artifact accepted`
+ACTIVE_HERMES_LANE: `ACTIVE — F89-CONSENT-VAULT-L10N-R1 malformed ACK rejected; awaiting one fresh correlated ACK; no Hermes artifact accepted`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and integrates nothing until evidence passes`
-NEXT_ACTION: `Await one correlated ACK for F89-CONSENT-VAULT-L10N-R1; reject malformed or out-of-sequence replies; accept only evidence-bearing DELIVERY or terminal BLOCKED; do not edit the same surface locally while this lane is active.`
+NEXT_ACTION: `Await one fresh correlated ACK for F89-CONSENT-VAULT-L10N-R1 after the correction receipt; accept only evidence-bearing DELIVERY or terminal BLOCKED; do not edit the same surface locally while this lane is active.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F89-CONSENT-VAULT-L10N-R1-START-001 — active/unconfirmed; no Hermes implementation or delivery accepted yet`
 OPEN_CONTROL_WIRE: `CODEX-F89-CONSENT-VAULT-L10N-R1-START-001`
-OPEN_CONTROL_TASK_STATE: `OPEN_UNCONFIRMED — exact source f91a39cf and envelope hash ccce2501 are remote-verified; no Hermes artifact accepted`
-OPEN_CONTROL_TASK_REPLY_WIRE: `NONE — awaiting the first correlated Hermes ACK/NACK`
+OPEN_CONTROL_TASK_STATE: `CORRECTION_SENT_UNCONFIRMED — exact source f91a39cf and envelope hash ccce2501 are remote-verified; malformed Hermes ACK was rejected; no artifact accepted`
+OPEN_CONTROL_TASK_REPLY_WIRE: `HERMES-F89-CONSENT-VAULT-L10N-R1-ACK-002 — rejected for invalid ACK state, missing READ_STATUS and duplicate signatures`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-F89-NETWORK-CHILD-CONTROLS-L10N-R1-REJECT-002`
-OPEN_CONTROL_TASK_RECEIPT_SHA256: `9bbee7a1b1b31c0a727e202279b6b038d1837659147295406151222dbda23eef`
-OPEN_CONTROL_TASK_CORRECTION_WIRE: `CODEX-F89-NETWORK-CHILD-CONTROLS-L10N-R1-REJECT-002`
-OPEN_CONTROL_TASK_CORRECTION_SHA256: `9bbee7a1b1b31c0a727e202279b6b038d1837659147295406151222dbda23eef`
+OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-F89-CONSENT-VAULT-L10N-R1-RECEIPT-REJECT-002`
+OPEN_CONTROL_TASK_RECEIPT_SHA256: `e74b80a995b54df2548576b719f79c5e8010e2bc2159ae9cdf52b47e230ec42d`
+OPEN_CONTROL_TASK_CORRECTION_WIRE: `CODEX-F89-CONSENT-VAULT-L10N-R1-RECEIPT-REJECT-002`
+OPEN_CONTROL_TASK_CORRECTION_SHA256: `e74b80a995b54df2548576b719f79c5e8010e2bc2159ae9cdf52b47e230ec42d`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must return one correlated ACK/ACCEPTED or exact NACK for CODEX-F89-CONSENT-VAULT-L10N-R1-START-001; no implementation is counted before that reply`
+OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must return one fresh correlated ACK/ACCEPTED or exact NACK after CODEX-F89-CONSENT-VAULT-L10N-R1-RECEIPT-REJECT-002; no implementation is counted before that reply`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, and M851 network-child-controls localization are integrated on the branch. M851 criterion: encrypted egress credentials, network health, and saved-connection activation controls render through the six-locale catalog without changing secret, idempotency, model-scope, role, direct-network, or response-validation semantics; focused/full tests, typecheck, lint, format, build and verify gates pass; no live action.`
 CURRENT_MILESTONE: `M851 integrated at 22d97aff; six-locale network-child-controls source slice complete; core 17 files/101 tests and dashboard 143 files/872 tests passed; typecheck/lint/build/format/verify passed; no live action`
 CURRENT_MILESTONE_OPEN_GATES: `Root pnpm test retains four unrelated Windows subscription process-tree failures; repository-wide Prettier check retains 586 baseline files; M851 local fallback is complete and F89-CONSENT-VAULT-L10N-R1 is the single active source lane; remaining architecture gaps include catalog adoption, locale formatting, browser/native, provider, deployed migration/RLS/runtime, observability, CI governance, and production acceptance`
@@ -51,13 +51,13 @@ ACTIVE_LANE_TASK_WIRE: `CODEX-F89-CONSENT-VAULT-L10N-R1-START-001`
 ACTIVE_LANE_SOURCE_COMMIT: `f91a39cf3e76e803a4b59e23a207278415dc933f`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f89-consent-vault-l10n-r1`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/deliveries/codex-f89-consent-vault-l10n-r1`
-ACTIVE_LANE_COPY_STATE: `TASK_UPLOADED_UNCONFIRMED — exact source and remote envelope verified; no Hermes implementation or delivery counted`
+ACTIVE_LANE_COPY_STATE: `CORRECTION_SENT_UNCONFIRMED — exact source and remote envelope verified; malformed ACK receipt e74b80a9 is remote-verified; no Hermes implementation or delivery counted`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `ccce2501cff55c3c29e836629e33e1f0e0c304b4a458ee9788c49684c9b18050`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `ccce2501cff55c3c29e836629e33e1f0e0c304b4a458ee9788c49684c9b18050`
-ACTIVE_LANE_ACK_WIRE: `NONE`
-ACTIVE_LANE_CORRECTION_WIRE: `NONE`
-ACTIVE_LANE_CORRECTION_SHA256: `NONE`
-ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `NONE`
+ACTIVE_LANE_ACK_WIRE: `HERMES-F89-CONSENT-VAULT-L10N-R1-ACK-002 — rejected for invalid ACK state, missing READ_STATUS and duplicate signatures`
+ACTIVE_LANE_CORRECTION_WIRE: `CODEX-F89-CONSENT-VAULT-L10N-R1-RECEIPT-REJECT-002`
+ACTIVE_LANE_CORRECTION_SHA256: `e74b80a995b54df2548576b719f79c5e8010e2bc2159ae9cdf52b47e230ec42d`
+ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `e74b80a995b54df2548576b719f79c5e8010e2bc2159ae9cdf52b47e230ec42d`
 ACTIVE_LANE_SUPERSEDE_WIRE: `NONE — fresh task; no supersession`
 ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `NONE`
 ACTIVE_LANE_SOURCE_BUNDLE: `NONE — exact Git source ref is authoritative`
