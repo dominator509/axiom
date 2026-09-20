@@ -1,19 +1,21 @@
 import { createHash } from 'node:crypto';
 import { isLearningArm, isLearningContext, learningContextBucket, parseLearningArm } from '@axiom/core';
 import type { ContentBundle } from '@/lib/api';
+import { useLocale } from './LocaleProvider';
 
-const armNames: Record<string, string> = {
-  'short:question': 'Short caption with a question', 'short:statement': 'Short statement caption',
-  'medium:question': 'Medium caption with a question', 'medium:statement': 'Medium statement caption',
-  'long:question': 'Long caption with a question', 'long:statement': 'Long statement caption',
+const armKeys: Record<string, string> = {
+  'short:question': 'caption.shortQuestion', 'short:statement': 'caption.shortStatement',
+  'medium:question': 'caption.mediumQuestion', 'medium:statement': 'caption.mediumStatement',
+  'long:question': 'caption.longQuestion', 'long:statement': 'caption.longStatement',
 };
-function armLabel(arm: string): string {
+function armLabel(arm: string, t: (key: string, values?: Record<string, string | number>) => string): string {
   const parsed = parseLearningArm(arm);
-  if (!parsed) return 'Unknown caption structure';
-  const base = armNames[`${parsed.captionLength}:${parsed.captionShape}`]
-    ?? `${parsed.captionLength} ${parsed.captionShape} caption`;
+  if (!parsed) return t('caption.unknownStructure');
+  const base = armKeys[`${parsed.captionLength}:${parsed.captionShape}`]
+    ? t(armKeys[`${parsed.captionLength}:${parsed.captionShape}`])
+    : `${parsed.captionLength} ${parsed.captionShape} ${t('caption.unknown')}`;
   if (parsed.version === 'learn-v1') return base;
-  return `${base} · ${parsed.hookType ?? 'unknown'} hook · ${parsed.format ?? 'unknown'} format`;
+  return `${base} · ${parsed.hookType ?? t('caption.unknown')} ${t('caption.hook')} · ${parsed.format ?? t('caption.unknown')} ${t('caption.format')}`;
 }
 type Receipt = NonNullable<ContentBundle['captionGuidance']>[string];
 function validReceipt(value: unknown): value is Receipt {
@@ -30,24 +32,28 @@ function validReceipt(value: unknown): value is Receipt {
 export default function CaptionGuidance({ captions, receipts }: {
   captions: Record<string, string>; receipts: ContentBundle['captionGuidance'];
 }) {
+  const { t } = useLocale();
   const entries = Object.entries(captions);
   if (!entries.length) return null;
   return <details className="card stack">
-    <summary>Caption guidance</summary>
-    <p>What informed the generated caption. This is not a performance prediction or proof that the guidance caused an outcome.</p>
+    <summary>{t('caption.guidance')}</summary>
+    <p>{t('caption.guidanceDescription')}</p>
     {entries.map(([platform, caption]) => {
       const receipt = receipts?.[platform];
-      if (!receipt) return <p key={platform}><strong>{platform}:</strong> No generation-guidance receipt recorded. Manual, fallback and older drafts may have none.</p>;
-      if (!validReceipt(receipt)) return <p key={platform}><strong>{platform}:</strong> Guidance evidence could not be verified.</p>;
+      if (!receipt) return <p key={platform}><strong>{platform}:</strong> {t('caption.noReceipt')}</p>;
+      if (!validReceipt(receipt)) return <p key={platform}><strong>{platform}:</strong> {t('caption.invalidReceipt')}</p>;
       if (createHash('sha256').update(caption, 'utf8').digest('hex') !== receipt.captionSha256)
-        return <p key={platform}><strong>{platform}:</strong> Caption changed since generation. The recorded guidance will not be attributed to this edited caption.</p>;
+        return <p key={platform}><strong>{platform}:</strong> {t('caption.changed')}</p>;
       const bucket = learningContextBucket(receipt.context);
       return <div key={platform} className="stack">
         <h4>{platform}</h4>
-        <p>{receipt.selectedArm ? armLabel(receipt.selectedArm) : 'No learned caption structure selected'}.</p>
-        <p>{receipt.exemplarIds.length} prior example(s) supplied. This does not prove the generated caption followed them.</p>
-        <p>{bucket === 'unknown' || bucket === null ? 'No scheduled-time context was available at generation.'
-          : `Selection context: ${String(Number(bucket) * 6).padStart(2, '0')}:00–${String(Number(bucket) * 6 + 5).padStart(2, '0')}:59 UTC. This does not schedule publication.`}</p>
+        <p>{receipt.selectedArm ? armLabel(receipt.selectedArm, t) : t('caption.noStructure')}.</p>
+        <p>{t('caption.priorExamples', { count: receipt.exemplarIds.length })}</p>
+        <p>{bucket === 'unknown' || bucket === null ? t('caption.noScheduledContext')
+          : t('caption.selectionContext', {
+            from: String(Number(bucket) * 6).padStart(2, '0'),
+            to: String(Number(bucket) * 6 + 5).padStart(2, '0'),
+          })}</p>
       </div>;
     })}
   </details>;

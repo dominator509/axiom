@@ -1,6 +1,36 @@
 import { createHash } from 'node:crypto';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+vi.mock('./LocaleProvider', () => ({
+  useLocale: () => ({
+    locale: 'en',
+    setLocale: () => undefined,
+    t: (key: string, values?: Record<string, string | number>) => {
+      const text = ({
+        'caption.guidance': 'Caption guidance',
+        'caption.guidanceDescription': 'What informed the generated caption. This is not a performance prediction or proof that the guidance caused an outcome.',
+        'caption.noReceipt': 'No generation-guidance receipt recorded. Manual, fallback and older drafts may have none.',
+        'caption.invalidReceipt': 'Guidance evidence could not be verified.',
+        'caption.changed': 'Caption changed since generation. The recorded guidance will not be attributed to this edited caption.',
+        'caption.unknownStructure': 'Unknown caption structure',
+        'caption.shortQuestion': 'Short caption with a question',
+        'caption.shortStatement': 'Short statement caption',
+        'caption.mediumQuestion': 'Medium caption with a question',
+        'caption.mediumStatement': 'Medium statement caption',
+        'caption.longQuestion': 'Long caption with a question',
+        'caption.longStatement': 'Long statement caption',
+        'caption.hook': 'hook',
+        'caption.format': 'format',
+        'caption.unknown': 'unknown',
+        'caption.noStructure': 'No learned caption structure selected',
+        'caption.priorExamples': '{count} prior example(s) supplied. This does not prove the generated caption followed them.',
+        'caption.noScheduledContext': 'No scheduled-time context was available at generation.',
+        'caption.selectionContext': 'Selection context: {from}:00–{to}:59 UTC. This does not schedule publication.',
+      }[key] ?? key);
+      return text.replace(/\{([a-zA-Z0-9_.]+)\}/g, (_match, name: string) => String(values?.[name] ?? _match));
+    },
+  }),
+}));
 import CaptionGuidance from './CaptionGuidance';
 const id = '11111111-1111-4111-8111-111111111111';
 const caption = 'Original caption?';

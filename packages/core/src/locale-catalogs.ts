@@ -1988,6 +1988,174 @@ const generationDe: Catalog = {
   'media.notScanned': "Dies verhindert kein perzeptuelles Matching. Noch nicht ToS-geprüft oder genehmigt.",
 };
 
+const captionEn: Catalog = {
+  'caption.guidance': "Caption guidance",
+  'caption.guidanceDescription': "What informed the generated caption. This is not a performance prediction or proof that the guidance caused an outcome.",
+  'caption.noReceipt': "No generation-guidance receipt recorded. Manual, fallback and older drafts may have none.",
+  'caption.invalidReceipt': "Guidance evidence could not be verified.",
+  'caption.changed': "Caption changed since generation. The recorded guidance will not be attributed to this edited caption.",
+  'caption.unknownStructure': "Unknown caption structure",
+  'caption.shortQuestion': "Short caption with a question",
+  'caption.shortStatement': "Short statement caption",
+  'caption.mediumQuestion': "Medium caption with a question",
+  'caption.mediumStatement': "Medium statement caption",
+  'caption.longQuestion': "Long caption with a question",
+  'caption.longStatement': "Long statement caption",
+  'caption.hook': "hook",
+  'caption.format': "format",
+  'caption.unknown': "unknown",
+  'caption.noStructure': "No learned caption structure selected",
+  'caption.priorExamples': "{count} prior example(s) supplied. This does not prove the generated caption followed them.",
+  'caption.noScheduledContext': "No scheduled-time context was available at generation.",
+  'caption.selectionContext': "Selection context: {from}:00–{to}:59 UTC. This does not schedule publication.",
+  'caption.savedCaptions': "Saved destination captions",
+  'caption.savedDescription': "These captions are saved in the bundle for review. The creative variants below are suggestions, not additional scheduled posts.",
+  'caption.fallback': "Optional AI enrichment was unavailable or returned no caption. The base caption was saved. Review it before approval; do not regenerate the whole bundle just to check this result.",
+  'caption.enriched': "AI-enriched caption saved.",
+  'caption.notRequested': "AI enrichment was not requested.",
+  'caption.statusUnavailable': "Enrichment status is unavailable for this receipt.",
+};
+
+const captionEs: Catalog = {
+  'caption.guidance': "Orientación de subtítulos",
+  'caption.guidanceDescription': "Qué informó el subtítulo generado. No es una predicción de rendimiento ni prueba de que la orientación causara un resultado.",
+  'caption.noReceipt': "No hay recibo de orientación de generación. Los borradores manuales, alternativos y antiguos pueden no tenerlo.",
+  'caption.invalidReceipt': "No se pudo verificar la evidencia de orientación.",
+  'caption.changed': "El subtítulo cambió desde la generación. La orientación registrada no se atribuirá a este subtítulo editado.",
+  'caption.unknownStructure': "Estructura de subtítulo desconocida",
+  'caption.shortQuestion': "Subtítulo corto con pregunta",
+  'caption.shortStatement': "Subtítulo breve declarativo",
+  'caption.mediumQuestion': "Subtítulo medio con pregunta",
+  'caption.mediumStatement': "Subtítulo medio declarativo",
+  'caption.longQuestion': "Subtítulo largo con pregunta",
+  'caption.longStatement': "Subtítulo largo declarativo",
+  'caption.hook': "gancho",
+  'caption.format': "formato",
+  'caption.unknown': "desconocido",
+  'caption.noStructure': "No se seleccionó una estructura de subtítulo aprendida",
+  'caption.priorExamples': "Se proporcionaron {count} ejemplo(s) anterior(es). Esto no prueba que el subtítulo siguiera esos ejemplos.",
+  'caption.noScheduledContext': "No había contexto de hora programada durante la generación.",
+  'caption.selectionContext': "Contexto de selección: {from}:00–{to}:59 UTC. Esto no programa la publicación.",
+  'caption.savedCaptions': "Subtítulos de destino guardados",
+  'caption.savedDescription': "Estos subtítulos se guardan en el paquete para su revisión. Las variantes creativas siguientes son sugerencias, no publicaciones programadas adicionales.",
+  'caption.fallback': "El enriquecimiento de IA opcional no estaba disponible o no devolvió un subtítulo. Se guardó el subtítulo base. Revísalo antes de aprobar; no regeneres todo el paquete solo para comprobar este resultado.",
+  'caption.enriched': "Subtítulo enriquecido con IA guardado.",
+  'caption.notRequested': "No se solicitó enriquecimiento de IA.",
+  'caption.statusUnavailable': "El estado del enriquecimiento no está disponible para este recibo.",
+};
+
+const captionJa: Catalog = {
+  'caption.guidance': "キャプションガイダンス",
+  'caption.guidanceDescription': "生成されたキャプションに影響した情報です。パフォーマンス予測でも、ガイダンスが結果を引き起こした証明でもありません。",
+  'caption.noReceipt': "生成ガイダンスのレシートは記録されていません。手動、フォールバック、古い下書きには存在しない場合があります。",
+  'caption.invalidReceipt': "ガイダンスの証拠を確認できませんでした。",
+  'caption.changed': "生成後にキャプションが変更されました。記録されたガイダンスはこの編集済みキャプションには帰属されません。",
+  'caption.unknownStructure': "不明なキャプション構造",
+  'caption.shortQuestion': "質問付き短文キャプション",
+  'caption.shortStatement': "短い断定キャプション",
+  'caption.mediumQuestion': "質問付き中程度キャプション",
+  'caption.mediumStatement': "中程度の断定キャプション",
+  'caption.longQuestion': "質問付き長文キャプション",
+  'caption.longStatement': "長い断定キャプション",
+  'caption.hook': "フック",
+  'caption.format': "形式",
+  'caption.unknown': "不明",
+  'caption.noStructure': "学習済みキャプション構造は選択されていません",
+  'caption.priorExamples': "過去の例を{count}件提供しました。生成キャプションがそれらに従ったことを示すものではありません。",
+  'caption.noScheduledContext': "生成時に予定時刻のコンテキストはありませんでした。",
+  'caption.selectionContext': "選択コンテキスト: {from}:00–{to}:59 UTC。公開をスケジュールするものではありません。",
+  'caption.savedCaptions': "保存済みの送信先キャプション",
+  'caption.savedDescription': "これらのキャプションはレビュー用にバンドルへ保存されています。下のクリエイティブバリエーションは提案であり、追加の予約投稿ではありません。",
+  'caption.fallback': "任意のAI補完を利用できないか、キャプションが返されませんでした。基本キャプションは保存されています。承認前に確認してください。この結果を確認するだけでバンドル全体を再生成しないでください。",
+  'caption.enriched': "AI補完キャプションを保存しました。",
+  'caption.notRequested': "AI補完は要求されませんでした。",
+  'caption.statusUnavailable': "このレシートでは補完状態を利用できません。",
+};
+
+const captionIt: Catalog = {
+  'caption.guidance': "Indicazioni per la didascalia",
+  'caption.guidanceDescription': "Ciò che ha informato la didascalia generata. Non è una previsione delle prestazioni né una prova che le indicazioni abbiano causato un risultato.",
+  'caption.noReceipt': "Nessuna ricevuta delle indicazioni di generazione. Le bozze manuali, di fallback o meno recenti potrebbero non averne una.",
+  'caption.invalidReceipt': "Impossibile verificare l'evidenza delle indicazioni.",
+  'caption.changed': "La didascalia è cambiata dopo la generazione. Le indicazioni registrate non saranno attribuite a questa didascalia modificata.",
+  'caption.unknownStructure': "Struttura didascalia sconosciuta",
+  'caption.shortQuestion': "Didascalia breve con domanda",
+  'caption.shortStatement': "Didascalia breve dichiarativa",
+  'caption.mediumQuestion': "Didascalia media con domanda",
+  'caption.mediumStatement': "Didascalia media dichiarativa",
+  'caption.longQuestion': "Didascalia lunga con domanda",
+  'caption.longStatement': "Didascalia lunga dichiarativa",
+  'caption.hook': "hook",
+  'caption.format': "formato",
+  'caption.unknown': "sconosciuto",
+  'caption.noStructure': "Nessuna struttura didascalia appresa selezionata",
+  'caption.priorExamples': "Forniti {count} esempio/i precedente/i. Questo non prova che la didascalia generata li abbia seguiti.",
+  'caption.noScheduledContext': "Nessun contesto dell'orario programmato era disponibile durante la generazione.",
+  'caption.selectionContext': "Contesto di selezione: {from}:00–{to}:59 UTC. Non programma la pubblicazione.",
+  'caption.savedCaptions': "Didascalie di destinazione salvate",
+  'caption.savedDescription': "Queste didascalie sono salvate nel pacchetto per la revisione. Le varianti creative seguenti sono suggerimenti, non ulteriori post programmati.",
+  'caption.fallback': "L'arricchimento AI opzionale non era disponibile o non ha restituito una didascalia. La didascalia base è stata salvata. Controllala prima dell'approvazione; non rigenerare l'intero pacchetto solo per verificare questo risultato.",
+  'caption.enriched': "Didascalia arricchita dall'AI salvata.",
+  'caption.notRequested': "L'arricchimento AI non è stato richiesto.",
+  'caption.statusUnavailable': "Lo stato dell'arricchimento non è disponibile per questa ricevuta.",
+};
+
+const captionPtBR: Catalog = {
+  'caption.guidance': "Orientação da legenda",
+  'caption.guidanceDescription': "O que informou a legenda gerada. Não é uma previsão de desempenho nem prova de que a orientação causou um resultado.",
+  'caption.noReceipt': "Nenhum recibo de orientação de geração foi registrado. Rascunhos manuais, de fallback e antigos podem não ter um.",
+  'caption.invalidReceipt': "Não foi possível verificar a evidência da orientação.",
+  'caption.changed': "A legenda mudou desde a geração. A orientação registrada não será atribuída a esta legenda editada.",
+  'caption.unknownStructure': "Estrutura de legenda desconhecida",
+  'caption.shortQuestion': "Legenda curta com pergunta",
+  'caption.shortStatement': "Legenda curta declarativa",
+  'caption.mediumQuestion': "Legenda média com pergunta",
+  'caption.mediumStatement': "Legenda média declarativa",
+  'caption.longQuestion': "Legenda longa com pergunta",
+  'caption.longStatement': "Legenda longa declarativa",
+  'caption.hook': "gancho",
+  'caption.format': "formato",
+  'caption.unknown': "desconhecido",
+  'caption.noStructure': "Nenhuma estrutura de legenda aprendida foi selecionada",
+  'caption.priorExamples': "{count} exemplo(s) anterior(es) fornecido(s). Isso não prova que a legenda gerada os seguiu.",
+  'caption.noScheduledContext': "Nenhum contexto de horário agendado estava disponível durante a geração.",
+  'caption.selectionContext': "Contexto da seleção: {from}:00–{to}:59 UTC. Isso não agenda a publicação.",
+  'caption.savedCaptions': "Legendas de destino salvas",
+  'caption.savedDescription': "Estas legendas são salvas no pacote para revisão. As variantes criativas abaixo são sugestões, não publicações agendadas adicionais.",
+  'caption.fallback': "O enriquecimento de IA opcional não estava disponível ou não retornou uma legenda. A legenda base foi salva. Revise antes de aprovar; não regenere o pacote inteiro apenas para verificar este resultado.",
+  'caption.enriched': "Legenda enriquecida por IA salva.",
+  'caption.notRequested': "O enriquecimento por IA não foi solicitado.",
+  'caption.statusUnavailable': "O status do enriquecimento não está disponível para este recibo.",
+};
+
+const captionDe: Catalog = {
+  'caption.guidance': "Hinweise zur Bildunterschrift",
+  'caption.guidanceDescription': "Was die generierte Bildunterschrift beeinflusst hat. Dies ist keine Leistungsprognose und kein Beweis, dass die Hinweise ein Ergebnis verursacht haben.",
+  'caption.noReceipt': "Kein Beleg für Generierungshinweise aufgezeichnet. Manuelle, Fallback- und ältere Entwürfe haben möglicherweise keinen.",
+  'caption.invalidReceipt': "Die Hinweisnachweise konnten nicht verifiziert werden.",
+  'caption.changed': "Die Bildunterschrift wurde seit der Generierung geändert. Die aufgezeichneten Hinweise werden dieser bearbeiteten Bildunterschrift nicht zugerechnet.",
+  'caption.unknownStructure': "Unbekannte Bildunterschriftenstruktur",
+  'caption.shortQuestion': "Kurze Bildunterschrift mit Frage",
+  'caption.shortStatement': "Kurze aussagende Bildunterschrift",
+  'caption.mediumQuestion': "Mittlere Bildunterschrift mit Frage",
+  'caption.mediumStatement': "Mittlere aussagende Bildunterschrift",
+  'caption.longQuestion': "Lange Bildunterschrift mit Frage",
+  'caption.longStatement': "Lange aussagende Bildunterschrift",
+  'caption.hook': "Hook",
+  'caption.format': "Format",
+  'caption.unknown': "unbekannt",
+  'caption.noStructure': "Keine gelernte Bildunterschriftenstruktur ausgewählt",
+  'caption.priorExamples': "{count} frühere(s) Beispiel(e) wurden bereitgestellt. Dies beweist nicht, dass die generierte Bildunterschrift ihnen folgte.",
+  'caption.noScheduledContext': "Bei der Generierung war kein Kontext für die geplante Zeit verfügbar.",
+  'caption.selectionContext': "Auswahlkontext: {from}:00–{to}:59 UTC. Dies plant keine Veröffentlichung.",
+  'caption.savedCaptions': "Gespeicherte Ziel-Bildunterschriften",
+  'caption.savedDescription': "Diese Bildunterschriften sind zur Prüfung im Paket gespeichert. Die kreativen Varianten unten sind Vorschläge, keine zusätzlichen geplanten Beiträge.",
+  'caption.fallback': "Die optionale KI-Anreicherung war nicht verfügbar oder lieferte keine Bildunterschrift. Die Basis-Bildunterschrift wurde gespeichert. Prüfe sie vor der Genehmigung; generiere nicht das gesamte Paket nur zur Kontrolle dieses Ergebnisses neu.",
+  'caption.enriched': "KI-angereicherte Bildunterschrift gespeichert.",
+  'caption.notRequested': "KI-Anreicherung wurde nicht angefordert.",
+  'caption.statusUnavailable': "Der Anreicherungsstatus ist für diesen Beleg nicht verfügbar.",
+};
+
 const en: Catalog = {
   'scrape.description': 'Scrapes run through the authenticated sidecar and the model egress policy. Results are research data, not provider metrics or publication instructions.',
   'scrape.title': 'Trend & competitor radar',
@@ -3008,6 +3176,7 @@ const en: Catalog = {
   ...reviewApprovalEn,
   ...reviewMediaRetryEn,
   ...generationEn,
+  ...captionEn,
 };
 
 const es: Catalog = {
@@ -4030,6 +4199,7 @@ const es: Catalog = {
   ...reviewApprovalEs,
   ...reviewMediaRetryEs,
   ...generationEs,
+  ...captionEs,
 };
 
 const ja: Catalog = {
@@ -5052,6 +5222,7 @@ const ja: Catalog = {
   ...reviewApprovalJa,
   ...reviewMediaRetryJa,
   ...generationJa,
+  ...captionJa,
 };
 
 const it: Catalog = {
@@ -6074,6 +6245,7 @@ const it: Catalog = {
   ...reviewApprovalIt,
   ...reviewMediaRetryIt,
   ...generationIt,
+  ...captionIt,
 };
 
 const ptBR: Catalog = {
@@ -7096,6 +7268,7 @@ const ptBR: Catalog = {
   ...reviewApprovalPtBR,
   ...reviewMediaRetryPtBR,
   ...generationPtBR,
+  ...captionPtBR,
 };
 
 const de: Catalog = {
@@ -8118,6 +8291,7 @@ const de: Catalog = {
   ...reviewApprovalDe,
   ...reviewMediaRetryDe,
   ...generationDe,
+  ...captionDe,
 };
 
 export const CATALOGS: Record<SupportedLocale, Catalog> = {
