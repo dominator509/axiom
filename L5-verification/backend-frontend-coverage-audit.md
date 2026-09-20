@@ -806,6 +806,31 @@ source and automated generation-workflow localization slice. Browser/native,
 deployed media/runtime, R2, provider, migration/RLS and production acceptance
 remain open. No live action occurred.
 
+# M851: network child controls localization
+
+The mounted model-network child controls now consume a dedicated six-locale
+catalog for encrypted egress credential entry/import/save, live connection
+health and saved-connection activation. `EgressCredentials` preserves the
+existing WireGuard parsing, opaque secret handling, HTTPS warning,
+complete-replacement contract, idempotency and role boundary. `NetworkHealth`
+preserves model-identity validation, direct/unhealthy/missing-IP distinctions
+and the no-new-leak-test boundary. `ActivateNetwork` preserves the
+model-scoped sync payload, idempotency key, response validation and explicit
+safety-switch boundary. The catalog is merged by `LocaleProvider` and mounted
+in all six launch locales.
+
+Evidence: core 17 files/101 tests passed; dashboard 143 files/872 tests passed;
+focused network-child tests 32/32 passed; core/dashboard typechecks passed;
+core lint passed; dashboard lint passed with zero errors and four pre-existing
+test `any` warnings; touched-file Prettier check passed; dashboard production
+build passed with the required Windows symlink capability; and
+`scripts/verify.sh` printed `verify: ok`. Source commit
+`22d97aff50dc5169d3a00783bf866a8aeee68b3b` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This is source/automated UI evidence
+only; browser/native interaction, customer-provider execution, deployed
+migration/RLS/runtime and production acceptance remain open. No live action
+occurred.
+
 # M850: profile/network/lifecycle localization
 
 The mounted `ProfileEditor`, `ModelLifecycleControls`, and `NetworkForm` now

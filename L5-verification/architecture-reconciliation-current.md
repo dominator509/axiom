@@ -732,6 +732,32 @@ currency surfaces, browser/native, provider, deployed migration/RLS/runtime,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
 
+### M851 - F-89 network child controls localization
+
+The mounted network child controls now consume a dedicated six-locale catalog
+for encrypted egress credential entry/import/save, live connection health, and
+saved-connection activation. `EgressCredentials` keeps the existing WireGuard
+parser, opaque secret handling, HTTPS warning, complete-replacement contract,
+idempotency and role boundary; `NetworkHealth` keeps model-identity validation,
+direct/unhealthy/missing-IP distinctions and the no-new-leak-test boundary; and
+`ActivateNetwork` keeps the model-scoped sync payload, idempotency key, response
+validation and explicit safety-switch boundary. The catalog is mounted through
+`LocaleProvider` in all six launch locales, including the visible labels,
+acknowledgement, retry, error and completion states.
+
+Evidence: core 17 files/101 tests passed; dashboard 143 files/872 tests passed;
+focused network-child tests 32/32 passed; core and dashboard typechecks passed;
+core lint passed; dashboard lint passed with zero errors and four pre-existing
+test `any` warnings; touched-file Prettier check passed; dashboard production
+build passed with the required Windows symlink capability; and
+`scripts/verify.sh` printed `verify: ok`. Source commit
+`22d97aff50dc5169d3a00783bf866a8aeee68b3b` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the M851 source/UI
+localization slice; browser/native interaction, customer-provider execution,
+deployed migration/RLS/runtime and production acceptance remain open. No live,
+database, migration, provider, credential, permission, network or deployment
+action occurred.
+
 ### M850 - F-89 profile/network/lifecycle localization
 
 The mounted profile editor, model lifecycle controls, and egress network form
