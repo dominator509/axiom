@@ -19,19 +19,19 @@ HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits t
 NEXT_ACTION: `Poll the F50 wire by logical state; separately run the source-sync control lane to reconcile Hermes refs/worktrees; after F50 ACK/ACCEPTED receipt, require one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED; do not open another product lane.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `CODEX-LINKTREE-ADAPTER-SOURCE-R1-001, CODEX-HERMES-SOURCE-SYNC-REFRESH-R2-001`
-OPEN_CONTROL_WIRE: `CODEX-HERMES-SOURCE-SYNC-REFRESH-R2-001`
-OPEN_CONTROL_TASK_STATE: `SUPERSEDING_TASK_SENT_ACK_PENDING — R1 reply wire was reused and its mirror was Codex-owned; R2 requires Hermes-owned mirror creation; no feature implementation or live action accepted`
-OPEN_CONTROL_TASK_REPLY_WIRE: `NONE`
+OPEN_WIRES: `CODEX-LINKTREE-ADAPTER-SOURCE-R1-001`
+OPEN_CONTROL_WIRE: `NONE`
+OPEN_CONTROL_TASK_STATE: `CLOSED_BY_CODEX_RECEIPT — Hermes-owned bare mirror and all-ref inventory accepted; poller edit remains explicitly blocked by root ownership; no feature implementation or live action accepted`
+OPEN_CONTROL_TASK_REPLY_WIRE: `CODEX-HERMES-SOURCE-SYNC-REFRESH-R2-001-HERMES-REPLY`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `NONE — the F71 transport receipt is historical, not implementation acceptance`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_RECEIPT_WIRE: `NONE`
-OPEN_CONTROL_TASK_RECEIPT_SHA256: `NONE`
+OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-HERMES-SOURCE-SYNC-REFRESH-R2-RECEIPT-002`
+OPEN_CONTROL_TASK_RECEIPT_SHA256: `ff548e454cd211b3eb988baf8b11b2038eca0bcee812d17d0bf94e39e0a95a90`
 OPEN_CONTROL_TASK_CORRECTION_WIRE: `NONE`
 OPEN_CONTROL_TASK_CORRECTION_SHA256: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_NEXT_ACTION: `Require one correlated ACK/ACCEPTED or terminal NACK/BLOCKED with exact fetch, ref, commit, ancestry, writable-mirror and worktree evidence; do not open a competing product lane.`
+OPEN_CONTROL_TASK_NEXT_ACTION: `No control action outstanding; use the verified Hermes-owned mirror and explicit per-task source-sync fields; do not open a competing product lane.`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization, M857 relay-binding localization, M858 workspace-members localization and M859 PlaybookCadence calendar localization are integrated on the branch; no active Hermes product lane.`
 CURRENT_MILESTONE: `M859 PlaybookCadence calendar guidance is catalog-backed across six locales with locale-formatted UTC week dates; focused PlaybookCadence 6/6, calendar page 12/12, core 19 files/107 tests, full dashboard 145 files/903 tests, core/dashboard builds/typechecks/lint and verify passed; product commit 462cdaf3 was pushed and remote readback matches; no live action`
 CURRENT_MILESTONE_OPEN_GATES: `Root pnpm test retains four unrelated Windows subscription process-tree failures; repository-wide Prettier check retains 586 baseline files; dashboard standalone build tracing needs a symlink-capable environment; M859 source slice is complete; no active Hermes product lane; remaining architecture gaps include remaining catalog adoption and locale formatting, browser/native, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress rehearsal, and production acceptance`
@@ -84,11 +84,12 @@ SOURCE_SYNC_CONTROL_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-
 SOURCE_SYNC_CONTROL_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r2/delivery`
 SOURCE_SYNC_CONTROL_WORKTREE_KIND: `source-sync-control; no product implementation copy`
 SOURCE_SYNC_CONTROL_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r2/mirror`
-SOURCE_SYNC_CONTROL_MIRROR_REFRESH: `HERMES-PENDING — R2 requires Hermes identity to create and own the mirror`
-SOURCE_SYNC_CONTROL_RESOLVED_REF_SHA: `NOT_YET_VERIFIED_BY_HERMES`
-SOURCE_SYNC_CONTROL_SOURCE_COMMIT_TYPE: `NOT_YET_VERIFIED_BY_HERMES`
-SOURCE_SYNC_CONTROL_SOURCE_ANCESTRY: `NOT_YET_VERIFIED_BY_HERMES`
-SOURCE_SYNC_CONTROL_REMOTE_REFS: `NOT_YET_VERIFIED_BY_HERMES; Codex-side R1 mirror observed origin/codex/telegram-webhook-hardening=235c532297c994af2d7bbdb6ba8ce068adcbd8c1, origin/deploy/test-migrator-prerequisites=36b67f5ab79cca27f196c74187eb42a8b6c17d68, origin/fix/api-validation-diagnostics=aebe3a2714eca477c07103986af85aa032a5a10f, origin/fix/dashboard-generate-empty-optional-fields=2c90431574c8fd755dc36aeb8146f3edbb13ef06, origin/jules-3329224676166641722-1e0e7903=32e2f8a00c2553ac25755d34cd1a925d3825ded1, origin/main=7c4a945dc1c278a9ad26f4b83b16e44314c31d37`
+SOURCE_SYNC_CONTROL_MIRROR_LAYOUT: `bare-mirror — refs/heads/*`
+SOURCE_SYNC_CONTROL_MIRROR_REFRESH: `PASS — Hermes created and owned the mirror; clone --mirror and fetch --all --prune both exited 0`
+SOURCE_SYNC_CONTROL_RESOLVED_REF_SHA: `e963fb855bdbcb10593ba961c990e37218d6b960`
+SOURCE_SYNC_CONTROL_SOURCE_COMMIT_TYPE: `commit`
+SOURCE_SYNC_CONTROL_SOURCE_ANCESTRY: `PASS — exact SOURCE_COMMIT is the resolved ref tip`
+SOURCE_SYNC_CONTROL_REMOTE_REFS: `PASS — Hermes bare-mirror inventory: refs/heads/codex/telegram-webhook-hardening=e963fb855bdbcb10593ba961c990e37218d6b960; refs/heads/deploy/test-migrator-prerequisites=36b67f5ab79cca27f196c74187eb42a8b6c17d68; refs/heads/fix/api-validation-diagnostics=aebe3a2714eca477c07103986af85aa032a5a10f; refs/heads/fix/dashboard-generate-empty-optional-fields=2c90431574c8fd755dc36aeb8146f3edbb13ef06; refs/heads/jules-3329224676166641722-1e0e7903=32e2f8a00c2553ac25755d34cd1a925d3825ded1; refs/heads/main=7c4a945dc1c278a9ad26f4b83b16e44314c31d37; refs/pull/1..16/* also present`
 SOURCE_SYNC_CONTROL_EXISTING_CLONE_FETCH: `BLOCKED — Codex-side test of the unprivileged fetch failed because root-owned fanout directories exist under /home/codex-fanthynks/fanthynks/src/axiom/.git/objects; no permissions were widened and no root path was used`
 SOURCE_SYNC_CONTROL_DETACHED_WORKTREES: `EVIDENCE_ONLY — build/06496da, build/5116230, build/7f02e18, build/c5586ad, build/da09f66 and Hermes work copies are not coding authorities`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — exact Git source task`
@@ -164,7 +165,8 @@ LOOP_STATE_RULE: `REPLIED is transport-only; ACK/READ means read without ownersh
 LOOP_ACK_RULE: `after a normal Codex RECEIPT, Hermes may not send another ACK; exactly one fresh corrective ACK is allowed only after terminal RECEIPT/REJECTED with matching REJECTED_WIRE, and Codex must receipt it before PROGRESS, DELIVERY or terminal BLOCKED`
 LOOP_MALFORMED_RULE: `Codex sends one correlated RECEIPT/REJECTED at the next logical SEQ; Hermes preserves accepted source-sync evidence and returns a fresh unique WIRE at the following SEQ; no duplicate task is created`
 LOOP_GIT_RULE: `Hermes fetches the declared SOURCE_REF with the declared SOURCE_SYNC_COMMAND, verifies SOURCE_COMMIT plus ancestry, and edits only an exact-commit source-copy in COPY_ROOT and DELIVERY_ROOT; Hermes never commits or pushes; Codex audits changed bytes, integrates, commits, pushes and reads back the remote branch`
-LOOP_SOURCE_SYNC_RULE: `every TASK must declare SOURCE_REPO, SOURCE_REF, SOURCE_COMMIT, SOURCE_SYNC_COMMAND, SOURCE_REF_VERIFY_COMMAND, SOURCE_COMMIT_VERIFY_COMMAND, SOURCE_ANCESTRY_VERIFY_COMMAND, COPY_ROOT, DELIVERY_ROOT and WORKTREE_KIND; Hermes returns all command results in ACK/PROGRESS evidence; a moving branch tip, local checkout, detached build worktree or older task is never a substitute`
+LOOP_SOURCE_SYNC_RULE: `every TASK must declare SOURCE_REPO, SOURCE_REF, SOURCE_COMMIT, SOURCE_SYNC_COMMAND, SOURCE_REF_VERIFY_COMMAND, SOURCE_COMMIT_VERIFY_COMMAND, SOURCE_ANCESTRY_VERIFY_COMMAND, SOURCE_MIRROR_LAYOUT, COPY_ROOT, DELIVERY_ROOT and WORKTREE_KIND; Hermes returns all command results in ACK/PROGRESS evidence; a moving branch tip, local checkout, detached build worktree or older task is never a substitute`
+LOOP_MIRROR_LAYOUT_RULE: `standard-clone verifies refs/remotes/origin/<branch>; bare-mirror created by git clone --mirror verifies refs/heads/<branch>; the task verification command must match its declared layout, and a namespace mismatch is a protocol failure rather than a reason to substitute another ref`
 LOOP_WORKTREE_RULE: `coding work uses a fresh source-copy created from the verified exact SOURCE_COMMIT; /home/*/build/*, /srv/*/releases/* and other detached deployment worktrees are evidence-only and must never be edited or treated as source authority unless a task explicitly binds that exact commit and still creates a separate source-copy`
 LOOP_REMOTE_DISCOVERY_RULE: `Hermes may run git fetch --all --prune as a read-only cache refresh, but every task still names one authoritative ref and exact commit; all discovered refs must be reported, and no unrelated branch is silently selected`
 LOOP_RESYNC_RULE: `after every source-changing Codex push, Codex reads the remote branch ref and the next product task names that newly read SHA plus its explicit ref and sync commands; handoff-only commits do not change an already bound exact source commit, but Codex still reads the branch ref before opening the next product task; Hermes must not continue from a moving ref or older local checkout`

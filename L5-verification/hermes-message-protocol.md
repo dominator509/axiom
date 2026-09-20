@@ -366,8 +366,9 @@ Git push. A transport `REPLIED` marker never updates the manifest.
 
 Every task manifest also carries a complete source-sync binding: `SOURCE_REPO`,
 `SOURCE_REF`, exact 40-hex `SOURCE_COMMIT`, `SOURCE_SYNC_COMMAND`, ref/commit/
-ancestry verification commands, `COPY_ROOT`, `DELIVERY_ROOT`, and
-`WORKTREE_KIND`. Hermes must report the resolved ref, `git cat-file -t` result,
+ancestry verification commands, `COPY_ROOT`, `DELIVERY_ROOT`, `WORKTREE_KIND`,
+and `SOURCE_MIRROR_LAYOUT` (`standard-clone` or `bare-mirror`). Hermes must
+report the resolved ref, `git cat-file -t` result,
 ancestry result, and the exact HEAD of the created copy. A branch list or a
 successful fetch without those exact-commit proofs is not source acceptance.
 
@@ -410,6 +411,13 @@ not replace the per-task `SOURCE_REF` and exact-commit binding. Detached
 release/evidence artifacts, not coding worktrees; Hermes must not edit or
 derive a task from them. If a task needs bytes from one, Codex must explicitly
 bind its exact commit and Hermes must still create a separate source-copy.
+
+The verification namespace follows the declared mirror layout. A normal clone
+uses `refs/remotes/origin/<branch>`; a bare mirror created with `git clone
+--mirror` maps the same remote branch to `refs/heads/<branch>`. A task must
+declare which layout it uses and provide a matching verification command. A
+namespace mismatch is a protocol failure; Hermes must not silently substitute a
+different ref or checkout.
 
 The fixed compatibility value for `sent_at` and `replied_at` is
 `1970-01-01T00:00:00Z`. It exists only because the installed bridge requires
