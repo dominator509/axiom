@@ -14,7 +14,7 @@ ACCEPTED_PRODUCT_SOURCE: `e6c4ed32ab48372ac689bf90f2b3161aa0af4fc6`
 ACTIVE_HERMES_LANE: `MEDIA-APPROVAL-LOCALIZATION-CURRENT-R1 — one fresh current-source lane; historical lanes remain quarantined`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES only after one correlated ACK/ACCEPTED; Codex owns audit, integration, commit and push`
-NEXT_ACTION: `Hermes ACK-004 is protocol-valid and accepted the exact source transport. Audit the required evidence-bearing PROGRESS and then one terminal DELIVERY or BLOCKED from the same lane; do not open a parallel wire.`
+NEXT_ACTION: `Hermes ACK-004 is protocol-valid; Codex sent execution receipt-005 and the lane remains Hermes-owned. Audit the required evidence-bearing PROGRESS and then one terminal DELIVERY or BLOCKED from the same lane; do not open a parallel wire.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-MEDIA-APPROVAL-LOCALIZATION-R1-START-001 — only active implementation wire`
@@ -42,12 +42,12 @@ NEXT_PREPARED_TASK: `MEDIA-APPROVAL-LOCALIZATION-CURRENT-R1`
 NEXT_PREPARED_TASK_WIRE: `CODEX-MEDIA-APPROVAL-LOCALIZATION-R1-START-001`
 NEXT_PREPARED_TASK_SOURCE_COMMIT: `ed94a96a199301234ea5b5aca506e023c97284b4`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `ACCEPTED — Hermes ACK-004 is protocol-valid; exact source transport SHA 443e0e9555c62cc8acc972014f39e3c36babd2b898dc656589983bdaebb1a8c4 matches; implementation and evidence are now Hermes-owned`
+NEXT_PREPARED_TASK_STATE: `EXECUTION_NUDGE_SENT — Hermes ACK-004 is protocol-valid; exact source transport SHA 443e0e9555c62cc8acc972014f39e3c36babd2b898dc656589983bdaebb1a8c4 matches; Codex receipt-005 confirms Hermes ownership and requires PROGRESS/DELIVERY`
 ACTIVE_LANE_TASK_WIRE: `CODEX-MEDIA-APPROVAL-LOCALIZATION-R1-START-001`
 ACTIVE_LANE_SOURCE_COMMIT: `ed94a96a199301234ea5b5aca506e023c97284b4`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-media-approval-localization-r1`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/codex-media-approval-localization-r1`
-ACTIVE_LANE_COPY_STATE: `ACCEPTED — Hermes ACK-004 accepted the corrected protocol and verified exact source transport; COPY_ROOT materialization and implementation are pending Hermes PROGRESS`
+ACTIVE_LANE_COPY_STATE: `EXECUTION_NUDGE_SENT — Hermes ACK-004 accepted the corrected protocol and verified exact source transport; Codex receipt-005 was delivered/readback-verified; COPY_ROOT materialization and implementation remain pending Hermes PROGRESS`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `00cdeae05023a17bb8f48e7adf11a40df3f50da62f845c804087287a14da9fb0`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `00cdeae05023a17bb8f48e7adf11a40df3f50da62f845c804087287a14da9fb0`
 ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `HISTORICAL — d58bc7a36e65c215c62d68fd6186082a6fc230e815e4276771d6072a6734152f; terminal BLOCKED envelope read back`
@@ -87,16 +87,18 @@ ACTIVE_LANE_CLOSURE_WIRE: `CODEX-MEDIA-LOCALE-SHELL-R1-READ-008`
 ACTIVE_LANE_CLOSURE_SHA256: `84e8e9310ae914c9e2d445a679a5f5872aebdc6b92a4d2559d0a9b7c391500aa`
 ACTIVE_LANE_CORRECTION_WIRE: `CODEX-MEDIA-APPROVAL-LOCALIZATION-R1-RECEIPT-003`
 ACTIVE_LANE_CORRECTION_SHA256: `da290f199929af6cf143d24f85e95a10cea0a75fd7d39f578047fae0709fbe23`
+ACTIVE_LANE_EXECUTION_RECEIPT_WIRE: `CODEX-MEDIA-APPROVAL-LOCALIZATION-R1-EXECUTION-RECEIPT-005`
+ACTIVE_LANE_EXECUTION_RECEIPT_SHA256: `355e38c66458f5409c1fca5c2e64cac05b81afd35694523e25b09bfc5eceb2bc`
 ACTIVE_LANE_TRANSPORT_ARCHIVE: `/srv/fanthynks-bridge/hermes/inbox/media-approval-localization-ed94a-scope.tar`
 ACTIVE_LANE_TRANSPORT_SHA256: `443e0e9555c62cc8acc972014f39e3c36babd2b898dc656589983bdaebb1a8c4`
-ACTIVE_LANE_AUDIT: `NOT_STARTED — Hermes acceptance is valid; local baseline controls pass 19/19 existing tests; no Hermes implementation delivery is counted until PROGRESS/DELIVERY is independently audited`
-ACTIVE_LANE_CHECKPOINT_WIRE: `NONE`
-ACTIVE_LANE_CHECKPOINT_SHA256: `NOT_APPLICABLE`
+ACTIVE_LANE_AUDIT: `NOT_STARTED — Hermes acceptance and Codex execution receipt are valid; local baseline controls pass 19/19 existing tests; no Hermes implementation delivery is counted until PROGRESS/DELIVERY is independently audited`
+ACTIVE_LANE_CHECKPOINT_WIRE: `CODEX-MEDIA-APPROVAL-LOCALIZATION-R1-EXECUTION-RECEIPT-005`
+ACTIVE_LANE_CHECKPOINT_SHA256: `355e38c66458f5409c1fca5c2e64cac05b81afd35694523e25b09bfc5eceb2bc`
 LAST_COMPLETED_SOURCE_MILESTONE: `M806 — F-89 media gallery shell localization at e6c4ed3`
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M806 product source is pushed/read back at e6c4ed3 and M810 coordination is pushed/read back at b18d5f6; media-localization DELIVERY-007 is closed by terminal READ-008; exactly one media-approval source lane is active and Hermes-owned after strict ACK-004; no live action`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M806 product source is pushed/read back at e6c4ed3 and current coordination is pushed/read back separately; media-localization DELIVERY-007 is closed by terminal READ-008; exactly one media-approval source lane is active and Hermes-owned after strict ACK-004 plus execution receipt-005; no live action`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
