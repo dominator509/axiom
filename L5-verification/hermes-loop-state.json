@@ -10,13 +10,13 @@
   "task_sha256": "007f03c457e05ba00467f04055f6661395c8da59da2a3d787f6326ef54bca970",
   "copy_root": "/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/copy",
   "delivery_root": "/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/delivery",
-  "state": "OPEN",
+  "state": "REJECTED",
   "next_owner": "HERMES",
-  "last_seq": 1,
-  "next_seq": 2,
-  "last_wire": "CODEX-F15-F16-VARIANT-GUIDANCE-CORRECTED-TASK-001",
+  "last_seq": 2,
+  "next_seq": 3,
+  "last_wire": "CODEX-F15-F16-VARIANT-GUIDANCE-CORRECTED-RECEIPT-002",
   "supersedes": ["CODEX-F15-F16-VARIANT-GUIDANCE-R1-TASK-001"],
-  "next_action": "Require one correlated ACK/READ or ACK/ACCEPTED echoing source_commit, immutable source_ref, mirror_root, copy_root and delivery_root; then await one evidence-bearing PROGRESS and one flat DELIVERY or terminal BLOCKED result.",
+  "next_action": "Return exactly one fresh ACK with STATE ACCEPTED, SEQ 3, a new WIRE distinct from IN_REPLY_TO, and PAYLOAD READ_STATUS READ exactly once; then emit one concrete PROGRESS or one flat DELIVERY or terminal NACK/BLOCKED. Do not use TYPE ACK/ACCEPTED, reuse a WIRE, send prose evidence, or claim a no-change delivery.",
   "delivery_accepted": false,
   "fallback_source_accepted": false,
   "integrated_commit": "c884ad4bcc792338022337bdfe7dc1a0e2ca16ef",
@@ -38,5 +38,9 @@
     "generated output",
     "paths outside COPY_ROOT/DELIVERY_ROOT"
   ],
-  "signature": "sincerely, Codex"
+  "signature": "sincerely, Codex",
+  "rejected_reply_wire": "CODEX-F15-F16-VARIANT-GUIDANCE-CORRECTED-TASK-001",
+  "rejected_reply_sha256": "eeafa75bbda5425cbcdfe48f52503b5d9bf8f58a9d684082029bf04b6a7479",
+  "correction_receipt_wire": "CODEX-F15-F16-VARIANT-GUIDANCE-CORRECTED-RECEIPT-002",
+  "correction_receipt_sha256": "64741680ff89612b0c608bd6dacf441aa58417f1e6081ea9c4313b3a538b4828"
 }

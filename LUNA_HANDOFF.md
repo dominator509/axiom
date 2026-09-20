@@ -9,18 +9,21 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef` (M892 reviewed product source; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `def99c84455c76498c25000c211556b6d6e4318c` (M895 ledger state; remote readback matches)
+PUBLISHED_HEAD: `6cea0534dc9c7ece0e51bba96616d86e5eaa845b` (M897 immutable variant-source task; remote readback matches)
 COORDINATION_HEAD: `def99c84455c76498c25000c211556b6d6e4318c — M895 recorded the closed storage lane and exact variant-guidance task; pushed and read back`
 ACCEPTED_PRODUCT_SOURCE: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
 LAST_COMPLETED_SOURCE_MILESTONE: `M892 — independently audited Hermes R3 storage hardening integrated, focused gates passed, pushed at c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
 ACTIVE_HERMES_LANE: `F15-F16-VARIANT-GUIDANCE-CORRECTED — sole active source-only lane against immutable c884ad4 ref; malformed R1 response is closed and not reopened`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `Require Hermes to echo the exact c884ad4 source commit, immutable source ref, mirror, copy and delivery roots in one correlated ACK; then accept only concrete PROGRESS or one flat validator-valid DELIVERY/BLOCKED. Audit bytes and owning gates before integration; no Hermes commit/push or live action.`
+NEXT_ACTION: `Hermes' first ACK was rejected: TYPE ACK/ACCEPTED is invalid, its WIRE reused the task WIRE, and its evidence was prose. One correction receipt was sent at SEQ 2. Require exactly one fresh SEQ 3 TYPE ACK STATE ACCEPTED with a new WIRE and READ_STATUS READ, then exactly one concrete PROGRESS or one flat DELIVERY/BLOCKED envelope. Audit bytes and owning gates before integration; no Hermes commit/push or live action.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
 HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_RESULT, CHANGED_FILES and LIVE_ACTIONS must appear exactly once inside PAYLOAD; no prose substitute, duplicate keys or second signature`
+HERMES_REPLY_FORMAT_GATE: `ACK = TYPE ACK + STATE READ|ACCEPTED; PROGRESS = TYPE PROGRESS + STATE IN_PROGRESS; DELIVERY = TYPE DELIVERY + STATE DELIVERED + TERMINAL YES; BLOCKED = TYPE NACK + STATE BLOCKED + TERMINAL YES; every reply has a new WIRE distinct from IN_REPLY_TO, exact SEQ, PAYLOAD delimiter, READ_STATUS READ once, and final signature sincerely, Hermes`
+HERMES_DELIVERY_FORMAT_GATE: `DELIVERY PAYLOAD must contain exactly once: ARTIFACT, SHA256 (64 lowercase hex), COMMAND, EXIT_CODE (integer), TEST_RESULT (PASS|FAIL), CHANGED_FILES, SOURCE_REPO, SOURCE_REF, SOURCE_COMMIT, COPY_ROOT, DELIVERY_ROOT, MANIFEST_SHA256 (64 lowercase hex), LIVE_ACTIONS NONE; no prose substitute or duplicate fields`
+HERMES_BLOCKED_FORMAT_GATE: `If required checks cannot run or one concrete input is missing, use TYPE NACK, STATE BLOCKED, TERMINAL YES, NEXT_OWNER CODEX, a unique WIRE, REASON naming the single blocker, PAYLOAD READ_STATUS READ and LIVE_ACTIONS NONE exactly once; do not send a second ACK or a no-change delivery`
 OPEN_WIRES: `CODEX-F15-F16-VARIANT-GUIDANCE-CORRECTED-TASK-001`
 STALE_HERMES_REPLY: `codex-receipt-r2-storage-r3-invalid-ack-001` belongs to superseded task `R2-STORAGE-ROUNDTRIP-COPY-R3`; strict validator fails on missing DELIVERY_ACCEPTED, delivery claim and terminal/state contradiction; it does not advance the active R3 lane`
 OPEN_CONTROL_WIRE: `NONE`
@@ -64,16 +67,16 @@ ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch 
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/copy`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/delivery`
-ACTIVE_LANE_COPY_STATE: `TASK_SENT — corrected immutable source binding; awaiting one correlated ACK/READ or ACK/ACCEPTED before source-only implementation`
+ACTIVE_LANE_COPY_STATE: `TASK_SENT — Hermes reply rejected at SEQ 1 because TYPE and WIRE were invalid; correction receipt sent at SEQ 2; awaiting one fresh correlated ACK/ACCEPTED at SEQ 3`
 ACTIVE_LANE_LOCAL_REVIEW_ROOT: `NONE — created only after a readable DELIVERY arrives`
 ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `UNCONFIRMED — no Hermes artifact accepted`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `007f03c457e05ba00467f04055f6661395c8da59da2a3d787f6326ef54bca970`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `PENDING — verify exact readback before treating the corrected task as received`
-ACTIVE_LANE_ACK_WIRE: `NONE`
-ACTIVE_LANE_ACK_SHA256: `NONE`
-ACTIVE_LANE_RECEIPT_WIRE: `NONE`
-ACTIVE_LANE_RECEIPT_SHA256: `NONE`
-ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `NONE`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `007f03c457e05ba00467f04055f6661395c8da59da2a3d787f6326ef54bca970 — exact readback matches`
+ACTIVE_LANE_ACK_WIRE: `NONE — Hermes response was malformed and not accepted`
+ACTIVE_LANE_ACK_SHA256: `eeafa75bbda5425cbcdfe48f52503b5d9bf8f58a9d684082029bf04b6a7479`
+ACTIVE_LANE_RECEIPT_WIRE: `CODEX-F15-F16-VARIANT-GUIDANCE-CORRECTED-RECEIPT-002`
+ACTIVE_LANE_RECEIPT_SHA256: `64741680ff89612b0c608bd6dacf441aa58417f1e6081ea9c4313b3a538b4828`
+ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `64741680ff89612b0c608bd6dacf441aa58417f1e6081ea9c4313b3a538b4828`
 ACTIVE_LANE_EXECUTION_RECEIPT_WIRE: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-ACK-RECEIPT-004 — ownership transferred to Hermes`
 ACTIVE_LANE_EXECUTION_RECEIPT_SHA256: `325ae32944578b3242f648f42de35794db9aa7db24d4e99f1efc0b3670f713a0`
 ACTIVE_LANE_DELIVERY_REJECTED_WIRE: `NONE — F89 R3 malformed delivery is historical and closed by fallback receipt 007`
