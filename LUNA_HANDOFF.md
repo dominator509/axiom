@@ -7,23 +7,23 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `ca46cf13d77e50fdd3600a2aa9618e1bdbe3b1cb`
+SOURCE_HEAD: `50df7061f89780b1d94d5545e1803326af65a610`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `ca46cf13d77e50fdd3600a2aa9618e1bdbe3b1cb`
+PUBLISHED_HEAD: `50df7061f89780b1d94d5545e1803326af65a610`
 ACCEPTED_PRODUCT_SOURCE: `80284a19db82b37c1c07d6ae807bde855f223e90`
-ACTIVE_HERMES_LANE: `CONTROL-PLANE-HERMES-EXACT-SOURCE-SYNC — one-shot read-only fetch and exact commit verification; no product lane is active`
+ACTIVE_HERMES_LANE: `F89-PLAYBOOK-HISTORY-LOCALIZATION — one bounded source-only catalog/formatting slice; no live or runtime action`
 CODEX_OWNER: `CODEX`
-HERMES_IMPLEMENTATION_OWNER: `NONE UNTIL SYNC — Hermes may not edit a product copy until Codex issues a fresh bounded feature TASK after this control handshake`
-NEXT_ACTION: `Hermes must run exactly one read-only fetch of refs/heads/codex/telegram-webhook-hardening, verify SOURCE_COMMIT ca46cf13, read the canonical handoff and manifest, and return one protocol-valid ACK/READ or NACK/BLOCKED. No product lane is active.`
+HERMES_IMPLEMENTATION_OWNER: `HERMES AFTER ACK/ACCEPTED — Hermes edits only the declared isolated copy; Codex audits, integrates, commits, pushes and reads back`
+NEXT_ACTION: `Hermes must fetch and verify SOURCE_COMMIT 50df7061, return one protocol-valid ACK/ACCEPTED or NACK/BLOCKED, then implement only the declared PlaybookHistory localization slice and return one evidence-bearing PROGRESS followed by one DELIVERY or terminal BLOCKED.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `CODEX-CONTROL-PLANE-HERMES-EXACT-SOURCE-SYNC-001 — the only active bridge wire; no product implementation lane is active`
-OPEN_CONTROL_WIRE: `CODEX-CONTROL-PLANE-HERMES-EXACT-SOURCE-SYNC-001`
-OPEN_CONTROL_TASK_STATE: `OPEN — exact-source fetch and verification pending`
+OPEN_WIRES: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001 — the only active product wire; exact-source sync is closed`
+OPEN_CONTROL_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001`
+OPEN_CONTROL_TASK_STATE: `OPEN — exact-source verification pending before implementation`
 OPEN_CONTROL_TASK_REPLY_WIRE: `NONE`
-OPEN_CONTROL_TASK_RECEIPT_WIRE: `NONE`
-OPEN_CONTROL_TASK_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes returns one protocol-valid ACK/READ or NACK/BLOCKED after the one-shot fetch; Codex then receipts it and opens one bounded product lane.`
+OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-HERMES-EXACT-SOURCE-SYNC-001-RECEIPT-003`
+OPEN_CONTROL_TASK_RECEIPT_SHA256: `8aa4d2411311b8102cae5ca5e059c5a7baecdc0d344b665c9c14dbfb93822c6e`
+OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes returns one protocol-valid ACK/ACCEPTED or NACK/BLOCKED for the bounded PlaybookHistory task; no work is accepted from stale lanes.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -31,23 +31,23 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `NONE — no product task is prepared until the sync handshake is receipted`
-NEXT_PREPARED_TASK_WIRE: `NONE`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `ca46cf13d77e50fdd3600a2aa9618e1bdbe3b1cb`
+NEXT_PREPARED_TASK: `F89-PLAYBOOK-HISTORY-LOCALIZATION — six-locale catalog adoption and locale-aware UTC presentation`
+NEXT_PREPARED_TASK_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `50df7061f89780b1d94d5545e1803326af65a610`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NOT_APPLICABLE — exact Git commit binding replaces archive transport`
-NEXT_PREPARED_TASK_STATE: `HOLD — select the next finite architecture gap only after sync receipt`
-ACTIVE_LANE_TASK_WIRE: `CODEX-CONTROL-PLANE-HERMES-EXACT-SOURCE-SYNC-001`
-ACTIVE_LANE_SOURCE_COMMIT: `ca46cf13d77e50fdd3600a2aa9618e1bdbe3b1cb`
-ACTIVE_LANE_COPY_ROOT: `READ_ONLY_EXACT_SOURCE`
-ACTIVE_LANE_DELIVERY_ROOT: `NONE`
-ACTIVE_LANE_COPY_STATE: `NOT_APPLICABLE — exact-source control read; no product copy or delivery`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `17f618b41ba023e3dcae70c0b792a214039ae84bd61544a1de3fd3137195e0d8`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `PENDING_REMOTE_COPY`
+NEXT_PREPARED_TASK_STATE: `OPEN — awaiting exact-source ACK/ACCEPTED before edits`
+ACTIVE_LANE_TASK_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001`
+ACTIVE_LANE_SOURCE_COMMIT: `50df7061f89780b1d94d5545e1803326af65a610`
+ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f89-playbook-history-localization-001`
+ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f89-playbook-history-localization-001/delivery`
+ACTIVE_LANE_COPY_STATE: `PENDING — Hermes must exact-source verify before editing`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91`
 ACTIVE_LANE_SOURCE_ARCHIVE: `NOT_USED — exact Git commit mode`
 ACTIVE_LANE_SOURCE_ARCHIVE_SHA256: `NOT_APPLICABLE`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — local source implementation`
-ACTIVE_LANE_SOURCE_TRANSPORT: `Hermes exact-commit read-only verification; no source copy or delivery root`
-ACTIVE_LANE_TRANSPORT_NAMING: `codex-hermes-exact-source-sync-001.json must equal msg_id.json`
+ACTIVE_LANE_SOURCE_TRANSPORT: `Hermes exact-commit verification followed by isolated source-only delivery`
+ACTIVE_LANE_TRANSPORT_NAMING: `codex-f89-playbook-history-localization-001.json must equal msg_id.json`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id must equal filename stem for every new message; historical mismatches are inert and never renamed`
 BRIDGE_EXECUTION_MODEL: `The bridge poller reports inbox traffic only; it does not execute Hermes tasks. A valid inbox file is transport evidence, not ACK, ownership, progress or delivery.`
 R8_TRANSPORT_STATE: `CLOSED_BLOCKED — terminal NACK-013 was read and receipt-014 sent; no implementation or source delta accepted`
@@ -79,13 +79,13 @@ LAST_COMPLETED_SOURCE_MILESTONE: `M675 — F-22/F-23 first-party Fanvue attribut
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale F-14/R9/R8/R7 and historical lanes are superseded; exact-source sync is the only active wire; no product implementation work may start until its reply is receipted`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale F-14/R9/R8/R7 and historical lanes are superseded; exact-source sync was read and terminally receipted; only the bounded F-89 PlaybookHistory wire is active`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
 RECONCILIATION_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-RECEIPT-005`
 RECONCILIATION_RECEIPT_SHA256: `9b44ae04f313a03f8a7ebd38d48a74b69b0c4dbb0d43ac6d233fb753e0a47d84`
-HERMES_STALE_LANE_POLICY: `Historical lanes and R10/R9/R8/R7 remain quarantined or superseded; Hermes must act only on the active sync wire named above and wait for a fresh product TASK after Codex receipts it`
+HERMES_STALE_LANE_POLICY: `Historical lanes and R10/R9/R8/R7 remain quarantined or superseded; Hermes must act only on the active F-89 PlaybookHistory TASK named above`
 LOCAL_WORKTREE_POLICY: `Codex audits, tests, commits and pushes local milestones; untracked Hermes review artifacts remain untouched`
 NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provider, credential, permission, network or service action`
 
@@ -107,14 +107,14 @@ LOOP_GIT_RULE: `Hermes fetches and edits only the exact SOURCE_COMMIT in its dec
 LOOP_RESYNC_RULE: `after every source-changing Codex push, the next product task must bind the newly read remote branch SHA; handoff-only commits do not change an already bound exact source commit, but Codex must read the branch ref again before opening the next product task; Hermes must not continue from a moving ref or an older local checkout`
 LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with changed paths, tests, exact exits, and LIVE_ACTIONS NONE; transport flags, ACKs, claims and stale artifacts never count`
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
-LOOP_CURRENT_ACTION: `Await the exact-source sync ACK/READ or NACK/BLOCKED; receipt it by logical SEQ, then issue exactly one bounded architecture feature TASK against the verified source; accept no stale product lane`
+LOOP_CURRENT_ACTION: `Await the F-89 PlaybookHistory ACK/ACCEPTED or NACK/BLOCKED; accept no stale product lane; if accepted, require one real PROGRESS delta and one hash-verified DELIVERY or terminal BLOCKED`
 
-CURRENT_MILESTONE: `M737 — issued fresh exact-source synchronization task with one-shot fetch authorization; no product implementation lane active`
-CURRENT_MILESTONE_COMMIT: `50a6a101179cdd969cfab7f1e8e0f67dc445042e`
+CURRENT_MILESTONE: `M738 — exact-source sync ACK/READ receipted; bounded F-89 PlaybookHistory source task opened`
+CURRENT_MILESTONE_COMMIT: `50df7061f89780b1d94d5545e1803326af65a610`
 CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as 2dc8a07b3e4d401f51807da4bd128766ef542a2e; R10 task envelope remote SHA 30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e; R10 Hermes ACK envelope SHA e6f5007f95975cc9a177a528136ad5ba9d3f7a4d6f24247fa6e6874a6c4b5d7a; R10 Codex receipt-002 SHA a7f07ec2edc19fc5cf031d6fc23cb6ff7b5be8eb38db92c2695769a583b04aae; source baseline c1588e4; protocol tests 30/30; control readable-delivery receipt-004 SHA 9fb42bd20a3d1f29fd4184530bc42191691c1f3a5d23025f5fbeb17131ac0a07; helper copy SHA 3aa2ad2fb3f28d94400c7e07c81dc31c707ad87363954083344ebfb51c86eb74; patch SHA 3383d6fb5e81974482550da8eadf7534267756cc4e43e8cff387bbc39a954a10; test harness SHA 299bf078b3bfcc21d6c98cc73f0a90b281e89a4a32bb63860b98e45046d61d73; Hermes R8 NACK-013 envelope SHA 939d31f4e54d34f26249707408fc7600694d9f8b4a8d4cfe9035add16d37c3e6; Hermes R9 NACK-001 envelope SHA 017a08c40291cff10d12a44cdcf41460799465f5b6f47b013f05404b77e824ba; R9 correction receipt-002 SHA bb66e3604d312ee16167264b964935afb0e4fa09a526b828f39416e8c3b60bd7; owner authorization SHA ab020cdfc694eec905c0589fd09f07312b91a9428bd596e1a34cc84f80bbccbf; no feature or live action`
 CURRENT_MILESTONE_EVIDENCE: `hermes-loop-state validator enforces exact task filename identity, logical sequence continuity, state/owner matrix, exact source/task hashes, no clock fields and LIVE_ACTIONS NONE; task envelope passes strict protocol check; loop-state tests 6/6 and protocol tests 30/30`
-CURRENT_MILESTONE_OPEN: `Hermes must perform the one-shot exact-source fetch and return a protocol-valid ACK/READ or NACK/BLOCKED; after Codex receipts it, select exactly one finite architecture feature lane; deployment/readiness gates remain separate`
-CURRENT_MILESTONE_REMOTE_READBACK_CURRENT: `Exact-source sync task SHA 17f618b41ba023e3dcae70c0b792a214039ae84bd61544a1de3fd3137195e0d8; remote copy and reply pending; no feature or live action`
+CURRENT_MILESTONE_OPEN: `Hermes must exact-source verify the PlaybookHistory task and return ACK/ACCEPTED or NACK/BLOCKED; after acceptance only the declared source/test criteria apply; deployment/readiness gates remain separate`
+CURRENT_MILESTONE_REMOTE_READBACK_CURRENT: `Exact-source sync reply SHA abadb46e3fa3175d7bb6ecddc28a4656a7c77cbd933d6d24f183c7f1ffa9ccfd; sync receipt SHA 8aa4d2411311b8102cae5ca5e059c5a7baecdc0d344b665c9c14dbfb93822c6e; PlaybookHistory task SHA 2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91; remote task SHA 2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91; source 50df7061f89780b1d94d5545e1803326af65a610; LIVE_ACTIONS NONE`
 CURRENT_MILESTONE_REMOTE_READBACK_AUTHORITY: `Use CURRENT_MILESTONE_REMOTE_READBACK_CURRENT above. Any older CURRENT_MILESTONE_REMOTE_READBACK record is historical evidence only and is not an active branch, task, reply, or lane state.`
 LOCAL_MILESTONE_AFTER_TASK: `M697 — standalone and stateful validators reject reply-WIRE reuse and invalid TASK sequence; malformed first replies are corrected by SEQ 2 RECEIPT; R7 is quarantined and R8 is the sole current task`
 
