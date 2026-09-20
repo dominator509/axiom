@@ -19,11 +19,11 @@ CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F14-WATERMARK-POLICY-SOURCE-R8-001 — one active source-only lane; R7 and its malformed-reply correction are quarantined`
 OPEN_CONTROL_WIRE: `CODEX-CONTROL-PLANE-HERMES-LOOP-R1-001 — separate bridge-only repair lane; no product or live action`
-OPEN_CONTROL_TASK_STATE: `CORRECTION_PENDING_SEQUENCE — Hermes reproduced both bridge defects and accepted the scope, but its ACK skipped unreadable sequence values and used a lowercase signature; Codex sent one SEQ 4 REJECTED receipt`
-OPEN_CONTROL_TASK_REPLY_WIRE: `HERMES-CONTROL-PLANE-HERMES-LOOP-R1-ACK-007`
-OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-HERMES-LOOP-R1-RECEIPT-005`
-OPEN_CONTROL_TASK_RECEIPT_SHA256: `118a90b3709136bb4f87dba8cc6c23e59ec38ec5a9e17b76246046ce53b067e9`
-OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must apply the already approved helper-only fixes, then return one valid PROGRESS at logical SEQ 5 with hashes, tests, exits and rollback evidence; Codex audits the actual artifact before changing the R8 lane`
+OPEN_CONTROL_TASK_STATE: `CORRECTION_PENDING_OWNERSHIP — Hermes applied and tested both helper fixes in PROGRESS-005 but assigned NEXT_OWNER CODEX; Codex sent one SEQ 6 REJECTED receipt and awaits a fresh Hermes WIRE at SEQ 7`
+OPEN_CONTROL_TASK_REPLY_WIRE: `HERMES-CONTROL-PLANE-HERMES-LOOP-R1-PROGRESS-005`
+OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-HERMES-LOOP-R1-RECEIPT-006`
+OPEN_CONTROL_TASK_RECEIPT_SHA256: `5e315da5c0584761a908892f9fcd1e13ff62d903a15a26fc7bb709af67e05e22`
+OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must reissue the same patch evidence as valid PROGRESS at logical SEQ 7 with NEXT_OWNER HERMES, then DELIVERY or terminal BLOCKED; Codex audits the actual helper artifact and 15/15 test claim`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -49,10 +49,10 @@ ACTIVE_LANE_SOURCE_TRANSPORT: `Hermes exact-commit isolated copy; Codex must aud
 ACTIVE_LANE_TRANSPORT_NAMING: `NOT_APPLICABLE — no Hermes source transport`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id must equal filename stem; no renames or hand-written replies`
 BRIDGE_EXECUTION_MODEL: `The bridge poller reports inbox traffic only; it does not execute Hermes tasks. A valid inbox file is transport evidence, not ACK, ownership, progress or delivery.`
-R8_TRANSPORT_STATE: `CORRECTION_PENDING_SIGNATURE — Hermes accepted the SEQ 2 correction and issued SEQ 3, but that ACK used a lowercase signature; Codex sent one SEQ 4 REJECTED receipt and awaits a fresh Hermes WIRE at SEQ 5`
-R8_INVALID_REPLY_WIRE: `HERMES-F14-WATERMARK-POLICY-SOURCE-R8-ACK-003`
-R8_CORRECTION_RECEIPT_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R8-RECEIPT-004`
-R8_CORRECTION_RECEIPT_SHA256: `5c493f4bd0fb5140777fe6de5cb26c34165e11aa4b22325f2f76aa0e7e3b3d23`
+R8_TRANSPORT_STATE: `CORRECTION_PENDING_OWNERSHIP — Hermes issued validly signed ACK-005 but assigned NEXT_OWNER CODEX; Codex sent one SEQ 6 REJECTED receipt and awaits a fresh Hermes WIRE at SEQ 7`
+R8_INVALID_REPLY_WIRE: `HERMES-F14-WATERMARK-POLICY-SOURCE-R8-ACK-005`
+R8_CORRECTION_RECEIPT_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R8-RECEIPT-006`
+R8_CORRECTION_RECEIPT_SHA256: `e8d6adcc0ae06e999492ce81d4731a7f9ca1d2c79352af171b6075f3dc0d04c6`
 HISTORICAL_REPLY_MISMATCH_DECISION: `C — do not patch the bridge helper or rename stale inbox files; reissue a fresh superseding task with exact filename/msg_id only when that architecture lane is selected`
 HISTORICAL_REPLY_MISMATCH_SCOPE: `scraper, F-31 and other historical lanes; no current implementation lane may rely on those files`
 ACTIVE_LANE_BASELINE: `M669 F-89 Calendar localization complete at d1c20a0; source gates passed, browser/mobile/provider/migration/runtime/deployment gates open`
@@ -108,11 +108,11 @@ LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with chan
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
 LOOP_CURRENT_ACTION: `The bridge-repair control task and R8 signature-correction receipt are both transport-verified; validate the next correlated Hermes wires before any feature implementation is counted`
 
-CURRENT_MILESTONE: `M710 — aligned local validators and protocol docs to the approved 128-character bridge identity contract; Hermes patch remains unclaimed`
-CURRENT_MILESTONE_COMMIT: `068cae703af4fc70ef7d7785ec3a5d3687be2c32`
-CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as 068cae703af4fc70ef7d7785ec3a5d3687be2c32; R8 task checksum 7aee002d742da9b80676f67dd8c34737e79ad1b8cc10c7145751bf3724da3c23, R8 correction receipt checksum 5c493f4bd0fb5140777fe6de5cb26c34165e11aa4b22325f2f76aa0e7e3b3d23, bridge-repair task checksum 12a29c55f5b2488e9d0f2146189055ecd02f048615f7b3d86dfd2008df034953, repair approval receipt checksum 93045e63e626962cf67dcbda982c2983021f405c046e43510a682ee06d275b39, sequence correction receipt checksum 118a90b3709136bb4f87dba8cc6c23e59ec38ec5a9e17b76246046ce53b067e9, and local identity-bound tests passed 29/29`
+CURRENT_MILESTONE: `M713 — preserved Hermes bridge patch evidence and rejected only the contradictory NEXT_OWNER headers in the control and R8 replies`
+CURRENT_MILESTONE_COMMIT: `410e8529499245a5829aa0f5b25f4e5ad8687b2a`
+CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as 410e8529499245a5829aa0f5b25f4e5ad8687b2a; R8 task checksum 7aee002d742da9b80676f67dd8c34737e79ad1b8cc10c7145751bf3724da3c23, R8 correction receipt checksum 5c493f4bd0fb5140777fe6de5cb26c34165e11aa4b22325f2f76aa0e7e3b3d23, bridge-repair task checksum 12a29c55f5b2488e9d0f2146189055ecd02f048615f7b3d86dfd2008df034953, repair approval receipt checksum 93045e63e626962cf67dcbda982c2983021f405c046e43510a682ee06d275b39, sequence correction receipt checksum 118a90b3709136bb4f87dba8cc6c23e59ec38ec5a9e17b76246046ce53b067e9, bridge ownership receipt checksum 5e315da5c0584761a908892f9fcd1e13ff62d903a15a26fc7bb709af67e05e22, R8 ownership receipt checksum e8d6adcc0ae06e999492ce81d4731a7f9ca1d2c79352af171b6075f3dc0d04c6, and local identity-bound tests passed 29/29`
 CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, API index 63/63, API relay-webhooks 2/2, dashboard full 780 passed; no migration execution or live action`
-CURRENT_MILESTONE_OPEN: `Bridge-helper PROGRESS/DELIVERY, R8 fresh SEQ 5 ACK and F-14 PROGRESS/DELIVERY remain open; full feature and deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
+CURRENT_MILESTONE_OPEN: `Bridge-helper corrected PROGRESS/DELIVERY, R8 fresh SEQ 7 ACK and F-14 PROGRESS/DELIVERY remain open; full feature and deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
 LOCAL_MILESTONE_AFTER_TASK: `M697 — standalone and stateful validators reject reply-WIRE reuse and invalid TASK sequence; malformed first replies are corrected by SEQ 2 RECEIPT; R7 is quarantined and R8 is the sole current task`
 
 ## Current coordination update — M697 canonical R8 lane
