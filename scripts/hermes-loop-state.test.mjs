@@ -9,8 +9,18 @@ const base = () => ({
   task_msg_id: 'codex-hermes-loop-sync-r2',
   task_filename: 'codex-hermes-loop-sync-r2.json',
   task_wire: 'CODEX-HERMES-LOOP-SYNC-R2-001',
+  source_repo: 'github.com/dominator509/axiom',
   source_branch: 'refs/heads/codex/telegram-webhook-hardening',
+  source_ref: 'refs/heads/codex/telegram-webhook-hardening',
   source_commit: 'f'.repeat(40),
+  remote_ref_head: 'e'.repeat(40),
+  source_sync_command: 'git fetch --all --prune',
+  source_mirror_root: '/srv/fanthynks-bridge/hermes/control-sync-r2/mirror',
+  source_mirror_layout: 'bare-mirror',
+  source_ref_verify_command: 'git rev-parse --verify refs/heads/codex/telegram-webhook-hardening',
+  source_commit_verify_command: 'git cat-file -t ffffffffffffffffffffffffffffffffffffffff^{commit}',
+  source_ancestry_verify_command: 'git merge-base --is-ancestor ffffffffffffffffffffffffffffffffffffffff refs/heads/codex/telegram-webhook-hardening',
+  worktree_kind: 'source-copy',
   task_sha256: 'a'.repeat(64),
   copy_root: '/srv/fanthynks-bridge/hermes/control-sync-r2',
   delivery_root: '/srv/fanthynks-bridge/hermes/deliveries/control-sync-r2',
@@ -20,6 +30,8 @@ const base = () => ({
   next_seq: 1,
   last_wire: 'NONE',
   supersedes: ['CODEX-F14-MODEL-WATERMARK-POLICY-SOURCE-R10-001'],
+  superseded_task_msg_ids: ['codex-old-control-task'],
+  stale_inbox_policy: 'CURRENT_TASK_ONLY; all superseded inbox identities are historical and inert',
   next_action: 'Read the exact pushed source and return one correlated ACK/READ.',
   live_actions: 'NONE',
   forbidden_actions: ['deployment', 'migration', 'database', 'provider', 'credentials', 'permissions', 'network', 'runtime'],
@@ -43,6 +55,26 @@ test('rejects a filename that is not the envelope identity', () => {
   const state = base();
   state.task_filename = 'stale-copy.json';
   assert.throws(() => validateLoopState(state), /task_filename must equal task_msg_id/);
+});
+
+test('rejects a sequence-one state that points at a superseded wire', () => {
+  const state = base();
+  state.last_seq = 1;
+  state.next_seq = 2;
+  state.last_wire = 'CODEX-F14-MODEL-WATERMARK-POLICY-SOURCE-R10-001';
+  assert.throws(() => validateLoopState(state), /last_wire must equal task_wire/);
+});
+
+test('rejects a source binding whose ref differs from the declared branch', () => {
+  const state = base();
+  state.source_ref = 'refs/heads/main';
+  assert.throws(() => validateLoopState(state), /source_ref must equal source_branch/);
+});
+
+test('rejects a stale policy that does not make the current task exclusive', () => {
+  const state = base();
+  state.stale_inbox_policy = 'PROCESS_WHATEVER_IS_NEWEST';
+  assert.throws(() => validateLoopState(state), /CURRENT_TASK_ONLY/);
 });
 
 test('rejects clock and date fields at any nesting level', () => {

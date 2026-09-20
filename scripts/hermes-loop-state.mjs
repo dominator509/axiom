@@ -22,9 +22,14 @@ const nextOwnerByState = new Map([
 ]);
 const requiredKeys = new Set([
   'protocol', 'contract', 'task', 'task_msg_id', 'task_filename', 'task_wire',
-  'source_branch', 'source_commit', 'task_sha256', 'copy_root', 'delivery_root',
+  'source_repo', 'source_branch', 'source_ref', 'source_commit', 'remote_ref_head',
+  'source_sync_command', 'source_mirror_root', 'source_mirror_layout',
+  'source_ref_verify_command', 'source_commit_verify_command',
+  'source_ancestry_verify_command', 'worktree_kind', 'task_sha256',
+  'copy_root', 'delivery_root',
   'state', 'next_owner', 'last_seq', 'next_seq', 'last_wire', 'supersedes',
-  'next_action', 'live_actions', 'forbidden_actions', 'signature',
+  'superseded_task_msg_ids', 'stale_inbox_policy', 'next_action', 'live_actions',
+  'forbidden_actions', 'signature',
 ]);
 
 function fail(message) {
@@ -68,8 +73,23 @@ export function validateLoopState(state) {
   if (state.task_filename !== `${msgId}.json`) fail('task_filename must equal task_msg_id.json');
   identifier(state.task_filename.slice(0, -5), 'task_filename');
   identifier(state.task_wire, 'task_wire');
+  stringField(state.source_repo, 'source_repo');
   stringField(state.source_branch, 'source_branch');
+  stringField(state.source_ref, 'source_ref');
+  if (state.source_ref !== state.source_branch) fail('source_ref must equal source_branch');
   if (!shaPattern.test(state.source_commit)) fail('source_commit must be a 40-character lowercase SHA-1');
+  if (!shaPattern.test(state.remote_ref_head)) fail('remote_ref_head must be a 40-character lowercase SHA-1');
+  for (const key of [
+    'source_sync_command',
+    'source_mirror_root',
+    'source_ref_verify_command',
+    'source_commit_verify_command',
+    'source_ancestry_verify_command',
+    'worktree_kind',
+  ]) stringField(state[key], key);
+  if (!['bare-mirror', 'standard-clone'].includes(state.source_mirror_layout)) {
+    fail('source_mirror_layout must be bare-mirror or standard-clone');
+  }
   if (!digestPattern.test(state.task_sha256)) fail('task_sha256 must be a 64-character lowercase SHA-256');
   for (const key of ['copy_root', 'delivery_root']) stringField(state[key], key);
   if (!allowedStates.has(state.state)) fail(`state: unsupported value ${state.state}`);
@@ -83,10 +103,27 @@ export function validateLoopState(state) {
   if (state.next_seq !== state.last_seq + 1) fail('next_seq must equal last_seq + 1');
   if (state.last_seq === 0 && state.last_wire !== 'NONE') fail('last_wire must be NONE before the first reply');
   if (state.last_seq > 0) identifier(state.last_wire, 'last_wire');
+  if (state.last_seq === 1 && state.last_wire !== state.task_wire) {
+    fail('last_wire must equal task_wire at sequence 1');
+  }
   if (!Array.isArray(state.supersedes) || state.supersedes.some(value => typeof value !== 'string' || !idPattern.test(value))) {
     fail('supersedes must be an array of logical WIRE identifiers');
   }
   if (new Set(state.supersedes).size !== state.supersedes.length) fail('supersedes must not contain duplicates');
+  if (!Array.isArray(state.superseded_task_msg_ids)
+    || state.superseded_task_msg_ids.some(value => typeof value !== 'string' || !idPattern.test(value))) {
+    fail('superseded_task_msg_ids must be an array of logical message identifiers');
+  }
+  if (new Set(state.superseded_task_msg_ids).size !== state.superseded_task_msg_ids.length) {
+    fail('superseded_task_msg_ids must not contain duplicates');
+  }
+  if (state.superseded_task_msg_ids.includes(state.task_msg_id)) {
+    fail('current task_msg_id cannot be superseded');
+  }
+  stringField(state.stale_inbox_policy, 'stale_inbox_policy');
+  if (!state.stale_inbox_policy.includes('CURRENT_TASK_ONLY')) {
+    fail('stale_inbox_policy must require CURRENT_TASK_ONLY');
+  }
   stringField(state.next_action, 'next_action');
   if (state.live_actions !== 'NONE') fail('live_actions must be NONE');
   if (!Array.isArray(state.forbidden_actions) || state.forbidden_actions.length === 0

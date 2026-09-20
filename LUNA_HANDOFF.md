@@ -12,6 +12,10 @@ PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `fb594a441cada409a251a5c35399662562ade169` (product source pin; later branch commits are coordination-only)
 COORDINATION_HEAD: `coordination metadata is pushed on the published branch; verify its current tip with git ls-remote; it must not replace the exact product source pin above`
 ACCEPTED_PRODUCT_SOURCE: `fb594a441cada409a251a5c35399662562ade169`
+CURRENT_TASK_MANIFEST: `L5-verification/hermes-loop-state.json — the only active-lane marker; its remote read-only mirror is /srv/fanthynks-bridge/hermes/inbox/CURRENT_TASK.json`
+CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; only task_msg_id/task_wire match the active lane; every other inbox/reply/status/outbox/worktree artifact is historical and inert`
+CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs L5-verification/hermes-loop-state.json <task-envelope.json>`
+CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
 LAST_COMPLETED_SOURCE_MILESTONE: `M907 — canonical storage-key fixtures and deterministic isolated Vitest discovery/database sequencing; full matrix and verify gate passed; pushed at fb594a441cada409a251a5c35399662562ade169`
 ACTIVE_HERMES_LANE: `F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-R4 — sole active source-only lane against immutable fb594a44 ref; supersedes unconfirmed R3`
 CODEX_OWNER: `CODEX`

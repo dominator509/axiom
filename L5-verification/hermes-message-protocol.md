@@ -364,6 +364,15 @@ pairs, duplicate supersession wires, missing source hashes, and any
 working; Codex updates it only after a verified logical transition or reviewed
 Git push. A transport `REPLIED` marker never updates the manifest.
 
+The manifest is also the stale-inbox fence. `task_msg_id` and `task_wire` are
+the only active identities; `superseded_task_msg_ids` and `supersedes` are
+historical identities. Every other inbox, reply, status, outbox or worktree
+artifact is inert data. Hermes must not infer a task from filename order, file
+age, transport `REPLIED`, a poller branch list, or a model's remembered
+context. If a message does not match the manifest, it receives no work and no
+new reply; Codex opens a new superseding WIRE only when the architecture lane
+actually changes.
+
 Every task manifest also carries a complete source-sync binding: `SOURCE_REPO`,
 `SOURCE_REF`, exact 40-hex `SOURCE_COMMIT`, `SOURCE_SYNC_COMMAND`, ref/commit/
 ancestry verification commands, `COPY_ROOT`, `DELIVERY_ROOT`, `WORKTREE_KIND`,
@@ -371,6 +380,20 @@ and `SOURCE_MIRROR_LAYOUT` (`standard-clone` or `bare-mirror`). Hermes must
 report the resolved ref, `git cat-file -t` result,
 ancestry result, and the exact HEAD of the created copy. A branch list or a
 successful fetch without those exact-commit proofs is not source acceptance.
+
+Before publishing a task or accepting a source-sync ACK, Codex runs:
+
+```text
+rtk node scripts/hermes-sync-check.mjs L5-verification/hermes-loop-state.json <task-envelope.json>
+```
+
+This check binds the task file SHA, task identity, exact source commit, last
+remote branch readback, mirror layout, verification commands and isolated copy
+roots. It also requires `fetch --all --prune` in the declared refresh command,
+proves the exact commit is an ancestor of the declared ref, and rejects a
+detached build/release worktree as a coding source. A passing fetch alone is
+not a sync; the exact source-copy HEAD and task digest must be echoed in the
+Hermes ACK/PROGRESS evidence.
 
 ## Seamless Git-backed execution loop
 
@@ -424,6 +447,12 @@ the exact pin, or any detached build/release worktree is never a substitute.
 After Codex changes product source, it pushes first, reads back the remote
 ref, and binds the next task to that read-back SHA; handoff-only commits do
 not move an already-bound product pin.
+
+The remote bridge may carry a read-only mirror of the checked-in manifest at
+`/srv/fanthynks-bridge/hermes/inbox/CURRENT_TASK.json`. That file is not a
+second task and never advances a lane; it exists so a model that wakes with a
+stale context can reload the current `task_msg_id`, `task_wire`, task digest,
+source commit, source-ref head, and supersession set before reading the inbox.
 
 The verification namespace follows the declared mirror layout. A normal clone
 uses `refs/remotes/origin/<branch>`; a bare mirror created with `git clone

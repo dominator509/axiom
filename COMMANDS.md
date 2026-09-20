@@ -14,6 +14,7 @@
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --viral-retrieval` — real pgvector retrieval, evidence filtering and model/tenant sharing isolation in a disposable database
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --variant-performance` — real API/PostgreSQL variant-performance query acceptance in a fresh disposable database; no provider or live workspace operations
 - `node scripts/test-phase-gates.mjs` — isolated regressions for exact phase tokens and missing prerequisite phases; no live ledger or marker changes
+- `node scripts/hermes-sync-check.mjs L5-verification/hermes-loop-state.json <task-envelope.json>` — fail-closed Codex/Hermes task, source-pin, remote-ref, and worktree-binding reconciliation; no network or live action
 - `sh infra/grok-cli/rand-regression/test-linux.sh` — default RNG regression plus explicit test-only syscall-backend entropy failure injection on Linux; accepts `--offline`
 - `cargo test --locked --manifest-path infra/grok-cli/rand-regression/Cargo.toml` — RNG logging callback regression; separate vulnerable baseline intentionally fails and must not replace the normal CI gate
 - `cargo test --locked --manifest-path infra/grok-cli/event-listener-regression/Cargo.toml` — patched dependency thread-safety and legitimate-use regression tests; the separate baseline manifest intentionally fails its compile-fail tests
