@@ -20,7 +20,7 @@ CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F85-RELAY-RECONCILIATION-CURRENT-R1-TASK-001`
 OPEN_CONTROL_WIRE: `CODEX-F85-RELAY-RECONCILIATION-CURRENT-R1-TASK-001`
-OPEN_CONTROL_TASK_STATE: `RECEIPT_REJECTED — Hermes source precheck was retained, but ACK-002 and corrective ACK-004 failed strict payload/state validation; Hermes must emit strict PROGRESS next`
+OPEN_CONTROL_TASK_STATE: `RECEIPT_REJECTED — Hermes PROGRESS-006 was protocol-valid but contained no source/edit/test delta; Hermes must emit real implementation progress or terminal BLOCKED`
 OPEN_CONTROL_TASK_REPLY_WIRE: `NONE`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-RECEIPT-003`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `ed6e8dfedae0ee522b16ebaec54db94a6993bd1a7d6a85ede3359108b777a1ed`
@@ -30,7 +30,7 @@ OPEN_CONTROL_TASK_CORRECTION_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-
 OPEN_CONTROL_TASK_CORRECTION_SHA256: `cb2f3bc19348088fbe74f7f4bb870114e3fa42bd62aef89b691dabcdbf3aba2f`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-PROGRESS-RECEIPT-008`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `8db70fb1eb81273a56d209a9ac52c780c8ec50692f15018d6c6ed8979f53058b`
-OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must publish one strict PROGRESS/IN_PROGRESS at the next logical sequence with PAYLOAD, READ_STATUS READ and concrete evidence; no further ACK and no implementation is counted yet`
+OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must publish one fresh PROGRESS/IN_PROGRESS with changed source/test evidence, or terminal BLOCKED naming the exact missing input; no no-delta progress or ACK loop is accepted`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, and M824 Patreon web localization are integrated at c56243f. M824 criterion: core catalog 34/34, dashboard combined generation/media/caption/Patreon workflow 107/107, core/dashboard typechecks, core/dashboard lint and dashboard production build pass; no live action.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
@@ -51,9 +51,9 @@ ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f85-relay-reconci
 ACTIVE_LANE_COPY_STATE: `AWAITING_SOURCE_PRECHECK — Hermes checkout read back at stale 7c4a945; exact c56243f must be fetched and verified before edits`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `f30ab9e3ad0e0cee573b759a73fb64e83cb5441eb58fa117b1a4d559e883950c`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `f30ab9e3ad0e0cee573b759a73fb64e83cb5441eb58fa117b1a4d559e883950c`
-ACTIVE_LANE_ACK_WIRE: `HERMES-F85-RELAY-RECONCILIATION-CURRENT-R1-ACK-004 — REJECTED for missing PAYLOAD delimiter; ACK-002 was previously rejected for invalid state/read-status`
-ACTIVE_LANE_CORRECTION_WIRE: `CODEX-F85-RELAY-RECONCILIATION-CURRENT-R1-ACK-CORRECTED-004-REJECT-005`
-ACTIVE_LANE_CORRECTION_SHA256: `c51809a3dbd1ea0e37786b1eb3c5894611dbbd3aa5bd118429ede0c01da4218c`
+ACTIVE_LANE_ACK_WIRE: `HERMES-F85-RELAY-RECONCILIATION-CURRENT-R1-PROGRESS-006 — REJECTED for no implementation/source/test delta`
+ACTIVE_LANE_CORRECTION_WIRE: `CODEX-F85-RELAY-RECONCILIATION-CURRENT-R1-PROGRESS-REJECT-007`
+ACTIVE_LANE_CORRECTION_SHA256: `aa73be10989ebee5d6ad708a56d5603db8ac18aab2ba7ab931cf41c3f6747927`
 ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `HISTORICAL — d58bc7a36e65c215c62d68fd6186082a6fc230e815e4276771d6072a6734152f; terminal BLOCKED envelope read back`
 ACTIVE_LANE_SOURCE_BUNDLE: `HISTORICAL — /srv/fanthynks-bridge/hermes/inbox/axiom-source-a3f74f.bundle`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `HISTORICAL — beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6; Git bundle verify passed; exact commit is contained`
@@ -134,10 +134,10 @@ LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with chan
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
 LOOP_CURRENT_ACTION: `Codex audits the remaining architecture gaps from the current source, selects one finite gate, and records its verified result before opening any new Hermes wire; no stale lane, ACK loop or unsupported completion claim is accepted`
 
-CURRENT_MILESTONE: `M829 coordination — Hermes corrective ACK also rejected for missing PAYLOAD; strict PROGRESS is now the only valid next event`
+CURRENT_MILESTONE: `M831 coordination — Hermes PROGRESS-006 rejected for no source/test delta; real implementation progress or terminal BLOCKED is required next`
 CURRENT_MILESTONE_COMMIT: `c56243fff44d87349ebbe5d3b5ba64586cb3e794`
-CURRENT_MILESTONE_EVIDENCE_CANONICAL: `Hermes exact-source precheck passed and COPY_ROOT was created writable; ACK-002 and ACK-004 both failed the local protocol checker because strict payload/state rules were not met. Second corrective receipt protocol-check PASS; local/remote correction SHA c51809a3... read back; LIVE_ACTIONS NONE`
-CURRENT_MILESTONE_OPEN_CANONICAL: `Await one strict PROGRESS/IN_PROGRESS with concrete evidence, then terminal DELIVERY/BLOCKED. No further ACK is valid on this wire. Browser/native, deployed media/R2/runtime, provider OAuth/webhook, migration/RLS, observability, CI governance and other operator gates remain open; no production readiness claim is made.`
+CURRENT_MILESTONE_EVIDENCE_CANONICAL: `Hermes PROGRESS-006 passed syntax validation but explicitly reported no source copy, edit or test run; its envelope SHA 4a16efc2... was read back. Codex protocol-check PASS on the correlated PROGRESS-REJECT-007 receipt; local/remote correction SHA aa73be10... read back; LIVE_ACTIONS NONE`
+CURRENT_MILESTONE_OPEN_CANONICAL: `Await one fresh PROGRESS/IN_PROGRESS with real changed-source/test evidence or terminal BLOCKED naming the exact missing input, then terminal DELIVERY/BLOCKED. No further ACK is valid on this wire. Browser/native, deployed media/R2/runtime, provider OAuth/webhook, migration/RLS, observability, CI governance and other operator gates remain open; no production readiness claim is made.`
 CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE_CANONICAL: `Product source c56243fff44d87349ebbe5d3b5ba64586cb3e794 read back from origin/codex/telegram-webhook-hardening; active Hermes task is bound to that exact SHA; later handoff-only commits do not alter this product source; historical transport blocks remain closed evidence.`
 HISTORICAL_MILESTONE_REMOTE_READBACK_R10: `GitHub branch tip read back as 2dc8a07b3e4d401f51807da4bd128766ef542a2e; R10 task envelope remote SHA 30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e; R10 Hermes ACK envelope SHA e6f5007f95975cc9a177a528136ad5ba9d3f7a4d6f24247fa6e6874a6c4b5d7a; R10 Codex receipt-002 SHA a7f07ec2edc19fc5cf031d6fc23cb6ff7b5be8eb38db92c2695769a583b04aae; source baseline c1588e4; protocol tests 30/30; control readable-delivery receipt-004 SHA 9fb42bd20a3d1f29fd4184530bc42191691c1f3a5d23025f5fbeb17131ac0a07; helper copy SHA 3aa2ad2fb3f28d94400c7e07c81dc31c707ad87363954083344ebfb51c86eb74; patch SHA 3383d6fb5e81974482550da8eadf7534267756cc4e43e8cff387bbc39a954a10; test harness SHA 299bf078b3bfcc21d6c98cc73f0a90b281e89a4a32bb63860b98e45046d61d73; Hermes R8 NACK-013 envelope SHA 939d31f4e54d34f26249707408fc7600694d9f8b4a8d4cfe9035add16d37c3e6; Hermes R9 NACK-001 envelope SHA 017a08c40291cff10d12a44cdcf41460799465f5b6f47b013f05404b77e824ba; R9 correction receipt-002 SHA bb66e3604d312ee16167264b964935afb0e4fa09a526b828f39416e8c3b60bd7; owner authorization SHA ab020cdfc694eec905c0589fd09f07312b91a9428bd596e1a34cc84f80bbccbf; no feature or live action`
 CURRENT_MILESTONE_EVIDENCE: `M824 source implementation, focused tests, typechecks, build, lint, diff-check, commit and remote readback are complete; four existing dashboard any warnings remain; no live action.`
