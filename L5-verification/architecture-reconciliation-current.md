@@ -1068,3 +1068,19 @@ complete formatting audit; browser/mobile, provider/OAuth/Patreon receipts,
 deployed migration/RLS/runtime, observability, CI governance,
 WireGuard/customer-egress rehearsal and production acceptance remain open. No
 live action occurred.
+
+### M856 — F-89 model Network route localization (delegated, unconfirmed)
+
+The next finite gap is source-confirmed rather than inferred: the model Network
+page still contains hardcoded operator-facing copy and renders the network
+`lastError` directly, while its child controls already consume the shared locale
+provider. A strict source-only Hermes task was issued against exact ref
+`a3be77a0926560d513dd7e59ef0eceafa9f978b2` with isolated copy and delivery
+roots. The task requires persisted-locale route rendering, six-locale fixed
+copy and status labels, safe bounded failures, preserved role/API/child-control
+contracts, focused behavior tests, typecheck and lint evidence.
+
+State is `OPEN_UNCONFIRMED`: the task envelope is protocol-valid and hash-
+verified in the bridge inbox, but no ACK, source edit or delivery is accepted
+yet. The stale Hermes `main` checkout is not an eligible source; Hermes must
+fetch and verify the pinned branch commit before coding. No live action occurred.
