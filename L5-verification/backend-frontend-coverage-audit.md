@@ -826,6 +826,26 @@ browser/mobile, deployed media/R2/runtime, provider, migration/RLS,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
 
+# M845: Fanvue analytics-card localization
+
+The mounted `FanvueAnalyticsCard` now uses a feature-owned six-locale catalog
+for its title, description, sync/queue/load/error/empty states and metric
+labels. Counts use the selected locale and lifetime value uses selected-locale
+USD formatting. Existing API calls, mutations, provider/account values,
+retry behavior and error semantics are unchanged. `LocaleProvider` merges the
+feature catalog with the base catalog without weakening the base key contract.
+
+Evidence: fanvue analytics catalog completeness 1/1; mounted Spanish
+analytics-card behavior 1/1; full dashboard matrix 141 files and 862 tests
+passed; core build and dashboard typecheck passed; dashboard lint exited 0
+with four pre-existing `any` warnings; dashboard production build and
+`scripts/verify.sh` (`verify: ok`) passed. Source commit
+`2e75113883d579296ba745861953a4b9624127e2` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. Remaining dashboard/email/operator
+localization, other formatting surfaces, browser/native, provider, deployed
+migration/RLS/runtime, observability, CI governance and production acceptance
+remain open. No live action occurred.
+
 # M824: Patreon web localization
 
 The authenticated Patreon onboarding page and client sync manager now use typed

@@ -710,6 +710,28 @@ DisconnectSocialAccountButton remain audited but open for a separate finite
 slice; browser/native, provider, deployed migration/RLS/runtime and production
 acceptance remain open. No live action occurred.
 
+### M845 - F-89 Fanvue analytics-card localization
+
+The mounted `FanvueAnalyticsCard` on the model Fans route now consumes a
+feature-owned catalog covering all six launch locales. Loading, sync, queued,
+failure, empty and summary labels are localized; subscriber, unread-message,
+contact and top-spender counts use the selected locale, and lifetime-value
+currency uses the selected locale with USD. Provider/account identifiers and
+API, mutation, retry and error semantics remain unchanged. The feature catalog
+is merged by `LocaleProvider`, so the base catalog contract remains intact.
+
+Evidence: feature catalog completeness 1/1; mounted Spanish analytics-card
+behavior 1/1; full dashboard matrix 141 files and 862 tests passed; core build,
+dashboard typecheck, dashboard lint (0 errors, four pre-existing `any`
+warnings), dashboard production build and `scripts/verify.sh` (`verify: ok`)
+passed. Source commit
+`2e75113883d579296ba745861953a4b9624127e2` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the M845 source/UI
+slice; remaining dashboard/email/operator localization, other date/number/
+currency surfaces, browser/native, provider, deployed migration/RLS/runtime,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
+
 ### M842 — F-89 post-note localization
 
 The mounted post-specific internal-note workflow now consumes typed catalog keys
