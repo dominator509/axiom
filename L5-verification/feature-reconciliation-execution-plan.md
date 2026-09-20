@@ -1217,3 +1217,24 @@ back from the coordination branch. This closes only the source/automated
 generation-workflow localization criterion. Browser/native, deployed
 media/runtime, R2, provider, migration/RLS and production/operator acceptance
 remain open. No live action occurred.
+
+### M822 — F-89 caption evidence localization
+
+The bounded caption-evidence surface now uses the shared six-locale catalog.
+`CaptionGuidance` localizes its structural labels, missing/invalid/changed
+receipt states, learned-example disclosure and UTC selection context.
+`GeneratedCaptionReceipt` localizes saved-caption, enrichment and unavailable
+status copy while preserving caption data and HTML escaping. No private
+exemplar identifiers, hashes or provider payloads are exposed.
+
+Pass criteria and evidence: core catalog/completeness tests 34/34; combined
+dashboard generation, upload, progress, approval, transform and
+caption-evidence tests 102/102; core/dashboard typechecks pass; core/dashboard
+lint exits 0 with four pre-existing `any` warnings; dashboard production build
+exits 0 with explicit non-secret `API_ORIGIN`; `scripts/verify.sh` prints
+`verify: ok`; source commit
+`2631a23ec5621b8593c54da6677839d7efac333e` is pushed and read back from the
+coordination branch. This closes only the source/automated caption-evidence
+localization criterion. Browser/native, deployed media/runtime, R2, provider,
+migration/RLS and production/operator acceptance remain open. No live action
+occurred.

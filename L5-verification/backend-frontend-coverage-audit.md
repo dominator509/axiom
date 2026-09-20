@@ -805,3 +805,23 @@ back from `origin/codex/telegram-webhook-hardening`. This closes only the
 source and automated generation-workflow localization slice. Browser/native,
 deployed media/runtime, R2, provider, migration/RLS and production acceptance
 remain open. No live action occurred.
+
+# M822: caption evidence localization
+
+`CaptionGuidance` and `GeneratedCaptionReceipt` now use typed six-locale
+catalog keys for structural guidance labels, receipt/evidence states, learned
+example disclosure, UTC selection context and saved-caption enrichment status.
+Caption text, platform IDs, hashes, exemplar IDs and provider/user-authored
+values remain data; malformed receipts remain rejected and private evidence is
+not rendered.
+
+Evidence: core catalog/completeness tests 34/34; combined dashboard
+generation, upload, progress, approval, transform and caption-evidence tests
+102/102; core/dashboard typechecks pass; core/dashboard lint exits 0 with four
+pre-existing `any` warnings; dashboard production build exits 0 with explicit
+non-secret `API_ORIGIN`; `scripts/verify.sh` prints `verify: ok`; source commit
+`2631a23ec5621b8593c54da6677839d7efac333e` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
+browser/mobile, deployed media/R2/runtime, provider, migration/RLS,
+observability, CI governance and production acceptance remain open. No live
+action occurred.

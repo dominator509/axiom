@@ -668,3 +668,21 @@ typechecks pass; core/dashboard lint exits 0 with four pre-existing dashboard
 `origin/codex/telegram-webhook-hardening`. Browser/native, deployed
 media/runtime, R2, provider, migration/RLS and production acceptance remain
 open. No live action occurred.
+
+### M822 — F-89 caption evidence localization
+
+`CaptionGuidance` and `GeneratedCaptionReceipt` now consume typed six-locale
+catalog keys for guidance summaries, evidence states, selection context and
+saved-caption enrichment status. Caption text, platform identifiers, hashes,
+exemplar identifiers and provider/user-authored values remain data; the
+private guidance payload is still not rendered.
+
+Evidence: core catalog/completeness tests 34/34; combined dashboard
+generation, upload, progress, approval, transform and caption-evidence tests
+102/102; core/dashboard typechecks pass; core/dashboard lint exits 0 with four
+pre-existing `any` warnings; dashboard production build exits 0 with explicit
+non-secret `API_ORIGIN`; `verify.sh` prints `verify: ok`; source commit
+`2631a23ec5621b8593c54da6677839d7efac333e` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. Browser/native, deployed
+media/runtime, R2, provider, migration/RLS and production acceptance remain
+open. No live action occurred.
