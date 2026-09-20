@@ -9,6 +9,7 @@ const asJson = args.includes('--json');
 const positional = args.filter((arg) => !['--allow-pending', '--json'].includes(arg));
 const input = positional[0];
 const taskFilter = positional[1] ?? null;
+const messageIdPattern = /^[A-Za-z0-9._-]{1,128}$/;
 
 function fail(message) {
   throw new Error(message);
@@ -66,6 +67,9 @@ function parseEnvelope(file) {
   for (const key of requiredKeys) {
     if (!(key in envelope)) fail(`${file}: missing envelope field ${key}`);
     if (typeof envelope[key] !== 'string') fail(`${file}: envelope field ${key} must be a string`);
+  }
+  if (!messageIdPattern.test(envelope.msg_id ?? '')) {
+    fail(`${file}: envelope msg_id must contain 1-128 ASCII identifier characters`);
   }
   if (!['codex', 'hermes'].includes(envelope.from)) fail(`${file}: envelope from must be codex or hermes`);
   if (envelope.from === 'codex' && keys.length !== required.size) {

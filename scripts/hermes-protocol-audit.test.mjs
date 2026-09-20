@@ -486,3 +486,18 @@ test('JSON audit output exposes the next owner and action without a clock', () =
     next_action: 'Publish concrete progress or delivery',
   });
 });
+
+test('message identity uses one bounded 128-character contract', () => {
+  const task = 'STRICT-CONTRACT-MSG-ID-BOUND';
+  const valid = run([
+    ['01.json', envelope('a'.repeat(128), 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract: 'ACK-NACK-1', payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
+  ], ['--json']);
+  assert.equal(valid.status, 2, valid.stderr);
+  assert.match(valid.stdout, /"state":"OPEN"/);
+
+  const invalid = run([
+    ['01.json', envelope('a'.repeat(129), 'codex', body({ type: 'TASK', task, wire: 'W1', seq: 1, inReplyTo: 'NONE', state: 'OPEN', terminal: 'NO', nextOwner: 'HERMES', nextAction: 'Read and return ACK or NACK', from: 'codex', contract: 'ACK-NACK-1', payload: ['READ_STATUS: NOT_APPLICABLE'] }))],
+  ]);
+  assert.notEqual(invalid.status, 0);
+  assert.match(invalid.stderr, /msg_id must contain 1-128/);
+});

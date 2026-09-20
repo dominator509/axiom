@@ -35,6 +35,14 @@ The validators accept both envelope shapes, but canonicalize neither transport
 field for ordering. `subject`/`in_reply_to_subject` are correlation metadata;
 the signed `IN_REPLY_TO` and `SEQ` remain authoritative.
 
+`msg_id` is the envelope identity and is independent of the filename. Its
+single bounded grammar is `^[A-Za-z0-9._-]{1,128}$`. Producers and consumers
+must enforce the same 128-character maximum. A receiver may locate a legacy
+file by scanning bounded JSON content for its unique `msg_id`, but must reject
+missing, duplicate or ambiguous identities; it must never treat a filename
+stem as proof of identity or rename a message to manufacture a match. New
+messages should still use `<msg_id>.json` so transport and identity agree.
+
 ## Signed message block
 
 The body is a strict line-oriented block. The final line is always the sender's signature, with no trailing text:

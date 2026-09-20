@@ -6,6 +6,7 @@ const args = process.argv.slice(2);
 const readFromStdin = args[0] === '--stdin';
 const file = readFromStdin ? null : args[0];
 const expectedRole = readFromStdin ? args[1] : args[1];
+const messageIdPattern = /^[A-Za-z0-9._-]{1,128}$/;
 const forbiddenClockField = (key) => /(?:DATE|TIME|TIMESTAMP|DEADLINE|TTL|EPOCH|CLOCK|EXPIRES?|_AT$)/i.test(key);
 
 function fail(message) {
@@ -27,6 +28,9 @@ if (!readFromStdin && !file) {
     let body = raw;
     try {
       const envelope = JSON.parse(raw);
+      if (typeof envelope.msg_id === 'string' && !messageIdPattern.test(envelope.msg_id)) {
+        fail('envelope msg_id must contain 1-128 ASCII identifier characters');
+      }
       if (typeof envelope.body === 'string') body = envelope.body;
     } catch {
       // A plain protocol body is also accepted.
