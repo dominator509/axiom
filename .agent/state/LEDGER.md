@@ -1035,3 +1035,4 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-20T02:52:27Z | [AXIOM][P4][M752] Synchronized handoff to pushed terminal-delivery tip 88fb86d; Hermes gateway is present, declared delivery artifact is still absent; no new lane or live action
 2026-09-20T03:05:38Z | M753 — Closed F89 PlaybookHistory Hermes lane as terminal non-delivery at logical SEQ 10; no Hermes source bytes accepted; Codex local fallback selected.
 2026-09-20T03:05:38Z | M754 — Implemented PlaybookHistory six-locale catalog adoption and locale-aware UTC presentation locally; core/dashboard gates recorded separately; no live action.
+2026-09-20T03:14:20Z | M757 — Closed AgentPermissionManager operator-formatting criterion with shared locale-aware UTC expiry formatting; focused operator suite 8/8, core rebuild, dashboard typecheck/lint and diff checks passed; no live action.

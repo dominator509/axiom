@@ -1008,3 +1008,15 @@ core build, dashboard typecheck and `git diff --check` pass. This is source
 and automated evidence only; remaining dashboard catalog adoption,
 browser/mobile acceptance, provider, migration/RLS, runtime and deployment
 gates remain open.
+
+### M757 — F-89 AgentPermissionManager UTC formatting
+
+The AgentPermissionManager operator surface now uses the shared locale-aware
+UTC formatter for one-time agent-token expiry values. The token ID, agent
+reference, capability tier and non-secret metadata remain data and are not
+translated. Focused AgentPermissionManager, PlaybookHistory and
+TriggerRuleManager tests pass 8/8; core rebuild, dashboard typecheck, lint and
+diff checks pass. This closes the AgentPermissionManager formatting criterion
+only. Audit, Approvals and the remaining TriggerRuleManager criteria,
+browser/native acceptance, provider, migration/RLS, runtime and deployment
+gates remain open.

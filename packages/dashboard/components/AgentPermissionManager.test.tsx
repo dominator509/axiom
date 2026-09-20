@@ -22,6 +22,8 @@ it('localizes agent permissions while preserving agent references and token meta
   expect(html).toContain('Tokens emitidos');
   expect(html).toContain('Revocar');
   expect(html).toContain('grok-roleplayer');
+  expect(html).toContain('2030');
+  expect(html).not.toContain('T00:15:00.000Z');
   expect(html).not.toContain('Issue 15-minute token');
 });
 

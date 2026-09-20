@@ -332,6 +332,19 @@ date/count/percentage formatting. The bounded
 current pushed branch tip. This is a source-only lane; browser/mobile,
 deployed migration/RLS/runtime and external provider evidence remain open.
 
+### M757 source-lane checkpoint
+
+The AgentPermissionManager portion of the operator-formatting gap is now
+closed in the current source. Token expiry presentation uses the shared
+locale-aware formatter with an explicit UTC zone rather than the host
+environment's `toLocaleString()` behavior. Agent references, token IDs and
+other capability metadata remain unchanged data. The focused AgentPermission,
+PlaybookHistory and TriggerRuleManager component suite passed 8/8, dashboard
+typecheck and lint passed, and the core package rebuilt successfully. The
+remaining operator-formatting work is limited to the separately audited
+Audit, Approvals and TriggerRuleManager criteria; browser/mobile, deployed
+migration/RLS/runtime and external provider evidence remain open.
+
 ### M581 source-lane checkpoint
 
 The mobile F-89 audit found raw language/delivery labels and host-locale
