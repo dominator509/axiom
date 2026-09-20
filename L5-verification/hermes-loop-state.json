@@ -12,16 +12,16 @@
   "delivery_root": "NONE",
   "state": "OPEN",
   "next_owner": "HERMES",
-  "last_seq": 2,
-  "next_seq": 3,
-  "last_wire": "CODEX-CONTROL-PLANE-HERMES-STALE-WORKER-STOP-R1-REJECT-002",
+  "last_seq": 4,
+  "next_seq": 5,
+  "last_wire": "CODEX-CONTROL-PLANE-HERMES-STALE-WORKER-STOP-R1-REJECT-004",
   "supersedes": [
     "CODEX-CONTROL-PLANE-HERMES-LOOP-SYNC-R2-001",
     "CODEX-F14-WATERMARK-POLICY-SOURCE-R10-001",
     "F14-MODEL-WATERMARK-POLICY-SOURCE-R9",
     "F14-MODEL-WATERMARK-POLICY-SOURCE-R8"
   ],
-  "next_action": "Return one fresh protocol-valid ACK/READ or NACK/BLOCKED at SEQ 3 with a distinct WIRE and exact correlation to the rejection receipt; do not perform feature work.",
+  "next_action": "Return TYPE NACK with STATE BLOCKED at SEQ 5, a distinct WIRE and exact correlation to the rejection receipt; do not perform feature work.",
   "live_actions": "NONE",
   "forbidden_actions": [
     "application edits",
