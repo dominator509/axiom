@@ -10,7 +10,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 SOURCE_HEAD: `749acac34c9b759d2699b81db0463f36f43e733f` (M874 reviewed product source; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `749acac34c9b759d2699b81db0463f36f43e733f` (M874 reviewed product source; remote readback matches)
-COORDINATION_HEAD: `1d5c7ef76edc1907499311ee30ec4465838bc665 — M879 repaired the machine-readable Hermes loop manifest to match the sole active storage lane; product SOURCE_COMMIT remains pinned to 0af64ef27ab82d3ddf43acc2965880cbc46ef2ff`
+COORDINATION_HEAD: `b8c3659a0e0fcb4655d3309f0e2710af0d4d9907 — M881 superseded stale storage wires with a protocol-valid R2 task; product source remains unchanged and the task is pinned to d12884c6b6c54f884f644c205602eecab791fce4`
 ACCEPTED_PRODUCT_SOURCE: `749acac34c9b759d2699b81db0463f36f43e733f`
 LAST_COMPLETED_SOURCE_MILESTONE: `M874 — F89 worker digest localization integrated from independently hash-verified Hermes bytes via Codex fallback`
 ACTIVE_HERMES_LANE: `F89-R2-STORAGE-APPLICATION-ABSTRACTION-R2 — sole active source-only lane; supersedes stale storage wires and is awaiting one correlated ACK/READ or ACK/ACCEPTED`
@@ -63,11 +63,11 @@ ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch 
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r2/copy`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r2/delivery`
-ACTIVE_LANE_COPY_STATE: `TASK_PREPARED — local protocol validation passed; transmit only this msg_id after the coordination commit is pushed and read back; no source copy or delivery is accepted until exact commit and roots are echoed`
+ACTIVE_LANE_COPY_STATE: `TASK_SENT — local protocol validation passed, task transmitted and remote checksum read back; no source copy or delivery is accepted until exact commit and roots are echoed in a correlated ACK`
 ACTIVE_LANE_LOCAL_REVIEW_ROOT: `NONE — created only after a readable DELIVERY arrives`
 ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `UNCONFIRMED — no Hermes artifact accepted`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `cdbd853992a2d0d80375153058fa4481b94fd30c628e0fa7d41de5b8c0fd68b2`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `NONE — transmit after coordination commit readback`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `cdbd853992a2d0d80375153058fa4481b94fd30c628e0fa7d41de5b8c0fd68b2 — exact task envelope read back from Hermes inbox`
 ACTIVE_LANE_ACK_WIRE: `NONE — awaiting Hermes ACK/READ or ACK/ACCEPTED`
 ACTIVE_LANE_ACK_SHA256: `NONE`
 ACTIVE_LANE_RECEIPT_WIRE: `NONE — new storage lane has no reply yet`
