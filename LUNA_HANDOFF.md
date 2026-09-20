@@ -7,16 +7,16 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef` (M892 reviewed product source; remote readback matches)
+SOURCE_HEAD: `436ef9064c141e365e17fb8b2a1d84270adb4557` (M900 selected-guidance attribution; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `8bcecee60bb28d1e68a1c552a19383140a0f3641` (M898 exact Hermes envelope correction; remote readback matches)
-COORDINATION_HEAD: `8bcecee60bb28d1e68a1c552a19383140a0f3641 — M898 exact Hermes envelope correction; pushed and read back`
-ACCEPTED_PRODUCT_SOURCE: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
-LAST_COMPLETED_SOURCE_MILESTONE: `M892 — independently audited Hermes R3 storage hardening integrated, focused gates passed, pushed at c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
+PUBLISHED_HEAD: `436ef9064c141e365e17fb8b2a1d84270adb4557` (M900 selected-guidance attribution; remote readback matches)
+COORDINATION_HEAD: `436ef9064c141e365e17fb8b2a1d84270adb4557 — M900 selected-guidance attribution; pushed and read back`
+ACCEPTED_PRODUCT_SOURCE: `436ef9064c141e365e17fb8b2a1d84270adb4557`
+LAST_COMPLETED_SOURCE_MILESTONE: `M900 — selected-guidance attribution is source-wired, weighted by actual samples, focused gates passed, pushed at 436ef9064c141e365e17fb8b2a1d84270adb4557`
 ACTIVE_HERMES_LANE: `F15-F16-VARIANT-GUIDANCE-CORRECTED — sole active source-only lane against immutable c884ad4 ref; malformed R1 response is closed and not reopened`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `Hermes' first ACK was rejected: TYPE ACK/ACCEPTED is invalid, its WIRE reused the task WIRE, and its evidence was prose. One correction receipt was sent at SEQ 2. Require exactly one fresh SEQ 3 TYPE ACK STATE ACCEPTED with a new WIRE and READ_STATUS READ, then exactly one concrete PROGRESS or one flat DELIVERY/BLOCKED envelope. Audit bytes and owning gates before integration; no Hermes commit/push or live action.`
+NEXT_ACTION: `M900 is now canonical. The existing Hermes reply remains rejected and must not modify the old source lane. If that lane is resumed, require exactly one fresh SEQ 3 TYPE ACK STATE ACCEPTED with a new WIRE and READ_STATUS READ, followed by one concrete PROGRESS or terminal BLOCKED/DELIVERY in the exact flat schema; do not accept prose, duplicate keys, a reused WIRE, or a second ACK. No Hermes commit/push or live action.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
@@ -39,7 +39,7 @@ OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
 OPEN_CONTROL_TASK_NEXT_ACTION: `No control action outstanding; use the verified Hermes-owned mirror and explicit per-task source-sync fields; do not open a competing product lane.`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization, M857 relay-binding localization, M858 workspace-members localization and M859 PlaybookCadence calendar localization are integrated on the branch; F50 Linktree is terminal deferred for missing provider contract; F89 worker digest is integrated through fallback; M883 provider-neutral storage is integrated at 9a720071; M892 storage hardening is integrated at c884ad4; no Hermes lane is open.`
-CURRENT_MILESTONE: `M892 provider-neutral storage hardening is integrated at c884ad4bcc792338022337bdfe7dc1a0e2ca16ef; gateway 13/13, worker 39/39 and API 132/132 focused tests pass; gateway/worker/API typechecks and builds plus diff check pass; no live action`
+CURRENT_MILESTONE: `M900 selected-guidance attribution is integrated at 436ef9064c141e365e17fb8b2a1d84270adb4557; API focused 58/58, API typecheck/build, dashboard focused 1/1 and diff check pass; dashboard package typecheck remains unavailable because the current environment lacks Next type dependencies; no live action`
 CURRENT_MILESTONE_OPEN_GATES: `Gateway retains four unrelated Windows subscription process-tree failures and API retains five unrelated Windows hook-timeout failures in full-package suites; repository-wide Prettier retains baseline files; dashboard standalone build tracing needs a symlink-capable environment; F50 Linktree is terminal deferred for missing provider contract; remaining architecture gaps include remaining catalog adoption and locale formatting, browser/native, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress rehearsal, and production acceptance`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
