@@ -7,22 +7,22 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `22d97aff50dc5169d3a00783bf866a8aeee68b3b` (exact remote source after the M851 network-child-controls localization milestone)
+SOURCE_HEAD: `f91a39cf3e76e803a4b59e23a207278415dc933f` (exact remote branch head after the M851 network-child-controls localization milestone)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `22d97aff50dc5169d3a00783bf866a8aeee68b3b` (M851 source-bearing ref read back from origin)
-COORDINATION_HEAD: `22d97aff50dc5169d3a00783bf866a8aeee68b3b` (exact source currently shared with Hermes)
+PUBLISHED_HEAD: `f91a39cf3e76e803a4b59e23a207278415dc933f` (latest branch ref read back from origin; product source remains 22d97aff)
+COORDINATION_HEAD: `f91a39cf3e76e803a4b59e23a207278415dc933f` (exact branch head shared with Hermes)
 ACCEPTED_PRODUCT_SOURCE: `22d97aff50dc5169d3a00783bf866a8aeee68b3b`
 LAST_COMPLETED_SOURCE_MILESTONE: `M851 — six-locale network child controls localization; source/UI only`
-ACTIVE_HERMES_LANE: `NONE — F89-NETWORK-CHILD-CONTROLS-L10N-R1 was closed as local fallback; no Hermes artifact accepted`
+ACTIVE_HERMES_LANE: `ACTIVE — F89-CONSENT-VAULT-L10N-R1 task uploaded; awaiting one correlated ACK; no Hermes artifact accepted`
 CODEX_OWNER: `CODEX`
-HERMES_IMPLEMENTATION_OWNER: `NONE — no active Hermes lane; Codex owns the completed local fallback and will select the next finite gap`
-NEXT_ACTION: `Reconcile M851 evidence against the architecture table; select exactly one next finite gap; open a new exact-source Hermes task only after selection; do not reopen the closed wire.`
+HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and integrates nothing until evidence passes`
+NEXT_ACTION: `Await one correlated ACK for F89-CONSENT-VAULT-L10N-R1; reject malformed or out-of-sequence replies; accept only evidence-bearing DELIVERY or terminal BLOCKED; do not edit the same surface locally while this lane is active.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `NONE — F89-NETWORK-CHILD-CONTROLS-L10N-R1 is CLOSED_LOCAL_FALLBACK; no Hermes implementation or delivery was accepted`
-OPEN_CONTROL_WIRE: `NONE — F89 network-child-controls wire closed after malformed ACK; local fallback owns the source slice`
-OPEN_CONTROL_TASK_STATE: `CLOSED_LOCAL_FALLBACK — exact source 22d97aff and task envelope hash b21884cc retained as historical transport evidence; no Hermes artifact accepted`
-OPEN_CONTROL_TASK_REPLY_WIRE: `HERMES-F89-NETWORK-CHILD-CONTROLS-L10N-R1-ACK-002 — rejected because the stored reply body is literally truncated`
+OPEN_WIRES: `CODEX-F89-CONSENT-VAULT-L10N-R1-START-001 — active/unconfirmed; no Hermes implementation or delivery accepted yet`
+OPEN_CONTROL_WIRE: `CODEX-F89-CONSENT-VAULT-L10N-R1-START-001`
+OPEN_CONTROL_TASK_STATE: `OPEN_UNCONFIRMED — exact source f91a39cf and envelope hash ccce2501 are remote-verified; no Hermes artifact accepted`
+OPEN_CONTROL_TASK_REPLY_WIRE: `NONE — awaiting the first correlated Hermes ACK/NACK`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `NONE`
 OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-F89-NETWORK-CHILD-CONTROLS-L10N-R1-REJECT-002`
@@ -31,10 +31,10 @@ OPEN_CONTROL_TASK_CORRECTION_WIRE: `CODEX-F89-NETWORK-CHILD-CONTROLS-L10N-R1-REJ
 OPEN_CONTROL_TASK_CORRECTION_SHA256: `9bbee7a1b1b31c0a727e202279b6b038d1837659147295406151222dbda23eef`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_NEXT_ACTION: `NONE — no active Hermes lane; M851 local fallback is integrated; select the next lane only after architecture reconciliation`
+OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must return one correlated ACK/ACCEPTED or exact NACK for CODEX-F89-CONSENT-VAULT-L10N-R1-START-001; no implementation is counted before that reply`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, and M851 network-child-controls localization are integrated on the branch. M851 criterion: encrypted egress credentials, network health, and saved-connection activation controls render through the six-locale catalog without changing secret, idempotency, model-scope, role, direct-network, or response-validation semantics; focused/full tests, typecheck, lint, format, build and verify gates pass; no live action.`
 CURRENT_MILESTONE: `M851 integrated at 22d97aff; six-locale network-child-controls source slice complete; core 17 files/101 tests and dashboard 143 files/872 tests passed; typecheck/lint/build/format/verify passed; no live action`
-CURRENT_MILESTONE_OPEN_GATES: `Root pnpm test retains four unrelated Windows subscription process-tree failures; repository-wide Prettier check retains 586 baseline files; M851 local fallback is complete; remaining architecture gaps include catalog adoption, locale formatting, browser/native, provider, deployed migration/RLS/runtime, observability, CI governance, and production acceptance`
+CURRENT_MILESTONE_OPEN_GATES: `Root pnpm test retains four unrelated Windows subscription process-tree failures; repository-wide Prettier check retains 586 baseline files; M851 local fallback is complete and F89-CONSENT-VAULT-L10N-R1 is the single active source lane; remaining architecture gaps include catalog adoption, locale formatting, browser/native, provider, deployed migration/RLS/runtime, observability, CI governance, and production acceptance`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -42,28 +42,28 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `NONE — select the next Hermes lane only after M851 evidence reconciliation`
-NEXT_PREPARED_TASK_WIRE: `NONE`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `22d97aff50dc5169d3a00783bf866a8aeee68b3b`
+NEXT_PREPARED_TASK: `NONE — F89 consent-vault lane is active; do not open a second overlapping lane`
+NEXT_PREPARED_TASK_WIRE: `CODEX-F89-CONSENT-VAULT-L10N-R1-START-001`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `f91a39cf3e76e803a4b59e23a207278415dc933f`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `NONE — M851 integrated and pushed; no Hermes implementation lane active`
-ACTIVE_LANE_TASK_WIRE: `CODEX-F89-NETWORK-CHILD-CONTROLS-L10N-R1-LOCAL-FALLBACK-003`
-ACTIVE_LANE_SOURCE_COMMIT: `22d97aff50dc5169d3a00783bf866a8aeee68b3b`
-ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f89-network-child-controls-l10n-r1`
-ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/deliveries/codex-f89-network-child-controls-l10n-r1`
-ACTIVE_LANE_COPY_STATE: `CLOSED_LOCAL_FALLBACK — exact source and remote envelope verified; Hermes SEQ 2 reply was literally truncated; no Hermes implementation or delivery counted`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `b21884cc9cd929218ff6abb187f4d7aebd97643aa94cd14c51c8f368d630466b`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `b21884cc9cd929218ff6abb187f4d7aebd97643aa94cd14c51c8f368d630466b`
-ACTIVE_LANE_ACK_WIRE: `HERMES-F89-NETWORK-CHILD-CONTROLS-L10N-R1-ACK-002 — rejected because the stored reply body is literally truncated`
-ACTIVE_LANE_CORRECTION_WIRE: `CODEX-F89-NETWORK-CHILD-CONTROLS-L10N-R1-LOCAL-FALLBACK-003`
-ACTIVE_LANE_CORRECTION_SHA256: `ebab0b2c1e173edd20accd0edff56994b4b42dd19ab43f33cd45244acd27c2ee`
-ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `ebab0b2c1e173edd20accd0edff56994b4b42dd19ab43f33cd45244acd27c2ee`
+NEXT_PREPARED_TASK_STATE: `OPEN_UNCONFIRMED — exact source f91a39cf and envelope hash ccce2501 are remote-verified; no Hermes implementation counted`
+ACTIVE_LANE_TASK_WIRE: `CODEX-F89-CONSENT-VAULT-L10N-R1-START-001`
+ACTIVE_LANE_SOURCE_COMMIT: `f91a39cf3e76e803a4b59e23a207278415dc933f`
+ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f89-consent-vault-l10n-r1`
+ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/deliveries/codex-f89-consent-vault-l10n-r1`
+ACTIVE_LANE_COPY_STATE: `TASK_UPLOADED_UNCONFIRMED — exact source and remote envelope verified; no Hermes implementation or delivery counted`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `ccce2501cff55c3c29e836629e33e1f0e0c304b4a458ee9788c49684c9b18050`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `ccce2501cff55c3c29e836629e33e1f0e0c304b4a458ee9788c49684c9b18050`
+ACTIVE_LANE_ACK_WIRE: `NONE`
+ACTIVE_LANE_CORRECTION_WIRE: `NONE`
+ACTIVE_LANE_CORRECTION_SHA256: `NONE`
+ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `NONE`
 ACTIVE_LANE_SUPERSEDE_WIRE: `NONE — fresh task; no supersession`
 ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `NONE`
 ACTIVE_LANE_SOURCE_BUNDLE: `NONE — exact Git source ref is authoritative`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `NONE`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — exact Git source task`
-ACTIVE_LANE_SOURCE_TRANSPORT: `Exact source commit 22d97aff is pushed and read back by commit identity; no archive substitution is authorized`
+ACTIVE_LANE_SOURCE_TRANSPORT: `Exact source commit f91a39cf is pushed and read back by commit identity; no archive substitution is authorized`
 ACTIVE_LANE_TRANSPORT_NAMING: `Every bridge envelope filename equals its msg_id; task and correction hashes are independently pinned`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id must equal filename stem for every new message; historical mismatches are inert and never renamed`
 BRIDGE_EXECUTION_MODEL: `The bridge poller reports inbox traffic only; it does not execute Hermes tasks. A valid inbox file is transport evidence, not ACK, ownership, progress or delivery.`
@@ -108,7 +108,7 @@ CURRENT_PRODUCT_BASELINE: `M849 remains the latest reviewed product source basel
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M833 relay, M837 variant ownership hardening, M838 temporal guidance, M839 model overview localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization and M851 network-child-controls localization are implemented, tested and pushed; no Hermes product wire is active; no live action`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M833 relay, M837 variant ownership hardening, M838 temporal guidance, M839 model overview localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization and M851 network-child-controls localization are implemented, tested and pushed; F89-CONSENT-VAULT-L10N-R1 is the one active Hermes product wire; no live action`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
