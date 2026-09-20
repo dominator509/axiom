@@ -7,10 +7,10 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `4a3bb9e0511e83aff2781612a98436d08b8039ee` (M799 product source; active coordination ref is bound below)
+SOURCE_HEAD: `e6c4ed32ab48372ac689bf90f2b3161aa0af4fc6` (M806 product source; active coordination ref is bound below)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `4a3bb9e0511e83aff2781612a98436d08b8039ee` (last product-source readback; later 865f2ec/coordination commits do not change product source)
-ACCEPTED_PRODUCT_SOURCE: `4a3bb9e0511e83aff2781612a98436d08b8039ee`
+PUBLISHED_HEAD: `e6c4ed32ab48372ac689bf90f2b3161aa0af4fc6` (M806 product-source readback; active coordination records remain bound below)
+ACCEPTED_PRODUCT_SOURCE: `e6c4ed32ab48372ac689bf90f2b3161aa0af4fc6`
 ACTIVE_HERMES_LANE: `MEDIA-LOCALE-SHELL-CURRENT-R1 — one fresh current-source lane; historical lanes remain quarantined`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES only after one correlated ACK/ACCEPTED; Codex owns audit, integration, commit and push`
@@ -30,7 +30,7 @@ OPEN_CONTROL_TASK_CORRECTION_SHA256: `cb2f3bc19348088fbe74f7f4bb870114e3fa42bd62
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-PROGRESS-RECEIPT-008`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `8db70fb1eb81273a56d209a9ac52c780c8ec50692f15018d6c6ed8979f53058b`
 OPEN_CONTROL_TASK_NEXT_ACTION: `NONE — no active control task`
-ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization and M799 portfolio home-shell localization are integrated at 4a3bb9e. Home behavior 7/7, core locale 28/28, core/dashboard typechecks, core build, changed-file lint and diff-check pass; package-wide dashboard lint was not counted; no live action.`
+ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization and M806 media gallery shell localization are integrated at e6c4ed3. Media criterion: core completeness 6/6, core suite 90/90, focused media page 40/40, core/dashboard typechecks, core/dashboard lint and dashboard production build pass; no live action.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -88,11 +88,11 @@ ACTIVE_LANE_CORRECTION_SHA256: `4ec551231703a9647dc4251100ad2f75dc47a07d9d94041d
 ACTIVE_LANE_AUDIT: `PASS — all five DELIVERY-007 hashes match; core completeness 6/6, core suite 90/90, media page 40/40, core/dashboard typechecks, core/dashboard lint (0 errors), dashboard production build, and diff-check pass`
 ACTIVE_LANE_CHECKPOINT_WIRE: `NONE`
 ACTIVE_LANE_CHECKPOINT_SHA256: `NOT_APPLICABLE`
-LAST_COMPLETED_SOURCE_MILESTONE: `M799 — F-89 portfolio home-shell localization at 4a3bb9e`
+LAST_COMPLETED_SOURCE_MILESTONE: `M806 — F-89 media gallery shell localization at e6c4ed3`
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M799 remains the last pushed product source until this milestone; media-localization DELIVERY-007 is bound to exact 865f2ec, independently audited and integrated locally; terminal Codex READ receipt and milestone push are next; no live action`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M806 product source is pushed/read back at e6c4ed3; media-localization DELIVERY-007 is bound to exact 865f2ec and independently audited/integrated; terminal Codex READ receipt is next, then bind the next finite gap; no live action`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
@@ -102,7 +102,7 @@ HERMES_STALE_LANE_POLICY: `Historical lanes and the closed F89 PlaybookHistory w
 LOCAL_WORKTREE_POLICY: `Codex audits, tests, commits and pushes local milestones; untracked Hermes review artifacts remain untouched`
 NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provider, credential, permission, network or service action`
 SHIP_GATE_STATUS: `PASS — scripts/verify.sh returned verify: ok; preflight and P0-P4 gates passed; no live action`
-SHIP_GATE_HEAD: `4a3bb9e0511e83aff2781612a98436d08b8039ee` (source evidence refreshed for M799; coordination record is being reconciled)
+SHIP_GATE_HEAD: `e6c4ed32ab48372ac689bf90f2b3161aa0af4fc6` (source evidence refreshed for M806; coordination record remains synchronized)
 
 ## Seamless Codex/Hermes loop contract
 
