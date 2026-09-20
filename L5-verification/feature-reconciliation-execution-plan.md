@@ -1289,8 +1289,9 @@ strict source-only task is bound to remote source
 `4a72e2f0c76254ebe29635bf17136f3e88443a59`; envelope SHA-256 is
 `0668bd1bfbb0ea720df96e6d0acc85335bd520a65d040acb1befdbc6e920daa3`.
 
-The current state is `OPEN_UNCONFIRMED`: transmission and remote checksum
-readback passed, but no ACK/NACK or source work is counted. Hermes must localize
+The current state is `ACK_ACCEPTED`: Hermes returned a correlated ACK and Codex
+published a validator-passing READ receipt; no source work is counted yet.
+Hermes must localize
 the real parent/component callsite across all six catalogs, preserve API,
 idempotency, role, model-scope, confirmation and retry behavior, and return
 hash-verified changed files and exact test/typecheck/lint exits. No live action

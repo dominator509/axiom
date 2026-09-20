@@ -1102,9 +1102,11 @@ envelope SHA-256
 `0668bd1bfbb0ea720df96e6d0acc85335bd520a65d040acb1befdbc6e920daa3` and
 isolated COPY_ROOT/DELIVERY_ROOT paths.
 
-The lane is `OPEN_UNCONFIRMED`: the envelope checksum was read back from the
-bridge, but no logical ACK/NACK or implementation evidence is counted yet.
-Hermes must preserve relay API, role, model-scope, idempotency, retry and
+The lane advanced to `ACK_ACCEPTED`: Hermes returned correlated ACK-002 and
+Codex sent the validator-passing READ receipt-003 (receipt SHA-256
+`3b12f088035682f24492b7c9b16d6447f7ce2a8ea5ea03bcb19856e816082e05`, with
+remote readback). No implementation evidence is counted yet. Hermes must
+preserve relay API, role, model-scope, idempotency, retry and
 channel-value behavior, add six-locale behavior/catalog coverage, and return
 changed-file hashes plus real exits before Codex audits any delivery. No live
 action occurred.

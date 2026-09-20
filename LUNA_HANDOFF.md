@@ -21,17 +21,17 @@ CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F71-RELAY-BINDING-LOCALIZATION-R1-START-001; one active Hermes wire only`
 OPEN_CONTROL_WIRE: `CODEX-F71-RELAY-BINDING-LOCALIZATION-R1-START-001`
-OPEN_CONTROL_TASK_STATE: `OPEN_UNCONFIRMED — exact remote source 4a72e2f0 and task envelope checksum 0668bd1b were verified; Hermes has not yet supplied a logical reply`
-OPEN_CONTROL_TASK_REPLY_WIRE: `NONE`
-OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `NONE`
-OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_RECEIPT_WIRE: `NONE`
-OPEN_CONTROL_TASK_RECEIPT_SHA256: `NONE`
+OPEN_CONTROL_TASK_STATE: `ACK_ACCEPTED — Hermes returned HERMES-F71-RELAY-BINDING-LOCALIZATION-R1-ACK-002; Codex audited the sequence/correlation/source binding and sent READ receipt; implementation evidence is still pending`
+OPEN_CONTROL_TASK_REPLY_WIRE: `HERMES-F71-RELAY-BINDING-LOCALIZATION-R1-ACK-002`
+OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `CODEX-F71-RELAY-BINDING-LOCALIZATION-R1-RECEIPT-003`
+OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `3b12f088035682f24492b7c9b16d6447f7ce2a8ea5ea03bcb19856e816082e05`
+OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-F71-RELAY-BINDING-LOCALIZATION-R1-RECEIPT-003`
+OPEN_CONTROL_TASK_RECEIPT_SHA256: `3b12f088035682f24492b7c9b16d6447f7ce2a8ea5ea03bcb19856e816082e05`
 OPEN_CONTROL_TASK_CORRECTION_WIRE: `NONE`
 OPEN_CONTROL_TASK_CORRECTION_SHA256: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must return one correlated ACK/READ, ACK/ACCEPTED or NACK before any work is counted; after ACCEPTED it must return concrete PROGRESS or DELIVERY, not another ACK.`
+OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes now owns the next event: publish one evidence-bearing PROGRESS with a real source delta or one terminal DELIVERY/BLOCKED; another ACK is invalid.`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization and M855 analytics trend-date localization are integrated on the branch. M855 criterion: daily analytics trend dates render through the selected locale with an explicit UTC zone instead of raw ISO strings; existing counts, percentages, permissions, analytics payloads and provider-free semantics remain unchanged; focused/full tests, typecheck, lint, build and verify gates pass; no live action.`
 CURRENT_MILESTONE: `M856 integrated at 4884a0c2; model Network route localization is complete as a local source/UI slice; focused network 16/16, core 105/105, full dashboard 145 files/893 tests, typecheck, lint and verify passed; dashboard build compiled and reached trace finalization but Windows standalone symlink creation failed with EPERM; no live action`
 CURRENT_MILESTONE_OPEN_GATES: `Root pnpm test retains four unrelated Windows subscription process-tree failures; repository-wide Prettier check retains 586 baseline files; dashboard standalone build tracing needs a symlink-capable environment; M856 source slice is complete; F71 relay-binding localization is the single active source lane; remaining architecture gaps include remaining catalog adoption and locale formatting, browser/native, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress rehearsal, and production acceptance`
@@ -46,16 +46,16 @@ NEXT_PREPARED_TASK: `F71-RELAY-BINDING-LOCALIZATION-R1`
 NEXT_PREPARED_TASK_WIRE: `CODEX-F71-RELAY-BINDING-LOCALIZATION-R1-START-001`
 NEXT_PREPARED_TASK_SOURCE_COMMIT: `4a72e2f0c76254ebe29635bf17136f3e88443a59`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `OPEN_UNCONFIRMED — task envelope is on the bridge with remote SHA-256 0668bd1b; no ACK or implementation is counted yet`
+NEXT_PREPARED_TASK_STATE: `ACK_ACCEPTED — Hermes ACK-002 was read and receipt-003 was published; no implementation is counted until concrete PROGRESS or DELIVERY`
 ACTIVE_LANE_TASK_WIRE: `CODEX-F71-RELAY-BINDING-LOCALIZATION-R1-START-001`
 ACTIVE_LANE_SOURCE_COMMIT: `4a72e2f0c76254ebe29635bf17136f3e88443a59`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/work/codex-f71-relay-binding-localization-r1`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/deliveries/codex-f71-relay-binding-localization-r1`
-ACTIVE_LANE_COPY_STATE: `OPEN_UNCONFIRMED — Hermes must materialize the exact source into the declared copy root; no source edit has been accepted`
+ACTIVE_LANE_COPY_STATE: `ACK_ACCEPTED — Hermes claims the exact source/copy audit is next; no source edit or delivery has been accepted`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `0668bd1bfbb0ea720df96e6d0acc85335bd520a65d040acb1befdbc6e920daa3`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `0668bd1bfbb0ea720df96e6d0acc85335bd520a65d040acb1befdbc6e920daa3`
-ACTIVE_LANE_ACK_WIRE: `NONE`
-ACTIVE_LANE_ACK_SHA256: `NONE`
+ACTIVE_LANE_ACK_WIRE: `HERMES-F71-RELAY-BINDING-LOCALIZATION-R1-ACK-002`
+ACTIVE_LANE_ACK_SHA256: `25957f5913bf797ff0dc2f5f6b177e7e8857c521a1b77ee5b15cd41312c2b2b3`
 ACTIVE_LANE_PROGRESS_WIRE: `NONE`
 ACTIVE_LANE_PROGRESS_SHA256: `NONE`
 ACTIVE_LANE_CORRECTION_WIRE: `NONE`
