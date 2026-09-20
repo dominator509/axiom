@@ -54,6 +54,19 @@ function statusLabel(status: string, t: (key: string, values?: Record<string, st
   return t(`affiliate.status.${status}`);
 }
 
+const holdReasonFallback: Record<string, string> = {
+  fraud_suspected: 'Suspected fraud',
+  chargeback: 'Chargeback',
+  self_referral: 'Self-referral',
+  terms_violation: 'Terms violation',
+};
+
+function holdReasonLabel(reason: string, t: (key: string, values?: Record<string, string | number>) => string): string {
+  const key = `affiliate.holdReason.${reason}`;
+  const translated = t(key);
+  return !translated || translated === key ? holdReasonFallback[reason] ?? reason : translated;
+}
+
 interface Props { initial: AffiliateProgramSnapshot }
 
 export default function PlatformAffiliateManager({ initial }: Props) {
@@ -222,7 +235,7 @@ export default function PlatformAffiliateManager({ initial }: Props) {
 
       <section className="card stack" aria-labelledby="holds-heading">
         <div><p className="eyebrow">{t('affiliate.riskReview')}</p><h2 id="holds-heading">{t('affiliate.holdsTitle')}</h2><p className="subtle">{t('affiliate.holdDescription')}</p></div>
-        {openHolds.length === 0 ? <p className="subtle">{t('affiliate.noOpenHolds')}</p> : <table><caption className="sr-only">{t('affiliate.holdsTitle')}</caption><thead><tr><th>{t('affiliate.partner')}</th><th>{t('affiliate.reason')}</th><th>{t('affiliate.opened')}</th><th>{t('affiliate.decision')}</th></tr></thead><tbody>{openHolds.map(hold => <tr key={hold.id}><td>{snapshot.partners.find(partner => partner.id === hold.partnerId)?.displayName ?? shortId(hold.partnerId)}</td><td><span className="badge bad"><i />{hold.reason}</span></td><td>{formatAffiliateDate(hold.createdAt, locale)}</td><td><div className="action-row"><button className="btn secondary" type="button" disabled={!!busy} onClick={() => void resolveHold(hold, 'released')}>{t('affiliate.release')}</button><button className="btn danger" type="button" disabled={!!busy} onClick={() => void resolveHold(hold, 'upheld')}>{t('affiliate.uphold')}</button></div></td></tr>)}</tbody></table>}
+        {openHolds.length === 0 ? <p className="subtle">{t('affiliate.noOpenHolds')}</p> : <table><caption className="sr-only">{t('affiliate.holdsTitle')}</caption><thead><tr><th>{t('affiliate.partner')}</th><th>{t('affiliate.reason')}</th><th>{t('affiliate.opened')}</th><th>{t('affiliate.decision')}</th></tr></thead><tbody>{openHolds.map(hold => <tr key={hold.id}><td>{snapshot.partners.find(partner => partner.id === hold.partnerId)?.displayName ?? shortId(hold.partnerId)}</td><td><span className="badge bad"><i />{holdReasonLabel(hold.reason, t)}</span></td><td>{formatAffiliateDate(hold.createdAt, locale)}</td><td><div className="action-row"><button className="btn secondary" type="button" disabled={!!busy} onClick={() => void resolveHold(hold, 'released')}>{t('affiliate.release')}</button><button className="btn danger" type="button" disabled={!!busy} onClick={() => void resolveHold(hold, 'upheld')}>{t('affiliate.uphold')}</button></div></td></tr>)}</tbody></table>}
       </section>
     </div>
   );

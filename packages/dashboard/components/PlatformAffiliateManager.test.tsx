@@ -18,7 +18,7 @@ vi.mock('react', async original => ({
 }));
 vi.mock('@/lib/mutation', () => ({ mutationFetch: hooks.send, createIdempotencyKey: () => 'affiliate-intent' }));
 
-import PlatformAffiliateManager from './PlatformAffiliateManager';
+import PlatformAffiliateManager, { formatAffiliateDate } from './PlatformAffiliateManager';
 import type { AffiliateHold, AffiliateProgramSnapshot } from '@/lib/api';
 
 const partner = {
@@ -138,4 +138,16 @@ it('formats open hold dates in the selected locale with an explicit UTC zone', (
     if (previousTz === undefined) delete process.env.TZ;
     else process.env.TZ = previousTz;
   }
+});
+
+it('renders persisted hold reasons as user-facing labels instead of raw codes', () => {
+  const hold: AffiliateHold = {
+    id: 'hold-2', programId: 'program-1', partnerId: 'partner-1', commissionId: null,
+    reason: 'fraud_suspected', state: 'open', resolvedByUserId: null,
+    createdAt: '2026-01-01T00:30:00.000Z', resolvedAt: null,
+  };
+  const rendered = textContent(render({ ...snapshot, partners: [partner], holds: [hold], summary: { ...snapshot.summary, openHolds: 1 } }));
+  expect(rendered).toContain('Suspected fraud');
+  expect(rendered).not.toContain('fraud_suspected');
+  expect(formatAffiliateDate(hold.createdAt, 'en')).toContain('2026');
 });

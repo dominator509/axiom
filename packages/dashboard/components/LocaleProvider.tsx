@@ -5,6 +5,7 @@ import {
   CATALOGS,
   FANVUE_ANALYTICS_CATALOGS,
   LocaleCatalog,
+  PLATFORM_AFFILIATE_CATALOGS,
   SUPPORTED_LOCALES,
   type MessageKey,
   type SupportedLocale,
@@ -15,6 +16,7 @@ const catalog = new LocaleCatalog(
     SUPPORTED_LOCALES.map((locale) => [locale, {
       ...CATALOGS[locale],
       ...FANVUE_ANALYTICS_CATALOGS[locale],
+      ...PLATFORM_AFFILIATE_CATALOGS[locale],
     }]),
   ) as typeof CATALOGS,
 );
