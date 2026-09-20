@@ -10,7 +10,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 SOURCE_HEAD: `462cdaf31ee06e7263057df4489d7fbd14b4cd35` (reviewed M859 product source; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `462cdaf31ee06e7263057df4489d7fbd14b4cd35` (immutable reviewed product source; later branch commits are coordination/evidence only)
-COORDINATION_HEAD: `c5cd5f08768de510684222d3b7ae6c6949d854ed — latest remote readback of refs/heads/codex/telegram-webhook-hardening; sync-control mirror proof was e963fb855bdbcb10593ba961c990e37218d6b960; M859 product source binding remains 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
+COORDINATION_HEAD: `REMOTE_BRANCH_TIP — read refs/heads/codex/telegram-webhook-hardening before every new lane; sync-control mirror proof was e963fb855bdbcb10593ba961c990e37218d6b960; M859 product source binding remains 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 ACCEPTED_PRODUCT_SOURCE: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 LAST_COMPLETED_SOURCE_MILESTONE: `M859 — PlaybookCadence calendar guidance localization; source/UI only`
 ACTIVE_HERMES_LANE: `F89-WORKER-DIGEST-LOCALIZATION-R1 — task sent; awaiting one logical ACK/ACCEPTED or NACK/BLOCKED; source 462cdaf31ee06e7263057df4489d7fbd14b4cd35; explicit bare-mirror source sync required`
