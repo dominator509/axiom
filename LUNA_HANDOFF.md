@@ -9,8 +9,8 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `c56243fff44d87349ebbe5d3b5ba64586cb3e794` (M824 product source; active coordination ref is bound below)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `8bfb994acad8d7a827a998cc849d96e9eae5c8eb` (M833 relay reconciliation source milestone; exact remote readback verified)
-COORDINATION_HEAD: `8bfb994acad8d7a827a998cc849d96e9eae5c8eb` (M833 source milestone; handoff sync follows in M834)
+PUBLISHED_HEAD: `28a9292e5cdc72e55e48630959d8e872e491ceb0` (M834 coordination tip; M833 product source is 8bfb994)
+COORDINATION_HEAD: `28a9292e5cdc72e55e48630959d8e872e491ceb0` (M834 handoff/ledger sync; product source remains 8bfb994)
 ACCEPTED_PRODUCT_SOURCE: `c56243fff44d87349ebbe5d3b5ba64586cb3e794`
 ACTIVE_HERMES_LANE: `NONE — F85 Relay reconciliation closed by Codex local fallback at M833; older R-lanes remain quarantined`
 CODEX_OWNER: `CODEX`
