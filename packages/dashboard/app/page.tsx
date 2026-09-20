@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import NewModelForm from '@/components/NewModelForm';
+import { getServerLocale } from '@/lib/server-locale';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +9,7 @@ export default async function HomePage({ searchParams }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const query = await searchParams;
+  const { t } = await getServerLocale();
   const cursor = typeof query?.cursor === 'string' ? query.cursor : undefined;
   let models: Awaited<ReturnType<typeof api.models.list>>['data'] = [];
   let nextCursor: string | null = null;
@@ -29,45 +31,45 @@ export default async function HomePage({ searchParams }: {
     <div className="page-stack">
       <section className="page-hero">
         <div>
-          <p className="eyebrow">Portfolio</p>
-          <h1>Your talent, beautifully organized.</h1>
+          <p className="eyebrow">{t('home.eyebrow')}</p>
+          <h1>{t('home.title')}</h1>
           <p className="page-intro">
-            Create, grow, and protect every creator brand from one private command center.
+            {t('home.intro')}
           </p>
         </div>
         <NewModelForm />
       </section>
 
       <section className="card stack" aria-labelledby="getting-started-heading">
-        <h2 id="getting-started-heading">What would you like to do?</h2>
-        <p className="subtle">Start with a talent profile below. Create content, review the saved media, then choose a publishing time in its workspace. Creating content does not publish it.</p>
+        <h2 id="getting-started-heading">{t('home.gettingStarted')}</h2>
+        <p className="subtle">{t('home.gettingStartedDescription')}</p>
         <div className="row" style={{ flexWrap: 'wrap' }}>
-          <Link href="/connections/grok" className="btn secondary">Set up Grok &amp; media storage</Link>
-          <a href="#talent-profiles" className="btn secondary">Choose a talent profile</a>
+          <Link href="/connections/grok" className="btn secondary">{t('home.setupGrok')}</Link>
+          <a href="#talent-profiles" className="btn secondary">{t('home.chooseTalent')}</a>
         </div>
       </section>
 
-      <section className="stat-grid" aria-label="Portfolio summary">
+      <section className="stat-grid" aria-label={t('home.portfolioSummary')}>
         <div className="stat-card">
-          <span>Total talent</span>
-          <strong>{totalCount ?? 'Unavailable'}</strong>
-          <small>{totalCount === null ? 'Profile count could not be loaded' : 'profiles in your studio'}</small>
+          <span>{t('home.totalTalent')}</span>
+          <strong>{totalCount ?? t('home.unavailable')}</strong>
+          <small>{totalCount === null ? t('home.countUnavailable') : t('home.profilesInStudio')}</small>
         </div>
         <div className="stat-card">
-          <span>Active on this page</span>
+          <span>{t('home.activeOnPage')}</span>
           <strong>{activeCount}</strong>
-          <small>profiles marked active</small>
+          <small>{t('home.profilesMarkedActive')}</small>
         </div>
         <div className="stat-card accent">
-          <span>Profile list</span>
-          <strong>{error ? 'Unavailable' : 'Loaded'}</strong>
-          <small>{error ? 'Profile request failed' : `${models.length} profiles shown`}</small>
+          <span>{t('home.profileList')}</span>
+          <strong>{error ? t('home.unavailable') : t('home.loaded')}</strong>
+          <small>{error ? t('home.profileRequestFailed') : t('home.profilesShown', { count: models.length })}</small>
         </div>
       </section>
 
       {error && (
         <div className="notice error" role="alert">
-          <strong>We could not reach your workspace.</strong>
+          <strong>{t('home.workspaceUnreachable')}</strong>
           <span className="mono">{error}</span>
         </div>
       )}
@@ -75,9 +77,9 @@ export default async function HomePage({ searchParams }: {
       {models.length === 0 && !error && (
         <div className="empty-state card">
           <span className="empty-mark">A</span>
-          <h2>{cursor ? 'No more profiles on this page.' : 'No talent profiles yet.'}</h2>
+          <h2>{cursor ? t('home.noMoreProfiles') : t('home.noProfilesYet')}</h2>
           <p>
-            {cursor ? 'Return to the first page to view your roster.' : 'Create your first talent profile to begin.'}
+            {cursor ? t('home.returnFirstPage') : t('home.createFirstProfile')}
           </p>
         </div>
       )}
@@ -85,10 +87,10 @@ export default async function HomePage({ searchParams }: {
       {models.length > 0 && (
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Your roster</p>
-            <h2>Talent profiles</h2>
+            <p className="eyebrow">{t('home.roster')}</p>
+            <h2>{t('home.talentProfiles')}</h2>
           </div>
-          <span>{models.length} shown</span>
+          <span>{t('home.shown', { count: models.length })}</span>
         </div>
       )}
       <div id="talent-profiles" className="grid talent-grid" tabIndex={-1}>
@@ -102,11 +104,11 @@ export default async function HomePage({ searchParams }: {
                 </span>
                 {model.isActive ? (
                   <span className="badge good">
-                    <i /> Active
+                    <i /> {t('home.active')}
                   </span>
                 ) : (
                   <span className="badge mute">
-                    <i /> Inactive
+                    <i /> {t('home.inactive')}
                   </span>
                 )}
               </div>
@@ -114,23 +116,23 @@ export default async function HomePage({ searchParams }: {
                 <h2>{model.displayName}</h2>
                 <p className="handle">@{model.handle}</p>
               </div>
-              <p className="model-bio">{model.bio || 'A fresh creator profile ready to define.'}</p>
+              <p className="model-bio">{model.bio || t('home.freshProfile')}</p>
               <span className="card-link">
-                Open workspace <span aria-hidden="true">→</span>
+                {t('home.openWorkspace')} <span aria-hidden="true">→</span>
               </span>
             </article>
           </Link>
           <div className="row" style={{ flexWrap: 'wrap', marginTop: 12 }}>
-            <Link href={`/models/${model.id}/generation`} className="btn">Generate image or video</Link>
-            <Link href={`/models/${model.id}/approvals`} className="btn secondary">Review content</Link>
+            <Link href={`/models/${model.id}/generation`} className="btn">{t('home.generateMedia')}</Link>
+            <Link href={`/models/${model.id}/approvals`} className="btn secondary">{t('home.reviewContent')}</Link>
           </div>
           </div>
         ))}
       </div>
       {(cursor || nextCursor) && (
-        <nav aria-label="Talent pagination" className="section-heading">
-          {cursor && <Link href="/">First page</Link>}
-          {!error && nextCursor && <Link href={`/?${new URLSearchParams({ cursor: nextCursor })}`}>Next page</Link>}
+        <nav aria-label={t('home.talentPagination')} className="section-heading">
+          {cursor && <Link href="/">{t('home.firstPage')}</Link>}
+          {!error && nextCursor && <Link href={`/?${new URLSearchParams({ cursor: nextCursor })}`}>{t('home.nextPage')}</Link>}
         </nav>
       )}
     </div>

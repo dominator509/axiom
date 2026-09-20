@@ -2,9 +2,56 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import HomePage from './page';
 
+const getServerLocale = vi.hoisted(() => vi.fn());
+
 vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [] }) }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock('@/lib/server-locale', () => ({ getServerLocale }));
 afterEach(() => vi.unstubAllGlobals());
+
+const messages: Record<string, string> = {
+  'home.eyebrow': 'Portfolio',
+  'home.title': 'Your talent, beautifully organized.',
+  'home.intro': 'Create, grow, and protect every creator brand from one private command center.',
+  'home.gettingStarted': 'What would you like to do?',
+  'home.gettingStartedDescription': 'Start with a talent profile below. Create content, review the saved media, then choose a publishing time in its workspace. Creating content does not publish it.',
+  'home.setupGrok': 'Set up Grok & media storage',
+  'home.chooseTalent': 'Choose a talent profile',
+  'home.portfolioSummary': 'Portfolio summary',
+  'home.totalTalent': 'Total talent',
+  'home.countUnavailable': 'Profile count could not be loaded',
+  'home.profilesInStudio': 'profiles in your studio',
+  'home.activeOnPage': 'Active on this page',
+  'home.profilesMarkedActive': 'profiles marked active',
+  'home.profileList': 'Profile list',
+  'home.unavailable': 'Unavailable',
+  'home.loaded': 'Loaded',
+  'home.profileRequestFailed': 'Profile request failed',
+  'home.workspaceUnreachable': 'We could not reach your workspace.',
+  'home.noMoreProfiles': 'No more profiles on this page.',
+  'home.noProfilesYet': 'No talent profiles yet.',
+  'home.returnFirstPage': 'Return to the first page to view your roster.',
+  'home.createFirstProfile': 'Create your first talent profile to begin.',
+  'home.roster': 'Your roster',
+  'home.talentProfiles': 'Talent profiles',
+  'home.active': 'Active',
+  'home.inactive': 'Inactive',
+  'home.freshProfile': 'A fresh creator profile ready to define.',
+  'home.openWorkspace': 'Open workspace',
+  'home.generateMedia': 'Generate image or video',
+  'home.reviewContent': 'Review content',
+  'home.talentPagination': 'Talent pagination',
+  'home.firstPage': 'First page',
+  'home.nextPage': 'Next page',
+};
+
+vi.mocked(getServerLocale).mockResolvedValue({
+  t: (key: string, values?: Record<string, string | number>) => {
+    if (key === 'home.profilesShown') return `${values?.count ?? 0} profiles shown`;
+    if (key === 'home.shown') return `${values?.count ?? 0} shown`;
+    return messages[key] ?? key;
+  },
+});
 
 function transport({ empty = false, countFailure = false, pageFailure = false } = {}) {
   const fetch = vi.fn(async (input: string) => {
