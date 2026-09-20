@@ -13,13 +13,13 @@ PUBLISHED_HEAD: `462cdaf31ee06e7263057df4489d7fbd14b4cd35` (immutable reviewed p
 COORDINATION_HEAD: `REMOTE_BRANCH_TIP — read refs/heads/codex/telegram-webhook-hardening before every new lane; sync-control mirror proof was e963fb855bdbcb10593ba961c990e37218d6b960; M859 product source binding remains 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 ACCEPTED_PRODUCT_SOURCE: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 LAST_COMPLETED_SOURCE_MILESTONE: `M859 — PlaybookCadence calendar guidance localization; source/UI only`
-ACTIVE_HERMES_LANE: `F89-WORKER-DIGEST-LOCALIZATION-R1 — Hermes ACK/OPEN and Codex receipt accepted; implementation pending one evidence-bearing PROGRESS then terminal DELIVERY or BLOCKED; source 462cdaf31ee06e7263057df4489d7fbd14b4cd35; explicit bare-mirror source sync required`
+ACTIVE_HERMES_LANE: `F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH — superseding source-only correction lane; the prior delivery was rejected because two files were unreadable; fresh exact-commit copy and readable republish required`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `Poll the F89 worker-digest wire by logical state; the first DELIVERY was rejected because two declared files were unreadable, so require one corrected terminal DELIVERY with independently readable artifacts; do not open a competing product lane.`
+NEXT_ACTION: `Poll the F89 republish wire by logical state; require ACK/ACCEPTED, one permission-bearing PROGRESS, then one corrected terminal DELIVERY with independently readable artifacts; do not open a competing product lane.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-001`
+OPEN_WIRES: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH-START-001`
 OPEN_CONTROL_WIRE: `NONE`
 OPEN_CONTROL_TASK_STATE: `CLOSED_BY_CODEX_RECEIPT — Hermes-owned bare mirror and all-ref inventory accepted; poller edit remains explicitly blocked by root ownership; no feature implementation or live action accepted`
 OPEN_CONTROL_TASK_REPLY_WIRE: `CODEX-HERMES-SOURCE-SYNC-REFRESH-R2-001-HERMES-REPLY`
@@ -42,46 +42,46 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `F89-WORKER-DIGEST-LOCALIZATION-R1`
-NEXT_PREPARED_TASK_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-001`
+NEXT_PREPARED_TASK: `F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH`
+NEXT_PREPARED_TASK_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH-START-001`
 NEXT_PREPARED_TASK_SOURCE_COMMIT: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `OPEN — exact source binding accepted by Hermes; implementation pending; no delivery or live action accepted`
-ACTIVE_LANE_TASK_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-001`
+NEXT_PREPARED_TASK_STATE: `OPEN — exact source binding declared; awaiting Hermes ACK/ACCEPTED; no delivery or live action accepted`
+ACTIVE_LANE_TASK_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH-START-001`
 ACTIVE_LANE_SOURCE_COMMIT: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 ACTIVE_LANE_SOURCE_REPO: `github.com/dominator509/axiom`
 ACTIVE_LANE_SOURCE_REF: `refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1/mirror fetch --all --prune`
-ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1/mirror rev-parse --verify refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1/mirror cat-file -t 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
-ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1/mirror merge-base --is-ancestor 462cdaf31ee06e7263057df4489d7fbd14b4cd35 refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1/mirror`
+ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1-republish/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1-republish/mirror fetch --all --prune`
+ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1-republish/mirror rev-parse --verify refs/heads/codex/telegram-webhook-hardening`
+ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1-republish/mirror cat-file -t 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
+ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1-republish/mirror merge-base --is-ancestor 462cdaf31ee06e7263057df4489d7fbd14b4cd35 refs/heads/codex/telegram-webhook-hardening`
+ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1-republish/mirror`
 ACTIVE_LANE_SOURCE_MIRROR_LAYOUT: `bare-mirror — refs/heads/*`
 ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch checkout`
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
-ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1/copy`
-ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1/delivery`
-ACTIVE_LANE_COPY_STATE: `DELIVERY_REJECTED_UNREADABLE — Hermes produced source changes, but two declared artifacts were root-owned mode 0600 and cannot be independently audited by Codex; corrected republish required`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `ebbf17ed76760630c3eaaab310c93372258d07268ec79c907e624f124c216065`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `ebbf17ed76760630c3eaaab310c93372258d07268ec79c907e624f124c216065 — exact task envelope read back from Hermes inbox`
-ACTIVE_LANE_ACK_WIRE: `HERMES-F89-WORKER-DIGEST-LOCALIZATION-R1-ACK-001`
-ACTIVE_LANE_ACK_SHA256: `9261760437791e0be1885e0ab0fbc874f399bc733917b616882d2fcff2d409ac`
-ACTIVE_LANE_RECEIPT_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-RECEIPT-002`
-ACTIVE_LANE_RECEIPT_SHA256: `3a4aac06004940fd78c24fa9abf84209c587e95ce1e247a249d68fcd077ab9e8`
-ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `68af51f9370cec0aae9340b11fe740b82d56207cd878de373a3f1d5a73c20f26`
-ACTIVE_LANE_EXECUTION_RECEIPT_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-EXECUTION-RECEIPT-004`
-ACTIVE_LANE_EXECUTION_RECEIPT_SHA256: `b2db57df3e5e796bd3c2f7cbc04b3534d24a4322883a7745e25c93707a66e21d`
-ACTIVE_LANE_DELIVERY_REJECTED_WIRE: `HERMES-F89-WORKER-DIGEST-LOCALIZATION-R1-DELIVERY-005`
-ACTIVE_LANE_DELIVERY_REPLY_SHA256: `fc9a2dd459f20cf37ae22d1871f62e4289d9f21d5105f904c88abdd0a47bb66c`
-ACTIVE_LANE_DELIVERY_REJECTION_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-DELIVERY-REJECTED-006`
-ACTIVE_LANE_DELIVERY_REJECTION_SHA256: `36d1a523e3a62293671ceb77e59539388c73564f02b46f5afb7d9b591142d494`
+ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1-republish/copy`
+ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1-republish/delivery`
+ACTIVE_LANE_COPY_STATE: `REPUBLISH_TASK_SENT — exact source pin and fresh delivery root declared; awaiting Hermes ACK/ACCEPTED before any source delivery audit`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `a93e53d8c11545b6fa3b1c3ad09a7c493f02b4c0a276718419031494d1f4b481`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `a93e53d8c11545b6fa3b1c3ad09a7c493f02b4c0a276718419031494d1f4b481 — exact task envelope read back from Hermes inbox`
+ACTIVE_LANE_ACK_WIRE: `NONE — awaiting ACK/ACCEPTED for the superseding republish task`
+ACTIVE_LANE_ACK_SHA256: `NONE`
+ACTIVE_LANE_RECEIPT_WIRE: `NONE — no reply receipt for the superseding task yet`
+ACTIVE_LANE_RECEIPT_SHA256: `NONE`
+ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `NONE`
+ACTIVE_LANE_EXECUTION_RECEIPT_WIRE: `NONE — no execution receipt for the superseding task yet`
+ACTIVE_LANE_EXECUTION_RECEIPT_SHA256: `NONE`
+ACTIVE_LANE_DELIVERY_REJECTED_WIRE: `SUPERSEDED — HERMES-F89-WORKER-DIGEST-LOCALIZATION-R1-DELIVERY-005`
+ACTIVE_LANE_DELIVERY_REPLY_SHA256: `SUPERSEDED — fc9a2dd459f20cf37ae22d1871f62e4289d9f21d5105f904c88abdd0a47bb66c`
+ACTIVE_LANE_DELIVERY_REJECTION_WIRE: `SUPERSEDED — CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-DELIVERY-REJECTED-006`
+ACTIVE_LANE_DELIVERY_REJECTION_SHA256: `SUPERSEDED — 36d1a523e3a62293671ceb77e59539388c73564f02b46f5afb7d9b591142d494`
 ACTIVE_LANE_PROGRESS_WIRE: `NONE`
 ACTIVE_LANE_PROGRESS_SHA256: `NONE`
 ACTIVE_LANE_CORRECTION_WIRE: `NONE`
 ACTIVE_LANE_CORRECTION_SHA256: `NONE`
 ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `NONE`
-ACTIVE_LANE_SUPERSEDE_WIRE: `NONE — fresh task; no supersession`
-ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `NONE`
+ACTIVE_LANE_SUPERSEDE_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-DELIVERY-REJECTED-006`
+ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `36d1a523e3a62293671ceb77e59539388c73564f02b46f5afb7d9b591142d494`
 ACTIVE_LANE_SOURCE_BUNDLE: `NONE — exact Git source ref is authoritative`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `NONE`
 CLOSED_LANE_F50_LINKTREE: `TERMINAL BLOCKED — HERMES-LINKTREE-ADAPTER-SOURCE-R1-NACK-004; missing authoritative OAuth/endpoints/scopes, link-sync shape and normalized analytics mapping; existing native-only fail-closed behavior retained`
