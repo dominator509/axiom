@@ -1,9 +1,23 @@
-import { CATALOGS, LocaleCatalog, normalizeLocale, REVIEW_CATALOGS, SUPPORTED_LOCALES, type MessageKey, type ReviewMessageKey, type SupportedLocale } from '@axiom/core';
+import {
+  CATALOGS,
+  CONSENT_CATALOGS,
+  LocaleCatalog,
+  normalizeLocale,
+  REVIEW_CATALOGS,
+  SUPPORTED_LOCALES,
+  type ConsentMessageKey,
+  type MessageKey,
+  type ReviewMessageKey,
+  type SupportedLocale,
+} from '@axiom/core';
 import { api } from './api';
 
 const catalog = new LocaleCatalog(
   Object.fromEntries(
-    SUPPORTED_LOCALES.map((locale) => [locale, { ...CATALOGS[locale], ...REVIEW_CATALOGS[locale] }]),
+    SUPPORTED_LOCALES.map((locale) => [
+      locale,
+      { ...CATALOGS[locale], ...REVIEW_CATALOGS[locale], ...CONSENT_CATALOGS[locale] },
+    ]),
   ) as typeof CATALOGS,
 );
 
@@ -17,7 +31,10 @@ const catalog = new LocaleCatalog(
  */
 export async function getServerLocale(): Promise<{
   locale: SupportedLocale;
-  t: (key: MessageKey | ReviewMessageKey, values?: Record<string, string | number>) => string;
+  t: (
+    key: MessageKey | ReviewMessageKey | ConsentMessageKey,
+    values?: Record<string, string | number>,
+  ) => string;
   dateTime: (value: string | Date) => string;
 }> {
   let locale: SupportedLocale = 'en';

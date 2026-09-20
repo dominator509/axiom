@@ -10,6 +10,7 @@ export * from './platform-affiliate-catalog.js';
 export * from './profile-network-lifecycle-catalog.js';
 export * from './network-child-controls-catalog.js';
 export * from './review-catalog.js';
+export * from './consent-catalog.js';
 export * from './locale-settings.js';
 export * from './relay-card-state.js';
 export * from './scrape-result.js';
