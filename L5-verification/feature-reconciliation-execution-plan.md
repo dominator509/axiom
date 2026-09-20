@@ -1076,3 +1076,19 @@ passes, and `git diff --check` passes. Source commit
 `origin/codex/telegram-webhook-hardening`. Full dashboard lint was not counted
 because the package-wide process hung in this environment and was stopped;
 focused changed-file lint is the accepted lint evidence for this slice.
+
+### M789 — F-89 workspace-members route shell localization
+
+The owner-gated workspace-members route now resolves its persisted interface
+locale through the shared server-locale helper. Title, owner-only access copy,
+scope description and workspace return link use typed catalog keys in English,
+Spanish, Japanese, Italian, Brazilian Portuguese and German. Existing owner
+authorization, discoverability and `WorkspaceMembers` behavior are unchanged;
+this gate covers the route shell only.
+
+Evidence: focused members route tests 9/9, core locale tests 28/28, core and
+dashboard typechecks pass, core build passes, focused ESLint for the changed
+dashboard files passes, and `git diff --check` passes. Source commit
+`1b640fa677393536b09c824f9a563e2c4b2da3ce` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. Package-wide dashboard lint was not
+counted for this slice because it previously hung in this environment.

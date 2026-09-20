@@ -1,6 +1,6 @@
 # Backend-to-frontend coverage audit
 
-Source baseline: `ec7af18f83d9acc17250bff770d6dda2f99364d5`.
+Source baseline: `1b640fa677393536b09c824f9a563e2c4b2da3ce`.
 
 ## Verdict and evidence boundary
 
@@ -32,7 +32,7 @@ runtime-accepted merely because its unit tests pass.
 | F-17, F-18 | **Wired/partial**: authenticated model-scoped scrape runs persist bounded requests/results, dispatch a worker job, and expose status/error controls; the mounted result/history UI and authenticated route title/load-failure shell use the shared six-locale catalog | Deployed sidecar rehearsal and benchmark history acceptance remain open |
 | F-19, F-20, F-21 | **Wired/partial**: model-scoped trigger-rule CRUD/UI and a metrics-driven worker evaluator now exist for bounded follow-up generation or operator relay cards | Churn-rescue subscription events, provider moderation coverage, and live metrics/worker acceptance remain open |
 | F-22, F-23 | **Partial**: native link-bio short links and click/UTM analytics are real | Subscription-event attribution/ROI join and custom-domain acceptance are not established |
-| F-24, F-25, F-26 | **Wired/partial**: team membership, role-scoped shifts, handoff notes, operational queue assignment, bounded team-history pagination and dashboard older-history controls have model-scoped API/UI controls; Chatter roleplay consumes its authorized personal shift roster | Multi-user browser/RLS acceptance, Grok provider/runtime receipts and deployed migration acceptance remain open |
+| F-24, F-25, F-26 | **Wired/partial**: team membership, role-scoped shifts, handoff notes, operational queue assignment, bounded team-history pagination and dashboard older-history controls have model-scoped API/UI controls; Chatter roleplay consumes its authorized personal shift roster; the owner-gated workspace-members route shell is catalog-backed across six launch locales | Multi-user browser/RLS acceptance, Grok provider/runtime receipts and deployed migration acceptance remain open |
 | F-27 | **Wired**: authenticated model-scoped monthly PDF route and Analytics download link now render from the analytics/playbook/viral store | Browser download, branding review, and deployment acceptance remain open; no background report schedule is claimed |
 | F-28 | **Wired**: digest enqueue/list page and relay-card persistence exist | Worker delivery and external channel acceptance remain open |
 | F-29, F-30 | **Wired/partial**: persisted image/video clip, resize, transcode, and caption-adaptation controls dispatch retry-safe media operations; the shared bounded media descriptor contract now enforces tenant/model-scoped object keys and MIME/size limits across generated assets, transform outputs, upload metadata, and authenticated previews | Deployed image/video rehearsal, live R2 round-trip, retention/deletion and browser/mobile acceptance remain open |
