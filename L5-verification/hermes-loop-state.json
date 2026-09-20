@@ -12,15 +12,15 @@
   "delivery_root": "/srv/fanthynks-bridge/hermes/replies/delivery-f89-draft-editor-localization-r2",
   "state": "OPEN",
   "next_owner": "HERMES",
-  "last_seq": 1,
-  "next_seq": 2,
-  "last_wire": "CODEX-F89-DRAFT-EDITOR-LOCALIZATION-R2-001",
+  "last_seq": 2,
+  "next_seq": 3,
+  "last_wire": "CODEX-F89-DRAFT-EDITOR-LOCALIZATION-R2-ACK-CORRECTION-002",
   "supersedes": [
     "CODEX-F89-DRAFT-EDITOR-LOCALIZATION-R1-001",
     "CODEX-F89-DRAFT-EDITOR-LOCALIZATION-R1-TRANSPORT-CORRECTION-002",
     "CODEX-F89-DRAFT-EDITOR-LOCALIZATION-R1-SOURCE-PROOF-CORRECTION-004"
   ],
-  "next_action": "Return one correlated ACK/READ or ACK/ACCEPTED for the exact Git-bundle-bound source task",
+  "next_action": "Return one fresh strict ACK/ACCEPTED correlated to the ACK correction, then begin the accepted implementation",
   "live_actions": "NONE",
   "forbidden_actions": [
     "application edits before ACK/ACCEPTED",
