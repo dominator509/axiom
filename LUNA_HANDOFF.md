@@ -7,21 +7,21 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `9a720071fb77d56426611ba8d0ff52e62b905738` (M883 reviewed product source; remote readback matches)
+SOURCE_HEAD: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef` (M892 reviewed product source; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `9a720071fb77d56426611ba8d0ff52e62b905738` (M883 reviewed product source; remote readback matches)
-COORDINATION_HEAD: `4c7f6d575d3c74f45ff33b67586eadf26773b462 — M887 validated ACK receipt transferred the R3 implementation lane to Hermes; pushed and read back`
-ACCEPTED_PRODUCT_SOURCE: `9a720071fb77d56426611ba8d0ff52e62b905738`
-LAST_COMPLETED_SOURCE_MILESTONE: `M883 — provider-neutral media object storage adapters and callsite wiring reviewed, focused gates passed, pushed at 9a720071fb77d56426611ba8d0ff52e62b905738`
-ACTIVE_HERMES_LANE: `F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3 — sole active source-only lane; supersedes R2 and requires one correlated ACK/READ or ACK/ACCEPTED before implementation`
+PUBLISHED_HEAD: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef` (M892 reviewed product source; remote readback matches)
+COORDINATION_HEAD: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef — M892 integrated the independently audited Hermes source fallback; pushed and read back`
+ACCEPTED_PRODUCT_SOURCE: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
+LAST_COMPLETED_SOURCE_MILESTONE: `M892 — independently audited Hermes R3 storage hardening integrated, focused gates passed, pushed at c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
+ACTIVE_HERMES_LANE: `NONE — F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3 is closed by Codex fallback; the malformed Hermes DELIVERY was rejected and not counted as accepted`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `Require Hermes to echo the exact R3 source commit, mirror, copy and delivery roots in ACK; then accept only concrete PROGRESS or one flat validator-valid DELIVERY/BLOCKED; audit bytes before integration and never reopen superseded R2, F89 digest or R5 wires.`
+NEXT_ACTION: `Use c884ad4bcc792338022337bdfe7dc1a0e2ca16ef as the only current source pin; choose the next finite architecture gap, then dispatch exactly one Hermes task with explicit COPY_ROOT, DELIVERY_ROOT, scope, forbidden actions and the flat validator-valid DELIVERY schema. Do not reopen F89 R3 or any superseded lane.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
 HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_RESULT, CHANGED_FILES and LIVE_ACTIONS must appear exactly once inside PAYLOAD; no prose substitute, duplicate keys or second signature`
-OPEN_WIRES: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-TASK-001`
+OPEN_WIRES: `NONE`
 STALE_HERMES_REPLY: `codex-receipt-r2-storage-r3-invalid-ack-001` belongs to superseded task `R2-STORAGE-ROUNDTRIP-COPY-R3`; strict validator fails on missing DELIVERY_ACCEPTED, delivery claim and terminal/state contradiction; it does not advance the active R3 lane`
 OPEN_CONTROL_WIRE: `NONE`
 OPEN_CONTROL_TASK_STATE: `CLOSED_BY_CODEX_RECEIPT — Hermes-owned bare mirror and all-ref inventory accepted; poller edit remains explicitly blocked by root ownership; no feature implementation or live action accepted`
@@ -35,9 +35,9 @@ OPEN_CONTROL_TASK_CORRECTION_SHA256: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
 OPEN_CONTROL_TASK_NEXT_ACTION: `No control action outstanding; use the verified Hermes-owned mirror and explicit per-task source-sync fields; do not open a competing product lane.`
-ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization, M857 relay-binding localization, M858 workspace-members localization and M859 PlaybookCadence calendar localization are integrated on the branch; F50 Linktree is terminal deferred for missing provider contract; F89 worker digest is integrated through fallback; M883 provider-neutral storage is integrated at 9a720071; F89 R2 storage abstraction R3 is the sole active Hermes product lane.`
-CURRENT_MILESTONE: `M883 provider-neutral media object storage is integrated from reviewed source at 9a720071fb77d56426611ba8d0ff52e62b905738; gateway 11/11, worker 39/39 and API 132/132 focused tests pass; package typechecks/builds and diff check pass; no live action`
-CURRENT_MILESTONE_OPEN_GATES: `Gateway retains four unrelated Windows subscription process-tree failures and API retains five unrelated Windows hook-timeout failures in full-package suites; repository-wide Prettier retains baseline files; dashboard standalone build tracing needs a symlink-capable environment; F89 R2 storage abstraction R3 is the sole active source-only lane; F50 Linktree is terminal deferred for missing provider contract; remaining architecture gaps include remaining catalog adoption and locale formatting, browser/native, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress rehearsal, and production acceptance`
+ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization, M857 relay-binding localization, M858 workspace-members localization and M859 PlaybookCadence calendar localization are integrated on the branch; F50 Linktree is terminal deferred for missing provider contract; F89 worker digest is integrated through fallback; M883 provider-neutral storage is integrated at 9a720071; M892 storage hardening is integrated at c884ad4; no Hermes lane is open.`
+CURRENT_MILESTONE: `M892 provider-neutral storage hardening is integrated at c884ad4bcc792338022337bdfe7dc1a0e2ca16ef; gateway 13/13, worker 39/39 and API 132/132 focused tests pass; gateway/worker/API typechecks and builds plus diff check pass; no live action`
+CURRENT_MILESTONE_OPEN_GATES: `Gateway retains four unrelated Windows subscription process-tree failures and API retains five unrelated Windows hook-timeout failures in full-package suites; repository-wide Prettier retains baseline files; dashboard standalone build tracing needs a symlink-capable environment; F50 Linktree is terminal deferred for missing provider contract; remaining architecture gaps include remaining catalog adoption and locale formatting, browser/native, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress rehearsal, and production acceptance`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -45,13 +45,13 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3`
-NEXT_PREPARED_TASK_WIRE: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-TASK-001`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `9a720071fb77d56426611ba8d0ff52e62b905738`
+NEXT_PREPARED_TASK: `NONE — next finite architecture gap must be selected from the reconciliation matrix`
+NEXT_PREPARED_TASK_WIRE: `NONE`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `OPEN — exact source binding, scope, acceptance fields and no-live-action boundary are declared`
-ACTIVE_LANE_TASK_WIRE: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-TASK-001`
-ACTIVE_LANE_SOURCE_COMMIT: `9a720071fb77d56426611ba8d0ff52e62b905738`
+NEXT_PREPARED_TASK_STATE: `CLOSED — previous F89 storage lane closed by independently audited Codex fallback`
+ACTIVE_LANE_TASK_WIRE: `NONE`
+ACTIVE_LANE_SOURCE_COMMIT: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
 ACTIVE_LANE_SOURCE_REPO: `github.com/dominator509/axiom`
 ACTIVE_LANE_SOURCE_REF: `refs/heads/codex/telegram-webhook-hardening`
 ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r3/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r3/mirror fetch --all --prune`
