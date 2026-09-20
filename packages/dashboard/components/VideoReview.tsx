@@ -3,10 +3,12 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
+import { useLocale } from './LocaleProvider';
 
 export default function VideoReview({ bundleId, scanId, platforms }: {
   bundleId: string; scanId: string; platforms: string[];
 }) {
+  const { t } = useLocale();
   const router = useRouter();
   const [reviewed, setReviewed] = useState<string[]>([]);
   const [watched, setWatched] = useState(false);
@@ -28,28 +30,28 @@ export default function VideoReview({ bundleId, scanId, platforms }: {
         method: 'POST', headers: { 'content-type': 'application/json' }, body,
       }, { idempotencyKey: intent.current.key });
       if (!response.ok) {
-        setError('Review was not accepted. Refresh to check the current scan, media, and permissions.');
+        setError(t('review.videoReviewRejected'));
         return;
       }
       intent.current = null;
       router.refresh();
     } catch {
-      setError('Review could not be confirmed. Retry unchanged to check the same request.');
+      setError(t('review.videoReviewUnconfirmed'));
     } finally { running.current = false; setBusy(false); }
   }
   return <fieldset disabled={busy} className="stack">
-    <legend>Full-video compliance review</legend>
-    <p>The automated scan samples two frames per second and does not assess audio. Watch the entire video with audio and inspect each destination’s caption before recording your decision. This is audited and does not publish or schedule the bundle.</p>
-    <label><input type="checkbox" checked={watched} onChange={e => setWatched(e.target.checked)} /> I reviewed the entire video and its audio.</label>
+    <legend>{t('review.videoReviewLegend')}</legend>
+    <p>{t('review.videoReviewDescription')}</p>
+    <label><input type="checkbox" checked={watched} onChange={e => setWatched(e.target.checked)} /> {t('review.videoReviewedConfirmation')}</label>
     {platforms.map(platform => <label key={platform}>
       <input type="checkbox" checked={reviewed.includes(platform)} onChange={e => setReviewed(current =>
         e.target.checked ? [...current.filter(p => p !== platform), platform] : current.filter(p => p !== platform))} />
-      I accept this video and caption for {platform}.
+      {t('review.videoCaptionAccept', { platform })}
     </label>)}
-    <label>Review rationale<textarea value={reason} maxLength={1000} onChange={e => setReason(e.target.value)} /></label>
+    <label>{t('review.reviewRationale')}<textarea value={reason} maxLength={1000} onChange={e => setReason(e.target.value)} /></label>
     {error && <p role="alert">{error}</p>}
     <button type="button" className="btn secondary" disabled={!complete || busy} onClick={submit}>
-      {busy ? 'Recording review…' : 'Record compliance review'}
+      {busy ? t('review.recordingComplianceReview') : t('review.recordComplianceReview')}
     </button>
   </fieldset>;
 }

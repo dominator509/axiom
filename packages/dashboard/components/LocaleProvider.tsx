@@ -24,7 +24,7 @@ export default function LocaleProvider({
   children,
 }: {
   initialLocale: SupportedLocale;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   const [locale, setLocale] = useState(initialLocale);
   const value = useMemo<LocaleContextValue>(() => ({

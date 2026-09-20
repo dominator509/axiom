@@ -11,6 +11,9 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
   useRef: (initial: unknown) => hooks.refs[hooks.refIndex++] ??= { current: initial },
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
+vi.mock('./LocaleProvider', () => ({
+  useLocale: () => ({ locale: 'en', setLocale: vi.fn(), t: (key: string) => key }),
+}));
 import VideoReview from './VideoReview';
 
 beforeEach(() => { hooks.values = []; hooks.refs = []; hooks.refresh.mockReset(); });
