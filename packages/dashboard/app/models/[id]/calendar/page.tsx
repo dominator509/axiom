@@ -17,7 +17,7 @@ export default async function CalendarPage({ params, searchParams }: {
 }) {
   const { id } = await params;
   const session = await getSession();
-  const { t } = await getServerLocale();
+  const { locale, t } = await getServerLocale();
   const role = session?.user?.role;
   if (!talentDestinationAllowed(role, 'calendar')) return <div className="card"><h2>{t('calendar.accessUnavailable')}</h2><p>{t('calendar.accessDescription')}</p><Link href="/">{t('calendar.back')}</Link></div>;
   const showCadence = talentDestinationAllowed(role, 'playbook');
@@ -120,7 +120,7 @@ export default async function CalendarPage({ params, searchParams }: {
       {invalidMonth && <p role="alert">{t('calendar.invalidMonth')}</p>}
       {invalidWeek && <p role="alert">{t('calendar.invalidWeek')}</p>}
       {invalidView && <p role="alert">{t('calendar.invalidView')}</p>}
-      {showCadence && <PlaybookCadence modelId={id} guidelines={guidelines} posts={weekPosts} {...week} unavailable={cadenceUnavailable} />}
+      {showCadence && <PlaybookCadence modelId={id} guidelines={guidelines} posts={weekPosts} {...week} unavailable={cadenceUnavailable} locale={locale} t={t} />}
       {showCadence && <CalendarOptimalTimes modelId={id} patterns={viralPatterns} />}
       {role === 'content_creator' && <p>{t('calendar.creatorProposalBefore')}<Link href={`/models/${encodeURIComponent(id)}/media`}>{t('calendar.mediaLibrary')}</Link>{t('calendar.creatorProposalAfter')}</p>}
       {error && (

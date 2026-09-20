@@ -1,5 +1,8 @@
 import Link from 'next/link';
+import { formatDate, type MessageKey, type SupportedLocale } from '@axiom/core';
 import type { PlaybookGuideline, PostTarget } from '@/lib/api';
+
+type Translate = (key: MessageKey, values?: Record<string, string | number>) => string;
 
 export function currentUtcWeek(now: Date) {
   const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -20,25 +23,28 @@ export function cadenceCounts(posts: PostTarget[], platform: string, from: strin
   return { scheduled, published };
 }
 
-export default function PlaybookCadence({ modelId, guidelines, posts, from, to, unavailable }: {
+export default function PlaybookCadence({ modelId, guidelines, posts, from, to, unavailable, locale, t }: {
   modelId: string; guidelines: PlaybookGuideline[]; posts: PostTarget[]; from: string; to: string; unavailable: boolean;
+  locale: SupportedLocale; t: Translate;
 }) {
-  return <section className="card stack" aria-label="Weekly playbook cadence">
-    <h3>Weekly playbook cadence</h3>
-    <p>Current week: {from.slice(0, 10)} through {to.slice(0, 10)} (UTC, Monday–Sunday).</p>
-    <p className="subtle">Advisory only. Pending posts may not publish. Failed, canceled and uncertain posts do not count toward the plan. No schedule is changed automatically.</p>
-    {unavailable || !Array.isArray(guidelines) || !Array.isArray(posts) || guidelines.some(item => !item || !Number.isSafeInteger(item.cadencePerWeek) || item.cadencePerWeek < 0 || !Array.isArray(item.optimalTimes)) ? <p role="alert">Cadence guidance is unavailable. No adherence conclusion can be drawn.</p>
-      : guidelines.length === 0 ? <p>No cadence guidelines saved for this talent.</p>
+  const weekFrom = formatDate(new Date(from), locale, { dateStyle: 'medium', timeZone: 'UTC' });
+  const weekTo = formatDate(new Date(to), locale, { dateStyle: 'medium', timeZone: 'UTC' });
+  return <section className="card stack" aria-label={t('playbook.cadenceSectionAria')}>
+    <h3>{t('playbook.cadenceSectionAria')}</h3>
+    <p>{t('playbook.cadenceWeek', { from: weekFrom, to: weekTo })}</p>
+    <p className="subtle">{t('playbook.cadenceAdvisory')}</p>
+    {unavailable || !Array.isArray(guidelines) || !Array.isArray(posts) || guidelines.some(item => !item || !Number.isSafeInteger(item.cadencePerWeek) || item.cadencePerWeek < 0 || !Array.isArray(item.optimalTimes)) ? <p role="alert">{t('playbook.cadenceUnavailable')}</p>
+      : guidelines.length === 0 ? <p>{t('playbook.cadenceEmpty')}</p>
       : guidelines.map(guideline => {
         const { scheduled, published } = cadenceCounts(posts, guideline.platform, from, to);
         const deficit = Math.max(0, guideline.cadencePerWeek - scheduled - published);
         return <div className="stack" key={guideline.id}>
-          <strong>{guideline.platform} · revision {guideline.revision}</strong>
-          <p>{published} published + {scheduled} pending / {guideline.cadencePerWeek} posts per week.</p>
-          <p className={deficit ? 'badge warn' : 'subtle'}>{guideline.cadencePerWeek === 0 ? 'No weekly minimum configured.' : deficit ? `Under planned cadence by ${deficit} ${deficit === 1 ? 'post' : 'posts'}.` : 'Planned cadence covered; this is not a publication guarantee.'}</p>
-          {guideline.optimalTimes.length > 0 && <p>Saved posting-time guidance: {guideline.optimalTimes.join(', ')}. Confirm the intended timezone before scheduling.</p>}
+          <strong>{guideline.platform} · {t('playbook.cadenceRevision', { revision: guideline.revision })}</strong>
+          <p>{t('playbook.cadenceCounts', { published, scheduled, target: guideline.cadencePerWeek })}</p>
+          <p className={deficit ? 'badge warn' : 'subtle'}>{guideline.cadencePerWeek === 0 ? t('playbook.cadenceNoMinimum') : deficit === 1 ? t('playbook.cadenceDeficitOne', { deficit }) : deficit ? t('playbook.cadenceDeficitMany', { deficit }) : t('playbook.cadenceCovered')}</p>
+          {guideline.optimalTimes.length > 0 && <p>{t('playbook.cadenceSavedTimes', { times: guideline.optimalTimes.join(', ') })}</p>}
         </div>;
       })}
-    <Link href={`/models/${encodeURIComponent(modelId)}/playbook`}>Review playbook guidelines</Link>
+    <Link href={`/models/${encodeURIComponent(modelId)}/playbook`}>{t('playbook.reviewGuidelines')}</Link>
   </section>;
 }

@@ -144,6 +144,24 @@ describe('F-89 catalog completeness', () => {
       }
     }
   });
+
+  it('keeps playbook cadence guidance translated in every launch locale', () => {
+    const keys = [
+      'playbook.cadenceSectionAria', 'playbook.cadenceWeek', 'playbook.cadenceAdvisory',
+      'playbook.cadenceUnavailable', 'playbook.cadenceEmpty', 'playbook.cadenceRevision',
+      'playbook.cadenceCounts', 'playbook.cadenceNoMinimum', 'playbook.cadenceDeficitOne',
+      'playbook.cadenceDeficitMany', 'playbook.cadenceCovered', 'playbook.cadenceSavedTimes',
+      'playbook.reviewGuidelines',
+    ];
+    for (const locale of SUPPORTED_LOCALES) {
+      for (const key of keys) expect(CATALOGS[locale][key]).toBeTruthy();
+      if (locale !== 'en') {
+        for (const key of keys.filter(key => key !== 'playbook.cadenceRevision')) {
+          expect(CATALOGS[locale][key], `${locale}.${key}`).not.toBe(CATALOGS.en[key]);
+        }
+      }
+    }
+  });
 });
 
 describe('F-89 fallback and diagnostics', () => {
