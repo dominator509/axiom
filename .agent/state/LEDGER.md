@@ -1088,3 +1088,4 @@ M832 | [AXIOM][P4][COORDINATION-READBACK] Branch ref read back as 448f517 after 
 2026-09-20T10:40:23Z | [AXIOM][P4][M835] Verify coordination tip 28a9292 and align canonical handoff branch-head fields with remote readback
 2026-09-20T10:47:51Z | [AXIOM][P4][M836] Dispatch exact-source F81/F84 variant guidance attribution task to Hermes; envelope 82db30fa read back; no implementation counted until evidence-bearing delivery or terminal blocker
 2026-09-20T11:31:53Z | M838: integrated bounded temporal guidance qualifiers across core parser, worker arm construction, API exemplar filter and dashboard consumers; focused tests/build gates pass; API full suite retains unrelated relay-webhooks timeout; no live action
+2026-09-20T13:58:00Z | [AXIOM][P4][RECONCILIATION] Reconciled pushed source milestones M844-M849 with the canonical handoff and architecture audit; M849 source ad021d17 read back from origin; no live action
