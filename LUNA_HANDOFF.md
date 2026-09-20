@@ -7,17 +7,17 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `653b7587ae2830acbff790690c28fdd6db853e38` (latest accepted product-source commit; M780 is coordination/evidence-only)
+SOURCE_HEAD: `653b7587ae2830acbff790690c28fdd6db853e38` (latest accepted product-source commit; M780-M783 are coordination/evidence-only)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `6472ede79050c07263b0261b91c988e81352af23` (current pushed coordination head; accepted product source remains M779)
+PUBLISHED_HEAD: `09c62cc1883008218371bf325b5af2384accf1f5` (exact pushed coordination head used for the fresh Hermes source bind; accepted product source remains M779)
 ACCEPTED_PRODUCT_SOURCE: `653b7587ae2830acbff790690c28fdd6db853e38`
-ACTIVE_HERMES_LANE: `NONE — F89-DRAFT-EDITOR-LOCALIZATION-R3 remains terminal BLOCKED; M773 DraftEditor and M777 BundleMedia local fallbacks are integrated`
+ACTIVE_HERMES_LANE: `F84-VERSIONED-ARM-CONTRACT-CURRENT-R2 — OPEN and ACK-GATED; exact source archive supplied after R1 transport block`
 CODEX_OWNER: `CODEX`
-HERMES_IMPLEMENTATION_OWNER: `NONE — no active Hermes lane; Codex owns source review, implementation, integration, commit and push ownership`
-NEXT_ACTION: `Implement the bounded F84 arm-contract slice: preserve learn-v1 compatibility, add a versioned server-owned hook/format arm context only when evidence exists, feed it through selection and bandit state, and prove it with focused tests; no live/provider/database action.`
+HERMES_IMPLEMENTATION_OWNER: `HERMES only after one correlated ACK/ACCEPTED; Codex owns audit, integration, commit and push`
+NEXT_ACTION: `Await one correlated ACK/READ or ACK/ACCEPTED for F84-VERSIONED-ARM-CONTRACT-CURRENT-R2; after acceptance require one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED. Do not edit the same lane locally while Hermes owns it.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `NONE — F89-DRAFT-EDITOR-LOCALIZATION-R3-BLOCKED-002 is terminal; R1/R2/R3 transport artifacts are closed or superseded; historical F89 PlaybookHistory remains closed`
+OPEN_WIRES: `CODEX-F84-VERSIONED-ARM-CONTRACT-CURRENT-R2-001 — OPEN/ACK-GATED; R1 ended BLOCKED only on missing transport; all other historical R1-R9 and F89 wires remain closed or superseded`
 OPEN_CONTROL_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-CLOSE-010`
 OPEN_CONTROL_TASK_STATE: `CLOSED_BLOCKED — Hermes produced no changed source, no delivery artifact and no terminal DELIVERY`
 OPEN_CONTROL_TASK_REPLY_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-CLOSE-010`
@@ -38,24 +38,24 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `NONE — select the next bounded criterion only after reconciling the current pushed source`
-NEXT_PREPARED_TASK_WIRE: `NONE`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `653b7587ae2830acbff790690c28fdd6db853e38`
-NEXT_PREPARED_TASK_ARCHIVE_SHA256: `beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6 — exact Git bundle supplied after checkout access was denied`
-NEXT_PREPARED_TASK_STATE: `NOT_SELECTED — M779 local fallback is integrated; next source audit is local; no Hermes continuation is authorized`
-ACTIVE_LANE_TASK_WIRE: `NONE — F89-DRAFT-EDITOR-LOCALIZATION-R3-BLOCKED-002 is historical terminal state`
-ACTIVE_LANE_SOURCE_COMMIT: `653b7587ae2830acbff790690c28fdd6db853e38`
-ACTIVE_LANE_COPY_ROOT: `LOCAL WORKTREE — C:\dev\AXIOM`
-ACTIVE_LANE_DELIVERY_ROOT: `LOCAL WORKTREE — committed and pushed`
-ACTIVE_LANE_COPY_STATE: `CLOSED — local fallback integrated; no Hermes source copy or artifact was accepted`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `HISTORICAL — 98e26df5b3a7823572171d6ba375dc954a33c9780d0ae7718855d46f9102e53c`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `HISTORICAL — 98e26df5b3a7823572171d6ba375dc954a33c9780d0ae7718855d46f9102e53c; exact inbox readback verified`
+NEXT_PREPARED_TASK: `F84-VERSIONED-ARM-CONTRACT-CURRENT-R2`
+NEXT_PREPARED_TASK_WIRE: `CODEX-F84-VERSIONED-ARM-CONTRACT-CURRENT-R2-001`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `09c62cc1883008218371bf325b5af2384accf1f5`
+NEXT_PREPARED_TASK_ARCHIVE_SHA256: `587fc81f9943961c8c1ed78ff9dfafb15014e9a69185d059406dd1e311057f94 — /srv/fanthynks-bridge/hermes/inbox/axiom-source-09c62cc.tar`
+NEXT_PREPARED_TASK_STATE: `DISPATCHED — exact archive and envelope checksums read back from Hermes; awaiting correlated ACK`
+ACTIVE_LANE_TASK_WIRE: `CODEX-F84-VERSIONED-ARM-CONTRACT-CURRENT-R2-001`
+ACTIVE_LANE_SOURCE_COMMIT: `09c62cc1883008218371bf325b5af2384accf1f5`
+ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/work/f84-versioned-arm-contract-current-r1`
+ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/replies/delivery-f84-versioned-arm-contract-current-r1`
+ACTIVE_LANE_COPY_STATE: `PENDING — transport resolved; Hermes must ACK/ACCEPT before implementation; no local or live mutation`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `c4d739ddb6dbc31682a5f56d98179dc5714d78e85948e59bfbf648c148f3cc71`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `c4d739ddb6dbc31682a5f56d98179dc5714d78e85948e59bfbf648c148f3cc71 — exact inbox readback verified`
 ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `HISTORICAL — d58bc7a36e65c215c62d68fd6186082a6fc230e815e4276771d6072a6734152f; terminal BLOCKED envelope read back`
 ACTIVE_LANE_SOURCE_BUNDLE: `HISTORICAL — /srv/fanthynks-bridge/hermes/inbox/axiom-source-a3f74f.bundle`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `HISTORICAL — beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6; Git bundle verify passed; exact commit is contained`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — local source implementation`
-ACTIVE_LANE_SOURCE_TRANSPORT: `Local fallback used the checked-out source after the Hermes lane was terminally blocked; M779 exact source commit was pushed and read back`
-ACTIVE_LANE_TRANSPORT_NAMING: `codex-f89-draft-editor-localization-r3.json must equal msg_id.json`
+ACTIVE_LANE_SOURCE_TRANSPORT: `Byte-exact archive of 09c62cc supplied to Hermes inbox and SHA read back; R1 transport block resolved without source substitution`
+ACTIVE_LANE_TRANSPORT_NAMING: `codex-f84-versioned-arm-contract-current-r2.json must equal msg_id.json; archive identity is separately hash-pinned`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id must equal filename stem for every new message; historical mismatches are inert and never renamed`
 BRIDGE_EXECUTION_MODEL: `The bridge poller reports inbox traffic only; it does not execute Hermes tasks. A valid inbox file is transport evidence, not ACK, ownership, progress or delivery.`
 R8_TRANSPORT_STATE: `CLOSED_BLOCKED — terminal NACK-013 was read and receipt-014 sent; no implementation or source delta accepted`
@@ -76,7 +76,7 @@ R4_CORRECTION_RECEIPT_SHA256: `1a34e3dc7d106e120e062a7562e3f5f66b48df35f3ec39367
 R4_ARCHIVE_BINDING: `NOT_USED — Hermes must fetch the named ref, verify the exact current commit, then create the isolated copy from that commit; stale local main and cached branch refs are ineligible`
 ACTIVE_LANE_TRANSPORT_CLOSE_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R3-001 — superseded by R4 sync gate`
 ACTIVE_LANE_TRANSPORT_CLOSE_REASON: `R3 ACK was read but Hermes checkout was stale; no R3 implementation or delivery is accepted`
-LOCAL_FALLBACK_SCOPE: `HOLD — Codex may implement the next selected source-only lane only after the sync receipt; no live action`
+LOCAL_FALLBACK_SCOPE: `HOLD — Codex audits only while Hermes owns F84; integrate only a hash-verified DELIVERY or take a terminal BLOCKED decision; no live action`
 ACTIVE_LANE_ACK_WIRE: `HERMES-F14-MODEL-WATERMARK-POLICY-SOURCE-R10-ACK-001`
 ACTIVE_LANE_ACK_SHA256: `e6f5007f95975cc9a177a528136ad5ba9d3f7a4d6f24247fa6e6874a6c4b5d7a`
 ACTIVE_LANE_RECEIPT_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R10-RECEIPT-002`
