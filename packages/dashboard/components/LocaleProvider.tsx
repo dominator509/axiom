@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
   CATALOGS,
   CONSENT_CATALOGS,
+  FAN_CRM_CATALOGS,
   FANVUE_ANALYTICS_CATALOGS,
   NETWORK_CHILD_CONTROLS_CATALOGS,
   LocaleCatalog,
@@ -22,6 +23,7 @@ const catalog = new LocaleCatalog(
       {
         ...CATALOGS[locale],
         ...CONSENT_CATALOGS[locale],
+        ...FAN_CRM_CATALOGS[locale],
         ...FANVUE_ANALYTICS_CATALOGS[locale],
         ...NETWORK_CHILD_CONTROLS_CATALOGS[locale],
         ...PLATFORM_AFFILIATE_CATALOGS[locale],

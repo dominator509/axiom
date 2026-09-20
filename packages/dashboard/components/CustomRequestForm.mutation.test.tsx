@@ -6,6 +6,7 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
   useState: (value: unknown) => [value, vi.fn()], useRef: (current: unknown) => ({ current }),
 }));
 vi.mock('@/lib/mutation', () => ({ createIdempotencyKey: () => 'same-intent', mutationFetch: state.send }));
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ t: (key: string) => key }) }));
 import CustomRequestForm from './CustomRequestForm';
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 it('reuses the original creation payload and key after an uncertain response', async () => {
