@@ -7,15 +7,15 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `b2fe80bce8d291024e01e38a229372c2b8fd81f0` (exact remote source after M840 inbox attachment localization)
+SOURCE_HEAD: `90c597a2a663830dd25615aa34c08f8cafcc60f6` (exact remote source after M841 model-assignment localization)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `b2fe80bce8d291024e01e38a229372c2b8fd81f0` (M840 source-bearing ref read back from origin)
-COORDINATION_HEAD: `b2fe80bce8d291024e01e38a229372c2b8fd81f0` (M840 source-bearing ref read back before this handoff-only update)
-ACCEPTED_PRODUCT_SOURCE: `b2fe80bce8d291024e01e38a229372c2b8fd81f0`
-ACTIVE_HERMES_LANE: `CLOSED — no Hermes implementation lane is active; M840 was completed and audited locally`
+PUBLISHED_HEAD: `90c597a2a663830dd25615aa34c08f8cafcc60f6` (M841 source-bearing ref read back from origin)
+COORDINATION_HEAD: `90c597a2a663830dd25615aa34c08f8cafcc60f6` (M841 source-bearing ref read back before this handoff-only update)
+ACCEPTED_PRODUCT_SOURCE: `90c597a2a663830dd25615aa34c08f8cafcc60f6`
+ACTIVE_HERMES_LANE: `CLOSED — no Hermes implementation lane is active; M841 was completed and audited locally`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `NONE — no implementation lane is active; Codex owns audit, commit and push until a fresh finite task is deliberately opened`
-NEXT_ACTION: `M840 is closed. Reconcile it against the architecture table, then select one new finite architecture gap; open a fresh Hermes lane only after exact-source selection and branch readback. No stale Hermes lane may resume.`
+NEXT_ACTION: `M841 is closed. Reconcile it against the architecture table, then select one new finite architecture gap; open a fresh Hermes lane only after exact-source selection and branch readback. No stale Hermes lane may resume.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `NONE — all superseded lanes are terminal; no active Hermes implementation wire`
@@ -30,8 +30,8 @@ OPEN_CONTROL_TASK_CORRECTION_WIRE: `HISTORICAL — prior correction evidence onl
 OPEN_CONTROL_TASK_CORRECTION_SHA256: `HISTORICAL`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_NEXT_ACTION: `No action for the superseded wire. Future Hermes work must use a new exact-source task selected after M840 reconciliation; no ACK loop or stale delivery is accepted`
-ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, and M840 inbox attachment localization are integrated on the branch. M840 criterion: authenticated attachment details and preview controls are catalog-backed across all six launch locales, with locale-aware currency and UTC purchase formatting; Spanish mounted-component behavior tests pass; no live action.`
+OPEN_CONTROL_TASK_NEXT_ACTION: `No action for the superseded wire. Future Hermes work must use a new exact-source task selected after M841 reconciliation; no ACK loop or stale delivery is accepted`
+ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, and M841 model-assignment localization are integrated on the branch. M841 criterion: owner-visible model assignment controls, failure/success states and UTC assignment times are catalog-backed across all six launch locales; Spanish mounted-component behavior test passes; no live action.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -100,11 +100,11 @@ ACTIVE_LANE_TRANSPORT_SHA256: `443e0e9555c62cc8acc972014f39e3c36babd2b898dc65658
 ACTIVE_LANE_AUDIT: `COMPLETE — local M824 source audited; core catalog/completeness tests 34/34, dashboard combined generation/media workflow tests 107/107, core/dashboard typechecks pass, core/dashboard lint pass with four pre-existing any warnings, dashboard production build passes with explicit non-secret API_ORIGIN, verify.sh prints verify: ok; source c56243f is pushed/read back; no live action`
 ACTIVE_LANE_CHECKPOINT_WIRE: `CODEX-MEDIA-APPROVAL-LOCALIZATION-R1-EXECUTION-RECEIPT-005`
 ACTIVE_LANE_CHECKPOINT_SHA256: `355e38c66458f5409c1fca5c2e64cac05b81afd35694523e25b09bfc5eceb2bc`
-LAST_COMPLETED_SOURCE_MILESTONE: `M840 — inbox attachment localization at b2fe80b`
+LAST_COMPLETED_SOURCE_MILESTONE: `M841 — model-assignment localization at 90c597a`
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M833 relay, M837 variant ownership hardening, M838 temporal guidance, M839 model overview localization and M840 inbox attachment localization are implemented, tested and pushed; no Hermes product lane is active; no live action`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M833 relay, M837 variant ownership hardening, M838 temporal guidance, M839 model overview localization, M840 inbox attachment localization and M841 model-assignment localization are implemented, tested and pushed; no Hermes product lane is active; no live action`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
@@ -114,7 +114,7 @@ HERMES_STALE_LANE_POLICY: `Historical lanes and the closed F89 PlaybookHistory w
 LOCAL_WORKTREE_POLICY: `Codex audits, tests, commits and pushes local milestones; untracked Hermes review artifacts remain untouched`
 NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provider, credential, permission, network or service action; no Hermes implementation task is active`
 SHIP_GATE_STATUS: `PASS — scripts/verify.sh returned verify: ok; preflight and P0-P4 gates passed; no live action`
-SHIP_GATE_HEAD: `b2fe80bce8d291024e01e38a229372c2b8fd81f0` (M840 source evidence refreshed; scripts/verify.sh returned verify: ok; serialized full test matrix passed; no live action)
+SHIP_GATE_HEAD: `90c597a2a663830dd25615aa34c08f8cafcc60f6` (M841 source evidence refreshed; scripts/verify.sh returned verify: ok; full dashboard matrix passed; no live action)
 
 ## Seamless Codex/Hermes loop contract
 
@@ -136,14 +136,14 @@ LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with chan
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
 LOOP_CURRENT_ACTION: `Codex audits the remaining architecture gaps from the current source, selects one finite gate, and records its verified result before opening any new Hermes wire; no stale lane, ACK loop or unsupported completion claim is accepted`
 
-CURRENT_MILESTONE: `M840 — inbox attachment localization integrated and pushed`
-CURRENT_MILESTONE_COMMIT: `b2fe80bce8d291024e01e38a229372c2b8fd81f0`
-CURRENT_MILESTONE_EVIDENCE_CANONICAL: `Inbox attachment locale tests 2/2; focused dashboard InboxAttachments suite 9/9; core locale suite 57/57; serialized full matrix 24/24 package tasks with core 90 passed, relay 272, fanvue-mcp 80, connectors 418, db 158 passed/17 skipped, llm-gateway 388, auth 28, worker 278 passed/32 skipped, dashboard 857, api 1115 passed/50 skipped and mobile 28; dashboard production build compile/lint/type/page generation/trace passed with four pre-existing any warnings; scripts/verify.sh prints verify: ok; remote branch read back at b2fe80; LIVE_ACTIONS NONE`
-CURRENT_MILESTONE_OPEN_CANONICAL: `The M840 source slice is closed: authenticated inbox attachment details and image/video/audio preview controls now use the shared six-locale catalog, selected-locale currency, UTC purchase formatting and localized retry/unavailable states; persisted authored/provider data and purchase/read semantics remain unchanged. F89 remains open for remaining dashboard/email/operator catalog adoption, every date/number/currency formatting surface, browser/native acceptance and deployed migration/RLS/runtime evidence; all other architecture and live/provider gates remain open; no production readiness claim is made.`
-CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE_CANONICAL: `b2fe80bce8d291024e01e38a229372c2b8fd81f0 is the exact M840 product source read back from origin; no Hermes artifact was accepted, no Hermes implementation lane is active, and no live action occurred.`
+CURRENT_MILESTONE: `M841 — model-assignment localization integrated and pushed`
+CURRENT_MILESTONE_COMMIT: `90c597a2a663830dd25615aa34c08f8cafcc60f6`
+CURRENT_MILESTONE_EVIDENCE_CANONICAL: `ModelAssignments behavior/locale tests 4/4; full dashboard matrix 137 files and 858 tests passed; core locale tests 57/57; core/dashboard typechecks pass; core/dashboard lint exits 0 with four pre-existing any warnings; dashboard production build compile/lint/type/page generation/trace passed; scripts/verify.sh prints verify: ok; remote branch read back at 90c597; LIVE_ACTIONS NONE`
+CURRENT_MILESTONE_OPEN_CANONICAL: `The M841 source slice is closed: owner-visible model assignment controls now use the shared six-locale catalog, selected-locale UTC assignment formatting and localized load/rejection/confirmation/retry states; account role and workspace-wide role semantics remain unchanged. F89 remains open for remaining dashboard/email/operator catalog adoption, including the audited post-note and social-disconnect child controls, every date/number/currency formatting surface, browser/native acceptance and deployed migration/RLS/runtime evidence; all other architecture and live/provider gates remain open; no production readiness claim is made.`
+CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE_CANONICAL: `90c597a2a663830dd25615aa34c08f8cafcc60f6 is the exact M841 product source read back from origin; no Hermes artifact was accepted, no Hermes implementation lane is active, and no live action occurred.`
 HISTORICAL_MILESTONE_REMOTE_READBACK_R10: `GitHub branch tip read back as 2dc8a07b3e4d401f51807da4bd128766ef542a2e; R10 task envelope remote SHA 30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e; R10 Hermes ACK envelope SHA e6f5007f95975cc9a177a528136ad5ba9d3f7a4d6f24247fa6e6874a6c4b5d7a; R10 Codex receipt-002 SHA a7f07ec2edc19fc5cf031d6fc23cb6ff7b5be8eb38db92c2695769a583b04aae; source baseline c1588e4; protocol tests 30/30; control readable-delivery receipt-004 SHA 9fb42bd20a3d1f29fd4184530bc42191691c1f3a5d23025f5fbeb17131ac0a07; helper copy SHA 3aa2ad2fb3f28d94400c7e07c81dc31c707ad87363954083344ebfb51c86eb74; patch SHA 3383d6fb5e81974482550da8eadf7534267756cc4e43e8cff387bbc39a954a10; test harness SHA 299bf078b3bfcc21d6c98cc73f0a90b281e89a4a32bb63860b98e45046d61d73; Hermes R8 NACK-013 envelope SHA 939d31f4e54d34f26249707408fc7600694d9f8b4a8d4cfe9035add16d37c3e6; Hermes R9 NACK-001 envelope SHA 017a08c40291cff10d12a44cdcf41460799465f5b6f47b013f05404b77e824ba; R9 correction receipt-002 SHA bb66e3604d312ee16167264b964935afb0e4fa09a526b828f39416e8c3b60bd7; owner authorization SHA ab020cdfc694eec905c0589fd09f07312b91a9428bd596e1a34cc84f80bbccbf; no feature or live action`
-CURRENT_MILESTONE_EVIDENCE: `M840 source changes are in b2fe80b and remote-read-back; focused attachment, core locale, serialized full-matrix and dashboard production-build gates passed; no Hermes artifact is counted; no live action.`
-CURRENT_MILESTONE_OPEN: `Reconcile M840 against the architecture table, then open exactly one new finite gap. Hermes must receive a new exact-source task only after that selection; no stale wire may resume.`
+CURRENT_MILESTONE_EVIDENCE: `M841 source changes are in 90c597a and remote-read-back; focused assignment, core locale, full-dashboard and production-build gates passed; no Hermes artifact is counted; no live action.`
+CURRENT_MILESTONE_OPEN: `Reconcile M841 against the architecture table, then open exactly one new finite gap. Hermes must receive a new exact-source task only after that selection; no stale wire may resume.`
 HISTORICAL_MILESTONE_REMOTE_READBACK_PLAYBOOK_HISTORY: `Exact-source sync reply SHA abadb46e3fa3175d7bb6ecddc28a4656a7c77cbd933d6d24f183c7f1ffa9ccfd; sync receipt SHA 8aa4d2411311b8102cae5ca5e059c5a7baecdc0d344b665c9c14dbfb93822c6e; PlaybookHistory task SHA 2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91; remote task SHA 2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91; Hermes ACK/ACCEPTED SHA c42708ff5a2cc9addc90ffdef20a87336532a8801c8d1e770f06cd048e705737; acceptance READ receipt SHA ed6e8dfedae0ee522b16ebaec54db94a6993bd1a7d6a85ede3359108b777a1ed; progress-required receipt SHA 684744a5dc2128759435ac1eeb4b14b08c1a9d5a8ae6d81835f6dead0fad8833; malformed Hermes PROGRESS SHA 471a32173cd79cf58e0c86ddefcdef6ed959437555677b4efdf6e3dbb083f447; correction receipt SHA cb2f3bc19348088fbe74f7f4bb870114e3fa42bd62aef89b691dabcdbf3aba2f; corrected Hermes PROGRESS SHA 780caca68d563a5f24f5ae7131f9f48c3b98c22d724121ae4de453159079da74; progress-acceptance receipt SHA 8db70fb1eb81273a56d209a9ac52c780c8ec50692f15018d6c6ed8979f53058b; Hermes delivery-gate ACK SHA d0911e6316e173bd8aeb3b42006d7fe51cada72880ab266ee8fdf7a342562a57; implementation source 50df7061f89780b1d94d5545e1803326af65a610; coordination tip 88fb86d242a0f009f8776f309626ffd29251dbe4; delivery is next, no further ACK expected, local baseline recorded, LIVE_ACTIONS NONE`
 CURRENT_MILESTONE_REMOTE_READBACK_CURRENT: `Product-source branch ref read back as 4d38c924b586256b720683e3ae34e8c0b0c1732c; M763 source commit a3f74fef15bbeae1119ed0a71cca58bf4d742847 remains the exact bound source; Hermes Git bundle beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6, R3 task envelope 98e26df5b3a7823572171d6ba375dc954a33c9780d0ae7718855d46f9102e53c and remote readback were verified; core build PASS; core tests 80/80; dashboard focused MediaBundleCreate/ApproveButtons/AgentPermissionManager/PlaybookHistory/TriggerRuleManager tests 47/47; dashboard typecheck PASS; dashboard lint PASS with three pre-existing warnings; diff check PASS; LIVE_ACTIONS NONE`
 CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE: `M777 product-source commit 726c19a550ffa742eb9e81a97f1b71eff16363e1 was read back from origin; later coordination commits only update this handoff metadata; Hermes Git bundle beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6 and terminal BLOCKED envelope d58bc7a36e65c215c62d68fd6186082a6fc230e815e4276771d6072a6734152f remain historical evidence; core build PASS; core tests 80/80; combined DraftEditor/BundleMedia focused 23/23; dashboard typecheck PASS; dashboard lint PASS with three pre-existing warnings; diff check PASS; LIVE_ACTIONS NONE`
@@ -3288,3 +3288,25 @@ production build compilation/lint/type/page generation/trace passed, and
 `origin/codex/telegram-webhook-hardening`. This closes the M840 source/UI gate
 only. Browser/native, provider, deployed migration/RLS/runtime, observability,
 CI governance and production acceptance remain open. No live action occurred.
+
+## M841 — model-assignment localization
+
+The owner-visible `ModelAssignments` control now uses typed catalog keys across
+all six launch locales. Assignment loading, empty state, assignment/removal
+controls, confirmation, rejection, retry and success/unconfirmed states are
+localized; assignment timestamps use the selected locale with an explicit UTC
+zone. Member email/role values remain authored account data, and existing
+idempotency, exact receipt validation, owner-only boundary and workspace-role
+semantics remain unchanged.
+
+Evidence: focused ModelAssignments behavior/locale tests 4/4, full dashboard
+matrix 137 files and 858 tests passed, core locale tests 57/57, core/dashboard
+typechecks passed, core/dashboard lint exited 0 with four pre-existing `any`
+warnings, dashboard production build compilation/lint/type/page generation/trace
+passed, and `scripts/verify.sh` prints `verify: ok`. Source commit
+`90c597a2a663830dd25615aa34c08f8cafcc60f6` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes the M841 source/UI gate
+only. PostTeamNotes and DisconnectSocialAccountButton remain open for a separate
+finite slice; browser/native, provider, deployed migration/RLS/runtime,
+observability, CI governance and production acceptance remain open. No live
+action occurred.

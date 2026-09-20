@@ -884,3 +884,24 @@ pushed and read back from `origin/codex/telegram-webhook-hardening`. This is
 source/UI evidence only; browser/mobile, deployed runtime, provider,
 migration/RLS, observability, CI governance and production acceptance remain
 open. No live action occurred.
+
+# M841: model-assignment localization
+
+The owner-visible `ModelAssignments` control now uses typed catalog keys across
+all six launch locales. Assignment loading, empty state, assignment/removal
+controls, confirmation, rejection, retry and success/unconfirmed states are
+localized; assignment timestamps use the selected locale with an explicit UTC
+zone. Member email/role values remain authored account data, and existing
+idempotency, exact receipt validation, owner-only boundary and workspace-role
+semantics are unchanged.
+
+Evidence: focused ModelAssignments behavior/locale tests 4/4, full dashboard
+matrix 137 files and 858 tests passed, core locale tests 57/57, core/dashboard
+typechecks passed, core/dashboard lint exited 0 with four pre-existing `any`
+warnings, dashboard production build compilation/lint/type/page generation/trace
+passed, and `scripts/verify.sh` prints `verify: ok`. Source commit
+`90c597a2a663830dd25615aa34c08f8cafcc60f6` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
+PostTeamNotes and DisconnectSocialAccountButton remain open for a separate finite
+slice; browser/native, provider, deployed migration/RLS/runtime, observability,
+CI governance and production acceptance remain open. No live action occurred.
