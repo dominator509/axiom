@@ -1092,3 +1092,19 @@ dashboard files passes, and `git diff --check` passes. Source commit
 `1b640fa677393536b09c824f9a563e2c4b2da3ce` is pushed and read back from
 `origin/codex/telegram-webhook-hardening`. Package-wide dashboard lint was not
 counted for this slice because it previously hung in this environment.
+
+### M791 — F-89 Grok connection route shell localization
+
+The authenticated Grok connection/storage route now resolves the persisted
+interface locale through the shared server-locale helper. Role-denial copy,
+Grok account title/description, workspace return link and private-storage
+boundary use typed catalog keys in all six launch locales. Existing role-scoped
+account, subscription and storage components are unchanged; this gate covers
+the route shell only and does not claim OAuth, R2 or provider runtime proof.
+
+Evidence: focused Grok route tests 10/10, core locale tests 28/28, core and
+dashboard typechecks pass, core build passes, focused ESLint for changed
+dashboard/core files passes, and `git diff --check` passes. Source commit
+`d7e74ea624cf845f981360c51219eaf86f72f6f6` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. Package-wide dashboard lint was not
+counted for this slice because it previously hung in this environment.

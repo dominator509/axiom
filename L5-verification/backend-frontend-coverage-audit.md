@@ -1,6 +1,6 @@
 # Backend-to-frontend coverage audit
 
-Source baseline: `1b640fa677393536b09c824f9a563e2c4b2da3ce`.
+Source baseline: `d7e74ea624cf845f981360c51219eaf86f72f6f6`.
 
 ## Verdict and evidence boundary
 
@@ -20,7 +20,7 @@ runtime-accepted merely because its unit tests pass.
 | --- | --- | --- |
 | F-01 | **Wired**: model workspaces, create/edit, character lock, avatar URL, activate/deactivate | Authenticated desktop/mobile lifecycle acceptance and role matrix remain deployment evidence |
 | F-02, F-04, F-43 | **Wired/partial**: owner network config, encrypted credentials, health, model-scoped apply, Rust fail-closed plane | Privileged Linux namespace, WireGuard/proxy leak and real egress acceptance remain open |
-| F-03, F-31 | **Partial**: Fanvue OAuth/MCP and worker connector paths exist | Live provider OAuth, upload/post/analytics/vault rehearsal and browser acceptance remain open |
+| F-03, F-31 | **Partial**: Fanvue OAuth/MCP and worker connector paths exist; the authenticated Grok connection/storage route shell is catalog-backed across six launch locales | Live provider OAuth, upload/post/analytics/vault rehearsal and browser acceptance remain open |
 | F-05, F-08 | **Wired**: fan contacts and custom-request lifecycle are reachable from Fans | Browser persistence and long-history acceptance remain open |
 | F-06, F-07 | **Source-wired / partial**: Fanvue top-spender/status ingestion, account metrics, CRM tier updates, idempotent normalized touchpoints, authenticated read, and operator sync queue are implemented | Deployed migration/RLS, live provider OAuth/scopes, worker execution, multi-provider event adapters, and browser/mobile/provider acceptance remain open |
 | F-09 | **Internal**: pre-post executor exists and is in the generation/publish chain | Runtime script/container acceptance remains open; no separate button is required |
