@@ -33,13 +33,26 @@ interface ViralData {
 export default async function AnalyticsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let uiLocale = 'en';
-  try { uiLocale = (await api.uiLocale.get()).data.locale; } catch { /* use the safe fallback */ }
+  try {
+    uiLocale = (await api.uiLocale.get()).data.locale;
+  } catch {
+    /* use the safe fallback */
+  }
   const locale = normalizeLocale(uiLocale) ?? 'en';
   const catalog = new LocaleCatalog(CATALOGS);
-  const t = (key: string, values?: Record<string, string | number>) => catalog.t(locale, key, values);
+  const t = (key: string, values?: Record<string, string | number>) =>
+    catalog.t(locale, key, values);
   const number = new Intl.NumberFormat(locale);
   const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 2 });
-  if (!talentDestinationAllowed((await getSession())?.user?.role, 'analytics')) return <div className="card stack"><h2>{t('analytics.analyticsAccessUnavailable')}</h2><p>{t('analytics.analyticsAccessDenied')}</p><Link href="/">{t('analytics.backToWorkspace')}</Link></div>;
+  const day = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' });
+  if (!talentDestinationAllowed((await getSession())?.user?.role, 'analytics'))
+    return (
+      <div className="card stack">
+        <h2>{t('analytics.analyticsAccessUnavailable')}</h2>
+        <p>{t('analytics.analyticsAccessDenied')}</p>
+        <Link href="/">{t('analytics.backToWorkspace')}</Link>
+      </div>
+    );
   const reportMonth = new Date().toISOString().slice(0, 7);
   let analytics: AnalyticsData | null = null;
   let viral: ViralData | null = null;
@@ -65,7 +78,10 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
     <div className="page-stack">
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'end' }}>
         <h2 style={{ margin: 0 }}>{t('analytics.title')}</h2>
-        <a className="btn secondary" href={`/api/v1/models/${encodeURIComponent(id)}/reports/monthly?month=${reportMonth}`}>
+        <a
+          className="btn secondary"
+          href={`/api/v1/models/${encodeURIComponent(id)}/reports/monthly?month=${reportMonth}`}
+        >
           {t('analytics.downloadPdf')}
         </a>
       </div>
@@ -77,7 +93,9 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
               <div style={{ fontSize: 28, fontWeight: 700 }}>
                 {number.format(analytics.totals.views)}
               </div>
-              <p style={{ color: 'var(--muted)', margin: 0 }}>{t('analytics.lastDays', { days: analytics.windowDays })}</p>
+              <p style={{ color: 'var(--muted)', margin: 0 }}>
+                {t('analytics.lastDays', { days: analytics.windowDays })}
+              </p>
             </div>
             <div className="card">
               <h3>{t('analytics.likes')}</h3>
@@ -143,7 +161,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
                 <tbody>
                   {analytics.daily.slice(-14).map((d) => (
                     <tr key={d.day}>
-                      <td>{d.day}</td>
+                      <td>{day.format(new Date(`${d.day}T00:00:00Z`))}</td>
                       <td>{number.format(d.views)}</td>
                       <td>{number.format(d.likes)}</td>
                     </tr>
@@ -163,25 +181,52 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
           <div>
             <h3 style={{ marginBottom: 4 }}>{t('analytics.playbookContext')}</h3>
-            <p className="subtle" style={{ margin: 0 }}>{t('analytics.playbookContextDescription')}</p>
+            <p className="subtle" style={{ margin: 0 }}>
+              {t('analytics.playbookContextDescription')}
+            </p>
           </div>
-          <Link href={`/models/${encodeURIComponent(id)}/playbook`}>{t('analytics.reviewPlaybook')}</Link>
+          <Link href={`/models/${encodeURIComponent(id)}/playbook`}>
+            {t('analytics.reviewPlaybook')}
+          </Link>
         </div>
-        {playbookUnavailable ? <p role="alert">{t('analytics.playbookLoadFailed')}</p>
-          : !playbookGuidelines?.length ? <p className="subtle">{t('analytics.noGuidelines')}</p>
-          : <div className="grid">{playbookGuidelines.map(guideline => <article className="card" key={guideline.id} style={{ background: 'var(--panel2)' }}>
-            <strong>{guideline.platform} · revision {guideline.revision}</strong>
-            <p>{t('analytics.cadenceTarget', { count: guideline.cadencePerWeek })}</p>
-            <p>{t('analytics.suggestedTimes', { times: guideline.optimalTimes.length ? guideline.optimalTimes.join(', ') : t('analytics.noneSaved') })}</p>
-            <p className="subtle">{t('analytics.upsellStrategy', { value: guideline.upsellStrategy || t('analytics.noneConfigured') })}.</p>
-          </article>)}</div>}
+        {playbookUnavailable ? (
+          <p role="alert">{t('analytics.playbookLoadFailed')}</p>
+        ) : !playbookGuidelines?.length ? (
+          <p className="subtle">{t('analytics.noGuidelines')}</p>
+        ) : (
+          <div className="grid">
+            {playbookGuidelines.map((guideline) => (
+              <article className="card" key={guideline.id} style={{ background: 'var(--panel2)' }}>
+                <strong>
+                  {guideline.platform} · revision {guideline.revision}
+                </strong>
+                <p>{t('analytics.cadenceTarget', { count: guideline.cadencePerWeek })}</p>
+                <p>
+                  {t('analytics.suggestedTimes', {
+                    times: guideline.optimalTimes.length
+                      ? guideline.optimalTimes.join(', ')
+                      : t('analytics.noneSaved'),
+                  })}
+                </p>
+                <p className="subtle">
+                  {t('analytics.upsellStrategy', {
+                    value: guideline.upsellStrategy || t('analytics.noneConfigured'),
+                  })}
+                  .
+                </p>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <h2 style={{ marginTop: 24 }}>{t('analytics.viralInsights')}</h2>
       <PerformancePatterns patterns={viral?.patterns} />
       <p className="subtle">{t('analytics.verifiedExemplarDisclaimer')}</p>
       <div className="card">
-        {!viral ? <p role="alert">{t('analytics.viralLoadFailed')}</p> : viral.totalExemplars === 0 ? (
+        {!viral ? (
+          <p role="alert">{t('analytics.viralLoadFailed')}</p>
+        ) : viral.totalExemplars === 0 ? (
           <p style={{ color: 'var(--muted)' }}>{t('analytics.noVerifiedExemplars')}</p>
         ) : (
           <div className="grid">
