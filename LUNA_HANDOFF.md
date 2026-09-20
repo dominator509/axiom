@@ -9,8 +9,8 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `c56243fff44d87349ebbe5d3b5ba64586cb3e794` (M824 product source; active coordination ref is bound below)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `c56243fff44d87349ebbe5d3b5ba64586cb3e794` (M824 product-source readback; active coordination records remain bound below)
-COORDINATION_HEAD: `c56243fff44d87349ebbe5d3b5ba64586cb3e794` (M824 product source; this handoff update is the next coordination commit)
+PUBLISHED_HEAD: `c2ed933bb537068f2685b1c14d28f8ab9bf629b3` (current branch tip; product source remains c56243f and later commits are coordination-only)
+COORDINATION_HEAD: `c2ed933bb537068f2685b1c14d28f8ab9bf629b3` (current handoff/protocol-correction tip; product source remains c56243f)
 ACCEPTED_PRODUCT_SOURCE: `c56243fff44d87349ebbe5d3b5ba64586cb3e794`
 ACTIVE_HERMES_LANE: `F85-RELAY-RECONCILIATION-CURRENT-R1 — fresh exact-source lane; all older R-lanes remain quarantined`
 CODEX_OWNER: `CODEX`
