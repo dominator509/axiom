@@ -1,6 +1,6 @@
 # Backend-to-frontend coverage audit
 
-Source baseline: `0b7d4b232d9f590e56a1e80013c79d5491b063a2`.
+Source baseline: `f8aaaff7464672234e78cd55043965def328d7e5`.
 
 ## Verdict and evidence boundary
 
@@ -27,7 +27,7 @@ runtime-accepted merely because its unit tests pass.
 | F-10 | **Source-wired / partial**: schedule page, DST-aware reschedule/cancel controls, visual month/week board, accessible date-based move control, and advisory viral optimal-time suggestions exist | Browser/mobile acceptance, provider-backed scheduling, and deployed runtime evidence remain open |
 | F-11 | **Wired/partial**: model-scoped cascade-template CRUD and a responsive Cascade schedules page persist ordered platform offsets and expand approved bundles into ordinary scheduled targets; the route loaded/error shell is catalog-backed across six launch locales | Live account/consent/capability/worker acceptance and browser persistence remain open; expansion deliberately does not bypass approval or publication gates |
 | F-12 | **Wired**: Safety page and kill-switch API/worker interlock exist | Live response-time and multi-worker drain rehearsal remain open |
-| F-13, F-15, F-16 | **Wired/partial**: model-scoped variant experiments provide draft/running/paused/completed lifecycle, deterministic assignment, exposure/outcome capture, and winner promotion | Statistical validity and live worker/provider acceptance remain open |
+| F-13, F-15, F-16 | **Wired/partial**: model-scoped variant experiments provide draft/running/paused/completed lifecycle, deterministic assignment, exposure/outcome capture, and winner promotion; the authenticated route title and load-failure shell are catalog-backed across six launch locales | Statistical validity and live worker/provider acceptance remain open |
 | F-14 | **Internal/partial**: media-plane primitives exist | User-configurable per-model watermark policy and CDN/runtime acceptance are not established |
 | F-17, F-18 | **Wired/partial**: authenticated model-scoped scrape runs persist bounded requests/results, dispatch a worker job, and expose status/error controls; the mounted result/history UI and authenticated route title/load-failure shell use the shared six-locale catalog | Deployed sidecar rehearsal and benchmark history acceptance remain open |
 | F-19, F-20, F-21 | **Wired/partial**: model-scoped trigger-rule CRUD/UI and a metrics-driven worker evaluator now exist for bounded follow-up generation or operator relay cards | Churn-rescue subscription events, provider moderation coverage, and live metrics/worker acceptance remain open |
@@ -726,3 +726,20 @@ pass. Source commit is
 `origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
 multi-user browser/RLS, Grok/provider, migration, runtime and deployment
 acceptance remain open.
+
+# M797: variant-experiments route-shell localization
+
+The model-scoped variant-experiments page now resolves the persisted interface
+locale through the shared server-locale helper. Its loaded title and
+unavailable/load-failure states use typed catalog keys in English, Spanish,
+Japanese, Italian, Brazilian Portuguese and German. The route preserves
+model-scoped edit capability and all existing experiment/candidate API and
+mutation semantics.
+
+Evidence: focused experiments route tests 2/2, core catalog tests 28/28, core
+and dashboard typechecks, core build, changed-file ESLint and `git diff
+--check` pass. Source commit is
+`f8aaaff7464672234e78cd55043965def328d7e5`, read back from
+`origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
+browser/mobile, statistical validity, worker/provider, migration, runtime and
+deployment acceptance remain open.

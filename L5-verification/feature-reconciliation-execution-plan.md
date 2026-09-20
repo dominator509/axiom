@@ -1139,3 +1139,19 @@ dashboard/core files passes, and `git diff --check` passes. Source commit
 `0b7d4b232d9f590e56a1e80013c79d5491b063a2` is pushed and read back from
 `origin/codex/telegram-webhook-hardening`. Package-wide dashboard lint was not
 counted for this slice because it previously hung in this environment.
+
+### M797 — F-89 variant-experiments route-shell localization
+
+The model-scoped variant-experiments route now resolves the persisted
+interface locale through the shared server-locale helper. Loaded, unavailable
+and load-failure copy use typed catalog keys in all six launch locales.
+Existing model scope, role-based edit capability, candidate selection,
+experiment lifecycle, outcome tracking and winner promotion mechanics remain
+unchanged; this gate covers the route shell only.
+
+Evidence: focused experiments route tests 2/2, core locale tests 28/28, core
+and dashboard typechecks pass, core build passes, focused ESLint for changed
+dashboard/core files passes, and `git diff --check` passes. Source commit
+`f8aaaff7464672234e78cd55043965def328d7e5` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. Package-wide dashboard lint was not
+counted for this slice because it previously hung in this environment.
