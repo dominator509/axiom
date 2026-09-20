@@ -782,3 +782,26 @@ prints `verify: ok`; source commit
 automated UI-localization slice. Browser/native, deployed media/runtime, R2,
 provider, migration/RLS and production acceptance remain open. No live action
 occurred.
+
+# M820: F-89 generation and upload workflow localization
+
+The generation form, source-media upload flow and live generation-progress
+surface now consume the shared six-locale catalog. The form covers output type,
+media prompt, sanitization disclosure, source-image selection, duration,
+creative fields, destinations, optional caption enrichment, unresolved-request
+reconciliation and ToS report headings. Upload covers file constraints,
+sanitization, idempotent retry wording and truthful stored-asset/hash status.
+Progress covers queued, paused, hold, rejected, scan, review, blocked,
+sanitization and approval/review navigation states. API payloads, provider and
+user-authored content, idempotency keys and safety interlocks are unchanged.
+
+Evidence: core catalog/completeness tests 34/34; combined dashboard
+generation, upload, progress, approval and transform tests 89/89;
+core/dashboard typechecks pass; core/dashboard lint exits 0 with four
+pre-existing dashboard `any` warnings; dashboard production build exits 0 with
+explicit non-secret `API_ORIGIN`; `scripts/verify.sh` prints `verify: ok`;
+source commit `6b418ae87a1430aed1ad101bb3b607d5774e9129` is pushed and read
+back from `origin/codex/telegram-webhook-hardening`. This closes only the
+source and automated generation-workflow localization slice. Browser/native,
+deployed media/runtime, R2, provider, migration/RLS and production acceptance
+remain open. No live action occurred.
