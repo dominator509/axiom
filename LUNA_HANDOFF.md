@@ -7,21 +7,21 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `5e542da7821ef9c5bef87a4c395db384eb343c19` (exact remote source after M837 variant-guidance ownership hardening)
+SOURCE_HEAD: `6b68c1110809cdf0d0b3dcc663be263d5fae325f` (exact remote source after M838 temporal-guidance consumer hardening)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `1d9933c36e5aef508bf9974e3cf0f181d5a6423c` (last source-bearing correction ref read back; current tip is handoff-only and product source remains pinned separately below)
-COORDINATION_HEAD: `1d9933c36e5aef508bf9974e3cf0f181d5a6423c` (last source-bearing ref read back before the current handoff-only update)
-ACCEPTED_PRODUCT_SOURCE: `5e542da7821ef9c5bef87a4c395db384eb343c19`
-ACTIVE_HERMES_LANE: `F81-F84-TEMPORAL-GUIDANCE-CURRENT-R1 — exact source 5e542da, one bounded source-only lane`
+PUBLISHED_HEAD: `6b68c1110809cdf0d0b3dcc663be263d5fae325f` (M838 source-bearing ref read back from origin)
+COORDINATION_HEAD: `6b68c1110809cdf0d0b3dcc663be263d5fae325f` (M838 source-bearing ref read back before this handoff-only update)
+ACCEPTED_PRODUCT_SOURCE: `6b68c1110809cdf0d0b3dcc663be263d5fae325f`
+ACTIVE_HERMES_LANE: `CLOSED_SUPERSEDED_LOCAL_FALLBACK — F81-F84 temporal-guidance source slice integrated locally at M838`
 CODEX_OWNER: `CODEX`
-HERMES_IMPLEMENTATION_OWNER: `HERMES only after one correlated ACK/ACCEPTED; Codex owns audit, integration, commit and push`
-NEXT_ACTION: `Read the correlated ACK/NACK for the temporal-guidance wire. If ACCEPTED, require one evidence-bearing PROGRESS and one terminal DELIVERY/BLOCKED; Codex audits bytes, integrates, commits and pushes. No stale lane may resume.`
+HERMES_IMPLEMENTATION_OWNER: `NONE — no correlated ACK/NACK arrived for the temporal lane; Codex completed the bounded source fallback and owns audit, commit and push`
+NEXT_ACTION: `Do not resume the superseded temporal lane. Reconcile the M838 source and evidence, then select one new finite architecture gap; no stale Hermes lane may resume.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `CODEX-F81-F84-TEMPORAL-GUIDANCE-CURRENT-R1-TASK-001 + CODEX-F81-F84-TEMPORAL-GUIDANCE-CURRENT-R1-CORRECTION-002`
-OPEN_CONTROL_WIRE: `CODEX-F81-F84-TEMPORAL-GUIDANCE-CURRENT-R1-TASK-001`
-OPEN_CONTROL_TASK_STATE: `TASK_UPLOADED_WITH_CORRECTION — exact source 5e542da, task envelope 8d1c861b and correlated consumer correction 75e05d32 were read back; awaiting one ACK/NACK for the active lane`
-OPEN_CONTROL_TASK_REPLY_WIRE: `NONE`
+OPEN_WIRES: `CODEX-F81-F84-TEMPORAL-GUIDANCE-CURRENT-R1-TASK-001 + CORRECTION-002 + SUPERSEDE-003 — terminal local fallback receipt sent; no new Hermes implementation is accepted`
+OPEN_CONTROL_WIRE: `NONE — temporal lane closed by local fallback`
+OPEN_CONTROL_TASK_STATE: `CLOSED_SUPERSEDED_LOCAL_FALLBACK — exact source 5e542da was replaced by source-bearing M838 6b68c111 after no correlated Hermes response; terminal supersession envelope remote SHA d4dcc702`
+OPEN_CONTROL_TASK_REPLY_WIRE: `CODEX-F81-F84-TEMPORAL-GUIDANCE-CURRENT-R1-SUPERSEDE-003`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `HISTORICAL — F89 Playbook History receipt; not an active task`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `HISTORICAL`
 OPEN_CONTROL_TASK_RECEIPT_WIRE: `NONE`
@@ -30,7 +30,7 @@ OPEN_CONTROL_TASK_CORRECTION_WIRE: `HISTORICAL — prior correction evidence onl
 OPEN_CONTROL_TASK_CORRECTION_SHA256: `HISTORICAL`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must first prove exact-source synchronization, then implement only F81/F84 criteria and return one evidence-bearing PROGRESS or terminal BLOCKED; no no-delta progress or ACK loop is accepted`
+OPEN_CONTROL_TASK_NEXT_ACTION: `No action for the superseded wire. Future Hermes work must use a new exact-source task selected after M838 reconciliation; no ACK loop or stale delivery is accepted`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, and M837 variant source ownership hardening are integrated on the branch. M837 criterion: same-org/model/asset source-variant relation enforced on guidance listing and candidate save; API route tests 55/55, worker guidance 3/3, dashboard focused tests 7/7, package typechecks/lint/build and verify.sh pass; no live action.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
@@ -44,17 +44,19 @@ NEXT_PREPARED_TASK_WIRE: `CODEX-F81-F84-TEMPORAL-GUIDANCE-CURRENT-R1-TASK-001`
 NEXT_PREPARED_TASK_SOURCE_COMMIT: `5e542da7821ef9c5bef87a4c395db384eb343c19`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
 NEXT_PREPARED_TASK_STATE: `TASK_UPLOADED — exact source commit, finite acceptance matrix and remote envelope hash read back; no source implementation is counted until terminal delivery`
-ACTIVE_LANE_TASK_WIRE: `CODEX-F81-F84-TEMPORAL-GUIDANCE-CURRENT-R1-TASK-001`
-ACTIVE_LANE_SOURCE_COMMIT: `5e542da7821ef9c5bef87a4c395db384eb343c19`
+ACTIVE_LANE_TASK_WIRE: `NONE — F81/F84 temporal lane closed by local fallback`
+ACTIVE_LANE_SOURCE_COMMIT: `6b68c1110809cdf0d0b3dcc663be263d5fae325f`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f81-f84-temporal-guidance-current-r1`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f81-f84-temporal-guidance-current-r1/delivery`
-ACTIVE_LANE_COPY_STATE: `TASK_SUBMITTED_WITH_CORRECTION — Hermes must fetch/verify exact source before any edit`
+ACTIVE_LANE_COPY_STATE: `CLOSED_SUPERSEDED_LOCAL_FALLBACK — no Hermes artifact accepted`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `8d1c861bd1e553c05fc4d7e2c46c5ef4d64d2201399f84869923358cdcb89277`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `8d1c861bd1e553c05fc4d7e2c46c5ef4d64d2201399f84869923358cdcb89277`
-ACTIVE_LANE_ACK_WIRE: `NONE — awaiting Hermes ACK/NACK for the temporal-guidance task`
+ACTIVE_LANE_ACK_WIRE: `NONE — no correlated ACK/NACK arrived before local fallback`
 ACTIVE_LANE_CORRECTION_WIRE: `CODEX-F81-F84-TEMPORAL-GUIDANCE-CURRENT-R1-CORRECTION-002`
 ACTIVE_LANE_CORRECTION_SHA256: `75e05d3200312ff940dd60508e61e26a9d8a819f4806210d7eba084381ffd62d`
 ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `75e05d3200312ff940dd60508e61e26a9d8a819f4806210d7eba084381ffd62d`
+ACTIVE_LANE_SUPERSEDE_WIRE: `CODEX-F81-F84-TEMPORAL-GUIDANCE-CURRENT-R1-SUPERSEDE-003`
+ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `d4dcc7025ad9018fc9dcea2246580f86006c86c1a51ab01e9a6273e95ec7046b`
 ACTIVE_LANE_SOURCE_BUNDLE: `NONE — exact Git source ref is authoritative`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `NONE`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — exact Git source task`
@@ -134,14 +136,14 @@ LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with chan
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
 LOOP_CURRENT_ACTION: `Codex audits the remaining architecture gaps from the current source, selects one finite gate, and records its verified result before opening any new Hermes wire; no stale lane, ACK loop or unsupported completion claim is accepted`
 
-CURRENT_MILESTONE: `M837 — F81/F84 source-variant ownership hardening integrated; next temporal-guidance lane prepared against 5e542da`
-CURRENT_MILESTONE_COMMIT: `5e542da7821ef9c5bef87a4c395db384eb343c19`
-CURRENT_MILESTONE_EVIDENCE_CANONICAL: `Variant-experiments API route and contract tests 55/55; worker caption-guidance tests 3/3; dashboard variant focused tests 7/7; API typecheck/lint/build and worker/dashboard typechecks pass; scripts/verify.sh prints verify: ok; full root test matrix remains blocked only by four existing Windows llm-gateway process-tree cleanup tests; LIVE_ACTIONS NONE`
-CURRENT_MILESTONE_OPEN_CANONICAL: `F81/F84 remains open only for the finite temporal arm/consumer slice: include explicit validated timing in learn-v2 arm identity without inferring unsupported values, preserve legacy arms and provenance, and render truthful timing evidence. Hermes must return exact-source ACK, evidence-bearing PROGRESS and terminal DELIVERY/BLOCKED. Browser/mobile acceptance, deployed media/R2/runtime, provider OAuth/webhook, migration/RLS, observability, CI governance and other operator gates remain open; no production readiness claim is made.`
-CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE_CANONICAL: `5e542da7821ef9c5bef87a4c395db384eb343c19 is the exact product source and 1d9933c is the read-back coordination tip; the temporal-guidance task and same-lane correction are hash-matched in Hermes' inbox; no live action.`
+CURRENT_MILESTONE: `M838 — F81/F84 temporal guidance arm/consumer slice integrated locally and pushed`
+CURRENT_MILESTONE_COMMIT: `6b68c1110809cdf0d0b3dcc663be263d5fae325f`
+CURRENT_MILESTONE_EVIDENCE_CANONICAL: `Core 90/90; worker 278 passed / 32 skipped integration-only; dashboard 854/854; focused API viral 5/5; core/worker/API/dashboard typechecks pass; core/worker/API builds pass; dashboard production build passes with explicit non-secret API_ORIGIN under elevated Windows symlink permission; lint has zero errors with existing warnings; scripts/verify.sh prints verify: ok; full API package run reached 1,113 passed / 52 skipped but relay-webhooks beforeAll timed out; LIVE_ACTIONS NONE`
+CURRENT_MILESTONE_OPEN_CANONICAL: `The temporal F81/F84 source slice is closed: learn-v2 arms now preserve only explicit validated timing qualifiers, legacy arms remain unchanged, the API consumer accepts bounded timing, and dashboard consumers render truthful timing evidence. Overall F81/F84 remains open for complete immutable recipe capture, load/recency behavior and deployed A/B attribution/promotion acceptance. Browser/mobile acceptance, deployed media/R2/runtime, provider OAuth/webhook, migration/RLS, observability, CI governance and other operator gates remain open; no production readiness claim is made.`
+CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE_CANONICAL: `6b68c1110809cdf0d0b3dcc663be263d5fae325f is the exact M838 product source read back from origin; terminal supersession envelope d4dcc702 was read back into Hermes' inbox; no Hermes artifact was accepted and no live action occurred.`
 HISTORICAL_MILESTONE_REMOTE_READBACK_R10: `GitHub branch tip read back as 2dc8a07b3e4d401f51807da4bd128766ef542a2e; R10 task envelope remote SHA 30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e; R10 Hermes ACK envelope SHA e6f5007f95975cc9a177a528136ad5ba9d3f7a4d6f24247fa6e6874a6c4b5d7a; R10 Codex receipt-002 SHA a7f07ec2edc19fc5cf031d6fc23cb6ff7b5be8eb38db92c2695769a583b04aae; source baseline c1588e4; protocol tests 30/30; control readable-delivery receipt-004 SHA 9fb42bd20a3d1f29fd4184530bc42191691c1f3a5d23025f5fbeb17131ac0a07; helper copy SHA 3aa2ad2fb3f28d94400c7e07c81dc31c707ad87363954083344ebfb51c86eb74; patch SHA 3383d6fb5e81974482550da8eadf7534267756cc4e43e8cff387bbc39a954a10; test harness SHA 299bf078b3bfcc21d6c98cc73f0a90b281e89a4a32bb63860b98e45046d61d73; Hermes R8 NACK-013 envelope SHA 939d31f4e54d34f26249707408fc7600694d9f8b4a8d4cfe9035add16d37c3e6; Hermes R9 NACK-001 envelope SHA 017a08c40291cff10d12a44cdcf41460799465f5b6f47b013f05404b77e824ba; R9 correction receipt-002 SHA bb66e3604d312ee16167264b964935afb0e4fa09a526b828f39416e8c3b60bd7; owner authorization SHA ab020cdfc694eec905c0589fd09f07312b91a9428bd596e1a34cc84f80bbccbf; no feature or live action`
-CURRENT_MILESTONE_EVIDENCE: `M837 source-variant ownership hardening is in 5e542da and remote-read-back; old F81/F84 task was terminal BLOCKED on source reachability and is closed; temporal-guidance task envelope 8d1c861b and same-lane consumer correction 75e05d32 are hash-matched in Hermes' inbox; no implementation is counted until terminal delivery; no live action.`
-CURRENT_MILESTONE_OPEN: `Hermes owns only the new F81/F84 temporal-guidance copy. Codex audits bytes, commits, pushes and reads back the remote branch. No stale Hermes wire may resume.`
+CURRENT_MILESTONE_EVIDENCE: `M838 source changes are in 6b68c111 and remote-read-back; the prior temporal-guidance Hermes wire is closed by terminal SUPERSEDE-003 after no correlated response; no Hermes artifact is counted; no live action.`
+CURRENT_MILESTONE_OPEN: `Reconcile M838 against the architecture table, then open exactly one new finite gap. Hermes must receive a new exact-source task only after that selection; no stale wire may resume.`
 HISTORICAL_MILESTONE_REMOTE_READBACK_PLAYBOOK_HISTORY: `Exact-source sync reply SHA abadb46e3fa3175d7bb6ecddc28a4656a7c77cbd933d6d24f183c7f1ffa9ccfd; sync receipt SHA 8aa4d2411311b8102cae5ca5e059c5a7baecdc0d344b665c9c14dbfb93822c6e; PlaybookHistory task SHA 2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91; remote task SHA 2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91; Hermes ACK/ACCEPTED SHA c42708ff5a2cc9addc90ffdef20a87336532a8801c8d1e770f06cd048e705737; acceptance READ receipt SHA ed6e8dfedae0ee522b16ebaec54db94a6993bd1a7d6a85ede3359108b777a1ed; progress-required receipt SHA 684744a5dc2128759435ac1eeb4b14b08c1a9d5a8ae6d81835f6dead0fad8833; malformed Hermes PROGRESS SHA 471a32173cd79cf58e0c86ddefcdef6ed959437555677b4efdf6e3dbb083f447; correction receipt SHA cb2f3bc19348088fbe74f7f4bb870114e3fa42bd62aef89b691dabcdbf3aba2f; corrected Hermes PROGRESS SHA 780caca68d563a5f24f5ae7131f9f48c3b98c22d724121ae4de453159079da74; progress-acceptance receipt SHA 8db70fb1eb81273a56d209a9ac52c780c8ec50692f15018d6c6ed8979f53058b; Hermes delivery-gate ACK SHA d0911e6316e173bd8aeb3b42006d7fe51cada72880ab266ee8fdf7a342562a57; implementation source 50df7061f89780b1d94d5545e1803326af65a610; coordination tip 88fb86d242a0f009f8776f309626ffd29251dbe4; delivery is next, no further ACK expected, local baseline recorded, LIVE_ACTIONS NONE`
 CURRENT_MILESTONE_REMOTE_READBACK_CURRENT: `Product-source branch ref read back as 4d38c924b586256b720683e3ae34e8c0b0c1732c; M763 source commit a3f74fef15bbeae1119ed0a71cca58bf4d742847 remains the exact bound source; Hermes Git bundle beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6, R3 task envelope 98e26df5b3a7823572171d6ba375dc954a33c9780d0ae7718855d46f9102e53c and remote readback were verified; core build PASS; core tests 80/80; dashboard focused MediaBundleCreate/ApproveButtons/AgentPermissionManager/PlaybookHistory/TriggerRuleManager tests 47/47; dashboard typecheck PASS; dashboard lint PASS with three pre-existing warnings; diff check PASS; LIVE_ACTIONS NONE`
 CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE: `M777 product-source commit 726c19a550ffa742eb9e81a97f1b71eff16363e1 was read back from origin; later coordination commits only update this handoff metadata; Hermes Git bundle beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6 and terminal BLOCKED envelope d58bc7a36e65c215c62d68fd6186082a6fc230e815e4276771d6072a6734152f remain historical evidence; core build PASS; core tests 80/80; combined DraftEditor/BundleMedia focused 23/23; dashboard typecheck PASS; dashboard lint PASS with three pre-existing warnings; diff check PASS; LIVE_ACTIONS NONE`
@@ -577,7 +579,7 @@ passed. Disposable DB was removed. This is not a live deployment receipt.
 | ID | Workstream | Next completion evidence required |
 | --- | --- | --- |
 | D001 | Deployment machinery | Explicit context at **every** DB/config/service callsite; actual privilege/network isolation; reviewed source; failing negative tests; controlled install/rollback receipt. Parser alone is insufficient. |
-| F81/84 | Learning / variants | Complete immutable recipe capture (shoot config, hook, format, thumbnail/ToS features); richer hook/time/format arms and consumers; load/recency behavior; deployed A/B attribution/promotion acceptance. Current caption arms are not full coverage. |
+| F81/84 | Learning / variants | Complete immutable recipe capture (shoot config, hook, format, thumbnail/ToS features); M838 closes the bounded temporal arm/consumer slice, but load/recency behavior and deployed A/B attribution/promotion acceptance remain open. Current caption arms are not full coverage. |
 | F85 | Insights/digests | Schedule status and explicit recovery built in M345/M346; deployed acceptance remains open. Useful verified pattern insights, periodic runtime proof and real Relay delivery still required. Stored cards and counts do not prove delivery. |
 | INBOX | Messaging | Attachment sending, agentic drafting, provider account authorization/DM semantics, real preview/playback and uncertain-send reconciliation. Never replay ambiguous sends. |
 | SCRAPE | Research orchestration | Deployed egress-bound scraper, actual provider parsing/results, partial/error UX and saved-run browser acceptance. |
