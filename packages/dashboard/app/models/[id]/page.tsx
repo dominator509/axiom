@@ -15,11 +15,12 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
   const session = await getSession();
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   const allowed = (section: string) => talentDestinationAllowed(session?.user?.role, section);
-  const tools: Array<[string, MessageKey]> = [
+  const toolLinks: Array<[string, MessageKey]> = [
     ['media', 'media.title'], ['consent', 'model.toolConsent'], ['linkbio', 'model.toolLinkBio'],
     ['analytics', 'analytics.title'], ['playbook', 'playbook.title'], ['roleplay', 'roleplay.title'], ['relay', 'relay.title'],
     ['agents', 'agent.accessTitle'], ['cascades', 'cascades.title'], ['triggers', 'automation.title'],
-  ].filter(([section]) => allowed(section));
+  ];
+  const tools = toolLinks.filter(([section]) => allowed(section));
   let model;
   let network;
   let calendarCount: number | null = null;
