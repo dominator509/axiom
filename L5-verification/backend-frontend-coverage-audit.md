@@ -905,3 +905,23 @@ passed, and `scripts/verify.sh` prints `verify: ok`. Source commit
 PostTeamNotes and DisconnectSocialAccountButton remain open for a separate finite
 slice; browser/native, provider, deployed migration/RLS/runtime, observability,
 CI governance and production acceptance remain open. No live action occurred.
+
+# M842: post-note localization
+
+The mounted post-specific internal-note workflow now uses typed catalog keys across
+all six launch locales. Summary/never-published guidance, load/empty/older
+controls, editor labels, save/retry feedback and load/save failures are localized;
+note timestamps use the selected locale with an explicit UTC zone. Note body,
+author identifier, post scope, idempotency intent and the existing boundary that
+nothing is sent to a social platform remain unchanged.
+
+Evidence: focused PostTeamNotes behavior/locale tests 3/3, full dashboard matrix
+138 files and 859 tests passed, core locale tests 57/57, core/dashboard
+typechecks passed, core/dashboard lint exited 0 with four pre-existing `any`
+warnings, dashboard production build compilation/lint/type/page generation/trace
+passed, and `scripts/verify.sh` prints `verify: ok`. Source commit
+`02c60235dd7faaf6b1977eb6615373c42712e1a5` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
+DisconnectSocialAccountButton remains open for a separate finite slice;
+browser/native, provider, deployed migration/RLS/runtime, observability, CI
+governance and production acceptance remain open. No live action occurred.
