@@ -3,10 +3,12 @@
 import { useRef, useState } from 'react';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 export default function MediaUpload({ modelId, onUploaded }: {
   modelId: string; onUploaded?: (asset: { id: string; mimeType: string }) => void;
 }) {
+  const { t } = useLocale();
   const [file, setFile] = useState<File | null>(null);
   const [sanitize, setSanitize] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -19,7 +21,7 @@ export default function MediaUpload({ modelId, onUploaded }: {
     if (active.current || !file) return;
     if (!['image/jpeg', 'image/png', 'video/mp4'].includes(file.type)
       || file.size < 12 || file.size > (file.type === 'video/mp4' ? 64 : 20) * 1024 * 1024) {
-      setMessage('Choose JPEG/PNG up to 20 MB or MP4 up to 64 MB.'); return;
+      setMessage(t('media.chooseValid')); return;
     }
     active.current = true; setBusy(true); setPending(true); setMessage('');
     intent.current ??= { file, sanitize, key: createIdempotencyKey() };
@@ -31,7 +33,7 @@ export default function MediaUpload({ modelId, onUploaded }: {
       if (!response.ok) {
         const failure = await readDashboardError(response);
         const detail = failure?.error?.message ?? failure.detail;
-        setMessage(typeof detail === 'string' ? detail : 'Upload not confirmed. Check the same request.');
+        setMessage(typeof detail === 'string' ? detail : t('media.uploadNotConfirmed'));
         if (failure.code === 'ASSET_UPLOAD_NOT_STORED') { intent.current = null; setPending(false); }
         return;
       }
@@ -39,21 +41,26 @@ export default function MediaUpload({ modelId, onUploaded }: {
       if (!data || !/^[0-9a-f-]{36}$/i.test(data.id) || data.sanitized !== saved.sanitize
         || typeof data.exactFileHashChanged !== 'boolean' || (!saved.sanitize && data.exactFileHashChanged)
         || !['image/png', 'image/jpeg', 'video/mp4'].includes(data.mimeType)) throw new Error('Invalid upload response');
-      setMessage(`Stored asset ${data.id}${data.sanitized ? ' with embedded metadata and C2PA removed' : ''}. Exact-file SHA-256 ${data.exactFileHashChanged ? 'changed' : 'unchanged'}. This does not prevent perceptual matching. Not yet ToS-scanned or approved.`);
+      setMessage(t('media.storedAsset', {
+        id: data.id,
+        sanitizedText: data.sanitized ? t('media.sanitizedSuffix') : '',
+        hashState: data.exactFileHashChanged ? t('media.hashChanged') : t('media.hashUnchanged'),
+        notScanned: t('media.notScanned'),
+      }));
       if (onUploaded) onUploaded(data); else window.location.reload();
       intent.current = null; setFile(null); setPending(false);
       setFileInputVersion(fileInputVersion + 1);
-    } catch { setMessage('Upload outcome unconfirmed. Check the same request before uploading again.'); }
+    } catch { setMessage(t('media.uploadUnconfirmed')); }
     finally { active.current = false; setBusy(false); }
   }
-  return <section className="card" aria-label="Upload media">
-    <h3>Upload source media</h3>
-    <input key={fileInputVersion} aria-label="Media file" type="file" accept="image/jpeg,image/png,video/mp4" disabled={busy || pending}
+  return <section className="card" aria-label={t('media.uploadSection')}>
+    <h3>{t('media.uploadSource')}</h3>
+    <input key={fileInputVersion} aria-label={t('media.file')} type="file" accept="image/jpeg,image/png,video/mp4" disabled={busy || pending}
       onChange={event => setFile(event.target.files?.[0] ?? null)} />
     <label className="checkbox-option"><input type="checkbox" checked={sanitize} disabled={busy || pending}
-      onChange={event => setSanitize(event.target.checked)} /><span>Remove metadata and embedded provenance, including C2PA (optional)</span></label>
-    <p>JPEG/PNG up to 20 MB; MP4 up to 64 MB. Cleaning converts images to PNG and re-encodes video. Existing watermarks remain. No publishing or generation occurs.</p>
-    <button type="button" disabled={busy || !file} onClick={() => void upload()}>{busy ? 'Uploading and processing…' : pending ? 'Check same upload' : 'Upload media'}</button>
+      onChange={event => setSanitize(event.target.checked)} /><span>{t('media.removeMetadata')}</span></label>
+    <p>{t('media.uploadLimits')}</p>
+    <button type="button" disabled={busy || !file} onClick={() => void upload()}>{busy ? t('media.uploading') : pending ? t('media.checkSameUpload') : t('media.upload')}</button>
     {message && <p role="status">{message}</p>}
   </section>;
 }

@@ -6,6 +6,33 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
   useRef: (initial: unknown) => hooks.refs[hooks.r++] ??= { current: initial },
 }));
 vi.mock('@/lib/mutation', () => ({ createIdempotencyKey: () => 'same-upload', mutationFetch: hooks.fetch }));
+vi.mock('./LocaleProvider', () => ({
+  useLocale: () => ({
+    locale: 'en',
+    setLocale: () => undefined,
+    t: (key: string, values?: Record<string, string | number>) => {
+      const text = ({
+      'media.chooseValid': 'Choose JPEG/PNG up to 20 MB or MP4 up to 64 MB.',
+      'media.uploadNotConfirmed': 'Upload not confirmed. Check the same request.',
+      'media.storedAsset': 'Stored asset {id}{sanitizedText}. Exact-file SHA-256 {hashState}. {notScanned}',
+      'media.sanitizedSuffix': ' with embedded metadata and C2PA removed',
+      'media.hashChanged': 'changed',
+      'media.hashUnchanged': 'unchanged',
+      'media.notScanned': 'This does not prevent perceptual matching. Not yet ToS-scanned or approved.',
+      'media.uploadUnconfirmed': 'Upload outcome unconfirmed. Check the same request before uploading again.',
+      'media.uploadSection': 'Upload media',
+      'media.uploadSource': 'Upload source media',
+      'media.file': 'Media file',
+      'media.removeMetadata': 'Remove metadata and embedded provenance, including C2PA (optional)',
+      'media.uploadLimits': 'JPEG/PNG up to 20 MB; MP4 up to 64 MB.',
+      'media.uploading': 'Uploading and processing…',
+      'media.checkSameUpload': 'Check same upload',
+      'media.upload': 'Upload media',
+      }[key] ?? key);
+      return text.replace(/\{([a-zA-Z0-9_.]+)\}/g, (_match, name: string) => String(values?.[name] ?? _match));
+    },
+  }),
+}));
 import MediaUpload from './MediaUpload';
 const uploaded = vi.fn();
 function render() { hooks.i = 0; hooks.r = 0; return MediaUpload({ modelId: 'model', onUploaded: uploaded }).props.children; }

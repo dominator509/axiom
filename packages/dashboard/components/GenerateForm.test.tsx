@@ -17,6 +17,23 @@ vi.mock('react', async (original) => ({
   useEffect: () => {},
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
+vi.mock('./LocaleProvider', () => ({
+  useLocale: () => ({
+    locale: 'en',
+    setLocale: () => undefined,
+    t: (key: string) => ({
+      'generation.selectPlatform': 'Select at least one destination platform.',
+      'generation.promptRequired': 'Enter a media prompt before generating.',
+      'generation.sourceImageRequired': 'Select or upload a source image before generating video.',
+      'generation.originalModel': 'Return to the original model to reconcile the unresolved generation before starting another.',
+      'generation.failed': 'Generation failed',
+      'generation.unconfirmed': 'Generation could not be confirmed. Retry the unchanged brief to check the same request.',
+      'generation.checkSameRequest': 'Check same generation request',
+      'generation.invalidReceipt': 'Invalid generation receipt',
+      'generation.sourceImagesUnavailable': 'Could not load source images. Switch away from video and back to retry.',
+    }[key] ?? key),
+  }),
+}));
 import GenerateForm from './GenerateForm';
 
 beforeEach(() => { hooks.values = []; hooks.refs = []; hooks.refresh.mockReset(); });

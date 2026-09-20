@@ -8,6 +8,7 @@ import GenerationProgress from './GenerationProgress';
 import GrokConnection from './GrokConnection';
 import MediaUpload from './MediaUpload';
 import GeneratedCaptionReceipt from './GeneratedCaptionReceipt';
+import { useLocale } from './LocaleProvider';
 
 const PLATFORMS = [
   'instagram',
@@ -24,6 +25,7 @@ const PLATFORMS = [
 ];
 
 export default function GenerateForm({ modelId, initialSourceAssetId = '', operatorControls = true }: { modelId: string; initialSourceAssetId?: string; operatorControls?: boolean }) {
+  const { t } = useLocale();
   const router = useRouter();
   const [style, setStyle] = useState('studio');
   const [outfit, setOutfit] = useState('summer dress');
@@ -64,11 +66,11 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
     void (async () => {
       try {
         const response = await fetch(`/api/v1/models/${modelId}/media-source-images`, { signal: controller.signal });
-        if (!response.ok) throw new Error('Source images unavailable');
+        if (!response.ok) throw new Error(t('generation.sourceImagesUnavailable'));
         const body = await readDashboardJson<{ data: Array<{ id: string; fileName: string }> }>(response);
         if (!controller.signal.aborted) setSourceImages(body.data);
       } catch {
-        if (!controller.signal.aborted) setSourceError('Could not load source images. Switch away from video and back to retry.');
+        if (!controller.signal.aborted) setSourceError(t('generation.sourceImagesUnavailable'));
       }
     })();
     return () => controller.abort();
@@ -82,13 +84,13 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
     e.preventDefault();
     if (inFlight.current) return;
     if (intent.current && intent.current.modelId !== modelId) {
-      setError('Return to the original model to reconcile the unresolved generation before starting another.');
+      setError(t('generation.originalModel'));
       return;
     }
     if (!intent.current) {
-      const invalid = platforms.length === 0 ? 'Select at least one destination platform.'
-        : mediaKind !== 'brief' && !mediaPrompt.trim() ? 'Enter a media prompt before generating.'
-          : mediaKind === 'video' && !sourceAssetId ? 'Select or upload a source image before generating video.'
+      const invalid = platforms.length === 0 ? t('generation.selectPlatform')
+        : mediaKind !== 'brief' && !mediaPrompt.trim() ? t('generation.promptRequired')
+          : mediaKind === 'video' && !sourceAssetId ? t('generation.sourceImageRequired')
             : null;
       if (invalid) { setError(invalid); return; }
     }
@@ -123,7 +125,7 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
       if (!res.ok) {
         const b = await readDashboardError(res);
         const message = b?.error?.message ?? b?.detail;
-        setError(typeof message === 'string' ? message : 'Generation failed');
+        setError(typeof message === 'string' ? message : t('generation.failed'));
         // An uncertain response is not permission to queue a new paid request.
         // Preserve its exact body/key until reconciliation. An expired session
         // or revoked access on a later check cannot disprove earlier acceptance.
@@ -153,7 +155,7 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
       intent.current = null;
       router.refresh();
     } catch {
-      setError('Generation could not be confirmed. Retry the unchanged brief to check the same request.');
+      setError(t('generation.unconfirmed'));
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -162,70 +164,67 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
 
   return (
     <div className="card">
-      <h2>Create content brief</h2>
-      <p style={{ color: 'var(--muted)', marginTop: 0 }}>
-        Create a text brief or queue Grok image/video generation using your connected subscription.
-        Media remains pending until generation and visual ToS checks finish. Provider usage may be charged.
-      </p>
+      <h2>{t('generation.createBrief')}</h2>
+      <p style={{ color: 'var(--muted)', marginTop: 0 }}>{t('generation.description')}</p>
       <GrokConnection />
       <MediaUpload modelId={modelId} onUploaded={asset => {
         if (asset.mimeType.startsWith('image/')) {
-          setSourceImages(previous => [{ id: asset.id, fileName: `Uploaded image ${asset.id}` }, ...previous]);
+          setSourceImages(previous => [{ id: asset.id, fileName: t('generation.uploadedImage', { id: asset.id }) }, ...previous]);
           setSourceAssetId(asset.id);
         }
         router.refresh();
       }} />
       <form noValidate onSubmit={onSubmit} className="stack" style={{ maxWidth: 640 }}>
         <fieldset disabled={busy || !!intent.current} className="stack" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-        <label htmlFor="mediaKind">Output</label>
+        <label htmlFor="mediaKind">{t('generation.output')}</label>
         <select id="mediaKind" value={mediaKind} onChange={e => setMediaKind(e.target.value as 'brief' | 'image' | 'video')}>
-          <option value="brief">Text brief only</option>
-          <option value="image">Grok image</option>
-          <option value="video">Grok image-to-video</option>
+          <option value="brief">{t('generation.briefOnly')}</option>
+          <option value="image">{t('generation.image')}</option>
+          <option value="video">{t('generation.imageToVideo')}</option>
         </select>
         {mediaKind !== 'brief' && <>
-          <label htmlFor="mediaPrompt">Media prompt</label>
+          <label htmlFor="mediaPrompt">{t('generation.mediaPrompt')}</label>
           <textarea id="mediaPrompt" required maxLength={4000} value={mediaPrompt} onChange={e => setMediaPrompt(e.target.value)} />
-          <label className="checkbox-option"><input type="checkbox" checked={sanitizeMetadata} onChange={e => setSanitizeMetadata(e.target.checked)} /><span>Remove metadata and embedded provenance, including C2PA (optional)</span></label>
-          <p>Rebuilds generated media and video source images before use. Images become PNG; video is re-encoded. Existing watermarks remain. A cleaning failure holds the result; no automatic generation retry.</p>
+          <label className="checkbox-option"><input type="checkbox" checked={sanitizeMetadata} onChange={e => setSanitizeMetadata(e.target.checked)} /><span>{t('generation.sanitizeMetadata')}</span></label>
+          <p>{t('generation.sanitizeDescription')}</p>
         </>}
         {mediaKind === 'video' && <>
-          <label htmlFor="sourceAsset">Source image (latest 100 for this model)</label>
+          <label htmlFor="sourceAsset">{t('generation.sourceImageLatest')}</label>
           <select id="sourceAsset" required value={sourceAssetId} onChange={e => setSourceAssetId(e.target.value)}>
-            <option value="">Select a stored image</option>
+            <option value="">{t('generation.selectStoredImage')}</option>
             {sourceImages.map(image => <option key={image.id} value={image.id}>{image.fileName}</option>)}
           </select>
           {sourceError && <p role="alert">{sourceError}</p>}
-          {!sourceError && sourceImages.length === 0 && <p>Generate or import a source image for this model first.</p>}
-          {sourceAssetId && <a href={`/api/v1/models/${encodeURIComponent(modelId)}/media/${encodeURIComponent(sourceAssetId)}`} target="_blank" rel="noopener noreferrer">Open selected source image</a>}
-          <label htmlFor="videoDuration">Video duration</label>
+          {!sourceError && sourceImages.length === 0 && <p>{t('generation.noSourceImages')}</p>}
+          {sourceAssetId && <a href={`/api/v1/models/${encodeURIComponent(modelId)}/media/${encodeURIComponent(sourceAssetId)}`} target="_blank" rel="noopener noreferrer">{t('generation.openSourceImage')}</a>}
+          <label htmlFor="videoDuration">{t('generation.videoDuration')}</label>
           <select id="videoDuration" value={duration} onChange={e => setDuration(Number(e.target.value) as 6 | 10)}>
-            <option value={6}>6 seconds</option><option value={10}>10 seconds</option>
+            <option value={6}>{t('generation.seconds', { seconds: 6 })}</option><option value={10}>{t('generation.seconds', { seconds: 10 })}</option>
           </select>
         </>}
         <div className="grid">
           <div>
-            <label htmlFor="style">Style</label>
+            <label htmlFor="style">{t('generation.style')}</label>
             <input id="style" value={style} onChange={(e) => setStyle(e.target.value)} />
           </div>
           <div>
-            <label htmlFor="outfit">Outfit</label>
+            <label htmlFor="outfit">{t('generation.outfit')}</label>
             <input id="outfit" value={outfit} onChange={(e) => setOutfit(e.target.value)} />
           </div>
           <div>
-            <label htmlFor="location">Location</label>
+            <label htmlFor="location">{t('generation.location')}</label>
             <input id="location" value={location} onChange={(e) => setLocation(e.target.value)} />
           </div>
           <div>
-            <label htmlFor="mood">Mood</label>
+            <label htmlFor="mood">{t('generation.mood')}</label>
             <input id="mood" value={mood} onChange={(e) => setMood(e.target.value)} />
           </div>
           <div>
-            <label htmlFor="lighting">Lighting</label>
+            <label htmlFor="lighting">{t('generation.lighting')}</label>
             <input id="lighting" value={lighting} onChange={(e) => setLighting(e.target.value)} />
           </div>
           <div>
-            <label htmlFor="aspectRatio">Aspect ratio</label>
+            <label htmlFor="aspectRatio">{t('generation.aspectRatio')}</label>
             <select
               id="aspectRatio"
               value={aspectRatio}
@@ -240,7 +239,7 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
           </div>
         </div>
         <div>
-          <label>Platforms</label>
+          <label>{t('generation.platforms')}</label>
           <div className="row" style={{ flexWrap: 'wrap' }}>
             {PLATFORMS.map((p) => (
               <button
@@ -261,15 +260,15 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
             checked={enrich}
             onChange={(e) => setEnrich(e.target.checked)}
           />
-          <span>Enrich captions via LLM gateway (optional, one live provider call per selected platform)</span>
+          <span>{t('generation.enrichCaptions')}</span>
         </label>
         </fieldset>
-        {intent.current && !busy && <p>Previous generation outcome is unresolved. Inputs are locked. Check the same request before editing or starting another generation.</p>}
+        {intent.current && !busy && <p>{t('generation.unresolvedRequest')}</p>}
         {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
-        {busy && <p role="status">Submitting your request. Wait for a saved bundle or an error below; do not submit again.</p>}
+        {busy && <p role="status">{t('generation.submitting')}</p>}
         <div>
           <button className="btn" type="submit" disabled={busy || (!intent.current && platforms.length === 0)}>
-            {busy ? 'Generating…' : intent.current ? 'Check same generation request' : mediaKind === 'brief' ? 'Generate content brief' : 'Queue Grok generation'}
+            {busy ? t('generation.generating') : intent.current ? t('generation.checkSameRequest') : mediaKind === 'brief' ? t('generation.generateBrief') : t('generation.queueGrok')}
           </button>
         </div>
       </form>
@@ -281,7 +280,7 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
             <GenerationProgress key={result.bundle.id} bundleId={result.bundle.id} modelId={modelId} operatorControls={operatorControls} />
           )}
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <h3>{result.mediaGeneration === 'queued' ? 'Initial ToS report (before media generation)' : 'ToS report'}</h3>
+            <h3>{result.mediaGeneration === 'queued' ? t('generation.initialTosReport') : t('generation.tosReport')}</h3>
             <span
               className={`badge ${result.tosReport.verdict === 'pass' ? 'good' : result.tosReport.verdict === 'review' ? 'warn' : 'bad'}`}
             >
@@ -291,9 +290,9 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
           <table>
             <thead>
               <tr>
-                <th>Platform</th>
-                <th>Score</th>
-                <th>Verdict</th>
+                <th>{t('generation.platform')}</th>
+                <th>{t('generation.score')}</th>
+                <th>{t('generation.verdict')}</th>
               </tr>
             </thead>
             <tbody>
