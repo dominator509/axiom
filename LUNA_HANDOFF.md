@@ -10,7 +10,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 SOURCE_HEAD: `e6c4ed32ab48372ac689bf90f2b3161aa0af4fc6` (M806 product source; active coordination ref is bound below)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `e6c4ed32ab48372ac689bf90f2b3161aa0af4fc6` (M806 product-source readback; active coordination records remain bound below)
-COORDINATION_HEAD: `6eb2c24686985f8195879aa38c933213cf9416b5` (M812 handoff/ledger coordination commit; product source remains e6c4ed3 until a terminal delivery is audited and integrated)
+COORDINATION_HEAD: `ca32bc9293ec3c18f600fa3e95f0cf2e7a3b9950` (M813 handoff/ledger coordination commit; product source remains e6c4ed3 until a terminal delivery is audited and integrated)
 ACCEPTED_PRODUCT_SOURCE: `e6c4ed32ab48372ac689bf90f2b3161aa0af4fc6`
 ACTIVE_HERMES_LANE: `MEDIA-APPROVAL-LOCALIZATION-CURRENT-R1 — one fresh current-source lane; historical lanes remain quarantined`
 CODEX_OWNER: `CODEX`
