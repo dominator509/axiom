@@ -1321,3 +1321,23 @@ dashboard `any` warnings; `scripts/verify.sh` returns `verify: ok`; and
 `224458139080fe674453e2a8116e42ca26b8c3f4` was pushed to
 `origin/codex/telegram-webhook-hardening` and the remote SHA was read back
 exactly. No live action occurred.
+
+### M859 — F-89 PlaybookCadence calendar guidance localization (Codex local)
+
+Implemented the next finite localization criterion in the model calendar.
+`PlaybookCadence` now receives the server-resolved locale and translator,
+formats its UTC week boundaries with the selected locale, and translates all
+user-facing cadence guidance: section heading/ARIA label, week range, advisory
+disclaimer, unavailable/empty states, revision/count summaries, cadence
+deficits and covered state, saved posting-time guidance and the review link.
+All six launch catalogs contain the typed keys with non-fallback values;
+cadence counting and the no-publication-guarantee behavior are unchanged.
+
+Pass criteria and evidence: focused PlaybookCadence tests 6/6; calendar page
+tests 12/12; core 19 files/107 tests; full dashboard 145 files/903 tests;
+core build and core/dashboard typechecks pass; core/dashboard lint exits with
+no errors and retains four pre-existing dashboard `any` warnings;
+`git diff --check` passes; `scripts/verify.sh` returns `verify: ok`. Product
+commit `462cdaf31ee06e7263057df4489d7fbd14b4cd35` was pushed to
+`origin/codex/telegram-webhook-hardening` and the remote SHA was read back
+exactly. No live action occurred.

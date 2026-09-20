@@ -1137,3 +1137,25 @@ passes. Product commit
 This closes only the workspace-member source/UI localization criterion;
 browser, deployed runtime, RLS, provider, observability, CI governance and
 production acceptance remain open. No live action occurred.
+
+### M859 — F-89 PlaybookCadence calendar guidance localization (Codex local)
+
+The model calendar's weekly playbook-cadence advisory now consumes typed
+catalog keys across en, es, ja, it, pt-BR and de. The section label, UTC week
+range, advisory boundary, unavailable/empty states, revision/count summaries,
+deficit/covered states, saved posting-time guidance and review link are all
+localized; UTC week dates use the selected locale's medium date format. The
+server calendar passes its resolved locale and translator into the component,
+while cadence counting, API data, publication disclaimers and navigation remain
+unchanged.
+
+Evidence: focused PlaybookCadence tests 6/6; calendar page tests 12/12; core
+19 files/107 tests; full dashboard 145 files/903 tests; core build,
+core/dashboard typechecks and lint pass (four existing dashboard `any`
+warnings remain); `git diff --check` passes; `scripts/verify.sh` prints
+`verify: ok`. Product commit
+`462cdaf31ee06e7263057df4489d7fbd14b4cd35` was pushed to
+`origin/codex/telegram-webhook-hardening` and remote readback matches exactly.
+This closes only the PlaybookCadence source/UI localization criterion;
+browser, deployed runtime, provider, observability, CI governance, WireGuard
+and production acceptance remain open. No live action occurred.
