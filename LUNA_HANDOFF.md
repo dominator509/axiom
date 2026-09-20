@@ -63,18 +63,18 @@ ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch 
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r3/copy`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r3/delivery`
-ACTIVE_LANE_COPY_STATE: `TASK_SENT — local protocol validation passed, remote checksum read back as c97609973366b8f0a70c6e2299894fe799e2194af985af3d5cc91f888a1458e5; no source copy or delivery is accepted until exact commit and roots are echoed in a correlated ACK`
+ACTIVE_LANE_COPY_STATE: `ACK_ACCEPTED_RECEIPT_SENT — task and corrected ACK passed local validation; receipt remote checksum matches 325ae32944578b3242f648f42de35794db9aa7db24d4e99f1efc0b3670f713a0; awaiting concrete PROGRESS, DELIVERY or BLOCKED`
 ACTIVE_LANE_LOCAL_REVIEW_ROOT: `NONE — created only after a readable DELIVERY arrives`
 ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `UNCONFIRMED — no Hermes artifact accepted`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `c97609973366b8f0a70c6e2299894fe799e2194af985af3d5cc91f888a1458e5`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `c97609973366b8f0a70c6e2299894fe799e2194af985af3d5cc91f888a1458e5 — exact R3 task envelope read back from Hermes inbox`
-ACTIVE_LANE_ACK_WIRE: `NONE — HERMES-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-ACK-002 was rejected as STATE: ACKED with wrong ownership; no valid ACK counted`
-ACTIVE_LANE_ACK_SHA256: `NONE`
-ACTIVE_LANE_RECEIPT_WIRE: `NONE — new storage lane has no reply yet`
-ACTIVE_LANE_RECEIPT_SHA256: `NONE`
-ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `NONE`
-ACTIVE_LANE_EXECUTION_RECEIPT_WIRE: `NONE — awaiting Hermes ACK/ACCEPTED`
-ACTIVE_LANE_EXECUTION_RECEIPT_SHA256: `NONE`
+ACTIVE_LANE_ACK_WIRE: `HERMES-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-ACK-CORRECTION-004 — strict ACK/ACCEPTED after malformed ACK correction`
+ACTIVE_LANE_ACK_SHA256: `d49b6f495194b0e550bc4106bd5bf211362b05e43fcdd70d0825f54698c1512a`
+ACTIVE_LANE_RECEIPT_WIRE: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-ACK-RECEIPT-004`
+ACTIVE_LANE_RECEIPT_SHA256: `325ae32944578b3242f648f42de35794db9aa7db24d4e99f1efc0b3670f713a0`
+ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `325ae32944578b3242f648f42de35794db9aa7db24d4e99f1efc0b3670f713a0`
+ACTIVE_LANE_EXECUTION_RECEIPT_WIRE: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-ACK-RECEIPT-004 — ownership transferred to Hermes`
+ACTIVE_LANE_EXECUTION_RECEIPT_SHA256: `325ae32944578b3242f648f42de35794db9aa7db24d4e99f1efc0b3670f713a0`
 ACTIVE_LANE_DELIVERY_REJECTED_WIRE: `NONE — no storage delivery yet`
 ACTIVE_LANE_DELIVERY_REPLY_SHA256: `NONE`
 ACTIVE_LANE_DELIVERY_REJECTION_WIRE: `NONE`
