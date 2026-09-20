@@ -13,10 +13,10 @@ PUBLISHED_HEAD: `462cdaf31ee06e7263057df4489d7fbd14b4cd35` (immutable reviewed p
 COORDINATION_HEAD: `REMOTE_BRANCH_TIP — read refs/heads/codex/telegram-webhook-hardening before every new lane; sync-control mirror proof was e963fb855bdbcb10593ba961c990e37218d6b960; M859 product source binding remains 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 ACCEPTED_PRODUCT_SOURCE: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 LAST_COMPLETED_SOURCE_MILESTONE: `M859 — PlaybookCadence calendar guidance localization; source/UI only`
-ACTIVE_HERMES_LANE: `F89-WORKER-DIGEST-LOCALIZATION-R1 — task sent; awaiting one logical ACK/ACCEPTED or NACK/BLOCKED; source 462cdaf31ee06e7263057df4489d7fbd14b4cd35; explicit bare-mirror source sync required`
+ACTIVE_HERMES_LANE: `F89-WORKER-DIGEST-LOCALIZATION-R1 — Hermes ACK/OPEN and Codex receipt accepted; implementation pending one evidence-bearing PROGRESS then terminal DELIVERY or BLOCKED; source 462cdaf31ee06e7263057df4489d7fbd14b4cd35; explicit bare-mirror source sync required`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `Poll the F89 worker-digest wire by logical state; after ACK/ACCEPTED receipt, require one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED; do not open a competing product lane.`
+NEXT_ACTION: `Poll the F89 worker-digest wire by logical state; ACK/OPEN and receipt are complete, so require one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED; do not open a competing product lane.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-001`
@@ -46,7 +46,7 @@ NEXT_PREPARED_TASK: `F89-WORKER-DIGEST-LOCALIZATION-R1`
 NEXT_PREPARED_TASK_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-001`
 NEXT_PREPARED_TASK_SOURCE_COMMIT: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `OPEN — ACK/NOT-ACK pending; no implementation or live action accepted`
+NEXT_PREPARED_TASK_STATE: `OPEN — exact source binding accepted by Hermes; implementation pending; no delivery or live action accepted`
 ACTIVE_LANE_TASK_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-001`
 ACTIVE_LANE_SOURCE_COMMIT: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 ACTIVE_LANE_SOURCE_REPO: `github.com/dominator509/axiom`
@@ -61,11 +61,14 @@ ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch 
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1/copy`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1/delivery`
-ACTIVE_LANE_COPY_STATE: `TASK_SENT_ACK_PENDING — no source artifact or implementation accepted`
+ACTIVE_LANE_COPY_STATE: `ACK/OPEN — Hermes verified the declared task binding and accepted the Codex receipt; exact mirror/copy implementation evidence pending`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `ebbf17ed76760630c3eaaab310c93372258d07268ec79c907e624f124c216065`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `NONE — bridge inbox receipt is transport-only until Hermes replies`
-ACTIVE_LANE_ACK_WIRE: `NONE`
-ACTIVE_LANE_ACK_SHA256: `NONE`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `ebbf17ed76760630c3eaaab310c93372258d07268ec79c907e624f124c216065 — exact task envelope read back from Hermes inbox`
+ACTIVE_LANE_ACK_WIRE: `HERMES-F89-WORKER-DIGEST-LOCALIZATION-R1-ACK-001`
+ACTIVE_LANE_ACK_SHA256: `9261760437791e0be1885e0ab0fbc874f399bc733917b616882d2fcff2d409ac`
+ACTIVE_LANE_RECEIPT_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-RECEIPT-002`
+ACTIVE_LANE_RECEIPT_SHA256: `3a4aac06004940fd78c24fa9abf84209c587e95ce1e247a249d68fcd077ab9e8`
+ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `68af51f9370cec0aae9340b11fe740b82d56207cd878de373a3f1d5a73c20f26`
 ACTIVE_LANE_PROGRESS_WIRE: `NONE`
 ACTIVE_LANE_PROGRESS_SHA256: `NONE`
 ACTIVE_LANE_CORRECTION_WIRE: `NONE`
@@ -97,7 +100,7 @@ SOURCE_SYNC_CONTROL_REMOTE_REFS: `PASS — Hermes bare-mirror inventory: refs/he
 SOURCE_SYNC_CONTROL_EXISTING_CLONE_FETCH: `BLOCKED — Codex-side test of the unprivileged fetch failed because root-owned fanout directories exist under /home/codex-fanthynks/fanthynks/src/axiom/.git/objects; no permissions were widened and no root path was used`
 SOURCE_SYNC_CONTROL_DETACHED_WORKTREES: `EVIDENCE_ONLY — build/06496da, build/5116230, build/7f02e18, build/c5586ad, build/da09f66 and Hermes work copies are not coding authorities`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — exact Git source task`
-ACTIVE_LANE_SOURCE_TRANSPORT: `M859 source 462cdaf31ee06e7263057df4489d7fbd14b4cd35 was audited, committed, pushed and read back from origin; F89 digest task was sent by exact-msg_id bridge envelope`
+ACTIVE_LANE_SOURCE_TRANSPORT: `M859 source 462cdaf31ee06e7263057df4489d7fbd14b4cd35 was audited, committed, pushed and read back from origin; F89 digest task was sent by exact-msg_id bridge envelope and Hermes acknowledged the exact bare-mirror/ref/commit binding`
 ACTIVE_LANE_TRANSPORT_NAMING: `Every bridge envelope filename equals its msg_id; task and correction hashes are independently pinned`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id is the identity; new filenames should match it, but consumers must resolve by unique JSON msg_id and never rename or reject a legacy file solely for a filename mismatch`
 BRIDGE_EXECUTION_MODEL: `The bridge poller reports inbox traffic only; it does not execute Hermes tasks. A valid inbox file is transport evidence, not ACK, ownership, progress or delivery.`
@@ -175,6 +178,7 @@ LOOP_WORKTREE_RULE: `coding work uses a fresh source-copy created from the verif
 LOOP_REMOTE_DISCOVERY_RULE: `Hermes may run git fetch --all --prune as a read-only cache refresh, but every task still names one authoritative ref and exact commit; all discovered refs must be reported, and no unrelated branch is silently selected`
 LOOP_RESYNC_RULE: `after every source-changing Codex push, Codex reads the remote branch ref and the next product task names that newly read SHA plus its explicit ref and sync commands; handoff-only commits do not change an already bound exact source commit, but Codex still reads the branch ref before opening the next product task; Hermes must not continue from a moving ref or older local checkout`
 LOOP_PUSH_HANDOFF_RULE: `Codex pushes source changes before delegating them, records the remote readback SHA, and tells Hermes exactly which ref/commit/worktree to fetch; Hermes never infers a lane from branch lists or detached worktrees`
+LOOP_WORKTREE_SYNC_MANIFEST_RULE: `every Codex-to-Hermes TASK and every lane change must name SOURCE_REPO, exact SOURCE_REF and SOURCE_COMMIT, SOURCE_SYNC_COMMAND, SOURCE_MIRROR_ROOT and SOURCE_MIRROR_LAYOUT, COPY_ROOT, DELIVERY_ROOT and WORKTREE_KIND; Hermes must fetch/refresh only the declared mirror, verify the declared ref namespace plus exact commit plus ancestry, create the named exact-commit source-copy, and echo all resolved paths and SHAs before editing; the global poller branch list, stale local checkout and detached build/release worktrees are never sufficient`
 LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with changed paths, tests, exact exits, and LIVE_ACTIONS NONE; transport flags, ACKs, claims and stale artifacts never count`
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
 LOOP_CURRENT_ACTION: `Codex audits the remaining architecture gaps from the current source, selects one finite gate, and records its verified result before opening any new Hermes wire; no stale lane, ACK loop or unsupported completion claim is accepted`

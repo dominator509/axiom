@@ -412,6 +412,19 @@ release/evidence artifacts, not coding worktrees; Hermes must not edit or
 derive a task from them. If a task needs bytes from one, Codex must explicitly
 bind its exact commit and Hermes must still create a separate source-copy.
 
+Every Codex-to-Hermes task and every lane change is a self-contained worktree
+sync manifest. It names the repository, exact ref and commit, the mirror root
+and mirror layout, the fetch/refresh command, ref/commit/ancestry verification
+commands, COPY_ROOT, DELIVERY_ROOT and WORKTREE_KIND. Hermes fetches or
+refreshes only that declared mirror, verifies the declared ref namespace and
+exact commit, then materializes the named source-copy from that commit and
+echoes the resolved paths and hashes before editing. The global poller's
+hard-coded branch list, an older local checkout, a branch inventory without
+the exact pin, or any detached build/release worktree is never a substitute.
+After Codex changes product source, it pushes first, reads back the remote
+ref, and binds the next task to that read-back SHA; handoff-only commits do
+not move an already-bound product pin.
+
 The verification namespace follows the declared mirror layout. A normal clone
 uses `refs/remotes/origin/<branch>`; a bare mirror created with `git clone
 --mirror` maps the same remote branch to `refs/heads/<branch>`. A task must
