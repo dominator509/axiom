@@ -9,7 +9,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `47d8f9ef1b5692503c84bdb168cf3652241b7edc`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `4e537f1fb300947672fa3aaf4ab118a152e85df3`
+PUBLISHED_HEAD: `610da711f34d36eb5d123a0e038bee44d4517032`
 ACCEPTED_PRODUCT_SOURCE: `80284a19db82b37c1c07d6ae807bde855f223e90`
 ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R8 — canonical exact-current source-only lane; R7 is quarantined before acceptance`
 CODEX_OWNER: `CODEX`
@@ -102,13 +102,13 @@ LOOP_GIT_RULE: `Hermes fetches and edits only the exact SOURCE_COMMIT in its dec
 LOOP_RESYNC_RULE: `after every Codex push, the next task must bind the new remote branch SHA; Hermes must not continue from a moving ref or an older local checkout`
 LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with changed paths, tests, exact exits, and LIVE_ACTIONS NONE; transport flags, ACKs, claims and stale artifacts never count`
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
-LOOP_CURRENT_ACTION: `R8 signature-correction receipt has been submitted and verified by remote SHA; wait for the fresh Hermes SEQ 5 reply, then run the strict validator before any feature implementation is counted`
+LOOP_CURRENT_ACTION: `The bridge-repair control task and R8 signature-correction receipt are both transport-verified; validate the next correlated Hermes wires before any feature implementation is counted`
 
-CURRENT_MILESTONE: `M702 — rejected the lowercase-signature R8 ACK, preserved source-sync evidence, and kept the single-lane no-clock loop active`
-CURRENT_MILESTONE_COMMIT: `4e537f1fb300947672fa3aaf4ab118a152e85df3`
-CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as 4e537f1fb300947672fa3aaf4ab118a152e85df3; R8 task checksum 7aee002d742da9b80676f67dd8c34737e79ad1b8cc10c7145751bf3724da3c23 and correction receipt checksum 5c493f4bd0fb5140777fe6de5cb26c34165e11aa4b22325f2f76aa0e7e3b3d23 matched through the Hermes bridge`
+CURRENT_MILESTONE: `M704 — delegated the bridge-only identity/routing repair and preserved the R8 signature-correction lane`
+CURRENT_MILESTONE_COMMIT: `610da711f34d36eb5d123a0e038bee44d4517032`
+CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as 610da711f34d36eb5d123a0e038bee44d4517032; R8 task checksum 7aee002d742da9b80676f67dd8c34737e79ad1b8cc10c7145751bf3724da3c23, R8 correction receipt checksum 5c493f4bd0fb5140777fe6de5cb26c34165e11aa4b22325f2f76aa0e7e3b3d23, and bridge-repair task checksum 12a29c55f5b2488e9d0f2146189055ecd02f048615f7b3d86dfd2008df034953 matched through the Hermes bridge`
 CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, API index 63/63, API relay-webhooks 2/2, dashboard full 780 passed; no migration execution or live action`
-CURRENT_MILESTONE_OPEN: `R8 fresh SEQ 5 ACK and F-14 PROGRESS/DELIVERY remain open; full feature and deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
+CURRENT_MILESTONE_OPEN: `Bridge-repair ACK/NACK, R8 fresh SEQ 5 ACK and F-14 PROGRESS/DELIVERY remain open; full feature and deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
 LOCAL_MILESTONE_AFTER_TASK: `M697 — standalone and stateful validators reject reply-WIRE reuse and invalid TASK sequence; malformed first replies are corrected by SEQ 2 RECEIPT; R7 is quarantined and R8 is the sole current task`
 
 ## Current coordination update — M697 canonical R8 lane
