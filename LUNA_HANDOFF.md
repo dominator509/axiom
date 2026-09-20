@@ -13,15 +13,15 @@ PUBLISHED_HEAD: `def99c84455c76498c25000c211556b6d6e4318c` (M895 ledger state; r
 COORDINATION_HEAD: `def99c84455c76498c25000c211556b6d6e4318c — M895 recorded the closed storage lane and exact variant-guidance task; pushed and read back`
 ACCEPTED_PRODUCT_SOURCE: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
 LAST_COMPLETED_SOURCE_MILESTONE: `M892 — independently audited Hermes R3 storage hardening integrated, focused gates passed, pushed at c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
-ACTIVE_HERMES_LANE: `F15-F16-VARIANT-GUIDANCE-R1 — sole active source-only lane against c884ad4; F89 R3 is closed by Codex fallback and is not reopened`
+ACTIVE_HERMES_LANE: `F15-F16-VARIANT-GUIDANCE-CORRECTED — sole active source-only lane against immutable c884ad4 ref; malformed R1 response is closed and not reopened`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `Require Hermes to echo the exact c884ad4 source commit, mirror, copy and delivery roots in one correlated ACK; then accept only concrete PROGRESS or one flat validator-valid DELIVERY/BLOCKED. Audit bytes and owning gates before integration; no Hermes commit/push or live action.`
+NEXT_ACTION: `Require Hermes to echo the exact c884ad4 source commit, immutable source ref, mirror, copy and delivery roots in one correlated ACK; then accept only concrete PROGRESS or one flat validator-valid DELIVERY/BLOCKED. Audit bytes and owning gates before integration; no Hermes commit/push or live action.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
 HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_RESULT, CHANGED_FILES and LIVE_ACTIONS must appear exactly once inside PAYLOAD; no prose substitute, duplicate keys or second signature`
-OPEN_WIRES: `CODEX-F15-F16-VARIANT-GUIDANCE-R1-TASK-001`
+OPEN_WIRES: `CODEX-F15-F16-VARIANT-GUIDANCE-CORRECTED-TASK-001`
 STALE_HERMES_REPLY: `codex-receipt-r2-storage-r3-invalid-ack-001` belongs to superseded task `R2-STORAGE-ROUNDTRIP-COPY-R3`; strict validator fails on missing DELIVERY_ACCEPTED, delivery claim and terminal/state contradiction; it does not advance the active R3 lane`
 OPEN_CONTROL_WIRE: `NONE`
 OPEN_CONTROL_TASK_STATE: `CLOSED_BY_CODEX_RECEIPT — Hermes-owned bare mirror and all-ref inventory accepted; poller edit remains explicitly blocked by root ownership; no feature implementation or live action accepted`
@@ -45,30 +45,30 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `F15-F16-VARIANT-GUIDANCE-R1`
-NEXT_PREPARED_TASK_WIRE: `CODEX-F15-F16-VARIANT-GUIDANCE-R1-TASK-001`
+NEXT_PREPARED_TASK: `F15-F16-VARIANT-GUIDANCE-CORRECTED`
+NEXT_PREPARED_TASK_WIRE: `CODEX-F15-F16-VARIANT-GUIDANCE-CORRECTED-TASK-001`
 NEXT_PREPARED_TASK_SOURCE_COMMIT: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
 NEXT_PREPARED_TASK_STATE: `OPEN — exact source binding, bounded scope, flat delivery fields and no-live-action boundary are declared and sent`
-ACTIVE_LANE_TASK_WIRE: `CODEX-F15-F16-VARIANT-GUIDANCE-R1-TASK-001`
+ACTIVE_LANE_TASK_WIRE: `CODEX-F15-F16-VARIANT-GUIDANCE-CORRECTED-TASK-001`
 ACTIVE_LANE_SOURCE_COMMIT: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
 ACTIVE_LANE_SOURCE_REPO: `github.com/dominator509/axiom`
-ACTIVE_LANE_SOURCE_REF: `refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/mirror fetch --all --prune`
-ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/mirror rev-parse --verify refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/mirror cat-file -t c884ad4bcc792338022337bdfe7dc1a0e2ca16ef^{commit}`
-ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/mirror merge-base --is-ancestor c884ad4bcc792338022337bdfe7dc1a0e2ca16ef refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/mirror`
+ACTIVE_LANE_SOURCE_REF: `refs/heads/codex/f15-f16-variant-guidance-base`
+ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/mirror fetch --all --prune`
+ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/mirror rev-parse --verify refs/heads/codex/f15-f16-variant-guidance-base`
+ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/mirror cat-file -t c884ad4bcc792338022337bdfe7dc1a0e2ca16ef^{commit}`
+ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/mirror merge-base --is-ancestor c884ad4bcc792338022337bdfe7dc1a0e2ca16ef refs/heads/codex/f15-f16-variant-guidance-base`
+ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/mirror`
 ACTIVE_LANE_SOURCE_MIRROR_LAYOUT: `bare-mirror — refs/heads/*`
 ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch checkout`
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
-ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/copy`
-ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/delivery`
-ACTIVE_LANE_COPY_STATE: `TASK_SENT — awaiting one correlated ACK/READ or ACK/ACCEPTED before source-only implementation`
+ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/copy`
+ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/delivery`
+ACTIVE_LANE_COPY_STATE: `TASK_SENT — corrected immutable source binding; awaiting one correlated ACK/READ or ACK/ACCEPTED before source-only implementation`
 ACTIVE_LANE_LOCAL_REVIEW_ROOT: `NONE — created only after a readable DELIVERY arrives`
 ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `UNCONFIRMED — no Hermes artifact accepted`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `ab734b073beb76da31526709d0f8f9fd21f5dbdb7aac5a84e05d5a084ac1b287`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `PENDING — verify exact readback before treating the task as received`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `007f03c457e05ba00467f04055f6661395c8da59da2a3d787f6326ef54bca970`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `PENDING — verify exact readback before treating the corrected task as received`
 ACTIVE_LANE_ACK_WIRE: `NONE`
 ACTIVE_LANE_ACK_SHA256: `NONE`
 ACTIVE_LANE_RECEIPT_WIRE: `NONE`
