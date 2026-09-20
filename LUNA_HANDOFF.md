@@ -13,10 +13,10 @@ PUBLISHED_HEAD: `436ef9064c141e365e17fb8b2a1d84270adb4557` (M900 selected-guidan
 COORDINATION_HEAD: `436ef9064c141e365e17fb8b2a1d84270adb4557 — M900 selected-guidance attribution; pushed and read back`
 ACCEPTED_PRODUCT_SOURCE: `436ef9064c141e365e17fb8b2a1d84270adb4557`
 LAST_COMPLETED_SOURCE_MILESTONE: `M900 — selected-guidance attribution is source-wired, weighted by actual samples, focused gates passed, pushed at 436ef9064c141e365e17fb8b2a1d84270adb4557`
-ACTIVE_HERMES_LANE: `F15-F16-VARIANT-GUIDANCE-CORRECTED — sole active source-only lane against immutable c884ad4 ref; malformed R1 response is closed and not reopened`
+ACTIVE_HERMES_LANE: `F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION — sole active source-only lane against immutable 30092eeb ref; supersedes the malformed F15-F16 lane`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `M900 is now canonical. The existing Hermes reply remains rejected and must not modify the old source lane. If that lane is resumed, require exactly one fresh SEQ 3 TYPE ACK STATE ACCEPTED with a new WIRE and READ_STATUS READ, followed by one concrete PROGRESS or terminal BLOCKED/DELIVERY in the exact flat schema; do not accept prose, duplicate keys, a reused WIRE, or a second ACK. No Hermes commit/push or live action.`
+NEXT_ACTION: `M900 is canonical and the old F15-F16 lane is superseded. The new F89 localization task is sent at SEQ 1. Require exactly one fresh SEQ 2 TYPE ACK STATE ACCEPTED with a new WIRE and READ_STATUS READ, followed by one concrete PROGRESS or terminal BLOCKED/DELIVERY in the exact flat schema; do not accept prose, duplicate keys, a reused WIRE, or a second ACK. No Hermes commit/push or live action.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
@@ -24,7 +24,7 @@ HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_R
 HERMES_REPLY_FORMAT_GATE: `ACK = TYPE ACK + STATE READ|ACCEPTED; PROGRESS = TYPE PROGRESS + STATE IN_PROGRESS; DELIVERY = TYPE DELIVERY + STATE DELIVERED + TERMINAL YES; BLOCKED = TYPE NACK + STATE BLOCKED + TERMINAL YES; every reply has a new WIRE distinct from IN_REPLY_TO, exact SEQ, PAYLOAD delimiter, READ_STATUS READ once, and final signature sincerely, Hermes`
 HERMES_DELIVERY_FORMAT_GATE: `DELIVERY PAYLOAD must contain exactly once: ARTIFACT, SHA256 (64 lowercase hex), COMMAND, EXIT_CODE (integer), TEST_RESULT (PASS|FAIL), CHANGED_FILES, SOURCE_REPO, SOURCE_REF, SOURCE_COMMIT, COPY_ROOT, DELIVERY_ROOT, MANIFEST_SHA256 (64 lowercase hex), LIVE_ACTIONS NONE; no prose substitute or duplicate fields`
 HERMES_BLOCKED_FORMAT_GATE: `If required checks cannot run or one concrete input is missing, use TYPE NACK, STATE BLOCKED, TERMINAL YES, NEXT_OWNER CODEX, a unique WIRE, REASON naming the single blocker, PAYLOAD READ_STATUS READ and LIVE_ACTIONS NONE exactly once; do not send a second ACK or a no-change delivery`
-OPEN_WIRES: `CODEX-F15-F16-VARIANT-GUIDANCE-CORRECTED-TASK-001`
+OPEN_WIRES: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-001`
 STALE_HERMES_REPLY: `codex-receipt-r2-storage-r3-invalid-ack-001` belongs to superseded task `R2-STORAGE-ROUNDTRIP-COPY-R3`; strict validator fails on missing DELIVERY_ACCEPTED, delivery claim and terminal/state contradiction; it does not advance the active R3 lane`
 OPEN_CONTROL_WIRE: `NONE`
 OPEN_CONTROL_TASK_STATE: `CLOSED_BY_CODEX_RECEIPT — Hermes-owned bare mirror and all-ref inventory accepted; poller edit remains explicitly blocked by root ownership; no feature implementation or live action accepted`
@@ -48,34 +48,34 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `F15-F16-VARIANT-GUIDANCE-CORRECTED`
-NEXT_PREPARED_TASK_WIRE: `CODEX-F15-F16-VARIANT-GUIDANCE-CORRECTED-TASK-001`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
+NEXT_PREPARED_TASK: `F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION`
+NEXT_PREPARED_TASK_WIRE: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-001`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `30092eeb0930c498b3f4275d532a6ac71e836143`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `OPEN — exact source binding, bounded scope, flat delivery fields and no-live-action boundary are declared and sent`
-ACTIVE_LANE_TASK_WIRE: `CODEX-F15-F16-VARIANT-GUIDANCE-CORRECTED-TASK-001`
-ACTIVE_LANE_SOURCE_COMMIT: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
+NEXT_PREPARED_TASK_STATE: `OPEN — exact source binding, bounded scope, flat delivery fields and no-live-action boundary are declared, validated locally and sent`
+ACTIVE_LANE_TASK_WIRE: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-001`
+ACTIVE_LANE_SOURCE_COMMIT: `30092eeb0930c498b3f4275d532a6ac71e836143`
 ACTIVE_LANE_SOURCE_REPO: `github.com/dominator509/axiom`
-ACTIVE_LANE_SOURCE_REF: `refs/heads/codex/f15-f16-variant-guidance-base`
-ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/mirror fetch --all --prune`
-ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/mirror rev-parse --verify refs/heads/codex/f15-f16-variant-guidance-base`
-ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/mirror cat-file -t c884ad4bcc792338022337bdfe7dc1a0e2ca16ef^{commit}`
-ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/mirror merge-base --is-ancestor c884ad4bcc792338022337bdfe7dc1a0e2ca16ef refs/heads/codex/f15-f16-variant-guidance-base`
-ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/mirror`
+ACTIVE_LANE_SOURCE_REF: `refs/heads/codex/telegram-webhook-hardening`
+ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r1/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r1/mirror fetch --all --prune`
+ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r1/mirror rev-parse --verify refs/heads/codex/telegram-webhook-hardening`
+ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r1/mirror cat-file -t 30092eeb0930c498b3f4275d532a6ac71e836143^{commit}`
+ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r1/mirror merge-base --is-ancestor 30092eeb0930c498b3f4275d532a6ac71e836143 refs/heads/codex/telegram-webhook-hardening`
+ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r1/mirror`
 ACTIVE_LANE_SOURCE_MIRROR_LAYOUT: `bare-mirror — refs/heads/*`
 ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch checkout`
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
-ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/copy`
-ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-corrected/delivery`
-ACTIVE_LANE_COPY_STATE: `TASK_SENT — Hermes reply rejected at SEQ 1 because TYPE and WIRE were invalid; correction receipt sent at SEQ 2; awaiting one fresh correlated ACK/ACCEPTED at SEQ 3`
+ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r1/copy`
+ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r1/delivery`
+ACTIVE_LANE_COPY_STATE: `TASK_SENT — exact JSON validated locally and remote SHA read back; awaiting one fresh correlated ACK/ACCEPTED at SEQ 2`
 ACTIVE_LANE_LOCAL_REVIEW_ROOT: `NONE — created only after a readable DELIVERY arrives`
 ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `UNCONFIRMED — no Hermes artifact accepted`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `007f03c457e05ba00467f04055f6661395c8da59da2a3d787f6326ef54bca970`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `007f03c457e05ba00467f04055f6661395c8da59da2a3d787f6326ef54bca970 — exact readback matches`
-ACTIVE_LANE_ACK_WIRE: `NONE — Hermes response was malformed and not accepted`
-ACTIVE_LANE_ACK_SHA256: `eeafa75bbda5425cbcdfe48f52503b5d9bf8f58a9d684082029bf04b6a7479`
-ACTIVE_LANE_RECEIPT_WIRE: `CODEX-F15-F16-VARIANT-GUIDANCE-CORRECTED-RECEIPT-002`
-ACTIVE_LANE_RECEIPT_SHA256: `64741680ff89612b0c608bd6dacf441aa58417f1e6081ea9c4313b3a538b4828`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `4c019886f3aabba188ad17f521c4fa4f9a7425a42d7a2742406467d53a5a2d98`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `4c019886f3aabba188ad17f521c4fa4f9a7425a42d7a2742406467d53a5a2d98 — exact readback matches`
+ACTIVE_LANE_ACK_WIRE: `NONE — awaiting strict SEQ 2 ACK; no prior Hermes ACK is accepted`
+ACTIVE_LANE_ACK_SHA256: `NONE`
+ACTIVE_LANE_RECEIPT_WIRE: `NONE`
+ACTIVE_LANE_RECEIPT_SHA256: `NONE`
 ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `64741680ff89612b0c608bd6dacf441aa58417f1e6081ea9c4313b3a538b4828`
 ACTIVE_LANE_EXECUTION_RECEIPT_WIRE: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-ACK-RECEIPT-004 — ownership transferred to Hermes`
 ACTIVE_LANE_EXECUTION_RECEIPT_SHA256: `325ae32944578b3242f648f42de35794db9aa7db24d4e99f1efc0b3670f713a0`
