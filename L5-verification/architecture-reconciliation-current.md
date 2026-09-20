@@ -2,7 +2,7 @@
 
 Date: 2026-09-20  
 Repository: `dominator509/axiom`  
-Source checkpoint: `022e1ed39b331a98c10d92143de14b4bf4c15deb`
+Source checkpoint: `ad021d17a821b4dcfe9b01430392ee0f92ef8f00`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -731,6 +731,23 @@ slice; remaining dashboard/email/operator localization, other date/number/
 currency surfaces, browser/native, provider, deployed migration/RLS/runtime,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M849 - F-89 portfolio-error localization
+
+The portfolio home page now retains localized workspace-unreachable and
+profile-request-failed states without rendering raw backend exception text.
+Model listing/count requests, pagination semantics and profile actions remain
+unchanged.
+
+Evidence: focused home-page tests 7/7; full dashboard matrix 141 files and 864
+tests passed; dashboard typecheck passed; dashboard lint exited 0 with four
+pre-existing `any` warnings; dashboard production build and
+`scripts/verify.sh` (`verify: ok`) passed. Source commit
+`ad021d17a821b4dcfe9b01430392ee0f92ef8f00` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the M849 source/UI
+slice; remaining catalog adoption, browser/native, provider, deployed
+migration/RLS/runtime, observability, CI governance and production acceptance
+remain open. No live action occurred.
 
 ### M848 - F-89 approval-queue localization
 
