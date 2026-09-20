@@ -1123,3 +1123,19 @@ dashboard/core files passes, and `git diff --check` passes. Source commit
 `89477724ec180a2e91a874ff1a21f3b680a01047` is pushed and read back from
 `origin/codex/telegram-webhook-hardening`. Package-wide dashboard lint was not
 counted for this slice because it previously hung in this environment.
+
+### M795 — F-89 model team route-shell localization
+
+The model-scoped Team & shifts route now resolves the persisted interface
+locale through the shared server-locale helper. Loaded, unavailable and
+load-failure copy use typed catalog keys in all six launch locales. Existing
+owner-only assignment visibility, role-scoped edit capability, team operations,
+shift lifecycle, handoff notes and Chatter mechanics are unchanged; this gate
+covers the route shell only.
+
+Evidence: focused team route tests 7/7, core locale tests 28/28, core and
+dashboard typechecks pass, core build passes, focused ESLint for changed
+dashboard/core files passes, and `git diff --check` passes. Source commit
+`0b7d4b232d9f590e56a1e80013c79d5491b063a2` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. Package-wide dashboard lint was not
+counted for this slice because it previously hung in this environment.
