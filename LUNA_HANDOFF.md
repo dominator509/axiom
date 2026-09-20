@@ -13,7 +13,7 @@ PUBLISHED_HEAD: `4884a0c2553729b5adef99abee5a72f1f9912e38` (immutable reviewed p
 COORDINATION_HEAD: `4a72e2f0c76254ebe29635bf17136f3e88443a59` (immutable F71 source binding; coordination-only commits may advance the branch tip without changing the task source)
 ACCEPTED_PRODUCT_SOURCE: `4884a0c2553729b5adef99abee5a72f1f9912e38`
 LAST_COMPLETED_SOURCE_MILESTONE: `M856 — model Network route localization; source/UI only`
-ACTIVE_HERMES_LANE: `OPEN_UNCONFIRMED — F71-RELAY-BINDING-LOCALIZATION-R1; task envelope transmitted and remote checksum verified, but no ACK/NACK is counted yet`
+ACTIVE_HERMES_LANE: `ACK_ACCEPTED — F71-RELAY-BINDING-LOCALIZATION-R1; Hermes ACK-002 was read and Codex receipt-003 was published, with concrete implementation evidence still pending`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
 NEXT_ACTION: `Poll the F71 relay-localization wire once for a correlated ACK/NACK; ACK/REPLIED is transport only, and no implementation is counted before ACCEPTED plus evidence-bearing PROGRESS or DELIVERY.`
