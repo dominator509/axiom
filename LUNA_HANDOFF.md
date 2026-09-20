@@ -12,15 +12,15 @@ PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `2c725ebad35394e915847f96cd79d2ac7ecc86c9` (M849 source-bearing ref plus ledger reconciliation read back from origin)
 COORDINATION_HEAD: `2c725ebad35394e915847f96cd79d2ac7ecc86c9` (exact source bound before the fresh Hermes task envelope)
 ACCEPTED_PRODUCT_SOURCE: `2c725ebad35394e915847f96cd79d2ac7ecc86c9`
-ACTIVE_HERMES_LANE: `F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1 — malformed ACK rejected at SEQ 3; awaiting one fresh corrected logical ACK`
+ACTIVE_HERMES_LANE: `CLOSED_UNCONFIRMED — F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1 malformed ACK was rejected at SEQ 3; no corrected logical ACK arrived after bounded identity polls`
 CODEX_OWNER: `CODEX`
-HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits, integrates, commits and pushes`
-NEXT_ACTION: `Await one fresh ACK/ACCEPTED or ACK/READ correlated to CODEX-F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1-ACK-REJECT-003. After a valid ACCEPTED require one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED; no stale lane or live action may resume.`
+HERMES_IMPLEMENTATION_OWNER: `NONE — Hermes lane closed as UNCONFIRMED; Codex owns the finite local fallback and will not reuse the stale wire`
+NEXT_ACTION: `Implement the same verified F89 profile/network/lifecycle localization slice locally from exact source 2c725eba; retain the Hermes malformed-ACK evidence as coordination history and do not reopen its wire.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `CODEX-F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1-START-001 — one fresh source-only implementation wire`
-OPEN_CONTROL_WIRE: `CODEX-F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1-START-001`
-OPEN_CONTROL_TASK_STATE: `OPEN_CORRECTION_PENDING — exact source 2c725eba, task envelope hash a6db5163; Hermes ACK-002 was rejected; no implementation or delivery counted`
+OPEN_WIRES: `NONE — F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1 is CLOSED_UNCONFIRMED; stale Hermes traffic is quarantined`
+OPEN_CONTROL_WIRE: `NONE — F89 profile/network/lifecycle wire closed as unconfirmed; local fallback owns M850`
+OPEN_CONTROL_TASK_STATE: `CLOSED_UNCONFIRMED — exact source 2c725eba, task envelope hash a6db5163; Hermes ACK-002 was rejected and no corrected logical ACK arrived; no Hermes implementation counted`
 OPEN_CONTROL_TASK_REPLY_WIRE: `CODEX-F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1-ACK-002`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `HISTORICAL — F89 Playbook History receipt; not an active task`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `HISTORICAL`
@@ -30,7 +30,7 @@ OPEN_CONTROL_TASK_CORRECTION_WIRE: `CODEX-F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1-
 OPEN_CONTROL_TASK_CORRECTION_SHA256: `5f9341a5a7759a07aecfc4e521d050d02913bcf21282e8667dca084e94291c2d`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must return one correlated ACK/ACCEPTED or exact NACK, then one new-evidence PROGRESS and terminal DELIVERY or BLOCKED; no ACK loop or stale delivery is accepted`
+OPEN_CONTROL_TASK_NEXT_ACTION: `No action for the stale Hermes wire; Codex implements the finite local fallback from the verified exact source and will not resend the same task`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, and M849 portfolio-error localization are integrated on the branch. M849 criterion: the portfolio home page retains localized workspace-unreachable and profile-request-failed states without rendering raw backend exception text; focused home regression, full dashboard, build, lint, typecheck and verify gates pass; model listing/count semantics are unchanged; no live action.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
@@ -48,10 +48,10 @@ ACTIVE_LANE_TASK_WIRE: `CODEX-F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1-START-001`
 ACTIVE_LANE_SOURCE_COMMIT: `2c725ebad35394e915847f96cd79d2ac7ecc86c9`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f89-profile-network-lifecycle-l10n-r1`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/deliveries/codex-f89-profile-network-lifecycle-l10n-r1`
-ACTIVE_LANE_COPY_STATE: `PROTOCOL_CORRECTION_PENDING — Hermes ACK-002 failed strict validation; no implementation or delivery counted`
+ACTIVE_LANE_COPY_STATE: `CLOSED_UNCONFIRMED — Hermes ACK-002 failed strict validation and no corrected logical ACK arrived; no implementation or delivery counted`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `a6db516330475c536283b34ade8f5b6a93ecf5fe912a20b186fadcc757c00607`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `a6db516330475c536283b34ade8f5b6a93ecf5fe912a20b186fadcc757c00607`
-ACTIVE_LANE_ACK_WIRE: `CODEX-F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1-ACK-REJECT-003 — Codex rejection receipt; Hermes ACK-002 invalid`
+ACTIVE_LANE_ACK_WIRE: `CODEX-F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1-ACK-REJECT-003 — terminal Codex rejection receipt; Hermes correction unconfirmed`
 ACTIVE_LANE_CORRECTION_WIRE: `CODEX-F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1-ACK-REJECT-003`
 ACTIVE_LANE_CORRECTION_SHA256: `5f9341a5a7759a07aecfc4e521d050d02913bcf21282e8667dca084e94291c2d`
 ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `5f9341a5a7759a07aecfc4e521d050d02913bcf21282e8667dca084e94291c2d`
