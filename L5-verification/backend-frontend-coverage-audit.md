@@ -847,6 +847,25 @@ browser/mobile, deployed Patreon OAuth/webhook/sync, R2, provider,
 migration/RLS, observability, CI governance and production acceptance remain
 open. No live action occurred.
 
+# M840: inbox attachment localization
+
+Authenticated inbox attachment details and image/video/audio preview controls now
+use the shared six-locale catalog. Loading, access/error, unavailable, variant,
+retry and preview-alt copy is localized; listed prices and paid amounts use the
+selected locale, and valid purchase timestamps use the selected locale with an
+explicit UTC zone. Authored/provider values and purchase/read semantics remain
+unchanged. The model overview role-filtered tool-link list was also typed so the
+production build accepts it.
+
+Evidence: focused InboxAttachments tests 9/9, mounted locale tests 2/2, core
+locale tests 57/57, serialized full matrix 24/24 package tasks, dashboard
+production build compilation/lint/type/page generation/trace passed, and
+`scripts/verify.sh` prints `verify: ok`. Source commit
+`b2fe80bce8d291024e01e38a229372c2b8fd81f0` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
+browser/native, provider, deployed migration/RLS/runtime, observability, CI
+governance and production acceptance remain open. No live action occurred.
+
 # M839: model overview route-shell localization
 
 The model overview route now resolves the persisted interface locale through
