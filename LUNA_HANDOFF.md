@@ -7,16 +7,16 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `647b2a9c0b7f4ff90d13d94ba30d2cf492a598f5` (M904 calendar UTC time localization; remote readback matches)
+SOURCE_HEAD: `e64113875465c54647c3a61516a953c5b6d53083` (M906 calendar locale reconciliation; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `647b2a9c0b7f4ff90d13d94ba30d2cf492a598f5` (M904 calendar UTC time localization; remote readback matches)
-COORDINATION_HEAD: `647b2a9c0b7f4ff90d13d94ba30d2cf492a598f5 — M904 calendar UTC time localization; pushed and read back`
-ACCEPTED_PRODUCT_SOURCE: `647b2a9c0b7f4ff90d13d94ba30d2cf492a598f5`
-LAST_COMPLETED_SOURCE_MILESTONE: `M904 — calendar scheduled times now render with the selected locale in explicit UTC; focused tests passed, pushed at 647b2a9c0b7f4ff90d13d94ba30d2cf492a598f5`
-ACTIVE_HERMES_LANE: `F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-R2 — sole active source-only lane against immutable 647b2a9c ref; supersedes the unconfirmed R1 lane`
+PUBLISHED_HEAD: `e64113875465c54647c3a61516a953c5b6d53083` (M906 calendar locale reconciliation; remote readback matches)
+COORDINATION_HEAD: `e64113875465c54647c3a61516a953c5b6d53083 — M906 calendar locale reconciliation; pushed and read back`
+ACCEPTED_PRODUCT_SOURCE: `e64113875465c54647c3a61516a953c5b6d53083`
+LAST_COMPLETED_SOURCE_MILESTONE: `M906 — calendar locale reconciliation recorded after M904; focused tests passed, pushed at e64113875465c54647c3a61516a953c5b6d53083`
+ACTIVE_HERMES_LANE: `F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-R3 — sole active source-only lane against immutable e6411387 ref; supersedes unconfirmed R2`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `M904 is canonical and the unconfirmed F89 R1 lane is superseded. The rebased F89 R2 localization task is sent at SEQ 1. Require exactly one fresh SEQ 2 TYPE ACK STATE ACCEPTED with a new WIRE and READ_STATUS READ, followed by one concrete PROGRESS or terminal BLOCKED/DELIVERY in the exact flat schema; do not accept prose, duplicate keys, a reused WIRE, or a second ACK. No Hermes commit/push or live action.`
+NEXT_ACTION: `M906 is canonical and the unconfirmed F89 R2 lane is superseded. The F89 R3 task is sent at SEQ 1 with literal ACK_FORMAT, PROGRESS_FORMAT, DELIVERY_FORMAT and VALIDATION_COMMAND fields. Require exactly one fresh SEQ 2 ACK/READ or ACK/ACCEPTED with a new WIRE and READ_STATUS READ, then exactly one concrete PROGRESS or flat DELIVERY or terminal NACK/BLOCKED. Hermes must run the named validator before publication; reject prose, duplicate keys, reused WIREs, second ACKs, missing delivery fields, or duplicate signatures. No Hermes commit/push or live action.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
@@ -24,7 +24,7 @@ HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_R
 HERMES_REPLY_FORMAT_GATE: `ACK = TYPE ACK + STATE READ|ACCEPTED; PROGRESS = TYPE PROGRESS + STATE IN_PROGRESS; DELIVERY = TYPE DELIVERY + STATE DELIVERED + TERMINAL YES; BLOCKED = TYPE NACK + STATE BLOCKED + TERMINAL YES; every reply has a new WIRE distinct from IN_REPLY_TO, exact SEQ, PAYLOAD delimiter, READ_STATUS READ once, and final signature sincerely, Hermes`
 HERMES_DELIVERY_FORMAT_GATE: `DELIVERY PAYLOAD must contain exactly once: ARTIFACT, SHA256 (64 lowercase hex), COMMAND, EXIT_CODE (integer), TEST_RESULT (PASS|FAIL), CHANGED_FILES, SOURCE_REPO, SOURCE_REF, SOURCE_COMMIT, COPY_ROOT, DELIVERY_ROOT, MANIFEST_SHA256 (64 lowercase hex), LIVE_ACTIONS NONE; no prose substitute or duplicate fields`
 HERMES_BLOCKED_FORMAT_GATE: `If required checks cannot run or one concrete input is missing, use TYPE NACK, STATE BLOCKED, TERMINAL YES, NEXT_OWNER CODEX, a unique WIRE, REASON naming the single blocker, PAYLOAD READ_STATUS READ and LIVE_ACTIONS NONE exactly once; do not send a second ACK or a no-change delivery`
-OPEN_WIRES: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-002`
+OPEN_WIRES: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-003`
 STALE_HERMES_REPLY: `codex-receipt-r2-storage-r3-invalid-ack-001` belongs to superseded task `R2-STORAGE-ROUNDTRIP-COPY-R3`; strict validator fails on missing DELIVERY_ACCEPTED, delivery claim and terminal/state contradiction; it does not advance the active R3 lane`
 OPEN_CONTROL_WIRE: `NONE`
 OPEN_CONTROL_TASK_STATE: `CLOSED_BY_CODEX_RECEIPT — Hermes-owned bare mirror and all-ref inventory accepted; poller edit remains explicitly blocked by root ownership; no feature implementation or live action accepted`
@@ -48,30 +48,30 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-R2`
-NEXT_PREPARED_TASK_WIRE: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-002`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `647b2a9c0b7f4ff90d13d94ba30d2cf492a598f5`
+NEXT_PREPARED_TASK: `F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-R3`
+NEXT_PREPARED_TASK_WIRE: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-003`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `e64113875465c54647c3a61516a953c5b6d53083`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `OPEN — exact source binding, bounded scope, flat delivery fields and no-live-action boundary are declared, validated locally and sent`
-ACTIVE_LANE_TASK_WIRE: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-002`
-ACTIVE_LANE_SOURCE_COMMIT: `647b2a9c0b7f4ff90d13d94ba30d2cf492a598f5`
+NEXT_PREPARED_TASK_STATE: `OPEN — exact source binding, literal reply-format examples, bounded scope and no-live-action boundary are declared, validated locally and sent`
+ACTIVE_LANE_TASK_WIRE: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-003`
+ACTIVE_LANE_SOURCE_COMMIT: `e64113875465c54647c3a61516a953c5b6d53083`
 ACTIVE_LANE_SOURCE_REPO: `github.com/dominator509/axiom`
 ACTIVE_LANE_SOURCE_REF: `refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r2/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r2/mirror fetch --all --prune`
-ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r2/mirror rev-parse --verify refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r2/mirror cat-file -t 647b2a9c0b7f4ff90d13d94ba30d2cf492a598f5^{commit}`
-ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r2/mirror merge-base --is-ancestor 647b2a9c0b7f4ff90d13d94ba30d2cf492a598f5 refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r2/mirror`
+ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/mirror fetch --all --prune`
+ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/mirror rev-parse --verify refs/heads/codex/telegram-webhook-hardening`
+ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/mirror cat-file -t e64113875465c54647c3a61516a953c5b6d53083^{commit}`
+ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/mirror merge-base --is-ancestor e64113875465c54647c3a61516a953c5b6d53083 refs/heads/codex/telegram-webhook-hardening`
+ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/mirror`
 ACTIVE_LANE_SOURCE_MIRROR_LAYOUT: `bare-mirror — refs/heads/*`
 ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch checkout`
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
-ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r2/copy`
-ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r2/delivery`
-ACTIVE_LANE_COPY_STATE: `TASK_SENT — exact JSON validated locally and remote SHA read back; awaiting one fresh correlated ACK/ACCEPTED at SEQ 2`
+ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/copy`
+ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/delivery`
+ACTIVE_LANE_COPY_STATE: `TASK_SENT — exact R3 JSON validated locally, uploaded, and remote SHA read back; awaiting one fresh correlated ACK/READ or ACK/ACCEPTED at SEQ 2`
 ACTIVE_LANE_LOCAL_REVIEW_ROOT: `NONE — created only after a readable DELIVERY arrives`
 ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `UNCONFIRMED — no Hermes artifact accepted`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `f6cdda9776fbd5e362666b0d7a5a9525a83d924d4cd55ddcf37d596688c740d7`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `f6cdda9776fbd5e362666b0d7a5a9525a83d924d4cd55ddcf37d596688c740d7 — exact readback matches`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `528b1de94d8a630548719a56f68c06403b04733cfa4b970ea70d0472893d0289`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `528b1de94d8a630548719a56f68c06403b04733cfa4b970ea70d0472893d0289 — exact readback matches`
 ACTIVE_LANE_ACK_WIRE: `NONE — awaiting strict SEQ 2 ACK; no prior Hermes ACK is accepted`
 ACTIVE_LANE_ACK_SHA256: `NONE`
 ACTIVE_LANE_RECEIPT_WIRE: `NONE`
