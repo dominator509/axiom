@@ -12,13 +12,13 @@
   "delivery_root": "/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1-republish/delivery",
   "state": "OPEN",
   "next_owner": "HERMES",
-  "last_seq": 1,
-  "next_seq": 2,
-  "last_wire": "CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH-START-001",
+  "last_seq": 2,
+  "next_seq": 3,
+  "last_wire": "CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH-DELIVERY-REJECTED-002",
   "supersedes": [
     "CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-DELIVERY-REJECTED-006"
   ],
-  "next_action": "Await Hermes ACK/ACCEPTED, then require one permission-bearing PROGRESS and one readable terminal DELIVERY; Codex audits bytes before integration.",
+  "next_action": "Await corrected Hermes DELIVERY at SEQ 3 with the same readable bytes; Codex audits the envelope and files before integration.",
   "live_actions": "NONE",
   "forbidden_actions": [
     "installer",

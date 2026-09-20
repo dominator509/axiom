@@ -13,10 +13,10 @@ PUBLISHED_HEAD: `462cdaf31ee06e7263057df4489d7fbd14b4cd35` (immutable reviewed p
 COORDINATION_HEAD: `REMOTE_BRANCH_TIP — read refs/heads/codex/telegram-webhook-hardening before every new lane; sync-control mirror proof was e963fb855bdbcb10593ba961c990e37218d6b960; M859 product source binding remains 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 ACCEPTED_PRODUCT_SOURCE: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 LAST_COMPLETED_SOURCE_MILESTONE: `M859 — PlaybookCadence calendar guidance localization; source/UI only`
-ACTIVE_HERMES_LANE: `F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH — superseding source-only correction lane; the prior delivery was rejected because two files were unreadable; fresh exact-commit copy and readable republish required`
+ACTIVE_HERMES_LANE: `F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH — readable delivery passed file permissions and hashes, but Hermes used a duplicate SEQ 1; Codex rejected that envelope at SEQ 2; corrected DELIVERY at SEQ 3 required`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `Poll the F89 republish wire by logical state; require ACK/ACCEPTED, one permission-bearing PROGRESS, then one corrected terminal DELIVERY with independently readable artifacts; do not open a competing product lane.`
+NEXT_ACTION: `Poll the F89 republish wire by logical state; require corrected DELIVERY at SEQ 3 with independently readable artifacts, then audit bytes; do not open a competing product lane.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH-START-001`
@@ -61,20 +61,20 @@ ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch 
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1-republish/copy`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1-republish/delivery`
-ACTIVE_LANE_COPY_STATE: `REPUBLISH_TASK_SENT — exact source pin and fresh delivery root declared; awaiting Hermes ACK/ACCEPTED before any source delivery audit`
+ACTIVE_LANE_COPY_STATE: `DELIVERY_REJECTED_PROTOCOL — remote delivery bytes are readable and seven manifest checks pass, but the Hermes DELIVERY reused SEQ 1; Codex rejection receipt at SEQ 2 requires a fresh DELIVERY at SEQ 3`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `a93e53d8c11545b6fa3b1c3ad09a7c493f02b4c0a276718419031494d1f4b481`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `a93e53d8c11545b6fa3b1c3ad09a7c493f02b4c0a276718419031494d1f4b481 — exact task envelope read back from Hermes inbox`
-ACTIVE_LANE_ACK_WIRE: `NONE — awaiting ACK/ACCEPTED for the superseding republish task`
-ACTIVE_LANE_ACK_SHA256: `NONE`
-ACTIVE_LANE_RECEIPT_WIRE: `NONE — no reply receipt for the superseding task yet`
-ACTIVE_LANE_RECEIPT_SHA256: `NONE`
-ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `NONE`
+ACTIVE_LANE_ACK_WIRE: `HERMES-F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH-DELIVERY-001 — malformed duplicate SEQ 1; not accepted`
+ACTIVE_LANE_ACK_SHA256: `PENDING — reply envelope hash not yet recorded`
+ACTIVE_LANE_RECEIPT_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH-DELIVERY-REJECTED-002`
+ACTIVE_LANE_RECEIPT_SHA256: `3f1c2c494ae0049706b7709cc7fb2c82e6413d8174521ca38959c41ee3b325ee`
+ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `3f1c2c494ae0049706b7709cc7fb2c82e6413d8174521ca38959c41ee3b325ee`
 ACTIVE_LANE_EXECUTION_RECEIPT_WIRE: `NONE — no execution receipt for the superseding task yet`
 ACTIVE_LANE_EXECUTION_RECEIPT_SHA256: `NONE`
-ACTIVE_LANE_DELIVERY_REJECTED_WIRE: `SUPERSEDED — HERMES-F89-WORKER-DIGEST-LOCALIZATION-R1-DELIVERY-005`
-ACTIVE_LANE_DELIVERY_REPLY_SHA256: `SUPERSEDED — fc9a2dd459f20cf37ae22d1871f62e4289d9f21d5105f904c88abdd0a47bb66c`
-ACTIVE_LANE_DELIVERY_REJECTION_WIRE: `SUPERSEDED — CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-DELIVERY-REJECTED-006`
-ACTIVE_LANE_DELIVERY_REJECTION_SHA256: `SUPERSEDED — 36d1a523e3a62293671ceb77e59539388c73564f02b46f5afb7d9b591142d494`
+ACTIVE_LANE_DELIVERY_REJECTED_WIRE: `HERMES-F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH-DELIVERY-001`
+ACTIVE_LANE_DELIVERY_REPLY_SHA256: `f42cbbae45d4a6afd92f5f927b05506b8c88d43dad1c66209b5acbc54b2a7d7b`
+ACTIVE_LANE_DELIVERY_REJECTION_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH-DELIVERY-REJECTED-002`
+ACTIVE_LANE_DELIVERY_REJECTION_SHA256: `3f1c2c494ae0049706b7709cc7fb2c82e6413d8174521ca38959c41ee3b325ee`
 ACTIVE_LANE_PROGRESS_WIRE: `NONE`
 ACTIVE_LANE_PROGRESS_SHA256: `NONE`
 ACTIVE_LANE_CORRECTION_WIRE: `NONE`
