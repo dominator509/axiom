@@ -14,6 +14,7 @@ COORDINATION_HEAD: `coordination metadata is pushed on the published branch; ver
 COORDINATION_HEAD_LAST_READBACK: `d06b45800b47be4ebda11e6dafd3b134d0a7b8f4 — M910 synchronization controls; re-read origin before any new lane`
 ACCEPTED_PRODUCT_SOURCE: `fb594a441cada409a251a5c35399662562ade169`
 CURRENT_TASK_MANIFEST: `L5-verification/hermes-loop-state.json — the only active-lane marker; its remote read-only mirror is /srv/fanthynks-bridge/hermes/inbox/CURRENT_TASK.json`
+CURRENT_TASK_MANIFEST_SHA256: `beeb4b46f8eca342703ed5db7b1700378cb780281d9297f13af76a16a2611097`
 CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; only task_msg_id/task_wire match the active lane; every other inbox/reply/status/outbox/worktree artifact is historical and inert`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs L5-verification/hermes-loop-state.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
@@ -75,7 +76,7 @@ ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-work
 ACTIVE_LANE_COPY_STATE: `CONTROL_TASK_PREPARING — exact source and stale-inbox gates are declared; feature work is paused until the strict sync ACK`
 ACTIVE_LANE_LOCAL_REVIEW_ROOT: `NONE — created only after a readable DELIVERY arrives`
 ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `UNCONFIRMED — no Hermes artifact accepted`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `PENDING — computed only after the control envelope is validated`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `f031a464f3f9920d4b491d5ef2bbe57a25e0088af1d304206212c239260194fa — local protocol and sync checks pass`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `PENDING — no upload is accepted until local hash and protocol checks pass`
 ACTIVE_LANE_ACK_WIRE: `NONE — awaiting strict SEQ 2 ACK for the control lane`
 ACTIVE_LANE_ACK_SHA256: `NONE`
@@ -96,7 +97,7 @@ ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `NONE`
 ACTIVE_LANE_INVALID_DELIVERY_WIRE: `NONE`
 ACTIVE_LANE_INVALID_DELIVERY_SHA256: `NONE`
 ACTIVE_LANE_SUPERSEDE_WIRE: `CODEX-HERMES-WORKFLOW-RECONCILIATION-R1-TASK-001 supersedes CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-004 and all older stale lanes`
-ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `PENDING`
+ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `f031a464f3f9920d4b491d5ef2bbe57a25e0088af1d304206212c239260194fa`
 ACTIVE_LANE_SOURCE_BUNDLE: `NONE — exact Git source ref is authoritative`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `NONE`
 CLOSED_LANE_F50_LINKTREE: `TERMINAL BLOCKED — HERMES-LINKTREE-ADAPTER-SOURCE-R1-NACK-004; missing authoritative OAuth/endpoints/scopes, link-sync shape and normalized analytics mapping; existing native-only fail-closed behavior retained`
