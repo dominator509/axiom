@@ -22,6 +22,7 @@ CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
 HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_RESULT, CHANGED_FILES and LIVE_ACTIONS must appear exactly once inside PAYLOAD; no prose substitute, duplicate keys or second signature`
 OPEN_WIRES: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-TASK-001`
+STALE_HERMES_REPLY: `codex-receipt-r2-storage-r3-invalid-ack-001` belongs to superseded task `R2-STORAGE-ROUNDTRIP-COPY-R3`; strict validator fails on missing DELIVERY_ACCEPTED, delivery claim and terminal/state contradiction; it does not advance the active R3 lane`
 OPEN_CONTROL_WIRE: `NONE`
 OPEN_CONTROL_TASK_STATE: `CLOSED_BY_CODEX_RECEIPT — Hermes-owned bare mirror and all-ref inventory accepted; poller edit remains explicitly blocked by root ownership; no feature implementation or live action accepted`
 OPEN_CONTROL_TASK_REPLY_WIRE: `CODEX-HERMES-SOURCE-SYNC-REFRESH-R2-001-HERMES-REPLY`
