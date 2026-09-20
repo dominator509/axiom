@@ -9,12 +9,12 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `653b7587ae2830acbff790690c28fdd6db853e38` (latest accepted product-source commit; M780 is coordination/evidence-only)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `769462393452f8f5c88d0b2ec9567cb8463af4b9` (current pushed coordination head; accepted product source remains M779)
+PUBLISHED_HEAD: `6472ede79050c07263b0261b91c988e81352af23` (current pushed coordination head; accepted product source remains M779)
 ACCEPTED_PRODUCT_SOURCE: `653b7587ae2830acbff790690c28fdd6db853e38`
 ACTIVE_HERMES_LANE: `NONE — F89-DRAFT-EDITOR-LOCALIZATION-R3 remains terminal BLOCKED; M773 DraftEditor and M777 BundleMedia local fallbacks are integrated`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `NONE — no active Hermes lane; Codex owns source review, implementation, integration, commit and push ownership`
-NEXT_ACTION: `Select and audit one bounded F81/F84 variant/A-B architecture criterion from the current source; ship-gate verification is complete, and no deployed/provider/database acceptance claim is implied.`
+NEXT_ACTION: `Implement the bounded F84 arm-contract slice: preserve learn-v1 compatibility, add a versioned server-owned hook/format arm context only when evidence exists, feed it through selection and bandit state, and prove it with focused tests; no live/provider/database action.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `NONE — F89-DRAFT-EDITOR-LOCALIZATION-R3-BLOCKED-002 is terminal; R1/R2/R3 transport artifacts are closed or superseded; historical F89 PlaybookHistory remains closed`
@@ -97,7 +97,7 @@ HERMES_STALE_LANE_POLICY: `Historical lanes and the closed F89 PlaybookHistory w
 LOCAL_WORKTREE_POLICY: `Codex audits, tests, commits and pushes local milestones; untracked Hermes review artifacts remain untouched`
 NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provider, credential, permission, network or service action`
 SHIP_GATE_STATUS: `PASS — scripts/verify.sh returned verify: ok; preflight and P0-P4 gates passed; no live action`
-SHIP_GATE_HEAD: `769462393452f8f5c88d0b2ec9567cb8463af4b9`
+SHIP_GATE_HEAD: `6472ede79050c07263b0261b91c988e81352af23`
 
 ## Seamless Codex/Hermes loop contract
 
@@ -119,11 +119,11 @@ LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with chan
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
 LOOP_CURRENT_ACTION: `Codex audits the remaining architecture gaps from the current source, selects one finite gate, and records its verified result before opening any new Hermes wire; no stale lane, ACK loop or unsupported completion claim is accepted`
 
-CURRENT_MILESTONE: `M780 — scraper source-quality criterion closed; repository ship gate passed`
-CURRENT_MILESTONE_COMMIT: `769462393452f8f5c88d0b2ec9567cb8463af4b9`
-CURRENT_MILESTONE_EVIDENCE_CANONICAL: `M780 API contract 33/33, scrape route 5/5, worker executor 12/12, dashboard ScrapeResult/ScrapeRunManager 6/6, API/worker typechecks PASS; scripts/verify.sh PASS (verify: ok); M780 changed handoff/ledger only; LIVE_ACTIONS NONE`
-CURRENT_MILESTONE_OPEN_CANONICAL: `Scraper source-quality is closed. Next finite source audit is F81/F84 variant/A-B recipe/attribution coverage. Deployed egress/provider/browser acceptance, team, gallery, OAuth, R2, VPN, migration/RLS, runtime, observability, CI governance and operator gates remain open.`
-CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE_CANONICAL: `769462393452f8f5c88d0b2ec9567cb8463af4b9 read back from origin/codex/telegram-webhook-hardening; accepted product source remains 653b7587ae2830acbff790690c28fdd6db853e38.`
+CURRENT_MILESTONE: `M782 — F81/F84 source audit closed with F84 implementation slice selected`
+CURRENT_MILESTONE_COMMIT: `6472ede79050c07263b0261b91c988e81352af23`
+CURRENT_MILESTONE_EVIDENCE_CANONICAL: `F81 publication evidence captures shoot config, caption, hashtags, schedule/day, platform, media format, trusted thumbnail descriptors, ToS evidence and realized metrics; F81/F84 evidence tests pass worker 16/16, API 23/23, DB schema 110/110; repository ship gate remains PASS; LIVE_ACTIONS NONE`
+CURRENT_MILESTONE_OPEN_CANONICAL: `F84 is partial: current learning-v1 arms cover caption length/question and scheduled UTC bucket, while hook type and format are only optional provenance fields and do not drive arm selection. Next slice is a backward-compatible versioned arm/context contract with server-owned evidence and focused selection/state tests. Deployed/provider/browser, team, gallery, OAuth, R2, VPN, migration/RLS, runtime, observability, CI governance and operator gates remain open.`
+CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE_CANONICAL: `6472ede79050c07263b0261b91c988e81352af23 read back from origin/codex/telegram-webhook-hardening; accepted product source remains 653b7587ae2830acbff790690c28fdd6db853e38.`
 HISTORICAL_MILESTONE_REMOTE_READBACK_R10: `GitHub branch tip read back as 2dc8a07b3e4d401f51807da4bd128766ef542a2e; R10 task envelope remote SHA 30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e; R10 Hermes ACK envelope SHA e6f5007f95975cc9a177a528136ad5ba9d3f7a4d6f24247fa6e6874a6c4b5d7a; R10 Codex receipt-002 SHA a7f07ec2edc19fc5cf031d6fc23cb6ff7b5be8eb38db92c2695769a583b04aae; source baseline c1588e4; protocol tests 30/30; control readable-delivery receipt-004 SHA 9fb42bd20a3d1f29fd4184530bc42191691c1f3a5d23025f5fbeb17131ac0a07; helper copy SHA 3aa2ad2fb3f28d94400c7e07c81dc31c707ad87363954083344ebfb51c86eb74; patch SHA 3383d6fb5e81974482550da8eadf7534267756cc4e43e8cff387bbc39a954a10; test harness SHA 299bf078b3bfcc21d6c98cc73f0a90b281e89a4a32bb63860b98e45046d61d73; Hermes R8 NACK-013 envelope SHA 939d31f4e54d34f26249707408fc7600694d9f8b4a8d4cfe9035add16d37c3e6; Hermes R9 NACK-001 envelope SHA 017a08c40291cff10d12a44cdcf41460799465f5b6f47b013f05404b77e824ba; R9 correction receipt-002 SHA bb66e3604d312ee16167264b964935afb0e4fa09a526b828f39416e8c3b60bd7; owner authorization SHA ab020cdfc694eec905c0589fd09f07312b91a9428bd596e1a34cc84f80bbccbf; no feature or live action`
 CURRENT_MILESTONE_EVIDENCE: `F89 R3 is terminal BLOCKED with a verified Codex envelope: Hermes had the exact source bundle but produced no status, worker, source delta or delivery; no Hermes artifact was accepted. M773 integrated DraftEditor and M777 integrated BundleMedia locally with six-locale catalog coverage and rendered non-English assertions; M777 core build/tests 80/80, combined focused DraftEditor/BundleMedia 23/23, dashboard typecheck PASS, lint PASS with three pre-existing warnings, diff check PASS, remote branch readback PASS; LIVE_ACTIONS NONE`
 CURRENT_MILESTONE_OPEN: `BundleMedia preview localization is closed. The next finite source/UI criterion is RoleplayManager six-locale controls while preserving human/LLM assignment, bounded memory, suggested/manual persona, soul.md loading and Grok safety fences; remaining dashboard/email adoption, browser/mobile, provider, migration/RLS, runtime, external storage, deployment and operator gates remain open`
@@ -131,7 +131,7 @@ HISTORICAL_MILESTONE_REMOTE_READBACK_PLAYBOOK_HISTORY: `Exact-source sync reply 
 CURRENT_MILESTONE_REMOTE_READBACK_CURRENT: `Product-source branch ref read back as 4d38c924b586256b720683e3ae34e8c0b0c1732c; M763 source commit a3f74fef15bbeae1119ed0a71cca58bf4d742847 remains the exact bound source; Hermes Git bundle beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6, R3 task envelope 98e26df5b3a7823572171d6ba375dc954a33c9780d0ae7718855d46f9102e53c and remote readback were verified; core build PASS; core tests 80/80; dashboard focused MediaBundleCreate/ApproveButtons/AgentPermissionManager/PlaybookHistory/TriggerRuleManager tests 47/47; dashboard typecheck PASS; dashboard lint PASS with three pre-existing warnings; diff check PASS; LIVE_ACTIONS NONE`
 CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE: `M777 product-source commit 726c19a550ffa742eb9e81a97f1b71eff16363e1 was read back from origin; later coordination commits only update this handoff metadata; Hermes Git bundle beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6 and terminal BLOCKED envelope d58bc7a36e65c215c62d68fd6186082a6fc230e815e4276771d6072a6734152f remain historical evidence; core build PASS; core tests 80/80; combined DraftEditor/BundleMedia focused 23/23; dashboard typecheck PASS; dashboard lint PASS with three pre-existing warnings; diff check PASS; LIVE_ACTIONS NONE`
 CURRENT_MILESTONE_REMOTE_READBACK_AUTHORITY: `Use CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE above. The older CURRENT_MILESTONE_REMOTE_READBACK_CURRENT record is historical evidence only and is not an active branch, task, reply or lane state.`
-LOCAL_MILESTONE_AFTER_TASK: `M780 — scraper source-quality chain audited and ship gate passed; Hermes lane remains NONE; product source remains 653b758 and coordination head is 7694623`
+LOCAL_MILESTONE_AFTER_TASK: `M782 — F81/F84 audit recorded; F81 source capture passes, F84 arm coverage is partial; Hermes lane remains NONE; next work is the bounded versioned F84 arm contract`
 
 ## Current coordination update — M697 canonical R8 lane
 
