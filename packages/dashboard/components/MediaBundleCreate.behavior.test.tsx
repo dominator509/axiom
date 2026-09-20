@@ -12,6 +12,30 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
   },
 }));
 vi.mock('@/lib/mutation', () => ({ createIdempotencyKey: () => 'intent-key', mutationFetch: hooks.send }));
+vi.mock('./LocaleProvider', () => ({
+  useLocale: () => ({
+    locale: 'en',
+    setLocale: vi.fn(),
+    t: (key: string) => ({
+      'review.writeCaption': 'Write a caption before creating a review bundle.',
+      'review.invalidSchedule': 'Choose a valid schedule.',
+      'review.bundleCreationUnconfirmed': 'Bundle creation was not confirmed.',
+      'review.reviewBundleSaved': 'Review bundle saved. A fresh media and caption scan is queued. Nothing was published.',
+      'review.outcomeUnconfirmed': 'Outcome unconfirmed. Check the same request to avoid creating another bundle.',
+      'review.transcodeMp4': 'To prepare this video for approval, transcode it to MP4 first.',
+      'review.createPostFromMedia': 'Create post from this media',
+      'review.bundleDescription': 'Choose a destination and write a caption. This creates a new review bundle, without generating media or publishing.',
+      'review.destination': 'Destination',
+      'review.caption': 'Caption',
+      'review.requestedPostingTime': 'Requested posting time (optional, your local time)',
+      'review.scheduleRequestHelp': 'This is a request for the approver, not a scheduled publication. Leave blank to let them choose. During a repeated daylight-saving hour, the first occurrence is used.',
+      'review.savingReviewBundle': 'Saving review bundle…',
+      'review.checkSameRequest': 'Check same request',
+      'review.createReviewBundle': 'Create review bundle',
+      'review.openApprovals': 'Open approvals',
+    }[key] ?? key),
+  }),
+}));
 import MediaBundleCreate from './MediaBundleCreate';
 function render() { hooks.index = 0; return MediaBundleCreate({ modelId: 'model', assetId: 'asset', mimeType: 'image/jpeg' }); }
 function find(node: any, type: string): any {

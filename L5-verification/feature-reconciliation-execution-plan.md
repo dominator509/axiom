@@ -1034,6 +1034,20 @@ passes. This closes the ApproveButtons source/UI criterion only. Audit and
 remaining mounted operator/email catalog adoption, browser/native, provider,
 migration/RLS, runtime and deployment gates remain open.
 
+### M763 — F-89 MediaBundleCreate approval localization
+
+The mounted `MediaBundleCreate` control now consumes the shared six-locale
+catalog for media-to-review entry, destination/caption fields, optional local
+schedule guidance, MP4 conversion requirements, idempotent retry messaging and
+the post-save approvals link. Its existing payload, requested-schedule UTC
+conversion, response identity checks and no-publication wording are unchanged.
+The focused component/behavior suite passes 3/3; the combined approval and
+operator suite passes 47/47; core build/tests, dashboard typecheck and lint
+pass with only the three pre-existing dashboard warnings, and diff-check
+passes. This closes the MediaBundleCreate source/UI criterion only. Other
+approval children, remaining catalog adoption, browser/native, provider,
+migration/RLS, runtime and deployment gates remain open.
+
 ### M757 — F-89 AgentPermissionManager UTC formatting
 
 The AgentPermissionManager operator surface now uses the shared locale-aware

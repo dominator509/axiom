@@ -368,6 +368,18 @@ source/UI criterion closure only. Audit and remaining catalog adoption,
 browser/native, provider, migration/RLS, runtime and deployment evidence remain
 open.
 
+### M763 source-lane checkpoint
+
+The media-to-review entry point `MediaBundleCreate` now uses the shared
+six-locale catalog for its visible controls and safety states, including the
+explicit no-publication explanation and MP4 requirement. Existing idempotent
+payload/retry behavior, requested-schedule confirmation and approvals routing
+remain unchanged. Focused MediaBundleCreate tests pass 3/3 and the combined
+approval/operator source suite passes 47/47; core build/tests, dashboard
+typecheck/lint and diff checks pass. This is a source/UI criterion closure
+only. Other approval children plus browser/native, provider, migration/RLS,
+runtime and deployment evidence remain open.
+
 ### M581 source-lane checkpoint
 
 The mobile F-89 audit found raw language/delivery labels and host-locale

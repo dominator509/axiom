@@ -5,10 +5,12 @@ import Link from 'next/link';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import { approvalSlot } from '@/lib/schedule';
+import { useLocale } from './LocaleProvider';
 
 const platforms = ['instagram', 'tiktok', 'x', 'youtube', 'reddit', 'threads', 'discord', 'telegram', 'facebook', 'snapchat', 'fanvue'];
 
 export default function MediaBundleCreate({ modelId, assetId, mimeType }: { modelId: string; assetId: string; mimeType: string }) {
+  const { t } = useLocale();
   const [platform, setPlatform] = useState('instagram');
   const [caption, setCaption] = useState('');
   const [busy, setBusy] = useState(false);
@@ -20,11 +22,11 @@ export default function MediaBundleCreate({ modelId, assetId, mimeType }: { mode
   const intent = useRef<{ body: string; key: string } | null>(null);
   async function submit() {
     if (active.current || created) return;
-    if (!intent.current && !caption.trim()) { setMessage('Write a caption before creating a review bundle.'); return; }
+    if (!intent.current && !caption.trim()) { setMessage(t('review.writeCaption')); return; }
     let scheduledAt: string | undefined;
     if (!intent.current) {
       try { scheduledAt = approvalSlot(requestedSlot); }
-      catch (error) { setMessage(error instanceof Error ? error.message : 'Choose a valid future time.'); return; }
+      catch (error) { setMessage(error instanceof Error ? error.message : t('review.invalidSchedule')); return; }
     }
     active.current = true; setBusy(true); setPending(true); setMessage('');
     intent.current ??= { key: createIdempotencyKey(), body: JSON.stringify({ modelId, assetId, captions: { [platform]: caption.trim() }, hashtags: [], ...(scheduledAt ? { scheduleRequest: { platform, scheduledAt } } : {}) }) };
@@ -33,7 +35,7 @@ export default function MediaBundleCreate({ modelId, assetId, mimeType }: { mode
         { idempotencyKey: intent.current.key, retries: 0 });
       if (!response.ok) {
         const error = await readDashboardError(response);
-        setMessage(error?.error?.message ?? 'Bundle creation was not confirmed.');
+        setMessage(error?.error?.message ?? t('review.bundleCreationUnconfirmed'));
         if ([400, 401, 403, 404, 422].includes(response.status)) { intent.current = null; setPending(false); }
         return;
       }
@@ -42,20 +44,20 @@ export default function MediaBundleCreate({ modelId, assetId, mimeType }: { mode
       const requested = JSON.parse(intent.current.body).scheduleRequest;
       if (requested && (result.data.publishIntent?.action !== 'schedule' || result.data.publishIntent.platform !== requested.platform || result.data.publishIntent.scheduledAt !== requested.scheduledAt)) throw new Error('Unconfirmed requested schedule');
       intent.current = null; setPending(false); setCreated(true);
-      setMessage('Review bundle saved. A fresh media and caption scan is queued. Nothing was published.');
-    } catch { setMessage('Outcome unconfirmed. Check the same request to avoid creating another bundle.'); }
+      setMessage(t('review.reviewBundleSaved'));
+    } catch { setMessage(t('review.outcomeUnconfirmed')); }
     finally { active.current = false; setBusy(false); }
   }
-  if (!['image/jpeg', 'image/png', 'video/mp4'].includes(mimeType)) return <p className="subtle">To prepare this video for approval, transcode it to MP4 first.</p>;
-  return <details><summary>Create post from this media</summary><div className="stack">
-    <p>Choose a destination and write a caption. This creates a new review bundle, without generating media or publishing.</p>
+  if (!['image/jpeg', 'image/png', 'video/mp4'].includes(mimeType)) return <p className="subtle">{t('review.transcodeMp4')}</p>;
+  return <details><summary>{t('review.createPostFromMedia')}</summary><div className="stack">
+    <p>{t('review.bundleDescription')}</p>
     {!created && <><fieldset className="stack" disabled={busy || pending}>
-      <label>Destination<select value={platform} onChange={event => setPlatform(event.target.value)}>{platforms.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
-      <label>Caption<textarea maxLength={10000} value={caption} onChange={event => setCaption(event.target.value)} /></label>
-      <label>Requested posting time (optional, your local time)<input type="datetime-local" value={requestedSlot} onChange={event => setRequestedSlot(event.target.value)} /></label>
-      <p className="subtle">This is a request for the approver, not a scheduled publication. Leave blank to let them choose. During a repeated daylight-saving hour, the first occurrence is used.</p>
-    </fieldset><button type="button" className="btn secondary" disabled={busy} onClick={() => void submit()}>{busy ? 'Saving review bundle…' : pending ? 'Check same request' : 'Create review bundle'}</button></>}
+      <label>{t('review.destination')}<select value={platform} onChange={event => setPlatform(event.target.value)}>{platforms.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+      <label>{t('review.caption')}<textarea maxLength={10000} value={caption} onChange={event => setCaption(event.target.value)} /></label>
+      <label>{t('review.requestedPostingTime')}<input type="datetime-local" value={requestedSlot} onChange={event => setRequestedSlot(event.target.value)} /></label>
+      <p className="subtle">{t('review.scheduleRequestHelp')}</p>
+    </fieldset><button type="button" className="btn secondary" disabled={busy} onClick={() => void submit()}>{busy ? t('review.savingReviewBundle') : pending ? t('review.checkSameRequest') : t('review.createReviewBundle')}</button></>}
     {message && <p role="status">{message}</p>}
-    {created && <Link className="btn secondary" href={`/models/${encodeURIComponent(modelId)}/approvals`}>Open approvals</Link>}
+    {created && <Link className="btn secondary" href={`/models/${encodeURIComponent(modelId)}/approvals`}>{t('review.openApprovals')}</Link>}
   </div></details>;
 }
