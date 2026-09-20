@@ -14,7 +14,7 @@ ACCEPTED_PRODUCT_SOURCE: `80284a19db82b37c1c07d6ae807bde855f223e90`
 ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R10 — supersedes unconfirmed R9 without reusing its copy; owner authorization artifact is checked in`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — source-only implementation only after exact-current ACK/ACCEPTED; Codex audits and integrates`
-NEXT_ACTION: `Hermes has ACK/ACCEPTED R10 and Codex has receipt-closed it; Hermes must now create only the R10 isolated copy from SOURCE_COMMIT c1588e4 and publish concrete PROGRESS before DELIVERY or terminal BLOCKED. R9 remains unconfirmed and its copy is forbidden. The readable bridge audit is independently complete.`
+NEXT_ACTION: `Hermes has ACK/ACCEPTED R10 and Codex has receipt-closed it; the R10 COPY_ROOT now exists, but no DELIVERY_ROOT or logical PROGRESS exists. Hermes must publish concrete changed-file/test PROGRESS before DELIVERY or terminal BLOCKED. R9 remains unconfirmed and its copy is forbidden. The readable bridge audit is independently complete.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F14-WATERMARK-POLICY-SOURCE-R10-001 — one active F-14 implementation lane; R9 is unconfirmed/superseded, R8 is terminally closed and R7 is quarantined`
@@ -40,6 +40,7 @@ ACTIVE_LANE_TASK_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R10-001`
 ACTIVE_LANE_SOURCE_COMMIT: `c1588e48523814bce886ca4802143538ea9c6b86`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f14-watermark-policy-source-r10`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/deliveries/codex-f14-watermark-policy-source-r10`
+ACTIVE_LANE_COPY_STATE: `COPY_ROOT EXISTS by read-only inspection; DELIVERY_ROOT ABSENT; no source delta accepted until PROGRESS`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e`
 ACTIVE_LANE_SOURCE_ARCHIVE: `NOT_USED — exact Git commit mode`
@@ -108,7 +109,7 @@ LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with chan
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
 LOOP_CURRENT_ACTION: `Await R10 source-copy PROGRESS; accept only changed-file/test evidence from the declared R10 roots, then audit DELIVERY bytes before integration; accept no stale R9 work`
 
-CURRENT_MILESTONE: `M725 — read and receipt-closed the valid R10 ACK; Hermes now owns isolated source PROGRESS; no feature or live action by Codex`
+CURRENT_MILESTONE: `M727 — confirmed R10 COPY_ROOT exists while DELIVERY_ROOT and logical PROGRESS remain absent; no feature or live action by Codex`
 CURRENT_MILESTONE_COMMIT: `2dc8a07b3e4d401f51807da4bd128766ef542a2e`
 CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as 2dc8a07b3e4d401f51807da4bd128766ef542a2e; R10 task envelope remote SHA 30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e; R10 Hermes ACK envelope SHA e6f5007f95975cc9a177a528136ad5ba9d3f7a4d6f24247fa6e6874a6c4b5d7a; R10 Codex receipt-002 SHA a7f07ec2edc19fc5cf031d6fc23cb6ff7b5be8eb38db92c2695769a583b04aae; source baseline c1588e4; protocol tests 30/30; control readable-delivery receipt-004 SHA 9fb42bd20a3d1f29fd4184530bc42191691c1f3a5d23025f5fbeb17131ac0a07; helper copy SHA 3aa2ad2fb3f28d94400c7e07c81dc31c707ad87363954083344ebfb51c86eb74; patch SHA 3383d6fb5e81974482550da8eadf7534267756cc4e43e8cff387bbc39a954a10; test harness SHA 299bf078b3bfcc21d6c98cc73f0a90b281e89a4a32bb63860b98e45046d61d73; Hermes R8 NACK-013 envelope SHA 939d31f4e54d34f26249707408fc7600694d9f8b4a8d4cfe9035add16d37c3e6; Hermes R9 NACK-001 envelope SHA 017a08c40291cff10d12a44cdcf41460799465f5b6f47b013f05404b77e824ba; R9 correction receipt-002 SHA bb66e3604d312ee16167264b964935afb0e4fa09a526b828f39416e8c3b60bd7; owner authorization SHA ab020cdfc694eec905c0589fd09f07312b91a9428bd596e1a34cc84f80bbccbf; no feature or live action`
 CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, API index 63/63, API relay-webhooks 2/2, dashboard full 780 passed; no migration execution or live action`
