@@ -1,21 +1,24 @@
 import { api, getSession } from '@/lib/api';
+import type { MessageKey } from '@axiom/core';
 import CharacterLockEditor from '@/components/CharacterLockEditor';
 import ProfileEditor from '@/components/ProfileEditor';
 import ModelLifecycleControls from '@/components/ModelLifecycleControls';
 import Link from 'next/link';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
+import { getServerLocale } from '@/lib/server-locale';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ModelOverviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const { t, dateTime } = await getServerLocale();
   const session = await getSession();
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   const allowed = (section: string) => talentDestinationAllowed(session?.user?.role, section);
-  const tools = [
-    ['media', 'Media library'], ['consent', 'Consent vault'], ['linkbio', 'Link in bio'],
-    ['analytics', 'Analytics'], ['playbook', 'Playbook'], ['roleplay', 'Chatter & roleplay'], ['relay', 'Relay delivery'],
-    ['agents', 'Agent access'], ['cascades', 'Cascade schedules'], ['triggers', 'Automation rules'],
+  const tools: Array<[string, MessageKey]> = [
+    ['media', 'media.title'], ['consent', 'model.toolConsent'], ['linkbio', 'model.toolLinkBio'],
+    ['analytics', 'analytics.title'], ['playbook', 'playbook.title'], ['roleplay', 'roleplay.title'], ['relay', 'relay.title'],
+    ['agents', 'agent.accessTitle'], ['cascades', 'cascades.title'], ['triggers', 'automation.title'],
   ].filter(([section]) => allowed(section));
   let model;
   let network;
@@ -45,89 +48,89 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
   }
 
   if (!model) return <div className="card stack" role="alert">
-    <h2>Profile unavailable</h2>
-    <p>We could not load this profile. Return to your talent list and try again.</p>
-    <Link href="/" className="btn secondary">Back to talent</Link>
+    <h2>{t('model.profileUnavailable')}</h2>
+    <p>{t('model.profileUnavailableDescription')}</p>
+    <Link href="/" className="btn secondary">{t('model.backToTalent')}</Link>
   </div>;
 
   return (
     <div className="grid">
       <div className="card stack">
-        <h3>Profile</h3>
-        <div><strong>Creator:</strong> {model.displayName}</div>
+        <h3>{t('model.profile')}</h3>
+        <div><strong>{t('model.creator')}:</strong> {model.displayName}</div>
         <div>
-          <strong>Handle:</strong> @{model.handle}
+          <strong>{t('model.handle')}:</strong> @{model.handle}
         </div>
         <div>
-          <strong>Bio:</strong> {model.bio ?? '—'}
+          <strong>{t('model.bio')}:</strong> {model.bio ?? '—'}
         </div>
         {canEdit && <ProfileEditor key={`${model.id}:${model.updatedAt}`} model={model} />}
         {canEdit && <ModelLifecycleControls model={model} canEdit={canEdit} />}
         {canEdit && (typeof model.characterLockPrompt === 'string' && Number.isSafeInteger(model.characterLockVersion)
           ? <CharacterLockEditor key={`${model.id}:${model.characterLockVersion}`} modelId={model.id}
             initialPrompt={model.characterLockPrompt} initialVersion={model.characterLockVersion!} />
-          : <p>Character lock editing is unavailable until the profile API and migration are installed.</p>)}
-        {!canEdit && <p className="subtle">Profile editing requires an owner, manager or operator role.</p>}
+          : <p>{t('model.characterLockUnavailable')}</p>)}
+        {!canEdit && <p className="subtle">{t('model.profileEditRequires')}</p>}
         <div>
-          <strong>Created:</strong> {new Date(model.createdAt).toLocaleDateString()}
+          <strong>{t('model.created')}:</strong> {dateTime(model.createdAt)}
         </div>
       </div>
       {allowed('network') && <div className="card stack">
-        <h3>Network &amp; security</h3>
+        <h3>{t('model.networkSecurity')}</h3>
         {network ? (
           <>
             <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span>Egress</span>
+              <span>{t('model.egress')}</span>
               <span className="mono">{network.egressMode}</span>
             </div>
             <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span>Health</span>
+              <span>{t('model.health')}</span>
               {network.healthy ? (
-                <span className="badge good">healthy</span>
+                <span className="badge good">{t('model.healthy')}</span>
               ) : (
-                <span className="badge bad">degraded</span>
+                <span className="badge bad">{t('model.degraded')}</span>
               )}
             </div>
             {network.latencyMs != null && (
               <div className="row" style={{ justifyContent: 'space-between' }}>
-                <span>Latency</span>
+                <span>{t('model.latency')}</span>
                 <span>{network.latencyMs} ms</span>
               </div>
             )}
             {network.lastEgressIp && (
               <div className="row" style={{ justifyContent: 'space-between' }}>
-                <span>Egress IP</span>
+                <span>{t('model.egressIp')}</span>
                 <span className="mono">{network.lastEgressIp}</span>
               </div>
             )}
-            {network.lastError && <div style={{ color: 'var(--bad)' }}>{network.lastError}</div>}
+            {network.lastError && <div style={{ color: 'var(--bad)' }}>{t('model.networkStatusFailed')}</div>}
           </>
         ) : (
           <p style={{ color: 'var(--muted)', margin: 0 }}>
-            {networkFailed ? 'Network status could not be loaded.' : 'No network configuration yet.'}
+            {networkFailed ? t('model.networkStatusFailed') : t('model.noNetworkConfiguration')}
           </p>
         )}
-        <Link href={`/models/${id}/network`} className="btn secondary">Open network settings</Link>
+        <Link href={`/models/${id}/network`} className="btn secondary">{t('model.openNetworkSettings')}</Link>
       </div>}
       {(allowed('calendar') || allowed('fans') || allowed('generation') || allowed('approvals')) && <div className="card stack">
-        <h3>Activity</h3>
+        <h3>{t('model.activity')}</h3>
         {allowed('calendar') && <div className="row" style={{ justifyContent: 'space-between' }}>
-          <Link href={`/models/${id}/calendar`}>View schedule</Link>
-          <strong>{calendarCount ?? 'Unavailable'}</strong>
+          <Link href={`/models/${id}/calendar`}>{t('model.viewSchedule')}</Link>
+          <strong>{calendarCount ?? t('model.unavailable')}</strong>
         </div>}
         {allowed('fans') && <div className="row" style={{ justifyContent: 'space-between' }}>
-          <Link href={`/models/${id}/fans`}>View fan contacts</Link>
-          <strong>{fanCount ?? 'Unavailable'}</strong>
+          <Link href={`/models/${id}/fans`}>{t('model.viewFanContacts')}</Link>
+          <strong>{fanCount ?? t('model.unavailable')}</strong>
         </div>}
-        <p className="subtle">Counts reflect the records returned for this overview. Open each section for details.</p>
-        {allowed('generation') && <Link href={`/models/${id}/generation`} className="btn">Create content</Link>}
-        {allowed('approvals') && <Link href={`/models/${id}/approvals`} className="btn secondary">Review saved content</Link>}
+        <p className="subtle">{t('model.countsDescription')}</p>
+        {allowed('generation') && <Link href={`/models/${id}/generation`} className="btn">{t('model.createContent')}</Link>}
+        {allowed('approvals') && <Link href={`/models/${id}/approvals`} className="btn secondary">{t('model.reviewContent')}</Link>}
       </div>}
       {tools.length > 0 && <div className="card stack">
-        <h3>Workspace tools</h3>
-        <p className="subtle">Open the areas used to prepare, protect and measure this talent’s content.</p>
+        <h3>{t('model.workspaceTools')}</h3>
+        <p className="subtle">{t('model.workspaceToolsDescription')}</p>
         <div className="grid" style={{ gap: 10 }}>
-          {tools.map(([section, label]) => <Link key={section} href={`/models/${id}/${section}`} className="btn secondary">{label}</Link>)}
+          {tools.map(([section, label]) => <Link key={section} href={`/models/${id}/${section}`} className="btn secondary">{t(label)}</Link>)}
         </div>
       </div>}
     </div>
