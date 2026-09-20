@@ -66,10 +66,15 @@ router.get('/models/:modelId/variant-experiments/guidance-sources', async c => {
   const rows = await withOrgContext(orgId, tx => tx.select({
     id: schema.contentBundle.id,
     sourceVariantId: schema.contentBundle.sourceVariantId,
+    sourceVariantAssetId: schema.assetVariant.assetId,
     assetId: schema.contentBundle.assetId,
     captions: schema.contentBundle.captions,
     captionGuidance: schema.contentBundle.captionGuidance,
-  }).from(schema.contentBundle).where(and(
+  }).from(schema.contentBundle).leftJoin(schema.assetVariant, and(
+    eq(schema.assetVariant.id, schema.contentBundle.sourceVariantId),
+    eq(schema.assetVariant.orgId, orgId),
+    eq(schema.assetVariant.assetId, assetId),
+  )).where(and(
     eq(schema.contentBundle.orgId, orgId),
     eq(schema.contentBundle.modelId, modelId),
     eq(schema.contentBundle.assetId, assetId),
@@ -77,12 +82,14 @@ router.get('/models/:modelId/variant-experiments/guidance-sources', async c => {
   const data = rows.flatMap((row: {
     id: string;
     sourceVariantId: string | null;
+    sourceVariantAssetId: string | null;
     assetId: string | null;
     captions: Record<string, unknown> | null;
     captionGuidance: unknown;
   }) => {
     const caption = row.captions?.[platform];
-    const verified = row.assetId === assetId && typeof caption === 'string' ? readVerifiedGuidance(row, platform, caption) : null;
+    const sourceVariantMatchesAsset = !row.sourceVariantId || row.sourceVariantAssetId === assetId;
+    const verified = row.assetId === assetId && sourceVariantMatchesAsset && typeof caption === 'string' ? readVerifiedGuidance(row, platform, caption) : null;
     if (!verified) return [];
     return [{ id: row.id, sourceVariantId: row.sourceVariantId, platform, caption, guidance: verified.summary }];
   });
@@ -121,7 +128,16 @@ router.post('/models/:modelId/variant-experiments/candidates', async c => {
         eq(schema.contentBundle.modelId, modelId),
         eq(schema.contentBundle.assetId, asset.id),
       )).limit(1);
-      const verified = sourceBundle && sourceBundle.assetId === asset.id ? readVerifiedGuidance(sourceBundle, platform, parsed.data.text) : null;
+      let sourceVariantMatchesAsset = true;
+      if (sourceBundle?.sourceVariantId) {
+        const [sourceVariant] = await tx.select({ id: schema.assetVariant.id }).from(schema.assetVariant).where(and(
+          eq(schema.assetVariant.id, sourceBundle.sourceVariantId),
+          eq(schema.assetVariant.orgId, orgId),
+          eq(schema.assetVariant.assetId, asset.id),
+        )).limit(1);
+        sourceVariantMatchesAsset = Boolean(sourceVariant);
+      }
+      const verified = sourceBundle && sourceBundle.assetId === asset.id && sourceVariantMatchesAsset ? readVerifiedGuidance(sourceBundle, platform, parsed.data.text) : null;
       if (!verified) return { invalidGuidance: true as const };
       guidance = verified.provenance;
     }

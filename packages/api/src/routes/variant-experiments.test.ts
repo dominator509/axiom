@@ -10,10 +10,10 @@ const id = '11111111-1111-4111-8111-111111111111';
 const sourceBundleId = '22222222-2222-4222-8222-222222222222';
 const guidanceText = 'A ceramic vase';
 
-function guidanceSource() {
+function guidanceSource(sourceVariantId: string | null = null) {
   return {
     id: sourceBundleId,
-    sourceVariantId: null,
+    sourceVariantId,
     assetId: id,
     captions: { instagram: guidanceText },
     captionGuidance: { instagram: {
@@ -161,6 +161,18 @@ it('accepts only a same-org/model/asset guidance source and stores bounded prove
   expect(settings.guidance).toMatchObject({ sourceBundleId, platform: 'instagram', sourceVariantId: null });
   expect(settings.guidance).not.toHaveProperty('exemplarIds');
 });
+it('accepts a guidance source only when its source variant belongs to the selected asset', async () => {
+  mockState.results = [[], [{ id, storageKey: '/private/source.jpg' }], [guidanceSource(id)], [{ id }], [{ id }]];
+  const response = await copyVariant({ assetId: id, type: 'caption', platform: 'instagram', text: guidanceText, guidanceBundleId: sourceBundleId });
+  expect(response.status).toBe(201);
+  expect((mockState.insertValues[0] as any).settings.guidance).toMatchObject({ sourceBundleId, sourceVariantId: id });
+});
+it('rejects a guidance source whose source variant belongs to another asset', async () => {
+  mockState.results = [[], [{ id, storageKey: '/private/source.jpg' }], [guidanceSource('33333333-3333-4333-8333-333333333333')], []];
+  const response = await copyVariant({ assetId: id, type: 'caption', platform: 'instagram', text: guidanceText, guidanceBundleId: sourceBundleId });
+  expect(response.status).toBe(409);
+  expect(mockState.insertValues).toEqual([]);
+});
 it('rejects a missing or mismatched guidance source before inserting a candidate', async () => {
   mockState.results = [[], [{ id, storageKey: '/private/source.jpg' }], []];
   const response = await copyVariant({ assetId: id, type: 'caption', platform: 'instagram', text: guidanceText, guidanceBundleId: sourceBundleId });
@@ -194,6 +206,12 @@ it('lists only eligible guidance sources for the requested asset and platform', 
   const response = await app().request(`/models/${id}/variant-experiments/guidance-sources?assetId=${id}&platform=instagram`);
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({ data: [{ id: sourceBundleId, caption: guidanceText, guidance: { platform: 'instagram' } }] });
+});
+it('omits guidance sources whose source variant is not on the requested asset', async () => {
+  mockState.results = [[], [{ ...guidanceSource('33333333-3333-4333-8333-333333333333'), sourceVariantAssetId: '44444444-4444-4444-8444-444444444444' }]];
+  const response = await app().request(`/models/${id}/variant-experiments/guidance-sources?assetId=${id}&platform=instagram`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ data: [] });
 });
 it('rejects copy variants for a different experiment platform', async () => {
   const other = '22222222-2222-4222-8222-222222222222';
