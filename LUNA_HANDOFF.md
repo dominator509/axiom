@@ -19,11 +19,11 @@ CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001 — the only active product wire; exact-source sync is closed`
 OPEN_CONTROL_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001`
-OPEN_CONTROL_TASK_STATE: `OPEN — exact-source verification pending before implementation`
-OPEN_CONTROL_TASK_REPLY_WIRE: `NONE`
+OPEN_CONTROL_TASK_STATE: `ACCEPTED — exact source verified; Hermes owns implementation pending concrete PROGRESS`
+OPEN_CONTROL_TASK_REPLY_WIRE: `HERMES-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-ACK-ACCEPTED-002`
 OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-HERMES-EXACT-SOURCE-SYNC-001-RECEIPT-003`
 OPEN_CONTROL_TASK_RECEIPT_SHA256: `8aa4d2411311b8102cae5ca5e059c5a7baecdc0d344b665c9c14dbfb93822c6e`
-OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes returns one protocol-valid ACK/ACCEPTED or NACK/BLOCKED for the bounded PlaybookHistory task; no work is accepted from stale lanes.`
+OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes publishes one evidence-bearing PROGRESS with a real changed-file/test delta, then one terminal DELIVERY or BLOCKED; no second ACK and no stale lane work.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -40,7 +40,7 @@ ACTIVE_LANE_TASK_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001`
 ACTIVE_LANE_SOURCE_COMMIT: `50df7061f89780b1d94d5545e1803326af65a610`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f89-playbook-history-localization-001`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f89-playbook-history-localization-001/delivery`
-ACTIVE_LANE_COPY_STATE: `PENDING — Hermes must exact-source verify before editing`
+ACTIVE_LANE_COPY_STATE: `ACCEPTED — exact source verified; Hermes edits only the declared isolated copy`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91`
 ACTIVE_LANE_SOURCE_ARCHIVE: `NOT_USED — exact Git commit mode`
@@ -107,9 +107,9 @@ LOOP_GIT_RULE: `Hermes fetches and edits only the exact SOURCE_COMMIT in its dec
 LOOP_RESYNC_RULE: `after every source-changing Codex push, the next product task must bind the newly read remote branch SHA; handoff-only commits do not change an already bound exact source commit, but Codex must read the branch ref again before opening the next product task; Hermes must not continue from a moving ref or an older local checkout`
 LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with changed paths, tests, exact exits, and LIVE_ACTIONS NONE; transport flags, ACKs, claims and stale artifacts never count`
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
-LOOP_CURRENT_ACTION: `Await the F-89 PlaybookHistory ACK/ACCEPTED or NACK/BLOCKED; accept no stale product lane; if accepted, require one real PROGRESS delta and one hash-verified DELIVERY or terminal BLOCKED`
+LOOP_CURRENT_ACTION: `Await the F-89 PlaybookHistory PROGRESS and terminal DELIVERY or BLOCKED; accept no second ACK, stale lane, copied baseline or unsupported completion claim`
 
-CURRENT_MILESTONE: `M738 — exact-source sync ACK/READ receipted; bounded F-89 PlaybookHistory source task opened`
+CURRENT_MILESTONE: `M740 — Hermes exact-source ACK/ACCEPTED read and receipt sent; implementation evidence now required`
 CURRENT_MILESTONE_COMMIT: `9089b3d04774e93acb3d6c1bf78b7c0c4ba0eedb`
 CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as 2dc8a07b3e4d401f51807da4bd128766ef542a2e; R10 task envelope remote SHA 30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e; R10 Hermes ACK envelope SHA e6f5007f95975cc9a177a528136ad5ba9d3f7a4d6f24247fa6e6874a6c4b5d7a; R10 Codex receipt-002 SHA a7f07ec2edc19fc5cf031d6fc23cb6ff7b5be8eb38db92c2695769a583b04aae; source baseline c1588e4; protocol tests 30/30; control readable-delivery receipt-004 SHA 9fb42bd20a3d1f29fd4184530bc42191691c1f3a5d23025f5fbeb17131ac0a07; helper copy SHA 3aa2ad2fb3f28d94400c7e07c81dc31c707ad87363954083344ebfb51c86eb74; patch SHA 3383d6fb5e81974482550da8eadf7534267756cc4e43e8cff387bbc39a954a10; test harness SHA 299bf078b3bfcc21d6c98cc73f0a90b281e89a4a32bb63860b98e45046d61d73; Hermes R8 NACK-013 envelope SHA 939d31f4e54d34f26249707408fc7600694d9f8b4a8d4cfe9035add16d37c3e6; Hermes R9 NACK-001 envelope SHA 017a08c40291cff10d12a44cdcf41460799465f5b6f47b013f05404b77e824ba; R9 correction receipt-002 SHA bb66e3604d312ee16167264b964935afb0e4fa09a526b828f39416e8c3b60bd7; owner authorization SHA ab020cdfc694eec905c0589fd09f07312b91a9428bd596e1a34cc84f80bbccbf; no feature or live action`
 CURRENT_MILESTONE_EVIDENCE: `hermes-loop-state validator enforces exact task filename identity, logical sequence continuity, state/owner matrix, exact source/task hashes, no clock fields and LIVE_ACTIONS NONE; task envelope passes strict protocol check; loop-state tests 6/6 and protocol tests 30/30`
