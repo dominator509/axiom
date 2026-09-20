@@ -46,6 +46,15 @@ describe('RelayCardHistory', () => {
     expect(html).toContain('telegram');
   });
 
+  it('exposes explicit operator reconciliation only for unresolved cards', () => {
+    const html = renderToStaticMarkup(<RelayCardHistory modelId="model-1" cards={[{ ...card, state: 'pending' }]} nextCursor={null} canReconcile />);
+    expect(html).toContain('I confirmed delivery');
+    expect(html).toContain('I confirmed it was not delivered');
+    expect(html).toContain('does not contact or retry the provider');
+    const readOnly = renderToStaticMarkup(<RelayCardHistory modelId="model-1" cards={[card]} nextCursor={null} canReconcile />);
+    expect(readOnly).not.toContain('I confirmed delivery');
+  });
+
   it('covers every digest/relay key in all six catalogs without English fallback', () => {
     const keys = MESSAGE_KEYS.filter(k => k.startsWith('digest.') || k.startsWith('relay.'));
     expect(keys.length).toBeGreaterThan(0);

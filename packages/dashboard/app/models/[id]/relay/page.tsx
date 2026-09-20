@@ -47,7 +47,7 @@ export default async function RelayPage({
     <div className="card stack">
       <h3>{t('relay.history.heading')}</h3>
       <p className="subtle">{t('relay.history.subtle')}</p>
-      {cardsFailed ? <p role="alert">{t('relay.history.loadFailed')}</p> : <RelayCardHistory modelId={id} cards={cards} nextCursor={cardsMeta.next_cursor} />}
+      {cardsFailed ? <p role="alert">{t('relay.history.loadFailed')}</p> : <RelayCardHistory modelId={id} cards={cards} nextCursor={cardsMeta.next_cursor} canReconcile={canEdit} />}
     </div>
     <div className="card">
       <h3>{t('relay.howItWorks.heading')}</h3>

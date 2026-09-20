@@ -280,6 +280,8 @@ export interface RelayCardHistory {
   createdAt: string;
 }
 
+export type RelayCardReconciliationOutcome = 'delivered' | 'not_delivered';
+
 export interface AgentTokenMetadata {
   tokenId: string;
   expiresAt: string;
@@ -578,6 +580,11 @@ export const api = {
         `/api/v1/models/${id}/relay-cards${query}`,
       );
     },
+    reconcileRelayCard: (modelId: string, cardId: string, outcome: RelayCardReconciliationOutcome) =>
+      apiFetch<{ data: RelayCardHistory; meta: { idempotent: boolean; outcome: RelayCardReconciliationOutcome } }>(
+        `/api/v1/models/${encodeURIComponent(modelId)}/relay-cards/${encodeURIComponent(cardId)}/reconcile`,
+        { method: 'POST', body: JSON.stringify({ outcome }) },
+      ),
     agentPermissions: (id: string) =>
       apiFetch<{ data: AgentPermission[] }>(`/api/v1/models/${id}/agent-permissions`),
     cascadeTemplates: (id: string) =>
