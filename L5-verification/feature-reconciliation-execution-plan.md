@@ -1019,6 +1019,21 @@ TriggerRuleManager timestamp-formatting criterion. Audit and Approvals
 operator surfaces, remaining catalog adoption and all browser/native,
 provider, migration/RLS, runtime and deployment gates remain open.
 
+### M761 — F-89 ApproveButtons localization and recovery controls
+
+The mounted `ApproveButtons` review control now consumes the shared six-locale
+catalog for scheduling guidance, destination/account selection, unresolved
+intent recovery, ToS blocking, caption-revision instructions and action labels.
+Existing idempotency, unchanged-request recovery, response confirmation and
+publication safety behavior are preserved. The focused approval destination,
+localization and intent suites pass 32/32; together with the existing
+AgentPermissionManager, PlaybookHistory and TriggerRuleManager checks the
+operator slice passes 41/41. Core build/tests, dashboard typecheck and lint
+pass, with only the three pre-existing dashboard warnings; `git diff --check`
+passes. This closes the ApproveButtons source/UI criterion only. Audit and
+remaining mounted operator/email catalog adoption, browser/native, provider,
+migration/RLS, runtime and deployment gates remain open.
+
 ### M757 — F-89 AgentPermissionManager UTC formatting
 
 The AgentPermissionManager operator surface now uses the shared locale-aware

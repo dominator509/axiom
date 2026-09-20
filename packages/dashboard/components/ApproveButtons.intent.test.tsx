@@ -17,6 +17,36 @@ vi.mock('react', async (original) => ({
   useRef: (initial: unknown) => hooks.refs[hooks.refIndex++] ??= { current: initial },
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
+vi.mock('./LocaleProvider', () => ({
+  useLocale: () => ({
+    locale: 'en',
+    setLocale: vi.fn(),
+    t: (key: string, values?: Record<string, string | number>) => ({
+      'review.actionConflict': 'Resolve the original action before submitting a different action or bundle.',
+      'review.invalidSchedule': 'Choose a valid schedule.',
+      'review.revisionInstructionsRequired': 'Enter caption revision instructions.',
+      'review.actionFailed': 'Action failed.',
+      'review.actionUnconfirmed': 'Action could not be confirmed. Retry the unchanged action to check the same request.',
+      'review.revisionQueued': 'Caption revision queued. Approval requires a fresh ToS scan. Media and hashtags are unchanged.',
+      'review.noDestinations': 'No supported publishing destinations in this bundle.',
+      'review.slotLocalTime': 'Slot (your local time)',
+      'review.dstRepeatedHour': 'During a repeated daylight-saving hour, the first occurrence is used.',
+      'review.account': `${values?.platform ?? ''} account`,
+      'review.selectAccount': 'Select a connected account',
+      'review.connectAccount': `Connect or select an account for: ${values?.platforms ?? ''}`,
+      'review.pendingAction': 'An action is unresolved. Check its original request before changing inputs or taking another action.',
+      'review.captionInstructions': 'Caption revision instructions',
+      'review.captionInstructionsPlaceholder': 'Describe how the captions should change',
+      'review.checkApproval': 'Check original approval',
+      'review.checkRevision': 'Check original revision',
+      'review.checkRejection': 'Check original rejection',
+      'review.blockedByTos': 'Blocked by ToS',
+      'review.approve': 'Approve',
+      'review.reviseCaptions': 'Revise captions',
+      'review.reject': 'Reject',
+    }[key] ?? key),
+  }),
+}));
 import ApproveButtons from './ApproveButtons';
 const bundleId = '22222222-2222-4222-8222-222222222222';
 const revision = '33333333-3333-4333-8333-333333333333';

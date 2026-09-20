@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ApproveButtons from './ApproveButtons';
+import LocaleProvider from './LocaleProvider';
 import type { SocialConnection } from '@/lib/api';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
@@ -18,14 +19,14 @@ function connection(id: string, platform = 'threads', status = 'connected'): Soc
   };
 }
 
-function render(platforms: string[], connections: SocialConnection[]) {
+function render(platforms: string[], connections: SocialConnection[], locale: 'en' | 'es' = 'en') {
   return renderToStaticMarkup(
-    createElement(ApproveButtons, {
-      bundleId: 'bundle',
-      tosBlocked: false,
-      platforms,
-      connections,
-    }),
+    createElement(LocaleProvider, { initialLocale: locale }, createElement(ApproveButtons, {
+        bundleId: 'bundle',
+        tosBlocked: false,
+        platforms,
+        connections,
+      })),
   );
 }
 
@@ -76,5 +77,15 @@ describe('approval destination selection', () => {
     const html = render(['threads'], [connection('instagram-account', 'instagram')]);
     expect(html).toContain('Connect or select an account for: threads');
     expect(approveButton(html)).toContain('disabled');
+  });
+
+  it('localizes approval controls while preserving destination and schedule behavior', () => {
+    const html = render(['threads'], [connection('threads-account')], 'es');
+    expect(html).toContain('Espacio (tu hora local)');
+    expect(html).toContain('Selecciona una cuenta conectada');
+    expect(html).toContain('Instrucciones para revisar los subtítulos');
+    expect(html).toContain('Revisar subtítulos');
+    expect(html).toContain('Aprobar');
+    expect(html).not.toContain('Revise captions');
   });
 });

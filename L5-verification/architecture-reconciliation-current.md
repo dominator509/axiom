@@ -356,6 +356,18 @@ This closes the TriggerRuleManager date-formatting criterion only; Audit and
 Approvals operator surfaces plus browser/mobile, deployed migration/RLS,
 runtime and external provider evidence remain open.
 
+### M761 source-lane checkpoint
+
+The mounted `ApproveButtons` control now uses the shared six-locale catalog for
+all user-visible scheduling, account-selection, unresolved-intent, caption
+revision and approval/rejection copy. Existing idempotency keys, retry of the
+unchanged request, response identity/state checks and ToS publication gate are
+unchanged. Focused approval plus prior operator-surface tests pass 41/41;
+core build/tests, dashboard typecheck/lint and diff checks pass. This is a
+source/UI criterion closure only. Audit and remaining catalog adoption,
+browser/native, provider, migration/RLS, runtime and deployment evidence remain
+open.
+
 ### M581 source-lane checkpoint
 
 The mobile F-89 audit found raw language/delivery labels and host-locale

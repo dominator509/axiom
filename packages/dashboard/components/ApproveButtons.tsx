@@ -6,6 +6,7 @@ import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import { approvalSlot } from '@/lib/schedule';
 import type { SocialConnection } from '@/lib/api';
+import { useLocale } from './LocaleProvider';
 
 const PLATFORMS = [
   'instagram',
@@ -34,6 +35,7 @@ export default function ApproveButtons({
   revisionId?: string;
   platforms: string[];
 }) {
+  const { t } = useLocale();
   const router = useRouter();
   const availablePlatforms = PLATFORMS.filter((platform) => platforms.includes(platform));
   const [selected, setSelected] = useState<string[]>(() => availablePlatforms.slice(0, 1));
@@ -86,7 +88,7 @@ export default function ApproveButtons({
     if (inFlight.current) return;
     const path = `/api/v1/bundles/${bundleId}/${action}`;
     if (intent.current && intent.current.path !== path) {
-      setError('Resolve the original action before submitting a different action or bundle.');
+      setError(t('review.actionConflict'));
       return;
     }
     if (!intent.current && action === 'approve' && (tosBlocked || selected.length === 0 || selectedWithoutConnection.length > 0)) return;
@@ -100,12 +102,12 @@ export default function ApproveButtons({
           ? intent.current.scheduledSlot
           : approvalSlot(slot);
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : 'Choose a valid schedule.');
+        setError(cause instanceof Error ? cause.message : t('review.invalidSchedule'));
         return;
       }
     }
     if (!intent.current && action === 'revise' && !instructions.trim()) {
-      setError('Enter caption revision instructions.');
+      setError(t('review.revisionInstructionsRequired'));
       return;
     }
     inFlight.current = true;
@@ -141,7 +143,7 @@ export default function ApproveButtons({
       if (!res.ok) {
         const b = await readDashboardError(res);
         if (res.status === 400 || res.status === 422) intent.current = null;
-        setError(typeof b?.detail === 'string' ? b.detail : b?.error?.message ?? 'Action failed');
+        setError(typeof b?.detail === 'string' ? b.detail : b?.error?.message ?? t('review.actionFailed'));
         return;
       }
       const receipt = await readDashboardJson<{ data?: {
@@ -159,11 +161,11 @@ export default function ApproveButtons({
       intent.current = null;
       if (action === 'revise')
         setNotice(
-          'Caption revision queued. Approval requires a fresh ToS scan. Media and hashtags are unchanged.',
+          t('review.revisionQueued'),
         );
       router.refresh();
     } catch {
-      setError('Action could not be confirmed. Retry the unchanged action to check the same request.');
+      setError(t('review.actionUnconfirmed'));
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -187,13 +189,13 @@ export default function ApproveButtons({
         ))}
       </div>
       {availablePlatforms.length === 0 && (
-        <p role="status">No supported publishing destinations in this bundle.</p>
+        <p role="status">{t('review.noDestinations')}</p>
       )}
       <div className="row">
         <label className="field-stack" style={{ margin: 0 }}>
-          Slot (your local time)
+          {t('review.slotLocalTime')}
           <small style={{ display: 'block' }}>
-            During a repeated daylight-saving hour, the first occurrence is used.
+            {t('review.dstRepeatedHour')}
           </small>
           <input
             type="datetime-local"
@@ -211,7 +213,7 @@ export default function ApproveButtons({
         );
         return (
           <label key={platform} className="field-stack" style={{ margin: 0 }}>
-            {platform} account
+            {t('review.account', { platform })}
             <select
               disabled={inputsLocked}
               value={connectionIds[platform] ?? ''}
@@ -219,7 +221,7 @@ export default function ApproveButtons({
                 setConnectionIds((current) => ({ ...current, [platform]: event.target.value }))
               }
             >
-              <option value="">Select a connected account</option>
+              <option value="">{t('review.selectAccount')}</option>
               {available.map((connection) => (
                 <option key={connection.id} value={connection.id}>
                   {connection.displayName}
@@ -231,20 +233,20 @@ export default function ApproveButtons({
       })}
       {selectedWithoutConnection.length > 0 && (
         <p style={{ color: 'var(--bad)', margin: 0 }}>
-          Connect or select an account for: {selectedWithoutConnection.join(', ')}
+          {t('review.connectAccount', { platforms: selectedWithoutConnection.join(', ') })}
         </p>
       )}
       {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
       {notice && <p role="status">{notice}</p>}
-      {pendingAction && <p role="status">An action is unresolved. Check its original request before changing inputs or taking another action.</p>}
+      {pendingAction && <p role="status">{t('review.pendingAction')}</p>}
       <label className="field-stack">
-        Caption revision instructions
+        {t('review.captionInstructions')}
         <textarea
           value={instructions}
           maxLength={2000}
           disabled={inputsLocked}
           onChange={(event) => setInstructions(event.target.value)}
-          placeholder="Describe how the captions should change"
+          placeholder={t('review.captionInstructionsPlaceholder')}
         />
       </label>
       <div className="action-row">
@@ -256,7 +258,7 @@ export default function ApproveButtons({
           }
           onClick={() => act('approve')}
         >
-          {pendingAction === 'approve' ? 'Check original approval' : tosBlocked ? 'Blocked by ToS' : 'Approve'}
+          {pendingAction === 'approve' ? t('review.checkApproval') : tosBlocked ? t('review.blockedByTos') : t('review.approve')}
         </button>
         <button
           className="btn secondary"
@@ -264,10 +266,10 @@ export default function ApproveButtons({
           disabled={busy || (pendingAction ? pendingAction !== 'revise' : !instructions.trim())}
           onClick={() => act('revise')}
         >
-          {pendingAction === 'revise' ? 'Check original revision' : 'Revise captions'}
+          {pendingAction === 'revise' ? t('review.checkRevision') : t('review.reviseCaptions')}
         </button>
         <button className="btn danger" type="button" disabled={busy || Boolean(pendingAction && pendingAction !== 'reject')} onClick={() => act('reject')}>
-          {pendingAction === 'reject' ? 'Check original rejection' : 'Reject'}
+          {pendingAction === 'reject' ? t('review.checkRejection') : t('review.reject')}
         </button>
       </div>
     </div>
