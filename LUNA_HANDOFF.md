@@ -14,7 +14,7 @@ ACCEPTED_PRODUCT_SOURCE: `4a3bb9e0511e83aff2781612a98436d08b8039ee`
 ACTIVE_HERMES_LANE: `MEDIA-LOCALE-SHELL-CURRENT-R1 — one fresh current-source lane; historical lanes remain quarantined`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES only after one correlated ACK/ACCEPTED; Codex owns audit, integration, commit and push`
-NEXT_ACTION: `The first Hermes reply was legacy ACKNOWLEDGED and was rejected at receipt SEQ 3. Read one fresh explicit ACK/ACCEPTED correlated to CODEX-MEDIA-LOCALE-SHELL-R1-RECEIPT-003, then wait for one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED. Do not open a parallel wire.`
+NEXT_ACTION: `The terminal Hermes DELIVERY-005 was rejected at correction receipt SEQ 6 because its declared completeness test was unreadable to the auditor. Read one fresh terminal DELIVERY correlated to CODEX-MEDIA-LOCALE-SHELL-R1-RECEIPT-006, then independently audit all five artifacts before integration. Do not open a parallel wire.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-MEDIA-LOCALE-SHELL-R1-START-001 — only active implementation wire`
@@ -42,12 +42,12 @@ NEXT_PREPARED_TASK: `MEDIA-LOCALE-SHELL-CURRENT-R1`
 NEXT_PREPARED_TASK_WIRE: `CODEX-MEDIA-LOCALE-SHELL-R1-START-001`
 NEXT_PREPARED_TASK_SOURCE_COMMIT: `865f2ec047a4128274cb809c935f70ebb3c58366`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `OPEN — legacy ACK rejected; awaiting fresh correlated ACK/ACCEPTED`
+NEXT_PREPARED_TASK_STATE: `OPEN — terminal DELIVERY-005 rejected for an unreadable declared test; awaiting fresh terminal DELIVERY correlated to RECEIPT-006`
 ACTIVE_LANE_TASK_WIRE: `CODEX-MEDIA-LOCALE-SHELL-R1-START-001`
 ACTIVE_LANE_SOURCE_COMMIT: `865f2ec047a4128274cb809c935f70ebb3c58366`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-media-locale-shell-r1`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/codex-media-locale-shell-r1`
-ACTIVE_LANE_COPY_STATE: `PENDING — exact source bound; legacy ACK rejected; no Hermes implementation accepted before fresh ACK/ACCEPTED`
+ACTIVE_LANE_COPY_STATE: `PENDING — terminal DELIVERY-005 rejected because packages/core/src/locale-media-completeness.test.ts is root-only and unreadable; no implementation accepted until a readable corrected delivery is audited`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `69dd6715e5867e74bfd5c32ede40e3ca9fdc3718197619b7613bc4af7eaddb70`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `69dd6715e5867e74bfd5c32ede40e3ca9fdc3718197619b7613bc4af7eaddb70`
 ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `HISTORICAL — d58bc7a36e65c215c62d68fd6186082a6fc230e815e4276771d6072a6734152f; terminal BLOCKED envelope read back`
@@ -81,13 +81,17 @@ ACTIVE_LANE_ACK_WIRE: `HERMES-MEDIA-LOCALE-SHELL-R1-ACK-002 — legacy ACKNOWLED
 ACTIVE_LANE_ACK_SHA256: `08f47c09a02104d6e902a2d36154a8e2b718979bf01a22d8dd866941c4a3f0e1`
 ACTIVE_LANE_RECEIPT_WIRE: `CODEX-MEDIA-LOCALE-SHELL-R1-RECEIPT-003`
 ACTIVE_LANE_RECEIPT_SHA256: `c9ab3e1cb074153f328b8fac4f431875d1d922a28a188097531fbd3c8434013e`
+ACTIVE_LANE_DELIVERY_WIRE: `HERMES-MEDIA-LOCALE-SHELL-R1-DELIVERY-005 — terminal delivery rejected for unreadable declared completeness test`
+ACTIVE_LANE_DELIVERY_SHA256: `0ecbf63bb6137e7c49c04b87614ab765bd590968b430cea2d5d7a54ef18260f2`
+ACTIVE_LANE_CORRECTION_WIRE: `CODEX-MEDIA-LOCALE-SHELL-R1-RECEIPT-006`
+ACTIVE_LANE_CORRECTION_SHA256: `4ec551231703a9647dc4251100ad2f75dc47a07d9d94041da87336da5a644d56`
 ACTIVE_LANE_CHECKPOINT_WIRE: `NONE`
 ACTIVE_LANE_CHECKPOINT_SHA256: `NOT_APPLICABLE`
 LAST_COMPLETED_SOURCE_MILESTONE: `M799 — F-89 portfolio home-shell localization at 4a3bb9e`
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M799 is integrated at 4a3bb9e; media-localization wire is active against exact 865f2ec; legacy Hermes ACK rejected and one fresh acceptance requested; no live action`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M799 is integrated at 4a3bb9e; media-localization delivery is bound to exact 865f2ec; terminal DELIVERY-005 was rejected because one declared test was unreadable, correction RECEIPT-006 is published, awaiting one correlated corrected DELIVERY; no live action`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
