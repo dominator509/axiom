@@ -18,6 +18,9 @@ NEXT_ACTION: `Hermes must sync the exact R8 source binding and return one fresh 
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F14-WATERMARK-POLICY-SOURCE-R8-001 — one active source-only lane; R7 and its malformed-reply correction are quarantined`
+OPEN_CONTROL_WIRE: `CODEX-CONTROL-PLANE-HERMES-LOOP-R1-001 — separate bridge-only repair lane; no product or live action`
+OPEN_CONTROL_TASK_STATE: `OPEN — exact task checksum 12a29c55f5b2488e9d0f2146189055ecd02f048615f7b3d86dfd2008df034953 matched through the Hermes bridge; await correlated ACK/NACK`
+OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must inspect and test bridge identity-by-msg_id, strict logical state, fixed-sentinel transport and injection inertness; Codex audits the actual artifact before changing the R8 lane`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
