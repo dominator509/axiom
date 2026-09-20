@@ -732,6 +732,29 @@ currency surfaces, browser/native, provider, deployed migration/RLS/runtime,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
 
+### M850 - F-89 profile/network/lifecycle localization
+
+The mounted profile editor, model lifecycle controls, and egress network form
+now consume a feature-owned six-locale catalog for English, Spanish, Japanese,
+Italian, Brazilian Portuguese, and German. Profile validation, lifecycle
+confirmation/status copy, network-mode labels, direct-mode safety warning,
+field labels, and retry/save states are localized without changing API
+payloads, idempotency keys, role checks, refresh behavior, or the explicit
+direct-mode unprotected-network semantics.
+
+Evidence: feature catalog completeness 2/2; core package 16 files and 95 tests
+passed; dashboard package 142 files and 866 tests passed, including mounted
+Spanish/German profile/lifecycle/network rendering; full typecheck, production
+build, and `scripts/verify.sh` (`verify: ok`) passed. The eslint phase reports
+zero errors; the repository-wide Prettier check remains baseline-red across
+586 existing files, and the root test matrix retains four unrelated Windows
+subscription process-tree failures in `@axiom/llm-gateway`. Source commit
+`f5735f70e404573c906bbf3cd24f97f5096b5897` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the M850 source/UI
+slice; remaining catalog adoption, locale date/number/currency surfaces,
+browser/native, provider, deployed migration/RLS/runtime, observability, CI
+governance, and production acceptance remain open. No live action occurred.
+
 ### M849 - F-89 portfolio-error localization
 
 The portfolio home page now retains localized workspace-unreachable and

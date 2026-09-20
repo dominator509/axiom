@@ -7,20 +7,21 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `2c725ebad35394e915847f96cd79d2ac7ecc86c9` (exact remote source after the M849 ledger reconciliation)
+SOURCE_HEAD: `f5735f70e404573c906bbf3cd24f97f5096b5897` (exact remote source after the M850 localization milestone)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `2c725ebad35394e915847f96cd79d2ac7ecc86c9` (M849 source-bearing ref plus ledger reconciliation read back from origin)
-COORDINATION_HEAD: `2c725ebad35394e915847f96cd79d2ac7ecc86c9` (exact source bound before the fresh Hermes task envelope)
-ACCEPTED_PRODUCT_SOURCE: `2c725ebad35394e915847f96cd79d2ac7ecc86c9`
-ACTIVE_HERMES_LANE: `CLOSED_UNCONFIRMED — F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1 malformed ACK was rejected at SEQ 3; no corrected logical ACK arrived after bounded identity polls`
+PUBLISHED_HEAD: `f5735f70e404573c906bbf3cd24f97f5096b5897` (M850 source-bearing ref read back from origin)
+COORDINATION_HEAD: `f5735f70e404573c906bbf3cd24f97f5096b5897` (exact source currently shared with Hermes)
+ACCEPTED_PRODUCT_SOURCE: `f5735f70e404573c906bbf3cd24f97f5096b5897`
+LAST_COMPLETED_SOURCE_MILESTONE: `M850 — six-locale profile editor, model lifecycle, and network form localization; source/UI only`
+ACTIVE_HERMES_LANE: `NONE — F89 profile/network/lifecycle lane CLOSED_UNCONFIRMED after malformed ACK; local M850 fallback delivered and pushed`
 CODEX_OWNER: `CODEX`
-HERMES_IMPLEMENTATION_OWNER: `NONE — Hermes lane closed as UNCONFIRMED; Codex owns the finite local fallback and will not reuse the stale wire`
-NEXT_ACTION: `Implement the same verified F89 profile/network/lifecycle localization slice locally from exact source 2c725eba; retain the Hermes malformed-ACK evidence as coordination history and do not reopen its wire.`
+HERMES_IMPLEMENTATION_OWNER: `NONE — no active Hermes implementation lane; stale F89 wire remains quarantined`
+NEXT_ACTION: `Select the next finite architecture gap from the reconciled audit, bind it to exact source f5735f70, and do not reopen or reuse the closed F89 wire.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `NONE — F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1 is CLOSED_UNCONFIRMED; stale Hermes traffic is quarantined`
 OPEN_CONTROL_WIRE: `NONE — F89 profile/network/lifecycle wire closed as unconfirmed; local fallback owns M850`
-OPEN_CONTROL_TASK_STATE: `CLOSED_UNCONFIRMED — exact source 2c725eba, task envelope hash a6db5163; Hermes ACK-002 was rejected and no corrected logical ACK arrived; no Hermes implementation counted`
+OPEN_CONTROL_TASK_STATE: `CLOSED_UNCONFIRMED — historical F89 wire at source 2c725eba; Hermes ACK-002 was rejected and no corrected logical ACK arrived; no Hermes implementation counted`
 OPEN_CONTROL_TASK_REPLY_WIRE: `CODEX-F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1-ACK-002`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `HISTORICAL — F89 Playbook History receipt; not an active task`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `HISTORICAL`
@@ -30,8 +31,10 @@ OPEN_CONTROL_TASK_CORRECTION_WIRE: `CODEX-F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1-
 OPEN_CONTROL_TASK_CORRECTION_SHA256: `5f9341a5a7759a07aecfc4e521d050d02913bcf21282e8667dca084e94291c2d`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_NEXT_ACTION: `No action for the stale Hermes wire; Codex implements the finite local fallback from the verified exact source and will not resend the same task`
+OPEN_CONTROL_TASK_NEXT_ACTION: `No action for the stale Hermes wire; M850 local fallback is complete; select a fresh task only after the next gap is explicitly bound`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, and M849 portfolio-error localization are integrated on the branch. M849 criterion: the portfolio home page retains localized workspace-unreachable and profile-request-failed states without rendering raw backend exception text; focused home regression, full dashboard, build, lint, typecheck and verify gates pass; model listing/count semantics are unchanged; no live action.`
+CURRENT_MILESTONE: `M850 integrated at f5735f70; six-locale profile/network/lifecycle source slice complete; core 16 files/95 tests and dashboard 142 files/866 tests passed; typecheck/build/verify passed; no live action`
+CURRENT_MILESTONE_OPEN_GATES: `Root pnpm test retains four unrelated Windows subscription process-tree failures; repository-wide Prettier check retains 586 baseline files; remaining architecture gaps include catalog adoption, locale formatting, browser/native, provider, deployed migration/RLS/runtime, observability, CI governance, and production acceptance`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -39,11 +42,11 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1`
-NEXT_PREPARED_TASK_WIRE: `CODEX-F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1-START-001`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `2c725ebad35394e915847f96cd79d2ac7ecc86c9`
+NEXT_PREPARED_TASK: `NONE — select only after the next architecture gap is reviewed against M850`
+NEXT_PREPARED_TASK_WIRE: `NONE`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `f5735f70e404573c906bbf3cd24f97f5096b5897`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `TASK_UPLOADED — exact source commit, finite acceptance matrix and envelope hash a6db5163 read back; no source implementation is counted until terminal delivery`
+NEXT_PREPARED_TASK_STATE: `NONE — no new Hermes implementation task is active; closed F89 transport remains historical evidence only`
 ACTIVE_LANE_TASK_WIRE: `CODEX-F89-PROFILE-NETWORK-LIFECYCLE-L10N-R1-START-001`
 ACTIVE_LANE_SOURCE_COMMIT: `2c725ebad35394e915847f96cd79d2ac7ecc86c9`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f89-profile-network-lifecycle-l10n-r1`
