@@ -2,7 +2,7 @@
 
 Date: 2026-09-20  
 Repository: `dominator509/axiom`  
-Source checkpoint: `6b418ae87a1430aed1ad101bb3b607d5774e9129`
+Source checkpoint: `95e2eb3fdd553f896e7006bb990303813bc54772`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -727,6 +727,27 @@ warnings), dashboard production build and `scripts/verify.sh` (`verify: ok`)
 passed. Source commit
 `2e75113883d579296ba745861953a4b9624127e2` is pushed and read back from
 `origin/codex/telegram-webhook-hardening`. This closes only the M845 source/UI
+slice; remaining dashboard/email/operator localization, other date/number/
+currency surfaces, browser/native, provider, deployed migration/RLS/runtime,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
+
+### M847 - F-89 affiliate hold-reason localization
+
+The mounted platform affiliate manager now renders known persisted hold reason
+codes through a feature-owned six-locale catalog, with a safe fallback for an
+unknown future code. This removes raw storage identifiers from the owner-facing
+risk-review table without translating partner identifiers, provider/account
+data, or user-authored values. Affiliate API calls, mutation idempotency, payout
+export, and hold-resolution semantics remain unchanged.
+
+Evidence: affiliate catalog completeness 1/1; focused `PlatformAffiliateManager`
+tests 4/4, including UTC and hold-reason regressions; full dashboard matrix 141
+files and 864 tests passed; dashboard typecheck passed; dashboard lint exited 0
+with four pre-existing `any` warnings; dashboard production build and
+`scripts/verify.sh` (`verify: ok`) passed. Source commit
+`95e2eb3fdd553f896e7006bb990303813bc54772` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the M847 source/UI
 slice; remaining dashboard/email/operator localization, other date/number/
 currency surfaces, browser/native, provider, deployed migration/RLS/runtime,
 observability, CI governance and production acceptance remain open. No live

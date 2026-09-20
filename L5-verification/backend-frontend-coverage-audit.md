@@ -806,6 +806,26 @@ source and automated generation-workflow localization slice. Browser/native,
 deployed media/runtime, R2, provider, migration/RLS and production acceptance
 remain open. No live action occurred.
 
+# M847: affiliate hold-reason localization
+
+The mounted platform affiliate manager now renders known persisted hold reason
+codes through a feature-owned six-locale catalog, with a safe fallback for an
+unknown future code. Raw storage identifiers are no longer shown in the
+owner-facing risk-review table; partner identifiers, provider/account data and
+user-authored values remain data. Affiliate API and mutation behavior, payout
+export, and hold-resolution semantics are unchanged.
+
+Evidence: affiliate catalog completeness 1/1; focused `PlatformAffiliateManager`
+tests 4/4 including UTC and hold-reason regressions; full dashboard matrix 141
+files and 864 tests passed; dashboard typecheck passed; dashboard lint exited 0
+with four pre-existing `any` warnings; dashboard production build and
+`scripts/verify.sh` (`verify: ok`) passed. Source commit
+`95e2eb3fdd553f896e7006bb990303813bc54772` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. Remaining dashboard/email/operator
+localization, other formatting surfaces, browser/native, provider, deployed
+migration/RLS/runtime, observability, CI governance and production acceptance
+remain open. No live action occurred.
+
 # M846: affiliate hold-date localization
 
 The mounted platform affiliate manager now formats open-hold dates with the
