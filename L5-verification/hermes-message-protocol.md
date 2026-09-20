@@ -329,3 +329,44 @@ missing state from a transport file, a quiet poll, or a human-readable claim.
    `IN_REPLY_TO`; signatures identify the sender role.
 
 This makes “read,” “accepted,” “working,” and “done” distinct, auditable facts without relying on either agent's clock.
+
+## Seamless Git-backed execution loop
+
+The bridge is a transport, not a scheduler. A poller may expose an inbox file
+or write a transport `REPLIED` marker, but neither fact starts work. The
+following loop is the only handoff mechanism:
+
+1. Codex selects one bounded architecture gap, reads the canonical top block of
+   `LUNA_HANDOFF.md`, and writes one new `TASK` whose `SOURCE_COMMIT` is an
+   exact commit already pushed to the named branch. The JSON filename must be
+   the envelope `msg_id`.
+2. Hermes fetches the named ref, verifies the exact commit and ancestry, and
+   creates the declared isolated `COPY_ROOT` from that verified commit. It
+   returns one correlated `ACK/ACCEPTED` (or `ACK/READ`/`NACK`) with a fresh
+   WIRE. It does not use its local checkout, a moving ref, an older task, or a
+   human-readable prompt as source authority.
+3. Codex validates the reply. A valid `ACK/ACCEPTED` transfers ownership to
+   Hermes. A malformed reply gets exactly one `RECEIPT/REJECTED` at the next
+   logical sequence; its source-sync evidence may be retained as evidence, but
+   its state is not accepted. Hermes then emits a fresh WIRE at the following
+   sequence. No duplicate TASK is created.
+4. After the receipt, Hermes must produce one concrete `PROGRESS` with a new
+   changed-source/test fact, then one `DELIVERY` or terminal `BLOCKED`. A
+   second ACK is an ACK loop and is rejected.
+5. Codex reads the actual delivery bytes, verifies every declared hash and
+   gate, integrates only a passing delivery into the local checkout, commits
+   and pushes the reviewed result. Hermes never commits or pushes. After that
+   push, any new delegated lane binds the new remote SHA; an old lane cannot
+   continue on a moving branch.
+
+The fixed compatibility value for `sent_at` and `replied_at` is
+`1970-01-01T00:00:00Z`. It exists only because the installed bridge requires
+the JSON key. It is never compared, displayed, sorted, used as a deadline, or
+used to decide whether a message is unread. Logical `SEQ`, unique `WIRE`,
+exact `IN_REPLY_TO`, `STATE`, `NEXT_OWNER`, and terminal semantics are the
+complete ordering and ownership model.
+
+Historical inbox, reply and status files are inert unless the canonical
+handoff names their logical WIRE as active. An outbox is not an implicit task
+channel. This prevents stale-model context, transport markers, and clock
+differences from creating duplicate work or silent stalls.
