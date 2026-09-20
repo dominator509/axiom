@@ -10,7 +10,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 SOURCE_HEAD: `462cdaf31ee06e7263057df4489d7fbd14b4cd35` (reviewed M859 product source; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `462cdaf31ee06e7263057df4489d7fbd14b4cd35` (immutable reviewed product source; later branch commits are coordination/evidence only)
-COORDINATION_HEAD: `REMOTE_BRANCH_TIP — read refs/heads/codex/telegram-webhook-hardening before every new lane; M859 source binding remains 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
+COORDINATION_HEAD: `ea32c5f309d1f1c593abdd2d356767ddbb764154 — remote readback of refs/heads/codex/telegram-webhook-hardening; M859 product source binding remains 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 ACCEPTED_PRODUCT_SOURCE: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 LAST_COMPLETED_SOURCE_MILESTONE: `M859 — PlaybookCadence calendar guidance localization; source/UI only`
 ACTIVE_HERMES_LANE: `F50-LINKTREE-ADAPTER-SOURCE-R1 — task sent; awaiting one logical ACK/ACCEPTED or NACK/BLOCKED; source 462cdaf31ee06e7263057df4489d7fbd14b4cd35; explicit source-ref sync required`
@@ -19,9 +19,9 @@ HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits t
 NEXT_ACTION: `Poll the F50 wire by logical state; separately run the source-sync control lane to reconcile Hermes refs/worktrees; after F50 ACK/ACCEPTED receipt, require one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED; do not open another product lane.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `CODEX-LINKTREE-ADAPTER-SOURCE-R1-001`
-OPEN_CONTROL_WIRE: `NONE`
-OPEN_CONTROL_TASK_STATE: `CLOSED_LOCAL_FALLBACK — authoritative Hermes copy and delivery roots were absent; local M857 source is canonical`
+OPEN_WIRES: `CODEX-LINKTREE-ADAPTER-SOURCE-R1-001, CODEX-HERMES-SOURCE-SYNC-REFRESH-R1-001`
+OPEN_CONTROL_WIRE: `CODEX-HERMES-SOURCE-SYNC-REFRESH-R1-001`
+OPEN_CONTROL_TASK_STATE: `TASK_SENT_ACK_PENDING — read-only all-ref/worktree reconciliation; no feature implementation or live action accepted`
 OPEN_CONTROL_TASK_REPLY_WIRE: `NONE`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `NONE — the F71 transport receipt is historical, not implementation acceptance`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `NONE`
@@ -31,7 +31,7 @@ OPEN_CONTROL_TASK_CORRECTION_WIRE: `NONE`
 OPEN_CONTROL_TASK_CORRECTION_SHA256: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_NEXT_ACTION: `No further F71 event is actionable; late Hermes artifacts are stale and cannot be integrated into M859.`
+OPEN_CONTROL_TASK_NEXT_ACTION: `Require one correlated ACK/ACCEPTED or terminal NACK/BLOCKED with exact fetch, ref, commit, ancestry, writable-mirror and worktree evidence; do not open a competing product lane.`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization, M857 relay-binding localization, M858 workspace-members localization and M859 PlaybookCadence calendar localization are integrated on the branch; no active Hermes product lane.`
 CURRENT_MILESTONE: `M859 PlaybookCadence calendar guidance is catalog-backed across six locales with locale-formatted UTC week dates; focused PlaybookCadence 6/6, calendar page 12/12, core 19 files/107 tests, full dashboard 145 files/903 tests, core/dashboard builds/typechecks/lint and verify passed; product commit 462cdaf3 was pushed and remote readback matches; no live action`
 CURRENT_MILESTONE_OPEN_GATES: `Root pnpm test retains four unrelated Windows subscription process-tree failures; repository-wide Prettier check retains 586 baseline files; dashboard standalone build tracing needs a symlink-capable environment; M859 source slice is complete; no active Hermes product lane; remaining architecture gaps include remaining catalog adoption and locale formatting, browser/native, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress rehearsal, and production acceptance`
@@ -73,6 +73,16 @@ ACTIVE_LANE_SUPERSEDE_WIRE: `NONE — fresh task; no supersession`
 ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `NONE`
 ACTIVE_LANE_SOURCE_BUNDLE: `NONE — exact Git source ref is authoritative`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `NONE`
+SOURCE_SYNC_CONTROL_TASK: `HERMES-SOURCE-SYNC-REFRESH-R1`
+SOURCE_SYNC_CONTROL_WIRE: `CODEX-HERMES-SOURCE-SYNC-REFRESH-R1-001`
+SOURCE_SYNC_CONTROL_SOURCE_REPO: `github.com/dominator509/axiom`
+SOURCE_SYNC_CONTROL_SOURCE_REF: `refs/heads/codex/telegram-webhook-hardening`
+SOURCE_SYNC_CONTROL_SOURCE_COMMIT: `ea32c5f309d1f1c593abdd2d356767ddbb764154`
+SOURCE_SYNC_CONTROL_FETCH_COMMAND: `git fetch --all --prune`
+SOURCE_SYNC_CONTROL_TASK_ENVELOPE_SHA256: `165f125e722ca2c4ab753d31c006291665762521f7dc83e230ec610c1e9e2f68`
+SOURCE_SYNC_CONTROL_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r1/copy`
+SOURCE_SYNC_CONTROL_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r1/delivery`
+SOURCE_SYNC_CONTROL_WORKTREE_KIND: `source-sync-control; no product implementation copy`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — exact Git source task`
 ACTIVE_LANE_SOURCE_TRANSPORT: `M859 source 462cdaf31ee06e7263057df4489d7fbd14b4cd35 was audited, committed, pushed and read back from origin; F50 task was sent by exact-msg_id bridge envelope`
 ACTIVE_LANE_TRANSPORT_NAMING: `Every bridge envelope filename equals its msg_id; task and correction hashes are independently pinned`
