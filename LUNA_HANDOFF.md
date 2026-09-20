@@ -9,8 +9,8 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `436ef9064c141e365e17fb8b2a1d84270adb4557` (M900 selected-guidance attribution; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `436ef9064c141e365e17fb8b2a1d84270adb4557` (M900 selected-guidance attribution; remote readback matches)
-COORDINATION_HEAD: `436ef9064c141e365e17fb8b2a1d84270adb4557 — M900 selected-guidance attribution; pushed and read back`
+PUBLISHED_HEAD: `0414664c729b145963416230edfda51762502e09` (M902 exact Hermes localization lane binding; remote readback matches)
+COORDINATION_HEAD: `0414664c729b145963416230edfda51762502e09 — M902 exact Hermes localization lane binding; pushed and read back`
 ACCEPTED_PRODUCT_SOURCE: `436ef9064c141e365e17fb8b2a1d84270adb4557`
 LAST_COMPLETED_SOURCE_MILESTONE: `M900 — selected-guidance attribution is source-wired, weighted by actual samples, focused gates passed, pushed at 436ef9064c141e365e17fb8b2a1d84270adb4557`
 ACTIVE_HERMES_LANE: `F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION — sole active source-only lane against immutable 30092eeb ref; supersedes the malformed F15-F16 lane`
