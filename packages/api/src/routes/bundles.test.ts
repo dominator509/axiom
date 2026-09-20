@@ -341,6 +341,7 @@ describe('POST / — create bundle', () => {
       expect.objectContaining({ method: 'HEAD' }),
       expect.any(String),
       { orgId: ORG_ID, modelId: MODEL_ID },
+      expect.anything(),
     );
   });
   it.each(['other-org', 'other-model', 'missing', 'webm', 'missing-file'])('rejects unusable saved media: %s', async failure => {

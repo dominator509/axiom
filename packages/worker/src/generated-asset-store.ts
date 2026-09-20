@@ -1,8 +1,12 @@
-import { constants } from 'node:fs';
-import { mkdir, open, realpath, unlink } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
+import { mkdir, readFile, realpath, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { normalizeR2ObjectKey, withinR2ObjectLimits } from '@axiom/llm-gateway';
+import {
+  LocalObjectStorage,
+  normalizeR2ObjectKey,
+  withinR2ObjectLimits,
+  type ObjectStorage,
+} from '@axiom/llm-gateway';
 import { sanitizeMedia } from './media-sanitizer.js';
 
 export interface GeneratedAssetInput {
@@ -11,107 +15,90 @@ export interface GeneratedAssetInput {
   mimeType: 'image/jpeg' | 'image/png' | 'video/mp4' | 'video/webm';
 }
 
-/** Persist a completed CLI artifact beneath the existing media-plane root.
- * No DB row should refer to the returned key before this durable copy succeeds.
- * The original is retained for reconciliation if a later DB operation fails.
- */
+function hasSupportedSignature(bytes: Uint8Array, mimeType: GeneratedAssetInput['mimeType']): boolean {
+  if (bytes.byteLength < 12) return false;
+  const buffer = Buffer.from(bytes);
+  return mimeType === 'image/jpeg'
+    ? buffer.subarray(0, 3).equals(Buffer.from([255, 216, 255]))
+    : mimeType === 'image/png'
+      ? buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+      : mimeType === 'video/webm'
+        ? buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
+        : buffer.toString('ascii', 4, 8) === 'ftyp';
+}
+
+/** Persist a completed artifact through the provider-neutral object-storage port. */
 export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
-  orgId: string; modelId: string; requestRoot: string; mediaRoot: string; sanitizeMetadata?: boolean;
-}): Promise<{ storageKey: string; fileName: string; fileSize: number; sha256: Buffer; mimeType: GeneratedAssetInput['mimeType']; exactFileHashChanged: boolean }> {
+  orgId: string;
+  modelId: string;
+  requestRoot: string;
+  mediaRoot: string;
+  storage?: ObjectStorage;
+  retainUntilMs?: number;
+  sanitizeMetadata?: boolean;
+}): Promise<{
+  storageKey: string;
+  fileName: string;
+  fileSize: number;
+  sha256: Buffer;
+  mimeType: GeneratedAssetInput['mimeType'];
+  exactFileHashChanged: boolean;
+}> {
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuid.test(scope.orgId) || !uuid.test(scope.modelId)) throw new Error('Invalid asset tenant scope');
   if (scope.sanitizeMetadata && input.mimeType === 'video/webm') throw new Error('WebM sanitization is not supported');
   if (!withinR2ObjectLimits(input.mimeType, input.byteLength)) throw new Error('Invalid generated asset metadata');
-  const limit = input.mimeType.startsWith('video/') ? 256 * 1024 * 1024 : 20 * 1024 * 1024;
-  const extensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'video/mp4': 'mp4', 'video/webm': 'webm' };
-  const extension = Object.hasOwn(extensions, input.mimeType) ? extensions[input.mimeType] : undefined;
-  if (!extension || !Number.isSafeInteger(input.byteLength) || input.byteLength < 12 || input.byteLength > limit)
-    throw new Error('Invalid generated asset metadata');
+
+  const extensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'video/mp4': 'mp4', 'video/webm': 'webm' } as const;
   const requestRoot = await realpath(scope.requestRoot);
   const source = resolve(input.path);
   const local = relative(requestRoot, source);
   if (!local || isAbsolute(local) || local.split(sep).includes('..') || await realpath(source) !== source)
     throw new Error('Generated asset is outside its request directory');
-  const root = resolve(scope.mediaRoot);
-  await mkdir(root, { recursive: true, mode: 0o700 });
-  if (await realpath(root) !== root) throw new Error('Unsafe media root');
-  const directory = join(root, 'generated', scope.orgId, scope.modelId);
-  await mkdir(directory, { recursive: true, mode: 0o700 });
-  if (await realpath(directory) !== directory) throw new Error('Unsafe asset directory');
+  // Preserve the existing cleanup/inspection contract: the tenant/model
+  // directory exists even when a later source validation rejects the import.
+  await mkdir(join(resolve(scope.mediaRoot), 'generated', scope.orgId, scope.modelId), { recursive: true, mode: 0o700 });
+
+  const before = await stat(source);
+  if (!before.isFile() || before.nlink !== 1 || before.size !== input.byteLength)
+    throw new Error('Generated asset changed before import');
+  const original = await readFile(source);
+  if (original.byteLength !== input.byteLength || !hasSupportedSignature(original, input.mimeType))
+    throw new Error('Generated asset type changed before import');
+  const after = await stat(source);
+  if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs)
+    throw new Error('Generated asset changed during import');
+
   const mimeType = scope.sanitizeMetadata && input.mimeType !== 'video/mp4' ? 'image/png' : input.mimeType;
+  const sanitized = scope.sanitizeMetadata
+    ? await sanitizeMedia(original, input.mimeType)
+    : { bytes: original, mimeType: input.mimeType, exactFileHashChanged: false };
+  if (sanitized.mimeType !== mimeType || !withinR2ObjectLimits(mimeType, sanitized.bytes.byteLength))
+    throw new Error('Sanitizer output type or size mismatch');
+
   const fileName = `${randomUUID()}.${extensions[mimeType]}`;
-  const destination = join(directory, fileName);
-  const reader = await open(source, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-  let created = false;
-  try {
-    const before = await reader.stat();
-    if (!before.isFile() || before.nlink !== 1 || before.size !== input.byteLength)
-      throw new Error('Generated asset changed before import');
-    const writer = await open(destination, 'wx', 0o600);
-    created = true;
-    const hash = createHash('sha256');
-    let copied = 0;
-    let exactFileHashChanged = false;
-    const chunks: Buffer[] = [];
-    try {
-      const buffer = Buffer.alloc(64 * 1024);
-      for (;;) {
-        const { bytesRead } = await reader.read(buffer, 0, buffer.length, copied);
-        if (!bytesRead) break;
-        if (copied === 0) {
-          const matches = input.mimeType === 'image/jpeg'
-            ? buffer.subarray(0, 3).equals(Buffer.from([255, 216, 255]))
-            : input.mimeType === 'image/png'
-              ? buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-              : input.mimeType === 'video/webm'
-                ? buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
-                : buffer.toString('ascii', 4, 8) === 'ftyp';
-          if (bytesRead < 12 || !matches) throw new Error('Generated asset type changed before import');
-        }
-        copied += bytesRead;
-        if (copied > input.byteLength) throw new Error('Generated asset grew during import');
-        if (scope.sanitizeMetadata) {
-          chunks.push(Buffer.from(buffer.subarray(0, bytesRead)));
-          continue;
-        }
-        hash.update(buffer.subarray(0, bytesRead));
-        let written = 0;
-        while (written < bytesRead) {
-          const result = await writer.write(buffer, written, bytesRead - written);
-          if (!result.bytesWritten) throw new Error('Asset write made no progress');
-          written += result.bytesWritten;
-        }
-      }
-      const after = await reader.stat();
-      if (copied !== input.byteLength || after.size !== before.size
-        || after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs)
-        throw new Error('Generated asset changed during import');
-      if (scope.sanitizeMetadata) {
-        if (input.mimeType === 'video/webm') throw new Error('WebM sanitization is not supported');
-        const sanitized = await sanitizeMedia(Buffer.concat(chunks), input.mimeType);
-        exactFileHashChanged = sanitized.exactFileHashChanged;
-        if (sanitized.mimeType !== mimeType) throw new Error('Sanitizer output type mismatch');
-        await writer.writeFile(sanitized.bytes);
-        copied = sanitized.bytes.length;
-        hash.update(sanitized.bytes);
-      }
-      if (!withinR2ObjectLimits(mimeType, copied)) throw new Error('Generated asset exceeds storage limits');
-      await writer.sync();
-    } finally { await writer.close(); }
-    // Linux deployment requires directory-entry durability as well as file data.
-    if (process.platform !== 'win32') {
-      for (const entry of [directory, join(root, 'generated', scope.orgId), join(root, 'generated'), root]) {
-        const handle = await open(entry, constants.O_RDONLY);
-        try { await handle.sync(); } finally { await handle.close(); }
-      }
-    }
-    const storageKey = normalizeR2ObjectKey(`generated/${scope.orgId}/${scope.modelId}/${fileName}`, scope);
-    return {
-      storageKey,
-      fileName, fileSize: copied, sha256: hash.digest(), mimeType, exactFileHashChanged,
-    };
-  } catch (error) {
-    if (created) await unlink(destination);
-    throw error;
-  } finally { await reader.close(); }
+  const storageKey = normalizeR2ObjectKey(`generated/${scope.orgId}/${scope.modelId}/${fileName}`, {
+    orgId: scope.orgId,
+    modelId: scope.modelId,
+  });
+  const storage = scope.storage ?? new LocalObjectStorage(scope.mediaRoot);
+  const stored = await storage.put({
+    key: storageKey,
+    scope: { orgId: scope.orgId, modelId: scope.modelId },
+    body: sanitized.bytes,
+    mimeType,
+    retainUntilMs: scope.retainUntilMs,
+  });
+  return {
+    storageKey,
+    fileName,
+    fileSize: stored.size,
+    sha256: stored.sha256,
+    mimeType,
+    exactFileHashChanged: sanitized.exactFileHashChanged,
+  };
+}
+
+export function hashGeneratedAsset(bytes: Uint8Array): Buffer {
+  return createHash('sha256').update(bytes).digest();
 }

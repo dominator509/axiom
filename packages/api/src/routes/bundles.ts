@@ -34,6 +34,7 @@ import { assetPreview } from '../asset-preview.js';
 import { isScopedHumanRole, modelAccessCondition } from '../model-access.js';
 import { reviewedVideoReport, videoReviewRequest } from '../video-review.js';
 import { readVerifiedGuidance, sameGuidanceProvenance } from '../variant-guidance.js';
+import { createObjectStorage } from '@axiom/llm-gateway';
 
 const router = new Hono<AppBindings>();
 
@@ -126,7 +127,9 @@ router.get('/:id/media', async (c) => {
   });
   if (!asset) return apiError(c, 404, statusTitle(404), 'media unavailable');
   try {
-    return await assetPreview(asset, c.req.raw, process.env.AXIOM_MEDIA_ROOT ?? 'var/media', { orgId, modelId: asset.modelId });
+    const mediaRoot = process.env.AXIOM_MEDIA_ROOT ?? 'var/media';
+    const storage = c.get('userId') ? createObjectStorage({ userId: c.get('userId')!, orgId }, mediaRoot) : undefined;
+    return await assetPreview(asset, c.req.raw, mediaRoot, { orgId, modelId: asset.modelId }, storage);
   } catch {
     // Filesystem errors must never reveal paths or asset metadata.
     return apiError(c, 404, statusTitle(404), 'media unavailable');
@@ -160,7 +163,8 @@ router.post('/:id/video-review', zValidator('json', videoReviewRequest), async (
       report = reviewedVideoReport(bundle, Buffer.from(asset.sha256).toString('hex'), input, userId, new Date());
       // Confirm that the bytes still match the scan, without delivering a body.
       await assetPreview(asset, new Request('http://internal/media', { method: 'HEAD', signal: c.req.raw.signal }),
-        process.env.AXIOM_MEDIA_ROOT ?? 'var/media', { orgId, modelId: asset.modelId });
+        process.env.AXIOM_MEDIA_ROOT ?? 'var/media', { orgId, modelId: asset.modelId },
+        c.get('userId') ? createObjectStorage({ userId: c.get('userId')!, orgId }, process.env.AXIOM_MEDIA_ROOT ?? 'var/media') : undefined);
     } catch {
       return { status: 409 as const, error: 'Video review could not be accepted: refresh and check the current scan and media' };
     }
@@ -268,7 +272,8 @@ router.post('/', zValidator('json', createBundleSchema), async (c) => {
         || !['image/jpeg', 'image/png', 'video/mp4'].includes(asset.mimeType)) return null;
       try {
         await assetPreview(asset, new Request('http://internal/media', { method: 'HEAD', signal: c.req.raw.signal }),
-          process.env.AXIOM_MEDIA_ROOT ?? 'var/media', { orgId, modelId: asset.modelId });
+          process.env.AXIOM_MEDIA_ROOT ?? 'var/media', { orgId, modelId: asset.modelId },
+          c.get('userId') ? createObjectStorage({ userId: c.get('userId')!, orgId }, process.env.AXIOM_MEDIA_ROOT ?? 'var/media') : undefined);
       } catch { return null; }
     }
     const [row] = await tx

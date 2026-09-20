@@ -69,7 +69,7 @@ router.post('/models/:modelId/media-operations', async (c) => {
     }
     const [operation] = await tx.insert(schema.mediaOperation).values({ orgId, modelId, sourceAssetId: asset.id, type: parsed.data.type, options: parsed.data }).returning();
     if (!operation) return { status: 500 as const, error: 'media operation could not be saved' };
-    await enqueueJob(tx, { orgId, queue: 'media', kind: 'media.transform', payload: { operationId: operation.id }, runAfter: new Date(), dedupeParts: ['media.transform', operation.id] });
+    await enqueueJob(tx, { orgId, queue: 'media', kind: 'media.transform', payload: { operationId: operation.id, userId: c.get('userId') ?? null }, runAfter: new Date(), dedupeParts: ['media.transform', operation.id] });
     await writeAudit(tx, orgId, c.get('userId') ?? 'system', 'media.operation.create', operation.id, { modelId, assetId, type: operation.type });
     return { status: 202 as const, data: operation };
   });

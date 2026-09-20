@@ -1,10 +1,8 @@
 import { and, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { OfficialSubscriptionTransport, characterLockSnapshot, buildMediaPrompt, type GrokMediaRequest } from '@axiom/llm-gateway';
-import { constants } from 'node:fs';
+import { OfficialSubscriptionTransport, characterLockSnapshot, buildMediaPrompt, createObjectStorage, type GrokMediaRequest } from '@axiom/llm-gateway';
 import { createHash } from 'node:crypto';
-import { open, realpath } from 'node:fs/promises';
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { storeGeneratedAsset } from '../generated-asset-store.js';
 import { sanitizeMedia } from '../media-sanitizer.js';
 import { enqueueJob } from '../enqueue.js';
@@ -53,6 +51,7 @@ export const mediaGenerate: Executor = async (ctx) => {
   if (!ctx.persistSideEffectMarker || !ctx.markExternalSideEffect)
     throw new Error('media.generate: durable dispatch boundary unavailable');
   const mediaRoot = resolve(process.env.AXIOM_MEDIA_ROOT ?? 'var/media');
+  const storage = createObjectStorage({ userId: payload.userId, orgId: job.org_id }, mediaRoot);
   let image: Buffer | undefined;
   if (payload.kind === 'video') {
     const [source] = await tx.select().from(schema.asset).where(and(
@@ -62,29 +61,12 @@ export const mediaGenerate: Executor = async (ctx) => {
     if (!source || source.kind !== 'image' || !['image/jpeg', 'image/png'].includes(source.mimeType)
       || source.fileSize < 12 || source.fileSize > 20 * 1024 * 1024)
       throw new Error('media.generate: invalid source asset');
-    const root = await realpath(mediaRoot);
-    const path = resolve(root, source.storageKey);
-    const local = relative(root, path);
-    if (!local || isAbsolute(local) || local.split(sep).includes('..') || await realpath(path) !== path)
-      throw new Error('media.generate: source asset outside media root');
-    const reader = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-    try {
-      const before = await reader.stat();
-      if (!before.isFile() || before.nlink !== 1 || before.size !== source.fileSize)
-        throw new Error('media.generate: source asset changed');
-      image = Buffer.alloc(source.fileSize);
-      let offset = 0;
-      while (offset < image.length) {
-        const { bytesRead } = await reader.read(image, offset, image.length - offset, offset);
-        if (!bytesRead) throw new Error('media.generate: truncated source asset');
-        offset += bytesRead;
-      }
-      const after = await reader.stat();
-      if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs)
-        throw new Error('media.generate: source asset changed during read');
-      if (!Buffer.isBuffer(source.sha256) || !createHash('sha256').update(image).digest().equals(source.sha256))
-        throw new Error('media.generate: source asset content hash mismatch');
-    } finally { await reader.close(); }
+    const sourceObject = await storage.get(source.storageKey, { orgId: job.org_id, modelId: bundle.modelId });
+    if (!sourceObject || sourceObject.metadata.size !== source.fileSize || sourceObject.body.byteLength !== source.fileSize)
+      throw new Error('media.generate: source asset unavailable or changed');
+    image = sourceObject.body;
+    if (!Buffer.isBuffer(source.sha256) || !createHash('sha256').update(image).digest().equals(source.sha256))
+      throw new Error('media.generate: source asset content hash mismatch');
     if (payload.sanitizeMetadata) image = (await sanitizeMedia(image!, source.mimeType as 'image/jpeg' | 'image/png')).bytes;
   }
   const artifact = await new OfficialSubscriptionTransport().generateMedia({
@@ -111,6 +93,7 @@ export const mediaGenerate: Executor = async (ctx) => {
   });
   const { exactFileHashChanged, ...stored } = await storeGeneratedAsset(artifact, {
     orgId: job.org_id, modelId: bundle.modelId, requestRoot: dirname(artifact.path), mediaRoot,
+    storage,
     sanitizeMetadata: payload.sanitizeMetadata === true,
   });
   const [inserted] = await tx.insert(schema.asset).values({

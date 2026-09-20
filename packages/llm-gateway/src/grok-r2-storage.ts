@@ -63,9 +63,13 @@ function identity(scope: R2Scope) {
   if (!scope.userId || !scope.orgId) throw new Error('Authenticated workspace required');
   return createHash('sha256').update(JSON.stringify([scope.orgId, scope.userId])).digest('hex');
 }
-function directory() {
+function directory(): string;
+function directory(create: true): string;
+function directory(create: false): string | null;
+function directory(create = true): string | null {
   const path = join(resolve(process.env.AXIOM_SUBSCRIPTION_HOME || join(homedir(), '.axiom-subscriptions')), 'r2-storage');
-  mkdirSync(path, { recursive: true, mode: 0o700 });
+  if (create) mkdirSync(path, { recursive: true, mode: 0o700 });
+  else if (!existsSync(path)) return null;
   if (realpathSync(path) !== path) throw new Error('Unsafe storage directory');
   return path;
 }
@@ -85,7 +89,9 @@ function readEncrypted(path: string) {
   } finally { closeSync(fd); }
 }
 export function loadR2Storage(scope: R2Scope): R2Storage | null {
-  const id = identity(scope), path = join(directory(), `${id}.enc`);
+  const id = identity(scope), dir = directory(false);
+  if (!dir) return null;
+  const path = join(dir, `${id}.enc`);
   if (!existsSync(path)) return null;
   const bytes = readEncrypted(path);
   const decipher = createDecipheriv('aes-256-gcm', encryptionKey(), bytes.subarray(0, 12));
@@ -121,7 +127,8 @@ export function saveR2Storage(scope: R2Scope, input: unknown) {
   return { configured: true, endpoint: config.endpoint, bucket: config.bucket, verified: false };
 }
 export function removeR2Storage(scope: R2Scope) {
-  rmSync(join(directory(), `${identity(scope)}.enc`), { force: true });
+  const dir = directory(false);
+  if (dir) rmSync(join(dir, `${identity(scope)}.enc`), { force: true });
   return { configured: false, verified: false };
 }
 export function r2ManagedConfig(config: R2Storage, scope: R2Scope) {
@@ -144,16 +151,38 @@ function encodedPath(bucket: string, objectKey: string): string {
   return `/${[bucket, ...objectKey.split('/')].map(segment => encodeURIComponent(segment)).join('/')}`;
 }
 
-async function signedR2Request(config: R2Storage, method: 'PUT' | 'GET' | 'DELETE', objectKey: string, body = Buffer.alloc(0)): Promise<Response> {
+export interface SignedR2RequestOptions {
+  contentType?: string;
+  range?: string;
+  metadata?: Record<string, string>;
+}
+
+export async function signedR2Request(
+  config: R2Storage,
+  method: 'PUT' | 'GET' | 'HEAD' | 'DELETE',
+  objectKey: string,
+  body: Uint8Array = Buffer.alloc(0),
+  options: SignedR2RequestOptions = {},
+): Promise<Response> {
   const endpoint = new URL(config.endpoint);
   const now = new Date();
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
   const shortDate = amzDate.slice(0, 8);
   const payloadHash = createHash('sha256').update(body).digest('hex');
   const host = endpoint.hostname;
+  const contentType = options.contentType ?? (method === 'PUT' ? 'text/plain; charset=utf-8' : undefined);
   const uri = encodedPath(config.bucket, objectKey);
-  const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
-  const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+  const unsigned = {
+    host,
+    'x-amz-content-sha256': payloadHash,
+    'x-amz-date': amzDate,
+    ...(contentType ? { 'content-type': contentType } : {}),
+    ...(options.range ? { range: options.range } : {}),
+    ...(options.metadata ?? {}),
+  };
+  const canonicalHeaders = Object.entries(unsigned).sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, value]) => `${name.toLowerCase()}:${value.trim()}\n`).join('');
+  const signedHeaders = Object.keys(unsigned).map(name => name.toLowerCase()).sort().join(';');
   const canonicalRequest = [method, uri, '', canonicalHeaders, signedHeaders, payloadHash].join('\n');
   const scope = `${shortDate}/auto/s3/aws4_request`;
   const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, createHash('sha256').update(canonicalRequest).digest('hex')].join('\n');
@@ -166,9 +195,12 @@ async function signedR2Request(config: R2Storage, method: 'PUT' | 'GET' | 'DELET
       'x-amz-content-sha256': payloadHash,
       'x-amz-date': amzDate,
       Authorization: authorization,
-      ...(method === 'PUT' ? { 'content-type': 'text/plain; charset=utf-8', 'content-length': String(body.byteLength) } : {}),
+      ...(contentType ? { 'content-type': contentType } : {}),
+      ...(options.range ? { Range: options.range } : {}),
+      ...(options.metadata ?? {}),
+      ...(method === 'PUT' ? { 'content-length': String(body.byteLength) } : {}),
     },
-    body: method === 'GET' || method === 'DELETE' ? undefined : body,
+    body: method === 'GET' || method === 'HEAD' || method === 'DELETE' ? undefined : body,
     signal: AbortSignal.timeout(10_000),
   });
 }

@@ -68,6 +68,15 @@ export {
   withinR2ObjectLimits,
 } from './grok-r2-storage.js';
 export type { R2ObjectKeyKind, R2ObjectScope } from './grok-r2-storage.js';
+export { createObjectStorage, LocalObjectStorage, R2ObjectStorage } from './object-storage.js';
+export type {
+  ObjectStorage,
+  ObjectStorageScope,
+  StorageDeleteResult,
+  StorageObjectMetadata,
+  StorageObjectRead,
+  StoragePutInput,
+} from './object-storage.js';
 export {
   boundRoleplayMemory,
   formatRoleplayHandoff,

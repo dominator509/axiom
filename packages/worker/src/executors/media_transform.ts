@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { readBoundedResponseText } from '@axiom/core';
-import { normalizeR2ObjectKey } from '@axiom/llm-gateway';
+import { createObjectStorage, normalizeR2ObjectKey } from '@axiom/llm-gateway';
 import type { Executor } from './context.js';
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -28,6 +28,7 @@ export async function confirmTransformOutput(response: Response, outputKey: stri
 
 export const mediaTransform: Executor = async ({ tx, job }) => {
   const operationId = typeof job.payload?.operationId === 'string' ? job.payload.operationId : '';
+  const userId = typeof job.payload?.userId === 'string' ? job.payload.userId : undefined;
   if (!operationId) throw new Error('media.transform: payload.operationId required');
   const [operation] = await tx.select().from(schema.mediaOperation).where(and(eq(schema.mediaOperation.id, operationId), eq(schema.mediaOperation.orgId, job.org_id))).limit(1);
   if (!operation) throw new Error(`media.transform: operation ${operationId} not found`);
@@ -57,9 +58,10 @@ export const mediaTransform: Executor = async ({ tx, job }) => {
     const mediaRoot = resolve(process.env.AXIOM_MEDIA_ROOT ?? 'var/media');
     const outputPath = resolve(mediaRoot, outputKey);
     const mimeType = outputKey.endsWith('.webm') ? 'video/webm' : source.kind === 'video' ? 'video/mp4' : 'image/jpeg';
+    const storage = userId ? createObjectStorage({ userId, orgId: job.org_id }, mediaRoot) : undefined;
     const { exactFileHashChanged: _hashChanged, ...stored } = await storeGeneratedAsset({
       path: outputPath, byteLength: (await stat(outputPath)).size, mimeType,
-    }, { orgId: job.org_id, modelId: operation.modelId, requestRoot: resolve(mediaRoot, 'operations'), mediaRoot });
+    }, { orgId: job.org_id, modelId: operation.modelId, requestRoot: resolve(mediaRoot, 'operations'), mediaRoot, storage });
     const width = typeof options.width === 'number' ? options.width : null;
     const height = typeof options.height === 'number' ? options.height : null;
     const [inserted] = await tx.insert(schema.asset).values({

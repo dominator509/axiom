@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, eq, desc } from 'drizzle-orm';
-import { mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { schema } from '@axiom/db';
 import { storeGeneratedAsset } from '@axiom/worker';
+import { createObjectStorage } from '@axiom/llm-gateway';
 import type { AppBindings } from '../index.js';
 import { apiError, requireOrg, statusTitle, withOrgContext, writeAudit } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
@@ -109,7 +110,11 @@ mediaUploadRouter.get('/models/:modelId/media/:assetId', async c => {
     modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.asset.modelId),
   )).limit(1))[0]);
   if (!asset || asset.id !== assetId || asset.orgId !== orgId || asset.modelId !== modelId) return apiError(c, 404, statusTitle(404), 'Media unavailable');
-  try { return await assetPreview(asset, c.req.raw, process.env.AXIOM_MEDIA_ROOT ?? 'var/media', { orgId, modelId }); }
+  try {
+    const mediaRoot = process.env.AXIOM_MEDIA_ROOT ?? 'var/media';
+    const storage = c.get('userId') ? createObjectStorage({ userId: c.get('userId')!, orgId }, mediaRoot) : undefined;
+    return await assetPreview(asset, c.req.raw, mediaRoot, { orgId, modelId }, storage);
+  }
   catch { return apiError(c, 404, statusTitle(404), 'Media unavailable'); }
 });
 mediaUploadRouter.post('/models/:modelId/media-upload', async c => {
@@ -132,15 +137,16 @@ mediaUploadRouter.post('/models/:modelId/media-upload', async c => {
   if (bytes.length < 12 || bytes.length > max) return apiError(c, 413, 'Payload Too Large', 'Invalid upload size');
   const directory = await mkdtemp(join(tmpdir(), 'axiom-upload-'));
   const mediaRoot = resolve(process.env.AXIOM_MEDIA_ROOT ?? 'var/media');
-  let storedPath: string | undefined;
+  const storage = createObjectStorage({ userId, orgId }, mediaRoot);
+  let storedKey: string | undefined;
   let persistenceAttempted = false;
   try {
     const source = join(directory, 'input');
     await writeFile(source, bytes, { flag: 'wx', mode: 0o600 });
     const { exactFileHashChanged, ...stored } = await storeGeneratedAsset({ path: source, byteLength: bytes.length, mimeType }, {
-      orgId, modelId, requestRoot: directory, mediaRoot, sanitizeMetadata: selection === 'true',
+      orgId, modelId, requestRoot: directory, mediaRoot, storage, sanitizeMetadata: selection === 'true',
     });
-    storedPath = join(mediaRoot, stored.storageKey);
+    storedKey = stored.storageKey;
     persistenceAttempted = true;
     const result = await withOrgContext(orgId, async tx => {
       const [inserted] = await tx.insert(schema.asset).values({ orgId, modelId,
@@ -155,8 +161,8 @@ mediaUploadRouter.post('/models/:modelId/media-upload', async c => {
       });
       return { id: asset.id as string, inserted: !!inserted };
     });
-    if (!result.inserted) await unlink(storedPath).catch(() => {});
-    storedPath = undefined;
+    if (!result.inserted) await storage.delete(storedKey, { orgId, modelId }).catch(() => 'unknown');
+    storedKey = undefined;
     return c.json({ data: { id: result.id, mimeType: stored.mimeType, sanitized: selection === 'true', exactFileHashChanged, tosStatus: 'not-scanned' } }, 201);
   } catch {
     // A selected cleaning error never falls back to storing the original.
@@ -166,7 +172,7 @@ mediaUploadRouter.post('/models/:modelId/media-upload', async c => {
   } finally {
     // A lost COMMIT acknowledgement can mean the DB row exists. Never delete
     // its file on an ambiguous persistence outcome; retain for reconciliation.
-    if (storedPath && !persistenceAttempted) await unlink(storedPath).catch(() => {});
+    if (storedKey && !persistenceAttempted) await storage.delete(storedKey, { orgId, modelId }).catch(() => 'unknown');
     await rm(directory, { recursive: true, force: true });
   }
 });
