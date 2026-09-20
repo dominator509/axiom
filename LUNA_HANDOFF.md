@@ -13,13 +13,13 @@ PUBLISHED_HEAD: `462cdaf31ee06e7263057df4489d7fbd14b4cd35` (immutable reviewed p
 COORDINATION_HEAD: `REMOTE_BRANCH_TIP — read refs/heads/codex/telegram-webhook-hardening before every new lane; M859 source binding remains 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 ACCEPTED_PRODUCT_SOURCE: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 LAST_COMPLETED_SOURCE_MILESTONE: `M859 — PlaybookCadence calendar guidance localization; source/UI only`
-ACTIVE_HERMES_LANE: `NONE — F71 relay-binding lane closed by Codex local fallback; M859 also closed locally because Hermes source sync is stale`
+ACTIVE_HERMES_LANE: `F50-LINKTREE-ADAPTER-SOURCE-R1 — task sent; awaiting one logical ACK/ACCEPTED or NACK/BLOCKED; source 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `Audit the remaining architecture gaps against M859, select one finite criterion, and bind any new Hermes task to the freshly read remote source; do not resume a stale lane.`
+NEXT_ACTION: `Poll the F50 wire by logical state; after ACK/ACCEPTED receipt, require one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED; do not open a competing lane.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `NONE — F71 closed by local fallback`
+OPEN_WIRES: `CODEX-LINKTREE-ADAPTER-SOURCE-R1-001`
 OPEN_CONTROL_WIRE: `NONE`
 OPEN_CONTROL_TASK_STATE: `CLOSED_LOCAL_FALLBACK — authoritative Hermes copy and delivery roots were absent; local M857 source is canonical`
 OPEN_CONTROL_TASK_REPLY_WIRE: `NONE`
@@ -42,18 +42,18 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `NONE — select after the next source audit`
-NEXT_PREPARED_TASK_WIRE: `NONE`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `224458139080fe674453e2a8116e42ca26b8c3f4`
+NEXT_PREPARED_TASK: `F50-LINKTREE-ADAPTER-SOURCE-R1`
+NEXT_PREPARED_TASK_WIRE: `CODEX-LINKTREE-ADAPTER-SOURCE-R1-001`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `NONE — no Hermes task is open`
-ACTIVE_LANE_TASK_WIRE: `NONE`
-ACTIVE_LANE_SOURCE_COMMIT: `224458139080fe674453e2a8116e42ca26b8c3f4`
-ACTIVE_LANE_COPY_ROOT: `NONE — local fallback is canonical`
-ACTIVE_LANE_DELIVERY_ROOT: `NONE — no Hermes delivery accepted`
-ACTIVE_LANE_COPY_STATE: `CLOSED_LOCAL_FALLBACK — M858 source was implemented, tested, committed and pushed by Codex; no Hermes lane open`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `NONE — historical F71 envelope preserved below`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `NONE — historical F71 envelope preserved below`
+NEXT_PREPARED_TASK_STATE: `OPEN — ACK/NOT-ACK pending; no implementation or live action accepted`
+ACTIVE_LANE_TASK_WIRE: `CODEX-LINKTREE-ADAPTER-SOURCE-R1-001`
+ACTIVE_LANE_SOURCE_COMMIT: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
+ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-linktree-adapter-source-r1/copy`
+ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-linktree-adapter-source-r1/delivery`
+ACTIVE_LANE_COPY_STATE: `TASK_SENT_ACK_PENDING — no source artifact or implementation accepted`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `6c1fa144cda1075f398776bb59ba05f54fe1f1d553dd6cdb66098052a78b186f`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `NONE — bridge inbox receipt is transport-only until Hermes replies`
 ACTIVE_LANE_ACK_WIRE: `NONE`
 ACTIVE_LANE_ACK_SHA256: `NONE`
 ACTIVE_LANE_PROGRESS_WIRE: `NONE`
@@ -66,7 +66,7 @@ ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `NONE`
 ACTIVE_LANE_SOURCE_BUNDLE: `NONE — exact Git source ref is authoritative`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `NONE`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — exact Git source task`
-ACTIVE_LANE_SOURCE_TRANSPORT: `M858 local source 22445813 was audited, committed, pushed and read back from origin; no Hermes artifact is involved`
+ACTIVE_LANE_SOURCE_TRANSPORT: `M859 source 462cdaf31ee06e7263057df4489d7fbd14b4cd35 was audited, committed, pushed and read back from origin; F50 task was sent by exact-msg_id bridge envelope`
 ACTIVE_LANE_TRANSPORT_NAMING: `Every bridge envelope filename equals its msg_id; task and correction hashes are independently pinned`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id is the identity; new filenames should match it, but consumers must resolve by unique JSON msg_id and never rename or reject a legacy file solely for a filename mismatch`
 BRIDGE_EXECUTION_MODEL: `The bridge poller reports inbox traffic only; it does not execute Hermes tasks. A valid inbox file is transport evidence, not ACK, ownership, progress or delivery.`
