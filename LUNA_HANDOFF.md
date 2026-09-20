@@ -26,6 +26,7 @@ OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `ed6e8dfedae0ee522b16ebaec54db94a69
 OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-PROGRESS-REQUIRED-004`
 OPEN_CONTROL_TASK_RECEIPT_SHA256: `684744a5dc2128759435ac1eeb4b14b08c1a9d5a8ae6d81835f6dead0fad8833`
 OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes publishes one evidence-bearing PROGRESS with a real changed-file/test delta, then one terminal DELIVERY or BLOCKED; no second ACK, copied baseline or stale lane work.`
+ACTIVE_LANE_LOCAL_BASELINE: `Dashboard typecheck exit 0; focused PlaybookHistory Vitest command exit 1 because the vitest executable is unavailable in this checkout. This is baseline evidence only; Hermes DELIVERY must provide its own executable focused-test receipt.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
