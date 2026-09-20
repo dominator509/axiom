@@ -1,8 +1,8 @@
 # Current architecture reconciliation
 
-Date: 2026-09-18  
+Date: 2026-09-20  
 Repository: `dominator509/axiom`  
-Source checkpoint: `4a3bb9e0511e83aff2781612a98436d08b8039ee`
+Source checkpoint: `6ac4c8c0e965fba69d090366f302f9e4c216c9a1`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -41,7 +41,7 @@ receipts. Historical audit baselines are not silently treated as current source.
 | Connectors and OAuth (F-03/F-31/F-58–F-67) | Static connector contracts and capability declarations exist for supported paths. M791 localizes the authenticated Grok connection/storage route shell while preserving role-scoped account and private-storage controls. | Live OAuth, refresh/revoke/disconnect, account onboarding, provider upload/publish/metrics receipts and browser acceptance. Snapchat remains capability-honest manual-assist where its API does not support organic posting. |
 | Patreon creator/community integration (F-91) | **Wired/partial:** the pure v2 community connector is now wired through authored migration 0055, tenant/model-scoped campaign/member/post/sync/webhook tables with RLS, model-egress OAuth/PKCE and encrypted account persistence, bounded cursor sync, durable replay guards, signed webhook ingress, a model dashboard, and a native mobile community surface with assigned-model scoping, redacted status/read views and operator-only sync controls. | Deployed migration/RLS/runtime acceptance, real provider OAuth/webhook/sync receipts, browser/mobile acceptance and operational reconciliation remain open. No publish/DM/payout/member-mutation/unsupported-analytics claim. |
 | Link-in-bio (F-48–F-53) | The Native provider is the current production-enabled default. | Fanlynks, Linktree and Beacons are optional planned adapters and must remain hidden/rejected until their full lifecycle exists; a database row is not evidence of a connection. |
-| Localization and language switching (F-89) | **Source-wired/partial:** the shared six-locale catalog, BCP-47 normalization, precedence resolution, persisted user/org preference API, portfolio home shell, dashboard provider/navigation/settings wiring, authenticated shell workspace/role/pending/footer/system-health copy, login hero/form labels/errors/session advice, assigned shifts, incidents/crash triage/recovery and localized publishing-safety controls with locale-aware UTC dates, team-shift controls, TeamOperationsManager labels/errors/roles/notes, the model-scoped team/shifts route shell, the model-scoped variant-experiments route shell, digest page/scheduling/recovery controls, Relay history/delivery surfaces, and Calendar month/week navigation, drag/date controls, schedule form, status labels and advisory time windows now consume the same catalog. Locale-aware UTC timestamps, accessible `lang` metadata, and mounted mobile selector, LoginScreen, DashboardScreen, RelayScreen and PatreonScreen labels/statuses/date/count formatting remain wired. UI language remains separate from authored content language. | Complete catalog adoption across remaining dashboard/email/operator surfaces, browser/native mobile acceptance, locale-aware formatting audit for every date/number/currency surface, and deployed migration/RLS/runtime evidence remain open. |
+| Localization and language switching (F-89) | **Source-wired/partial:** the shared six-locale catalog, BCP-47 normalization, precedence resolution, persisted user/org preference API, portfolio home shell, dashboard provider/navigation/settings wiring, authenticated shell workspace/role/pending/footer/system-health copy, login hero/form labels/errors/session advice, assigned shifts, incidents/crash triage/recovery and localized publishing-safety controls with locale-aware UTC dates, team-shift controls, TeamOperationsManager labels/errors/roles/notes, the model-scoped team/shifts route shell, the model-scoped variant-experiments route shell, digest page/scheduling/recovery controls, Relay history/delivery surfaces, Calendar month/week navigation, drag/date controls, schedule form, status labels and advisory time windows, and the media approval child controls for generation retry, prompt suggestions and clip/resize/transcode operations now consume the same catalog. Locale-aware UTC timestamps, accessible `lang` metadata, and mounted mobile selector, LoginScreen, DashboardScreen, RelayScreen and PatreonScreen labels/statuses/date/count formatting remain wired. UI language remains separate from authored content language. | Complete catalog adoption across remaining dashboard/email/operator surfaces, browser/native mobile acceptance, locale-aware formatting audit for every date/number/currency surface, and deployed migration/RLS/runtime evidence remain open. |
 | FanThynks platform affiliate program (F-90) | **Wired/partial:** native platform-level affiliate schema and authored migration 0054, owner-gated API routes, disclosure-gated partner/campaign controls, attribution/conversion/commission/hold state, audit/idempotency and non-transfer payout CSV generation exist; no third-party affiliate stack was imported. | Migration application, native license/security/legal review, browser acceptance, billing/reconciliation integration, payout-provider/operator acceptance and export/deletion evidence remain open. Tenant-owned affiliate builders and creator resale controls are out of scope. |
 | R2 media storage | Grok R2 credential storage/status/verify routes, encrypted managed config and tests exist. | A real configured bucket round-trip through the deployed application, retention/delete evidence and operator acceptance. |
 | Relay and operator controls (F-68–F-72) | Cards, signed/replay-protected command paths, several approval/revision/review workflows, and a model-scoped cursor-paginated/redacted Relay-card history with an approval deep-link are source-wired. | Attachment sending, external delivery, uncertain-outcome reconciliation and deployed channel acceptance. |
@@ -626,3 +626,23 @@ dashboard typechecks, core build, focused ESLint for changed files and
 `4a3bb9e0511e83aff2781612a98436d08b8039ee` is pushed and read back from
 `origin/codex/telegram-webhook-hardening`. Browser/mobile, deployed runtime,
 provider, migration and deployment acceptance remain open.
+
+### M818 — F-89 media approval child-control localization
+
+The remaining mounted media approval child controls now consume the shared
+six-locale catalog. `GenerationRetry` localizes retry guidance, consent,
+reviewed-prompt actions and bounded failure states; `MediaPromptSuggestion`
+localizes suggestion consent, diff/review labels, character-lock context and
+provider-failure states; and `MediaOperationControls` localizes transform
+history, operation/status labels, clip/resize/transcode controls, retry
+feedback and safety summaries. Existing payloads, idempotency keys, approval
+interlocks, role checks and raw provider/user-authored data are unchanged.
+
+Evidence: core catalog/completeness tests 34/34; dashboard focused media
+approval suite 57/57; core and dashboard typechecks pass; core and dashboard
+lint pass with four pre-existing dashboard `any` warnings; dashboard
+production build passes with explicit non-secret `API_ORIGIN`; `verify.sh`
+prints `verify: ok`; source commit `6ac4c8c0e965fba69d090366f302f9e4c216c9a1`
+is pushed and read back from `origin/codex/telegram-webhook-hardening`.
+Browser/native, deployed media/runtime, R2, provider, migration/RLS and
+production acceptance remain open. No live action occurred.

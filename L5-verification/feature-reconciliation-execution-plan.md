@@ -1171,3 +1171,26 @@ dashboard/core files passes, and `git diff --check` passes. Source commit
 `4a3bb9e0511e83aff2781612a98436d08b8039ee` is pushed and read back from
 `origin/codex/telegram-webhook-hardening`. Package-wide dashboard lint was not
 counted for this slice because it previously hung in this environment.
+
+### M818 — F-89 media approval child-control localization
+
+The next finite localization slice closes the remaining nested media approval
+controls without changing their backend contracts. `GenerationRetry` now
+localizes retry guidance, consent, reviewed-prompt actions and bounded failure
+states; `MediaPromptSuggestion` localizes suggestion consent, diff/review
+labels, character-lock context and provider-failure states; and
+`MediaOperationControls` localizes transform history, operation/status labels,
+clip/resize/transcode controls, retry feedback and safety summaries. Existing
+approval interlocks, role checks, idempotency keys, API payloads and raw
+provider/user-authored data remain unchanged.
+
+Pass criteria and evidence: core catalog/completeness tests 34/34; dashboard
+focused media approval suite 57/57; core/dashboard typechecks pass;
+core/dashboard lint exits 0 with only four pre-existing dashboard `any`
+warnings; dashboard production build passes with explicit non-secret
+`API_ORIGIN`; `scripts/verify.sh` prints `verify: ok`; source commit
+`6ac4c8c0e965fba69d090366f302f9e4c216c9a1` is pushed and read back from the
+coordination branch. This closes only the source/automated UI localization
+criterion. Browser/native, deployed media/runtime, R2, provider,
+migration/RLS, and production/operator acceptance remain open. No live action
+occurred.
