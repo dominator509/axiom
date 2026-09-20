@@ -98,11 +98,15 @@ Strict-lane rules are intentionally small:
 3. `ACK/READ` means read but not owned; `ACK/ACCEPTED` means read and owned;
    `NACK/REJECTED` or `NACK/BLOCKED` means read and not accepted. The latter
    two are the only NOT-ACK outcomes.
-4. After a Codex receipt, Hermes may send only `PROGRESS`, `DELIVERY`, or
-   `NACK`; another `ACK` is invalid. A valid `DELIVERY` is the only completion
-   claim. A terminal Hermes reply is not fully closed until Codex sends a
-   terminal `RECEIPT` with `STATE: READ`, `TERMINAL: YES`,
-   `NEXT_OWNER: NONE`, and `RECEIPT_OF` naming that exact reply WIRE.
+4. After a normal Codex receipt, Hermes may send only `PROGRESS`, `DELIVERY`,
+   or `NACK`; another `ACK` is invalid. The sole exception is one corrective
+   `ACK` after a terminal `RECEIPT/REJECTED` that names the rejected reply in
+   `REJECTED_WIRE`; that ACK must use a fresh WIRE and return `NEXT_OWNER:
+   HERMES`, after which Codex receipts it and Hermes proceeds to PROGRESS,
+   DELIVERY, or NACK. A valid `DELIVERY` is the only completion claim. A
+   terminal Hermes reply is not fully closed until Codex sends a terminal
+   `RECEIPT` with `STATE: READ`, `TERMINAL: YES`, `NEXT_OWNER: NONE`, and
+   `RECEIPT_OF` naming that exact reply WIRE.
 5. A lane containing only the task is `UNCONFIRMED` (not read). A malformed,
    mis-signed, duplicated, or out-of-sequence reply is also not accepted and
    must be corrected with a new WIRE; it never advances the lane.
@@ -212,10 +216,12 @@ An implementation may move directly from `ACCEPTED` to `DELIVERED` when the arti
 3. Hermes may send `PROGRESS` only after `ACCEPTED`; every progress message names `NEXT_ACTION` and remains nonterminal.
 4. Hermes sends `DELIVERY` only when the source artifact and evidence exist in the reply-readable tree. “I will build it” is not delivery.
 5. Codex sends a `RECEIPT` after reading every reply. `ACK/READ` means the reply was read; `ACK/ACCEPTED` means its task state is accepted; `NACK/REJECTED` means the artifact failed audit. The receipt includes the logical WIRE id and payload hash it read. A valid terminal reply is closed with the terminal READ form; a malformed reply uses the terminal REJECTED correction form and keeps ownership with Hermes.
-6. After a Codex `RECEIPT`, Hermes must not answer with another nonterminal
-   `ACK`. That is an ACK loop, not progress. The only valid next response is
-   `PROGRESS`, `DELIVERY`, or `BLOCKED`; the stateful audit rejects a repeated
-   ACK and Codex emits a `RECEIPT/REJECTED` with
+6. After a normal Codex `RECEIPT`, Hermes must not answer with another
+   nonterminal `ACK`. That is an ACK loop, not progress. The only exception is
+   the one corrective ACK described in rule 4, immediately after a terminal
+   `RECEIPT/REJECTED`; once Codex reads that correction, the only valid next
+   response is `PROGRESS`, `DELIVERY`, or `BLOCKED`. The stateful audit rejects
+   any other repeated `ACK`, and Codex emits a `RECEIPT/REJECTED` with
    `REASON: REPEATED_ACK_WITHOUT_PROGRESS`. A deployed legacy `CLOSED` reply
    is accepted only as the compatibility terminal `NACK/REJECTED` outcome.
 7. A duplicate `TASK` WIRE id is idempotent: the original reply is returned and the work is not repeated. A changed payload requires a new WIRE id and a `REASON: SUPERSEDES:<old WIRE>` marker.

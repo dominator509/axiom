@@ -363,7 +363,15 @@ function auditTask(records) {
     if (index > 0 && current.from === sorted[index - 1].from && !firstReplyCorrection) {
       fail(`${current.file}: sender repeated without a receipt/reply turn`);
     }
-    if (index > 0 && current.from === 'hermes' && current.type === 'ACK' && current.state !== 'BLOCKED' && sorted[index - 1].type === 'RECEIPT' && sorted[index - 1].from === 'codex') {
+    const previous = sorted[index - 1];
+    const correctiveAckTurn = previous
+      && previous.type === 'RECEIPT'
+      && previous.from === 'codex'
+      && previous.state === 'REJECTED'
+      && previous.terminal
+      && previous.nextOwner === 'HERMES'
+      && previous.payloadFields?.get('REJECTED_WIRE') === previous.inReplyTo;
+    if (index > 0 && current.from === 'hermes' && current.type === 'ACK' && current.state !== 'BLOCKED' && previous?.type === 'RECEIPT' && previous.from === 'codex' && !correctiveAckTurn) {
       fail(`${current.file}: Hermes ACK after Codex RECEIPT is an ACK loop; require PROGRESS, DELIVERY, or BLOCKED`);
     }
     if (current.seq === 2) {
