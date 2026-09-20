@@ -10,7 +10,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 SOURCE_HEAD: `462cdaf31ee06e7263057df4489d7fbd14b4cd35` (reviewed M859 product source; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `462cdaf31ee06e7263057df4489d7fbd14b4cd35` (immutable reviewed product source; later branch commits are coordination/evidence only)
-COORDINATION_HEAD: `ea32c5f309d1f1c593abdd2d356767ddbb764154 — remote readback of refs/heads/codex/telegram-webhook-hardening; M859 product source binding remains 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
+COORDINATION_HEAD: `REMOTE_BRANCH_TIP — read refs/heads/codex/telegram-webhook-hardening before every new lane; latest sync-control readback was 235c532297c994af2d7bbdb6ba8ce068adcbd8c1; M859 product source binding remains 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 ACCEPTED_PRODUCT_SOURCE: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
 LAST_COMPLETED_SOURCE_MILESTONE: `M859 — PlaybookCadence calendar guidance localization; source/UI only`
 ACTIVE_HERMES_LANE: `F50-LINKTREE-ADAPTER-SOURCE-R1 — task sent; awaiting one logical ACK/ACCEPTED or NACK/BLOCKED; source 462cdaf31ee06e7263057df4489d7fbd14b4cd35; explicit source-ref sync required`
@@ -83,6 +83,14 @@ SOURCE_SYNC_CONTROL_TASK_ENVELOPE_SHA256: `165f125e722ca2c4ab753d31c006291665762
 SOURCE_SYNC_CONTROL_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r1/copy`
 SOURCE_SYNC_CONTROL_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r1/delivery`
 SOURCE_SYNC_CONTROL_WORKTREE_KIND: `source-sync-control; no product implementation copy`
+SOURCE_SYNC_CONTROL_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r1/mirror`
+SOURCE_SYNC_CONTROL_MIRROR_REFRESH: `PASS — writable unprivileged mirror fetched with git fetch --all --prune`
+SOURCE_SYNC_CONTROL_RESOLVED_REF_SHA: `235c532297c994af2d7bbdb6ba8ce068adcbd8c1`
+SOURCE_SYNC_CONTROL_SOURCE_COMMIT_TYPE: `commit`
+SOURCE_SYNC_CONTROL_SOURCE_ANCESTRY: `PASS — ea32c5f309d1f1c593abdd2d356767ddbb764154 is an ancestor of the resolved coordination ref`
+SOURCE_SYNC_CONTROL_REMOTE_REFS: `origin/codex/telegram-webhook-hardening=235c532297c994af2d7bbdb6ba8ce068adcbd8c1; origin/deploy/test-migrator-prerequisites=36b67f5ab79cca27f196c74187eb42a8b6c17d68; origin/fix/api-validation-diagnostics=aebe3a2714eca477c07103986af85aa032a5a10f; origin/fix/dashboard-generate-empty-optional-fields=2c90431574c8fd755dc36aeb8146f3edbb13ef06; origin/jules-3329224676166641722-1e0e7903=32e2f8a00c2553ac25755d34cd1a925d3825ded1; origin/main=7c4a945dc1c278a9ad26f4b83b16e44314c31d37`
+SOURCE_SYNC_CONTROL_EXISTING_CLONE_FETCH: `BLOCKED — unprivileged fetch failed because root-owned fanout directories exist under /home/codex-fanthynks/fanthynks/src/axiom/.git/objects; no permissions were widened and no root path was used`
+SOURCE_SYNC_CONTROL_DETACHED_WORKTREES: `EVIDENCE_ONLY — build/06496da, build/5116230, build/7f02e18, build/c5586ad, build/da09f66 and Hermes work copies are not coding authorities`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — exact Git source task`
 ACTIVE_LANE_SOURCE_TRANSPORT: `M859 source 462cdaf31ee06e7263057df4489d7fbd14b4cd35 was audited, committed, pushed and read back from origin; F50 task was sent by exact-msg_id bridge envelope`
 ACTIVE_LANE_TRANSPORT_NAMING: `Every bridge envelope filename equals its msg_id; task and correction hashes are independently pinned`
