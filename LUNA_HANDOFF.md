@@ -9,8 +9,8 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `4884a0c2553729b5adef99abee5a72f1f9912e38` (reviewed M856 product source; later commits are coordination-only)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `37162e0cdac749d0b33ebe3a7e8c2ac7002f9d41` (remote coordination head read back after the F71 ACK receipt checkpoint)
-COORDINATION_HEAD: `37162e0cdac749d0b33ebe3a7e8c2ac7002f9d41` (exact remote ref; F71 implementation source remains pinned to 4a72e2f0)
+PUBLISHED_HEAD: `4884a0c2553729b5adef99abee5a72f1f9912e38` (immutable reviewed product source; later branch commits are coordination/evidence only)
+COORDINATION_HEAD: `4a72e2f0c76254ebe29635bf17136f3e88443a59` (immutable F71 source binding; coordination-only commits may advance the branch tip without changing the task source)
 ACCEPTED_PRODUCT_SOURCE: `4884a0c2553729b5adef99abee5a72f1f9912e38`
 LAST_COMPLETED_SOURCE_MILESTONE: `M856 — model Network route localization; source/UI only`
 ACTIVE_HERMES_LANE: `OPEN_UNCONFIRMED — F71-RELAY-BINDING-LOCALIZATION-R1; task envelope transmitted and remote checksum verified, but no ACK/NACK is counted yet`
