@@ -1280,19 +1280,24 @@ the source/automated Network localization criterion. Browser/native, provider,
 migration/RLS, runtime, deployment and production/operator acceptance remain
 open. No live action occurred.
 
-### M857 — F-89 relay binding operator-surface localization (Hermes lane open)
+### M857 — F-89 relay binding operator-surface localization (Codex local fallback)
 
-`RelayBindingManager` remains a finite catalog-adoption gap: it emits English
-guidance, empty/error/status/action copy, confirmation text, form labels,
-validation text and retry text below an already localized relay page. The
-strict source-only task is bound to remote source
-`4a72e2f0c76254ebe29635bf17136f3e88443a59`; envelope SHA-256 is
-`0668bd1bfbb0ea720df96e6d0acc85335bd520a65d040acb1befdbc6e920daa3`.
+`RelayBindingManager` now consumes the selected six-locale catalog through its
+real parent route. Fixed guidance, empty/error/status/action copy,
+confirmation text, form labels, accessible labels, validation, success,
+unconfirmed and retry states are localized in en, es, ja, it, pt-BR and de.
+Channel identifiers, chat references and provider data remain data.
 
-The current state is `ACK_ACCEPTED`: Hermes returned a correlated ACK and Codex
-published a validator-passing READ receipt; no source work is counted yet.
-Hermes must localize
-the real parent/component callsite across all six catalogs, preserve API,
-idempotency, role, model-scope, confirmation and retry behavior, and return
-hash-verified changed files and exact test/typecheck/lint exits. No live action
-occurred.
+API paths, request bodies, idempotency keys, response confirmation,
+retry-same-intent behavior, role policy, model scoping, confirmation semantics
+and channel values were preserved. Focused behavior tests pass 10/10; core
+passes 19 files/105 tests; dashboard passes 145 files/902 tests;
+core/dashboard typechecks pass; lint has no errors and retains four
+pre-existing dashboard `any` warnings; `scripts/verify.sh` and `git diff
+--check` pass. Source commit `7536083ba115ae8849c450c9dee677f10e8e14d7` is
+pushed and read back. No live action occurred.
+
+The Hermes F71 lane is closed as a transport-only stale lane: its authoritative
+copy and delivery roots were absent, so no Hermes delivery was accepted. The
+local source is canonical, and any future Hermes work must bind to a fresh
+source audit rather than resume F71.

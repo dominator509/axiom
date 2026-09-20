@@ -1091,22 +1091,28 @@ This is source/automated evidence only; browser/native, provider, migration/RLS,
 runtime, deployment and production acceptance remain open. No live action
 occurred.
 
-### M857 — F-89 relay binding operator-surface localization (Hermes lane open)
+### M857 — F-89 relay binding operator-surface localization (Codex local fallback)
 
-The next bounded source gap is concrete: `RelayBindingManager` still contains
-hardcoded operator-facing guidance, empty/error/status/action copy, confirmation
-text, form labels, validation text and retry text even though its parent relay
-route already resolves the persisted locale. A strict source-only task is bound
-to exact remote source `4a72e2f0c76254ebe29635bf17136f3e88443a59`, with task
-envelope SHA-256
-`0668bd1bfbb0ea720df96e6d0acc85335bd520a65d040acb1befdbc6e920daa3` and
-isolated COPY_ROOT/DELIVERY_ROOT paths.
+`RelayBindingManager` now receives the parent route's selected-locale translator
+and uses typed catalog keys for fixed guidance, empty/error/status/action copy,
+confirmation text, form labels, accessible labels, validation, success,
+unconfirmed and retry states. All six supported catalogs (en, es, ja, it,
+pt-BR and de) contain the new relay-binding keys. Channel identifiers, chat
+references and provider data remain untranslated data.
 
-The lane advanced to `ACK_ACCEPTED`: Hermes returned correlated ACK-002 and
-Codex sent the validator-passing READ receipt-003 (receipt SHA-256
-`3b12f088035682f24492b7c9b16d6447f7ce2a8ea5ea03bcb19856e816082e05`, with
-remote readback). No implementation evidence is counted yet. Hermes must
-preserve relay API, role, model-scope, idempotency, retry and
-channel-value behavior, add six-locale behavior/catalog coverage, and return
-changed-file hashes plus real exits before Codex audits any delivery. No live
-action occurred.
+The existing POST/PATCH paths, idempotency keys, response confirmation,
+retry-same-intent behavior, role gate, model scope, confirmation semantics and
+channel values are unchanged. Focused behavior coverage is 10/10: server-
+generated IDs, six-locale output, owner/editor and read-only rendering,
+populated enabled/disabled rows, localized confirmation, validation,
+rejection, success and retry-same-intent states. Core passed 19 files/105
+tests; dashboard passed 145 files/902 tests; core/dashboard typechecks passed;
+lint exited with no errors and retains four pre-existing dashboard `any`
+warnings; `scripts/verify.sh` returned `verify: ok`; `git diff --check`
+passed. Source commit `7536083ba115ae8849c450c9dee677f10e8e14d7` was pushed and
+read back from the branch. No live action occurred.
+
+The Hermes F71 transport lane is closed by local fallback. Its ACK/READ receipt
+was transport evidence only, and authoritative reads found no COPY_ROOT or
+DELIVERY_ROOT to audit; no Hermes artifact was accepted or integrated. A fresh
+Hermes lane must bind to the next source audit and may not resume F71.

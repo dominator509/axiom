@@ -7,34 +7,34 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `4884a0c2553729b5adef99abee5a72f1f9912e38` (reviewed M856 product source; later commits are coordination-only)
+SOURCE_HEAD: `7536083ba115ae8849c450c9dee677f10e8e14d7` (reviewed M857 product source; later commits are coordination-only)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `4884a0c2553729b5adef99abee5a72f1f9912e38` (immutable reviewed product source; later branch commits are coordination/evidence only)
-COORDINATION_HEAD: `4a72e2f0c76254ebe29635bf17136f3e88443a59` (immutable F71 source binding; coordination-only commits may advance the branch tip without changing the task source)
-ACCEPTED_PRODUCT_SOURCE: `4884a0c2553729b5adef99abee5a72f1f9912e38`
-LAST_COMPLETED_SOURCE_MILESTONE: `M856 — model Network route localization; source/UI only`
-ACTIVE_HERMES_LANE: `ACK_ACCEPTED — F71-RELAY-BINDING-LOCALIZATION-R1; Hermes ACK-002 was read and Codex receipt-003 was published, with concrete implementation evidence still pending`
+PUBLISHED_HEAD: `7536083ba115ae8849c450c9dee677f10e8e14d7` (immutable reviewed product source; later branch commits are coordination/evidence only)
+COORDINATION_HEAD: `7536083ba115ae8849c450c9dee677f10e8e14d7` (immutable M857 source binding; coordination-only commits may advance the branch tip without changing the task source)
+ACCEPTED_PRODUCT_SOURCE: `7536083ba115ae8849c450c9dee677f10e8e14d7`
+LAST_COMPLETED_SOURCE_MILESTONE: `M857 — relay binding operator-surface localization; source/UI only`
+ACTIVE_HERMES_LANE: `NONE — F71 relay-binding lane closed by Codex local fallback; no Hermes delivery was accepted`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `Poll the F71 relay-localization wire once for a correlated ACK/NACK; ACK/REPLIED is transport only, and no implementation is counted before ACCEPTED plus evidence-bearing PROGRESS or DELIVERY.`
+NEXT_ACTION: `Audit the remaining architecture gaps against the current source, select one finite criterion, and bind any new Hermes task to the freshly read remote source; do not resume the closed F71 lane.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `CODEX-F71-RELAY-BINDING-LOCALIZATION-R1-START-001; one active Hermes wire only`
-OPEN_CONTROL_WIRE: `CODEX-F71-RELAY-BINDING-LOCALIZATION-R1-START-001`
-OPEN_CONTROL_TASK_STATE: `ACK_ACCEPTED — Hermes returned HERMES-F71-RELAY-BINDING-LOCALIZATION-R1-ACK-002; Codex audited the sequence/correlation/source binding and sent READ receipt; implementation evidence is still pending`
-OPEN_CONTROL_TASK_REPLY_WIRE: `HERMES-F71-RELAY-BINDING-LOCALIZATION-R1-ACK-002`
-OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `CODEX-F71-RELAY-BINDING-LOCALIZATION-R1-RECEIPT-003`
-OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `3b12f088035682f24492b7c9b16d6447f7ce2a8ea5ea03bcb19856e816082e05`
-OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-F71-RELAY-BINDING-LOCALIZATION-R1-RECEIPT-003`
-OPEN_CONTROL_TASK_RECEIPT_SHA256: `3b12f088035682f24492b7c9b16d6447f7ce2a8ea5ea03bcb19856e816082e05`
+OPEN_WIRES: `NONE — F71 closed by local fallback`
+OPEN_CONTROL_WIRE: `NONE`
+OPEN_CONTROL_TASK_STATE: `CLOSED_LOCAL_FALLBACK — authoritative Hermes copy and delivery roots were absent; local M857 source is canonical`
+OPEN_CONTROL_TASK_REPLY_WIRE: `NONE`
+OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `NONE — the F71 transport receipt is historical, not implementation acceptance`
+OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `NONE`
+OPEN_CONTROL_TASK_RECEIPT_WIRE: `NONE`
+OPEN_CONTROL_TASK_RECEIPT_SHA256: `NONE`
 OPEN_CONTROL_TASK_CORRECTION_WIRE: `NONE`
 OPEN_CONTROL_TASK_CORRECTION_SHA256: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
-OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes now owns the next event: publish one evidence-bearing PROGRESS with a real source delta or one terminal DELIVERY/BLOCKED; another ACK is invalid.`
-ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization and M855 analytics trend-date localization are integrated on the branch. M855 criterion: daily analytics trend dates render through the selected locale with an explicit UTC zone instead of raw ISO strings; existing counts, percentages, permissions, analytics payloads and provider-free semantics remain unchanged; focused/full tests, typecheck, lint, build and verify gates pass; no live action.`
-CURRENT_MILESTONE: `M856 integrated at 4884a0c2; model Network route localization is complete as a local source/UI slice; focused network 16/16, core 105/105, full dashboard 145 files/893 tests, typecheck, lint and verify passed; dashboard build compiled and reached trace finalization but Windows standalone symlink creation failed with EPERM; no live action`
-CURRENT_MILESTONE_OPEN_GATES: `Root pnpm test retains four unrelated Windows subscription process-tree failures; repository-wide Prettier check retains 586 baseline files; dashboard standalone build tracing needs a symlink-capable environment; M856 source slice is complete; F71 relay-binding localization is the single active source lane; remaining architecture gaps include remaining catalog adoption and locale formatting, browser/native, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress rehearsal, and production acceptance`
+OPEN_CONTROL_TASK_NEXT_ACTION: `No further F71 event is actionable; late Hermes artifacts are stale and cannot be integrated into M857.`
+ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization and M857 relay-binding localization are integrated on the branch; no active Hermes product lane.`
+CURRENT_MILESTONE: `M857 integrated at 7536083b; RelayBindingManager now consumes the selected six-locale catalog while preserving API, idempotency, role, model-scope, confirmation and retry behavior; focused relay tests 10/10, core 105/105, full dashboard 145 files/902 tests, typecheck, lint and verify passed; no live action`
+CURRENT_MILESTONE_OPEN_GATES: `Root pnpm test retains four unrelated Windows subscription process-tree failures; repository-wide Prettier check retains 586 baseline files; dashboard standalone build tracing needs a symlink-capable environment; M857 source slice is complete; no active Hermes product lane; remaining architecture gaps include remaining catalog adoption and locale formatting, browser/native, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress rehearsal, and production acceptance`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -42,20 +42,20 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `F71-RELAY-BINDING-LOCALIZATION-R1`
-NEXT_PREPARED_TASK_WIRE: `CODEX-F71-RELAY-BINDING-LOCALIZATION-R1-START-001`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `4a72e2f0c76254ebe29635bf17136f3e88443a59`
+NEXT_PREPARED_TASK: `NONE — select after the next source audit`
+NEXT_PREPARED_TASK_WIRE: `NONE`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `7536083ba115ae8849c450c9dee677f10e8e14d7`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `ACK_ACCEPTED — Hermes ACK-002 was read and receipt-003 was published; no implementation is counted until concrete PROGRESS or DELIVERY`
-ACTIVE_LANE_TASK_WIRE: `CODEX-F71-RELAY-BINDING-LOCALIZATION-R1-START-001`
-ACTIVE_LANE_SOURCE_COMMIT: `4a72e2f0c76254ebe29635bf17136f3e88443a59`
-ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/work/codex-f71-relay-binding-localization-r1`
-ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/deliveries/codex-f71-relay-binding-localization-r1`
-ACTIVE_LANE_COPY_STATE: `ACK_ACCEPTED — Hermes claims the exact source/copy audit is next; no source edit or delivery has been accepted`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `0668bd1bfbb0ea720df96e6d0acc85335bd520a65d040acb1befdbc6e920daa3`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `0668bd1bfbb0ea720df96e6d0acc85335bd520a65d040acb1befdbc6e920daa3`
-ACTIVE_LANE_ACK_WIRE: `HERMES-F71-RELAY-BINDING-LOCALIZATION-R1-ACK-002`
-ACTIVE_LANE_ACK_SHA256: `25957f5913bf797ff0dc2f5f6b177e7e8857c521a1b77ee5b15cd41312c2b2b3`
+NEXT_PREPARED_TASK_STATE: `NONE — no Hermes task is open`
+ACTIVE_LANE_TASK_WIRE: `NONE`
+ACTIVE_LANE_SOURCE_COMMIT: `7536083ba115ae8849c450c9dee677f10e8e14d7`
+ACTIVE_LANE_COPY_ROOT: `NONE — local fallback is canonical`
+ACTIVE_LANE_DELIVERY_ROOT: `NONE — no Hermes delivery accepted`
+ACTIVE_LANE_COPY_STATE: `CLOSED_LOCAL_FALLBACK — M857 source was implemented, tested, committed and pushed by Codex after the F71 roots remained absent`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `NONE — historical F71 envelope preserved below`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `NONE — historical F71 envelope preserved below`
+ACTIVE_LANE_ACK_WIRE: `NONE`
+ACTIVE_LANE_ACK_SHA256: `NONE`
 ACTIVE_LANE_PROGRESS_WIRE: `NONE`
 ACTIVE_LANE_PROGRESS_SHA256: `NONE`
 ACTIVE_LANE_CORRECTION_WIRE: `NONE`
@@ -66,7 +66,7 @@ ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `NONE`
 ACTIVE_LANE_SOURCE_BUNDLE: `NONE — exact Git source ref is authoritative`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `NONE`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — exact Git source task`
-ACTIVE_LANE_SOURCE_TRANSPORT: `Exact source commit 4a72e2f0 was read back from origin and is the only authorized implementation source; no archive substitution is authorized`
+ACTIVE_LANE_SOURCE_TRANSPORT: `M857 local fallback source 7536083b was audited, committed and read back from origin; no Hermes artifact was accepted`
 ACTIVE_LANE_TRANSPORT_NAMING: `Every bridge envelope filename equals its msg_id; task and correction hashes are independently pinned`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id is the identity; new filenames should match it, but consumers must resolve by unique JSON msg_id and never rename or reject a legacy file solely for a filename mismatch`
 BRIDGE_EXECUTION_MODEL: `The bridge poller reports inbox traffic only; it does not execute Hermes tasks. A valid inbox file is transport evidence, not ACK, ownership, progress or delivery.`
@@ -119,9 +119,9 @@ RECONCILIATION_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-RECEIPT-005
 RECONCILIATION_RECEIPT_SHA256: `9b44ae04f313a03f8a7ebd38d48a74b69b0c4dbb0d43ac6d233fb753e0a47d84`
 HERMES_STALE_LANE_POLICY: `Historical lanes and the closed F89 PlaybookHistory wire remain quarantined; Hermes must not resume a task without a fresh exact-source wire selected by Codex`
 LOCAL_WORKTREE_POLICY: `Codex audits, tests, commits and pushes local milestones; untracked Hermes review artifacts remain untouched`
-NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provider, credential, permission, network or service action; the open Hermes lane is source-only`
+NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provider, credential, permission, network or service action; no Hermes product lane is active`
 SHIP_GATE_STATUS: `PASS — scripts/verify.sh returned verify: ok; preflight and P0-P4 gates passed; no live action`
-SHIP_GATE_HEAD: `2c725ebad35394e915847f96cd79d2ac7ecc86c9` (M849 source evidence and milestone ledger reconciled; scripts/verify.sh returned verify: ok; full dashboard matrix passed; no live action)
+SHIP_GATE_HEAD: `7536083ba115ae8849c450c9dee677f10e8e14d7` (M857 source verified; scripts/verify.sh returned verify: ok; full dashboard matrix passed; no live action)
 
 ## Seamless Codex/Hermes loop contract
 
