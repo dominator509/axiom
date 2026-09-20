@@ -10,7 +10,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 SOURCE_HEAD: `224458139080fe674453e2a8116e42ca26b8c3f4` (reviewed M858 product source; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `224458139080fe674453e2a8116e42ca26b8c3f4` (immutable reviewed product source; later branch commits are coordination/evidence only)
-COORDINATION_HEAD: `846f8ba07f8523ca888130fe155e25422dc41e6c` (M858 source binding remains `224458139080fe674453e2a8116e42ca26b8c3f4`; this is a coordination-only tip)
+COORDINATION_HEAD: `REMOTE_BRANCH_TIP — read refs/heads/codex/telegram-webhook-hardening before every new lane; M858 source binding remains 224458139080fe674453e2a8116e42ca26b8c3f4`
 ACCEPTED_PRODUCT_SOURCE: `224458139080fe674453e2a8116e42ca26b8c3f4`
 LAST_COMPLETED_SOURCE_MILESTONE: `M858 — workspace-member operator controls localization; source/UI only`
 ACTIVE_HERMES_LANE: `NONE — F71 relay-binding lane closed by Codex local fallback; no Hermes delivery was accepted`
