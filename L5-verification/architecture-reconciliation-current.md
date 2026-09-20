@@ -805,3 +805,24 @@ prints `verify: ok`. Source commit
 `origin/codex/telegram-webhook-hardening`. This closes only the M843 source/UI
 slice; browser/native, provider, deployed migration/RLS/runtime, observability,
 CI governance and production acceptance remain open. No live action occurred.
+
+### M844 — F-89 Chatter InboxReplies localization
+
+The mounted Chatter `InboxReplies` workflow now consumes typed catalog keys across
+all six launch locales for history loading, assigned-LLM private drafting,
+human-approval prompts, send/cancel actions, status/outcome and retry states,
+character counts, and prepared timestamps with explicit UTC formatting. The
+existing boundary remains unchanged: assigned-LLM drafts are private review
+artifacts and human approval is required before a send; saving or drafting never
+sends automatically.
+
+Evidence: `InboxReplies` behavior/locale tests 13/13, full dashboard matrix 140
+files and 861 tests passed, core locale tests 57/57, core/dashboard typechecks
+passed, core/dashboard lint exited 0 with four pre-existing `any` warnings,
+dashboard production build compilation/lint/type/page generation/trace passed,
+and `scripts/verify.sh` prints `verify: ok`. Source commit
+`78809a3ca102b218dfe616e36372896de9ef08bc` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
+remaining dashboard/email/operator localization, browser/native, provider,
+deployed migration/RLS/runtime, observability, CI governance and production
+acceptance remain open. No live action occurred.

@@ -866,6 +866,26 @@ production build compilation/lint/type/page generation/trace passed, and
 browser/native, provider, deployed migration/RLS/runtime, observability, CI
 governance and production acceptance remain open. No live action occurred.
 
+# M844: Chatter InboxReplies localization
+
+The mounted Chatter `InboxReplies` workflow now uses the shared six-locale
+catalog for reply-history loading, assigned-LLM private drafting, human-approval
+prompts, send/cancel actions, status/outcome and retry states, character counts,
+and prepared timestamps with explicit UTC formatting. The existing safety
+boundary is unchanged: assigned-LLM drafts are private review artifacts,
+approval is required before send, and drafting or saving never sends automatically.
+
+Evidence: `InboxReplies` behavior/locale tests 13/13, full dashboard matrix 140
+files and 861 tests passed, core locale tests 57/57, core/dashboard typechecks
+passed, core/dashboard lint exited 0 with four pre-existing `any` warnings,
+dashboard production build compilation/lint/type/page generation/trace passed,
+and `scripts/verify.sh` prints `verify: ok`. Source commit
+`78809a3ca102b218dfe616e36372896de9ef08bc` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. Remaining dashboard/email/operator
+localization, browser/native, provider, deployed migration/RLS/runtime,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
+
 # M839: model overview route-shell localization
 
 The model overview route now resolves the persisted interface locale through
