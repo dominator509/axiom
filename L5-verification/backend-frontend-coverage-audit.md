@@ -1,6 +1,6 @@
 # Backend-to-frontend coverage audit
 
-Source baseline: `d7e74ea624cf845f981360c51219eaf86f72f6f6`.
+Source baseline: `89477724ec180a2e91a874ff1a21f3b680a01047`.
 
 ## Verdict and evidence boundary
 
@@ -25,7 +25,7 @@ runtime-accepted merely because its unit tests pass.
 | F-06, F-07 | **Source-wired / partial**: Fanvue top-spender/status ingestion, account metrics, CRM tier updates, idempotent normalized touchpoints, authenticated read, and operator sync queue are implemented | Deployed migration/RLS, live provider OAuth/scopes, worker execution, multi-provider event adapters, and browser/mobile/provider acceptance remain open |
 | F-09 | **Internal**: pre-post executor exists and is in the generation/publish chain | Runtime script/container acceptance remains open; no separate button is required |
 | F-10 | **Source-wired / partial**: schedule page, DST-aware reschedule/cancel controls, visual month/week board, accessible date-based move control, and advisory viral optimal-time suggestions exist | Browser/mobile acceptance, provider-backed scheduling, and deployed runtime evidence remain open |
-| F-11 | **Wired/partial**: model-scoped cascade-template CRUD and a responsive Cascade schedules page persist ordered platform offsets and expand approved bundles into ordinary scheduled targets | Live account/consent/capability/worker acceptance and browser persistence remain open; expansion deliberately does not bypass approval or publication gates |
+| F-11 | **Wired/partial**: model-scoped cascade-template CRUD and a responsive Cascade schedules page persist ordered platform offsets and expand approved bundles into ordinary scheduled targets; the route loaded/error shell is catalog-backed across six launch locales | Live account/consent/capability/worker acceptance and browser persistence remain open; expansion deliberately does not bypass approval or publication gates |
 | F-12 | **Wired**: Safety page and kill-switch API/worker interlock exist | Live response-time and multi-worker drain rehearsal remain open |
 | F-13, F-15, F-16 | **Wired/partial**: model-scoped variant experiments provide draft/running/paused/completed lifecycle, deterministic assignment, exposure/outcome capture, and winner promotion | Statistical validity and live worker/provider acceptance remain open |
 | F-14 | **Internal/partial**: media-plane primitives exist | User-configurable per-model watermark policy and CDN/runtime acceptance are not established |

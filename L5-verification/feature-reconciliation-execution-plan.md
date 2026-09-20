@@ -1108,3 +1108,18 @@ dashboard/core files passes, and `git diff --check` passes. Source commit
 `d7e74ea624cf845f981360c51219eaf86f72f6f6` is pushed and read back from
 `origin/codex/telegram-webhook-hardening`. Package-wide dashboard lint was not
 counted for this slice because it previously hung in this environment.
+
+### M793 — F-89 cascades route shell localization
+
+The model-scoped cascades route now resolves the persisted interface locale
+through the shared server-locale helper. Loaded, unavailable and load-failure
+copy use typed catalog keys in all six launch locales. Existing model scope,
+edit-role calculation, template loading and scheduling behavior are unchanged;
+this gate covers the route shell only.
+
+Evidence: focused cascades route tests 2/2, core locale tests 28/28, core and
+dashboard typechecks pass, core build passes, focused ESLint for changed
+dashboard/core files passes, and `git diff --check` passes. Source commit
+`89477724ec180a2e91a874ff1a21f3b680a01047` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. Package-wide dashboard lint was not
+counted for this slice because it previously hung in this environment.
