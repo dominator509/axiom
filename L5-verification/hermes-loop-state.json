@@ -16,7 +16,7 @@
   "next_seq": 5,
   "last_wire": "CODEX-F89-CONSENT-VAULT-L10N-R1-LOCAL-FALLBACK-004",
   "supersedes": [],
-  "next_action": "Hermes lane remains closed after the second strict-protocol failure; M852 and the reconciled M853 Fan CRM localization slice are integrated locally at source commit 4a22f17f; do not accept an artifact from this closed lane; select a new finite task only after architecture reconciliation.",
+  "next_action": "Hermes lane remains closed after the second strict-protocol failure; M852, M853 Fan CRM localization and M854 Chatter/roleplay localization are integrated locally at source commit 5c0163fb; do not accept an artifact from this closed lane; select a new finite task only after architecture reconciliation.",
   "live_actions": "NONE",
   "forbidden_actions": [
     "installer",

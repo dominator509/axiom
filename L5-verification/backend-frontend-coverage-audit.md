@@ -1145,3 +1145,31 @@ passed with explicit non-secret API_ORIGIN; source commit
 Remaining evidence gates are browser/mobile, provider, deployed migration/RLS/
 runtime, observability, CI governance and production acceptance. No live action
 occurred.
+
+# M854: Chatter/roleplay localization and safe error reconciliation
+
+Audit criteria for this slice were deliberately limited to the architecture's
+already-identified roleplay contract: human or assigned-LLM actor selection,
+bounded memory/handoff, suggested or manual persona input, bounded local
+persona-file loading, the Grok roleplay-turn path, localized mounted-surface
+copy, and no raw backend exception presentation. The audit did not treat a
+source-only UI pass as provider, browser, migration, runtime or production
+evidence.
+
+The existing `RoleplayManager` satisfied the actor, memory, persona and Grok
+mechanics. The implementation change localized its context/mutation/memory/
+Grok failure states and removed raw error-message/detail presentation. The
+roleplay page now resolves the persisted server locale, localizes access/load
+states and role labels, and preserves actor/provider/user identifiers as data.
+No send, approval, memory-boundary, model-scope or provider-call behavior was
+changed.
+
+Pass evidence: focused roleplay page/manager tests 3 files/6 tests; full
+dashboard 145 files/886 tests; typecheck; lint with 0 errors and four
+pre-existing `any` warnings; diff check; elevated production build; and
+`scripts/verify.sh` => `verify: ok`. Source commit
+`5c0163fbfe7d7e26eacdb404a3f512943930707b` is the exact local M854 source
+commit. Open gates remain browser/mobile, provider/OAuth/Patreon receipts,
+deployed migration/RLS/runtime, observability, CI governance,
+WireGuard/customer-egress rehearsal and production acceptance. No live action
+occurred.

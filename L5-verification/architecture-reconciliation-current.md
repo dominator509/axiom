@@ -1019,3 +1019,30 @@ symlink capability. Source commit
 commit. This closes only the M853 Fan CRM source/UI slice; browser/mobile,
 provider, deployed migration/RLS/runtime, observability, CI governance and
 production acceptance remain open. No live action occurred.
+
+### M854 — F-89 Chatter/roleplay localization and bounded error presentation
+
+The architecture-backed Chatter/roleplay surface was audited before editing.
+The existing implementation already provides the requested human-versus-
+assigned-LLM actor choice, bounded handoff/memory, suggested-personality and
+manual-persona modes, local `.md`/`.txt` persona loading with a size cap, and
+the assigned Grok roleplay-turn path. M854 does not claim those mechanics as
+new; it closes the remaining mounted-surface gap around localization and safe
+error presentation.
+
+`RoleplayManager` now uses feature-owned catalog keys for context, mutation,
+memory and Grok-turn failures and never renders raw backend exception text.
+The roleplay page resolves the persisted server locale, localizes access and
+load failures, and distinguishes the human-chatter and assigned-LLM actor
+labels without translating user/provider identifiers. Existing approval,
+memory-boundary, model-scope and provider-call semantics remain unchanged.
+
+Evidence: focused roleplay page/manager tests 3 files/6 tests passed; full
+dashboard matrix 145 files/886 tests passed; dashboard typecheck passed; lint
+exited 0 with four pre-existing `any` warnings; diff check passed; elevated
+dashboard production build passed with explicit non-secret `API_ORIGIN`; and
+`scripts/verify.sh` printed `verify: ok`. Product source commit
+`5c0163fbfe7d7e26eacdb404a3f512943930707b` is the reviewed M854 commit.
+Browser/mobile, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime,
+observability, CI governance, WireGuard/customer-egress rehearsal and
+production acceptance remain open. No live action occurred.
