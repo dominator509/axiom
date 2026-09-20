@@ -1,0 +1,40 @@
+{
+  "protocol": "FT-HERMES/1",
+  "contract": "ACK-NACK-1",
+  "task": "CONTROL-PLANE-HERMES-LOOP-SYNC-R2",
+  "task_msg_id": "codex-hermes-loop-sync-r2",
+  "task_filename": "codex-hermes-loop-sync-r2.json",
+  "task_wire": "CODEX-CONTROL-PLANE-HERMES-LOOP-SYNC-R2-001",
+  "source_branch": "refs/heads/codex/telegram-webhook-hardening",
+  "source_commit": "2eb03248b9fb64ca83a32dc761cad96ee1fe9a0d",
+  "task_sha256": "3c23e58b1012996c78f0ed2086022d9322a84bea9d1f62f1120c2905663b00d6",
+  "copy_root": "READ_ONLY_EXACT_SOURCE",
+  "delivery_root": "NONE",
+  "state": "OPEN",
+  "next_owner": "HERMES",
+  "last_seq": 0,
+  "next_seq": 1,
+  "last_wire": "NONE",
+  "supersedes": [
+    "CODEX-F14-WATERMARK-POLICY-SOURCE-R10-001",
+    "F14-MODEL-WATERMARK-POLICY-SOURCE-R9",
+    "F14-MODEL-WATERMARK-POLICY-SOURCE-R8"
+  ],
+  "next_action": "Read the exact pushed source and canonical loop manifest, then return one fresh correlated ACK/READ or NACK/BLOCKED.",
+  "live_actions": "NONE",
+  "forbidden_actions": [
+    "application edits",
+    "product implementation",
+    "installer",
+    "deployment",
+    "database",
+    "migration",
+    "provider",
+    "credentials",
+    "permissions",
+    "systemd",
+    "network",
+    "runtime"
+  ],
+  "signature": "sincerely, Codex"
+}
