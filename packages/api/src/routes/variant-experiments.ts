@@ -13,6 +13,7 @@ import type { Context } from 'hono';
 import { withOrgContext, requireOrg, apiError, statusTitle, writeAudit } from './helpers.js';
 import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
+import { attributeGuidance, accountExposures, type GuidanceEvidence } from '../variant-ab-contract.js';
 import { projectStoredVariantGuidance, readVerifiedGuidance, type StoredVariantGuidance } from '../variant-guidance.js';
 
 const router = new Hono<AppBindings>();
@@ -52,6 +53,68 @@ router.get('/models/:modelId/variant-experiments/:experimentId/performance', asy
     return { ...row, guidance: projectStoredVariantGuidance(settings) };
   });
   return c.json({ data, assessment: assessVariantPerformance(candidateIds, rows, rows.length > 100), meta: { truncated: rows.length > 100, source: 'published-target-metrics' } });
+});
+
+router.get('/models/:modelId/variant-experiments/:experimentId/guidance-attribution', async c => {
+  const orgId = requireOrg(c), modelId = c.req.param('modelId'), experimentId = c.req.param('experimentId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  if (![modelId, experimentId].every(id => z.string().uuid().safeParse(id).success)) return apiError(c, 400, statusTitle(400), 'Invalid experiment identity');
+  const data = await withOrgContext(orgId, async tx => {
+    const [experiment] = await tx.select({ id: schema.variantExperiment.id, variantIds: schema.variantExperiment.variantIds })
+      .from(schema.variantExperiment).where(and(
+        eq(schema.variantExperiment.id, experimentId),
+        eq(schema.variantExperiment.modelId, modelId),
+        eq(schema.variantExperiment.orgId, orgId),
+      )).limit(1);
+    if (!experiment) return null;
+    const assignments = await tx.select({
+      id: schema.variantExperimentAssignment.id,
+      experimentId: schema.variantExperimentAssignment.experimentId,
+      variantId: schema.variantExperimentAssignment.variantId,
+      converted: schema.variantExperimentAssignment.converted,
+      metricValue: schema.variantExperimentAssignment.metricValue,
+    }).from(schema.variantExperimentAssignment).where(and(
+      eq(schema.variantExperimentAssignment.orgId, orgId),
+      eq(schema.variantExperimentAssignment.experimentId, experiment.id),
+    ));
+    const variants = await tx.select({ id: schema.assetVariant.id, settings: schema.assetVariant.settings })
+      .from(schema.assetVariant).innerJoin(schema.asset, and(
+        eq(schema.asset.id, schema.assetVariant.assetId),
+        eq(schema.asset.orgId, orgId),
+        eq(schema.asset.modelId, modelId),
+      )).where(and(
+        eq(schema.assetVariant.orgId, orgId),
+        inArray(schema.assetVariant.id, experiment.variantIds),
+      ));
+    const evidenceByVariant = new Map<string, GuidanceEvidence>();
+    for (const variant of variants) {
+      const guidance = projectStoredVariantGuidance(variant.settings);
+      if (guidance) evidenceByVariant.set(variant.id, {
+        guidanceReceiptId: guidance.guidanceReceiptId,
+        hookType: guidance.hookType,
+        format: guidance.format,
+        postingHourUtc: guidance.postingHourUtc,
+        timingBucket: guidance.timingBucket,
+      });
+    }
+    const reports = accountExposures(experiment.id, assignments.map((assignment: {
+      id: string;
+      experimentId: string;
+      variantId: string;
+      converted: boolean;
+      metricValue: number | null;
+    }) => ({
+      assignmentId: assignment.id,
+      experimentId: assignment.experimentId,
+      variantId: assignment.variantId,
+      assignmentKey: assignment.id,
+      converted: assignment.converted,
+      metricValue: assignment.metricValue ?? undefined,
+    })));
+    return attributeGuidance(evidenceByVariant, reports);
+  });
+  if (!data) return apiError(c, 404, statusTitle(404), 'variant experiment not found');
+  return c.json({ data, meta: { source: 'assignment-outcomes', attribution: 'verified-guidance-receipt' } });
 });
 
 router.get('/models/:modelId/variant-experiments/guidance-sources', async c => {

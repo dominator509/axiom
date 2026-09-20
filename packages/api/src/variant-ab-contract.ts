@@ -222,7 +222,8 @@ export function attributeGuidance(
   evidenceByVariant: Map<string, GuidanceEvidence>,
   reports: ExposureReport[],
 ): GuidanceAttribution[] {
-  const byReceipt = new Map<string, GuidanceAttribution>();
+  type Accumulator = GuidanceAttribution & { metricSum: number; metricCount: number };
+  const byReceipt = new Map<string, Accumulator>();
   for (const report of reports) {
     const evidence = evidenceByVariant.get(report.variantId);
     if (!evidence?.guidanceReceiptId) continue;
@@ -231,19 +232,18 @@ export function attributeGuidance(
       variantIds: [],
       exposures: 0,
       conversions: 0,
+      metricSum: 0,
+      metricCount: 0,
     };
     if (!entry.variantIds.includes(report.variantId)) entry.variantIds.push(report.variantId);
     entry.exposures += report.exposures;
     entry.conversions += report.conversions;
-    const avg = averageMetric(report);
-    if (avg !== undefined) {
-      entry.averageMetric = entry.averageMetric === undefined
-        ? avg
-        : (entry.averageMetric + avg) / 2;
-    }
+    entry.metricSum += report.metricSum;
+    entry.metricCount += report.metricCount;
+    entry.averageMetric = entry.metricCount === 0 ? undefined : entry.metricSum / entry.metricCount;
     byReceipt.set(evidence.guidanceReceiptId, entry);
   }
-  return [...byReceipt.values()];
+  return [...byReceipt.values()].map(({ metricSum: _metricSum, metricCount: _metricCount, ...entry }) => entry);
 }
 
 // ─── Tenant isolation & bounded pagination ────────────────────────────────

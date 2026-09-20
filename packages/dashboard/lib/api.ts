@@ -377,6 +377,14 @@ export interface VariantGuidanceSummary {
   timingBucket?: 'morning' | 'afternoon' | 'evening' | 'night';
 }
 
+export interface VariantGuidanceAttribution {
+  guidanceReceiptId: string;
+  variantIds: string[];
+  exposures: number;
+  conversions: number;
+  averageMetric?: number;
+}
+
 export interface VariantGuidanceSource {
   id: string;
   sourceVariantId: string | null;

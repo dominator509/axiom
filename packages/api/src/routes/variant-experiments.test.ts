@@ -104,6 +104,31 @@ it('counts completed conversion outcomes without numeric metrics', async () => {
   expect(response.status).toBe(200);
   expect((await response.json() as any).data[0].stats[0]).toMatchObject({ exposures: 2, outcomes: 1, conversions: 1, metricTotal: 0 });
 });
+it('exposes selected guidance attribution from scoped assignment outcomes', async () => {
+  const secondVariant = '33333333-3333-4333-8333-333333333333';
+  const guidance = {
+    version: 'caption-guidance-v1', sourceBundleId, sourceVariantId: null, platform: 'instagram',
+    selectedArm: 'short:question', context: 'learn-v1:scheduled-utc-unknown', captionSha256: captionSha256(guidanceText),
+    hookType: 'question', format: 'single',
+  };
+  mockState.results = [[], [{ id, modelId: id, variantIds: [id, secondVariant] }], [
+    { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', experimentId: id, variantId: id, converted: true, metricValue: 10 },
+    { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', experimentId: id, variantId: secondVariant, converted: false, metricValue: 20 },
+  ], [
+    { id, settings: { guidance } },
+    { id: secondVariant, settings: { guidance } },
+  ]];
+  const response = await app().request(`/models/${id}/variant-experiments/${id}/guidance-attribution`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    data: [{ guidanceReceiptId: `${sourceBundleId}:instagram`, variantIds: [id, secondVariant], exposures: 2, conversions: 1, averageMetric: 15 }],
+    meta: { source: 'assignment-outcomes', attribution: 'verified-guidance-receipt' },
+  });
+});
+it('does not expose guidance attribution for an absent scoped experiment', async () => {
+  mockState.results = [[], []];
+  expect((await app().request(`/models/${id}/variant-experiments/${id}/guidance-attribution`)).status).toBe(404);
+});
 it('does not update an assignment when the scoped experiment is absent', async () => {
   mockState.results = [[], []];
   expect((await outcome()).status).toBe(404);

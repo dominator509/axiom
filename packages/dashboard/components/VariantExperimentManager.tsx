@@ -7,6 +7,7 @@ import BundleMedia from './BundleMedia';
 import VariantExperimentTracking from './VariantExperimentTracking';
 import VariantReviewCreate from './VariantReviewCreate';
 import VariantPublishedPerformance from './VariantPublishedPerformance';
+import VariantGuidanceAttribution from './VariantGuidanceAttribution';
 import VariantEvaluationReport from './VariantEvaluationReport';
 import Link from 'next/link';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
@@ -204,6 +205,7 @@ export default function VariantExperimentManager({
               </p> : experiment.status !== 'completed' && <p className="subtle">Winner selection is an operator decision, not a statistical-significance claim. Every variant needs at least one recorded outcome.</p>}
               <VariantExperimentTracking modelId={modelId} experimentId={experiment.id} status={experiment.status} platform={experiment.platform} canEdit={canEdit} />
               <VariantPublishedPerformance modelId={modelId} experimentId={experiment.id} />
+              <VariantGuidanceAttribution modelId={modelId} experimentId={experiment.id} />
               <VariantEvaluationReport evaluation={experiment.evaluation} variantIds={experiment.variantIds} winnerVariantId={experiment.winnerVariantId} />
             </article>
           ))}

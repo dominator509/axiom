@@ -205,6 +205,18 @@ describe('variant guidance attribution and hook/timing evidence', () => {
     ]);
     expect(attributeGuidance(evidence, reports)).toEqual([]);
   });
+
+  it('weights guidance metrics by their actual sample counts', () => {
+    const evidence = new Map<string, GuidanceEvidence>([
+      ['var-1', { guidanceReceiptId: 'gr-1' }],
+      ['var-2', { guidanceReceiptId: 'gr-1' }],
+    ]);
+    const attribution = attributeGuidance(evidence, [
+      { experimentId: 'exp-1', variantId: 'var-1', exposures: 1, conversions: 0, metricSum: 10, metricCount: 1 },
+      { experimentId: 'exp-1', variantId: 'var-2', exposures: 3, conversions: 1, metricSum: 60, metricCount: 3 },
+    ]);
+    expect(attribution).toEqual([expect.objectContaining({ guidanceReceiptId: 'gr-1', averageMetric: 17.5 })]);
+  });
 });
 
 describe('variant tenant isolation and pagination', () => {
