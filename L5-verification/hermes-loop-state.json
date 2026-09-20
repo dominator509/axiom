@@ -10,18 +10,18 @@
   "task_sha256": "2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91",
   "copy_root": "/srv/fanthynks-bridge/hermes/codex-f89-playbook-history-localization-001",
   "delivery_root": "/srv/fanthynks-bridge/hermes/codex-f89-playbook-history-localization-001/delivery",
-  "state": "ACCEPTED",
+  "state": "IN_PROGRESS",
   "next_owner": "HERMES",
-  "last_seq": 4,
-  "next_seq": 5,
-  "last_wire": "CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-PROGRESS-REQUIRED-004",
+  "last_seq": 6,
+  "next_seq": 7,
+  "last_wire": "CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-PROGRESS-REJECT-006",
   "supersedes": [
     "CODEX-CONTROL-PLANE-HERMES-EXACT-SOURCE-SYNC-001",
     "CODEX-F14-WATERMARK-POLICY-SOURCE-R10-001",
     "F14-MODEL-WATERMARK-POLICY-SOURCE-R9",
     "F14-MODEL-WATERMARK-POLICY-SOURCE-R8"
   ],
-  "next_action": "Publish one evidence-bearing PROGRESS with the isolated COPY_ROOT, actual changed paths, and at least one executed focused test or typecheck with its real exit code; then publish DELIVERY or terminal BLOCKED. Do not send another ACK, restamp a baseline, or open a new lane.",
+  "next_action": "Reissue the same substantive PROGRESS evidence at the next logical SEQ with a fresh Hermes WIRE, using a neutral PROGRESS_EVIDENCE field and no clock/date-like field names; then continue to DELIVERY. Do not resync, edit again, send another ACK, or open a new lane.",
   "live_actions": "NONE",
   "forbidden_actions": [
     "application edits before ACK/ACCEPTED",
