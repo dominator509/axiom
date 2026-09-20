@@ -1258,3 +1258,24 @@ coordination branch. This closes only the source/automated Patreon web
 localization criterion. Browser/native, deployed Patreon OAuth/webhook/sync,
 R2, provider, migration/RLS and production/operator acceptance remain open.
 No live action occurred.
+
+### M856 — F-89 model Network route localization (local fallback)
+
+The model Network page now uses the selected six-locale catalog for mounted
+network/security status, OAuth notices, social-connection controls, role
+guidance, connected-account tables and safe failure copy. Network `lastError`
+values are intentionally reduced to a localized generic failure message rather
+than being rendered into the page. Existing owner/manager/operator policy,
+model scoping, OAuth endpoints, account payloads and child component contracts
+remain unchanged.
+
+Pass criteria and evidence: network route tests 16/16; core locale suite
+105/105; full dashboard suite 145 files/893 tests; core/dashboard typechecks
+and linters pass with four pre-existing dashboard `any` warnings; verify gate
+prints `verify: ok`; source commit
+`4884a0c2553729b5adef99abee5a72f1f9912e38` is pushed and read back. The
+dashboard build compiles and reaches page generation but standalone tracing
+cannot create pnpm symlinks on this Windows host (`EPERM`). This closes only
+the source/automated Network localization criterion. Browser/native, provider,
+migration/RLS, runtime, deployment and production/operator acceptance remain
+open. No live action occurred.

@@ -1069,22 +1069,24 @@ deployed migration/RLS/runtime, observability, CI governance,
 WireGuard/customer-egress rehearsal and production acceptance remain open. No
 live action occurred.
 
-### M856 — F-89 model Network route localization (implementation in progress)
+### M856 — F-89 model Network route localization (local fallback)
 
-The next finite gap is source-confirmed rather than inferred: the model Network
-page still contains hardcoded operator-facing copy and renders the network
-`lastError` directly, while its child controls already consume the shared locale
-provider. A strict source-only Hermes task was issued against exact ref
-`a3be77a0926560d513dd7e59ef0eceafa9f978b2` with isolated copy and delivery
-roots. The task requires persisted-locale route rendering, six-locale fixed
-copy and status labels, safe bounded failures, preserved role/API/child-control
-contracts, focused behavior tests, typecheck and lint evidence.
+The model Network route now resolves the persisted UI locale through the shared
+server catalog for its owner-only network status, egress mode, health and
+latency labels, social-account controls, OAuth notices, role guidance, table
+headings and bounded failure states. Raw `lastError` text is no longer rendered
+to the browser. The existing role checks, model scope, OAuth links, child
+controls and API payloads are unchanged. All six launch catalogs cover the new
+typed keys.
 
-State is `IN_PROGRESS`: Hermes returned the correlated strict
-`ACK/ACCEPTED`, verified the exact pinned commit, rejected stale `main`,
-materialized the declared isolated copy, and published
-`HERMES-F89-NETWORK-PAGE-LOCALIZATION-R1-PROGRESS-004` with unchanged baseline
-hashes and the concrete edit/test next action. Codex recorded
-`CODEX-F89-NETWORK-PAGE-LOCALIZATION-R1-RECEIPT-005`; no source delivery has
-been accepted yet. The next valid event is one evidence-bearing
-`DELIVERY/DELIVERED` or terminal `BLOCKED`. No live action occurred.
+Hermes's F89 copy was not accepted: repeated authoritative reads found the
+declared COPY_ROOT byte-identical to its baseline and the DELIVERY_ROOT empty.
+Codex therefore closed that lane as a local fallback and published source
+commit `4884a0c2553729b5adef99abee5a72f1f9912e38`. Focused network tests passed
+16/16, core tests 105/105, the full dashboard matrix passed 145 files/893
+tests, dashboard/core typechecks and linters passed, and `scripts/verify.sh`
+printed `verify: ok`. The dashboard build compiled and completed page generation
+but Windows standalone tracing failed to create pnpm symlinks with `EPERM`.
+This is source/automated evidence only; browser/native, provider, migration/RLS,
+runtime, deployment and production acceptance remain open. No live action
+occurred.
