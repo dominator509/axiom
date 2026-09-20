@@ -7,11 +7,11 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `462cdaf31ee06e7263057df4489d7fbd14b4cd35` (reviewed M859 product source; remote readback matches)
+SOURCE_HEAD: `749acac34c9b759d2699b81db0463f36f43e733f` (M874 reviewed product source; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `462cdaf31ee06e7263057df4489d7fbd14b4cd35` (immutable reviewed product source; later branch commits are coordination/evidence only)
-COORDINATION_HEAD: `REMOTE_BRANCH_TIP — read refs/heads/codex/telegram-webhook-hardening before every new lane; sync-control mirror proof was e963fb855bdbcb10593ba961c990e37218d6b960; M859 product source binding remains 462cdaf31ee06e7263057df4489d7fbd14b4cd35`
-ACCEPTED_PRODUCT_SOURCE: `462cdaf31ee06e7263057df4489d7fbd14b4cd35`
+PUBLISHED_HEAD: `749acac34c9b759d2699b81db0463f36f43e733f` (M874 reviewed product source; remote readback matches)
+COORDINATION_HEAD: `749acac34c9b759d2699b81db0463f36f43e733f — read refs/heads/codex/telegram-webhook-hardening before every new lane; M874 product source and handoff are pushed and read back`
+ACCEPTED_PRODUCT_SOURCE: `749acac34c9b759d2699b81db0463f36f43e733f`
 LAST_COMPLETED_SOURCE_MILESTONE: `M874 — F89 worker digest localization integrated from independently hash-verified Hermes bytes via Codex fallback`
 ACTIVE_HERMES_LANE: `F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH — source bytes are independently verified and integrated; Hermes SEQ 4 was rejected because STATE: ACK is invalid under ACK-NACK-1; Codex sent the single SEQ 5 correction and awaits one republish-only DELIVERY at the next logical sequence`
 CODEX_OWNER: `CODEX`
@@ -33,7 +33,7 @@ OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
 OPEN_CONTROL_TASK_NEXT_ACTION: `No control action outstanding; use the verified Hermes-owned mirror and explicit per-task source-sync fields; do not open a competing product lane.`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization, M857 relay-binding localization, M858 workspace-members localization and M859 PlaybookCadence calendar localization are integrated on the branch; F50 Linktree is terminal deferred for missing provider contract; F89 worker-digest localization is the sole active Hermes product lane.`
-CURRENT_MILESTONE: `M874 F89 worker digest localization is integrated from independently hash-verified Hermes delivery bytes via Codex fallback; core digest tests 17/17, worker digest tests 5/5, core build 0, worker typecheck 0 and diff check 0; no live action`
+CURRENT_MILESTONE: `M874 F89 worker digest localization is integrated from independently hash-verified Hermes delivery bytes via Codex fallback; core digest tests 17/17, worker digest tests 5/5, core build 0, worker typecheck 0 and diff check 0; commit 749acac34c9b759d2699b81db0463f36f43e733f is pushed and read back; no live action`
 CURRENT_MILESTONE_OPEN_GATES: `Root pnpm test retains four unrelated Windows subscription process-tree failures; repository-wide Prettier check retains 586 baseline files; dashboard standalone build tracing needs a symlink-capable environment; F89 worker digest localization is source-complete locally but its Hermes envelope remains transport-invalid until republished; F50 Linktree is terminal deferred for missing provider contract; remaining architecture gaps include remaining catalog adoption and locale formatting, browser/native, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress rehearsal, and production acceptance`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
@@ -44,7 +44,7 @@ CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
 NEXT_PREPARED_TASK: `NONE — wait for the F89 republish-only DELIVERY, then select one new finite architecture gap from the pushed source`
 NEXT_PREPARED_TASK_WIRE: `NONE`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `M874 commit after push; read back before opening a new lane`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `749acac34c9b759d2699b81db0463f36f43e733f`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
 NEXT_PREPARED_TASK_STATE: `NOT_OPEN — no new implementation lane may start until the F89 transport correction is closed and the new source head is read back`
 ACTIVE_LANE_TASK_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH-START-001`
@@ -80,7 +80,7 @@ ACTIVE_LANE_DELIVERY_REJECTION_SHA256: `3f1c2c494ae0049706b7709cc7fb2c82e6413d81
 ACTIVE_LANE_PROGRESS_WIRE: `NONE`
 ACTIVE_LANE_PROGRESS_SHA256: `NONE`
 ACTIVE_LANE_CORRECTION_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH-ACK-REJECT-005`
-ACTIVE_LANE_CORRECTION_SHA256: `919ee3b403f56636073b71d4d6cd9658f6942d72e976fdc0d9e5e7bf2e7633c2`
+ACTIVE_LANE_CORRECTION_SHA256: `fd6c6d842f81192eba229f98b311e5898cbc47fc316832395ecf63fe44b84a13`
 ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `fd6c6d842f81192eba229f98b311e5898cbc47fc316832395ecf63fe44b84a13 — remote readback matches`
 ACTIVE_LANE_SUPERSEDE_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-DELIVERY-REJECTED-006`
 ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `36d1a523e3a62293671ceb77e59539388c73564f02b46f5afb7d9b591142d494`
