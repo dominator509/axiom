@@ -9,8 +9,8 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef` (M892 reviewed product source; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `6cea0534dc9c7ece0e51bba96616d86e5eaa845b` (M897 immutable variant-source task; remote readback matches)
-COORDINATION_HEAD: `def99c84455c76498c25000c211556b6d6e4318c — M895 recorded the closed storage lane and exact variant-guidance task; pushed and read back`
+PUBLISHED_HEAD: `8bcecee60bb28d1e68a1c552a19383140a0f3641` (M898 exact Hermes envelope correction; remote readback matches)
+COORDINATION_HEAD: `8bcecee60bb28d1e68a1c552a19383140a0f3641 — M898 exact Hermes envelope correction; pushed and read back`
 ACCEPTED_PRODUCT_SOURCE: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
 LAST_COMPLETED_SOURCE_MILESTONE: `M892 — independently audited Hermes R3 storage hardening integrated, focused gates passed, pushed at c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
 ACTIVE_HERMES_LANE: `F15-F16-VARIANT-GUIDANCE-CORRECTED — sole active source-only lane against immutable c884ad4 ref; malformed R1 response is closed and not reopened`
