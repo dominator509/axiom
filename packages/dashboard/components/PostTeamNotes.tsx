@@ -1,8 +1,10 @@
 'use client';
 import { useRef, useState } from 'react';
+import { formatDate } from '@axiom/core';
 import type { TeamNote } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 export function isPostNote(value: unknown, modelId: string, postId: string): value is TeamNote {
   if (!value || typeof value !== 'object') return false;
@@ -11,6 +13,7 @@ export function isPostNote(value: unknown, modelId: string, postId: string): val
     && typeof note.body === 'string' && typeof note.authorUserId === 'string' && Number.isFinite(Date.parse(note.createdAt));
 }
 export default function PostTeamNotes({ modelId, postId, canEdit }: { modelId: string; postId: string; canEdit: boolean }) {
+  const { locale, t } = useLocale();
   const [notes, setNotes] = useState<TeamNote[]>([]), [cursor, setCursor] = useState<string | null>(null);
   const [body, setBody] = useState(''), [busy, setBusy] = useState(false), [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(''), [message, setMessage] = useState('');
@@ -29,7 +32,7 @@ export default function PostTeamNotes({ modelId, postId, canEdit }: { modelId: s
         || !result.meta || (result.meta.next_cursor !== null && !/^[0-9a-f-]{36}$/i.test(result.meta.next_cursor))) throw new Error('invalid notes');
       setNotes(previous => older ? [...previous, ...result.data as TeamNote[]].filter((note, index, all) => all.findIndex(item => item.id === note.id) === index) : result.data as TeamNote[]);
       setCursor(result.meta.next_cursor); setLoaded(true);
-    } catch { setError('Post notes could not be loaded. Try again.'); }
+    } catch { setError(t('team.postNotesLoadFailed')); }
     finally { active.current = false; setBusy(false); }
   }
   async function save() {
@@ -41,23 +44,24 @@ export default function PostTeamNotes({ modelId, postId, canEdit }: { modelId: s
       if (!response.ok) {
         const failure = await readDashboardError(response);
         if ([400, 422].includes(response.status)) intent.current = null;
-        setError(failure?.error?.message ?? 'Save not confirmed. Retry the same note.'); return;
+        setError(failure?.error?.message ?? t('team.postNoteSaveUnconfirmed')); return;
       }
       const result = await readDashboardJson<{ data: unknown }>(response);
       if (!isPostNote(result.data, modelId, postId) || result.data.body !== JSON.parse(intent.current.body).body) throw new Error('unconfirmed note');
       const saved = result.data;
       setNotes(previous => [saved, ...previous.filter(note => note.id !== saved.id)]);
-      setBody(''); intent.current = null; setMessage('Internal note saved. Nothing was sent to the social platform.');
-    } catch { setError('Save not confirmed. Retry the same note; do not create a duplicate.'); }
+      setBody(''); intent.current = null; setMessage(t('team.postNoteSaved'));
+    } catch { setError(t('team.postNoteSaveUnconfirmed')); }
     finally { active.current = false; setBusy(false); }
   }
-  return <details><summary>Internal post notes</summary><div className="stack">
-    <p className="subtle">Workspace-only notes attached to this post, never published as captions.</p>
-    <button type="button" className="btn secondary" disabled={busy} onClick={() => void load(false)}>Load latest notes</button>
-    {loaded && notes.length === 0 && <p>No notes for this post yet.</p>}
-    {notes.map(note => <article key={note.id} className="card"><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{note.body}</p><span className="subtle">{new Date(note.createdAt).toLocaleString()} · {note.authorUserId}</span></article>)}
-    {cursor && <button type="button" className="btn secondary" disabled={busy} onClick={() => void load(true)}>Load older notes</button>}
-    {canEdit && <><label>New internal note<textarea value={body} onChange={event => setBody(event.target.value)} maxLength={4000} disabled={busy || !!intent.current} /></label><button type="button" className="btn secondary" disabled={busy || (!intent.current && !body.trim())} onClick={() => void save()}>{intent.current ? 'Retry same note' : 'Save post note'}</button></>}
+  const noteTime = (value: string) => formatDate(new Date(value), locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
+  return <details><summary>{t('team.postNotesSummary')}</summary><div className="stack">
+    <p className="subtle">{t('team.postNotesDescription')}</p>
+    <button type="button" className="btn secondary" disabled={busy} onClick={() => void load(false)}>{t('team.loadLatestPostNotes')}</button>
+    {loaded && notes.length === 0 && <p>{t('team.noPostNotes')}</p>}
+    {notes.map(note => <article key={note.id} className="card"><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{note.body}</p><span className="subtle">{noteTime(note.createdAt)} · {note.authorUserId}</span></article>)}
+    {cursor && <button type="button" className="btn secondary" disabled={busy} onClick={() => void load(true)}>{t('team.loadOlderPostNotes')}</button>}
+    {canEdit && <><label>{t('team.newPostNote')}<textarea value={body} onChange={event => setBody(event.target.value)} maxLength={4000} disabled={busy || !!intent.current} /></label><button type="button" className="btn secondary" disabled={busy || (!intent.current && !body.trim())} onClick={() => void save()}>{intent.current ? t('team.retryPostNote') : t('team.savePostNote')}</button></>}
     {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
   </div></details>;
 }

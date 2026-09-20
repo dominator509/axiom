@@ -1,5 +1,18 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ locale: 'en', t: (key: string) => ({
+  'team.postNotesSummary': 'Internal post notes',
+  'team.loadLatestPostNotes': 'Load latest notes',
+  'team.postNotesDescription': 'Workspace-only notes attached to this post, never published as captions.',
+  'team.savePostNote': 'Save post note',
+  'team.retryPostNote': 'Retry same note',
+  'team.postNotesLoadFailed': 'Post notes could not be loaded. Try again.',
+  'team.postNoteSaveUnconfirmed': 'Save not confirmed. Retry the same note; do not create a duplicate.',
+  'team.postNoteSaved': 'Internal note saved. Nothing was sent to the social platform.',
+  'team.noPostNotes': 'No notes for this post yet.',
+  'team.loadOlderPostNotes': 'Load older notes',
+  'team.newPostNote': 'New internal note',
+}[key] ?? key) }) }));
 import PostTeamNotes, { isPostNote } from './PostTeamNotes';
 it('displays a post-specific internal workflow and hides editing from viewers', () => {
   const viewer = renderToStaticMarkup(<PostTeamNotes modelId="m" postId="p" canEdit={false} />);
