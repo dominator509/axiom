@@ -12,6 +12,32 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
   },
 }));
 vi.mock('@/lib/mutation', () => ({ createIdempotencyKey: () => 'assignment-intent', mutationFetch: hooks.send }));
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ locale: 'en', t: (key: string, values?: Record<string, string | number>) => {
+  const messages: Record<string, string> = {
+    'team.loadAssignments': 'Load assignments',
+    'team.assignmentLoadFailed': 'Assignments could not be loaded. No access changes were made. Try loading again.',
+    'team.assignmentRejected': 'Assignment request was rejected. Check your selection.',
+    'team.assignmentChangeUnconfirmed': 'Assignment change was not confirmed. Retry the same change; do not submit another.',
+    'team.assignmentSaved': 'Model assignment saved. The account role was not changed.',
+    'team.assignmentRemoved': 'Model assignment removed. Existing workspace-wide roles are unchanged.',
+    'team.retryAssignmentChange': 'Retry same assignment change',
+    'team.assignmentsAria': 'Model team assignments',
+    'team.assignmentsTitle': 'Model team assignments',
+    'team.assignmentsDescription': 'Owner-managed membership for this talent.',
+    'team.noAssignments': 'No team members assigned to this talent.',
+    'team.assignedAt': 'Assigned {value}',
+    'team.removeAssignment': 'Remove assignment',
+    'team.confirmRemoveAssignment': 'Remove this talent assignment for {name}?',
+    'team.confirmRemoval': 'Confirm removal',
+    'team.keepAssignment': 'Keep assignment',
+    'team.assignMember': 'Assign a workspace member',
+    'team.teamMember': 'Team member',
+    'team.selectMember': 'Select a member',
+    'team.assignToTalent': 'Assign to talent',
+    'team.loadMoreAssignments': 'Load more assignments',
+  };
+  return messages[key]?.replace('{name}', String(values?.name ?? '')).replace('{value}', String(values?.value ?? '')) ?? key;
+} }) }));
 import ModelAssignments, { validAssignment } from './ModelAssignments';
 const modelId = '11111111-1111-4111-8111-111111111111';
 const id = '22222222-2222-4222-8222-222222222222';
