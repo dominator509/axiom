@@ -806,6 +806,23 @@ source and automated generation-workflow localization slice. Browser/native,
 deployed media/runtime, R2, provider, migration/RLS and production acceptance
 remain open. No live action occurred.
 
+# M848: approval-queue localization
+
+The server-rendered approval queue now hides raw backend exceptions behind
+localized recovery copy and maps persisted ToS verdict codes through a
+feature-owned six-locale catalog, with an unknown-value fallback. Approval,
+ToS, mutation, publication and provider semantics are unchanged.
+
+Evidence: review catalog completeness 1/1; approval-page focused tests 36/36;
+full dashboard matrix 141 files and 864 tests passed; dashboard typecheck
+passed; dashboard lint exited 0 with four pre-existing `any` warnings; dashboard
+production build and `scripts/verify.sh` (`verify: ok`) passed. Source commit
+`022e1ed39b331a98c10d92143de14b4bf4c15deb` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. Remaining catalog adoption, other
+formatting surfaces, browser/native, provider, deployed migration/RLS/runtime,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
+
 # M847: affiliate hold-reason localization
 
 The mounted platform affiliate manager now renders known persisted hold reason

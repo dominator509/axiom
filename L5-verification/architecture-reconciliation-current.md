@@ -2,7 +2,7 @@
 
 Date: 2026-09-20  
 Repository: `dominator509/axiom`  
-Source checkpoint: `95e2eb3fdd553f896e7006bb990303813bc54772`
+Source checkpoint: `022e1ed39b331a98c10d92143de14b4bf4c15deb`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -731,6 +731,24 @@ slice; remaining dashboard/email/operator localization, other date/number/
 currency surfaces, browser/native, provider, deployed migration/RLS/runtime,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M848 - F-89 approval-queue localization
+
+The server-rendered approval queue now hides raw backend exceptions behind
+localized recovery copy and maps persisted ToS verdict codes through a
+feature-owned six-locale catalog, with an unknown-value fallback. This removes
+provider/backend wording and storage codes from the owner-facing review queue
+without changing approval, ToS, mutation, publication or provider semantics.
+
+Evidence: review catalog completeness 1/1; approval-page focused tests 36/36;
+full dashboard matrix 141 files and 864 tests passed; dashboard typecheck
+passed; dashboard lint exited 0 with four pre-existing `any` warnings; dashboard
+production build and `scripts/verify.sh` (`verify: ok`) passed. Source commit
+`022e1ed39b331a98c10d92143de14b4bf4c15deb` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the M848 source/UI
+slice; remaining catalog adoption, browser/native, provider, deployed
+migration/RLS/runtime, observability, CI governance and production acceptance
+remain open. No live action occurred.
 
 ### M847 - F-89 affiliate hold-reason localization
 
