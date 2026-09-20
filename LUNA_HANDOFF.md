@@ -7,10 +7,10 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `628c154c0d299d474f750214f3a518ab7f461c2d` (exact remote branch head after the Consent-lane loop-state synchronization)
+SOURCE_HEAD: `f91a39cf3e76e803a4b59e23a207278415dc933f` (exact source ref pinned to the active Consent Hermes lane; later commits are coordination-only)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `628c154c0d299d474f750214f3a518ab7f461c2d` (latest branch ref read back from origin; product source remains 22d97aff)
-COORDINATION_HEAD: `628c154c0d299d474f750214f3a518ab7f461c2d` (exact branch head shared with Hermes)
+PUBLISHED_HEAD: `f91a39cf3e76e803a4b59e23a207278415dc933f` (last source-bearing ref read back from origin; product source remains 22d97aff)
+COORDINATION_HEAD: `f91a39cf3e76e803a4b59e23a207278415dc933f` (exact source ref shared with Hermes)
 ACCEPTED_PRODUCT_SOURCE: `22d97aff50dc5169d3a00783bf866a8aeee68b3b`
 LAST_COMPLETED_SOURCE_MILESTONE: `M851 — six-locale network child controls localization; source/UI only`
 ACTIVE_HERMES_LANE: `ACTIVE — F89-CONSENT-VAULT-L10N-R1 malformed ACK rejected; awaiting one fresh correlated ACK; no Hermes artifact accepted`
