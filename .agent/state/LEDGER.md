@@ -1086,3 +1086,4 @@ M832 | [AXIOM][P4][COORDINATION-READBACK] Branch ref read back as 448f517 after 
 2026-09-20T10:35:56Z | [AXIOM][P4][M833] Implement operator relay-card reconciliation with CAS/idempotency, redacted audit, dashboard controls, and six-locale coverage; focused gates pass; full matrix remains blocked only by existing Windows LLM process-tree tests
 2026-09-20T10:39:25Z | [AXIOM][P4][M834] Reconcile handoff after M833: retire no-delta Hermes F85 lane, record exact remote readback 8bfb994, and preserve full-matrix Windows llm-gateway failures as a separate open gate
 2026-09-20T10:40:23Z | [AXIOM][P4][M835] Verify coordination tip 28a9292 and align canonical handoff branch-head fields with remote readback
+2026-09-20T10:47:51Z | [AXIOM][P4][M836] Dispatch exact-source F81/F84 variant guidance attribution task to Hermes; envelope 82db30fa read back; no implementation counted until evidence-bearing delivery or terminal blocker
