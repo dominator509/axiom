@@ -925,3 +925,23 @@ passed, and `scripts/verify.sh` prints `verify: ok`. Source commit
 DisconnectSocialAccountButton remains open for a separate finite slice;
 browser/native, provider, deployed migration/RLS/runtime, observability, CI
 governance and production acceptance remain open. No live action occurred.
+
+# M843: social disconnect localization
+
+The mounted `DisconnectSocialAccountButton` now uses typed catalog keys across
+all six launch locales. Confirmation names the connection, provider-revocation
+rejection has a localized recovery state, successful revocation/local removal
+has a localized success state, and unconfirmed or unexpected outcomes have a
+localized retry state. Provider revocation still precedes local removal and
+the existing idempotency semantics remain unchanged.
+
+Evidence: focused DisconnectSocialAccountButton behavior/locale tests 2/2, full
+dashboard matrix 139 files and 860 tests passed, core locale tests 57/57,
+core/dashboard typechecks passed, core/dashboard lint exited 0 with four
+pre-existing `any` warnings, dashboard production build
+compilation/lint/type/page generation/trace passed, and `scripts/verify.sh`
+prints `verify: ok`. Source commit
+`18e09a97e5e8252d35c69206657e47f6ce0efe3a` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
+browser/native, provider, deployed migration/RLS/runtime, observability, CI
+governance and production acceptance remain open. No live action occurred.
