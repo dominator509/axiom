@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
   CATALOGS,
   FANVUE_ANALYTICS_CATALOGS,
+  NETWORK_CHILD_CONTROLS_CATALOGS,
   LocaleCatalog,
   PLATFORM_AFFILIATE_CATALOGS,
   PROFILE_NETWORK_LIFECYCLE_CATALOGS,
@@ -20,6 +21,7 @@ const catalog = new LocaleCatalog(
       {
         ...CATALOGS[locale],
         ...FANVUE_ANALYTICS_CATALOGS[locale],
+        ...NETWORK_CHILD_CONTROLS_CATALOGS[locale],
         ...PLATFORM_AFFILIATE_CATALOGS[locale],
         ...PROFILE_NETWORK_LIFECYCLE_CATALOGS[locale],
         ...REVIEW_CATALOGS[locale],

@@ -8,6 +8,7 @@ export * from './locale-catalogs.js';
 export * from './fanvue-analytics-catalog.js';
 export * from './platform-affiliate-catalog.js';
 export * from './profile-network-lifecycle-catalog.js';
+export * from './network-child-controls-catalog.js';
 export * from './review-catalog.js';
 export * from './locale-settings.js';
 export * from './relay-card-state.js';
