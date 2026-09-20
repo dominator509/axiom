@@ -1194,7 +1194,7 @@ this route, browser/mobile, provider/OAuth/Patreon receipts, deployed
 migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress
 rehearsal and production acceptance. No live action occurred.
 
-# M856: model Network route localization — delegated, unconfirmed
+# M856: model Network route localization — accepted, implementation open
 
 The next source audit found a concrete mounted-surface gap in
 `packages/dashboard/app/models/[id]/network/page.tsx`: fixed copy, access and
@@ -1204,10 +1204,14 @@ The child controls are already catalog-backed, so the task is limited to the
 route and its focused tests rather than a new network feature.
 
 Hermes received a strict ACK-NACK-1 task pinned to exact source commit
-`a3be77a0926560d513dd7e59ef0eceafa9f978b2`. Acceptance requires a fetch/HEAD
-proof, real edits only in the isolated copy, six-locale route coverage,
+`a3be77a0926560d513dd7e59ef0eceafa9f978b2`. Hermes verified that ref,
+rejected stale `main`, and materialized the isolated copy. Codex recorded the
+correlated `ACK/ACCEPTED` at
+`CODEX-F89-NETWORK-PAGE-LOCALIZATION-R1-ACK-002` with read receipt
+`CODEX-F89-NETWORK-PAGE-LOCALIZATION-R1-RECEIPT-003`. Acceptance still
+requires real edits only in the isolated copy, six-locale route coverage,
 preserved owner/operational-role/API/child-control behavior, tests for access,
 failure, empty/account and OAuth states, no raw backend error text, typecheck,
-lint, per-file hashes and real exit codes. The task is currently
-`OPEN_UNCONFIRMED`; no Hermes work or delivery is counted before a correlated
-ACK and later evidence-bearing PROGRESS/DELIVERY. No live action occurred.
+lint, per-file hashes and real exit codes. No source delivery is accepted
+until the next evidence-bearing PROGRESS/DELIVERY or terminal BLOCKED result.
+No live action occurred.

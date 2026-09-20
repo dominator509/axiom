@@ -1069,7 +1069,7 @@ deployed migration/RLS/runtime, observability, CI governance,
 WireGuard/customer-egress rehearsal and production acceptance remain open. No
 live action occurred.
 
-### M856 — F-89 model Network route localization (delegated, unconfirmed)
+### M856 — F-89 model Network route localization (accepted, implementation open)
 
 The next finite gap is source-confirmed rather than inferred: the model Network
 page still contains hardcoded operator-facing copy and renders the network
@@ -1080,7 +1080,11 @@ roots. The task requires persisted-locale route rendering, six-locale fixed
 copy and status labels, safe bounded failures, preserved role/API/child-control
 contracts, focused behavior tests, typecheck and lint evidence.
 
-State is `OPEN_UNCONFIRMED`: the task envelope is protocol-valid and hash-
-verified in the bridge inbox, but no ACK, source edit or delivery is accepted
-yet. The stale Hermes `main` checkout is not an eligible source; Hermes must
-fetch and verify the pinned branch commit before coding. No live action occurred.
+State is `ACCEPTED`: Hermes returned a correlated strict `ACK/ACCEPTED` at
+`CODEX-F89-NETWORK-PAGE-LOCALIZATION-R1-ACK-002`, verified the exact pinned
+commit, rejected stale `main`, and materialized the declared isolated copy.
+Codex recorded the read receipt at
+`CODEX-F89-NETWORK-PAGE-LOCALIZATION-R1-RECEIPT-003`; no source delivery has
+been accepted yet. The next valid event is one evidence-bearing
+`PROGRESS/IN_PROGRESS`, `DELIVERY/DELIVERED`, or terminal `BLOCKED`. No live
+action occurred.
