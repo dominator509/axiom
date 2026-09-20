@@ -11,13 +11,13 @@ SOURCE_HEAD: `e6c4ed32ab48372ac689bf90f2b3161aa0af4fc6` (M806 product source; ac
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `e6c4ed32ab48372ac689bf90f2b3161aa0af4fc6` (M806 product-source readback; active coordination records remain bound below)
 ACCEPTED_PRODUCT_SOURCE: `e6c4ed32ab48372ac689bf90f2b3161aa0af4fc6`
-ACTIVE_HERMES_LANE: `MEDIA-LOCALE-SHELL-CURRENT-R1 — one fresh current-source lane; historical lanes remain quarantined`
+ACTIVE_HERMES_LANE: `MEDIA-APPROVAL-LOCALIZATION-CURRENT-R1 — one fresh current-source lane; historical lanes remain quarantined`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES only after one correlated ACK/ACCEPTED; Codex owns audit, integration, commit and push`
-NEXT_ACTION: `Product milestone M806 is committed and pushed at e6c4ed3. Terminal Codex READ-008 is protocol-valid, uploaded, and awaiting bridge readback; once read, close this lane and select exactly one finite architecture gap from current source evidence. Do not open a parallel wire before that closure.`
+NEXT_ACTION: `Media-locale lane is closed after terminal READ-008 readback. The next finite source gap is the four media/approval child controls named in MEDIA-APPROVAL-LOCALIZATION-CURRENT-R1. Upload the exact task below, wait for ACK/ACCEPTED, then audit one PROGRESS and one terminal DELIVERY or BLOCKED; no parallel wire.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `CODEX-MEDIA-LOCALE-SHELL-R1-START-001 — only active implementation wire`
+OPEN_WIRES: `CODEX-MEDIA-APPROVAL-LOCALIZATION-R1-START-001 — only active implementation wire`
 OPEN_CONTROL_WIRE: `NONE`
 OPEN_CONTROL_TASK_STATE: `CLOSED_HISTORICAL — no active control task`
 OPEN_CONTROL_TASK_REPLY_WIRE: `NONE`
@@ -38,18 +38,18 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `MEDIA-LOCALE-SHELL-CURRENT-R1`
-NEXT_PREPARED_TASK_WIRE: `CODEX-MEDIA-LOCALE-SHELL-R1-START-001`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `865f2ec047a4128274cb809c935f70ebb3c58366`
+NEXT_PREPARED_TASK: `MEDIA-APPROVAL-LOCALIZATION-CURRENT-R1`
+NEXT_PREPARED_TASK_WIRE: `CODEX-MEDIA-APPROVAL-LOCALIZATION-R1-START-001`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `ed94a96a199301234ea5b5aca506e023c97284b4`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `DELIVERED AND AUDITED — DELIVERY-007 passed; integration is committed and pushed at e6c4ed3; terminal READ-008 uploaded and pending bridge readback`
-ACTIVE_LANE_TASK_WIRE: `CODEX-MEDIA-LOCALE-SHELL-R1-START-001`
-ACTIVE_LANE_SOURCE_COMMIT: `865f2ec047a4128274cb809c935f70ebb3c58366`
-ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-media-locale-shell-r1`
-ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/codex-media-locale-shell-r1`
-ACTIVE_LANE_COPY_STATE: `AUDITED AND INTEGRATED — terminal DELIVERY-007 corrected the assigned-copy readability defect; all five artifacts are hash-verified and the product files are committed/pushed at e6c4ed3; terminal READ-008 is uploaded for closure`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `69dd6715e5867e74bfd5c32ede40e3ca9fdc3718197619b7613bc4af7eaddb70`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `69dd6715e5867e74bfd5c32ede40e3ca9fdc3718197619b7613bc4af7eaddb70`
+NEXT_PREPARED_TASK_STATE: `UPLOADED AND CHECKSUM-VERIFIED — task envelope SHA 00cdeae05023a17bb8f48e7adf11a40df3f50da62f845c804087287a14da9fb0 matches the bridge; awaiting Hermes ACK/ACCEPTED`
+ACTIVE_LANE_TASK_WIRE: `CODEX-MEDIA-APPROVAL-LOCALIZATION-R1-START-001`
+ACTIVE_LANE_SOURCE_COMMIT: `ed94a96a199301234ea5b5aca506e023c97284b4`
+ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-media-approval-localization-r1`
+ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/codex-media-approval-localization-r1`
+ACTIVE_LANE_COPY_STATE: `TASK UPLOADED — exact current source bound; task envelope protocol-valid and bridge checksum-verified; awaiting Hermes ACK/ACCEPTED before coding`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `00cdeae05023a17bb8f48e7adf11a40df3f50da62f845c804087287a14da9fb0`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `00cdeae05023a17bb8f48e7adf11a40df3f50da62f845c804087287a14da9fb0`
 ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `HISTORICAL — d58bc7a36e65c215c62d68fd6186082a6fc230e815e4276771d6072a6734152f; terminal BLOCKED envelope read back`
 ACTIVE_LANE_SOURCE_BUNDLE: `HISTORICAL — /srv/fanthynks-bridge/hermes/inbox/axiom-source-a3f74f.bundle`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `HISTORICAL — beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6; Git bundle verify passed; exact commit is contained`
@@ -94,7 +94,7 @@ LAST_COMPLETED_SOURCE_MILESTONE: `M806 — F-89 media gallery shell localization
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M806 product source is pushed/read back at e6c4ed3; media-localization DELIVERY-007 is bound to exact 865f2ec and independently audited/integrated; terminal Codex READ-008 is uploaded and awaits bridge readback; no parallel lane or live action`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M806 product source is pushed/read back at e6c4ed3 and M808 handoff closure is pushed/read back at ed94a96; media-localization DELIVERY-007 is closed by terminal READ-008; exactly one new finite source lane is prepared against ed94a96; no live action`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
