@@ -10,7 +10,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 SOURCE_HEAD: `749acac34c9b759d2699b81db0463f36f43e733f` (M874 reviewed product source; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `749acac34c9b759d2699b81db0463f36f43e733f` (M874 reviewed product source; remote readback matches)
-COORDINATION_HEAD: `749acac34c9b759d2699b81db0463f36f43e733f — read refs/heads/codex/telegram-webhook-hardening before every new lane; M874 product source and handoff are pushed and read back`
+COORDINATION_HEAD: `209345dc641b4a46dbe5e6452508ce4caab12419 — M877 storage-lane handoff is pushed and read back; next product lane must still bind exact SOURCE_COMMIT 0af64ef27ab82d3ddf43acc2965880cbc46ef2ff`
 ACCEPTED_PRODUCT_SOURCE: `749acac34c9b759d2699b81db0463f36f43e733f`
 LAST_COMPLETED_SOURCE_MILESTONE: `M874 — F89 worker digest localization integrated from independently hash-verified Hermes bytes via Codex fallback`
 ACTIVE_HERMES_LANE: `F89-R2-STORAGE-APPLICATION-ABSTRACTION-R1 — sole active source-only lane; exact TASK delivered and read back, awaiting one correlated ACK/READ or ACK/ACCEPTED`
