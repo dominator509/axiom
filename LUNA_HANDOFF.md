@@ -49,7 +49,7 @@ ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/work/f89-draft-editor-local
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/replies/delivery-f89-draft-editor-localization-r1`
 ACTIVE_LANE_COPY_STATE: `AWAITING_ACK — no implementation or source delivery accepted`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `50f0ef72aaad3c6bf1d43890de8517f30e7480f57dcd0ef5b3dc782aff48586b`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `PENDING — task will be copied after this handoff commit is pushed`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `50f0ef72aaad3c6bf1d43890de8517f30e7480f57dcd0ef5b3dc782aff48586b — exact inbox readback verified`
 ACTIVE_LANE_SOURCE_ARCHIVE: `NOT_USED — exact Git commit mode`
 ACTIVE_LANE_SOURCE_ARCHIVE_SHA256: `NOT_APPLICABLE`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — local source implementation`
