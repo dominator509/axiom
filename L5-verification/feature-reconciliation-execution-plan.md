@@ -1301,3 +1301,23 @@ The Hermes F71 lane is closed as a transport-only stale lane: its authoritative
 copy and delivery roots were absent, so no Hermes delivery was accepted. The
 local source is canonical, and any future Hermes work must bind to a fresh
 source audit rather than resume F71.
+
+### M858 — F-89 workspace-member operator controls localization (Codex local)
+
+The owner-gated workspace-member control now consumes the shared six-locale
+catalog for its audit guidance, role labels and descriptions, current/new-role
+labels, confirmation/retry/cancel actions, pagination, empty/load failures and
+successful access-change notices. Member emails, backend role identifiers and
+server response details remain data; role assignment, owner boundary,
+idempotency, exact receipt validation and session-revocation semantics are
+unchanged.
+
+Pass criteria and evidence: focused WorkspaceMembers behavior tests 10/10;
+core 19 files/106 tests including a six-locale member-key non-fallback check;
+full dashboard 145 files/902 tests; core/dashboard typechecks pass;
+core/dashboard lint exits with no errors and retains four pre-existing
+dashboard `any` warnings; `scripts/verify.sh` returns `verify: ok`; and
+`git diff --check` passes. Product commit
+`224458139080fe674453e2a8116e42ca26b8c3f4` was pushed to
+`origin/codex/telegram-webhook-hardening` and the remote SHA was read back
+exactly. No live action occurred.

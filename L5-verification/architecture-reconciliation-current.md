@@ -1116,3 +1116,24 @@ The Hermes F71 transport lane is closed by local fallback. Its ACK/READ receipt
 was transport evidence only, and authoritative reads found no COPY_ROOT or
 DELIVERY_ROOT to audit; no Hermes artifact was accepted or integrated. A fresh
 Hermes lane must bind to the next source audit and may not resume F71.
+
+### M858 — F-89 workspace-member operator controls localization (Codex local)
+
+The owner-only `WorkspaceMembers` control now consumes typed catalog keys across
+en, es, ja, it, pt-BR and de for role labels/descriptions, audit guidance,
+load/pagination/empty states, confirmation, retry/cancel, rejection and saved
+access notices. Member emails, backend role identifiers and server-provided
+details remain data. Existing role assignment, owner boundary, idempotency,
+exact receipt validation and session-revocation behavior are preserved.
+
+Evidence: focused WorkspaceMembers behavior tests 10/10; core 19 files/106
+tests including explicit six-locale member-key translation coverage; full
+dashboard matrix 145 files/902 tests; core/dashboard typechecks pass;
+core/dashboard lint has no errors and retains four pre-existing dashboard
+`any` warnings; `scripts/verify.sh` prints `verify: ok`; and `git diff --check`
+passes. Product commit
+`224458139080fe674453e2a8116e42ca26b8c3f4` was pushed to
+`origin/codex/telegram-webhook-hardening` and remote readback matches exactly.
+This closes only the workspace-member source/UI localization criterion;
+browser, deployed runtime, RLS, provider, observability, CI governance and
+production acceptance remain open. No live action occurred.
