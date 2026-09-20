@@ -13,5 +13,5 @@ it('localizes the persistent retry entry point while retaining its generated-med
   );
   expect(html).toContain('Opciones para reintentar la generación de medios');
   expect(html).toContain('Disponible para paquetes de imágenes y vídeos generados');
-  expect(html).toContain('Generation retry');
+  expect(html).toContain('Reintentar generación');
 });

@@ -5,8 +5,10 @@ import type { MediaOperation } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import BundleMedia from './BundleMedia';
+import { useLocale } from './LocaleProvider';
 
 type OperationStatus = 'queued' | 'running' | 'failed' | 'completed' | 'unknown';
+type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 function operationStatus(operation: MediaOperation): OperationStatus {
   const state = operation.state.toLowerCase();
@@ -17,22 +19,26 @@ function operationStatus(operation: MediaOperation): OperationStatus {
   return 'unknown';
 }
 
-function statusLabel(status: OperationStatus): string {
-  return status === 'unknown' ? 'Status unavailable' : `${status[0].toUpperCase()}${status.slice(1)}`;
+function statusLabel(status: OperationStatus, t: Translate): string {
+  if (status === 'queued') return t('media.lifecycleQueued');
+  if (status === 'running') return t('media.lifecycleRunning');
+  if (status === 'failed') return t('media.lifecycleFailed');
+  if (status === 'completed') return t('media.lifecycleCompleted');
+  return t('media.lifecycleUnavailable');
 }
 
-function statusDescription(status: OperationStatus): string {
+function statusDescription(status: OperationStatus, t: Translate): string {
   switch (status) {
     case 'queued':
-      return 'Waiting for the media worker.';
+      return t('media.lifecycleQueuedDetail');
     case 'running':
-      return 'The media worker is processing this operation.';
+      return t('media.lifecycleRunningDetail');
     case 'failed':
-      return 'The transform failed. Review the operation and retry if appropriate.';
+      return t('media.lifecycleFailedDetail');
     case 'completed':
-      return 'The transformed asset is saved and still requires its own review.';
+      return t('media.lifecycleCompletedDetail');
     default:
-      return 'Refresh status before taking another action.';
+      return t('media.lifecycleUnavailableDetail');
   }
 }
 
@@ -45,6 +51,7 @@ function OperationResults({
   refreshError,
   onRetry,
   retryingId,
+  t,
 }: {
   operations: MediaOperation[];
   modelId: string;
@@ -54,14 +61,15 @@ function OperationResults({
   refreshError: string;
   onRetry: (operation: MediaOperation) => void;
   retryingId: string | null;
+  t: Translate;
 }) {
   if (operations.length === 0) return null;
   return (
-    <div className="stack" aria-label="Media transform status">
+    <div className="stack" aria-label={t('review.transformHistory')}>
       <div className="action-row">
-        <strong>Transform history</strong>
+        <strong>{t('review.transformHistory')}</strong>
         <button className="btn secondary" type="button" disabled={refreshing} onClick={onRefresh}>
-          {refreshing ? 'Refreshing…' : 'Refresh status'}
+          {refreshing ? t('review.refreshingStatus') : t('review.refreshStatus')}
         </button>
       </div>
       {refreshError && <p role="alert">{refreshError}</p>}
@@ -70,9 +78,9 @@ function OperationResults({
         return (
           <div className="stack" key={operation.id} data-operation-state={status}>
             <p className="subtle">
-              <strong>{operation.type}</strong> · <span aria-label={`${statusLabel(status)} transform status`}>{statusLabel(status)}</span>
+              <strong>{operation.type}</strong> · <span aria-label={t('review.transformStatusAria', { status: statusLabel(status, t) })}>{statusLabel(status, t)}</span>
             </p>
-            <p className="subtle">{statusDescription(status)}</p>
+            <p className="subtle">{statusDescription(status, t)}</p>
             {status === 'failed' && canEdit && (
               <button
                 className="btn secondary"
@@ -80,20 +88,20 @@ function OperationResults({
                 disabled={retryingId === operation.id}
                 onClick={() => onRetry(operation)}
               >
-                {retryingId === operation.id ? 'Retrying…' : 'Retry transform'}
+                {retryingId === operation.id ? t('review.retryingTransform') : t('review.retryTransform')}
               </button>
             )}
             {status === 'completed' && operation.outputAssetId && (
               <details>
-                <summary>View transformed result</summary>
+                <summary>{t('review.viewTransformedResult')}</summary>
                 <BundleMedia modelId={modelId} assetId={operation.outputAssetId} />
                 <p className="subtle">
-                  Saved in the media library. This result has not inherited approval from its source.
+                  {t('review.transformSavedRequiresReview')}
                 </p>
               </details>
             )}
             {status === 'completed' && !operation.outputAssetId && (
-              <p className="subtle">Completed, but the output asset is not available yet. Refresh status.</p>
+              <p className="subtle">{t('review.transformOutputUnavailable')}</p>
             )}
           </div>
         );
@@ -115,6 +123,7 @@ export default function MediaOperationControls({
   operations: MediaOperation[];
   canEdit: boolean;
 }) {
+  const { t } = useLocale();
   const [type, setType] = useState(kind === 'video' ? 'video_clip' : 'image_resize');
   const [width, setWidth] = useState('1080');
   const [height, setHeight] = useState('1350');
@@ -153,7 +162,7 @@ export default function MediaOperationControls({
       if (!Array.isArray(result.data)) throw new Error('invalid status response');
       setLiveOperations(result.data as MediaOperation[]);
     } catch {
-      setRefreshError('Transformation status could not be refreshed. Try again.');
+      setRefreshError(t('review.transformStatusRefreshFailed'));
     } finally {
       window.clearTimeout(timeout);
       setRefreshing(false);
@@ -175,14 +184,14 @@ export default function MediaOperationControls({
         { idempotencyKey: createIdempotencyKey(), retries: 0 },
       );
       if (!response.ok) {
-        setRefreshError((await readDashboardError(response)).error?.message ?? 'Transform retry was not queued.');
+        setRefreshError((await readDashboardError(response)).error?.message ?? t('review.transformRetryNotQueued'));
         return;
       }
       const result = await readDashboardJson<{ data?: MediaOperation }>(response);
       if (!result.data?.id) throw new Error('unconfirmed transform retry');
       setLiveOperations((current) => [result.data as MediaOperation, ...current]);
     } catch {
-      setRefreshError('Transform retry was not confirmed. Refresh status before trying again.');
+      setRefreshError(t('review.transformRetryUnconfirmed'));
     } finally {
       setRetryingId(null);
     }
@@ -200,7 +209,7 @@ export default function MediaOperationControls({
             ? { type, start: numeric(start), duration: numeric(duration) }
             : { type, targetFormat };
     if (!Object.values(body).every((value) => typeof value === 'string' || Number.isFinite(value))) {
-      setError('Enter valid transform values.');
+      setError(t('review.transformValuesInvalid'));
       return;
     }
     intent.current ??= { body: JSON.stringify(body), key: createIdempotencyKey() };
@@ -218,7 +227,7 @@ export default function MediaOperationControls({
       );
       if (!response.ok) {
         const details = await readDashboardError(response);
-        setError(details?.error?.message ?? 'Transform was not queued.');
+        setError(details?.error?.message ?? t('review.transformNotQueued'));
         if ([400, 401, 403, 404, 409, 422].includes(response.status)) intent.current = null;
         return;
       }
@@ -227,7 +236,7 @@ export default function MediaOperationControls({
       setLiveOperations((current) => [result.data as MediaOperation, ...current]);
       intent.current = null;
     } catch {
-      setError('Transform queueing was not confirmed. Retry the same request.');
+      setError(t('review.transformQueueUnconfirmed'));
     } finally {
       setBusy(false);
     }
@@ -242,76 +251,77 @@ export default function MediaOperationControls({
     refreshError,
     onRetry: (operation: MediaOperation) => void retryOperation(operation),
     retryingId,
+    t,
   };
 
   if (!canEdit)
     return (
       <div className="stack">
-        <p className="subtle">Media transforms require an owner, manager, or operator role.</p>
+        <p className="subtle">{t('review.transformRoleRequired')}</p>
         <OperationResults {...statusProps} />
       </div>
     );
   return (
     <details>
-      <summary>Clip, resize, or adapt media</summary>
+      <summary>{t('review.transformSummary')}</summary>
       <div className="stack" style={{ marginTop: 8 }}>
         <p className="subtle">
-          The result is saved as a variant and must still pass the normal ToS and approval workflow.
+          {t('review.transformSafety')}
         </p>
         <div className="row">
           <label>
-            Operation
+            {t('review.operation')}
             <select value={type} onChange={(event) => setType(event.target.value)}>
               {kind === 'image' ? (
                 <>
-                  <option value="image_resize">Resize image</option>
-                  <option value="image_clip">Crop image</option>
+                  <option value="image_resize">{t('review.resizeImage')}</option>
+                  <option value="image_clip">{t('review.cropImage')}</option>
                 </>
               ) : (
                 <>
-                  <option value="video_clip">Clip video</option>
-                  <option value="video_transcode">Transcode video</option>
+                  <option value="video_clip">{t('review.clipVideo')}</option>
+                  <option value="video_transcode">{t('review.transcodeVideo')}</option>
                 </>
               )}
             </select>
           </label>
           {type === 'video_transcode' ? (
             <label>
-              Format
+              {t('review.format')}
               <select value={targetFormat} onChange={(event) => setTargetFormat(event.target.value)}>
-                <option value="mp4">MP4</option>
-                <option value="webm">WebM</option>
+                <option value="mp4">{t('review.mp4')}</option>
+                <option value="webm">{t('review.webm')}</option>
               </select>
             </label>
           ) : type === 'video_clip' ? (
             <>
               <label>
-                Start seconds
+                {t('review.startSeconds')}
                 <input type="number" min="0" value={start} onChange={(event) => setStart(event.target.value)} />
               </label>
               <label>
-                Duration seconds
+                {t('review.durationSeconds')}
                 <input type="number" min="1" value={duration} onChange={(event) => setDuration(event.target.value)} />
               </label>
             </>
           ) : (
             <>
               <label>
-                Width
+                {t('review.width')}
                 <input type="number" min="1" value={width} onChange={(event) => setWidth(event.target.value)} />
               </label>
               <label>
-                Height
+                {t('review.height')}
                 <input type="number" min="1" value={height} onChange={(event) => setHeight(event.target.value)} />
               </label>
               {type === 'image_clip' && (
                 <>
                   <label>
-                    X
+                    {t('review.xOffset')}
                     <input type="number" min="0" value={x} onChange={(event) => setX(event.target.value)} />
                   </label>
                   <label>
-                    Y
+                    {t('review.yOffset')}
                     <input type="number" min="0" value={y} onChange={(event) => setY(event.target.value)} />
                   </label>
                 </>
@@ -320,11 +330,11 @@ export default function MediaOperationControls({
           )}
         </div>
         <button className="btn secondary" type="button" disabled={busy || !!intent.current} onClick={() => void submit()}>
-          {busy ? 'Queueing…' : 'Queue transform'}
+          {busy ? t('review.queueingTransform') : t('review.queueTransform')}
         </button>
         {intent.current && (
           <button className="btn secondary" type="button" disabled={busy} onClick={() => void submit()}>
-            Retry same transform
+            {t('review.retrySameTransform')}
           </button>
         )}
         {error && <p role="alert">{error}</p>}

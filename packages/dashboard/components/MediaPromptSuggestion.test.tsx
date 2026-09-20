@@ -9,6 +9,33 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
   useRef: (initial: unknown) => hooks.refs[hooks.r++] ??= { current: initial },
 }));
 vi.mock('@/lib/mutation', () => ({ createIdempotencyKey: hooks.key, mutationFetch: hooks.fetch }));
+vi.mock('./LocaleProvider', () => ({
+  useLocale: () => ({
+    t: (key: string, values?: Record<string, string | number>) => {
+      if (key === 'review.proposedPrompt') return `Proposed prompt (${values?.provider ?? ''})`;
+      if (key === 'review.characterLockUsed') return `Character lock used by this attempt (revision ${values?.revision ?? ''})`;
+      return ({
+        'review.suggestionUnavailable': 'Suggestion unavailable. No media was queued.',
+        'review.suggestionUnconfirmed': 'Suggestion outcome unconfirmed. Check the same request before asking again. No media retry was submitted here.',
+        'review.promptSuggestion': 'Media prompt suggestion',
+        'review.promptSuggestionDescription': 'Ask the generating provider for the smallest effective change to the last tried prompt while preserving the remaining intent. Acceptance is not guaranteed. This requests text only; providers without a supported text-revision path cannot supply a suggestion.',
+        'review.approveTextRequest': 'I approve a text request to the generating provider and possible usage charges.',
+        'review.requestingRevision': 'Requesting revision…',
+        'review.checkSameSuggestion': 'Check same suggestion request',
+        'review.askMinimalRevision': 'Ask provider for a minimal revision',
+        'review.lastTriedPrompt': 'Last tried prompt',
+        'review.providerExplanation': 'Provider’s explanation',
+        'review.useProposal': 'Use this proposal in the editor',
+        'review.reviewProposal': 'Review the editor, then separately approve a generation retry. If that attempt is rejected, its saved prompt becomes the starting point for the next proposal.',
+        'review.promptDiff': 'Exact prompt comparison',
+        'review.promptDiffDescription': 'Removed text is struck through; added text is underlined. Scattered edits are grouped into one changed span.',
+        'review.savedCharacterLock': 'Saved character lock',
+        'review.noCharacterLock': 'No character lock was saved with this attempt.',
+        'review.characterLockPreserved': 'The retry keeps this saved identity, even if the model profile has changed. The proposal edits the scene only.',
+      }[key] ?? key);
+    },
+  }),
+}));
 import MediaPromptSuggestion from './MediaPromptSuggestion';
 const useProposal = vi.fn();
 function render(disabled = false) {

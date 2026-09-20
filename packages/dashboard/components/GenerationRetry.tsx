@@ -4,10 +4,12 @@ import { useRef, useState } from 'react';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import MediaPromptSuggestion from './MediaPromptSuggestion';
+import { useLocale } from './LocaleProvider';
 
 export default function GenerationRetry({ modelId, bundleId, blocked, onQueued }: {
   modelId: string; bundleId: string; blocked: boolean; onQueued: (id: string) => void;
 }) {
+  const { t } = useLocale();
   const [editing, setEditing] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [acknowledged, setAcknowledged] = useState(false);
@@ -31,7 +33,7 @@ export default function GenerationRetry({ modelId, bundleId, blocked, onQueued }
       if (!response.ok) {
         const failure = await readDashboardError(response);
         const message = failure?.error?.message ?? failure.detail;
-        setError(typeof message === 'string' ? message : 'Retry not accepted. Check Incidents before submitting again.');
+        setError(typeof message === 'string' ? message : t('review.retryNotAccepted'));
         // A conflict may be an in-flight reservation, not a rejected intent.
         // Keep its key for reconciliation; likewise timeouts/rate limits.
         if ((response.status === 409 && failure.code === 'MEDIA_RETRY_NOT_QUEUED')
@@ -44,25 +46,25 @@ export default function GenerationRetry({ modelId, bundleId, blocked, onQueued }
         throw new Error('Invalid retry receipt');
       onQueued(result.data.bundle.id);
     } catch {
-      setError('Retry outcome unconfirmed. Retry again to check the same request; do not start another generation.');
+      setError(t('review.retryUnconfirmed'));
     } finally { active.current = false; setBusy(false); }
   }
-  return <section aria-label="Generation retry">
-    <p>A retry creates a new bundle and rejects the previous bundle, retaining its evidence. Provider usage may be charged. All moderation and ToS checks run again.</p>
-    <button type="button" disabled={busy || !!intent.current} onClick={() => setEditing(true)}>Review suggested modifications</button>
+  return <section aria-label={t('review.generationRetry')}>
+    <p>{t('review.generationRetryDescription')}</p>
+    <button type="button" disabled={busy || !!intent.current} onClick={() => setEditing(true)}>{t('review.reviewSuggestedModifications')}</button>
     {editing && <>
-      <p>Edit the prompt yourself or ask the generating provider for a minimal revision of the last tried prompt below.</p>
-      <p>Prompt edits cannot fix ZDR, storage, sign-in, or quota errors. A video source-image problem may require a new generation with a different source image.</p>
-      <label htmlFor={`retry-prompt-${bundleId}`}>Review and write the revised prompt</label>
+      <p>{t('review.retryPromptDescription')}</p>
+      <p>{t('review.retryPromptLimitations')}</p>
+      <label htmlFor={`retry-prompt-${bundleId}`}>{t('review.reviewRevisedPrompt')}</label>
       <textarea id={`retry-prompt-${bundleId}`} value={prompt} maxLength={4000} disabled={busy || !!intent.current} onChange={e => setPrompt(e.target.value)} />
       <MediaPromptSuggestion key={bundleId} modelId={modelId} bundleId={bundleId} disabled={busy || !!intent.current}
         onUse={proposed => { if (!active.current && !intent.current) { setPrompt(proposed); setAcknowledged(false); } }} />
     </>}
-    <label><input type="checkbox" checked={acknowledged} disabled={busy} onChange={e => setAcknowledged(e.target.checked)} /> I approve a new generation and possible provider charges.</label>
+    <label><input type="checkbox" checked={acknowledged} disabled={busy} onChange={e => setAcknowledged(e.target.checked)} /> {t('review.approveNewGeneration')}</label>
     <button type="button" disabled={busy || !acknowledged || (blocked && !editing) || (editing && !prompt.trim())} onClick={() => void retry()}>
-      {busy ? 'Checking retry…' : intent.current ? 'Check / retry same request' : editing ? 'Retry with reviewed modifications' : 'Retry generation'}
+      {busy ? t('review.checkingRetry') : intent.current ? t('review.checkSameRequest') : editing ? t('review.retryWithReviewedModifications') : t('review.retryGeneration')}
     </button>
-    {blocked && !editing && <p>Blocked content requires a revised prompt before retrying.</p>}
+    {blocked && !editing && <p>{t('review.blockedPromptRequired')}</p>}
     {error && <p role="alert">{error}</p>}
   </section>;
 }

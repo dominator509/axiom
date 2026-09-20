@@ -23,11 +23,11 @@ it('shows safe lifecycle states and a retry action without exposing provider err
         type: 'image_resize', options: { type: 'image_resize', width: 1080, height: 1350 }, state: 'failed', error: 'provider secret and raw stack trace', createdAt: '', completedAt: '' },
     ]} />);
   expect(html).toContain('Queued');
-  expect(html).toContain('Running');
-  expect(html).toContain('Failed');
+  expect(html).toContain('Processing');
+  expect(html).toContain('Transform failed');
   expect(html).toContain('Refresh status');
   expect(html).toContain('Retry transform');
-  expect(html).toContain('Review the operation and retry if appropriate.');
+  expect(html).toContain('The operation failed; inspect the transform history before retrying.');
   expect(html).not.toContain('provider secret and raw stack trace');
 });
 

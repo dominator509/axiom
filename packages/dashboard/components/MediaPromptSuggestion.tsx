@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import { promptDiff } from '@/lib/prompt-diff';
+import { useLocale } from './LocaleProvider';
 
 type Suggestion = {
   prompt: string; explanation: string; lastTriedPrompt: string; provider: string;
@@ -13,6 +14,7 @@ type Suggestion = {
 export default function MediaPromptSuggestion({ modelId, bundleId, disabled, onUse }: {
   modelId: string; bundleId: string; disabled: boolean; onUse: (prompt: string) => void;
 }) {
+  const { t } = useLocale();
   const [approved, setApproved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +34,7 @@ export default function MediaPromptSuggestion({ modelId, bundleId, disabled, onU
       if (!response.ok) {
         const failure = await readDashboardError(response);
         const message = failure?.error?.message ?? failure.detail;
-        setError(typeof message === 'string' ? message : 'Suggestion unavailable. No media was queued.');
+        setError(typeof message === 'string' ? message : t('review.suggestionUnavailable'));
         return;
       }
       const { data } = await readDashboardJson<{ data: Suggestion & { provider: string; requiresReview: boolean; mediaQueued: boolean } }>(response);
@@ -45,32 +47,32 @@ export default function MediaPromptSuggestion({ modelId, bundleId, disabled, onU
         || data.prompt === data.lastTriedPrompt) throw new Error('Invalid suggestion');
       setSuggestion(data);
     } catch {
-      setError('Suggestion outcome unconfirmed. Check the same request before asking again. No media retry was submitted here.');
+      setError(t('review.suggestionUnconfirmed'));
     } finally { active.current = false; setBusy(false); }
   }
   const diff = suggestion ? promptDiff(suggestion.lastTriedPrompt, suggestion.prompt) : null;
-  return <section aria-label="Media prompt suggestion">
-    <p>Ask the generating provider for the smallest effective change to the last tried prompt while preserving the remaining intent. Acceptance is not guaranteed. This requests text only; providers without a supported text-revision path cannot supply a suggestion.</p>
+  return <section aria-label={t('review.promptSuggestion')}>
+    <p>{t('review.promptSuggestionDescription')}</p>
     <label><input type="checkbox" checked={approved} disabled={disabled || busy || !!key.current}
-      onChange={event => setApproved(event.target.checked)} /> I approve a text request to the generating provider and possible usage charges.</label>
+      onChange={event => setApproved(event.target.checked)} /> {t('review.approveTextRequest')}</label>
     <button type="button" disabled={disabled || busy || !approved || !!suggestion} onClick={() => void ask()}>
-      {busy ? 'Requesting revision…' : key.current ? 'Check same suggestion request' : 'Ask provider for a minimal revision'}
+      {busy ? t('review.requestingRevision') : key.current ? t('review.checkSameSuggestion') : t('review.askMinimalRevision')}
     </button>
     {error && <p role="alert">{error}</p>}
     {suggestion && <div>
-      <h4>Last tried prompt</h4><p style={{ whiteSpace: 'pre-wrap' }}>{suggestion.lastTriedPrompt}</p>
-      <h4>Proposed prompt ({suggestion.provider})</h4><p style={{ whiteSpace: 'pre-wrap' }}>{suggestion.prompt}</p>
-      <h4>Provider’s explanation</h4><p>{suggestion.explanation}</p>
-      <button type="button" disabled={disabled || busy} onClick={() => { if (!disabled && !busy) onUse(suggestion.prompt); }}>Use this proposal in the editor</button>
-      <p>Review the editor, then separately approve a generation retry. If that attempt is rejected, its saved prompt becomes the starting point for the next proposal.</p>
-      {diff && <div aria-label="Exact prompt comparison">
-        <p>Removed text is struck through; added text is underlined. Scattered edits are grouped into one changed span.</p>
+      <h4>{t('review.lastTriedPrompt')}</h4><p style={{ whiteSpace: 'pre-wrap' }}>{suggestion.lastTriedPrompt}</p>
+      <h4>{t('review.proposedPrompt', { provider: suggestion.provider })}</h4><p style={{ whiteSpace: 'pre-wrap' }}>{suggestion.prompt}</p>
+      <h4>{t('review.providerExplanation')}</h4><p>{suggestion.explanation}</p>
+      <button type="button" disabled={disabled || busy} onClick={() => { if (!disabled && !busy) onUse(suggestion.prompt); }}>{t('review.useProposal')}</button>
+      <p>{t('review.reviewProposal')}</p>
+      {diff && <div aria-label={t('review.promptDiff')}>
+        <p>{t('review.promptDiffDescription')}</p>
         <p style={{ whiteSpace: 'pre-wrap' }}>{diff.prefix}<del>{diff.removed}</del><ins>{diff.added}</ins>{diff.suffix}</p>
       </div>}
-      <section aria-label="Saved character lock">
-        <h4>Character lock used by this attempt (revision {suggestion.characterLockVersion})</h4>
-        <p style={{ whiteSpace: 'pre-wrap' }}>{suggestion.characterLockPrompt || 'No character lock was saved with this attempt.'}</p>
-        <p>The retry keeps this saved identity, even if the model profile has changed. The proposal edits the scene only.</p>
+      <section aria-label={t('review.savedCharacterLock')}>
+        <h4>{t('review.characterLockUsed', { revision: suggestion.characterLockVersion })}</h4>
+        <p style={{ whiteSpace: 'pre-wrap' }}>{suggestion.characterLockPrompt || t('review.noCharacterLock')}</p>
+        <p>{t('review.characterLockPreserved')}</p>
       </section>
     </div>}
   </section>;

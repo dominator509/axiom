@@ -9,6 +9,26 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
   useRef: (initial: unknown) => hooks.refs[hooks.r++] ??= { current: initial },
 }));
 vi.mock('@/lib/mutation', () => ({ createIdempotencyKey: hooks.key, mutationFetch: hooks.fetch }));
+vi.mock('./LocaleProvider', () => ({
+  useLocale: () => ({
+    t: (key: string) => ({
+      'review.retryNotAccepted': 'Retry not accepted. Check Incidents before submitting again.',
+      'review.retryUnconfirmed': 'Retry outcome unconfirmed. Retry again to check the same request; do not start another generation.',
+      'review.generationRetry': 'Generation retry',
+      'review.generationRetryDescription': 'A retry creates a new bundle and rejects the previous bundle, retaining its evidence. Provider usage may be charged. All moderation and ToS checks run again.',
+      'review.reviewSuggestedModifications': 'Review suggested modifications',
+      'review.retryPromptDescription': 'Edit the prompt yourself or ask the generating provider for a minimal revision of the last tried prompt below.',
+      'review.retryPromptLimitations': 'Prompt edits cannot fix ZDR, storage, sign-in, or quota errors. A video source-image problem may require a new generation with a different source image.',
+      'review.reviewRevisedPrompt': 'Review and write the revised prompt',
+      'review.approveNewGeneration': 'I approve a new generation and possible provider charges.',
+      'review.checkingRetry': 'Checking retry…',
+      'review.checkSameRequest': 'Check / retry same request',
+      'review.retryWithReviewedModifications': 'Retry with reviewed modifications',
+      'review.retryGeneration': 'Retry generation',
+      'review.blockedPromptRequired': 'Blocked content requires a revised prompt before retrying.',
+    }[key] ?? key),
+  }),
+}));
 import GenerationRetry from './GenerationRetry';
 const queued = vi.fn();
 function successResponse() {
