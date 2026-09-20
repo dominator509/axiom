@@ -52,7 +52,7 @@ runtime-accepted merely because its unit tests pass.
 | F-86 | **Wired setting/partial**: org-level sharing toggle and scoped viral retrieval exist | Cross-model sharing acceptance and privacy rehearsal remain open |
 | F-87 | **Wired source/UI**: metadata-only consent vault, revoke, and publication gate are reachable | Encrypted document-store/provider and expiry rehearsal remain open |
 | F-88 | **Partial**: Expo app restores auth and exposes settings/digest/Relay | It is not feature-parity with the responsive dashboard; mobile browser and native acceptance remain open |
-| F-89 | **Source-wired/partial**: shared six-locale catalog and normalization, persisted user/org preference API, dashboard provider/navigation/settings wiring, authenticated owner workspace-settings headings/controls/descriptions/save/error/retry states, authenticated shell workspace/home/role/pending/footer/system-health copy, login hero/form labels/errors/session advice, server-rendered assigned-shift access/empty/error/pagination/handoff copy with `Intl` UTC formatting, incidents/crash triage and recovery labels/messages with locale-aware UTC dates, reusable team-shift controls and TeamOperationsManager labels/errors/roles/notes, localized digest page/schedule/recovery controls and Relay history/delivery surfaces with locale-aware UTC timestamps, model analytics and earnings labels with locale-aware counts/percentages/USD/date formatting, accessible `lang`, and mounted mobile selector/DashboardScreen/RelayScreen labels, statuses and date/count formatting now consume the same catalog; authored content remains separate | Remaining dashboard/email/operator adoption, every date/number/currency formatting surface, browser/native mobile acceptance, and deployed migration/RLS/runtime evidence are open |
+| F-89 | **Source-wired/partial**: shared six-locale catalog and normalization, persisted user/org preference API, dashboard provider/navigation/settings wiring, authenticated owner workspace-settings headings/controls/descriptions/save/error/retry states, authenticated shell workspace/home/role/pending/footer/system-health copy, login hero/form labels/errors/session advice, model overview profile/network/activity/tool labels with UTC date formatting, server-rendered assigned-shift access/empty/error/pagination/handoff copy with `Intl` UTC formatting, incidents/crash triage and recovery labels/messages with locale-aware UTC dates, reusable team-shift controls and TeamOperationsManager labels/errors/roles/notes, localized digest page/schedule/recovery controls and Relay history/delivery surfaces with locale-aware UTC timestamps, model analytics and earnings labels with locale-aware counts/percentages/USD/date formatting, accessible `lang`, and mounted mobile selector/DashboardScreen/RelayScreen labels, statuses and date/count formatting now consume the same catalog; authored content remains separate | Remaining dashboard/email/operator adoption, every date/number/currency formatting surface, browser/native mobile acceptance, and deployed migration/RLS/runtime evidence are open |
 | F-90 | **Wired/partial**: native platform-level affiliate schema/authored migration 0054, owner-gated API and dashboard controls cover partners, campaigns, attribution, SaaS conversion/commission/reversal, fraud holds, audit/idempotency and non-transfer payout CSV output; the owner workflow now consumes the six-locale catalog with locale-aware USD, percentage and date formatting | Migration application, billing/reconciliation integration, license/security/legal review, browser acceptance and payout/operator acceptance remain open; provider earnings referrals are not reused and tenant affiliate/reseller features are out of scope |
 | F-91 | **Wired/partial**: Patreon now has authored migration 0055 and Drizzle tables for campaigns, memberships, posts, sync state and webhook events; model-egress OAuth/PKCE with encrypted persistence; bounded read/sync routes; durable cursor/replay guards; HMAC webhook persistence; a model dashboard; and a native mobile community surface with model scoping, redacted status/read views and operator-only sync controls | Deployed migration/RLS/runtime acceptance, real provider OAuth/webhook/sync receipts, browser/mobile acceptance and operational reconciliation remain open; no publish/DM/payout/member-mutation/unsupported-analytics claim is allowed |
 
@@ -844,5 +844,24 @@ exits 0 with explicit non-secret `API_ORIGIN`; `scripts/verify.sh` prints
 `c56243fff44d87349ebbe5d3b5ba64586cb3e794` is pushed and read back from
 `origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
 browser/mobile, deployed Patreon OAuth/webhook/sync, R2, provider,
+migration/RLS, observability, CI governance and production acceptance remain
+open. No live action occurred.
+
+# M839: model overview route-shell localization
+
+The model overview route now resolves the persisted interface locale through
+the shared server-locale helper. Profile, network, activity, workspace-tool,
+error, action and role-boundary copy is catalog-backed across all six launch
+locales. Raw network error text is no longer rendered, and the created-at
+field uses the shared UTC date formatter rather than the host locale. The
+route keeps the existing role-scoped destinations and data/error semantics.
+
+Evidence: core locale/settings tests 40/40; model overview dashboard tests
+14/14 including the persisted Spanish route-shell case; core build,
+typecheck and lint pass; dashboard typecheck passes; dashboard lint exits 0
+with four pre-existing `any` warnings; `scripts/verify.sh` prints
+`verify: ok`; source commit `c6b5996a295a307c553657aa8f9c819b669a4454` is
+pushed and read back from `origin/codex/telegram-webhook-hardening`. This is
+source/UI evidence only; browser/mobile, deployed runtime, provider,
 migration/RLS, observability, CI governance and production acceptance remain
 open. No live action occurred.
