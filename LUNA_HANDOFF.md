@@ -10,7 +10,7 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 SOURCE_HEAD: `9a720071fb77d56426611ba8d0ff52e62b905738` (M883 reviewed product source; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `9a720071fb77d56426611ba8d0ff52e62b905738` (M883 reviewed product source; remote readback matches)
-COORDINATION_HEAD: `37e3f3a278fc04aa20f9fc43f97dccd7f2102377 — M884 reconciled handoff and exact R3 Hermes task contract; pushed and read back`
+COORDINATION_HEAD: `4c7f6d575d3c74f45ff33b67586eadf26773b462 — M887 validated ACK receipt transferred the R3 implementation lane to Hermes; pushed and read back`
 ACCEPTED_PRODUCT_SOURCE: `9a720071fb77d56426611ba8d0ff52e62b905738`
 LAST_COMPLETED_SOURCE_MILESTONE: `M883 — provider-neutral media object storage adapters and callsite wiring reviewed, focused gates passed, pushed at 9a720071fb77d56426611ba8d0ff52e62b905738`
 ACTIVE_HERMES_LANE: `F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3 — sole active source-only lane; supersedes R2 and requires one correlated ACK/READ or ACK/ACCEPTED before implementation`
