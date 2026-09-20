@@ -344,6 +344,26 @@ missing state from a transport file, a quiet poll, or a human-readable claim.
 
 This makes “read,” “accepted,” “working,” and “done” distinct, auditable facts without relying on either agent's clock.
 
+## Machine-readable loop manifest
+
+Each active lane also has one checked-in manifest at
+`L5-verification/hermes-loop-state.json`. It is the compact handoff for a
+human or LLM and is validated with:
+
+```text
+rtk node scripts/hermes-loop-state.mjs L5-verification/hermes-loop-state.json
+```
+
+The manifest must contain exactly one task identity, the exact pushed source
+commit and task digest, the current logical state, `last_seq`, `next_seq`,
+`last_wire`, `next_owner`, the next concrete action, and the immutable
+`task_msg_id`/`task_filename` pair. It contains no clock/date fields. The
+validator rejects filename/identity drift, sequence gaps, invalid owner/state
+pairs, duplicate supersession wires, missing source hashes, and any
+`LIVE_ACTIONS` value other than `NONE`. Hermes reads this manifest before
+working; Codex updates it only after a verified logical transition or reviewed
+Git push. A transport `REPLIED` marker never updates the manifest.
+
 ## Seamless Git-backed execution loop
 
 The bridge is a transport, not a scheduler. A poller may expose an inbox file
