@@ -14,6 +14,18 @@ vi.mock('react', async original => ({
   useMemo: (factory: () => unknown) => factory(),
 }));
 
+vi.mock('./LocaleProvider', () => ({
+  useLocale: () => ({
+    locale: 'en',
+    setLocale: vi.fn(),
+    t: (key: string) => ({
+      'roleplay.useSuggested': 'Use suggested personality',
+      'roleplay.writeManually': 'Write manually',
+      'roleplay.personaPlaceholder': 'Write bounded character guidance…',
+    }[key] ?? key),
+  }),
+}));
+
 import RoleplayManager from './RoleplayManager';
 
 type Node = ReactElement<{
