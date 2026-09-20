@@ -22,7 +22,7 @@
     "CODEX-F89-DRAFT-EDITOR-LOCALIZATION-R2-001",
     "CODEX-F89-DRAFT-EDITOR-LOCALIZATION-R2-ACK-CORRECTION-002"
   ],
-  "next_action": "Select the next bounded criterion from the current pushed source; do not resume the blocked Hermes lane",
+  "next_action": "Implement and verify the bounded RoleplayManager six-locale UI criterion from the current pushed source; do not resume the blocked Hermes lane",
   "live_actions": "NONE",
   "forbidden_actions": [
     "application edits outside the declared four-file fallback criterion",
