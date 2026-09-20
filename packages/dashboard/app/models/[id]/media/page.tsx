@@ -7,27 +7,29 @@ import CopyVariantCreate from '@/components/CopyVariantCreate';
 import MediaUpload from '@/components/MediaUpload';
 import { getSession, type MediaKind, type MediaOrigin } from '@/lib/api';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
+import { getServerLocale } from '@/lib/server-locale';
 
 export const dynamic = 'force-dynamic';
 const MEDIA_ORIGINS: readonly MediaOrigin[] = ['uploaded', 'generated', 'transformed', 'legacy'];
 const MEDIA_KINDS: readonly MediaKind[] = ['image', 'video'];
 type MediaAsset = Awaited<ReturnType<typeof api.models.media>>['data'][number];
+type Translator = Awaited<ReturnType<typeof getServerLocale>>['t'];
 
-function assetTitle(asset: MediaAsset): string {
-  if (asset.origin === 'uploaded') return 'Uploaded source';
-  if (asset.origin === 'generated') return 'Generated media';
-  if (asset.origin === 'transformed') return 'Transformed media';
-  return 'Saved';
+function assetTitle(t: Translator, asset: MediaAsset): string {
+  if (asset.origin === 'uploaded') return t('media.assetTitleUploaded');
+  if (asset.origin === 'generated') return t('media.assetTitleGenerated');
+  if (asset.origin === 'transformed') return t('media.assetTitleTransformed');
+  return t('media.assetTitleSaved');
 }
 
-function lifecyclePresentation(asset: MediaAsset): { label: string; tone: 'good' | 'warn' | 'bad' | 'mute'; detail: string } {
-  if (!asset.operationId) return { label: 'Saved', tone: 'mute', detail: 'Stored media; no transform operation is attached.' };
+function lifecyclePresentation(t: Translator, asset: MediaAsset): { label: string; tone: 'good' | 'warn' | 'bad' | 'mute'; detail: string } {
+  if (!asset.operationId) return { label: t('media.assetTitleSaved'), tone: 'mute', detail: t('media.savedDetail') };
   switch (asset.status) {
-    case 'queued': return { label: 'Queued', tone: 'warn', detail: 'Waiting for the media worker.' };
-    case 'running': return { label: 'Processing', tone: 'warn', detail: 'The media worker is processing this operation.' };
-    case 'failed': return { label: 'Transform failed', tone: 'bad', detail: 'The operation failed; inspect the transform history before retrying.' };
-    case 'completed': return { label: 'Transform complete', tone: 'good', detail: 'The result is saved, but still requires its own review.' };
-    default: return { label: 'Status unavailable', tone: 'mute', detail: 'Refresh status before taking another action.' };
+    case 'queued': return { label: t('media.lifecycleQueued'), tone: 'warn', detail: t('media.lifecycleQueuedDetail') };
+    case 'running': return { label: t('media.lifecycleRunning'), tone: 'warn', detail: t('media.lifecycleRunningDetail') };
+    case 'failed': return { label: t('media.lifecycleFailed'), tone: 'bad', detail: t('media.lifecycleFailedDetail') };
+    case 'completed': return { label: t('media.lifecycleCompleted'), tone: 'good', detail: t('media.lifecycleCompletedDetail') };
+    default: return { label: t('media.lifecycleUnavailable'), tone: 'mute', detail: t('media.lifecycleUnavailableDetail') };
   }
 }
 
@@ -57,12 +59,15 @@ export default async function MediaPage({ params, searchParams }: {
     ? query.kind as MediaKind : undefined;
   const filters = origin || kind ? { origin, kind } : undefined;
   const base = `/models/${encodeURIComponent(id)}`;
+  const { t, dateTime } = await getServerLocale();
   const session = await getSession();
   const role = session?.user?.role;
-  if (!talentDestinationAllowed(role, 'media')) return <div className="card"><h2>Media access unavailable</h2><p>Your role does not include this library.</p><Link href="/">Back to workspace</Link></div>;
+  if (!talentDestinationAllowed(role, 'media')) return <div className="card"><h2>{t('media.accessUnavailable')}</h2><p>{t('media.accessDescription')}</p><Link href="/">{t('media.back')}</Link></div>;
   const canEdit = ['owner', 'manager', 'operator', 'content_creator'].includes(role ?? '');
   const canCreateVariant = ['owner', 'manager', 'operator'].includes(role ?? '');
   const canReadOperations = role !== 'model';
+  const originLabel = origin ? t(`media.origin${origin === 'uploaded' ? 'Uploaded' : origin === 'generated' ? 'Generated' : origin === 'transformed' ? 'Transformed' : 'Legacy'}`) : t('media.showingAllSources');
+  const kindLabel = kind ? t(kind === 'image' ? 'media.kindImage' : 'media.kindVideo') : t('media.showingAllKinds');
   let result: Awaited<ReturnType<typeof api.models.media>> | undefined;
   let operations: Awaited<ReturnType<typeof api.models.mediaOperations>>['data'] = [];
   let operationsFailed = false;
@@ -72,62 +77,62 @@ export default async function MediaPage({ params, searchParams }: {
   ]);
   const mediaItems = result?.data ?? [];
   return <div className="page-stack">
-    <h2>Media library</h2>
-    <p>Saved uploads and generated media for this talent. Being in this library does not mean an asset passed review or is approved for publication.</p>
-    <div className="action-row">{canEdit && <Link href={`${base}/generation`}>Upload or create media</Link>}{talentDestinationAllowed(role, 'approvals') && <Link href={`${base}/approvals`}>Review content bundles</Link>}</div>
-    <form method="get" className="card stack" aria-label="Filter media library">
-      <strong>Filter saved media</strong>
+    <h2>{t('media.title')}</h2>
+    <p>{t('media.description')}</p>
+    <div className="action-row">{canEdit && <Link href={`${base}/generation`}>{t('media.uploadOrCreate')}</Link>}{talentDestinationAllowed(role, 'approvals') && <Link href={`${base}/approvals`}>{t('media.reviewBundles')}</Link>}</div>
+    <form method="get" className="card stack" aria-label={t('media.filterAria')}>
+      <strong>{t('media.filterTitle')}</strong>
       <div className="row">
-        <label>Source
+        <label>{t('media.sourceLabel')}
           <select name="origin" defaultValue={origin ?? ''}>
-            <option value="">All sources</option>
-            <option value="uploaded">Uploaded source</option>
-            <option value="generated">Generated</option>
-            <option value="transformed">Transformed</option>
-            <option value="legacy">Legacy or unknown</option>
+            <option value="">{t('media.allSources')}</option>
+            <option value="uploaded">{t('media.originUploaded')}</option>
+            <option value="generated">{t('media.originGenerated')}</option>
+            <option value="transformed">{t('media.originTransformed')}</option>
+            <option value="legacy">{t('media.originLegacy')}</option>
           </select>
         </label>
-        <label>Type
+        <label>{t('media.typeLabel')}
           <select name="kind" defaultValue={kind ?? ''}>
-            <option value="">Images and videos</option>
-            <option value="image">Images</option>
-            <option value="video">Videos</option>
+            <option value="">{t('media.allKinds')}</option>
+            <option value="image">{t('media.kindImage')}</option>
+            <option value="video">{t('media.kindVideo')}</option>
           </select>
         </label>
-        <button type="submit" className="btn secondary">Apply filters</button>
-        {(origin || kind) && <Link href={mediaHref(base, undefined, undefined, undefined)}>Clear filters</Link>}
+        <button type="submit" className="btn secondary">{t('media.applyFilters')}</button>
+        {(origin || kind) && <Link href={mediaHref(base, undefined, undefined, undefined)}>{t('media.clearFilters')}</Link>}
       </div>
-      {(origin || kind) && <p className="subtle">Showing {origin ?? 'all sources'} · {kind ?? 'images and videos'}.</p>}
+      {(origin || kind) && <p className="subtle">{t('media.showingFilters', { origin: originLabel, kind: kindLabel })}</p>}
     </form>
     {canEdit && <MediaUpload modelId={id} />}
-    {operationsFailed && <p role="alert">Transformation status could not be loaded. Saved media is still available; refresh before starting another transformation.</p>}
-    {!result ? <p role="alert">Media could not be loaded. Refresh to try again.</p> : mediaItems.length === 0 ? <p>No saved media in this page.</p> : <div className="grid">
+    {operationsFailed && <p role="alert">{t('media.operationsLoadFailed')}</p>}
+    {!result ? <p role="alert">{t('media.loadFailed')}</p> : mediaItems.length === 0 ? <p>{t('media.emptyPage')}</p> : <div className="grid">
       {mediaItems.map(asset => {
         const src = `/api/v1/models/${encodeURIComponent(id)}/media/${encodeURIComponent(asset.id)}`;
-        const lifecycle = lifecyclePresentation(asset);
+        const lifecycle = lifecyclePresentation(t, asset);
         const resultAssetIds = asset.resultAssetIds ?? [];
         const pageAssetIds = new Set(mediaItems.map(item => item.id));
         const visibleResultIds = resultAssetIds.filter(resultId => pageAssetIds.has(resultId));
         return <article key={asset.id} id={`media-${asset.id}`} className="card stack">
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <h3>{assetTitle(asset)} {asset.kind === 'video' ? 'video' : 'image'}</h3>
+            <h3>{assetTitle(t, asset)} {asset.kind === 'video' ? t('media.kindVideo') : t('media.kindImage')}</h3>
             <span className={`badge ${lifecycle.tone}`}>{lifecycle.label}</span>
           </div>
           <BundleMedia modelId={id} assetId={asset.id} />
-          <p className="subtle">{asset.width && asset.height ? `${asset.width} × ${asset.height} · ` : ''}{Math.ceil(asset.fileSize / 1024)} KB · {asset.createdAt}</p>
+          <p className="subtle">{asset.width && asset.height ? t('media.dimensions', { width: asset.width, height: asset.height }) : ''}{Math.ceil(asset.fileSize / 1024)} KB · {dateTime(asset.createdAt)}</p>
           <p className="subtle">{lifecycle.detail}</p>
-          {asset.sourceAssetId && <p className="subtle">Derived from source media: {pageAssetIds.has(asset.sourceAssetId) ? <a href={`#media-${asset.sourceAssetId}`}>{shortAssetId(asset.sourceAssetId)}</a> : <span className="mono">{shortAssetId(asset.sourceAssetId)}</span>}</p>}
-          {resultAssetIds.length > 0 && <p className="subtle">{resultAssetIds.length} saved result{resultAssetIds.length === 1 ? '' : 's'}{visibleResultIds.length > 0 && <>: {visibleResultIds.map((resultId, index) => <span key={resultId}>{index > 0 ? ', ' : ''}<a href={`#media-${resultId}`}>{shortAssetId(resultId)}</a></span>)}</>}</p>}
-          <div className="action-row"><a href={src} target="_blank" rel="noopener noreferrer">Open saved media</a>{canEdit && asset.kind === 'image' && <Link href={`${base}/generation?${new URLSearchParams({ sourceAssetId: asset.id })}`}>Use for video</Link>}</div>
+          {asset.sourceAssetId && <p className="subtle">{t('media.derivedFromSource')} {pageAssetIds.has(asset.sourceAssetId) ? <a href={`#media-${asset.sourceAssetId}`}>{shortAssetId(asset.sourceAssetId)}</a> : <span className="mono">{shortAssetId(asset.sourceAssetId)}</span>}</p>}
+          {resultAssetIds.length > 0 && <p className="subtle">{t(resultAssetIds.length === 1 ? 'media.resultCountOne' : 'media.resultCountMany', { count: resultAssetIds.length })}{visibleResultIds.length > 0 && <>: {visibleResultIds.map((resultId, index) => <span key={resultId}>{index > 0 ? ', ' : ''}<a href={`#media-${resultId}`}>{shortAssetId(resultId)}</a></span>)}</>}</p>}
+          <div className="action-row"><a href={src} target="_blank" rel="noopener noreferrer">{t('media.openSaved')}</a>{canEdit && asset.kind === 'image' && <Link href={`${base}/generation?${new URLSearchParams({ sourceAssetId: asset.id })}`}>{t('media.useForVideo')}</Link>}</div>
           {canReadOperations && !operationsFailed && <MediaOperationControls modelId={id} assetId={asset.id} kind={asset.kind} operations={operations} canEdit={canEdit} />}
           {canEdit && <MediaBundleCreate modelId={id} assetId={asset.id} mimeType={asset.mimeType} />}
           {canCreateVariant && <CopyVariantCreate modelId={id} assetId={asset.id} />}
         </article>;
       })}
     </div>}
-    <nav className="action-row" aria-label="Media library pages">
-      {cursor && <Link href={mediaHref(base, undefined, origin, kind)}>Latest media</Link>}
-      {result?.meta?.next_cursor && <Link href={mediaHref(base, result.meta.next_cursor, origin, kind)}>Older media</Link>}
+    <nav className="action-row" aria-label={t('media.pagesAria')}>
+      {cursor && <Link href={mediaHref(base, undefined, origin, kind)}>{t('media.latest')}</Link>}
+      {result?.meta?.next_cursor && <Link href={mediaHref(base, result.meta.next_cursor, origin, kind)}>{t('media.older')}</Link>}
     </nav>
   </div>;
 }
