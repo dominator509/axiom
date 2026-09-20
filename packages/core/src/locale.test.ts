@@ -125,6 +125,25 @@ describe('F-89 catalog completeness', () => {
     expect(out).toBe('');
     expect(out).not.toContain('not.a.real.key');
   });
+
+  it('keeps workspace-member controls translated in every launch locale', () => {
+    const keys = [
+      'members.auditNote', 'members.reload', 'members.loadMore', 'members.empty', 'members.loadFailed',
+      'members.currentRole', 'members.newRole', 'members.notAssignable', 'members.review', 'members.confirmation', 'members.retry',
+      'members.confirm', 'members.cancel', 'members.saved', 'members.accessChanged', 'members.rejected',
+      'members.notConfirmed', 'members.role.owner', 'members.role.manager', 'members.role.operator',
+      'members.role.analyst', 'members.role.content_creator', 'members.role.model', 'members.role.chatter',
+      'members.roleDescription.owner', 'members.roleDescription.manager', 'members.roleDescription.operator',
+      'members.roleDescription.analyst', 'members.roleDescription.content_creator', 'members.roleDescription.model',
+      'members.roleDescription.chatter',
+    ];
+    for (const locale of SUPPORTED_LOCALES) {
+      for (const key of keys) expect(CATALOGS[locale][key]).toBeTruthy();
+      if (locale !== 'en') {
+        for (const key of keys) expect(CATALOGS[locale][key], `${locale}.${key}`).not.toBe(CATALOGS.en[key]);
+      }
+    }
+  });
 });
 
 describe('F-89 fallback and diagnostics', () => {

@@ -3,18 +3,28 @@
 import { useRef, useState } from 'react';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 const roles = ['owner', 'manager', 'operator', 'analyst', 'content_creator', 'model', 'chatter'] as const;
 type Role = typeof roles[number];
 interface Member { id: string; name: string; email: string; role: string }
-const descriptions: Record<Role, string> = {
-  owner: 'Workspace administration, member access, and operational controls.',
-  manager: 'Manage talent operations without owner-only workspace controls.',
-  operator: 'Run day-to-day content and publishing operations.',
-  analyst: 'Review reporting; operational changes remain subject to API permissions.',
-  content_creator: 'Prepare content only for assigned talent; no approval or publishing controls. Uses their own generation account and storage.',
-  model: 'Read assigned talent media, calendar, analytics, earnings and inbox. No operational changes.',
-  chatter: 'Work assigned talent inboxes only during an active shift. No workspace administration or public publishing.',
+const roleKeys: Record<Role, string> = {
+  owner: 'members.role.owner',
+  manager: 'members.role.manager',
+  operator: 'members.role.operator',
+  analyst: 'members.role.analyst',
+  content_creator: 'members.role.content_creator',
+  model: 'members.role.model',
+  chatter: 'members.role.chatter',
+};
+const descriptionKeys: Record<Role, string> = {
+  owner: 'members.roleDescription.owner',
+  manager: 'members.roleDescription.manager',
+  operator: 'members.roleDescription.operator',
+  analyst: 'members.roleDescription.analyst',
+  content_creator: 'members.roleDescription.content_creator',
+  model: 'members.roleDescription.model',
+  chatter: 'members.roleDescription.chatter',
 };
 export function isMember(value: unknown): value is Member {
   if (!value || typeof value !== 'object') return false;
@@ -25,6 +35,7 @@ export function isMember(value: unknown): value is Member {
 }
 
 export function MemberRoleCard({ member, onSaved }: { member: Member; onSaved: () => void }) {
+  const { t } = useLocale();
   const [role, setRole] = useState(member.role);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -44,34 +55,36 @@ export function MemberRoleCard({ member, onSaved }: { member: Member; onSaved: (
       if (!response.ok) {
         const details = await readDashboardError(response);
         if ([400, 401, 403, 404, 409, 422].includes(response.status)) { setFinished(true); intent.current = null; }
-        setMessage(details?.error?.message ?? 'Change not confirmed. Reload members before another edit.');
+        setMessage(details?.error?.message ?? t('members.rejected'));
         return;
       }
       const result = await readDashboardJson<{ data?: { id: string; role: string; sessionsRevoked: boolean } }>(response);
       if (result.data?.id !== member.id || result.data.role !== current.role || typeof result.data.sessionsRevoked !== 'boolean') throw new Error('invalid receipt');
       intent.current = null; setFinished(true);
-      setMessage('Role saved. Changed members must sign in again. Reload members to see current access.');
+      setMessage(t('members.saved'));
       onSaved();
-    } catch { setMessage('Save not confirmed. Retry the same change or reload members to inspect current access.'); }
+    } catch { setMessage(t('members.notConfirmed')); }
     finally { lock.current = false; setBusy(false); }
   }
+  const roleLabel = (value: string) => roles.includes(value as Role) ? t(roleKeys[value as Role]) : value;
   return <article className="card stack">
-    <h2>{member.name || member.email}</h2><p style={{ overflowWrap: 'anywhere' }}>{member.email}</p><p>Current role: {member.role}</p>
-    <label>New role<select value={role} disabled={busy || finished || confirm} onChange={event => setRole(event.target.value)}>
-      {!roles.includes(member.role as Role) && <option value={member.role}>{member.role} (not assignable)</option>}
-      {roles.map(value => <option key={value} value={value}>{value}</option>)}
+    <h2>{member.name || member.email}</h2><p style={{ overflowWrap: 'anywhere' }}>{member.email}</p><p>{t('members.currentRole', { role: roleLabel(member.role) })}</p>
+    <label>{t('members.newRole')}<select value={role} disabled={busy || finished || confirm} onChange={event => setRole(event.target.value)}>
+      {!roles.includes(member.role as Role) && <option value={member.role}>{t('members.notAssignable', { role: member.role })}</option>}
+      {roles.map(value => <option key={value} value={value}>{roleLabel(value)}</option>)}
     </select></label>
-    {roles.includes(role as Role) && <p className="subtle">{descriptions[role as Role]}</p>}
-    {!confirm && !finished && <button className="btn secondary" type="button" disabled={role === member.role || !roles.includes(role as Role)} onClick={() => setConfirm(true)}>Review role change</button>}
-    {confirm && !finished && <div className="stack"><p>Change {member.email} from {member.role} to {role}? This ends their existing sessions. Changing your own role also signs you out. The last workspace owner cannot be removed.</p><div className="action-row">
-      <button className="btn" type="button" disabled={busy} onClick={() => void save()}>{intent.current ? 'Retry same role change' : 'Confirm role change'}</button>
-      {!intent.current && <button className="btn secondary" type="button" disabled={busy} onClick={() => setConfirm(false)}>Cancel</button>}
+    {roles.includes(role as Role) && <p className="subtle">{t(descriptionKeys[role as Role])}</p>}
+    {!confirm && !finished && <button className="btn secondary" type="button" disabled={role === member.role || !roles.includes(role as Role)} onClick={() => setConfirm(true)}>{t('members.review')}</button>}
+    {confirm && !finished && <div className="stack"><p>{t('members.confirmation', { email: member.email, from: roleLabel(member.role), to: roleLabel(role) })}</p><div className="action-row">
+      <button className="btn" type="button" disabled={busy} onClick={() => void save()}>{intent.current ? t('members.retry') : t('members.confirm')}</button>
+      {!intent.current && <button className="btn secondary" type="button" disabled={busy} onClick={() => setConfirm(false)}>{t('members.cancel')}</button>}
     </div></div>}
     {message && <p role="status">{message}</p>}
   </article>;
 }
 
 export default function WorkspaceMembers() {
+  const { t } = useLocale();
   const [members, setMembers] = useState<Member[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -93,14 +106,14 @@ export default function WorkspaceMembers() {
       setMembers(previous => older ? [...previous, ...rows.filter(item => !previous.some(existing => existing.id === item.id))] : rows);
       setCursor(result.meta.next_cursor as string | null); setLoaded(true);
       if (!older) setRevision(value => value + 1);
-    } catch { setMessage('Members could not be loaded. Your session may have expired or owner access changed. Sign in again if needed.'); }
+    } catch { setMessage(t('members.loadFailed')); }
     finally { lock.current = false; setBusy(false); }
   }
-  return <div className="stack"><p className="subtle">Changes are audited. Content Creators, Models and Chatters need talent assignments from the talent’s Team page. Chatters also need an active shift before talent or inbox access is available.</p>
-    <button className="btn secondary" type="button" disabled={busy} onClick={() => void load()}>Reload members</button>
+  return <div className="stack"><p className="subtle">{t('members.auditNote')}</p>
+    <button className="btn secondary" type="button" disabled={busy} onClick={() => void load()}>{t('members.reload')}</button>
     {message && <p role="status">{message}</p>}
-    {loaded && members.length === 0 && <p>No workspace members returned.</p>}
-    <div className="stack">{members.map(member => <MemberRoleCard key={`${revision}:${member.id}`} member={member} onSaved={() => setMessage('Member access changed. Reload members; if you changed your own role, sign in again.')} />)}</div>
-    {cursor && <button className="btn secondary" type="button" disabled={busy} onClick={() => void load(true)}>Load more members</button>}
+    {loaded && members.length === 0 && <p>{t('members.empty')}</p>}
+    <div className="stack">{members.map(member => <MemberRoleCard key={`${revision}:${member.id}`} member={member} onSaved={() => setMessage(t('members.accessChanged'))} />)}</div>
+    {cursor && <button className="btn secondary" type="button" disabled={busy} onClick={() => void load(true)}>{t('members.loadMore')}</button>}
   </div>;
 }

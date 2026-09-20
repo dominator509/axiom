@@ -6,6 +6,46 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
   useRef: (initial: unknown) => { const i = hooks.index++; return hooks.slots[i] ??= { current: initial }; },
 }));
 vi.mock('@/lib/mutation', () => ({ mutationFetch: hooks.send, createIdempotencyKey: () => 'stable-intent' }));
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({
+  locale: 'en',
+  setLocale: vi.fn(),
+  t: (key: string, values?: Record<string, string | number>) => {
+    const messages: Record<string, string> = {
+      'members.auditNote': 'Changes are audited. Content Creators, Models and Chatters need talent assignments from the talent’s Team page. Chatters also need an active shift before talent or inbox access is available.',
+      'members.reload': 'Reload members',
+      'members.loadMore': 'Load more members',
+      'members.empty': 'No workspace members returned.',
+      'members.loadFailed': 'Members could not be loaded.',
+      'members.currentRole': 'Current role: {role}',
+      'members.newRole': 'New role',
+      'members.notAssignable': '{role} (not assignable)',
+      'members.review': 'Review role change',
+      'members.confirmation': 'Change {email} from {from} to {to}?',
+      'members.retry': 'Retry same role change',
+      'members.confirm': 'Confirm role change',
+      'members.cancel': 'Cancel',
+      'members.saved': 'Role saved.',
+      'members.accessChanged': 'Member access changed.',
+      'members.rejected': 'Change not confirmed.',
+      'members.notConfirmed': 'Save not confirmed.',
+      'members.role.owner': 'Owner',
+      'members.role.manager': 'Manager',
+      'members.role.operator': 'Operator',
+      'members.role.analyst': 'Analyst',
+      'members.role.content_creator': 'Content Creator',
+      'members.role.model': 'Model',
+      'members.role.chatter': 'Chatter',
+      'members.roleDescription.owner': 'Workspace administration.',
+      'members.roleDescription.manager': 'Manage talent operations.',
+      'members.roleDescription.operator': 'Run content operations.',
+      'members.roleDescription.analyst': 'Review reporting.',
+      'members.roleDescription.content_creator': 'Prepare assigned talent content.',
+      'members.roleDescription.model': 'Read assigned talent data.',
+      'members.roleDescription.chatter': 'Work assigned inboxes during shifts.',
+    };
+    return (messages[key] ?? key).replace(/\{([a-z]+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
+  },
+}) }));
 import WorkspaceMembers, { MemberRoleCard, isMember } from './WorkspaceMembers';
 const member = { id: 'user/one', name: 'One', email: 'one@example.test', role: 'operator' };
 const roles = ['owner', 'manager', 'operator', 'analyst', 'content_creator', 'model', 'chatter'];
