@@ -1,9 +1,23 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { CATALOGS, LocaleCatalog, type MessageKey, type SupportedLocale } from '@axiom/core';
+import {
+  CATALOGS,
+  FANVUE_ANALYTICS_CATALOGS,
+  LocaleCatalog,
+  SUPPORTED_LOCALES,
+  type MessageKey,
+  type SupportedLocale,
+} from '@axiom/core';
 
-const catalog = new LocaleCatalog(CATALOGS);
+const catalog = new LocaleCatalog(
+  Object.fromEntries(
+    SUPPORTED_LOCALES.map((locale) => [locale, {
+      ...CATALOGS[locale],
+      ...FANVUE_ANALYTICS_CATALOGS[locale],
+    }]),
+  ) as typeof CATALOGS,
+);
 
 interface LocaleContextValue {
   locale: SupportedLocale;

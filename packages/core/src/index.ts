@@ -5,6 +5,7 @@ export * from './compliance.js';
 export * from './http.js';
 export * from './locale.js';
 export * from './locale-catalogs.js';
+export * from './fanvue-analytics-catalog.js';
 export * from './locale-settings.js';
 export * from './relay-card-state.js';
 export * from './scrape-result.js';
