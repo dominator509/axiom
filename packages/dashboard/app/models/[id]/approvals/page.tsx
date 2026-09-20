@@ -30,6 +30,12 @@ export default async function ApprovalsPage({
     <div className="card"><h2>{t('review.accessUnavailable')}</h2><p>{t('review.accessDescription')}</p><Link href="/">{t('review.back')}</Link></div>
   );
   const canApprove = ['owner', 'manager', 'operator'].includes(role ?? '');
+  const tosVerdictLabels: Record<string, string> = {
+    pass: t('review.tos.pass'),
+    review: t('review.tos.review'),
+    block: t('review.tos.block'),
+    pending: t('review.tos.pending'),
+  };
   const query = (await searchParams) ?? {};
   const cursors = new URLSearchParams();
   for (const state of reviewStates) {
@@ -71,7 +77,7 @@ export default async function ApprovalsPage({
       {!canApprove && <p>{t('review.draftDescription')}</p>}
       {error && (
         <div className="card" style={{ color: 'var(--bad)' }}>
-          {error}
+          {t('review.loadFailed')}
         </div>
       )}
       {bundles.length === 0 && !error && (
@@ -104,7 +110,7 @@ export default async function ApprovalsPage({
                     className={`badge ${b.tosReport.verdict === 'pass' ? 'good' : b.tosReport.verdict === 'review' ? 'warn' : 'bad'}`}
                     style={{ marginLeft: 8 }}
                   >
-                    {t('review.tos', { value: b.tosReport.verdict })}{b.tosReport.decisionSource === 'human-review' ? ` (${t('review.operatorReviewed')})` : ''}
+                    {t('review.tos', { value: tosVerdictLabels[b.tosReport.verdict] ?? t('review.tos.unknown') })}{b.tosReport.decisionSource === 'human-review' ? ` (${t('review.operatorReviewed')})` : ''}
                   </span>
                 )}
               </div>

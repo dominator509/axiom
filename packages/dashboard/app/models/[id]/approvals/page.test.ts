@@ -212,7 +212,8 @@ describe('approval review queue', () => {
   it('reports held-queue failure instead of claiming an empty review queue', async () => {
     transport('hold', 'pass', true);
     const html = await renderPage();
-    expect(html).toContain('Held review queue unavailable');
+    expect(html).toContain('The review queue could not be loaded. Refresh to try again.');
+    expect(html).not.toContain('Held review queue unavailable');
     expect(html).not.toContain('No bundles awaiting review');
   });
 

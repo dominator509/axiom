@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CATALOGS, LocaleCatalog } from '@axiom/core';
 
-const state = vi.hoisted(() => ({ role: 'owner', locale: 'es', accounts: [] as Array<Record<string, string>>, list: vi.fn() }));
+const state = vi.hoisted(() => ({ role: 'owner', locale: 'es' as const, accounts: [] as Array<Record<string, string>>, list: vi.fn() }));
 
 vi.mock('@/lib/api', () => ({
   getSession: async () => ({ user: { role: state.role } }),
