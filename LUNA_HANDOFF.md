@@ -11,7 +11,7 @@ SOURCE_HEAD: `fb594a441cada409a251a5c35399662562ade169` (M907 isolated matrix st
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `fb594a441cada409a251a5c35399662562ade169` (product source pin; later branch commits are coordination-only)
 COORDINATION_HEAD: `coordination metadata is pushed on the published branch; verify its current tip with git ls-remote; it must not replace the exact product source pin above`
-COORDINATION_HEAD_LAST_READBACK: `d06b45800b47be4ebda11e6dafd3b134d0a7b8f4 — M910 synchronization controls; re-read origin before any new lane`
+COORDINATION_HEAD_LAST_READBACK: `df99447fb2346d6fdeffb7ab99a2d2fee53582f2 — M912 pinned reconciliation manifest; re-read origin before any new lane`
 ACCEPTED_PRODUCT_SOURCE: `fb594a441cada409a251a5c35399662562ade169`
 CURRENT_TASK_MANIFEST: `L5-verification/hermes-loop-state.json — the only active-lane marker; its remote read-only mirror is /srv/fanthynks-bridge/hermes/inbox/CURRENT_TASK.json`
 CURRENT_TASK_MANIFEST_SHA256: `beeb4b46f8eca342703ed5db7b1700378cb780281d9297f13af76a16a2611097`
@@ -56,17 +56,17 @@ CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
 NEXT_PREPARED_TASK: `HERMES-WORKFLOW-RECONCILIATION-R1`
 NEXT_PREPARED_TASK_WIRE: `CODEX-HERMES-WORKFLOW-RECONCILIATION-R1-TASK-001`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `d06b45800b47be4ebda11e6dafd3b134d0a7b8f4`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `20e5665814550fc0f3f10f44914336867c3de8ed`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
 NEXT_PREPARED_TASK_STATE: `OPEN — control-only source binding is being prepared; no product implementation is authorized until sync proof is returned`
 ACTIVE_LANE_TASK_WIRE: `CODEX-HERMES-WORKFLOW-RECONCILIATION-R1-TASK-001`
-ACTIVE_LANE_SOURCE_COMMIT: `d06b45800b47be4ebda11e6dafd3b134d0a7b8f4`
+ACTIVE_LANE_SOURCE_COMMIT: `20e5665814550fc0f3f10f44914336867c3de8ed`
 ACTIVE_LANE_SOURCE_REPO: `github.com/dominator509/axiom`
 ACTIVE_LANE_SOURCE_REF: `refs/heads/codex/telegram-webhook-hardening`
 ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-hermes-workflow-reconciliation-r1/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-hermes-workflow-reconciliation-r1/mirror fetch --all --prune`
 ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-hermes-workflow-reconciliation-r1/mirror rev-parse --verify refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-hermes-workflow-reconciliation-r1/mirror cat-file -t d06b45800b47be4ebda11e6dafd3b134d0a7b8f4^{commit}`
-ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-hermes-workflow-reconciliation-r1/mirror merge-base --is-ancestor d06b45800b47be4ebda11e6dafd3b134d0a7b8f4 refs/heads/codex/telegram-webhook-hardening`
+ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-hermes-workflow-reconciliation-r1/mirror cat-file -t 20e5665814550fc0f3f10f44914336867c3de8ed^{commit}`
+ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-hermes-workflow-reconciliation-r1/mirror merge-base --is-ancestor 20e5665814550fc0f3f10f44914336867c3de8ed refs/heads/codex/telegram-webhook-hardening`
 ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-workflow-reconciliation-r1/mirror`
 ACTIVE_LANE_SOURCE_MIRROR_LAYOUT: `bare-mirror — refs/heads/*`
 ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch checkout`
