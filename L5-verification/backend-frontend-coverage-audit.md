@@ -825,3 +825,24 @@ non-secret `API_ORIGIN`; `scripts/verify.sh` prints `verify: ok`; source commit
 browser/mobile, deployed media/R2/runtime, provider, migration/RLS,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+# M824: Patreon web localization
+
+The authenticated Patreon onboarding page and client sync manager now use typed
+six-locale catalog keys for connection scope disclosure, role-gated actions,
+read/sync status, campaign/member/post controls, sync and webhook health,
+record tables and the manual-assist boundary. OAuth, provider scopes, sync
+contracts, cursor behavior, role checks and provider/user-authored data remain
+unchanged.
+
+Evidence: core catalog/completeness tests 34/34; combined dashboard
+generation, upload, progress, approval, transform, caption-evidence and
+Patreon tests 107/107; core/dashboard typechecks pass; core/dashboard lint
+exits 0 with four pre-existing `any` warnings; dashboard production build
+exits 0 with explicit non-secret `API_ORIGIN`; `scripts/verify.sh` prints
+`verify: ok`; source commit
+`c56243fff44d87349ebbe5d3b5ba64586cb3e794` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
+browser/mobile, deployed Patreon OAuth/webhook/sync, R2, provider,
+migration/RLS, observability, CI governance and production acceptance remain
+open. No live action occurred.

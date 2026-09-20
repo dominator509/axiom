@@ -1238,3 +1238,23 @@ coordination branch. This closes only the source/automated caption-evidence
 localization criterion. Browser/native, deployed media/runtime, R2, provider,
 migration/RLS and production/operator acceptance remain open. No live action
 occurred.
+
+### M824 — F-89 Patreon web localization
+
+The authenticated Patreon page and client sync manager now use the shared
+six-locale catalog for onboarding, scope disclosure, role-gated connection,
+read/sync controls, resource counts, sync/webhook health, record tables and
+the manual-assist boundary. OAuth, provider scopes, sync payloads, cursor
+behavior, role checks and raw provider data are unchanged.
+
+Pass criteria and evidence: core catalog/completeness tests 34/34; combined
+dashboard generation, upload, progress, approval, transform, caption-evidence
+and Patreon tests 107/107; core/dashboard typechecks pass; core/dashboard
+lint exits 0 with four pre-existing `any` warnings; dashboard production
+build exits 0 with explicit non-secret `API_ORIGIN`; `scripts/verify.sh`
+prints `verify: ok`; source commit
+`c56243fff44d87349ebbe5d3b5ba64586cb3e794` is pushed and read back from the
+coordination branch. This closes only the source/automated Patreon web
+localization criterion. Browser/native, deployed Patreon OAuth/webhook/sync,
+R2, provider, migration/RLS and production/operator acceptance remain open.
+No live action occurred.
