@@ -16,7 +16,7 @@
   "next_seq": 5,
   "last_wire": "CODEX-F89-CONSENT-VAULT-L10N-R1-LOCAL-FALLBACK-004",
   "supersedes": [],
-  "next_action": "Hermes lane closed after the second strict-protocol failure; Codex owns the local implementation of the exact finite Consent-vault localization slice; do not accept a Hermes artifact from this closed lane.",
+  "next_action": "Hermes lane remains closed after the second strict-protocol failure; the exact Consent-vault localization slice is integrated locally at source commit 5dd265a6; do not accept a Hermes artifact from this closed lane; select a new finite task only after architecture reconciliation.",
   "live_actions": "NONE",
   "forbidden_actions": [
     "installer",

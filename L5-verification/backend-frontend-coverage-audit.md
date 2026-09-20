@@ -1,6 +1,6 @@
 # Backend-to-frontend coverage audit
 
-Source baseline: `4a3bb9e0511e83aff2781612a98436d08b8039ee`.
+Source baseline: `5dd265a6a9f1fc302d9b6aa142bd3d41cb64a0a3`.
 
 ## Verdict and evidence boundary
 
@@ -1103,3 +1103,26 @@ prints `verify: ok`. Source commit
 `origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
 browser/native, provider, deployed migration/RLS/runtime, observability, CI
 governance and production acceptance remain open. No live action occurred.
+
+# M852: consent-vault localization and safe control reconciliation
+
+The authenticated model consent route is now localized through the persisted
+server UI-locale preference, and its client controls use the same six-locale
+catalog as the rest of the dashboard. The source/UI slice covers the consent
+page, metadata form and revoke control, including role-aware visibility,
+metadata-only copy, localized validation and status states, UTC date-only
+formatting and explicit revoke confirmation. The backend contract remains
+unchanged: model-scoped consent records retain their idempotency and response
+identity checks, document bytes are not accepted or rendered, and raw backend
+error messages are not exposed in the UI.
+
+Evidence: focused consent dashboard tests 16/16; full dashboard matrix 145
+files and 886 tests; core build and full core matrix 18 files and 103 tests;
+dashboard typecheck passed; dashboard lint exited 0 with four pre-existing
+`any` warnings; touched-file Prettier and `git diff --check` passed; dashboard
+production build passed with explicit non-secret `API_ORIGIN`; and
+`scripts/verify.sh` printed `verify: ok`. Source commit
+`5dd265a6a9f1fc302d9b6aa142bd3d41cb64a0a3` is the source baseline for this
+slice. Remaining evidence gates are browser/mobile, provider, deployed
+migration/RLS/runtime, observability, CI governance and production acceptance.
+No live action occurred.
