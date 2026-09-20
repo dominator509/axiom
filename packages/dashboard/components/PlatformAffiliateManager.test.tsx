@@ -19,7 +19,7 @@ vi.mock('react', async original => ({
 vi.mock('@/lib/mutation', () => ({ mutationFetch: hooks.send, createIdempotencyKey: () => 'affiliate-intent' }));
 
 import PlatformAffiliateManager from './PlatformAffiliateManager';
-import type { AffiliateProgramSnapshot } from '@/lib/api';
+import type { AffiliateHold, AffiliateProgramSnapshot } from '@/lib/api';
 
 const partner = {
   id: 'partner-1', programId: 'program-1', displayName: 'Partner One', email: 'one@example.test', status: 'active',
@@ -50,6 +50,13 @@ function find(value: unknown, predicate: (node: Node) => boolean): Node | undefi
   return find(node.props?.children, predicate);
 }
 function render(current = snapshot) { hooks.index = 0; return PlatformAffiliateManager({ initial: current }); }
+function textContent(value: unknown): string {
+  if (value === null || value === undefined || typeof value === 'boolean') return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (Array.isArray(value)) return value.map(textContent).join('');
+  if (typeof value === 'object') return textContent((value as Node).props?.children);
+  return '';
+}
 function namedInput(tree: unknown, name: string): Node {
   const node = find(tree, value => value.type === 'input' && value.props.name === name);
   expect(node).toBeDefined();
@@ -112,4 +119,23 @@ it('creates campaigns only from disclosed partners and renders report and payout
   const payout = find(tree, node => node.type === 'a' && String(node.props.href).includes('/payouts/export?partnerId=partner-1'));
   expect(payout).toBeDefined();
   expect(find(tree, node => node.type === 'button' && node.props.children === 'View report')).toBeDefined();
+});
+
+it('formats open hold dates in the selected locale with an explicit UTC zone', () => {
+  const hold: AffiliateHold = {
+    id: 'hold-1', programId: 'program-1', partnerId: 'partner-1', commissionId: null,
+    reason: 'fraud_suspected', state: 'open', resolvedByUserId: null,
+    createdAt: '2026-01-01T00:30:00.000Z', resolvedAt: null,
+  };
+  const previousTz = process.env.TZ;
+  process.env.TZ = 'Pacific/Honolulu';
+  try {
+    const tree = render({ ...snapshot, partners: [partner], holds: [hold], summary: { ...snapshot.summary, openHolds: 1 } });
+    const rendered = textContent(tree);
+    expect(rendered).toContain('Jan 1, 2026');
+    expect(rendered).not.toContain('Dec 31, 2025');
+  } finally {
+    if (previousTz === undefined) delete process.env.TZ;
+    else process.env.TZ = previousTz;
+  }
 });
