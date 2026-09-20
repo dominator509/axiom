@@ -16,7 +16,7 @@ LAST_COMPLETED_SOURCE_MILESTONE: `M859 — PlaybookCadence calendar guidance loc
 ACTIVE_HERMES_LANE: `F89-WORKER-DIGEST-LOCALIZATION-R1 — Hermes ACK/OPEN and Codex receipt accepted; implementation pending one evidence-bearing PROGRESS then terminal DELIVERY or BLOCKED; source 462cdaf31ee06e7263057df4489d7fbd14b4cd35; explicit bare-mirror source sync required`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `Poll the F89 worker-digest wire by logical state; execution receipt is sent and transport-verified, so require one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED; do not open a competing product lane.`
+NEXT_ACTION: `Poll the F89 worker-digest wire by logical state; the first DELIVERY was rejected because two declared files were unreadable, so require one corrected terminal DELIVERY with independently readable artifacts; do not open a competing product lane.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-001`
@@ -61,7 +61,7 @@ ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch 
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1/copy`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1/delivery`
-ACTIVE_LANE_COPY_STATE: `EXECUTION_RECEIPT_SENT — Hermes verified the declared task binding and accepted the Codex receipt; exact mirror/copy implementation evidence pending`
+ACTIVE_LANE_COPY_STATE: `DELIVERY_REJECTED_UNREADABLE — Hermes produced source changes, but two declared artifacts were root-owned mode 0600 and cannot be independently audited by Codex; corrected republish required`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `ebbf17ed76760630c3eaaab310c93372258d07268ec79c907e624f124c216065`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `ebbf17ed76760630c3eaaab310c93372258d07268ec79c907e624f124c216065 — exact task envelope read back from Hermes inbox`
 ACTIVE_LANE_ACK_WIRE: `HERMES-F89-WORKER-DIGEST-LOCALIZATION-R1-ACK-001`
@@ -71,6 +71,10 @@ ACTIVE_LANE_RECEIPT_SHA256: `3a4aac06004940fd78c24fa9abf84209c587e95ce1e247a249d
 ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `68af51f9370cec0aae9340b11fe740b82d56207cd878de373a3f1d5a73c20f26`
 ACTIVE_LANE_EXECUTION_RECEIPT_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-EXECUTION-RECEIPT-004`
 ACTIVE_LANE_EXECUTION_RECEIPT_SHA256: `b2db57df3e5e796bd3c2f7cbc04b3534d24a4322883a7745e25c93707a66e21d`
+ACTIVE_LANE_DELIVERY_REJECTED_WIRE: `HERMES-F89-WORKER-DIGEST-LOCALIZATION-R1-DELIVERY-005`
+ACTIVE_LANE_DELIVERY_REPLY_SHA256: `fc9a2dd459f20cf37ae22d1871f62e4289d9f21d5105f904c88abdd0a47bb66c`
+ACTIVE_LANE_DELIVERY_REJECTION_WIRE: `CODEX-F89-WORKER-DIGEST-LOCALIZATION-R1-DELIVERY-REJECTED-006`
+ACTIVE_LANE_DELIVERY_REJECTION_SHA256: `36d1a523e3a62293671ceb77e59539388c73564f02b46f5afb7d9b591142d494`
 ACTIVE_LANE_PROGRESS_WIRE: `NONE`
 ACTIVE_LANE_PROGRESS_SHA256: `NONE`
 ACTIVE_LANE_CORRECTION_WIRE: `NONE`
