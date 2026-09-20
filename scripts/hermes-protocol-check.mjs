@@ -53,7 +53,8 @@ if (!readFromStdin && !file) {
     const trailing = lines.slice(signatureIndex + 1);
     if (expectedRole === 'Hermes') {
       const nonBlankTrailing = trailing.filter((line) => line !== '');
-      if (nonBlankTrailing.length !== 1 || nonBlankTrailing[0] !== 'sincerely, hermes') {
+      const hasAcceptedLegacySuffix = nonBlankTrailing.length === 1 && nonBlankTrailing[0] === 'sincerely, hermes';
+      if (nonBlankTrailing.length !== 0 && !hasAcceptedLegacySuffix) {
         fail('unexpected content follows the Hermes role signature');
       }
     } else if (trailing.length !== 0) {
