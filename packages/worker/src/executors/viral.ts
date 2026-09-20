@@ -159,13 +159,14 @@ export const viralLabel: Executor = async (ctx: ExecutorContext) => {
   const label = labelForZ(perfScore);
 
   // 4. Feature record + embedding (L3.5 §1.4).
-  const structure = learningStructure(snapshot.caption, snapshot.scheduledFor);
+  const structure = learningStructure(snapshot.caption, snapshot.scheduledFor, matchingCaptionGuidance(snapshot.caption, snapshot.captionGuidance));
   const features: Record<string, unknown> = {
-    ...recipeEvidence(snapshot, target.publishedAt),
+    ...recipeEvidence({ ...snapshot, learningEvidence: structure.evidence ?? null }, target.publishedAt),
     evidence_source: 'published-provider-snapshot-v2',
     embedding_version: 'lexical-v1',
     learning_arm: structure.arm,
     learning_context: structure.context,
+    learning_context_version: structure.version ?? 'learn-v1',
     // Selection is not proof that guidance caused the observed outcome.
     generation_guidance: matchingCaptionGuidance(snapshot.caption, snapshot.captionGuidance),
     platform: target.platform,

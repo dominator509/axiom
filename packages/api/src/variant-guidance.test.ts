@@ -43,6 +43,15 @@ describe('variant guidance provenance', () => {
     expect(result?.summary).not.toHaveProperty('exemplarIds');
   });
 
+  it('accepts the versioned v2 arm and context without weakening evidence checks', () => {
+    const result = readVerifiedGuidance(source({ captionGuidance: { instagram: {
+      ...source().captionGuidance.instagram,
+      selectedArm: 'v2:short:statement:hook=question:format=reel',
+      context: 'learn-v2:scheduled-utc-1',
+    } } }), 'instagram', text);
+    expect(result?.provenance).toMatchObject({ selectedArm: 'v2:short:statement:hook=question:format=reel', context: 'learn-v2:scheduled-utc-1' });
+  });
+
   it('rejects edited text, wrong hashes, malformed evidence, and inconsistent timing', () => {
     expect(readVerifiedGuidance(source(), 'instagram', 'Edited copy')).toBeNull();
     expect(readVerifiedGuidance(source({ captionGuidance: { instagram: {

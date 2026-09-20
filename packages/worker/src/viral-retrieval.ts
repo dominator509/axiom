@@ -1,8 +1,10 @@
 import { and, cosineDistance, eq, inArray, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { ViralExemplar } from '@axiom/llm-gateway';
+import type { CaptionGuidanceReceipt } from '@axiom/db/schema';
 import { embedExemplarIntent } from './embedding.js';
-import { learningStructure, selectLearnedGuidance } from './learning-state.js';
+import { learningContextForArm, learningStructure, selectLearnedGuidance } from './learning-state.js';
+import { matchingCaptionGuidance } from './caption-guidance.js';
 
 export interface RetrievalRow {
   id: string;
@@ -115,19 +117,27 @@ export async function retrieveCaptionGuidance(
     .limit(50);
 
   const ranked = diversifyExemplars(rows, query, limit);
-  const armFor = (row: RetrievalRow) => {
+  const structureFor = (row: RetrievalRow) => {
     const features = (row.features ?? {}) as Record<string, unknown>;
-    return learningStructure(typeof features.caption === 'string' ? features.caption : '', null).arm;
+    const caption = typeof features.caption === 'string' ? features.caption : '';
+    const receipt = matchingCaptionGuidance(caption, features.generation_guidance as CaptionGuidanceReceipt | null | undefined);
+    return learningStructure(caption, null, receipt);
   };
-  const selected = await selectLearnedGuidance(tx, orgId, modelId, platform, [...new Set(ranked.map(armFor))], scheduledFor);
-  const preferred = ranked.findIndex(row => armFor(row) === selected);
+  const selected = await selectLearnedGuidance(tx, orgId, modelId, platform, [...new Set(ranked.map(row => structureFor(row).arm))], scheduledFor);
+  const preferred = ranked.findIndex(row => structureFor(row).arm === selected);
   if (preferred > 0) ranked.unshift(ranked.splice(preferred, 1)[0]);
   const exemplars = ranked.map((row: RetrievalRow, index: number) => {
     const exemplar = projectExemplar(row, modelId);
     if (index === 0 && selected) exemplar.aiNotes = `${exemplar.aiNotes ?? ''} Preferred caption structure: ${selected}. Adapt to the current task; do not copy another persona.`.trim();
     return exemplar;
   });
-  return { exemplars, selectedArm: selected, context: learningStructure('', scheduledFor).context };
+  const selectedStructure = selected ? structureFor(ranked.find(row => structureFor(row).arm === selected) ?? ranked[0]) : null;
+  return {
+    exemplars,
+    selectedArm: selected,
+    context: selected ? learningContextForArm(selected, scheduledFor) : learningStructure('', scheduledFor).context,
+    guidanceEvidence: selectedStructure?.evidence ?? null,
+  };
 }
 
 /** Compatibility reader for consumers that do not persist generated captions. */

@@ -8,3 +8,4 @@ export * from './locale-catalogs.js';
 export * from './locale-settings.js';
 export * from './relay-card-state.js';
 export * from './scrape-result.js';
+export * from './learning-contract.js';

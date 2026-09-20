@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { learningContextBucket } from '@axiom/core';
 import type { PerformancePattern } from './PerformancePatterns';
 import { useLocale } from './LocaleProvider';
 
@@ -14,6 +15,10 @@ const timeLabelKeys: Record<string, string> = {
   'learn-v1:scheduled-utc-2': 'calendar.timeWindow.2',
   'learn-v1:scheduled-utc-3': 'calendar.timeWindow.3',
 };
+function legacyTimeContext(context: string): string | null {
+  const bucket = learningContextBucket(context);
+  return bucket === null || bucket === 'unknown' ? null : `learn-v1:scheduled-utc-${bucket}`;
+}
 
 export interface CalendarTimeSuggestion {
   platform: string;
@@ -22,7 +27,7 @@ export interface CalendarTimeSuggestion {
   meanScore: number;
 }
 
-export function deriveCalendarTimeSuggestions(input?: { groups?: PerformancePattern[]; minimumSample?: number }, labelForContext: (context: string) => string = context => timeLabels[context]): CalendarTimeSuggestion[] {
+export function deriveCalendarTimeSuggestions(input?: { groups?: PerformancePattern[]; minimumSample?: number }, labelForContext: (context: string) => string = context => timeLabels[legacyTimeContext(context) ?? context]): CalendarTimeSuggestion[] {
   if (!input || !Array.isArray(input.groups)) return [];
   const candidateMinimum = input.minimumSample;
   const minimum = typeof candidateMinimum === 'number'
@@ -31,7 +36,7 @@ export function deriveCalendarTimeSuggestions(input?: { groups?: PerformancePatt
     ? candidateMinimum
     : 3;
   return input.groups
-    .filter(group => timeLabels[group.context] && Number.isSafeInteger(group.sampleSize) && group.sampleSize >= minimum && Number.isFinite(group.meanScore))
+    .filter(group => legacyTimeContext(group.context) !== null && Number.isSafeInteger(group.sampleSize) && group.sampleSize >= minimum && Number.isFinite(group.meanScore))
     .sort((left, right) => right.meanScore - left.meanScore || right.sampleSize - left.sampleSize)
     .slice(0, 4)
     .map(group => ({ platform: group.platform, window: labelForContext(group.context), sampleSize: group.sampleSize, meanScore: group.meanScore }));
@@ -39,7 +44,10 @@ export function deriveCalendarTimeSuggestions(input?: { groups?: PerformancePatt
 
 export default function CalendarOptimalTimes({ modelId, patterns }: { modelId: string; patterns?: { groups: PerformancePattern[]; minimumSample: number } }) {
   const { locale, t } = useLocale();
-  const suggestions = deriveCalendarTimeSuggestions(patterns, context => t(timeLabelKeys[context] ?? context));
+  const suggestions = deriveCalendarTimeSuggestions(patterns, context => {
+    const normalized = legacyTimeContext(context) ?? context;
+    return t(timeLabelKeys[normalized] ?? normalized);
+  });
   const scoreFormatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 2 });
   return <section className="card stack" aria-label={t('calendar.observedSuggestionsAria')}>
     <h3>{t('calendar.observedTimeSuggestions')}</h3>

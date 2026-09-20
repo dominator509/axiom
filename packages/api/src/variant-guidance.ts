@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import { isLearningArm, isLearningContext, sanitizeGuidanceEvidence } from '@axiom/core';
 import type { CaptionGuidanceReceipt } from '@axiom/db/schema';
 import { timingBucketForHour, validateGuidanceEvidence, type GuidanceEvidence } from './variant-ab-contract.js';
 
@@ -46,8 +47,8 @@ export interface GuidanceSourceBundle {
 
 const receiptSchema = z.object({
   version: z.literal('caption-guidance-v1'),
-  selectedArm: z.string().regex(/^(short|medium|long):(question|statement)$/).nullable(),
-  context: z.string().regex(/^learn-v1:scheduled-utc-(unknown|[0-3])$/),
+  selectedArm: z.string().refine(isLearningArm, 'invalid learning arm').nullable(),
+  context: z.string().refine(isLearningContext, 'invalid learning context'),
   exemplarIds: z.array(z.string().uuid()).max(50),
   captionSha256: z.string().regex(/^[a-f0-9]{64}$/),
   hookType: z.string().trim().min(1).max(32).optional(),
@@ -66,13 +67,10 @@ export function captionSha256(caption: string): string {
   return createHash('sha256').update(caption, 'utf8').digest('hex');
 }
 
-function evidenceFromReceipt(receipt: Pick<CaptionGuidanceReceipt, 'hookType' | 'format' | 'postingHourUtc' | 'timingBucket'>): GuidanceEvidence {
-  const evidence: GuidanceEvidence = {};
-  if (receipt.hookType !== undefined) evidence.hookType = receipt.hookType;
-  if (receipt.format !== undefined) evidence.format = receipt.format;
-  if (receipt.postingHourUtc !== undefined) evidence.postingHourUtc = receipt.postingHourUtc;
-  if (receipt.timingBucket !== undefined) evidence.timingBucket = receipt.timingBucket;
-  return evidence;
+function evidenceFromReceipt(receipt: Pick<CaptionGuidanceReceipt, 'hookType' | 'format' | 'postingHourUtc' | 'timingBucket'>): GuidanceEvidence | null {
+  const hasEvidence = receipt.hookType !== undefined || receipt.format !== undefined
+    || receipt.postingHourUtc !== undefined || receipt.timingBucket !== undefined;
+  return hasEvidence ? sanitizeGuidanceEvidence(receipt) : {};
 }
 
 function validTiming(evidence: GuidanceEvidence): boolean {
@@ -104,7 +102,7 @@ export function readVerifiedGuidance(
   const parsed = receiptSchema.safeParse(rawReceipt);
   if (!parsed.success || parsed.data.captionSha256 !== captionSha256(copyText)) return null;
   const evidence = evidenceFromReceipt(parsed.data);
-  if (!validateGuidanceEvidence(evidence).ok || !validTiming(evidence)) return null;
+  if (!evidence || !validateGuidanceEvidence(evidence).ok || !validTiming(evidence)) return null;
 
   const provenance: StoredVariantGuidance = {
     version: parsed.data.version,
@@ -126,7 +124,7 @@ export function projectStoredVariantGuidance(settings: unknown): VariantGuidance
   const parsed = provenanceSchema.safeParse(raw);
   if (!parsed.success) return null;
   const evidence = evidenceFromReceipt(parsed.data);
-  if (!validateGuidanceEvidence(evidence).ok || !validTiming(evidence)) return null;
+  if (!evidence || !validateGuidanceEvidence(evidence).ok || !validTiming(evidence)) return null;
   return summaryFromProvenance(parsed.data);
 }
 

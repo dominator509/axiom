@@ -42,8 +42,9 @@ export async function readExemplarPatterns(tx: any, orgId: string, modelId: stri
     tosVerdict, publishedHourUtc, sampleSize: sql<number>`count(*)::int`, meanScore: mean }).from(schema.viralExemplar)
     .where(and(eq(schema.viralExemplar.orgId, orgId), eq(schema.viralExemplar.modelId, modelId), access,
       publishedExemplarEvidence(),
-      sql`${arm} IN ('short:question','short:statement','medium:question','medium:statement','long:question','long:statement')`,
-      sql`${context} IN ('learn-v1:scheduled-utc-0','learn-v1:scheduled-utc-1','learn-v1:scheduled-utc-2','learn-v1:scheduled-utc-3','learn-v1:scheduled-utc-unknown')`,
+      sql`(${arm} ~ '^(short|medium|long):(question|statement)$'
+        OR ${arm} ~ '^v2:(short|medium|long):(question|statement):hook=(question|bold-claim|story|stat|controversy|teaser|unknown):format=(reel|carousel|single|story|longform|unknown)$')`,
+      sql`${context} ~ '^learn-v[12]:scheduled-utc-(unknown|[0-3])$'`,
       sql`${schema.viralExemplar.perfScore} NOT IN ('NaN'::float8,'Infinity'::float8,'-Infinity'::float8)`))
     .groupBy(schema.viralExemplar.platform, arm, context, mediaFormat, tosVerdict, publishedHourUtc).having(sql`count(*) >= 3`)
     .orderBy(desc(mean), schema.viralExemplar.platform, arm, context).limit(21);

@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
-import { chooseLearningArm, learningStructure } from './learning-state.js';
+import { chooseLearningArm, learningContextForArm, learningStructure } from './learning-state.js';
 
 it('mines bounded structural arms without retaining persona text', () => {
   expect(learningStructure('Private identity?', null)).toEqual({ arm: 'short:question', context: 'learn-v1:scheduled-utc-unknown' });
@@ -7,6 +8,26 @@ it('mines bounded structural arms without retaining persona text', () => {
 });
 it('does not invent a time bucket for invalid scheduling data', () => {
   expect(learningStructure('vase', 'invalid').context).toBe('learn-v1:scheduled-utc-unknown');
+});
+it('uses a verified caption receipt for the richer versioned arm namespace', () => {
+  const caption = 'Question-led ceramic vase';
+  const receipt = {
+    version: 'caption-guidance-v1' as const,
+    selectedArm: 'short:question',
+    context: 'learn-v1:scheduled-utc-unknown',
+    exemplarIds: [],
+    captionSha256: createHash('sha256').update(caption).digest('hex'),
+    hookType: 'question',
+    format: 'reel',
+  };
+  expect(learningStructure(caption, '2026-09-17T09:00:00Z', receipt)).toEqual({
+    arm: 'v2:short:statement:hook=question:format=reel',
+    context: 'learn-v2:scheduled-utc-1',
+    version: 'learn-v2',
+    evidence: { hookType: 'question', format: 'reel' },
+  });
+  expect(learningContextForArm('v2:short:statement:hook=question:format=reel', null)).toBe('learn-v2:scheduled-utc-unknown');
+  expect(learningStructure(caption, null, { ...receipt, captionSha256: '0'.repeat(64) }).context).toBe('learn-v1:scheduled-utc-unknown');
 });
 
 function seeded() {

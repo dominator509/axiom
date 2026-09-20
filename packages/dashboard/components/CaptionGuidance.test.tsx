@@ -20,6 +20,17 @@ it('does not attribute edited captions to an earlier receipt', () => {
   expect(html).toContain('Caption changed since generation');
   expect(html).not.toContain('Short caption with a question');
 });
+it('renders versioned hook and format evidence without exposing private payloads', () => {
+  const html = renderToStaticMarkup(<CaptionGuidance captions={{ instagram: caption }} receipts={{ instagram: {
+    ...receipt,
+    selectedArm: 'v2:short:question:hook=question:format=reel',
+    context: 'learn-v2:scheduled-utc-3',
+    hookType: 'question', format: 'reel',
+  } }} />);
+  expect(html).toContain('question hook');
+  expect(html).toContain('reel format');
+  expect(html).toContain('18:00–23:59 UTC');
+});
 it('keeps absent evidence distinct from a verified empty selection', () => {
   expect(renderToStaticMarkup(<CaptionGuidance captions={{ instagram: caption }} receipts={undefined} />)).toContain('No generation-guidance receipt recorded');
   const html = renderToStaticMarkup(<CaptionGuidance captions={{ instagram: caption }} receipts={{ instagram: {

@@ -1,6 +1,21 @@
+import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
+import {
+  isLearningArm,
+  parseLearningArm,
+  sanitizeGuidanceEvidence,
+  type GuidanceEvidence,
+} from '@axiom/core';
+import type { CaptionGuidanceReceipt } from '@axiom/db/schema';
 
 export interface LearningArm { arm: string; alpha: number; beta: number; recentUses: number }
+
+export interface LearningStructure {
+  arm: string;
+  context: string;
+  version?: 'learn-v2';
+  evidence?: GuidanceEvidence;
+}
 
 // Marsaglia-Tsang Gamma sampler; Beta is the ratio of independent Gamma draws.
 function gamma(shape: number, rng: () => number): number {
@@ -34,33 +49,93 @@ export function chooseLearningArm(arms: LearningArm[], rng = Math.random): strin
   return selected;
 }
 
-export async function selectLearnedGuidance(tx: any, orgId: string, modelId: string, platform: string, arms: string[], scheduledFor: Date | string | null) {
+function contextForVersion(version: 'learn-v1' | 'learn-v2', scheduledFor: Date | string | null): string {
+  const date = scheduledFor === null ? null : new Date(scheduledFor);
+  const bucket = date && Number.isFinite(date.getTime()) ? Math.floor(date.getUTCHours() / 6) : 'unknown';
+  return `${version}:scheduled-utc-${bucket}`;
+}
+
+/** Resolve a persisted arm to the versioned context namespace it belongs to. */
+export function learningContextForArm(arm: string, scheduledFor: Date | string | null): string {
+  return contextForVersion(parseLearningArm(arm)?.version ?? 'learn-v1', scheduledFor);
+}
+
+/**
+ * Only a server-owned caption guidance receipt can opt an observation into the
+ * richer v2 namespace. Client-shaped or caption-mismatched evidence remains
+ * legacy v1 and cannot influence the richer posterior.
+ */
+export function trustedLearningEvidence(caption: string, receipt: CaptionGuidanceReceipt | null | undefined): GuidanceEvidence | null {
+  if (!receipt || receipt.version !== 'caption-guidance-v1') return null;
+  const digest = createHash('sha256').update(caption, 'utf8').digest('hex');
+  if (receipt.captionSha256 !== digest) return null;
+  return sanitizeGuidanceEvidence({
+    hookType: receipt.hookType,
+    format: receipt.format,
+    postingHourUtc: receipt.postingHourUtc,
+    timingBucket: receipt.timingBucket,
+  });
+}
+
+function legacyArmForCaption(caption: string): string {
+  return `${caption.length < 80 ? 'short' : caption.length < 240 ? 'medium' : 'long'}:${caption.includes('?') ? 'question' : 'statement'}`;
+}
+
+/**
+ * Build the immutable learning identity for a published caption. The no-receipt
+ * path intentionally keeps the exact v1 object shape for old snapshots/tests.
+ */
+export function learningStructure(
+  caption: string,
+  scheduledFor: Date | string | null,
+  receipt?: CaptionGuidanceReceipt | null,
+): LearningStructure {
+  const legacyArm = legacyArmForCaption(caption);
+  const evidence = trustedLearningEvidence(caption, receipt);
+  if (!evidence) return {
+    arm: legacyArm,
+    context: contextForVersion('learn-v1', scheduledFor),
+  };
+  const hook = evidence.hookType ?? 'unknown';
+  const format = evidence.format ?? 'unknown';
+  return {
+    arm: `v2:${legacyArm}:hook=${hook}:format=${format}`,
+    context: contextForVersion('learn-v2', scheduledFor),
+    version: 'learn-v2',
+    evidence,
+  };
+}
+
+export async function selectLearnedGuidance(
+  tx: any,
+  orgId: string,
+  modelId: string,
+  platform: string,
+  arms: string[],
+  scheduledFor: Date | string | null,
+) {
   if (!arms.length) return null;
-  const context = learningStructure('', scheduledFor).context;
+  const contexts = [...new Set(arms.filter(isLearningArm).map(arm => learningContextForArm(arm, scheduledFor)))];
+  if (!contexts.length) return null;
+  const contextPredicate = contexts.length === 1
+    ? sql`s.context=${contexts[0]}`
+    : sql`s.context IN (${sql.join(contexts.map(context => sql`${context}`), sql`, `)})`;
   const result = await tx.execute(sql`SELECT s.arm,s.alpha,s.beta,
     (SELECT COUNT(*) FROM viral_recipe r JOIN post_target t ON t.id=r.source_target_id AND t.org_id=r.org_id
       WHERE r.org_id=s.org_id AND r.model_id=s.model_id AND r.platform=s.platform
       AND t.state='published' AND t.remote_id IS NOT NULL AND t.platform=r.platform
       AND r.recipe->>'evidence_source'='published-provider-snapshot-v2'
+      AND r.recipe->>'learning_context'=s.context
       AND r.recipe->>'learning_arm'=s.arm
       AND t.published_at > now()-interval '24 hours' AND t.published_at <= now()) AS recent_uses
     FROM (${learningPosterior(orgId, modelId, platform)}) s WHERE s.org_id=${orgId} AND s.model_id=${modelId}
-      AND s.platform=${platform} AND s.context=${context}
+      AND s.platform=${platform} AND ${contextPredicate}
       AND EXISTS (SELECT 1 FROM viral_recipe r WHERE r.org_id=s.org_id AND r.model_id=s.model_id
         AND r.platform=s.platform AND r.recipe->>'learning_context'=s.context
         AND r.recipe->>'learning_arm'=s.arm AND r.recipe->>'evidence_source'='published-provider-snapshot-v2')`);
   const states = new Map<string, LearningArm>((result.rows ?? []).map((row: { arm: string; alpha: number; beta: number; recent_uses: string }) =>
     [row.arm, { arm: row.arm, alpha: Number(row.alpha), beta: Number(row.beta), recentUses: Number(row.recent_uses) }]));
   return chooseLearningArm(arms.map(arm => states.get(arm) ?? { arm, alpha: 1, beta: 1, recentUses: 0 }));
-}
-
-export function learningStructure(caption: string, scheduledFor: Date | string | null) {
-  const date = scheduledFor === null ? null : new Date(scheduledFor);
-  const bucket = date && Number.isFinite(date.getTime()) ? Math.floor(date.getUTCHours() / 6) : 'unknown';
-  return {
-    arm: `${caption.length < 80 ? 'short' : caption.length < 240 ? 'medium' : 'long'}:${caption.includes('?') ? 'question' : 'statement'}`,
-    context: `learn-v1:scheduled-utc-${bucket}`,
-  };
 }
 
 /** One observation per published target, with a 30-day half-life measured from
@@ -90,7 +165,7 @@ function learningPosterior(orgId: string, modelId: string, platform: string) {
       AND t.state='published' AND t.remote_id IS NOT NULL AND t.platform=r.platform
       AND t.published_at IS NOT NULL AND t.published_at <= now()
       AND r.recipe->>'evidence_source'='published-provider-snapshot-v2'
-      AND r.recipe->>'learning_context' LIKE 'learn-v1:%'
+      AND r.recipe->>'learning_context' LIKE 'learn-v%'
       AND r.recipe->>'learning_arm' IS NOT NULL
     GROUP BY r.org_id,r.model_id,r.platform,r.recipe->>'learning_context',r.recipe->>'learning_arm'`;
 }
@@ -98,9 +173,9 @@ function learningPosterior(orgId: string, modelId: string, platform: string) {
 /** Caller holds the model/platform advisory lock throughout recipe refresh. */
 export async function refreshLearningState(tx: any, orgId: string, modelId: string, platform: string) {
   await tx.execute(sql`UPDATE bandit_state SET alpha=1, beta=1, plays=0, reward=0, updated_at=now()
-    WHERE org_id=${orgId} AND model_id=${modelId} AND platform=${platform} AND context LIKE 'learn-v1:%'`);
+    WHERE org_id=${orgId} AND model_id=${modelId} AND platform=${platform} AND context LIKE 'learn-v%'`);
   await tx.execute(sql`INSERT INTO bandit_state(org_id,model_id,platform,context,arm,alpha,beta,plays,reward)
     ${learningPosterior(orgId, modelId, platform)}
-    ON CONFLICT(org_id,model_id,platform,context,arm) WHERE context LIKE 'learn-v1:%'
+    ON CONFLICT(org_id,model_id,platform,context,arm) WHERE context LIKE 'learn-v%'
     DO UPDATE SET alpha=EXCLUDED.alpha,beta=EXCLUDED.beta,plays=EXCLUDED.plays,reward=EXCLUDED.reward,updated_at=now()`);
 }

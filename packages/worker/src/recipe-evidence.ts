@@ -1,4 +1,5 @@
 import type { PhotoshootRecipe } from '@axiom/db/schema';
+import type { GuidanceEvidence } from '@axiom/core';
 import { readTrustedThumbnailFeatures } from './thumbnail-features.js';
 
 /** Publication evidence only: never reconstruct historical input from an editable bundle. */
@@ -17,6 +18,7 @@ export function recipeEvidence(
     } | null;
     shootConfig?: PhotoshootRecipe | null;
     thumbnailFeatures?: unknown;
+    learningEvidence?: GuidanceEvidence | null;
   },
   publishedAt: Date | null,
 ) {
@@ -34,5 +36,7 @@ export function recipeEvidence(
     // These are the exact bounded controls submitted to the prompt engine.
     shoot_config: snapshot.shootConfig ?? null,
     thumbnail_features: readTrustedThumbnailFeatures(snapshot.thumbnailFeatures, snapshot.assetId) ?? null,
+    learning_evidence_version: snapshot.learningEvidence ? 'learning-evidence-v1' : null,
+    learning_evidence: snapshot.learningEvidence ?? null,
   };
 }

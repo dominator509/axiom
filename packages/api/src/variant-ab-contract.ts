@@ -4,6 +4,16 @@
 // state. No parallel media state is created. A pure contract: no publication,
 // no provider call, no runtime service.
 
+import {
+  GUIDANCE_LIMITS,
+  timingBucketForHour,
+  validateGuidanceEvidence,
+  type GuidanceEvidence,
+} from '@axiom/core';
+
+export { GUIDANCE_LIMITS, timingBucketForHour, validateGuidanceEvidence };
+export type { GuidanceEvidence };
+
 export type ExperimentStatus = 'draft' | 'running' | 'paused' | 'completed';
 export type EvaluationPolicy = 'manual' | 'fixed-post-engagement-v1';
 export type Platform = 'instagram' | 'tiktok' | 'youtube' | 'x' | 'facebook' | 'reddit' | 'threads' | 'discord' | 'telegram' | 'snapchat' | 'fanvue';
@@ -195,45 +205,6 @@ export function promoteWinner(
 }
 
 // ─── Selected-guidance attribution & hook/timing evidence ─────────────────
-
-export interface GuidanceEvidence {
-  /** The guidance receipt the variant was authored under. */
-  guidanceReceiptId?: string;
-  hookType?: string;
-  format?: string;
-  postingHourUtc?: number;
-  timingBucket?: 'morning' | 'afternoon' | 'evening' | 'night';
-}
-
-export const GUIDANCE_LIMITS = {
-  hookTypes: ['question', 'bold-claim', 'story', 'stat', 'controversy', 'teaser'],
-  formats: ['reel', 'carousel', 'single', 'story', 'longform'],
-} as const;
-
-/** Validate bounded hook/format/timing evidence without inventing values. */
-export function validateGuidanceEvidence(evidence: GuidanceEvidence): { ok: boolean; errors: string[] } {
-  const errors: string[] = [];
-  if (evidence.hookType !== undefined && !(GUIDANCE_LIMITS.hookTypes as readonly string[]).includes(evidence.hookType)) {
-    errors.push('unknown hook type');
-  }
-  if (evidence.format !== undefined && !(GUIDANCE_LIMITS.formats as readonly string[]).includes(evidence.format)) {
-    errors.push('unknown format');
-  }
-  if (evidence.postingHourUtc !== undefined) {
-    if (!Number.isInteger(evidence.postingHourUtc) || evidence.postingHourUtc < 0 || evidence.postingHourUtc > 23) {
-      errors.push('postingHourUtc must be an integer 0-23');
-    }
-  }
-  return { ok: errors.length === 0, errors };
-}
-
-export function timingBucketForHour(hourUtc: number): GuidanceEvidence['timingBucket'] {
-  if (!Number.isInteger(hourUtc) || hourUtc < 0 || hourUtc > 23) throw new Error('hour must be an integer 0-23');
-  if (hourUtc < 6) return 'night';
-  if (hourUtc < 12) return 'morning';
-  if (hourUtc < 18) return 'afternoon';
-  return 'evening';
-}
 
 /**
  * Attribute outcomes back to the guidance receipt that produced a variant, so

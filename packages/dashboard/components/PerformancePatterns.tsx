@@ -1,3 +1,5 @@
+import { learningContextBucket, parseLearningArm } from '@axiom/core';
+
 export interface PerformancePattern {
   platform: string; arm: string; context: string; mediaFormat?: string; tosVerdict?: string;
   publishedHourUtc?: number | null; sampleSize: number; meanScore: number;
@@ -6,6 +8,12 @@ const times: Record<string, string> = {
   'learn-v1:scheduled-utc-0': '00:00–05:59 UTC', 'learn-v1:scheduled-utc-1': '06:00–11:59 UTC',
   'learn-v1:scheduled-utc-2': '12:00–17:59 UTC', 'learn-v1:scheduled-utc-3': '18:00–23:59 UTC',
   'learn-v1:scheduled-utc-unknown': 'Scheduled time unknown',
+};
+const timeLabel = (context: string) => {
+  const bucket = learningContextBucket(context);
+  if (bucket === 'unknown') return 'Scheduled time unknown';
+  if (bucket === null) return 'Unknown scheduled time';
+  return times[`learn-v1:scheduled-utc-${bucket}`] ?? 'Unknown scheduled time';
 };
 const hourBucket = (hour: number | null | undefined) => {
   if (hour === null || hour === undefined || !Number.isInteger(hour) || hour < 0 || hour > 23) return 'Publication time unavailable';
@@ -17,10 +25,15 @@ export default function PerformancePatterns({ patterns }: { patterns?: { groups:
     <h3>What’s working: observed patterns</h3>
     <p className="subtle">Grouped verified exemplars for this talent only. Caption length and question marks describe the recorded caption; time is its scheduled UTC bucket, not necessarily actual publication time.</p>
     {!patterns ? <p>Pattern analysis unavailable.</p> : patterns.groups.length === 0 ? <p>Not enough verified examples yet. Each pattern needs at least {patterns.minimumSample} labeled exemplars.</p> : <div className="grid">{patterns.groups.map(group => {
-      const [length, kind] = group.arm.split(':');
+      const parsed = parseLearningArm(group.arm);
+      const length = parsed?.captionLength ?? 'unknown';
+      const kind = parsed?.captionShape ?? 'statement';
+      const richEvidence = parsed?.version === 'learn-v2'
+        ? ` · ${parsed.hookType ?? 'unknown'} hook · ${parsed.format ?? 'unknown'} format`
+        : '';
       return <article className="card stack" key={`${group.platform}:${group.arm}:${group.context}:${group.mediaFormat ?? 'unknown'}:${group.tosVerdict ?? 'unavailable'}:${group.publishedHourUtc ?? 'unknown'}`}>
-        <h4>{group.platform} · {length} caption · {kind === 'question' ? 'contains a question mark' : 'no question mark'}</h4>
-        <p>{times[group.context] ?? 'Unknown scheduled time'}</p>
+        <h4>{group.platform} · {length} caption · {kind === 'question' ? 'contains a question mark' : 'no question mark'}{richEvidence}</h4>
+        <p>{timeLabel(group.context)}</p>
         <p>Recorded media: {group.mediaFormat && group.mediaFormat !== 'unknown' ? group.mediaFormat : 'unknown format'} · published: {hourBucket(group.publishedHourUtc)}</p>
         <p>ToS verdict at publication: {group.tosVerdict && group.tosVerdict !== 'unavailable' ? group.tosVerdict : 'unavailable'}</p>
         <p>{group.sampleSize} labeled exemplars · Mean relative engagement score: {group.meanScore.toFixed(2)}</p>

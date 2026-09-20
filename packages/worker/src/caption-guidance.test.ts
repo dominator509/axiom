@@ -16,3 +16,15 @@ it('does not invent guidance for legacy/manual captions and preserves an empty s
   const receipt = captionGuidanceReceipt('Generated', { selectedArm: null, context: 'learn-v1:scheduled-utc-unknown', exemplars: [] });
   expect(receipt.selectedArm).toBeNull(); expect(receipt.exemplarIds).toEqual([]);
 });
+it('persists only bounded evidence supplied by the server-side selector', () => {
+  const receipt = captionGuidanceReceipt('Generated?', {
+    selectedArm: 'v2:short:question:hook=question:format=reel',
+    context: 'learn-v2:scheduled-utc-1',
+    exemplars: [],
+    guidanceEvidence: { hookType: 'question', format: 'reel', postingHourUtc: 9, timingBucket: 'morning' },
+  });
+  expect(receipt).toMatchObject({ hookType: 'question', format: 'reel', postingHourUtc: 9, timingBucket: 'morning' });
+  expect(captionGuidanceReceipt('Generated?', {
+    selectedArm: null, context: 'learn-v2:scheduled-utc-1', exemplars: [], guidanceEvidence: { hookType: 'untrusted' },
+  })).not.toHaveProperty('hookType');
+});
