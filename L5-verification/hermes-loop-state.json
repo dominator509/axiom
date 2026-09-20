@@ -1,13 +1,13 @@
 {
   "protocol": "FT-HERMES/1",
   "contract": "ACK-NACK-1",
-  "task": "CONTROL-PLANE-HERMES-LOOP-SYNC-R2",
-  "task_msg_id": "codex-hermes-loop-sync-r2",
-  "task_filename": "codex-hermes-loop-sync-r2.json",
-  "task_wire": "CODEX-CONTROL-PLANE-HERMES-LOOP-SYNC-R2-001",
+  "task": "CONTROL-PLANE-HERMES-STALE-WORKER-STOP-R1",
+  "task_msg_id": "codex-hermes-stale-worker-stop-r1",
+  "task_filename": "codex-hermes-stale-worker-stop-r1.json",
+  "task_wire": "CODEX-CONTROL-PLANE-HERMES-STALE-WORKER-STOP-R1-001",
   "source_branch": "refs/heads/codex/telegram-webhook-hardening",
-  "source_commit": "2eb03248b9fb64ca83a32dc761cad96ee1fe9a0d",
-  "task_sha256": "3c23e58b1012996c78f0ed2086022d9322a84bea9d1f62f1120c2905663b00d6",
+  "source_commit": "50a6a101179cdd969cfab7f1e8e0f67dc445042e",
+  "task_sha256": "87df0e32071072650d1d7075d9a6c77ca2bdc1930e6fff16d091625765c279fa",
   "copy_root": "READ_ONLY_EXACT_SOURCE",
   "delivery_root": "NONE",
   "state": "OPEN",
@@ -16,11 +16,12 @@
   "next_seq": 1,
   "last_wire": "NONE",
   "supersedes": [
+    "CODEX-CONTROL-PLANE-HERMES-LOOP-SYNC-R2-001",
     "CODEX-F14-WATERMARK-POLICY-SOURCE-R10-001",
     "F14-MODEL-WATERMARK-POLICY-SOURCE-R9",
     "F14-MODEL-WATERMARK-POLICY-SOURCE-R8"
   ],
-  "next_action": "Read the exact pushed source and canonical loop manifest, then return one fresh correlated ACK/READ or NACK/BLOCKED.",
+  "next_action": "Stop or abandon the observed stale Hermes product worker, then return one fresh correlated ACK/READ or terminal NACK/BLOCKED; do not perform feature work.",
   "live_actions": "NONE",
   "forbidden_actions": [
     "application edits",
