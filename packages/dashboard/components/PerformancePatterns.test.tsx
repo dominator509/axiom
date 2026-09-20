@@ -15,3 +15,9 @@ it('shows bounded v2 hook and format dimensions', () => {
   expect(html).toContain('reel format');
   expect(html).toContain('12:00–17:59 UTC');
 });
+it('shows a verified temporal arm qualifier without inventing one for old arms', () => {
+  const html = renderToStaticMarkup(<PerformancePatterns patterns={{ groups: [{ platform: 'instagram', arm: 'v2:short:question:hook=question:format=reel:time=morning', context: 'learn-v2:scheduled-utc-2', sampleSize: 3, meanScore: 1 }], truncated: false, minimumSample: 3 }} />);
+  expect(html).toContain('morning timing');
+  const legacy = renderToStaticMarkup(<PerformancePatterns patterns={{ groups: [{ platform: 'instagram', arm: 'v2:short:question:hook=question:format=reel', context: 'learn-v2:scheduled-utc-2', sampleSize: 3, meanScore: 1 }], truncated: false, minimumSample: 3 }} />);
+  expect(legacy).not.toContain(' timing');
+});

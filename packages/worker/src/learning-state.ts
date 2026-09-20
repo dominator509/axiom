@@ -98,8 +98,9 @@ export function learningStructure(
   };
   const hook = evidence.hookType ?? 'unknown';
   const format = evidence.format ?? 'unknown';
+  const timing = evidence.timingBucket ? `:time=${evidence.timingBucket}` : '';
   return {
-    arm: `v2:${legacyArm}:hook=${hook}:format=${format}`,
+    arm: `v2:${legacyArm}:hook=${hook}:format=${format}${timing}`,
     context: contextForVersion('learn-v2', scheduledFor),
     version: 'learn-v2',
     evidence,

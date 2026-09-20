@@ -29,7 +29,7 @@ export default function PerformancePatterns({ patterns }: { patterns?: { groups:
       const length = parsed?.captionLength ?? 'unknown';
       const kind = parsed?.captionShape ?? 'statement';
       const richEvidence = parsed?.version === 'learn-v2'
-        ? ` · ${parsed.hookType ?? 'unknown'} hook · ${parsed.format ?? 'unknown'} format`
+        ? ` · ${parsed.hookType ?? 'unknown'} hook · ${parsed.format ?? 'unknown'} format${parsed.timingBucket ? ` · ${parsed.timingBucket} timing` : ''}`
         : '';
       return <article className="card stack" key={`${group.platform}:${group.arm}:${group.context}:${group.mediaFormat ?? 'unknown'}:${group.tosVerdict ?? 'unavailable'}:${group.publishedHourUtc ?? 'unknown'}`}>
         <h4>{group.platform} · {length} caption · {kind === 'question' ? 'contains a question mark' : 'no question mark'}{richEvidence}</h4>

@@ -9,6 +9,8 @@ import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js'
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 import { modelAccessCondition } from '../model-access.js';
 
+export const LEARNING_ARM_RICH_PATTERN = '^v2:(short|medium|long):(question|statement):hook=(question|bold-claim|story|stat|controversy|teaser|unknown):format=(reel|carousel|single|story|longform|unknown)(:time=(morning|afternoon|evening|night))?$';
+
 const router = new Hono<AppBindings>();
 
 /** Retained legacy/manual exemplars are not evidence of published performance. */
@@ -43,7 +45,7 @@ export async function readExemplarPatterns(tx: any, orgId: string, modelId: stri
     .where(and(eq(schema.viralExemplar.orgId, orgId), eq(schema.viralExemplar.modelId, modelId), access,
       publishedExemplarEvidence(),
       sql`(${arm} ~ '^(short|medium|long):(question|statement)$'
-        OR ${arm} ~ '^v2:(short|medium|long):(question|statement):hook=(question|bold-claim|story|stat|controversy|teaser|unknown):format=(reel|carousel|single|story|longform|unknown)$')`,
+        OR ${arm} ~ ${LEARNING_ARM_RICH_PATTERN})`,
       sql`${context} ~ '^learn-v[12]:scheduled-utc-(unknown|[0-3])$'`,
       sql`${schema.viralExemplar.perfScore} NOT IN ('NaN'::float8,'Infinity'::float8,'-Infinity'::float8)`))
     .groupBy(schema.viralExemplar.platform, arm, context, mediaFormat, tosVerdict, publishedHourUtc).having(sql`count(*) >= 3`)

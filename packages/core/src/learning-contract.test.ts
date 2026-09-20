@@ -15,7 +15,11 @@ describe('shared learning evidence contract', () => {
     expect(parseLearningArm('v2:medium:statement:hook=bold-claim:format=carousel')).toMatchObject({
       version: 'learn-v2', hookType: 'bold-claim', format: 'carousel',
     });
+    expect(parseLearningArm('v2:medium:statement:hook=bold-claim:format=carousel:time=evening')).toMatchObject({
+      version: 'learn-v2', hookType: 'bold-claim', format: 'carousel', timingBucket: 'evening',
+    });
     expect(isLearningArm('v2:long:question:hook=unknown:format=single')).toBe(true);
+    expect(isLearningArm('v2:long:question:hook=unknown:format=single:time=midnight')).toBe(false);
     expect(isLearningArm('v2:long:question:hook=private:format=single')).toBe(false);
   });
 

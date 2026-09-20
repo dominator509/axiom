@@ -33,6 +33,7 @@ export interface ParsedLearningArm {
   captionShape: CaptionShape;
   hookType?: GuidanceHookType;
   format?: GuidanceFormat;
+  timingBucket?: TimingBucket;
 }
 
 const TIMING_BUCKETS: readonly TimingBucket[] = ['morning', 'afternoon', 'evening', 'night'];
@@ -120,10 +121,11 @@ export function parseLearningArm(value: unknown): ParsedLearningArm | null {
     captionLength: legacy[1] as CaptionLength,
     captionShape: legacy[2] as CaptionShape,
   };
-  const rich = /^v2:(short|medium|long):(question|statement):hook=([a-z-]+|unknown):format=([a-z-]+|unknown)$/.exec(value);
+  const rich = /^v2:(short|medium|long):(question|statement):hook=([a-z-]+|unknown):format=([a-z-]+|unknown)(?::time=(morning|afternoon|evening|night))?$/.exec(value);
   if (!rich) return null;
   const hookType = rich[3] === 'unknown' ? undefined : rich[3] as GuidanceHookType;
   const format = rich[4] === 'unknown' ? undefined : rich[4] as GuidanceFormat;
+  const timingBucket = rich[5] as TimingBucket | undefined;
   if (hookType && !(GUIDANCE_LIMITS.hookTypes as readonly string[]).includes(hookType)) return null;
   if (format && !(GUIDANCE_LIMITS.formats as readonly string[]).includes(format)) return null;
   return {
@@ -132,6 +134,7 @@ export function parseLearningArm(value: unknown): ParsedLearningArm | null {
     captionShape: rich[2] as CaptionShape,
     hookType,
     format,
+    ...(timingBucket ? { timingBucket } : {}),
   };
 }
 

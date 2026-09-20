@@ -15,7 +15,7 @@ function armLabel(arm: string, t: (key: string, values?: Record<string, string |
     ? t(armKeys[`${parsed.captionLength}:${parsed.captionShape}`])
     : `${parsed.captionLength} ${parsed.captionShape} ${t('caption.unknown')}`;
   if (parsed.version === 'learn-v1') return base;
-  return `${base} · ${parsed.hookType ?? t('caption.unknown')} ${t('caption.hook')} · ${parsed.format ?? t('caption.unknown')} ${t('caption.format')}`;
+  return `${base} · ${parsed.hookType ?? t('caption.unknown')} ${t('caption.hook')} · ${parsed.format ?? t('caption.unknown')} ${t('caption.format')}${parsed.timingBucket ? ` · ${parsed.timingBucket} timing` : ''}`;
 }
 type Receipt = NonNullable<ContentBundle['captionGuidance']>[string];
 function validReceipt(value: unknown): value is Receipt {

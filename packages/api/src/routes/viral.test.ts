@@ -8,7 +8,7 @@ import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ viralExemplar: {} }));
 
-import { viralRouter } from './viral.js';
+import { LEARNING_ARM_RICH_PATTERN, viralRouter } from './viral.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -34,6 +34,13 @@ afterEach(() => {
 });
 
 describe('GET /models/:modelId/viral — insights', () => {
+  it('accepts only bounded temporal qualifiers for rich learning arms', () => {
+    const pattern = new RegExp(LEARNING_ARM_RICH_PATTERN);
+    expect(pattern.test('v2:short:question:hook=question:format=reel:time=morning')).toBe(true);
+    expect(pattern.test('v2:short:question:hook=question:format=reel:time=midnight')).toBe(false);
+    expect(pattern.test('v2:short:question:hook=question:format=reel')).toBe(true);
+  });
+
   it('returns empty aggregation when no exemplars exist (no 500 on empty)', async () => {
     mockState.result = [];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/viral`);

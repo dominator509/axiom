@@ -29,6 +29,28 @@ it('uses a verified caption receipt for the richer versioned arm namespace', () 
   expect(learningContextForArm('v2:short:statement:hook=question:format=reel', null)).toBe('learn-v2:scheduled-utc-unknown');
   expect(learningStructure(caption, null, { ...receipt, captionSha256: '0'.repeat(64) }).context).toBe('learn-v1:scheduled-utc-unknown');
 });
+it('preserves a verified timing bucket in the richer arm without inferring it', () => {
+  const caption = 'Timing-aware caption';
+  const receipt = {
+    version: 'caption-guidance-v1' as const,
+    selectedArm: 'short:statement',
+    context: 'learn-v1:scheduled-utc-unknown',
+    exemplarIds: [],
+    captionSha256: createHash('sha256').update(caption).digest('hex'),
+    hookType: 'story',
+    format: 'single',
+    timingBucket: 'morning' as const,
+    postingHourUtc: 9,
+  };
+  expect(learningStructure(caption, '2026-09-17T09:00:00Z', receipt)).toMatchObject({
+    arm: 'v2:short:statement:hook=story:format=single:time=morning',
+    evidence: { hookType: 'story', format: 'single', timingBucket: 'morning', postingHourUtc: 9 },
+  });
+  expect(learningStructure(caption, '2026-09-17T09:00:00Z', { ...receipt, timingBucket: undefined })).toMatchObject({
+    arm: 'v2:short:statement:hook=story:format=single',
+    evidence: { hookType: 'story', format: 'single', postingHourUtc: 9 },
+  });
+});
 
 function seeded() {
   let state = 731;

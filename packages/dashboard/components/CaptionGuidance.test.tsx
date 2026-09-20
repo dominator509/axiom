@@ -53,12 +53,13 @@ it('does not attribute edited captions to an earlier receipt', () => {
 it('renders versioned hook and format evidence without exposing private payloads', () => {
   const html = renderToStaticMarkup(<CaptionGuidance captions={{ instagram: caption }} receipts={{ instagram: {
     ...receipt,
-    selectedArm: 'v2:short:question:hook=question:format=reel',
+    selectedArm: 'v2:short:question:hook=question:format=reel:time=morning',
     context: 'learn-v2:scheduled-utc-3',
-    hookType: 'question', format: 'reel',
+    hookType: 'question', format: 'reel', timingBucket: 'morning',
   } }} />);
   expect(html).toContain('question hook');
   expect(html).toContain('reel format');
+  expect(html).toContain('morning timing');
   expect(html).toContain('18:00–23:59 UTC');
 });
 it('keeps absent evidence distinct from a verified empty selection', () => {
