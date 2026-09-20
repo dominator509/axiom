@@ -7,9 +7,9 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `e4d3936b183aea8cf61bc42716e1d7cf27e56c07`
+SOURCE_HEAD: `c1588e48523814bce886ca4802143538ea9c6b86`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `e4d3936b183aea8cf61bc42716e1d7cf27e56c07`
+PUBLISHED_HEAD: `1c3de7d76ba3a8280c76d5551314bf082fb32343`
 ACCEPTED_PRODUCT_SOURCE: `80284a19db82b37c1c07d6ae807bde855f223e90`
 ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R10 — supersedes unconfirmed R9 without reusing its copy; owner authorization artifact is checked in`
 CODEX_OWNER: `CODEX`
@@ -41,7 +41,7 @@ ACTIVE_LANE_SOURCE_COMMIT: `c1588e48523814bce886ca4802143538ea9c6b86`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f14-watermark-policy-source-r10`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/deliveries/codex-f14-watermark-policy-source-r10`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `PENDING — publish then read back exact bytes`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e`
 ACTIVE_LANE_SOURCE_ARCHIVE: `NOT_USED — exact Git commit mode`
 ACTIVE_LANE_SOURCE_ARCHIVE_SHA256: `NOT_APPLICABLE`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — local source implementation`
@@ -108,9 +108,9 @@ LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with chan
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
 LOOP_CURRENT_ACTION: `Publish R10 from c1588e4, read its exact remote hash, then require ACK/ACCEPTED, source-sync proof, real PROGRESS evidence and DELIVERY; accept no stale R9 work`
 
-CURRENT_MILESTONE: `M722 — superseding R9 with owner-authorized exact-source R10 after reconciling the stale lane; no feature or live action`
-CURRENT_MILESTONE_COMMIT: `c1588e48523814bce886ca4802143538ea9c6b86`
-CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip readback for the R10 task is pending; local source baseline c1588e4; protocol tests 30/30; control readable-delivery receipt-004 SHA 9fb42bd20a3d1f29fd4184530bc42191691c1f3a5d23025f5fbeb17131ac0a07; helper copy SHA 3aa2ad2fb3f28d94400c7e07c81dc31c707ad87363954083344ebfb51c86eb74; patch SHA 3383d6fb5e81974482550da8eadf7534267756cc4e43e8cff387bbc39a954a10; test harness SHA 299bf078b3bfcc21d6c98cc73f0a90b281e89a4a32bb63860b98e45046d61d73; Hermes R8 NACK-013 envelope SHA 939d31f4e54d34f26249707408fc7600694d9f8b4a8d4cfe9035add16d37c3e6; Hermes R9 NACK-001 envelope SHA 017a08c40291cff10d12a44cdcf41460799465f5b6f47b013f05404b77e824ba; R9 correction receipt-002 SHA bb66e3604d312ee16167264b964935afb0e4fa09a526b828f39416e8c3b60bd7; owner authorization SHA ab020cdfc694eec905c0589fd09f07312b91a9428bd596e1a34cc84f80bbccbf; R10 task SHA 30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e; no feature or live action`
+CURRENT_MILESTONE: `M723 — submitted exact-hash R10 task to Hermes after reconciling the stale R9 lane; awaiting logical ACK only; no feature or live action`
+CURRENT_MILESTONE_COMMIT: `1c3de7d76ba3a8280c76d5551314bf082fb32343`
+CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as 1c3de7d76ba3a8280c76d5551314bf082fb32343; R10 task envelope remote SHA 30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e; source baseline c1588e4; protocol tests 30/30; control readable-delivery receipt-004 SHA 9fb42bd20a3d1f29fd4184530bc42191691c1f3a5d23025f5fbeb17131ac0a07; helper copy SHA 3aa2ad2fb3f28d94400c7e07c81dc31c707ad87363954083344ebfb51c86eb74; patch SHA 3383d6fb5e81974482550da8eadf7534267756cc4e43e8cff387bbc39a954a10; test harness SHA 299bf078b3bfcc21d6c98cc73f0a90b281e89a4a32bb63860b98e45046d61d73; Hermes R8 NACK-013 envelope SHA 939d31f4e54d34f26249707408fc7600694d9f8b4a8d4cfe9035add16d37c3e6; Hermes R9 NACK-001 envelope SHA 017a08c40291cff10d12a44cdcf41460799465f5b6f47b013f05404b77e824ba; R9 correction receipt-002 SHA bb66e3604d312ee16167264b964935afb0e4fa09a526b828f39416e8c3b60bd7; owner authorization SHA ab020cdfc694eec905c0589fd09f07312b91a9428bd596e1a34cc84f80bbccbf; no feature or live action`
 CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, API index 63/63, API relay-webhooks 2/2, dashboard full 780 passed; no migration execution or live action`
 CURRENT_MILESTONE_OPEN: `R10 ACK/PROGRESS/DELIVERY remain open; Hermes must sync c1588e4 exactly and use only the R10 roots; Codex must independently audit F-14 delivery before integration; full feature and deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
 LOCAL_MILESTONE_AFTER_TASK: `M697 — standalone and stateful validators reject reply-WIRE reuse and invalid TASK sequence; malformed first replies are corrected by SEQ 2 RECEIPT; R7 is quarantined and R8 is the sole current task`
