@@ -546,6 +546,8 @@ const calendarDe: Catalog = {
 
 const en: Catalog = {
   'scrape.description': 'Scrapes run through the authenticated sidecar and the model egress policy. Results are research data, not provider metrics or publication instructions.',
+  'scrape.title': 'Trend & competitor radar',
+  'scrape.loadFailed': 'Research runs could not be loaded. No scrape was started.',
   'scrape.refreshActive': 'Research is queued or running. This page checks for updates every 10 seconds while visible.',
   'scrape.refresh': 'Refresh research results',
   'scrape.refreshing': 'Refreshing research…',
@@ -1507,6 +1509,8 @@ const en: Catalog = {
 
 const es: Catalog = {
   'scrape.description': 'Las recopilaciones pasan por el sidecar autenticado y la política de salida del modelo. Los resultados son datos de investigación, no métricas del proveedor ni instrucciones de publicación.',
+  'scrape.title': 'Radar de tendencias y competencia',
+  'scrape.loadFailed': 'No se pudieron cargar las investigaciones. No se inició ninguna recopilación.',
   'scrape.refreshActive': 'La investigación está en cola o en ejecución. Esta página busca actualizaciones cada 10 segundos mientras está visible.',
   'scrape.refresh': 'Actualizar resultados de investigación',
   'scrape.refreshing': 'Actualizando la investigación…',
@@ -2468,6 +2472,8 @@ const es: Catalog = {
 
 const ja: Catalog = {
   'scrape.description': 'スクレイプは認証済みサイドカーとモデルのエグレスポリシーを通過します。結果は調査データであり、プロバイダーの指標や公開手順ではありません。',
+  'scrape.title': 'トレンドと競合レーダー',
+  'scrape.loadFailed': '調査を読み込めませんでした。スクレイプは開始されていません。',
   'scrape.refreshActive': '調査はキュー待ちまたは実行中です。このページが表示されている間、10秒ごとに更新を確認します。',
   'scrape.refresh': '調査結果を更新',
   'scrape.refreshing': '調査結果を更新中…',
@@ -3429,6 +3435,8 @@ const ja: Catalog = {
 
 const it: Catalog = {
   'scrape.description': 'Le raccolte passano attraverso il sidecar autenticato e la policy di egress del modello. I risultati sono dati di ricerca, non metriche del provider né istruzioni di pubblicazione.',
+  'scrape.title': 'Radar di trend e concorrenti',
+  'scrape.loadFailed': 'Impossibile caricare le ricerche. Nessuna raccolta è stata avviata.',
   'scrape.refreshActive': 'La ricerca è in coda o in esecuzione. Questa pagina controlla gli aggiornamenti ogni 10 secondi quando è visibile.',
   'scrape.refresh': 'Aggiorna risultati della ricerca',
   'scrape.refreshing': 'Aggiornamento della ricerca…',
@@ -4390,6 +4398,8 @@ const it: Catalog = {
 
 const ptBR: Catalog = {
   'scrape.description': 'As pesquisas passam pelo sidecar autenticado e pela política de saída do modelo. Os resultados são dados de pesquisa, não métricas do provedor nem instruções de publicação.',
+  'scrape.title': 'Radar de tendências e concorrentes',
+  'scrape.loadFailed': 'Não foi possível carregar as pesquisas. Nenhuma pesquisa foi iniciada.',
   'scrape.refreshActive': 'A pesquisa está na fila ou em execução. Esta página verifica atualizações a cada 10 segundos enquanto estiver visível.',
   'scrape.refresh': 'Atualizar resultados da pesquisa',
   'scrape.refreshing': 'Atualizando pesquisa…',
@@ -5351,6 +5361,8 @@ const ptBR: Catalog = {
 
 const de: Catalog = {
   'scrape.description': 'Scrapes laufen über den authentifizierten Sidecar und die Egress-Richtlinie des Modells. Ergebnisse sind Forschungsdaten, keine Anbieterstatistiken oder Veröffentlichungsanweisungen.',
+  'scrape.title': 'Trend- und Wettbewerbsradar',
+  'scrape.loadFailed': 'Recherchen konnten nicht geladen werden. Es wurde keine Recherche gestartet.',
   'scrape.refreshActive': 'Die Recherche ist eingereiht oder läuft. Diese Seite prüft im sichtbaren Zustand alle 10 Sekunden auf Aktualisierungen.',
   'scrape.refresh': 'Rechercheergebnisse aktualisieren',
   'scrape.refreshing': 'Recherche wird aktualisiert…',

@@ -1038,6 +1038,8 @@ export const MESSAGE_KEYS = [
   'inbox.reviews.saveNotConfirmed',
   'inbox.reviews.recorded',
   'scrape.description',
+  'scrape.title',
+  'scrape.loadFailed',
   'scrape.refreshActive',
   'scrape.refresh',
   'scrape.refreshing',

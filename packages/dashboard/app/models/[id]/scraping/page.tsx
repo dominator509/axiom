@@ -1,5 +1,6 @@
 import { api, getSession } from '@/lib/api';
 import ScrapeRunManager from '@/components/ScrapeRunManager';
+import { getServerLocale } from '@/lib/server-locale';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,11 +13,12 @@ export default async function ScrapingPage({ params, searchParams }: {
   const rawCursor = query.cursor;
   const cursor = Array.isArray(rawCursor) ? rawCursor[0] : rawCursor;
   const session = await getSession();
+  const { t } = await getServerLocale();
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   try {
     const result = await api.models.scrapeRuns(id, cursor);
-    return <div className="page-stack"><h2>Trend & competitor radar</h2><div className="card"><ScrapeRunManager modelId={id} runs={result.data} nextCursor={result.meta.next_cursor} cursor={cursor} canEdit={canEdit} /></div></div>;
+    return <div className="page-stack"><h2>{t('scrape.title')}</h2><div className="card"><ScrapeRunManager modelId={id} runs={result.data} nextCursor={result.meta.next_cursor} cursor={cursor} canEdit={canEdit} /></div></div>;
   } catch {
-    return <div className="card stack" role="alert"><h2>Scraper unavailable</h2><p>Research runs could not be loaded. No scrape was started.</p></div>;
+    return <div className="card stack" role="alert"><h2>{t('scrape.unavailable')}</h2><p>{t('scrape.loadFailed')}</p></div>;
   }
 }
