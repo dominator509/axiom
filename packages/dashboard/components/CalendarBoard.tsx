@@ -69,6 +69,7 @@ export function movedUtcSlot(post: PostTarget, target: Date) {
 export default function CalendarBoard({ posts, year, month, view, weekStart, canEdit }: CalendarBoardProps) {
   const { locale, t } = useLocale();
   const router = useRouter();
+  const timeFormatter = useMemo(() => new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' }), [locale]);
   const cells = useMemo(() => calendarCells(year, month, view, weekStart, locale), [locale, month, view, weekStart, year]);
   const weekdays = useMemo(() => Array.from({ length: 7 }, (_, index) => new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, index + 1)))), [locale]);
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -176,7 +177,7 @@ export default function CalendarBoard({ posts, year, month, view, weekStart, can
               >
                 <Link href={`#post-${post.id}`} style={{ fontWeight: 600 }}>{post.platform}</Link>
                 <span className={`badge ${post.state === 'published' ? 'good' : post.state === 'failed' ? 'bad' : 'mute'}`}>{stateLabel(post.state)}</span>
-                <span className="subtle" style={{ fontSize: 12 }}>{post.scheduledFor ? new Date(post.scheduledFor).toISOString().slice(11, 16) : t('calendar.unscheduled')} {t('calendar.utc')}</span>
+                <span className="subtle" style={{ fontSize: 12 }}>{post.scheduledFor ? timeFormatter.format(new Date(post.scheduledFor)) : t('calendar.unscheduled')} {t('calendar.utc')}</span>
                 {editable && <div className="stack" style={{ gap: 4, marginTop: 6 }}>
                   <label htmlFor={`move-date-${post.id}`} className="subtle" style={{ fontSize: 12 }}>{t('calendar.moveToUtcDate')}</label>
                   <div className="row" style={{ gap: 6 }}>

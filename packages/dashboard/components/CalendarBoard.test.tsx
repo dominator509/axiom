@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import type { ReactNode } from 'react';
 import CalendarBoard, { calendarCells, movedUtcSlot } from './CalendarBoard';
 
+vi.mock('next/link', () => ({ default: ({ children }: { children: ReactNode }) => children }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('./LocaleProvider', () => ({ useLocale: () => ({
   locale: 'en',
@@ -47,6 +49,7 @@ describe('calendar visual board', () => {
     expect(html).toContain('Drag an editable pending post to another day');
     expect(html).toContain('Move to UTC date');
     expect(html).toContain('aria-label="Move x post to UTC date"');
+    expect(html).toContain('18:30 UTC');
   });
 
   it('preserves the original UTC time when a keyboard/date move changes the day', () => {
