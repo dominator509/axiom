@@ -806,6 +806,24 @@ source and automated generation-workflow localization slice. Browser/native,
 deployed media/runtime, R2, provider, migration/RLS and production acceptance
 remain open. No live action occurred.
 
+# M846: affiliate hold-date localization
+
+The mounted platform affiliate manager now formats open-hold dates with the
+selected locale and an explicit UTC zone. The change removes host-timezone
+drift from the affiliate risk-review table while preserving partner/hold data,
+affiliate API and mutation behavior, payout export, and resolution semantics.
+
+Evidence: focused `PlatformAffiliateManager` tests 3/3 including the
+host-timezone regression; full dashboard matrix 141 files and 863 tests
+passed; dashboard typecheck passed; dashboard lint exited 0 with four
+pre-existing `any` warnings; dashboard production build and
+`scripts/verify.sh` (`verify: ok`) passed. Source commit
+`05b6fc5c03ea304998a47080da1778eb9bcb4a84` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. Remaining dashboard/email/operator
+localization, other formatting surfaces, browser/native, provider, deployed
+migration/RLS/runtime, observability, CI governance and production acceptance
+remain open. No live action occurred.
+
 # M822: caption evidence localization
 
 `CaptionGuidance` and `GeneratedCaptionReceipt` now use typed six-locale

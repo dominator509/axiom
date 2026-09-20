@@ -732,6 +732,27 @@ currency surfaces, browser/native, provider, deployed migration/RLS/runtime,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
 
+### M846 - F-89 affiliate hold-date localization
+
+The mounted platform affiliate manager now formats open-hold dates with the
+selected locale and an explicit UTC time zone. This removes host-timezone drift
+from the owner-facing affiliate risk-review table without translating partner
+identifiers, hold reasons, or provider/account data. Affiliate API calls,
+mutation idempotency, payout export, and hold-resolution semantics remain
+unchanged.
+
+Evidence: focused `PlatformAffiliateManager` tests 3/3, including a
+host-timezone regression; full dashboard matrix 141 files and 863 tests
+passed; dashboard typecheck passed; dashboard lint exited 0 with four
+pre-existing `any` warnings; dashboard production build and
+`scripts/verify.sh` (`verify: ok`) passed. Source commit
+`05b6fc5c03ea304998a47080da1778eb9bcb4a84` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the M846 source/UI
+slice; remaining dashboard/email/operator localization, other date/number/
+currency surfaces, browser/native, provider, deployed migration/RLS/runtime,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
+
 ### M842 — F-89 post-note localization
 
 The mounted post-specific internal-note workflow now consumes typed catalog keys
