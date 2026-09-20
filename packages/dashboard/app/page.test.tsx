@@ -132,6 +132,8 @@ describe('portfolio pagination and counts', () => {
     transport({ pageFailure: true });
     const html = await render({ cursor: 'invalid' });
     expect(html).toContain('Profile request failed');
+    expect(html).toContain('We could not reach your workspace.');
+    expect(html).not.toContain('API 503');
     expect(html).toContain('First page');
     expect(html).not.toContain('No talent profiles yet');
     expect(html).not.toContain('Next page');

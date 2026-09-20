@@ -70,7 +70,6 @@ export default async function HomePage({ searchParams }: {
       {error && (
         <div className="notice error" role="alert">
           <strong>{t('home.workspaceUnreachable')}</strong>
-          <span className="mono">{error}</span>
         </div>
       )}
 
