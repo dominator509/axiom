@@ -14,7 +14,7 @@ ACCEPTED_PRODUCT_SOURCE: `e6c4ed32ab48372ac689bf90f2b3161aa0af4fc6`
 ACTIVE_HERMES_LANE: `MEDIA-LOCALE-SHELL-CURRENT-R1 — one fresh current-source lane; historical lanes remain quarantined`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES only after one correlated ACK/ACCEPTED; Codex owns audit, integration, commit and push`
-NEXT_ACTION: `DELIVERY-007 passed the independent five-artifact audit and is integrated in the working tree. Commit and push the product milestone, then send one terminal Codex READ receipt correlated to DELIVERY-007 and bind the next finite architecture gap. Do not open a parallel wire before that closure.`
+NEXT_ACTION: `Product milestone M806 is committed and pushed at e6c4ed3. Terminal Codex READ-008 is protocol-valid, uploaded, and awaiting bridge readback; once read, close this lane and select exactly one finite architecture gap from current source evidence. Do not open a parallel wire before that closure.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-MEDIA-LOCALE-SHELL-R1-START-001 — only active implementation wire`
@@ -42,12 +42,12 @@ NEXT_PREPARED_TASK: `MEDIA-LOCALE-SHELL-CURRENT-R1`
 NEXT_PREPARED_TASK_WIRE: `CODEX-MEDIA-LOCALE-SHELL-R1-START-001`
 NEXT_PREPARED_TASK_SOURCE_COMMIT: `865f2ec047a4128274cb809c935f70ebb3c58366`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `DELIVERED AND AUDITED — DELIVERY-007 passed; integration is complete in the working tree, pending milestone commit/push and terminal READ receipt`
+NEXT_PREPARED_TASK_STATE: `DELIVERED AND AUDITED — DELIVERY-007 passed; integration is committed and pushed at e6c4ed3; terminal READ-008 uploaded and pending bridge readback`
 ACTIVE_LANE_TASK_WIRE: `CODEX-MEDIA-LOCALE-SHELL-R1-START-001`
 ACTIVE_LANE_SOURCE_COMMIT: `865f2ec047a4128274cb809c935f70ebb3c58366`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-media-locale-shell-r1`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/codex-media-locale-shell-r1`
-ACTIVE_LANE_COPY_STATE: `AUDITED AND INTEGRATED — terminal DELIVERY-007 corrected the assigned-copy readability defect; all five artifacts are hash-verified and the product files are integrated locally, pending milestone commit/push`
+ACTIVE_LANE_COPY_STATE: `AUDITED AND INTEGRATED — terminal DELIVERY-007 corrected the assigned-copy readability defect; all five artifacts are hash-verified and the product files are committed/pushed at e6c4ed3; terminal READ-008 is uploaded for closure`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `69dd6715e5867e74bfd5c32ede40e3ca9fdc3718197619b7613bc4af7eaddb70`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `69dd6715e5867e74bfd5c32ede40e3ca9fdc3718197619b7613bc4af7eaddb70`
 ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `HISTORICAL — d58bc7a36e65c215c62d68fd6186082a6fc230e815e4276771d6072a6734152f; terminal BLOCKED envelope read back`
@@ -83,6 +83,8 @@ ACTIVE_LANE_RECEIPT_WIRE: `CODEX-MEDIA-LOCALE-SHELL-R1-RECEIPT-003`
 ACTIVE_LANE_RECEIPT_SHA256: `c9ab3e1cb074153f328b8fac4f431875d1d922a28a188097531fbd3c8434013e`
 ACTIVE_LANE_DELIVERY_WIRE: `HERMES-MEDIA-LOCALE-SHELL-R1-DELIVERY-007 — terminal delivery accepted for audit; all five artifacts readable and hash-verified`
 ACTIVE_LANE_DELIVERY_SHA256: `e489426c2e97f8ae64468d4a5a304d89d29bc978ae08628b8f4d2ffea5fd3bd6`
+ACTIVE_LANE_CLOSURE_WIRE: `CODEX-MEDIA-LOCALE-SHELL-R1-READ-008`
+ACTIVE_LANE_CLOSURE_SHA256: `84e8e9310ae914c9e2d445a679a5f5872aebdc6b92a4d2559d0a9b7c391500aa`
 ACTIVE_LANE_CORRECTION_WIRE: `CODEX-MEDIA-LOCALE-SHELL-R1-RECEIPT-006`
 ACTIVE_LANE_CORRECTION_SHA256: `4ec551231703a9647dc4251100ad2f75dc47a07d9d94041da87336da5a644d56`
 ACTIVE_LANE_AUDIT: `PASS — all five DELIVERY-007 hashes match; core completeness 6/6, core suite 90/90, media page 40/40, core/dashboard typechecks, core/dashboard lint (0 errors), dashboard production build, and diff-check pass`
@@ -92,7 +94,7 @@ LAST_COMPLETED_SOURCE_MILESTONE: `M806 — F-89 media gallery shell localization
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M806 product source is pushed/read back at e6c4ed3; media-localization DELIVERY-007 is bound to exact 865f2ec and independently audited/integrated; terminal Codex READ receipt is next, then bind the next finite gap; no live action`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; M806 product source is pushed/read back at e6c4ed3; media-localization DELIVERY-007 is bound to exact 865f2ec and independently audited/integrated; terminal Codex READ-008 is uploaded and awaits bridge readback; no parallel lane or live action`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
