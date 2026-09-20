@@ -7,16 +7,16 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `e64113875465c54647c3a61516a953c5b6d53083` (M906 calendar locale reconciliation; remote readback matches)
+SOURCE_HEAD: `fb594a441cada409a251a5c35399662562ade169` (M907 isolated matrix stabilization; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `e64113875465c54647c3a61516a953c5b6d53083` (M906 calendar locale reconciliation; remote readback matches)
-COORDINATION_HEAD: `e64113875465c54647c3a61516a953c5b6d53083 — M906 calendar locale reconciliation; pushed and read back`
-ACCEPTED_PRODUCT_SOURCE: `e64113875465c54647c3a61516a953c5b6d53083`
-LAST_COMPLETED_SOURCE_MILESTONE: `M906 — calendar locale reconciliation recorded after M904; focused tests passed, pushed at e64113875465c54647c3a61516a953c5b6d53083`
-ACTIVE_HERMES_LANE: `F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-R3 — sole active source-only lane against immutable e6411387 ref; supersedes unconfirmed R2`
+PUBLISHED_HEAD: `fb594a441cada409a251a5c35399662562ade169` (M907 isolated matrix stabilization; remote readback matches)
+COORDINATION_HEAD: `fb594a441cada409a251a5c35399662562ade169 — M907 isolated matrix stabilization; pushed and read back`
+ACCEPTED_PRODUCT_SOURCE: `fb594a441cada409a251a5c35399662562ade169`
+LAST_COMPLETED_SOURCE_MILESTONE: `M907 — canonical storage-key fixtures and deterministic isolated Vitest discovery/database sequencing; full matrix and verify gate passed; pushed at fb594a441cada409a251a5c35399662562ade169`
+ACTIVE_HERMES_LANE: `F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-R4 — sole active source-only lane against immutable fb594a44 ref; supersedes unconfirmed R3`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `M906 is canonical and the unconfirmed F89 R2 lane is superseded. The F89 R3 task is sent at SEQ 1 with literal ACK_FORMAT, PROGRESS_FORMAT, DELIVERY_FORMAT and VALIDATION_COMMAND fields. Require exactly one fresh SEQ 2 ACK/READ or ACK/ACCEPTED with a new WIRE and READ_STATUS READ, then exactly one concrete PROGRESS or flat DELIVERY or terminal NACK/BLOCKED. Hermes must run the named validator before publication; reject prose, duplicate keys, reused WIREs, second ACKs, missing delivery fields, or duplicate signatures. No Hermes commit/push or live action.`
+NEXT_ACTION: `M907 is canonical and the unconfirmed F89 R3 lane is superseded. The F89 R4 task is sent at SEQ 1 with literal ACK_FORMAT, PROGRESS_FORMAT, DELIVERY_FORMAT and VALIDATION_COMMAND fields. Require exactly one fresh SEQ 2 ACK/READ or ACK/ACCEPTED with a new WIRE and READ_STATUS READ, then exactly one concrete PROGRESS or flat DELIVERY or terminal NACK/BLOCKED. Hermes must run the named validator before publication; reject prose, duplicate keys, reused WIREs, second ACKs, missing delivery fields, or duplicate signatures. No Hermes commit/push or live action.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
@@ -24,7 +24,7 @@ HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_R
 HERMES_REPLY_FORMAT_GATE: `ACK = TYPE ACK + STATE READ|ACCEPTED; PROGRESS = TYPE PROGRESS + STATE IN_PROGRESS; DELIVERY = TYPE DELIVERY + STATE DELIVERED + TERMINAL YES; BLOCKED = TYPE NACK + STATE BLOCKED + TERMINAL YES; every reply has a new WIRE distinct from IN_REPLY_TO, exact SEQ, PAYLOAD delimiter, READ_STATUS READ once, and final signature sincerely, Hermes`
 HERMES_DELIVERY_FORMAT_GATE: `DELIVERY PAYLOAD must contain exactly once: ARTIFACT, SHA256 (64 lowercase hex), COMMAND, EXIT_CODE (integer), TEST_RESULT (PASS|FAIL), CHANGED_FILES, SOURCE_REPO, SOURCE_REF, SOURCE_COMMIT, COPY_ROOT, DELIVERY_ROOT, MANIFEST_SHA256 (64 lowercase hex), LIVE_ACTIONS NONE; no prose substitute or duplicate fields`
 HERMES_BLOCKED_FORMAT_GATE: `If required checks cannot run or one concrete input is missing, use TYPE NACK, STATE BLOCKED, TERMINAL YES, NEXT_OWNER CODEX, a unique WIRE, REASON naming the single blocker, PAYLOAD READ_STATUS READ and LIVE_ACTIONS NONE exactly once; do not send a second ACK or a no-change delivery`
-OPEN_WIRES: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-003`
+OPEN_WIRES: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-004`
 STALE_HERMES_REPLY: `codex-receipt-r2-storage-r3-invalid-ack-001` belongs to superseded task `R2-STORAGE-ROUNDTRIP-COPY-R3`; strict validator fails on missing DELIVERY_ACCEPTED, delivery claim and terminal/state contradiction; it does not advance the active R3 lane`
 OPEN_CONTROL_WIRE: `NONE`
 OPEN_CONTROL_TASK_STATE: `CLOSED_BY_CODEX_RECEIPT — Hermes-owned bare mirror and all-ref inventory accepted; poller edit remains explicitly blocked by root ownership; no feature implementation or live action accepted`
@@ -38,9 +38,9 @@ OPEN_CONTROL_TASK_CORRECTION_SHA256: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
 OPEN_CONTROL_TASK_NEXT_ACTION: `No control action outstanding; use the verified Hermes-owned mirror and explicit per-task source-sync fields; do not open a competing product lane.`
-ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization, M857 relay-binding localization, M858 workspace-members localization and M859 PlaybookCadence calendar localization are integrated on the branch; F50 Linktree is terminal deferred for missing provider contract; F89 worker digest is integrated through fallback; M883 provider-neutral storage is integrated at 9a720071; M892 storage hardening is integrated at c884ad4; no Hermes lane is open.`
-CURRENT_MILESTONE: `M904 selected-guidance attribution remains integrated and calendar UTC times are locale-formatted at 647b2a9c0b7f4ff90d13d94ba30d2cf492a598f5; CalendarBoard focused 3/3, verify gate passes; no live action`
-CURRENT_MILESTONE_OPEN_GATES: `Gateway retains four unrelated Windows subscription process-tree failures and API retains five unrelated Windows hook-timeout failures in full-package suites; repository-wide Prettier retains baseline files; dashboard standalone build tracing needs a symlink-capable environment; F50 Linktree is terminal deferred for missing provider contract; remaining architecture gaps include remaining catalog adoption and locale formatting, browser/native, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress rehearsal, and production acceptance`
+ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization, M857 relay-binding localization, M858 workspace-members localization and M859 PlaybookCadence calendar localization are integrated on the branch; F50 Linktree is terminal deferred for missing provider contract; F89 worker digest is integrated through fallback; M883 provider-neutral storage is integrated at 9a720071; M892 storage hardening is integrated at c884ad4; M907 canonical storage-key fixtures and deterministic isolated test discovery/database sequencing are integrated at fb594a4; F89 R4 is the sole open Hermes lane.`
+CURRENT_MILESTONE: `M907 isolated matrix stabilization is integrated at fb594a441cada409a251a5c35399662562ade169; full disposable matrix passed 24/24 package tasks and scripts/verify.sh printed verify: ok; no live action`
+CURRENT_MILESTONE_OPEN_GATES: `F50 Linktree is terminal deferred for missing provider contract; remaining architecture gates include Hermes F89 R4 localization delivery, browser/native acceptance, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress rehearsal, and production acceptance`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -48,50 +48,50 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-R3`
-NEXT_PREPARED_TASK_WIRE: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-003`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `e64113875465c54647c3a61516a953c5b6d53083`
+NEXT_PREPARED_TASK: `F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-R4`
+NEXT_PREPARED_TASK_WIRE: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-004`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `fb594a441cada409a251a5c35399662562ade169`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `OPEN — exact source binding, literal reply-format examples, bounded scope and no-live-action boundary are declared, validated locally and sent`
-ACTIVE_LANE_TASK_WIRE: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-003`
-ACTIVE_LANE_SOURCE_COMMIT: `e64113875465c54647c3a61516a953c5b6d53083`
+NEXT_PREPARED_TASK_STATE: `OPEN — exact source binding, literal reply-format examples, bounded scope and no-live-action boundary are declared, validated locally, uploaded, and remote SHA read back`
+ACTIVE_LANE_TASK_WIRE: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-004`
+ACTIVE_LANE_SOURCE_COMMIT: `fb594a441cada409a251a5c35399662562ade169`
 ACTIVE_LANE_SOURCE_REPO: `github.com/dominator509/axiom`
 ACTIVE_LANE_SOURCE_REF: `refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/mirror fetch --all --prune`
-ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/mirror rev-parse --verify refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/mirror cat-file -t e64113875465c54647c3a61516a953c5b6d53083^{commit}`
-ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/mirror merge-base --is-ancestor e64113875465c54647c3a61516a953c5b6d53083 refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/mirror`
+ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r4/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r4/mirror fetch --all --prune`
+ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r4/mirror rev-parse --verify refs/heads/codex/telegram-webhook-hardening`
+ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r4/mirror cat-file -t fb594a441cada409a251a5c35399662562ade169^{commit}`
+ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r4/mirror merge-base --is-ancestor fb594a441cada409a251a5c35399662562ade169 refs/heads/codex/telegram-webhook-hardening`
+ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r4/mirror`
 ACTIVE_LANE_SOURCE_MIRROR_LAYOUT: `bare-mirror — refs/heads/*`
 ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch checkout`
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
-ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/copy`
-ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r3/delivery`
-ACTIVE_LANE_COPY_STATE: `TASK_SENT — exact R3 JSON validated locally, uploaded, and remote SHA read back; awaiting one fresh correlated ACK/READ or ACK/ACCEPTED at SEQ 2`
+ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r4/copy`
+ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-variant-guidance-attribution-localization-r4/delivery`
+ACTIVE_LANE_COPY_STATE: `TASK_SENT — exact R4 JSON validated locally, uploaded, and remote SHA read back; awaiting one fresh correlated ACK/READ or ACK/ACCEPTED at SEQ 2`
 ACTIVE_LANE_LOCAL_REVIEW_ROOT: `NONE — created only after a readable DELIVERY arrives`
 ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `UNCONFIRMED — no Hermes artifact accepted`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `528b1de94d8a630548719a56f68c06403b04733cfa4b970ea70d0472893d0289`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `528b1de94d8a630548719a56f68c06403b04733cfa4b970ea70d0472893d0289 — exact readback matches`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `6659d2762ddb6f62fccdda6bcea455d1b1407d6200038fc2a1ae40b74d1b13e4`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `6659d2762ddb6f62fccdda6bcea455d1b1407d6200038fc2a1ae40b74d1b13e4 — exact readback matches`
 ACTIVE_LANE_ACK_WIRE: `NONE — awaiting strict SEQ 2 ACK; no prior Hermes ACK is accepted`
 ACTIVE_LANE_ACK_SHA256: `NONE`
 ACTIVE_LANE_RECEIPT_WIRE: `NONE`
 ACTIVE_LANE_RECEIPT_SHA256: `NONE`
 ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `64741680ff89612b0c608bd6dacf441aa58417f1e6081ea9c4313b3a538b4828`
-ACTIVE_LANE_EXECUTION_RECEIPT_WIRE: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-ACK-RECEIPT-004 — ownership transferred to Hermes`
-ACTIVE_LANE_EXECUTION_RECEIPT_SHA256: `325ae32944578b3242f648f42de35794db9aa7db24d4e99f1efc0b3670f713a0`
+ACTIVE_LANE_EXECUTION_RECEIPT_WIRE: `NONE — R4 is awaiting its strict SEQ 2 ACK`
+ACTIVE_LANE_EXECUTION_RECEIPT_SHA256: `NONE`
 ACTIVE_LANE_DELIVERY_REJECTED_WIRE: `NONE — F89 R3 malformed delivery is historical and closed by fallback receipt 007`
 ACTIVE_LANE_DELIVERY_REPLY_SHA256: `NONE`
 ACTIVE_LANE_DELIVERY_REJECTION_WIRE: `NONE`
 ACTIVE_LANE_DELIVERY_REJECTION_SHA256: `NONE`
 ACTIVE_LANE_PROGRESS_WIRE: `NONE`
 ACTIVE_LANE_PROGRESS_SHA256: `NONE`
-ACTIVE_LANE_CORRECTION_WIRE: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-ACK-CORRECTION-003`
-ACTIVE_LANE_CORRECTION_SHA256: `d9db742e4eed395e4e327d0ac97c2148800089cd27106a4899e079793905a4d6`
-ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `d9db742e4eed395e4e327d0ac97c2148800089cd27106a4899e079793905a4d6`
+ACTIVE_LANE_CORRECTION_WIRE: `NONE — no R4 correction is permitted before a strict ACK`
+ACTIVE_LANE_CORRECTION_SHA256: `NONE`
+ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `NONE`
 ACTIVE_LANE_INVALID_DELIVERY_WIRE: `NONE`
 ACTIVE_LANE_INVALID_DELIVERY_SHA256: `NONE`
-ACTIVE_LANE_SUPERSEDE_WIRE: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-TASK-001 supersedes CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R2-TASK-001`
-ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `c97609973366b8f0a70c6e2299894fe799e2194af985af3d5cc91f888a1458e5`
+ACTIVE_LANE_SUPERSEDE_WIRE: `CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-004 supersedes CODEX-F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-TASK-003`
+ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `6659d2762ddb6f62fccdda6bcea455d1b1407d6200038fc2a1ae40b74d1b13e4`
 ACTIVE_LANE_SOURCE_BUNDLE: `NONE — exact Git source ref is authoritative`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `NONE`
 CLOSED_LANE_F50_LINKTREE: `TERMINAL BLOCKED — HERMES-LINKTREE-ADAPTER-SOURCE-R1-NACK-004; missing authoritative OAuth/endpoints/scopes, link-sync shape and normalized analytics mapping; existing native-only fail-closed behavior retained`
