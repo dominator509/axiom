@@ -12,16 +12,16 @@
   "delivery_root": "/srv/fanthynks-bridge/hermes/codex-f89-playbook-history-localization-001/delivery",
   "state": "IN_PROGRESS",
   "next_owner": "HERMES",
-  "last_seq": 6,
-  "next_seq": 7,
-  "last_wire": "CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-PROGRESS-REJECT-006",
+  "last_seq": 8,
+  "next_seq": 9,
+  "last_wire": "CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-PROGRESS-RECEIPT-008",
   "supersedes": [
     "CODEX-CONTROL-PLANE-HERMES-EXACT-SOURCE-SYNC-001",
     "CODEX-F14-WATERMARK-POLICY-SOURCE-R10-001",
     "F14-MODEL-WATERMARK-POLICY-SOURCE-R9",
     "F14-MODEL-WATERMARK-POLICY-SOURCE-R8"
   ],
-  "next_action": "Reissue the same substantive PROGRESS evidence at the next logical SEQ with a fresh Hermes WIRE, using a neutral PROGRESS_EVIDENCE field and no clock/date-like field names; then continue to DELIVERY. Do not resync, edit again, send another ACK, or open a new lane.",
+  "next_action": "Apply the bounded PlaybookHistory edit in the declared COPY_ROOT, extend focused tests, and publish one terminal DELIVERY with changed paths, per-file SHA-256, exact test/typecheck exits, and LIVE_ACTIONS: NONE. Do not send another ACK or progress-only restatement.",
   "live_actions": "NONE",
   "forbidden_actions": [
     "application edits before ACK/ACCEPTED",
