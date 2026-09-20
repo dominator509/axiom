@@ -1194,7 +1194,7 @@ this route, browser/mobile, provider/OAuth/Patreon receipts, deployed
 migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress
 rehearsal and production acceptance. No live action occurred.
 
-# M856: model Network route localization — accepted, implementation open
+# M856: model Network route localization — implementation in progress
 
 The next source audit found a concrete mounted-surface gap in
 `packages/dashboard/app/models/[id]/network/page.tsx`: fixed copy, access and
@@ -1208,7 +1208,11 @@ Hermes received a strict ACK-NACK-1 task pinned to exact source commit
 rejected stale `main`, and materialized the isolated copy. Codex recorded the
 correlated `ACK/ACCEPTED` at
 `CODEX-F89-NETWORK-PAGE-LOCALIZATION-R1-ACK-002` with read receipt
-`CODEX-F89-NETWORK-PAGE-LOCALIZATION-R1-RECEIPT-003`. Acceptance still
+`CODEX-F89-NETWORK-PAGE-LOCALIZATION-R1-RECEIPT-003`. Hermes then published
+`HERMES-F89-NETWORK-PAGE-LOCALIZATION-R1-PROGRESS-004` with independently
+verified unchanged baselines and a concrete source-edit/test next action;
+Codex recorded read receipt
+`CODEX-F89-NETWORK-PAGE-LOCALIZATION-R1-RECEIPT-005`. Acceptance still
 requires real edits only in the isolated copy, six-locale route coverage,
 preserved owner/operational-role/API/child-control behavior, tests for access,
 failure, empty/account and OAuth states, no raw backend error text, typecheck,

@@ -1069,7 +1069,7 @@ deployed migration/RLS/runtime, observability, CI governance,
 WireGuard/customer-egress rehearsal and production acceptance remain open. No
 live action occurred.
 
-### M856 — F-89 model Network route localization (accepted, implementation open)
+### M856 — F-89 model Network route localization (implementation in progress)
 
 The next finite gap is source-confirmed rather than inferred: the model Network
 page still contains hardcoded operator-facing copy and renders the network
@@ -1080,11 +1080,11 @@ roots. The task requires persisted-locale route rendering, six-locale fixed
 copy and status labels, safe bounded failures, preserved role/API/child-control
 contracts, focused behavior tests, typecheck and lint evidence.
 
-State is `ACCEPTED`: Hermes returned a correlated strict `ACK/ACCEPTED` at
-`CODEX-F89-NETWORK-PAGE-LOCALIZATION-R1-ACK-002`, verified the exact pinned
-commit, rejected stale `main`, and materialized the declared isolated copy.
-Codex recorded the read receipt at
-`CODEX-F89-NETWORK-PAGE-LOCALIZATION-R1-RECEIPT-003`; no source delivery has
+State is `IN_PROGRESS`: Hermes returned the correlated strict
+`ACK/ACCEPTED`, verified the exact pinned commit, rejected stale `main`,
+materialized the declared isolated copy, and published
+`HERMES-F89-NETWORK-PAGE-LOCALIZATION-R1-PROGRESS-004` with unchanged baseline
+hashes and the concrete edit/test next action. Codex recorded
+`CODEX-F89-NETWORK-PAGE-LOCALIZATION-R1-RECEIPT-005`; no source delivery has
 been accepted yet. The next valid event is one evidence-bearing
-`PROGRESS/IN_PROGRESS`, `DELIVERY/DELIVERED`, or terminal `BLOCKED`. No live
-action occurred.
+`DELIVERY/DELIVERED` or terminal `BLOCKED`. No live action occurred.
