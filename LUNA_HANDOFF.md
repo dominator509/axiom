@@ -9,19 +9,19 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef` (M892 reviewed product source; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef` (M892 reviewed product source; remote readback matches)
-COORDINATION_HEAD: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef — M892 integrated the independently audited Hermes source fallback; pushed and read back`
+PUBLISHED_HEAD: `579ca2bda36b8d8fb90967a7ae99cab6d41fe6f6` (M893 coordination state; remote readback matches)
+COORDINATION_HEAD: `579ca2bda36b8d8fb90967a7ae99cab6d41fe6f6 — M893 closed F89 R3 fallback and prepared the next exact variant-guidance lane; pushed and read back`
 ACCEPTED_PRODUCT_SOURCE: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
 LAST_COMPLETED_SOURCE_MILESTONE: `M892 — independently audited Hermes R3 storage hardening integrated, focused gates passed, pushed at c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
-ACTIVE_HERMES_LANE: `NONE — F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3 is closed by Codex fallback; the malformed Hermes DELIVERY was rejected and not counted as accepted`
+ACTIVE_HERMES_LANE: `F15-F16-VARIANT-GUIDANCE-R1 — sole active source-only lane against c884ad4; F89 R3 is closed by Codex fallback and is not reopened`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits the delivery and owns integration`
-NEXT_ACTION: `Use c884ad4bcc792338022337bdfe7dc1a0e2ca16ef as the only current source pin; choose the next finite architecture gap, then dispatch exactly one Hermes task with explicit COPY_ROOT, DELIVERY_ROOT, scope, forbidden actions and the flat validator-valid DELIVERY schema. Do not reopen F89 R3 or any superseded lane.`
+NEXT_ACTION: `Require Hermes to echo the exact c884ad4 source commit, mirror, copy and delivery roots in one correlated ACK; then accept only concrete PROGRESS or one flat validator-valid DELIVERY/BLOCKED. Audit bytes and owning gates before integration; no Hermes commit/push or live action.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
 HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_RESULT, CHANGED_FILES and LIVE_ACTIONS must appear exactly once inside PAYLOAD; no prose substitute, duplicate keys or second signature`
-OPEN_WIRES: `NONE`
+OPEN_WIRES: `CODEX-F15-F16-VARIANT-GUIDANCE-R1-TASK-001`
 STALE_HERMES_REPLY: `codex-receipt-r2-storage-r3-invalid-ack-001` belongs to superseded task `R2-STORAGE-ROUNDTRIP-COPY-R3`; strict validator fails on missing DELIVERY_ACCEPTED, delivery claim and terminal/state contradiction; it does not advance the active R3 lane`
 OPEN_CONTROL_WIRE: `NONE`
 OPEN_CONTROL_TASK_STATE: `CLOSED_BY_CODEX_RECEIPT — Hermes-owned bare mirror and all-ref inventory accepted; poller edit remains explicitly blocked by root ownership; no feature implementation or live action accepted`
@@ -45,41 +45,41 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `NONE — next finite architecture gap must be selected from the reconciliation matrix`
-NEXT_PREPARED_TASK_WIRE: `NONE`
+NEXT_PREPARED_TASK: `F15-F16-VARIANT-GUIDANCE-R1`
+NEXT_PREPARED_TASK_WIRE: `CODEX-F15-F16-VARIANT-GUIDANCE-R1-TASK-001`
 NEXT_PREPARED_TASK_SOURCE_COMMIT: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `CLOSED — previous F89 storage lane closed by independently audited Codex fallback`
-ACTIVE_LANE_TASK_WIRE: `NONE`
+NEXT_PREPARED_TASK_STATE: `OPEN — exact source binding, bounded scope, flat delivery fields and no-live-action boundary are declared and sent`
+ACTIVE_LANE_TASK_WIRE: `CODEX-F15-F16-VARIANT-GUIDANCE-R1-TASK-001`
 ACTIVE_LANE_SOURCE_COMMIT: `c884ad4bcc792338022337bdfe7dc1a0e2ca16ef`
 ACTIVE_LANE_SOURCE_REPO: `github.com/dominator509/axiom`
 ACTIVE_LANE_SOURCE_REF: `refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r3/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r3/mirror fetch --all --prune`
-ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r3/mirror rev-parse --verify refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r3/mirror cat-file -t 9a720071fb77d56426611ba8d0ff52e62b905738`
-ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r3/mirror merge-base --is-ancestor 9a720071fb77d56426611ba8d0ff52e62b905738 refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r3/mirror`
+ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/mirror fetch --all --prune`
+ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/mirror rev-parse --verify refs/heads/codex/telegram-webhook-hardening`
+ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/mirror cat-file -t c884ad4bcc792338022337bdfe7dc1a0e2ca16ef^{commit}`
+ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/mirror merge-base --is-ancestor c884ad4bcc792338022337bdfe7dc1a0e2ca16ef refs/heads/codex/telegram-webhook-hardening`
+ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/mirror`
 ACTIVE_LANE_SOURCE_MIRROR_LAYOUT: `bare-mirror — refs/heads/*`
 ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch checkout`
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
-ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r3/copy`
-ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-r2-storage-application-abstraction-r3/delivery`
-ACTIVE_LANE_COPY_STATE: `DELIVERY_REJECTED — Hermes changed two source files and reported tests, but DELIVERY-005 omitted required flat ARTIFACT/SHA256/COMMAND/EXIT_CODE/TEST_RESULT fields; rejection remote checksum 67a60dd0a179d86febda341c93528bbb40d0c0fdf1a4c82830b483cd2beec334; awaiting corrected DELIVERY`
+ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/copy`
+ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f15-f16-variant-guidance-r1/delivery`
+ACTIVE_LANE_COPY_STATE: `TASK_SENT — awaiting one correlated ACK/READ or ACK/ACCEPTED before source-only implementation`
 ACTIVE_LANE_LOCAL_REVIEW_ROOT: `NONE — created only after a readable DELIVERY arrives`
 ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `UNCONFIRMED — no Hermes artifact accepted`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `c97609973366b8f0a70c6e2299894fe799e2194af985af3d5cc91f888a1458e5`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `c97609973366b8f0a70c6e2299894fe799e2194af985af3d5cc91f888a1458e5 — exact R3 task envelope read back from Hermes inbox`
-ACTIVE_LANE_ACK_WIRE: `HERMES-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-ACK-CORRECTION-004 — strict ACK/ACCEPTED after malformed ACK correction`
-ACTIVE_LANE_ACK_SHA256: `d49b6f495194b0e550bc4106bd5bf211362b05e43fcdd70d0825f54698c1512a`
-ACTIVE_LANE_RECEIPT_WIRE: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-ACK-RECEIPT-004`
-ACTIVE_LANE_RECEIPT_SHA256: `325ae32944578b3242f648f42de35794db9aa7db24d4e99f1efc0b3670f713a0`
-ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `325ae32944578b3242f648f42de35794db9aa7db24d4e99f1efc0b3670f713a0`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `ab734b073beb76da31526709d0f8f9fd21f5dbdb7aac5a84e05d5a084ac1b287`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `PENDING — verify exact readback before treating the task as received`
+ACTIVE_LANE_ACK_WIRE: `NONE`
+ACTIVE_LANE_ACK_SHA256: `NONE`
+ACTIVE_LANE_RECEIPT_WIRE: `NONE`
+ACTIVE_LANE_RECEIPT_SHA256: `NONE`
+ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `NONE`
 ACTIVE_LANE_EXECUTION_RECEIPT_WIRE: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-ACK-RECEIPT-004 — ownership transferred to Hermes`
 ACTIVE_LANE_EXECUTION_RECEIPT_SHA256: `325ae32944578b3242f648f42de35794db9aa7db24d4e99f1efc0b3670f713a0`
-ACTIVE_LANE_DELIVERY_REJECTED_WIRE: `HERMES-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-DELIVERY-005`
-ACTIVE_LANE_DELIVERY_REPLY_SHA256: `68ba7532b31fa40bfc23d0cf2c66223c6b67c2e68987650e397037f688bf416e — DELIVERY-005 transport bytes; envelope rejected for missing flat evidence fields; source bytes not yet integrated`
-ACTIVE_LANE_DELIVERY_REJECTION_WIRE: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-DELIVERY-REJECT-006`
-ACTIVE_LANE_DELIVERY_REJECTION_SHA256: `67a60dd0a179d86febda341c93528bbb40d0c0fdf1a4c82830b483cd2beec334`
+ACTIVE_LANE_DELIVERY_REJECTED_WIRE: `NONE — F89 R3 malformed delivery is historical and closed by fallback receipt 007`
+ACTIVE_LANE_DELIVERY_REPLY_SHA256: `NONE`
+ACTIVE_LANE_DELIVERY_REJECTION_WIRE: `NONE`
+ACTIVE_LANE_DELIVERY_REJECTION_SHA256: `NONE`
 ACTIVE_LANE_PROGRESS_WIRE: `NONE`
 ACTIVE_LANE_PROGRESS_SHA256: `NONE`
 ACTIVE_LANE_CORRECTION_WIRE: `CODEX-F89-R2-STORAGE-APPLICATION-ABSTRACTION-R3-ACK-CORRECTION-003`
