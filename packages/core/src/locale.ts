@@ -1275,6 +1275,15 @@ export const MESSAGE_KEYS = [
   'digest.recover.rejected',
   'digest.recover.saved',
   'digest.recover.notConfirmed',
+  // ─── F-89 weekly operator digest card (worker executor surface) ───
+  // The digest executor renders these through the org-scoped UI locale; values
+  // are formatted with the locale-aware helpers under an explicit UTC policy.
+  'digest.card.title',
+  'digest.card.description',
+  'digest.card.notWeeklyGain',
+  'digest.card.exemplars',
+  'digest.card.topPlatformUnavailable',
+  'digest.card.avgEngagement',
   'relay.title',
   'relay.destinations.heading',
   'relay.destinations.loadFailed',

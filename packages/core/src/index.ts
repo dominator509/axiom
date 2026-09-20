@@ -13,6 +13,7 @@ export * from './review-catalog.js';
 export * from './consent-catalog.js';
 export * from './fan-crm-catalog.js';
 export * from './locale-settings.js';
+export * from './digest-card.js';
 export * from './relay-card-state.js';
 export * from './scrape-result.js';
 export * from './learning-contract.js';

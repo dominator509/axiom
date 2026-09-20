@@ -7,6 +7,7 @@
 
 import { sql, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
+import { renderDigestCard, resolveOrgDigestLocale } from '@axiom/core';
 import type { Executor, ExecutorContext } from './context.js';
 import { enqueueWeeklyDigest } from '../digest-schedule.js';
 
@@ -129,24 +130,56 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
     strongPosts: Number(labelRow?.strong ?? 0),
   };
 
-  const description =
-    `Latest cumulative provider totals for ${digest.posts} published posts observed in the last 7 days: ` +
-    `${digest.views.toLocaleString()} views · ` +
-    `${(digest.avgEngagement * 100).toFixed(2)}% average per-post engagement · top platform ${digest.topPlatform}. ` +
-    `These are not views gained during the week. ` +
-    `${digest.viralPosts} viral / ${digest.strongPosts} strong verified exemplars first recorded in this window (current labels).`;
+  // 4. Resolve the organization UI locale through the existing typed locale
+  // contract. An automatic digest is unattended and org-scoped, so only the
+  // org preference applies; anything absent or unrecognized falls back to
+  // English rather than being coerced. No migration or second preference
+  // source is introduced.
+  const localeRows = (await tx
+    .select({ scope: schema.uiLocalePreference.scope, locale: schema.uiLocalePreference.locale })
+    .from(schema.uiLocalePreference)
+    .where(eq(schema.uiLocalePreference.orgId, job.org_id))) as Array<{
+    scope: 'user' | 'org';
+    locale: string;
+  }>;
+  const resolved = resolveOrgDigestLocale(
+    localeRows.map((row) => ({
+      scope: row.scope,
+      orgId: job.org_id,
+      locale: row.locale,
+      updatedAt: '',
+    })),
+  );
 
-  // 4. Durable digest card (F-28: weekly digests ride the Relay as cards).
+  // 5. Render the operator-visible card in the resolved locale: catalog-backed
+  // title/description, locale-aware number formatting and an explicit UTC date
+  // policy. Provider platform names and aggregate values remain data.
+  const card = renderDigestCard(resolved.locale, {
+    weekStart: digest.weekStart,
+    posts: digest.posts,
+    views: digest.views,
+    avgEngagement: digest.avgEngagement,
+    topPlatform: digest.topPlatform,
+    viralPosts: digest.viralPosts,
+    strongPosts: digest.strongPosts,
+  });
+
+  // 6. Durable digest card (F-28: weekly digests ride the Relay as cards).
   await tx.insert(schema.relayCard).values({
     orgId: job.org_id,
     channel: 'digest',
     // The digest executor only stores an operator-visible card. It never
     // invokes a channel adapter, so it must not claim external delivery.
     state: 'stored',
-    title: `Weekly digest — ${since.toISOString().slice(0, 10)}`,
-    description,
+    title: card.title,
+    description: card.description,
     icon: '📊',
-    config: { digest, externalDelivery: 'not-attempted' },
+    config: {
+      digest,
+      externalDelivery: 'not-attempted',
+      uiLocale: card.locale,
+      uiLocaleSource: resolved.source,
+    },
     priority: 5,
   });
   if (typeof automaticId === 'string') await enqueueWeeklyDigest(tx, job.org_id, automaticId, until);
