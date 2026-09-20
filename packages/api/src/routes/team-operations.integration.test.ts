@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import { randomUUID, createHash } from 'node:crypto';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Hono } from 'hono';
@@ -86,12 +86,13 @@ describe.skipIf(!url)('team operations in PostgreSQL', () => {
     expect((await pool.query('SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname=current_user')).rows[0]).toEqual({ rolsuper: false, rolbypassrls: false });
     mediaRoot = await mkdtemp(join(tmpdir(), 'axiom-team-media-'));
     process.env.AXIOM_MEDIA_ROOT = mediaRoot;
-    await writeFile(join(mediaRoot, 'fixture.png'), imageBytes);
+    await mkdir(join(mediaRoot, 'generated', orgId, models[0]), { recursive: true });
+    await writeFile(join(mediaRoot, 'generated', orgId, models[0], 'fixture.png'), imageBytes);
     await scoped(async tx => {
       await tx.insert(schema.authUser).values({ id: assignmentUsers[0], orgId, name: 'Assignment fixture', email: `${assignmentUsers[0]}@example.invalid` });
       await tx.insert(schema.modelProfile).values(models.map(id => ({ id, orgId, displayName: 'Team fixture', handle: id })));
       for (let i = 0; i < 2; i++) {
-        await tx.insert(schema.asset).values({ id: assets[i], orgId, modelId: models[i], fileName: 'fixture.png', mimeType: 'image/png', fileSize: imageBytes.length, storageKey: 'fixture.png', sha256: i === 0 ? createHash('sha256').update(imageBytes).digest() : createHash('sha256').update('unreadable-other-model-fixture').digest() });
+        await tx.insert(schema.asset).values({ id: assets[i], orgId, modelId: models[i], fileName: 'fixture.png', mimeType: 'image/png', fileSize: imageBytes.length, storageKey: `generated/${orgId}/${models[i]}/fixture.png`, sha256: i === 0 ? createHash('sha256').update(imageBytes).digest() : createHash('sha256').update('unreadable-other-model-fixture').digest() });
         await tx.insert(schema.contentBundle).values({ id: bundles[i], orgId, modelId: models[i], assetId: assets[i], captions: { x: 'Test' } });
         await tx.insert(schema.postTarget).values({ id: posts[i], orgId, bundleId: bundles[i], platform: 'x', state: 'pending', idemKey: Buffer.from(randomUUID()) });
       }
