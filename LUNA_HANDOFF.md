@@ -9,8 +9,8 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `5e542da7821ef9c5bef87a4c395db384eb343c19` (exact remote source after M837 variant-guidance ownership hardening)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `1d9933c36e5aef508bf9974e3cf0f181d5a6423c` (current remote branch tip; product source remains pinned separately below)
-COORDINATION_HEAD: `1d9933c36e5aef508bf9974e3cf0f181d5a6423c` (remote branch read back after the same-lane correction push)
+PUBLISHED_HEAD: `1d9933c36e5aef508bf9974e3cf0f181d5a6423c` (last source-bearing correction ref read back; current tip is handoff-only and product source remains pinned separately below)
+COORDINATION_HEAD: `1d9933c36e5aef508bf9974e3cf0f181d5a6423c` (last source-bearing ref read back before the current handoff-only update)
 ACCEPTED_PRODUCT_SOURCE: `5e542da7821ef9c5bef87a4c395db384eb343c19`
 ACTIVE_HERMES_LANE: `F81-F84-TEMPORAL-GUIDANCE-CURRENT-R1 — exact source 5e542da, one bounded source-only lane`
 CODEX_OWNER: `CODEX`
