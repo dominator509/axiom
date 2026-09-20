@@ -70,8 +70,13 @@ export async function storeGeneratedAsset(input: GeneratedAssetInput, scope: {
     throw new Error('Generated asset changed during import');
 
   const mimeType = scope.sanitizeMetadata && input.mimeType !== 'video/mp4' ? 'image/png' : input.mimeType;
+  // Narrow to the sanitizer's supported set. The guard at the top of this
+  // function already rejects webm when sanitization is requested, but that
+  // check does not survive the await boundary above, so restate it here.
+  const sanitizable = input.mimeType === 'video/webm' ? undefined : input.mimeType;
+  if (scope.sanitizeMetadata && sanitizable === undefined) throw new Error('WebM sanitization is not supported');
   const sanitized = scope.sanitizeMetadata
-    ? await sanitizeMedia(original, input.mimeType)
+    ? await sanitizeMedia(original, sanitizable as 'image/jpeg' | 'image/png' | 'video/mp4')
     : { bytes: original, mimeType: input.mimeType, exactFileHashChanged: false };
   if (sanitized.mimeType !== mimeType || !withinR2ObjectLimits(mimeType, sanitized.bytes.byteLength))
     throw new Error('Sanitizer output type or size mismatch');
