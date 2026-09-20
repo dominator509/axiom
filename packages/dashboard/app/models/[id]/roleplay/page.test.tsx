@@ -28,7 +28,7 @@ it('uses the chatter-owned shift roster instead of the administrative team endpo
   const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ id: 'model-1' }) }));
   expect(mocks.myShifts).toHaveBeenCalledOnce();
   expect(mocks.teamOperations).not.toHaveBeenCalled();
-  expect(html).toContain('Human · Alex');
+  expect(html).toContain('Human chatter · Alex');
 });
 
 it('keeps management roleplay actor discovery on the team operations endpoint', async () => {
