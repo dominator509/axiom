@@ -364,6 +364,13 @@ pairs, duplicate supersession wires, missing source hashes, and any
 working; Codex updates it only after a verified logical transition or reviewed
 Git push. A transport `REPLIED` marker never updates the manifest.
 
+Every task manifest also carries a complete source-sync binding: `SOURCE_REPO`,
+`SOURCE_REF`, exact 40-hex `SOURCE_COMMIT`, `SOURCE_SYNC_COMMAND`, ref/commit/
+ancestry verification commands, `COPY_ROOT`, `DELIVERY_ROOT`, and
+`WORKTREE_KIND`. Hermes must report the resolved ref, `git cat-file -t` result,
+ancestry result, and the exact HEAD of the created copy. A branch list or a
+successful fetch without those exact-commit proofs is not source acceptance.
+
 ## Seamless Git-backed execution loop
 
 The bridge is a transport, not a scheduler. A poller may expose an inbox file
@@ -371,14 +378,17 @@ or write a transport `REPLIED` marker, but neither fact starts work. The
 following loop is the only handoff mechanism:
 
 1. Codex selects one bounded architecture gap, reads the canonical top block of
-   `LUNA_HANDOFF.md`, and writes one new `TASK` whose `SOURCE_COMMIT` is an
-   exact commit already pushed to the named branch. The JSON filename must be
-   the envelope `msg_id`.
-2. Hermes fetches the named ref, verifies the exact commit and ancestry, and
-   creates the declared isolated `COPY_ROOT` from that verified commit. It
-   returns one correlated `ACK/ACCEPTED` (or `ACK/READ`/`NACK`) with a fresh
-   WIRE. It does not use its local checkout, a moving ref, an older task, or a
-   human-readable prompt as source authority.
+   `LUNA_HANDOFF.md`, and writes one new `TASK` whose `SOURCE_REPO`,
+   `SOURCE_REF`, and exact `SOURCE_COMMIT` are already pushed and read back.
+   The task includes explicit fetch, ref, commit, ancestry, copy-root, and
+   worktree instructions. The JSON filename must be the envelope `msg_id`.
+2. Hermes runs the declared source-sync command against the declared ref,
+   verifies the exact commit and ancestry, and creates the declared isolated
+   `COPY_ROOT` as a source-copy from that exact commit (normally via
+   `git worktree add --detach <COPY_ROOT> <SOURCE_COMMIT>`). It returns one
+   correlated `ACK/ACCEPTED` (or `ACK/READ`/`NACK`) with a fresh WIRE and the
+   sync proof. It does not use its local checkout, a moving ref, an older task,
+   or a human-readable prompt as source authority.
 3. Codex validates the reply. A valid `ACK/ACCEPTED` transfers ownership to
    Hermes. A malformed reply gets exactly one `RECEIPT/REJECTED` at the next
    logical sequence; its source-sync evidence may be retained as evidence, but
@@ -392,6 +402,14 @@ following loop is the only handoff mechanism:
    and pushes the reviewed result. Hermes never commits or pushes. After that
    push, any new delegated lane binds the new remote SHA; an old lane cannot
    continue on a moving branch.
+
+`git fetch --all --prune` is permitted as a read-only remote-ref cache refresh,
+and a sync receipt may list every discovered `refs/remotes/origin/*`. It does
+not replace the per-task `SOURCE_REF` and exact-commit binding. Detached
+`build/*` worktrees, release directories, and deployment checkouts are
+release/evidence artifacts, not coding worktrees; Hermes must not edit or
+derive a task from them. If a task needs bytes from one, Codex must explicitly
+bind its exact commit and Hermes must still create a separate source-copy.
 
 The fixed compatibility value for `sent_at` and `replied_at` is
 `1970-01-01T00:00:00Z`. It exists only because the installed bridge requires
