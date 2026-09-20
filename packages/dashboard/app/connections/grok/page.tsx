@@ -4,21 +4,23 @@ import SubscriptionConnections from '@/components/SubscriptionConnections';
 import Link from 'next/link';
 import { getSession } from '@/lib/api';
 import { workspaceDestinationAllowed } from '@/lib/navigation-role';
+import { getServerLocale } from '@/lib/server-locale';
 
 export const dynamic = 'force-dynamic';
 
 export default async function GrokConnectionPage() {
   const role = (await getSession())?.user?.role;
+  const { t } = await getServerLocale();
   if (!workspaceDestinationAllowed(role, '/connections/grok')) return <section className="card stack">
-    <h1>Grok connection access</h1><p>Your role does not include managing generation accounts or storage.</p>
-    <Link href="/" className="btn secondary">Back to workspace</Link>
+    <h1>{t('connection.accessTitle')}</h1><p>{t('connection.accessDescription')}</p>
+    <Link href="/" className="btn secondary">{t('connection.backToWorkspace')}</Link>
   </section>;
   return <section className="stack">
-    <h1>Connect your Grok account</h1>
-    <p>This only connects your account. It does not generate or publish media.</p>
+    <h1>{t('connection.grokTitle')}</h1>
+    <p>{t('connection.grokDescription')}</p>
     <GrokConnection />
     <SubscriptionConnections />
-    <p>Storage is private to your account in this workspace. Another team member’s saved configuration is not shared with your generation jobs.</p>
+    <p>{t('connection.storagePrivacyNote')}</p>
     <GrokR2Storage />
   </section>;
 }
