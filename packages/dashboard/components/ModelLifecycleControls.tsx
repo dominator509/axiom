@@ -4,16 +4,29 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 type ModelState = { id: string; displayName: string; isActive: boolean };
 
-export default function ModelLifecycleControls({ model, canEdit }: { model: ModelState; canEdit: boolean }) {
+export default function ModelLifecycleControls({
+  model,
+  canEdit,
+}: {
+  model: ModelState;
+  canEdit: boolean;
+}) {
+  const { t } = useLocale();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const intent = useRef<{ method: 'PATCH' | 'DELETE'; body?: string; key: string; active: boolean } | null>(null);
+  const intent = useRef<{
+    method: 'PATCH' | 'DELETE';
+    body?: string;
+    key: string;
+    active: boolean;
+  } | null>(null);
 
   if (!canEdit) return null;
 
@@ -27,36 +40,44 @@ export default function ModelLifecycleControls({ model, canEdit }: { model: Mode
     setError('');
     setMessage('');
     try {
-      const response = await mutationFetch(`/api/v1/models/${encodeURIComponent(model.id)}`, {
-        method: request.method,
-        ...(request.body ? { headers: { 'content-type': 'application/json' }, body: request.body } : {}),
-      }, { idempotencyKey: request.key, retries: 0 });
+      const response = await mutationFetch(
+        `/api/v1/models/${encodeURIComponent(model.id)}`,
+        {
+          method: request.method,
+          ...(request.body
+            ? { headers: { 'content-type': 'application/json' }, body: request.body }
+            : {}),
+        },
+        { idempotencyKey: request.key, retries: 0 },
+      );
       if (!response.ok) {
         const details = await readDashboardError(response);
         if ([400, 401, 403, 404, 409, 422].includes(response.status)) {
           intent.current = null;
           setPending(false);
         }
-        setError(details?.error?.message ?? 'Profile status could not be confirmed.');
+        setError(details?.error?.message ?? t('lifecycle.statusUnconfirmed'));
         return;
       }
-      const result = await readDashboardJson<{ data?: { id?: unknown; isActive?: unknown } }>(response);
+      const result = await readDashboardJson<{ data?: { id?: unknown; isActive?: unknown } }>(
+        response,
+      );
       if (result.data?.id !== model.id || result.data.isActive !== request.active) {
         throw new Error('Unconfirmed model lifecycle response');
       }
       intent.current = null;
       setPending(false);
-      setMessage(request.active ? 'Profile reactivated.' : 'Profile deactivated. Existing records were retained.');
+      setMessage(request.active ? t('lifecycle.reactivated') : t('lifecycle.deactivated'));
       router.refresh();
     } catch {
-      setError('Profile status was not confirmed. Retry the same action before changing anything else.');
+      setError(t('lifecycle.responseUnconfirmed'));
     } finally {
       setBusy(false);
     }
   }
 
   function deactivate() {
-    if (!window.confirm(`Deactivate ${model.displayName}? Existing media, approvals, and records will be retained.`)) return;
+    if (!window.confirm(t('lifecycle.confirmDeactivate', { name: model.displayName }))) return;
     return submit({ method: 'DELETE', active: false });
   }
 
@@ -66,19 +87,41 @@ export default function ModelLifecycleControls({ model, canEdit }: { model: Mode
 
   return (
     <details>
-      <summary>Profile lifecycle</summary>
+      <summary>{t('lifecycle.summary')}</summary>
       <div className="stack" style={{ marginTop: 12 }}>
-        <p className="subtle">Deactivation pauses this profile without deleting its content or audit history.</p>
+        <p className="subtle">{t('lifecycle.description')}</p>
         {model.isActive ? (
-          <button type="button" className="btn danger" disabled={busy || pending} onClick={deactivate}>
-            {busy ? 'Deactivating…' : pending ? 'Retry same action' : 'Deactivate profile'}
+          <button
+            type="button"
+            className="btn danger"
+            disabled={busy || pending}
+            onClick={deactivate}
+          >
+            {busy
+              ? t('lifecycle.deactivating')
+              : pending
+                ? t('lifecycle.retry')
+                : t('lifecycle.deactivate')}
           </button>
         ) : (
           <button type="button" className="btn" disabled={busy || pending} onClick={reactivate}>
-            {busy ? 'Reactivating…' : pending ? 'Retry same action' : 'Reactivate profile'}
+            {busy
+              ? t('lifecycle.reactivating')
+              : pending
+                ? t('lifecycle.retry')
+                : t('lifecycle.reactivate')}
           </button>
         )}
-        {pending && <button type="button" className="btn secondary" disabled={busy} onClick={() => void submit()}>Retry same action</button>}
+        {pending && (
+          <button
+            type="button"
+            className="btn secondary"
+            disabled={busy}
+            onClick={() => void submit()}
+          >
+            {t('lifecycle.retry')}
+          </button>
+        )}
         {error && <p role="alert">{error}</p>}
         {message && <p role="status">{message}</p>}
       </div>

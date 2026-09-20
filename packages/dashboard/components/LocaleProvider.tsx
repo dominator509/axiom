@@ -6,6 +6,7 @@ import {
   FANVUE_ANALYTICS_CATALOGS,
   LocaleCatalog,
   PLATFORM_AFFILIATE_CATALOGS,
+  PROFILE_NETWORK_LIFECYCLE_CATALOGS,
   REVIEW_CATALOGS,
   SUPPORTED_LOCALES,
   type MessageKey,
@@ -14,12 +15,16 @@ import {
 
 const catalog = new LocaleCatalog(
   Object.fromEntries(
-    SUPPORTED_LOCALES.map((locale) => [locale, {
-      ...CATALOGS[locale],
-      ...FANVUE_ANALYTICS_CATALOGS[locale],
-      ...PLATFORM_AFFILIATE_CATALOGS[locale],
-      ...REVIEW_CATALOGS[locale],
-    }]),
+    SUPPORTED_LOCALES.map((locale) => [
+      locale,
+      {
+        ...CATALOGS[locale],
+        ...FANVUE_ANALYTICS_CATALOGS[locale],
+        ...PLATFORM_AFFILIATE_CATALOGS[locale],
+        ...PROFILE_NETWORK_LIFECYCLE_CATALOGS[locale],
+        ...REVIEW_CATALOGS[locale],
+      },
+    ]),
   ) as typeof CATALOGS,
 );
 
@@ -45,11 +50,14 @@ export default function LocaleProvider({
   children?: React.ReactNode;
 }) {
   const [locale, setLocale] = useState(initialLocale);
-  const value = useMemo<LocaleContextValue>(() => ({
-    locale,
-    setLocale,
-    t: (key, values) => catalog.t(locale, key, values),
-  }), [locale]);
+  const value = useMemo<LocaleContextValue>(
+    () => ({
+      locale,
+      setLocale,
+      t: (key, values) => catalog.t(locale, key, values),
+    }),
+    [locale],
+  );
 
   useEffect(() => {
     document.documentElement.lang = locale;
