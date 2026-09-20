@@ -11,10 +11,11 @@ SOURCE_HEAD: `fb594a441cada409a251a5c35399662562ade169` (M907 isolated matrix st
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `fb594a441cada409a251a5c35399662562ade169` (product source pin; later branch commits are coordination-only)
 COORDINATION_HEAD: `coordination metadata is pushed on the published branch; verify its current tip with git ls-remote; it must not replace the exact product source pin above`
-COORDINATION_HEAD_LAST_READBACK: `df99447fb2346d6fdeffb7ab99a2d2fee53582f2 — M912 pinned reconciliation manifest; re-read origin before any new lane`
+COORDINATION_HEAD_LAST_READBACK: `3a712f10cf7bab12ee4826f17602f679751a52ac — M913 aligned control source pin; re-read origin before any new lane`
 ACCEPTED_PRODUCT_SOURCE: `fb594a441cada409a251a5c35399662562ade169`
 CURRENT_TASK_MANIFEST: `L5-verification/hermes-loop-state.json — the only active-lane marker; its remote read-only mirror is /srv/fanthynks-bridge/hermes/inbox/CURRENT_TASK.json`
 CURRENT_TASK_MANIFEST_SHA256: `beeb4b46f8eca342703ed5db7b1700378cb780281d9297f13af76a16a2611097`
+CURRENT_TASK_MANIFEST_REMOTE_SHA256: `beeb4b46f8eca342703ed5db7b1700378cb780281d9297f13af76a16a2611097 — exact remote readback matches`
 CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; only task_msg_id/task_wire match the active lane; every other inbox/reply/status/outbox/worktree artifact is historical and inert`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs L5-verification/hermes-loop-state.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
@@ -58,7 +59,7 @@ NEXT_PREPARED_TASK: `HERMES-WORKFLOW-RECONCILIATION-R1`
 NEXT_PREPARED_TASK_WIRE: `CODEX-HERMES-WORKFLOW-RECONCILIATION-R1-TASK-001`
 NEXT_PREPARED_TASK_SOURCE_COMMIT: `20e5665814550fc0f3f10f44914336867c3de8ed`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `OPEN — control-only source binding is being prepared; no product implementation is authorized until sync proof is returned`
+NEXT_PREPARED_TASK_STATE: `TASK_SENT — control-only source binding, exact task hash and current marker were validated and remote-read back; no product implementation is authorized until sync proof is returned`
 ACTIVE_LANE_TASK_WIRE: `CODEX-HERMES-WORKFLOW-RECONCILIATION-R1-TASK-001`
 ACTIVE_LANE_SOURCE_COMMIT: `20e5665814550fc0f3f10f44914336867c3de8ed`
 ACTIVE_LANE_SOURCE_REPO: `github.com/dominator509/axiom`
@@ -73,11 +74,11 @@ ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch 
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-workflow-reconciliation-r1/copy`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-workflow-reconciliation-r1/delivery`
-ACTIVE_LANE_COPY_STATE: `CONTROL_TASK_PREPARING — exact source and stale-inbox gates are declared; feature work is paused until the strict sync ACK`
+ACTIVE_LANE_COPY_STATE: `TASK_SENT — exact source and stale-inbox gates are declared; feature work is paused until the strict sync ACK`
 ACTIVE_LANE_LOCAL_REVIEW_ROOT: `NONE — created only after a readable DELIVERY arrives`
 ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `UNCONFIRMED — no Hermes artifact accepted`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `f031a464f3f9920d4b491d5ef2bbe57a25e0088af1d304206212c239260194fa — local protocol and sync checks pass`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `PENDING — no upload is accepted until local hash and protocol checks pass`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `f031a464f3f9920d4b491d5ef2bbe57a25e0088af1d304206212c239260194fa — exact remote readback matches`
 ACTIVE_LANE_ACK_WIRE: `NONE — awaiting strict SEQ 2 ACK for the control lane`
 ACTIVE_LANE_ACK_SHA256: `NONE`
 ACTIVE_LANE_RECEIPT_WIRE: `NONE`
