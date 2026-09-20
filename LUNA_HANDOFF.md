@@ -7,23 +7,23 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `47d8f9ef1b5692503c84bdb168cf3652241b7edc`
+SOURCE_HEAD: `e4d3936b183aea8cf61bc42716e1d7cf27e56c07`
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `7388f447816694a1edb8e31cf0a098250949c24e`
+PUBLISHED_HEAD: `e4d3936b183aea8cf61bc42716e1d7cf27e56c07`
 ACCEPTED_PRODUCT_SOURCE: `80284a19db82b37c1c07d6ae807bde855f223e90`
 ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R9 — explicitly authorized exact-current source-only implementation lane; R8 is terminally closed BLOCKED`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — source-only implementation only after exact-current ACK/ACCEPTED; Codex audits and integrates`
-NEXT_ACTION: `Hermes must ACK the readable-artifact audit and the explicit-current F-14 R9 task; after acceptance it must publish concrete source/test PROGRESS then DELIVERY or terminal BLOCKED. Codex audits every byte and integrates only a passing DELIVERY.`
+NEXT_ACTION: `Hermes must close the invalid R9 blocker with terminal NACK/BLOCKED; Codex then issues one superseding F-14 task bound to the checked-in owner authorization artifact. The readable bridge audit is independently complete.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `CODEX-F14-WATERMARK-POLICY-SOURCE-R9-001 — one active F-14 implementation lane; R8 is terminally closed and R7 is quarantined`
-OPEN_CONTROL_WIRE: `CODEX-CONTROL-PLANE-HERMES-DELIVERY-AUDIT-R1-001 — bridge-only readable-artifact audit; no product or live action`
-OPEN_CONTROL_TASK_STATE: `UNCONFIRMED — the new readable-artifact audit task is checksum-verified in Hermes inbox; no ACK or work is counted yet`
-OPEN_CONTROL_TASK_REPLY_WIRE: `PENDING — Hermes must return one fresh correlated ACK or NACK`
-OPEN_CONTROL_TASK_RECEIPT_WIRE: `NONE — prior control-lane receipts are historical evidence`
-OPEN_CONTROL_TASK_RECEIPT_SHA256: `NOT_APPLICABLE`
-OPEN_CONTROL_TASK_NEXT_ACTION: `Hermes must ACK/NACK CONTROL-PLANE-HERMES-DELIVERY-AUDIT-R1, then publish only a real readable-copy PROGRESS and DELIVERY or terminal BLOCKED; do not alter the installed helper`
+OPEN_CONTROL_WIRE: `NONE — CONTROL-PLANE-HERMES-DELIVERY-AUDIT-R1 is terminally closed after independent byte/hash/read audit; no bridge task is currently open`
+OPEN_CONTROL_TASK_STATE: `CLOSED — DELIVERY-003 was independently read and all three hashes matched; terminal READ receipt-004 sent`
+OPEN_CONTROL_TASK_REPLY_WIRE: `HERMES-CONTROL-PLANE-HERMES-DELIVERY-AUDIT-R1-DELIVERY-003`
+OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-HERMES-DELIVERY-AUDIT-R1-RECEIPT-004`
+OPEN_CONTROL_TASK_RECEIPT_SHA256: `9fb42bd20a3d1f29fd4184530bc42191691c1f3a5d23025f5fbeb17131ac0a07`
+OPEN_CONTROL_TASK_NEXT_ACTION: `No further control-lane action is counted. Any helper serialization concern must receive a separately scoped bridge task with its own evidence gate.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -49,7 +49,7 @@ ACTIVE_LANE_SOURCE_TRANSPORT: `Hermes exact-commit isolated copy; Codex must aud
 ACTIVE_LANE_TRANSPORT_NAMING: `NOT_APPLICABLE — no Hermes source transport`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id must equal filename stem; no renames or hand-written replies`
 BRIDGE_EXECUTION_MODEL: `The bridge poller reports inbox traffic only; it does not execute Hermes tasks. A valid inbox file is transport evidence, not ACK, ownership, progress or delivery.`
-R8_TRANSPORT_STATE: `CLOSURE_PENDING_BLOCKED — Hermes’ PROGRESS-009 truthfully reported no authorized source delta but used invalid nonterminal BLOCKED headers; Codex rejected only the envelope in RECEIPT-010`
+R8_TRANSPORT_STATE: `CLOSED_BLOCKED — terminal NACK-013 was read and receipt-014 sent; no implementation or source delta accepted`
 R8_INVALID_REPLY_WIRE: `HERMES-F14-WATERMARK-POLICY-SOURCE-R8-PROGRESS-009`
 R8_CORRECTION_RECEIPT_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R8-RECEIPT-010`
 R8_CORRECTION_RECEIPT_SHA256: `24fbc9e1d295f20db77541225a2034af500d70662621cc4d465f7db386e5054a`
@@ -106,13 +106,13 @@ LOOP_GIT_RULE: `Hermes fetches and edits only the exact SOURCE_COMMIT in its dec
 LOOP_RESYNC_RULE: `after every Codex push, the next task must bind the new remote branch SHA; Hermes must not continue from a moving ref or an older local checkout`
 LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with changed paths, tests, exact exits, and LIVE_ACTIONS NONE; transport flags, ACKs, claims and stale artifacts never count`
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
-LOOP_CURRENT_ACTION: `Read the new control audit ACK and R9 ACK; accept no implementation until exact source sync and a real PROGRESS delta are present, then audit DELIVERY bytes and integrate/push only after tests pass`
+LOOP_CURRENT_ACTION: `Read the corrected terminal R9 blocker, then issue one superseding R10 task that cites the checked-in owner authorization artifact; accept no implementation until exact source sync and real PROGRESS evidence`
 
-CURRENT_MILESTONE: `M720 — closed R8 after the owner correction and dispatched exact-current F-14 R9 with explicit sole-writer/source-only authority; control artifact audit remains open; no live action`
-CURRENT_MILESTONE_COMMIT: `7388f447816694a1edb8e31cf0a098250949c24e`
-CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as 7388f447816694a1edb8e31cf0a098250949c24e; protocol tests passed 30/30; control receipt-010 SHA 3e6920f390560058eef7f901a1dbf132ba4ecf21404c0d88c4af8edca0fd7769; R8 receipt-010 SHA 24fbc9e1d295f20db77541225a2034af500d70662621cc4d465f7db386e5054a; Hermes control DELIVERY-011 envelope SHA b8528aef6abcbabc6bd23758e7a2b378d39d876843ba92c400cce7f74f81059c; Hermes R8 NACK-013 envelope SHA 939d31f4e54d34f26249707408fc7600694d9f8b4a8d4cfe9035add16d37c3e6; readable-artifact audit task SHA 0db969478f44ddbb8e642e0cef3e7a631e95b128662ae3485d67dc295b34e6e3; F-14 R9 task SHA 3b17e93006877b874ece08081a066b3cdd7972b08ccb7b1e4230ca592648e087; no feature or live action`
+CURRENT_MILESTONE: `M721 — independently closed the readable bridge audit and recorded the owner authorization artifact needed to supersede R9; no feature or live action`
+CURRENT_MILESTONE_COMMIT: `e4d3936b183aea8cf61bc42716e1d7cf27e56c07`
+CURRENT_MILESTONE_REMOTE_READBACK: `GitHub branch tip read back as e4d3936b183aea8cf61bc42716e1d7cf27e56c07; protocol tests passed 30/30; control readable-delivery receipt-004 SHA 9fb42bd20a3d1f29fd4184530bc42191691c1f3a5d23025f5fbeb17131ac0a07; helper copy SHA 3aa2ad2fb3f28d94400c7e07c81dc31c707ad87363954083344ebfb51c86eb74; patch SHA 3383d6fb5e81974482550da8eadf7534267756cc4e43e8cff387bbc39a954a10; test harness SHA 299bf078b3bfcc21d6c98cc73f0a90b281e89a4a32bb63860b98e45046d61d73; Hermes R8 NACK-013 envelope SHA 939d31f4e54d34f26249707408fc7600694d9f8b4a8d4cfe9035add16d37c3e6; Hermes R9 NACK-001 envelope SHA 017a08c40291cff10d12a44cdcf41460799465f5b6f47b013f05404b77e824ba; R9 correction receipt-002 SHA bb66e3604d312ee16167264b964935afb0e4fa09a526b828f39416e8c3b60bd7; owner authorization SHA ab020cdfc694eec905c0589fd09f07312b91a9428bd596e1a34cc84f80bbccbf; no feature or live action`
 CURRENT_MILESTONE_EVIDENCE: `Fanvue insight projections, bounded connector methods, scoped analytics worker, idempotent earnings touchpoints, API route, dashboard card, migration/schema tests; connectors 418 passed, worker 275 passed plus 32 skipped, DB 158 passed plus 17 skipped, API focused 4/4, API index 63/63, API relay-webhooks 2/2, dashboard full 780 passed; no migration execution or live action`
-CURRENT_MILESTONE_OPEN: `Readable bridge-delivery audit and R9 ACK/PROGRESS/DELIVERY remain open; Codex must independently read the copied helper/diff/test bytes and F-14 delivery before integration; full feature and deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
+CURRENT_MILESTONE_OPEN: `R9 terminal correction and R10 ACK/PROGRESS/DELIVERY remain open; the owner authorization artifact is checked in but not yet consumed by Hermes; Codex must independently audit F-14 delivery before integration; full feature and deployment/readiness gates remain open including migration/RLS, R2/CDN, deployed sidecars, browser/mobile, provider, runtime and deployment`
 LOCAL_MILESTONE_AFTER_TASK: `M697 — standalone and stateful validators reject reply-WIRE reuse and invalid TASK sequence; malformed first replies are corrected by SEQ 2 RECEIPT; R7 is quarantined and R8 is the sole current task`
 
 ## Current coordination update — M697 canonical R8 lane
