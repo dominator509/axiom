@@ -1,6 +1,6 @@
 # Backend-to-frontend coverage audit
 
-Source baseline: `f8aaaff7464672234e78cd55043965def328d7e5`.
+Source baseline: `4a3bb9e0511e83aff2781612a98436d08b8039ee`.
 
 ## Verdict and evidence boundary
 
@@ -743,3 +743,20 @@ and dashboard typechecks, core build, changed-file ESLint and `git diff
 `origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
 browser/mobile, statistical validity, worker/provider, migration, runtime and
 deployment acceptance remain open.
+
+# M799: portfolio home-shell localization
+
+The authenticated portfolio home now resolves the persisted interface locale
+through the shared server-locale helper. Hero, setup, summary, empty/error,
+roster, profile-status, direct-action and pagination copy use typed catalog keys
+in English, Spanish, Japanese, Italian, Brazilian Portuguese and German.
+Dynamic model names, handles, biographies and backend error data remain data;
+existing listing, count, cursor and navigation behavior is preserved.
+
+Evidence: existing home behavior tests 7/7, core catalog tests 28/28, core and
+dashboard typechecks, core build, changed-file ESLint and `git diff --check`
+pass. Source commit is
+`4a3bb9e0511e83aff2781612a98436d08b8039ee`, read back from
+`origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
+browser/mobile, provider, migration, runtime and deployment acceptance remain
+open.

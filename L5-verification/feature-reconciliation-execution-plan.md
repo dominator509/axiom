@@ -1155,3 +1155,19 @@ dashboard/core files passes, and `git diff --check` passes. Source commit
 `f8aaaff7464672234e78cd55043965def328d7e5` is pushed and read back from
 `origin/codex/telegram-webhook-hardening`. Package-wide dashboard lint was not
 counted for this slice because it previously hung in this environment.
+
+### M799 — F-89 portfolio home-shell localization
+
+The authenticated portfolio home now resolves the persisted interface locale
+through the shared server-locale helper. Hero, setup guidance, summary cards,
+empty/error states, roster labels, profile status labels, direct actions and
+pagination copy use typed catalog keys in all six launch locales. Dynamic
+profile data, aggregate count behavior, cursor handling and navigation remain
+unchanged; this gate covers the home shell only.
+
+Evidence: existing home behavior tests 7/7, core locale tests 28/28, core and
+dashboard typechecks pass, core build passes, focused ESLint for changed
+dashboard/core files passes, and `git diff --check` passes. Source commit
+`4a3bb9e0511e83aff2781612a98436d08b8039ee` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. Package-wide dashboard lint was not
+counted for this slice because it previously hung in this environment.
