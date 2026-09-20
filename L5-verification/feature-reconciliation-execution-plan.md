@@ -1009,6 +1009,16 @@ and automated evidence only; remaining dashboard catalog adoption,
 browser/mobile acceptance, provider, migration/RLS, runtime and deployment
 gates remain open.
 
+### M759 — F-89 TriggerRuleManager UTC formatting
+
+TriggerRuleManager now renders last-fired values through the shared locale
+formatter with an explicit UTC zone instead of host-dependent date formatting.
+Focused AgentPermissionManager, PlaybookHistory and TriggerRuleManager tests
+pass 9/9; dashboard typecheck, lint and diff checks pass. This closes only the
+TriggerRuleManager timestamp-formatting criterion. Audit and Approvals
+operator surfaces, remaining catalog adoption and all browser/native,
+provider, migration/RLS, runtime and deployment gates remain open.
+
 ### M757 — F-89 AgentPermissionManager UTC formatting
 
 The AgentPermissionManager operator surface now uses the shared locale-aware

@@ -12,6 +12,8 @@ const rule = {
   enabled: true, lastFiredAt: null, createdAt: '2030-01-01T00:00:00Z',
 };
 
+const firedRule = { ...rule, id: 'rule-fired', lastFiredAt: '2030-01-01T00:15:00Z' };
+
 it('localizes editable trigger-rule controls while preserving authored rule names', () => {
   const html = renderToStaticMarkup(<LocaleProvider initialLocale="es"><TriggerRuleManager modelId="model-1" rules={[rule]} canEdit /></LocaleProvider>);
   expect(html).toContain('Las reglas reaccionan a métricas de proveedores almacenadas.');
@@ -23,6 +25,12 @@ it('localizes editable trigger-rule controls while preserving authored rule name
   expect(html).toContain('Viral follow-up');
   expect(html).not.toContain('Disable');
   expect(html).not.toContain('Save trigger rule');
+});
+
+it('formats last-fired values with the shared locale-aware UTC formatter', () => {
+  const html = renderToStaticMarkup(<LocaleProvider initialLocale="es"><TriggerRuleManager modelId="model-1" rules={[firedRule]} canEdit={false} /></LocaleProvider>);
+  expect(html).toContain('2030');
+  expect(html).not.toContain('T00:15:00.000Z');
 });
 
 it('localizes the read-only owner boundary and hides mutation controls', () => {

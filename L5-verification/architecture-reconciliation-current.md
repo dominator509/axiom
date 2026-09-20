@@ -345,6 +345,17 @@ remaining operator-formatting work is limited to the separately audited
 Audit, Approvals and TriggerRuleManager criteria; browser/mobile, deployed
 migration/RLS/runtime and external provider evidence remain open.
 
+### M759 source-lane checkpoint
+
+TriggerRuleManager now uses the shared locale-aware formatter with an explicit
+UTC zone for last-fired values. Rule names, provider platform identifiers,
+thresholds and authored styles remain data. The focused
+AgentPermissionManager, PlaybookHistory and TriggerRuleManager suite passed
+9/9, dashboard typecheck and lint passed, and the formatting diff is clean.
+This closes the TriggerRuleManager date-formatting criterion only; Audit and
+Approvals operator surfaces plus browser/mobile, deployed migration/RLS,
+runtime and external provider evidence remain open.
+
 ### M581 source-lane checkpoint
 
 The mobile F-89 audit found raw language/delivery labels and host-locale
