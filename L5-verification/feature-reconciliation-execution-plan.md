@@ -1279,3 +1279,19 @@ cannot create pnpm symlinks on this Windows host (`EPERM`). This closes only
 the source/automated Network localization criterion. Browser/native, provider,
 migration/RLS, runtime, deployment and production/operator acceptance remain
 open. No live action occurred.
+
+### M857 — F-89 relay binding operator-surface localization (Hermes lane open)
+
+`RelayBindingManager` remains a finite catalog-adoption gap: it emits English
+guidance, empty/error/status/action copy, confirmation text, form labels,
+validation text and retry text below an already localized relay page. The
+strict source-only task is bound to remote source
+`4a72e2f0c76254ebe29635bf17136f3e88443a59`; envelope SHA-256 is
+`0668bd1bfbb0ea720df96e6d0acc85335bd520a65d040acb1befdbc6e920daa3`.
+
+The current state is `OPEN_UNCONFIRMED`: transmission and remote checksum
+readback passed, but no ACK/NACK or source work is counted. Hermes must localize
+the real parent/component callsite across all six catalogs, preserve API,
+idempotency, role, model-scope, confirmation and retry behavior, and return
+hash-verified changed files and exact test/typecheck/lint exits. No live action
+occurred.

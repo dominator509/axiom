@@ -1090,3 +1090,21 @@ but Windows standalone tracing failed to create pnpm symlinks with `EPERM`.
 This is source/automated evidence only; browser/native, provider, migration/RLS,
 runtime, deployment and production acceptance remain open. No live action
 occurred.
+
+### M857 — F-89 relay binding operator-surface localization (Hermes lane open)
+
+The next bounded source gap is concrete: `RelayBindingManager` still contains
+hardcoded operator-facing guidance, empty/error/status/action copy, confirmation
+text, form labels, validation text and retry text even though its parent relay
+route already resolves the persisted locale. A strict source-only task is bound
+to exact remote source `4a72e2f0c76254ebe29635bf17136f3e88443a59`, with task
+envelope SHA-256
+`0668bd1bfbb0ea720df96e6d0acc85335bd520a65d040acb1befdbc6e920daa3` and
+isolated COPY_ROOT/DELIVERY_ROOT paths.
+
+The lane is `OPEN_UNCONFIRMED`: the envelope checksum was read back from the
+bridge, but no logical ACK/NACK or implementation evidence is counted yet.
+Hermes must preserve relay API, role, model-scope, idempotency, retry and
+channel-value behavior, add six-locale behavior/catalog coverage, and return
+changed-file hashes plus real exits before Codex audits any delivery. No live
+action occurred.
