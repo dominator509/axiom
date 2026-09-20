@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useLocale } from './LocaleProvider';
 
 type MediaIdentity = { bundleId: string; modelId?: never; assetId?: never }
   | { bundleId?: never; modelId: string; assetId: string };
 
 export default function BundleMedia(identity: MediaIdentity) {
+  const { t } = useLocale();
   const [kind, setKind] = useState<'image' | 'video' | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -32,18 +34,18 @@ export default function BundleMedia(identity: MediaIdentity) {
     return () => { cancelled = true; clearTimeout(deadline); controller.abort(); };
   }, [src, attempt]);
   if (failed) return <div>
-    <p role="status">Media preview unavailable. Do not approve without inspecting the generated media.</p>
+    <p role="status">{t('media.previewUnavailable')}</p>
     <button type="button" className="btn secondary" onClick={() => {
       setFailed(false);
       setKind(null);
       setAttempt(previous => previous + 1);
-    }}>Retry media preview</button>
-    <p>Reloads the saved media only. It does not generate or publish anything.</p>
+    }}>{t('media.retryPreview')}</button>
+    <p>{t('media.reloadSavedOnly')}</p>
   </div>;
-  if (!kind) return <p role="status">Loading media preview…</p>;
+  if (!kind) return <p role="status">{t('media.loadingPreview')}</p>;
   return kind === 'video'
     ? <video controls playsInline preload="metadata" src={src} style={{ display: 'block', alignSelf: 'center', width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: 480, objectFit: 'contain' }} onError={() => setFailed(true)} />
     // Authenticated same-origin bytes must not go through the public image optimizer.
     // eslint-disable-next-line @next/next/no-img-element
-    : <img src={src} alt={identity.bundleId !== undefined ? 'Generated media for this bundle' : 'Saved talent media'} style={{ display: 'block', alignSelf: 'center', width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: 480, objectFit: 'contain' }} onError={() => setFailed(true)} />;
+    : <img src={src} alt={identity.bundleId !== undefined ? t('media.generatedAlt') : t('media.savedAlt')} style={{ display: 'block', alignSelf: 'center', width: 'auto', height: 'auto', maxWidth: '100%', maxHeight: 480, objectFit: 'contain' }} onError={() => setFailed(true)} />;
 }

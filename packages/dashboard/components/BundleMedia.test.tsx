@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ReactElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 const hooks = vi.hoisted(() => ({
   values: [] as unknown[], index: 0,
   effect: null as (() => (() => void)) | null,
+  locale: 'en' as 'en' | 'es',
 }));
 // Exercise the real preview effect and event handlers; browser playback remains
 // a separate runtime check, not a claim made by these controlled-hook tests.
@@ -17,6 +20,20 @@ vi.mock('react', async original => ({
   },
   useEffect: (effect: () => (() => void)) => { hooks.effect = effect; },
 }));
+vi.mock('./LocaleProvider', () => ({
+  useLocale: () => ({
+    locale: hooks.locale,
+    setLocale: vi.fn(),
+    t: (key: string) => ({
+      'media.previewUnavailable': hooks.locale === 'es' ? 'La vista previa del medio no está disponible.' : 'Media preview unavailable. Do not approve without inspecting the generated media.',
+      'media.retryPreview': hooks.locale === 'es' ? 'Reintentar vista previa del medio' : 'Retry media preview',
+      'media.reloadSavedOnly': hooks.locale === 'es' ? 'Solo vuelve a cargar el medio guardado.' : 'Reloads the saved media only. It does not generate or publish anything.',
+      'media.loadingPreview': hooks.locale === 'es' ? 'Cargando vista previa del medio…' : 'Loading media preview…',
+      'media.generatedAlt': hooks.locale === 'es' ? 'Medio generado para este paquete' : 'Generated media for this bundle',
+      'media.savedAlt': hooks.locale === 'es' ? 'Medio guardado del talento' : 'Saved talent media',
+    }[key] ?? key),
+  }),
+}));
 import BundleMedia from './BundleMedia';
 
 function render(bundleId = 'bundle-a') {
@@ -29,7 +46,7 @@ function mount(bundleId = 'bundle-a') {
   render(bundleId);
   cleanups.push(hooks.effect!());
 }
-beforeEach(() => { hooks.values = []; hooks.effect = null; });
+beforeEach(() => { hooks.values = []; hooks.effect = null; hooks.locale = 'en'; });
 afterEach(() => {
   cleanups.splice(0).forEach(cleanup => cleanup());
   vi.useRealTimers();
@@ -37,6 +54,11 @@ afterEach(() => {
 });
 
 describe('saved media preview recovery', () => {
+  it('renders loading preview copy from the selected non-English catalog', () => {
+    hooks.locale = 'es';
+    expect(renderToStaticMarkup(render() as ReactElement)).toContain('Cargando vista previa del medio…');
+    expect(renderToStaticMarkup(render() as ReactElement)).not.toContain('Loading media preview');
+  });
   it.each(['image/png', 'video/mp4', 'video/webm'])('uses the authenticated library endpoint and recovers a failed %s preview', async type => {
     const fetch = vi.fn().mockResolvedValue(new Response(null, { headers: { 'content-type': type } }));
     vi.stubGlobal('fetch', fetch);
