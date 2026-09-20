@@ -1059,3 +1059,20 @@ diff checks pass. This closes the AgentPermissionManager formatting criterion
 only. Audit, Approvals and the remaining TriggerRuleManager criteria,
 browser/native acceptance, provider, migration/RLS, runtime and deployment
 gates remain open.
+
+### M787 — F-89 scraper route shell localization
+
+The authenticated scraper route now resolves the persisted interface locale
+through the shared server-locale helper. Its route-level title and load-failure
+state use typed catalog keys; the existing `ScrapeRunManager` continues to
+localize the mounted controls, result states, pagination and UTC timestamps.
+The source gate is intentionally limited to route-shell copy and does not
+claim provider, sidecar, migration, browser or mobile acceptance.
+
+Evidence: focused scraper route tests 3/3, core locale tests 28/28, core and
+dashboard typechecks pass, focused ESLint for changed core/dashboard files
+passes, and `git diff --check` passes. Source commit
+`ec7af18f83d9acc17250bff770d6dda2f99364d5` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. Full dashboard lint was not counted
+because the package-wide process hung in this environment and was stopped;
+focused changed-file lint is the accepted lint evidence for this slice.

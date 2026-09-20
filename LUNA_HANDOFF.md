@@ -7,20 +7,20 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `031255ca4178a79eb69de04fa79d1d2e4029ec4e` (F84 local fallback integrated and pushed)
+SOURCE_HEAD: `ec7af18f83d9acc17250bff770d6dda2f99364d5` (M787 scraper route-shell localization integrated and pushed)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `031255ca4178a79eb69de04fa79d1d2e4029ec4e` (remote readback verified)
-ACCEPTED_PRODUCT_SOURCE: `031255ca4178a79eb69de04fa79d1d2e4029ec4e`
+PUBLISHED_HEAD: `ec7af18f83d9acc17250bff770d6dda2f99364d5` (M787 product source remote readback verified; coordination record is updated from this source)
+ACCEPTED_PRODUCT_SOURCE: `ec7af18f83d9acc17250bff770d6dda2f99364d5`
 ACTIVE_HERMES_LANE: `NONE — F84 transport terminally blocked; bounded local fallback completed; no retry authorized`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES only after one correlated ACK/ACCEPTED; Codex owns audit, integration, commit and push`
-NEXT_ACTION: `Run the next source-to-architecture gap audit, select one finite gate, and record its passage criteria before opening any Hermes wire. Do not resume stale lanes or create another F84 transport retry.`
+NEXT_ACTION: `Audit remaining unlocalized authenticated route shells, select the next single finite criterion, and record passage criteria before any new Hermes wire. Do not resume stale lanes or create another F84 transport retry.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `NONE — F84 R3 terminal receipt sent; all historical Hermes lanes remain closed or superseded`
-OPEN_CONTROL_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-CLOSE-010`
-OPEN_CONTROL_TASK_STATE: `CLOSED_BLOCKED — Hermes produced no changed source, no delivery artifact and no terminal DELIVERY`
-OPEN_CONTROL_TASK_REPLY_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-CLOSE-010`
+OPEN_CONTROL_WIRE: `NONE`
+OPEN_CONTROL_TASK_STATE: `CLOSED_HISTORICAL — no active control task`
+OPEN_CONTROL_TASK_REPLY_WIRE: `NONE`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-RECEIPT-003`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `ed6e8dfedae0ee522b16ebaec54db94a6993bd1a7d6a85ede3359108b777a1ed`
 OPEN_CONTROL_TASK_RECEIPT_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-PROGRESS-REQUIRED-004`
@@ -29,8 +29,8 @@ OPEN_CONTROL_TASK_CORRECTION_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-
 OPEN_CONTROL_TASK_CORRECTION_SHA256: `cb2f3bc19348088fbe74f7f4bb870114e3fa42bd62aef89b691dabcdbf3aba2f`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-PROGRESS-RECEIPT-008`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `8db70fb1eb81273a56d209a9ac52c780c8ec50692f15018d6c6ed8979f53058b`
-OPEN_CONTROL_TASK_NEXT_ACTION: `NONE — terminal closure receipt sent; no Hermes continuation is authorized for this wire.`
-ACTIVE_LANE_LOCAL_BASELINE: `Local PlaybookHistory, M757 AgentPermissionManager, M759 TriggerRuleManager, M761 ApproveButtons, M763 MediaBundleCreate, M773 DraftEditor, M777 BundleMedia, M779 RoleplayManager localization and M786 F84 versioned learning arms are integrated at 031255c. Core build/typecheck/tests pass; worker/API/dashboard typechecks pass; F84 focused suites pass; dashboard full suite 791/791; worker full suite 277 passed/32 skipped; API full run had 1,038 passed/115 skipped with three environment/resource timeout suites; no live action.`
+OPEN_CONTROL_TASK_NEXT_ACTION: `NONE — no active control task`
+ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms and M787 scraper route-shell localization are integrated at ec7af18. Focused scraper route 3/3, core locale 28/28, core/dashboard typechecks, changed-file lint and diff-check pass; package-wide dashboard lint hung and was not counted; no live action.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -38,18 +38,18 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `F84-VERSIONED-ARM-CONTRACT-CURRENT-R3`
-NEXT_PREPARED_TASK_WIRE: `CODEX-F84-VERSIONED-ARM-CONTRACT-CURRENT-R3-001`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `09c62cc1883008218371bf325b5af2384accf1f5`
-NEXT_PREPARED_TASK_ARCHIVE_SHA256: `cc5e35c6353fe037f24ccfbfb824dedf2d4323f40d15e4e290710d416ce3ea5b — exact Git bundle /srv/fanthynks-bridge/hermes/inbox/axiom-source-09c62cc-exact.bundle`
+NEXT_PREPARED_TASK: `NONE — next finite gate not yet selected`
+NEXT_PREPARED_TASK_WIRE: `NONE`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `NONE`
+NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE`
 NEXT_PREPARED_TASK_STATE: `NONE — F84 R3 transport terminally blocked and local fallback integrated`
 ACTIVE_LANE_TASK_WIRE: `NONE`
-ACTIVE_LANE_SOURCE_COMMIT: `031255ca4178a79eb69de04fa79d1d2e4029ec4e`
+ACTIVE_LANE_SOURCE_COMMIT: `ec7af18f83d9acc17250bff770d6dda2f99364d5`
 ACTIVE_LANE_COPY_ROOT: `LOCAL — Codex fallback; prior Hermes work root is historical evidence only`
-ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/replies/delivery-f84-versioned-arm-contract-current-r1`
-ACTIVE_LANE_COPY_STATE: `CLOSED — F84 implemented locally after Hermes COPY_ROOT permission block; source/test evidence audited and pushed`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `b0ea7397aca3485ef32625240a02ab785e3f7fe1a56f12a8df392fa5ebd19ca2`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `b0ea7397aca3485ef32625240a02ab785e3f7fe1a56f12a8df392fa5ebd19ca2 — exact inbox readback verified`
+ACTIVE_LANE_DELIVERY_ROOT: `NONE`
+ACTIVE_LANE_COPY_STATE: `CLOSED — M787 implemented locally; no Hermes implementation lane active`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `NONE — no active Hermes task`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `NONE — no active Hermes task`
 ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `HISTORICAL — d58bc7a36e65c215c62d68fd6186082a6fc230e815e4276771d6072a6734152f; terminal BLOCKED envelope read back`
 ACTIVE_LANE_SOURCE_BUNDLE: `HISTORICAL — /srv/fanthynks-bridge/hermes/inbox/axiom-source-a3f74f.bundle`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `HISTORICAL — beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6; Git bundle verify passed; exact commit is contained`
@@ -64,7 +64,7 @@ R8_CORRECTION_RECEIPT_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R8-RECEIPT-010`
 R8_CORRECTION_RECEIPT_SHA256: `24fbc9e1d295f20db77541225a2034af500d70662621cc4d465f7db386e5054a`
 HISTORICAL_REPLY_MISMATCH_DECISION: `C — do not patch the bridge helper or rename stale inbox files; reissue a fresh superseding task with exact filename/msg_id only when that architecture lane is selected`
 HISTORICAL_REPLY_MISMATCH_SCOPE: `scraper, F-31 and other historical lanes; no current implementation lane may rely on those files`
-ACTIVE_LANE_BASELINE: `M669 F-89 Calendar localization complete at d1c20a0; source gates passed, browser/mobile/provider/migration/runtime/deployment gates open`
+ACTIVE_LANE_BASELINE: `M787 scraper route-shell localization complete at ec7af18; source gates passed, browser/mobile/provider/migration/runtime/deployment gates open`
 R3_CLOSURE_REPLY_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-R3-CURRENT-012`
 R3_CLOSURE_REPLY_STATE: `NACK/BLOCKED terminal; source binding and explicit lane authorization blockers upheld`
 R3_CLOSURE_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-R3-CURRENT-CLOSE-014`
@@ -77,17 +77,17 @@ R4_ARCHIVE_BINDING: `NOT_USED — Hermes must fetch the named ref, verify the ex
 ACTIVE_LANE_TRANSPORT_CLOSE_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R3-001 — superseded by R4 sync gate`
 ACTIVE_LANE_TRANSPORT_CLOSE_REASON: `R3 ACK was read but Hermes checkout was stale; no R3 implementation or delivery is accepted`
 LOCAL_FALLBACK_SCOPE: `COMPLETED — versioned learning contract, v2 evidence-gated arms/contexts, posterior/index compatibility, API validation and dashboard display; no live action`
-ACTIVE_LANE_ACK_WIRE: `HERMES-F14-MODEL-WATERMARK-POLICY-SOURCE-R10-ACK-001`
-ACTIVE_LANE_ACK_SHA256: `e6f5007f95975cc9a177a528136ad5ba9d3f7a4d6f24247fa6e6874a6c4b5d7a`
-ACTIVE_LANE_RECEIPT_WIRE: `CODEX-F14-WATERMARK-POLICY-SOURCE-R10-RECEIPT-002`
-ACTIVE_LANE_RECEIPT_SHA256: `a7f07ec2edc19fc5cf031d6fc23cb6ff7b5be8eb38db92c2695769a583b04aae`
-ACTIVE_LANE_CHECKPOINT_WIRE: `PENDING — R10 ACK/ACCEPTED, then concrete source/test PROGRESS required`
+ACTIVE_LANE_ACK_WIRE: `NONE — no active Hermes task`
+ACTIVE_LANE_ACK_SHA256: `NONE`
+ACTIVE_LANE_RECEIPT_WIRE: `NONE`
+ACTIVE_LANE_RECEIPT_SHA256: `NONE`
+ACTIVE_LANE_CHECKPOINT_WIRE: `NONE`
 ACTIVE_LANE_CHECKPOINT_SHA256: `NOT_APPLICABLE`
-LAST_COMPLETED_SOURCE_MILESTONE: `M675 — F-22/F-23 first-party Fanvue attribution at 950fa921; F-14 R3 lane newly opened`
+LAST_COMPLETED_SOURCE_MILESTONE: `M787 — F-89 scraper route-shell localization at ec7af18`
 LAST_CLOSED_LANE_BLOCKED_WIRE: `HERMES-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-004`
 LAST_CLOSED_LANE_BLOCKED_RECEIPT_WIRE: `CODEX-INBOX-AGENTIC-DRAFTING-CURRENT-R1-BLOCKED-RECEIPT-005`
 LAST_CLOSED_LANE_BLOCKED_REASON: `NO_IMPLEMENTATION_RUN_PERFORMED_AND_NO_EVIDENCE_EXISTS`
-RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; F89 PlaybookHistory Hermes lane is terminally closed; F84 Hermes transport is terminally blocked and reconciled into local source at 031255c; no pending Hermes implementation wire`
+RECONCILIATION_STATE: `CONTROL_PROTOCOL_CANONICAL; stale lanes remain superseded; F84 Hermes transport is terminally blocked and reconciled into local source; M787 is integrated at ec7af18; no pending Hermes implementation wire`
 RECONCILIATION_TASK: `CONTROL-PLANE-RECONCILIATION`
 RECONCILIATION_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-001-REJECT-003`
 RECONCILIATION_CORRECTION_SHA256: `d59c91dc597eaaec29e965e94e08b51d0895b98ae2a72a40c5f66c3322c5f987`
@@ -97,7 +97,7 @@ HERMES_STALE_LANE_POLICY: `Historical lanes and the closed F89 PlaybookHistory w
 LOCAL_WORKTREE_POLICY: `Codex audits, tests, commits and pushes local milestones; untracked Hermes review artifacts remain untouched`
 NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provider, credential, permission, network or service action`
 SHIP_GATE_STATUS: `PASS — scripts/verify.sh returned verify: ok; preflight and P0-P4 gates passed; no live action`
-SHIP_GATE_HEAD: `031255ca4178a79eb69de04fa79d1d2e4029ec4e` (preflight: ok; scripts/verify.sh: verify: ok after handoff update)
+SHIP_GATE_HEAD: `ec7af18f83d9acc17250bff770d6dda2f99364d5` (source preflight/verify evidence refreshed for M787; coordination record is being reconciled)
 
 ## Seamless Codex/Hermes loop contract
 
@@ -119,14 +119,14 @@ LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with chan
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
 LOOP_CURRENT_ACTION: `Codex audits the remaining architecture gaps from the current source, selects one finite gate, and records its verified result before opening any new Hermes wire; no stale lane, ACK loop or unsupported completion claim is accepted`
 
-CURRENT_MILESTONE: `M786 — F84 versioned learning contract local fallback integrated and pushed; Hermes transport lane closed`
-CURRENT_MILESTONE_COMMIT: `031255ca4178a79eb69de04fa79d1d2e4029ec4e`
-CURRENT_MILESTONE_EVIDENCE_CANONICAL: `Shared core contract validates bounded hook/format/timing evidence; v1 arms/contexts remain byte-compatible; v2 arms are emitted only from caption-hash-verified server receipts; worker selection/posterior/refresh and migration 0050 cover learn-v1/learn-v2; API and dashboard accept/display both versions without private payloads; core 4/4, worker focused 13/13, API focused 24/24, dashboard focused 14/14; worker full 277 passed/32 skipped; dashboard full 791/791; API full 1,038 passed/115 skipped with three environment/resource timeout suites; remote SHA read back; LIVE_ACTIONS NONE`
-CURRENT_MILESTONE_OPEN_CANONICAL: `F84 is closed for source implementation. The next required action is a fresh architecture-gap audit and finite gate selection. Deployed/provider/browser, team, gallery, OAuth, R2 storage, VPN, migration/RLS, runtime, observability, CI governance and operator gates remain open; no production readiness claim is made.`
-CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE_CANONICAL: `031255ca4178a79eb69de04fa79d1d2e4029ec4e read back from origin/codex/telegram-webhook-hardening; source branch and local HEAD match; F84 Hermes exact bundle/terminal BLOCKED evidence remains historical.`
+CURRENT_MILESTONE: `M787 — F-89 scraper route-shell localization integrated and pushed; no Hermes lane active`
+CURRENT_MILESTONE_COMMIT: `ec7af18f83d9acc17250bff770d6dda2f99364d5`
+CURRENT_MILESTONE_EVIDENCE_CANONICAL: `Authenticated scraper route title and load-failure shell use typed six-locale catalog keys; mounted ScrapeRunManager already covers controls/results/pagination/UTC formatting; focused route tests 3/3, core locale tests 28/28, core/dashboard typechecks, changed-file ESLint and diff-check pass; package-wide dashboard lint hung and was not counted; LIVE_ACTIONS NONE`
+CURRENT_MILESTONE_OPEN_CANONICAL: `M787 closes only the scraper route-shell localization source criterion. Next required action is one fresh finite source gap, beginning with remaining unlocalized route shells; deployed/provider/browser/mobile, team, gallery, OAuth, R2, VPN, migration/RLS, runtime, observability, CI governance and operator gates remain open; no production readiness claim is made.`
+CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE_CANONICAL: `ec7af18f83d9acc17250bff770d6dda2f99364d5 read back from origin/codex/telegram-webhook-hardening; source branch and local product source match; historical Hermes transport blocks remain closed evidence.`
 HISTORICAL_MILESTONE_REMOTE_READBACK_R10: `GitHub branch tip read back as 2dc8a07b3e4d401f51807da4bd128766ef542a2e; R10 task envelope remote SHA 30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e; R10 Hermes ACK envelope SHA e6f5007f95975cc9a177a528136ad5ba9d3f7a4d6f24247fa6e6874a6c4b5d7a; R10 Codex receipt-002 SHA a7f07ec2edc19fc5cf031d6fc23cb6ff7b5be8eb38db92c2695769a583b04aae; source baseline c1588e4; protocol tests 30/30; control readable-delivery receipt-004 SHA 9fb42bd20a3d1f29fd4184530bc42191691c1f3a5d23025f5fbeb17131ac0a07; helper copy SHA 3aa2ad2fb3f28d94400c7e07c81dc31c707ad87363954083344ebfb51c86eb74; patch SHA 3383d6fb5e81974482550da8eadf7534267756cc4e43e8cff387bbc39a954a10; test harness SHA 299bf078b3bfcc21d6c98cc73f0a90b281e89a4a32bb63860b98e45046d61d73; Hermes R8 NACK-013 envelope SHA 939d31f4e54d34f26249707408fc7600694d9f8b4a8d4cfe9035add16d37c3e6; Hermes R9 NACK-001 envelope SHA 017a08c40291cff10d12a44cdcf41460799465f5b6f47b013f05404b77e824ba; R9 correction receipt-002 SHA bb66e3604d312ee16167264b964935afb0e4fa09a526b828f39416e8c3b60bd7; owner authorization SHA ab020cdfc694eec905c0589fd09f07312b91a9428bd596e1a34cc84f80bbccbf; no feature or live action`
-CURRENT_MILESTONE_EVIDENCE: `M786 local fallback accepted only after exact source/bundle transport and COPY_ROOT permission block were recorded; implementation, tests, commit and remote readback are complete; no live action.`
-CURRENT_MILESTONE_OPEN: `Select the next finite architecture gap from current source and blueprint evidence; do not wait on Hermes or reopen the closed F84 wire.`
+CURRENT_MILESTONE_EVIDENCE: `M787 source implementation, focused tests, typechecks, changed-file lint, diff-check, commit and remote readback are complete; package-wide dashboard lint hung and was not counted; no live action.`
+CURRENT_MILESTONE_OPEN: `Select the next finite architecture gap from current source and blueprint evidence; do not wait on Hermes or reopen a closed wire.`
 HISTORICAL_MILESTONE_REMOTE_READBACK_PLAYBOOK_HISTORY: `Exact-source sync reply SHA abadb46e3fa3175d7bb6ecddc28a4656a7c77cbd933d6d24f183c7f1ffa9ccfd; sync receipt SHA 8aa4d2411311b8102cae5ca5e059c5a7baecdc0d344b665c9c14dbfb93822c6e; PlaybookHistory task SHA 2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91; remote task SHA 2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91; Hermes ACK/ACCEPTED SHA c42708ff5a2cc9addc90ffdef20a87336532a8801c8d1e770f06cd048e705737; acceptance READ receipt SHA ed6e8dfedae0ee522b16ebaec54db94a6993bd1a7d6a85ede3359108b777a1ed; progress-required receipt SHA 684744a5dc2128759435ac1eeb4b14b08c1a9d5a8ae6d81835f6dead0fad8833; malformed Hermes PROGRESS SHA 471a32173cd79cf58e0c86ddefcdef6ed959437555677b4efdf6e3dbb083f447; correction receipt SHA cb2f3bc19348088fbe74f7f4bb870114e3fa42bd62aef89b691dabcdbf3aba2f; corrected Hermes PROGRESS SHA 780caca68d563a5f24f5ae7131f9f48c3b98c22d724121ae4de453159079da74; progress-acceptance receipt SHA 8db70fb1eb81273a56d209a9ac52c780c8ec50692f15018d6c6ed8979f53058b; Hermes delivery-gate ACK SHA d0911e6316e173bd8aeb3b42006d7fe51cada72880ab266ee8fdf7a342562a57; implementation source 50df7061f89780b1d94d5545e1803326af65a610; coordination tip 88fb86d242a0f009f8776f309626ffd29251dbe4; delivery is next, no further ACK expected, local baseline recorded, LIVE_ACTIONS NONE`
 CURRENT_MILESTONE_REMOTE_READBACK_CURRENT: `Product-source branch ref read back as 4d38c924b586256b720683e3ae34e8c0b0c1732c; M763 source commit a3f74fef15bbeae1119ed0a71cca58bf4d742847 remains the exact bound source; Hermes Git bundle beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6, R3 task envelope 98e26df5b3a7823572171d6ba375dc954a33c9780d0ae7718855d46f9102e53c and remote readback were verified; core build PASS; core tests 80/80; dashboard focused MediaBundleCreate/ApproveButtons/AgentPermissionManager/PlaybookHistory/TriggerRuleManager tests 47/47; dashboard typecheck PASS; dashboard lint PASS with three pre-existing warnings; diff check PASS; LIVE_ACTIONS NONE`
 CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE: `M777 product-source commit 726c19a550ffa742eb9e81a97f1b71eff16363e1 was read back from origin; later coordination commits only update this handoff metadata; Hermes Git bundle beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6 and terminal BLOCKED envelope d58bc7a36e65c215c62d68fd6186082a6fc230e815e4276771d6072a6734152f remain historical evidence; core build PASS; core tests 80/80; combined DraftEditor/BundleMedia focused 23/23; dashboard typecheck PASS; dashboard lint PASS with three pre-existing warnings; diff check PASS; LIVE_ACTIONS NONE`

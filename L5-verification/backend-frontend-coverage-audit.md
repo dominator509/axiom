@@ -1,6 +1,6 @@
 # Backend-to-frontend coverage audit
 
-Source baseline: `3ecb3eae397f31331d99aa27352d4a242eb70f83`.
+Source baseline: `ec7af18f83d9acc17250bff770d6dda2f99364d5`.
 
 ## Verdict and evidence boundary
 
@@ -29,7 +29,7 @@ runtime-accepted merely because its unit tests pass.
 | F-12 | **Wired**: Safety page and kill-switch API/worker interlock exist | Live response-time and multi-worker drain rehearsal remain open |
 | F-13, F-15, F-16 | **Wired/partial**: model-scoped variant experiments provide draft/running/paused/completed lifecycle, deterministic assignment, exposure/outcome capture, and winner promotion | Statistical validity and live worker/provider acceptance remain open |
 | F-14 | **Internal/partial**: media-plane primitives exist | User-configurable per-model watermark policy and CDN/runtime acceptance are not established |
-| F-17, F-18 | **Wired/partial**: authenticated model-scoped scrape runs persist bounded requests/results, dispatch a worker job, and expose status/error controls | Deployed sidecar rehearsal and benchmark history acceptance remain open |
+| F-17, F-18 | **Wired/partial**: authenticated model-scoped scrape runs persist bounded requests/results, dispatch a worker job, and expose status/error controls; the mounted result/history UI and authenticated route title/load-failure shell use the shared six-locale catalog | Deployed sidecar rehearsal and benchmark history acceptance remain open |
 | F-19, F-20, F-21 | **Wired/partial**: model-scoped trigger-rule CRUD/UI and a metrics-driven worker evaluator now exist for bounded follow-up generation or operator relay cards | Churn-rescue subscription events, provider moderation coverage, and live metrics/worker acceptance remain open |
 | F-22, F-23 | **Partial**: native link-bio short links and click/UTM analytics are real | Subscription-event attribution/ROI join and custom-domain acceptance are not established |
 | F-24, F-25, F-26 | **Wired/partial**: team membership, role-scoped shifts, handoff notes, operational queue assignment, bounded team-history pagination and dashboard older-history controls have model-scoped API/UI controls; Chatter roleplay consumes its authorized personal shift roster | Multi-user browser/RLS acceptance, Grok provider/runtime receipts and deployed migration acceptance remain open |
