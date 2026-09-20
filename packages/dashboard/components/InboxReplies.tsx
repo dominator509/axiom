@@ -1,18 +1,35 @@
 'use client';
+import * as React from 'react';
 import { useRef, useState } from 'react';
+import { CATALOGS, formatDate, LocaleCatalog, type SupportedLocale } from '@axiom/core';
 import { mutationFetch } from '@/lib/mutation';
 import { readDashboardJson } from '@/lib/response';
 import InboxReplyReviews from './InboxReplyReviews';
+import { useLocale } from './LocaleProvider';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const labels = {
-  pending: 'Prepared — not sent',
-  dispatching: 'Dispatch started — delivery not confirmed',
-  sent: 'Accepted by Fanvue — not a read receipt',
-  rejected: 'Rejected by Fanvue',
-  uncertain: 'Delivery uncertain — do not resend',
-  cancelled: 'Cancelled — not sent',
-};
+const fallbackCatalog = new LocaleCatalog(CATALOGS);
+const englishT = (key: string, values?: Record<string, string | number>) => fallbackCatalog.t('en', key, values);
+const stateKeys = {
+  pending: 'inbox.replies.state.pending',
+  dispatching: 'inbox.replies.state.dispatching',
+  sent: 'inbox.replies.state.sent',
+  rejected: 'inbox.replies.state.rejected',
+  uncertain: 'inbox.replies.state.uncertain',
+  cancelled: 'inbox.replies.state.cancelled',
+} as const;
+
+function hasReactDispatcher(): boolean {
+  const internals = (React as unknown as {
+    __CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE?: { H?: unknown };
+  }).__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+  return Boolean(internals && internals.H);
+}
+
+function useInboxStrings(): { t: (key: string, values?: Record<string, string | number>) => string; locale: SupportedLocale } {
+  const provider = hasReactDispatcher() ? useLocale() : undefined;
+  return { t: provider?.t ?? englishT, locale: provider?.locale ?? 'en' };
+}
 interface Reply {
   id: string;
   modelId: string;
@@ -21,7 +38,7 @@ interface Reply {
   intentKey: string;
   actorUserId: string;
   body: string;
-  state: keyof typeof labels;
+  state: keyof typeof stateKeys;
   createdAt: string;
   remoteMessageUuid: string | null;
   draftSource?: 'human' | 'llm';
@@ -50,7 +67,7 @@ export function isInboxReply(value: unknown, scope: Scope): value is Reply {
     typeof reply.body === 'string' &&
     reply.body.trim().length > 0 &&
     reply.body.length <= 5000 &&
-    Object.hasOwn(labels, reply.state) &&
+    Object.hasOwn(stateKeys, reply.state) &&
     typeof reply.createdAt === 'string' &&
     Number.isFinite(Date.parse(reply.createdAt)) &&
     (reply.state === 'sent'
@@ -105,7 +122,9 @@ export default function InboxReplies({
   const intent = useRef<{ key: string; body: string; request: string } | null>(null);
   const draftIntent = useRef<{ key: string; prompt: string; request: string } | null>(null);
   const scope = { modelId, connectionId, counterpartUuid };
+  const { t, locale } = useInboxStrings();
   const path = `/api/v1/models/${encodeURIComponent(modelId)}/inbox/replies`;
+  const replyTime = (value: string) => formatDate(new Date(value), locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
   async function load(older: boolean) {
     if (active.current) return;
     active.current = true;
@@ -158,13 +177,11 @@ export default function InboxReplies({
       if (recovered) {
         intent.current = null;
         setBody('');
-        setMessage('Saved reply found in history. Check its status below.');
+        setMessage(t('inbox.replies.savedFound'));
       }
     } catch {
       setLoaded(false);
-      setError(
-        'Reply history could not be verified. Your assignment or shift may have ended. Load history again before preparing another reply.',
-      );
+      setError(t('inbox.replies.historyLoadFailed'));
     } finally {
       active.current = false;
       setBusy(false);
@@ -218,11 +235,9 @@ export default function InboxReplies({
       setRecords((previous) => [saved, ...previous.filter((reply) => reply.id !== saved.id)]);
       draftIntent.current = null;
       setDraftPrompt('');
-      setMessage('Private LLM draft saved for human review. Nothing was sent.');
+      setMessage(t('inbox.replies.draftSaved'));
     } catch {
-      setError(
-        'Draft generation was not confirmed. Retry the same draft or load history; no message was sent.',
-      );
+      setError(t('inbox.replies.draftFailed'));
     } finally {
       active.current = false;
       setBusy(false);
@@ -261,11 +276,9 @@ export default function InboxReplies({
       setRecords((previous) => [saved, ...previous.filter((reply) => reply.id !== saved.id)]);
       intent.current = null;
       setBody('');
-      setMessage('Reply saved. Check its status below; saving does not send a message.');
+      setMessage(t('inbox.replies.saved'));
     } catch {
-      setError(
-        'Save not confirmed. Load history or retry this same reply. Do not start a duplicate.',
-      );
+      setError(t('inbox.replies.saveFailed'));
     } finally {
       active.current = false;
       setBusy(false);
@@ -315,15 +328,13 @@ export default function InboxReplies({
         throw new Error('invalid status');
       setMessage(
         result.data.state === 'sent'
-          ? 'Fanvue accepted the reply. Load history for its receipt; this is not a read receipt.'
+          ? t('inbox.replies.sendAccepted')
           : result.data.state === 'rejected'
-            ? 'Fanvue rejected the reply. Load history; nothing will retry automatically.'
-            : 'Delivery is uncertain. Do not resend or create a duplicate. Load history and reconcile with Fanvue.',
+            ? t('inbox.replies.sendRejected')
+            : t('inbox.replies.sendUncertain'),
       );
     } catch {
-      setError(
-        'Delivery not confirmed. Do not resend or create a duplicate. Load reply history to check status and access.',
-      );
+      setError(t('inbox.replies.sendFailed'));
     } finally {
       active.current = false;
       setBusy(false);
@@ -368,11 +379,9 @@ export default function InboxReplies({
         throw new Error('invalid approval receipt');
       setRecords((previous) => previous.map((item) => (item.id === reply.id ? approved : item)));
       attempted.current.delete(reply.id);
-      setMessage(
-        'Draft approved by a human. Sending still requires the separate confirmation below.',
-      );
+      setMessage(t('inbox.replies.humanApprovalRecorded', { actor: approved.approvedByUserId }));
     } catch {
-      setError('Approval was not confirmed. Load reply history before taking further action.');
+      setError(t('inbox.replies.approvalFailed'));
     } finally {
       active.current = false;
       setBusy(false);
@@ -416,29 +425,22 @@ export default function InboxReplies({
         previous.map((item) => (item.id === reply.id ? { ...item, state: 'cancelled' } : item)),
       );
       attempted.current.delete(reply.id);
-      setMessage(
-        'Prepared reply cancelled. Nothing was sent. You can prepare corrected text as a new reply.',
-      );
+      setMessage(t('inbox.replies.cancellationSaved'));
     } catch {
-      setError(
-        'Cancellation not confirmed. Load reply history before taking further action; cancellation cannot recall a message already being sent.',
-      );
+      setError(t('inbox.replies.cancellationFailed'));
     } finally {
       active.current = false;
       setBusy(false);
     }
   }
   return (
-    <section className="card stack" aria-label="Workspace replies">
-      <h3>Workspace replies</h3>
+    <section className="card stack" aria-label={t('inbox.replies.title')}>
+      <h3>{t('inbox.replies.title')}</h3>
       <p>
-        Prepare a text reply for this conversation and review saved attempts. Sending requires a
-        separate confirmation. Attachment previews are not available here yet. Nothing is sent when
-        you save.
+        {t('inbox.replies.description')} {t('inbox.replies.attachmentUnavailable')}
       </p>
       <p className="subtle">
-        Load history before preparing a reply, including after a page reload. Unsaved text stays
-        only in this page and is lost when you leave.
+        {t('inbox.replies.loadBeforePreparing')}
       </p>
       <div className="action-row">
         <button
@@ -447,7 +449,7 @@ export default function InboxReplies({
           disabled={busy}
           onClick={() => void load(false)}
         >
-          Load reply history
+          {t('inbox.replies.load')}
         </button>
         {cursor && (
           <button
@@ -456,20 +458,19 @@ export default function InboxReplies({
             disabled={busy}
             onClick={() => void load(true)}
           >
-            Load older replies
+            {t('inbox.replies.loadOlder')}
           </button>
         )}
       </div>
-      {loaded && records.length === 0 && <p>No saved replies in this conversation.</p>}
+      {loaded && records.length === 0 && <p>{t('inbox.replies.empty')}</p>}
       {canDraft && llmActorRef && (
-        <section className="card stack" aria-label="Assigned LLM draft">
-          <h3>Assigned LLM draft</h3>
+        <section className="card stack" aria-label={t('inbox.replies.draftTitle')}>
+          <h3>{t('inbox.replies.draftTitle')}</h3>
           <p className="subtle">
-            Generate one bounded private reply using the assigned actor’s handoff, persona and
-            memory. The result is saved for human review only; it is never sent automatically.
+            {t('inbox.replies.draftDescription')}
           </p>
           <label className="stack">
-            Draft instruction
+            {t('inbox.replies.draftInstruction')}
             <textarea
               value={draftPrompt}
               maxLength={4000}
@@ -479,7 +480,7 @@ export default function InboxReplies({
             />
           </label>
           <p className="subtle">
-            Actor: {llmActorRef} · {draftPrompt.length}/4000 characters
+            {t('inbox.replies.actorAndCount', { actor: llmActorRef, count: draftPrompt.length })}
           </p>
           <div className="action-row">
             <button
@@ -488,7 +489,7 @@ export default function InboxReplies({
               disabled={busy || !loaded || (!draftIntent.current && !draftPrompt.trim())}
               onClick={() => void generateDraft()}
             >
-              {draftIntent.current ? 'Retry same private draft' : 'Generate private LLM draft'}
+              {draftIntent.current ? t('inbox.replies.retryDraft') : t('inbox.replies.generateDraft')}
             </button>
           </div>
         </section>
@@ -497,25 +498,25 @@ export default function InboxReplies({
         <article key={reply.id} className="card stack">
           <h4>
             {attempted.current.has(reply.id)
-              ? 'Action attempted — refresh status'
+              ? t('inbox.replies.actionAttempted')
               : reply.draftSource === 'llm'
-                ? `LLM draft · ${labels[reply.state]}`
-                : labels[reply.state]}
+                ? t('inbox.replies.llmDraft', { state: t(stateKeys[reply.state]) })
+                : t(stateKeys[reply.state])}
           </h4>
           <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{reply.body}</p>
           {reply.draftSource === 'llm' && (
             <p className="subtle">
-              Proposed by {reply.draftActorRef}.{' '}
+              {t('inbox.replies.proposedBy', { actor: reply.draftActorRef ?? '' })}{' '}
               {reply.approvedByUserId
-                ? `Human approval recorded by ${reply.approvedByUserId}.`
-                : 'Human approval required before sending.'}
+                ? t('inbox.replies.humanApprovalRecorded', { actor: reply.approvedByUserId })
+                : t('inbox.replies.humanApprovalRequired')}
             </p>
           )}
           <p className="subtle">
-            {new Date(reply.createdAt).toLocaleString()} · Prepared by {reply.actorUserId}
+            {t('inbox.replies.preparedBy', { time: replyTime(reply.createdAt), actor: reply.actorUserId })}
           </p>
           {reply.remoteMessageUuid && (
-            <p className="subtle">Provider receipt: {reply.remoteMessageUuid}</p>
+            <p className="subtle">{t('inbox.replies.providerReceipt', { id: reply.remoteMessageUuid })}</p>
           )}
           {['dispatching', 'uncertain', 'sent', 'rejected'].includes(reply.state) && (
             <InboxReplyReviews
@@ -531,10 +532,7 @@ export default function InboxReplies({
               <div className="stack">
                 {approveId === reply.id ? (
                   <>
-                    <p>
-                      Approve this exact generated text for a human-controlled send review? Approval
-                      does not send it.
-                    </p>
+                    <p>{t('inbox.replies.approvePrompt')}</p>
                     <div className="action-row">
                       <button
                         type="button"
@@ -542,7 +540,7 @@ export default function InboxReplies({
                         disabled={busy || !loaded}
                         onClick={() => void approveDraft(reply)}
                       >
-                        Confirm human approval
+                        {t('inbox.replies.confirmApproval')}
                       </button>
                       <button
                         type="button"
@@ -550,7 +548,7 @@ export default function InboxReplies({
                         disabled={busy}
                         onClick={() => setApproveId(null)}
                       >
-                        Keep pending
+                        {t('inbox.replies.keepPending')}
                       </button>
                     </div>
                   </>
@@ -565,7 +563,7 @@ export default function InboxReplies({
                       setCancelId(null);
                     }}
                   >
-                    Review and approve draft
+                    {t('inbox.replies.reviewApprove')}
                   </button>
                 )}
               </div>
@@ -578,13 +576,10 @@ export default function InboxReplies({
             (reply.draftSource !== 'llm' || Boolean(reply.approvedByUserId)) && (
               <div className="stack">
                 {attempted.current.has(reply.id) ? (
-                  <p>An action was attempted. Load history before taking further action.</p>
+                  <p>{t('inbox.replies.actionAttempted')}</p>
                 ) : confirmId === reply.id ? (
                   <>
-                    <p>
-                      This sends the exact text above to this Fanvue conversation immediately. It
-                      cannot be recalled here.
-                    </p>
+                    <p>{t('inbox.replies.sendPrompt')}</p>
                     <div className="action-row">
                       <button
                         type="button"
@@ -592,7 +587,7 @@ export default function InboxReplies({
                         disabled={busy || !loaded}
                         onClick={() => void sendReply(reply)}
                       >
-                        Confirm send to Fanvue
+                        {t('inbox.replies.confirmSend')}
                       </button>
                       <button
                         type="button"
@@ -600,16 +595,13 @@ export default function InboxReplies({
                         disabled={busy}
                         onClick={() => setConfirmId(null)}
                       >
-                        Keep prepared
+                        {t('inbox.replies.keepPrepared')}
                       </button>
                     </div>
                   </>
                 ) : cancelId === reply.id ? (
                   <>
-                    <p>
-                      Cancel this prepared reply? Its text stays in history, but it will not be
-                      sent.
-                    </p>
+                    <p>{t('inbox.replies.cancelPrompt')}</p>
                     <div className="action-row">
                       <button
                         type="button"
@@ -617,7 +609,7 @@ export default function InboxReplies({
                         disabled={busy || !loaded}
                         onClick={() => void cancelPrepared(reply)}
                       >
-                        Confirm cancellation
+                        {t('inbox.replies.confirmCancellation')}
                       </button>
                       <button
                         type="button"
@@ -625,7 +617,7 @@ export default function InboxReplies({
                         disabled={busy}
                         onClick={() => setCancelId(null)}
                       >
-                        Keep prepared
+                        {t('inbox.replies.keepPrepared')}
                       </button>
                     </div>
                   </>
@@ -640,7 +632,7 @@ export default function InboxReplies({
                         setConfirmId(reply.id);
                       }}
                     >
-                      Send prepared reply
+                      {t('inbox.replies.sendPrepared')}
                     </button>
                     <button
                       type="button"
@@ -651,7 +643,7 @@ export default function InboxReplies({
                         setCancelId(reply.id);
                       }}
                     >
-                      Cancel prepared reply
+                      {t('inbox.replies.cancelPrepared')}
                     </button>
                   </div>
                 )}
@@ -662,7 +654,7 @@ export default function InboxReplies({
       {canPrepare && (
         <>
           <label className="stack">
-            Reply text
+            {t('inbox.replies.replyText')}
             <textarea
               value={body}
               maxLength={5000}
@@ -671,7 +663,7 @@ export default function InboxReplies({
               onChange={(event) => setBody(event.target.value)}
             />
           </label>
-          <p className="subtle">{body.length}/5000 characters. Saved text cannot be edited.</p>
+          <p className="subtle">{t('inbox.replies.characterCount', { count: body.length })}</p>
           <div className="action-row">
             <button
               className="btn"
@@ -679,7 +671,7 @@ export default function InboxReplies({
               disabled={!loaded || busy || (!intent.current && !body.trim())}
               onClick={() => void prepare()}
             >
-              {intent.current ? 'Retry saving same reply' : 'Save reply without sending'}
+              {intent.current ? t('inbox.replies.retrySave') : t('inbox.replies.saveWithoutSending')}
             </button>
           </div>
         </>
