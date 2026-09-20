@@ -7,16 +7,16 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `5c0163fbfe7d7e26eacdb404a3f512943930707b` (reviewed M854 product source; later commits are coordination-only)
+SOURCE_HEAD: `fc3dd5d099bc61f746953a6addbbb87765227302` (reviewed M855 product source; later commits are coordination-only)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `5c0163fbfe7d7e26eacdb404a3f512943930707b` (reviewed M854 source commit; remote readback follows after the coordination commit)
-COORDINATION_HEAD: `5c0163fbfe7d7e26eacdb404a3f512943930707b` (exact source ref shared with Hermes; handoff evidence follows in a coordination commit)
-ACCEPTED_PRODUCT_SOURCE: `5c0163fbfe7d7e26eacdb404a3f512943930707b`
-LAST_COMPLETED_SOURCE_MILESTONE: `M854 — Chatter/roleplay localization and bounded error presentation; source/UI only`
+PUBLISHED_HEAD: `fc3dd5d099bc61f746953a6addbbb87765227302` (reviewed M855 source commit; remote readback follows after the coordination commit)
+COORDINATION_HEAD: `fc3dd5d099bc61f746953a6addbbb87765227302` (exact source ref shared with Hermes; handoff evidence follows in a coordination commit)
+ACCEPTED_PRODUCT_SOURCE: `fc3dd5d099bc61f746953a6addbbb87765227302`
+LAST_COMPLETED_SOURCE_MILESTONE: `M855 — locale-aware analytics trend dates; source/UI only`
 ACTIVE_HERMES_LANE: `CLOSED_LOCAL_FALLBACK — F89-CONSENT-VAULT-L10N-R1 closed after the second strict-protocol failure; no Hermes artifact accepted`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `NONE — Hermes lane closed; Codex completed and audited the explicitly selected local fallback`
-NEXT_ACTION: `Reconcile M854 against the architecture table, then select exactly one finite next gap; do not reopen the closed Hermes wire or act on stale lanes.`
+NEXT_ACTION: `Reconcile M855 against the architecture table, then select exactly one finite next gap; do not reopen the closed Hermes wire or act on stale lanes.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 OPEN_WIRES: `NONE — F89-CONSENT-VAULT-L10N-R1 is CLOSED_LOCAL_FALLBACK; no Hermes implementation or delivery was accepted`
@@ -32,8 +32,8 @@ OPEN_CONTROL_TASK_CORRECTION_SHA256: `059faba0778e47a2d5618aff21c0d9a8843d27e187
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
 OPEN_CONTROL_TASK_NEXT_ACTION: `NONE — M852 local fallback is integrated; do not reopen or accept work from the closed Hermes wire`
-ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization and M854 Chatter/roleplay localization are integrated on the branch. M854 criterion: the existing human/assigned-LLM roleplay flow, bounded memory/handoff, suggested/manual persona loading and Grok-turn path retain their contracts while the mounted page and manager use the six-locale catalog, role labels are localized, and raw backend exception text is not surfaced; focused/full tests, typecheck, lint, build and verify gates pass; no live action.`
-CURRENT_MILESTONE: `M854 integrated at 5c0163fb; Chatter/roleplay source/UI slice complete; focused roleplay page/manager tests 3 files/6 tests, full dashboard 145 files/886 tests, typecheck, lint/build/verify passed; lint has four pre-existing any warnings; no live action`
+ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization and M855 analytics trend-date localization are integrated on the branch. M855 criterion: daily analytics trend dates render through the selected locale with an explicit UTC zone instead of raw ISO strings; existing counts, percentages, permissions, analytics payloads and provider-free semantics remain unchanged; focused/full tests, typecheck, lint, build and verify gates pass; no live action.`
+CURRENT_MILESTONE: `M855 integrated at fc3dd5d0; analytics trend date-formatting source/UI slice complete; focused analytics 6 tests, full dashboard 145 files/886 tests, typecheck, lint/build/verify passed; lint has four pre-existing any warnings; no live action`
 CURRENT_MILESTONE_OPEN_GATES: `Root pnpm test retains four unrelated Windows subscription process-tree failures; repository-wide Prettier check retains 586 baseline files; M854 local source slice is complete; remaining architecture gaps include remaining catalog adoption and locale formatting, browser/native, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress rehearsal, and production acceptance`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
@@ -44,14 +44,14 @@ CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
 NEXT_PREPARED_TASK: `NONE — M852 local fallback is integrated; select the next finite Hermes lane only after architecture reconciliation and exact-source pinning`
 NEXT_PREPARED_TASK_WIRE: `NONE`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `5c0163fbfe7d7e26eacdb404a3f512943930707b`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `fc3dd5d099bc61f746953a6addbbb87765227302`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
 NEXT_PREPARED_TASK_STATE: `CLOSED_LOCAL_FALLBACK — original envelope hash ccce2501 and closure hash 059faba0 are remote-verified; no Hermes implementation counted`
 ACTIVE_LANE_TASK_WIRE: `CODEX-F89-CONSENT-VAULT-L10N-R1-LOCAL-FALLBACK-004`
-ACTIVE_LANE_SOURCE_COMMIT: `5c0163fbfe7d7e26eacdb404a3f512943930707b`
+ACTIVE_LANE_SOURCE_COMMIT: `fc3dd5d099bc61f746953a6addbbb87765227302`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/codex-f89-consent-vault-l10n-r1`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/deliveries/codex-f89-consent-vault-l10n-r1`
-ACTIVE_LANE_COPY_STATE: `CLOSED_LOCAL_FALLBACK — exact source and remote envelope verified; ACK-003 omitted PAYLOAD_SHA256 after correction; M853 and M854 were implemented locally and no Hermes implementation or delivery counted`
+ACTIVE_LANE_COPY_STATE: `CLOSED_LOCAL_FALLBACK — exact source and remote envelope verified; ACK-003 omitted PAYLOAD_SHA256 after correction; M853, M854 and M855 were implemented locally and no Hermes implementation or delivery counted`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `ccce2501cff55c3c29e836629e33e1f0e0c304b4a458ee9788c49684c9b18050`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `ccce2501cff55c3c29e836629e33e1f0e0c304b4a458ee9788c49684c9b18050`
 ACTIVE_LANE_ACK_WIRE: `HERMES-F89-CONSENT-VAULT-L10N-R1-ACK-003 — rejected because PAYLOAD_SHA256 header was missing after the permitted correction`

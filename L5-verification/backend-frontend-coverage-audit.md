@@ -1173,3 +1173,23 @@ commit. Open gates remain browser/mobile, provider/OAuth/Patreon receipts,
 deployed migration/RLS/runtime, observability, CI governance,
 WireGuard/customer-egress rehearsal and production acceptance. No live action
 occurred.
+
+# M855: analytics trend-date localization
+
+The reconciliation identified one precise F-89 formatting gap in the mounted
+model analytics route: daily trend rows emitted the backend's raw ISO date
+string even though the route already localized labels, counts, percentages and
+currency. The fix uses the selected normalized locale and an explicit UTC
+`Intl.DateTimeFormat` date style. No analytics query, permission check, payload,
+provider behavior or calculation changed.
+
+Pass evidence: the focused analytics page suite passed 6/6 with a Spanish
+locale regression asserting localized output and no raw `YYYY-MM-DD` value; the
+full dashboard matrix passed 145 files/886 tests; typecheck passed; lint had 0
+errors and four pre-existing `any` warnings; diff check passed; the elevated
+production build passed; and `scripts/verify.sh` returned `verify: ok`.
+Source commit `fc3dd5d099bc61f746953a6addbbb87765227302` is the exact M855
+source commit. Remaining gates are catalog adoption/formatting audit beyond
+this route, browser/mobile, provider/OAuth/Patreon receipts, deployed
+migration/RLS/runtime, observability, CI governance, WireGuard/customer-egress
+rehearsal and production acceptance. No live action occurred.

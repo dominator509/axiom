@@ -1046,3 +1046,25 @@ dashboard production build passed with explicit non-secret `API_ORIGIN`; and
 Browser/mobile, provider/OAuth/Patreon receipts, deployed migration/RLS/runtime,
 observability, CI governance, WireGuard/customer-egress rehearsal and
 production acceptance remain open. No live action occurred.
+
+### M855 — F-89 analytics trend-date formatting
+
+The analytics route already had catalog-backed labels, locale-aware counts,
+percentages and currency. The remaining date-formatting defect was concrete:
+daily trend rows rendered the API's raw ISO `YYYY-MM-DD` value, bypassing the
+selected UI locale. M855 formats each trend day with `Intl.DateTimeFormat` and
+an explicit UTC zone, preserving the API payload, model access boundary,
+analytics calculations and provider-free report behavior.
+
+Evidence: focused analytics page tests 6/6 passed, including a Spanish locale
+assertion that the rendered date is localized and the raw ISO string is absent;
+full dashboard matrix 145 files/886 tests passed; dashboard typecheck passed;
+lint exited 0 with four pre-existing `any` warnings; diff check passed;
+elevated dashboard production build passed; and `scripts/verify.sh` printed
+`verify: ok`. Product source commit
+`fc3dd5d099bc61f746953a6addbbb87765227302` is the reviewed M855 commit.
+Remaining localization work is other dashboard/email/operator adoption and a
+complete formatting audit; browser/mobile, provider/OAuth/Patreon receipts,
+deployed migration/RLS/runtime, observability, CI governance,
+WireGuard/customer-egress rehearsal and production acceptance remain open. No
+live action occurred.
