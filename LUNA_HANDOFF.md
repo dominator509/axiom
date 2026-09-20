@@ -19,9 +19,9 @@ HERMES_IMPLEMENTATION_OWNER: `HERMES — only after ACK/ACCEPTED; Codex audits t
 NEXT_ACTION: `Poll the F50 wire by logical state; separately run the source-sync control lane to reconcile Hermes refs/worktrees; after F50 ACK/ACCEPTED receipt, require one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED; do not open another product lane.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `CODEX-LINKTREE-ADAPTER-SOURCE-R1-001, CODEX-HERMES-SOURCE-SYNC-REFRESH-R1-001`
-OPEN_CONTROL_WIRE: `CODEX-HERMES-SOURCE-SYNC-REFRESH-R1-001`
-OPEN_CONTROL_TASK_STATE: `TASK_SENT_ACK_PENDING — read-only all-ref/worktree reconciliation; no feature implementation or live action accepted`
+OPEN_WIRES: `CODEX-LINKTREE-ADAPTER-SOURCE-R1-001, CODEX-HERMES-SOURCE-SYNC-REFRESH-R2-001`
+OPEN_CONTROL_WIRE: `CODEX-HERMES-SOURCE-SYNC-REFRESH-R2-001`
+OPEN_CONTROL_TASK_STATE: `SUPERSEDING_TASK_SENT_ACK_PENDING — R1 reply wire was reused and its mirror was Codex-owned; R2 requires Hermes-owned mirror creation; no feature implementation or live action accepted`
 OPEN_CONTROL_TASK_REPLY_WIRE: `NONE`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_WIRE: `NONE — the F71 transport receipt is historical, not implementation acceptance`
 OPEN_CONTROL_TASK_ACCEPTANCE_RECEIPT_SHA256: `NONE`
@@ -74,22 +74,22 @@ ACTIVE_LANE_SUPERSEDE_ENVELOPE_SHA256: `NONE`
 ACTIVE_LANE_SOURCE_BUNDLE: `NONE — exact Git source ref is authoritative`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `NONE`
 SOURCE_SYNC_CONTROL_TASK: `HERMES-SOURCE-SYNC-REFRESH-R1`
-SOURCE_SYNC_CONTROL_WIRE: `CODEX-HERMES-SOURCE-SYNC-REFRESH-R1-001`
+SOURCE_SYNC_CONTROL_WIRE: `CODEX-HERMES-SOURCE-SYNC-REFRESH-R2-001`
 SOURCE_SYNC_CONTROL_SOURCE_REPO: `github.com/dominator509/axiom`
 SOURCE_SYNC_CONTROL_SOURCE_REF: `refs/heads/codex/telegram-webhook-hardening`
-SOURCE_SYNC_CONTROL_SOURCE_COMMIT: `ea32c5f309d1f1c593abdd2d356767ddbb764154`
-SOURCE_SYNC_CONTROL_FETCH_COMMAND: `git fetch --all --prune`
-SOURCE_SYNC_CONTROL_TASK_ENVELOPE_SHA256: `165f125e722ca2c4ab753d31c006291665762521f7dc83e230ec610c1e9e2f68`
-SOURCE_SYNC_CONTROL_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r1/copy`
-SOURCE_SYNC_CONTROL_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r1/delivery`
+SOURCE_SYNC_CONTROL_SOURCE_COMMIT: `e963fb855bdbcb10593ba961c990e37218d6b960`
+SOURCE_SYNC_CONTROL_FETCH_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git /srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r2/mirror when absent; otherwise git -C /srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r2/mirror fetch --all --prune`
+SOURCE_SYNC_CONTROL_TASK_ENVELOPE_SHA256: `73530aea62f86003af820986a789970f2296efe62fbc108485f40ec04f32dc91`
+SOURCE_SYNC_CONTROL_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r2/copy`
+SOURCE_SYNC_CONTROL_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r2/delivery`
 SOURCE_SYNC_CONTROL_WORKTREE_KIND: `source-sync-control; no product implementation copy`
-SOURCE_SYNC_CONTROL_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r1/mirror`
-SOURCE_SYNC_CONTROL_MIRROR_REFRESH: `PASS — writable unprivileged mirror fetched with git fetch --all --prune`
-SOURCE_SYNC_CONTROL_RESOLVED_REF_SHA: `235c532297c994af2d7bbdb6ba8ce068adcbd8c1`
-SOURCE_SYNC_CONTROL_SOURCE_COMMIT_TYPE: `commit`
-SOURCE_SYNC_CONTROL_SOURCE_ANCESTRY: `PASS — ea32c5f309d1f1c593abdd2d356767ddbb764154 is an ancestor of the resolved coordination ref`
-SOURCE_SYNC_CONTROL_REMOTE_REFS: `origin/codex/telegram-webhook-hardening=235c532297c994af2d7bbdb6ba8ce068adcbd8c1; origin/deploy/test-migrator-prerequisites=36b67f5ab79cca27f196c74187eb42a8b6c17d68; origin/fix/api-validation-diagnostics=aebe3a2714eca477c07103986af85aa032a5a10f; origin/fix/dashboard-generate-empty-optional-fields=2c90431574c8fd755dc36aeb8146f3edbb13ef06; origin/jules-3329224676166641722-1e0e7903=32e2f8a00c2553ac25755d34cd1a925d3825ded1; origin/main=7c4a945dc1c278a9ad26f4b83b16e44314c31d37`
-SOURCE_SYNC_CONTROL_EXISTING_CLONE_FETCH: `BLOCKED — unprivileged fetch failed because root-owned fanout directories exist under /home/codex-fanthynks/fanthynks/src/axiom/.git/objects; no permissions were widened and no root path was used`
+SOURCE_SYNC_CONTROL_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-hermes-source-sync-refresh-r2/mirror`
+SOURCE_SYNC_CONTROL_MIRROR_REFRESH: `HERMES-PENDING — R2 requires Hermes identity to create and own the mirror`
+SOURCE_SYNC_CONTROL_RESOLVED_REF_SHA: `NOT_YET_VERIFIED_BY_HERMES`
+SOURCE_SYNC_CONTROL_SOURCE_COMMIT_TYPE: `NOT_YET_VERIFIED_BY_HERMES`
+SOURCE_SYNC_CONTROL_SOURCE_ANCESTRY: `NOT_YET_VERIFIED_BY_HERMES`
+SOURCE_SYNC_CONTROL_REMOTE_REFS: `NOT_YET_VERIFIED_BY_HERMES; Codex-side R1 mirror observed origin/codex/telegram-webhook-hardening=235c532297c994af2d7bbdb6ba8ce068adcbd8c1, origin/deploy/test-migrator-prerequisites=36b67f5ab79cca27f196c74187eb42a8b6c17d68, origin/fix/api-validation-diagnostics=aebe3a2714eca477c07103986af85aa032a5a10f, origin/fix/dashboard-generate-empty-optional-fields=2c90431574c8fd755dc36aeb8146f3edbb13ef06, origin/jules-3329224676166641722-1e0e7903=32e2f8a00c2553ac25755d34cd1a925d3825ded1, origin/main=7c4a945dc1c278a9ad26f4b83b16e44314c31d37`
+SOURCE_SYNC_CONTROL_EXISTING_CLONE_FETCH: `BLOCKED — Codex-side test of the unprivileged fetch failed because root-owned fanout directories exist under /home/codex-fanthynks/fanthynks/src/axiom/.git/objects; no permissions were widened and no root path was used`
 SOURCE_SYNC_CONTROL_DETACHED_WORKTREES: `EVIDENCE_ONLY — build/06496da, build/5116230, build/7f02e18, build/c5586ad, build/da09f66 and Hermes work copies are not coding authorities`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — exact Git source task`
 ACTIVE_LANE_SOURCE_TRANSPORT: `M859 source 462cdaf31ee06e7263057df4489d7fbd14b4cd35 was audited, committed, pushed and read back from origin; F50 task was sent by exact-msg_id bridge envelope`
