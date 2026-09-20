@@ -1,14 +1,24 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { CATALOGS, LocaleCatalog, type SupportedLocale } from '@axiom/core';
 import { api, getSession } from '@/lib/api';
+import { getServerLocale } from '@/lib/server-locale';
 import NetworkPage from './page';
+const catalog = new LocaleCatalog(CATALOGS);
 vi.mock('@/lib/api', () => ({
   getSession: vi.fn(),
   api: { models: { network: vi.fn() }, social: { list: vi.fn() } },
 }));
+vi.mock('@/lib/server-locale', () => ({ getServerLocale: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+const localeFor = (locale: SupportedLocale): Awaited<ReturnType<typeof getServerLocale>> => ({
+  locale,
+  t: (key, values) => catalog.t(locale, key, values),
+  dateTime: (value) => String(value),
+});
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(getServerLocale).mockResolvedValue(localeFor('en'));
   vi.mocked(getSession).mockResolvedValue({ user: { id: 'user', role: 'owner' } });
   vi.mocked(api.models.network).mockResolvedValue({
     data: {
@@ -60,12 +70,17 @@ it('exposes provider OAuth entry points only to operational roles', async () => 
   expect(readonly).toContain('Connecting accounts requires an owner, manager or operator role.');
 });
 it('confirms a successful browser OAuth return without trusting arbitrary query text', async () => {
-  expect(await render({ oauth: 'connected', platform: 'fanvue' })).toContain(
-    'Fanvue connected successfully.',
-  );
+  expect(await render({ oauth: 'connected', platform: 'fanvue' })).toContain(catalog.t('en', 'network.oauthSuccess', { platform: 'Fanvue' }));
   expect(await render({ oauth: 'connected', platform: 'unknown' })).not.toContain(
     'connected successfully',
   );
+});
+it.each(['es', 'ja', 'it', 'pt-BR', 'de'] as SupportedLocale[])('renders mounted network copy in %s', async (locale) => {
+  vi.mocked(getServerLocale).mockResolvedValue(localeFor(locale));
+  const html = await render();
+  expect(html).toContain(catalog.t(locale, 'model.networkSecurity'));
+  expect(html).toContain(catalog.t(locale, 'network.socialConnections'));
+  expect(html).not.toContain(catalog.t('en', 'network.socialConnections'));
 });
 it('lets an owner configure a successfully loaded unconfigured model', async () => {
   const html = await render();
@@ -86,9 +101,31 @@ it('does not treat load failure as a fresh editable configuration', async () => 
   expect(html).toContain('Network configuration could not be loaded');
   expect(html).not.toContain('Save network config');
 });
+it('does not render raw network errors', async () => {
+  const rawError = 'postgres://secret-user:secret-password@db/internal failure';
+  vi.mocked(api.models.network).mockResolvedValue({
+    data: {
+      id: 'config', modelId: 'model', egressMode: 'socks5', healthy: false,
+      lastCheck: null, latencyMs: null, lastEgressIp: null, failCount: 1, lastError: rawError,
+    },
+  });
+  const html = await render();
+  expect(html).toContain(catalog.t('en', 'network.lastCheckFailed'));
+  expect(html).not.toContain(rawError);
+  expect(html).not.toContain('secret-password');
+});
 it('distinguishes account load failures from successful empty lists', async () => {
   vi.mocked(api.social.list).mockRejectedValue(new Error('Unavailable'));
   const html = await render();
   expect(html).toContain('Connected accounts could not be loaded');
   expect(html).not.toContain('No platform accounts connected.');
+});
+it('localizes connected-account headings while preserving provider data', async () => {
+  vi.mocked(api.social.list).mockResolvedValue({ data: [{ id: 'a1', modelId: 'model', platform: 'fanvue', displayName: 'DJ', status: 'connected', capabilities: ['read'], connectedAt: '2026-01-01T00:00:00Z' }] });
+  vi.mocked(getServerLocale).mockResolvedValue(localeFor('de'));
+  const html = await render();
+  expect(html).toContain(catalog.t('de', 'network.platform'));
+  expect(html).toContain(catalog.t('de', 'network.capabilities'));
+  expect(html).toContain('fanvue');
+  expect(html).toContain('DJ');
 });

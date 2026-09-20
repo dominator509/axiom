@@ -5,6 +5,9 @@ import EgressCredentials from '@/components/EgressCredentials';
 import NetworkHealth from '@/components/NetworkHealth';
 import ActivateNetwork from '@/components/ActivateNetwork';
 import DisconnectSocialAccountButton from '@/components/DisconnectSocialAccountButton';
+import { getServerLocale } from '@/lib/server-locale';
+
+type Translator = Awaited<ReturnType<typeof getServerLocale>>['t'];
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +17,7 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
   const oauthConnected = query?.oauth === 'connected' && (query.platform === 'fanvue' || query.platform === 'threads' || query.platform === 'patreon');
   const oauthPlatform = query?.platform === 'fanvue' ? 'Fanvue' : query?.platform === 'threads' ? 'Threads' : 'Patreon';
   const session = await getSession();
+  const { t } = await getServerLocale();
   const owner = session?.user?.role === 'owner';
   const canManageAccounts = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   let network = null;
@@ -25,42 +29,42 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
       failed = true;
     }
   }
-  const accounts = await SocialAccounts({ modelId: id, canManage: canManageAccounts });
+  const accounts = await SocialAccounts({ modelId: id, canManage: canManageAccounts, t });
 
   return (
     <div className="page-stack">
-      {oauthConnected && <p className="notice" role="status">{oauthPlatform} connected successfully. Refresh the account list below if it is not visible yet.</p>}
+      {oauthConnected && <p className="notice" role="status">{t('network.oauthSuccess', { platform: oauthPlatform })}</p>}
       <div className="card">
-        <h2>Network &amp; security</h2>
-        {!owner && <p>Only a workspace owner can view or change network configuration. Ask your owner to configure this talent’s outbound connection.</p>}
-        {failed && <p role="alert">Network configuration could not be loaded. Reload to try again. Editing is unavailable until the saved configuration can be read.</p>}
+        <h2>{t('model.networkSecurity')}</h2>
+        {!owner && <p>{t('network.ownerOnly')}</p>}
+        {failed && <p role="alert">{t('network.configurationLoadFailed')}</p>}
         {network && (
           <div className="stack" style={{ marginBottom: 16 }}>
             <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span>Egress mode</span>
-              <span className="mono">{network.egressMode ?? 'Not configured'}</span>
+              <span>{t('network.egressMode')}</span>
+              <span className="mono">{network.egressMode ?? t('network.notConfigured')}</span>
             </div>
             <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span>Health</span>
+              <span>{t('network.health')}</span>
               {network.healthy ? (
-                <span className="badge good">healthy</span>
+                <span className="badge good">{t('network.healthy')}</span>
               ) : (
-                <span className="badge bad">degraded</span>
+                <span className="badge bad">{t('network.degraded')}</span>
               )}
             </div>
             {network.latencyMs != null && (
               <div className="row" style={{ justifyContent: 'space-between' }}>
-                <span>Latency</span>
+                <span>{t('network.latency')}</span>
                 <span>{network.latencyMs} ms</span>
               </div>
             )}
             {network.lastEgressIp && (
               <div className="row" style={{ justifyContent: 'space-between' }}>
-                <span>Last egress IP</span>
+                <span>{t('network.lastEgressIp')}</span>
                 <span className="mono">{network.lastEgressIp}</span>
               </div>
             )}
-            {network.lastError && <div style={{ color: 'var(--bad)' }}>{network.lastError}</div>}
+            {network.lastError && <div style={{ color: 'var(--bad)' }}>{t('network.lastCheckFailed')}</div>}
           </div>
         )}
         {owner && network && <NetworkForm modelId={id} initial={network} />}
@@ -69,42 +73,42 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
       {owner && <NetworkHealth modelId={id} />}
       {owner && network?.id && <ActivateNetwork modelId={id} />}
       <div className="card stack">
-        <h2>Social account connections</h2>
-        <p className="subtle">Connect a provider account through its own authorization page. AXIOM never asks for provider passwords or tokens in this form.</p>
+        <h2>{t('network.socialConnections')}</h2>
+        <p className="subtle">{t('network.socialConnectionsDescription')}</p>
         {canManageAccounts ? <div className="action-row">
-          <a className="btn secondary" href={`/api/v1/connectors/fanvue/authorize?modelId=${encodeURIComponent(id)}`}>Connect Fanvue</a>
-          <a className="btn secondary" href={`/api/v1/connectors/threads/authorize?modelId=${encodeURIComponent(id)}`}>Connect Threads</a>
-          <a className="btn secondary" href={`/api/v1/connectors/patreon/authorize?modelId=${encodeURIComponent(id)}`}>Connect Patreon</a>
-          <a className="btn secondary" href={`/models/${encodeURIComponent(id)}/patreon`}>Patreon community</a>
-        </div> : <p className="subtle">Connecting accounts requires an owner, manager or operator role.</p>}
+          <a className="btn secondary" href={`/api/v1/connectors/fanvue/authorize?modelId=${encodeURIComponent(id)}`}>{t('network.connectFanvue')}</a>
+          <a className="btn secondary" href={`/api/v1/connectors/threads/authorize?modelId=${encodeURIComponent(id)}`}>{t('network.connectThreads')}</a>
+          <a className="btn secondary" href={`/api/v1/connectors/patreon/authorize?modelId=${encodeURIComponent(id)}`}>{t('network.connectPatreon')}</a>
+          <a className="btn secondary" href={`/models/${encodeURIComponent(id)}/patreon`}>{t('network.patreonCommunity')}</a>
+        </div> : <p className="subtle">{t('network.manageAccountsRequired')}</p>}
       </div>
       <div className="card">
-        <h2>Connected accounts</h2>
+        <h2>{t('network.connectedAccounts')}</h2>
         {accounts}
       </div>
     </div>
   );
 }
 
-async function SocialAccounts({ modelId, canManage }: { modelId: string; canManage: boolean }) {
+async function SocialAccounts({ modelId, canManage, t }: { modelId: string; canManage: boolean; t: Translator }) {
   let accounts: SocialConnection[] = [];
   try {
     accounts = (await api.social.list(modelId)).data;
   } catch {
-    return <p role="alert">Connected accounts could not be loaded. Reload to try again; existing connections have not been removed.</p>;
+    return <p role="alert">{t('network.accountsLoadFailed')}</p>;
   }
   if (accounts.length === 0) {
-    return <p style={{ color: 'var(--muted)', margin: 0 }}>No platform accounts connected.</p>;
+    return <p style={{ color: 'var(--muted)', margin: 0 }}>{t('network.noAccounts')}</p>;
   }
   return (
     <table>
       <thead>
         <tr>
-          <th>Platform</th>
-          <th>Display name</th>
-          <th>Status</th>
-          <th>Capabilities</th>
-          {canManage && <th>Actions</th>}
+          <th>{t('network.platform')}</th>
+          <th>{t('network.displayName')}</th>
+          <th>{t('network.status')}</th>
+          <th>{t('network.capabilities')}</th>
+          {canManage && <th>{t('network.actions')}</th>}
         </tr>
       </thead>
       <tbody>
