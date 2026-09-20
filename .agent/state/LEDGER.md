@@ -1033,3 +1033,5 @@ M601 | [P4][F89-OPERATOR-PAGES-LOCALIZATION] Localized mounted approvals/review,
 2026-09-20T02:49:08Z | [AXIOM][P4][M750] Hermes acknowledged the accepted-progress delivery gate at SEQ 9; terminal DELIVERY or BLOCKED is next and no further ACK is expected; no live action
 2026-09-20T02:50:32Z | [AXIOM][P4][M751] Synchronized handoff to pushed terminal-delivery gate tip c3ebbe2; Hermes must publish the actual source DELIVERY or terminal BLOCKED; no new lane or live action
 2026-09-20T02:52:27Z | [AXIOM][P4][M752] Synchronized handoff to pushed terminal-delivery tip 88fb86d; Hermes gateway is present, declared delivery artifact is still absent; no new lane or live action
+2026-09-20T03:05:38Z | M753 — Closed F89 PlaybookHistory Hermes lane as terminal non-delivery at logical SEQ 10; no Hermes source bytes accepted; Codex local fallback selected.
+2026-09-20T03:05:38Z | M754 — Implemented PlaybookHistory six-locale catalog adoption and locale-aware UTC presentation locally; core/dashboard gates recorded separately; no live action.

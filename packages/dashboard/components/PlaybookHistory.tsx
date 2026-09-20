@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { formatDate } from '@axiom/core';
 import { readDashboardJson } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 export interface GuidelineRevision {
   id: string; modelId: string; platform: string; revision: number; optimalTimes: string[];
@@ -20,6 +22,7 @@ export function validGuidelineRevision(value: unknown, modelId: string, platform
 export default function PlaybookHistory({ modelId, platform, onRestore }: {
   modelId: string; platform: string; onRestore?: (row: GuidelineRevision) => void;
 }) {
+  const { locale, t } = useLocale();
   const [rows, setRows] = useState<GuidelineRevision[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -41,21 +44,22 @@ export default function PlaybookHistory({ modelId, platform, onRestore }: {
       if (controller.signal.aborted) return;
       setRows(previous => older ? [...previous, ...body.data as GuidelineRevision[]] : body.data as GuidelineRevision[]);
       setCursor(body.meta.next_cursor); setLoaded(true);
-    } catch { if (!controller.signal.aborted) setError('Revision history could not be loaded. Try again.'); }
+    } catch { if (!controller.signal.aborted) setError(t('playbook.historyLoadFailed')); }
     finally { if (!controller.signal.aborted) { request.current = null; setBusy(false); } }
   }
-  return <section className="stack" aria-label="Guideline revision history">
-    <h4>Saved revision history</h4>
-    <p className="subtle">History is retained from the history upgrade onward. Earlier discarded values cannot be recovered. Loading a revision into the editor does not save it.</p>
-    <button className="btn secondary" type="button" disabled={busy} onClick={() => void load(false)}>{busy ? 'Loading…' : 'Load latest history'}</button>
+  return <section className="stack" aria-label={t('playbook.historyAria')}>
+    <h4>{t('playbook.historyTitle')}</h4>
+    <p className="subtle">{t('playbook.historyDescription')}</p>
+    <button className="btn secondary" type="button" disabled={busy} onClick={() => void load(false)}>{busy ? t('playbook.historyLoading') : t('playbook.historyLoadLatest')}</button>
     {error && <p role="alert">{error}</p>}
-    {loaded && rows.length === 0 && <p>No retained revisions for this platform yet.</p>}
+    {loaded && rows.length === 0 && <p>{t('playbook.historyEmpty')}</p>}
     {rows.map(row => <article className="card stack" key={row.id}>
-      <strong>Revision {row.revision}</strong><p>Recorded {new Date(row.recordedAt).toISOString()}</p>
-      <p>{row.cadencePerWeek} posts/week · {row.optimalTimes.join(', ') || 'No posting times specified'}</p>
-      <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{row.upsellStrategy || 'No upsell strategy specified'}</p>
-      {onRestore && <button type="button" className="btn secondary" onClick={() => onRestore(row)}>Use revision {row.revision} as draft</button>}
+      <strong>{t('playbook.historyRevision', { revision: row.revision })}</strong>
+      <p>{t('playbook.historyRecorded', { value: formatDate(new Date(row.recordedAt), locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) })}</p>
+      <p>{t('playbook.historyCadence', { count: row.cadencePerWeek, times: row.optimalTimes.join(', ') || t('playbook.historyNoPostingTimes') })}</p>
+      <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{row.upsellStrategy || t('playbook.historyNoUpsellStrategy')}</p>
+      {onRestore && <button type="button" className="btn secondary" onClick={() => onRestore(row)}>{t('playbook.historyRestore', { revision: row.revision })}</button>}
     </article>)}
-    {cursor && <button className="btn secondary" type="button" disabled={busy} onClick={() => void load(true)}>Load older revisions</button>}
+    {cursor && <button className="btn secondary" type="button" disabled={busy} onClick={() => void load(true)}>{t('playbook.historyLoadOlder')}</button>}
   </section>;
 }
