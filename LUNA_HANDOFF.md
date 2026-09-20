@@ -9,15 +9,15 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `653b7587ae2830acbff790690c28fdd6db853e38` (latest accepted product-source commit; M780-M783 are coordination/evidence-only)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `ae1a5a4417b7b8ba47327bf389d905ce03594d69` (current local coordination head to publish; F84 exact source bind remains 09c62cc)
+PUBLISHED_HEAD: `5b59aa1484d35d4c392a63fe55347e67e91184fb` (last pushed coordination head; F84 exact source bind remains 09c62cc)
 ACCEPTED_PRODUCT_SOURCE: `653b7587ae2830acbff790690c28fdd6db853e38`
-ACTIVE_HERMES_LANE: `F84-VERSIONED-ARM-CONTRACT-CURRENT-R2 — OPEN and ACK-GATED; exact source archive supplied after R1 transport block`
+ACTIVE_HERMES_LANE: `F84-VERSIONED-ARM-CONTRACT-CURRENT-R3 — OPEN and ACK-GATED; exact Git bundle supplied; no further transport retry is authorized`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES only after one correlated ACK/ACCEPTED; Codex owns audit, integration, commit and push`
-NEXT_ACTION: `Await one correlated ACK/READ or ACK/ACCEPTED for F84-VERSIONED-ARM-CONTRACT-CURRENT-R2; after acceptance require one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED. Do not edit the same lane locally while Hermes owns it.`
+NEXT_ACTION: `Await one correlated ACK/READ or ACK/ACCEPTED for F84-VERSIONED-ARM-CONTRACT-CURRENT-R3; after acceptance require one evidence-bearing PROGRESS and one terminal DELIVERY or BLOCKED. If bundle consumption fails, Codex takes the local fallback; do not create another transport retry.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
-OPEN_WIRES: `CODEX-F84-VERSIONED-ARM-CONTRACT-CURRENT-R2-001 — OPEN/ACK-GATED; R1 ended BLOCKED only on missing transport; all other historical R1-R9 and F89 wires remain closed or superseded`
+OPEN_WIRES: `CODEX-F84-VERSIONED-ARM-CONTRACT-CURRENT-R3-001 — OPEN/ACK-GATED; R1/R2 ended BLOCKED on source transport; all other historical R1-R9 and F89 wires remain closed or superseded`
 OPEN_CONTROL_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-CLOSE-010`
 OPEN_CONTROL_TASK_STATE: `CLOSED_BLOCKED — Hermes produced no changed source, no delivery artifact and no terminal DELIVERY`
 OPEN_CONTROL_TASK_REPLY_WIRE: `CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-CLOSE-010`
@@ -38,24 +38,24 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `F84-VERSIONED-ARM-CONTRACT-CURRENT-R2`
-NEXT_PREPARED_TASK_WIRE: `CODEX-F84-VERSIONED-ARM-CONTRACT-CURRENT-R2-001`
+NEXT_PREPARED_TASK: `F84-VERSIONED-ARM-CONTRACT-CURRENT-R3`
+NEXT_PREPARED_TASK_WIRE: `CODEX-F84-VERSIONED-ARM-CONTRACT-CURRENT-R3-001`
 NEXT_PREPARED_TASK_SOURCE_COMMIT: `09c62cc1883008218371bf325b5af2384accf1f5`
-NEXT_PREPARED_TASK_ARCHIVE_SHA256: `587fc81f9943961c8c1ed78ff9dfafb15014e9a69185d059406dd1e311057f94 — /srv/fanthynks-bridge/hermes/inbox/axiom-source-09c62cc.tar`
-NEXT_PREPARED_TASK_STATE: `DISPATCHED — exact archive and envelope checksums read back from Hermes; awaiting correlated ACK`
-ACTIVE_LANE_TASK_WIRE: `CODEX-F84-VERSIONED-ARM-CONTRACT-CURRENT-R2-001`
+NEXT_PREPARED_TASK_ARCHIVE_SHA256: `cc5e35c6353fe037f24ccfbfb824dedf2d4323f40d15e4e290710d416ce3ea5b — exact Git bundle /srv/fanthynks-bridge/hermes/inbox/axiom-source-09c62cc-exact.bundle`
+NEXT_PREPARED_TASK_STATE: `DISPATCHED — exact bundle head and envelope checksum read back from Hermes; awaiting correlated ACK`
+ACTIVE_LANE_TASK_WIRE: `CODEX-F84-VERSIONED-ARM-CONTRACT-CURRENT-R3-001`
 ACTIVE_LANE_SOURCE_COMMIT: `09c62cc1883008218371bf325b5af2384accf1f5`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/work/f84-versioned-arm-contract-current-r1`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/replies/delivery-f84-versioned-arm-contract-current-r1`
-ACTIVE_LANE_COPY_STATE: `PENDING — transport resolved; Hermes must ACK/ACCEPT before implementation; no local or live mutation`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `c4d739ddb6dbc31682a5f56d98179dc5714d78e85948e59bfbf648c148f3cc71`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `c4d739ddb6dbc31682a5f56d98179dc5714d78e85948e59bfbf648c148f3cc71 — exact inbox readback verified`
+ACTIVE_LANE_COPY_STATE: `PENDING — final commit-binding transport supplied; Hermes must ACK/ACCEPT before implementation; no local or live mutation`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `b0ea7397aca3485ef32625240a02ab785e3f7fe1a56f12a8df392fa5ebd19ca2`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `b0ea7397aca3485ef32625240a02ab785e3f7fe1a56f12a8df392fa5ebd19ca2 — exact inbox readback verified`
 ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `HISTORICAL — d58bc7a36e65c215c62d68fd6186082a6fc230e815e4276771d6072a6734152f; terminal BLOCKED envelope read back`
 ACTIVE_LANE_SOURCE_BUNDLE: `HISTORICAL — /srv/fanthynks-bridge/hermes/inbox/axiom-source-a3f74f.bundle`
 ACTIVE_LANE_SOURCE_BUNDLE_SHA256: `HISTORICAL — beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6; Git bundle verify passed; exact commit is contained`
 ACTIVE_LANE_SOURCE_BUNDLE_WIRE: `NOT_APPLICABLE — local source implementation`
-ACTIVE_LANE_SOURCE_TRANSPORT: `Byte-exact archive of 09c62cc supplied to Hermes inbox and SHA read back; R1 transport block resolved without source substitution`
-ACTIVE_LANE_TRANSPORT_NAMING: `codex-f84-versioned-arm-contract-current-r2.json must equal msg_id.json; archive identity is separately hash-pinned`
+ACTIVE_LANE_SOURCE_TRANSPORT: `Git bundle created from a temporary ref exactly at 09c62cc, locally verified complete, and remote SHA/head read back; R1/R2 tar transport blocks resolved without source substitution`
+ACTIVE_LANE_TRANSPORT_NAMING: `codex-f84-versioned-arm-contract-current-r3.json must equal msg_id.json; bundle identity is separately hash-pinned`
 ACTIVE_LANE_REPLY_HELPER_RULE: `msg_id must equal filename stem for every new message; historical mismatches are inert and never renamed`
 BRIDGE_EXECUTION_MODEL: `The bridge poller reports inbox traffic only; it does not execute Hermes tasks. A valid inbox file is transport evidence, not ACK, ownership, progress or delivery.`
 R8_TRANSPORT_STATE: `CLOSED_BLOCKED — terminal NACK-013 was read and receipt-014 sent; no implementation or source delta accepted`
@@ -119,19 +119,19 @@ LOOP_DELIVERY_RULE: `Codex accepts only hash-verified source artifacts with chan
 LOOP_FAILURE_RULE: `if the exact next logical event is absent or invalid, record UNCONFIRMED/REJECTED and stop that lane; do not resend the same WIRE or start a competing lane`
 LOOP_CURRENT_ACTION: `Codex audits the remaining architecture gaps from the current source, selects one finite gate, and records its verified result before opening any new Hermes wire; no stale lane, ACK loop or unsupported completion claim is accepted`
 
-CURRENT_MILESTONE: `M784 — F84 archive-backed Hermes lane reopened after exact-source transport block`
+CURRENT_MILESTONE: `M785 — F84 final exact-commit bundle supplied; no further transport retry authorized`
 CURRENT_MILESTONE_COMMIT: `09c62cc1883008218371bf325b5af2384accf1f5`
-CURRENT_MILESTONE_EVIDENCE_CANONICAL: `F81 publication evidence captures shoot config, caption, hashtags, schedule/day, platform, media format, trusted thumbnail descriptors, ToS evidence and realized metrics; F81/F84 evidence tests pass worker 16/16, API 23/23, DB schema 110/110; repository ship gate remains PASS; R1 Hermes BLOCKED only because 09c62cc was absent; archive SHA 587fc81f... was read back and R2 was dispatched; LIVE_ACTIONS NONE`
-CURRENT_MILESTONE_OPEN_CANONICAL: `F84 is partial: current learning-v1 arms cover caption length/question and scheduled UTC bucket, while hook type and format are only optional provenance fields and do not drive arm selection. R2 now owns the bounded backward-compatible versioned arm/context contract with server-owned evidence and focused selection/state tests. Deployed/provider/browser, team, gallery, OAuth, R2 storage, VPN, migration/RLS, runtime, observability, CI governance and operator gates remain open.`
-CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE_CANONICAL: `ae1a5a4417b7b8ba47327bf389d905ce03594d69 is the local coordination head pending push; exact F84 source bind is 09c62cc1883008218371bf325b5af2384accf1f5; accepted product source remains 653b7587ae2830acbff790690c28fdd6db853e38.`
+CURRENT_MILESTONE_EVIDENCE_CANONICAL: `F81 publication evidence captures shoot config, caption, hashtags, schedule/day, platform, media format, trusted thumbnail descriptors, ToS evidence and realized metrics; F81/F84 evidence tests pass worker 16/16, API 23/23, DB schema 110/110; repository ship gate remains PASS; R1/R2 Hermes BLOCKED on transport binding; exact Git bundle head 09c62cc and SHA cc5e35c6... were read back; R3 is dispatched; LIVE_ACTIONS NONE`
+CURRENT_MILESTONE_OPEN_CANONICAL: `F84 is partial: current learning-v1 arms cover caption length/question and scheduled UTC bucket, while hook type and format are only optional provenance fields and do not drive arm selection. R3 is the final Hermes transport-gated implementation attempt; if accepted, require concrete PROGRESS then DELIVERY, otherwise Codex implements the same bounded slice locally. Deployed/provider/browser, team, gallery, OAuth, R2 storage, VPN, migration/RLS, runtime, observability, CI governance and operator gates remain open.`
+CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE_CANONICAL: `5b59aa1484d35d4c392a63fe55347e67e91184fb read back from origin/codex/telegram-webhook-hardening; exact F84 source bind is 09c62cc1883008218371bf325b5af2384accf1f5; accepted product source remains 653b7587ae2830acbff790690c28fdd6db853e38.`
 HISTORICAL_MILESTONE_REMOTE_READBACK_R10: `GitHub branch tip read back as 2dc8a07b3e4d401f51807da4bd128766ef542a2e; R10 task envelope remote SHA 30af2eebca252d66159530dca84df6614bd102e15aaa6a853d298dfe9aa5b27e; R10 Hermes ACK envelope SHA e6f5007f95975cc9a177a528136ad5ba9d3f7a4d6f24247fa6e6874a6c4b5d7a; R10 Codex receipt-002 SHA a7f07ec2edc19fc5cf031d6fc23cb6ff7b5be8eb38db92c2695769a583b04aae; source baseline c1588e4; protocol tests 30/30; control readable-delivery receipt-004 SHA 9fb42bd20a3d1f29fd4184530bc42191691c1f3a5d23025f5fbeb17131ac0a07; helper copy SHA 3aa2ad2fb3f28d94400c7e07c81dc31c707ad87363954083344ebfb51c86eb74; patch SHA 3383d6fb5e81974482550da8eadf7534267756cc4e43e8cff387bbc39a954a10; test harness SHA 299bf078b3bfcc21d6c98cc73f0a90b281e89a4a32bb63860b98e45046d61d73; Hermes R8 NACK-013 envelope SHA 939d31f4e54d34f26249707408fc7600694d9f8b4a8d4cfe9035add16d37c3e6; Hermes R9 NACK-001 envelope SHA 017a08c40291cff10d12a44cdcf41460799465f5b6f47b013f05404b77e824ba; R9 correction receipt-002 SHA bb66e3604d312ee16167264b964935afb0e4fa09a526b828f39416e8c3b60bd7; owner authorization SHA ab020cdfc694eec905c0589fd09f07312b91a9428bd596e1a34cc84f80bbccbf; no feature or live action`
-CURRENT_MILESTONE_EVIDENCE: `M782 F81/F84 audit and focused tests passed; M783 R1 task was protocol-valid and remote-readback verified; Hermes returned a terminal BLOCKED naming the missing exact commit; M784 supplied the exact archive with SHA readback and dispatched protocol-valid R2; no source delta or live action is claimed`
-CURRENT_MILESTONE_OPEN: `Await the single correlated R2 ACK/ACCEPTED or terminal BLOCKED. If accepted, Hermes must provide one concrete PROGRESS and one terminal DELIVERY; Codex then audits hashes/tests, integrates and pushes. Do not start a competing local F84 implementation while this lane is active.`
+CURRENT_MILESTONE_EVIDENCE: `M782 F81/F84 audit and focused tests passed; R1/R2 task envelopes and Hermes BLOCKED wires were read in full; the tar archive was rejected for missing commit binding; the exact Git bundle and R3 envelope were hash-read back; no source delta or live action is claimed`
+CURRENT_MILESTONE_OPEN: `Await the single correlated R3 ACK/ACCEPTED or terminal BLOCKED. If accepted, Hermes must provide one concrete PROGRESS and one terminal DELIVERY; Codex audits hashes/tests, integrates and pushes. If blocked on bundle consumption, take the local fallback and close F84 without another transport lane.`
 HISTORICAL_MILESTONE_REMOTE_READBACK_PLAYBOOK_HISTORY: `Exact-source sync reply SHA abadb46e3fa3175d7bb6ecddc28a4656a7c77cbd933d6d24f183c7f1ffa9ccfd; sync receipt SHA 8aa4d2411311b8102cae5ca5e059c5a7baecdc0d344b665c9c14dbfb93822c6e; PlaybookHistory task SHA 2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91; remote task SHA 2aff649311fd7e67f4be89b522c9e33c6a15244282836dcfdda1b7292119ee91; Hermes ACK/ACCEPTED SHA c42708ff5a2cc9addc90ffdef20a87336532a8801c8d1e770f06cd048e705737; acceptance READ receipt SHA ed6e8dfedae0ee522b16ebaec54db94a6993bd1a7d6a85ede3359108b777a1ed; progress-required receipt SHA 684744a5dc2128759435ac1eeb4b14b08c1a9d5a8ae6d81835f6dead0fad8833; malformed Hermes PROGRESS SHA 471a32173cd79cf58e0c86ddefcdef6ed959437555677b4efdf6e3dbb083f447; correction receipt SHA cb2f3bc19348088fbe74f7f4bb870114e3fa42bd62aef89b691dabcdbf3aba2f; corrected Hermes PROGRESS SHA 780caca68d563a5f24f5ae7131f9f48c3b98c22d724121ae4de453159079da74; progress-acceptance receipt SHA 8db70fb1eb81273a56d209a9ac52c780c8ec50692f15018d6c6ed8979f53058b; Hermes delivery-gate ACK SHA d0911e6316e173bd8aeb3b42006d7fe51cada72880ab266ee8fdf7a342562a57; implementation source 50df7061f89780b1d94d5545e1803326af65a610; coordination tip 88fb86d242a0f009f8776f309626ffd29251dbe4; delivery is next, no further ACK expected, local baseline recorded, LIVE_ACTIONS NONE`
 CURRENT_MILESTONE_REMOTE_READBACK_CURRENT: `Product-source branch ref read back as 4d38c924b586256b720683e3ae34e8c0b0c1732c; M763 source commit a3f74fef15bbeae1119ed0a71cca58bf4d742847 remains the exact bound source; Hermes Git bundle beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6, R3 task envelope 98e26df5b3a7823572171d6ba375dc954a33c9780d0ae7718855d46f9102e53c and remote readback were verified; core build PASS; core tests 80/80; dashboard focused MediaBundleCreate/ApproveButtons/AgentPermissionManager/PlaybookHistory/TriggerRuleManager tests 47/47; dashboard typecheck PASS; dashboard lint PASS with three pre-existing warnings; diff check PASS; LIVE_ACTIONS NONE`
 CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE: `M777 product-source commit 726c19a550ffa742eb9e81a97f1b71eff16363e1 was read back from origin; later coordination commits only update this handoff metadata; Hermes Git bundle beba884a0b1eedd10d03463ecdc8f58a67a800241b64d66bb35b6dd7515691a6 and terminal BLOCKED envelope d58bc7a36e65c215c62d68fd6186082a6fc230e815e4276771d6072a6734152f remain historical evidence; core build PASS; core tests 80/80; combined DraftEditor/BundleMedia focused 23/23; dashboard typecheck PASS; dashboard lint PASS with three pre-existing warnings; diff check PASS; LIVE_ACTIONS NONE`
 CURRENT_MILESTONE_REMOTE_READBACK_AUTHORITY: `Use CURRENT_MILESTONE_REMOTE_READBACK_ACTIVE above. The older CURRENT_MILESTONE_REMOTE_READBACK_CURRENT record is historical evidence only and is not an active branch, task, reply or lane state.`
-LOCAL_MILESTONE_AFTER_TASK: `M784 — F84 archive transport supplied and R2 dispatched; current source work is ACK-gated and no competing local implementation is authorized`
+LOCAL_MILESTONE_AFTER_TASK: `M785 — F84 exact Git bundle supplied and R3 dispatched; source work is ACK-gated with one explicit local fallback after terminal transport failure`
 
 ## Current coordination update — M697 canonical R8 lane
 
