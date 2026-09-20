@@ -61,7 +61,9 @@ ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact commit; never a moving branch 
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1-republish/copy`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-worker-digest-localization-r1-republish/delivery`
-ACTIVE_LANE_COPY_STATE: `DELIVERY_REJECTED_PROTOCOL — remote delivery bytes are readable and seven manifest checks pass, but the Hermes DELIVERY reused SEQ 1; Codex rejection receipt at SEQ 2 requires a fresh DELIVERY at SEQ 3`
+ACTIVE_LANE_COPY_STATE: `DELIVERY_REJECTED_PROTOCOL — remote delivery bytes are readable and seven manifest checks pass; the complete delivery was fetched into the local review tree with all hashes matching, but the Hermes DELIVERY reused SEQ 1; Codex rejection receipt at SEQ 2 requires a fresh DELIVERY at SEQ 3`
+ACTIVE_LANE_LOCAL_REVIEW_ROOT: `L5-verification/hermes-f89-worker-digest-localization-r1-republish-review`
+ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `PASS — seven source files and SHA256SUMS.txt independently match the Hermes manifest; no product source was modified`
 ACTIVE_LANE_TASK_ENVELOPE_SHA256: `a93e53d8c11545b6fa3b1c3ad09a7c493f02b4c0a276718419031494d1f4b481`
 ACTIVE_LANE_TASK_REMOTE_SHA256: `a93e53d8c11545b6fa3b1c3ad09a7c493f02b4c0a276718419031494d1f4b481 — exact task envelope read back from Hermes inbox`
 ACTIVE_LANE_ACK_WIRE: `HERMES-F89-WORKER-DIGEST-LOCALIZATION-R1-REPUBLISH-DELIVERY-001 — malformed duplicate SEQ 1; not accepted`
