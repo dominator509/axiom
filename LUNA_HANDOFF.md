@@ -9,8 +9,8 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 
 SOURCE_HEAD: `fb594a441cada409a251a5c35399662562ade169` (M907 isolated matrix stabilization; remote readback matches)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `fb594a441cada409a251a5c35399662562ade169` (M907 isolated matrix stabilization; remote readback matches)
-COORDINATION_HEAD: `fb594a441cada409a251a5c35399662562ade169 — M907 isolated matrix stabilization; pushed and read back`
+PUBLISHED_HEAD: `fb594a441cada409a251a5c35399662562ade169` (product source pin; later branch commits are coordination-only)
+COORDINATION_HEAD: `coordination metadata is pushed on the published branch; verify its current tip with git ls-remote; it must not replace the exact product source pin above`
 ACCEPTED_PRODUCT_SOURCE: `fb594a441cada409a251a5c35399662562ade169`
 LAST_COMPLETED_SOURCE_MILESTONE: `M907 — canonical storage-key fixtures and deterministic isolated Vitest discovery/database sequencing; full matrix and verify gate passed; pushed at fb594a441cada409a251a5c35399662562ade169`
 ACTIVE_HERMES_LANE: `F89-VARIANT-GUIDANCE-ATTRIBUTION-LOCALIZATION-R4 — sole active source-only lane against immutable fb594a44 ref; supersedes unconfirmed R3`
