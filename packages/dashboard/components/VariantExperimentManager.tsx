@@ -192,7 +192,7 @@ export default function VariantExperimentManager({
                       onClick={() => {
                         if (!window.confirm(t('variant.manager.confirmWinner'))) return;
                         void run({ path: `/api/v1/models/${encodeURIComponent(modelId)}/variant-experiments/${encodeURIComponent(experiment.id)}/promote`, method: 'POST', body: JSON.stringify({ variantId: stat.variantId }) }, () => setMessage(t('variant.manager.winnerRecorded')));
-                      }}>Select as winner</button>}
+                      }}>{t('variant.manager.selectWinner')}</button>}
                   </div>
                 ))}
               </div>

@@ -1339,3 +1339,17 @@ passed / 50 skipped; API typecheck and `git diff --check` pass. Source, test
 and contract evidence only. Billing
 provider, migration/runtime, browser, payout/operator and legal gates remain
 open. No live action occurred.
+
+### M957 — F-89 variant winner-control localization
+
+The remaining hardcoded `Select as winner` action in the model-scoped variant
+experiment manager now uses `variant.manager.selectWinner` from the shared
+variant catalog. The label is explicitly present for English, Spanish,
+Japanese, Italian, Brazilian Portuguese and German; platform names remain
+provider/product data rather than translated prose.
+
+Evidence: variant catalog tests 3/3, dashboard component test 5/5, core suite
+25 files / 140 passed, dashboard suite 154 files / 976 passed, core/dashboard
+typechecks, core build and `git diff --check` pass. Browser/native acceptance,
+remaining catalog adoption, runtime/provider, migration and deployment gates
+remain open. No live action occurred.

@@ -131,6 +131,7 @@ const en: Catalog = {
   'variant.manager.conversionsUnavailable': 'Conversion data unavailable',
   'variant.manager.conversions': '{count} conversions',
   'variant.manager.confirmWinner': 'Select this variant as the winner and complete this experiment? This does not approve or publish media.',
+  'variant.manager.selectWinner': 'Select as winner',
   'variant.manager.winnerRecorded': 'Winner recorded. The experiment is complete; normal media approval is still required.',
   'variant.manager.automaticDescription': 'Automatic fixed evaluation: first 20 published posts per variant, first provider observations after 72 hours. The result is frozen once evaluated; no clear separation means completion without a winner. This does not approve or publish posts and is not a causal sales-lift claim.',
   'variant.manager.automaticResult': 'Result: inconclusive.',
@@ -216,8 +217,17 @@ const observedConversionLabels: Record<SupportedLocale, string> = {
   'pt-BR': 'Conversão observada',
   de: 'Beobachtete Konversion',
 };
+const selectWinnerLabels: Record<SupportedLocale, string> = {
+  en: 'Select as winner',
+  es: 'Seleccionar como ganadora',
+  ja: '勝者として選択',
+  it: 'Seleziona come vincitrice',
+  'pt-BR': 'Selecionar como vencedora',
+  de: 'Als Gewinnerin auswählen',
+};
 for (const locale of supportedVariantLocales) {
   variantUiCatalogs[locale]['variant.tracking.observedConversion'] = observedConversionLabels[locale];
+  variantUiCatalogs[locale]['variant.manager.selectWinner'] = selectWinnerLabels[locale];
 }
 
 export const VARIANT_UI_CATALOGS: Record<SupportedLocale, Catalog> = variantUiCatalogs;
