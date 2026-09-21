@@ -1412,3 +1412,22 @@ passed 154 files / 978 tests, dashboard typecheck/lint, `git diff --check` and
 numeric-formatting source slice; complete catalog adoption, browser/native
 acceptance, deployed migration/RLS/runtime, provider receipts, observability,
 CI governance and production acceptance remain open. No live action occurred.
+
+### M961 — F-89 Link-in-bio analytics formatting
+
+The mounted model Link-in-bio analytics and Fanvue-attribution surfaces had
+raw click and conversion counts despite already localized currency and
+percentage values. Provider counts, total/top-target clicks, tracked and
+attributed/unattributed conversions, and per-link clicks/conversions now use
+the selected locale's shared number formatter. URLs, slugs, provider kinds and
+other identifiers remain data.
+
+Evidence: focused Link-in-bio page tests 6/6, full dashboard suite 154 files /
+978 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`bc36636e46754954419eaff1270994fb3fe81c14` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+Link-in-bio analytics count-formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
