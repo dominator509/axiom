@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `fcf29655b2e5c4d0349d0205e0d7838cae78d384`
+Source checkpoint: `324e1ad76f3bcc5d57f8da477bb0d0b40394725a`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1852,3 +1852,18 @@ roleplay handoff-revision formatting slice; remaining catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime evidence, provider
 receipts, observability, CI governance and production acceptance remain open.
 No live action occurred.
+
+### M986 - F-89 trigger-threshold formatting
+
+The automation trigger-rule list now renders persisted metric thresholds
+through the selected locale's number formatter instead of emitting raw numeric
+text. Metric semantics, validation and mutation payloads remain unchanged.
+
+Evidence: focused TriggerRuleManager tests 4/4, full dashboard suite 156 files
+/ 1,008 passed, dashboard typecheck/lint and `git diff --check` pass. Product
+source commit `324e1ad76f3bcc5d57f8da477bb0d0b40394725a` is pushed and read back
+from `origin/codex/telegram-webhook-hardening`. This closes only the verified
+trigger-threshold formatting slice; remaining catalog adoption, browser/native
+acceptance, deployed migration/RLS/runtime evidence, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
