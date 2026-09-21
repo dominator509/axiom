@@ -14,8 +14,8 @@ COORDINATION_HEAD: `315c99db`
 COORDINATION_HEAD_LAST_READBACK: `315c99db — handoff and Hermes recovery-manifest pointer staged for the active F33 R2 lane`
 ACCEPTED_PRODUCT_SOURCE: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b`
 CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — OPEN marker for F33-PROVIDER-CACHE-CONTROLS-SOURCE-R2; remote marker mirrors this task`
-CURRENT_TASK_MANIFEST_SHA256: `0699b7ef68af88685428e4e4d63ae7bda9120fc76e4c89e35e6e8e0996db752d`
-CURRENT_TASK_MANIFEST_REMOTE_SHA256: `0699b7ef68af88685428e4e4d63ae7bda9120fc76e4c89e35e6e8e0996db752d — remote readback includes the mandatory HERMES_MANIFESTO recovery pointer`
+CURRENT_TASK_MANIFEST_SHA256: `5e30cd34b1dadc3f5a07c6c6094b85e557633b0afc06a342097d39e7c85dcec5`
+CURRENT_TASK_MANIFEST_REMOTE_SHA256: `5e30cd34b1dadc3f5a07c6c6094b85e557633b0afc06a342097d39e7c85dcec5 — remote readback requires manifesto confirmation in the next Hermes progress wire`
 CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; only task_msg_id/task_wire match the active lane; every other inbox/reply/status/outbox/worktree artifact is historical and inert`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
