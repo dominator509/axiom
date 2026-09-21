@@ -3,6 +3,7 @@ import PlaybookGuidelineManager from '@/components/PlaybookGuidelineManager';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
 import Link from 'next/link';
 import { getServerLocale } from '@/lib/server-locale';
+import { formatNumber } from '@axiom/core';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,7 @@ interface PlaybookData {
 
 export default async function PlaybookPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { t, dateTime } = await getServerLocale();
+  const { t, dateTime, locale } = await getServerLocale();
   const session = await getSession();
   if (!talentDestinationAllowed(session?.user?.role, 'playbook')) return <div className="card"><h2>{t('playbook.accessUnavailable')}</h2><p>{t('playbook.accessDescription')}</p><Link href="/">{t('playbook.back')}</Link></div>;
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
@@ -57,7 +58,7 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
       <div className="grid">
         <div className="card">
           <h3>{t('playbook.currentScore')}</h3>
-          <div style={{ fontSize: 40, fontWeight: 700 }}>{pct}%</div>
+          <div style={{ fontSize: 40, fontWeight: 700 }}>{formatNumber(pct, locale)}%</div>
           <p style={{ color: 'var(--muted)', margin: 0 }}>
             {data.score.passed
               ? t('playbook.adherent')
@@ -68,15 +69,15 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
           <h3>{t('playbook.cadence')}</h3>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <span>{t('playbook.postsPerDay')}</span>
-            <strong>{data.cadencePerDay.toFixed(2)}</strong>
+            <strong>{formatNumber(data.cadencePerDay, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
           </div>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <span>{t('playbook.published')}</span>
-            <strong>{data.postCount30d}</strong>
+            <strong>{formatNumber(data.postCount30d, locale)}</strong>
           </div>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <span>{t('playbook.scheduled')}</span>
-            <strong>{data.scheduleCount30d}</strong>
+            <strong>{formatNumber(data.scheduleCount30d, locale)}</strong>
           </div>
         </div>
       </div>
@@ -94,7 +95,7 @@ export default async function PlaybookPage({ params }: { params: Promise<{ id: s
               {data.history.map((h) => (
                 <tr key={h.id}>
                   <td>{dateTime(h.ts)}</td>
-                  <td>{h.score}%</td>
+                  <td>{formatNumber(h.score, locale)}%</td>
                 </tr>
               ))}
             </tbody>
