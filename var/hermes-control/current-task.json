@@ -20,11 +20,11 @@
   "task_sha256": "934b4c4e503a708131a29560db91220e195a4a1ed4f0b7d51fb911e4cc63c5cd",
   "copy_root": "/srv/fanthynks-bridge/hermes/inbox/codex-f33-provider-cache-controls-source-r3/copy",
   "delivery_root": "/srv/fanthynks-bridge/hermes/inbox/codex-f33-provider-cache-controls-source-r3/delivery",
-  "state": "OPEN",
-  "next_owner": "HERMES",
-  "last_seq": 0,
-  "next_seq": 1,
-  "last_wire": "NONE",
+  "state": "CLOSED",
+  "next_owner": "NONE",
+  "last_seq": 10,
+  "next_seq": 11,
+  "last_wire": "HERMES-F33-PROVIDER-CACHE-CONTROLS-SOURCE-R3-NEXT-TASK-REQUEST-010",
   "supersedes": [
     "CODEX-F33-PROVIDER-CACHE-CONTROLS-SOURCE-R2-DELIVERY-003"
   ],
@@ -32,7 +32,10 @@
     "codex-f33-provider-cache-controls-source-r2"
   ],
   "stale_inbox_policy": "CURRENT_TASK_ONLY; only this task_msg_id and task_wire are active; every other inbox, reply, status, outbox and worktree identity is historical and inert; never infer work from transport status or file order",
-  "next_action": "Hermes must read HERMES_MANIFESTO.md, AGENTS.md, COMMANDS.md, LUNA_HANDOFF.md and the FT-HERMES protocol; fetch all refs; verify the exact source commit and task hash; return one strict ACK with STATE READ or ACCEPTED; then implement only this R3 scope and publish real PROGRESS followed by strict DELIVERY or terminal BLOCKED",
+  "next_action": "No further action on this terminal lane. Codex audited the source-only delivery, integrated the reconciled implementation, pushed the new coordination head, and will install a separate marker before any next task.",
+  "closed_source_commit": "675b92585d2bf7bfe316e2cea7ce42c03ae4cf8e",
+  "closed_remote_ref_head": "675b92585d2bf7bfe316e2cea7ce42c03ae4cf8e",
+  "closed_reason": "F33 R3 source delivery audited and integrated locally; focused tests, typechecks, lint and diff-check passed; no live action.",
   "live_actions": "NONE",
   "forbidden_actions": [
     "installer",
