@@ -7,11 +7,11 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `fb523d2497ca370b2272e274376d622395fe5e98` (current pushed coordination/source head and exact source binding for the active Hermes task)
+SOURCE_HEAD: `d5e90f6c06f708175b1f70b5f0369e14bbe8f5b5` (current pushed coordination head; active Hermes task remains intentionally pinned to the exact product source commit fb523d2)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `fb523d2497ca370b2272e274376d622395fe5e98` (verified local and origin readback)
-COORDINATION_HEAD: `fb523d2497ca370b2272e274376d622395fe5e98`
-COORDINATION_HEAD_LAST_READBACK: `121201123a8beb234997784cd850aeba8b321524 — M919 handoff and bridge reconciliation`
+PUBLISHED_HEAD: `d5e90f6c06f708175b1f70b5f0369e14bbe8f5b5` (verified local and origin readback)
+COORDINATION_HEAD: `d5e90f6c06f708175b1f70b5f0369e14bbe8f5b5`
+COORDINATION_HEAD_LAST_READBACK: `d5e90f6c06f708175b1f70b5f0369e14bbe8f5b5 — M922 Hermes lane reconciliation`
 ACCEPTED_PRODUCT_SOURCE: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b`
 CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — OPEN marker for F89-DASHBOARD-REMAINING-L10N-R2; remote marker is /srv/fanthynks-bridge/hermes/inbox/CURRENT_TASK.json`
 CURRENT_TASK_MANIFEST_SHA256: `38698ee21058e890723fd94ffa2d3d520a919d60418761dd9c58c4b2561e8fb0`
