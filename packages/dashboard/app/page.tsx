@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import NewModelForm from '@/components/NewModelForm';
 import { getServerLocale } from '@/lib/server-locale';
+import { formatNumber } from '@axiom/core';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +10,7 @@ export default async function HomePage({ searchParams }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const query = await searchParams;
-  const { t } = await getServerLocale();
+  const { t, locale } = await getServerLocale();
   const cursor = typeof query?.cursor === 'string' ? query.cursor : undefined;
   let models: Awaited<ReturnType<typeof api.models.list>>['data'] = [];
   let nextCursor: string | null = null;
@@ -52,18 +53,18 @@ export default async function HomePage({ searchParams }: {
       <section className="stat-grid" aria-label={t('home.portfolioSummary')}>
         <div className="stat-card">
           <span>{t('home.totalTalent')}</span>
-          <strong>{totalCount ?? t('home.unavailable')}</strong>
+          <strong>{totalCount === null ? t('home.unavailable') : formatNumber(totalCount, locale)}</strong>
           <small>{totalCount === null ? t('home.countUnavailable') : t('home.profilesInStudio')}</small>
         </div>
         <div className="stat-card">
           <span>{t('home.activeOnPage')}</span>
-          <strong>{activeCount}</strong>
+          <strong>{formatNumber(activeCount, locale)}</strong>
           <small>{t('home.profilesMarkedActive')}</small>
         </div>
         <div className="stat-card accent">
           <span>{t('home.profileList')}</span>
           <strong>{error ? t('home.unavailable') : t('home.loaded')}</strong>
-          <small>{error ? t('home.profileRequestFailed') : t('home.profilesShown', { count: models.length })}</small>
+          <small>{error ? t('home.profileRequestFailed') : t('home.profilesShown', { count: formatNumber(models.length, locale) })}</small>
         </div>
       </section>
 
@@ -89,7 +90,7 @@ export default async function HomePage({ searchParams }: {
             <p className="eyebrow">{t('home.roster')}</p>
             <h2>{t('home.talentProfiles')}</h2>
           </div>
-          <span>{t('home.shown', { count: models.length })}</span>
+          <span>{t('home.shown', { count: formatNumber(models.length, locale) })}</span>
         </div>
       )}
       <div id="talent-profiles" className="grid talent-grid" tabIndex={-1}>

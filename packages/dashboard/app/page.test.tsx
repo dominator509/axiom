@@ -46,6 +46,7 @@ const messages: Record<string, string> = {
 };
 
 vi.mocked(getServerLocale).mockResolvedValue({
+  locale: 'en',
   t: (key: string, values?: Record<string, string | number>) => {
     if (key === 'home.profilesShown') return `${values?.count ?? 0} profiles shown`;
     if (key === 'home.shown') return `${values?.count ?? 0} shown`;
@@ -53,15 +54,15 @@ vi.mocked(getServerLocale).mockResolvedValue({
   },
 });
 
-function transport({ empty = false, countFailure = false, pageFailure = false } = {}) {
+function transport({ empty = false, countFailure = false, pageFailure = false, totalCount = 101, pageCount = 1 } = {}) {
   const fetch = vi.fn(async (input: string) => {
     const url = new URL(input);
     if (url.pathname.endsWith('/stats/count')) {
-      return new Response(JSON.stringify({ data: { count: 101 } }), { status: countFailure ? 503 : 200 });
+      return new Response(JSON.stringify({ data: { count: totalCount } }), { status: countFailure ? 503 : 200 });
     }
     return new Response(JSON.stringify({
-      data: empty ? [] : [{ id: 'profile', displayName: 'Visible creator', handle: 'creator', isActive: true }],
-      meta: { total: empty ? 0 : 1, limit: 50, next_cursor: empty ? null : 'opaque+/=&cursor' },
+      data: empty ? [] : Array.from({ length: pageCount }, (_, index) => ({ id: index === 0 ? 'profile' : `profile-${index}`, displayName: index === 0 ? 'Visible creator' : `Creator ${index}`, handle: `creator-${index}`, isActive: true })),
+      meta: { total: empty ? 0 : pageCount, limit: 50, next_cursor: empty ? null : 'opaque+/=&cursor' },
     }), { status: pageFailure ? 503 : 200 });
   });
   vi.stubGlobal('fetch', fetch);
@@ -101,6 +102,22 @@ describe('portfolio pagination and counts', () => {
     expect(html).toContain('cursor=opaque%2B%2F%3D%26cursor');
     expect(html).not.toContain('ready for publishing');
     expect(html).not.toContain('private systems connected');
+  });
+
+  it('formats organization and page profile counts in the selected locale', async () => {
+    vi.mocked(getServerLocale).mockResolvedValue({
+      locale: 'de',
+      t: (key: string, values?: Record<string, string | number>) => {
+        if (key === 'home.profilesShown') return `${values?.count ?? 0} profiles shown`;
+        if (key === 'home.shown') return `${values?.count ?? 0} shown`;
+        return messages[key] ?? key;
+      },
+    });
+    transport({ totalCount: 12345, pageCount: 1234 });
+    const html = await render();
+    expect(html).toContain('<strong>12.345</strong>');
+    expect(html).toContain('1.234 profiles shown');
+    expect(html).toContain('1.234 shown');
   });
 
   it('round-trips the cursor and offers reset on an exhausted page', async () => {
