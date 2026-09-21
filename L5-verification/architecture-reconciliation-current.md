@@ -1500,3 +1500,21 @@ variant analytics formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M966 — F-89 Playbook metric formatting
+
+The model Playbook summary exposed raw score, cadence, published-count,
+scheduled-count and score-history values. These values now use the selected
+locale's shared number formatter, with two decimal places for posts-per-day;
+score percentages retain their explicit percent sign and dates remain rendered
+through the existing locale-aware UTC date/time formatter.
+
+Evidence: focused Playbook page tests 7/7, full dashboard suite 156 files / 984
+passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`dfe3363ae31194c0d758811229682dbbe35865a0` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+Playbook metric-formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
