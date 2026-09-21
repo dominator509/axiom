@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `6811d4594c8c8e4965424387f0141a388afc4318`
+Source checkpoint: `f2acf8dd6ac7b596a685594701423b0ac2711cfb`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1819,3 +1819,20 @@ catalog adoption across remaining dashboard/email/operator surfaces, the
 broader locale-formatting audit, deployed migration/RLS/runtime evidence,
 provider receipts, observability, CI governance and production acceptance
 remain open. No live action occurred.
+
+### M984 - F-89 generation safety-score formatting
+
+The generation receipt now renders ToS safety scores through the selected
+locale's number formatter with bounded precision instead of raw numeric
+output. Verdicts, provider/platform identifiers and safety semantics remain
+unchanged.
+
+Evidence: focused GenerateForm tests 31/31, full dashboard suite 156 files /
+1,007 passed, dashboard typecheck/lint and `git diff --check` pass. Product
+source commit `f2acf8dd6ac7b596a685594701423b0ac2711cfb` is pushed and read
+back from `origin/codex/telegram-webhook-hardening`. This closes only the
+verified generation-score formatting slice; complete catalog adoption across
+remaining dashboard/email/operator surfaces, broader locale-formatting audit,
+browser/native acceptance, deployed migration/RLS/runtime evidence, provider
+receipts, observability, CI governance and production acceptance remain open.
+No live action occurred.

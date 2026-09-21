@@ -7,27 +7,27 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `6811d4594c8c8e4965424387f0141a388afc4318` (M983 product source, pushed; no active Hermes implementation lane)
+SOURCE_HEAD: `f2acf8dd6ac7b596a685594701423b0ac2711cfb` (M984 product source, pushed; no active Hermes implementation lane)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `6811d4594c8c8e4965424387f0141a388afc4318` (M983 source commit pushed and read back from origin)
-COORDINATION_HEAD: `6811d4594c8c8e4965424387f0141a388afc4318` (M983 product milestone; handoff-only update follows)
-COORDINATION_HEAD_LAST_READBACK: `6811d4594c8c8e4965424387f0141a388afc4318 — exact origin readback`
-ACCEPTED_PRODUCT_SOURCE: `6811d4594c8c8e4965424387f0141a388afc4318`
+PUBLISHED_HEAD: `f2acf8dd6ac7b596a685594701423b0ac2711cfb` (M984 source commit pushed and read back from origin)
+COORDINATION_HEAD: `f2acf8dd6ac7b596a685594701423b0ac2711cfb` (M984 product milestone; handoff-only update follows)
+COORDINATION_HEAD_LAST_READBACK: `f2acf8dd6ac7b596a685594701423b0ac2711cfb — exact origin readback`
+ACCEPTED_PRODUCT_SOURCE: `f2acf8dd6ac7b596a685594701423b0ac2711cfb`
 CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — historical F89-ADAPTATION-ERROR-L10N-R1 marker; no active Hermes source-copy lane`
 CURRENT_TASK_MANIFEST_SHA256: `7c75812f9d2f34913bad58de1788f5aa62d1a8a46053016b97e9655653aea2b0`
 CURRENT_TASK_MANIFEST_REMOTE_SHA256: `7c75812f9d2f34913bad58de1788f5aa62d1a8a46053016b97e9655653aea2b0 — exact bridge marker readback`
 CURRENT_TASK_MANIFEST_RULE: `The current marker is retained as historical coordination evidence only; because Hermes polling is disabled, its OPEN state does not authorize reads, implementation, replies, or source integration`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
-LAST_COMPLETED_SOURCE_MILESTONE: `M983 F-89 analytics/link-in-bio formatting closure — localized analytics revision label and selected-locale link-click counts; product commit 6811d459 pushed/read back; no live action`
+LAST_COMPLETED_SOURCE_MILESTONE: `M984 F-89 generation safety-score formatting — selected-locale ToS score output in the generation receipt; product commit f2acf8dd pushed/read back; no live action`
 ACTIVE_HERMES_LANE: `NONE — Hermes bridge polling is disabled by owner; no source-copy lane is active`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `NONE — do not revive the stale marker or read historical Hermes artifacts unless the owner explicitly re-enables delegation`
 HERMES_BRIDGE_POLLING: `DISABLED — no bridge reads, reminders, task dispatch, or Hermes source integration`
 NEXT_ACTION: `Continue the local architecture reconciliation one finite source gap at a time. Do not revive Hermes or the stale current marker. The next change must be independently reproduced, focused-tested, committed and pushed before the handoff advances. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
 BRIDGE_OBSERVATION: `Hermes polling was explicitly stopped. Historical bridge artifacts, stale OPEN markers and unread replies are inert; Codex is working from current repository source and this handoff only.`
-CURRENT_LOCAL_DELIVERY: `M983 F-89 analytics/link-in-bio formatting closure integrated; focused 18/18, core 26 files/142 passed, dashboard 156 files/1006 passed, core build/typecheck, dashboard typecheck/lint, diff-check and origin readback pass; no live action`
-PRODUCT_COMPLETION_COMMIT: `6811d4594c8c8e4965424387f0141a388afc4318 — M983 closed analytics/link-in-bio formatting gaps`
+CURRENT_LOCAL_DELIVERY: `M984 F-89 generation safety-score formatting integrated; focused 31/31, full dashboard 156 files/1007 passed, dashboard typecheck/lint, diff-check and origin readback pass; no live action`
+PRODUCT_COMPLETION_COMMIT: `f2acf8dd6ac7b596a685594701423b0ac2711cfb — M984 formatted generation safety scores`
 HERMES_LANE_DISPOSITION: `NONE — the prior F89 marker and receipt are historical evidence only while Hermes polling is disabled`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
