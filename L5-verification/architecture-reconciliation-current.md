@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `120bae89b68fe96a30f2e4b5804e141b24941b4c`
+Source checkpoint: `85a4f32368f7016de65efd053a07943dac5cfafc`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1627,3 +1627,21 @@ network-latency formatting and source-audit correction; complete catalog
 adoption, browser/native acceptance, deployed migration/RLS/runtime, provider
 receipts, observability, CI governance and production acceptance remain open.
 No live action occurred.
+
+### M973 - F-89 model-overview latency formatting
+
+The model overview now formats its displayed egress latency with the selected
+locale's shared number formatter instead of rendering the persisted integer
+directly. This closes the corresponding source-level formatting gap identified
+by the current dashboard audit; it does not imply browser, mobile, provider,
+deployment or production acceptance.
+
+Evidence: focused ModelOverview tests 15/15, full dashboard suite 156 files /
+991 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`85a4f32368f7016de65efd053a07943dac5cfafc` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+model-overview latency formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
