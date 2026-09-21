@@ -1,6 +1,6 @@
 'use client';
 
-import { learningContextBucket, parseLearningArm } from '@axiom/core';
+import { formatNumber, learningContextBucket, parseLearningArm } from '@axiom/core';
 import { useLocale } from './LocaleProvider';
 
 export interface PerformancePattern {
@@ -24,11 +24,11 @@ const hourBucket = (hour: number | null | undefined, unavailableLabel: string) =
   return `${String(start).padStart(2, '0')}:00–${String(start + 5).padStart(2, '0')}:59 UTC`;
 };
 export default function PerformancePatterns({ patterns }: { patterns?: { groups: PerformancePattern[]; truncated: boolean; minimumSample: number } }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   return <section className="card stack" aria-label={t('dashboard.performance.ariaLabel')}>
     <h3>{t('dashboard.performance.title')}</h3>
     <p className="subtle">{t('dashboard.performance.description')}</p>
-    {!patterns ? <p>{t('dashboard.performance.patternsUnavailable')}</p> : patterns.groups.length === 0 ? <p>{t('dashboard.performance.patternsNotEnough', { count: patterns.minimumSample })}</p> : <div className="grid">{patterns.groups.map(group => {
+    {!patterns ? <p>{t('dashboard.performance.patternsUnavailable')}</p> : patterns.groups.length === 0 ? <p>{t('dashboard.performance.patternsNotEnough', { count: formatNumber(patterns.minimumSample, locale) })}</p> : <div className="grid">{patterns.groups.map(group => {
       const parsed = parseLearningArm(group.arm);
       const length = parsed?.captionLength ?? 'unknown';
       const kind = parsed?.captionShape ?? 'statement';
@@ -40,7 +40,7 @@ export default function PerformancePatterns({ patterns }: { patterns?: { groups:
         <p>{timeLabel(group.context, t('dashboard.performance.unknownScheduledTime'), t('dashboard.performance.scheduledTimeUnknown'))}</p>
         <p>{t('dashboard.performance.recordedMedia')}: {group.mediaFormat && group.mediaFormat !== 'unknown' ? group.mediaFormat : t('dashboard.performance.unknownFormat')} · {t('dashboard.performance.published')}: {hourBucket(group.publishedHourUtc, t('dashboard.performance.publicationTimeUnavailable'))}</p>
         <p>{t('dashboard.performance.tosVerdict')}: {group.tosVerdict && group.tosVerdict !== 'unavailable' ? group.tosVerdict : t('model.unavailable')}</p>
-        <p>{t('dashboard.performance.labeledExemplars', { count: group.sampleSize })} · {t('dashboard.performance.meanRelativeScore', { score: group.meanScore.toFixed(2) })}</p>
+        <p>{t('dashboard.performance.labeledExemplars', { count: formatNumber(group.sampleSize, locale) })} · {t('dashboard.performance.meanRelativeScore', { score: formatNumber(group.meanScore, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) })}</p>
       </article>;
     })}</div>}
     {patterns?.truncated && <p>{t('dashboard.performance.showingTopGroups')}</p>}

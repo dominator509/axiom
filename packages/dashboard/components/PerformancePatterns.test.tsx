@@ -1,7 +1,8 @@
 import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { testT } from './testLocale';
-vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ locale: 'en', setLocale: () => undefined, t: testT }) }));
+const localeState = vi.hoisted(() => ({ locale: 'en' }));
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ locale: localeState.locale, setLocale: () => undefined, t: testT }) }));
 import PerformancePatterns from './PerformancePatterns';
 it('distinguishes unavailable from insufficient evidence', () => {
   expect(renderToStaticMarkup(<PerformancePatterns />)).toContain('unavailable');
@@ -22,4 +23,11 @@ it('shows a verified temporal arm qualifier without inventing one for old arms',
   expect(html).toContain('morning timing');
   const legacy = renderToStaticMarkup(<PerformancePatterns patterns={{ groups: [{ platform: 'instagram', arm: 'v2:short:question:hook=question:format=reel', context: 'learn-v2:scheduled-utc-2', sampleSize: 3, meanScore: 1 }], truncated: false, minimumSample: 3 }} />);
   expect(legacy).not.toContain(' timing');
+});
+it('formats pattern counts and scores with the selected locale', () => {
+  localeState.locale = 'de';
+  const html = renderToStaticMarkup(<PerformancePatterns patterns={{ groups: [{ platform: 'instagram', arm: 'short:question', context: 'learn-v1:scheduled-utc-3', sampleSize: 12345, meanScore: 12.345 }], truncated: false, minimumSample: 1234 }} />);
+  expect(html).toContain('12.345 labeled exemplars');
+  expect(html).toContain('12,35');
+  localeState.locale = 'en';
 });
