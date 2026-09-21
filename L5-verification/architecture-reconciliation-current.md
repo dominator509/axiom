@@ -1353,3 +1353,24 @@ Evidence: variant catalog tests 3/3, dashboard component test 5/5, core suite
 typechecks, core build and `git diff --check` pass. Browser/native acceptance,
 remaining catalog adoption, runtime/provider, migration and deployment gates
 remain open. No live action occurred.
+
+### M958 — F-89 remaining date and count formatting
+
+The next independently reproduced localization gaps were concrete host-format
+leaks in mounted dashboard surfaces. Digest creation timestamps now use the
+selected locale with an explicit UTC zone; model calendar detail timestamps now
+use the shared server-locale date/time formatter; and Patreon campaign/member/
+post counts, sync feedback counts and saved-record sync timestamps now use the
+selected locale with invalid-date and non-finite-value fallbacks. Provider,
+platform, authored and identifier values remain data rather than translated
+labels.
+
+Evidence: focused dashboard tests 20/20, full dashboard suite 154 files / 977
+passed, core typecheck/build, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`b4c7c359599c42f0cce6501edfa9a6654da1f1cc` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+digest/calendar/Patreon formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
