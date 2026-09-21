@@ -10,12 +10,12 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 SOURCE_HEAD: `dee80c85100faf471366a119bd7a5d1c95670c48` (exact pushed coordination/source pin for the new F14 lane; Hermes must fetch all refs before coding)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `dee80c85100faf471366a119bd7a5d1c95670c48` (verified origin readback before the F14 coordination marker)
-COORDINATION_HEAD: `dee80c85100faf471366a119bd7a5d1c95670c48`
-COORDINATION_HEAD_LAST_READBACK: `dee80c85100faf471366a119bd7a5d1c95670c48 — exact origin ref readback used as the F14 source pin`
+COORDINATION_HEAD: `3ff9c4cc5d05fe73058ee6a4baaf56355ba38dac`
+COORDINATION_HEAD_LAST_READBACK: `3ff9c4cc5d05fe73058ee6a4baaf56355ba38dac — exact origin ref readback after publishing the F14 marker/task`
 ACCEPTED_PRODUCT_SOURCE: `675b92585d2bf7bfe316e2cea7ce42c03ae4cf8e`
 CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — OPEN marker for F14-MODEL-WATERMARK-POLICY-SOURCE-R11; remote publication pending`
 CURRENT_TASK_MANIFEST_SHA256: `4f8f33e226d74e89d133575724a634d558e21ced4a2ede96247773ea71c4276a`
-CURRENT_TASK_MANIFEST_REMOTE_SHA256: `PENDING_REMOTE_READBACK — publish after the coordination commit and verify exact readback`
+CURRENT_TASK_MANIFEST_REMOTE_SHA256: `4f8f33e226d74e89d133575724a634d558e21ced4a2ede96247773ea71c4276a — exact remote marker readback`
 CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; only this F14 task is active; all historical inbox/reply/status/outbox/worktree artifacts are inert`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
