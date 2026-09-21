@@ -1535,3 +1535,20 @@ approvals count-formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M968 — F-89 calendar count formatting
+
+The model Calendar route passed its visible posts-in-view count to localized
+copy as a raw integer. It now formats that count through the selected locale's
+shared number formatter; calendar state, UTC navigation bounds, identifiers,
+schedule semantics and provider/publication boundaries remain unchanged.
+
+Evidence: focused Calendar page tests 13/13, full dashboard suite 156 files /
+986 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`1195b34ef7a90ae82c3e4f6c8c56288b5d7bdc37` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+calendar count-formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
