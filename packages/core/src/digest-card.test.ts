@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { LocaleCatalog, SUPPORTED_LOCALES, type DiagnosticEvent } from './locale.js';
-import { CATALOGS } from './locale-catalogs.js';
+import { CATALOGS } from './catalogs.js';
 import { renderDigestCard, resolveOrgDigestLocale, type DigestCardInput } from './digest-card.js';
 import type { UiLocalePreferenceRow } from './locale-settings.js';
 

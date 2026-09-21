@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { testT } from './testLocale';
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ locale: 'en', setLocale: () => undefined, t: testT }) }));
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], refs: [] as { current: unknown }[], i: 0, r: 0 }));
 vi.mock('react', async original => ({ ...await original<typeof import('react')>(),
   useState: (initial: unknown) => {

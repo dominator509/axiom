@@ -7,7 +7,7 @@
 
 import { expect, it } from 'vitest';
 import { LocaleCatalog, SUPPORTED_LOCALES, type DiagnosticEvent } from './locale.js';
-import { CATALOGS } from './locale-catalogs.js';
+import { CATALOGS } from './catalogs.js';
 
 /** Keys introduced by the authenticated media gallery shell slice. */
 const NEW_KEYS = [

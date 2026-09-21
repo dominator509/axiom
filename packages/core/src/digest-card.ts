@@ -16,7 +16,7 @@ import {
   normalizeLocale,
   type SupportedLocale,
 } from './locale.js';
-import { CATALOGS } from './locale-catalogs.js';
+import { CATALOGS } from './catalogs.js';
 import { LocaleCatalog } from './locale.js';
 import type { UiLocalePreferenceRow } from './locale-settings.js';
 

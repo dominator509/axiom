@@ -1,9 +1,11 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cancelGrok, connectGrok, disconnectGrok, resumeGrok, type GrokAttempt } from '@/lib/grok-connection';
+import { useLocale } from './LocaleProvider';
 
 export default function GrokConnection() {
-  const [status, setStatus] = useState('Connection not checked');
+  const { t } = useLocale();
+  const [status, setStatus] = useState(() => t('dashboard.grok.statusNotChecked'));
   const [instructions, setInstructions] = useState('');
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState<GrokAttempt | null>(null);
@@ -14,7 +16,7 @@ export default function GrokConnection() {
     const controller = new AbortController();
     active.current = controller;
     setBusy(true); setInstructions('');
-    setStatus(login ? 'Follow the Grok login instructions below' : 'Checking connection…');
+    setStatus(login ? t('connection.loginOutput') : t('connection.statusChecking'));
     const timeout = setTimeout(() => controller.abort(), 360000);
     try {
       const message = (text: string) => {
@@ -29,19 +31,19 @@ export default function GrokConnection() {
       if (active.current === controller && !controller.signal.aborted) {
         setStatus(connected
           ? login
-            ? 'Grok login completed. Generation access has not yet been verified.'
-            : 'Grok credential file found. Provider access has not yet been verified.'
-            : 'No saved Grok credential file found');
+            ? t('dashboard.grok.loginCompleted')
+            : t('dashboard.grok.credentialFound')
+            : t('dashboard.grok.noCredential'));
         setConnected(connected);
         if (connected) setInstructions('');
       }
     } catch {
-      if (active.current === controller) setStatus('Connection not confirmed. Check status before trying again.');
+      if (active.current === controller) setStatus(t('dashboard.grok.checkUnconfirmed'));
     } finally {
       clearTimeout(timeout);
       if (active.current === controller) { active.current = null; setBusy(false); }
     }
-  }, []);
+  }, [t]);
   useEffect(() => {
     void run(false);
     const resume = () => { if (!active.current) void run(false); };
@@ -58,10 +60,10 @@ export default function GrokConnection() {
       const result = await cancelGrok(attempt.id, controller.signal);
       if (active.current === controller) {
         setAttempt(result);
-        setStatus('Cancellation requested. Check status before trying again.');
+        setStatus(t('dashboard.grok.cancelRequested'));
       }
     } catch {
-      if (active.current === controller) setStatus('Cancellation not confirmed. Check status before trying again.');
+      if (active.current === controller) setStatus(t('dashboard.grok.checkUnconfirmed'));
     } finally {
       clearTimeout(timeout);
       if (active.current === controller) { active.current = null; setBusy(false); }
@@ -70,28 +72,28 @@ export default function GrokConnection() {
   async function disconnect() {
     if (busy || !connected) return;
     const controller = new AbortController(); active.current = controller;
-    setBusy(true); setInstructions(''); setStatus('Disconnecting…');
+    setBusy(true); setInstructions(''); setStatus(t('connection.disconnecting'));
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
       await disconnectGrok(controller.signal);
-      if (active.current === controller) { setConnected(false); setStatus('Grok account disconnected.'); }
+      if (active.current === controller) { setConnected(false); setStatus(t('connection.disconnected')); }
     } catch {
-      if (active.current === controller) setStatus('Connection change not confirmed. Check status before trying again.');
+      if (active.current === controller) setStatus(t('connection.changeUnconfirmed'));
     } finally {
       clearTimeout(timeout);
       if (active.current === controller) { active.current = null; setBusy(false); }
     }
   }
-  return <section aria-label="Grok account connection" className="stack">
+  return <section aria-label={t('connection.grokTitle')} className="stack">
     <p role="status">{status}</p>
-    <p>Connect your own Grok account before generating media. Sign in only on Grok’s authorization page; never paste passwords or tokens here. Connecting does not generate media.</p>
+    <p>{t('connection.grokDescription')}</p>
     <div className="actions">
-      <button type="button" disabled={busy} onClick={() => void run(false)}>Check saved Grok login</button>
-      <button type="button" disabled={busy} onClick={() => void run(true)}>Connect Grok account</button>
-      {attempt && ['pending', 'cancelling'].includes(attempt.state) && <button type="button" onClick={() => void cancel()}>Cancel Grok login</button>}
-      {connected && !attempt?.state?.match(/^(pending|cancelling)$/) && <button type="button" disabled={busy} onClick={() => void disconnect()}>Disconnect Grok</button>}
+      <button type="button" disabled={busy} onClick={() => void run(false)}>{t('dashboard.grok.checkSaved')}</button>
+      <button type="button" disabled={busy} onClick={() => void run(true)}>{t('dashboard.grok.connectAccount')}</button>
+      {attempt && ['pending', 'cancelling'].includes(attempt.state) && <button type="button" onClick={() => void cancel()}>{t('dashboard.grok.cancelLogin')}</button>}
+      {connected && !attempt?.state?.match(/^(pending|cancelling)$/) && <button type="button" disabled={busy} onClick={() => void disconnect()}>{t('action.disconnect')}</button>}
     </div>
-    <p>This check detects saved sign-in credentials; it does not test live image or video access. A credential-file result is not a login failure. Reconnecting does not verify generation access. Generation also requires an available worker and workspace safety settings that permit it.</p>
+    <p>{t('dashboard.grok.generationNote')}</p>
     {instructions && <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{instructions}</pre>}
   </section>;
 }

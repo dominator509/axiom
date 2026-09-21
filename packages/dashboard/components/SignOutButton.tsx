@@ -3,8 +3,10 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { fetchWithTimeout } from '@/lib/request';
+import { useLocale } from './LocaleProvider';
 
-export default function SignOutButton({ label = 'Sign out' }: { label?: string } = {}) {
+export default function SignOutButton({ label }: { label?: string } = {}) {
+  const { t } = useLocale();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export default function SignOutButton({ label = 'Sign out' }: { label?: string }
       router.replace('/login');
       router.refresh();
     } catch {
-      setError('Sign-out could not be confirmed. Your session may still be active. Please try again.');
+      setError(t('dashboard.signOutFailed'));
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -43,7 +45,7 @@ export default function SignOutButton({ label = 'Sign out' }: { label?: string }
         type="button"
         onClick={signOut}
         disabled={busy}
-        aria-label={label}
+        aria-label={label ?? t('action.signOut')}
       >
       {busy ? '…' : '↗'}
       </button>

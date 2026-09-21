@@ -1,5 +1,7 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { testT } from './testLocale';
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ locale: 'en', setLocale: () => undefined, t: testT }) }));
 import PerformancePatterns from './PerformancePatterns';
 it('distinguishes unavailable from insufficient evidence', () => {
   expect(renderToStaticMarkup(<PerformancePatterns />)).toContain('unavailable');

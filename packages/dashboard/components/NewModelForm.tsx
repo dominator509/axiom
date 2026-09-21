@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 export default function NewModelForm() {
+  const { t } = useLocale();
   const router = useRouter();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -49,7 +51,7 @@ export default function NewModelForm() {
       }, { idempotencyKey: intent.current.key });
       if (!res.ok) {
         const body = await readDashboardError(res);
-        setError(body?.error?.message ?? 'Create failed');
+        setError(body?.error?.message ?? t('dashboard.newModel.createFailed'));
         return;
       }
       intent.current = null;
@@ -59,7 +61,7 @@ export default function NewModelForm() {
       setBio('');
       router.refresh();
     } catch {
-      setError('Creation could not be confirmed. Retry without changing the form to safely check the same request.');
+      setError(t('dashboard.newModel.creationUnconfirmed'));
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -74,7 +76,7 @@ export default function NewModelForm() {
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
       >
-        <span aria-hidden="true">＋</span> Add talent
+        <span aria-hidden="true">＋</span> {t('dashboard.newModel.addTalent')}
       </button>
     );
   }
@@ -96,21 +98,21 @@ export default function NewModelForm() {
       >
         <div className="modal-heading">
           <div>
-            <p className="eyebrow">New profile</p>
-            <h2 id="new-talent-title">Welcome new talent</h2>
+            <p className="eyebrow">{t('dashboard.newModel.newProfile')}</p>
+            <h2 id="new-talent-title">{t('dashboard.newModel.welcomeTalent')}</h2>
           </div>
           <button
             className="icon-button"
             type="button"
             disabled={busy}
             onClick={() => { if (!inFlight.current) setOpen(false); }}
-            aria-label="Close"
+            aria-label={t('dashboard.newModel.close')}
           >
             ×
           </button>
         </div>
         <div>
-          <label htmlFor="displayName">Creator name</label>
+          <label htmlFor="displayName">{t('dashboard.newModel.creatorName')}</label>
           <input
             ref={nameRef}
             id="displayName"
@@ -121,19 +123,19 @@ export default function NewModelForm() {
           />
         </div>
         <div>
-          <label htmlFor="handle">Handle</label>
+          <label htmlFor="handle">{t('dashboard.newModel.handle')}</label>
           <input
             id="handle"
             required
             disabled={busy}
             value={handle}
             onChange={(e) => setHandle(e.target.value)}
-            placeholder="luna.vex"
+            placeholder={t('dashboard.newModel.handlePlaceholder')}
           />
         </div>
         <div>
           <label htmlFor="bio">
-            Brand note <span>(optional)</span>
+            {t('dashboard.newModel.brandNote')} <span>({t('dashboard.newModel.optional')})</span>
           </label>
           <textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={2} disabled={busy} />
         </div>
@@ -144,10 +146,10 @@ export default function NewModelForm() {
         )}
         <div className="modal-actions">
           <button className="btn" type="submit" disabled={busy}>
-            {busy ? 'Creating profile...' : 'Create profile'}
+            {busy ? t('dashboard.newModel.creatingProfile') : t('dashboard.newModel.createProfile')}
           </button>
           <button className="btn secondary" type="button" disabled={busy} onClick={() => { if (!inFlight.current) setOpen(false); }}>
-            Cancel
+            {t('action.cancel')}
           </button>
         </div>
       </form>

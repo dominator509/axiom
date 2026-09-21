@@ -1,4 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { testT } from './testLocale';
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ locale: 'en', setLocale: () => undefined, t: testT }) }));
 
 const state = vi.hoisted(() => ({
   set: vi.fn(), replace: vi.fn(), refresh: vi.fn(), inFlight: { current: false },

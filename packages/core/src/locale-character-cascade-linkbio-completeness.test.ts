@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { MESSAGE_KEYS, SUPPORTED_LOCALES, LocaleCatalog, type DiagnosticEvent } from './locale.js';
-import { CATALOGS } from './locale-catalogs.js';
+import { CATALOGS } from './catalogs.js';
 
 /**
  * Keys introduced by the F-89 character-cascade + native link-in-bio

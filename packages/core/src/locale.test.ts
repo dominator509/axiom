@@ -22,7 +22,7 @@ import {
   makeLocaleSettings,
   type DiagnosticEvent,
 } from './locale.js';
-import { CATALOGS } from './locale-catalogs.js';
+import { CATALOGS } from './catalogs.js';
 
 function catalogWith(sink?: (e: DiagnosticEvent) => void) {
   // Deep-copy so a test can mutate without polluting the shared module.

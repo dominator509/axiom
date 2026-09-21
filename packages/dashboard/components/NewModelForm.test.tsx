@@ -1,5 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import type { FormEvent } from 'react';
+import { testT } from './testLocale';
+vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ locale: 'en', setLocale: () => undefined, t: testT }) }));
 
 const hooks = vi.hoisted(() => ({
   values: [] as unknown[], refs: [] as { current: unknown }[], stateIndex: 0, refIndex: 0,
