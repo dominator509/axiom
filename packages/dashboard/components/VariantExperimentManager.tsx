@@ -14,6 +14,7 @@ import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import VariantGuidanceSummary from './VariantGuidanceSummary';
 import { useLocale } from './LocaleProvider';
+import { formatVariantCount, formatVariantMetric } from './variant-formatters';
 
 type Intent = { path: string; method: 'POST' | 'PATCH'; body?: string; key: string };
 
@@ -30,7 +31,7 @@ export default function VariantExperimentManager({
   candidates?: VariantCandidate[];
   nextCursor?: string | null;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const router = useRouter();
   const [name, setName] = useState(() => t('variant.manager.defaultName'));
   const [platform, setPlatform] = useState('instagram');
@@ -183,10 +184,10 @@ export default function VariantExperimentManager({
                   >
                     <strong className="mono">{stat.variantId}</strong>
                     <span className="subtle">
-                      {t('variant.manager.allocations', { count: stat.exposures })} · {t('variant.manager.outcomes', { count: stat.outcomes })}
+                      {t('variant.manager.allocations', { count: formatVariantCount(stat.exposures, locale) })} · {t('variant.manager.outcomes', { count: formatVariantCount(stat.outcomes, locale) })}
                     </span>
-                    <span>{t('variant.manager.metricTotal', { value: stat.metricTotal.toFixed(2) })}</span>
-                    <span>{stat.conversions === undefined ? t('variant.manager.conversionsUnavailable') : t('variant.manager.conversions', { count: stat.conversions })}</span>
+                    <span>{t('variant.manager.metricTotal', { value: formatVariantMetric(stat.metricTotal, locale) })}</span>
+                    <span>{stat.conversions === undefined ? t('variant.manager.conversionsUnavailable') : t('variant.manager.conversions', { count: formatVariantCount(stat.conversions, locale) })}</span>
                     {canEdit && experiment.evaluationPolicy !== 'fixed-post-engagement-v1' && ['running', 'paused'].includes(experiment.status) && <button type="button" className="btn secondary"
                       disabled={busy || intent.current !== null || experiment.stats.some(item => item.outcomes < 1)}
                       onClick={() => {

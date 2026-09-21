@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import type { VariantGuidanceAttribution as Attribution } from '@/lib/api';
 import { readDashboardJson } from '@/lib/response';
 import { useLocale } from './LocaleProvider';
+import { formatVariantCount, formatVariantMetric } from './variant-formatters';
 
 function validAttribution(value: unknown): value is Attribution {
   if (!value || typeof value !== 'object') return false;
@@ -15,7 +16,7 @@ function validAttribution(value: unknown): value is Attribution {
 }
 
 export default function VariantGuidanceAttribution({ modelId, experimentId }: { modelId: string; experimentId: string }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [rows, setRows] = useState<Attribution[]>([]);
   const [loaded, setLoaded] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const active = useRef(false);
@@ -39,8 +40,8 @@ export default function VariantGuidanceAttribution({ modelId, experimentId }: { 
     {loaded && rows.length === 0 && <p className="subtle">{t('variant.guidance.attributionEmpty')}</p>}
     <div className="stack">{rows.map(row => <article className="card stack" key={row.guidanceReceiptId}>
       <strong>{row.guidanceReceiptId}</strong>
-      <span>{t('variant.guidance.counts', { variants: row.variantIds.length, exposures: row.exposures, conversions: row.conversions })}</span>
-      <span>{row.averageMetric === undefined ? t('variant.guidance.averageUnavailable') : t('variant.guidance.averageMetric', { value: row.averageMetric.toFixed(2) })}</span>
+      <span>{t('variant.guidance.counts', { variants: formatVariantCount(row.variantIds.length, locale), exposures: formatVariantCount(row.exposures, locale), conversions: formatVariantCount(row.conversions, locale) })}</span>
+      <span>{row.averageMetric === undefined ? t('variant.guidance.averageUnavailable') : t('variant.guidance.averageMetric', { value: formatVariantMetric(row.averageMetric, locale) })}</span>
     </article>)}</div>
     {error && <p role="alert">{error}</p>}
   </details>;

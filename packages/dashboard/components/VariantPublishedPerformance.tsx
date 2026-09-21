@@ -5,10 +5,11 @@ import { readDashboardJson } from '@/lib/response';
 import type { VariantGuidanceSummary } from '@/lib/api';
 import GuidanceSummary from './VariantGuidanceSummary';
 import { useLocale } from './LocaleProvider';
+import { formatVariantCollectedAt, formatVariantCount, formatVariantPercentValue } from './variant-formatters';
 
 type Observation = { targetId: string; variantId: string; collectedAt: string; views: number; likes: number; shares: number; comments: number; engagementRate: number; guidance?: VariantGuidanceSummary | null };
 export default function VariantPublishedPerformance({ modelId, experimentId }: { modelId: string; experimentId: string }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [rows, setRows] = useState<Observation[]>([]), [busy, setBusy] = useState(false), [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(''), [truncated, setTruncated] = useState(false);
   const [assessment, setAssessment] = useState('');
@@ -42,9 +43,9 @@ export default function VariantPublishedPerformance({ modelId, experimentId }: {
     {assessment && <p role="status">{assessment}</p>}
     <div className="stack">{rows.map(row => <article className="card stack" key={row.targetId}>
       <strong>{t('variant.performance.variantPost', { variant: row.variantId.slice(0, 8), post: row.targetId.slice(0, 8) })}</strong>
-      <span>{t('variant.performance.counts', { views: row.views, likes: row.likes, shares: row.shares, comments: row.comments })}</span>
-      <span>{t('variant.performance.engagement', { value: (row.engagementRate * 100).toFixed(2) })}</span>
-      <span className="subtle">{t('variant.performance.collected', { value: row.collectedAt })}</span>
+      <span>{t('variant.performance.counts', { views: formatVariantCount(row.views, locale), likes: formatVariantCount(row.likes, locale), shares: formatVariantCount(row.shares, locale), comments: formatVariantCount(row.comments, locale) })}</span>
+      <span>{t('variant.performance.engagement', { value: formatVariantPercentValue(row.engagementRate, locale) })}</span>
+      <span className="subtle">{t('variant.performance.collected', { value: formatVariantCollectedAt(row.collectedAt, locale) })}</span>
       <GuidanceSummary guidance={row.guidance} />
     </article>)}</div>
     {error && <p role="alert">{error}</p>}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocale } from './LocaleProvider';
+import { formatVariantCount, formatVariantPercentValue } from './variant-formatters';
 
 type Summary = { variantId: string; posts: number; mean: number };
 type Assessment = { status: 'candidate' | 'inconclusive'; sampleSize: number; radius: number; candidateVariantId: string | null; summaries: Summary[] };
@@ -28,7 +29,7 @@ function readAssessment(value: unknown, variantIds: string[], winner: string | n
 export default function VariantEvaluationReport({ evaluation, variantIds, winnerVariantId }: {
   evaluation: unknown; variantIds: string[]; winnerVariantId: string | null;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   if (evaluation == null) return null;
   const assessment = readAssessment(evaluation, variantIds, winnerVariantId);
   if (!assessment) return <p role="alert">{t('variant.evaluation.invalid')}</p>;
@@ -37,9 +38,9 @@ export default function VariantEvaluationReport({ evaluation, variantIds, winner
     <p>{t('variant.evaluation.evidence')}</p>
     <div className="grid">{assessment.summaries.map(row => <article className="card stack" key={row.variantId}>
       <h4>{t('variant.evaluation.variant', { id: row.variantId.slice(0, 8) })}{row.variantId === winnerVariantId ? ` · ${t('variant.evaluation.winner')}` : ''}</h4>
-      <span>{t('variant.evaluation.posts', { count: row.posts })}</span>
-      <span>{t('variant.evaluation.mean', { value: (row.mean * 100).toFixed(2) })}</span>
-      <span>{t('variant.evaluation.interval', { value: `${(Math.max(0, row.mean - assessment.radius) * 100).toFixed(2)}%–${(Math.min(1, row.mean + assessment.radius) * 100).toFixed(2)}` })}%</span>
+      <span>{t('variant.evaluation.posts', { count: formatVariantCount(row.posts, locale) })}</span>
+      <span>{t('variant.evaluation.mean', { value: formatVariantPercentValue(row.mean, locale) })}</span>
+      <span>{t('variant.evaluation.interval', { value: `${formatVariantPercentValue(Math.max(0, row.mean - assessment.radius), locale)}%–${formatVariantPercentValue(Math.min(1, row.mean + assessment.radius), locale)}` })}</span>
     </article>)}</div>
     <p className="subtle">{t('variant.evaluation.disclaimer')}</p>
   </details>;
