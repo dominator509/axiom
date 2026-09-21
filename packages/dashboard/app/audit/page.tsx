@@ -1,10 +1,11 @@
 import { api } from '@/lib/api';
 import { getServerLocale } from '@/lib/server-locale';
+import { formatNumber } from '@axiom/core';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AuditPage() {
-  const { t, dateTime } = await getServerLocale();
+  const { t, dateTime, locale } = await getServerLocale();
   let entries: Array<Record<string, unknown>> = [];
   let verification: { rows: number; valid: boolean; brokenAt?: string } | null = null;
   let error: string | null = null;
@@ -24,7 +25,7 @@ export default async function AuditPage() {
         {verification && (
           <span className={`badge ${verification.valid ? 'good' : 'bad'}`}>
             {t(verification.valid ? 'audit.chainValid' : 'audit.chainBroken', {
-              count: verification.rows,
+              count: formatNumber(verification.rows, locale),
               value: verification.brokenAt ?? 'unknown',
             })}
           </span>
