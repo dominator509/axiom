@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { learningContextBucket } from '@axiom/core';
+import { formatNumber, learningContextBucket } from '@axiom/core';
 import type { PerformancePattern } from './PerformancePatterns';
 import { useLocale } from './LocaleProvider';
 
@@ -56,7 +56,7 @@ export default function CalendarOptimalTimes({ modelId, patterns }: { modelId: s
       ? <p>{t('calendar.noVerifiedWindow')}</p>
       : <div className="grid">{suggestions.map(suggestion => <article className="card stack" key={`${suggestion.platform}:${suggestion.window}`}>
         <strong>{suggestion.platform} · {suggestion.window}</strong>
-        <span>{t('calendar.verifiedExemplarsScore', { sampleSize: suggestion.sampleSize, score: scoreFormatter.format(suggestion.meanScore) })}</span>
+        <span>{t('calendar.verifiedExemplarsScore', { sampleSize: formatNumber(suggestion.sampleSize, locale), score: scoreFormatter.format(suggestion.meanScore) })}</span>
       </article>)}</div>}
     <Link href={`/models/${encodeURIComponent(modelId)}/analytics`}>{t('calendar.reviewEvidence')}</Link>
   </section>;

@@ -146,6 +146,14 @@ it('reports the localized singular count for a single expanded target', async ()
   await vi.waitFor(() => expect([...hooks.values].includes('Cascade expanded into 1 scheduled target.')).toBe(true));
 });
 
+it('formats a large expansion count through the selected locale', async () => {
+  hooks.confirm.mockReturnValue(true);
+  (globalThis as Record<string, unknown>).__cascadeFetch = vi.fn()
+    .mockResolvedValue(new Response(JSON.stringify({ data: Array.from({ length: 1234 }, () => ({ platform: 'x' })) }), { status: 201, headers: { 'content-type': 'application/json' } }));
+  await findButton(managerWithInputs([template], 'bundle-uuid', '2030-01-01T10:00'), 'Expand schedule')!.props.onClick();
+  await vi.waitFor(() => expect([...hooks.values].includes('Cascade expanded into 1,234 scheduled targets.')).toBe(true));
+});
+
 it('shows the localized expand-input error when the bundle ID or base time is blank', async () => {
   manager([template]);
   await findButton(manager([template]), 'Expand schedule')!.props.onClick();

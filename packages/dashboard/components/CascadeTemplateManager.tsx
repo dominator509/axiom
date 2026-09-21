@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatNumber } from '@axiom/core';
 import type { CascadeStep, CascadeTemplate } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
@@ -11,7 +12,7 @@ const PLATFORMS = ['x', 'instagram', 'threads', 'facebook', 'tiktok', 'youtube',
 type Intent = { path: string; method: 'POST' | 'PATCH' | 'DELETE'; body?: string; key: string };
 
 export default function CascadeTemplateManager({ modelId, templates, canEdit }: { modelId: string; templates: CascadeTemplate[]; canEdit: boolean }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const router = useRouter();
   const [name, setName] = useState('Cross-platform launch');
   const [steps, setSteps] = useState<CascadeStep[]>([{ platform: 'x', offsetMinutes: 0 }, { platform: 'instagram', offsetMinutes: 120 }]);
@@ -62,7 +63,7 @@ export default function CascadeTemplateManager({ modelId, templates, canEdit }: 
     if (!window.confirm(t('cascade.confirmExpand', { name: template.name }))) return;
     void run({ path: `/api/v1/models/${encodeURIComponent(modelId)}/cascade-templates/${encodeURIComponent(template.id)}/expand`, method: 'POST', body: JSON.stringify({ bundleId: bundleId.trim(), baseScheduledFor: new Date(baseScheduledFor).toISOString() }) }, (data) => {
       if (!Array.isArray(data)) throw new Error(t('cascade.error.expandTargets'));
-      setMessage(data.length === 1 ? t('cascade.expandedOne') : t('cascade.expandedMany', { count: data.length }));
+      setMessage(data.length === 1 ? t('cascade.expandedOne') : t('cascade.expandedMany', { count: formatNumber(data.length, locale) }));
     });
   }
 

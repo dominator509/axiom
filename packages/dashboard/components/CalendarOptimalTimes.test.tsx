@@ -37,6 +37,10 @@ describe('calendar observed time suggestions', () => {
     expect(html).toContain('do not schedule');
     expect(html).toContain('/models/model/analytics');
   });
+  it('formats large evidence counts through the selected locale', () => {
+    const html = renderToStaticMarkup(<CalendarOptimalTimes modelId="model" patterns={{ groups: [{ ...groups[0], sampleSize: 1234 }], minimumSample: 3 }} />);
+    expect(html).toContain('1,234 verified exemplars');
+  });
   it('treats learn-v2 as the same bounded UTC window for display', () => {
     expect(deriveCalendarTimeSuggestions({ groups: [{ ...groups[0], context: 'learn-v2:scheduled-utc-3' }], minimumSample: 3 })).toEqual([
       { platform: 'x', window: '18:00–23:59 UTC', sampleSize: 9, meanScore: 1.2 },
