@@ -422,6 +422,7 @@ export type MediaOrigin = 'uploaded' | 'generated' | 'transformed' | 'legacy';
 export type MediaKind = 'image' | 'video';
 export interface PlaybookGuideline { id: string; modelId: string; platform: string; optimalTimes: string[]; cadencePerWeek: number; upsellStrategy: string; revision: number; updatedAt: string }
 export interface CacheControlView { provider: string; enabled: boolean; prefixAlignment: boolean; promptCacheKey: string | null }
+export interface WatermarkPolicyView { enabled: boolean; watermarkKey: string | null; position: string; opacity: number; scale: number }
 
 export interface AffiliateProgram {
   id: string;
@@ -646,6 +647,11 @@ export const api = {
   cacheControls: {
     get: (modelId: string) => apiFetch<{ data: { modelId: string; controls: CacheControlView[] } }>(
       `/api/v1/models/${encodeURIComponent(modelId)}/cache-controls`,
+    ),
+  },
+  watermarkPolicy: {
+    get: (modelId: string) => apiFetch<{ data: { modelId: string; policy: WatermarkPolicyView } }>(
+      `/api/v1/models/${encodeURIComponent(modelId)}/watermark-policy`,
     ),
   },
   bundles: {

@@ -101,6 +101,12 @@ struct WatermarkRequest {
     output_path: String,
     #[serde(default = "default_position")]
     position: String,
+    /// Optional overlay opacity as a percentage (0-100). Absent = fully opaque.
+    #[serde(default)]
+    opacity: Option<u32>,
+    /// Optional watermark scale as a percentage (5-100). Absent = native size.
+    #[serde(default)]
+    scale: Option<u32>,
 }
 
 fn default_position() -> String {
@@ -155,6 +161,12 @@ struct VideoWatermarkRequest {
     output_path: String,
     #[serde(default = "default_position")]
     position: String,
+    /// Optional overlay opacity as a percentage (0-100). Absent = fully opaque.
+    #[serde(default)]
+    opacity: Option<u32>,
+    /// Optional watermark scale as a percentage (5-100). Absent = native size.
+    #[serde(default)]
+    scale: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -197,6 +209,11 @@ async fn health() -> Json<serde_json::Value> {
 const MEDIA_REQUEST_MAX_BYTES: usize = 64 * 1024;
 const MAX_IMAGE_FILE_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION: u32 = 16_384;
+/// Bounded overlay opacity percentage (F-14). Absent = fully opaque.
+const MAX_WATERMARK_OPACITY: u32 = 100;
+/// Bounded overlay scale percentage (F-14). Absent = native size.
+const MIN_WATERMARK_SCALE: u32 = 5;
+const MAX_WATERMARK_SCALE: u32 = 100;
 const MAX_IMAGE_ALLOC_BYTES: u64 = 256 * 1024 * 1024;
 const HASH_BUFFER_BYTES: usize = 64 * 1024;
 
@@ -327,16 +344,40 @@ async fn transcode(
 async fn watermark(
     Json(req): Json<WatermarkRequest>,
 ) -> Result<Json<serde_json::Value>, MediaError> {
+    validate_watermark_bounds(req.opacity, req.scale)?;
     info!(
-        "watermark: {} + {} -> {} (position: {})",
-        req.image_path, req.watermark_path, req.output_path, req.position
+        "watermark: {} + {} -> {} (position: {}, opacity: {:?}, scale: {:?})",
+        req.image_path, req.watermark_path, req.output_path, req.position, req.opacity, req.scale
     );
 
     let image_path = resolve_input(&req.image_path)?;
     let watermark_path = resolve_input(&req.watermark_path)?;
     let output_path = resolve_output(&req.output_path)?;
     let mut base = open_image(&image_path)?;
-    let watermark_img = open_image(&watermark_path)?;
+    let mut watermark_img = open_image(&watermark_path)?;
+
+    // Bounded scale (F-14): 100 keeps the native size.
+    if let Some(scale) = req.scale {
+        if scale != MAX_WATERMARK_SCALE {
+            let (wm_w, wm_h) = (watermark_img.width(), watermark_img.height());
+            let target_w = ((u64::from(wm_w) * u64::from(scale)) / 100).max(1);
+            let target_h = ((u64::from(wm_h) * u64::from(scale)) / 100).max(1);
+            if target_w > u64::from(MAX_IMAGE_DIMENSION) || target_h > u64::from(MAX_IMAGE_DIMENSION) {
+                return Err(MediaError::InvalidTransform);
+            }
+            watermark_img = watermark_img.resize_exact(
+                target_w as u32,
+                target_h as u32,
+                image::imageops::FilterType::Lanczos3,
+            );
+        }
+    }
+
+    // Bounded opacity (F-14). The media plane has no alpha-multiply primitive
+    // without adding a dependency, so a partial opacity is applied only when
+    // the overlay itself already carries alpha; a fully opaque value (100 or
+    // absent) leaves the default compositing path unchanged.
+    let alpha = opacity_alpha(req.opacity);
 
     let (base_w, base_h) = (base.width(), base.height());
     let (wm_w, wm_h) = (watermark_img.width(), watermark_img.height());
@@ -352,6 +393,10 @@ async fn watermark(
         ),
         other => return Err(MediaError::InvalidPosition(other.to_string())),
     };
+
+    if alpha < 1.0 {
+        apply_overlay_alpha(&mut watermark_img, alpha);
+    }
 
     image::imageops::overlay(&mut base, &watermark_img, x as i64, y as i64);
     base.save(output_path)?;
@@ -492,6 +537,44 @@ fn overlay_position(position: &str) -> Result<&'static str, MediaError> {
     })
 }
 
+/// Validate the bounded F-14 overlay opacity/scale fields. Absent values are
+/// allowed (the media plane's native default). Present values must be in range,
+/// otherwise the request fails closed before any transform runs.
+fn validate_watermark_bounds(opacity: Option<u32>, scale: Option<u32>) -> Result<(), MediaError> {
+    if let Some(value) = opacity {
+        if value > MAX_WATERMARK_OPACITY {
+            return Err(MediaError::InvalidTransform);
+        }
+    }
+    if let Some(value) = scale {
+        if value < MIN_WATERMARK_SCALE || value > MAX_WATERMARK_SCALE {
+            return Err(MediaError::InvalidTransform);
+        }
+    }
+    Ok(())
+}
+
+/// ffmpeg `colorchannelmixer=aa` alpha factor for the bounded opacity. A fully
+/// opaque overlay (100) keeps the identity factor so the default path is
+/// byte-identical to the pre-F-14 behaviour.
+fn opacity_alpha(opacity: Option<u32>) -> f64 {
+    match opacity {
+        Some(value) => f64::from(value.min(MAX_WATERMARK_OPACITY)) / 100.0,
+        None => 1.0,
+    }
+}
+
+/// Multiply an RGBA/RGB image's alpha channel by `alpha` (0.0-1.0). RGB images
+/// are converted to RGBA first so partial opacity has an effect.
+fn apply_overlay_alpha(image: &mut image::DynamicImage, alpha: f64) {
+    let mut rgba = image.to_rgba8();
+    for pixel in rgba.pixels_mut() {
+        let scaled = (f64::from(pixel[3]) * alpha).round().clamp(0.0, 255.0) as u8;
+        pixel[3] = scaled;
+    }
+    *image = image::DynamicImage::ImageRgba8(rgba);
+}
+
 // /media/video/transcode
 async fn video_transcode(
     Json(req): Json<VideoTranscodeRequest>,
@@ -527,16 +610,38 @@ async fn video_transcode(
 async fn video_watermark(
     Json(req): Json<VideoWatermarkRequest>,
 ) -> Result<Json<serde_json::Value>, MediaError> {
+    validate_watermark_bounds(req.opacity, req.scale)?;
     info!(
-        "video watermark: {} + {} -> {} (position: {})",
-        req.video_path, req.watermark_path, req.output_path, req.position
+        "video watermark: {} + {} -> {} (position: {}, opacity: {:?}, scale: {:?})",
+        req.video_path, req.watermark_path, req.output_path, req.position, req.opacity, req.scale
     );
     let video_path = resolve_input(&req.video_path)?;
     let watermark_path = resolve_input(&req.watermark_path)?;
     let output_path = resolve_output(&req.output_path)?;
     let pos = overlay_position(&req.position)?;
 
-    let filter = format!("overlay={pos}");
+    // Bounded F-14 presentation fields. The overlay chain keeps the identity
+    // path when both are absent/neutral so pre-F-14 behaviour is unchanged.
+    let mut filters: Vec<String> = Vec::new();
+    if let Some(scale) = req.scale {
+        if scale != MAX_WATERMARK_SCALE {
+            filters.push(format!("[1:v]scale=iw*{scale}/100:ih*{scale}/100[wm]"));
+        }
+    }
+    if let Some(opacity) = req.opacity {
+        if opacity < MAX_WATERMARK_OPACITY {
+            filters.push(format!(
+                "[1:v]colorchannelmixer=aa={:.2}[wm]",
+                opacity_alpha(Some(opacity))
+            ));
+        }
+    }
+    let overlay = format!("overlay={pos}");
+    let filter = if filters.is_empty() {
+        overlay
+    } else {
+        format!("{};[wm]{overlay}", filters.join(";"))
+    };
     let args: Vec<String> = vec![
         "-y".into(),
         "-i".into(),
@@ -934,5 +1039,36 @@ mod tests {
             .build()
             .unwrap()
             .block_on(fut)
+    }
+
+    #[test]
+    fn watermark_bounds_accept_absent_and_neutral_values() {
+        assert!(validate_watermark_bounds(None, None).is_ok());
+        assert!(validate_watermark_bounds(Some(100), Some(100)).is_ok());
+        assert!(validate_watermark_bounds(Some(0), Some(5)).is_ok());
+    }
+
+    #[test]
+    fn watermark_bounds_reject_out_of_range_values() {
+        assert!(matches!(
+            validate_watermark_bounds(Some(101), None),
+            Err(MediaError::InvalidTransform)
+        ));
+        assert!(matches!(
+            validate_watermark_bounds(None, Some(4)),
+            Err(MediaError::InvalidTransform)
+        ));
+        assert!(matches!(
+            validate_watermark_bounds(None, Some(101)),
+            Err(MediaError::InvalidTransform)
+        ));
+    }
+
+    #[test]
+    fn opacity_alpha_maps_percentage_to_identity_scale() {
+        assert_eq!(opacity_alpha(None), 1.0);
+        assert_eq!(opacity_alpha(Some(100)), 1.0);
+        assert!((opacity_alpha(Some(50)) - 0.5).abs() < f64::EPSILON);
+        assert!((opacity_alpha(Some(0)) - 0.0).abs() < f64::EPSILON);
     }
 }

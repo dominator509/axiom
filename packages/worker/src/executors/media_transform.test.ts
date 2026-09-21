@@ -43,6 +43,49 @@ it.each([true, false])('requires real persisted output before creating a linked 
     await rm(root, { recursive: true, force: true });
   }
 });
+it('validates an enabled watermark as a model asset and applies it after the base transform', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'axiom-transform-watermark-'));
+  const id = '22222222-2222-4222-8222-222222222222';
+  const bytes = Buffer.from([255, 216, 255, ...Array(20).fill(7)]);
+  const inserts: Array<{ table: unknown; values: any }> = [];
+  const selections = [
+    { id, modelId: id, sourceAssetId: id, type: 'image_resize', state: 'queued', options: { width: 20, height: 30 } },
+    { id, kind: 'image', storageKey: `generated/${id}/${id}/source.jpg` },
+    { enabled: true, watermarkKey: `generated/${id}/${id}/watermark.png`, position: 'center', opacity: 55, scale: 80 },
+  ];
+  const tx = {
+    select: () => ({ from: () => ({ where: () => ({ limit: async () => [selections.shift()] }) }) }),
+    update: () => ({ set: () => ({ where: async () => [] }) }),
+    insert: (table: unknown) => ({ values: (values: any) => {
+      inserts.push({ table, values });
+      const returning = async () => [{ id, ...values }];
+      return { returning, onConflictDoNothing: () => ({ returning }) };
+    } }),
+  };
+  vi.stubEnv('AXIOM_MEDIA_ROOT', root);
+  vi.stubEnv('MEDIA_PLANE_AUTH_TOKEN', 'isolated-test-token');
+  const fetchMock = vi.fn(async (_url, init) => {
+    const body = JSON.parse(init.body);
+    await mkdir(join(root, 'operations'), { recursive: true });
+    await writeFile(join(root, body.output_path), bytes);
+    return Response.json({ status: 'ok', output_path: body.output_path });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  try {
+    await mediaTransform({ tx, job: { org_id: id, payload: { operationId: id } } } as any);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const watermarkRequest = JSON.parse(fetchMock.mock.calls[1]![1]!.body as string);
+    expect(watermarkRequest.watermark_path).toBe(`generated/${id}/${id}/watermark.png`);
+    expect(watermarkRequest.position).toBe('center');
+    expect(watermarkRequest.opacity).toBe(55);
+    expect(watermarkRequest.scale).toBe(80);
+    expect(inserts.find(row => row.table === schema.asset)).toBeDefined();
+    expect(inserts.find(row => row.table === schema.assetVariant)).toBeDefined();
+  } finally {
+    vi.unstubAllGlobals(); vi.unstubAllEnvs();
+    await rm(root, { recursive: true, force: true });
+  }
+});
 it('accepts the media-plane output receipt', async () => {
   await expect(confirmTransformOutput(Response.json({ status: 'ok', output_path: output }), output)).resolves.toBeUndefined();
 });

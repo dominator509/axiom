@@ -298,7 +298,7 @@ describe('schema index', () => {
   });
 
   it('allRelations contains exactly the relation configs', () => {
-    expect(allRelations).toHaveLength(73);
+    expect(allRelations).toHaveLength(74);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -375,6 +375,7 @@ describe('schema index', () => {
         'patreon_webhook_event',
         'linkbio_attribution_event',
         'provider_cache_control',
+        'watermark_policy',
       ].sort(),
     );
   });

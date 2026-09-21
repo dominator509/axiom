@@ -69,7 +69,9 @@ router.get('/models/:modelId/cache-controls', async c => {
 
   // Unknown or unauthorized models deliberately look like an unconfigured
   // model; this endpoint cannot be used as an existence/settings oracle.
-  const byProvider = new Map(rows.map(row => [row.provider, row]));
+  const byProvider = new Map<string, CacheControlView>(
+    (rows as CacheControlView[]).map(row => [row.provider, row]),
+  );
   return c.json({
     success: true,
     data: {

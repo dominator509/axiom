@@ -95,6 +95,7 @@ const TS_TO_SQL: Record<string, string> = {
   patreonSyncState: 'patreon_sync_state',
   patreonWebhookEvent: 'patreon_webhook_event',
   providerCacheControl: 'provider_cache_control',
+  watermarkPolicy: 'watermark_policy',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -719,7 +720,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
     // Includes the durable MCP revocation and capability-registry indexes,
     // the seven platform affiliate lookup indexes, and link attribution.
-    expect(indexStatements).toHaveLength(105);
+    expect(indexStatements).toHaveLength(106);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(
@@ -734,6 +735,20 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
       'CREATE INDEX IF NOT EXISTS idx_model_network_configs_org_id ON model_network_configs(org_id);',
     );
     expect(sql).toContain('idx_provider_cache_control_org_model');
+    expect(sql).toContain('idx_watermark_policy_org_model');
+  });
+
+  it('defines the model-scoped watermark policy table with forced RLS and bounded checks', () => {
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS watermark_policy');
+    expect(norm(sql)).toContain('FOREIGN KEY (org_id, model_id) REFERENCES model_profile (org_id, id)');
+    expect(norm(sql)).toContain(
+      "CHECK (position IN ('top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'))",
+    );
+    expect(norm(sql)).toContain('CHECK (opacity >= 0 AND opacity <= 100)');
+    expect(norm(sql)).toContain('CHECK (scale >= 5 AND scale <= 100)');
+    expect(sql).toContain('ALTER TABLE watermark_policy ENABLE ROW LEVEL SECURITY;');
+    expect(sql).toContain('ALTER TABLE watermark_policy FORCE ROW LEVEL SECURITY;');
+    expect(sql).toContain('GRANT SELECT, INSERT, UPDATE, DELETE ON watermark_policy TO axiom_app;');
   });
 
   it('grants least-privilege privileges to axiom_app and full rights to axiom_migrator', () => {

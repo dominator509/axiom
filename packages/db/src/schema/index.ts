@@ -58,6 +58,7 @@ import { playbookGuideline, playbookGuidelineRelations, playbookGuidelineRevisio
 import { roleplayPersonaRevisionRelations, roleplayMemoryTurnRelations, roleplayHandoffRelations, roleplayTurnRelations } from './roleplay.js';
 import { uiLocalePreference, uiLocalePreferenceRelations } from './ui_locale_preference.js';
 import { providerCacheControl, providerCacheControlRelations } from './provider_cache_control.js';
+import { watermarkPolicy, watermarkPolicyRelations } from './watermark_policy.js';
 import {
   affiliateProgramRelations,
   affiliatePartnerRelations,
@@ -145,6 +146,7 @@ export { mediaGenerationAttempt } from './media_generation_attempt.js';
 export { modelUserAssignment } from './model_user_assignment.js';
 export { uiLocalePreference, uiLocalePreferenceRelations };
 export { providerCacheControl, providerCacheControlRelations };
+export { watermarkPolicy, watermarkPolicyRelations };
 export {
   affiliateProgram,
   affiliateProgramRelations,
@@ -238,6 +240,7 @@ export const allRelations = [
   roleplayTurnRelations,
   uiLocalePreferenceRelations,
   providerCacheControlRelations,
+  watermarkPolicyRelations,
   affiliateProgramRelations,
   affiliatePartnerRelations,
   affiliateCampaignRelations,

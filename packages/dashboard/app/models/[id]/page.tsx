@@ -4,7 +4,9 @@ import CharacterLockEditor from '@/components/CharacterLockEditor';
 import ProfileEditor from '@/components/ProfileEditor';
 import ModelLifecycleControls from '@/components/ModelLifecycleControls';
 import ProviderCacheControls from '@/components/ProviderCacheControls';
+import WatermarkPolicyControls from '@/components/WatermarkPolicyControls';
 import { absentCacheControl, CACHE_CONTROL_PROVIDER_ORDER } from '@/lib/cache-controls';
+import { absentWatermarkPolicy } from '@/lib/watermark-policy';
 import Link from 'next/link';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
 import { getServerLocale } from '@/lib/server-locale';
@@ -18,6 +20,8 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   const canViewCacheControls = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   const canEditCacheControls = ['owner', 'manager'].includes(session?.user?.role ?? '');
+  const canViewWatermark = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
+  const canEditWatermark = ['owner', 'manager'].includes(session?.user?.role ?? '');
   const allowed = (section: string) => talentDestinationAllowed(session?.user?.role, section);
   const toolLinks: Array<[string, MessageKey]> = [
     ['media', 'media.title'], ['consent', 'model.toolConsent'], ['linkbio', 'model.toolLinkBio'],
@@ -31,6 +35,7 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
   let fanCount: number | null = null;
   let networkFailed = false;
   let cacheControls = CACHE_CONTROL_PROVIDER_ORDER.map(absentCacheControl);
+  let watermarkPolicy = absentWatermarkPolicy();
   try {
     model = (await api.models.get(id)).data;
   } catch {
@@ -57,6 +62,12 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
     if (Array.isArray(fetched) && fetched.length > 0) cacheControls = fetched;
   } catch {
     cacheControls = CACHE_CONTROL_PROVIDER_ORDER.map(absentCacheControl);
+  }
+  if (model && canViewWatermark) try {
+    const fetched = (await api.watermarkPolicy.get(id)).data?.policy;
+    if (fetched && typeof fetched === 'object') watermarkPolicy = fetched;
+  } catch {
+    watermarkPolicy = absentWatermarkPolicy();
   }
 
   if (!model) return <div className="card stack" role="alert">
@@ -139,6 +150,7 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
         {allowed('approvals') && <Link href={`/models/${id}/approvals`} className="btn secondary">{t('model.reviewContent')}</Link>}
       </div>}
       {canViewCacheControls && <ProviderCacheControls modelId={model.id} initialControls={cacheControls} canEdit={canEditCacheControls} />}
+      {canViewWatermark && <WatermarkPolicyControls modelId={model.id} initialPolicy={watermarkPolicy} canEdit={canEditWatermark} />}
       {tools.length > 0 && <div className="card stack">
         <h3>{t('model.workspaceTools')}</h3>
         <p className="subtle">{t('model.workspaceToolsDescription')}</p>

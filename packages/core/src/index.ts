@@ -21,3 +21,5 @@ export * from './relay-card-state.js';
 export * from './scrape-result.js';
 export * from './learning-contract.js';
 export * from './provider-cache-control-catalog.js';
+export * from './watermark-policy-contract.js';
+export * from './watermark-policy-catalog.js';

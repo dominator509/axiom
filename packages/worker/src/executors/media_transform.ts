@@ -7,6 +7,7 @@ import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { storeGeneratedAsset } from '../generated-asset-store.js';
+import { loadWatermarkTransform } from '../load-watermark-policy.js';
 
 function mediaOrigin(): string { return (process.env.MEDIA_PLANE_URL ?? 'http://127.0.0.1:8100').replace(/\/$/, ''); }
 
@@ -39,7 +40,7 @@ export const mediaTransform: Executor = async ({ tx, job }) => {
   const token = process.env.MEDIA_PLANE_AUTH_TOKEN?.trim();
   if (!token) throw new Error('media.transform: MEDIA_PLANE_AUTH_TOKEN is not configured');
   // Each execution writes a new file, including after an uncertain transaction.
-  const outputKey = normalizeR2ObjectKey(
+  let outputKey = normalizeR2ObjectKey(
     `operations/${operation.id}-${randomUUID()}.${operation.type.endsWith('transcode') ? (operation.options.targetFormat === 'webm' ? 'webm' : 'mp4') : source.kind === 'video' ? 'mp4' : 'jpg'}`,
     { orgId: job.org_id, modelId: operation.modelId }, 'operation',
   );
@@ -56,7 +57,38 @@ export const mediaTransform: Executor = async ({ tx, job }) => {
     const response = await fetch(`${mediaOrigin()}${path}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(120_000) });
     await confirmTransformOutput(response, outputKey);
     const mediaRoot = resolve(process.env.AXIOM_MEDIA_ROOT ?? 'var/media');
-    const outputPath = resolve(mediaRoot, outputKey);
+    let outputPath = resolve(mediaRoot, outputKey);
+    // F-14: apply the model's persisted watermark policy to the produced output
+    // through the real media-plane watermark endpoints. A disabled or
+    // out-of-range policy fails closed to no watermark (the pre-F-14 path); an
+    // enabled policy with an unavailable asset fails the operation rather than
+    // silently publishing an un-watermarked asset.
+    const watermark = await loadWatermarkTransform(tx, job.org_id, operation.modelId);
+    if (watermark) {
+      // The persisted watermark is a model-owned asset, not a transient
+      // media-plane operation output. Validate it against the tenant/model
+      // asset-key contract so a valid generated/<org>/<model>/... key can be
+      // read while traversal and cross-tenant keys still fail closed.
+      const watermarkKey = normalizeR2ObjectKey(watermark.watermarkKey, { orgId: job.org_id, modelId: operation.modelId });
+      const watermarkedKey = normalizeR2ObjectKey(
+        `operations/${operation.id}-${randomUUID()}.${source.kind === 'video' ? 'mp4' : 'jpg'}`,
+        { orgId: job.org_id, modelId: operation.modelId }, 'operation',
+      );
+      const isVideo = source.kind === 'video';
+      const watermarkPath = isVideo ? '/media/video/watermark' : '/media/watermark';
+      const watermarkBody = isVideo
+        ? { video_path: outputKey, watermark_path: watermarkKey, output_path: watermarkedKey, position: watermark.position, opacity: watermark.opacity, scale: watermark.scale }
+        : { image_path: outputKey, watermark_path: watermarkKey, output_path: watermarkedKey, position: watermark.position, opacity: watermark.opacity, scale: watermark.scale };
+      const watermarkResponse = await fetch(`${mediaOrigin()}${watermarkPath}`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify(watermarkBody),
+        signal: AbortSignal.timeout(120_000),
+      });
+      await confirmTransformOutput(watermarkResponse, watermarkedKey);
+      outputKey = watermarkedKey;
+      outputPath = resolve(mediaRoot, outputKey);
+    }
     const mimeType = outputKey.endsWith('.webm') ? 'video/webm' : source.kind === 'video' ? 'video/mp4' : 'image/jpeg';
     const storage = userId ? createObjectStorage({ userId, orgId: job.org_id }, mediaRoot) : undefined;
     const { exactFileHashChanged: _hashChanged, ...stored } = await storeGeneratedAsset({
