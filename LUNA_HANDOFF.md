@@ -7,27 +7,27 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `e5fe10ff2962645f1dabc4b0ce64359324ae5408` (exact pushed/read-back source after the independently audited F14 watermark-policy integration; Hermes must fetch all refs before coding)
+SOURCE_HEAD: `fcedd16fc14063eb8a4860a93b3516e24a2d22a8` (exact pushed/read-back coordination head containing the accepted F14 integration; Hermes must fetch all refs before coding)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `e5fe10ff2962645f1dabc4b0ce64359324ae5408` (verified origin readback after integrating and auditing the F14 delivery)
-COORDINATION_HEAD: `e5fe10ff2962645f1dabc4b0ce64359324ae5408` (handoff/ledger coordination commit pending)
-COORDINATION_HEAD_LAST_READBACK: `e5fe10ff2962645f1dabc4b0ce64359324ae5408 — exact origin readback of the accepted F14 product source`
+PUBLISHED_HEAD: `fcedd16fc14063eb8a4860a93b3516e24a2d22a8` (verified origin readback after reconciling the F14 handoff and ledger)
+COORDINATION_HEAD: `fcedd16fc14063eb8a4860a93b3516e24a2d22a8`
+COORDINATION_HEAD_LAST_READBACK: `fcedd16fc14063eb8a4860a93b3516e24a2d22a8 — exact origin readback after publishing the F14 reconciliation`
 ACCEPTED_PRODUCT_SOURCE: `e5fe10ff2962645f1dabc4b0ce64359324ae5408`
-CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — F14 R13 delivery is terminally closed; D001 R4 marker will be installed only after this handoff reconciliation`
-CURRENT_TASK_MANIFEST_SHA256: `PENDING — next D001 R4 marker`
-CURRENT_TASK_MANIFEST_REMOTE_SHA256: `PENDING — next D001 R4 marker readback`
-CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; only the marker-installed D001 task will be active; all historical inbox/reply/status/outbox/worktree artifacts are inert`
+CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — D001-DEPLOYMENT-SAFETY-SOURCE-BOUNDARY-R4 OPEN; exact task is the sole active lane`
+CURRENT_TASK_MANIFEST_SHA256: `eeb62333f8c3087f9e54ea16dce973f8cab6e93990eb74a5392773e13f438380`
+CURRENT_TASK_MANIFEST_REMOTE_SHA256: `eeb62333f8c3087f9e54ea16dce973f8cab6e93990eb74a5392773e13f438380 — exact bridge marker readback`
+CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; only D001-DEPLOYMENT-SAFETY-SOURCE-BOUNDARY-R4 is active; all historical inbox/reply/status/outbox/worktree artifacts are inert`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
 LAST_COMPLETED_SOURCE_MILESTONE: `F14 model watermark-policy integration — independently audited Hermes source, owning gates passed, product commit e5fe10ff pushed/read back; no live action`
-ACTIVE_HERMES_LANE: `NONE — F14 R13 is terminally closed; D001 R4 source-only task is pending marker installation`
+ACTIVE_HERMES_LANE: `D001-DEPLOYMENT-SAFETY-SOURCE-BOUNDARY-R4 — source-only exact pin fcedd16fc14063eb8a4860a93b3516e24a2d22a8; Hermes must inventory the exact Git copy and either repair tracked source or terminally block on absent source`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — source copy only; Codex must independently hash, test, accept/reject, integrate, commit and push`
-NEXT_ACTION: `After this coordination update is pushed/read back, install exactly one D001 R4 source-only task pinned to that exact branch head. Wait for one correlated ACK, then allow Hermes its coding window. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
-BRIDGE_OBSERVATION: `F14 R13 delivery was independently hash-audited, contract-audited, tested and integrated at e5fe10ff. The previous remote marker is historical and must not be revived. The next bridge marker will be D001 R4 and will explicitly bind the deployment-safety source sinks and executable negative tests.`
+NEXT_ACTION: `D001 R4 task and marker are published and hash-verified; wait for one correlated ACK, then allow Hermes its coding window. After five spaced read-only polls, act only on real PROGRESS, DELIVERY or terminal BLOCKED evidence. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
+BRIDGE_OBSERVATION: `F14 R13 delivery was independently hash-audited, contract-audited, tested and integrated at e5fe10ff. D001 R4 is published against exact source fcedd16 and marker hash eeb62333; it explicitly forbids installed helpers or historical artifacts as source and requires a terminal blocker if the exact Git copy lacks the D001 implementation.`
 CURRENT_LOCAL_DELIVERY: `F14 watermark-policy source integrated; 21 manifest files independently verified, worker/API/DB/dashboard/core/storage/media-plane gates pass; Windows standalone symlink packaging remains an environment-only full-build limitation`
 PRODUCT_COMPLETION_COMMIT: `e5fe10ff2962645f1dabc4b0ce64359324ae5408 — audited F14 model watermark-policy integration`
-HERMES_LANE_DISPOSITION: `F14 R13 TERMINAL_CLOSED — source accepted and integrated; no active Hermes implementation lane until D001 R4 marker installation`
+HERMES_LANE_DISPOSITION: `D001 R4 OPEN_UNCONFIRMED — task and marker pass local/remote hash validation; Hermes ACK and evidence-bearing progress/delivery or terminal blocker are required; no implementation/live action is counted`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
@@ -35,7 +35,7 @@ HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_R
 HERMES_REPLY_FORMAT_GATE: `ACK = TYPE ACK + STATE READ|ACCEPTED; PROGRESS = TYPE PROGRESS + STATE IN_PROGRESS; DELIVERY = TYPE DELIVERY + STATE DELIVERED + TERMINAL YES; BLOCKED = TYPE NACK + STATE BLOCKED + TERMINAL YES; every reply has a new WIRE distinct from IN_REPLY_TO, exact SEQ, PAYLOAD delimiter, READ_STATUS READ once, and final signature sincerely, Hermes`
 HERMES_DELIVERY_FORMAT_GATE: `DELIVERY PAYLOAD must contain exactly once: ARTIFACT, SHA256 (64 lowercase hex), COMMAND, EXIT_CODE (integer), TEST_RESULT (PASS|FAIL), CHANGED_FILES, SOURCE_REPO, SOURCE_REF, SOURCE_COMMIT, COPY_ROOT, DELIVERY_ROOT, MANIFEST_SHA256 (64 lowercase hex), LIVE_ACTIONS NONE; no prose substitute or duplicate fields`
 HERMES_BLOCKED_FORMAT_GATE: `If required checks cannot run or one concrete input is missing, use TYPE NACK, STATE BLOCKED, TERMINAL YES, NEXT_OWNER CODEX, a unique WIRE, REASON naming the single blocker, PAYLOAD READ_STATUS READ and LIVE_ACTIONS NONE exactly once; do not send a second ACK or a no-change delivery`
-OPEN_WIRES: `NONE — F14 R13 terminal delivery accepted; D001 R4 wire will become current only with a new task and marker`
+OPEN_WIRES: `CODEX-D001-DEPLOYMENT-SAFETY-SOURCE-BOUNDARY-R4-TASK-001 — only current wire; all older D001/F14 wires are historical`
 STALE_HERMES_REPLY: `HERMES-F15-F16-VARIANT-GUIDANCE-CURRENT-DELIVERY-004` was rejected by CODEX-F15-F16-VARIANT-GUIDANCE-CURRENT-RECEIPT-REJECT-005; it is terminal historical evidence and does not reopen or advance any lane`
 OPEN_CONTROL_WIRE: `NONE — CODEX-HERMES-WORKFLOW-RECONCILIATION-R2-TASK-001 is closed`
 OPEN_CONTROL_TASK_STATE: `CLOSED — valid ACK/ACCEPTED was read back at SEQ 2 and terminal Codex READ receipt was uploaded at SEQ 3`
