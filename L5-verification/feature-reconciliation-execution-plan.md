@@ -69,6 +69,16 @@ Every numbered item stays open until source, automated, runtime and
 provider/operator evidence are individually recorded. Passing local tests or
 health endpoints alone never closes a gate.
 
+### Current accepted source slice — M988
+
+F-19 trigger evaluation now has a bounded `fixed`/`learned_p90` contract. The
+learned path uses only same-tenant, same-model, same-platform published provider
+metrics, excludes the target under evaluation, requires four samples by default,
+and fails closed when PostgreSQL returns no valid p90. API validation, worker
+evaluation, six-locale dashboard controls, focused tests and package checks are
+complete in source. Runtime metrics/worker, migration/RLS, browser/provider and
+operator acceptance remain open and are not implied by this source milestone.
+
 ### Architecture fidelity constraints
 
 - L1.1 is the feature catalog; L2 documents the intended boundaries; L3

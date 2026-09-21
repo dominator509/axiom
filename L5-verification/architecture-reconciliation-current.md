@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `ad55fd419ec109ae810e960d1b76bfe282844625`
+Source checkpoint: `07896f25ab5ec613bd0240a5b97bec7c94acfb46`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -36,6 +36,7 @@ receipts. Historical audit baselines are not silently treated as current source.
 | Variants and A/B (F-13/F-15/F-16) | Model-scoped lifecycle, assignments, exposure/outcome capture, attribution and winner/reward source paths exist. M578 wires server-verified existing-bundle guidance provenance through candidate creation, review-bundle revalidation, authenticated guidance-source listing and candidate/performance safe projections, with dashboard selection and truthful unavailable states. M900 adds an authenticated model/experiment-scoped guidance-attribution route and mounted dashboard surface, using only stored guidance receipts and assignment outcomes; metric averages are weighted by actual sample counts. M793 localizes the model-scoped cascades route loaded/error shell, and M797 localizes the variant-experiments route loaded/error shell without changing scheduling or experiment mechanics. | Statistical/runtime/browser acceptance, deployed worker/provider acceptance, and any additional guidance fields not present in a verified source receipt remain open. |
 | Team and shifts (F-24/F-25/F-26) | RBAC, shift lifecycle, handoff/post-note routes and dashboard controls exist. The dual-actor Chatter source slice adds human/LLM shift records, active-shift/agent-permission checks, durable roleplay handoffs, bounded memory and revisioned `soul.md` persona storage/API/UI. Team history now has bounded keyset pagination with dashboard older-history controls; Chatter roleplay uses its authorized personal shift roster rather than the administrative team endpoint. M667 adds a shared Grok roleplayer runtime and private assigned-LLM inbox drafting that reuses the pending-reply review flow, persists persona/memory provenance, and requires explicit human approval before send. M789 localizes the owner-gated workspace-members route shell, M795 localizes the model-scoped team/shifts route loaded/error shell, M841 localizes owner-visible model assignment controls and UTC assignment times, and M842 localizes post-note controls and UTC note times through the shared six-locale catalog while preserving the existing role boundary and team mechanics. | Authenticated multi-user browser/RLS acceptance, Grok roleplay and draft provider receipts, live migration/runtime acceptance and operator acceptance remain open. |
 | Playbook (F-54/F-55/F-56/F-57) | Revisioned guideline storage/editor, calendar checks, generation/caption enrichment and read-only analytics context exist in source. Analytics renders saved platform guidance as advisory context without changing metric calculations or scheduling. | Browser acceptance, stale-editor/history acceptance, deployed migration acceptance, and any future consumer path not covered by the current source audit. |
+| Automation and trigger rules (F-19/F-20/F-21) | Model-scoped owner-gated CRUD/UI and metrics-driven worker evaluation exist. M988 adds a backward-compatible `fixed`/`learned_p90` condition contract: learned rules query same-tenant, same-model, same-platform published provider metrics, exclude the target being evaluated, require at least four samples, and fail closed when the server-derived percentile is absent or invalid. | Live metrics/worker acceptance, browser acceptance, deployed migration/RLS/runtime evidence, provider receipts and broader churn/subscription trigger coverage remain open. |
 | Scraper and research (F-17/F-18) | Authenticated bounded scrape runs, worker dispatch, model egress binding and partial-result/error handling exist. M577 aligns the durable `scrape_run` state, worker persistence and authenticated projection so mixed results remain `partial` end to end. M644 localizes the mounted result/refresh/history UI across all six launch locales with locale-aware counts and UTC timestamps while preserving authored/provider data and mutation semantics. M787 localizes the authenticated scraper route title and load-failure shell through the same catalog. | Deployed sidecar/provider isolation, benchmark history exposure, migration application, browser/mobile and result-quality acceptance. |
 | Viral loop (F-79–F-86) | Metric/evidence filtering, publication-bound recipe evidence (hook, scheduled/actual time, bounded shoot controls, media format, ToS verdict and asset/hash-bound Rust vision descriptors), labels, recipes, embeddings/retrieval, parts of reward/digest logic, and a typed Relay-card lifecycle distinguishing durable `stored` evidence from external-dispatch states exist. M931 adds a model-scoped `viral.insight` job, localized analytics enqueue control, and model-owned Relay-card history that remains visible when no content bundle is present. Its card renderer is evidence-only and reads published provider snapshots with bounded group evidence. | Revenue/conversion attribution, all contextual arms, cross-model opt-in behavior, scheduled insight/Relay delivery, migration application and runtime acceptance. M931 does not claim provider publication or conversion outcomes. |
 | Connectors and OAuth (F-03/F-31/F-58–F-67) | Static connector contracts and capability declarations exist for supported paths. M791 localizes the authenticated Grok connection/storage route shell while preserving role-scoped account and private-storage controls. M843 localizes the mounted social-disconnect confirmation and provider-revocation outcome states across all six launch locales without changing revocation-before-local-removal or idempotency semantics. | Live OAuth, refresh/revoke/disconnect, account onboarding, provider upload/publish/metrics receipts and browser acceptance. Snapchat remains capability-honest manual-assist where its API does not support organic posting. |
@@ -1867,6 +1868,27 @@ trigger-threshold formatting slice; remaining catalog adoption, browser/native
 acceptance, deployed migration/RLS/runtime evidence, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M988 - F-19 learned trigger thresholds
+
+Trigger rules now support an explicit `fixed` or `learned_p90` condition mode.
+The API rejects a missing fixed threshold and rejects client-supplied thresholds
+for learned rules. The worker derives p90 in PostgreSQL from same-tenant,
+same-model, same-platform published provider metrics, excludes the target being
+evaluated, bounds the lookback to seven days, requires at least four samples and
+fails closed on invalid or undersampled aggregates. The dashboard exposes the
+mode and minimum-sample control in all six launch locales without changing the
+existing fixed-rule behavior.
+
+Evidence: focused API trigger-rule tests 6/6, worker threshold tests 2/2,
+dashboard TriggerRuleManager tests 5/5, core suite 26 files / 142 tests,
+dashboard full suite 156 files / 1,010 tests, package typechecks pass and
+package lint exits pass with the repository's existing warnings. Full API and
+worker suites were run but remain non-clean for unrelated existing environment
+and expectation failures: API 4 timed-out suites / 1,129 passed / 65 skipped;
+worker 1 existing generate-test failure / 290 passed / 32 skipped. Product
+source commit `07896f25ab5ec613bd0240a5b97bec7c94acfb46` is the audited local
+checkpoint; no migration, provider, runtime or live action occurred.
 
 ### M987 - F-89 variant outcome-metric formatting
 
