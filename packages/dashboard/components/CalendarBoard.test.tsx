@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactNode } from 'react';
-import CalendarBoard, { calendarCells, movedUtcSlot } from './CalendarBoard';
+import CalendarBoard, { calendarCells, formatCalendarCount, movedUtcSlot } from './CalendarBoard';
 
+const state = vi.hoisted(() => ({ locale: 'en' }));
 vi.mock('next/link', () => ({ default: ({ children }: { children: ReactNode }) => children }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('./LocaleProvider', () => ({ useLocale: () => ({
-  locale: 'en',
+  locale: state.locale,
   t: (key: string, values?: Record<string, string | number>) => ({
     'calendar.month': 'month',
     'calendar.visualView': `Visual ${values?.view ?? 'month'} view`,
@@ -16,6 +17,8 @@ vi.mock('./LocaleProvider', () => ({ useLocale: () => ({
     'calendar.moveToUtcDate': 'Move to UTC date',
     'calendar.movePostToDate': `Move ${values?.platform ?? ''} post to UTC date`,
     'calendar.move': 'Move',
+    'calendar.movedNotice': `Moved ${values?.platform ?? ''} to ${values?.date ?? ''} UTC.`,
+    'calendar.publicationGates': 'Publication still requires the normal worker and provider gates.',
     'calendar.utc': 'UTC',
     'calendar.unscheduled': 'unscheduled',
     'calendar.savingOriginal': 'Saving the original drag request…',
@@ -55,5 +58,20 @@ describe('calendar visual board', () => {
   it('preserves the original UTC time when a keyboard/date move changes the day', () => {
     expect(movedUtcSlot(post('pending', '2030-02-20T18:30:45.000Z'), new Date('2030-02-24T00:00:00.000Z')))
       .toBe('2030-02-24T18:30:45.000Z');
+  });
+
+  it('uses the selected locale for visible dates and counts', () => {
+    state.locale = 'de';
+    const html = renderToStaticMarkup(<CalendarBoard
+      year={2030}
+      month={2}
+      view="month"
+      canEdit={false}
+      posts={[post('pending', '2030-02-20T18:30:00Z')]}
+    />);
+    expect(html).toContain(calendarCells(2030, 2, 'month', undefined, 'de')[0].label);
+    expect(formatCalendarCount(1234, 'de')).toBe('1.234');
+    expect(html).not.toContain('2030-01-28');
+    state.locale = 'en';
   });
 });

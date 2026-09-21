@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
+import { formatDate } from '@axiom/core';
 import type { RelayCardHistory as RelayCard } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
@@ -78,12 +79,12 @@ export default function RelayCardHistory({
   nextCursor: string | null;
   canReconcile?: boolean;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const displayCreatedAt = (value: string): string => {
     const parsed = new Date(value);
     return Number.isNaN(parsed.valueOf())
       ? t('relay.card.dateUnavailable')
-      : `${parsed.toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+      : formatDate(parsed, locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
   };
 
   if (cards.length === 0) {

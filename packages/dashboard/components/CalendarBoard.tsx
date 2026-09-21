@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 import type { PostTarget } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError } from '@/lib/response';
-import { readBoundedResponseJson } from '@axiom/core';
+import { formatDate, readBoundedResponseJson, type SupportedLocale } from '@axiom/core';
 import { useLocale } from './LocaleProvider';
 
 const DAY_MS = 86_400_000;
@@ -25,6 +25,10 @@ export interface CalendarCell {
   label: string;
   date: Date;
   inCurrentMonth: boolean;
+}
+
+export function formatCalendarCount(value: number, locale: SupportedLocale): string {
+  return new Intl.NumberFormat(locale).format(Number.isFinite(value) ? value : 0);
 }
 
 function utcDayKey(value: Date) {
@@ -109,7 +113,7 @@ export default function CalendarBoard({ posts, year, month, view, weekStart, can
       if (result?.data?.id !== post.id || result.data.state !== 'pending' || result.data.scheduledFor !== scheduledFor) {
         throw new Error(t('calendar.unconfirmedScheduleResponse'));
       }
-      setMessage(`${t('calendar.movedNotice', { platform: post.platform, date: scheduledFor.slice(0, 10) })} ${t('calendar.publicationGates')}`);
+      setMessage(`${t('calendar.movedNotice', { platform: post.platform, date: formatDate(new Date(scheduledFor), locale, { dateStyle: 'medium', timeZone: 'UTC' }) })} ${t('calendar.publicationGates')}`);
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t('calendar.changeNotConfirmed'));
@@ -147,7 +151,7 @@ export default function CalendarBoard({ posts, year, month, view, weekStart, can
         <h3 style={{ margin: 0 }}>{t('calendar.visualView', { view: viewLabel })}</h3>
         <p className="subtle" style={{ marginBottom: 0 }}>{t('calendar.dragHint')}</p>
       </div>
-      <span className="badge mute">{t('calendar.loaded', { count: posts.length })}</span>
+      <span className="badge mute">{t('calendar.loaded', { count: formatCalendarCount(posts.length, locale) })}</span>
     </div>
     {message && <p role="status">{message}</p>}
     {error && <p role="alert">{error}</p>}
@@ -162,7 +166,7 @@ export default function CalendarBoard({ posts, year, month, view, weekStart, can
           onDrop={event => { event.preventDefault(); void moveDraggedPost(cell.date); }}
           style={{ minWidth: 108, minHeight: 128, padding: 8, border: `1px solid ${cell.inCurrentMonth ? 'var(--line)' : 'transparent'}`, borderRadius: 10, background: cell.inCurrentMonth ? 'var(--panel2)' : 'transparent', opacity: cell.inCurrentMonth ? 1 : .65 }}
         >
-          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}><span className="mono" style={{ fontSize: 12 }}>{cell.key}</span>{dayPosts.length > 0 && <span className="badge mute">{dayPosts.length}</span>}</div>
+          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}><span className="mono" style={{ fontSize: 12 }}>{cell.label}</span>{dayPosts.length > 0 && <span className="badge mute">{formatCalendarCount(dayPosts.length, locale)}</span>}</div>
           <div className="stack" style={{ gap: 6 }}>
             {dayPosts.map(post => {
               const editable = canEdit && post.state === 'pending' && !post.remoteId;
