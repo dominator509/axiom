@@ -7,26 +7,27 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `732b835f67eac92f33c075c07f79b531224fc8fe` (M945 product source, pushed and read back; no active Hermes implementation lane)
+SOURCE_HEAD: `0f9284d313243bc8131c0a36fc00b2ae24c518cd` (M946 product source, pushed and read back; no active Hermes implementation lane)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `732b835f67eac92f33c075c07f79b531224fc8fe` (M945 source commit read back from origin)
-COORDINATION_HEAD: `732b835f67eac92f33c075c07f79b531224fc8fe` (product milestone after terminal Hermes-lane closure; handoff-only update follows)
-COORDINATION_HEAD_LAST_READBACK: `732b835f67eac92f33c075c07f79b531224fc8fe — exact origin readback`
+PUBLISHED_HEAD: `0f9284d313243bc8131c0a36fc00b2ae24c518cd` (M946 source commit read back from origin)
+COORDINATION_HEAD: `0f9284d313243bc8131c0a36fc00b2ae24c518cd` (product milestone after Hermes polling was disabled; handoff-only update follows)
+COORDINATION_HEAD_LAST_READBACK: `0f9284d313243bc8131c0a36fc00b2ae24c518cd — exact origin readback`
 ACCEPTED_PRODUCT_SOURCE: `732b835f67eac92f33c075c07f79b531224fc8fe`
 CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — F89-ADAPTATION-ERROR-L10N-R1 OPEN after Codex RECEIPT-REJECT-005; this is the sole active Hermes source-copy lane`
 CURRENT_TASK_MANIFEST_SHA256: `7c75812f9d2f34913bad58de1788f5aa62d1a8a46053016b97e9655653aea2b0`
 CURRENT_TASK_MANIFEST_REMOTE_SHA256: `7c75812f9d2f34913bad58de1788f5aa62d1a8a46053016b97e9655653aea2b0 — exact bridge marker readback`
-CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current marker before scanning the bridge; F89-ADAPTATION-ERROR-L10N-R1 is the only active source-copy lane, bound to exact source commit cf2040d and last wire CODEX-F89-ADAPTATION-ERROR-L10N-R1-RECEIPT-REJECT-005; M945 and every other inbox, reply, status, outbox and worktree identity are historical/inert`
+CURRENT_TASK_MANIFEST_RULE: `The current marker is retained as historical coordination evidence only; because Hermes polling is disabled, its OPEN state does not authorize reads, implementation, replies, or source integration`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
-LAST_COMPLETED_SOURCE_MILESTONE: `M945 agent-permission operator error-boundary localization — Hermes DELIVERY-004 audited and integrated; product commit 732b835f pushed/read back; no live action`
-ACTIVE_HERMES_LANE: `F89-ADAPTATION-ERROR-L10N-R1 OPEN — Hermes owns only the isolated source copy; Codex owns audit, integration, commit and push`
+LAST_COMPLETED_SOURCE_MILESTONE: `M946 affiliate payout export persistence — export receipt and audit event recorded atomically; product commit 0f9284d pushed/read back; no live action`
+ACTIVE_HERMES_LANE: `NONE — Hermes bridge polling is disabled by owner; no source-copy lane is active`
 CODEX_OWNER: `CODEX`
-HERMES_IMPLEMENTATION_OWNER: `HERMES — source copy only; Codex must independently hash, test, accept/reject, integrate, commit and push`
-NEXT_ACTION: `M945 is complete and pushed at 732b835f. Hermes DELIVERY-004 was independently hash-verified but rejected because its claimed mutation-path test never rendered or submitted the component. Hermes must correct the same copy, add the real hostile-403 submit-path assertion, rerun owning checks, and return DELIVERY at SEQ 6 or terminal BLOCKED. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
-BRIDGE_OBSERVATION: `M945 was independently audited and integrated from Hermes DELIVERY-004. F89-ADAPTATION-ERROR-L10N-R1 DELIVERY-004 had all five manifest hashes and readable artifacts, but the focused test only exercised classifyStatus/adaptationErrorText directly; it did not render AdaptationControls, invoke submit, resolve mutationFetch or observe the alert. Codex published RECEIPT-REJECT-005 with one concrete correction and advanced the marker to SEQ 6.`
-CURRENT_LOCAL_DELIVERY: `M945 agent-permission operator error-boundary localization integrated; core 25 files/139 tests and dashboard 154 files/973 tests pass; focused test 8/8, both typechecks and core lint pass, dashboard lint has four pre-existing warnings; no live action`
-PRODUCT_COMPLETION_COMMIT: `732b835f67eac92f33c075c07f79b531224fc8fe — audited M945 agent-permission operator error-boundary localization`
+HERMES_IMPLEMENTATION_OWNER: `NONE — do not revive the stale marker or read historical Hermes artifacts unless the owner explicitly re-enables delegation`
+HERMES_BRIDGE_POLLING: `DISABLED — no bridge reads, reminders, task dispatch, or Hermes source integration`
+NEXT_ACTION: `Continue the local architecture reconciliation one finite source gap at a time. Do not revive Hermes or the stale current marker. The next change must be independently reproduced, focused-tested, committed and pushed before the handoff advances. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
+BRIDGE_OBSERVATION: `Hermes polling was explicitly stopped. Historical bridge artifacts, stale OPEN markers and unread replies are inert; Codex is working from current repository source and this handoff only.`
+CURRENT_LOCAL_DELIVERY: `M946 affiliate payout export persistence integrated; focused API/domain tests 41/41, API typecheck and diff-check pass; owning API suite 1068 passed and 115 skipped, with two unrelated beforeAll hook timeouts in index.test.ts and relay-webhooks.test.ts; no live action`
+PRODUCT_COMPLETION_COMMIT: `0f9284d313243bc8131c0a36fc00b2ae24c518cd — M946 persisted audited affiliate payout exports`
 HERMES_LANE_DISPOSITION: `F89-ADAPTATION-ERROR-L10N-R1 OPEN after DELIVERY-004 rejection — receipt 38fd870c1f257bd78254aaa32f39ac71a8a89ef93a84967ee373b18059dffbee published/read back; Hermes must correct the existing copy without another ACK`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
@@ -182,7 +183,7 @@ RECONCILIATION_RECEIPT_SHA256: `9b44ae04f313a03f8a7ebd38d48a74b69b0c4dbb0d43ac6d
 HERMES_STALE_LANE_POLICY: `Historical lanes and the closed F89 PlaybookHistory wire remain quarantined; Hermes must not resume a task without a fresh exact-source wire selected by Codex`
 LOCAL_WORKTREE_POLICY: `Codex audits, tests, commits and pushes local milestones; untracked Hermes review artifacts remain untouched`
 NO_LIVE_ACTIONS: `TRUE — no deployment, installer, migration, database, provider, credential, permission, network or service action; no Hermes product lane is active`
-SHIP_GATE_STATUS: `PASS — scripts/verify.sh returned verify: ok; preflight and P0-P4 gates passed; no live action`
+SHIP_GATE_STATUS: `PASS — scripts/verify.sh previously returned verify: ok; this does not close open runtime/provider/browser/migration/operator gates; no live action`
 SHIP_GATE_HEAD: `462cdaf31ee06e7263057df4489d7fbd14b4cd35` (M859 source verified; scripts/verify.sh returned verify: ok; full dashboard matrix passed; no live action)
 
 ## Seamless Codex/Hermes loop contract
