@@ -453,13 +453,34 @@ router.get('/payouts/export', async (c) => {
     disclosureAcceptedAt: partnerRow.disclosureAcceptedAt?.toISOString(),
   };
   const { batch, csv } = buildPayoutExport(partner, commissions, holds);
-  if (c.req.query('format') === 'json') return c.json({ data: { batch, csv, transfer: 'none' } });
+  const actor = c.get('userId') ?? 'system';
+  const exportRecord = await db.transaction(async (tx) => {
+    const [record] = await tx.insert(schema.affiliatePayoutExport).values({
+      programId: partnerRow.programId,
+      partnerId: partnerRow.id,
+      commissionIds: batch.commissionIds,
+      totalCents: batch.totalCents,
+      exportFormat: 'csv',
+      createdByUserId: actor,
+    }).returning();
+    if (!record) throw new Error('affiliate payout export could not be recorded');
+    await recordAudit(tx, partnerRow.programId, actor, 'affiliate.payout.export', record.id, {
+      commissionCount: batch.commissionIds.length,
+      totalCents: batch.totalCents,
+      transfer: 'none',
+    }, auditKey(c, 'payout.export', record.id));
+    return record;
+  });
+  if (c.req.query('format') === 'json') {
+    return c.json({ data: { batch, csv, transfer: 'none', exportId: exportRecord.id } });
+  }
   return new Response(csv, {
     status: 200,
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="fanthynks-affiliate-${partnerId}.csv"`,
       'X-Fanthynks-Payout-Transfer': 'none',
+      'X-Fanthynks-Payout-Export-Id': exportRecord.id,
     },
   });
 });

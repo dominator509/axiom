@@ -164,16 +164,25 @@ describe('platform affiliate API', () => {
   });
 
   it('exports an approved payout file only and never represents a transfer', async () => {
+    harness.state.result = [{ id: 'export-1' }];
     harness.state.results = [
-      [{ id: partnerId, displayName: 'Partner', email: 'partner@example.com', status: 'active', termsVersion: 'v1' }],
+      [{ id: partnerId, programId, displayName: 'Partner', email: 'partner@example.com', status: 'active', termsVersion: 'v1' }],
       [{ id: 'commission-1', conversionId, partnerId, campaignId, kind: 'approved', amountCents: 2000, createdAt: new Date('2026-01-01T00:00:00.000Z') }],
       [],
     ];
     const response = await app().request(`/payouts/export?partnerId=${partnerId}&format=json`);
     expect(response.status).toBe(200);
-    const body = await response.json() as { data: { batch: { totalCents: number }; csv: string; transfer: string } };
+    const body = await response.json() as { data: { batch: { totalCents: number }; csv: string; transfer: string; exportId: string } };
     expect(body.data.batch.totalCents).toBe(2000);
     expect(body.data.csv).toContain('commission-1');
     expect(body.data.transfer).toBe('none');
+    expect(body.data.exportId).toBe('export-1');
+    expect(harness.state.inserts).toContainEqual(expect.objectContaining({
+      programId,
+      partnerId,
+      commissionIds: ['commission-1'],
+      totalCents: 2000,
+      exportFormat: 'csv',
+    }));
   });
 });
