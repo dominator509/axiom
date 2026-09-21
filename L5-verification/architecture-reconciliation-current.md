@@ -1431,3 +1431,20 @@ Link-in-bio analytics count-formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M962 — F-89 digest schedule formatting
+
+The mounted digest schedule status exposed a raw eligibility timestamp and raw
+retry count. The eligibility value now uses the selected locale's medium
+date/time formatter with explicit UTC and an invalid-date fallback; retry
+attempts use the selected locale's shared number formatter. Schedule state,
+workspace-safety wording and external-delivery boundary remain unchanged.
+
+Evidence: focused schedule-status tests 8/8, full dashboard suite 154 files /
+979 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`502ad7ffda335b179601b333f0824b537f78576e` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified digest
+schedule formatting source slice; complete catalog adoption, browser/native
+acceptance, deployed migration/RLS/runtime, provider receipts, observability,
+CI governance and production acceptance remain open. No live action occurred.
