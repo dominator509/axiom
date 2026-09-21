@@ -17,7 +17,7 @@ vi.mock('react', async (original) => ({
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
 vi.mock('./LocaleProvider', () => ({
   useLocale: () => ({
-    locale: 'en',
+    locale: 'de',
     setLocale: () => undefined,
     t: (key: string, values?: Record<string, string | number>) => {
       const text = ({
@@ -58,6 +58,7 @@ function panel(enabled: boolean, canEdit = true) {
   hooks.index = 0;
   return LinkbioPanel({ modelId: 'model', canEdit, providers: [{
     id: 'native', kind: 'native', enabled, isPrimary: false,
+    clicks: 1234,
     config: { metadata: { source: 'saved-configuration' }, links: [{ label: 'Saved destination', url: 'https://example.com/saved' }] },
   }] });
 }
@@ -75,6 +76,10 @@ function findButton(element: ReactElement, label: string): ReactElement<{ onClic
 
 it('does not offer enable while the native page is already active', () => {
   expect(findButton(panel(true), 'Enable native page')).toBeUndefined();
+});
+
+it('formats provider click counts in the selected locale', () => {
+  expect(renderToStaticMarkup(panel(true))).toContain('1.234');
 });
 
 it('does not expose provider mutations to read-only users', () => {

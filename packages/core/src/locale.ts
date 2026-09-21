@@ -1021,6 +1021,7 @@ export const MESSAGE_KEYS = [
   'settings.saveWorkspace',
   'settings.savingWorkspace',
   'analytics.title',
+  'analytics.revision',
   'analytics.downloadPdf',
   'analytics.views',
   'analytics.likes',

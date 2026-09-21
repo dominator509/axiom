@@ -64,7 +64,7 @@ it.each(['model', 'content_creator'])(
     expect(html).toContain('No verified published exemplars yet');
     expect(html).toContain('relative engagement, not conversions');
     expect(html).toContain('Playbook guidance context');
-    expect(html).toContain('instagram · revision 4');
+    expect(html).toContain('instagram · Revision 4');
     expect(html).toContain('Cadence target: 3 posts/week.');
     expect(html).toContain('Approved approach');
   },
@@ -140,6 +140,7 @@ it('formats remaining analytics counts and scores in the selected locale', async
   }] });
   const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ id: 'assigned' }) }));
   expect(html).toContain(new Intl.NumberFormat('es').format(12345));
+  expect(html).toContain('Revisión 12.345');
   expect(html).toContain(new Intl.NumberFormat('es', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(12.345));
 });
 it.each(['chatter', 'unknown'])('does not request analytics for %s', async (role) => {

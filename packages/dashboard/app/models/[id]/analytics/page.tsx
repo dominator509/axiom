@@ -200,7 +200,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
             {playbookGuidelines.map((guideline) => (
               <article className="card" key={guideline.id} style={{ background: 'var(--panel2)' }}>
                 <strong>
-                  {guideline.platform} · revision {number.format(guideline.revision)}
+                  {guideline.platform} · {t('analytics.revision', { revision: number.format(guideline.revision) })}
                 </strong>
                 <p>{t('analytics.cadenceTarget', { count: number.format(guideline.cadencePerWeek) })}</p>
                 <p>

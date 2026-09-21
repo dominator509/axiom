@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatNumber } from '@axiom/core';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import { useLocale } from './LocaleProvider';
@@ -50,7 +51,7 @@ export default function LinkbioPanel({
   providers: ProviderRow[];
   canEdit?: boolean;
 }) {
-  const { t } = useLocale();
+  const { locale = 'en', t } = useLocale();
   const router = useRouter();
   const [kind, setKind] = useState<(typeof KINDS)[number]>('native');
   const [busy, setBusy] = useState(false);
@@ -161,7 +162,7 @@ export default function LinkbioPanel({
                 <tr key={p.id}>
                   <td>{p.kind}</td>
                   <td>{p.isPrimary ? '★' : '—'}</td>
-                  <td>{p.clicks ?? 0}</td>
+                  <td>{formatNumber(p.clicks ?? 0, locale)}</td>
                   <td>
                     <button
                       className="btn danger"
