@@ -7,27 +7,27 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `fcedd16fc14063eb8a4860a93b3516e24a2d22a8` (immutable exact source pin for the active D001 task; later handoff-only commits do not change the task source)
+SOURCE_HEAD: `9bde9b7462d48775105487eb24fc20cef8252c2b` (immutable exact source pin for the active F89 mounted-surface localization task; later handoff-only commits do not change the task source)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `fcedd16fc14063eb8a4860a93b3516e24a2d22a8` (source pin read back before publishing the D001 task record)
+PUBLISHED_HEAD: `9bde9b7462d48775105487eb24fc20cef8252c2b` (source pin read back before publishing the F89 task record)
 COORDINATION_HEAD: `01d212cd6ad71f9927b75fa05b5f8624d57791c8` (task-record publication commit; subsequent handoff-only commits do not change the D001 source pin)
 COORDINATION_HEAD_LAST_READBACK: `01d212cd6ad71f9927b75fa05b5f8624d57791c8 — exact origin readback for the D001 assignment; inspect Git for later handoff-only commits`
 ACCEPTED_PRODUCT_SOURCE: `e5fe10ff2962645f1dabc4b0ce64359324ae5408`
-CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — D001-DEPLOYMENT-SAFETY-SOURCE-BOUNDARY-R4 TERMINAL BLOCKED; no active Hermes lane`
-CURRENT_TASK_MANIFEST_SHA256: `0a5904cf6d5b7683fb07fd0b916f6056242fd0806129606ff3c2bc4ed1e20627`
-CURRENT_TASK_MANIFEST_REMOTE_SHA256: `0a5904cf6d5b7683fb07fd0b916f6056242fd0806129606ff3c2bc4ed1e20627 — exact bridge marker readback`
-CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; D001 R4 is terminal historical evidence and no new lane exists until Codex installs one; all other inbox/reply/status/outbox/worktree artifacts are inert`
+CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — F89-MODEL-MOUNTED-SURFACE-L10N-R1 OPEN; this is the only active Hermes lane`
+CURRENT_TASK_MANIFEST_SHA256: `838ac2eb5ccd0f37ad7aaf64c9ca934275a5da0bae96018b6a6021160e2365ec`
+CURRENT_TASK_MANIFEST_REMOTE_SHA256: `PENDING — publish/read back after the coordination commit`
+CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; only F89-MODEL-MOUNTED-SURFACE-L10N-R1 is active; D001 R4 and every other inbox/reply/status/outbox/worktree identity are historical and inert`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
 LAST_COMPLETED_SOURCE_MILESTONE: `F14 model watermark-policy integration — independently audited Hermes source, owning gates passed, product commit e5fe10ff pushed/read back; no live action`
-ACTIVE_HERMES_LANE: `NONE — D001-DEPLOYMENT-SAFETY-SOURCE-BOUNDARY-R4 is terminally BLOCKED because its exact Git copy lacks the installer/bridge implementation`
+ACTIVE_HERMES_LANE: `F89-MODEL-MOUNTED-SURFACE-L10N-R1 — source-copy only; Hermes implements the six-locale mounted model workspace slice, Codex audits and integrates`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — source copy only; Codex must independently hash, test, accept/reject, integrate, commit and push`
-NEXT_ACTION: `Design and add a tracked source-of-truth for the D001 installer/bridge implementation before assigning another D001 coding lane. Do not revive the blocked task or use installed/historical artifacts as source. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
-BRIDGE_OBSERVATION: `F14 R13 delivery was independently hash-audited, contract-audited, tested and integrated at e5fe10ff. D001 R4 was independently checked against exact source fcedd16 and terminally BLOCKED: the Git copy contains no installer target-context resolver, bridge request helper, or D001 sink implementation. Remote marker hash 0a5904cf is read back.`
+NEXT_ACTION: `Wait for the current F89 ACK/PROGRESS/DELIVERY sequence; Codex will independently hash-audit and run owning gates before integrating. Do not revive D001 or any historical lane. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
+BRIDGE_OBSERVATION: `F14 R13 delivery was independently hash-audited, contract-audited, tested and integrated at e5fe10ff. D001 R4 was independently checked against exact source fcedd16 and terminally BLOCKED because the Git copy lacked the installer/bridge implementation. A fresh source-backed F89 localization task is now installed at exact pushed head 9bde9b7 with explicit six-locale scope and strict reply-format requirements.`
 CURRENT_LOCAL_DELIVERY: `F14 watermark-policy source integrated; 21 manifest files independently verified, worker/API/DB/dashboard/core/storage/media-plane gates pass; Windows standalone symlink packaging remains an environment-only full-build limitation`
 PRODUCT_COMPLETION_COMMIT: `e5fe10ff2962645f1dabc4b0ce64359324ae5408 — audited F14 model watermark-policy integration`
-HERMES_LANE_DISPOSITION: `D001 R4 TERMINAL_BLOCKED — protocol-valid Hermes NACK proves the exact Git source lacks the implementation; no source delivery or live action is counted`
+HERMES_LANE_DISPOSITION: `F89-MODEL-MOUNTED-SURFACE-L10N-R1 OPEN — wait for Hermes source-copy work; no source delivery or live action is counted until Codex audits it`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
@@ -35,7 +35,7 @@ HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_R
 HERMES_REPLY_FORMAT_GATE: `ACK = TYPE ACK + STATE READ|ACCEPTED; PROGRESS = TYPE PROGRESS + STATE IN_PROGRESS; DELIVERY = TYPE DELIVERY + STATE DELIVERED + TERMINAL YES; BLOCKED = TYPE NACK + STATE BLOCKED + TERMINAL YES; every reply has a new WIRE distinct from IN_REPLY_TO, exact SEQ, PAYLOAD delimiter, READ_STATUS READ once, and final signature sincerely, Hermes`
 HERMES_DELIVERY_FORMAT_GATE: `DELIVERY PAYLOAD must contain exactly once: ARTIFACT, SHA256 (64 lowercase hex), COMMAND, EXIT_CODE (integer), TEST_RESULT (PASS|FAIL), CHANGED_FILES, SOURCE_REPO, SOURCE_REF, SOURCE_COMMIT, COPY_ROOT, DELIVERY_ROOT, MANIFEST_SHA256 (64 lowercase hex), LIVE_ACTIONS NONE; no prose substitute or duplicate fields`
 HERMES_BLOCKED_FORMAT_GATE: `If required checks cannot run or one concrete input is missing, use TYPE NACK, STATE BLOCKED, TERMINAL YES, NEXT_OWNER CODEX, a unique WIRE, REASON naming the single blocker, PAYLOAD READ_STATUS READ and LIVE_ACTIONS NONE exactly once; do not send a second ACK or a no-change delivery`
-OPEN_WIRES: `NONE — D001 R4 terminally blocked; all D001/F14 wires are historical until Codex installs a fresh task`
+OPEN_WIRES: `CODEX-F89-MODEL-MOUNTED-SURFACE-L10N-R1-TASK-001 — current task only; all D001/F14 wires and prior F89 lanes are historical`
 STALE_HERMES_REPLY: `HERMES-F15-F16-VARIANT-GUIDANCE-CURRENT-DELIVERY-004` was rejected by CODEX-F15-F16-VARIANT-GUIDANCE-CURRENT-RECEIPT-REJECT-005; it is terminal historical evidence and does not reopen or advance any lane`
 OPEN_CONTROL_WIRE: `NONE — CODEX-HERMES-WORKFLOW-RECONCILIATION-R2-TASK-001 is closed`
 OPEN_CONTROL_TASK_STATE: `CLOSED — valid ACK/ACCEPTED was read back at SEQ 2 and terminal Codex READ receipt was uploaded at SEQ 3`
@@ -50,7 +50,7 @@ OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
 OPEN_CONTROL_TASK_NEXT_ACTION: `Do not read or act on any closed lane again; install one new current feature marker/task only after a source gap is selected and its exact pushed head is read back.`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization, M857 relay-binding localization, M858 workspace-members localization and M859 PlaybookCadence calendar localization are integrated on the branch; F50 Linktree is terminal deferred for missing provider contract; F89 worker digest is integrated through fallback; M883 provider-neutral storage is integrated at 9a720071; M892 storage hardening is integrated at c884ad4; M907 canonical storage-key fixtures and deterministic isolated test discovery/database sequencing are integrated at fb594a4; M915 Hermes source-head reconciliation is integrated at fe24689; no feature lane is active until the next current marker is installed.`
-CURRENT_MILESTONE: `F14 R11 selected against exact source pin dee80c85100faf471366a119bd7a5d1c95670c48; owner-authorized source-only policy/media execution lane; no live action`
+CURRENT_MILESTONE: `F89 model-mounted-surface localization selected against exact pushed source 9bde9b7462d48775105487eb24fc20cef8252c2b; owner-authorized source-only six-locale execution lane; no live action`
 CURRENT_MILESTONE_OPEN_GATES: `Provider-specific live request acceptance remains open because subscription/API-key transports are intentionally fail-closed; migration application, deployed worker/runtime acceptance, automatic scheduling, provider delivery, revenue/conversion attribution and full contextual-arm semantics remain open; F50 Linktree remains terminally deferred for missing provider contract; browser/mobile, RLS, observability, CI/branch-protection, WireGuard and production/operator acceptance remain open.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
