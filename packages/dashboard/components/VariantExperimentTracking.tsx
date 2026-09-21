@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatNumber, type SupportedLocale } from '@axiom/core';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import VariantReviewCreate from './VariantReviewCreate';
@@ -12,10 +13,14 @@ type Assignment = { id: string; variantId: string; assignedAt: string; outcomeAt
 type Intent = { path: string; body: string; key: string };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export function formatVariantMetric(value: number, locale: SupportedLocale): string {
+  return formatNumber(value, locale);
+}
+
 export default function VariantExperimentTracking({ modelId, experimentId, status, canEdit, platform = 'instagram' }: {
   modelId: string; experimentId: string; status: string; canEdit: boolean; platform?: string;
 }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const router = useRouter();
   const base = `/api/v1/models/${encodeURIComponent(modelId)}/variant-experiments/${encodeURIComponent(experimentId)}`;
   const [rows, setRows] = useState<Assignment[]>([]);
@@ -86,7 +91,7 @@ export default function VariantExperimentTracking({ modelId, experimentId, statu
     <button type="button" className="btn secondary" disabled={loading || busy} onClick={() => void load()}>{loading ? t('variant.tracking.loading') : t('variant.tracking.refresh')}</button>
     {loaded && rows.length === 0 && <p>{t('variant.tracking.noAssignments')}</p>}
     <ul className="stack">{rows.map(row => <li key={row.id}>
-      <span className="mono">{row.id.slice(0, 8)}</span> · {t('variant.tracking.variant')} {row.variantId.slice(0, 8)} · {row.outcomeAt ? `${row.converted ? t('variant.tracking.converted') : t('variant.tracking.notConverted')}${row.metricValue === null ? '' : ` · ${t('variant.tracking.metric', { value: row.metricValue })}`}` : t('variant.tracking.awaiting')}
+      <span className="mono">{row.id.slice(0, 8)}</span> · {t('variant.tracking.variant')} {row.variantId.slice(0, 8)} · {row.outcomeAt ? `${row.converted ? t('variant.tracking.converted') : t('variant.tracking.notConverted')}${row.metricValue === null ? '' : ` · ${t('variant.tracking.metric', { value: formatVariantMetric(row.metricValue, locale) })}`}` : t('variant.tracking.awaiting')}
       {row.reviewBundleId ? <Link href={`/models/${encodeURIComponent(modelId)}/approvals`}>{t('variant.tracking.reviewBundle', { id: row.reviewBundleId.slice(0, 8) })}</Link>
         : canEdit && ['running', 'paused'].includes(status) && row.variantType && <VariantReviewCreate modelId={modelId} variantId={row.variantId} assignmentId={row.id} requiresCaption={!['caption', 'teaser'].includes(row.variantType)} initialPlatform={platform} />}
     </li>)}</ul>

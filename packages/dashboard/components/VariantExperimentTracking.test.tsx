@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
-import VariantExperimentTracking from './VariantExperimentTracking';
+import VariantExperimentTracking, { formatVariantMetric } from './VariantExperimentTracking';
 it.each(['draft', 'completed'])('shows history without allocating or recording for %s', status => {
   const html = renderToStaticMarkup(<VariantExperimentTracking modelId="model" experimentId="experiment" status={status} canEdit />);
   expect(html).toContain('Refresh assignments');
@@ -21,4 +21,9 @@ it('allows measuring existing assignments while paused without allocating new on
 it('withholds all mutation controls from read-only users', () => {
   const html = renderToStaticMarkup(<VariantExperimentTracking modelId="model" experimentId="experiment" status="running" canEdit={false} />);
   expect(html).not.toContain('<fieldset'); expect(html).toContain('Refresh assignments');
+});
+
+it('formats observed metrics through the selected locale', () => {
+  expect(formatVariantMetric(12345.5, 'de')).toBe('12.345,5');
+  expect(formatVariantMetric(12345.5, 'ja')).toBe('12,345.5');
 });
