@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatNumber } from '@axiom/core';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import GenerationProgress from './GenerationProgress';
@@ -25,7 +26,7 @@ const PLATFORMS = [
 ];
 
 export default function GenerateForm({ modelId, initialSourceAssetId = '', operatorControls = true }: { modelId: string; initialSourceAssetId?: string; operatorControls?: boolean }) {
-  const { t } = useLocale();
+  const { locale = 'en', t } = useLocale();
   const router = useRouter();
   const [style, setStyle] = useState('studio');
   const [outfit, setOutfit] = useState('summer dress');
@@ -299,7 +300,7 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
               {result.tosReport.scores.map((s) => (
                 <tr key={s.platform}>
                   <td>{s.platform}</td>
-                  <td>{s.score}</td>
+                  <td>{formatNumber(s.score, locale, { maximumFractionDigits: 2 })}</td>
                   <td>
                     <span
                       className={`badge ${s.verdict === 'pass' ? 'good' : s.verdict === 'review' ? 'warn' : 'bad'}`}

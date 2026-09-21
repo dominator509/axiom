@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FormEvent } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 const hooks = vi.hoisted(() => ({
   values: [] as unknown[], refs: [] as { current: unknown }[], stateIndex: 0, refIndex: 0,
@@ -19,7 +20,7 @@ vi.mock('react', async (original) => ({
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
 vi.mock('./LocaleProvider', () => ({
   useLocale: () => ({
-    locale: 'en',
+    locale: 'de',
     setLocale: () => undefined,
     t: (key: string) => ({
       'generation.selectPlatform': 'Select at least one destination platform.',
@@ -59,6 +60,17 @@ function key(fetch: ReturnType<typeof vi.fn>, index: number) {
 }
 
 describe('generation intent', () => {
+  it('formats ToS scores in the selected locale', () => {
+    hooks.stateIndex = 0;
+    hooks.refIndex = 0;
+    hooks.values[10] = {
+      variants: [],
+      tosReport: { verdict: 'review', scores: [{ platform: 'instagram', verdict: 'review', score: 0.2 }] },
+    };
+    const html = renderToStaticMarkup(GenerateForm({ modelId: 'model-a' }));
+    expect(html).toContain('0,2');
+  });
+
   it('opens in video mode with a selected stored source image from the media library', () => {
     hooks.stateIndex = 0; hooks.refIndex = 0;
     GenerateForm({ modelId: 'model-a', initialSourceAssetId: '11111111-1111-4111-8111-111111111111' });
