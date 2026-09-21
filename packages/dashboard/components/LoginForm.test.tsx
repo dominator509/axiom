@@ -19,6 +19,7 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
         'auth.sessionSignupAdvice': 'Do not create another account; use Sign in if needed.',
         'auth.sessionSigninAdvice': 'If this continues, contact your administrator.',
         'auth.networkError': 'Network error — is the API reachable?',
+        'affiliate.claimFailed': 'Affiliate attribution could not be recorded. Keep this page open and retry sign-in.',
         'auth.email': 'Email', 'auth.password': 'Password',
         'auth.emailPlaceholder': 'operator@axiom.local', 'auth.wait': 'Please wait…',
         'auth.createAccount': 'Create FanThynks account', 'auth.signIn': 'Sign in',
@@ -34,7 +35,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: hooks.push, refres
 vi.mock('@/lib/request', () => ({ fetchWithTimeout: hooks.fetch }));
 import LoginForm from './LoginForm';
 beforeEach(() => { hooks.values = []; hooks.refs = []; vi.resetAllMocks(); });
-function render(allowSignup = false) { hooks.i = 0; hooks.r = 0; return LoginForm({ allowSignup }); }
+function render(allowSignup = false, affiliateRef?: string) { hooks.i = 0; hooks.r = 0; return LoginForm({ allowSignup, affiliateRef }); }
 function fill() { hooks.values[0] = 'operator@example.invalid'; hooks.values[1] = 'synthetic-test-password'; }
 function successfulSession() {
   hooks.fetch.mockResolvedValueOnce(Response.json({ user: { id: 'test-operator' } }))
@@ -65,6 +66,26 @@ it('confirms a usable same-origin session before navigating', async () => {
     credentials: 'same-origin', cache: 'no-store', redirect: 'error',
   }]);
   expect(hooks.push).toHaveBeenCalledWith('/');
+});
+it('claims a validated referral after session confirmation and before navigation', async () => {
+  fill(); successfulSession();
+  hooks.fetch.mockResolvedValueOnce(Response.json({ data: { claimed: true }, duplicate: false }, { status: 201 }));
+  await render(false, 'ref-token').props.onSubmit({ preventDefault() {} });
+  expect(hooks.fetch.mock.calls[2]).toEqual(['/api/affiliate/claim', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    credentials: 'same-origin', redirect: 'error',
+    body: JSON.stringify({ referralToken: 'ref-token' }),
+  }]);
+  expect(hooks.push).toHaveBeenCalledWith('/');
+});
+it('does not leave signup active when the referral claim fails after account creation', async () => {
+  render(true).props.children[4].props.children[0].props.onClick();
+  fill(); successfulSession();
+  hooks.fetch.mockResolvedValueOnce(new Response('{}', { status: 503 }));
+  await render(true, 'ref-token').props.onSubmit({ preventDefault() {} });
+  expect(hooks.push).not.toHaveBeenCalled();
+  expect(hooks.values[2]).toBe('Affiliate attribution could not be recorded. Keep this page open and retry sign-in.');
+  expect(hooks.values[4]).toBe(false);
 });
 it.each([null, {}, { user: {} }, { user: { id: '' } }, { user: { id: 1 } }, { user: { id: 'another-operator' } }])(
   'does not navigate when sign-in succeeds but session is unusable: %j', async session => {

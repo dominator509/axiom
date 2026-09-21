@@ -448,6 +448,7 @@ export const MESSAGE_KEYS = [
   'affiliate.copyReferralLink',
   'affiliate.referralCopied',
   'affiliate.copyUnavailable',
+  'affiliate.claimFailed',
   'affiliate.viewReport',
   'affiliate.reportTitle',
   'affiliate.clicksVisits',

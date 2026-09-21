@@ -40,7 +40,7 @@ const harness = vi.hoisted(() => {
 
 vi.mock('@axiom/db', () => harness);
 
-import { platformAffiliateRouter, publicPlatformAffiliateRouter } from './platform-affiliate.js';
+import { affiliateClaimRouter, platformAffiliateRouter, publicPlatformAffiliateRouter } from './platform-affiliate.js';
 
 function app() {
   const server = new Hono<AppBindings>();
@@ -57,6 +57,18 @@ function app() {
 function publicApp() {
   const server = new Hono<AppBindings>();
   server.route('/', publicPlatformAffiliateRouter);
+  return server;
+}
+
+function claimApp(userId = 'creator-user') {
+  const server = new Hono<AppBindings>();
+  server.use('*', async (c, next) => {
+    c.set('userId', userId);
+    c.set('orgId', '');
+    c.set('role', null);
+    await next();
+  });
+  server.route('/', affiliateClaimRouter);
   return server;
 }
 
@@ -240,5 +252,44 @@ describe('public affiliate referral links', () => {
     const response = await publicApp().request('/r/ref-token', { redirect: 'manual' });
     expect(response.status).toBe(404);
     expect(harness.state.inserts).toHaveLength(0);
+  });
+});
+
+describe('authenticated affiliate referral claims', () => {
+  it('stitches the signed-in creator identity exactly once after referral login', async () => {
+    harness.state.results = [
+      [{ id: campaignId, programId, partnerId, referralToken: 'ref-token', status: 'active' }],
+      [{ id: programId, status: 'active' }],
+      [{ id: partnerId, programId, status: 'active', disclosureAcceptedAt: new Date('2026-01-01T00:00:00.000Z') }],
+      [{ id: 'identity-event-1', campaignId, partnerId, programId, kind: 'identity_stitch', creatorUserId: 'creator-user' }],
+    ];
+    const response = await claimApp().request('/claim', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ referralToken: 'ref-token' }),
+    });
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ data: { claimed: true }, duplicate: false });
+    expect(harness.state.inserts[0]).toMatchObject({
+      programId, campaignId, partnerId, kind: 'identity_stitch',
+      creatorUserId: 'creator-user', metadata: { source: 'signup_referral_claim' },
+      eventKey: `identity-stitch:${campaignId}:creator-user`,
+    });
+  });
+
+  it('returns a duplicate receipt without creating a second identity stitch', async () => {
+    harness.state.results = [
+      [{ id: campaignId, programId, partnerId, referralToken: 'ref-token', status: 'active' }],
+      [{ id: programId, status: 'active' }],
+      [{ id: partnerId, programId, status: 'active', disclosureAcceptedAt: new Date('2026-01-01T00:00:00.000Z') }],
+      [],
+      [{ id: 'identity-event-1', campaignId, partnerId, programId, kind: 'identity_stitch', creatorUserId: 'creator-user' }],
+    ];
+    const response = await claimApp().request('/claim', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ referralToken: 'ref-token' }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { claimed: true }, duplicate: true });
+    expect(harness.state.inserts).toHaveLength(1);
   });
 });

@@ -6,7 +6,7 @@ import { fetchWithTimeout } from '@/lib/request';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import { useLocale } from './LocaleProvider';
 
-export default function LoginForm({ allowSignup = false }: { allowSignup?: boolean }) {
+export default function LoginForm({ allowSignup = false, affiliateRef }: { allowSignup?: boolean; affiliateRef?: string }) {
   const router = useRouter();
   const { t } = useLocale();
   const [email, setEmail] = useState('');
@@ -56,6 +56,27 @@ export default function LoginForm({ allowSignup = false }: { allowSignup?: boole
         const advice = signup ? t('auth.sessionSignupAdvice') : t('auth.sessionSigninAdvice');
         setError(t('auth.sessionNotConfirmed', { action, advice }));
         return;
+      }
+      if (affiliateRef) {
+        let claim: Response;
+        try {
+          claim = await fetchWithTimeout('/api/affiliate/claim', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            credentials: 'same-origin',
+            redirect: 'error',
+            body: JSON.stringify({ referralToken: affiliateRef }),
+          });
+        } catch {
+          if (signup) setCreating(false);
+          setError(t('affiliate.claimFailed'));
+          return;
+        }
+        if (!claim.ok) {
+          if (signup) setCreating(false);
+          setError(t('affiliate.claimFailed'));
+          return;
+        }
       }
       router.push('/');
       router.refresh();

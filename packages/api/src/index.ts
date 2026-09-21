@@ -48,7 +48,7 @@ import { enforceModelAccess } from './model-access.js';
 import { mediaOperationsRouter } from './routes/media-operations.js';
 import { playbookGuidelinesRouter } from './routes/playbook-guidelines.js';
 import { roleplayRouter } from './routes/roleplay.js';
-import { platformAffiliateRouter, publicPlatformAffiliateRouter } from './routes/platform-affiliate.js';
+import { affiliateClaimRouter, platformAffiliateRouter, publicPlatformAffiliateRouter } from './routes/platform-affiliate.js';
 import { uiLocaleRouter } from './routes/ui-locale.js';
 import { providerCacheControlsRouter } from './routes/provider-cache-controls.js';
 import { watermarkPolicyRouter } from './routes/watermark-policy.js';
@@ -784,6 +784,9 @@ app.use('/api/v1/models/:modelId/watermark-policy', requireAuth);
 app.use('/api/v1/models/:modelId/roleplay/*', requireAuth);
 app.use('/api/v1/org-settings/*', requireAuth);
 app.use('/api/v1/platform/affiliate/*', requireAuth);
+// Authenticated referral claims attach the signed-in creator identity to the
+// anonymous click handoff without entering the model-scoped REST surface.
+app.use('/api/affiliate/*', requireAuth);
 app.use('/api/v1/ui-locale', requireAuth);
 app.use('/api/v1/ui-locale/*', requireAuth);
 // LLM requests can spend provider credits and reveal provider/runtime state.
@@ -1019,6 +1022,7 @@ app.route('/api/v1', mediaOperationsRouter);
 app.route('/api/v1', playbookGuidelinesRouter);
 app.route('/api/v1', roleplayRouter);
 app.route('/api/v1/platform/affiliate', platformAffiliateRouter);
+app.route('/api/affiliate', affiliateClaimRouter);
 app.route('/api/v1', uiLocaleRouter);
 app.route('/api/v1', providerCacheControlsRouter);
 app.route('/api/v1', watermarkPolicyRouter);

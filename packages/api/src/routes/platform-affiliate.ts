@@ -27,6 +27,7 @@ import {
 
 const router = new Hono<AppBindings>();
 const publicRouter = new Hono<AppBindings>();
+const affiliateClaimRouter = new Hono<AppBindings>();
 
 // Referral links are anonymous by design, but they are still an abuse surface.
 // Rate-limit the redirect before it can write an attribution fact.
@@ -75,21 +76,14 @@ const reconcileSchema = z.object({
 const holdResolveSchema = z.object({
   resolution: z.enum(['released', 'upheld']),
 }).strict();
+const referralTokenSchema = z.string().trim().min(1).max(256).regex(/^[A-Za-z0-9_-]+$/);
+const affiliateClaimSchema = z.object({ referralToken: referralTokenSchema }).strict();
 
-/**
- * Public partner link. It records only a bounded click fact, then sends the
- * visitor to the same-origin login flow with the opaque referral token. The
- * token is retained for the signup/onboarding boundary; this route never
- * accepts a destination URL and never exposes partner or campaign metadata.
- */
-publicRouter.get('/r/:referralToken', async (c) => {
-  const referralToken = c.req.param('referralToken');
+async function findActiveReferral(referralToken: string) {
   const [campaign] = await db.select().from(schema.affiliateCampaign).where(
     eq(schema.affiliateCampaign.referralToken, referralToken),
   ).limit(1);
-  if (!campaign || campaign.status !== 'active') {
-    return apiError(c, 404, statusTitle(404), 'affiliate referral link not found');
-  }
+  if (!campaign || campaign.status !== 'active') return null;
 
   const [program] = await db.select().from(schema.affiliateProgram).where(
     eq(schema.affiliateProgram.id, campaign.programId),
@@ -101,9 +95,26 @@ publicRouter.get('/r/:referralToken', async (c) => {
     !program || program.status !== 'active' ||
     !partner || partner.programId !== campaign.programId ||
     partner.status !== 'active' || !partner.disclosureAcceptedAt
-  ) {
+  ) return null;
+
+  return { campaign, program, partner };
+}
+
+/**
+ * Public partner link. It records only a bounded click fact, then sends the
+ * visitor to the same-origin login flow with the opaque referral token. The
+ * token is retained for the signup/onboarding boundary; this route never
+ * accepts a destination URL and never exposes partner or campaign metadata.
+ */
+publicRouter.get('/r/:referralToken', async (c) => {
+  const parsedToken = referralTokenSchema.safeParse(c.req.param('referralToken'));
+  if (!parsedToken.success) return apiError(c, 404, statusTitle(404), 'affiliate referral link not found');
+  const referralToken = parsedToken.data;
+  const referral = await findActiveReferral(referralToken);
+  if (!referral) {
     return apiError(c, 404, statusTitle(404), 'affiliate referral link not found');
   }
+  const { campaign } = referral;
 
   const now = new Date();
   await db.insert(schema.affiliateAttributionEvent).values({
@@ -123,6 +134,53 @@ publicRouter.get('/r/:referralToken', async (c) => {
   c.header('Referrer-Policy', 'no-referrer');
   c.header('X-Robots-Tag', 'noindex');
   return c.redirect(destination.toString(), 302);
+});
+
+/**
+ * Complete the same-origin referral handoff after authentication. The public
+ * redirect intentionally records only an anonymous click; this authenticated,
+ * idempotent event is the first point at which a creator identity may be
+ * attached. It never creates a billing conversion or payout side effect.
+ */
+affiliateClaimRouter.post('/claim', async (c) => {
+  let payload: unknown;
+  try { payload = await readBoundedJson(c.req.raw, 8 * 1024); }
+  catch (error) {
+    if (error instanceof RequestBodyTooLargeError) return apiError(c, 413, statusTitle(413), 'affiliate claim body too large');
+    return apiError(c, 400, statusTitle(400), 'invalid affiliate claim body');
+  }
+  const parsed = affiliateClaimSchema.safeParse(payload);
+  if (!parsed.success) return apiError(c, 400, statusTitle(400), 'invalid affiliate claim body');
+
+  const referral = await findActiveReferral(parsed.data.referralToken);
+  if (!referral) return apiError(c, 404, statusTitle(404), 'affiliate referral link not found');
+  const creatorUserId = c.get('userId');
+  if (!creatorUserId) return apiError(c, 401, statusTitle(401), 'authenticated creator required');
+
+  const { campaign, program, partner } = referral;
+  const eventKey = `identity-stitch:${campaign.id}:${creatorUserId}`;
+  const now = new Date();
+  const [event] = await db.insert(schema.affiliateAttributionEvent).values({
+    programId: program.id,
+    campaignId: campaign.id,
+    partnerId: partner.id,
+    kind: 'identity_stitch',
+    eventKey,
+    creatorUserId,
+    metadata: { source: 'signup_referral_claim' },
+    occurredAt: now,
+    createdAt: now,
+  }).onConflictDoNothing({ target: schema.affiliateAttributionEvent.eventKey }).returning();
+  if (event) return c.json({ data: { claimed: true }, duplicate: false }, 201);
+
+  const [existing] = await db.select().from(schema.affiliateAttributionEvent).where(
+    eq(schema.affiliateAttributionEvent.eventKey, eventKey),
+  ).limit(1);
+  if (
+    !existing || existing.campaignId !== campaign.id ||
+    existing.creatorUserId !== creatorUserId || existing.kind !== 'identity_stitch'
+  ) return apiError(c, 409, statusTitle(409), 'affiliate claim key is already bound to another attribution event');
+  return c.json({ data: { claimed: true }, duplicate: true });
 });
 
 async function readBody(c: Context<AppBindings>): Promise<unknown> {
@@ -621,3 +679,4 @@ router.post('/holds/:holdId/resolve', async (c) => {
 
 export { router as platformAffiliateRouter };
 export { publicRouter as publicPlatformAffiliateRouter };
+export { affiliateClaimRouter };

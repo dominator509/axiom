@@ -6,7 +6,14 @@ import { CATALOGS, LocaleCatalog, resolveLocale } from '@axiom/core';
 
 export const metadata: Metadata = { title: 'Sign in' };
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+} = {}) {
+  const query = await searchParams;
+  const rawReferral = query?.affiliate_ref;
+  const affiliateRef = typeof rawReferral === 'string' && /^[A-Za-z0-9_-]{1,256}$/.test(rawReferral)
+    ? rawReferral
+    : undefined;
   const requestHeaders = await headers();
   const locale = resolveLocale({ acceptLanguage: requestHeaders.get('accept-language') }).locale;
   const copy = new LocaleCatalog(CATALOGS);
@@ -43,7 +50,7 @@ export default async function LoginPage() {
           <p className="eyebrow">{t('auth.welcomeBack')}</p>
           <h2>{t('auth.enterStudio')}</h2>
           <p className="subtle">{t('auth.signInContinue')}</p>
-          <LoginForm allowSignup={process.env.AXIOM_ENABLE_LOCAL_SIGNUP === '1'} />
+          <LoginForm allowSignup={process.env.AXIOM_ENABLE_LOCAL_SIGNUP === '1'} affiliateRef={affiliateRef} />
           <p className="login-footnote">{t('auth.protected')}</p>
         </div>
       </section>
