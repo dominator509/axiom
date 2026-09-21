@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `5e569ad4eded0cefc94952008c5f4383a02442b1`
+Source checkpoint: `6ffb430dc2706cfbd8ec34ac74fb12ae179ad57b`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1678,3 +1678,20 @@ Evidence: focused inbox source/regression tests 54/54, full dashboard suite
 count-formatting source slice; complete catalog adoption, browser/native
 acceptance, deployed migration/RLS/runtime, provider receipts, observability,
 CI governance and production acceptance remain open. No live action occurred.
+
+### M976 - F-89 calendar/cascade count formatting
+
+Calendar observed-time suggestions now format evidence sample sizes through the
+selected locale, and cascade expansion success messages now format the number
+of scheduled targets through the same shared formatter. Scheduling semantics,
+approval gates and target bounds are unchanged.
+
+Evidence: focused calendar/cascade tests 14/14, full dashboard suite 156 files
+/ 997 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`6ffb430dc2706cfbd8ec34ac74fb12ae179ad57b` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+calendar/cascade count-formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
