@@ -13,9 +13,9 @@ PUBLISHED_HEAD: `0005e6e9` (verified local and origin readback)
 COORDINATION_HEAD: `0005e6e9`
 COORDINATION_HEAD_LAST_READBACK: `0005e6e9 — M925 Hermes lane closure and handoff reconciliation`
 ACCEPTED_PRODUCT_SOURCE: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b`
-CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — OPEN marker for F89-DASHBOARD-REMAINING-L10N-R2; remote marker is /srv/fanthynks-bridge/hermes/inbox/CURRENT_TASK.json`
-CURRENT_TASK_MANIFEST_SHA256: `38698ee21058e890723fd94ffa2d3d520a919d60418761dd9c58c4b2561e8fb0`
-CURRENT_TASK_MANIFEST_REMOTE_SHA256: `38698ee21058e890723fd94ffa2d3d520a919d60418761dd9c58c4b2561e8fb0 — verified`
+CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — CLOSED marker for F89-DASHBOARD-REMAINING-L10N-R2; remote marker must mirror this closure`
+CURRENT_TASK_MANIFEST_SHA256: `c5b4af4289304f8fc60a7689ce90e4c95bdd715650e5b76e1779e499959716bc`
+CURRENT_TASK_MANIFEST_REMOTE_SHA256: `c5b4af4289304f8fc60a7689ce90e4c95bdd715650e5b76e1779e499959716bc — closed marker uploaded and verified`
 CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; only task_msg_id/task_wire match the active lane; every other inbox/reply/status/outbox/worktree artifact is historical and inert`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
@@ -78,11 +78,11 @@ ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact pinned commit; never a moving 
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
 ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-dashboard-remaining-l10n-r2/copy`
 ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-dashboard-remaining-l10n-r2/delivery`
-ACTIVE_LANE_COPY_STATE: `NOT_STARTED — exact task and marker are published; no source copy, progress artifact or delivery exists`
+ACTIVE_LANE_COPY_STATE: `CLOSED — Hermes did not create a copy, progress artifact or delivery; Codex completed the bounded slice locally`
 ACTIVE_LANE_LOCAL_REVIEW_ROOT: `C:/dev/AXIOM/.codex-review/hermes-f89`
 ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `PASS — all nine manifest files match; MANIFEST.json sha256 308d6af318f1a11268188abdffa133f13dfa4cb2345f09a9bb3dce6f1e5be306`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `fc6a17fee70035c092e277e33810b8a4cb19e07d36077db676be096fc938b835`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `fc6a17fee70035c092e277e33810b8a4cb19e07d36077db676be096fc938b835 — verified`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `fc6a17fee70035c092e277e33810b8a4cb19e07d36077db676be096fc938b835 — historical R2 task envelope`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `fc6a17fee70035c092e277e33810b8a4cb19e07d36077db676be096fc938b835 — historical R2 task envelope`
 ACTIVE_LANE_ACK_WIRE: `NONE — R2 ACK/ACCEPTED not yet read`
 ACTIVE_LANE_ACK_SHA256: `NONE`
 ACTIVE_LANE_RECEIPT_WIRE: `NONE — no R2 ACK/ACCEPTED has been read`

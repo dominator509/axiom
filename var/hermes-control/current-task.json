@@ -20,8 +20,8 @@
   "task_sha256": "fc6a17fee70035c092e277e33810b8a4cb19e07d36077db676be096fc938b835",
   "copy_root": "/srv/fanthynks-bridge/hermes/inbox/codex-f89-dashboard-remaining-l10n-r2/copy",
   "delivery_root": "/srv/fanthynks-bridge/hermes/inbox/codex-f89-dashboard-remaining-l10n-r2/delivery",
-  "state": "OPEN",
-  "next_owner": "HERMES",
+  "state": "CLOSED",
+  "next_owner": "NONE",
   "last_seq": 1,
   "next_seq": 2,
   "last_wire": "CODEX-F89-DASHBOARD-REMAINING-L10N-R2-TASK-001",
@@ -32,7 +32,7 @@
     "codex-f89-dashboard-remaining-l10n-r1"
   ],
   "stale_inbox_policy": "CURRENT_TASK_ONLY; only this task_msg_id and task_wire are active; every other inbox, reply, status, outbox and worktree identity is historical and inert; never infer work from transport REPLIED or file order",
-  "next_action": "Fetch the exact pinned source, create the isolated copy, implement the named dashboard localization slice, and return one valid PROGRESS followed by DELIVERY or terminal BLOCKED",
+  "next_action": "Do not act on this lane; Codex completed the bounded source slice locally after the observation window",
   "live_actions": "NONE",
   "forbidden_actions": [
     "installer",
