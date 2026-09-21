@@ -1587,3 +1587,22 @@ analytics summary-formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M971 — F-89 performance-pattern formatting
+
+The mounted `PerformancePatterns` analytics component still passed raw minimum
+sample counts and exemplar counts into localized copy and formatted mean
+relative scores with host-independent `toFixed`. It now uses the selected
+locale's shared number formatter for the minimum sample threshold, exemplar
+count and two-decimal mean score. Platform/provider labels, authored evidence
+and UTC schedule-bucket text remain data or explicitly bounded labels.
+
+Evidence: focused PerformancePatterns tests 5/5, full dashboard suite 156
+files / 989 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`08eec2a008abae771c471e4d47b31f91c6e12212` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+performance-pattern formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
