@@ -2,7 +2,7 @@
 
 Date: 2026-09-20  
 Repository: `dominator509/axiom`  
-Source checkpoint: `5dd265a6a9f1fc302d9b6aa142bd3d41cb64a0a3`
+Source checkpoint: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1159,3 +1159,26 @@ warnings remain); `git diff --check` passes; `scripts/verify.sh` prints
 This closes only the PlaybookCadence source/UI localization criterion;
 browser, deployed runtime, provider, observability, CI governance, WireGuard
 and production acceptance remain open. No live action occurred.
+
+### M918 — F-89 variant workflow localization
+
+The model-scoped variant workflow now consumes the shared six-locale catalog
+for candidate creation, experiment lifecycle and winner controls, assignment
+and observed-outcome tracking, guidance attribution, published-performance
+summaries, review creation and safe retry/error states. Variant UI strings are
+kept in a dedicated catalog extension and composed by the dashboard provider;
+the base `LocaleCatalog` remains strict for the core catalog and continues to
+report missing base translations instead of masking them with an extension.
+Platform identifiers, opaque IDs, authored copy and provider evidence remain
+data. Assignment, evaluation, attribution, approval, publication and role
+semantics are unchanged.
+
+Evidence: core 21 files/126 tests, dashboard 146 files/904 tests, core build,
+dashboard typecheck, full dashboard test suite, `git diff --check`, and an
+elevated dashboard production build with explicit loopback `API_ORIGIN` all
+passed. The first build attempt failed closed because `API_ORIGIN` was absent;
+the elevated retry completed standalone tracing. Product commit
+`6844f8ef6e266660f5d6a71d9c9acdecdc29a59b` was pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
+browser/mobile, provider, migration/RLS, runtime, observability, WireGuard and
+production acceptance remain open. No live action occurred.
