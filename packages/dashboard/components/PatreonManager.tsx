@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { formatDate, type SupportedLocale } from '@axiom/core';
 import { mutationFetch } from '@/lib/mutation';
 import { useLocale } from './LocaleProvider';
 
@@ -19,8 +20,20 @@ function resourceLabel(resource: string, t: (key: string) => string): string {
   return resource;
 }
 
+export function formatPatreonCount(value: number, locale: SupportedLocale): string {
+  return new Intl.NumberFormat(locale).format(Number.isFinite(value) ? value : 0);
+}
+
+export function formatPatreonTimestamp(value: string | null | undefined, locale: SupportedLocale): string {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.valueOf())
+    ? '—'
+    : formatDate(parsed, locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
+}
+
 export default function PatreonManager({ connectionId }: { connectionId: string }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [status, setStatus] = useState<Status | null>(null);
   const [records, setRecords] = useState<Record<Resource, Array<Record<string, unknown>>>>({ campaign: [], members: [], posts: [] });
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +67,7 @@ export default function PatreonManager({ connectionId }: { connectionId: string 
       });
       if (!response.ok) throw new Error('sync failed');
       const body = await response.json() as { data: { count: number; nextCursor: string | null } };
-      setMessage(t('patreon.syncSaved', { resource: resourceLabel(resource, t), count: body.data.count }));
+      setMessage(t('patreon.syncSaved', { resource: resourceLabel(resource, t), count: formatPatreonCount(body.data.count, locale) }));
       await load();
     } catch { setError(t('patreon.syncFailed', { resource: resourceLabel(resource, t) })); }
     finally { setBusy(null); }
@@ -70,9 +83,9 @@ export default function PatreonManager({ connectionId }: { connectionId: string 
         <span className="subtle">{t('patreon.providerWritesUnavailable')}</span>
       </div>
       <div className="grid grid-3">
-        <div className="card"><strong>{status.counts.campaigns}</strong><span className="subtle">{t('patreon.campaigns')}</span></div>
-        <div className="card"><strong>{status.counts.members}</strong><span className="subtle">{t('patreon.members')}</span></div>
-        <div className="card"><strong>{status.counts.posts}</strong><span className="subtle">{t('patreon.posts')}</span></div>
+        <div className="card"><strong>{formatPatreonCount(status.counts.campaigns, locale)}</strong><span className="subtle">{t('patreon.campaigns')}</span></div>
+        <div className="card"><strong>{formatPatreonCount(status.counts.members, locale)}</strong><span className="subtle">{t('patreon.members')}</span></div>
+        <div className="card"><strong>{formatPatreonCount(status.counts.posts, locale)}</strong><span className="subtle">{t('patreon.posts')}</span></div>
       </div>
       <div className="action-row" aria-label={t('patreon.syncControls')}>
         {(['campaign', 'members', 'posts'] as Resource[]).map(resource => (
@@ -101,7 +114,7 @@ export default function PatreonManager({ connectionId }: { connectionId: string 
               <tbody>{records[resource].slice(0, 25).map(row => {
                 const id = String(row.providerCampaignId ?? row.providerMemberId ?? row.providerPostId ?? '—');
                 const summary = String(row.name ?? row.tierTitle ?? row.title ?? row.status ?? '—');
-                const updated = String(row.syncedAt ?? '—');
+                const updated = formatPatreonTimestamp(typeof row.syncedAt === 'string' ? row.syncedAt : null, locale);
                 return <tr key={id}><td className="mono">{id}</td><td>{summary}</td><td>{updated}</td></tr>;
               })}</tbody>
             </table></div>}

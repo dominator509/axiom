@@ -5,7 +5,7 @@ const session = vi.hoisted(() => ({ role: 'operator' }));
 vi.mock('@/lib/api', async original => ({ ...await original<typeof import('@/lib/api')>(), getSession: async () => ({ user: { role: session.role } }) }));
 vi.mock('@/lib/server-locale', () => ({ getServerLocale: async () => ({
   locale: 'en',
-  dateTime: (value: string | Date) => new Date(value).toISOString(),
+  dateTime: () => 'localized calendar time',
   t: (key: string, values?: Record<string, string | number>) => ({
     'calendar.accessUnavailable': 'Calendar access unavailable',
     'calendar.accessDescription': 'Your role does not include this calendar.',
@@ -84,7 +84,7 @@ describe('calendar month navigation', () => {
     const fetch = transport();
     const html = await render();
     expect(html).toContain('Content calendar');
-    expect(html).toContain('2030-02-20');
+    expect(html).toContain('localized calendar time (UTC)');
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(String(fetch.mock.calls[0][0])).toContain('/calendar?');
     expect(html).not.toContain('/playbook');
@@ -140,7 +140,8 @@ describe('calendar month navigation', () => {
     expect(html).toContain('Current month');
     expect(html).toContain('1 post in this month');
     expect(html).not.toContain('1 scheduled');
-    expect(html).toContain('2030-02-20T18:30:00.000Z (UTC)');
+    expect(html).toContain('localized calendar time (UTC)');
+    expect(html).not.toContain('2030-02-20T18:30:00.000Z (UTC)');
   });
 
   it('handles leap years and year boundaries', async () => {

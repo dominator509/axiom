@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CATALOGS, LocaleCatalog } from '@axiom/core';
+import { CATALOGS, LocaleCatalog, formatDate } from '@axiom/core';
 const state = vi.hoisted(() => ({ role: 'operator', list: vi.fn(), locale: 'en' }));
 vi.mock('@/lib/api', () => ({ getSession: async () => ({ user: { role: state.role } }), api: { digests: { list: state.list }, uiLocale: { get: async () => ({ data: { locale: state.locale } }) } } }));
 vi.mock('@/components/GenerateDigestButton', () => ({ default: () => <button>Generate this week</button> }));
@@ -23,10 +23,13 @@ it('links settings only for the owner who can actually access that page', async 
 });
 it('renders the page in the persisted non-English locale', async () => {
   state.locale = 'de';
+  state.list.mockResolvedValue({ data: [{ id: 'digest', title: 'Week 1', description: 'Summary', state: 'sent', createdAt: '2026-09-15T18:30:00Z', config: {} }], meta: { next_cursor: 'next' } });
   const html = renderToStaticMarkup(await DigestsPage({}));
   expect(html).toContain(catalog.t('de', 'digest.title'));
   expect(html).toContain(catalog.t('de', 'digest.older'));
   expect(html).not.toContain(catalog.t('en', 'digest.title'));
+  expect(html).toContain(formatDate(new Date('2026-09-15T18:30:00Z'), 'de', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }));
+  expect(html).not.toContain('2026-09-15T18:30:00.000Z');
   // Creator-authored digest content is not translated.
   expect(html).toContain('Week 1');
 });

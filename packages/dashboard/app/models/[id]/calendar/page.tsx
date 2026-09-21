@@ -17,7 +17,7 @@ export default async function CalendarPage({ params, searchParams }: {
 }) {
   const { id } = await params;
   const session = await getSession();
-  const { locale, t } = await getServerLocale();
+  const { locale, t, dateTime } = await getServerLocale();
   const role = session?.user?.role;
   if (!talentDestinationAllowed(role, 'calendar')) return <div className="card"><h2>{t('calendar.accessUnavailable')}</h2><p>{t('calendar.accessDescription')}</p><Link href="/">{t('calendar.back')}</Link></div>;
   const showCadence = talentDestinationAllowed(role, 'playbook');
@@ -149,7 +149,7 @@ export default async function CalendarPage({ params, searchParams }: {
               </span>
             </div>
             <div style={{ marginTop: 8 }}>
-              {p.scheduledFor ? `${new Date(p.scheduledFor).toISOString()} (${t('calendar.utc')})` : t('calendar.notScheduled')}
+              {p.scheduledFor ? `${dateTime(new Date(p.scheduledFor))} (${t('calendar.utc')})` : t('calendar.notScheduled')}
             </div>
             {p.error && (
               <div style={{ color: 'var(--bad)', marginTop: 6 }} className="mono">
