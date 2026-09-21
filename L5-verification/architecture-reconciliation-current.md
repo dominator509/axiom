@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `5a22f93aa6213ec1b26e1919b1c36b0d6ec55452`
+Source checkpoint: `0a50abafd182f25529a0d7bb898b33202b3909b1`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1763,3 +1763,19 @@ roleplay/media-prompt/playbook revision-formatting source slice; complete
 catalog adoption, browser/native acceptance, deployed migration/RLS/runtime,
 provider receipts, observability, CI governance and production acceptance
 remain open. No live action occurred.
+
+### M981 - F-89 cascade step count formatting
+
+Cascade saved-template offsets and editor step ordinals now pass through the
+selected locale's shared number formatter. Cascade target ordering, offset
+validation, expansion semantics and scheduling gates are unchanged.
+
+Evidence: focused cascade tests 11/11, full dashboard suite 156 files / 1005
+passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`0a50abafd182f25529a0d7bb898b33202b3909b1` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+cascade-step count-formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
