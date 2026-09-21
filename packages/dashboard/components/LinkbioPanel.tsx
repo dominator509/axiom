@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 const KINDS = ['native'] as const;
 
@@ -49,6 +50,7 @@ export default function LinkbioPanel({
   providers: ProviderRow[];
   canEdit?: boolean;
 }) {
+  const { t } = useLocale();
   const router = useRouter();
   const [kind, setKind] = useState<(typeof KINDS)[number]>('native');
   const [busy, setBusy] = useState(false);
@@ -80,16 +82,16 @@ export default function LinkbioPanel({
           intent.current = null;
           setPending(false);
         }
-        setError(b?.error?.message ?? 'Enable failed');
+        setError(b?.error?.message ?? t('linkbio.error.enableFailed'));
         return;
       }
       const result = await readDashboardJson<{ data?: { kind?: unknown; enabled?: unknown } }>(res);
-      if (result.data?.kind !== 'native' || result.data.enabled !== request.enabled) throw new Error('Unconfirmed link-in-bio change');
+      if (result.data?.kind !== 'native' || result.data.enabled !== request.enabled) throw new Error(t('linkbio.error.unconfirmed'));
       intent.current = null;
       setPending(false);
       router.refresh();
     } catch {
-      setError('Change not confirmed. Retry the same link-in-bio change.');
+      setError(t('linkbio.error.notConfirmed'));
     } finally {
       setBusy(false);
     }
@@ -109,18 +111,18 @@ export default function LinkbioPanel({
     const nextLabel = label.trim();
     const nextUrl = url.trim();
     if (!nextLabel || !nextUrl) {
-      setError('A link label and URL are required');
+      setError(t('linkbio.error.labelAndUrlRequired'));
       return;
     }
     if (nextLabel.length > 120 || nextUrl.length > 2048) {
-      setError('Link labels must be at most 120 characters and URLs at most 2048 characters.');
+      setError(t('linkbio.error.limits'));
       return;
     }
     try {
       const parsed = new URL(nextUrl);
       if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error();
     } catch {
-      setError('Links must use an http(s) URL');
+      setError(t('linkbio.error.httpsRequired'));
       return;
     }
     setLinks((current) => [...current, { label: nextLabel, url: nextUrl }]);
@@ -146,9 +148,9 @@ export default function LinkbioPanel({
         <table>
           <thead>
             <tr>
-              <th>Kind</th>
-              <th>Primary</th>
-              <th>Clicks</th>
+              <th>{t('linkbio.kind')}</th>
+              <th>{t('linkbio.primary')}</th>
+              <th>{t('linkbio.clicks')}</th>
               <th></th>
             </tr>
           </thead>
@@ -168,7 +170,7 @@ export default function LinkbioPanel({
                       onClick={() => disable(p.kind)}
                       style={{ padding: '4px 10px', fontSize: 12 }}
                     >
-                      Disable
+                      {t('linkbio.disable')}
                     </button>
                   </td>
                 </tr>
@@ -178,9 +180,9 @@ export default function LinkbioPanel({
       )}
       {activeNative && (
         <div className="stack" style={{ marginTop: 12 }}>
-          <h4 style={{ margin: 0 }}>Native page links</h4>
+          <h4 style={{ margin: 0 }}>{t('linkbio.nativeLinks')}</h4>
           {links.length === 0 ? (
-            <p style={{ color: 'var(--muted)', margin: 0 }}>No links configured.</p>
+            <p style={{ color: 'var(--muted)', margin: 0 }}>{t('linkbio.noLinks')}</p>
           ) : (
             <ul style={{ margin: 0, paddingLeft: 20 }}>
               {links.map((link, index) => (
@@ -193,7 +195,7 @@ export default function LinkbioPanel({
                     onClick={() => setLinks((current) => current.filter((_, i) => i !== index))}
                     style={{ padding: '2px 8px', fontSize: 11 }}
                   >
-                    Remove
+                    {t('linkbio.remove')}
                   </button>
                 </li>
               ))}
@@ -201,12 +203,12 @@ export default function LinkbioPanel({
           )}
           {canEdit ? <fieldset className="stack" disabled={busy || pending} style={{ border: 0, padding: 0, minWidth: 0 }}>
             <div className="row">
-              <input aria-label="Link label" maxLength={120} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Label" />
-              <input aria-label="Link URL" maxLength={2048} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
-              <button className="btn" type="button" onClick={addLink}>Add link</button>
-              <button className="btn" type="button" onClick={saveLinks}>{pending ? 'Retry same link-in-bio change' : 'Save links'}</button>
+              <input aria-label={t('linkbio.linkLabel')} maxLength={120} value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t('linkbio.labelPlaceholder')} />
+              <input aria-label={t('linkbio.linkUrl')} maxLength={2048} value={url} onChange={(e) => setUrl(e.target.value)} placeholder={t('linkbio.urlPlaceholder')} />
+              <button className="btn" type="button" onClick={addLink}>{t('linkbio.addLink')}</button>
+              <button className="btn" type="button" onClick={saveLinks}>{pending ? t('linkbio.retry') : t('linkbio.saveLinks')}</button>
             </div>
-          </fieldset> : <p className="subtle">Editing the native page requires an owner, manager or operator role.</p>}
+          </fieldset> : <p className="subtle">{t('linkbio.roleRequiredEdit')}</p>}
         </div>
       )}
       {!activeNative && canEdit && <div className="row">
@@ -218,11 +220,11 @@ export default function LinkbioPanel({
           ))}
         </select>
         <button className="btn" type="button" disabled={busy} onClick={enable}>
-          Enable native page
+          {t('linkbio.enableNative')}
         </button>
       </div>}
-      {pending && <button type="button" className="btn secondary" disabled={busy} onClick={() => void runMutation()}>Retry same link-in-bio change</button>}
-      {!canEdit && <p className="subtle">Link-in-bio changes require an owner, manager or operator role.</p>}
+      {pending && <button type="button" className="btn secondary" disabled={busy} onClick={() => void runMutation()}>{t('linkbio.retry')}</button>}
+      {!canEdit && <p className="subtle">{t('linkbio.roleRequired')}</p>}
       {error && <p style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
     </div>
   );

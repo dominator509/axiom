@@ -15,6 +15,40 @@ vi.mock('react', async (original) => ({
   },
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
+vi.mock('./LocaleProvider', () => ({
+  useLocale: () => ({
+    locale: 'en',
+    setLocale: () => undefined,
+    t: (key: string, values?: Record<string, string | number>) => {
+      const text = ({
+        'linkbio.kind': 'Kind',
+        'linkbio.primary': 'Primary',
+        'linkbio.clicks': 'Clicks',
+        'linkbio.disable': 'Disable',
+        'linkbio.nativeLinks': 'Native page links',
+        'linkbio.noLinks': 'No links configured.',
+        'linkbio.remove': 'Remove',
+        'linkbio.linkLabel': 'Link label',
+        'linkbio.linkUrl': 'Link URL',
+        'linkbio.labelPlaceholder': 'Label',
+        'linkbio.urlPlaceholder': 'https://…',
+        'linkbio.addLink': 'Add link',
+        'linkbio.saveLinks': 'Save links',
+        'linkbio.retry': 'Retry same link-in-bio change',
+        'linkbio.enableNative': 'Enable native page',
+        'linkbio.roleRequiredEdit': 'Editing the native page requires an owner, manager or operator role.',
+        'linkbio.roleRequired': 'Link-in-bio changes require an owner, manager or operator role.',
+        'linkbio.error.enableFailed': 'Enable failed',
+        'linkbio.error.unconfirmed': 'Unconfirmed link-in-bio change',
+        'linkbio.error.notConfirmed': 'Change not confirmed. Retry the same link-in-bio change.',
+        'linkbio.error.labelAndUrlRequired': 'A link label and URL are required',
+        'linkbio.error.limits': 'Link labels must be at most 120 characters and URLs at most 2048 characters.',
+        'linkbio.error.httpsRequired': 'Links must use an http(s) URL',
+      } as Record<string, string>)[key] ?? key;
+      return text.replace(/\{([a-zA-Z0-9_.]+)\}/g, (_m, name: string) => String(values?.[name] ?? `{${name}}`));
+    },
+  }),
+}));
 import LinkbioPanel from './LinkbioPanel';
 
 beforeEach(() => { hooks.values = []; hooks.index = 0; hooks.refresh.mockReset(); });
@@ -92,4 +126,29 @@ it('re-enables without replacing configuration and retains saved links after ref
   expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ kind: 'native' });
   expect(hooks.refresh).toHaveBeenCalledOnce();
   expect(renderToStaticMarkup(panel(true))).toContain('Saved destination');
+});
+
+it('renders the localized table headers and disable control', () => {
+  const html = renderToStaticMarkup(panel(true, true));
+  expect(html).toContain('Kind');
+  expect(html).toContain('Primary');
+  expect(html).toContain('Clicks');
+  expect(html).toContain('Disable');
+  expect(html).toContain('Native page links');
+});
+
+it('uses the localized validation message for a non-http(s) URL', async () => {
+  panel(true);
+  hooks.values[5] = 'Label';
+  hooks.values[6] = 'ftp://example.com';
+  await findButton(panel(true), 'Add link')!.props.onClick();
+  expect(hooks.values[3]).toBe('Links must use an http(s) URL');
+});
+
+it('uses the localized required-fields message when a field is blank', async () => {
+  panel(true);
+  hooks.values[5] = '';
+  hooks.values[6] = '';
+  await findButton(panel(true), 'Add link')!.props.onClick();
+  expect(hooks.values[3]).toBe('A link label and URL are required');
 });
