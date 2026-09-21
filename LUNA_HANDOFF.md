@@ -13,21 +13,21 @@ PUBLISHED_HEAD: `732b835f67eac92f33c075c07f79b531224fc8fe` (M945 source commit r
 COORDINATION_HEAD: `732b835f67eac92f33c075c07f79b531224fc8fe` (product milestone after terminal Hermes-lane closure; handoff-only update follows)
 COORDINATION_HEAD_LAST_READBACK: `732b835f67eac92f33c075c07f79b531224fc8fe — exact origin readback`
 ACCEPTED_PRODUCT_SOURCE: `732b835f67eac92f33c075c07f79b531224fc8fe`
-CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — F89-ADAPTATION-ERROR-L10N-R1 OPEN; this is the sole active Hermes source-copy lane`
-CURRENT_TASK_MANIFEST_SHA256: `71c3356c97bc8220fe2bc920e0322a76f2003e0bb6da1973020c2513c887229c`
-CURRENT_TASK_MANIFEST_REMOTE_SHA256: `71c3356c97bc8220fe2bc920e0322a76f2003e0bb6da1973020c2513c887229c — exact bridge marker readback`
-CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current marker before scanning the bridge; F89-ADAPTATION-ERROR-L10N-R1 is the only active source-copy lane, bound to exact source commit cf2040d; M945 and every other inbox, reply, status, outbox and worktree identity are historical/inert`
+CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — F89-ADAPTATION-ERROR-L10N-R1 OPEN after Codex RECEIPT-REJECT-005; this is the sole active Hermes source-copy lane`
+CURRENT_TASK_MANIFEST_SHA256: `7c75812f9d2f34913bad58de1788f5aa62d1a8a46053016b97e9655653aea2b0`
+CURRENT_TASK_MANIFEST_REMOTE_SHA256: `7c75812f9d2f34913bad58de1788f5aa62d1a8a46053016b97e9655653aea2b0 — exact bridge marker readback`
+CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current marker before scanning the bridge; F89-ADAPTATION-ERROR-L10N-R1 is the only active source-copy lane, bound to exact source commit cf2040d and last wire CODEX-F89-ADAPTATION-ERROR-L10N-R1-RECEIPT-REJECT-005; M945 and every other inbox, reply, status, outbox and worktree identity are historical/inert`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
 LAST_COMPLETED_SOURCE_MILESTONE: `M945 agent-permission operator error-boundary localization — Hermes DELIVERY-004 audited and integrated; product commit 732b835f pushed/read back; no live action`
 ACTIVE_HERMES_LANE: `F89-ADAPTATION-ERROR-L10N-R1 OPEN — Hermes owns only the isolated source copy; Codex owns audit, integration, commit and push`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — source copy only; Codex must independently hash, test, accept/reject, integrate, commit and push`
-NEXT_ACTION: `M945 is complete and pushed at 732b835f. Hermes must ACK F89-ADAPTATION-ERROR-L10N-R1 against exact source commit cf2040d before coding, then return one evidence-bearing PROGRESS and one strict DELIVERY or terminal BLOCKED. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
-BRIDGE_OBSERVATION: `M945 was independently audited and integrated from Hermes DELIVERY-004. The next verified source gap is AdaptationControls raw backend error passthrough: the current code uses details?.error?.message directly. The new task requires localized known/uncertain outcomes, hostile-message regression coverage, and behavioral mutation-path evidence across all six locales.`
+NEXT_ACTION: `M945 is complete and pushed at 732b835f. Hermes DELIVERY-004 was independently hash-verified but rejected because its claimed mutation-path test never rendered or submitted the component. Hermes must correct the same copy, add the real hostile-403 submit-path assertion, rerun owning checks, and return DELIVERY at SEQ 6 or terminal BLOCKED. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
+BRIDGE_OBSERVATION: `M945 was independently audited and integrated from Hermes DELIVERY-004. F89-ADAPTATION-ERROR-L10N-R1 DELIVERY-004 had all five manifest hashes and readable artifacts, but the focused test only exercised classifyStatus/adaptationErrorText directly; it did not render AdaptationControls, invoke submit, resolve mutationFetch or observe the alert. Codex published RECEIPT-REJECT-005 with one concrete correction and advanced the marker to SEQ 6.`
 CURRENT_LOCAL_DELIVERY: `M945 agent-permission operator error-boundary localization integrated; core 25 files/139 tests and dashboard 154 files/973 tests pass; focused test 8/8, both typechecks and core lint pass, dashboard lint has four pre-existing warnings; no live action`
 PRODUCT_COMPLETION_COMMIT: `732b835f67eac92f33c075c07f79b531224fc8fe — audited M945 agent-permission operator error-boundary localization`
-HERMES_LANE_DISPOSITION: `F89-ADAPTATION-ERROR-L10N-R1 OPEN — task hash 0bcbfceefa8852e9abba424256344b98185a8ba248b20809dd0d59dd8741fac4; awaiting correlated ACK before implementation`
+HERMES_LANE_DISPOSITION: `F89-ADAPTATION-ERROR-L10N-R1 OPEN after DELIVERY-004 rejection — receipt 38fd870c1f257bd78254aaa32f39ac71a8a89ef93a84967ee373b18059dffbee published/read back; Hermes must correct the existing copy without another ACK`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
@@ -35,7 +35,7 @@ HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_R
 HERMES_REPLY_FORMAT_GATE: `ACK = TYPE ACK + STATE READ|ACCEPTED; PROGRESS = TYPE PROGRESS + STATE IN_PROGRESS; DELIVERY = TYPE DELIVERY + STATE DELIVERED + TERMINAL YES; BLOCKED = TYPE NACK + STATE BLOCKED + TERMINAL YES; every reply has a new WIRE distinct from IN_REPLY_TO, exact SEQ, PAYLOAD delimiter, READ_STATUS READ once, and final signature sincerely, Hermes`
 HERMES_DELIVERY_FORMAT_GATE: `DELIVERY PAYLOAD must contain exactly once: ARTIFACT, SHA256 (64 lowercase hex), COMMAND, EXIT_CODE (integer), TEST_RESULT (PASS|FAIL), CHANGED_FILES, SOURCE_REPO, SOURCE_REF, SOURCE_COMMIT, COPY_ROOT, DELIVERY_ROOT, MANIFEST_SHA256 (64 lowercase hex), LIVE_ACTIONS NONE; no prose substitute or duplicate fields`
 HERMES_BLOCKED_FORMAT_GATE: `If required checks cannot run or one concrete input is missing, use TYPE NACK, STATE BLOCKED, TERMINAL YES, NEXT_OWNER CODEX, a unique WIRE, REASON naming the single blocker, PAYLOAD READ_STATUS READ and LIVE_ACTIONS NONE exactly once; do not send a second ACK or a no-change delivery`
-OPEN_WIRES: `CODEX-F89-ADAPTATION-ERROR-L10N-R1-TASK-001 — current marker only; historical F89-AGENT-PERMISSION-ERROR-L10N-R1 is terminal and must not be revived`
+OPEN_WIRES: `CODEX-F89-ADAPTATION-ERROR-L10N-R1-TASK-001 → HERMES-F89-ADAPTATION-ERROR-L10N-R1-DELIVERY-004 → CODEX-F89-ADAPTATION-ERROR-L10N-R1-RECEIPT-REJECT-005; correction pending at SEQ 6; historical F89-AGENT-PERMISSION-ERROR-L10N-R1 is terminal and must not be revived`
 STALE_HERMES_REPLY: `HERMES-F15-F16-VARIANT-GUIDANCE-CURRENT-DELIVERY-004` was rejected by CODEX-F15-F16-VARIANT-GUIDANCE-CURRENT-RECEIPT-REJECT-005; it is terminal historical evidence and does not reopen or advance any lane`
 OPEN_CONTROL_WIRE: `NONE — CODEX-HERMES-WORKFLOW-RECONCILIATION-R2-TASK-001 is closed`
 OPEN_CONTROL_TASK_STATE: `CLOSED — valid ACK/ACCEPTED was read back at SEQ 2 and terminal Codex READ receipt was uploaded at SEQ 3`
