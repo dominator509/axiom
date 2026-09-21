@@ -18,7 +18,7 @@ vi.mock('react', async original => ({
 }));
 vi.mock('@/lib/mutation', () => ({ mutationFetch: hooks.send, createIdempotencyKey: () => 'affiliate-intent' }));
 
-import PlatformAffiliateManager, { formatAffiliateDate } from './PlatformAffiliateManager';
+import PlatformAffiliateManager, { formatAffiliateDate, referralPath } from './PlatformAffiliateManager';
 import type { AffiliateHold, AffiliateProgramSnapshot } from '@/lib/api';
 
 const partner = {
@@ -119,6 +119,22 @@ it('creates campaigns only from disclosed partners and renders report and payout
   const payout = find(tree, node => node.type === 'a' && String(node.props.href).includes('/payouts/export?partnerId=partner-1'));
   expect(payout).toBeDefined();
   expect(find(tree, node => node.type === 'button' && node.props.children === 'View report')).toBeDefined();
+});
+
+it('renders a public referral path and copies an origin-qualified link', async () => {
+  const activeSnapshot: AffiliateProgramSnapshot = { ...snapshot, partners: [partner], campaigns: [campaign], summary: { ...snapshot.summary, partners: 1, campaigns: 1 } };
+  vi.stubGlobal('window', { location: { origin: 'https://fanthynks.test' } });
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  vi.stubGlobal('navigator', { clipboard: { writeText } });
+
+  const tree = render(activeSnapshot);
+  const link = find(tree, node => node.type === 'a' && node.props.href === referralPath(campaign.referralToken));
+  expect(link).toBeDefined();
+  expect(link!.props.target).toBe('_blank');
+  const copy = find(tree, node => node.type === 'button' && textContent(node.props.children) === 'Copy referral link');
+  expect(copy).toBeDefined();
+  copy!.props.onClick!();
+  await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith('https://fanthynks.test/affiliate/r/ref-token'));
 });
 
 it('formats open hold dates in the selected locale with an explicit UTC zone', () => {
