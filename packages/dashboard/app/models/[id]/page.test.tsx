@@ -43,6 +43,17 @@ describe('talent overview recovery and navigation', () => {
     expect(html).toContain('Network status could not be loaded.');
     expect(html).not.toContain('No network configuration yet.');
   });
+  it('formats the overview network latency with the persisted locale', async () => {
+    vi.mocked(getSession).mockResolvedValue({ user: { role: 'owner' } } as Awaited<ReturnType<typeof getSession>>);
+    vi.mocked(api.uiLocale.get).mockResolvedValue({ data: { locale: 'de' } } as Awaited<ReturnType<typeof api.uiLocale.get>>);
+    vi.mocked(api.models.network).mockResolvedValue({ data: {
+      id: 'network', modelId: 'talent', egressMode: 'socks5', healthy: true,
+      lastCheck: '2026-09-15T12:00:00Z', latencyMs: 1234, lastEgressIp: '203.0.113.10',
+      failCount: 0, lastError: null,
+    } } as Awaited<ReturnType<typeof api.models.network>>);
+    const html = await render();
+    expect(html).toContain('1.234 ms');
+  });
   it('never presents failed count requests as zero activity', async () => {
     vi.mocked(api.models.calendar).mockRejectedValue(new Error('Unavailable'));
     vi.mocked(api.models.fans).mockRejectedValue(new Error('Unavailable'));

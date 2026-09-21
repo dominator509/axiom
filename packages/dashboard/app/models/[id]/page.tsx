@@ -1,5 +1,5 @@
 import { api, getSession } from '@/lib/api';
-import type { MessageKey } from '@axiom/core';
+import { formatNumber, type MessageKey } from '@axiom/core';
 import CharacterLockEditor from '@/components/CharacterLockEditor';
 import ProfileEditor from '@/components/ProfileEditor';
 import ModelLifecycleControls from '@/components/ModelLifecycleControls';
@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function ModelOverviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { t, dateTime } = await getServerLocale();
+  const { locale, t, dateTime } = await getServerLocale();
   const session = await getSession();
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   const canViewCacheControls = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
@@ -117,7 +117,7 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
             {network.latencyMs != null && (
               <div className="row" style={{ justifyContent: 'space-between' }}>
                 <span>{t('model.latency')}</span>
-                <span>{network.latencyMs} ms</span>
+                <span>{formatNumber(network.latencyMs, locale)} ms</span>
               </div>
             )}
             {network.lastEgressIp && (
