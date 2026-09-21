@@ -9,6 +9,62 @@ import { readDashboardError, readDashboardJson } from '@/lib/response';
 import { useLocale } from './LocaleProvider';
 
 const TIERS = ['viewer', 'operator', 'manager', 'autonomous'] as const;
+
+/**
+ * Stable operator-facing error boundary states.
+ *
+ * Every non-success response and every uncertain failure maps to one of these
+ * catalog-backed states. A backend-provided message is never rendered: the raw
+ * string is discarded at the boundary so untrusted server text cannot reach the
+ * operator surface.
+ */
+type ErrorState =
+  | { kind: 'none' }
+  | { kind: 'notAccepted' }
+  | { kind: 'denied' }
+  | { kind: 'notFound' }
+  | { kind: 'invalid' }
+  | { kind: 'conflict' }
+  | { kind: 'validation' }
+  | { kind: 'unconfirmed' };
+
+export const ERROR_MESSAGE_KEYS: Record<Exclude<ErrorState['kind'], 'none'>, string> = {
+  notAccepted: 'agent.notAccepted',
+  denied: 'agent.status.denied',
+  notFound: 'agent.status.notFound',
+  invalid: 'agent.status.invalid',
+  conflict: 'agent.status.conflict',
+  validation: 'agent.validationError',
+  unconfirmed: 'agent.unconfirmed',
+};
+
+// Statuses whose intent is terminal: the held intent must be cleared so the
+// operator cannot blindly resend a request the server already rejected.
+export const TERMINAL_STATUSES = [400, 401, 403, 404, 409, 422] as const;
+
+/**
+ * Map a non-success HTTP status to a bounded operator-facing error state.
+ * The backend response body is intentionally not an input: no backend-provided
+ * message can influence this classification.
+ */
+export function classifyStatus(status: number): ErrorState {
+  if (status === 401 || status === 403) return { kind: 'denied' };
+  if (status === 404) return { kind: 'notFound' };
+  if (status === 400 || status === 422) return { kind: 'invalid' };
+  if (status === 409) return { kind: 'conflict' };
+  return { kind: 'notAccepted' };
+}
+
+/**
+ * Resolve a localized operator message for an error state. Only catalog keys
+ * are consulted; a raw backend error string can never reach the rendered DOM.
+ */
+export function errorText(state: ErrorState, t: (key: string) => string): string {
+  if (state.kind === 'none') return '';
+  const key = ERROR_MESSAGE_KEYS[state.kind];
+  return state.kind === 'unconfirmed' ? `${t(key)} ${t('agent.retry')}` : t(key);
+}
+
 type Intent = { path: string; method: 'POST'; body: string; key: string };
 
 export default function AgentPermissionManager({ modelId, permissions, canEdit }: { modelId: string; permissions: AgentPermission[]; canEdit: boolean }) {
@@ -19,7 +75,7 @@ export default function AgentPermissionManager({ modelId, permissions, canEdit }
   const [canPublish, setCanPublish] = useState(false);
   const [canEditAgent, setCanEditAgent] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<ErrorState>({ kind: 'none' });
   const [message, setMessage] = useState('');
   const [issuedToken, setIssuedToken] = useState<string | null>(null);
   const intent = useRef<Intent | null>(null);
@@ -29,13 +85,14 @@ export default function AgentPermissionManager({ modelId, permissions, canEdit }
     if (next) intent.current ??= { ...next, key: createIdempotencyKey() };
     const request = intent.current;
     if (!request) return;
-    setBusy(true); setError(''); setMessage('');
+    setBusy(true); setError({ kind: 'none' }); setMessage('');
     try {
       const response = await mutationFetch(request.path, { method: request.method, headers: { 'content-type': 'application/json' }, body: request.body }, { idempotencyKey: request.key, retries: 0 });
       if (!response.ok) {
-        const details = await readDashboardError(response);
-        if ([400, 401, 403, 404, 409, 422].includes(response.status)) intent.current = null;
-        setError(details?.error?.message ?? 'Agent permission change was not accepted.');
+        // Read and discard the body: never trust or render a backend message.
+        await readDashboardError(response);
+        if ((TERMINAL_STATUSES as readonly number[]).includes(response.status)) intent.current = null;
+        setError(classifyStatus(response.status));
         return;
       }
       const result = await readDashboardJson<{ data?: unknown }>(response);
@@ -43,13 +100,13 @@ export default function AgentPermissionManager({ modelId, permissions, canEdit }
       onSuccess?.(result.data);
       intent.current = null;
       router.refresh();
-    } catch { setError('Agent permission change was not confirmed. Retry the same intent.'); }
+    } catch { setError({ kind: 'unconfirmed' }); }
     finally { setBusy(false); }
   }
 
   function saveGrant() {
     const ref = agentRef.trim();
-    if (!ref || ref.length > 128) { setError(t('agent.validationError')); return; }
+    if (!ref || ref.length > 128) { setError({ kind: 'validation' }); setMessage(''); return; }
     if (tier === 'autonomous' && !window.confirm(t('agent.autonomousConfirm'))) return;
     void run({ path: `/api/v1/models/${encodeURIComponent(modelId)}/agent-permissions`, method: 'POST', body: JSON.stringify({ agentRef: ref, tier, canPublish, canEdit: canEditAgent }) }, () => {
       setAgentRef(''); setMessage(t('agent.permissionSaved'));
@@ -86,6 +143,6 @@ export default function AgentPermissionManager({ modelId, permissions, canEdit }
     {issuedToken && <div className="card stack" role="status"><strong>{t('agent.oneTimeToken')}</strong><p className="subtle">{t('agent.oneTimeTokenDescription')}</p><textarea readOnly value={issuedToken} rows={4} aria-label={t('agent.oneTimeToken')} /></div>}
     {canEdit ? <fieldset className="stack" disabled={busy || intent.current !== null} style={{ border: 0, padding: 0, minWidth: 0 }}><legend>{t('agent.grantTitle')}</legend><div className="row"><label>{t('agent.agentReference')}<input value={agentRef} onChange={event => setAgentRef(event.target.value)} maxLength={128} placeholder={t('agent.agentReferencePlaceholder')} /></label><label>{t('agent.tier')}<select value={tier} onChange={event => setTier(event.target.value as typeof tier)}>{TIERS.map(value => <option key={value} value={value}>{t(`agent.tier.${value}`)}</option>)}</select></label><label><input type="checkbox" checked={canPublish} onChange={event => setCanPublish(event.target.checked)} /> {t('agent.publishingScope')}</label><label><input type="checkbox" checked={canEditAgent} onChange={event => setCanEditAgent(event.target.checked)} /> {t('agent.editScope')}</label><button className="btn" type="button" onClick={saveGrant}>{t('agent.saveGrant')}</button></div></fieldset> : <p className="subtle">{t('agent.ownerRequired')}</p>}
     {intent.current && <button className="btn secondary" type="button" disabled={busy} onClick={() => void run()}>{t('agent.retryChange')}</button>}
-    {error && <p role="alert">{error === 'Agent permission change was not confirmed. Retry the same intent.' ? `${t('agent.unconfirmed')} ${t('agent.retry')}` : error}</p>}{message && <p role="status">{message}</p>}
+    {error.kind !== 'none' && <p role="alert">{errorText(error, t)}</p>}{message && <p role="status">{message}</p>}
   </div>;
 }
