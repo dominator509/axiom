@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { formatNumber } from '@axiom/core';
 
 const hooks = vi.hoisted(() => ({
   slots: [] as unknown[],
@@ -166,4 +167,22 @@ it('renders persisted hold reasons as user-facing labels instead of raw codes', 
   expect(rendered).toContain('Suspected fraud');
   expect(rendered).not.toContain('fraud_suspected');
   expect(formatAffiliateDate(hold.createdAt, 'en')).toContain('2026');
+});
+
+it('formats affiliate summary counts through the selected locale', () => {
+  const activeSnapshot: AffiliateProgramSnapshot = {
+    ...snapshot,
+    partners: [partner],
+    summary: {
+      ...snapshot.summary,
+      partners: 1234,
+      campaigns: 2345,
+      attributionEvents: 3456,
+      openHolds: 4,
+    },
+  };
+  const rendered = textContent(render(activeSnapshot));
+  expect(rendered).toContain(formatNumber(1234, 'en'));
+  expect(rendered).toContain(formatNumber(2345, 'en'));
+  expect(rendered).toContain(formatNumber(3456, 'en'));
 });

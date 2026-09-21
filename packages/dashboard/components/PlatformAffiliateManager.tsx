@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import * as React from 'react';
-import { CATALOGS, LocaleCatalog } from '@axiom/core';
+import { CATALOGS, formatNumber, LocaleCatalog } from '@axiom/core';
 import type {
   AffiliateCampaign,
   AffiliateCampaignReport,
@@ -204,9 +204,9 @@ export default function PlatformAffiliateManager({ initial }: Props) {
       </section>
 
       <section className="stat-grid" aria-label={t('affiliate.summaryAria')}>
-        <div className="stat-card"><small>{t('affiliate.partners')}</small><strong>{snapshot.summary.partners}</strong><span>{t('affiliate.activeDisclosure', { count: activePartners.length })}</span></div>
-        <div className="stat-card"><small>{t('affiliate.campaigns')}</small><strong>{snapshot.summary.campaigns}</strong><span>{t('affiliate.attributionEvents', { count: snapshot.summary.attributionEvents })}</span></div>
-        <div className="stat-card accent"><small>{t('affiliate.accruedCommission')}</small><strong>{money(snapshot.summary.accruedCents, locale)}</strong><span>{t('affiliate.openHolds', { count: snapshot.summary.openHolds })}</span></div>
+        <div className="stat-card"><small>{t('affiliate.partners')}</small><strong>{formatNumber(snapshot.summary.partners, locale)}</strong><span>{t('affiliate.activeDisclosure', { count: formatNumber(activePartners.length, locale) })}</span></div>
+        <div className="stat-card"><small>{t('affiliate.campaigns')}</small><strong>{formatNumber(snapshot.summary.campaigns, locale)}</strong><span>{t('affiliate.attributionEvents', { count: formatNumber(snapshot.summary.attributionEvents, locale) })}</span></div>
+        <div className="stat-card accent"><small>{t('affiliate.accruedCommission')}</small><strong>{money(snapshot.summary.accruedCents, locale)}</strong><span>{t('affiliate.openHolds', { count: formatNumber(snapshot.summary.openHolds, locale) })}</span></div>
       </section>
 
       <div className="grid">
@@ -246,7 +246,7 @@ export default function PlatformAffiliateManager({ initial }: Props) {
       <section className="card stack" aria-labelledby="campaigns-heading">
         <div><p className="eyebrow">{t('affiliate.referralLinks')}</p><h2 id="campaigns-heading">{t('affiliate.campaignsHeading')}</h2></div>
         {snapshot.campaigns.length === 0 ? <p className="subtle">{t('affiliate.noCampaigns')}</p> : <table><caption className="sr-only">{t('affiliate.campaignTable')}</caption><thead><tr><th>{t('affiliate.campaign')}</th><th>{t('affiliate.partner')}</th><th>{t('affiliate.commission')}</th><th>{t('affiliate.referralLink')}</th><th>{t('affiliate.actions')}</th></tr></thead><tbody>{snapshot.campaigns.map(campaign => { const partner = snapshot.partners.find(item => item.id === campaign.partnerId); const link = referralPath(campaign.referralToken); return <tr key={campaign.id}><td><strong>{campaign.name}</strong><br /><span className="subtle">/{campaign.slug} · {statusLabel(campaign.status, t)}</span></td><td>{partner?.displayName ?? shortId(campaign.partnerId)}</td><td>{new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(campaign.commissionBps / 100)}%</td><td><a className="mono" href={link} target="_blank" rel="noreferrer" referrerPolicy="no-referrer">{link}</a><br /><button className="btn secondary" type="button" onClick={() => void copyReferralLink(campaign.referralToken)}>{t('affiliate.copyReferralLink')}</button></td><td><button className="btn secondary" type="button" disabled={!!busy} onClick={() => void loadReport(campaign)}>{busy === `report:${campaign.id}` ? t('status.loading') : t('affiliate.viewReport')}</button></td></tr>; })}</tbody></table>}
-        {report && <div className="card stack" aria-live="polite"><div className="row" style={{ justifyContent: 'space-between' }}><h3>{t('affiliate.reportTitle', { name: report.campaign.name })}</h3><span className={statusClass(report.campaign.status)}><i />{statusLabel(report.campaign.status, t)}</span></div><div className="stat-grid"><div className="stat-card"><small>{t('affiliate.clicksVisits')}</small><strong>{report.attribution.clicks} / {report.attribution.visits}</strong><span>{t('affiliate.identityStitches', { count: report.attribution.identityStitches })}</span></div><div className="stat-card"><small>{t('affiliate.conversions')}</small><strong>{report.conversions}</strong><span>{t('affiliate.attributedSignups')}</span></div><div className="stat-card accent"><small>{t('affiliate.exportable')}</small><strong>{money(report.commissions.exportableCents, locale)}</strong><span>{report.commissions.openHold ? t('affiliate.blockedOpenHold') : t('affiliate.noOpenHold')}</span></div></div></div>}
+        {report && <div className="card stack" aria-live="polite"><div className="row" style={{ justifyContent: 'space-between' }}><h3>{t('affiliate.reportTitle', { name: report.campaign.name })}</h3><span className={statusClass(report.campaign.status)}><i />{statusLabel(report.campaign.status, t)}</span></div><div className="stat-grid"><div className="stat-card"><small>{t('affiliate.clicksVisits')}</small><strong>{formatNumber(report.attribution.clicks, locale)} / {formatNumber(report.attribution.visits, locale)}</strong><span>{t('affiliate.identityStitches', { count: formatNumber(report.attribution.identityStitches, locale) })}</span></div><div className="stat-card"><small>{t('affiliate.conversions')}</small><strong>{formatNumber(report.conversions, locale)}</strong><span>{t('affiliate.attributedSignups')}</span></div><div className="stat-card accent"><small>{t('affiliate.exportable')}</small><strong>{money(report.commissions.exportableCents, locale)}</strong><span>{report.commissions.openHold ? t('affiliate.blockedOpenHold') : t('affiliate.noOpenHold')}</span></div></div></div>}
       </section>
 
       <section className="card stack" aria-labelledby="holds-heading">
