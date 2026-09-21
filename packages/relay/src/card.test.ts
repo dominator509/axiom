@@ -260,3 +260,43 @@ describe('toText', () => {
     );
   });
 });
+
+describe('insight cards', () => {
+  const insight = {
+    id: 'source-card-1',
+    cardId: 'dispatch-card-1',
+    title: 'What is working',
+    description: 'Question hooks are leading published performance.',
+    icon: '📈',
+    groups: [{
+      platform: 'instagram',
+      learningArm: 'v2:short:question',
+      learningContext: 'learn-v2:scheduled-utc-2',
+      sampleSize: 14,
+      meanScore: 2.3,
+      publishedHourUtc: 19,
+    }],
+  } as const;
+
+  it('renders a model-scoped card without inventing bundle actions', () => {
+    const card = renderer.renderInsightCard(insight);
+    expect(card).toMatchObject({ kind: 'insight', bundleId: '', cardId: 'dispatch-card-1' });
+    expect(card.actions).toEqual([]);
+    expect(renderer.toText(card)).toContain('instagram · v2:short:question · n=14 · mean 2.30 · 19:00 UTC');
+  });
+
+  it('escapes evidence text in HTML and exposes evidence in an embed', () => {
+    const card = renderer.renderInsightCard({
+      ...insight,
+      title: '<unsafe>',
+      description: 'a & b',
+      groups: [{ ...insight.groups[0], platform: '<platform>' }],
+    });
+    const html = renderer.toHtml(card);
+    expect(html).toContain('&lt;unsafe&gt;');
+    expect(html).toContain('a &amp; b');
+    expect(html).toContain('&lt;platform&gt;');
+    expect(html).not.toContain('<unsafe>');
+    expect((renderer.toEmbed(card).fields as Array<{ name: string }>)[0]?.name).toBe('<platform>');
+  });
+});

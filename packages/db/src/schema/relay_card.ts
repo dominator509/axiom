@@ -47,6 +47,12 @@ export const relayCard = pgTable(
     uniqueIndex('relay_card_pending_dispatch_unique')
       .on(table.orgId, table.bundleId, table.channel, table.externalRef)
       .where(sql`${table.state} = 'pending'`),
+    // Model-scoped insight dispatches have no bundle_id. PostgreSQL treats
+    // NULLs as distinct in the bundle index above, so they need their own
+    // identity guard to prevent duplicate provider messages per binding.
+    uniqueIndex('relay_card_viral_pending_dispatch_unique')
+      .on(table.orgId, table.modelId, table.channel, table.externalRef)
+      .where(sql`${table.state} = 'pending' AND ${table.modelId} IS NOT NULL AND ${table.bundleId} IS NULL`),
   ],
 );
 

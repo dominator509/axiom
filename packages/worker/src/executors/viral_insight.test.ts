@@ -24,6 +24,7 @@ vi.mock('@axiom/db', () => ({
   schema: {
     uiLocalePreference: { orgId: 'org_id', scope: 'scope', locale: 'locale' },
     relayCard: {},
+    job: { orgId: 'org_id', dedupeKey: 'dedupe_key', id: 'id' },
   },
 }));
 
@@ -55,13 +56,13 @@ describe('viral.insight executor', () => {
       published_hour_utc: 19,
       sample_size: 4,
       mean_score: 1.25,
-    }], [{ scope: 'org', locale: 'de' }], []];
+    }], [{ scope: 'org', locale: 'de' }], [{ id: 'source-card-1' }], []];
     state.values = [];
   });
 
   it('stores one bounded, localized Relay card and never dispatches externally', async () => {
     await viralInsight({ tx: chain(), job: job(), workerId: 'test', killSwitchEnabled: false });
-    expect(state.values).toHaveLength(1);
+    expect(state.values).toHaveLength(2);
     expect(state.values[0]).toMatchObject({
       orgId: ORG_ID,
       modelId: MODEL_ID,
@@ -72,6 +73,12 @@ describe('viral.insight executor', () => {
     expect(state.values[0].config).toMatchObject({
       externalDelivery: 'not-attempted',
       viralInsight: { evidenceSource: 'published-provider-snapshot-v2', minimumSample: 3 },
+    });
+    expect(state.values[1]).toMatchObject({
+      orgId: ORG_ID,
+      queue: 'relay',
+      kind: 'relay.card',
+      payload: { insightCardId: 'source-card-1' },
     });
   });
 

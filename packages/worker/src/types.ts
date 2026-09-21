@@ -76,7 +76,8 @@ export interface ViralInsightPayload {
   windowKey: string;
 }
 export interface RelayCardPayload {
-  bundleId: string;
+  bundleId?: string;
+  insightCardId?: string;
   channel?: string;
 }
 export interface GeneratePayload {

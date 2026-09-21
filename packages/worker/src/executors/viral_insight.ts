@@ -2,10 +2,11 @@
 // Stores a bounded, model-scoped Relay card from published provider evidence.
 // This executor never calls a provider and never claims external delivery.
 
-import { sql, eq } from 'drizzle-orm';
+import { sql, and, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import { renderViralInsightCard, resolveOrgDigestLocale } from '@axiom/core';
 import type { Executor, ExecutorContext } from './context.js';
+import { enqueueJob } from '../enqueue.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const WINDOW_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -108,7 +109,7 @@ export const viralInsight: Executor = async ({ tx, job }: ExecutorContext) => {
     totalSamples: groups.reduce((sum, group) => sum + group.sampleSize, 0),
   });
   const externalRef = `viral-insight:${modelId}:${windowKey}`;
-  await tx.insert(schema.relayCard).values({
+  const [sourceCard] = await tx.insert(schema.relayCard).values({
     orgId: job.org_id,
     modelId,
     channel: 'viral_insight',
@@ -131,5 +132,34 @@ export const viralInsight: Executor = async ({ tx, job }: ExecutorContext) => {
       uiLocaleSource: resolved.source,
     },
     priority: 4,
-  }).onConflictDoNothing();
+  }).onConflictDoNothing().returning({ id: schema.relayCard.id });
+  let sourceCardId = sourceCard?.id as string | undefined;
+  if (!sourceCardId) {
+    // A prior source-only run may have committed the card before dispatch
+    // enqueueing was introduced. Recover its identity without creating a
+    // second card; the job dedupe key keeps this repair idempotent.
+    const existing = await tx.select({ id: schema.relayCard.id })
+      .from(schema.relayCard)
+      .where(and(
+        eq(schema.relayCard.orgId, job.org_id),
+        eq(schema.relayCard.modelId, modelId),
+        eq(schema.relayCard.channel, 'viral_insight'),
+        eq(schema.relayCard.externalRef, externalRef),
+        eq(schema.relayCard.state, 'stored'),
+      ))
+      .limit(1);
+    sourceCardId = existing[0]?.id as string | undefined;
+  }
+  if (sourceCardId) {
+    // The source card and its dispatch job share this transaction. The Relay
+    // executor creates one pending marker per enabled model binding and never
+    // reports local storage as provider delivery.
+    await enqueueJob(tx, {
+      orgId: job.org_id,
+      queue: 'relay',
+      kind: 'relay.card',
+      payload: { insightCardId: sourceCardId },
+      dedupeParts: ['relay.insight', sourceCardId],
+    });
+  }
 };

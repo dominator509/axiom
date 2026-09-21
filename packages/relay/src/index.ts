@@ -1,5 +1,5 @@
 export { CardRenderer } from './card.js';
-export type { BundleContent, PlatformVerdict, RelayCard } from './card.js';
+export type { BundleContent, InsightContent, InsightGroup, PlatformVerdict, RelayCard } from './card.js';
 
 export { TelegramAdapter } from './channels/telegram.js';
 export { DiscordAdapter } from './channels/discord.js';

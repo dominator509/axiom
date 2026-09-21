@@ -79,6 +79,25 @@ evaluation, six-locale dashboard controls, focused tests and package checks are
 complete in source. Runtime metrics/worker, migration/RLS, browser/provider and
 operator acceptance remain open and are not implied by this source milestone.
 
+### Current accepted source slice — M989
+
+F-85 model-scoped insight cards now enqueue the existing `relay.card` queue
+contract in the same transaction as the stored source card. The dispatch branch
+resolves enabled model bindings, validates every destination before provider
+I/O, renders a Relay-native insight envelope for Telegram/Discord/Signal/
+iMessage adapters, commits one `pending` marker per binding before sending, and
+updates only that marker to `sent` after the adapter resolves. Existing `pending`
+and `unknown` markers fail closed and require reconciliation; missing bindings
+park the job. Migration 0064 adds the model-scoped pending-dispatch uniqueness
+guard because PostgreSQL NULL semantics make the bundle-scoped index
+insufficient for insight cards.
+
+Evidence: Relay renderer 22/22, worker viral/dispatch/legacy Relay tests 36/36,
+Relay/worker/DB typechecks and `git diff --check` pass. This closes the source
+dispatch path only. Recurring insight scheduling, conversion attribution,
+provider/runtime receipts, migration application and operator/browser acceptance
+remain explicitly open; no provider, database, migration or live action occurred.
+
 ### Architecture fidelity constraints
 
 - L1.1 is the feature catalog; L2 documents the intended boundaries; L3

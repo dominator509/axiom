@@ -17,65 +17,26 @@ import {
 import type { BundleContent } from '@axiom/relay';
 import { ParkJobError } from './context.js';
 import { resolveProviderAssetUrl, validatePublishAsset } from './publish.js';
+import { assertRelayBindingDispatchable, type RelayBindingForDispatch } from './relay_policy.js';
+import { relayInsightCard } from './relay_insight.js';
 import type { Executor, ExecutorContext } from './context.js';
 
 const NO_BINDING_PARK_MS = 5 * 60_000;
 
-type RelayBindingForDispatch = {
-  id: string;
-  channel: string;
-  chatRef: string | null;
-};
-
-const SUPPORTED_RELAY_CHANNELS = new Set(['telegram', 'discord', 'signal', 'imessage']);
-
-/**
- * Validate every binding before the first provider side effect. A relay job
- * can fan out to several bindings; discovering a bad later binding after an
- * earlier adapter already sent its card would make the outer transaction roll
- * back and retry the earlier external send.
- */
-export function assertRelayBindingDispatchable(
-  binding: RelayBindingForDispatch,
-  env: Record<string, string | undefined> = process.env,
-): string {
-  const channel = binding.channel.trim().toLowerCase();
-  if (!SUPPORTED_RELAY_CHANNELS.has(channel)) {
-    throw new Error(`relay.card: channel '${binding.channel}' dispatch not implemented`);
-  }
-  if (!binding.chatRef?.trim()) {
-    throw new Error(`relay.card: binding ${binding.id} has no chat_ref`);
-  }
-
-  switch (channel) {
-    case 'telegram':
-      if (!env.TELEGRAM_BOT_TOKEN) {
-        throw new Error('relay.card: TELEGRAM_BOT_TOKEN not configured');
-      }
-      break;
-    case 'discord':
-      if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_APPLICATION_ID) {
-        throw new Error('relay.card: Discord bot env not configured');
-      }
-      break;
-    case 'signal':
-      if (!env.SIGNAL_CLI_PATH || !env.SIGNAL_ACCOUNT) {
-        throw new Error('relay.card: Signal CLI env not configured');
-      }
-      break;
-    case 'imessage':
-      if (!env.BLUEBUBBLES_URL || !(env.BLUEBUBBLES_PASSWORD ?? env.BLUEBUBBLES_API_KEY)) {
-        throw new Error('relay.card: BlueBubbles env not configured');
-      }
-      break;
-  }
-
-  return channel;
-}
+export { assertRelayBindingDispatchable } from './relay_policy.js';
 
 export const relayCard: Executor = async (ctx: ExecutorContext) => {
   const { tx, job, killSwitchEnabled } = ctx;
-  const payload = (job.payload ?? {}) as { bundleId?: string; channel?: string; revisionId?: string | null };
+  const payload = (job.payload ?? {}) as {
+    bundleId?: string;
+    insightCardId?: string;
+    channel?: string;
+    revisionId?: string | null;
+  };
+  if (payload.insightCardId) {
+    await relayInsightCard(ctx, payload.insightCardId);
+    return;
+  }
   const bundleId = payload.bundleId;
   if (!bundleId) throw new Error('relay.card: payload.bundleId required');
 
