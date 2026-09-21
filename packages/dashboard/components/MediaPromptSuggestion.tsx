@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { formatNumber } from '@axiom/core';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import { promptDiff } from '@/lib/prompt-diff';
@@ -14,7 +15,7 @@ type Suggestion = {
 export default function MediaPromptSuggestion({ modelId, bundleId, disabled, onUse }: {
   modelId: string; bundleId: string; disabled: boolean; onUse: (prompt: string) => void;
 }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const [approved, setApproved] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +71,7 @@ export default function MediaPromptSuggestion({ modelId, bundleId, disabled, onU
         <p style={{ whiteSpace: 'pre-wrap' }}>{diff.prefix}<del>{diff.removed}</del><ins>{diff.added}</ins>{diff.suffix}</p>
       </div>}
       <section aria-label={t('review.savedCharacterLock')}>
-        <h4>{t('review.characterLockUsed', { revision: suggestion.characterLockVersion })}</h4>
+        <h4>{t('review.characterLockUsed', { revision: formatNumber(suggestion.characterLockVersion, locale) })}</h4>
         <p style={{ whiteSpace: 'pre-wrap' }}>{suggestion.characterLockPrompt || t('review.noCharacterLock')}</p>
         <p>{t('review.characterLockPreserved')}</p>
       </section>

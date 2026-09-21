@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { formatNumber, type SupportedLocale } from '@axiom/core';
 import type {
   RoleplayActor,
   RoleplayHandoff,
@@ -17,6 +18,10 @@ import {
   type RoleplayPersonalityKey,
 } from '@/lib/roleplay-personality';
 import { useLocale } from './LocaleProvider';
+
+export function formatRoleplayCount(value: number, locale: SupportedLocale): string {
+  return formatNumber(value, locale);
+}
 
 export interface RoleplayActorOption {
   actor: RoleplayActor;
@@ -43,7 +48,7 @@ export default function RoleplayManager({
   actorOptions: RoleplayActorOption[];
   canEdit: boolean;
 }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const [actor, setActor] = useState<RoleplayActorOption | null>(actorOptions[0] ?? null);
   const [conversationKey, setConversationKey] = useState('default');
   const [context, setContext] = useState<RoleplayContext | null>(null);
@@ -414,8 +419,8 @@ export default function RoleplayManager({
           />
           <p className="subtle">
             {t('roleplay.personaRevision', {
-              revision: context?.persona?.revision ?? 0,
-              count: personaText.length,
+              revision: formatRoleplayCount(context?.persona?.revision ?? 0, locale),
+              count: formatRoleplayCount(personaText.length, locale),
             })}
           </p>
           {canEdit ? (

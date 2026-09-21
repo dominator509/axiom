@@ -57,11 +57,11 @@ export default function PlaybookHistory({ modelId, platform, onRestore }: {
     {error && <p role="alert">{error}</p>}
     {loaded && rows.length === 0 && <p>{t('playbook.historyEmpty')}</p>}
     {rows.map(row => <article className="card stack" key={row.id}>
-      <strong>{t('playbook.historyRevision', { revision: row.revision })}</strong>
+      <strong>{t('playbook.historyRevision', { revision: formatPlaybookCount(row.revision, locale) })}</strong>
       <p>{t('playbook.historyRecorded', { value: formatDate(new Date(row.recordedAt), locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) })}</p>
       <p>{t('playbook.historyCadence', { count: formatPlaybookCount(row.cadencePerWeek, locale), times: row.optimalTimes.join(', ') || t('playbook.historyNoPostingTimes') })}</p>
       <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{row.upsellStrategy || t('playbook.historyNoUpsellStrategy')}</p>
-      {onRestore && <button type="button" className="btn secondary" onClick={() => onRestore(row)}>{t('playbook.historyRestore', { revision: row.revision })}</button>}
+      {onRestore && <button type="button" className="btn secondary" onClick={() => onRestore(row)}>{t('playbook.historyRestore', { revision: formatPlaybookCount(row.revision, locale) })}</button>}
     </article>)}
     {cursor && <button className="btn secondary" type="button" disabled={busy} onClick={() => void load(true)}>{t('playbook.historyLoadOlder')}</button>}
   </section>;

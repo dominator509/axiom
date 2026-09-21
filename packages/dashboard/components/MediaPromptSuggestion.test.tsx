@@ -1,4 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
+import { formatNumber } from '@axiom/core';
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], refs: [] as { current: unknown }[], i: 0, r: 0, fetch: vi.fn(), key: vi.fn() }));
 vi.mock('react', async original => ({ ...await original<typeof import('react')>(),
   useState: (initial: unknown) => {
@@ -11,6 +12,7 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
 vi.mock('@/lib/mutation', () => ({ createIdempotencyKey: hooks.key, mutationFetch: hooks.fetch }));
 vi.mock('./LocaleProvider', () => ({
   useLocale: () => ({
+    locale: 'de',
     t: (key: string, values?: Record<string, string | number>) => {
       if (key === 'review.proposedPrompt') return `Proposed prompt (${values?.provider ?? ''})`;
       if (key === 'review.characterLockUsed') return `Character lock used by this attempt (revision ${values?.revision ?? ''})`;
@@ -44,7 +46,7 @@ function render(disabled = false) {
 }
 function approve() { render()[1].props.children[0].props.onChange({ target: { checked: true } }); }
 const data = { provider: 'grok', requiresReview: true, mediaQueued: false,
-  characterLockPrompt: 'Copper hair, green jacket', characterLockVersion: 3,
+  characterLockPrompt: 'Copper hair, green jacket', characterLockVersion: 1234,
   lastTriedPrompt: 'The last attempted scene', prompt: 'The revised scene', explanation: 'One changed detail.' };
 beforeEach(() => {
   hooks.values = []; hooks.refs = []; hooks.fetch.mockReset(); hooks.key.mockReset().mockReturnValue('one-intent'); useProposal.mockReset();
@@ -99,7 +101,7 @@ it.each([
   approve(); render()[2].props.onClick();
   await vi.waitFor(() => expect(hooks.values[1]).toBe(false));
   const section = render()[4].props.children.find((child: { props?: { 'aria-label'?: string } }) => child?.props?.['aria-label'] === 'Saved character lock');
-  expect(section.props.children[0].props.children).toContain(snapshot.characterLockVersion);
+  expect(section.props.children[0].props.children).toContain(formatNumber(snapshot.characterLockVersion, 'de'));
   expect(section.props.children[1].props.children).toBe(snapshot.characterLockPrompt || 'No character lock was saved with this attempt.');
   expect(useProposal).not.toHaveBeenCalled();
 });

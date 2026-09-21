@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { formatNumber } from '@axiom/core';
 import PlaybookGuidelineManager from './PlaybookGuidelineManager';
 import LocaleProvider from './LocaleProvider';
 
@@ -27,4 +28,10 @@ it('localizes the read-only owner boundary and hides save controls', () => {
   expect(html).toContain('Änderungen an Richtlinien erfordern die Rolle Eigentümer, Manager oder Operator.');
   expect(html).not.toContain('Richtlinie speichern');
   expect(html).not.toContain('Save guideline');
+});
+
+it('formats the editable revision through the selected locale', () => {
+  const html = renderToStaticMarkup(<LocaleProvider initialLocale="de"><PlaybookGuidelineManager modelId="model-1" initial={[{ ...guideline, revision: 1234 }]} canEdit /></LocaleProvider>);
+  expect(html).toContain(formatNumber(1234, 'de'));
+  expect(html).not.toContain('revision 1234');
 });

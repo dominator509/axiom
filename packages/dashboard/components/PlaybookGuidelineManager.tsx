@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { formatNumber } from '@axiom/core';
 import type { PlaybookGuideline } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
@@ -10,7 +11,7 @@ import PlaybookHistory from './PlaybookHistory';
 const PLATFORMS = ['instagram', 'tiktok', 'threads', 'x', 'youtube', 'reddit', 'facebook', 'telegram', 'discord', 'fanvue'];
 
 export default function PlaybookGuidelineManager({ modelId, initial, canEdit }: { modelId: string; initial: PlaybookGuideline[]; canEdit: boolean }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const first = initial[0];
   const [savedGuidelines, setSavedGuidelines] = useState(initial);
   const [revision, setRevision] = useState(first?.revision ?? 0);
@@ -37,7 +38,7 @@ export default function PlaybookGuidelineManager({ modelId, initial, canEdit }: 
         || result.data.upsellStrategy !== submitted.upsellStrategy || JSON.stringify(result.data.optimalTimes) !== JSON.stringify(submitted.optimalTimes)) throw new Error('unconfirmed guideline response');
       setSavedGuidelines(previous => [...previous.filter(row => row.platform !== result.data!.platform), result.data!]);
       setRevision(result.data.revision);
-      intent.current = null; setMessage(t('playbook.guidelineSaved', { platform, revision: result.data.revision }));
+      intent.current = null; setMessage(t('playbook.guidelineSaved', { platform, revision: formatNumber(result.data.revision, locale) }));
     } catch { setError(`${t('playbook.saveUnconfirmed')} ${t('playbook.retrySameChange')}`); }
     finally { setBusy(false); }
   }
@@ -45,7 +46,7 @@ export default function PlaybookGuidelineManager({ modelId, initial, canEdit }: 
     <h3>{t('playbook.managerTitle')}</h3>
     <p className="subtle">{t('playbook.managerDescription')}</p>
     <label>{t('playbook.platform')}<select disabled={busy || !!intent.current} value={platform} onChange={event => selectPlatform(event.target.value)}>{PLATFORMS.map(item => <option key={item}>{item}</option>)}</select></label>
-    <p>{t('playbook.editingRevision', { revision })}{revision === 0 ? ` (${t('playbook.newGuideline')})` : ''}.</p>
+    <p>{t('playbook.editingRevision', { revision: formatNumber(revision, locale) })}{revision === 0 ? ` (${t('playbook.newGuideline')})` : ''}.</p>
     <fieldset className="stack" disabled={!canEdit || busy || !!intent.current} style={{ border: 0, padding: 0, minWidth: 0 }}>
       <label>{t('playbook.cadencePerWeek')}<input type="number" min="0" max="100" value={cadencePerWeek} onChange={event => setCadencePerWeek(event.target.value)} /></label>
       <label>{t('playbook.optimalTimes')}<input value={optimalTimes} onChange={event => setOptimalTimes(event.target.value)} placeholder={t('playbook.optimalTimesPlaceholder')} /></label>
@@ -58,7 +59,7 @@ export default function PlaybookGuidelineManager({ modelId, initial, canEdit }: 
     <PlaybookHistory key={`${modelId}:${platform}:${revision}`} modelId={modelId} platform={platform}
       onRestore={canEdit && !busy && !intent.current ? row => {
         setOptimalTimes(row.optimalTimes.join(', ')); setCadencePerWeek(String(row.cadencePerWeek)); setUpsellStrategy(row.upsellStrategy);
-        setMessage(t('playbook.guidelineLoaded', { revision: row.revision }));
+        setMessage(t('playbook.guidelineLoaded', { revision: formatNumber(row.revision, locale) }));
       } : undefined} />
   </section>;
 }
