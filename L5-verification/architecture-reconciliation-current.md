@@ -1552,3 +1552,20 @@ calendar count-formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M969 — F-89 portfolio count formatting
+
+The workspace home route exposed raw organization, active-page and profile-list
+counts. These values now use the selected locale's shared number formatter in
+the summary cards and roster heading; profile identifiers, handles, names,
+authored bios and pagination semantics remain unchanged.
+
+Evidence: focused home page tests 8/8, full dashboard suite 156 files / 987
+passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`48b74a12a2dd8464f0093e0a3631ca284ed96b3e` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+portfolio count-formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
