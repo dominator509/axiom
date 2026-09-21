@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `f2acf8dd6ac7b596a685594701423b0ac2711cfb`
+Source checkpoint: `fcf29655b2e5c4d0349d0205e0d7838cae78d384`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1833,6 +1833,22 @@ source commit `f2acf8dd6ac7b596a685594701423b0ac2711cfb` is pushed and read
 back from `origin/codex/telegram-webhook-hardening`. This closes only the
 verified generation-score formatting slice; complete catalog adoption across
 remaining dashboard/email/operator surfaces, broader locale-formatting audit,
+browser/native acceptance, deployed migration/RLS/runtime evidence, provider
+receipts, observability, CI governance and production acceptance remain open.
+No live action occurred.
+
+### M985 - F-89 roleplay handoff-revision formatting
+
+The Chatter/roleplay handoff panel now renders its persisted handoff revision
+through the selected locale's number formatter instead of emitting a raw
+number. Persona revision and character-count formatting remain on the same
+shared helper, and no handoff semantics or ownership data changed.
+
+Evidence: focused RoleplayManager tests 3/3, full dashboard suite 156 files /
+1,007 passed, dashboard typecheck/lint and `git diff --check` pass. Product
+source commit `fcf29655b2e5c4d0349d0205e0d7838cae78d384` is pushed and read back
+from `origin/codex/telegram-webhook-hardening`. This closes only the verified
+roleplay handoff-revision formatting slice; remaining catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime evidence, provider
 receipts, observability, CI governance and production acceptance remain open.
 No live action occurred.
