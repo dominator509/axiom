@@ -1481,3 +1481,22 @@ audit count-formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M965 — F-89 variant analytics formatting
+
+The variant experiment, guidance-attribution, evaluation and published-
+performance surfaces exposed raw counts, fixed-point values, percentages and
+an unformatted provider collection timestamp. They now use one shared
+locale-aware formatter for counts, two-decimal metrics, percentages and UTC
+date/time values, with invalid collection timestamps rendered as `—`. Variant
+IDs, platform names, provider metadata and authored copy remain data.
+
+Evidence: focused variant suites 15/15, full dashboard suite 156 files / 983
+passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`360f69b08d73f3b80163aacc1230c11705ca71e7` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+variant analytics formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
