@@ -8,6 +8,7 @@ import MediaUpload from '@/components/MediaUpload';
 import { getSession, type MediaKind, type MediaOrigin } from '@/lib/api';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
 import { getServerLocale } from '@/lib/server-locale';
+import { formatNumber } from '@axiom/core';
 
 export const dynamic = 'force-dynamic';
 const MEDIA_ORIGINS: readonly MediaOrigin[] = ['uploaded', 'generated', 'transformed', 'legacy'];
@@ -59,7 +60,7 @@ export default async function MediaPage({ params, searchParams }: {
     ? query.kind as MediaKind : undefined;
   const filters = origin || kind ? { origin, kind } : undefined;
   const base = `/models/${encodeURIComponent(id)}`;
-  const { t, dateTime } = await getServerLocale();
+  const { t, dateTime, locale } = await getServerLocale();
   const session = await getSession();
   const role = session?.user?.role;
   if (!talentDestinationAllowed(role, 'media')) return <div className="card"><h2>{t('media.accessUnavailable')}</h2><p>{t('media.accessDescription')}</p><Link href="/">{t('media.back')}</Link></div>;
@@ -119,10 +120,10 @@ export default async function MediaPage({ params, searchParams }: {
             <span className={`badge ${lifecycle.tone}`}>{lifecycle.label}</span>
           </div>
           <BundleMedia modelId={id} assetId={asset.id} />
-          <p className="subtle">{asset.width && asset.height ? t('media.dimensions', { width: asset.width, height: asset.height }) : ''}{Math.ceil(asset.fileSize / 1024)} KB · {dateTime(asset.createdAt)}</p>
+          <p className="subtle">{asset.width && asset.height ? t('media.dimensions', { width: formatNumber(asset.width, locale), height: formatNumber(asset.height, locale) }) : ''}{formatNumber(Math.ceil(asset.fileSize / 1024), locale)} KB · {dateTime(asset.createdAt)}</p>
           <p className="subtle">{lifecycle.detail}</p>
           {asset.sourceAssetId && <p className="subtle">{t('media.derivedFromSource')} {pageAssetIds.has(asset.sourceAssetId) ? <a href={`#media-${asset.sourceAssetId}`}>{shortAssetId(asset.sourceAssetId)}</a> : <span className="mono">{shortAssetId(asset.sourceAssetId)}</span>}</p>}
-          {resultAssetIds.length > 0 && <p className="subtle">{t(resultAssetIds.length === 1 ? 'media.resultCountOne' : 'media.resultCountMany', { count: resultAssetIds.length })}{visibleResultIds.length > 0 && <>: {visibleResultIds.map((resultId, index) => <span key={resultId}>{index > 0 ? ', ' : ''}<a href={`#media-${resultId}`}>{shortAssetId(resultId)}</a></span>)}</>}</p>}
+          {resultAssetIds.length > 0 && <p className="subtle">{t(resultAssetIds.length === 1 ? 'media.resultCountOne' : 'media.resultCountMany', { count: formatNumber(resultAssetIds.length, locale) })}{visibleResultIds.length > 0 && <>: {visibleResultIds.map((resultId, index) => <span key={resultId}>{index > 0 ? ', ' : ''}<a href={`#media-${resultId}`}>{shortAssetId(resultId)}</a></span>)}</>}</p>}
           <div className="action-row"><a href={src} target="_blank" rel="noopener noreferrer">{t('media.openSaved')}</a>{canEdit && asset.kind === 'image' && <Link href={`${base}/generation?${new URLSearchParams({ sourceAssetId: asset.id })}`}>{t('media.useForVideo')}</Link>}</div>
           {canReadOperations && !operationsFailed && <MediaOperationControls modelId={id} assetId={asset.id} kind={asset.kind} operations={operations} canEdit={canEdit} />}
           {canEdit && <MediaBundleCreate modelId={id} assetId={asset.id} mimeType={asset.mimeType} />}

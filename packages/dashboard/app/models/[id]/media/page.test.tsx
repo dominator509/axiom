@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CATALOGS, LocaleCatalog } from '@axiom/core';
+import { CATALOGS, LocaleCatalog, formatNumber } from '@axiom/core';
 const list = vi.hoisted(() => vi.fn());
 const operations = vi.hoisted(() => vi.fn());
 const getSession = vi.hoisted(() => vi.fn());
@@ -227,20 +227,19 @@ it('formats the saved createdAt with the locale-aware dateTime formatter, not a 
   expect(html).not.toContain('2026-09-15T12:00:00Z');
 });
 
-it('does not translate provider/user-authored content or raw media metadata', async () => {
-  getServerLocale.mockResolvedValue(localeFor('ja'));
+it('does not translate provider/user-authored content while formatting numeric media metadata', async () => {
+  getServerLocale.mockResolvedValue(localeFor('de'));
   list.mockResolvedValue({ data: [{
     id: 'asset-id-123', kind: 'video', origin: 'uploaded', mimeType: 'video/mp4', fileSize: 3 * 1024 * 1024,
-    width: 1920, height: 1080, createdAt: '2026-09-15T12:00:00Z', status: 'running', operationId: 'op',
+    width: 1920000, height: 1080000, createdAt: '2026-09-15T12:00:00Z', status: 'running', operationId: 'op',
     assetTitle: 'Explicit provider title — do not translate',
   }] });
   const html = renderToStaticMarkup(await MediaPage({ params: Promise.resolve({ id: 'talent' }) }));
-  // Locale-aware dimension separator is used, and the raw metadata values survive.
-  expect(html).toContain('1920 × 1080');
-  expect(html).toContain('3072 KB');
+  expect(html).toContain(`${formatNumber(1920000, 'de')} × ${formatNumber(1080000, 'de')}`);
+  expect(html).toContain(`${formatNumber(3072, 'de')} KB`);
   expect(html).toContain('asset-id-123');
-  // The page shell copy is Japanese.
-  expect(html).toContain(CATALOGS.ja['media.title']);
+  // The page shell copy is German; identifiers and authored/provider data remain data.
+  expect(html).toContain(CATALOGS.de['media.title']);
 });
 
 it('keeps the safety wording and role gates truthful under a non-English locale', async () => {
