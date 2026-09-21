@@ -1394,3 +1394,21 @@ history/calendar formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M960 — F-89 media numeric formatting
+
+The mounted media page had one remaining concrete numeric-formatting leak:
+dimensions, file sizes in KB and saved-result counts were rendered as raw
+numbers. Those values now use the selected locale's shared number formatter;
+asset identifiers, MIME/provider metadata and authored content remain data.
+The existing locale-aware created timestamp and lifecycle/role boundaries are
+unchanged.
+
+Evidence: the complete media page suite passed 40/40, the full dashboard suite
+passed 154 files / 978 tests, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`c096e360d40308ca4ce4d49c49bf96732533c1dc` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified media
+numeric-formatting source slice; complete catalog adoption, browser/native
+acceptance, deployed migration/RLS/runtime, provider receipts, observability,
+CI governance and production acceptance remain open. No live action occurred.
