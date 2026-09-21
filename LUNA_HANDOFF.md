@@ -7,11 +7,11 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `01d212cd6ad71f9927b75fa05b5f8624d57791c8` (latest pushed/read-back coordination head; active D001 task remains pinned to exact source fcedd16f)
+SOURCE_HEAD: `fcedd16fc14063eb8a4860a93b3516e24a2d22a8` (immutable exact source pin for the active D001 task; later handoff-only commits do not change the task source)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `01d212cd6ad71f9927b75fa05b5f8624d57791c8` (verified origin readback after publishing the D001 task record)
-COORDINATION_HEAD: `01d212cd6ad71f9927b75fa05b5f8624d57791c8`
-COORDINATION_HEAD_LAST_READBACK: `01d212cd6ad71f9927b75fa05b5f8624d57791c8 — exact origin readback after publishing the D001 assignment`
+PUBLISHED_HEAD: `fcedd16fc14063eb8a4860a93b3516e24a2d22a8` (source pin read back before publishing the D001 task record)
+COORDINATION_HEAD: `01d212cd6ad71f9927b75fa05b5f8624d57791c8` (task-record publication commit; subsequent handoff-only commits do not change the D001 source pin)
+COORDINATION_HEAD_LAST_READBACK: `01d212cd6ad71f9927b75fa05b5f8624d57791c8 — exact origin readback for the D001 assignment; inspect Git for later handoff-only commits`
 ACCEPTED_PRODUCT_SOURCE: `e5fe10ff2962645f1dabc4b0ce64359324ae5408`
 CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — D001-DEPLOYMENT-SAFETY-SOURCE-BOUNDARY-R4 OPEN; exact task is the sole active lane`
 CURRENT_TASK_MANIFEST_SHA256: `eeb62333f8c3087f9e54ea16dce973f8cab6e93990eb74a5392773e13f438380`
