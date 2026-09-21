@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `38ebee69efb40be2ca4da76954461c3659652801`
+Source checkpoint: `290453a9e0ca0f3e84746d08371ee28e66dffc06`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1712,3 +1712,20 @@ passed, dashboard typecheck/lint, `git diff --check` and
 affiliate count-formatting source slice; migration application, billing/
 reconciliation, license/security/legal review, browser, payout/operator and
 deployed export/deletion evidence remain open. No live action occurred.
+
+### M978 - F-89 inbox and playbook count formatting
+
+Inbox attachment ordinals, chat unread-message counts, and playbook-history
+cadence counts now pass through the selected locale's shared number formatter.
+Attachment identity, unread/read semantics, history validation, and restore
+behavior are unchanged.
+
+Evidence: focused inbox/playbook tests 40/40, full dashboard suite 156 files /
+1001 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`290453a9e0ca0f3e84746d08371ee28e66dffc06` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+inbox/playbook count-formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
