@@ -7,27 +7,27 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `675b92585d2bf7bfe316e2cea7ce42c03ae4cf8e` (current pushed source after the audited F33 integration; Hermes must fetch all refs before any future task)
+SOURCE_HEAD: `dee80c85100faf471366a119bd7a5d1c95670c48` (exact pushed coordination/source pin for the new F14 lane; Hermes must fetch all refs before coding)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `675b92585d2bf7bfe316e2cea7ce42c03ae4cf8e` (verified origin readback matches local HEAD)
-COORDINATION_HEAD: `675b92585d2bf7bfe316e2cea7ce42c03ae4cf8e`
-COORDINATION_HEAD_LAST_READBACK: `675b92585d2bf7bfe316e2cea7ce42c03ae4cf8e — exact origin ref readback matched the audited local commit`
+PUBLISHED_HEAD: `dee80c85100faf471366a119bd7a5d1c95670c48` (verified origin readback before the F14 coordination marker)
+COORDINATION_HEAD: `dee80c85100faf471366a119bd7a5d1c95670c48`
+COORDINATION_HEAD_LAST_READBACK: `dee80c85100faf471366a119bd7a5d1c95670c48 — exact origin ref readback used as the F14 source pin`
 ACCEPTED_PRODUCT_SOURCE: `675b92585d2bf7bfe316e2cea7ce42c03ae4cf8e`
-CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — CLOSED marker for F33-PROVIDER-CACHE-CONTROLS-SOURCE-R3; no Hermes lane is active`
-CURRENT_TASK_MANIFEST_SHA256: `daa7019611892d8dbd5956685f9ce309ca305076fcc7b8b51c4b1d21e06d3fcf`
-CURRENT_TASK_MANIFEST_REMOTE_SHA256: `daa7019611892d8dbd5956685f9ce309ca305076fcc7b8b51c4b1d21e06d3fcf — remote marker will be updated to this closed state`
-CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; CLOSED means no task may be inferred from historical inbox/reply/status/outbox/worktree artifacts; a future lane requires a new marker and exact source pin`
+CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — OPEN marker for F14-MODEL-WATERMARK-POLICY-SOURCE-R11; remote publication pending`
+CURRENT_TASK_MANIFEST_SHA256: `4f8f33e226d74e89d133575724a634d558e21ced4a2ede96247773ea71c4276a`
+CURRENT_TASK_MANIFEST_REMOTE_SHA256: `PENDING_REMOTE_READBACK — publish after the coordination commit and verify exact readback`
+CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; only this F14 task is active; all historical inbox/reply/status/outbox/worktree artifacts are inert`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
-LAST_COMPLETED_SOURCE_MILESTONE: `M934 — model-scoped provider cache controls audited, integrated, committed and pushed at 675b92585d2bf7bfe316e2cea7ce42c03ae4cf8e; no live action`
-ACTIVE_HERMES_LANE: `NONE — F33-PROVIDER-CACHE-CONTROLS-SOURCE-R3 is terminally closed after Codex audited the materialized delivery and integrated the reconciled source`
+LAST_COMPLETED_SOURCE_MILESTONE: `M934/M936 — model-scoped provider cache controls audited and coordination closure pushed; F33 is terminal; no live action`
+ACTIVE_HERMES_LANE: `F14-MODEL-WATERMARK-POLICY-SOURCE-R11 — source-only, exact pin dee80c85100faf471366a119bd7a5d1c95670c48; Hermes codes only in the declared copy and delivery roots`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — source copy only; Codex must independently hash, test, accept/reject, integrate, commit and push`
-NEXT_ACTION: `No Hermes coding task is active. Hermes must fetch all refs and verify this exact pushed source before any future task; Codex must install a new marker, task envelope, COPY_ROOT and DELIVERY_ROOT before delegating again. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
-BRIDGE_OBSERVATION: `F33 R2 was terminally rejected after independent audit. F33 R3 materialized a 31-file source delivery; Codex independently audited the source, added the missing focused dashboard test and transaction typing, ran the owning gates, integrated the reconciled implementation, and pushed 675b9258. The R3 lane is closed. Historical bridge traffic remains inert.`
-CURRENT_LOCAL_DELIVERY: `M934 — model-scoped provider cache controls; commit 675b92585d2bf7bfe316e2cea7ce42c03ae4cf8e; DB/API/gateway/worker/dashboard source wiring and focused gates pass`
+NEXT_ACTION: `Publish the validated F14 R11 marker and task envelope, then wait for one correlated ACK before Hermes codes. Hermes must fetch all refs and verify the exact dee80c85100faf471366a119bd7a5d1c95670c48 pin. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
+BRIDGE_OBSERVATION: `Hermes completed the F33 post-push sync and verified the coordination ref at dee80c8 with the F33 product commit present; F33 is terminal. F14 R11 is the single new source-only lane selected from the architecture audit; no implementation or live action is counted until protocol-valid evidence is independently audited.`
+CURRENT_LOCAL_DELIVERY: `F33 M934 — model-scoped provider cache controls; product commit 675b92585d2bf7bfe316e2cea7ce42c03ae4cf8e; DB/API/gateway/worker/dashboard source wiring and focused gates pass`
 PRODUCT_COMPLETION_COMMIT: `675b92585d2bf7bfe316e2cea7ce42c03ae4cf8e — M934 model-scoped provider cache controls`
-HERMES_LANE_DISPOSITION: `F33 R3 CLOSED — Hermes source was independently audited and the reconciled implementation was integrated; source tests/typechecks/lint passed; no live action; no next Hermes lane exists yet`
+HERMES_LANE_DISPOSITION: `F14 R11 OPEN_UNCONFIRMED — task and marker pass local sync validation; remote publication and Hermes ACK are still required; no implementation/live action is counted`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
@@ -35,7 +35,7 @@ HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_R
 HERMES_REPLY_FORMAT_GATE: `ACK = TYPE ACK + STATE READ|ACCEPTED; PROGRESS = TYPE PROGRESS + STATE IN_PROGRESS; DELIVERY = TYPE DELIVERY + STATE DELIVERED + TERMINAL YES; BLOCKED = TYPE NACK + STATE BLOCKED + TERMINAL YES; every reply has a new WIRE distinct from IN_REPLY_TO, exact SEQ, PAYLOAD delimiter, READ_STATUS READ once, and final signature sincerely, Hermes`
 HERMES_DELIVERY_FORMAT_GATE: `DELIVERY PAYLOAD must contain exactly once: ARTIFACT, SHA256 (64 lowercase hex), COMMAND, EXIT_CODE (integer), TEST_RESULT (PASS|FAIL), CHANGED_FILES, SOURCE_REPO, SOURCE_REF, SOURCE_COMMIT, COPY_ROOT, DELIVERY_ROOT, MANIFEST_SHA256 (64 lowercase hex), LIVE_ACTIONS NONE; no prose substitute or duplicate fields`
 HERMES_BLOCKED_FORMAT_GATE: `If required checks cannot run or one concrete input is missing, use TYPE NACK, STATE BLOCKED, TERMINAL YES, NEXT_OWNER CODEX, a unique WIRE, REASON naming the single blocker, PAYLOAD READ_STATUS READ and LIVE_ACTIONS NONE exactly once; do not send a second ACK or a no-change delivery`
-OPEN_WIRES: `NONE — F33 R3 terminally closed; no Hermes task is active`
+OPEN_WIRES: `CODEX-F14-MODEL-WATERMARK-POLICY-SOURCE-R11-TASK-001 — only current wire; all older F14/F33 wires are historical`
 STALE_HERMES_REPLY: `HERMES-F15-F16-VARIANT-GUIDANCE-CURRENT-DELIVERY-004` was rejected by CODEX-F15-F16-VARIANT-GUIDANCE-CURRENT-RECEIPT-REJECT-005; it is terminal historical evidence and does not reopen or advance any lane`
 OPEN_CONTROL_WIRE: `NONE — CODEX-HERMES-WORKFLOW-RECONCILIATION-R2-TASK-001 is closed`
 OPEN_CONTROL_TASK_STATE: `CLOSED — valid ACK/ACCEPTED was read back at SEQ 2 and terminal Codex READ receipt was uploaded at SEQ 3`
@@ -50,7 +50,7 @@ OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
 OPEN_CONTROL_TASK_NEXT_ACTION: `Do not read or act on any closed lane again; install one new current feature marker/task only after a source gap is selected and its exact pushed head is read back.`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization, M857 relay-binding localization, M858 workspace-members localization and M859 PlaybookCadence calendar localization are integrated on the branch; F50 Linktree is terminal deferred for missing provider contract; F89 worker digest is integrated through fallback; M883 provider-neutral storage is integrated at 9a720071; M892 storage hardening is integrated at c884ad4; M907 canonical storage-key fixtures and deterministic isolated test discovery/database sequencing are integrated at fb594a4; M915 Hermes source-head reconciliation is integrated at fe24689; no feature lane is active until the next current marker is installed.`
-CURRENT_MILESTONE: `F33 R3 closed against source pin 1a0d82800e2cffd4fd919ffbf971df2f1abf9c62; audited implementation is pushed at 675b92585d2bf7bfe316e2cea7ce42c03ae4cf8e; closed marker SHA daa7019611892d8dbd5956685f9ce309ca305076fcc7b8b51c4b1d21e06d3fcf; no live action`
+CURRENT_MILESTONE: `F14 R11 selected against exact source pin dee80c85100faf471366a119bd7a5d1c95670c48; owner-authorized source-only policy/media execution lane; no live action`
 CURRENT_MILESTONE_OPEN_GATES: `Provider-specific live request acceptance remains open because subscription/API-key transports are intentionally fail-closed; migration application, deployed worker/runtime acceptance, automatic scheduling, provider delivery, revenue/conversion attribution and full contextual-arm semantics remain open; F50 Linktree remains terminally deferred for missing provider contract; browser/mobile, RLS, observability, CI/branch-protection, WireGuard and production/operator acceptance remain open.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
