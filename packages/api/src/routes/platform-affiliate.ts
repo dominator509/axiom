@@ -17,7 +17,9 @@ import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 import {
   buildPayoutExport,
   commissionCents,
+  exportPartnerData,
   type CommissionRecord,
+  type Campaign,
   type FraudHold,
   type Partner,
 } from '../affiliate-contract.js';
@@ -237,6 +239,54 @@ router.patch('/partners/:partnerId', async (c) => {
   if (updated && 'error' in updated) return apiError(c, 422, statusTitle(422), updated.error);
   if (!updated) return apiError(c, 404, statusTitle(404), 'affiliate partner not found');
   return c.json({ data: updated });
+});
+
+/**
+ * Export the platform-held partner record without exposing referred-creator,
+ * customer, tenant or credential fields. This is a read-only owner endpoint;
+ * revocation remains a separate audited status transition so attribution and
+ * financial records are not erased.
+ */
+router.get('/partners/:partnerId/export', async (c) => {
+  const partnerId = c.req.param('partnerId');
+  const [partnerRow] = await db.select().from(schema.affiliatePartner)
+    .where(eq(schema.affiliatePartner.id, partnerId)).limit(1);
+  if (!partnerRow) return apiError(c, 404, statusTitle(404), 'affiliate partner not found');
+  const [campaignRows, commissionRows] = await Promise.all([
+    db.select().from(schema.affiliateCampaign).where(eq(schema.affiliateCampaign.partnerId, partnerId)).orderBy(asc(schema.affiliateCampaign.createdAt)),
+    db.select().from(schema.affiliateCommissionEvent).where(eq(schema.affiliateCommissionEvent.partnerId, partnerId)).orderBy(asc(schema.affiliateCommissionEvent.createdAt)),
+  ]);
+  const partner: Partner = {
+    partnerId: partnerRow.id,
+    displayName: partnerRow.displayName,
+    email: partnerRow.email,
+    status: partnerRow.status,
+    termsVersion: partnerRow.termsVersion ?? 'unknown',
+    disclosureAcceptedAt: partnerRow.disclosureAcceptedAt?.toISOString(),
+  };
+  const campaigns: Campaign[] = campaignRows.map((row) => ({
+    campaignId: row.id,
+    partnerId: row.partnerId,
+    name: row.name,
+    slug: row.slug,
+    status: row.status,
+    commissionBps: row.commissionBps,
+    createdAt: row.createdAt.toISOString(),
+  }));
+  const commissions: CommissionRecord[] = commissionRows.map((row) => ({
+    commissionId: row.id,
+    conversionId: row.conversionId,
+    partnerId: row.partnerId,
+    campaignId: row.campaignId,
+    amountCents: row.amountCents,
+    state: commissionState(row.kind),
+    accruedAt: row.createdAt.toISOString(),
+    ...(row.kind === 'reversed' ? { reversedAt: row.createdAt.toISOString(), reversalReason: row.reason ?? 'refund' } : {}),
+  }));
+  return c.json({
+    data: exportPartnerData(partner, campaigns, commissions),
+    deletion: { mode: 'revoke', preservesAuditAttribution: true },
+  });
 });
 
 router.post('/campaigns', async (c) => {

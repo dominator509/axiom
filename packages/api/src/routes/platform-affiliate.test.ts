@@ -134,6 +134,24 @@ describe('platform affiliate API', () => {
     expect(harness.state.inserts).toHaveLength(2);
   });
 
+  it('exports only the partner-owned projection and preserves revoke semantics', async () => {
+    harness.state.results = [
+      [{ id: partnerId, programId, displayName: 'Partner', email: 'partner@example.com', status: 'active', termsVersion: 'v1', disclosureAcceptedAt: new Date('2026-01-01T00:00:00.000Z') }],
+      [{ id: campaignId, partnerId, name: 'Launch', slug: 'launch', status: 'active', commissionBps: 2000, createdAt: new Date('2026-01-02T00:00:00.000Z') }],
+      [{ id: 'commission-1', conversionId, partnerId, campaignId, kind: 'approved', amountCents: 2000, createdAt: new Date('2026-01-03T00:00:00.000Z') }],
+    ];
+    const response = await app().request(`/partners/${partnerId}/export`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      data: {
+        partner: { partnerId, email: 'partner@example.com', status: 'active' },
+        campaigns: [{ campaignId, partnerId, slug: 'launch' }],
+        commissions: [{ commissionId: 'commission-1', partnerId, amountCents: 2000 }],
+      },
+      deletion: { mode: 'revoke', preservesAuditAttribution: true },
+    });
+  });
+
   it('reconciles one SaaS conversion into one commission event and is idempotent by billing key', async () => {
     const occurredAt = '2026-01-01T00:00:00.000Z';
     harness.state.results = [
