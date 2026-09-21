@@ -7,11 +7,11 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `bbb156d1` (current pushed coordination head; the completed local M924 implementation is authoritative)
+SOURCE_HEAD: `0005e6e9` (current pushed coordination head; the completed local M924 implementation is authoritative)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `bbb156d1` (verified local and origin readback)
-COORDINATION_HEAD: `bbb156d1`
-COORDINATION_HEAD_LAST_READBACK: `bbb156d1 — M924 local dashboard localization completion`
+PUBLISHED_HEAD: `0005e6e9` (verified local and origin readback)
+COORDINATION_HEAD: `0005e6e9`
+COORDINATION_HEAD_LAST_READBACK: `0005e6e9 — M925 Hermes lane closure and handoff reconciliation`
 ACCEPTED_PRODUCT_SOURCE: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b`
 CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — OPEN marker for F89-DASHBOARD-REMAINING-L10N-R2; remote marker is /srv/fanthynks-bridge/hermes/inbox/CURRENT_TASK.json`
 CURRENT_TASK_MANIFEST_SHA256: `38698ee21058e890723fd94ffa2d3d520a919d60418761dd9c58c4b2561e8fb0`
@@ -26,6 +26,7 @@ HERMES_IMPLEMENTATION_OWNER: `NONE — Hermes produced no valid ACK/ACCEPTED, so
 NEXT_ACTION: `Do not act on the closed R2 lane. Codex M924 is authoritative; issue a fresh Hermes task only after selecting the next bounded source gap and pushing its exact source pin. No deployment, installer, migration, provider, credential, permission, systemd, network or runtime action.`
 BRIDGE_OBSERVATION: `Five fresh read-only polls after the corrected R2 marker found empty COPY_ROOT and DELIVERY_ROOT, no task-specific progress/delivery reply, and no task-specific executor. Gateway liveness and transport REPLIED are not coding progress.`
 CURRENT_LOCAL_DELIVERY: `M924 — remaining dashboard localization implemented and pushed at bbb156d1; core 134/134, dashboard 917/917, dashboard lint 0 errors, core/dashboard typechecks pass`
+PRODUCT_COMPLETION_COMMIT: `bbb156d1 — M924 remaining dashboard localization; current coordination head is 0005e6e9`
 HERMES_LANE_DISPOSITION: `CLOSED LOCALLY — no Hermes source artifact, commit or delivery exists; the stale remote marker must not be treated as an active assignment`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
@@ -49,7 +50,7 @@ OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
 OPEN_CONTROL_TASK_NEXT_ACTION: `Do not read or act on any closed lane again; install one new current feature marker/task only after a source gap is selected and its exact pushed head is read back.`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization, M857 relay-binding localization, M858 workspace-members localization and M859 PlaybookCadence calendar localization are integrated on the branch; F50 Linktree is terminal deferred for missing provider contract; F89 worker digest is integrated through fallback; M883 provider-neutral storage is integrated at 9a720071; M892 storage hardening is integrated at c884ad4; M907 canonical storage-key fixtures and deterministic isolated test discovery/database sequencing are integrated at fb594a4; M915 Hermes source-head reconciliation is integrated at fe24689; no feature lane is active until the next current marker is installed.`
-CURRENT_MILESTONE: `M924 coordination head bbb156d1; dashboard remaining localization is implemented locally and pushed after Hermes did not execute the R2 lane; no live action`
+CURRENT_MILESTONE: `M925 coordination head 0005e6e9; dashboard remaining localization is implemented locally and pushed after Hermes did not execute the R2 lane; no live action`
 CURRENT_MILESTONE_OPEN_GATES: `F50 Linktree remains terminally deferred for missing provider contract; remaining runtime/provider/browser/mobile/migration/RLS/observability/CI/WireGuard/production acceptance remain open.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
