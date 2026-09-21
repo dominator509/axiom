@@ -468,7 +468,7 @@ export default function RoleplayManager({
               {t('roleplay.shift')}: {selectedShiftId || t('roleplay.none')}
             </span>
             <span>
-              {t('roleplay.revision')}: {context?.handoffRevision ?? 0}
+              {t('roleplay.revision')}: {formatRoleplayCount(context?.handoffRevision ?? 0, locale)}
             </span>
           </div>
           <button

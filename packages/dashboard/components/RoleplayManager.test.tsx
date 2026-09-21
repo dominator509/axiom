@@ -20,7 +20,7 @@ it('renders the same roleplay controls through the Spanish catalog', () => {
   expect(html).not.toContain('Suggested personality');
 });
 
-it('formats persona revision and character counts through the selected locale', () => {
+it('formats roleplay revisions and character counts through the selected locale', () => {
   expect(formatRoleplayCount(1234, 'de')).toBe('1.234');
   expect(formatRoleplayCount(1234, 'ja')).toBe('1,234');
 });
