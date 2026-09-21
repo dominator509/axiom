@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { isLearningArm, isLearningContext, learningContextBucket, parseLearningArm } from '@axiom/core';
+import { formatNumber, isLearningArm, isLearningContext, learningContextBucket, parseLearningArm } from '@axiom/core';
 import type { ContentBundle } from '@/lib/api';
 import { useLocale } from './LocaleProvider';
 
@@ -32,7 +32,7 @@ function validReceipt(value: unknown): value is Receipt {
 export default function CaptionGuidance({ captions, receipts }: {
   captions: Record<string, string>; receipts: ContentBundle['captionGuidance'];
 }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
   const entries = Object.entries(captions);
   if (!entries.length) return null;
   return <details className="card stack">
@@ -48,7 +48,7 @@ export default function CaptionGuidance({ captions, receipts }: {
       return <div key={platform} className="stack">
         <h4>{platform}</h4>
         <p>{receipt.selectedArm ? armLabel(receipt.selectedArm, t) : t('caption.noStructure')}.</p>
-        <p>{t('caption.priorExamples', { count: receipt.exemplarIds.length })}</p>
+        <p>{t('caption.priorExamples', { count: formatNumber(receipt.exemplarIds.length, locale) })}</p>
         <p>{bucket === 'unknown' || bucket === null ? t('caption.noScheduledContext')
           : t('caption.selectionContext', {
             from: String(Number(bucket) * 6).padStart(2, '0'),

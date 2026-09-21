@@ -41,4 +41,15 @@ describe('CaptionGuidance locale coverage', () => {
     expect(html).toContain('Subtítulo corto con pregunta');
     expect(html).not.toContain(receipt.captionSha256);
   });
+
+  it('formats the persisted prior-example count through the selected locale', () => {
+  const manyExamples = Array.from({ length: 12 }, (_, index) =>
+    `11111111-1111-4111-8111-${String(index + 1).padStart(12, '0')}`,
+  );
+  const html = renderToStaticMarkup(<CaptionGuidance captions={{ instagram: caption }} receipts={{ instagram: {
+    ...receipt,
+    exemplarIds: manyExamples,
+  } }} />);
+  expect(html).toContain('Se proporcionaron 12 ejemplo(s) anterior(es).');
+  });
 });
