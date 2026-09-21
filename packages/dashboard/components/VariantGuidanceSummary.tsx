@@ -1,7 +1,11 @@
+'use client';
+
 import type { VariantGuidanceSummary as Guidance } from '@/lib/api';
+import { useLocale } from './LocaleProvider';
 
 export default function VariantGuidanceSummary({ guidance }: { guidance?: Guidance | null }) {
-  if (!guidance) return <p className="subtle">Guidance attribution unavailable. No performance conclusion is implied.</p>;
-  const details = [guidance.hookType && `hook: ${guidance.hookType}`, guidance.format && `format: ${guidance.format}`, guidance.postingHourUtc !== undefined && `hour: ${guidance.postingHourUtc}:00 UTC`, guidance.timingBucket && `timing: ${guidance.timingBucket}`].filter(Boolean).join(' · ');
-  return <div className="stack"><strong>Verified guidance attribution</strong><span className="subtle">{guidance.selectedArm ?? 'No learned structure selected'} · {details || 'Hook, format, and timing unavailable'}</span><span className="subtle">Source bundle {guidance.sourceBundleId.slice(0, 8)} · recorded provenance only; this does not prove causality, performance, or publication.</span></div>;
+  const { t } = useLocale();
+  if (!guidance) return <p className="subtle">{t('variant.guidance.summaryUnavailable')}</p>;
+  const details = [guidance.hookType && `${t('variant.detail.hook')}: ${guidance.hookType}`, guidance.format && `${t('variant.detail.format')}: ${guidance.format}`, guidance.postingHourUtc !== undefined && `${t('variant.detail.hour')}: ${guidance.postingHourUtc}:00 UTC`, guidance.timingBucket && `${t('variant.detail.timing')}: ${guidance.timingBucket}`].filter(Boolean).join(' · ');
+  return <div className="stack"><strong>{t('variant.guidance.verified')}</strong><span className="subtle">{guidance.selectedArm ?? t('variant.guidance.none')} · {details || t('variant.guidance.none')}</span><span className="subtle">{t('variant.guidance.sourceBundle', { id: guidance.sourceBundleId.slice(0, 8) })} · {t('variant.guidance.provenance')}</span></div>;
 }

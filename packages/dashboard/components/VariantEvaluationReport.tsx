@@ -1,3 +1,7 @@
+'use client';
+
+import { useLocale } from './LocaleProvider';
+
 type Summary = { variantId: string; posts: number; mean: number };
 type Assessment = { status: 'candidate' | 'inconclusive'; sampleSize: number; radius: number; candidateVariantId: string | null; summaries: Summary[] };
 
@@ -24,18 +28,19 @@ function readAssessment(value: unknown, variantIds: string[], winner: string | n
 export default function VariantEvaluationReport({ evaluation, variantIds, winnerVariantId }: {
   evaluation: unknown; variantIds: string[]; winnerVariantId: string | null;
 }) {
+  const { t } = useLocale();
   if (evaluation == null) return null;
   const assessment = readAssessment(evaluation, variantIds, winnerVariantId);
-  if (!assessment) return <p role="alert">Saved evaluation details could not be verified. No scores are inferred from missing fields.</p>;
-  return <details className="stack"><summary>Frozen automatic evaluation</summary>
-    <p>{assessment.status === 'candidate' ? 'A winner was selected from this fixed sample.' : 'The fixed sample was inconclusive. No winner was selected.'}</p>
-    <p>Each candidate uses 20 distinct published posts and their first stored provider observations at least 72 hours after publication. Later metrics do not change this result.</p>
+  if (!assessment) return <p role="alert">{t('variant.evaluation.invalid')}</p>;
+  return <details className="stack"><summary>{t('variant.evaluation.title')}</summary>
+    <p>{assessment.status === 'candidate' ? t('variant.evaluation.candidate') : t('variant.evaluation.inconclusive')}</p>
+    <p>{t('variant.evaluation.evidence')}</p>
     <div className="grid">{assessment.summaries.map(row => <article className="card stack" key={row.variantId}>
-      <h4>Variant {row.variantId.slice(0, 8)}{row.variantId === winnerVariantId ? ' · Winner' : ''}</h4>
-      <span>{row.posts} published posts</span>
-      <span>Mean per-post engagement: {(row.mean * 100).toFixed(2)}%</span>
-      <span>Comparison interval: {(Math.max(0, row.mean - assessment.radius) * 100).toFixed(2)}%–{(Math.min(1, row.mean + assessment.radius) * 100).toFixed(2)}%</span>
+      <h4>{t('variant.evaluation.variant', { id: row.variantId.slice(0, 8) })}{row.variantId === winnerVariantId ? ` · ${t('variant.evaluation.winner')}` : ''}</h4>
+      <span>{t('variant.evaluation.posts', { count: row.posts })}</span>
+      <span>{t('variant.evaluation.mean', { value: (row.mean * 100).toFixed(2) })}</span>
+      <span>{t('variant.evaluation.interval', { value: `${(Math.max(0, row.mean - assessment.radius) * 100).toFixed(2)}%–${(Math.min(1, row.mean + assessment.radius) * 100).toFixed(2)}` })}%</span>
     </article>)}</div>
-    <p className="subtle">This comparison does not prove causal lift, independent audiences, attributed sales, or future performance. It does not approve or publish content.</p>
+    <p className="subtle">{t('variant.evaluation.disclaimer')}</p>
   </details>;
 }

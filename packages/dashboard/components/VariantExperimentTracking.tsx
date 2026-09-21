@@ -6,6 +6,7 @@ import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
 import VariantReviewCreate from './VariantReviewCreate';
 import Link from 'next/link';
+import { useLocale } from './LocaleProvider';
 
 type Assignment = { id: string; variantId: string; assignedAt: string; outcomeAt: string | null; converted: boolean; metricValue: number | null; reviewBundleId?: string | null; variantType?: string };
 type Intent = { path: string; body: string; key: string };
@@ -14,6 +15,7 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export default function VariantExperimentTracking({ modelId, experimentId, status, canEdit, platform = 'instagram' }: {
   modelId: string; experimentId: string; status: string; canEdit: boolean; platform?: string;
 }) {
+  const { t } = useLocale();
   const router = useRouter();
   const base = `/api/v1/models/${encodeURIComponent(modelId)}/variant-experiments/${encodeURIComponent(experimentId)}`;
   const [rows, setRows] = useState<Assignment[]>([]);
@@ -42,7 +44,7 @@ export default function VariantExperimentTracking({ modelId, experimentId, statu
           !(row.reviewBundleId == null || typeof row.reviewBundleId === 'string' && uuid.test(row.reviewBundleId)) || !(row.variantType === undefined || typeof row.variantType === 'string'))) throw new Error('Invalid assignments');
       setRows(previous => more ? [...new Map([...previous, ...result.data].map(row => [row.id, row])).values()] : result.data);
       setCursor(result.meta.next_cursor); setLoaded(true);
-    } catch { setError('Assignment history could not be loaded. Try again.'); }
+    } catch { setError(t('variant.tracking.historyFailed')); }
     finally { reading.current = false; setLoading(false); }
   }
 
@@ -57,56 +59,56 @@ export default function VariantExperimentTracking({ modelId, experimentId, statu
       if (!response.ok) {
         const details = await readDashboardError(response);
         if ([400, 401, 403, 404, 409, 422].includes(response.status)) intent.current = null;
-        setError(details?.error?.message ?? 'Tracking change was not accepted.'); return;
+        setError(details?.error?.message ?? t('variant.tracking.changeNotAccepted')); return;
       }
       const result = await readDashboardJson<{ data?: { id?: string; variantId?: string } }>(response);
-      if (!result.data?.id || !uuid.test(result.data.id) || !result.data.variantId || !uuid.test(result.data.variantId)) throw new Error('Unconfirmed receipt');
+      if (!result.data?.id || !uuid.test(result.data.id) || !result.data.variantId || !uuid.test(result.data.variantId)) throw new Error(t('variant.tracking.unconfirmed'));
       intent.current = null;
       setAssignmentId(request.path.endsWith('/assign') ? result.data.id : '');
       if (request.path.endsWith('/outcomes')) { setConverted(''); setMetric(''); }
-      setMessage(`Recorded assignment ${result.data.id.slice(0, 8)} for variant ${result.data.variantId.slice(0, 8)}. No media was published.`);
+      setMessage(t('variant.tracking.recorded', { assignment: result.data.id.slice(0, 8), variant: result.data.variantId.slice(0, 8) }));
       await load(); router.refresh();
-    } catch { setError('Tracking change was not confirmed. Retry the same request; do not create another assignment.'); }
+    } catch { setError(t('variant.tracking.changeNotConfirmed')); }
     finally { active.current = false; setBusy(false); }
   }
 
   function recordOutcome() {
     const metricValue = metric.trim() === '' ? undefined : Number(metric);
     if (!uuid.test(assignmentId) || !['yes', 'no'].includes(converted) || (metricValue !== undefined && (!Number.isFinite(metricValue) || Math.abs(metricValue) > 1_000_000_000))) {
-      setError('Select an assignment, choose the observed conversion result, and enter a valid metric or leave it blank.'); return;
+      setError(t('variant.tracking.invalidOutcome')); return;
     }
     void send({ path: `${base}/outcomes`, body: JSON.stringify({ assignmentId, converted: converted === 'yes', metricValue }) });
   }
 
   return <details className="stack">
-    <summary>Assignments and observed outcomes</summary>
-    <p className="subtle">Allocation is not proof that someone viewed a variant. Record only outcomes you actually observed. These records are not automatically verified provider analytics.</p>
-    <button type="button" className="btn secondary" disabled={loading || busy} onClick={() => void load()}>{loading ? 'Loading assignments…' : 'Refresh assignments'}</button>
-    {loaded && rows.length === 0 && <p>No assignments recorded.</p>}
+    <summary>{t('variant.tracking.title')}</summary>
+    <p className="subtle">{t('variant.tracking.description')}</p>
+    <button type="button" className="btn secondary" disabled={loading || busy} onClick={() => void load()}>{loading ? t('variant.tracking.loading') : t('variant.tracking.refresh')}</button>
+    {loaded && rows.length === 0 && <p>{t('variant.tracking.noAssignments')}</p>}
     <ul className="stack">{rows.map(row => <li key={row.id}>
-      <span className="mono">{row.id.slice(0, 8)}</span> · variant {row.variantId.slice(0, 8)} · {row.outcomeAt ? `${row.converted ? 'Converted' : 'Did not convert'}${row.metricValue === null ? '' : ` · metric ${row.metricValue}`}` : 'Awaiting outcome'}
-      {row.reviewBundleId ? <Link href={`/models/${encodeURIComponent(modelId)}/approvals`}>Review bundle {row.reviewBundleId.slice(0, 8)}</Link>
+      <span className="mono">{row.id.slice(0, 8)}</span> · {t('variant.tracking.variant')} {row.variantId.slice(0, 8)} · {row.outcomeAt ? `${row.converted ? t('variant.tracking.converted') : t('variant.tracking.notConverted')}${row.metricValue === null ? '' : ` · ${t('variant.tracking.metric', { value: row.metricValue })}`}` : t('variant.tracking.awaiting')}
+      {row.reviewBundleId ? <Link href={`/models/${encodeURIComponent(modelId)}/approvals`}>{t('variant.tracking.reviewBundle', { id: row.reviewBundleId.slice(0, 8) })}</Link>
         : canEdit && ['running', 'paused'].includes(status) && row.variantType && <VariantReviewCreate modelId={modelId} variantId={row.variantId} assignmentId={row.id} requiresCaption={!['caption', 'teaser'].includes(row.variantType)} initialPlatform={platform} />}
     </li>)}</ul>
-    {cursor && <button type="button" className="btn secondary" disabled={loading || busy} onClick={() => void load(true)}>Load older assignments</button>}
+    {cursor && <button type="button" className="btn secondary" disabled={loading || busy} onClick={() => void load(true)}>{t('variant.tracking.loadOlder')}</button>}
     {canEdit && status === 'running' && <fieldset className="stack" disabled={busy || intent.current !== null}>
-      <legend>Allocate a variant</legend>
-      <label>Stable test identifier<input value={assignmentKey} maxLength={256} onChange={event => setAssignmentKey(event.target.value)} /></label>
-      <p className="subtle">Use the same opaque identifier for the same participant or placement. Do not enter names, emails, or credentials. Allocation does not deliver the media.</p>
-      <button type="button" className="btn secondary" disabled={!assignmentKey.trim()} onClick={() => void send({ path: `${base}/assign`, body: JSON.stringify({ assignmentKey: assignmentKey.trim() }) })}>Allocate variant</button>
+      <legend>{t('variant.tracking.allocateLegend')}</legend>
+      <label>{t('variant.tracking.stableId')}<input value={assignmentKey} maxLength={256} onChange={event => setAssignmentKey(event.target.value)} /></label>
+      <p className="subtle">{t('variant.tracking.allocationHelp')}</p>
+      <button type="button" className="btn secondary" disabled={!assignmentKey.trim()} onClick={() => void send({ path: `${base}/assign`, body: JSON.stringify({ assignmentKey: assignmentKey.trim() }) })}>{t('variant.tracking.allocate')}</button>
     </fieldset>}
     {canEdit && ['running', 'paused'].includes(status) && <fieldset className="stack" disabled={busy || intent.current !== null}>
-      <legend>Record observed outcome</legend>
-      <label>Assignment<select value={assignmentId} onChange={event => { setAssignmentId(event.target.value); setConverted(''); setMetric(''); }}>
-        <option value="">Select an assignment</option>
-        {rows.filter(row => !row.outcomeAt).map(row => <option key={row.id} value={row.id}>{row.id.slice(0, 8)} · variant {row.variantId.slice(0, 8)}</option>)}
+      <legend>{t('variant.tracking.outcomeLegend')}</legend>
+      <label>{t('variant.tracking.id')}<select value={assignmentId} onChange={event => { setAssignmentId(event.target.value); setConverted(''); setMetric(''); }}>
+        <option value="">{t('variant.tracking.selectAssignment')}</option>
+        {rows.filter(row => !row.outcomeAt).map(row => <option key={row.id} value={row.id}>{row.id.slice(0, 8)} · {t('variant.tracking.variant')} {row.variantId.slice(0, 8)}</option>)}
       </select></label>
-      <label>Observed conversion<select value={converted} onChange={event => setConverted(event.target.value)}><option value="">Choose result</option><option value="yes">Converted</option><option value="no">Did not convert</option></select></label>
-      <label>Measured value (optional)<input type="number" min={-1_000_000_000} max={1_000_000_000} step="any" value={metric} onChange={event => setMetric(event.target.value)} /></label>
-      <p className="subtle">An outcome cannot be overwritten after saving. Use a consistent metric across every variant.</p>
-      <button type="button" className="btn secondary" disabled={!assignmentId || !converted} onClick={recordOutcome}>Save observed outcome</button>
+      <label>{t('variant.tracking.observedConversion')}<select value={converted} onChange={event => setConverted(event.target.value)}><option value="">{t('variant.tracking.chooseResult')}</option><option value="yes">{t('variant.tracking.converted')}</option><option value="no">{t('variant.tracking.notConverted')}</option></select></label>
+      <label>{t('variant.tracking.measured')}<input type="number" min={-1_000_000_000} max={1_000_000_000} step="any" value={metric} onChange={event => setMetric(event.target.value)} /></label>
+      <p className="subtle">{t('variant.tracking.outcomeHelp')}</p>
+      <button type="button" className="btn secondary" disabled={!assignmentId || !converted} onClick={recordOutcome}>{t('variant.tracking.saveOutcome')}</button>
     </fieldset>}
-    {intent.current && <button type="button" className="btn secondary" disabled={busy} onClick={() => void send()}>Retry same tracking request</button>}
+    {intent.current && <button type="button" className="btn secondary" disabled={busy} onClick={() => void send()}>{t('variant.tracking.retry')}</button>}
     {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
   </details>;
 }

@@ -4,6 +4,7 @@ export * from './runtime-config.js';
 export * from './compliance.js';
 export * from './http.js';
 export * from './locale.js';
+export * from './variant-locale.js';
 export * from './locale-catalogs.js';
 export * from './fanvue-analytics-catalog.js';
 export * from './platform-affiliate-catalog.js';

@@ -13,6 +13,16 @@ vi.mock('react', async original => ({ ...await original<typeof import('react')>(
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
 vi.mock('@/lib/mutation', () => ({ createIdempotencyKey: () => 'tracking-key', mutationFetch: hooks.send }));
+vi.mock('./LocaleProvider', () => ({
+  useLocale: () => ({
+    locale: 'en',
+    setLocale: () => undefined,
+    t: (key: string) => ({
+      'variant.tracking.allocate': 'Allocate variant',
+      'variant.tracking.retry': 'Retry same tracking request',
+    }[key] ?? key),
+  }),
+}));
 import VariantExperimentTracking from './VariantExperimentTracking';
 type Element = { type: unknown; props: { children?: unknown; disabled?: boolean; onClick?: () => void; onChange?: (event: { target: { value: string } }) => void } };
 function find(node: unknown, predicate: (node: Element) => boolean): Element | undefined {

@@ -4,9 +4,11 @@ import { useRef, useState } from 'react';
 import { readDashboardJson } from '@/lib/response';
 import type { VariantGuidanceSummary } from '@/lib/api';
 import GuidanceSummary from './VariantGuidanceSummary';
+import { useLocale } from './LocaleProvider';
 
 type Observation = { targetId: string; variantId: string; collectedAt: string; views: number; likes: number; shares: number; comments: number; engagementRate: number; guidance?: VariantGuidanceSummary | null };
 export default function VariantPublishedPerformance({ modelId, experimentId }: { modelId: string; experimentId: string }) {
+  const { t } = useLocale();
   const [rows, setRows] = useState<Observation[]>([]), [busy, setBusy] = useState(false), [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(''), [truncated, setTruncated] = useState(false);
   const [assessment, setAssessment] = useState('');
@@ -23,26 +25,26 @@ export default function VariantPublishedPerformance({ modelId, experimentId }: {
           ![row.views, row.likes, row.shares, row.comments, row.engagementRate].every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0))) throw new Error('Invalid performance');
       setRows(result.data); setTruncated(result.meta.truncated); setLoaded(true);
       const messages: Record<string, string> = {
-        insufficient: 'Not enough evidence: each variant needs 20 distinct posts with valid provider observations.',
-        inconclusive: 'No clearly separated candidate in this sample.',
-        candidate: 'A candidate is separated in this provisional sample. This does not automatically select a winner; a frozen evaluation is still required.',
-        unavailable: 'The evidence is incomplete; no candidate assessment is available.',
+        insufficient: t('variant.performance.assessment.insufficient'),
+        inconclusive: t('variant.performance.assessment.inconclusive'),
+        candidate: t('variant.performance.assessment.candidate'),
+        unavailable: t('variant.performance.assessment.unavailable'),
       };
       setAssessment(messages[result.assessment?.status ?? ''] ?? '');
-    } catch { setError('Published performance could not be loaded. No missing values are treated as confirmed results.'); }
+    } catch { setError(t('variant.performance.error')); }
     finally { active.current = false; setBusy(false); }
   }
-  return <details className="stack"><summary>Published variant performance</summary>
-    <p>Latest stored provider snapshot per published post linked to this experiment through an allocation and unchanged review bundle. This is separate from manual outcomes and does not establish a statistically valid experiment or attributed sales.</p>
-    <button type="button" className="btn secondary" disabled={busy} onClick={() => void load()}>{busy ? 'Loading performance…' : 'Refresh published performance'}</button>
-    {loaded && rows.length === 0 && <p>No published metrics are linked to these variants yet.</p>}
-    {truncated && <p role="status">Showing only 100 posts. This is not the complete experiment dataset.</p>}
+  return <details className="stack"><summary>{t('variant.performance.title')}</summary>
+    <p>{t('variant.performance.description')}</p>
+    <button type="button" className="btn secondary" disabled={busy} onClick={() => void load()}>{busy ? t('variant.performance.loading') : t('variant.performance.refresh')}</button>
+    {loaded && rows.length === 0 && <p>{t('variant.performance.empty')}</p>}
+    {truncated && <p role="status">{t('variant.performance.truncated')}</p>}
     {assessment && <p role="status">{assessment}</p>}
     <div className="stack">{rows.map(row => <article className="card stack" key={row.targetId}>
-      <strong>Variant {row.variantId.slice(0, 8)} · post {row.targetId.slice(0, 8)}</strong>
-      <span>{row.views} views · {row.likes} likes · {row.shares} shares · {row.comments} comments</span>
-      <span>Engagement rate: {(row.engagementRate * 100).toFixed(2)}%</span>
-      <span className="subtle">Collected: {row.collectedAt}</span>
+      <strong>{t('variant.performance.variantPost', { variant: row.variantId.slice(0, 8), post: row.targetId.slice(0, 8) })}</strong>
+      <span>{t('variant.performance.counts', { views: row.views, likes: row.likes, shares: row.shares, comments: row.comments })}</span>
+      <span>{t('variant.performance.engagement', { value: (row.engagementRate * 100).toFixed(2) })}</span>
+      <span className="subtle">{t('variant.performance.collected', { value: row.collectedAt })}</span>
       <GuidanceSummary guidance={row.guidance} />
     </article>)}</div>
     {error && <p role="alert">{error}</p>}

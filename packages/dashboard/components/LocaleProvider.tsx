@@ -12,6 +12,7 @@ import {
   PROFILE_NETWORK_LIFECYCLE_CATALOGS,
   REVIEW_CATALOGS,
   SUPPORTED_LOCALES,
+  VARIANT_UI_CATALOGS,
   type MessageKey,
   type SupportedLocale,
 } from '@axiom/core';
@@ -29,6 +30,7 @@ const catalog = new LocaleCatalog(
         ...PLATFORM_AFFILIATE_CATALOGS[locale],
         ...PROFILE_NETWORK_LIFECYCLE_CATALOGS[locale],
         ...REVIEW_CATALOGS[locale],
+        ...VARIANT_UI_CATALOGS[locale],
       },
     ]),
   ) as typeof CATALOGS,

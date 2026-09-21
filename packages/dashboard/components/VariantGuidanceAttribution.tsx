@@ -26,21 +26,21 @@ export default function VariantGuidanceAttribution({ modelId, experimentId }: { 
       const response = await fetch(`/api/v1/models/${encodeURIComponent(modelId)}/variant-experiments/${encodeURIComponent(experimentId)}/guidance-attribution`, {
         cache: 'no-store', signal: AbortSignal.timeout(15000),
       });
-      if (!response.ok) throw new Error('Attribution unavailable');
+      if (!response.ok) throw new Error(t('variant.guidance.attribution'));
       const result = await readDashboardJson<{ data: unknown[]; meta: { source: string; attribution: string } }>(response);
-      if (!Array.isArray(result.data) || result.meta?.source !== 'assignment-outcomes' || result.meta.attribution !== 'verified-guidance-receipt' || result.data.some(row => !validAttribution(row))) throw new Error('Invalid attribution');
+      if (!Array.isArray(result.data) || result.meta?.source !== 'assignment-outcomes' || result.meta.attribution !== 'verified-guidance-receipt' || result.data.some(row => !validAttribution(row))) throw new Error(t('variant.guidance.attribution'));
       setRows(result.data as Attribution[]); setLoaded(true);
-    } catch { setError('Selected guidance attribution could not be loaded. No performance conclusion is implied.'); }
+    } catch { setError(t('variant.guidance.summaryUnavailable')); }
     finally { active.current = false; setBusy(false); }
   }
-  return <details className="stack"><summary>{t('caption.guidance')} attribution</summary>
-    <p className="subtle">Verified guidance receipts are grouped across recorded experiment outcomes. This is observational evidence, not causal lift or publication proof.</p>
-    <button type="button" className="btn secondary" disabled={busy} onClick={() => void load()}>{busy ? 'Loading attribution…' : 'Refresh guidance attribution'}</button>
-    {loaded && rows.length === 0 && <p className="subtle">No selected guidance has recorded outcomes yet.</p>}
+  return <details className="stack"><summary>{t('variant.guidance.attribution')}</summary>
+    <p className="subtle">{t('variant.guidance.attributionDescription')}</p>
+    <button type="button" className="btn secondary" disabled={busy} onClick={() => void load()}>{busy ? t('variant.guidance.attributionLoading') : t('variant.guidance.attributionRefresh')}</button>
+    {loaded && rows.length === 0 && <p className="subtle">{t('variant.guidance.attributionEmpty')}</p>}
     <div className="stack">{rows.map(row => <article className="card stack" key={row.guidanceReceiptId}>
       <strong>{row.guidanceReceiptId}</strong>
-      <span>{row.variantIds.length} variants · {row.exposures} exposures · {row.conversions} conversions</span>
-      <span>{row.averageMetric === undefined ? 'Average metric unavailable' : `Average metric: ${row.averageMetric.toFixed(2)}`}</span>
+      <span>{t('variant.guidance.counts', { variants: row.variantIds.length, exposures: row.exposures, conversions: row.conversions })}</span>
+      <span>{row.averageMetric === undefined ? t('variant.guidance.averageUnavailable') : t('variant.guidance.averageMetric', { value: row.averageMetric.toFixed(2) })}</span>
     </article>)}</div>
     {error && <p role="alert">{error}</p>}
   </details>;
