@@ -174,6 +174,9 @@ describe('platform affiliate API', () => {
     const occurredAt = '2026-01-01T00:00:00.000Z';
     harness.state.results = [
       [{ id: campaignId, programId, partnerId, status: 'active', commissionBps: 2000 }],
+      [{ id: programId, status: 'active' }],
+      [{ id: partnerId, programId, status: 'active', disclosureAcceptedAt: new Date('2026-01-01T00:00:00.000Z') }],
+      [{ id: 'identity-event-1' }],
       [],
       [{ id: conversionId, campaignId, partnerId, kind: 'subscription_started', amountCents: 10000 }],
       [{ id: 'commission-1', conversionId, kind: 'accrued', amountCents: 2000 }],
@@ -184,6 +187,7 @@ describe('platform affiliate API', () => {
       kind: 'subscription_started',
       amountCents: 10000,
       billingEventKey: 'billing-event-1',
+      creatorUserId: 'creator-user',
       occurredAt,
     });
     expect(response.status).toBe(201);
@@ -197,6 +201,25 @@ describe('platform affiliate API', () => {
       amountCents: 2000,
       kind: 'accrued',
     });
+  });
+
+  it('refuses a conversion that has no prior referral identity stitch', async () => {
+    harness.state.results = [
+      [{ id: campaignId, programId, partnerId, status: 'active', commissionBps: 2000 }],
+      [{ id: programId, status: 'active' }],
+      [{ id: partnerId, programId, status: 'active', disclosureAcceptedAt: new Date('2026-01-01T00:00:00.000Z') }],
+      [],
+    ];
+    const response = await jsonRequest('/conversions/reconcile', {
+      campaignId,
+      kind: 'subscription_started',
+      amountCents: 10000,
+      billingEventKey: 'billing-event-without-stitch',
+      creatorUserId: 'creator-user',
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ detail: 'conversion requires an earlier referral identity stitch' });
+    expect(harness.state.inserts).toHaveLength(0);
   });
 
   it('exports an approved payout file only and never represents a transfer', async () => {

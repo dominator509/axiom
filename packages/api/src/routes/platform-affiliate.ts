@@ -69,7 +69,7 @@ const reconcileSchema = z.object({
   kind: z.enum(['subscription_started', 'subscription_renewed', 'subscription_refunded']),
   amountCents: z.number().int().min(0).max(2_000_000_000),
   billingEventKey: z.string().trim().min(8).max(200),
-  creatorUserId: z.string().trim().min(1).max(255).optional(),
+  creatorUserId: z.string().trim().min(1).max(255),
   sourceBillingEventKey: z.string().trim().min(8).max(200).optional(),
   occurredAt: z.string().datetime().optional(),
 }).strict();
@@ -531,6 +531,21 @@ router.post('/conversions/reconcile', async (c) => {
     const [campaign] = await tx.select().from(schema.affiliateCampaign).where(eq(schema.affiliateCampaign.id, parsed.data.campaignId)).limit(1);
     if (!campaign) return { status: 404 as const, error: 'affiliate campaign not found' };
     if (campaign.status !== 'active') return { status: 422 as const, error: 'conversion requires an active campaign' };
+    const [program] = await tx.select().from(schema.affiliateProgram).where(eq(schema.affiliateProgram.id, campaign.programId)).limit(1);
+    const [partner] = await tx.select().from(schema.affiliatePartner).where(eq(schema.affiliatePartner.id, campaign.partnerId)).limit(1);
+    if (
+      !program || program.status !== 'active' ||
+      !partner || partner.programId !== campaign.programId ||
+      partner.status !== 'active' || !partner.disclosureAcceptedAt
+    ) return { status: 422 as const, error: 'conversion requires an active disclosed affiliate partner' };
+    const [identityStitch] = await tx.select({ id: schema.affiliateAttributionEvent.id })
+      .from(schema.affiliateAttributionEvent)
+      .where(and(
+        eq(schema.affiliateAttributionEvent.campaignId, campaign.id),
+        eq(schema.affiliateAttributionEvent.creatorUserId, parsed.data.creatorUserId),
+        eq(schema.affiliateAttributionEvent.kind, 'identity_stitch'),
+      )).limit(1);
+    if (!identityStitch) return { status: 409 as const, error: 'conversion requires an earlier referral identity stitch' };
     const [existing] = await tx.select().from(schema.affiliateConversion)
       .where(eq(schema.affiliateConversion.billingEventKey, parsed.data.billingEventKey)).limit(1).for('update');
     if (existing) {
@@ -540,9 +555,18 @@ router.post('/conversions/reconcile', async (c) => {
       return { status: 200 as const, data: existing, duplicate: true };
     }
     if (parsed.data.kind === 'subscription_refunded' && parsed.data.sourceBillingEventKey) {
-      const [source] = await tx.select({ id: schema.affiliateConversion.id }).from(schema.affiliateConversion)
+      const [source] = await tx.select({
+        id: schema.affiliateConversion.id,
+        campaignId: schema.affiliateConversion.campaignId,
+        creatorUserId: schema.affiliateConversion.creatorUserId,
+        kind: schema.affiliateConversion.kind,
+      }).from(schema.affiliateConversion)
         .where(eq(schema.affiliateConversion.billingEventKey, parsed.data.sourceBillingEventKey)).limit(1);
       if (!source) return { status: 409 as const, error: 'refund source billing event was not found' };
+      if (
+        source.campaignId !== campaign.id || source.creatorUserId !== parsed.data.creatorUserId ||
+        (source.kind !== 'subscription_started' && source.kind !== 'subscription_renewed')
+      ) return { status: 409 as const, error: 'refund source does not match the referred creator conversion' };
     }
     const [conversion] = await tx.insert(schema.affiliateConversion).values({
       programId: campaign.programId,
