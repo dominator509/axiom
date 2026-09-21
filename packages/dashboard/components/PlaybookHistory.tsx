@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { formatDate } from '@axiom/core';
+import { formatDate, formatNumber, type SupportedLocale } from '@axiom/core';
 import { readDashboardJson } from '@/lib/response';
 import { useLocale } from './LocaleProvider';
 
 export interface GuidelineRevision {
   id: string; modelId: string; platform: string; revision: number; optimalTimes: string[];
   cadencePerWeek: number; upsellStrategy: string; recordedAt: string;
+}
+export function formatPlaybookCount(value: number, locale: SupportedLocale): string {
+  return formatNumber(value, locale);
 }
 export function validGuidelineRevision(value: unknown, modelId: string, platform: string): value is GuidelineRevision {
   if (!value || typeof value !== 'object') return false;
@@ -56,7 +59,7 @@ export default function PlaybookHistory({ modelId, platform, onRestore }: {
     {rows.map(row => <article className="card stack" key={row.id}>
       <strong>{t('playbook.historyRevision', { revision: row.revision })}</strong>
       <p>{t('playbook.historyRecorded', { value: formatDate(new Date(row.recordedAt), locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) })}</p>
-      <p>{t('playbook.historyCadence', { count: row.cadencePerWeek, times: row.optimalTimes.join(', ') || t('playbook.historyNoPostingTimes') })}</p>
+      <p>{t('playbook.historyCadence', { count: formatPlaybookCount(row.cadencePerWeek, locale), times: row.optimalTimes.join(', ') || t('playbook.historyNoPostingTimes') })}</p>
       <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{row.upsellStrategy || t('playbook.historyNoUpsellStrategy')}</p>
       {onRestore && <button type="button" className="btn secondary" onClick={() => onRestore(row)}>{t('playbook.historyRestore', { revision: row.revision })}</button>}
     </article>)}

@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { formatNumber } from '@axiom/core';
 import LocaleProvider from './LocaleProvider';
-import InboxAttachments, { AttachmentPreview } from './InboxAttachments';
+import InboxAttachments, { AttachmentPreview, formatAttachmentOrdinal } from './InboxAttachments';
 
 const id = '11111111-1111-4111-8111-111111111111';
 const scope = { modelId: id, connectionId: id, userUuid: id, messageUuid: id, mediaUuids: [id] };
@@ -42,4 +42,9 @@ it('formats the attachment summary count through the selected locale', () => {
     </LocaleProvider>,
   );
   expect(html).toContain(`${formatNumber(12, 'de')} Anhang/Anhänge`);
+});
+
+it('formats attachment ordinals through the selected locale', () => {
+  expect(formatAttachmentOrdinal(1234, 'de')).toBe('1.234');
+  expect(formatAttachmentOrdinal(1234, 'ja')).toBe('1,234');
 });

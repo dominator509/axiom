@@ -31,6 +31,9 @@ interface Attachment {
   variants?: { variantType: string; width: number | null; height: number | null; lengthMs: number | null }[];
 }
 interface Scope { modelId: string; connectionId: string; userUuid: string; messageUuid: string; mediaUuids: string[] }
+export function formatAttachmentOrdinal(value: number, locale: SupportedLocale): string {
+  return formatNumber(value, locale);
+}
 export function attachmentPreviewPath(scope: Scope, mediaUuid: string, variant: string) {
   return `/api/v1/models/${encodeURIComponent(scope.modelId)}/inbox?${new URLSearchParams({
     connectionId: scope.connectionId, userUuid: scope.userUuid, messageUuid: scope.messageUuid,
@@ -112,8 +115,8 @@ export default function InboxAttachments(scope: Scope) {
       disabled={busy || scope.mediaUuids.length === 0 || scope.mediaUuids.length > 20}>{busy ? t('inbox.loadingAttachmentDetails') : t('inbox.loadAttachmentDetails')}</button></div>
     {error && <p role="alert">{error}</p>}
     {items && <div aria-live="polite">{items.map((item, index) => <div className="card stack" key={item.uuid}>
-      <h4>{item.available ? t('inbox.attachmentLabel', { count: index + 1, type: item.mediaType ?? 'unknown' })
-        : t('inbox.attachmentUnavailableLabel', { count: index + 1 })}</h4>
+      <h4>{item.available ? t('inbox.attachmentLabel', { count: formatAttachmentOrdinal(index + 1, locale), type: item.mediaType ?? 'unknown' })
+        : t('inbox.attachmentUnavailableLabel', { count: formatAttachmentOrdinal(index + 1, locale) })}</h4>
       {item.available && <>
         {item.pricing && <p>{t('inbox.listedPrice', { price: money(item.pricing.USD.price) })}</p>}
         {item.amountPaid && <p>{t('inbox.amountPaid', { price: money(item.amountPaid.USD.price) })}</p>}

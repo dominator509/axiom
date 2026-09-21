@@ -87,6 +87,13 @@ it('formats message media counts through the selected locale', async () => {
   expect(html).toContain(`${formatNumber(2, 'de')} Element`);
 });
 
+it('formats unread message counts through the selected locale', async () => {
+  mocks.locale.mockResolvedValue('de');
+  mocks.inbox.mockResolvedValue({ data: { observedAt: 'today', inbox: { kind: 'chats', pagination: { page: 1, size: 1, hasMore: false }, data: [{ user: { uuid: user, handle: 'fan', displayName: 'Fan', nickname: null }, isRead: false, unreadMessagesCount: 1234, isMuted: false, lastMessage: null }] } } });
+  const html = await render({ connectionId: 'account' });
+  expect(html).toContain(formatNumber(1234, 'de'));
+});
+
 // ─── F-89 localization behavior ───
 it.each([
   ['es', ['Bandeja', 'Cargar conversaciones', 'Cuenta de Fanvue']],

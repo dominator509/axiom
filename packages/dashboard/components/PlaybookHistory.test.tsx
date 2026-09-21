@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CATALOGS, LocaleCatalog, SUPPORTED_LOCALES, formatDate } from '@axiom/core';
-import PlaybookHistory, { validGuidelineRevision } from './PlaybookHistory';
+import PlaybookHistory, { formatPlaybookCount, validGuidelineRevision } from './PlaybookHistory';
 const row = { id: 'revision-id', modelId: 'model', platform: 'x', revision: 3, optimalTimes: ['18:00'], cadencePerWeek: 4, upsellStrategy: 'Approved approach', recordedAt: '2030-01-01T00:00:00Z' };
 afterEach(() => vi.restoreAllMocks());
 it('accepts only matching model/platform and bounded saved values', () => {
@@ -44,4 +44,9 @@ it('formats recorded revisions with the shared locale-aware UTC formatter', () =
   const formatted = formatDate(new Date(row.recordedAt), 'de', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
   expect(formatted).toContain('2030');
   expect(formatted).not.toContain('T00:00:00.000Z');
+});
+
+it('formats saved cadence counts through the selected locale', () => {
+  expect(formatPlaybookCount(1234, 'de')).toBe('1.234');
+  expect(formatPlaybookCount(1234, 'ja')).toBe('1,234');
 });

@@ -175,7 +175,7 @@ export default async function InboxPage({
                   <p>@{chat.user.handle}</p>
                   <p>
                     {chat.isRead ? t('inbox.read') : t('inbox.unread')} ·{' '}
-                    {t('inbox.unreadMessages', { count: chat.unreadMessagesCount })}
+                    {t('inbox.unreadMessages', { count: formatNumber(chat.unreadMessagesCount, locale) })}
                     {chat.isMuted ? ` · ${t('inbox.muted')}` : ''}
                   </p>
                   {chat.lastMessage ? (
