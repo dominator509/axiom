@@ -1182,3 +1182,22 @@ the elevated retry completed standalone tracing. Product commit
 `origin/codex/telegram-webhook-hardening`. This is source/UI evidence only;
 browser/mobile, provider, migration/RLS, runtime, observability, WireGuard and
 production acceptance remain open. No live action occurred.
+
+### M920 — F-89 character, cascade and native link-in-bio localization
+
+CharacterLockEditor, CascadeTemplateManager and the native LinkbioPanel now
+consume the shared typed locale catalog instead of embedding user-facing
+English copy. The slice adds 67 typed keys across en, es, ja, it, pt-BR and de,
+including validation, confirmation, retry, role-gate, conflict and
+unconfirmed-response states. Authored names, platform identifiers, URLs,
+provider data and backend error details remain data; the existing mutation,
+idempotency, authorization, confirmation and retry behavior is unchanged.
+
+Evidence: Hermes manifest bytes and all nine delivered-file hashes matched;
+focused core locale completeness tests passed 8/8, focused dashboard behavior
+tests passed 24/24, core and dashboard typechecks passed, core and dashboard
+lint passed with four pre-existing dashboard `any` warnings, and
+`git diff --check` passed. The source milestone is commit
+`cd155c5ef00d542b22fc312c4ab6787abd7adaa7`, pushed and read back from
+`origin/codex/telegram-webhook-hardening`. The strict Hermes DELIVERY reply
+and terminal Codex receipt are still open; no live action occurred.

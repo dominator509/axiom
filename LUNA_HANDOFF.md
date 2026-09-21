@@ -7,23 +7,23 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b` (current pushed coordination/source head; exact task pins must use the remote readback)
+SOURCE_HEAD: `cd155c5ef00d542b22fc312c4ab6787abd7adaa7` (current pushed coordination/source head; the active Hermes task remains pinned to its pre-integration source commit until terminal receipt)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b` (verified local and origin readback)
-COORDINATION_HEAD: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b`
-COORDINATION_HEAD_LAST_READBACK: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b — M918 variant workflow localization`
+PUBLISHED_HEAD: `cd155c5ef00d542b22fc312c4ab6787abd7adaa7` (verified local and origin readback)
+COORDINATION_HEAD: `cd155c5ef00d542b22fc312c4ab6787abd7adaa7`
+COORDINATION_HEAD_LAST_READBACK: `121201123a8beb234997784cd850aeba8b321524 — M919 handoff and bridge reconciliation`
 ACCEPTED_PRODUCT_SOURCE: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b`
-CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — CLOSED marker; remote mirror is /srv/fanthynks-bridge/hermes/inbox/CURRENT_TASK.json; a new marker is required before any implementation`
-CURRENT_TASK_MANIFEST_SHA256: `56deda38278297eb29704afcddfc1695a816f6f6cc09c1c12c4cc62ecd371517`
-CURRENT_TASK_MANIFEST_REMOTE_SHA256: `56deda38278297eb29704afcddfc1695a816f6f6cc09c1c12c4cc62ecd371517 — verified`
+CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — OPEN marker for F89-CHARACTER-CASCADE-LINKBIO-L10N-R1; remote marker is /srv/fanthynks-bridge/hermes/inbox/CURRENT_TASK.json`
+CURRENT_TASK_MANIFEST_SHA256: `ac8396366b68e82f0a2736ce15636f6044a83c59077575338b90acd840484e04`
+CURRENT_TASK_MANIFEST_REMOTE_SHA256: `ac8396366b68e82f0a2736ce15636f6044a83c59077575338b90acd840484e04 — verified`
 CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; only task_msg_id/task_wire match the active lane; every other inbox/reply/status/outbox/worktree artifact is historical and inert`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
-LAST_COMPLETED_SOURCE_MILESTONE: `M918 — variant workflow localization integrated, fully tested, pushed at 6844f8ef6e266660f5d6a71d9c9acdecdc29a59b, and read back from origin; stale F89 source lane closed`
-ACTIVE_HERMES_LANE: `NONE — F89-VARIANT-UI-L10N-CURRENT-R2 is terminally closed by CODEX-F89-VARIANT-UI-L10N-CURRENT-R2-RECEIPT-003 and HERMES-F89-VARIANT-UI-L10N-CURRENT-R2-RECEIPT-ACK-004; every other inbox/reply/status/outbox/worktree identity is historical and inert`
+LAST_COMPLETED_SOURCE_MILESTONE: `M920 — F-89 character/cascade/link-in-bio localization integrated at cd155c5ef00d542b22fc312c4ab6787abd7adaa7; active Hermes delivery remains pinned to the exact pre-integration source readback`
+ACTIVE_HERMES_LANE: `F89-CHARACTER-CASCADE-LINKBIO-L10N-R1 — active source-only implementation for CharacterLockEditor, CascadeTemplateManager and Native Linkbio localization`
 CODEX_OWNER: `CODEX`
-HERMES_IMPLEMENTATION_OWNER: `NONE until the next single feature task is installed in CURRENT_TASK.json and Hermes returns its correlated ACK; Hermes edits only its isolated copy and never commits or pushes`
-NEXT_ACTION: `Install one new exact-source task for the verified CharacterLockEditor/CascadeTemplateManager/Native Linkbio localization gap. The task must bind 6844f8ef6e266660f5d6a71d9c9acdecdc29a59b, declare the exact mirror/copy/delivery roots and fetch --all --prune command, and require ACK → Codex READ receipt → concrete PROGRESS → one flat DELIVERY or terminal BLOCKED. Codex audits, integrates, tests, commits and pushes.`
+HERMES_IMPLEMENTATION_OWNER: `HERMES — accepted at HERMES-F89-CHARACTER-CASCADE-LINKBIO-L10N-R1-ACK-004; Hermes edits only its isolated copy and never commits or pushes`
+NEXT_ACTION: `Hermes's delivery artifact is hash-verified and M920 is locally integrated, tested, committed and pushed; await the strict flat DELIVERY reply and send the terminal Codex receipt before closing this lane or issuing the next source task. No deployment, installer, migration, provider, credential, permission, systemd, network or runtime action.`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
@@ -31,7 +31,7 @@ HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_R
 HERMES_REPLY_FORMAT_GATE: `ACK = TYPE ACK + STATE READ|ACCEPTED; PROGRESS = TYPE PROGRESS + STATE IN_PROGRESS; DELIVERY = TYPE DELIVERY + STATE DELIVERED + TERMINAL YES; BLOCKED = TYPE NACK + STATE BLOCKED + TERMINAL YES; every reply has a new WIRE distinct from IN_REPLY_TO, exact SEQ, PAYLOAD delimiter, READ_STATUS READ once, and final signature sincerely, Hermes`
 HERMES_DELIVERY_FORMAT_GATE: `DELIVERY PAYLOAD must contain exactly once: ARTIFACT, SHA256 (64 lowercase hex), COMMAND, EXIT_CODE (integer), TEST_RESULT (PASS|FAIL), CHANGED_FILES, SOURCE_REPO, SOURCE_REF, SOURCE_COMMIT, COPY_ROOT, DELIVERY_ROOT, MANIFEST_SHA256 (64 lowercase hex), LIVE_ACTIONS NONE; no prose substitute or duplicate fields`
 HERMES_BLOCKED_FORMAT_GATE: `If required checks cannot run or one concrete input is missing, use TYPE NACK, STATE BLOCKED, TERMINAL YES, NEXT_OWNER CODEX, a unique WIRE, REASON naming the single blocker, PAYLOAD READ_STATUS READ and LIVE_ACTIONS NONE exactly once; do not send a second ACK or a no-change delivery`
-OPEN_WIRES: `NONE — the F89 variant lane is closed; the next feature wire is not active until the new current marker is uploaded`
+OPEN_WIRES: `CODEX-F89-CHARACTER-CASCADE-LINKBIO-L10N-R1-PROGRESS-RECEIPT-011 → HERMES; awaiting DELIVERY or terminal BLOCKED`
 STALE_HERMES_REPLY: `HERMES-F15-F16-VARIANT-GUIDANCE-CURRENT-DELIVERY-004` was rejected by CODEX-F15-F16-VARIANT-GUIDANCE-CURRENT-RECEIPT-REJECT-005; it is terminal historical evidence and does not reopen or advance any lane`
 OPEN_CONTROL_WIRE: `NONE — CODEX-HERMES-WORKFLOW-RECONCILIATION-R2-TASK-001 is closed`
 OPEN_CONTROL_TASK_STATE: `CLOSED — valid ACK/ACCEPTED was read back at SEQ 2 and terminal Codex READ receipt was uploaded at SEQ 3`
@@ -46,8 +46,8 @@ OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
 OPEN_CONTROL_TASK_NEXT_ACTION: `Do not read or act on any closed lane again; install one new current feature marker/task only after a source gap is selected and its exact pushed head is read back.`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization, M857 relay-binding localization, M858 workspace-members localization and M859 PlaybookCadence calendar localization are integrated on the branch; F50 Linktree is terminal deferred for missing provider contract; F89 worker digest is integrated through fallback; M883 provider-neutral storage is integrated at 9a720071; M892 storage hardening is integrated at c884ad4; M907 canonical storage-key fixtures and deterministic isolated test discovery/database sequencing are integrated at fb594a4; M915 Hermes source-head reconciliation is integrated at fe24689; no feature lane is active until the next current marker is installed.`
-CURRENT_MILESTONE: `M918 variant workflow localization is integrated at 6844f8ef6e266660f5d6a71d9c9acdecdc29a59b; core 21 files/126 tests and dashboard 146 files/904 tests pass, dashboard typecheck and elevated production build pass, and the stale F89 marker is closed; no live action`
-CURRENT_MILESTONE_OPEN_GATES: `F50 Linktree remains terminally deferred for missing provider contract; source slices for variant/A-B, scraper, team/shift/post-note, clipping/adaptation, playbook, Chatter, affiliate, Patreon and media gallery are largely present; the next verified source gap is localization in CharacterLockEditor, CascadeTemplateManager and the Native Linkbio panel; runtime/provider/browser/mobile/migration/RLS/observability/CI/WireGuard/production acceptance remain open.`
+CURRENT_MILESTONE: `M920 coordination head cd155c5ef00d542b22fc312c4ab6787abd7adaa7; F89-CHARACTER-CASCADE-LINKBIO-L10N-R1 artifact is integrated locally after hash/test audit; protocol closure remains open; no live action`
+CURRENT_MILESTONE_OPEN_GATES: `F50 Linktree remains terminally deferred for missing provider contract; F89 character/cascade/link-in-bio source/UI localization is integrated and tested but still needs the strict Hermes DELIVERY readback and terminal receipt; remaining localization, runtime/provider/browser/mobile/migration/RLS/observability/CI/WireGuard/production acceptance remain open.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -55,46 +55,46 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `NONE`
-NEXT_PREPARED_TASK_WIRE: `NONE`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `NONE — no feature task is active`
+NEXT_PREPARED_TASK: `F89-CHARACTER-CASCADE-LINKBIO-L10N-R1`
+NEXT_PREPARED_TASK_WIRE: `CODEX-F89-CHARACTER-CASCADE-LINKBIO-L10N-R1-TASK-001`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `121201123a8beb234997784cd850aeba8b321524`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `CLOSED — Codex must select and publish the next finite source gap explicitly`
-ACTIVE_LANE_TASK_WIRE: `NONE — current marker is CLOSED; next task not yet uploaded`
-ACTIVE_LANE_SOURCE_COMMIT: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b — baseline for next task`
+NEXT_PREPARED_TASK_STATE: `ACCEPTED — Hermes ownership accepted at ACK-004; awaiting source-only PROGRESS or DELIVERY`
+ACTIVE_LANE_TASK_WIRE: `CODEX-F89-CHARACTER-CASCADE-LINKBIO-L10N-R1-TASK-001`
+ACTIVE_LANE_SOURCE_COMMIT: `121201123a8beb234997784cd850aeba8b321524`
 ACTIVE_LANE_SOURCE_REPO: `github.com/dominator509/axiom`
 ACTIVE_LANE_SOURCE_REF: `refs/heads/codex/telegram-webhook-hardening`
 ACTIVE_LANE_SOURCE_SYNC_COMMAND: `git clone --mirror https://github.com/dominator509/axiom.git <MIRROR_ROOT> when absent; otherwise git --git-dir=<MIRROR_ROOT> fetch --all --prune`
 ACTIVE_LANE_SOURCE_REF_VERIFY_COMMAND: `git --git-dir=<MIRROR_ROOT> rev-parse --verify refs/heads/codex/telegram-webhook-hardening`
 ACTIVE_LANE_SOURCE_COMMIT_VERIFY_COMMAND: `git --git-dir=<MIRROR_ROOT> cat-file -t <SOURCE_COMMIT>^{commit}`
 ACTIVE_LANE_SOURCE_ANCESTRY_VERIFY_COMMAND: `git --git-dir=<MIRROR_ROOT> merge-base --is-ancestor <SOURCE_COMMIT> refs/heads/codex/telegram-webhook-hardening`
-ACTIVE_LANE_SOURCE_MIRROR_ROOT: `NONE — a new exact path is created per task`
+ACTIVE_LANE_SOURCE_MIRROR_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-character-cascade-linkbio-l10n-r1/mirror`
 ACTIVE_LANE_SOURCE_MIRROR_LAYOUT: `bare-mirror — refs/heads/*`
 ACTIVE_LANE_WORKTREE_KIND: `source-copy — exact pinned commit; never a moving branch checkout`
 ACTIVE_LANE_BUILD_WORKTREE_POLICY: `detached build/* and /srv/fanthynks/releases/* are release/deployment evidence only; they are not coding sources or sync targets`
-ACTIVE_LANE_COPY_ROOT: `NONE — created only for a new current task`
-ACTIVE_LANE_DELIVERY_ROOT: `NONE — created only for a new current task`
-ACTIVE_LANE_COPY_STATE: `CLOSED — no Hermes implementation is authorized until a new marker is uploaded`
-ACTIVE_LANE_LOCAL_REVIEW_ROOT: `NONE`
-ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `NONE`
-ACTIVE_LANE_TASK_ENVELOPE_SHA256: `NONE`
-ACTIVE_LANE_TASK_REMOTE_SHA256: `NONE`
-ACTIVE_LANE_ACK_WIRE: `NONE`
-ACTIVE_LANE_ACK_SHA256: `NONE`
-ACTIVE_LANE_RECEIPT_WIRE: `CODEX-F89-VARIANT-UI-L10N-CURRENT-R2-RECEIPT-003 — terminal READ closure; Hermes acknowledgement HERMES-F89-VARIANT-UI-L10N-CURRENT-R2-RECEIPT-ACK-004`
-ACTIVE_LANE_RECEIPT_SHA256: `a4c7038a94837c018555d732a3fcbbfc9eab13e442b87290fd2c71823d2d8047`
-ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `e6fee03f36d063a63bed91207afd65a6f21b8f48939c542a086f8a389be6e221 — Hermes closure acknowledgement`
+ACTIVE_LANE_COPY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-character-cascade-linkbio-l10n-r1/copy`
+ACTIVE_LANE_DELIVERY_ROOT: `/srv/fanthynks-bridge/hermes/inbox/codex-f89-character-cascade-linkbio-l10n-r1/delivery`
+ACTIVE_LANE_COPY_STATE: `AUTHORIZED — exact pinned source-copy; Hermes ownership accepted; delivery artifact received and audited; strict reply envelope not yet read back`
+ACTIVE_LANE_LOCAL_REVIEW_ROOT: `C:/dev/AXIOM/.codex-review/hermes-f89`
+ACTIVE_LANE_LOCAL_REVIEW_HASH_AUDIT: `PASS — all nine manifest files match; MANIFEST.json sha256 308d6af318f1a11268188abdffa133f13dfa4cb2345f09a9bb3dce6f1e5be306`
+ACTIVE_LANE_TASK_ENVELOPE_SHA256: `86b08d82fb7186cfb0541079eb638e44172bc73132b976aa8f694302f720b1e1`
+ACTIVE_LANE_TASK_REMOTE_SHA256: `86b08d82fb7186cfb0541079eb638e44172bc73132b976aa8f694302f720b1e1 — verified`
+ACTIVE_LANE_ACK_WIRE: `HERMES-F89-CHARACTER-CASCADE-LINKBIO-L10N-R1-ACK-004 — ACK/ACCEPTED`
+ACTIVE_LANE_ACK_SHA256: `bc164e0fc0379c9fd4cb473ba56a4df91534b45ef90cd8e550939a51afc7ab6a`
+ACTIVE_LANE_RECEIPT_WIRE: `CODEX-F89-CHARACTER-CASCADE-LINKBIO-L10N-R1-PROGRESS-RECEIPT-011`
+ACTIVE_LANE_RECEIPT_SHA256: `72a73e83a50ebcdca7a35e79eaf942a00370c2983764de6de74e510244a14e51`
+ACTIVE_LANE_RECEIPT_REMOTE_SHA256: `PENDING — receipt uploaded; Hermes response not yet read back`
 ACTIVE_LANE_EXECUTION_RECEIPT_WIRE: `NONE`
 ACTIVE_LANE_EXECUTION_RECEIPT_SHA256: `NONE`
 ACTIVE_LANE_DELIVERY_REJECTED_WIRE: `CODEX-F15-F16-VARIANT-GUIDANCE-CURRENT-RECEIPT-REJECT-005`
 ACTIVE_LANE_DELIVERY_REPLY_SHA256: `NONE — malformed delivery was not accepted`
 ACTIVE_LANE_DELIVERY_REJECTION_WIRE: `CODEX-F15-F16-VARIANT-GUIDANCE-CURRENT-RECEIPT-REJECT-005`
 ACTIVE_LANE_DELIVERY_REJECTION_SHA256: `READBACK_REQUIRED`
-ACTIVE_LANE_PROGRESS_WIRE: `NONE`
-ACTIVE_LANE_PROGRESS_SHA256: `NONE`
-ACTIVE_LANE_CORRECTION_WIRE: `NONE — lane is terminally closed`
-ACTIVE_LANE_CORRECTION_SHA256: `NONE`
-ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `NONE`
+ACTIVE_LANE_PROGRESS_WIRE: `HERMES-F89-CHARACTER-CASCADE-LINKBIO-L10N-R1-PROGRESS-010 — valid source-audit delta accepted; no source edit claimed yet`
+ACTIVE_LANE_PROGRESS_SHA256: `eb750e7d16303e177ca92c606e9b107a9df7fba04251be8c1f293827265dd321`
+ACTIVE_LANE_CORRECTION_WIRE: `CODEX-F89-CHARACTER-CASCADE-LINKBIO-L10N-R1-PROGRESS-REJECT-009 — corrected by Hermes PROGRESS-010`
+ACTIVE_LANE_CORRECTION_SHA256: `2d1f055a3dbf22c3b7ab0deb020b33cd9cd06e22a8eb5ed46cbc091ea997b73a`
+ACTIVE_LANE_CORRECTION_ENVELOPE_SHA256: `2d1f055a3dbf22c3b7ab0deb020b33cd9cd06e22a8eb5ed46cbc091ea997b73a`
 ACTIVE_LANE_INVALID_DELIVERY_WIRE: `HERMES-F15-F16-VARIANT-GUIDANCE-CURRENT-DELIVERY-004`
 ACTIVE_LANE_INVALID_DELIVERY_SHA256: `NONE — per-file hashes were not supplied in a valid manifest envelope`
 ACTIVE_LANE_SUPERSEDE_WIRE: `NONE — closed lane; next task must be a new exact-source wire`
