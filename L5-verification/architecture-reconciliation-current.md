@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `6c76b0d8ca7a6c9761b83ce6578a46cc2d45e65b`
+Source checkpoint: `5e569ad4eded0cefc94952008c5f4383a02442b1`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1662,3 +1662,19 @@ CaptionGuidance count-formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M975 - F-89 inbox count formatting
+
+Inbox attachment summaries, message-media counts, and the human/LLM reply
+composer character counters now pass their numeric values through the selected
+locale's shared number formatter before interpolation. Bounds and message
+semantics are unchanged; only presentation is localized.
+
+Evidence: focused inbox source/regression tests 54/54, full dashboard suite
+156 files / 995 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`5e569ad4eded0cefc94952008c5f4383a02442b1` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified inbox
+count-formatting source slice; complete catalog adoption, browser/native
+acceptance, deployed migration/RLS/runtime, provider receipts, observability,
+CI governance and production acceptance remain open. No live action occurred.
