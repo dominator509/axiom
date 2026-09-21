@@ -544,8 +544,11 @@ router.post('/conversions/reconcile', async (c) => {
         eq(schema.affiliateAttributionEvent.campaignId, campaign.id),
         eq(schema.affiliateAttributionEvent.creatorUserId, parsed.data.creatorUserId),
         eq(schema.affiliateAttributionEvent.kind, 'identity_stitch'),
-      )).limit(1);
+    )).limit(1);
     if (!identityStitch) return { status: 409 as const, error: 'conversion requires an earlier referral identity stitch' };
+    if (parsed.data.kind === 'subscription_refunded' && !parsed.data.sourceBillingEventKey) {
+      return { status: 409 as const, error: 'refund requires a source billing event key' };
+    }
     const [existing] = await tx.select().from(schema.affiliateConversion)
       .where(eq(schema.affiliateConversion.billingEventKey, parsed.data.billingEventKey)).limit(1).for('update');
     if (existing) {

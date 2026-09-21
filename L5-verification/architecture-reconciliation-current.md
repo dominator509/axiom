@@ -1323,3 +1323,19 @@ passed / 50 skipped; API typecheck and `git diff --check` pass. This is source
 and test evidence only. Billing provider
 integration, migration/runtime, browser acceptance, payout/operator and legal
 gates remain open. No live action occurred.
+
+### M956 — F-90 refund-source binding
+
+Refund reconciliation now fails closed when `subscription_refunded` omits its
+`sourceBillingEventKey`. A refund must identify a prior started or renewed
+conversion for the same campaign and referred creator before a reversal
+commission can be recorded; the existing route also rejects cross-campaign,
+cross-creator and refund-of-refund sources. This remains source-level
+idempotency and provenance control; it does not call a billing provider or move
+money.
+
+Evidence: affiliate route/domain tests 12/12; owning API suite 73 files / 1,140
+passed / 50 skipped; API typecheck and `git diff --check` pass. Source, test
+and contract evidence only. Billing
+provider, migration/runtime, browser, payout/operator and legal gates remain
+open. No live action occurred.

@@ -222,6 +222,25 @@ describe('platform affiliate API', () => {
     expect(harness.state.inserts).toHaveLength(0);
   });
 
+  it('refuses a refund that has no source billing event key', async () => {
+    harness.state.results = [
+      [{ id: campaignId, programId, partnerId, status: 'active', commissionBps: 2000 }],
+      [{ id: programId, status: 'active' }],
+      [{ id: partnerId, programId, status: 'active', disclosureAcceptedAt: new Date('2026-01-01T00:00:00.000Z') }],
+      [{ id: 'identity-event-1' }],
+    ];
+    const response = await jsonRequest('/conversions/reconcile', {
+      campaignId,
+      kind: 'subscription_refunded',
+      amountCents: 10000,
+      billingEventKey: 'refund-without-source',
+      creatorUserId: 'creator-user',
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ detail: 'refund requires a source billing event key' });
+    expect(harness.state.inserts).toHaveLength(0);
+  });
+
   it('exports an approved payout file only and never represents a transfer', async () => {
     harness.state.result = [{ id: 'export-1' }];
     harness.state.results = [
