@@ -8,6 +8,7 @@ import CalendarBoard from '@/components/CalendarBoard';
 import CalendarOptimalTimes from '@/components/CalendarOptimalTimes';
 import type { PerformancePattern } from '@/components/PerformancePatterns';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
+import { formatNumber } from '@axiom/core';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,7 +97,7 @@ export default async function CalendarPage({ params, searchParams }: {
     <div className="page-stack">
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <h2>{t('calendar.title')}</h2>
-        <span style={{ color: 'var(--muted)' }}>{error ? t('calendar.unavailable') : t('calendar.postsInView', { count: posts.length, noun: t(posts.length === 1 ? 'calendar.post' : 'calendar.posts'), view: viewLabel })}</span>
+        <span style={{ color: 'var(--muted)' }}>{error ? t('calendar.unavailable') : t('calendar.postsInView', { count: formatNumber(posts.length, locale), noun: t(posts.length === 1 ? 'calendar.post' : 'calendar.posts'), view: viewLabel })}</span>
       </div>
       <nav className="row" aria-label={t('calendar.navigation')}>
         {view === 'month' ? <>

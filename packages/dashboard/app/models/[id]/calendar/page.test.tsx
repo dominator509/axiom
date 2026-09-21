@@ -70,10 +70,10 @@ async function render(query: Record<string, string | string[] | undefined> = {})
   }));
 }
 
-function transport(status = 200) {
-  const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: [{
-    id: 'post', platform: 'telegram', state: 'published', scheduledFor: '2030-02-20T18:30:00Z',
-  }] }), { status, headers: { 'content-type': 'application/json' } }));
+function transport(status = 200, count = 1) {
+  const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: Array.from({ length: count }, (_, index) => ({
+    id: `post-${index}`, platform: 'telegram', state: 'published', scheduledFor: '2030-02-20T18:30:00Z',
+  })) }), { status, headers: { 'content-type': 'application/json' } }));
   vi.stubGlobal('fetch', fetch);
   return fetch;
 }
@@ -142,6 +142,14 @@ describe('calendar month navigation', () => {
     expect(html).not.toContain('1 scheduled');
     expect(html).toContain('localized calendar time (UTC)');
     expect(html).not.toContain('2030-02-20T18:30:00.000Z (UTC)');
+  });
+
+  it('formats the posts-in-view count in the selected locale', async () => {
+    session.role = 'model';
+    const fetch = transport(200, 1234);
+    const html = await render({ month: '2030-02' });
+    expect(html).toContain('1,234 posts in this month');
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('handles leap years and year boundaries', async () => {
