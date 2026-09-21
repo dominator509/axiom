@@ -32,6 +32,7 @@
     "codex-f85-viral-relay-insight-source-r1"
   ],
   "stale_inbox_policy": "CURRENT_TASK_ONLY; only this task_msg_id and task_wire are active; every other inbox, reply, status, outbox and worktree identity is historical and inert; never infer work from transport REPLIED or file order",
+  "recovery_manifest": "HERMES_MANIFESTO.md — read from the current pushed branch before any model-switch resume or source action",
   "next_action": "Hermes must correct the invalid ACK using strict STATE READ or STATE ACCEPTED and exact correlation, then create the exact R2 source copy, publish real PROGRESS, and return strict DELIVERY or terminal BLOCKED; Codex will wait through at least five spaced observation polls before any lane decision",
   "live_actions": "NONE",
   "forbidden_actions": [
