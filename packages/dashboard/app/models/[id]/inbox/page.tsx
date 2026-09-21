@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { formatCurrency } from '@axiom/core';
+import { formatCurrency, formatNumber } from '@axiom/core';
 import { api, getSession } from '@/lib/api';
 import { getServerLocale } from '@/lib/server-locale';
 import type { InboxObservation } from '@/lib/inbox-types';
@@ -221,7 +221,7 @@ export default async function InboxPage({
                     <p>
                       {t('inbox.mediaItems', {
                         type: message.mediaType ?? t('inbox.mediaAttachment'),
-                        count: message.mediaUuids.length,
+                        count: formatNumber(message.mediaUuids.length, locale),
                       })}
                     </p>
                   )}

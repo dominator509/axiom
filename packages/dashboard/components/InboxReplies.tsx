@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
 import { useRef, useState } from 'react';
-import { CATALOGS, formatDate, LocaleCatalog, type SupportedLocale } from '@axiom/core';
+import { CATALOGS, formatDate, formatNumber, LocaleCatalog, type SupportedLocale } from '@axiom/core';
 import { mutationFetch } from '@/lib/mutation';
 import { readDashboardJson } from '@/lib/response';
 import InboxReplyReviews from './InboxReplyReviews';
@@ -480,7 +480,7 @@ export default function InboxReplies({
             />
           </label>
           <p className="subtle">
-            {t('inbox.replies.actorAndCount', { actor: llmActorRef, count: draftPrompt.length })}
+            {t('inbox.replies.actorAndCount', { actor: llmActorRef, count: formatNumber(draftPrompt.length, locale) })}
           </p>
           <div className="action-row">
             <button
@@ -663,7 +663,7 @@ export default function InboxReplies({
               onChange={(event) => setBody(event.target.value)}
             />
           </label>
-          <p className="subtle">{t('inbox.replies.characterCount', { count: body.length })}</p>
+          <p className="subtle">{t('inbox.replies.characterCount', { count: formatNumber(body.length, locale) })}</p>
           <div className="action-row">
             <button
               className="btn"

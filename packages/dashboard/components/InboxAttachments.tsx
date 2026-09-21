@@ -1,7 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
 import * as React from 'react';
-import { CATALOGS, LocaleCatalog, formatCurrency, formatDate, type SupportedLocale } from '@axiom/core';
+import { CATALOGS, LocaleCatalog, formatCurrency, formatDate, formatNumber, type SupportedLocale } from '@axiom/core';
 import { readDashboardJson } from '@/lib/response';
 import { useLocale } from './LocaleProvider';
 
@@ -107,7 +107,7 @@ export default function InboxAttachments(scope: Scope) {
     dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC',
   });
   return <section className="stack" aria-label={t('inbox.attachmentDetails')}>
-    <p>{t('inbox.attachmentSummary', { count: scope.mediaUuids.length })}</p>
+    <p>{t('inbox.attachmentSummary', { count: formatNumber(scope.mediaUuids.length, locale) })}</p>
     <div className="action-row"><button type="button" className="btn secondary" onClick={load}
       disabled={busy || scope.mediaUuids.length === 0 || scope.mediaUuids.length > 20}>{busy ? t('inbox.loadingAttachmentDetails') : t('inbox.loadAttachmentDetails')}</button></div>
     {error && <p role="alert">{error}</p>}

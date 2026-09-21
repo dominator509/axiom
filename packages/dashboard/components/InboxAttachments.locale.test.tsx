@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { formatNumber } from '@axiom/core';
 import LocaleProvider from './LocaleProvider';
 import InboxAttachments, { AttachmentPreview } from './InboxAttachments';
 
@@ -32,4 +33,13 @@ it('uses the persisted Spanish catalog for attachment loading states', () => {
   expect(html).toContain('Cargar detalles de los archivos adjuntos');
   expect(html).toContain('archivo(s) adjunto(s)');
   expect(html).not.toContain('Load attachment details');
+});
+
+it('formats the attachment summary count through the selected locale', () => {
+  const html = renderToStaticMarkup(
+    <LocaleProvider initialLocale="de">
+      <InboxAttachments {...scope} mediaUuids={Array.from({ length: 12 }, () => id)} />
+    </LocaleProvider>,
+  );
+  expect(html).toContain(`${formatNumber(12, 'de')} Anhang/Anhänge`);
 });

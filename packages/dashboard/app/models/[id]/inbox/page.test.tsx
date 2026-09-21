@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { formatNumber } from '@axiom/core';
 const mocks = vi.hoisted(() => ({ session: vi.fn(), accounts: vi.fn(), inbox: vi.fn(), locale: vi.fn() }));
 vi.mock('@/lib/api', () => ({ getSession: mocks.session, api: { models: { inboxAccounts: mocks.accounts, inbox: mocks.inbox } } }));
 vi.mock('@/lib/server-locale', async () => {
@@ -77,6 +78,13 @@ it('renders payment/media/GIF and author information without external image requ
   expect(mocks.inbox).toHaveBeenCalledWith('talent', 'account', 2, user);
   for (const text of ['$15.00', 'No purchase recorded', 'Preview unavailable', 'GIF: Wave', 'Sent by team member', 'Previous page', 'Back to conversations']) expect(html).toContain(text);
   expect(html).not.toContain('<img'); expect(html).not.toContain('Next page');
+});
+
+it('formats message media counts through the selected locale', async () => {
+  mocks.locale.mockResolvedValue('de');
+  mocks.inbox.mockResolvedValue({ data: { observedAt: 'today', inbox: { kind: 'messages', pagination: { page: 1, size: 1, hasMore: false }, data: [{ uuid: user, sender: { handle: 'creator' }, text: 'media', sentAt: null, type: 'SINGLE_RECIPIENT', isRead: true, hasMedia: true, mediaType: 'image', mediaUuids: [user, '22222222-2222-4222-8222-222222222222'], gif: null, pricing: null, purchasedAt: null, tipSource: null, sentByUserId: null, appUuid: null }] } } });
+  const html = await render({ connectionId: 'account', userUuid: user });
+  expect(html).toContain(`${formatNumber(2, 'de')} Element`);
 });
 
 // ─── F-89 localization behavior ───

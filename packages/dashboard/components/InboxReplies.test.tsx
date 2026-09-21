@@ -133,6 +133,15 @@ it('requires verified history before preparation and gives read-only users no co
   await load();
   expect(find(render(), 'textarea')!.props.disabled).toBe(false);
 });
+it('formats draft and reply character counts through the active number formatter', async () => {
+  await load();
+  const areas = findAll(render(true, true), 'textarea');
+  expect(areas).toHaveLength(2);
+  areas[0]!.props.onChange!({ target: { value: 'x'.repeat(1234) } });
+  areas[1]!.props.onChange!({ target: { value: 'y'.repeat(1234) } });
+  expect(JSON.stringify(render(true, true))).toContain('1,234/4000 characters');
+  expect(JSON.stringify(render(true, true))).toContain('1,234/5000 characters');
+});
 it('fences double clicks and reuses exact text and key after a lost save response', async () => {
   await load();
   find(render(), 'textarea')!.props.onChange!({ target: { value: reply.body } });
