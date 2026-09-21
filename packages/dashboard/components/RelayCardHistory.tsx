@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
-import { formatDate } from '@axiom/core';
+import { formatDate, formatNumber } from '@axiom/core';
 import type { RelayCardHistory as RelayCard } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
@@ -104,7 +104,7 @@ export default function RelayCardHistory({
         {card.description && <p style={{ margin: 0 }}>{card.description}</p>}
         <RelayCardReconciliation modelId={modelId} card={card} canReconcile={canReconcile} />
         <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
-          <span className="subtle">{card.enabled ? t('relay.card.enabled') : t('relay.card.disabled')} · {t('relay.card.priority', { value: card.priority })}</span>
+          <span className="subtle">{card.enabled ? t('relay.card.enabled') : t('relay.card.disabled')} · {t('relay.card.priority', { value: formatNumber(card.priority, locale) })}</span>
           {card.bundleId && <Link href={`/models/${encodeURIComponent(modelId)}/approvals`}>
             {t('relay.card.openApproval')}
           </Link>}

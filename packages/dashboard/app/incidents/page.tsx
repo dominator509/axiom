@@ -1,7 +1,7 @@
 import { api, getSession } from '@/lib/api';
 import ReplayButton from '@/components/ReplayButton';
 import ResolveCrashButton from '@/components/ResolveCrashButton';
-import { CATALOGS, LocaleCatalog, formatDate, normalizeLocale } from '@axiom/core';
+import { CATALOGS, LocaleCatalog, formatDate, formatNumber, normalizeLocale } from '@axiom/core';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +25,10 @@ export default async function IncidentsPage({ searchParams }: { searchParams?: P
   const locale = normalizeLocale(uiLocale) ?? 'en';
   const copy = new LocaleCatalog(CATALOGS);
   const t = (key: string, values?: Record<string, string | number>) => copy.t(locale, key, values);
+  const formatCount = (value: unknown) => {
+    const numeric = Number(value);
+    return formatNumber(Number.isFinite(numeric) ? numeric : 0, locale);
+  };
   const statusLabels: Record<string, string> = {
     open: t('incidents.open'), resolved: t('incidents.resolved'), ignored: t('incidents.ignored'),
   };
@@ -56,7 +60,7 @@ export default async function IncidentsPage({ searchParams }: { searchParams?: P
         <p>{t('incidents.crashReportsDescription')}</p>
         <nav className="action-row" aria-label={t('incidents.crashReportStatus')}>{['open', 'resolved', 'ignored'].map(value => <Link key={value} href={pageHref({ status: value, crashCursor: undefined })} aria-current={status === value ? 'page' : undefined}>{statusLabels[value]}</Link>)}</nav>
         {crashError ? <p role="alert">{t('incidents.crashReportsLoadFailed')}</p> : crashes.length === 0 ? <p>{t('incidents.noCrashReports', { status: statusLabels[status] })}</p> : crashes.map(report => <article key={report.id} className="card stack">
-          <h3>{report.service}</h3><p>{report.severity} · {t('incidents.occurrences', { count: report.count })} · {report.status}</p>
+          <h3>{report.service}</h3><p>{report.severity} · {t('incidents.occurrences', { count: formatCount(report.count) })} · {report.status}</p>
           <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{report.message}</p>
           <p className="subtle">{t('incidents.lastSeen', { value: formatUtc(report.lastSeen) })}</p>
           {canEdit && report.status === 'open' && <ResolveCrashButton reportId={report.id} />}
@@ -99,7 +103,7 @@ export default async function IncidentsPage({ searchParams }: { searchParams?: P
                   <span className="badge bad">{String(j.state)}</span>
                 </td>
                 <td>
-                  {String(j.attempts)}/{String(j.maxAttempts)}
+                  {formatCount(j.attempts)}/{formatCount(j.maxAttempts)}
                 </td>
                 <td className="mono" style={{ color: 'var(--bad)' }}>
                   <details><summary>{t('incidents.errorDetails')}</summary><p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{String(j.lastError ?? t('incidents.noErrorDetail'))}</p></details>

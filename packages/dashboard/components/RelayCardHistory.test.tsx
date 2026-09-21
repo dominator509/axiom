@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { CATALOGS, LocaleCatalog, MESSAGE_KEYS, SUPPORTED_LOCALES, formatDate } from '@axiom/core';
+import { CATALOGS, LocaleCatalog, MESSAGE_KEYS, SUPPORTED_LOCALES, formatDate, formatNumber } from '@axiom/core';
 import LocaleProvider from './LocaleProvider';
 import RelayCardHistory from './RelayCardHistory';
 
@@ -36,12 +36,13 @@ describe('RelayCardHistory', () => {
     const catalog = new LocaleCatalog(CATALOGS);
     const html = renderToStaticMarkup(
       <LocaleProvider initialLocale="ja">
-        <RelayCardHistory modelId="model-1" cards={[card]} nextCursor="next" />
+        <RelayCardHistory modelId="model-1" cards={[{ ...card, priority: 1234 }]} nextCursor="next" />
       </LocaleProvider>,
     );
     expect(html).toContain(catalog.t('ja', 'relay.card.openApproval'));
     expect(html).toContain(catalog.t('ja', 'relay.card.older'));
     expect(html).toContain(formatDate(new Date(card.createdAt), 'ja', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }));
+    expect(html).toContain(formatNumber(1234, 'ja'));
     expect(html).not.toContain('2026-01-02T03:04:05.000Z');
     // Creator-authored card content is never translated.
     expect(html).toContain('Approval ready');

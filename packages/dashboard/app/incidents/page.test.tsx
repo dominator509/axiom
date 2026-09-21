@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { formatNumber } from '@axiom/core';
 const state = vi.hoisted(() => ({ role: 'operator', locale: 'en', crashes: vi.fn(), jobs: vi.fn() }));
 vi.mock('@/lib/api', () => ({ getSession: async () => ({ user: { role: state.role } }), api: { uiLocale: { get: vi.fn(async () => ({ data: { locale: state.locale } })) }, incidents: { crashes: state.crashes, list: state.jobs } } }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
@@ -48,4 +49,13 @@ it('renders incidents and dates through the selected locale', async () => {
   expect(html).toContain('Informes de errores de la aplicación');
   expect(html).toContain('Última vez:');
   expect(html).not.toContain('Incidents &amp; recovery');
+});
+it('formats incident occurrence and retry counts in the selected locale', async () => {
+  state.locale = 'de';
+  state.crashes.mockResolvedValue({ data: [{ id: 'crash', service: 'worker', message: 'bounded', severity: 'sev-2', count: 1234, status: 'open', lastSeen: '2026-09-15' }], meta: {} });
+  state.jobs.mockResolvedValue({ data: [{ id: 'job', kind: 'publish.target', state: 'dead', attempts: 1234, maxAttempts: 12345, lastError: 'bounded', createdAt: '2026-09-15' }], meta: {} });
+  const html = renderToStaticMarkup(await IncidentsPage({}));
+  expect(html).toContain(formatNumber(1234, 'de'));
+  expect(html).toContain(formatNumber(12345, 'de'));
+  expect(html).not.toContain('12345');
 });
