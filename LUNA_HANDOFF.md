@@ -7,11 +7,11 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `fcedd16fc14063eb8a4860a93b3516e24a2d22a8` (exact pushed/read-back coordination head containing the accepted F14 integration; Hermes must fetch all refs before coding)
+SOURCE_HEAD: `01d212cd6ad71f9927b75fa05b5f8624d57791c8` (latest pushed/read-back coordination head; active D001 task remains pinned to exact source fcedd16f)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `fcedd16fc14063eb8a4860a93b3516e24a2d22a8` (verified origin readback after reconciling the F14 handoff and ledger)
-COORDINATION_HEAD: `fcedd16fc14063eb8a4860a93b3516e24a2d22a8`
-COORDINATION_HEAD_LAST_READBACK: `fcedd16fc14063eb8a4860a93b3516e24a2d22a8 — exact origin readback after publishing the F14 reconciliation`
+PUBLISHED_HEAD: `01d212cd6ad71f9927b75fa05b5f8624d57791c8` (verified origin readback after publishing the D001 task record)
+COORDINATION_HEAD: `01d212cd6ad71f9927b75fa05b5f8624d57791c8`
+COORDINATION_HEAD_LAST_READBACK: `01d212cd6ad71f9927b75fa05b5f8624d57791c8 — exact origin readback after publishing the D001 assignment`
 ACCEPTED_PRODUCT_SOURCE: `e5fe10ff2962645f1dabc4b0ce64359324ae5408`
 CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — D001-DEPLOYMENT-SAFETY-SOURCE-BOUNDARY-R4 OPEN; exact task is the sole active lane`
 CURRENT_TASK_MANIFEST_SHA256: `eeb62333f8c3087f9e54ea16dce973f8cab6e93990eb74a5392773e13f438380`
@@ -24,7 +24,7 @@ ACTIVE_HERMES_LANE: `D001-DEPLOYMENT-SAFETY-SOURCE-BOUNDARY-R4 — source-only e
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `HERMES — source copy only; Codex must independently hash, test, accept/reject, integrate, commit and push`
 NEXT_ACTION: `D001 R4 task and marker are published and hash-verified; wait for one correlated ACK, then allow Hermes its coding window. After five spaced read-only polls, act only on real PROGRESS, DELIVERY or terminal BLOCKED evidence. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
-BRIDGE_OBSERVATION: `F14 R13 delivery was independently hash-audited, contract-audited, tested and integrated at e5fe10ff. D001 R4 is published against exact source fcedd16 and marker hash eeb62333; it explicitly forbids installed helpers or historical artifacts as source and requires a terminal blocker if the exact Git copy lacks the D001 implementation.`
+BRIDGE_OBSERVATION: `F14 R13 delivery was independently hash-audited, contract-audited, tested and integrated at e5fe10ff. D001 R4 is published against exact source fcedd16 and marker hash eeb62333; the coordination push 01d212cd carries the task record. It explicitly forbids installed helpers or historical artifacts as source and requires a terminal blocker if the exact Git copy lacks the D001 implementation.`
 CURRENT_LOCAL_DELIVERY: `F14 watermark-policy source integrated; 21 manifest files independently verified, worker/API/DB/dashboard/core/storage/media-plane gates pass; Windows standalone symlink packaging remains an environment-only full-build limitation`
 PRODUCT_COMPLETION_COMMIT: `e5fe10ff2962645f1dabc4b0ce64359324ae5408 — audited F14 model watermark-policy integration`
 HERMES_LANE_DISPOSITION: `D001 R4 OPEN_UNCONFIRMED — task and marker pass local/remote hash validation; Hermes ACK and evidence-bearing progress/delivery or terminal blocker are required; no implementation/live action is counted`
