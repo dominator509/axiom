@@ -1374,3 +1374,23 @@ digest/calendar/Patreon formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M959 — F-89 Relay and calendar formatting
+
+The next independently reproduced formatting leaks were in mounted Relay and
+calendar controls. Relay history now formats card timestamps with the selected
+locale and explicit UTC instead of slicing ISO text. Calendar cells display
+locale-aware labels, visible post counts use locale-aware number formatting,
+and successful guarded moves use a locale-aware UTC date in the confirmation.
+Machine-readable UTC keys and input values remain unchanged for routing and API
+contracts; platform names and authored card content remain data.
+
+Evidence: focused dashboard tests 9/9, full dashboard suite 154 files / 978
+passed, dashboard typecheck/lint, `git diff --check` and `scripts/verify.sh`
+(`verify: ok`) pass. Product source commit
+`1f03c70fd452796d1a7cb87c56c0d9d52fb03dd6` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified Relay
+history/calendar formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
