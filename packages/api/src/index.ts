@@ -48,7 +48,7 @@ import { enforceModelAccess } from './model-access.js';
 import { mediaOperationsRouter } from './routes/media-operations.js';
 import { playbookGuidelinesRouter } from './routes/playbook-guidelines.js';
 import { roleplayRouter } from './routes/roleplay.js';
-import { platformAffiliateRouter } from './routes/platform-affiliate.js';
+import { platformAffiliateRouter, publicPlatformAffiliateRouter } from './routes/platform-affiliate.js';
 import { uiLocaleRouter } from './routes/ui-locale.js';
 import { providerCacheControlsRouter } from './routes/provider-cache-controls.js';
 import { watermarkPolicyRouter } from './routes/watermark-policy.js';
@@ -720,6 +720,9 @@ app.get('/api/v1/openapi.json', (c) => {
 // Public Native Link-in-Bio page and click redirects. Operator CRUD remains
 // under /api/v1 and is session-authenticated below.
 app.route('/linkbio', publicLinkbioRouter);
+// Public affiliate links record an anonymous click and redirect to the
+// same-origin login flow; operator affiliate CRUD remains under /api/v1.
+app.route('/affiliate', publicPlatformAffiliateRouter);
 
 // Better Auth is a public password/account-processing boundary, so it needs
 // its own anonymous budget rather than inheriting only the /api/v1 limiter.

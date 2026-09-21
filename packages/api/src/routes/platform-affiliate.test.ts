@@ -40,7 +40,7 @@ const harness = vi.hoisted(() => {
 
 vi.mock('@axiom/db', () => harness);
 
-import { platformAffiliateRouter } from './platform-affiliate.js';
+import { platformAffiliateRouter, publicPlatformAffiliateRouter } from './platform-affiliate.js';
 
 function app() {
   const server = new Hono<AppBindings>();
@@ -51,6 +51,12 @@ function app() {
     await next();
   });
   server.route('/', platformAffiliateRouter);
+  return server;
+}
+
+function publicApp() {
+  const server = new Hono<AppBindings>();
+  server.route('/', publicPlatformAffiliateRouter);
   return server;
 }
 
@@ -202,5 +208,37 @@ describe('platform affiliate API', () => {
       totalCents: 2000,
       exportFormat: 'csv',
     }));
+  });
+});
+
+describe('public affiliate referral links', () => {
+  it('records an anonymous click and redirects to same-origin login with the opaque token', async () => {
+    harness.state.results = [
+      [{ id: campaignId, programId, partnerId, referralToken: 'ref-token', status: 'active' }],
+      [{ id: programId, status: 'active' }],
+      [{ id: partnerId, programId, status: 'active', disclosureAcceptedAt: new Date('2026-01-01T00:00:00.000Z') }],
+    ];
+    const response = await publicApp().request('/r/ref-token', { redirect: 'manual' });
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toBe('http://localhost/login?affiliate_ref=ref-token');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(response.headers.get('x-robots-tag')).toBe('noindex');
+    expect(harness.state.inserts).toHaveLength(1);
+    expect(harness.state.inserts[0]).toMatchObject({
+      programId,
+      campaignId,
+      partnerId,
+      kind: 'click',
+      metadata: { source: 'public_referral_redirect' },
+    });
+    expect(String((harness.state.inserts[0] as { eventKey: string }).eventKey)).toMatch(/^public-click:/);
+  });
+
+  it('does not record or redirect an inactive campaign', async () => {
+    harness.state.results = [[{ id: campaignId, programId, partnerId, referralToken: 'ref-token', status: 'paused' }]];
+    const response = await publicApp().request('/r/ref-token', { redirect: 'manual' });
+    expect(response.status).toBe(404);
+    expect(harness.state.inserts).toHaveLength(0);
   });
 });

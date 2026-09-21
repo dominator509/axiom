@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { apiError, statusTitle } from './helpers.js';
+import { rateLimit } from '../contract.js';
 import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 import {
   buildPayoutExport,
@@ -25,6 +26,11 @@ import {
 } from '../affiliate-contract.js';
 
 const router = new Hono<AppBindings>();
+const publicRouter = new Hono<AppBindings>();
+
+// Referral links are anonymous by design, but they are still an abuse surface.
+// Rate-limit the redirect before it can write an attribution fact.
+publicRouter.use('*', rateLimit({ capacity: 60, refillPerSec: 1, maxBuckets: 100_000 }));
 
 const emailSchema = z.string().trim().email().max(320).transform((value) => value.toLowerCase());
 const partnerCreateSchema = z.object({
@@ -69,6 +75,55 @@ const reconcileSchema = z.object({
 const holdResolveSchema = z.object({
   resolution: z.enum(['released', 'upheld']),
 }).strict();
+
+/**
+ * Public partner link. It records only a bounded click fact, then sends the
+ * visitor to the same-origin login flow with the opaque referral token. The
+ * token is retained for the signup/onboarding boundary; this route never
+ * accepts a destination URL and never exposes partner or campaign metadata.
+ */
+publicRouter.get('/r/:referralToken', async (c) => {
+  const referralToken = c.req.param('referralToken');
+  const [campaign] = await db.select().from(schema.affiliateCampaign).where(
+    eq(schema.affiliateCampaign.referralToken, referralToken),
+  ).limit(1);
+  if (!campaign || campaign.status !== 'active') {
+    return apiError(c, 404, statusTitle(404), 'affiliate referral link not found');
+  }
+
+  const [program] = await db.select().from(schema.affiliateProgram).where(
+    eq(schema.affiliateProgram.id, campaign.programId),
+  ).limit(1);
+  const [partner] = await db.select().from(schema.affiliatePartner).where(
+    eq(schema.affiliatePartner.id, campaign.partnerId),
+  ).limit(1);
+  if (
+    !program || program.status !== 'active' ||
+    !partner || partner.programId !== campaign.programId ||
+    partner.status !== 'active' || !partner.disclosureAcceptedAt
+  ) {
+    return apiError(c, 404, statusTitle(404), 'affiliate referral link not found');
+  }
+
+  const now = new Date();
+  await db.insert(schema.affiliateAttributionEvent).values({
+    programId: campaign.programId,
+    campaignId: campaign.id,
+    partnerId: campaign.partnerId,
+    kind: 'click',
+    eventKey: `public-click:${campaign.id}:${randomUUID()}`,
+    metadata: { source: 'public_referral_redirect' },
+    occurredAt: now,
+    createdAt: now,
+  });
+
+  const destination = new URL('/login', c.req.url);
+  destination.searchParams.set('affiliate_ref', referralToken);
+  c.header('Cache-Control', 'no-store');
+  c.header('Referrer-Policy', 'no-referrer');
+  c.header('X-Robots-Tag', 'noindex');
+  return c.redirect(destination.toString(), 302);
+});
 
 async function readBody(c: Context<AppBindings>): Promise<unknown> {
   return readBoundedJson(c.req.raw, 64 * 1024);
@@ -565,3 +620,4 @@ router.post('/holds/:holdId/resolve', async (c) => {
 });
 
 export { router as platformAffiliateRouter };
+export { publicRouter as publicPlatformAffiliateRouter };
