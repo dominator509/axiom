@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `3f97c1de251e02e85dfdf09c99ee615c1f7d7033`
+Source checkpoint: `6811d4594c8c8e4965424387f0141a388afc4318`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1796,6 +1796,25 @@ passed, package typechecks and lint gates pass, and `git diff --check` passes.
 Product source commit `3f97c1de251e02e85dfdf09c99ee615c1f7d7033` is pushed and
 read back from `origin/codex/telegram-webhook-hardening`. This closes only the
 verified monthly-report source slice; browser/PDF visual acceptance, complete
+catalog adoption across remaining dashboard/email/operator surfaces, the
+broader locale-formatting audit, deployed migration/RLS/runtime evidence,
+provider receipts, observability, CI governance and production acceptance
+remain open. No live action occurred.
+
+### M983 - F-89 analytics and link-in-bio formatting closure
+
+The remaining audited operator-formatting literals in the analytics and native
+link-in-bio surfaces are now locale-backed. Playbook revision is rendered
+through the six-locale catalog, and provider click counts use the selected
+locale's number formatter instead of raw numeric output. Existing platform,
+provider and authored link values remain data.
+
+Evidence: focused analytics/link-in-bio tests 18/18, core suite 26 files /
+142 passed, dashboard suite 156 files / 1,006 passed, core build/typecheck,
+dashboard typecheck/lint and `git diff --check` pass. Product source commit
+`6811d4594c8c8e4965424387f0141a388afc4318` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+analytics/link-in-bio formatting slice; browser/native acceptance, complete
 catalog adoption across remaining dashboard/email/operator surfaces, the
 broader locale-formatting audit, deployed migration/RLS/runtime evidence,
 provider receipts, observability, CI governance and production acceptance
