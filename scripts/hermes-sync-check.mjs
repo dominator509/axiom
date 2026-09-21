@@ -83,7 +83,7 @@ export function validateSyncBinding({ state, task, taskBytes, repoDir = process.
   for (const [key, expected] of expectedHeaders) {
     if (fields.headers.get(key) !== expected) fail(`task header ${key} does not match the current manifest`);
   }
-  for (const key of ['SOURCE_REPO', 'SOURCE_REF', 'SOURCE_COMMIT', 'SOURCE_SYNC_COMMAND',
+  for (const key of ['SOURCE_REPO', 'SOURCE_REF', 'SOURCE_COMMIT', 'SOURCE_REF_HEAD', 'SOURCE_SYNC_COMMAND',
     'SOURCE_MIRROR_ROOT', 'SOURCE_MIRROR_LAYOUT', 'SOURCE_REF_VERIFY_COMMAND',
     'SOURCE_COMMIT_VERIFY_COMMAND', 'SOURCE_ANCESTRY_VERIFY_COMMAND', 'COPY_ROOT',
     'DELIVERY_ROOT', 'WORKTREE_KIND']) {
@@ -93,6 +93,7 @@ export function validateSyncBinding({ state, task, taskBytes, repoDir = process.
     ['SOURCE_REPO', state.source_repo],
     ['SOURCE_REF', state.source_ref],
     ['SOURCE_COMMIT', state.source_commit],
+    ['SOURCE_REF_HEAD', state.remote_ref_head],
     ['SOURCE_SYNC_COMMAND', state.source_sync_command],
     ['SOURCE_MIRROR_ROOT', state.source_mirror_root],
     ['SOURCE_MIRROR_LAYOUT', state.source_mirror_layout],

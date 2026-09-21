@@ -53,6 +53,7 @@ const taskBody = (overrides = {}) => {
     SOURCE_REPO: 'github.com/dominator509/axiom',
     SOURCE_REF: 'refs/heads/codex/telegram-webhook-hardening',
     SOURCE_COMMIT: 'f'.repeat(40),
+    SOURCE_REF_HEAD: 'e'.repeat(40),
     SOURCE_SYNC_COMMAND: 'git fetch --all --prune',
     SOURCE_MIRROR_ROOT: '/srv/hermes/mirror',
     SOURCE_MIRROR_LAYOUT: 'bare-mirror — refs/heads/*',
@@ -65,7 +66,7 @@ const taskBody = (overrides = {}) => {
     ...overrides,
   };
   const headerKeys = ['CONTRACT', 'TYPE', 'TASK', 'WIRE', 'SEQ', 'IN_REPLY_TO', 'STATE', 'TERMINAL', 'NEXT_OWNER'];
-  const payloadKeys = ['SOURCE_REPO', 'SOURCE_REF', 'SOURCE_COMMIT', 'SOURCE_SYNC_COMMAND', 'SOURCE_MIRROR_ROOT', 'SOURCE_MIRROR_LAYOUT', 'SOURCE_REF_VERIFY_COMMAND', 'SOURCE_COMMIT_VERIFY_COMMAND', 'SOURCE_ANCESTRY_VERIFY_COMMAND', 'COPY_ROOT', 'DELIVERY_ROOT', 'WORKTREE_KIND'];
+  const payloadKeys = ['SOURCE_REPO', 'SOURCE_REF', 'SOURCE_COMMIT', 'SOURCE_REF_HEAD', 'SOURCE_SYNC_COMMAND', 'SOURCE_MIRROR_ROOT', 'SOURCE_MIRROR_LAYOUT', 'SOURCE_REF_VERIFY_COMMAND', 'SOURCE_COMMIT_VERIFY_COMMAND', 'SOURCE_ANCESTRY_VERIFY_COMMAND', 'COPY_ROOT', 'DELIVERY_ROOT', 'WORKTREE_KIND'];
   return [
     'FT-HERMES/1',
     ...headerKeys.map((key) => `${key}: ${fields[key]}`),
@@ -133,5 +134,17 @@ test('rejects a source task that does not refresh all refs', () => {
     task,
     taskBytes: Buffer.from(JSON.stringify(task)),
     gitRunner: runner,
-  }), /SOURCE_SYNC_COMMAND does not match/);
+}), /SOURCE_SYNC_COMMAND does not match/);
+});
+
+test('rejects a task whose declared ref head is not the pinned remote readback', () => {
+  const current = state();
+  const task = buildTask(taskBody({ SOURCE_REF_HEAD: 'd'.repeat(40) }));
+  current.task_sha256 = crypto.createHash('sha256').update(JSON.stringify(task)).digest('hex');
+  assert.throws(() => validateSyncBinding({
+    state: current,
+    task,
+    taskBytes: Buffer.from(JSON.stringify(task)),
+    gitRunner: runner,
+  }), /SOURCE_REF_HEAD does not match/);
 });

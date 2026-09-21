@@ -346,12 +346,15 @@ This makes “read,” “accepted,” “working,” and “done” distinct, a
 
 ## Machine-readable loop manifest
 
-Each active lane also has one checked-in manifest at
-`L5-verification/hermes-loop-state.json`. It is the compact handoff for a
-human or LLM and is validated with:
+Each active lane has one generated current manifest at
+`var/hermes-control/current-task.json`. It is a local control artifact, not a
+source commit, so creating or updating it cannot move the Git ref that it
+pins. The checked-in `L5-verification/hermes-loop-state.json` is retained as
+validation evidence, not as the live lane marker. The current manifest is
+validated with:
 
 ```text
-rtk node scripts/hermes-loop-state.mjs L5-verification/hermes-loop-state.json
+rtk node scripts/hermes-loop-state.mjs var/hermes-control/current-task.json
 ```
 
 The manifest must contain exactly one task identity, the exact pushed source
@@ -384,12 +387,12 @@ successful fetch without those exact-commit proofs is not source acceptance.
 Before publishing a task or accepting a source-sync ACK, Codex runs:
 
 ```text
-rtk node scripts/hermes-sync-check.mjs L5-verification/hermes-loop-state.json <task-envelope.json>
+rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>
 ```
 
-This check binds the task file SHA, task identity, exact source commit, last
-remote branch readback, mirror layout, verification commands and isolated copy
-roots. It also requires `fetch --all --prune` in the declared refresh command,
+This check binds the task file SHA, task identity, exact source commit, exact
+`SOURCE_REF_HEAD` remote branch readback, mirror layout, verification commands
+and isolated copy roots. It also requires `fetch --all --prune` in the declared refresh command,
 proves the exact commit is an ancestor of the declared ref, and rejects a
 detached build/release worktree as a coding source. A passing fetch alone is
 not a sync; the exact source-copy HEAD and task digest must be echoed in the
@@ -444,9 +447,13 @@ exact commit, then materializes the named source-copy from that commit and
 echoes the resolved paths and hashes before editing. The global poller's
 hard-coded branch list, an older local checkout, a branch inventory without
 the exact pin, or any detached build/release worktree is never a substitute.
-After Codex changes product source, it pushes first, reads back the remote
-ref, and binds the next task to that read-back SHA; handoff-only commits do
-not move an already-bound product pin.
+After Codex changes product source or coordination source, it pushes first,
+reads back the remote ref, then generates the ignored current manifest and
+task envelope with `SOURCE_REF_HEAD` equal to that exact read-back SHA. No
+commit or push is allowed after the manifest is generated and before Hermes
+accepts that lane; this prevents a handoff commit from invalidating the bound
+task. The previous terminal lane is superseded explicitly in the next
+manifest; it is never repaired by reusing its WIRE.
 
 The remote bridge may carry a read-only mirror of the checked-in manifest at
 `/srv/fanthynks-bridge/hermes/inbox/CURRENT_TASK.json`. That file is not a
