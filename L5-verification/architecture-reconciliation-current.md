@@ -2,7 +2,7 @@
 
 Date: 2026-09-20  
 Repository: `dominator509/axiom`  
-Source checkpoint: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b`
+Source checkpoint: `90a85530d2ab56e3c5811e162a80ae31783c1e3f`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -37,7 +37,7 @@ receipts. Historical audit baselines are not silently treated as current source.
 | Team and shifts (F-24/F-25/F-26) | RBAC, shift lifecycle, handoff/post-note routes and dashboard controls exist. The dual-actor Chatter source slice adds human/LLM shift records, active-shift/agent-permission checks, durable roleplay handoffs, bounded memory and revisioned `soul.md` persona storage/API/UI. Team history now has bounded keyset pagination with dashboard older-history controls; Chatter roleplay uses its authorized personal shift roster rather than the administrative team endpoint. M667 adds a shared Grok roleplayer runtime and private assigned-LLM inbox drafting that reuses the pending-reply review flow, persists persona/memory provenance, and requires explicit human approval before send. M789 localizes the owner-gated workspace-members route shell, M795 localizes the model-scoped team/shifts route loaded/error shell, M841 localizes owner-visible model assignment controls and UTC assignment times, and M842 localizes post-note controls and UTC note times through the shared six-locale catalog while preserving the existing role boundary and team mechanics. | Authenticated multi-user browser/RLS acceptance, Grok roleplay and draft provider receipts, live migration/runtime acceptance and operator acceptance remain open. |
 | Playbook (F-54/F-55/F-56/F-57) | Revisioned guideline storage/editor, calendar checks, generation/caption enrichment and read-only analytics context exist in source. Analytics renders saved platform guidance as advisory context without changing metric calculations or scheduling. | Browser acceptance, stale-editor/history acceptance, deployed migration acceptance, and any future consumer path not covered by the current source audit. |
 | Scraper and research (F-17/F-18) | Authenticated bounded scrape runs, worker dispatch, model egress binding and partial-result/error handling exist. M577 aligns the durable `scrape_run` state, worker persistence and authenticated projection so mixed results remain `partial` end to end. M644 localizes the mounted result/refresh/history UI across all six launch locales with locale-aware counts and UTC timestamps while preserving authored/provider data and mutation semantics. M787 localizes the authenticated scraper route title and load-failure shell through the same catalog. | Deployed sidecar/provider isolation, benchmark history exposure, migration application, browser/mobile and result-quality acceptance. |
-| Viral loop (F-79–F-86) | Metric/evidence filtering, publication-bound recipe evidence (hook, scheduled/actual time, bounded shoot controls, media format, ToS verdict and asset/hash-bound Rust vision descriptors), labels, recipes, embeddings/retrieval, parts of reward/digest logic, and a typed Relay-card lifecycle distinguishing durable `stored` evidence from external-dispatch states exist. | Revenue/conversion attribution, all contextual arms, cross-model opt-in behavior, scheduled insight/Relay delivery, migration application and runtime acceptance. |
+| Viral loop (F-79–F-86) | Metric/evidence filtering, publication-bound recipe evidence (hook, scheduled/actual time, bounded shoot controls, media format, ToS verdict and asset/hash-bound Rust vision descriptors), labels, recipes, embeddings/retrieval, parts of reward/digest logic, and a typed Relay-card lifecycle distinguishing durable `stored` evidence from external-dispatch states exist. M931 adds a model-scoped `viral.insight` job, localized analytics enqueue control, and model-owned Relay-card history that remains visible when no content bundle is present. Its card renderer is evidence-only and reads published provider snapshots with bounded group evidence. | Revenue/conversion attribution, all contextual arms, cross-model opt-in behavior, scheduled insight/Relay delivery, migration application and runtime acceptance. M931 does not claim provider publication or conversion outcomes. |
 | Connectors and OAuth (F-03/F-31/F-58–F-67) | Static connector contracts and capability declarations exist for supported paths. M791 localizes the authenticated Grok connection/storage route shell while preserving role-scoped account and private-storage controls. M843 localizes the mounted social-disconnect confirmation and provider-revocation outcome states across all six launch locales without changing revocation-before-local-removal or idempotency semantics. | Live OAuth, refresh/revoke/disconnect, account onboarding, provider upload/publish/metrics receipts and browser acceptance. Snapchat remains capability-honest manual-assist where its API does not support organic posting. |
 | Patreon creator/community integration (F-91) | **Wired/partial:** the pure v2 community connector is now wired through authored migration 0055, tenant/model-scoped campaign/member/post/sync/webhook tables with RLS, model-egress OAuth/PKCE and encrypted account persistence, bounded cursor sync, durable replay guards, signed webhook ingress, a model dashboard, and a native mobile community surface with assigned-model scoping, redacted status/read views and operator-only sync controls. | Deployed migration/RLS/runtime acceptance, real provider OAuth/webhook/sync receipts, browser/mobile acceptance and operational reconciliation remain open. No publish/DM/payout/member-mutation/unsupported-analytics claim. |
 | Link-in-bio (F-48–F-53) | The Native provider is the current production-enabled default. | Fanlynks, Linktree and Beacons are optional planned adapters and must remain hidden/rejected until their full lifecycle exists; a database row is not evidence of a connection. |
@@ -55,6 +55,33 @@ a route is registered, a unit test passes, a health endpoint returns 200, or a
 provider row exists. The next implementation node must cite the exact source
 paths, contract tests and remaining runtime/provider evidence before the status
 changes.
+
+## M931 — model-scoped viral insight Relay cards
+
+Source checkpoint: `90a85530d2ab56e3c5811e162a80ae31783c1e3f`.
+
+This milestone is source-wired and pushed on the coordination branch. It adds:
+
+- `packages/db/src/schema/relay_card.ts` model ownership and migration `0061`;
+- the typed `viral.insight` worker job, published-provider-snapshot filtering,
+  bounded evidence configuration and model-scoped deduplication;
+- the authenticated model route and idempotent analytics enqueue control;
+- model-owned Relay-card history even when a card has no content bundle;
+- localized analytics generation states across the existing six-locale catalog;
+- evidence-only viral insight card rendering with no conversion, causality or
+  recommendation claim; and
+- focused DB, core, worker, API and dashboard tests plus affected typecheck and
+  lint gates.
+
+Hermes' F85 lane has a valid progress checkpoint but no source delivery,
+manifest or tested artifact. No Hermes worktree or artifact was integrated into
+this milestone. The local source above is therefore authoritative for M931;
+the F85 lane remains unintegrated until a fresh, strict delivery is produced.
+
+Still open for this feature: applying the migration, deployed worker/runtime
+acceptance, automatic scheduling, revenue/conversion attribution, full
+contextual-arm coverage, cross-model opt-in semantics and any provider-facing
+delivery. None is promoted by the source tests alone.
 
 ## Current source correction — calendar surface
 
