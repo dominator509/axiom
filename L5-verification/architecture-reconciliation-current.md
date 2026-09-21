@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `0a50abafd182f25529a0d7bb898b33202b3909b1`
+Source checkpoint: `3f97c1de251e02e85dfdf09c99ee615c1f7d7033`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1779,3 +1779,24 @@ cascade-step count-formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M982 - F-89 monthly analytics PDF localization
+
+The downloadable monthly analytics report now uses the shared six-locale
+catalog (`en`, `es`, `ja`, `it`, `pt-BR`, `de`) rather than hard-coded English
+labels. The report route resolves persisted user locale before organization
+locale, then `Accept-Language`, with English fallback. Counts use the selected
+locale's number formatter and the report month uses the selected locale's UTC
+date formatter. The PDF writer emits non-ASCII labels through a Type0 Unicode
+font path instead of replacing them with question marks.
+
+Evidence: monthly-report catalog tests 2/2, API report tests 6/6, API full
+suite 74 files / 1,143 passed / 50 skipped, dashboard suite 156 files / 1,005
+passed, package typechecks and lint gates pass, and `git diff --check` passes.
+Product source commit `3f97c1de251e02e85dfdf09c99ee615c1f7d7033` is pushed and
+read back from `origin/codex/telegram-webhook-hardening`. This closes only the
+verified monthly-report source slice; browser/PDF visual acceptance, complete
+catalog adoption across remaining dashboard/email/operator surfaces, the
+broader locale-formatting audit, deployed migration/RLS/runtime evidence,
+provider receipts, observability, CI governance and production acceptance
+remain open. No live action occurred.
