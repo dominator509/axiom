@@ -137,6 +137,8 @@ import {
   patreonSyncStateRelations,
   patreonWebhookEvent,
   patreonWebhookEventRelations,
+  providerCacheControl,
+  providerCacheControlRelations,
   allRelations,
 } from './schema/index.js';
 
@@ -291,10 +293,12 @@ describe('schema index', () => {
     expect(patreonSyncStateRelations).toBeDefined();
     expect(patreonWebhookEvent).toBeDefined();
     expect(patreonWebhookEventRelations).toBeDefined();
+    expect(providerCacheControl).toBeDefined();
+    expect(providerCacheControlRelations).toBeDefined();
   });
 
   it('allRelations contains exactly the relation configs', () => {
-    expect(allRelations).toHaveLength(72);
+    expect(allRelations).toHaveLength(73);
     const names = allRelations.map((r) => tableName((r as { table: PgTable }).table));
     expect(names.sort()).toEqual(
       [
@@ -370,6 +374,7 @@ describe('schema index', () => {
         'patreon_sync_state',
         'patreon_webhook_event',
         'linkbio_attribution_event',
+        'provider_cache_control',
       ].sort(),
     );
   });

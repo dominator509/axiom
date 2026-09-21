@@ -30,6 +30,14 @@ import {
 } from './prompts.js';
 import { cacheKey } from './cache.js';
 import { appendBoundedProviderContent } from './bounded-provider-response.js';
+import {
+  applyCacheControl,
+  canonicalCacheControls,
+  CACHE_CONTROL_UNSUPPORTED_CODE,
+  isCacheControlProvider,
+  shouldAlignPrefix,
+  type CacheControlSetting,
+} from './cache-controls.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -60,6 +68,8 @@ export interface ChatOptions {
    * proxy instead of the host's direct route.
    */
   egress?: boolean;
+  /** Model-scoped provider cache controls loaded by the API layer. */
+  cacheControls?: CacheControlSetting[];
   /**
    * TOKENKILLER (L2.5 / LBI-09): assemble the request as S0–S3 segments,
    * align to 64-token blocks, and track prefix cache hits. When set, the
@@ -304,7 +314,7 @@ function responseCacheKey(
   model: string,
   options: Pick<
     Required<ChatOptions>,
-    'userId' | 'egress' | 'temperature' | 'maxTokens' | 'policy' | 'provider'
+    'userId' | 'egress' | 'temperature' | 'maxTokens' | 'policy' | 'provider' | 'cacheControls'
   >,
 ): string {
   return JSON.stringify({
@@ -315,6 +325,7 @@ function responseCacheKey(
     maxTokens: options.maxTokens,
     policy: options.policy,
     provider: options.provider,
+    cacheControls: canonicalCacheControls(options.cacheControls),
     messages,
   });
 }
@@ -588,6 +599,16 @@ export class LLMGateway {
               provider.name,
             );
           }
+          const configured = options.cacheControls.find(setting => setting.provider === provider.name);
+          if (configured?.enabled && isCacheControlProvider(provider.name)) {
+            throw new ProviderError(
+              'Enabled cache controls are not supported by the user-subscription CLI transport; disable them or use a compatible transport',
+              422,
+              provider.name,
+              undefined,
+              CACHE_CONTROL_UNSUPPORTED_CODE,
+            );
+          }
           const res = await this.subscriptionTransport.chat({
             provider: provider.name as SubscriptionProvider,
             userId: options.userId,
@@ -599,8 +620,12 @@ export class LLMGateway {
           promptTokens = res.usage.promptTokens;
           completionTokens = res.usage.completionTokens;
         } else if (provider.name === 'vllm') {
-          const res = await callVLLM(
+          const mapped = applyCacheControl(
             { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
+            options.cacheControls.find(setting => setting.provider === provider.name) ?? null,
+          );
+          const res = await callVLLM(
+            mapped.body as { model: string; messages: typeof messages; temperature?: number; max_tokens?: number },
             options.signal,
             egressFetchImpl ?? fetch,
           );
@@ -672,6 +697,7 @@ export class LLMGateway {
       userId: options.userId ?? '',
       signal: options.signal!,
       egress: options.egress ?? false,
+      cacheControls: options.cacheControls ?? [],
     } as Required<ChatOptions>;
 
     // Run pipeline before-hooks
@@ -734,6 +760,7 @@ export class LLMGateway {
       } catch (err) {
         if (isAbortLike(err, options.signal)) throw err;
         const error = err instanceof Error ? err : new Error(String(err));
+        if (error instanceof ProviderError && error.code === CACHE_CONTROL_UNSUPPORTED_CODE) throw error;
         chainErrors.push({ provider: provider.name, error });
         // Continue to fallback
       }
@@ -770,7 +797,13 @@ export class LLMGateway {
       S2: buildS2(tk.exemplars ?? []),
       S3: buildS3(tk.task),
     };
-    const prefix = alignBlocks(segments.S0 + segments.S1 + segments.S2);
+    const assembledPrefix = segments.S0 + segments.S1 + segments.S2;
+    const hasExplicitPrefixPolicy = (options.cacheControls ?? []).some(
+      setting => setting.enabled && isCacheControlProvider(setting.provider),
+    );
+    const prefix = !hasExplicitPrefixPolicy || (options.cacheControls ?? []).some(shouldAlignPrefix)
+      ? alignBlocks(assembledPrefix)
+      : assembledPrefix;
 
     // Content-addressed prefix key; same (model, platform, version, exemplar
     // set) ⇒ same key ⇒ local prefix-cache hit (provider prefix cache also
@@ -829,6 +862,7 @@ export class LLMGateway {
       userId: options.userId ?? '',
       signal: options.signal!,
       egress: options.egress ?? false,
+      cacheControls: options.cacheControls ?? [],
     } as Required<ChatOptions>;
 
     // Run pipeline before-hooks
@@ -882,6 +916,16 @@ export class LLMGateway {
                 provider.name,
               );
             }
+            const configured = requiredOptions.cacheControls.find(setting => setting.provider === provider.name);
+            if (configured?.enabled && isCacheControlProvider(provider.name)) {
+              throw new ProviderError(
+                'Enabled cache controls are not supported by the user-subscription CLI transport; disable them or use a compatible transport',
+                422,
+                provider.name,
+                undefined,
+                CACHE_CONTROL_UNSUPPORTED_CODE,
+              );
+            }
             stream = subscriptionTransport.stream({
               provider: provider.name as SubscriptionProvider,
               userId: requiredOptions.userId,
@@ -923,6 +967,7 @@ export class LLMGateway {
         } catch (err) {
           if (isAbortLike(err, requiredOptions.signal)) throw err;
           lastError = err instanceof Error ? err : new Error(String(err));
+          if (lastError instanceof ProviderError && lastError.code === CACHE_CONTROL_UNSUPPORTED_CODE) throw lastError;
           recordFailure();
           // Continue to next provider in chain
         }

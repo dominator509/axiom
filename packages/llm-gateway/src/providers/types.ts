@@ -19,6 +19,8 @@ export interface ProviderOptions {
    * model profile has a healthy bound egress (L2.6). Absent = global fetch.
    */
   fetchImpl?: typeof fetch;
+  /** Optional model-scoped provider cache-control contract. */
+  cacheControl?: import('../cache-controls.js').CacheControlSetting | null;
 }
 
 export interface ProviderChatResult {
@@ -51,6 +53,7 @@ export class ProviderError extends Error {
     public readonly status: number,
     public readonly provider: string,
     public readonly body?: string,
+    public readonly code?: string,
   ) {
     super(message);
     this.name = 'ProviderError';

@@ -7,6 +7,7 @@ import type {
 } from './types.js';
 import { ProviderError } from './types.js';
 import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
+import { applyCacheControl } from '../cache-controls.js';
 
 // Anthropic Claude pricing (USD per 1M tokens)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -89,7 +90,7 @@ function toAnthropicBody(
   if (options?.stop !== undefined) body.stop_sequences = options.stop;
   if (stream) body.stream = true;
 
-  return body;
+  return applyCacheControl(body, options?.cacheControl ?? null).body;
 }
 
 export class AnthropicProvider implements BaseProvider {

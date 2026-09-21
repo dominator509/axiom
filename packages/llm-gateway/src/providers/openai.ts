@@ -7,6 +7,7 @@ import type {
 } from './types.js';
 import { ProviderError } from './types.js';
 import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
+import { applyCacheControl } from '../cache-controls.js';
 
 // Known model pricing (USD per 1M tokens)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -62,11 +63,11 @@ export class OpenAIProvider implements BaseProvider {
 
   async chat(messages: ProviderMessage[], options?: ProviderOptions): Promise<ProviderChatResult> {
     const doFetch = options?.fetchImpl ?? fetch;
-    const body: Record<string, unknown> = {
+    const body = applyCacheControl({
       model: this.model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       ...(options ? toSnakeCase(options) : {}),
-    };
+    }, options?.cacheControl ?? null).body;
 
     const res = await doFetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
@@ -122,13 +123,13 @@ export class OpenAIProvider implements BaseProvider {
     options?: ProviderOptions,
   ): AsyncIterable<ProviderStreamChunk> {
     const doFetch = options?.fetchImpl ?? fetch;
-    const body: Record<string, unknown> = {
+    const body = applyCacheControl({
       model: this.model,
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       stream: true,
       stream_options: { include_usage: true },
       ...(options ? toSnakeCase(options) : {}),
-    };
+    }, options?.cacheControl ?? null).body;
 
     const res = await doFetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',

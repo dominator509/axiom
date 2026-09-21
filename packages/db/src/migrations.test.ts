@@ -94,6 +94,7 @@ const TS_TO_SQL: Record<string, string> = {
   patreonPost: 'patreon_post',
   patreonSyncState: 'patreon_sync_state',
   patreonWebhookEvent: 'patreon_webhook_event',
+  providerCacheControl: 'provider_cache_control',
 };
 
 /** Runtime symbol map (Table.Symbol is not in drizzle's public typings). */
@@ -718,7 +719,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
     // Includes the durable MCP revocation and capability-registry indexes,
     // the seven platform affiliate lookup indexes, and link attribution.
-    expect(indexStatements).toHaveLength(104);
+    expect(indexStatements).toHaveLength(105);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(
@@ -732,6 +733,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(sql).toContain(
       'CREATE INDEX IF NOT EXISTS idx_model_network_configs_org_id ON model_network_configs(org_id);',
     );
+    expect(sql).toContain('idx_provider_cache_control_org_model');
   });
 
   it('grants least-privilege privileges to axiom_app and full rights to axiom_migrator', () => {

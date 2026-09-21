@@ -60,6 +60,19 @@ export type {
 // absent from the public package surface.
 export { VLLMProvider } from './providers/vllm.js';
 export { OfficialSubscriptionTransport } from './providers/subscription.js';
+export {
+  CACHE_CONTROL_PROVIDERS,
+  anthropicCacheControl,
+  deepseekCacheFields,
+  openaiCacheFields,
+  applyCacheControl,
+  defaultCacheControlSetting,
+  isCacheControlProvider,
+  isValidPromptCacheKey,
+  canonicalCacheControls,
+  CACHE_CONTROL_UNSUPPORTED_CODE,
+} from './cache-controls.js';
+export type { CacheControlProvider, CacheControlSetting } from './cache-controls.js';
 export { characterLockSnapshot, buildMediaPrompt } from './media-prompt.js';
 export type { CharacterLockSnapshot } from './media-prompt.js';
 export type { GrokMediaRequest } from './providers/subscription.js';

@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
-vi.mock('@axiom/db', () => mockDbFactory({ modelProfile: {}, contentBundle: {} }));
+vi.mock('@axiom/db', () => mockDbFactory({ modelProfile: {}, contentBundle: {}, providerCacheControl: {} }));
 const mediaQueue = vi.hoisted(() => vi.fn(async () => ({ id: 'queued-job' })));
 vi.mock('@axiom/worker', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()), enqueueJob: mediaQueue,
@@ -47,7 +47,7 @@ vi.mock('@axiom/llm-gateway', async (importOriginal) => {
 });
 
 let capturedSegments: Record<string, string> | null = null;
-let capturedOptions: { userId?: string } | null = null;
+let capturedOptions: { userId?: string; cacheControls?: unknown } | null = null;
 let capturedMessages: unknown = null;
 let allMessages: unknown[] = [];
 let revisionReply: string | null = null;
@@ -105,7 +105,7 @@ describe('POST /models/:id/generate', () => {
     chatFailure = 'synthetic-sensitive-provider-detail';
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
-    mockState.results = [[], mockState.result, [], [], []];
+    mockState.results = [[], mockState.result, [], [], [], []];
     const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ...validBody, enrichWithLlm: true }),
@@ -119,7 +119,7 @@ describe('POST /models/:id/generate', () => {
   it.each([['', 'fallback'], ['Useful caption', 'enriched']])('reports optional caption enrichment outcome for %j', async (reply, outcome) => {
     revisionReply = reply;
     mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
-    mockState.results = [[], mockState.result, [], [], []];
+    mockState.results = [[], mockState.result, [], [], [], []];
     const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ...validBody, enrichWithLlm: true }),
@@ -134,6 +134,17 @@ describe('POST /models/:id/generate', () => {
       expect(matchingCaptionGuidance(reply, stored!.captionGuidance.instagram)).not.toBeNull();
       expect(matchingCaptionGuidance('Edited later', stored!.captionGuidance.instagram)).toBeNull();
     } else expect(stored!.captionGuidance).toEqual({});
+  });
+  it('passes persisted model cache controls into the real caption gateway call', async () => {
+    mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
+    const controls = [{ provider: 'openai', enabled: true, prefixAlignment: false, promptCacheKey: 'model:v1' }];
+    mockState.results = [[], mockState.result, controls, [], [], [], mockState.result];
+    const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...validBody, enrichWithLlm: true }),
+    });
+    expect(response.status).toBe(201);
+    expect(capturedOptions?.cacheControls).toEqual(expect.arrayContaining(controls));
   });
   it('persists the exact photoshoot controls alongside the generated bundle', async () => {
     mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
@@ -152,7 +163,7 @@ describe('POST /models/:id/generate', () => {
   it('uses separate playbook context for each selected destination rather than copying the first platform context', async () => {
     mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
     const guideline = (strategy: string) => [{ optimalTimes: [], cadencePerWeek: 1, upsellStrategy: strategy, revision: 1 }];
-    mockState.results = [[], mockState.result, [], [], guideline('INSTAGRAM ONLY'), [], [], guideline('THREADS ONLY')];
+    mockState.results = [[], mockState.result, [], [], [], guideline('INSTAGRAM ONLY'), [], [], guideline('THREADS ONLY')];
     const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ...validBody, platforms: ['instagram', 'threads'], enrichWithLlm: true }),
@@ -166,7 +177,7 @@ describe('POST /models/:id/generate', () => {
   });
   it('injects the saved model playbook into synchronous caption enrichment (F-56)', async () => {
     mockState.result = [{ id: MODEL_ID, orgId: ORG_ID, displayName: 'Luna', handle: 'luna', state: 'generated' }];
-    mockState.results = [[], mockState.result, [], [], [{ optimalTimes: ['18:00'], cadencePerWeek: 4, upsellStrategy: 'Invite readers to the approved collection', revision: 7 }]];
+    mockState.results = [[], mockState.result, [], [], [], [{ optimalTimes: ['18:00'], cadencePerWeek: 4, upsellStrategy: 'Invite readers to the approved collection', revision: 7 }]];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ...validBody, enrichWithLlm: true }),
@@ -262,7 +273,7 @@ describe('POST /models/:id/generate', () => {
       bio: null, avatarUrl: null, state: 'generated',
     }];
     // Scope setup, model lookup, sharing policy, then the empty exemplar pool.
-    mockState.results = [[], mockState.result, [], [], []];
+    mockState.results = [[], mockState.result, [], [], [], []];
     const res = await appWithOrg(ORG_ID, userId).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ...validBody, enrichWithLlm: true, userId: 'other-users-profile' }),
@@ -382,7 +393,7 @@ describe('POST /models/:id/generate', () => {
     const fixtureRows = mockState.result as unknown[];
     mockState.result = [fixtureRows[0]];
     // Distinct rows for scope/model/policy/vector retrieval and posterior query.
-    mockState.results = [[], [fixtureRows[0]], [], [fixtureRows[1]], { rows: [] }, []];
+    mockState.results = [[], [fixtureRows[0]], [], [], [fixtureRows[1]], { rows: [] }, []];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/generate`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

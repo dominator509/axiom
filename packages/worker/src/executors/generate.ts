@@ -14,7 +14,11 @@ import {
   buildS3,
   assemblePrompt,
   LLMGateway,
+  CACHE_CONTROL_PROVIDERS,
+  CACHE_CONTROL_UNSUPPORTED_CODE,
+  defaultCacheControlSetting,
   type ModelProfile as PromptModelProfile,
+  type CacheControlSetting,
 } from '@axiom/llm-gateway';
 import type { Executor, ExecutorContext } from './context.js';
 import { enqueueJob } from '../enqueue.js';
@@ -24,6 +28,33 @@ import { asPlatform } from '../connection.js';
 import { retrieveCaptionGuidance } from '../viral-retrieval.js';
 import { captionGuidanceReceipt } from '../caption-guidance.js';
 import type { CaptionGuidanceReceipt, PhotoshootRecipe } from '@axiom/db/schema';
+
+async function loadModelCacheControls(
+  tx: ExecutorContext['tx'],
+  orgId: string,
+  modelId: string,
+): Promise<CacheControlSetting[]> {
+  const rows = await tx.select().from(schema.providerCacheControl).where(and(
+    eq(schema.providerCacheControl.orgId, orgId),
+    eq(schema.providerCacheControl.modelId, modelId),
+  ));
+  const byProvider = new Map(rows.map((row: { provider: string }) => [row.provider, row]));
+  return CACHE_CONTROL_PROVIDERS.map(provider => {
+    const row = byProvider.get(provider) as {
+      provider: string;
+      enabled: boolean;
+      prefixAlignment: boolean;
+      promptCacheKey: string | null;
+    } | undefined;
+    if (!row) return defaultCacheControlSetting(provider);
+    return {
+      provider: row.provider,
+      enabled: row.enabled,
+      prefixAlignment: row.prefixAlignment,
+      promptCacheKey: row.promptCacheKey,
+    };
+  });
+}
 
 export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   const { tx, job } = ctx;
@@ -129,6 +160,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
     const captions: Record<string, string> = {};
     const captionGuidance: Record<string, CaptionGuidanceReceipt> = {};
     const gateway = new LLMGateway();
+    const cacheControls = await loadModelCacheControls(tx, job.org_id, modelId);
     for (const target of platforms) {
       const original = currentCaptions[target];
       if (typeof original !== 'string') throw new Error('content.generate: invalid source caption');
@@ -156,7 +188,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
           { role: 'system', content: prompt },
           { role: 'user', content: payload.revision.instructions },
         ],
-        { model: payload.model, userId: payload.revision.userId },
+        { model: payload.model, userId: payload.revision.userId, cacheControls },
       );
       const caption = result.content.trim();
       if (!caption || caption.length > 32000)
@@ -229,13 +261,18 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
           { role: 'system', content: prompt },
           { role: 'user', content: variants[0].prompt },
         ],
-        { model: payload.model },
+        { model: payload.model, cacheControls: await loadModelCacheControls(tx, job.org_id, modelId) },
       );
       const enriched = chat.content.trim();
       if (!enriched || enriched.length > 32000) throw new Error('Invalid enriched caption');
       caption = enriched;
       captionGuidance[platform] = captionGuidanceReceipt(caption, guidance);
-    } catch {
+    } catch (error) {
+      if (
+        error && typeof error === 'object' &&
+        'code' in error &&
+        (error as { code?: unknown }).code === CACHE_CONTROL_UNSUPPORTED_CODE
+      ) throw error;
       // Best-effort enrichment; prompt engine output still forms the bundle.
       console.error('content.generate enrichment unavailable', { platform });
     }

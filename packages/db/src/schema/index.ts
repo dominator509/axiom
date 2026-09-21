@@ -57,6 +57,7 @@ import { mediaOperation, mediaOperationRelations } from './media_operation.js';
 import { playbookGuideline, playbookGuidelineRelations, playbookGuidelineRevision } from './playbook_guideline.js';
 import { roleplayPersonaRevisionRelations, roleplayMemoryTurnRelations, roleplayHandoffRelations, roleplayTurnRelations } from './roleplay.js';
 import { uiLocalePreference, uiLocalePreferenceRelations } from './ui_locale_preference.js';
+import { providerCacheControl, providerCacheControlRelations } from './provider_cache_control.js';
 import {
   affiliateProgramRelations,
   affiliatePartnerRelations,
@@ -143,6 +144,7 @@ export {
 export { mediaGenerationAttempt } from './media_generation_attempt.js';
 export { modelUserAssignment } from './model_user_assignment.js';
 export { uiLocalePreference, uiLocalePreferenceRelations };
+export { providerCacheControl, providerCacheControlRelations };
 export {
   affiliateProgram,
   affiliateProgramRelations,
@@ -235,6 +237,7 @@ export const allRelations = [
   roleplayHandoffRelations,
   roleplayTurnRelations,
   uiLocalePreferenceRelations,
+  providerCacheControlRelations,
   affiliateProgramRelations,
   affiliatePartnerRelations,
   affiliateCampaignRelations,

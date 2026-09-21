@@ -29,6 +29,7 @@ import { LLMGateway, characterLockSnapshot, buildMediaPrompt } from '@axiom/llm-
 import { evaluateTextToS, PLATFORM_RULES } from '@axiom/fanvue-mcp';
 import { asPlatform, enqueueJob, retrieveCaptionGuidance, captionGuidanceReceipt, modelPlaybookContext } from '@axiom/worker';
 import type { CaptionGuidanceReceipt } from '@axiom/db/schema';
+import { loadCacheControls } from '../load-cache-controls.js';
 
 type PromptPlatform =
   | 'instagram'
@@ -299,6 +300,7 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
       platforms.map(platform => [platform, body.enrichWithLlm ? 'fallback' : 'not_requested']),
     );
     if (body.enrichWithLlm) {
+      const cacheControls = await loadCacheControls(tx, orgId, modelId);
       for (const destination of platforms) {
       try {
         const gateway = new LLMGateway();
@@ -324,7 +326,7 @@ router.post('/models/:modelId/generate', zValidator('json', generateSchema,
           ],
           // The subscription profile is selected from authenticated context,
           // never from request JSON or the audit-only 'system' fallback.
-          { model: body.model, userId: c.get('userId') },
+          { model: body.model, userId: c.get('userId'), cacheControls },
         );
         const caption = chat.content.trim();
         if (caption) {

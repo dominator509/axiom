@@ -50,6 +50,7 @@ import { playbookGuidelinesRouter } from './routes/playbook-guidelines.js';
 import { roleplayRouter } from './routes/roleplay.js';
 import { platformAffiliateRouter } from './routes/platform-affiliate.js';
 import { uiLocaleRouter } from './routes/ui-locale.js';
+import { providerCacheControlsRouter } from './routes/provider-cache-controls.js';
 import {
   auth,
   normalizeAuthOrigin,
@@ -774,6 +775,7 @@ app.use('/api/v1/models/:modelId/team-operations/*', requireAuth);
 app.use('/api/v1/models/:modelId/media-operations', requireAuth);
 app.use('/api/v1/models/:modelId/media-operations/*', requireAuth);
 app.use('/api/v1/models/:modelId/playbook-guidelines', requireAuth);
+app.use('/api/v1/models/:modelId/cache-controls', requireAuth);
 app.use('/api/v1/models/:modelId/roleplay/*', requireAuth);
 app.use('/api/v1/org-settings/*', requireAuth);
 app.use('/api/v1/platform/affiliate/*', requireAuth);
@@ -848,6 +850,7 @@ app.use('/api/v1/models/:modelId/team-operations/*', operationalMutation);
 app.use('/api/v1/models/:modelId/media-operations', operationalMutation);
 app.use('/api/v1/models/:modelId/media-operations/*', operationalMutation);
 app.use('/api/v1/models/:modelId/playbook-guidelines', operationalMutation);
+app.use('/api/v1/models/:modelId/cache-controls', operationalMutation);
 app.use('/api/v1/models/:modelId/roleplay/*', operationalMutation);
 app.use('/api/v1/models/:modelId/viral/insight', operationalMutation);
 app.use('/api/v1/models/:modelId/playbook-score/record', operationalMutation);
@@ -937,6 +940,7 @@ app.use('/api/v1/members/:userId/role', idempotency());
 app.use('/api/v1/models/:modelId/member-assignments/:assignmentId', idempotency());
 app.use('/api/v1/models/:modelId/media-operations', idempotency());
 app.use('/api/v1/models/:modelId/playbook-guidelines', idempotency());
+app.use('/api/v1/models/:modelId/cache-controls', idempotency());
 app.use('/api/v1/models/:modelId/roleplay/*', idempotency());
 app.use('/api/v1/models/:modelId/viral/insight', idempotency());
 app.use('/api/v1/models/:modelId/linkbio/*', idempotency());
@@ -1009,6 +1013,7 @@ app.route('/api/v1', playbookGuidelinesRouter);
 app.route('/api/v1', roleplayRouter);
 app.route('/api/v1/platform/affiliate', platformAffiliateRouter);
 app.route('/api/v1', uiLocaleRouter);
+app.route('/api/v1', providerCacheControlsRouter);
 
 // LLM gateway — unified multi-provider chat completions
 const llmGateway = new LLMGateway();

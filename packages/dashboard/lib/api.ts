@@ -421,6 +421,7 @@ export interface MediaOperation { id: string; modelId: string; sourceAssetId: st
 export type MediaOrigin = 'uploaded' | 'generated' | 'transformed' | 'legacy';
 export type MediaKind = 'image' | 'video';
 export interface PlaybookGuideline { id: string; modelId: string; platform: string; optimalTimes: string[]; cadencePerWeek: number; upsellStrategy: string; revision: number; updatedAt: string }
+export interface CacheControlView { provider: string; enabled: boolean; prefixAlignment: boolean; promptCacheKey: string | null }
 
 export interface AffiliateProgram {
   id: string;
@@ -641,6 +642,11 @@ export const api = {
       apiFetch<{ data: MediaOperation[] }>(`/api/v1/models/${id}/media-operations`),
     playbookGuidelines: (id: string) =>
       apiFetch<{ data: PlaybookGuideline[] }>(`/api/v1/models/${id}/playbook-guidelines`),
+  },
+  cacheControls: {
+    get: (modelId: string) => apiFetch<{ data: { modelId: string; controls: CacheControlView[] } }>(
+      `/api/v1/models/${encodeURIComponent(modelId)}/cache-controls`,
+    ),
   },
   bundles: {
     list: (modelId?: string, state?: string, cursor?: string) =>

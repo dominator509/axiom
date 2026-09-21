@@ -6,7 +6,7 @@ import { api, getSession } from '@/lib/api';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/lib/api', () => ({ getSession: vi.fn(), api: { models: {
   get: vi.fn(), network: vi.fn(), calendar: vi.fn(), fans: vi.fn(),
-}, uiLocale: { get: vi.fn() } } }));
+}, cacheControls: { get: vi.fn() }, uiLocale: { get: vi.fn() } } }));
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -18,6 +18,7 @@ beforeEach(() => {
   vi.mocked(api.models.network).mockRejectedValue(new Error('Unavailable'));
   vi.mocked(api.models.calendar).mockResolvedValue({ data: [] } as Awaited<ReturnType<typeof api.models.calendar>>);
   vi.mocked(api.models.fans).mockResolvedValue({ data: [] } as Awaited<ReturnType<typeof api.models.fans>>);
+  vi.mocked(api.cacheControls.get).mockResolvedValue({ data: { modelId: 'talent', controls: [] } } as Awaited<ReturnType<typeof api.cacheControls.get>>);
 });
 
 const render = async () => renderToStaticMarkup(await ModelOverviewPage({ params: Promise.resolve({ id: 'talent' }) }));
