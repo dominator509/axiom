@@ -275,6 +275,7 @@ describe('default executor registry', () => {
         'incident.notify',
         'dlq.replay',
         'digest.weekly',
+        'viral.insight',
       ].sort(),
     );
   });

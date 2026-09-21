@@ -4,14 +4,18 @@
 import { Hono } from 'hono';
 import { sql, eq, and, desc, type SQL } from 'drizzle-orm';
 import { schema } from '@axiom/db';
+import { enqueueJob } from '@axiom/worker';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 import { modelAccessCondition } from '../model-access.js';
+import { isoWeekKey } from './digests.js';
 
 export const LEARNING_ARM_RICH_PATTERN = '^v2:(short|medium|long):(question|statement):hook=(question|bold-claim|story|stat|controversy|teaser|unknown):format=(reel|carousel|single|story|longform|unknown)(:time=(morning|afternoon|evening|night))?$';
 
 const router = new Hono<AppBindings>();
+
+const insightEnqueueRoles = new Set(['owner', 'manager', 'operator', 'content_creator']);
 
 /** Retained legacy/manual exemplars are not evidence of published performance. */
 export function publishedExemplarEvidence() {
@@ -52,6 +56,41 @@ export async function readExemplarPatterns(tx: any, orgId: string, modelId: stri
     .orderBy(desc(mean), schema.viralExemplar.platform, arm, context).limit(21);
   return { groups: rows.slice(0, 20), truncated: rows.length > 20, minimumSample: 3 as const };
 }
+
+// POST /models/:id/viral/insight — enqueue one model/window insight build.
+// The executor remains provider-free and stores only a local Relay card.
+router.post('/models/:modelId/viral/insight', async c => {
+  const orgId = requireOrg(c);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const role = c.get('role');
+  if (!insightEnqueueRoles.has(role ?? '')) {
+    return apiError(c, 403, statusTitle(403), 'viral insight generation requires an operator or assigned creator role');
+  }
+  const modelId = c.req.param('modelId');
+  const windowKey = isoWeekKey();
+  const result = await withOrgContext(orgId, async tx => {
+    const model = await tx.select({ id: schema.modelProfile.id })
+      .from(schema.modelProfile)
+      .where(and(
+        eq(schema.modelProfile.orgId, orgId),
+        eq(schema.modelProfile.id, modelId),
+        modelAccessCondition(role, orgId, c.get('userId'), schema.modelProfile.id),
+      ))
+      .limit(1);
+    if (!model[0]) return { error: 'model not found' as const };
+    const job = await enqueueJob(tx, {
+      orgId,
+      queue: 'viral',
+      kind: 'viral.insight',
+      payload: { modelId, windowKey },
+      dedupeParts: ['viral.insight', modelId, windowKey],
+    });
+    return { jobId: job?.id ?? null, deduplicated: !job, windowKey };
+  });
+  if ('error' in result) return apiError(c, 404, statusTitle(404), result.error ?? 'model not found');
+  if (!result.jobId) return apiError(c, 409, 'Conflict', 'viral insight for this model window is already queued');
+  return c.json({ success: true, jobId: result.jobId, windowKey }, 202);
+});
 
 // GET /models/:id/viral — exemplar distribution + top performers
 router.get('/models/:modelId/viral', async (c) => {

@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { LocaleCatalog, SUPPORTED_LOCALES, type DiagnosticEvent } from './locale.js';
 import { CATALOGS } from './catalogs.js';
-import { renderDigestCard, resolveOrgDigestLocale, type DigestCardInput } from './digest-card.js';
+import { renderDigestCard, renderViralInsightCard, resolveOrgDigestLocale, type DigestCardInput } from './digest-card.js';
 import type { UiLocalePreferenceRow } from './locale-settings.js';
 
 const DIGEST_KEYS = [
@@ -165,5 +165,35 @@ describe('renderDigestCard', () => {
     const copy = JSON.parse(JSON.stringify(CATALOGS)) as Record<string, Record<string, string>>;
     delete copy.it['digest.card.title'];
     expect(() => new LocaleCatalog(copy as never)).toThrow(/digest\.card\.title/);
+  });
+});
+
+describe('renderViralInsightCard', () => {
+  const groups = [{
+    platform: 'fanvue',
+    learningArm: 'v2:short:question',
+    learningContext: 'learn-v2:scheduled-utc-2',
+    sampleSize: 4,
+    meanScore: 1.25,
+    publishedHourUtc: 19,
+  }];
+
+  it('renders the bounded evidence summary in every supported locale', () => {
+    for (const locale of SUPPORTED_LOCALES) {
+      const card = renderViralInsightCard(locale, { groups, totalSamples: 4 });
+      expect(card.locale).toBe(locale);
+      expect(card.title).toBe(CATALOGS[locale]['dashboard.performance.title']);
+      expect(card.description).toContain('fanvue');
+      expect(card.description).toContain('v2:short:question');
+      expect(card.description).not.toMatch(/conversion|conversión|conversione|コンバージョン|Konversion/i);
+    }
+  });
+
+  it('fails closed to an unavailable timing label when timing evidence is absent', () => {
+    const card = renderViralInsightCard('en', {
+      groups: [{ ...groups[0], publishedHourUtc: null }],
+      totalSamples: 4,
+    });
+    expect(card.description).toContain(CATALOGS.en['dashboard.performance.scheduledTimeUnknown']);
   });
 });

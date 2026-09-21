@@ -145,6 +145,9 @@ export function scopedReadTarget(
     )
       return preparation[1];
   }
+  const viralInsight =
+    /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/viral\/insight$/i.exec(path);
+  if (viralInsight && method === 'POST' && role !== 'chatter' && role !== 'model') return viralInsight[1];
   if (method !== 'GET' && method !== 'HEAD') return null;
   const inbox =
     /^\/api\/v1\/models\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/inbox$/i.exec(

@@ -6,7 +6,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, or } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { cursorLt, nextCursor, parseCursor } from '../contract.js';
@@ -24,6 +24,7 @@ const reconciliationRoles = new Set(['owner', 'manager', 'operator']);
 const publicCard = {
   id: schema.relayCard.id,
   bundleId: schema.relayCard.bundleId,
+  modelId: schema.relayCard.modelId,
   channel: schema.relayCard.channel,
   state: schema.relayCard.state,
   title: schema.relayCard.title,
@@ -37,6 +38,7 @@ const publicCard = {
 function safeRelayCard(row: {
   id: string;
   bundleId: string | null;
+  modelId: string | null;
   channel: string | null;
   state: string;
   title: string;
@@ -49,6 +51,7 @@ function safeRelayCard(row: {
   return {
     id: row.id,
     bundleId: row.bundleId,
+    modelId: row.modelId,
     channel: row.channel,
     state: row.state,
     title: row.title,
@@ -73,12 +76,14 @@ router.get('/models/:modelId/relay-cards', async c => {
   const rows = await withOrgContext(orgId, tx => tx
     .select(publicCard)
     .from(schema.relayCard)
-    .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.relayCard.bundleId))
+    .leftJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.relayCard.bundleId))
     .where(and(
       eq(schema.relayCard.orgId, orgId),
-      eq(schema.contentBundle.orgId, orgId),
-      eq(schema.contentBundle.modelId, modelId),
-      modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.contentBundle.modelId),
+      or(eq(schema.relayCard.modelId, modelId), eq(schema.contentBundle.modelId, modelId)),
+      or(
+        modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.relayCard.modelId),
+        modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.contentBundle.modelId),
+      ),
       ...cursorLt(schema.relayCard.createdAt, schema.relayCard.id, cursor),
     ))
     .orderBy(desc(schema.relayCard.createdAt), desc(schema.relayCard.id))
@@ -127,13 +132,15 @@ router.post(
       const rows = await tx
         .select({ card: publicCard, modelId: schema.contentBundle.modelId })
         .from(schema.relayCard)
-        .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.relayCard.bundleId))
+        .leftJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.relayCard.bundleId))
         .where(and(
           eq(schema.relayCard.id, cardId),
           eq(schema.relayCard.orgId, orgId),
-          eq(schema.contentBundle.orgId, orgId),
-          eq(schema.contentBundle.modelId, modelId),
-          modelAccessCondition(role, orgId, userId, schema.contentBundle.modelId),
+          or(eq(schema.relayCard.modelId, modelId), eq(schema.contentBundle.modelId, modelId)),
+          or(
+            modelAccessCondition(role, orgId, userId, schema.relayCard.modelId),
+            modelAccessCondition(role, orgId, userId, schema.contentBundle.modelId),
+          ),
         ))
         .limit(1)
         .for('update');

@@ -994,6 +994,7 @@ describe('relay_card table', () => {
   it('has L3.1 §5 dispatch-log columns (bundle_id/channel/external_ref/state)', () => {
     const cols = columnsOf(relayCard);
     expect(cols.bundleId).toBeDefined();
+    expect(cols.modelId).toBeDefined();
     expect(cols.channel).toBeDefined();
     expect(cols.externalRef).toBeDefined();
     expect(cols.state.notNull).toBe(true);
@@ -1003,6 +1004,7 @@ describe('relay_card table', () => {
   it('relates to org (one) and commands (many)', () => {
     expect(relationNames(relayCardRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
+      model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
       commands: {
         type: 'Many',
         table: 'relay_command',

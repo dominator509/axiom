@@ -270,6 +270,7 @@ export interface RelayBinding {
 export interface RelayCardHistory {
   id: string;
   bundleId: string | null;
+  modelId?: string | null;
   channel: string | null;
   state: string;
   title: string;
@@ -565,6 +566,11 @@ export const api = {
         body: JSON.stringify(connectionId ? { connectionId } : {}),
       }),
     viral: (id: string) => apiFetch<{ data: unknown }>(`/api/v1/models/${id}/viral`),
+    enqueueViralInsight: (id: string) =>
+      apiFetch<{ success: boolean; jobId: string; windowKey: string }>(
+        `/api/v1/models/${encodeURIComponent(id)}/viral/insight`,
+        { method: 'POST' },
+      ),
     playbookScore: (id: string) =>
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/playbook-score`),
     consentRecords: (id: string) => apiFetch<{ data: ConsentRecord[]; meta?: { total: number } }>(`/api/v1/models/${id}/consent-records`),

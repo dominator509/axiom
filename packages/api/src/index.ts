@@ -849,6 +849,7 @@ app.use('/api/v1/models/:modelId/media-operations', operationalMutation);
 app.use('/api/v1/models/:modelId/media-operations/*', operationalMutation);
 app.use('/api/v1/models/:modelId/playbook-guidelines', operationalMutation);
 app.use('/api/v1/models/:modelId/roleplay/*', operationalMutation);
+app.use('/api/v1/models/:modelId/viral/insight', operationalMutation);
 app.use('/api/v1/models/:modelId/playbook-score/record', operationalMutation);
 app.use('/api/v1/incidents', operationalMutation);
 app.use('/api/v1/incidents/*', operationalMutation);
@@ -937,6 +938,7 @@ app.use('/api/v1/models/:modelId/member-assignments/:assignmentId', idempotency(
 app.use('/api/v1/models/:modelId/media-operations', idempotency());
 app.use('/api/v1/models/:modelId/playbook-guidelines', idempotency());
 app.use('/api/v1/models/:modelId/roleplay/*', idempotency());
+app.use('/api/v1/models/:modelId/viral/insight', idempotency());
 app.use('/api/v1/models/:modelId/linkbio/*', idempotency());
 app.use('/api/v1/posts', idempotency());
 app.use('/api/v1/posts/:id', idempotency());

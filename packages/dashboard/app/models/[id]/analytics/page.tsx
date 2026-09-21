@@ -4,6 +4,7 @@ import type { PlaybookGuideline } from '@/lib/api';
 import Link from 'next/link';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
 import PerformancePatterns, { type PerformancePattern } from '@/components/PerformancePatterns';
+import GenerateViralInsightButton from '@/components/GenerateViralInsightButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -220,7 +221,10 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
         )}
       </section>
 
-      <h2 style={{ marginTop: 24 }}>{t('analytics.viralInsights')}</h2>
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'end', marginTop: 24 }}>
+        <h2 style={{ margin: 0 }}>{t('analytics.viralInsights')}</h2>
+        <GenerateViralInsightButton modelId={id} />
+      </div>
       <PerformancePatterns patterns={viral?.patterns} />
       <p className="subtle">{t('analytics.verifiedExemplarDisclaimer')}</p>
       <div className="card">

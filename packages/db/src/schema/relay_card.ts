@@ -11,6 +11,7 @@ import {
 import { relations, sql } from 'drizzle-orm';
 import type { RelayCardState } from '@axiom/core';
 import { org } from './org.js';
+import { modelProfile } from './model_profile.js';
 import { contentBundle } from './content_bundle.js';
 import { relayCommand } from './relay_command.js';
 
@@ -21,6 +22,10 @@ export const relayCard = pgTable(
     orgId: uuid('org_id')
       .notNull()
       .references(() => org.id),
+    // Model-scoped insight cards do not require a content bundle. Keep the
+    // ownership explicit so Relay history can expose durable analytics cards
+    // without manufacturing a bundle relationship.
+    modelId: uuid('model_id').references(() => modelProfile.id, { onDelete: 'cascade' }),
     // L3.1 §5 dispatch-log fields (migration 0005): a relay_card records a card
     // pushed to a channel for a bundle. bundle_id/channel/external_ref/state are
     // the spec shape; the config columns below remain for card templates.
@@ -49,6 +54,10 @@ export const relayCardRelations = relations(relayCard, ({ one, many }) => ({
   org: one(org, {
     fields: [relayCard.orgId],
     references: [org.id],
+  }),
+  model: one(modelProfile, {
+    fields: [relayCard.modelId],
+    references: [modelProfile.id],
   }),
   commands: many(relayCommand),
 }));

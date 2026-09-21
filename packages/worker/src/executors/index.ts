@@ -15,6 +15,7 @@ import { triggerEvaluate } from './trigger.js';
 import { scrapeRun } from './scrape.js';
 import { mediaTransform } from './media_transform.js';
 import { fanvueAnalyticsSync } from './fanvue_analytics.js';
+import { viralInsight } from './viral_insight.js';
 
 export type { Executor, ExecutorContext } from './context.js';
 export {
@@ -36,6 +37,7 @@ export {
   scrapeRun,
   mediaTransform,
   fanvueAnalyticsSync,
+  viralInsight,
 };
 
 export const defaultExecutors: Record<string, Executor> = {
@@ -53,4 +55,5 @@ export const defaultExecutors: Record<string, Executor> = {
   'scrape.run': scrapeRun,
   'media.transform': mediaTransform,
   'fanvue.analytics.sync': fanvueAnalyticsSync,
+  'viral.insight': viralInsight,
 };

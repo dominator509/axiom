@@ -1,6 +1,7 @@
 import { SUPPORTED_LOCALES, type Catalog, type SupportedLocale } from './locale.js';
 import { CATALOGS as BASE_CATALOGS } from './locale-catalogs.js';
 import { DASHBOARD_REMAINING_CATALOGS } from './dashboard-remaining-catalog.js';
+import { VIRAL_INSIGHT_CATALOGS } from './viral-insight-catalog.js';
 
 /**
  * The single runtime catalog exposed to the application.
@@ -12,6 +13,6 @@ import { DASHBOARD_REMAINING_CATALOGS } from './dashboard-remaining-catalog.js';
 export const CATALOGS: Record<SupportedLocale, Catalog> = Object.fromEntries(
   SUPPORTED_LOCALES.map((locale) => [
     locale,
-    { ...BASE_CATALOGS[locale], ...DASHBOARD_REMAINING_CATALOGS[locale] },
+    { ...BASE_CATALOGS[locale], ...DASHBOARD_REMAINING_CATALOGS[locale], ...VIRAL_INSIGHT_CATALOGS[locale] },
   ]),
 ) as Record<SupportedLocale, Catalog>;

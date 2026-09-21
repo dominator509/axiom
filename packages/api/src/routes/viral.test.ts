@@ -6,18 +6,20 @@ import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
-vi.mock('@axiom/db', () => mockDbFactory({ viralExemplar: {} }));
+vi.mock('@axiom/db', () => mockDbFactory({ viralExemplar: {}, modelProfile: {}, job: {} }));
+vi.mock('@axiom/worker', () => ({ enqueueJob: vi.fn(async () => ({ id: 'job-viral-1' })) }));
 
 import { LEARNING_ARM_RICH_PATTERN, viralRouter } from './viral.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 
-function appWithOrg(orgId: string | null) {
+function appWithOrg(orgId: string | null, role: string | undefined = undefined) {
   const app = new Hono<AppBindings>();
   app.use('*', async (c, next) => {
     if (orgId) c.set('orgId', orgId);
     c.set('userId', 'user-1');
+    if (role) c.set('role', role as any);
     await next();
   });
   app.route('/', viralRouter);
@@ -73,5 +75,19 @@ describe('GET /models/:modelId/viral — insights', () => {
   it('rejects without org context (401)', async () => {
     const res = await appWithOrg(null).request(`/models/${MODEL_ID}/viral`);
     expect(res.status).toBe(401);
+  });
+});
+
+describe('POST /models/:modelId/viral/insight', () => {
+  it('enqueues one model-scoped insight job for an allowed operator', async () => {
+    mockState.result = [{ id: MODEL_ID }];
+    const res = await appWithOrg(ORG_ID, 'operator').request(`/models/${MODEL_ID}/viral/insight`, { method: 'POST' });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({ success: true, jobId: 'job-viral-1' });
+  });
+
+  it('denies a chatter from generating an unattended insight card', async () => {
+    const res = await appWithOrg(ORG_ID, 'chatter').request(`/models/${MODEL_ID}/viral/insight`, { method: 'POST' });
+    expect(res.status).toBe(403);
   });
 });

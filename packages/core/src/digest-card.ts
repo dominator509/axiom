@@ -112,3 +112,53 @@ export function renderDigestCard(
     description,
   };
 }
+
+export interface ViralInsightGroup {
+  platform: string;
+  learningArm: string;
+  learningContext: string;
+  sampleSize: number;
+  meanScore: number;
+  publishedHourUtc: number | null;
+}
+
+export interface ViralInsightCardInput {
+  groups: ViralInsightGroup[];
+  totalSamples: number;
+}
+
+/**
+ * Render a bounded, evidence-only viral insight card. Provider names and
+ * learning-arm values remain data; the catalog supplies the surrounding UI
+ * language. This intentionally makes no recommendation or conversion claim.
+ */
+export function renderViralInsightCard(
+  locale: SupportedLocale,
+  input: ViralInsightCardInput,
+): DigestCardText {
+  const t = (key: string, values?: Record<string, string | number>): string =>
+    digestCatalog.t(locale, key, values);
+  const top = input.groups[0];
+  const platform = top?.platform || t('digest.card.topPlatformUnavailable');
+  const samples = formatNumber(input.totalSamples, locale);
+  const score = top
+    ? formatNumber(top.meanScore, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : formatNumber(0, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const timing = top?.publishedHourUtc == null
+    ? t('dashboard.performance.scheduledTimeUnknown')
+    : `${String(top.publishedHourUtc).padStart(2, '0')}:00 UTC`;
+  const arm = top?.learningArm || 'unknown';
+
+  return {
+    locale,
+    localeSource: 'org',
+    title: t('dashboard.performance.title'),
+    description: [
+      t('dashboard.performance.description'),
+      t('dashboard.performance.labeledExemplars', { count: samples }),
+      `${platform} · ${arm} · ${timing}`,
+      t('dashboard.performance.meanRelativeScore', { score }),
+      t('dashboard.performance.showingTopGroups'),
+    ].join(' '),
+  };
+}
