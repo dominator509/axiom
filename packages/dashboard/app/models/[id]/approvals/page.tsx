@@ -10,6 +10,7 @@ import AdaptationControls from '@/components/AdaptationControls';
 import DraftEditor from '@/components/DraftEditor';
 import CaptionGuidance from '@/components/CaptionGuidance';
 import { getServerLocale } from '@/lib/server-locale';
+import { formatNumber } from '@axiom/core';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,7 @@ export default async function ApprovalsPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const { t, dateTime } = await getServerLocale();
+  const { t, dateTime, locale } = await getServerLocale();
   const session = await getSession();
   const role = session?.user?.role;
   if (!talentDestinationAllowed(role, 'approvals')) return (
@@ -72,7 +73,7 @@ export default async function ApprovalsPage({
     <div>
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <h2>{canApprove ? t('review.approvals') : t('review.drafts')}</h2>
-        <span style={{ color: 'var(--muted)' }}>{t('review.shown', { count: bundles.length })}</span>
+        <span style={{ color: 'var(--muted)' }}>{t('review.shown', { count: formatNumber(bundles.length, locale) })}</span>
       </div>
       {!canApprove && <p>{t('review.draftDescription')}</p>}
       {error && (
