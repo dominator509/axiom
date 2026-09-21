@@ -129,3 +129,15 @@ it('localizes connected-account headings while preserving provider data', async 
   expect(html).toContain('fanvue');
   expect(html).toContain('DJ');
 });
+it('formats network latency with the selected locale', async () => {
+  vi.mocked(getServerLocale).mockResolvedValue(localeFor('de'));
+  vi.mocked(api.models.network).mockResolvedValue({
+    data: {
+      id: 'config', modelId: 'model', egressMode: 'socks5', healthy: true,
+      lastCheck: '2026-01-01T00:00:00Z', latencyMs: 1234, lastEgressIp: '203.0.113.10',
+      failCount: 0, lastError: null,
+    },
+  });
+  const html = await render();
+  expect(html).toContain('1.234 ms');
+});

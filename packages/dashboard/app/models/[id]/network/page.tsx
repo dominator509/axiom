@@ -1,3 +1,4 @@
+import { formatNumber } from '@axiom/core';
 import { api, getSession } from '@/lib/api';
 import type { SocialConnection } from '@/lib/api';
 import NetworkForm from '@/components/NetworkForm';
@@ -17,7 +18,7 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
   const oauthConnected = query?.oauth === 'connected' && (query.platform === 'fanvue' || query.platform === 'threads' || query.platform === 'patreon');
   const oauthPlatform = query?.platform === 'fanvue' ? 'Fanvue' : query?.platform === 'threads' ? 'Threads' : 'Patreon';
   const session = await getSession();
-  const { t } = await getServerLocale();
+  const { locale, t } = await getServerLocale();
   const owner = session?.user?.role === 'owner';
   const canManageAccounts = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   let network = null;
@@ -55,7 +56,7 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
             {network.latencyMs != null && (
               <div className="row" style={{ justifyContent: 'space-between' }}>
                 <span>{t('network.latency')}</span>
-                <span>{network.latencyMs} ms</span>
+                <span>{formatNumber(network.latencyMs, locale)} ms</span>
               </div>
             )}
             {network.lastEgressIp && (
