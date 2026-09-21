@@ -17,9 +17,18 @@ const router = new Hono<AppBindings>();
 
 const conditionSchema = z.object({
   metric: z.enum(['views', 'likes', 'comments', 'shares', 'engagementRate']),
-  threshold: z.number().finite().min(0).max(1_000_000_000_000),
+  thresholdMode: z.enum(['fixed', 'learned_p90']).default('fixed'),
+  threshold: z.number().finite().min(0).max(1_000_000_000_000).optional(),
+  minimumSamples: z.number().int().min(4).max(1_000).optional(),
   windowMinutes: z.number().int().min(1).max(10_080).optional(),
-}).strict();
+}).strict().superRefine((condition, ctx) => {
+  if (condition.thresholdMode === 'fixed' && condition.threshold === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['threshold'], message: 'fixed threshold required' });
+  }
+  if (condition.thresholdMode === 'learned_p90' && condition.threshold !== undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['threshold'], message: 'learned threshold is server-derived' });
+  }
+});
 
 const actionSchema = z.object({
   type: z.enum(['content.generate', 'relay.card']),

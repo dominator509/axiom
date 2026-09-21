@@ -84,6 +84,60 @@ describe('trigger rule routes', () => {
     expect((await response.json() as { data: { id: string; enabled: boolean } }).data).toMatchObject({ id: RULE_ID, enabled: true });
   });
 
+  it('accepts a learned p90 rule without accepting a client-supplied threshold', async () => {
+    mockState.results = [[], [{ id: MODEL_ID }], [{
+      id: RULE_ID,
+      orgId: ORG_ID,
+      modelId: MODEL_ID,
+      name: 'Adaptive follow-up',
+      platform: 'instagram',
+      condition: { metric: 'likes', thresholdMode: 'learned_p90', minimumSamples: 4, windowMinutes: 1_440 },
+      action: { type: 'content.generate', style: 'follow-up', cooldownMinutes: 120 },
+      enabled: true,
+      lastFiredAt: null,
+    }]];
+    const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/trigger-rules`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Adaptive follow-up',
+        platform: 'instagram',
+        condition: { metric: 'likes', thresholdMode: 'learned_p90', minimumSamples: 4, windowMinutes: 1_440 },
+        action: { type: 'content.generate', style: 'follow-up', cooldownMinutes: 120 },
+      }),
+    });
+    expect(response.status).toBe(201);
+    expect((await response.json() as { data: { condition: Record<string, unknown> } }).data.condition).toMatchObject({
+      thresholdMode: 'learned_p90',
+      minimumSamples: 4,
+      windowMinutes: 1_440,
+    });
+  });
+
+  it('rejects a fixed rule without a threshold and a learned rule with one', async () => {
+    const fixed = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/trigger-rules`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Missing threshold', platform: 'instagram',
+        condition: { metric: 'likes', thresholdMode: 'fixed' },
+        action: { type: 'content.generate' },
+      }),
+    });
+    const learned = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/trigger-rules`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Client threshold', platform: 'instagram',
+        condition: { metric: 'likes', thresholdMode: 'learned_p90', threshold: 100, minimumSamples: 4 },
+        action: { type: 'content.generate' },
+      }),
+    });
+    expect(fixed.status).toBe(400);
+    expect(learned.status).toBe(400);
+    expect(mockState.results).toEqual([]);
+  });
+
   it('lists rules in the model scope and supports deletion', async () => {
     mockState.result = [{ id: RULE_ID, modelId: MODEL_ID, name: 'Viral follow-up' }];
     const listed = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/trigger-rules`);

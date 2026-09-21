@@ -314,7 +314,9 @@ export interface CascadeTemplate {
 
 export interface TriggerCondition {
   metric: 'views' | 'likes' | 'comments' | 'shares' | 'engagementRate';
-  threshold: number;
+  thresholdMode?: 'fixed' | 'learned_p90';
+  threshold?: number;
+  minimumSamples?: number;
   windowMinutes?: number;
 }
 
