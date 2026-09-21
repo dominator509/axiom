@@ -1267,4 +1267,6 @@ API suite passed 73 files with 1,136 tests passed and 50 skipped (five skipped
 integration files); `git diff --check` passed. This is source/UI contract
 evidence only. The signup handoff, billing conversion reconciliation, provider
 payout, migration application, browser acceptance and operator/legal gates
-remain open. No live action occurred.
+remain open. Product commit `8396b9a0db75311194727862bc44ed91e72b91bf` is
+pushed and read back from `origin/codex/telegram-webhook-hardening`. No live
+action occurred.
