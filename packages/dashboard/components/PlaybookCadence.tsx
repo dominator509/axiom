@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { formatDate, type MessageKey, type SupportedLocale } from '@axiom/core';
+import { formatDate, formatNumber, type MessageKey, type SupportedLocale } from '@axiom/core';
 import type { PlaybookGuideline, PostTarget } from '@/lib/api';
 
 type Translate = (key: MessageKey, values?: Record<string, string | number>) => string;
@@ -39,9 +39,9 @@ export default function PlaybookCadence({ modelId, guidelines, posts, from, to, 
         const { scheduled, published } = cadenceCounts(posts, guideline.platform, from, to);
         const deficit = Math.max(0, guideline.cadencePerWeek - scheduled - published);
         return <div className="stack" key={guideline.id}>
-          <strong>{guideline.platform} · {t('playbook.cadenceRevision', { revision: guideline.revision })}</strong>
-          <p>{t('playbook.cadenceCounts', { published, scheduled, target: guideline.cadencePerWeek })}</p>
-          <p className={deficit ? 'badge warn' : 'subtle'}>{guideline.cadencePerWeek === 0 ? t('playbook.cadenceNoMinimum') : deficit === 1 ? t('playbook.cadenceDeficitOne', { deficit }) : deficit ? t('playbook.cadenceDeficitMany', { deficit }) : t('playbook.cadenceCovered')}</p>
+          <strong>{guideline.platform} · {t('playbook.cadenceRevision', { revision: formatNumber(guideline.revision, locale) })}</strong>
+          <p>{t('playbook.cadenceCounts', { published: formatNumber(published, locale), scheduled: formatNumber(scheduled, locale), target: formatNumber(guideline.cadencePerWeek, locale) })}</p>
+          <p className={deficit ? 'badge warn' : 'subtle'}>{guideline.cadencePerWeek === 0 ? t('playbook.cadenceNoMinimum') : deficit === 1 ? t('playbook.cadenceDeficitOne', { deficit: formatNumber(deficit, locale) }) : deficit ? t('playbook.cadenceDeficitMany', { deficit: formatNumber(deficit, locale) }) : t('playbook.cadenceCovered')}</p>
           {guideline.optimalTimes.length > 0 && <p>{t('playbook.cadenceSavedTimes', { times: guideline.optimalTimes.join(', ') })}</p>}
         </div>;
       })}

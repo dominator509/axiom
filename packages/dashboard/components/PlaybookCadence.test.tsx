@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CATALOGS, formatDate, LocaleCatalog, type MessageKey, type SupportedLocale } from '@axiom/core';
+import { CATALOGS, formatDate, formatNumber, LocaleCatalog, type MessageKey, type SupportedLocale } from '@axiom/core';
 import type { PlaybookGuideline, PostTarget } from '@/lib/api';
 import PlaybookCadence, { cadenceCounts, currentUtcWeek } from './PlaybookCadence';
 
@@ -40,4 +40,12 @@ it('renders cadence copy and week dates from the selected locale', () => {
     to: formatDate(new Date(week.to), 'de', { dateStyle: 'medium', timeZone: 'UTC' }),
   }));
   expect(html).not.toContain('Weekly playbook cadence');
+});
+
+it('formats cadence counts and revisions through the selected locale', () => {
+  const localizedGuideline = { ...guideline, cadencePerWeek: 1234, revision: 1234 };
+  const html = renderToStaticMarkup(<PlaybookCadence modelId="m" guidelines={[localizedGuideline]} posts={[post('1', 'published')]} {...week} unavailable={false} locale="de" t={t('de')} />);
+  expect(html).toContain(catalog.t('de', 'playbook.cadenceRevision', { revision: formatNumber(1234, 'de') }));
+  expect(html).toContain(catalog.t('de', 'playbook.cadenceCounts', { published: formatNumber(1, 'de'), scheduled: formatNumber(0, 'de'), target: formatNumber(1234, 'de') }));
+  expect(html).toContain(catalog.t('de', 'playbook.cadenceDeficitMany', { deficit: formatNumber(1233, 'de') }));
 });
