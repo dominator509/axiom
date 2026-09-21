@@ -1,8 +1,8 @@
 # Current architecture reconciliation
 
-Date: 2026-09-20  
+Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `90a85530d2ab56e3c5811e162a80ae31783c1e3f`
+Source checkpoint: `120bae89b68fe96a30f2e4b5804e141b24941b4c`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1606,3 +1606,24 @@ performance-pattern formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M972 — F-89 network latency formatting and audit correction
+
+The model Network page now formats the displayed egress latency with the
+selected locale's shared number formatter instead of rendering a raw integer.
+The same audit also revalidated the earlier permission-aware UI finding against
+current source: NetworkPage suppresses the owner-only editor when the network
+configuration load fails, and SocialAccounts renders an explicit load-failure
+state rather than an empty successful state. The existing page regressions cover
+both fail-closed behaviors; the stale finding is retained as historical audit
+context but is not a current source defect.
+
+Evidence: focused NetworkPage tests 17/17, full dashboard suite 156 files /
+990 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`120bae89b68fe96a30f2e4b5804e141b24941b4c` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+network-latency formatting and source-audit correction; complete catalog
+adoption, browser/native acceptance, deployed migration/RLS/runtime, provider
+receipts, observability, CI governance and production acceptance remain open.
+No live action occurred.

@@ -1,6 +1,6 @@
 # Backend-to-frontend coverage audit
 
-Source baseline: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b`.
+Source baseline: `120bae89b68fe96a30f2e4b5804e141b24941b4c`.
 
 ## Verdict and evidence boundary
 
@@ -105,9 +105,9 @@ Backend paths below are relative to `/api/v1` unless noted. Evidence paths are r
 | Social/competitor scraping (`crates/scraper/src/main.rs`) | Scraping page creates bounded authenticated runs and reports queued/running/completed/failed state | Wired source/UI; deployed sidecar rehearsal and benchmark history remain open |
 | Vision classification, hash, frames, encryption/decryption, telemetry, health, OAuth callbacks | Keep internal or service-authenticated; expose results/settings through scoped workflows, never raw secret/decrypt or arbitrary sidecar execution controls | Intentionally internal |
 
-## Confirmed cross-cutting defects
+## Cross-cutting findings and resolution status
 
-1. **Permission-aware UI is incomplete.** API registration makes egress, network, kill switch and org settings owner-only. Network page catches load failure as `null` and still renders an editable form. Social account load failure is converted to an empty account list. An operator can see an apparently configurable surface that cannot succeed. Do not resolve this by removing backend authorization.
+1. **Resolved in current source (M972 audit correction).** API registration keeps egress, network, kill switch and org settings owner-only. NetworkPage suppresses the editable form after a configuration-load failure, and SocialAccounts renders an explicit load-failure state instead of an empty successful state. Focused NetworkPage regressions cover both behaviors. Retain the earlier wording only as historical context; do not weaken backend authorization.
 2. **Saving is not activation.** NetworkForm only calls the metadata PUT. Credential fields and plane bind/sync are separate backend contracts with no corresponding workflow. A successful metadata save cannot mean a tunnel is ready.
 3. **Frontend parity differs by platform.** Native mobile has digest and sharing controls missing from the responsive website. Native mobile's endpoint wrappers do not prove every operation is rendered or permitted; mobile browsers use the dashboard, not Expo.
 4. **Persistent media management is source-wired but not runtime-accepted.** The model media library now provides authenticated image/video previews, upload/generated provenance, cursor-filtered listing, operation lifecycle projection, source/result relationships, and transform/retry visibility over the existing asset/media-operation tables. Deployed worker/playback, R2 round-trip, browser/mobile, and approval/runtime evidence remain open.
