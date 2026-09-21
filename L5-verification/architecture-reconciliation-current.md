@@ -1518,3 +1518,20 @@ Playbook metric-formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M967 — F-89 approvals count formatting
+
+The mounted approvals/drafts route passed its visible review-bundle count to
+the localized catalog as a raw integer. It now formats that count through the
+shared selected-locale number formatter; review state labels, identifiers,
+captions, hashes and publication/provider boundaries remain unchanged.
+
+Evidence: focused approvals page tests 5/5, full dashboard suite 156 files /
+985 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`ac4e6f95bfd20ddc367c24c052bf3b234e11d4b3` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+approvals count-formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
