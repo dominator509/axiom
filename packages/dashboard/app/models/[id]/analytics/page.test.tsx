@@ -18,6 +18,9 @@ vi.mock('@/lib/api', () => ({
     uiLocale: { get: mocks.uiLocale },
   },
 }));
+vi.mock('@/components/GenerateViralInsightButton', () => ({
+  default: () => <div data-testid="generate-viral-insight" />,
+}));
 import Page from './page';
 beforeEach(() => {
   mocks.role = 'model';

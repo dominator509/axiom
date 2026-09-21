@@ -23,3 +23,4 @@ export * from './learning-contract.js';
 export * from './provider-cache-control-catalog.js';
 export * from './watermark-policy-contract.js';
 export * from './watermark-policy-catalog.js';
+export * from './model-surface-catalog.js';

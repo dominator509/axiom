@@ -9,6 +9,7 @@ import {
   type ConsentMessageKey,
   type FanCrmMessageKey,
   type MessageKey,
+  type ModelSurfaceMessageKey,
   type ReviewMessageKey,
   type SupportedLocale,
 } from '@axiom/core';
@@ -39,7 +40,7 @@ const catalog = new LocaleCatalog(
 export async function getServerLocale(): Promise<{
   locale: SupportedLocale;
   t: (
-    key: MessageKey | ReviewMessageKey | ConsentMessageKey | FanCrmMessageKey,
+    key: MessageKey | ReviewMessageKey | ConsentMessageKey | FanCrmMessageKey | ModelSurfaceMessageKey,
     values?: Record<string, string | number>,
   ) => string;
   dateTime: (value: string | Date) => string;
