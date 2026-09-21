@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CATALOGS, LocaleCatalog } from '@axiom/core';
+import { CATALOGS, LocaleCatalog, formatDate, formatNumber } from '@axiom/core';
 import LocaleProvider from './LocaleProvider';
 import DigestScheduleStatus from './DigestScheduleStatus';
 
@@ -25,4 +25,14 @@ it('renders localized schedule wording under a non-English locale', () => {
   expect(html).toContain(catalog.t('es', 'digest.schedule.dead'));
   expect(html).toContain(catalog.t('es', 'digest.schedule.manage'));
   expect(html).not.toContain(catalog.t('en', 'digest.schedule.dead'));
+});
+it('formats eligibility time and retry count in the selected locale', () => {
+  const html = renderToStaticMarkup(
+    <LocaleProvider initialLocale="de">
+      <DigestScheduleStatus schedule={{ enabled: true, workspacePermitted: true, latest: { state: 'ready', runAfter: '2026-09-21T00:00:00Z', attempts: 1234 } }} canConfigure={false} />
+    </LocaleProvider>,
+  );
+  expect(html).toContain(formatDate(new Date('2026-09-21T00:00:00Z'), 'de', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }));
+  expect(html).toContain(formatNumber(1234, 'de'));
+  expect(html).not.toContain('2026-09-21T00:00:00Z');
 });

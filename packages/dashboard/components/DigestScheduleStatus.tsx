@@ -1,12 +1,17 @@
 'use client';
 import Link from 'next/link';
 import type { api } from '@/lib/api';
+import { formatDate, formatNumber } from '@axiom/core';
 import { useLocale } from './LocaleProvider';
 
 type Schedule = Awaited<ReturnType<typeof api.digests.list>>['schedule'];
 export default function DigestScheduleStatus({ schedule, canConfigure }: { schedule: Schedule; canConfigure: boolean }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const job = schedule?.latest;
+  const runAfter = job ? new Date(job.runAfter) : null;
+  const formattedRunAfter = runAfter && !Number.isNaN(runAfter.valueOf())
+    ? formatDate(runAfter, locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' })
+    : '—';
   const state = !schedule ? t('digest.schedule.unavailable') : !schedule.enabled ? t('digest.schedule.off')
     : !job ? t('digest.schedule.noJob')
     : job.state === 'ready' ? t('digest.schedule.queued')
@@ -17,7 +22,7 @@ export default function DigestScheduleStatus({ schedule, canConfigure }: { sched
   return <section className="card stack" aria-label={t('digest.schedule.aria')}>
     <h2>{t('digest.schedule.heading')}</h2><p>{state}</p>
     {schedule?.enabled && !schedule.workspacePermitted && <p role="alert">{t('digest.schedule.safetyOff')}</p>}
-    {schedule?.enabled && job && <p className="subtle">{t('digest.schedule.eligible', { runAfter: job.runAfter, attempts: job.attempts })}</p>}
+    {schedule?.enabled && job && <p className="subtle">{t('digest.schedule.eligible', { runAfter: formattedRunAfter, attempts: formatNumber(job.attempts, locale) })}</p>}
     <p className="subtle">{t('digest.schedule.storageNote')}</p>
     {canConfigure && <Link href="/settings">{t('digest.schedule.manage')}</Link>}
   </section>;
