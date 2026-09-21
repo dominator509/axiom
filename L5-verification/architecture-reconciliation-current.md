@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `6ffb430dc2706cfbd8ec34ac74fb12ae179ad57b`
+Source checkpoint: `38ebee69efb40be2ca4da76954461c3659652801`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1695,3 +1695,20 @@ calendar/cascade count-formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M977 - F-90 affiliate count formatting
+
+The platform-owned affiliate dashboard now formats partner, campaign,
+attribution-event, open-hold, report click/visit, identity-stitch and
+conversion counts through the selected locale's shared number formatter.
+Affiliate money remains currency-formatted separately, and the platform/
+partner/referred-creator boundary is unchanged.
+
+Evidence: focused affiliate tests 6/6, full dashboard suite 156 files / 998
+passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`38ebee69efb40be2ca4da76954461c3659652801` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+affiliate count-formatting source slice; migration application, billing/
+reconciliation, license/security/legal review, browser, payout/operator and
+deployed export/deletion evidence remain open. No live action occurred.
