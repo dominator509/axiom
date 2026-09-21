@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `324e1ad76f3bcc5d57f8da477bb0d0b40394725a`
+Source checkpoint: `ad55fd419ec109ae810e960d1b76bfe282844625`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1864,6 +1864,23 @@ Evidence: focused TriggerRuleManager tests 4/4, full dashboard suite 156 files
 source commit `324e1ad76f3bcc5d57f8da477bb0d0b40394725a` is pushed and read back
 from `origin/codex/telegram-webhook-hardening`. This closes only the verified
 trigger-threshold formatting slice; remaining catalog adoption, browser/native
+acceptance, deployed migration/RLS/runtime evidence, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
+
+### M987 - F-89 variant outcome-metric formatting
+
+The variant experiment tracking history now formats an observed metric value
+through the selected locale before inserting it into localized status copy.
+Assignment identity, outcome semantics and mutation payloads remain
+unchanged.
+
+Evidence: focused VariantExperimentTracking and behavior tests 8/8, full
+dashboard suite 156 files / 1,009 passed, dashboard typecheck/lint and
+`git diff --check` pass. Product source commit
+`ad55fd419ec109ae810e960d1b76bfe282844625` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+variant-metric formatting slice; remaining catalog adoption, browser/native
 acceptance, deployed migration/RLS/runtime evidence, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
