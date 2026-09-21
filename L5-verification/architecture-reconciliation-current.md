@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `85a4f32368f7016de65efd053a07943dac5cfafc`
+Source checkpoint: `6c76b0d8ca7a6c9761b83ce6578a46cc2d45e65b`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1642,6 +1642,23 @@ Evidence: focused ModelOverview tests 15/15, full dashboard suite 156 files /
 `85a4f32368f7016de65efd053a07943dac5cfafc` is pushed and read back from
 `origin/codex/telegram-webhook-hardening`. This closes only the verified
 model-overview latency formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
+
+### M974 - F-89 CaptionGuidance count formatting
+
+CaptionGuidance now formats the persisted prior-example count through the
+selected locale's shared number formatter before interpolation into localized
+copy. The evidence summary remains bounded and does not expose exemplar IDs,
+hashes or private payloads.
+
+Evidence: focused CaptionGuidance tests 10/10, full dashboard suite 156 files /
+992 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`6c76b0d8ca7a6c9761b83ce6578a46cc2d45e65b` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+CaptionGuidance count-formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
