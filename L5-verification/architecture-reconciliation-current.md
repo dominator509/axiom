@@ -1448,3 +1448,20 @@ Evidence: focused schedule-status tests 8/8, full dashboard suite 154 files /
 schedule formatting source slice; complete catalog adoption, browser/native
 acceptance, deployed migration/RLS/runtime, provider receipts, observability,
 CI governance and production acceptance remain open. No live action occurred.
+
+### M963 — F-89 operator count formatting
+
+The incident/recovery page had raw crash occurrence and job attempt counters,
+and Relay history had a raw priority value. These operator-facing counts now
+use the selected locale's shared number formatter while persisted state codes,
+service names, identifiers and bounded error details remain data.
+
+Evidence: focused incident/Relay tests 12/12, full dashboard suite 154 files /
+980 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`d153addaf23bf9773ccfd18e7cf613bd02a34074` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+incident/Relay operator-count source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
