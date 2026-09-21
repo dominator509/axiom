@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `290453a9e0ca0f3e84746d08371ee28e66dffc06`
+Source checkpoint: `72edd90339954fe290e7f00f2e96c3b4ba3b30ea`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1726,6 +1726,23 @@ Evidence: focused inbox/playbook tests 40/40, full dashboard suite 156 files /
 `290453a9e0ca0f3e84746d08371ee28e66dffc06` is pushed and read back from
 `origin/codex/telegram-webhook-hardening`. This closes only the verified
 inbox/playbook count-formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
+
+### M979 - F-89 playbook cadence count formatting
+
+The playbook cadence surface now formats revision, published, scheduled,
+target and deficit counts through the selected locale's shared number
+formatter. Cadence evidence remains advisory; post-state filtering,
+duplicate suppression and no-automatic-schedule-change behavior are unchanged.
+
+Evidence: focused playbook tests 12/12, full dashboard suite 156 files / 1002
+passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`72edd90339954fe290e7f00f2e96c3b4ba3b30ea` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+playbook-cadence count-formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
