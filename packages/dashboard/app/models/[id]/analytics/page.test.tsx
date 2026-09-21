@@ -118,6 +118,30 @@ it('renders localized labels and locale-aware metrics', async () => {
   expect(html).not.toContain('2026-09-15');
   expect(html).toContain('últimos 30 días');
 });
+it('formats remaining analytics counts and scores in the selected locale', async () => {
+  mocks.uiLocale.mockResolvedValue({ data: { locale: 'es' } });
+  mocks.analytics.mockResolvedValue({
+    data: {
+      totals: { views: 1, likes: 2, shares: 0, comments: 1 },
+      windowDays: 12345,
+      perPlatform: [],
+      daily: Array.from({ length: 14 }, (_, index) => ({ day: `2026-09-${String(index + 1).padStart(2, '0')}`, views: 1, likes: 1 })),
+    },
+  });
+  mocks.viral.mockResolvedValue({ data: {
+    totalExemplars: 1,
+    byLabel: [],
+    byPlatform: [],
+    top: [{ id: 'top', platform: 'instagram', label: 'viral', perfScore: 12.345 }],
+  } });
+  mocks.playbookGuidelines.mockResolvedValue({ data: [{
+    id: 'guideline', modelId: 'assigned', platform: 'instagram', optimalTimes: [], cadencePerWeek: 12345,
+    upsellStrategy: '', revision: 12345, updatedAt: '2030-01-01T00:00:00.000Z',
+  }] });
+  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ id: 'assigned' }) }));
+  expect(html).toContain(new Intl.NumberFormat('es').format(12345));
+  expect(html).toContain(new Intl.NumberFormat('es', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(12.345));
+});
 it.each(['chatter', 'unknown'])('does not request analytics for %s', async (role) => {
   mocks.role = role;
   expect(

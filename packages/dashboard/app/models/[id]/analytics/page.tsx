@@ -44,6 +44,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
   const t = (key: string, values?: Record<string, string | number>) =>
     catalog.t(locale, key, values);
   const number = new Intl.NumberFormat(locale);
+  const decimal = new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 2 });
   const day = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' });
   if (!talentDestinationAllowed((await getSession())?.user?.role, 'analytics'))
@@ -95,7 +96,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
                 {number.format(analytics.totals.views)}
               </div>
               <p style={{ color: 'var(--muted)', margin: 0 }}>
-                {t('analytics.lastDays', { days: analytics.windowDays })}
+                {t('analytics.lastDays', { days: number.format(analytics.windowDays) })}
               </p>
             </div>
             <div className="card">
@@ -150,7 +151,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
           </div>
           {analytics.daily.length > 0 && (
             <div className="card">
-              <h3>{t('analytics.dailyTrend', { days: Math.min(analytics.daily.length, 14) })}</h3>
+              <h3>{t('analytics.dailyTrend', { days: number.format(Math.min(analytics.daily.length, 14)) })}</h3>
               <table>
                 <thead>
                   <tr>
@@ -199,9 +200,9 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
             {playbookGuidelines.map((guideline) => (
               <article className="card" key={guideline.id} style={{ background: 'var(--panel2)' }}>
                 <strong>
-                  {guideline.platform} · revision {guideline.revision}
+                  {guideline.platform} · revision {number.format(guideline.revision)}
                 </strong>
-                <p>{t('analytics.cadenceTarget', { count: guideline.cadencePerWeek })}</p>
+                <p>{t('analytics.cadenceTarget', { count: number.format(guideline.cadencePerWeek) })}</p>
                 <p>
                   {t('analytics.suggestedTimes', {
                     times: guideline.optimalTimes.length
@@ -258,7 +259,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
                 <div key={t.id} className="row" style={{ justifyContent: 'space-between' }}>
                   <span className="mono">{t.platform}</span>
                   <span className={`badge ${t.label === 'viral' ? 'good' : 'warn'}`}>
-                    {t.label} · {(t.perfScore ?? 0).toFixed(2)}
+                    {t.label} · {decimal.format(t.perfScore ?? 0)}
                   </span>
                 </div>
               ))}
