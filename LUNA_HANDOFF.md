@@ -7,27 +7,27 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `c63855b2aa8bed4ca97a499e15d4cdd0ae95d9d0` (M954 product source, pushed; no active Hermes implementation lane)
+SOURCE_HEAD: `9b8bdeafd93303048ae1e75fefebc61a21eff61b` (M955 product source, pushed; no active Hermes implementation lane)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `c63855b2aa8bed4ca97a499e15d4cdd0ae95d9d0` (M954 source commit pushed and read back from origin)
-COORDINATION_HEAD: `c63855b2aa8bed4ca97a499e15d4cdd0ae95d9d0` (M954 product milestone; handoff-only update follows)
-COORDINATION_HEAD_LAST_READBACK: `c63855b2aa8bed4ca97a499e15d4cdd0ae95d9d0 — exact origin readback`
-ACCEPTED_PRODUCT_SOURCE: `c63855b2aa8bed4ca97a499e15d4cdd0ae95d9d0`
+PUBLISHED_HEAD: `9b8bdeafd93303048ae1e75fefebc61a21eff61b` (M955 source commit pushed and read back from origin)
+COORDINATION_HEAD: `9b8bdeafd93303048ae1e75fefebc61a21eff61b` (M955 product milestone; handoff-only update follows)
+COORDINATION_HEAD_LAST_READBACK: `9b8bdeafd93303048ae1e75fefebc61a21eff61b — exact origin readback`
+ACCEPTED_PRODUCT_SOURCE: `9b8bdeafd93303048ae1e75fefebc61a21eff61b`
 CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — historical F89-ADAPTATION-ERROR-L10N-R1 marker; no active Hermes source-copy lane`
 CURRENT_TASK_MANIFEST_SHA256: `7c75812f9d2f34913bad58de1788f5aa62d1a8a46053016b97e9655653aea2b0`
 CURRENT_TASK_MANIFEST_REMOTE_SHA256: `7c75812f9d2f34913bad58de1788f5aa62d1a8a46053016b97e9655653aea2b0 — exact bridge marker readback`
 CURRENT_TASK_MANIFEST_RULE: `The current marker is retained as historical coordination evidence only; because Hermes polling is disabled, its OPEN state does not authorize reads, implementation, replies, or source integration`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
-LAST_COMPLETED_SOURCE_MILESTONE: `M954 affiliate referral identity handoff — authenticated, idempotent identity-stitch claim after confirmed login; localized failure recovery and six-locale catalog completeness; product commit c63855b2 pushed/read back; no live action`
+LAST_COMPLETED_SOURCE_MILESTONE: `M955 affiliate conversion provenance — required creator identity, active disclosed program/partner checks, same-campaign identity-stitch proof, and refund-source binding; product commit 9b8bdeaf pushed/read back; no live action`
 ACTIVE_HERMES_LANE: `NONE — Hermes bridge polling is disabled by owner; no source-copy lane is active`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `NONE — do not revive the stale marker or read historical Hermes artifacts unless the owner explicitly re-enables delegation`
 HERMES_BRIDGE_POLLING: `DISABLED — no bridge reads, reminders, task dispatch, or Hermes source integration`
 NEXT_ACTION: `Continue the local architecture reconciliation one finite source gap at a time. Do not revive Hermes or the stale current marker. The next change must be independently reproduced, focused-tested, committed and pushed before the handoff advances. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
 BRIDGE_OBSERVATION: `Hermes polling was explicitly stopped. Historical bridge artifacts, stale OPEN markers and unread replies are inert; Codex is working from current repository source and this handoff only.`
-CURRENT_LOCAL_DELIVERY: `M954 affiliate identity-stitch claim integrated; affiliate route tests 10/10, LoginForm tests 16/16, API suite 73 files/1,138 passed/50 skipped, dashboard suite 154 files/976 passed, core catalog tests 139/139, core build and API/dashboard typechecks pass, diff-check pass; no live action`
-PRODUCT_COMPLETION_COMMIT: `c63855b2aa8bed4ca97a499e15d4cdd0ae95d9d0 — M954 completed the authenticated affiliate referral identity handoff`
+CURRENT_LOCAL_DELIVERY: `M955 affiliate conversion provenance integrated; affiliate route tests 11/11, API suite 73 files/1,139 passed/50 skipped, API typecheck and diff-check pass; no live action`
+PRODUCT_COMPLETION_COMMIT: `9b8bdeafd93303048ae1e75fefebc61a21eff61b — M955 completed fail-closed affiliate conversion provenance`
 HERMES_LANE_DISPOSITION: `NONE — the prior F89 marker and receipt are historical evidence only while Hermes polling is disabled`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
