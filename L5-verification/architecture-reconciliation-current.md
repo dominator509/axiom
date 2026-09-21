@@ -1465,3 +1465,19 @@ incident/Relay operator-count source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M964 — F-89 audit chain count formatting
+
+The mounted audit page's chain-integrity badge exposed the verified entry
+count as a raw integer. It now uses the selected locale's shared number
+formatter; audit identifiers, action codes and bounded detail remain data.
+
+Evidence: focused audit page test 1/1, full dashboard suite 155 files / 981
+passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`152eec655413802a878873a899071243104b49fb` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+audit count-formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
