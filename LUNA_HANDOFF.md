@@ -7,11 +7,11 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `d5e90f6c06f708175b1f70b5f0369e14bbe8f5b5` (current pushed coordination head; active Hermes task remains intentionally pinned to the exact product source commit fb523d2)
+SOURCE_HEAD: `bbb156d1` (current pushed coordination head; the completed local M924 implementation is authoritative)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `d5e90f6c06f708175b1f70b5f0369e14bbe8f5b5` (verified local and origin readback)
-COORDINATION_HEAD: `d5e90f6c06f708175b1f70b5f0369e14bbe8f5b5`
-COORDINATION_HEAD_LAST_READBACK: `d5e90f6c06f708175b1f70b5f0369e14bbe8f5b5 — M922 Hermes lane reconciliation`
+PUBLISHED_HEAD: `bbb156d1` (verified local and origin readback)
+COORDINATION_HEAD: `bbb156d1`
+COORDINATION_HEAD_LAST_READBACK: `bbb156d1 — M924 local dashboard localization completion`
 ACCEPTED_PRODUCT_SOURCE: `6844f8ef6e266660f5d6a71d9c9acdecdc29a59b`
 CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — OPEN marker for F89-DASHBOARD-REMAINING-L10N-R2; remote marker is /srv/fanthynks-bridge/hermes/inbox/CURRENT_TASK.json`
 CURRENT_TASK_MANIFEST_SHA256: `38698ee21058e890723fd94ffa2d3d520a919d60418761dd9c58c4b2561e8fb0`
@@ -20,11 +20,13 @@ CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanni
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
 LAST_COMPLETED_SOURCE_MILESTONE: `M921 — F-89 character/cascade/link-in-bio localization delivery audit recorded at fb523d2497ca370b2272e274376d622395fe5e98; the next active slice is dashboard remaining localization`
-ACTIVE_HERMES_LANE: `F89-DASHBOARD-REMAINING-L10N-R2 — active source-only implementation for the remaining mounted dashboard localization surfaces`
+ACTIVE_HERMES_LANE: `NONE — F89-DASHBOARD-REMAINING-L10N-R2 was observed for five polls with no execution and was reclaimed locally in M924`
 CODEX_OWNER: `CODEX`
-HERMES_IMPLEMENTATION_OWNER: `HERMES — R2 task is source-bound and published; ownership is not counted until a valid ACK/ACCEPTED for R2 is read; Hermes edits only its isolated copy and never commits or pushes`
-NEXT_ACTION: `Hermes must read the R2 marker, return one valid ACK/ACCEPTED, create the exact source copy, and produce a real PROGRESS or strict flat DELIVERY; Codex will poll the same lane before judging execution. No deployment, installer, migration, provider, credential, permission, systemd, network or runtime action.`
-BRIDGE_OBSERVATION: `Five read-only polls of the prior R1 lane showed no copy, delivery or task-specific execution; R2 now replaces R1 with a complete sync binding and a matching remote marker. Do not count transport REPLIED or gateway liveness as coding progress.`
+HERMES_IMPLEMENTATION_OWNER: `NONE — Hermes produced no valid ACK/ACCEPTED, source copy, PROGRESS or DELIVERY after five polls; no Hermes artifact was integrated`
+NEXT_ACTION: `Do not act on the closed R2 lane. Codex M924 is authoritative; issue a fresh Hermes task only after selecting the next bounded source gap and pushing its exact source pin. No deployment, installer, migration, provider, credential, permission, systemd, network or runtime action.`
+BRIDGE_OBSERVATION: `Five fresh read-only polls after the corrected R2 marker found empty COPY_ROOT and DELIVERY_ROOT, no task-specific progress/delivery reply, and no task-specific executor. Gateway liveness and transport REPLIED are not coding progress.`
+CURRENT_LOCAL_DELIVERY: `M924 — remaining dashboard localization implemented and pushed at bbb156d1; core 134/134, dashboard 917/917, dashboard lint 0 errors, core/dashboard typechecks pass`
+HERMES_LANE_DISPOSITION: `CLOSED LOCALLY — no Hermes source artifact, commit or delivery exists; the stale remote marker must not be treated as an active assignment`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
 HERMES_TASK_ENVELOPE_TEMPLATE: `L5-verification/hermes-task-envelope-template.md — copy the exact JSON/block shape; validate locally before sending`
@@ -32,7 +34,7 @@ HERMES_DELIVERY_ACCEPTANCE_FIELDS: `ARTIFACT, SHA256, COMMAND, EXIT_CODE, TEST_R
 HERMES_REPLY_FORMAT_GATE: `ACK = TYPE ACK + STATE READ|ACCEPTED; PROGRESS = TYPE PROGRESS + STATE IN_PROGRESS; DELIVERY = TYPE DELIVERY + STATE DELIVERED + TERMINAL YES; BLOCKED = TYPE NACK + STATE BLOCKED + TERMINAL YES; every reply has a new WIRE distinct from IN_REPLY_TO, exact SEQ, PAYLOAD delimiter, READ_STATUS READ once, and final signature sincerely, Hermes`
 HERMES_DELIVERY_FORMAT_GATE: `DELIVERY PAYLOAD must contain exactly once: ARTIFACT, SHA256 (64 lowercase hex), COMMAND, EXIT_CODE (integer), TEST_RESULT (PASS|FAIL), CHANGED_FILES, SOURCE_REPO, SOURCE_REF, SOURCE_COMMIT, COPY_ROOT, DELIVERY_ROOT, MANIFEST_SHA256 (64 lowercase hex), LIVE_ACTIONS NONE; no prose substitute or duplicate fields`
 HERMES_BLOCKED_FORMAT_GATE: `If required checks cannot run or one concrete input is missing, use TYPE NACK, STATE BLOCKED, TERMINAL YES, NEXT_OWNER CODEX, a unique WIRE, REASON naming the single blocker, PAYLOAD READ_STATUS READ and LIVE_ACTIONS NONE exactly once; do not send a second ACK or a no-change delivery`
-OPEN_WIRES: `CODEX-F89-DASHBOARD-REMAINING-L10N-R2-TASK-001 → HERMES; awaiting ACK/ACCEPTED, then PROGRESS or DELIVERY`
+OPEN_WIRES: `NONE — R2 execution was not started by Hermes and was closed locally after the five-poll observation window`
 STALE_HERMES_REPLY: `HERMES-F15-F16-VARIANT-GUIDANCE-CURRENT-DELIVERY-004` was rejected by CODEX-F15-F16-VARIANT-GUIDANCE-CURRENT-RECEIPT-REJECT-005; it is terminal historical evidence and does not reopen or advance any lane`
 OPEN_CONTROL_WIRE: `NONE — CODEX-HERMES-WORKFLOW-RECONCILIATION-R2-TASK-001 is closed`
 OPEN_CONTROL_TASK_STATE: `CLOSED — valid ACK/ACCEPTED was read back at SEQ 2 and terminal Codex READ receipt was uploaded at SEQ 3`
@@ -47,8 +49,8 @@ OPEN_CONTROL_TASK_PROGRESS_RECEIPT_WIRE: `NONE`
 OPEN_CONTROL_TASK_PROGRESS_RECEIPT_SHA256: `NONE`
 OPEN_CONTROL_TASK_NEXT_ACTION: `Do not read or act on any closed lane again; install one new current feature marker/task only after a source gap is selected and its exact pushed head is read back.`
 ACTIVE_LANE_LOCAL_BASELINE: `M786 F84 versioned learning arms, M787 scraper route-shell localization, M789 workspace-members route-shell localization, M791 Grok connection route-shell localization, M793 cascades route-shell localization, M795 team/shifts route-shell localization, M797 variant-experiments route-shell localization, M799 portfolio home-shell localization, M806 media gallery shell localization, M815/M818 media approval localization, M820 generation/upload/progress localization, M822 caption evidence localization, M824 Patreon web localization, M833 Relay reconciliation, M837 variant source ownership hardening, M838 temporal guidance arm/consumer hardening, M839 model overview route-shell localization, M840 inbox attachment localization, M841 model-assignment localization, M842 post-note localization, M843 social-disconnect localization, M844 InboxReplies/Chatter reply and assigned-LLM draft localization, M845 Fanvue analytics-card localization, M846 affiliate hold-date localization, M847 affiliate hold-reason localization, M848 approval-queue localization, M849 portfolio-error localization, M850 profile/network/lifecycle localization, M851 network-child-controls localization, M852 consent-vault localization, M853 Fan CRM localization, M854 Chatter/roleplay localization, M855 analytics trend-date localization, M856 Network route localization, M857 relay-binding localization, M858 workspace-members localization and M859 PlaybookCadence calendar localization are integrated on the branch; F50 Linktree is terminal deferred for missing provider contract; F89 worker digest is integrated through fallback; M883 provider-neutral storage is integrated at 9a720071; M892 storage hardening is integrated at c884ad4; M907 canonical storage-key fixtures and deterministic isolated test discovery/database sequencing are integrated at fb594a4; M915 Hermes source-head reconciliation is integrated at fe24689; no feature lane is active until the next current marker is installed.`
-CURRENT_MILESTONE: `M921 coordination head fb523d2497ca370b2272e274376d622395fe5e98; R2 dashboard localization task is source-bound and published with a matching current marker; no Hermes implementation artifact observed yet; no live action`
-CURRENT_MILESTONE_OPEN_GATES: `F50 Linktree remains terminally deferred for missing provider contract; F89 dashboard remaining localization is open pending Hermes source-copy execution and strict DELIVERY; remaining localization, runtime/provider/browser/mobile/migration/RLS/observability/CI/WireGuard/production acceptance remain open.`
+CURRENT_MILESTONE: `M924 coordination head bbb156d1; dashboard remaining localization is implemented locally and pushed after Hermes did not execute the R2 lane; no live action`
+CURRENT_MILESTONE_OPEN_GATES: `F50 Linktree remains terminally deferred for missing provider contract; remaining runtime/provider/browser/mobile/migration/RLS/observability/CI/WireGuard/production acceptance remain open.`
 CLOCK_FIELDS: `FORBIDDEN — logical SEQ/WIRE/IN_REPLY_TO only`
 CONTROL_TASK_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-TASK`
 CONTROL_TASK_STATE: `CLOSED — strict ACK/ACCEPTED read and terminal Codex READ receipt sent`
@@ -56,11 +58,11 @@ CONTROL_TASK_NEXT_OWNER: `NONE`
 CONTROL_TASK_LIVE_ACTIONS: `NONE`
 CONTROL_TASK_CORRECTION_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-REJECT-003`
 CONTROL_TASK_RECEIPT_WIRE: `CODEX-CONTROL-PLANE-RECONCILIATION-002-RECEIPT-005`
-NEXT_PREPARED_TASK: `F89-DASHBOARD-REMAINING-L10N-R2`
-NEXT_PREPARED_TASK_WIRE: `CODEX-F89-DASHBOARD-REMAINING-L10N-R2-TASK-001`
-NEXT_PREPARED_TASK_SOURCE_COMMIT: `fb523d2497ca370b2272e274376d622395fe5e98`
+NEXT_PREPARED_TASK: `NONE — select the next bounded architecture gap after the M924 audit`
+NEXT_PREPARED_TASK_WIRE: `NONE`
+NEXT_PREPARED_TASK_SOURCE_COMMIT: `NONE`
 NEXT_PREPARED_TASK_ARCHIVE_SHA256: `NONE — exact Git source ref is authoritative`
-NEXT_PREPARED_TASK_STATE: `OPEN — R2 task and current marker are published; awaiting strict ACK/ACCEPTED`
+NEXT_PREPARED_TASK_STATE: `NONE — R2 was closed locally after five no-execution polls`
 ACTIVE_LANE_TASK_WIRE: `CODEX-F89-DASHBOARD-REMAINING-L10N-R2-TASK-001`
 ACTIVE_LANE_SOURCE_COMMIT: `fb523d2497ca370b2272e274376d622395fe5e98`
 ACTIVE_LANE_SOURCE_REPO: `github.com/dominator509/axiom`
