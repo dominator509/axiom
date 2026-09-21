@@ -2,7 +2,7 @@
 
 Date: 2026-09-21  
 Repository: `dominator509/axiom`  
-Source checkpoint: `72edd90339954fe290e7f00f2e96c3b4ba3b30ea`
+Source checkpoint: `5a22f93aa6213ec1b26e1919b1c36b0d6ec55452`
 
 This is a fact record, not a production-readiness claim. The requirements come
 from `L1-product/L1.1-feature-catalog.md`; intended boundaries come from the
@@ -1746,3 +1746,20 @@ playbook-cadence count-formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M980 - F-89 roleplay, media-prompt and playbook revision formatting
+
+Roleplay persona revision/length, media character-lock revision, and playbook
+editor/history revision values now pass through the selected locale's shared
+number formatter. Roleplay authoring, prompt-review approval, saved identity
+evidence, and playbook mutation semantics are unchanged.
+
+Evidence: focused roleplay/media/playbook tests 31/31, full dashboard suite
+156 files / 1004 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`5a22f93aa6213ec1b26e1919b1c36b0d6ec55452` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+roleplay/media-prompt/playbook revision-formatting source slice; complete
+catalog adoption, browser/native acceptance, deployed migration/RLS/runtime,
+provider receipts, observability, CI governance and production acceptance
+remain open. No live action occurred.
