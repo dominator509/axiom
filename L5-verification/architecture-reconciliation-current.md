@@ -1569,3 +1569,21 @@ portfolio count-formatting source slice; complete catalog adoption,
 browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
 observability, CI governance and production acceptance remain open. No live
 action occurred.
+
+### M970 — F-89 analytics formatting
+
+The model Analytics route still passed raw window/daily/cadence counts,
+guideline revisions and a top performance score into visible localized copy.
+Those values now use the route's selected-locale number formatters, including
+two decimal places for performance scores; identifiers, platform labels,
+authored strategy text and provider/publication boundaries remain data.
+
+Evidence: focused Analytics page tests 7/7, full dashboard suite 156 files /
+988 passed, dashboard typecheck/lint, `git diff --check` and
+`scripts/verify.sh` (`verify: ok`) pass. Product source commit
+`35e93ae78b43a9a1f87da07ccb87bd41ee7acdf9` is pushed and read back from
+`origin/codex/telegram-webhook-hardening`. This closes only the verified
+analytics summary-formatting source slice; complete catalog adoption,
+browser/native acceptance, deployed migration/RLS/runtime, provider receipts,
+observability, CI governance and production acceptance remain open. No live
+action occurred.
