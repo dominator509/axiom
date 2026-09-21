@@ -5,8 +5,10 @@ Repository: `dominator509/axiom`
 Working branch: `codex/telegram-webhook-hardening`
 
 **Agent continuation entry point:** `../LUNA_HANDOFF.md` contains the current
-SHA/CI checkpoint, ordered next actions, gap list and Hermes review status. Keep
-it synchronized with this cumulative plan and `.agent/state/LEDGER.md`.
+SHA/CI checkpoint, ordered next actions and gap list. Hermes delegation is
+disabled; references to Hermes elsewhere in this historical plan are evidence
+of earlier workflow only and are not active assignments. Keep the handoff
+synchronized with this cumulative plan and `.agent/state/LEDGER.md`.
 
 The current source-grounded reconciliation is recorded in
 `L5-verification/architecture-reconciliation-current.md`. It is the factual
@@ -30,10 +32,10 @@ Source and automated evidence never substitutes for a missing runtime or provide
 
 ## Active execution sequence — M354 onward
 
-Codex leads the integration loop and Hermes performs one bounded source-coding
-batch at a time. Hermes may not invoke the installed deployment helper or touch
-live state. Codex audits the delivered source and tests, integrates only after
-review, runs the owning checks, commits and pushes, then advances the queue.
+Codex owns the integration loop and performs the remaining bounded source
+reconciliation directly. No delegated implementation lane is active. Codex
+must audit the current source before editing, run the owning checks, commit and
+push each accepted milestone, and advance only from current repository evidence.
 
 1. **Active target-context repair (M354):** eliminate ambient live DB/service/
    rollback target resolution in the installer and bridge; add positive and
