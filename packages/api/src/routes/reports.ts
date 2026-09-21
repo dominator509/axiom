@@ -7,6 +7,8 @@ import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
 import { buildMonthlyReportPdf, type MonthlyReportData } from '../reports/monthly-pdf.js';
 import { modelAccessCondition } from '../model-access.js';
+import { normalizeLocale, resolveLocale, type SupportedLocale } from '@axiom/core';
+import { schema } from '@axiom/db';
 
 const router = new Hono<AppBindings>();
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -33,6 +35,24 @@ function monthBounds(month: string): { start: Date; end: Date } {
   return { start, end };
 }
 
+async function resolveReportLocale(c: any, tx: any, orgId: string): Promise<SupportedLocale> {
+  const userId = c.get('userId') as string | undefined;
+  const preferences = userId
+    ? await tx.select({
+        scope: schema.uiLocalePreference.scope,
+        userId: schema.uiLocalePreference.userId,
+        locale: schema.uiLocalePreference.locale,
+      }).from(schema.uiLocalePreference).where(sql`
+        ${schema.uiLocalePreference.orgId} = ${orgId}
+        AND (${schema.uiLocalePreference.scope} = 'org'
+          OR (${schema.uiLocalePreference.scope} = 'user' AND ${schema.uiLocalePreference.userId} = ${userId}))
+      `)
+    : [];
+  const userLocale = normalizeLocale(preferences.find((row: any) => row.scope === 'user')?.locale);
+  const orgLocale = normalizeLocale(preferences.find((row: any) => row.scope === 'org')?.locale);
+  return resolveLocale({ userLocale, orgLocale, acceptLanguage: c.req.header('accept-language') }).locale;
+}
+
 router.get('/models/:modelId/reports/monthly', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
@@ -43,6 +63,7 @@ router.get('/models/:modelId/reports/monthly', async (c) => {
   const { start, end } = monthBounds(month);
 
   const report = await withOrgContext(orgId, async (tx) => {
+    const locale = await resolveReportLocale(c, tx, orgId);
     const result = await tx.execute(sql`
       WITH latest_metrics AS (
         SELECT DISTINCT ON (pm.post_target_id) pm.views, pm.likes, pm.shares, pm.comments
@@ -89,11 +110,13 @@ router.get('/models/:modelId/reports/monthly', async (c) => {
       comments: numberValue(row.comments),
       adherenceScore: numberValue(row.adherenceScore),
       viralExemplars: numberValue(row.viralExemplars),
-    } satisfies MonthlyReportData;
+      locale,
+    } satisfies MonthlyReportData & { locale: SupportedLocale };
   });
   if (!report) return apiError(c, 404, statusTitle(404), 'model not found');
 
-  const pdf = buildMonthlyReportPdf(report);
+  const { locale, ...reportData } = report;
+  const pdf = buildMonthlyReportPdf(reportData, locale);
   return new Response(Buffer.from(pdf), {
     headers: {
       'Content-Type': 'application/pdf',

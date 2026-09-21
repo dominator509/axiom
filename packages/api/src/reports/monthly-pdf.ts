@@ -8,6 +8,10 @@
  * report contract.
  */
 
+import { CATALOGS, LocaleCatalog, formatDate, formatNumber, type SupportedLocale } from '@axiom/core';
+
+const catalog = new LocaleCatalog(CATALOGS);
+
 export interface MonthlyReportData {
   displayName: string;
   period: string;
@@ -22,53 +26,69 @@ export interface MonthlyReportData {
 }
 
 function pdfText(value: string): string {
-  return value
-    .normalize('NFKD')
-    .replace(/[^\x20-\x7E]/g, '?')
-    .replace(/\\/g, '\\\\')
-    .replace(/\(/g, '\\(')
-    .replace(/\)/g, '\\)');
+  const normalized = value.normalize('NFC');
+  if (/^[\x20-\x7E]*$/.test(normalized)) {
+    return `(${normalized.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)')})`;
+  }
+
+  // Type-0 fonts consume UTF-16BE strings. Keep the BOM so viewers do not
+  // guess a legacy encoding and silently replace Japanese or accented text.
+  let hex = 'FEFF';
+  for (let index = 0; index < normalized.length; index += 1) {
+    const codeUnit = normalized.charCodeAt(index);
+    hex += codeUnit.toString(16).padStart(4, '0').toUpperCase();
+  }
+  return `<${hex}>`;
 }
 
-function formatNumber(value: number): string {
-  return Number.isFinite(value) ? Math.max(0, Math.round(value)).toLocaleString('en-US') : '0';
+function reportCount(value: number, locale: SupportedLocale): string {
+  return formatNumber(Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0, locale);
 }
 
 /** Return a valid single-page PDF as bytes. */
-export function buildMonthlyReportPdf(data: MonthlyReportData): Uint8Array {
+export function buildMonthlyReportPdf(data: MonthlyReportData, locale: SupportedLocale = 'en'): Uint8Array {
+  const t = (key: string, values?: Record<string, string | number>): string => catalog.t(locale, key, values);
+  const periodDate = new Date(`${data.period}-01T00:00:00.000Z`);
+  const period = Number.isNaN(periodDate.getTime())
+    ? data.period
+    : formatDate(periodDate, locale, { month: 'long', year: 'numeric', timeZone: 'UTC' });
   const lines = [
-    'FanThynks · Monthly performance report',
-    `${data.displayName} · ${data.period}`,
+    t('monthlyReport.title'),
+    `${data.displayName} - ${period}`,
     '',
-    `Scheduled posts: ${formatNumber(data.scheduledPosts)}`,
-    `Published posts: ${formatNumber(data.publishedPosts)}`,
-    `Views: ${formatNumber(data.views)}`,
-    `Likes: ${formatNumber(data.likes)}`,
-    `Shares: ${formatNumber(data.shares)}`,
-    `Comments: ${formatNumber(data.comments)}`,
-    `Course adherence score: ${formatNumber(data.adherenceScore)} / 100`,
-    `Viral exemplars captured: ${formatNumber(data.viralExemplars)}`,
+    t('monthlyReport.scheduledPosts', { count: reportCount(data.scheduledPosts, locale) }),
+    t('monthlyReport.publishedPosts', { count: reportCount(data.publishedPosts, locale) }),
+    t('monthlyReport.views', { count: reportCount(data.views, locale) }),
+    t('monthlyReport.likes', { count: reportCount(data.likes, locale) }),
+    t('monthlyReport.shares', { count: reportCount(data.shares, locale) }),
+    t('monthlyReport.comments', { count: reportCount(data.comments, locale) }),
+    t('monthlyReport.adherenceScore', { count: reportCount(data.adherenceScore, locale) }),
+    t('monthlyReport.viralExemplars', { count: reportCount(data.viralExemplars, locale) }),
     '',
-    'Metrics are generated from the authenticated workspace analytics store.',
-    'Totals use one latest saved snapshot per post within the selected month.',
-    'These are cumulative counters, not engagement earned during the month.',
-    'Saved observations may include manual or legacy metric sources.',
+    t('monthlyReport.source'),
+    t('monthlyReport.latestSnapshot'),
+    t('monthlyReport.cumulative'),
+    t('monthlyReport.savedObservations'),
   ];
 
-  const commands = ['BT', '/F1 18 Tf', '54 748 Td'];
+  const commands = ['BT', '54 748 Td'];
   lines.forEach((line, index) => {
-    if (index === 2) commands.push('/F1 11 Tf');
+    const text = pdfText(line);
+    const font = text.startsWith('<') ? 'F2' : 'F1';
+    commands.push(`/${font} ${index === 0 ? 18 : 11} Tf`);
     if (index > 0) commands.push('0 -24 Td');
-    commands.push(`(${pdfText(line)}) Tj`);
+    commands.push(`${text} Tj`);
   });
   commands.push('ET');
   const stream = commands.join('\n');
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>',
     `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Type /Font /Subtype /Type0 /BaseFont /HeiseiMin-W3 /Encoding /UniJIS-UTF16-H /DescendantFonts [7 0 R] >>',
+    '<< /Type /Font /Subtype /CIDFontType0 /BaseFont /HeiseiMin-W3 /CIDSystemInfo << /Registry (Adobe) /Ordering (Japan1) /Supplement 2 >> /DW 1000 >>',
   ];
   let pdf = '%PDF-1.4\n';
   const offsets = [0];

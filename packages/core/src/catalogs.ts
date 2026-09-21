@@ -3,6 +3,7 @@ import { CATALOGS as BASE_CATALOGS } from './locale-catalogs.js';
 import { DASHBOARD_REMAINING_CATALOGS } from './dashboard-remaining-catalog.js';
 import { VIRAL_INSIGHT_CATALOGS } from './viral-insight-catalog.js';
 import { MODEL_SURFACE_CATALOGS } from './model-surface-catalog.js';
+import { MONTHLY_REPORT_CATALOGS } from './monthly-report-catalog.js';
 
 /**
  * The single runtime catalog exposed to the application.
@@ -19,6 +20,7 @@ export const CATALOGS: Record<SupportedLocale, Catalog> = Object.fromEntries(
       ...DASHBOARD_REMAINING_CATALOGS[locale],
       ...VIRAL_INSIGHT_CATALOGS[locale],
       ...MODEL_SURFACE_CATALOGS[locale],
+      ...MONTHLY_REPORT_CATALOGS[locale],
     },
   ]),
 ) as Record<SupportedLocale, Catalog>;
