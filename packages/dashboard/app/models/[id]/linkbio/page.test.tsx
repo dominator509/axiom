@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CATALOGS, LocaleCatalog, type SupportedLocale } from '@axiom/core';
+import { CATALOGS, LocaleCatalog, formatNumber, type SupportedLocale } from '@axiom/core';
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -59,13 +59,13 @@ it('localizes linkbio, analytics and attribution copy while preserving data', as
     },
   });
   mocks.linkbioAnalytics.mockResolvedValue({
-    data: { providers: [], totalClicks: 12, topTargets: [{ target: 'https://example.test', count: 12 }] },
+    data: { providers: [], totalClicks: 12345, topTargets: [{ target: 'https://example.test', count: 12345 }] },
   });
   mocks.linkbioAttribution.mockResolvedValue({
     data: {
-      currency: 'USD', totalClicks: 12, attributedConversions: 3, unattributedConversions: 1,
+      currency: 'USD', totalClicks: 12345, attributedConversions: 1234, unattributedConversions: 1001,
       attributedRevenueCents: 12345, conversionRate: 0.25, roi: null, roiStatus: 'unavailable',
-      links: [{ slug: 'welcome', targetUrl: 'https://example.test', clicks: 12, conversions: 3, revenueCents: 12345 }],
+      links: [{ slug: 'welcome', targetUrl: 'https://example.test', clicks: 12345, conversions: 1234, revenueCents: 12345 }],
     },
   });
 
@@ -76,6 +76,9 @@ it('localizes linkbio, analytics and attribution copy while preserving data', as
   expect(html).not.toContain(catalog.t('en', 'modelSurface.clickAnalytics'));
   expect(html).toContain('https://example.test');
   expect(html).toContain('welcome');
+  expect(html).toContain(formatNumber(12345, 'de'));
+  expect(html).toContain(formatNumber(1234, 'de'));
+  expect(html).not.toContain('12345');
   expect(html).toContain('data-can-edit="true"');
 });
 
@@ -84,4 +87,3 @@ it.each(['es', 'ja', 'it', 'pt-BR', 'de'] as SupportedLocale[])('localizes the e
   expect(html).toContain(catalog.t(locale, 'modelSurface.noProvider'));
   expect(html).not.toContain(catalog.t('en', 'modelSurface.noProvider'));
 });
-

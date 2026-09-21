@@ -1,6 +1,7 @@
 import { api, getSession } from '@/lib/api';
 import LinkbioPanel from '@/components/LinkbioPanel';
 import { getServerLocale } from '@/lib/server-locale';
+import { formatNumber } from '@axiom/core';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,7 +86,7 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
           </p>
         ) : (
           <p style={{ color: 'var(--muted)' }}>
-            {t('modelSurface.activeProviders', { count: data.providers.filter((p) => p.enabled).length })}
+            {t('modelSurface.activeProviders', { count: formatNumber(data.providers.filter((p) => p.enabled).length, locale) })}
             {data.primary ? t('modelSurface.primaryProvider', { kind: data.primary.kind }) : ''}
           </p>
         )}
@@ -105,7 +106,7 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
       {analytics && analytics.totalClicks > 0 && (
         <div className="card">
           <h3>{t('modelSurface.clickAnalytics')}</h3>
-          <strong>{t('modelSurface.totalClicks', { count: analytics.totalClicks })}</strong>
+          <strong>{t('modelSurface.totalClicks', { count: formatNumber(analytics.totalClicks, locale) })}</strong>
           <table style={{ marginTop: 8 }}>
             <thead>
               <tr>
@@ -117,7 +118,7 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
               {analytics.topTargets.map((t) => (
                 <tr key={t.target}>
                   <td>{t.target}</td>
-                  <td>{t.count}</td>
+                  <td>{formatNumber(t.count, locale)}</td>
                 </tr>
               ))}
             </tbody>
@@ -131,9 +132,9 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
             {t('modelSurface.revenueFacts')}
           </p>
           <div className="row" style={{ gap: 16, flexWrap: 'wrap' }}>
-            <span><strong>{t('modelSurface.trackedClicks', { count: attribution.totalClicks })}</strong></span>
-            <span><strong>{t('modelSurface.attributedConversions', { count: attribution.attributedConversions })}</strong></span>
-            <span><strong>{t('modelSurface.unattributedConversions', { count: attribution.unattributedConversions })}</strong></span>
+            <span><strong>{t('modelSurface.trackedClicks', { count: formatNumber(attribution.totalClicks, locale) })}</strong></span>
+            <span><strong>{t('modelSurface.attributedConversions', { count: formatNumber(attribution.attributedConversions, locale) })}</strong></span>
+            <span><strong>{t('modelSurface.unattributedConversions', { count: formatNumber(attribution.unattributedConversions, locale) })}</strong></span>
             <span><strong>{t('modelSurface.attributedRevenue', { amount: formatCurrency(attribution.attributedRevenueCents, attribution.currency) })}</strong></span>
             <span><strong>{t('modelSurface.clickToConversion', { rate: formatPercent(attribution.conversionRate) })}</strong></span>
           </div>
@@ -143,8 +144,8 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
               <tbody>{attribution.links.map((link) => (
                 <tr key={link.slug}>
                   <td>{link.slug}</td>
-                  <td>{link.clicks}</td>
-                  <td>{link.conversions}</td>
+                  <td>{formatNumber(link.clicks, locale)}</td>
+                  <td>{formatNumber(link.conversions, locale)}</td>
                   <td>{formatCurrency(link.revenueCents, attribution.currency)}</td>
                 </tr>
               ))}</tbody>
