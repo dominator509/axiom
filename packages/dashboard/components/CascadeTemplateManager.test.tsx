@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { ReactElement } from 'react';
+import { formatNumber } from '@axiom/core';
 
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, refs: [] as { current: unknown }[], r: 0,
   refresh: vi.fn(), confirm: vi.fn() }));
@@ -65,7 +66,7 @@ vi.mock('./LocaleProvider', () => ({
     },
   }),
 }));
-import CascadeTemplateManager from './CascadeTemplateManager';
+import CascadeTemplateManager, { formatCascadeStepNumber } from './CascadeTemplateManager';
 
 const template = { id: 'tmpl-1', modelId: 'model', name: 'Launch', enabled: true, steps: [{ platform: 'x', offsetMinutes: 0 }, { platform: 'instagram', offsetMinutes: 120 }], createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' };
 
@@ -177,4 +178,9 @@ it('does not delete when the operator cancels the localized confirmation', async
   manager([template]);
   await findButton(manager([template]), 'Delete')!.props.onClick();
   expect(fetch).not.toHaveBeenCalled();
+});
+
+it('formats cascade step numbers through the selected locale', () => {
+  expect(formatCascadeStepNumber(1234, 'de')).toBe(formatNumber(1234, 'de'));
+  expect(formatCascadeStepNumber(1234, 'ja')).toBe(formatNumber(1234, 'ja'));
 });
