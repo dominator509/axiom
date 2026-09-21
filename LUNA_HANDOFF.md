@@ -7,27 +7,27 @@ below it are preserved historical evidence and must not be treated as active
 assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 `owner` wording.
 
-SOURCE_HEAD: `07896f25ab5ec613bd0240a5b97bec7c94acfb46` (M988 product source, pushed; no active Hermes implementation lane)
+SOURCE_HEAD: `18af143f77ad55f8822391a3a9a8c01e1a398492` (M989 product source, pushed; no active Hermes implementation lane)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
-PUBLISHED_HEAD: `07896f25ab5ec613bd0240a5b97bec7c94acfb46` (M988 source commit pushed and read back from origin)
-COORDINATION_HEAD: `07896f25ab5ec613bd0240a5b97bec7c94acfb46` (M988 product milestone; handoff-only update follows)
-COORDINATION_HEAD_LAST_READBACK: `07896f25ab5ec613bd0240a5b97bec7c94acfb46 — exact origin readback`
-ACCEPTED_PRODUCT_SOURCE: `07896f25ab5ec613bd0240a5b97bec7c94acfb46`
+PUBLISHED_HEAD: `18af143f77ad55f8822391a3a9a8c01e1a398492` (M989 source commit pushed and read back from origin)
+COORDINATION_HEAD: `18af143f77ad55f8822391a3a9a8c01e1a398492` (M989 product milestone; handoff-only update follows)
+COORDINATION_HEAD_LAST_READBACK: `18af143f77ad55f8822391a3a9a8c01e1a398492 — exact origin readback`
+ACCEPTED_PRODUCT_SOURCE: `18af143f77ad55f8822391a3a9a8c01e1a398492`
 CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — historical F89-ADAPTATION-ERROR-L10N-R1 marker; no active Hermes source-copy lane`
 CURRENT_TASK_MANIFEST_SHA256: `7c75812f9d2f34913bad58de1788f5aa62d1a8a46053016b97e9655653aea2b0`
 CURRENT_TASK_MANIFEST_REMOTE_SHA256: `7c75812f9d2f34913bad58de1788f5aa62d1a8a46053016b97e9655653aea2b0 — exact bridge marker readback`
 CURRENT_TASK_MANIFEST_RULE: `The current marker is retained as historical coordination evidence only; because Hermes polling is disabled, its OPEN state does not authorize reads, implementation, replies, or source integration`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
-LAST_COMPLETED_SOURCE_MILESTONE: `M988 F-19 learned trigger thresholds — fixed/learned_p90 contract, server-derived p90, fail-closed sample floor and six-locale controls; product commit 07896f25 pushed/read back; no live action`
+LAST_COMPLETED_SOURCE_MILESTONE: `M989 F-85 queued model-scoped viral-insight Relay dispatch — shared binding preflight, per-binding pending markers, evidence-only renderer/adapters and nullable-bundle uniqueness; product commit 18af143f pushed/read back; no live action`
 ACTIVE_HERMES_LANE: `NONE — Hermes bridge polling is disabled by owner; no source-copy lane is active`
 CODEX_OWNER: `CODEX`
 HERMES_IMPLEMENTATION_OWNER: `NONE — do not revive the stale marker or read historical Hermes artifacts unless the owner explicitly re-enables delegation`
 HERMES_BRIDGE_POLLING: `DISABLED — no bridge reads, reminders, task dispatch, or Hermes source integration`
 NEXT_ACTION: `Continue the local architecture reconciliation one finite source gap at a time. Do not revive Hermes or the stale current marker. The next change must be independently reproduced, focused-tested, committed and pushed before the handoff advances. No deployment, live migration, provider, credential, permission, systemd, network or runtime action.`
 BRIDGE_OBSERVATION: `Hermes polling was explicitly stopped. Historical bridge artifacts, stale OPEN markers and unread replies are inert; Codex is working from current repository source and this handoff only.`
-CURRENT_LOCAL_DELIVERY: `M988 F-19 learned trigger thresholds integrated; focused API 6/6, worker 2/2, dashboard 5/5, core 26 files/142 tests, full dashboard 156 files/1010 passed, package typechecks/lint pass; full API/worker suites retain unrelated existing failures; no live action`
-PRODUCT_COMPLETION_COMMIT: `07896f25ab5ec613bd0240a5b97bec7c94acfb46 — M988 learned trigger thresholds`
+CURRENT_LOCAL_DELIVERY: `M989 F-85 queued model-scoped viral-insight Relay dispatch integrated; Relay 22/22 focused and 274/274 full tests pass, Worker 36/36 focused tests pass, Relay/Worker/DB builds pass; Worker full suite is 294 passed/32 skipped with one pre-existing generate.test.ts expectation mismatch for cacheControls; no live action`
+PRODUCT_COMPLETION_COMMIT: `18af143f77ad55f8822391a3a9a8c01e1a398492 — M989 queued viral-insight Relay dispatch`
 HERMES_LANE_DISPOSITION: `NONE — the prior F89 marker and receipt are historical evidence only while Hermes polling is disabled`
 CONTROL_PROTOCOL: `FT-HERMES/1 ACK-NACK-1`
 CONTROL_PROTOCOL_SOURCE: `L5-verification/hermes-message-protocol.md`
@@ -1371,6 +1371,34 @@ only by this Windows checkout's symlink privilege (`EPERM`), not by TypeScript,
 route, or page compilation. No runtime, provider, database, permission or
 deployment action occurred. The external Relay delivery and authenticated
 browser gates remain open.
+
+## Source milestone — M989 queued viral-insight Relay dispatch
+
+M989 closes the source-level F-85 gap where model-scoped viral insight cards
+were persisted as `stored` evidence but never entered the established Relay
+queue. The worker now enqueues an idempotent `relay.card` job carrying the
+source insight-card identity, and the dispatch executor performs shared
+binding preflight before any provider I/O, persists one pending marker per
+destination binding, renders bounded evidence-only insight content, sends
+through the existing Telegram/Discord/Signal/iMessage adapters, and marks the
+destination `sent` only after the adapter resolves. A nullable-bundle partial
+unique index and migration 0064 protect model-scoped pending dispatch
+identity. Kill-switch, missing-binding, malformed-evidence, and ambiguous
+pending/unknown states fail closed.
+
+Evidence: Relay focused renderer 22/22 and full package 274/274; Worker
+focused viral/dispatch/legacy Relay tests 36/36; Relay, Worker and DB builds
+pass; `git diff --check` passes. The Worker full suite remains explicitly
+bounded at 294 passed/32 skipped with one pre-existing `generate.test.ts`
+expectation mismatch because the implementation now includes `cacheControls`
+in the provider call options. Product commit
+`18af143f77ad55f8822391a3a9a8c01e1a398492` is pushed and read back exactly
+from `origin/codex/telegram-webhook-hardening`. No migration, provider,
+runtime, database or deployment action occurred.
+
+Remaining F-85 gaps are revenue/conversion attribution, richer contextual
+arms, cross-model opt-in behavior, recurring insight scheduling, migration
+application, provider/runtime acceptance and operator acceptance.
 
 ## Handoff maintenance rule
 
