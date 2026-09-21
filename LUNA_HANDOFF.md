@@ -10,12 +10,12 @@ assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
 SOURCE_HEAD: `9bde9b7462d48775105487eb24fc20cef8252c2b` (immutable exact source pin for the active F89 mounted-surface localization task; later handoff-only commits do not change the task source)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
 PUBLISHED_HEAD: `9bde9b7462d48775105487eb24fc20cef8252c2b` (source pin read back before publishing the F89 task record)
-COORDINATION_HEAD: `01d212cd6ad71f9927b75fa05b5f8624d57791c8` (task-record publication commit; subsequent handoff-only commits do not change the D001 source pin)
-COORDINATION_HEAD_LAST_READBACK: `01d212cd6ad71f9927b75fa05b5f8624d57791c8 — exact origin readback for the D001 assignment; inspect Git for later handoff-only commits`
+COORDINATION_HEAD: `71b77ec562c059765aeb04bd4fae039c60c05a43` (task-record publication commit; subsequent handoff-only commits do not change the F89 source pin)
+COORDINATION_HEAD_LAST_READBACK: `71b77ec562c059765aeb04bd4fae039c60c05a43 — exact origin readback for the F89 assignment; inspect Git for later handoff-only commits`
 ACCEPTED_PRODUCT_SOURCE: `e5fe10ff2962645f1dabc4b0ce64359324ae5408`
 CURRENT_TASK_MANIFEST: `var/hermes-control/current-task.json — F89-MODEL-MOUNTED-SURFACE-L10N-R1 OPEN; this is the only active Hermes lane`
 CURRENT_TASK_MANIFEST_SHA256: `838ac2eb5ccd0f37ad7aaf64c9ca934275a5da0bae96018b6a6021160e2365ec`
-CURRENT_TASK_MANIFEST_REMOTE_SHA256: `PENDING — publish/read back after the coordination commit`
+CURRENT_TASK_MANIFEST_REMOTE_SHA256: `838ac2eb5ccd0f37ad7aaf64c9ca934275a5da0bae96018b6a6021160e2365ec — exact bridge marker readback`
 CURRENT_TASK_MANIFEST_RULE: `Hermes must read the current manifest before scanning the bridge; only F89-MODEL-MOUNTED-SURFACE-L10N-R1 is active; D001 R4 and every other inbox/reply/status/outbox/worktree identity are historical and inert`
 CURRENT_TASK_SYNC_CHECK: `rtk node scripts/hermes-sync-check.mjs var/hermes-control/current-task.json <task-envelope.json>`
 CURRENT_TASK_SYNC_GATE: `A lane cannot advance until task-file SHA, exact source commit, last remote ref readback, mirror layout, ancestry, COPY_ROOT and DELIVERY_ROOT all match the manifest; fetch success or transport REPLIED alone never counts`
