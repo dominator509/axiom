@@ -146,6 +146,35 @@ for this correction.
 The hosted build failure and earlier receipts remain preserved. This local
 clean repeat does not by itself change the hosted CI verdict.
 
+## M992 local Docker runtime repeat — PASS
+
+The current checked-out egress-plane bytes were exercised again in the
+repository-owned disposable Linux fixture:
+
+```sh
+rtk node scripts/rehearse-egress.mjs --isolated-fixture
+```
+
+| Evidence | Value |
+| --- | --- |
+| Run ID | `b98e1133-de4b-444c-95f4-5edb7c5c6b92` |
+| Image ID | `sha256:0f072298169284899aa8c22f88cb6c73a3bd1121983515ff0c76c22f50cb3f7c` |
+| Runtime container | `--network none`, not privileged, no host mounts, no published ports |
+| Capabilities | `NET_ADMIN`, `SETPCAP`, `SYS_ADMIN` inside the disposable fixture only |
+| Exit | `0` |
+| Rust tests | 46 library, 16 egress integration, 4 proxy-security; all passed |
+| Required named checks missing | `0` |
+| Receipt SHA-256 | `50aad52dd13fcfd67cdf27108f01ee4d4fd3c1c2ce8ee437723ff3f6251d9fef` |
+| Source-manifest SHA-256 | `7e1e54139d39be8ea95bb5c448351f10f12942697f6b563f9db65b62ff809658` |
+| Test-output SHA-256 | `c8e1eaea4574d2d33bc13b6a151618140363ad409f3aae59c5f8cbaa5f3169db` |
+
+The fixture copied and hashed the current egress-plane source, including the
+durable-health change. It does **not** install systemd, create the proposed
+provisioner/runner binaries, run a real Node connector/MCP/scraper caller, or
+exercise the new systemd templates. It is therefore local Linux egress-plane
+runtime evidence only, not evidence of deployed caller confinement, tenant
+persistence, Relay/Sev-1 behavior, or browser acceptance.
+
 ## Remaining execution gates — do not mark F-02/F-04/F-43 complete
 
 1. **Production privilege/provisioner topology (F-04).** Source deployment

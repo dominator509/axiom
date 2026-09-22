@@ -59,6 +59,13 @@ disabled; do not read the bridge or revive any old lane.
 - Evidence: `node scripts/check-egress-runtime-units.mjs` passes; egress-plane
   library tests pass 46/46; `git diff --check` passes. No target, database,
   service, provider, namespace or browser was touched.
+- Local Docker runtime repeat: `rtk node scripts/rehearse-egress.mjs
+  --isolated-fixture` passed with exit 0. Receipt
+  `b98e1133-de4b-444c-95f4-5edb7c5c6b92` records a network-none,
+  non-privileged, no-host-mount fixture with 46 library, 16 egress integration
+  and 4 proxy-security tests passing and zero missing mandatory checks. It
+  tests the egress plane on Linux, not the unimplemented provisioner/runner
+  binaries or browser/operator workflow.
 - Next source implementation remains the typed provisioner and model runner
   binaries plus their isolated acceptance; deployed WireGuard/proxy/DNS,
   two-tenant queue/Sev-1/Relay, and browser acceptance still require the
