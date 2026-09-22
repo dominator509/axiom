@@ -1,7 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import type { InferSelectModel } from 'drizzle-orm';
 import { schema } from '@axiom/db';
-import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
+import { buildEgressFetch, resolveEgressBinding } from '@axiom/llm-gateway';
 import {
   createConnector,
   FanvueConnector,
@@ -44,14 +44,14 @@ export async function connectorForConnection(
   connection: PlatformConnectionRow,
 ): Promise<ResolvedTargetConnector> {
   const platform = asPlatform(connection.platform);
-  const proxy = await resolveEgressProxy(connection.modelId);
-  if (!proxy) {
-    throw new Error(`model ${connection.modelId} has no healthy egress sidecar`);
+  const binding = await resolveEgressBinding(connection.modelId);
+  if (!binding) {
+    throw new Error(`model ${connection.modelId} has no healthy egress binding`);
   }
   const auth = await decryptConnectorAuth(connection);
   return {
     connection,
-    connector: createConnector(platform, auth, buildEgressFetch(proxy)),
+    connector: createConnector(platform, auth, buildEgressFetch(binding)),
   };
 }
 
@@ -65,14 +65,14 @@ export async function patreonConnectorForConnection(
   if (connection.platform !== 'patreon') {
     throw new Error('connection is not a Patreon account');
   }
-  const proxy = await resolveEgressProxy(connection.modelId);
-  if (!proxy) throw new Error(`model ${connection.modelId} has no healthy egress sidecar`);
+  const binding = await resolveEgressBinding(connection.modelId);
+  if (!binding) throw new Error(`model ${connection.modelId} has no healthy egress binding`);
   const auth = await decryptConnectorAuth(connection);
   const webhookSecret = auth.extra?.patreonWebhookSecret;
   if (typeof webhookSecret !== 'string' || webhookSecret.length < 16) {
     throw new Error('Patreon connection has no valid webhook secret');
   }
-  const egressFetch = buildEgressFetch(proxy);
+  const egressFetch = buildEgressFetch(binding);
   const json = async (url: string, init?: RequestInit) => {
     const response = await egressFetch(url, {
       ...init,
@@ -88,11 +88,12 @@ export async function patreonConnectorForConnection(
   };
   const transport: PatreonTransport = {
     getJson: (url) => json(url),
-    postJson: (url, body) => json(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    }),
+    postJson: (url, body) =>
+      json(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      }),
     delete: async (url) => ({ status: (await json(url, { method: 'DELETE' })).status }),
   };
   return {
@@ -115,7 +116,9 @@ function createConnectionLedger() {
       seen.add(key);
       return true;
     },
-    seen(key: string): boolean { return seen.has(key); },
+    seen(key: string): boolean {
+      return seen.has(key);
+    },
   };
 }
 
@@ -128,19 +131,28 @@ export async function earningsForConnection(connection: PlatformConnectionRow) {
 }
 
 /** Read-only inbox access: never mark read, publish, or send a message. */
-export async function inboxForConnection(connection: PlatformConnectionRow, page: number, userUuid?: string) {
+export async function inboxForConnection(
+  connection: PlatformConnectionRow,
+  page: number,
+  userUuid?: string,
+) {
   if (connection.platform !== 'fanvue') throw new Error('Inbox is only supported for Fanvue');
   const { connector } = await connectorForConnection(connection);
   if (!(connector instanceof FanvueConnector)) throw new Error('Fanvue connector unavailable');
   return userUuid
-    ? { kind: 'messages' as const, ...await connector.fetchChatMessages(userUuid, page, 25) }
-    : { kind: 'chats' as const, ...await connector.fetchChats(page, 25) };
+    ? { kind: 'messages' as const, ...(await connector.fetchChatMessages(userUuid, page, 25)) }
+    : { kind: 'chats' as const, ...(await connector.fetchChats(page, 25)) };
 }
 
 /** Resolve attachment metadata within the exact creator account and message.
  * Signed provider URLs stay server-side; this is not a byte-preview endpoint.
  */
-export async function inboxMediaForConnection(connection: PlatformConnectionRow, userUuid: string, messageUuid: string, mediaUuids: string[]) {
+export async function inboxMediaForConnection(
+  connection: PlatformConnectionRow,
+  userUuid: string,
+  messageUuid: string,
+  mediaUuids: string[],
+) {
   if (connection.platform !== 'fanvue') throw new Error('Inbox media is only supported for Fanvue');
   const { connector } = await connectorForConnection(connection);
   if (!(connector instanceof FanvueConnector)) throw new Error('Fanvue connector unavailable');
@@ -148,12 +160,22 @@ export async function inboxMediaForConnection(connection: PlatformConnectionRow,
   return inboxMediaMetadata(media, messageUuid, mediaUuids);
 }
 
-export async function inboxPreviewForConnection(connection: PlatformConnectionRow, userUuid: string, messageUuid: string,
-  mediaUuid: string, variant: 'main' | 'thumbnail' | 'thumbnail_gallery' | 'blurred', range?: string) {
-  if (connection.platform !== 'fanvue') throw new Error('Inbox preview is only supported for Fanvue');
+export async function inboxPreviewForConnection(
+  connection: PlatformConnectionRow,
+  userUuid: string,
+  messageUuid: string,
+  mediaUuid: string,
+  variant: 'main' | 'thumbnail' | 'thumbnail_gallery' | 'blurred',
+  range?: string,
+) {
+  if (connection.platform !== 'fanvue')
+    throw new Error('Inbox preview is only supported for Fanvue');
   const { connector } = await connectorForConnection(connection);
   if (!(connector instanceof FanvueConnector)) throw new Error('Fanvue connector unavailable');
-  return { kind: 'preview' as const, ...await connector.fetchMessagePreview(userUuid, messageUuid, mediaUuid, variant, range) };
+  return {
+    kind: 'preview' as const,
+    ...(await connector.fetchMessagePreview(userUuid, messageUuid, mediaUuid, variant, range)),
+  };
 }
 
 /** Resolve healthy model egress and credentials without dispatching a reply. */

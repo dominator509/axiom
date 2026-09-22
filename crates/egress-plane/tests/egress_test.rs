@@ -720,6 +720,26 @@ async fn test_direct_mode_bind_and_health() {
     assert_eq!(body["egress_ip"], "127.0.0.1");
     assert_eq!(body["drift"], false);
 
+    // A healthy direct policy remains represented in the status registry;
+    // consumers must never mistake its empty sidecar address for unbound.
+    let status: serde_json::Value = client
+        .get(format!("{base_url}/egress/status"))
+        .send()
+        .await
+        .expect("status")
+        .json()
+        .await
+        .expect("status json");
+    let model = status["models"]
+        .as_array()
+        .expect("models array")
+        .iter()
+        .find(|model| model["model_id"] == "it_direct_m1")
+        .expect("direct model status");
+    assert_eq!(model["mode"], "direct");
+    assert_eq!(model["healthy"], true);
+    assert_eq!(model["host_ip"], "");
+
     // unbind
     let unbind = client
         .post(format!("{base_url}/egress/unbind"))

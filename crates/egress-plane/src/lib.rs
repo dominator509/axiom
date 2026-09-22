@@ -378,6 +378,16 @@ fn same_binding_config(bound: &BoundEgress, persisted: &NetworkConfig) -> bool {
         && current.dek_id == persisted.dek_id
 }
 
+/// A persisted direct policy is a real binding, not an absence of policy.
+/// Keeping it avoids deleting/rebinding healthy direct entries on every sync.
+fn keep_persisted_binding(
+    kill_switch_enabled: bool,
+    current: &BoundEgress,
+    persisted: Option<&NetworkConfig>,
+) -> bool {
+    !kill_switch_enabled && persisted.is_some_and(|config| same_binding_config(current, config))
+}
+
 #[cfg(test)]
 mod registry_tests {
     use super::*;
@@ -466,6 +476,14 @@ mod registry_tests {
 
         persisted.expected_egress_ip = Some("203.0.113.10".to_string());
         assert!(!same_binding_config(&current, &persisted));
+    }
+
+    #[test]
+    fn direct_binding_is_retained_when_persisted_policy_is_unchanged() {
+        let current = bound();
+        let persisted = network_config();
+        assert!(keep_persisted_binding(false, &current, Some(&persisted)));
+        assert!(!keep_persisted_binding(true, &current, Some(&persisted)));
     }
 
     #[test]
@@ -1518,11 +1536,11 @@ pub async fn egress_sync(
                 if !scope.includes(model_id, &current.config.org_id) {
                     return None;
                 }
-                let keep = !kill_switch_enabled
-                    && configs_by_model.get(model_id).is_some_and(|persisted| {
-                        persisted.mode != EgressMode::Direct
-                            && same_binding_config(current, persisted)
-                    });
+                let keep = keep_persisted_binding(
+                    kill_switch_enabled,
+                    current,
+                    configs_by_model.get(model_id),
+                );
                 (!keep).then(|| model_id.clone())
             })
             .collect()
@@ -1540,12 +1558,10 @@ pub async fn egress_sync(
             skipped += 1;
             continue;
         }
-        // Direct mode is an explicit no-isolation choice and never needs a
-        // sidecar binding. Any prior isolated binding was removed above.
-        if cfg.mode == EgressMode::Direct {
-            skipped += 1;
-            continue;
-        }
+        // Direct mode is still an explicit, health-checked binding. Keeping
+        // it in the registry makes status consumers distinguish authorized
+        // direct egress from a missing or unhealthy binding; it does not
+        // create a namespace or sidecar.
         let already_bound = state
             .registry
             .lock()

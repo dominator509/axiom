@@ -3,7 +3,7 @@
 // Features: policy-based provider selection, fallback chains, rate limiting,
 // exponential-backoff retry, response caching, streaming, and pipeline transforms.
 
-import { resolveEgressProxy, buildEgressFetch } from './egress.js';
+import { resolveEgressBinding, buildEgressFetch } from './egress.js';
 // Library imports must not load dotenv or mutate the host process environment.
 // Runtime configuration belongs to the service launcher/deployment boundary.
 import { v4 as uuid } from 'uuid';
@@ -462,7 +462,11 @@ export class LLMGateway {
     return this.subscriptionTransport.connect(provider as SubscriptionProvider, userId, signal);
   }
 
-  async disconnectSubscription(provider: string, userId: string, signal?: AbortSignal): Promise<void> {
+  async disconnectSubscription(
+    provider: string,
+    userId: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
     const config = this.providers.get(provider);
     if (!config?.subscriptionSupported) {
       throw new ProviderError('Provider has no subscription transport', 404, provider);
@@ -539,16 +543,16 @@ export class LLMGateway {
   }
 
   /**
-   * Resolve a fetch implementation bound to the model's egress sidecar
-   * (L2.6). A requested model-bound route is a hard precondition; callers
-   * must never silently fall back to the host route.
+   * Resolve a fetch implementation bound to the model's explicit egress
+   * policy (L2.6). A requested binding is a hard precondition; callers must
+   * never silently fall back to direct when the plane is missing or unhealthy.
    */
   private async resolveEgressFetch(model: string): Promise<typeof fetch> {
-    const proxy = await resolveEgressProxy(model);
-    if (!proxy) {
+    const binding = await resolveEgressBinding(model);
+    if (!binding) {
       throw new ProviderError('Model egress binding is unavailable', 503, 'vllm');
     }
-    return buildEgressFetch(proxy);
+    return buildEgressFetch(binding);
   }
 
   /** Call a single provider with retry + exponential backoff */
@@ -599,7 +603,9 @@ export class LLMGateway {
               provider.name,
             );
           }
-          const configured = options.cacheControls.find(setting => setting.provider === provider.name);
+          const configured = options.cacheControls.find(
+            (setting) => setting.provider === provider.name,
+          );
           if (configured?.enabled && isCacheControlProvider(provider.name)) {
             throw new ProviderError(
               'Enabled cache controls are not supported by the user-subscription CLI transport; disable them or use a compatible transport',
@@ -622,10 +628,15 @@ export class LLMGateway {
         } else if (provider.name === 'vllm') {
           const mapped = applyCacheControl(
             { model, messages, temperature: options.temperature, max_tokens: options.maxTokens },
-            options.cacheControls.find(setting => setting.provider === provider.name) ?? null,
+            options.cacheControls.find((setting) => setting.provider === provider.name) ?? null,
           );
           const res = await callVLLM(
-            mapped.body as { model: string; messages: typeof messages; temperature?: number; max_tokens?: number },
+            mapped.body as {
+              model: string;
+              messages: typeof messages;
+              temperature?: number;
+              max_tokens?: number;
+            },
             options.signal,
             egressFetchImpl ?? fetch,
           );
@@ -760,7 +771,8 @@ export class LLMGateway {
       } catch (err) {
         if (isAbortLike(err, options.signal)) throw err;
         const error = err instanceof Error ? err : new Error(String(err));
-        if (error instanceof ProviderError && error.code === CACHE_CONTROL_UNSUPPORTED_CODE) throw error;
+        if (error instanceof ProviderError && error.code === CACHE_CONTROL_UNSUPPORTED_CODE)
+          throw error;
         chainErrors.push({ provider: provider.name, error });
         // Continue to fallback
       }
@@ -799,11 +811,12 @@ export class LLMGateway {
     };
     const assembledPrefix = segments.S0 + segments.S1 + segments.S2;
     const hasExplicitPrefixPolicy = (options.cacheControls ?? []).some(
-      setting => setting.enabled && isCacheControlProvider(setting.provider),
+      (setting) => setting.enabled && isCacheControlProvider(setting.provider),
     );
-    const prefix = !hasExplicitPrefixPolicy || (options.cacheControls ?? []).some(shouldAlignPrefix)
-      ? alignBlocks(assembledPrefix)
-      : assembledPrefix;
+    const prefix =
+      !hasExplicitPrefixPolicy || (options.cacheControls ?? []).some(shouldAlignPrefix)
+        ? alignBlocks(assembledPrefix)
+        : assembledPrefix;
 
     // Content-addressed prefix key; same (model, platform, version, exemplar
     // set) ⇒ same key ⇒ local prefix-cache hit (provider prefix cache also
@@ -916,7 +929,9 @@ export class LLMGateway {
                 provider.name,
               );
             }
-            const configured = requiredOptions.cacheControls.find(setting => setting.provider === provider.name);
+            const configured = requiredOptions.cacheControls.find(
+              (setting) => setting.provider === provider.name,
+            );
             if (configured?.enabled && isCacheControlProvider(provider.name)) {
               throw new ProviderError(
                 'Enabled cache controls are not supported by the user-subscription CLI transport; disable them or use a compatible transport',
@@ -967,7 +982,11 @@ export class LLMGateway {
         } catch (err) {
           if (isAbortLike(err, requiredOptions.signal)) throw err;
           lastError = err instanceof Error ? err : new Error(String(err));
-          if (lastError instanceof ProviderError && lastError.code === CACHE_CONTROL_UNSUPPORTED_CODE) throw lastError;
+          if (
+            lastError instanceof ProviderError &&
+            lastError.code === CACHE_CONTROL_UNSUPPORTED_CODE
+          )
+            throw lastError;
           recordFailure();
           // Continue to next provider in chain
         }

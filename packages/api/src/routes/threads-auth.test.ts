@@ -16,7 +16,10 @@ vi.mock('@axiom/llm-gateway', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@axiom/llm-gateway')>();
   return {
     ...actual,
-    resolveEgressProxy: vi.fn(async () => 'http://10.240.1.1:8080'),
+    resolveEgressBinding: vi.fn(async () => ({
+      kind: 'proxy',
+      proxyUrl: 'http://10.240.1.1:8080',
+    })),
     buildEgressFetch: vi.fn(() => globalThis.fetch),
   };
 });
@@ -141,8 +144,11 @@ describe('GET /callback', () => {
     expect(JSON.stringify(body)).not.toContain('long-lived-token');
     expect(fetchMock).toHaveBeenCalledTimes(3);
     const egress = await import('@axiom/llm-gateway');
-    expect(egress.resolveEgressProxy).toHaveBeenCalledWith(MODEL_ID);
-    expect(egress.buildEgressFetch).toHaveBeenCalledWith('http://10.240.1.1:8080');
+    expect(egress.resolveEgressBinding).toHaveBeenCalledWith(MODEL_ID);
+    expect(egress.buildEgressFetch).toHaveBeenCalledWith({
+      kind: 'proxy',
+      proxyUrl: 'http://10.240.1.1:8080',
+    });
     const tokenExchangeCall = fetchMock.mock.calls.find(([url]) =>
       String(url).endsWith('/oauth/access_token'),
     );

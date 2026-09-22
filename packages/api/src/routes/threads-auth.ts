@@ -14,7 +14,7 @@ import type { Context } from 'hono';
 import { randomBytes } from 'node:crypto';
 import type { AppBindings } from '../index.js';
 import { normalizeAuthOrigin } from '@axiom/auth';
-import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
+import { buildEgressFetch, resolveEgressBinding } from '@axiom/llm-gateway';
 import { readBoundedResponseJson } from '@axiom/core';
 import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
 import {
@@ -124,8 +124,8 @@ router.get('/callback', async (c) => {
   clearOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_COOKIE_PATH);
 
   try {
-    const egressProxy = await resolveEgressProxy(pending.modelId);
-    if (!egressProxy) {
+    const egressBinding = await resolveEgressBinding(pending.modelId);
+    if (!egressBinding) {
       return apiError(
         c,
         503,
@@ -133,7 +133,7 @@ router.get('/callback', async (c) => {
         'Threads token exchange unavailable: model egress binding is unhealthy',
       );
     }
-    const egressFetch = buildEgressFetch(egressProxy);
+    const egressFetch = buildEgressFetch(egressBinding);
 
     // Exchange authorization code for a short-lived access token
     const tokenResp = await egressFetch('https://graph.threads.net/oauth/access_token', {

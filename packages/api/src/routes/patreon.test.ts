@@ -9,7 +9,7 @@ const CONNECTION_ID = '33333333-3333-4333-8333-333333333333';
 
 vi.mock('@axiom/db', () => mockDbFactory());
 vi.mock('@axiom/llm-gateway', () => ({
-  resolveEgressProxy: vi.fn(async () => 'http://10.77.0.3:8080'),
+  resolveEgressBinding: vi.fn(async () => ({ kind: 'proxy', proxyUrl: 'http://10.77.0.3:8080' })),
   buildEgressFetch: vi.fn(() => globalThis.fetch),
 }));
 vi.mock('@axiom/worker', () => ({
@@ -40,10 +40,13 @@ const modelConnection = {
 };
 
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
-let patreonRouter: typeof import('./patreon.js')['patreonRouter'];
+let patreonRouter: (typeof import('./patreon.js'))['patreonRouter'];
 
 beforeEach(async () => {
   mockState.result = [{ orgId: ORG_ID }];
@@ -52,20 +55,31 @@ beforeEach(async () => {
   mockState.updates = [];
   vi.clearAllMocks();
   ({ patreonRouter } = await import('./patreon.js'));
-  vi.stubGlobal('fetch', vi.fn((url: string | URL) => {
-    const value = String(url);
-    if (value.includes('/egress/encrypt')) {
-      return Promise.resolve(jsonResponse({
-        enc_creds: Buffer.from('cipher').toString('base64'),
-        enc_nonce: Buffer.from('nonce').toString('base64'),
-        dek_id: 'test-dek',
-      }));
-    }
-    if (value.includes('/api/oauth2/token')) {
-      return Promise.resolve(jsonResponse({ access_token: 'patreon-access', refresh_token: 'patreon-refresh', expires_in: 3600 }));
-    }
-    return Promise.resolve(jsonResponse({}));
-  }));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((url: string | URL) => {
+      const value = String(url);
+      if (value.includes('/egress/encrypt')) {
+        return Promise.resolve(
+          jsonResponse({
+            enc_creds: Buffer.from('cipher').toString('base64'),
+            enc_nonce: Buffer.from('nonce').toString('base64'),
+            dek_id: 'test-dek',
+          }),
+        );
+      }
+      if (value.includes('/api/oauth2/token')) {
+        return Promise.resolve(
+          jsonResponse({
+            access_token: 'patreon-access',
+            refresh_token: 'patreon-refresh',
+            expires_in: 3600,
+          }),
+        );
+      }
+      return Promise.resolve(jsonResponse({}));
+    }),
+  );
 });
 
 function app(): Hono<AppBindings> {
@@ -95,23 +109,39 @@ describe('Patreon OAuth boundary', () => {
 
   it('exchanges the code and persists only an encrypted Patreon connection', async () => {
     mockState.results = [
-      {}, [{ orgId: ORG_ID }],
-      {}, [{ orgId: ORG_ID }],
-      {}, [{ orgId: ORG_ID }],
+      {},
+      [{ orgId: ORG_ID }],
+      {},
+      [{ orgId: ORG_ID }],
+      {},
+      [{ orgId: ORG_ID }],
       [{ ...modelConnection }],
     ];
     const authorize = await app().request(`/connectors/patreon/authorize?modelId=${MODEL_ID}`);
     const cookie = authorize.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
     const state = new URL(authorize.headers.get('location')!).searchParams.get('state');
-    const response = await app().request(`/connectors/patreon/callback?code=one-time-code&state=${encodeURIComponent(state!)}`, {
-      headers: { Cookie: cookie },
-    });
+    const response = await app().request(
+      `/connectors/patreon/callback?code=one-time-code&state=${encodeURIComponent(state!)}`,
+      {
+        headers: { Cookie: cookie },
+      },
+    );
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ success: true, platform: 'patreon', connectionId: CONNECTION_ID });
-    expect(mockState.insertValues[0]).toMatchObject({ platform: 'patreon', orgId: ORG_ID, modelId: MODEL_ID });
+    expect(await response.json()).toMatchObject({
+      success: true,
+      platform: 'patreon',
+      connectionId: CONNECTION_ID,
+    });
+    expect(mockState.insertValues[0]).toMatchObject({
+      platform: 'patreon',
+      orgId: ORG_ID,
+      modelId: MODEL_ID,
+    });
 
     const fetchMock = vi.mocked(globalThis.fetch);
-    const encryptionRequest = fetchMock.mock.calls.find(([url]) => String(url).includes('/egress/encrypt'));
+    const encryptionRequest = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('/egress/encrypt'),
+    );
     expect(String(encryptionRequest?.[1]?.body)).not.toContain('patreon-secret');
     expect(String(encryptionRequest?.[1]?.body)).not.toContain('patreon-access');
   });

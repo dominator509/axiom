@@ -9,7 +9,7 @@ import type { Context } from 'hono';
 import { randomBytes, createHash } from 'node:crypto';
 import type { AppBindings } from '../index.js';
 import { normalizeAuthOrigin } from '@axiom/auth';
-import { buildEgressFetch, resolveEgressProxy } from '@axiom/llm-gateway';
+import { buildEgressFetch, resolveEgressBinding } from '@axiom/llm-gateway';
 import { connectorForConnection } from '@axiom/worker';
 import { readBoundedResponseJson } from '@axiom/core';
 import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
@@ -27,7 +27,9 @@ import {
 
 const FANVUE_CLIENT_ID = process.env.FANVUE_CLIENT_ID || '';
 const FANVUE_CLIENT_SECRET = process.env.FANVUE_CLIENT_SECRET || '';
-const APPLICATION_ORIGIN = normalizeAuthOrigin(process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001');
+const APPLICATION_ORIGIN = normalizeAuthOrigin(
+  process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
+);
 const FANVUE_REDIRECT_URI =
   process.env.FANVUE_REDIRECT_URI ||
   new URL('/api/v1/connectors/fanvue/callback', APPLICATION_ORIGIN).toString();
@@ -155,8 +157,8 @@ router.get('/callback', async (c) => {
   try {
     // Exchange the auth code for tokens (client_secret_basic per Fanvue docs)
     const basicAuth = Buffer.from(`${FANVUE_CLIENT_ID}:${FANVUE_CLIENT_SECRET}`).toString('base64');
-    const egressProxy = await resolveEgressProxy(pending.modelId);
-    if (!egressProxy) {
+    const egressBinding = await resolveEgressBinding(pending.modelId);
+    if (!egressBinding) {
       return apiError(
         c,
         503,
@@ -164,7 +166,7 @@ router.get('/callback', async (c) => {
         'Fanvue token exchange unavailable: model egress binding is unhealthy',
       );
     }
-    const egressFetch = buildEgressFetch(egressProxy);
+    const egressFetch = buildEgressFetch(egressBinding);
 
     const resp = await egressFetch(FANVUE_TOKEN_URL, {
       method: 'POST',

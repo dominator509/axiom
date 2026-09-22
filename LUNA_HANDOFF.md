@@ -3549,3 +3549,37 @@ operator/runtime setting, not a per-model dashboard control. This is source/UI
 wiring only: no privileged host namespace, real WireGuard, proxy leak, live
 provider, database, service, migration or deployment verification was run.
 F02/F04/F43 runtime and production acceptance therefore remain open.
+
+## F02/F04/F43 — explicit direct egress source reconciliation
+
+The egress-plane now preserves a configured `direct` policy as a real,
+health-checked registry binding during persisted configuration reconciliation.
+Status therefore distinguishes an explicitly authorized healthy direct policy
+from an absent or unhealthy binding. The TypeScript gateway exposes that result
+as a discriminated `EgressBinding` (`direct` or model-sidecar `proxy`), and
+all current consumers — LLM gateway, worker social/Patreon connectors, and
+Threads, Fanvue, and Patreon OAuth exchanges — require that binding. They
+continue to fail closed for missing or unhealthy status; they cannot infer
+direct egress from an empty sidecar address.
+
+Evidence: gateway direct/proxy/fail-closed regression suite 13/13, OAuth route
+tests 16/16, gateway and API typechecks pass. The isolated Linux egress suite
+exited 0 in a disposable Docker container with `--network none`, no host
+mounts or published ports, and only `NET_ADMIN`, `SYS_ADMIN`, and `SETPCAP` for
+the test fixture: 44 Rust unit tests, 16 egress integration tests, and 4 proxy
+security tests passed. That includes direct status reporting, SOCKS and
+WireGuard chains, dead-upstream HTTPS fail-closed behavior, credential/TLS
+proxy defenses, health-monitor drain behavior, and the regression proving that
+`NET_ADMIN` alone cannot provision namespaces. The worker package typecheck is
+otherwise blocked by the pre-existing unrelated generic-mock error in
+`src/executors/viral_insight.test.ts`; the new gateway export resolves after
+the gateway build.
+
+This does **not** complete F02/F04/F43. The shipped egress-plane remains an
+unprivileged process, while Linux namespace creation needs a separate
+privilege-limited provisioner; current Node connector/MCP callers are not yet
+confined by a per-model OS execution boundary; and no approved deployment
+target exists for real provider/DNS/WireGuard/proxy rotation/restart,
+persisted two-tenant database, queue/Sev-1/Relay, or browser operator
+acceptance. No live deployment, database, migration, provider, credential,
+runtime service, or host-network change occurred.

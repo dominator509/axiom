@@ -1,6 +1,6 @@
 // ─── Egress-aware fetch (L2.6) — Vitest Suite ───
-// resolveEgressProxy: status lookup against the egress plane, 5s cache,
-// model is unbound/unhealthy. buildEgressFetch: undici ProxyAgent dispatcher.
+// resolveEgressBinding: status lookup against the egress plane, 5s cache,
+// and explicit healthy direct/proxy bindings. buildEgressFetch: undici fetch.
 import { describe, it, expect, afterEach, vi } from 'vitest';
 
 // undici's fetch export is a non-configurable ESM binding — spyOn can't
@@ -34,7 +34,7 @@ function statusBody(models: unknown[]): Response {
   });
 }
 
-describe('resolveEgressProxy', () => {
+describe('resolveEgressBinding', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach(() => {
@@ -46,8 +46,8 @@ describe('resolveEgressProxy', () => {
   it('returns null for an empty model id without contacting the plane', async () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    const { resolveEgressProxy } = await loadEgress();
-    expect(await resolveEgressProxy('')).toBeNull();
+    const { resolveEgressBinding } = await loadEgress();
+    expect(await resolveEgressBinding('')).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -59,9 +59,19 @@ describe('resolveEgressProxy', () => {
           { model_id: 'gpt-4o', mode: 'wireguard', host_ip: '10.77.0.2', healthy: true },
         ]),
       ) as unknown as typeof fetch;
-    const { resolveEgressProxy } = await loadEgress();
-    const proxy = await resolveEgressProxy('gpt-4o');
-    expect(proxy).toBe('http://10.77.0.2:8080');
+    const { resolveEgressBinding } = await loadEgress();
+    const binding = await resolveEgressBinding('gpt-4o');
+    expect(binding).toEqual({ kind: 'proxy', proxyUrl: 'http://10.77.0.2:8080' });
+  });
+
+  it('returns direct only for an explicitly healthy direct binding', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        statusBody([{ model_id: 'gpt-4o', mode: 'direct', healthy: true }]),
+      ) as unknown as typeof fetch;
+    const { resolveEgressBinding } = await loadEgress();
+    expect(await resolveEgressBinding('gpt-4o')).toEqual({ kind: 'direct' });
   });
 
   it('returns null for a model that is bound but unhealthy', async () => {
@@ -72,8 +82,8 @@ describe('resolveEgressProxy', () => {
           { model_id: 'gpt-4o', mode: 'wireguard', host_ip: '10.77.0.2', healthy: false },
         ]),
       ) as unknown as typeof fetch;
-    const { resolveEgressProxy } = await loadEgress();
-    expect(await resolveEgressProxy('gpt-4o')).toBeNull();
+    const { resolveEgressBinding } = await loadEgress();
+    expect(await resolveEgressBinding('gpt-4o')).toBeNull();
   });
 
   it('returns null for a model not present in the status', async () => {
@@ -82,24 +92,24 @@ describe('resolveEgressProxy', () => {
       .mockResolvedValue(
         statusBody([{ model_id: 'other-model', healthy: true, host_ip: '10.77.0.9' }]),
       ) as unknown as typeof fetch;
-    const { resolveEgressProxy } = await loadEgress();
-    expect(await resolveEgressProxy('gpt-4o')).toBeNull();
+    const { resolveEgressBinding } = await loadEgress();
+    expect(await resolveEgressBinding('gpt-4o')).toBeNull();
   });
 
   it('returns null when the plane is unreachable', async () => {
     globalThis.fetch = vi
       .fn()
       .mockRejectedValue(new TypeError('fetch failed')) as unknown as typeof fetch;
-    const { resolveEgressProxy } = await loadEgress();
-    expect(await resolveEgressProxy('gpt-4o')).toBeNull();
+    const { resolveEgressBinding } = await loadEgress();
+    expect(await resolveEgressBinding('gpt-4o')).toBeNull();
   });
 
   it('returns null when the plane returns a non-OK status', async () => {
     globalThis.fetch = vi
       .fn()
       .mockResolvedValue(new Response('boom', { status: 503 })) as unknown as typeof fetch;
-    const { resolveEgressProxy } = await loadEgress();
-    expect(await resolveEgressProxy('gpt-4o')).toBeNull();
+    const { resolveEgressBinding } = await loadEgress();
+    expect(await resolveEgressBinding('gpt-4o')).toBeNull();
   });
 
   it('caches the result for the TTL window (one plane call for two lookups)', async () => {
@@ -107,9 +117,15 @@ describe('resolveEgressProxy', () => {
       .fn()
       .mockResolvedValue(statusBody([{ model_id: 'gpt-4o', host_ip: '10.77.0.2', healthy: true }]));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    const { resolveEgressProxy } = await loadEgress();
-    expect(await resolveEgressProxy('gpt-4o')).toBe('http://10.77.0.2:8080');
-    expect(await resolveEgressProxy('gpt-4o')).toBe('http://10.77.0.2:8080');
+    const { resolveEgressBinding } = await loadEgress();
+    expect(await resolveEgressBinding('gpt-4o')).toEqual({
+      kind: 'proxy',
+      proxyUrl: 'http://10.77.0.2:8080',
+    });
+    expect(await resolveEgressBinding('gpt-4o')).toEqual({
+      kind: 'proxy',
+      proxyUrl: 'http://10.77.0.2:8080',
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -118,18 +134,18 @@ describe('resolveEgressProxy', () => {
       .fn()
       .mockResolvedValue(statusBody([{ model_id: 'gpt-4o', host_ip: '10.77.0.2', healthy: true }]));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    const { resolveEgressProxy, clearEgressCache } = await loadEgress();
-    await resolveEgressProxy('gpt-4o');
+    const { resolveEgressBinding, clearEgressCache } = await loadEgress();
+    await resolveEgressBinding('gpt-4o');
     clearEgressCache();
-    await resolveEgressProxy('gpt-4o');
+    await resolveEgressBinding('gpt-4o');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('hits the configured EGRESS_PLANE_URL status endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(statusBody([]));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    const { resolveEgressProxy } = await loadEgress('http://plane.example:3999');
-    await resolveEgressProxy('gpt-4o');
+    const { resolveEgressBinding } = await loadEgress('http://plane.example:3999');
+    await resolveEgressBinding('gpt-4o');
     const url = fetchMock.mock.calls[0][0] as string;
     expect(url.startsWith('http://plane.example:3999/egress/status')).toBe(true);
   });
@@ -148,7 +164,7 @@ describe('buildEgressFetch', () => {
     // 7.x and rejects an 8.x dispatcher with `invalid onRequestStart method`).
     undiciFetchMock.mockResolvedValue(new Response('ok'));
     const { buildEgressFetch } = await loadEgress();
-    const egressFetch = buildEgressFetch('http://10.77.0.2:8080');
+    const egressFetch = buildEgressFetch({ kind: 'proxy', proxyUrl: 'http://10.77.0.2:8080' });
     const res = await egressFetch('https://api.example.com/v1/chat/completions', {
       method: 'POST',
       headers: { authorization: 'Bearer test' },
@@ -167,14 +183,25 @@ describe('buildEgressFetch', () => {
   it('reuses the same ProxyAgent for the same proxy URL', async () => {
     undiciFetchMock.mockResolvedValue(new Response('ok'));
     const { buildEgressFetch } = await loadEgress();
-    const a = buildEgressFetch('http://10.77.0.2:8080');
-    const b = buildEgressFetch('http://10.77.0.2:8080');
+    const a = buildEgressFetch({ kind: 'proxy', proxyUrl: 'http://10.77.0.2:8080' });
+    const b = buildEgressFetch({ kind: 'proxy', proxyUrl: 'http://10.77.0.2:8080' });
     await a('https://x.example/1');
     await b('https://x.example/2');
     expect(undiciFetchMock).toHaveBeenCalledTimes(2);
     const d1 = (undiciFetchMock.mock.calls[0][1] as { dispatcher: unknown }).dispatcher;
     const d2 = (undiciFetchMock.mock.calls[1][1] as { dispatcher: unknown }).dispatcher;
     expect(d1).toBe(d2);
+    undiciFetchMock.mockClear();
+  });
+
+  it('uses undici without a proxy dispatcher for an explicit direct binding', async () => {
+    undiciFetchMock.mockResolvedValue(new Response('ok'));
+    const { buildEgressFetch } = await loadEgress();
+    const egressFetch = buildEgressFetch({ kind: 'direct' });
+    const res = await egressFetch('https://api.example.com/direct');
+    expect(await res.text()).toBe('ok');
+    expect(undiciFetchMock).toHaveBeenCalledTimes(1);
+    expect(undiciFetchMock.mock.calls[0]).toHaveLength(1);
     undiciFetchMock.mockClear();
   });
 });
