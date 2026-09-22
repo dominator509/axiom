@@ -41,6 +41,10 @@ disabled; do not read the bridge or revive any old lane.
 
 ### M992 source preparation — privilege topology and durable health status
 
+- Product commit: `e6e50b3c8826c2e0151fc4edecfe0431a44676ca`, pushed and
+  read back from `origin/codex/telegram-webhook-hardening`. This handoff
+  update is coordination evidence only; it does not change the M992 source
+  scope.
 - Added source-only systemd deployment templates under
   `infra/egress-runtime/`: a local Unix socket and root-only provisioner with
   the minimal `NET_ADMIN`, `SYS_ADMIN`, `SETPCAP` bound; a capability-free
