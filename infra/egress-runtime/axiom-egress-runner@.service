@@ -12,7 +12,10 @@ Group=axiom-egress-runner
 # route/firewall and model-specific upstream are ready.  A missing namespace
 # prevents the runner from starting rather than falling back to host network.
 NetworkNamespacePath=/run/netns/egress_%i
-ExecStart=/usr/local/lib/axiom/worker-egress-dispatch --model-instance %i
+Environment=AXIOM_EGRESS_RUNNER=1
+Environment=AXIOM_EGRESS_CONFINEMENT_REQUIRED=1
+Environment=WORKER_EGRESS_MODEL_ID=%i
+ExecStart=/usr/bin/node /srv/axiom/packages/worker/dist/runner.js
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 AmbientCapabilities=

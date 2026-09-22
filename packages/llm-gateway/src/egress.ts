@@ -7,6 +7,7 @@
 // an implicit opt-in to direct egress; consumers must reject a null result.
 
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
+import { readlinkSync } from 'node:fs';
 import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson } from '@axiom/core';
 
 const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
@@ -69,6 +70,43 @@ export async function resolveEgressBinding(modelId: string): Promise<EgressBindi
 const agents = new Map<string, ProxyAgent>();
 
 /**
+ * A process running under mandatory egress confinement must be the explicit
+ * model runner in its assigned namespace. This guard prevents shared callers
+ * (API, OAuth, gateway, or an accidentally-global worker) from treating a
+ * proxy binding or an environment marker as sufficient isolation and opening
+ * a host-network connection.
+ *
+ * Leaving the flag unset preserves the existing, explicit-binding behavior.
+ * A malformed value is intentionally not interpreted as "off".
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Enforce the shared egress-fetch boundary. Exported so its namespace proof
+ * can be unit-tested without mutating the host's network namespace.
+ */
+export function assertEgressFetchCaller(
+  env: Record<string, string | undefined> = process.env,
+  options: { platform?: NodeJS.Platform; readlink?: (path: string) => string } = {},
+): void {
+  const required = env.AXIOM_EGRESS_CONFINEMENT_REQUIRED;
+  if (required === undefined) return;
+  if (required !== '1') {
+    throw new Error('AXIOM_EGRESS_CONFINEMENT_REQUIRED must be exactly 1 when set');
+  }
+  const modelId = env.WORKER_EGRESS_MODEL_ID;
+  if (env.AXIOM_EGRESS_RUNNER !== '1' || !UUID.test(modelId ?? '')) {
+    throw new Error('Egress fetch requires the isolated model egress runner');
+  }
+  const platform = options.platform ?? process.platform;
+  const readlink = options.readlink ?? readlinkSync;
+  if (platform !== 'linux') throw new Error('Egress fetch confinement requires a Linux network namespace');
+  if (readlink('/proc/self/ns/net') !== readlink(`/run/netns/egress_${modelId}`)) {
+    throw new Error('Egress fetch caller is not running in its assigned network namespace');
+  }
+}
+
+/**
  * Build a fetch implementation for an explicit egress binding.
  * Direct bindings use undici's own fetch without a dispatcher; proxy bindings
  * use the model sidecar proxy.  This function does not infer direct egress.
@@ -77,6 +115,7 @@ const agents = new Map<string, ProxyAgent>();
  * to the global fetch fails with `invalid onRequestStart method`).
  */
 export function buildEgressFetch(binding: EgressBinding): typeof fetch {
+  assertEgressFetchCaller();
   if (binding.kind === 'direct') {
     return undiciFetch as unknown as typeof fetch;
   }

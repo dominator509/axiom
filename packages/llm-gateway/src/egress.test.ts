@@ -204,4 +204,51 @@ describe('buildEgressFetch', () => {
     expect(undiciFetchMock.mock.calls[0]).toHaveLength(1);
     undiciFetchMock.mockClear();
   });
+
+  it('fails closed when confinement is required outside the isolated model runner', async () => {
+    const priorRequired = process.env.AXIOM_EGRESS_CONFINEMENT_REQUIRED;
+    const priorRunner = process.env.AXIOM_EGRESS_RUNNER;
+    try {
+      process.env.AXIOM_EGRESS_CONFINEMENT_REQUIRED = '1';
+      delete process.env.AXIOM_EGRESS_RUNNER;
+      const { buildEgressFetch } = await loadEgress();
+      expect(() => buildEgressFetch({ kind: 'proxy', proxyUrl: 'http://10.77.0.2:8080' }))
+        .toThrow('Egress fetch requires the isolated model egress runner');
+      expect(undiciFetchMock).not.toHaveBeenCalled();
+    } finally {
+      if (priorRequired === undefined) delete process.env.AXIOM_EGRESS_CONFINEMENT_REQUIRED;
+      else process.env.AXIOM_EGRESS_CONFINEMENT_REQUIRED = priorRequired;
+      if (priorRunner === undefined) delete process.env.AXIOM_EGRESS_RUNNER;
+      else process.env.AXIOM_EGRESS_RUNNER = priorRunner;
+    }
+  });
+
+  it('rejects a malformed confinement flag rather than disabling confinement', async () => {
+    const priorRequired = process.env.AXIOM_EGRESS_CONFINEMENT_REQUIRED;
+    try {
+      process.env.AXIOM_EGRESS_CONFINEMENT_REQUIRED = 'true';
+      const { buildEgressFetch } = await loadEgress();
+      expect(() => buildEgressFetch({ kind: 'direct' }))
+        .toThrow('AXIOM_EGRESS_CONFINEMENT_REQUIRED must be exactly 1 when set');
+    } finally {
+      if (priorRequired === undefined) delete process.env.AXIOM_EGRESS_CONFINEMENT_REQUIRED;
+      else process.env.AXIOM_EGRESS_CONFINEMENT_REQUIRED = priorRequired;
+    }
+  });
+
+  it('requires the runner process to prove the exact model namespace', async () => {
+    const { assertEgressFetchCaller } = await loadEgress();
+    const env = {
+      AXIOM_EGRESS_CONFINEMENT_REQUIRED: '1',
+      AXIOM_EGRESS_RUNNER: '1',
+      WORKER_EGRESS_MODEL_ID: '11111111-1111-4111-8111-111111111111',
+    };
+    const expectedPath = '/run/netns/egress_11111111-1111-4111-8111-111111111111';
+    expect(() => assertEgressFetchCaller(env, {
+      platform: 'linux', readlink: (path) => path === expectedPath ? 'net:[4026533001]' : 'net:[4026533001]',
+    })).not.toThrow();
+    expect(() => assertEgressFetchCaller(env, {
+      platform: 'linux', readlink: (path) => path === expectedPath ? 'net:[4026533001]' : 'net:[4026532001]',
+    })).toThrow('Egress fetch caller is not running in its assigned network namespace');
+  });
 });

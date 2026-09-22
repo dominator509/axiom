@@ -5,6 +5,7 @@
 // subsequent domain work in that txn is tenant-scoped (LBI-02).
 
 import { sql } from 'drizzle-orm';
+import { readlinkSync } from 'node:fs';
 import type { JobRow } from './types.js';
 
 export interface ClaimResult {
@@ -19,6 +20,68 @@ export interface ClaimResult {
  */
 export async function claimNextJob(tx: any, workerId: string): Promise<ClaimResult> {
   const res = await tx.execute(sql`SELECT * FROM claim_job(${workerId})`);
+  const rows = (res?.rows ?? []) as unknown[];
+  if (rows.length === 0) return { job: null, empty: true };
+  return { job: rows[0] as JobRow, empty: false };
+}
+
+/** Jobs whose executor can create provider or scraper network traffic. When
+ * confinement is enabled they are claimable only by the model namespace
+ * runner; malformed payloads are deliberately not eligible for fallback. */
+export const EGRESS_JOB_KINDS = [
+  'publish.target', 'metrics.poll', 'scrape.run', 'fanvue.analytics.sync',
+] as const;
+
+export interface EgressWorkerScope {
+  modelId: string;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function resolveEgressWorkerScope(env: Record<string, string | undefined>): EgressWorkerScope | undefined {
+  const modelId = env.WORKER_EGRESS_MODEL_ID;
+  const runner = env.AXIOM_EGRESS_RUNNER;
+  if (modelId === undefined && runner === undefined) return undefined;
+  if (!UUID.test(modelId ?? '') || runner !== '1') {
+    throw new Error('A model-scoped egress runner requires WORKER_EGRESS_MODEL_ID and AXIOM_EGRESS_RUNNER=1');
+  }
+  return { modelId: modelId! };
+}
+
+/** Opt in explicitly. A malformed value is never interpreted as disabled. */
+export function resolveEgressConfinementRequired(env: Record<string, string | undefined>): boolean {
+  const required = env.AXIOM_EGRESS_CONFINEMENT_REQUIRED;
+  if (required === undefined) return false;
+  if (required !== '1') throw new Error('AXIOM_EGRESS_CONFINEMENT_REQUIRED must be exactly 1 when set');
+  return true;
+}
+
+/** The service manager joins this process to the model namespace; verify the
+ * kernel identity before it can claim a provider-bound job. */
+export function assertEgressWorkerNamespace(
+  scope: EgressWorkerScope,
+  options: { platform?: NodeJS.Platform; readlink?: (path: string) => string } = {},
+): void {
+  const platform = options.platform ?? process.platform;
+  const readlink = options.readlink ?? readlinkSync;
+  if (platform !== 'linux') throw new Error('Model egress workers require a Linux network namespace');
+  const expected = readlink(`/run/netns/egress_${scope.modelId}`);
+  const actual = readlink('/proc/self/ns/net');
+  if (actual !== expected) throw new Error('Model egress worker is not running in its assigned network namespace');
+}
+
+export async function claimNextModelEgressJob(
+  tx: Parameters<typeof claimNextJob>[0], workerId: string, scope: EgressWorkerScope,
+): Promise<ClaimResult> {
+  resolveEgressWorkerScope({ WORKER_EGRESS_MODEL_ID: scope.modelId, AXIOM_EGRESS_RUNNER: '1' });
+  const res = await tx.execute(sql`SELECT * FROM claim_model_egress_job(${workerId}, ${scope.modelId}::uuid)`);
+  const rows = (res?.rows ?? []) as unknown[];
+  if (rows.length === 0) return { job: null, empty: true };
+  return { job: rows[0] as JobRow, empty: false };
+}
+
+export async function claimNextNonEgressJob(tx: Parameters<typeof claimNextJob>[0], workerId: string): Promise<ClaimResult> {
+  const res = await tx.execute(sql`SELECT * FROM claim_non_egress_job(${workerId})`);
   const rows = (res?.rows ?? []) as unknown[];
   if (rows.length === 0) return { job: null, empty: true };
   return { job: rows[0] as JobRow, empty: false };

@@ -80,6 +80,30 @@ disabled; do not read the bridge or revive any old lane.
   followed by isolated Node-caller acceptance. Deployed WireGuard/proxy/DNS,
   two-tenant queue/Sev-1/Relay, and browser acceptance remain open.
 
+### M995 source preparation — scoped claims and fail-closed shared fetch
+
+- Adds `0066_model_egress_worker_claims.sql`: only a namespace-proven model
+  worker may claim the four model-owned provider/scraper kinds. Ownership is
+  derived from tenant-scoped relational records; a malformed egress payload
+  is held ready, not handed to the global worker. A global worker uses the
+  complementary non-egress claim function whenever confinement is required.
+- The runner verifies the exact Linux namespace before it registers connectors.
+  The shared `buildEgressFetch()` helper now rejects all callers under the
+  required-confinement flag unless the process proves the same model-runner
+  identity and namespace. API/OAuth/LLM control-plane callers therefore fail
+  closed pending a reviewed UDS dispatch path; no proxy URL is treated as an
+  OS boundary.
+- Local-only evidence: the fresh labeled disposable PostgreSQL fixture applied
+  68 migrations and passed two-tenant scoped-claim, malformed-payload and
+  global-exclusion checks with zero provider calls; focused gateway 16/16,
+  worker 4/4, DB 24/24 and runtime-unit source checks passed. Gateway typecheck
+  passed. Worker typecheck remains blocked by unrelated dirty
+  `viral_insight.test.ts:105`; it was not modified.
+- Status remains **PARTIAL**. The provisioner still lacks the real
+  plane-to-provisioner policy/upstream handoff and installed target evidence.
+  Real WireGuard/proxy/DNS/rotation, persistence/Sev-1/Relay and approved
+  browser acceptance remain open. Live actions: NONE.
+
 ## Historical coordination state — not the current implementation task
 
 The following block is preserved historical evidence, not current authority.

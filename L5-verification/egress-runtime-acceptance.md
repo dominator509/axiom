@@ -200,6 +200,43 @@ closed namespace only within the fixture. It is **not** proof that a deployed
 host runs the root-only socket service, that a Node caller is confined, or
 that a real provider/tenant/browser acceptance path is safe.
 
+## M995 scoped worker and shared-fetch boundary — local acceptance PASS
+
+The worker now has a model-scoped egress mode. A runner must supply a valid
+model UUID, `AXIOM_EGRESS_RUNNER=1`, and
+`AXIOM_EGRESS_CONFINEMENT_REQUIRED=1`; its startup compares
+`/proc/self/ns/net` with `/run/netns/egress_<model-id>` before registering
+connectors or claiming provider/scraper work. The model worker claims only
+`publish.target`, `metrics.poll`, `scrape.run`, and `fanvue.analytics.sync`
+through a SECURITY DEFINER function that derives model ownership from
+tenant-scoped relational records, not a caller-controlled model ID. The
+global worker claim function excludes those kinds, so a malformed egress job
+remains ready rather than falling back to an unconfined worker.
+
+`buildEgressFetch()` now applies the same required-confinement rule to every
+existing helper caller. Under that flag it rejects an API, OAuth, LLM gateway,
+or global worker process unless it has both the model-runner identity and the
+matching Linux namespace. This is deliberately fail-closed: those non-runner
+callers need a future reviewed UDS dispatch path; a proxy URL alone is not an
+isolation boundary.
+
+Executed local evidence, all against the labeled loopback-only disposable
+PostgreSQL fixture with no provider calls:
+
+| Check | Result |
+| --- | --- |
+| `pnpm -C packages/llm-gateway test -- egress.test.ts` | 16/16 passed |
+| `pnpm -C packages/worker test -- egress-worker-scope.test.ts` | 4/4 passed |
+| `pnpm -C packages/db test -- migrations.test.ts` | 24/24 passed |
+| `node scripts/check-egress-runtime-units.mjs` | passed; source templates require the namespace-bound runner |
+| `node scripts/rehearse-egress-worker-claims.mjs --isolated-fixture` | passed; 68 migrations applied to a fresh DB, two tenant/model claim isolation, malformed payload held ready, global worker excluded, zero provider calls; fixture removed |
+| `pnpm -C packages/llm-gateway typecheck` | passed |
+| `pnpm -C packages/worker typecheck` | blocked by unrelated dirty `src/executors/viral_insight.test.ts:105` generic mock error; no change to that file was made |
+
+This is source and disposable-local acceptance only. It proves neither a
+deployed systemd unit, an installed provisioner-to-plane policy handoff, a
+real external proxy/WireGuard/DNS route, nor the Relay/Sev-1/browser gates.
+
 ## Remaining execution gates — do not mark F-02/F-04/F-43 complete
 
 1. **Production privilege/provisioner topology (F-04).** Source deployment
@@ -222,14 +259,17 @@ that a real provider/tenant/browser acceptance path is safe.
    UID/capability set. Do not solve this by giving the whole service
    SYS_ADMIN, `--privileged`, or host networking.
 
-2. **Caller confinement (F-04/F-43).** L2.6 requires connector/MCP/scraper work
-   itself to be unable to bypass model egress. Current Node consumers use an
-   injected proxy client, but remain capable of constructing a host-network
-   socket. Implement a per-model execution boundary or equivalent mandatory
-   OS policy, including control-plane exceptions. Acceptance must run the
-   real worker/connector with its proxy setting deliberately omitted and
-   prove a reachable external canary receives no traffic; then prove the
-   intended model path works. A successful proxy request alone is insufficient.
+2. **Caller confinement (F-04/F-43).** The worker and shared egress-fetch
+   helper now fail closed under `AXIOM_EGRESS_CONFINEMENT_REQUIRED=1` unless
+   the caller proves its exact model namespace. That covers the existing
+   helper-based connector, gateway and OAuth paths, and prevents the global
+   worker from claiming the four model-bound egress kinds. It does not make
+   arbitrary new raw Node sockets impossible by itself, does not provide the
+   required UDS dispatch path for control-plane callers, and has not been
+   tested as a real installed OS boundary. Acceptance must run the real
+   worker/connector with its proxy setting deliberately omitted and prove a
+   reachable external canary receives no traffic; then prove the intended
+   model path works. A successful proxy request alone is insufficient.
 
 3. **Explicit direct mode end to end (F-02/F-43).** M991 preserves configured
    direct rows during Rust persisted reconciliation and exposes an explicit
@@ -250,15 +290,15 @@ that a real provider/tenant/browser acceptance path is safe.
 
 5. **Persistence, tenant and failure workflow (F-02/F-43).** The health bind
    and manual-health handlers now surface a database save failure instead of
-   returning a newly-probed snapshot as current persisted health. The focused
-   regression is source-only; it is not a database integration receipt.
-   Exercise current migrations/RLS using an isolated production-shaped DB,
-   two tenants and two models: save/import/decrypt/apply/health, credential
-   rotation, deletion and restart. Then prove actual job abort/backoff,
-   repeated-failure Sev-1 creation and Relay pause action. The Rust monitor
-   currently probes already-bound models; it does not itself implement that
-   complete incident and queue workflow. No database was accessed or mutated
-   by this rehearsal.
+   returning a newly-probed snapshot as current persisted health. M995 adds a
+   fresh disposable-DB receipt that applies all current migrations and proves
+   two tenant/model egress claims, global-worker exclusion and malformed-input
+   fail-closed behavior. It is not a full persistence workflow: still exercise
+   save/import/decrypt/apply/health, credential rotation, deletion and restart,
+   then prove actual job abort/backoff, repeated-failure Sev-1 creation and
+   Relay pause action. The Rust monitor currently probes already-bound models;
+   it does not itself implement that complete incident and queue workflow. No
+   non-disposable database was accessed or mutated by this rehearsal.
 
 6. **Operator/deployment acceptance (all three).** After gates 1–5, use an
    explicitly approved test target, release digest, model/tenant, endpoint,

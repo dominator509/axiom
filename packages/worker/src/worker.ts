@@ -6,7 +6,15 @@
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { db, schema } from '@axiom/db';
 import { backoffDelayMs } from './backoff.js';
-import { claimNextJob, claimNextModelMediaJob, type MediaWorkerScope } from './claim.js';
+import {
+  claimNextJob,
+  claimNextModelEgressJob,
+  claimNextModelMediaJob,
+  claimNextNonEgressJob,
+  EGRESS_JOB_KINDS,
+  type EgressWorkerScope,
+  type MediaWorkerScope,
+} from './claim.js';
 import { defaultExecutors } from './executors/index.js';
 import { EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX, ParkJobError } from './executors/context.js';
 import type { Executor } from './executors/context.js';
@@ -15,6 +23,10 @@ import type { JobRow } from './types.js';
 export interface WorkerOptions {
   /** Explicit model-only media operation; no publishing or retry recovery. */
   mediaScope?: MediaWorkerScope;
+  /** Provider/scraper-only queue consumer, already joined to one model netns. */
+  egressScope?: EgressWorkerScope;
+  /** Exclude provider/scraper work from a global worker. */
+  egressConfinementRequired?: boolean;
   workerId?: string;
   /** Milliseconds to sleep when the queue is empty. Default 1000. */
   pollIntervalMs?: number;
@@ -194,6 +206,15 @@ export async function processJob(
             return operation(markerTx);
           });
         },
+        persistScheduledContinuation: async <T>(operation: (continuationTx: any) => Promise<T>) => {
+          if (leaseState.lost) throw leaseState.lost;
+          return db.transaction(async (continuationTx) => {
+            await continuationTx.execute(
+              sql`SELECT set_config('app.current_org_id', ${job.org_id}, true)`,
+            );
+            return operation(continuationTx);
+          });
+        },
       });
       if (leaseState.lost) throw leaseState.lost;
       await updateOwnedJob(tx, job, workerId, {
@@ -305,12 +326,22 @@ export async function workerTick(opts: WorkerOptions = {}): Promise<WorkerStats>
   };
 
   const claimed = await db.transaction(async (tx) => {
+    if (opts.mediaScope && opts.egressScope) throw new Error('Worker cannot combine media and egress scopes');
     const { job, empty } = opts.mediaScope
       ? await claimNextModelMediaJob(tx, workerId, opts.mediaScope)
-      : await claimNextJob(tx, workerId);
+      : opts.egressScope
+        ? await claimNextModelEgressJob(tx, workerId, opts.egressScope)
+        : opts.egressConfinementRequired
+          ? await claimNextNonEgressJob(tx, workerId)
+          : await claimNextJob(tx, workerId);
     if (empty || !job) return null;
     if (opts.mediaScope && (job.org_id !== opts.mediaScope.orgId || !['media.generate', 'tos.scan', 'media.transform'].includes(job.kind)))
       throw new Error('Media worker claim escaped its scope');
+    if (opts.egressScope && !EGRESS_JOB_KINDS.includes(job.kind as typeof EGRESS_JOB_KINDS[number]))
+      throw new Error('Egress worker claim escaped its scope');
+    if (opts.egressConfinementRequired && !opts.egressScope
+      && EGRESS_JOB_KINDS.includes(job.kind as typeof EGRESS_JOB_KINDS[number]))
+      throw new Error('Unconfined worker claimed an egress job');
     return job;
   });
 
