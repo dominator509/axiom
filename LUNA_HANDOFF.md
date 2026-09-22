@@ -121,6 +121,25 @@ disabled; do not read the bridge or revive any old lane.
   It does not close the policy/upstream handoff, target UID, provider route,
   rotation, queue/Sev-1/Relay or browser gates.
 
+### M998 Docker Node namespace-caller receipt
+
+- The new source-only `scripts/rehearse-egress-worker-runtime.mjs` fixture
+  rebuilt the core/gateway artifacts, then ran the real Node shared egress
+  helper in an isolated model namespace. The guard was corrected from
+  `readlink()` to namespace `stat()` device/inode comparison after the Docker
+  bind-mount path produced `EINVAL`—a real runtime defect, not a harness
+  exception.
+- Receipt `7216a572-a0fe-47f2-bf85-0cf2c46b7797` exits 0. It proves matching
+  unprivileged runner/canary fetch and initial-namespace rejection before a
+  fetch is returned, plus no capabilities, no-new-privileges, failed unshare
+  and loopback separation. Receipt SHA-256:
+  `9fe30dd6009ae4f7b3d5e9e91cdf99bc7d948d749f147c8aa7026dbafc699090`;
+  source-manifest SHA-256:
+  `0a9971620ec33919f55b95c4bffaafaa880a58f6b45a9f83b3822598a8551451`.
+- This is Docker-only evidence. It does not prove deployed systemd/UID policy,
+  provisioner policy handoff, raw-socket prevention, external proxy/WireGuard/
+  DNS/rotation, persistent two-tenant queue/Sev-1/Relay or browser acceptance.
+
 ## Historical coordination state — not the current implementation task
 
 The following block is preserved historical evidence, not current authority.

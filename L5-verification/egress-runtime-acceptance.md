@@ -264,6 +264,39 @@ Its elevated namespace capabilities exist only in this disposable container;
 this remains local runtime evidence, not systemd, target-UID, provider or
 production evidence.
 
+## M998 Node model-namespace caller rehearsal — local acceptance PASS
+
+The Node shared egress-fetch guard originally used `readlink()` to compare
+`/proc/self/ns/net` with `/run/netns/egress_<model>`. The Docker rehearsal
+found that the named namespace is a bind mount and `readlink()` correctly fails
+with `EINVAL`; the production guard now compares the kernel namespace
+device/inode pair from `stat()` instead. Unit coverage preserves matching and
+mismatching namespace behavior.
+
+The fresh source-only Docker fixture stages rebuilt `@axiom/core` and
+`@axiom/llm-gateway` artifacts plus the pinned `undici` runtime dependency. It
+has `--network none`, no host mounts, no published ports, no database,
+credentials or provider traffic. Root receives only temporary namespace/setup
+capabilities, creates a model namespace and its loopback canary, then launches
+both Node probes as UID 65534 with empty effective/permitted/bounding
+capability sets and `NoNewPrivs=1`.
+
+| Evidence | Value |
+| --- | --- |
+| Run ID | `7216a572-a0fe-47f2-bf85-0cf2c46b7797` |
+| Exit | `0` |
+| Container | `--network none`, non-privileged, no host mounts, no published ports |
+| Required checks | 7 of 7 present: unprivileged caps, unshare denial, host namespace rejection, host-loopback denial, matching namespace proof and matching-runner fetch |
+| Receipt SHA-256 | `9fe30dd6009ae4f7b3d5e9e91cdf99bc7d948d749f147c8aa7026dbafc699090` |
+| Source-manifest SHA-256 | `0a9971620ec33919f55b95c4bffaafaa880a58f6b45a9f83b3822598a8551451` |
+| Test-output SHA-256 | `078ccf88f3944558c1f7380b2c5dfcf8cccb94c57a56d862e694ea4cb68ff64d` |
+
+This is meaningful Node-and-kernel namespace evidence: a matching model runner
+may obtain and use the shared direct egress fetch against its in-namespace
+canary; the initial namespace is rejected before the helper returns a fetch and
+cannot reach that model-only loopback listener. It is not target deployment,
+allowlist/proxy, DNS, WireGuard, rotation, provider or browser acceptance.
+
 ## Remaining execution gates — do not mark F-02/F-04/F-43 complete
 
 1. **Production privilege/provisioner topology (F-04).** Source deployment
@@ -291,10 +324,11 @@ production evidence.
    the caller proves its exact model namespace. That covers the existing
    helper-based connector, gateway and OAuth paths, and prevents the global
    worker from claiming the four model-bound egress kinds. It does not make
-   arbitrary new raw Node sockets impossible by itself, does not provide the
-   required UDS dispatch path for control-plane callers, and has not been
-   tested as a real installed OS boundary. Acceptance must run the real
-   worker/connector with its proxy setting deliberately omitted and prove a
+   arbitrary new raw Node sockets impossible by itself and does not provide the
+   required UDS dispatch path for control-plane callers. M998 executes the real
+   Node helper against a Linux namespace and proves both matching and rejected
+   paths, but it is not an installed target OS boundary. Acceptance must run
+   the real worker/connector with its proxy setting deliberately omitted and prove a
    reachable external canary receives no traffic; then prove the intended
    model path works. A successful proxy request alone is insufficient.
 

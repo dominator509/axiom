@@ -7,7 +7,7 @@
 // an implicit opt-in to direct egress; consumers must reject a null result.
 
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
-import { readlinkSync } from 'node:fs';
+import { statSync, type Stats } from 'node:fs';
 import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson } from '@axiom/core';
 
 const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
@@ -87,7 +87,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  */
 export function assertEgressFetchCaller(
   env: Record<string, string | undefined> = process.env,
-  options: { platform?: NodeJS.Platform; readlink?: (path: string) => string } = {},
+  options: { platform?: NodeJS.Platform; stat?: (path: string) => Pick<Stats, 'dev' | 'ino'> } = {},
 ): void {
   const required = env.AXIOM_EGRESS_CONFINEMENT_REQUIRED;
   if (required === undefined) return;
@@ -99,9 +99,14 @@ export function assertEgressFetchCaller(
     throw new Error('Egress fetch requires the isolated model egress runner');
   }
   const platform = options.platform ?? process.platform;
-  const readlink = options.readlink ?? readlinkSync;
+  const stat = options.stat ?? statSync;
   if (platform !== 'linux') throw new Error('Egress fetch confinement requires a Linux network namespace');
-  if (readlink('/proc/self/ns/net') !== readlink(`/run/netns/egress_${modelId}`)) {
+  // Named network namespaces are bind-mounted under /run/netns, not symlinks.
+  // Their nsfs device/inode pair is the kernel identity suitable for exact
+  // comparison with /proc/self/ns/net; readlink() would fail with EINVAL.
+  const current = stat('/proc/self/ns/net');
+  const expected = stat(`/run/netns/egress_${modelId}`);
+  if (current.dev !== expected.dev || current.ino !== expected.ino) {
     throw new Error('Egress fetch caller is not running in its assigned network namespace');
   }
 }

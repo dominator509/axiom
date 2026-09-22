@@ -245,10 +245,10 @@ describe('buildEgressFetch', () => {
     };
     const expectedPath = '/run/netns/egress_11111111-1111-4111-8111-111111111111';
     expect(() => assertEgressFetchCaller(env, {
-      platform: 'linux', readlink: (path) => path === expectedPath ? 'net:[4026533001]' : 'net:[4026533001]',
+      platform: 'linux', stat: (path) => path === expectedPath ? { dev: 4, ino: 4026533001 } : { dev: 4, ino: 4026533001 },
     })).not.toThrow();
     expect(() => assertEgressFetchCaller(env, {
-      platform: 'linux', readlink: (path) => path === expectedPath ? 'net:[4026533001]' : 'net:[4026532001]',
+      platform: 'linux', stat: (path) => path === expectedPath ? { dev: 4, ino: 4026533001 } : { dev: 4, ino: 4026532001 },
     })).toThrow('Egress fetch caller is not running in its assigned network namespace');
   });
 });
