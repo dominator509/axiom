@@ -148,15 +148,20 @@ clean repeat does not by itself change the hosted CI verdict.
 
 ## Remaining execution gates — do not mark F-02/F-04/F-43 complete
 
-1. **Production privilege/provisioner topology (F-04).** The shipped image
-   runs as UID 1001; CI's deployment smoke recipe grants NET_ADMIN only.
-   `ip netns add/exec` requires additional namespace/mount privilege. The
-   negative runtime test retains NET_ADMIN, removes SYS_ADMIN and proves
-   namespace creation fails. Linux also documents the relevant
+1. **Production privilege/provisioner topology (F-04).** Source deployment
+   templates now define a root-only `axiom-egress-provisioner` Unix-socket
+   service with the narrow `NET_ADMIN`, `SYS_ADMIN`, and `SETPCAP` capability
+   bound, plus a capability-free egress-plane service and a model-namespace
+   runner template. `node scripts/check-egress-runtime-units.mjs` verifies
+   those source invariants. The required provisioner and runner binaries have
+   not yet been emitted, installed, or exercised on a host. `ip netns
+   add/exec` requires additional namespace/mount privilege. The negative
+   runtime test retains NET_ADMIN, removes SYS_ADMIN and proves namespace
+   creation fails. Linux also documents the relevant
    [setns capability requirements](https://man7.org/linux/man-pages/man2/setns.2.html).
-   Design and review a narrowly scoped provisioner/launcher, then test the
-   actual deployment recipe as its real UID/capability set. Do not solve this
-   by giving the whole service SYS_ADMIN, `--privileged`, or host networking.
+   Implement the typed provisioner/runner protocol and test the actual
+   deployment recipe as its real UID/capability set. Do not solve this by
+   giving the whole service SYS_ADMIN, `--privileged`, or host networking.
 
 2. **Caller confinement (F-04/F-43).** L2.6 requires connector/MCP/scraper work
    itself to be unable to bypass model egress. Current Node consumers use an
@@ -167,13 +172,13 @@ clean repeat does not by itself change the hosted CI verdict.
    prove a reachable external canary receives no traffic; then prove the
    intended model path works. A successful proxy request alone is insufficient.
 
-3. **Explicit direct mode end to end (F-02/F-43).** The Rust direct bind and
-   explicit API selection work, but persisted sync filters out direct rows;
-   `resolveEgressProxy()` requires a nonempty sidecar address and worker
-   connection helpers reject null. Implement an explicit, authorized direct
-   result throughout this contract; never reinterpret missing/unhealthy as
-   direct. Test isolated mode changes, persisted reload, and job dispatch in
-   both directions, retaining no-fallback negative controls.
+3. **Explicit direct mode end to end (F-02/F-43).** M991 preserves configured
+   direct rows during Rust persisted reconciliation and exposes an explicit
+   `EgressBinding` discriminant to the LLM gateway, worker connector and OAuth
+   consumers. Missing or unhealthy state remains an error, never an inferred
+   direct route. Its focused source and isolated-kernel tests pass. A deployed
+   reload/job-dispatch acceptance in the approved target is still required;
+   retain no-fallback negative controls in that test.
 
 4. **Customer endpoint, DNS and deployed lifecycle (F-02/F-04/F-43).** The
    fixture's proxy/WG peer and echo are real but local to the test container.
@@ -184,14 +189,17 @@ clean repeat does not by itself change the hosted CI verdict.
    than silently substituting a route; supported endpoint policy must be
    explicit. This run does not prove generic non-WireGuard VPN compatibility.
 
-5. **Persistence, tenant and failure workflow (F-02/F-43).** Exercise current
-   migrations/RLS using an isolated production-shaped DB, two tenants and
-   two models: save/import/decrypt/apply/health, credential rotation, deletion
-   and restart. Verify DB health-write failures are not reported as current
-   persisted health. Then prove actual job abort/backoff, repeated-failure
-   Sev-1 creation and Relay pause action. The Rust monitor currently probes
-   already-bound models; it does not itself implement that complete incident
-   and queue workflow. No database was accessed or mutated by this rehearsal.
+5. **Persistence, tenant and failure workflow (F-02/F-43).** The health bind
+   and manual-health handlers now surface a database save failure instead of
+   returning a newly-probed snapshot as current persisted health. The focused
+   regression is source-only; it is not a database integration receipt.
+   Exercise current migrations/RLS using an isolated production-shaped DB,
+   two tenants and two models: save/import/decrypt/apply/health, credential
+   rotation, deletion and restart. Then prove actual job abort/backoff,
+   repeated-failure Sev-1 creation and Relay pause action. The Rust monitor
+   currently probes already-bound models; it does not itself implement that
+   complete incident and queue workflow. No database was accessed or mutated
+   by this rehearsal.
 
 6. **Operator/deployment acceptance (all three).** After gates 1–5, use an
    explicitly approved test target, release digest, model/tenant, endpoint,

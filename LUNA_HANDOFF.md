@@ -39,6 +39,27 @@ disabled; do not read the bridge or revive any old lane.
 - Live actions: NONE. No SSH, installer, live DB/provider calls, grant,
   service restart, host-network/firewall change, or deployment occurred.
 
+### M992 source preparation — privilege topology and durable health status
+
+- Added source-only systemd deployment templates under
+  `infra/egress-runtime/`: a local Unix socket and root-only provisioner with
+  the minimal `NET_ADMIN`, `SYS_ADMIN`, `SETPCAP` bound; a capability-free
+  plane; and a capability-free per-model runner joined by
+  `NetworkNamespacePath=/run/netns/egress_%i`. The checked templates are not
+  installed runtime units and the named provisioner/runner binaries do not yet
+  exist, so this is **not** host provisioner or caller-confinement acceptance.
+- Added `scripts/check-egress-runtime-units.mjs`, which passes and rejects
+  privilege widening in those templates. The egress health bind and manual
+  check handlers now return an error if their database health write fails;
+  they no longer silently report a volatile probe as a persisted health result.
+- Evidence: `node scripts/check-egress-runtime-units.mjs` passes; egress-plane
+  library tests pass 46/46; `git diff --check` passes. No target, database,
+  service, provider, namespace or browser was touched.
+- Next source implementation remains the typed provisioner and model runner
+  binaries plus their isolated acceptance; deployed WireGuard/proxy/DNS,
+  two-tenant queue/Sev-1/Relay, and browser acceptance still require the
+  owner-approved non-production target and operator inputs.
+
 ## Historical coordination state — not the current implementation task
 
 The following block is preserved historical evidence, not current authority.

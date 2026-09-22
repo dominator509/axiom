@@ -495,6 +495,15 @@ mod registry_tests {
         assert!(matches!(result, Err(EgressError::KillSwitch(_))));
         assert!(state.registry.lock().unwrap().bounds.is_empty());
     }
+
+    #[test]
+    fn failed_health_write_is_not_reclassified_as_current_health() {
+        let error = durable_health_result(Err("database unavailable".to_string()))
+            .expect_err("failed persistence must be visible to the caller");
+        assert!(
+            matches!(error, EgressError::Config(message) if message.contains("health persistence failed"))
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -874,6 +883,45 @@ fn chrono_iso_now() -> String {
     }
 }
 
+/// Persist the health snapshot before reporting it as current state.  A
+/// successful probe without a durable write is useful for diagnostics, but it
+/// is not a current persisted health result: the dashboard would otherwise
+/// present stale data as if it had just been confirmed.  Callers therefore
+/// surface a persistence failure instead of silently discarding it.
+async fn persist_health_snapshot(
+    state: &Arc<AppState>,
+    model_id: &str,
+    org_id: &str,
+    snapshot: &HealthState,
+) -> Result<(), EgressError> {
+    let mut client = state.db.lock().unwrap().take();
+    let result = match client.as_mut() {
+        Some(client) => {
+            db::save_health(
+                client,
+                model_id,
+                org_id,
+                snapshot.healthy,
+                snapshot.latency_ms,
+                snapshot.egress_ip.as_deref(),
+                snapshot.fail_count,
+                snapshot.drift,
+                snapshot.last_error.as_deref(),
+            )
+            .await
+        }
+        // Local/test operation without a database has no durable-status
+        // contract. Production startup rejects this configuration.
+        None => Ok(()),
+    };
+    *state.db.lock().unwrap() = client;
+    durable_health_result(result)
+}
+
+fn durable_health_result(result: Result<(), String>) -> Result<(), EgressError> {
+    result.map_err(|error| EgressError::Config(format!("health persistence failed: {error}")))
+}
+
 /// Periodic probes use the same registered-handle/drain-safe path as an
 /// operator check. Dropping the server state terminates this background task.
 pub fn spawn_health_monitor(state: &Arc<AppState>, period: std::time::Duration) {
@@ -960,25 +1008,10 @@ pub async fn egress_bind(
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
     let health_snapshot = probe_registered(&state, &model_id).await?;
 
-    // Persist health to Postgres when connected (take/replace: no lock held
-    // across await, keeping the handler future Send).
-    let mut client = state.db.lock().unwrap().take();
-    if let Some(c) = client.as_mut() {
-        let org = bound_config_org(&state, &model_id);
-        let _ = db::save_health(
-            c,
-            &model_id,
-            &org,
-            health_snapshot.healthy,
-            health_snapshot.latency_ms,
-            health_snapshot.egress_ip.as_deref(),
-            health_snapshot.fail_count,
-            health_snapshot.drift,
-            health_snapshot.last_error.as_deref(),
-        )
-        .await;
-    }
-    *state.db.lock().unwrap() = client;
+    // Do not report a newly bound model as having current persisted health
+    // until the database accepts the snapshot.
+    let org = bound_config_org(&state, &model_id);
+    persist_health_snapshot(&state, &model_id, &org, &health_snapshot).await?;
 
     info!(correlation_id = %correlation_id, model_id = %model_id, "Egress bind complete");
     Ok((
@@ -1171,22 +1204,9 @@ pub async fn egress_health_check_model(
         tokio::time::sleep(std::time::Duration::from_millis(300)).await;
         snapshot = probe_registered(&state, &model_id).await?;
     }
-    let mut client = state.db.lock().unwrap().take();
-    if let Some(c) = client.as_mut() {
-        let _ = db::save_health(
-            c,
-            &model_id,
-            &org,
-            snapshot.healthy,
-            snapshot.latency_ms,
-            snapshot.egress_ip.as_deref(),
-            snapshot.fail_count,
-            snapshot.drift,
-            snapshot.last_error.as_deref(),
-        )
-        .await;
-    }
-    *state.db.lock().unwrap() = client;
+    // A probe may succeed while the durable health row cannot be updated.
+    // Returning that probe as healthy would be a fail-open status report.
+    persist_health_snapshot(&state, &model_id, &org, &snapshot).await?;
 
     Ok((
         StatusCode::OK,
