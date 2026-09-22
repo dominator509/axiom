@@ -250,6 +250,14 @@ export interface NetworkConfig {
   id?: string;
   modelId: string;
   egressMode: string | null;
+  proxyType?: string | null;
+  proxyAddr?: string | null;
+  wgPublicKey?: string | null;
+  wgEndpoint?: string | null;
+  wgAllowedIps?: string | null;
+  wgPersistentKeepalive?: number | null;
+  expectedEgressIp?: string | null;
+  failoverProxyAddrs?: string[] | null;
   healthy: boolean;
   lastCheck: string | null;
   latencyMs: number | null;

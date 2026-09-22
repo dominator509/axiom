@@ -45,3 +45,24 @@ it('renders secret inputs without existing secrets and requires replacement ackn
   expect(html).toContain('type="checkbox" required=""');
   expect(html).toContain('existing secrets are never displayed');
 });
+
+it('prefills saved public WireGuard settings while leaving secret inputs blank', () => {
+  const privateKey = 'A'.repeat(43) + '=';
+  const html = renderToStaticMarkup(
+    <LocaleProvider initialLocale="en">
+      <EgressCredentials
+        configId="config"
+        mode="wireguard"
+        wgPublicKey="public-key-value"
+        wgEndpoint="vpn.example:51820"
+        wgAllowedIps="10.0.0.0/8"
+        wgPersistentKeepalive={25}
+      />
+    </LocaleProvider>,
+  );
+  expect(html).toContain('value="public-key-value"');
+  expect(html).toContain('value="vpn.example:51820"');
+  expect(html).toContain('value="10.0.0.0/8"');
+  expect(html).toContain('value="25"');
+  expect(html).not.toContain(privateKey);
+});

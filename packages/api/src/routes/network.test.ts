@@ -81,15 +81,26 @@ describe('PUT /:modelId/network', () => {
     });
     expect(res.status).toBe(400);
   });
-  it('accepts explicit null to clear saved proxy and expected IP fields', async () => {
+  it('accepts explicit null to clear saved proxy settings and expected IP fields', async () => {
     mockState.result = [{ id: 'cfg-1', orgId: ORG_ID, modelId: MODEL_ID }];
     mockState.updates = [];
     const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`, {
       method: 'PUT', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ egressMode: 'direct', proxyAddr: null, expectedEgressIp: null }),
+      body: JSON.stringify({
+        egressMode: 'direct',
+        proxyType: null,
+        proxyAddr: null,
+        expectedEgressIp: null,
+        failoverProxyAddrs: [],
+      }),
     });
     expect(res.status).toBe(200);
-    expect(mockState.updates).toContainEqual(expect.objectContaining({ proxyAddr: null, expectedEgressIp: null }));
+    expect(mockState.updates).toContainEqual(expect.objectContaining({
+      proxyType: null,
+      proxyAddr: null,
+      expectedEgressIp: null,
+      failoverProxyAddrs: [],
+    }));
   });
 
   it('does not clear omitted proxy or expected IP fields', async () => {

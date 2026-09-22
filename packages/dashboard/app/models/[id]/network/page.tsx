@@ -53,6 +53,19 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
                 <span className="badge bad">{t('network.degraded')}</span>
               )}
             </div>
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <span>{t('network.lastChecked')}</span>
+              <span>
+                {network.lastCheck && Number.isFinite(Date.parse(network.lastCheck))
+                  ? new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' })
+                      .format(new Date(network.lastCheck))
+                  : '—'}
+              </span>
+            </div>
+            <div className="row" style={{ justifyContent: 'space-between' }}>
+              <span>{t('network.failureCount')}</span>
+              <span>{formatNumber(network.failCount, locale)}</span>
+            </div>
             {network.latencyMs != null && (
               <div className="row" style={{ justifyContent: 'space-between' }}>
                 <span>{t('network.latency')}</span>
@@ -70,7 +83,17 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
         )}
         {owner && network && <NetworkForm modelId={id} initial={network} />}
       </div>
-      {owner && network?.id && network.egressMode && network.egressMode !== 'direct' && <EgressCredentials key={`${network.id}:${network.egressMode}`} configId={network.id} mode={network.egressMode} />}
+      {owner && network?.id && network.egressMode && network.egressMode !== 'direct' && (
+        <EgressCredentials
+          key={`${network.id}:${network.egressMode}`}
+          configId={network.id}
+          mode={network.egressMode}
+          wgPublicKey={network.wgPublicKey}
+          wgEndpoint={network.wgEndpoint}
+          wgAllowedIps={network.wgAllowedIps}
+          wgPersistentKeepalive={network.wgPersistentKeepalive}
+        />
+      )}
       {owner && <NetworkHealth modelId={id} />}
       {owner && network?.id && <ActivateNetwork modelId={id} />}
       <div className="card stack">

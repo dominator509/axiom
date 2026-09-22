@@ -187,6 +187,8 @@ export const MESSAGE_KEYS = [
   'network.latency',
   'network.lastEgressIp',
   'network.lastCheckFailed',
+  'network.lastChecked',
+  'network.failureCount',
   'network.socialConnections',
   'network.socialConnectionsDescription',
   'network.connectFanvue',

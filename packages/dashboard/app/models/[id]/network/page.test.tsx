@@ -140,4 +140,6 @@ it('formats network latency with the selected locale', async () => {
   });
   const html = await render();
   expect(html).toContain('1.234 ms');
+  expect(html).toContain(catalog.t('de', 'network.lastChecked'));
+  expect(html).toContain(catalog.t('de', 'network.failureCount'));
 });

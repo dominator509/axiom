@@ -29,7 +29,7 @@ const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TO
 const networkSchema = z
   .object({
     egressMode: z.enum(['direct', 'socks5', 'http', 'https', 'wireguard', 'vpn']),
-    proxyType: z.string().max(20).optional(),
+    proxyType: z.string().max(20).nullable().optional(),
     proxyAddr: z.string().max(500).nullable().optional(),
     wgPublicKey: z.string().max(200).optional(),
     wgEndpoint: z.string().max(500).optional(),

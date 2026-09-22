@@ -55,7 +55,21 @@ export function credentialPayload(mode: string, fields: FormData, t: Translator 
   return { proxyUsername, proxyPassword };
 }
 
-export default function EgressCredentials({ configId, mode }: { configId: string; mode: string }) {
+export default function EgressCredentials({
+  configId,
+  mode,
+  wgPublicKey,
+  wgEndpoint,
+  wgAllowedIps,
+  wgPersistentKeepalive,
+}: {
+  configId: string;
+  mode: string;
+  wgPublicKey?: string | null;
+  wgEndpoint?: string | null;
+  wgAllowedIps?: string | null;
+  wgPersistentKeepalive?: number | null;
+}) {
   const { t } = useLocale();
   const router = useRouter();
   const [busy, setBusy] = useState(false),
@@ -183,7 +197,13 @@ export default function EgressCredentials({ configId, mode }: { configId: string
             </label>
             <label>
               {t('egress.publicKey')}
-              <input name="wgPublicKey" required maxLength={44} spellCheck={false} />
+              <input
+                name="wgPublicKey"
+                defaultValue={wgPublicKey ?? ''}
+                required
+                maxLength={44}
+                spellCheck={false}
+              />
             </label>
             <label>
               {t('egress.presharedKey')}
@@ -196,7 +216,13 @@ export default function EgressCredentials({ configId, mode }: { configId: string
             </label>
             <label>
               {t('egress.endpoint')}
-              <input name="wgEndpoint" required maxLength={500} spellCheck={false} />
+              <input
+                name="wgEndpoint"
+                defaultValue={wgEndpoint ?? ''}
+                required
+                maxLength={500}
+                spellCheck={false}
+              />
             </label>
             <label>
               {t('egress.interfaceAddress')}
@@ -212,7 +238,7 @@ export default function EgressCredentials({ configId, mode }: { configId: string
               {t('egress.allowedIps')}
               <input
                 name="wgAllowedIps"
-                defaultValue="0.0.0.0/0"
+                defaultValue={wgAllowedIps ?? '0.0.0.0/0'}
                 maxLength={1000}
                 required
                 spellCheck={false}
@@ -223,7 +249,7 @@ export default function EgressCredentials({ configId, mode }: { configId: string
               <input
                 type="number"
                 name="wgPersistentKeepalive"
-                defaultValue="0"
+                defaultValue={wgPersistentKeepalive ?? 0}
                 min={0}
                 max={65535}
                 step={1}

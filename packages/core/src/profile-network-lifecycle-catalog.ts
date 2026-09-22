@@ -43,6 +43,8 @@ export const PROFILE_NETWORK_LIFECYCLE_MESSAGE_KEYS = [
   'network.mode.vpn',
   'network.directWarning',
   'network.proxyAddressLabel',
+  'network.failoverProxyAddrsLabel',
+  'network.failoverProxyAddrsHint',
   'network.proxyPlaceholder',
   'network.expectedIpLabel',
   'network.expectedIpPlaceholder',
@@ -106,6 +108,8 @@ const en: Record<ProfileNetworkLifecycleMessageKey, string> = {
   'network.directWarning':
     'Direct uses the server’s outbound IP without a VPN or proxy. Choose this only if you intend to use an unprotected connection.',
   'network.proxyAddressLabel': 'Proxy address (host:port)',
+  'network.failoverProxyAddrsLabel': 'Proxy failover addresses (one host:port per line)',
+  'network.failoverProxyAddrsHint': 'Optional alternate proxy endpoints are tried in order; this does not enable direct egress.',
   'network.proxyPlaceholder': '127.0.0.1:1080',
   'network.expectedIpLabel': 'Expected egress IP (drift policy)',
   'network.expectedIpPlaceholder': '203.0.113.7',
@@ -167,6 +171,8 @@ const es: Record<ProfileNetworkLifecycleMessageKey, string> = {
   'network.directWarning':
     'El modo directo usa la IP saliente del servidor sin VPN ni proxy. Elígelo solo si quieres usar una conexión sin protección.',
   'network.proxyAddressLabel': 'Dirección del proxy (host:puerto)',
+  'network.failoverProxyAddrsLabel': 'Direcciones alternativas del proxy (un host:puerto por línea)',
+  'network.failoverProxyAddrsHint': 'Los proxies alternativos opcionales se prueban en orden; esto no habilita la salida directa.',
   'network.proxyPlaceholder': '127.0.0.1:1080',
   'network.expectedIpLabel': 'IP de salida esperada (política de cambios)',
   'network.expectedIpPlaceholder': '203.0.113.7',
@@ -229,6 +235,8 @@ const ja: Record<ProfileNetworkLifecycleMessageKey, string> = {
   'network.directWarning':
     '直接接続はVPNやプロキシを使わず、サーバーの送信IPを使用します。保護されない接続を意図する場合のみ選択してください。',
   'network.proxyAddressLabel': 'プロキシアドレス（ホスト:ポート）',
+  'network.failoverProxyAddrsLabel': 'プロキシのフェイルオーバー先（1行にホスト:ポート1件）',
+  'network.failoverProxyAddrsHint': '任意の代替プロキシを記載順に試します。直接送信は有効になりません。',
   'network.proxyPlaceholder': '127.0.0.1:1080',
   'network.expectedIpLabel': '想定送信IP（変更ポリシー）',
   'network.expectedIpPlaceholder': '203.0.113.7',
@@ -290,6 +298,8 @@ const it: Record<ProfileNetworkLifecycleMessageKey, string> = {
   'network.directWarning':
     'La modalità diretta usa l’IP in uscita del server senza VPN o proxy. Sceglila solo se intendi usare una connessione non protetta.',
   'network.proxyAddressLabel': 'Indirizzo proxy (host:porta)',
+  'network.failoverProxyAddrsLabel': 'Indirizzi proxy alternativi (un host:porta per riga)',
+  'network.failoverProxyAddrsHint': 'Gli endpoint proxy alternativi facoltativi vengono provati nell’ordine indicato; non abilitano l’uscita diretta.',
   'network.proxyPlaceholder': '127.0.0.1:1080',
   'network.expectedIpLabel': 'IP in uscita previsto (criterio di variazione)',
   'network.expectedIpPlaceholder': '203.0.113.7',
@@ -352,6 +362,8 @@ const ptBR: Record<ProfileNetworkLifecycleMessageKey, string> = {
   'network.directWarning':
     'O modo direto usa o IP de saída do servidor sem VPN ou proxy. Escolha-o apenas se você pretende usar uma conexão desprotegida.',
   'network.proxyAddressLabel': 'Endereço do proxy (host:porta)',
+  'network.failoverProxyAddrsLabel': 'Endereços alternativos do proxy (um host:porta por linha)',
+  'network.failoverProxyAddrsHint': 'Os proxies alternativos opcionais são testados na ordem informada; isso não habilita saída direta.',
   'network.proxyPlaceholder': '127.0.0.1:1080',
   'network.expectedIpLabel': 'IP de saída esperado (política de alteração)',
   'network.expectedIpPlaceholder': '203.0.113.7',
@@ -414,6 +426,8 @@ const de: Record<ProfileNetworkLifecycleMessageKey, string> = {
   'network.directWarning':
     'Der Direktmodus verwendet die Ausgangs-IP des Servers ohne VPN oder Proxy. Wählen Sie ihn nur für eine ungeschützte Verbindung.',
   'network.proxyAddressLabel': 'Proxy-Adresse (Host:Port)',
+  'network.failoverProxyAddrsLabel': 'Proxy-Failover-Adressen (eine Host:Port-Adresse pro Zeile)',
+  'network.failoverProxyAddrsHint': 'Optionale alternative Proxy-Endpunkte werden der Reihe nach versucht; direkter Egress wird dadurch nicht aktiviert.',
   'network.proxyPlaceholder': '127.0.0.1:1080',
   'network.expectedIpLabel': 'Erwartete Ausgangs-IP (Änderungsrichtlinie)',
   'network.expectedIpPlaceholder': '203.0.113.7',

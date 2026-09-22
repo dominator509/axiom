@@ -20,6 +20,7 @@ interface NetworkConfig {
   egressMode?: string | null;
   proxyAddr?: string | null;
   expectedEgressIp?: string | null;
+  failoverProxyAddrs?: string[] | null;
 }
 
 export default function NetworkForm({
@@ -34,6 +35,9 @@ export default function NetworkForm({
   const [mode, setMode] = useState<string>(initial?.egressMode ?? '');
   const [proxyAddr, setProxyAddr] = useState(initial?.proxyAddr ?? '');
   const [expectedIp, setExpectedIp] = useState(initial?.expectedEgressIp ?? '');
+  const [failoverProxyAddrs, setFailoverProxyAddrs] = useState(
+    initial?.failoverProxyAddrs?.join('\n') ?? '',
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -48,10 +52,15 @@ export default function NetworkForm({
     setError(null);
     setDone(false);
     try {
+      const proxyMode = mode === 'socks5' || mode === 'http' || mode === 'https';
       const body = {
         egressMode: mode,
-        proxyAddr: proxyAddr.trim() || null,
+        proxyType: proxyMode ? mode : null,
+        proxyAddr: proxyMode ? proxyAddr.trim() || null : null,
         expectedEgressIp: expectedIp.trim() || null,
+        failoverProxyAddrs: proxyMode
+          ? failoverProxyAddrs.split(/\r?\n/).map((address) => address.trim()).filter(Boolean)
+          : [],
       };
       const res = await mutationFetch(`/api/v1/models/${modelId}/network`, {
         method: 'PUT',
@@ -88,15 +97,34 @@ export default function NetworkForm({
         </select>
       </div>
       {mode === 'direct' && <p role="status">{t('network.directWarning')}</p>}
-      <div>
-        <label htmlFor="proxyAddr">{t('network.proxyAddressLabel')}</label>
-        <input
-          id="proxyAddr"
-          value={proxyAddr}
-          onChange={(e) => setProxyAddr(e.target.value)}
-          placeholder={t('network.proxyPlaceholder')}
-        />
-      </div>
+      {(mode === 'socks5' || mode === 'http' || mode === 'https') && (
+        <>
+          <div>
+            <label htmlFor="proxyAddr">{t('network.proxyAddressLabel')}</label>
+            <input
+              id="proxyAddr"
+              value={proxyAddr}
+              onChange={(e) => setProxyAddr(e.target.value)}
+              placeholder={t('network.proxyPlaceholder')}
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="failoverProxyAddrs">{t('network.failoverProxyAddrsLabel')}</label>
+            <textarea
+              id="failoverProxyAddrs"
+              value={failoverProxyAddrs}
+              onChange={(e) => setFailoverProxyAddrs(e.target.value)}
+              aria-describedby="failoverProxyAddrsHint"
+              rows={4}
+              spellCheck={false}
+            />
+            <p id="failoverProxyAddrsHint" className="subtle">
+              {t('network.failoverProxyAddrsHint')}
+            </p>
+          </div>
+        </>
+      )}
       <div>
         <label htmlFor="expectedIp">{t('network.expectedIpLabel')}</label>
         <input

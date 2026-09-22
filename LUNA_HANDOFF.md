@@ -3522,3 +3522,30 @@ a flat field-complete `DELIVERY`, or terminal `BLOCKED`; prose reports,
 duplicate payload fields, `STATE: ACK`, duplicate signatures, lowercase
 signatures and missing command/exit/test/hash fields are invalid. Codex owns
 the independent audit, integration, commit and push.
+
+## Codex-only F02/F04/F43 network settings UI follow-through
+
+This entry supersedes the older statement above that a Hermes lane is the sole
+active work: per owner direction, Hermes is inactive for this work. Do not poll
+or wait on the bridge for this feature slice.
+
+The model network settings page now loads and saves the selected egress mode,
+the derived proxy protocol, proxy endpoint, expected egress IP and ordered
+proxy failover endpoints. Proxy-only controls are shown only for proxy modes;
+switching away clears the persisted proxy protocol/address/failover settings.
+The API schema accepts the explicit null used to clear the protocol. The
+separate proxy/WireGuard credential form remains on the page: saved non-secret
+WireGuard public key, endpoint, allowed IPs and keepalive are prefilled, while
+private keys/passwords are never read back and remain blank for deliberate
+replacement. The health summary displays localized last-check and consecutive
+failure fields alongside existing health, latency, last-egress-IP and error
+status. Added strings are present in all six launch locales (English, Spanish,
+Japanese, Italian, Brazilian Portuguese and German).
+
+Evidence: focused dashboard network/settings tests 28/28, API network route
+tests 12/12, core locale/catalog tests 32/32; dashboard/API/core TypeScript
+checks and `git diff --check` passed. `EGRESS_HEALTH_INTERVAL_SECS` remains an
+operator/runtime setting, not a per-model dashboard control. This is source/UI
+wiring only: no privileged host namespace, real WireGuard, proxy leak, live
+provider, database, service, migration or deployment verification was run.
+F02/F04/F43 runtime and production acceptance therefore remain open.
