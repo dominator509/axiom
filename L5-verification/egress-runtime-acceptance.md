@@ -237,6 +237,33 @@ This is source and disposable-local acceptance only. It proves neither a
 deployed systemd unit, an installed provisioner-to-plane policy handoff, a
 real external proxy/WireGuard/DNS route, nor the Relay/Sev-1/browser gates.
 
+## M997 provisioner Unix-socket lifecycle — local acceptance PASS
+
+The isolated fixture now starts the emitted `egress-provisioner` binary on a
+real local Unix socket, supplies the current process UID as the server's
+allowed peer, sends separately signed create/inspect/release requests, and
+requires successful typed responses before cleaning up the namespace. This
+exercises the socket server's line framing, JSON `Result` envelope, HMAC lease
+validation, replay registry and lifecycle implementation together. It does
+not substitute for an unprivileged control-plane UID rejection test on an
+installed host.
+
+| Evidence | Value |
+| --- | --- |
+| Run ID | `7ea40e56-5f77-40f9-8a9b-216fe95bd031` |
+| Runtime container | `--network none`, not privileged, no host mounts, no published ports |
+| Exit | `0` |
+| Required named checks missing | `0` of 13, including `signed_unix_socket_lifecycle_creates_inspects_and_releases_namespace` |
+| Receipt SHA-256 | `3e55c3136f0e2eb82400a2721d82417d305851dc2bcb2982cdfedad55f4bc492` |
+| Source-manifest SHA-256 | `79a30311cfb10ab3e2676054beaf7968d3183e61e311cee87b5a12207658e526` |
+| Test-output SHA-256 | `cd539f2076e29f39cb34752c4d4cd0744a950975787434e324868355ed54fb91` |
+
+The fixture ran 46 egress-plane unit tests, 16 integration tests, 4
+proxy-security tests, 5 provisioner unit tests and the socket lifecycle test.
+Its elevated namespace capabilities exist only in this disposable container;
+this remains local runtime evidence, not systemd, target-UID, provider or
+production evidence.
+
 ## Remaining execution gates — do not mark F-02/F-04/F-43 complete
 
 1. **Production privilege/provisioner topology (F-04).** Source deployment

@@ -33,6 +33,7 @@ try {
     cpSync(join(root, 'crates', crate, 'src'), join(dest, 'src'), { recursive: true });
   }
   cpSync(join(root, 'crates', 'egress-plane', 'tests'), join(context, 'crates', 'egress-plane', 'tests'), { recursive: true });
+  cpSync(join(root, 'crates', 'egress-provisioner', 'tests'), join(context, 'crates', 'egress-provisioner', 'tests'), { recursive: true });
   cpSync(join(root, 'infra', 'egress-rehearsal', 'Dockerfile'), join(context, 'Dockerfile'));
   const hashTree = (dir, prefix = '') => {
     for (const file of readdirSync(dir, { withFileTypes: true })) {
@@ -73,6 +74,7 @@ try {
     'test_continuous_monitor_detects_failure_without_operator_probe',
     'test_net_admin_alone_cannot_provision_namespaces',
     'signed_lifecycle_creates_inspects_and_releases_a_closed_namespace',
+    'signed_unix_socket_lifecycle_creates_inspects_and_releases_namespace',
   ];
   const testOutput = output.stdout + output.stderr;
   // Rust prints unit tests using their module-qualified name (for example

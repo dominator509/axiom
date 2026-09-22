@@ -109,6 +109,18 @@ disabled; do not read the bridge or revive any old lane.
   Real WireGuard/proxy/DNS/rotation, persistence/Sev-1/Relay and approved
   browser acceptance remain open. Live actions: NONE.
 
+### M997 local Unix-socket receipt
+
+- The approved network-none Docker fixture now starts the actual provisioner
+  socket server and sends signed create/inspect/release lifecycle messages.
+  Receipt `7ea40e56-5f77-40f9-8a9b-216fe95bd031` exits 0 with every required
+  named check present, including the socket lifecycle. Receipt SHA-256:
+  `3e55c3136f0e2eb82400a2721d82417d305851dc2bcb2982cdfedad55f4bc492`.
+- This is still a same-UID local fixture, not evidence that a deployed
+  `axiom-egress` account can and cannot use the systemd socket as intended.
+  It does not close the policy/upstream handoff, target UID, provider route,
+  rotation, queue/Sev-1/Relay or browser gates.
+
 ## Historical coordination state — not the current implementation task
 
 The following block is preserved historical evidence, not current authority.
