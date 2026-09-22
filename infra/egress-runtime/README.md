@@ -4,7 +4,7 @@ These are deployment **artifacts**, not evidence that a host has installed or
 activated them.  They split namespace administration from the egress control
 plane and run outbound Node work in the already-provisioned model namespace.
 They must be installed as one reviewed release with the matching
-`egress-provisioner` and `worker-egress-dispatch` binaries; the repository does
+`egress-provisioner` binary and compiled worker package; the repository does
 not claim an installed or activated instance.
 
 ## Identities and authority
@@ -34,13 +34,17 @@ raw namespace name. The socket service requires `AXIOM_EGRESS_LEASE_KEY` and
 `AXIOM_EGRESS_CONTROL_UID` from the root-owned
 `/etc/axiom/egress-provisioner.env` file.
 
-`worker-egress-dispatch` is still not emitted. It remains a release gate, not
-an optional command: it must accept only an already-authorized job envelope
-from a Unix socket, not user arguments or a provider URL.
+The checked runner unit invokes the compiled worker entry directly, with a
+model ID supplied by the systemd instance. It verifies that it is already in
+the matching namespace before registering connectors, and its database claim
+function can claim only that model's provider/scraper jobs. The global worker
+uses the complementary non-egress claim function when confinement is required.
+This is source-level enforcement only: the actual installed worker bundle,
+systemd identity and namespace join still require target acceptance.
 
 ```
 plane --local UDS--> provisioner --creates--> egress_<model> netns
-worker queue --local UDS--> worker-egress-dispatch@<model> --joins--> egress_<model>
+worker@<model> --systemd NetworkNamespacePath--> egress_<model> netns
 ```
 
 1. The provisioner validates the tenant/model/policy relationship and creates
@@ -49,11 +53,12 @@ worker queue --local UDS--> worker-egress-dispatch@<model> --joins--> egress_<mo
    lease, namespace derivation and closed-baseline portion; policy lookup,
    upstream attachment and sidecar lifecycle remain to be moved out of the
    unprivileged plane before activation.
-2. It returns only a model-scoped opaque lease.  A failed probe removes the
+2. It returns only a model-scoped opaque lease. A failed probe removes the
    lease and runner start is refused.
-3. The worker submits a bounded job envelope to the runner.  The runner never
-   creates a host-network client and cannot select a namespace, executable,
-   provider host, or proxy itself.
+3. The runner never creates a namespace or alters its network. It verifies the
+   namespace selected by systemd and claims only relationally-derived work for
+   that model. Shared helper-based egress fetches reject non-runner callers
+   when required confinement is enabled.
 4. Release, credential rotation, stale namespace cleanup, and drain run
    through the provisioner.  The runner has no authority to alter its network.
 

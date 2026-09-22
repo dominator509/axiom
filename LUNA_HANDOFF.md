@@ -93,6 +93,11 @@ disabled; do not read the bridge or revive any old lane.
   identity and namespace. API/OAuth/LLM control-plane callers therefore fail
   closed pending a reviewed UDS dispatch path; no proxy URL is treated as an
   OS boundary.
+- The egress-runtime README now matches the checked unit: there is no claimed
+  `worker-egress-dispatch` binary. The per-model systemd unit launches the
+  compiled worker directly; its scoped claim and namespace proof are the
+  source-level dispatch boundary. Installed-bundle and target acceptance are
+  still required.
 - Local-only evidence: the fresh labeled disposable PostgreSQL fixture applied
   68 migrations and passed two-tenant scoped-claim, malformed-payload and
   global-exclusion checks with zero provider calls; focused gateway 16/16,
