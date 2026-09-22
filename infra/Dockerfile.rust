@@ -49,6 +49,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iproute2 \
     iptables \
     wireguard-tools \
+    util-linux \
     && groupadd --system --gid 1001 egress \
     && useradd --system --uid 1001 --gid 1001 --home-dir /nonexistent --no-create-home egress \
     && rm -rf /var/lib/apt/lists/*
@@ -58,8 +59,10 @@ WORKDIR /app
 # Copy the compiled binary from the builder stage
 COPY --from=builder /app/target/release/egress-plane /app/egress-plane
 
-# Run as a dedicated non-root identity. Deployment must grant only the
-# capability required by the declared netns/WireGuard boundary.
+# Keep the unprivileged runtime identity. This image alone is not proof of
+# namespace provisioning: ip netns add/exec also requires SYS_ADMIN, and
+# sidecar capability dropping requires SETPCAP. Do not widen production
+# privileges to match the synthetic fixture; see the acceptance runbook.
 USER 1001:1001
 
 ENV NODE_ENV=production

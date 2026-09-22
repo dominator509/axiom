@@ -71,8 +71,10 @@ pub fn decrypt_creds(cfg: &NetworkConfig, dek: Option<&[u8]>) -> Result<Option<C
     else {
         return Ok(None);
     };
-    let plain = crate::crypto::decrypt_envelope(enc, nonce, key)
-        .map_err(|e| format!("envelope decrypt failed: {e}"))?;
+    let plain = zeroize::Zeroizing::new(
+        crate::crypto::decrypt_envelope(enc, nonce, key)
+            .map_err(|e| format!("envelope decrypt failed: {e}"))?,
+    );
     let creds: Creds =
         serde_json::from_slice(&plain).map_err(|e| format!("creds parse failed: {e}"))?;
     Ok(Some(creds))

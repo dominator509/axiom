@@ -78,6 +78,13 @@ const validBody = {
 };
 
 describe('POST / — create config', () => {
+  it('requires an explicit egress mode instead of silently opting into direct', async () => {
+    const res = await appWithOrg('org-1').request('/', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ modelId: MODEL_ID }),
+    });
+    expect(res.status).toBe(400);
+  });
   it.each(['10.0.0.2', '10.0.0.2/33', '999.0.0.2/32', '10.0.0.2/32/extra'])('rejects invalid tunnel address %s', async wgInterfaceAddress => {
     const res = await appWithOrg('org-1').request('/', {
       method: 'POST', headers: { 'content-type': 'application/json' },

@@ -287,6 +287,8 @@ pub struct AppState {
     pub kill_switch: KillSwitch,
     pub db: Mutex<Option<tokio_postgres::Client>>,
     pub registry: Mutex<Registry>,
+    /// Serialize model lifecycle operations; drain deliberately bypasses it.
+    pub lifecycle: tokio::sync::Mutex<()>,
 }
 
 /// Remove a bound egress from the in-memory registry and release the subnet
@@ -314,12 +316,24 @@ fn replace_bound(
     model_id: String,
     bound: BoundEgress,
 ) -> Result<Option<BoundEgress>, EgressError> {
+    install_bound(state, model_id, bound, true)
+}
+
+fn install_bound(
+    state: &Arc<AppState>,
+    model_id: String,
+    bound: BoundEgress,
+    new_binding: bool,
+) -> Result<Option<BoundEgress>, EgressError> {
     let mut registry = state.registry.lock().unwrap();
     // kill_switch_drain flips the atomic flag before taking this same
     // registry lock. Checking it here closes the interval between the
     // expensive namespace setup/probe and the final registry install: a bind
     // that raced with drain is torn down instead of becoming live afterward.
     if state.kill_switch.is_enabled() {
+        if let Some(octet) = bound_octet(&bound) {
+            registry.release_octet(octet);
+        }
         drop(registry);
         let _ = teardown_bound(bound);
         return Err(EgressError::KillSwitch(
@@ -333,7 +347,9 @@ fn replace_bound(
         }
         registry.unbinds_total += 1;
     }
-    registry.binds_total += 1;
+    if new_binding {
+        registry.binds_total += 1;
+    }
     Ok(previous)
 }
 
@@ -412,6 +428,7 @@ mod registry_tests {
             kill_switch: KillSwitch::new(false),
             db: Mutex::new(None),
             registry: Mutex::new(Registry::new()),
+            lifecycle: tokio::sync::Mutex::new(()),
         })
     }
 
@@ -466,7 +483,7 @@ mod registry_tests {
 // Request / Response types
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize, zeroize::Zeroize, zeroize::ZeroizeOnDrop)]
 pub struct BindRequest {
     pub model_id: String,
     #[serde(default)]
@@ -620,22 +637,33 @@ async fn resolve_config(req: &BindRequest) -> Result<NetworkConfig, EgressError>
     })
 }
 
-fn proxy_upstream_for(cfg: &NetworkConfig, req: &BindRequest, addr: &str) -> Upstream {
-    match cfg.mode {
+fn proxy_upstream_for(
+    cfg: &NetworkConfig,
+    req: &BindRequest,
+    addr: &str,
+) -> Result<Upstream, EgressError> {
+    let connect_addr = Some(netns::resolve_endpoint(addr)?);
+    Ok(match cfg.mode {
         EgressMode::Socks5 => Upstream::Proxy {
             kind: ProxyKind::Socks5,
             addr: addr.to_string(),
+            connect_addr,
             username: req.proxy_username.clone(),
             password: req.proxy_password.clone(),
         },
         EgressMode::Http | EgressMode::Https => Upstream::Proxy {
-            kind: ProxyKind::Http,
+            kind: if cfg.mode == EgressMode::Https {
+                ProxyKind::Https
+            } else {
+                ProxyKind::Http
+            },
             addr: addr.to_string(),
+            connect_addr,
             username: req.proxy_username.clone(),
             password: req.proxy_password.clone(),
         },
         _ => Upstream::Direct,
-    }
+    })
 }
 
 async fn bind_egress(state: &Arc<AppState>, req: &BindRequest) -> Result<BoundEgress, EgressError> {
@@ -670,22 +698,34 @@ async fn bind_egress(state: &Arc<AppState>, req: &BindRequest) -> Result<BoundEg
     }
 
     // ---- isolated modes -----------------------------------------------------
-    netns::create_netns(&ns)?;
     let octet = {
         let mut reg = state.registry.lock().unwrap();
         reg.alloc_octet()?
     };
+    if let Err(error) = netns::create_netns(&ns) {
+        state.registry.lock().unwrap().release_octet(octet);
+        return Err(error.into());
+    }
     let host_ip = format!("10.240.{octet}.1/30");
     // The netns-side veth MUST carry the /30 prefix: with a bare /32 the
     // namespace has no connected route back to the host-side .1 address and
     // every reply (ARP, RST, ICMP) silently dies — "No route to host".
     let ns_ip_full = format!("10.240.{octet}.2/30");
     let ns_ip = format!("10.240.{octet}.2");
-    let veth_host = netns::setup_veth(&ns, &host_ip, &ns_ip_full)?;
+    let veth_host = match netns::setup_veth(&ns, &host_ip, &ns_ip_full) {
+        Ok(name) => name,
+        Err(error) => {
+            let _ = netns::delete_netns(&ns);
+            state.registry.lock().unwrap().release_octet(octet);
+            return Err(error.into());
+        }
+    };
+    let gateway = format!("10.240.{octet}.1");
 
     let bind_result = async {
+        netns::set_null_default_route(&ns)?;
+        netns::configure_firewall(&ns, &gateway, SIDECAR_PORT)?;
         if cfg.mode.is_tunnel() {
-            // Tunnel modes: no blackhole — the tunnel route is the only route.
             let private_key = req
                 .wg_private_key
                 .as_deref()
@@ -694,28 +734,13 @@ async fn bind_egress(state: &Arc<AppState>, req: &BindRequest) -> Result<BoundEg
                 .iface_addr
                 .clone()
                 .unwrap_or_else(|| "10.7.0.2/32".to_string());
-            let spec = tunnel::TunnelSpec::from_config(&cfg, private_key, &iface_addr)
+            let mut spec = tunnel::TunnelSpec::from_config(&cfg, private_key, &iface_addr)
                 .map_err(EgressError::Validation)?;
+            let endpoint = netns::resolve_endpoint(&spec.endpoint)?;
+            netns::allow_endpoint(&ns, &gateway, endpoint, "udp")?;
+            spec.endpoint = endpoint.to_string();
             tunnel::bring_up_tunnel(&ns, &spec, private_key, req.wg_preshared_key.as_deref())?;
-        } else {
-            // Proxy modes: fail-closed blackhole + allow-list the approved
-            // egress proxy hosts (primary + failover).
-            netns::set_null_default_route(&ns)?;
-            let mut hosts: Vec<String> = Vec::new();
-            if let Some(addr) = &cfg.proxy_addr {
-                hosts.push(addr.split(':').next().unwrap_or(addr).to_string());
-            }
-            for addr in &cfg.failover_proxy_addrs {
-                let h = addr.split(':').next().unwrap_or(addr);
-                if !hosts.iter().any(|x| x == h) {
-                    hosts.push(h.to_string());
-                }
-            }
-            for h in hosts {
-                let sanitized =
-                    NetworkConfig::sanitize_hostport(&h).map_err(EgressError::Validation)?;
-                netns::add_allow_rule(&ns, &sanitized)?;
-            }
+            netns::allow_tunnel(&ns)?;
         }
 
         let upstream = match cfg.mode {
@@ -723,7 +748,15 @@ async fn bind_egress(state: &Arc<AppState>, req: &BindRequest) -> Result<BoundEg
                 let primary = cfg.proxy_addr.clone().ok_or_else(|| {
                     EgressError::Validation("proxy modes require proxy_addr".to_string())
                 })?;
-                proxy_upstream_for(&cfg, req, &primary)
+                let upstream = proxy_upstream_for(&cfg, req, &primary)?;
+                if let Upstream::Proxy {
+                    connect_addr: Some(endpoint),
+                    ..
+                } = &upstream
+                {
+                    netns::allow_endpoint(&ns, &gateway, *endpoint, "tcp")?;
+                }
+                upstream
             }
             _ => Upstream::Direct,
         };
@@ -746,9 +779,6 @@ async fn bind_egress(state: &Arc<AppState>, req: &BindRequest) -> Result<BoundEg
         }
     };
 
-    // Give the sidecar a moment to bind its listener.
-    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-
     let bound = BoundEgress {
         config: cfg,
         ns,
@@ -769,13 +799,28 @@ async fn bind_egress(state: &Arc<AppState>, req: &BindRequest) -> Result<BoundEg
     Ok(bound)
 }
 
-/// Probe a bound egress through its sidecar (or directly for direct mode).
-async fn probe_bound(state: &Arc<AppState>, bound: &mut BoundEgress) {
+/// Leave process/kernel handles registered during I/O so drain can kill them.
+/// Callers serialize replacement using lifecycle; drain is never blocked by it.
+async fn probe_registered(
+    state: &Arc<AppState>,
+    model_id: &str,
+) -> Result<HealthState, EgressError> {
     let now = chrono_iso_now();
-    let proxy: Option<(String, u16)> = if bound.config.mode == EgressMode::Direct {
-        None
-    } else {
-        Some((bound.host_ip.clone(), SIDECAR_PORT))
+    let (proxy, expected, previous) = {
+        let registry = state.registry.lock().unwrap();
+        let bound = registry
+            .bounds
+            .get(model_id)
+            .ok_or_else(|| EgressError::Validation("model is not bound".into()))?;
+        (
+            if bound.config.mode == EgressMode::Direct {
+                None
+            } else {
+                Some((bound.host_ip.clone(), SIDECAR_PORT))
+            },
+            bound.config.expected_egress_ip.clone(),
+            bound.health.clone(),
+        )
     };
     let result = health::probe_echo(
         &state.config.echo_url,
@@ -783,8 +828,19 @@ async fn probe_bound(state: &Arc<AppState>, bound: &mut BoundEgress) {
         std::time::Duration::from_secs(10),
     )
     .await;
-    let expected = bound.config.expected_egress_ip.clone();
-    bound.health = health::reconcile_health(&bound.health, &result, expected.as_deref(), &now);
+    let health = health::reconcile_health(&previous, &result, expected.as_deref(), &now);
+    let mut registry = state.registry.lock().unwrap();
+    if state.kill_switch.is_enabled() {
+        return Err(EgressError::KillSwitch(
+            "egress drained during probe".into(),
+        ));
+    }
+    let bound = registry
+        .bounds
+        .get_mut(model_id)
+        .ok_or_else(|| EgressError::Validation("binding removed during probe".into()))?;
+    bound.health = health.clone();
+    Ok(health)
 }
 
 fn chrono_iso_now() -> String {
@@ -798,6 +854,38 @@ fn chrono_iso_now() -> String {
         Ok(o) => String::from_utf8_lossy(&o.stdout).trim().to_string(),
         Err(_) => "1970-01-01T00:00:00Z".to_string(),
     }
+}
+
+/// Periodic probes use the same registered-handle/drain-safe path as an
+/// operator check. Dropping the server state terminates this background task.
+pub fn spawn_health_monitor(state: &Arc<AppState>, period: std::time::Duration) {
+    let weak = Arc::downgrade(state);
+    tokio::spawn(async move {
+        let mut ticks = tokio::time::interval(period);
+        ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            ticks.tick().await;
+            let Some(state) = weak.upgrade() else { break };
+            if state.kill_switch.is_enabled() {
+                continue;
+            }
+            let models: Vec<_> = state
+                .registry
+                .lock()
+                .unwrap()
+                .bounds
+                .keys()
+                .cloned()
+                .collect();
+            for model_id in models {
+                let _ = egress_health_check_model(
+                    State(state.clone()),
+                    Json(ModelRequest { model_id }),
+                )
+                .await;
+            }
+        }
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -817,11 +905,12 @@ pub async fn health() -> impl IntoResponse {
 }
 
 /// POST /egress/bind — bind a model's egress (netns + tunnel/proxy + sidecar)
-#[instrument(skip(state))]
+#[instrument(skip_all)]
 pub async fn egress_bind(
     State(state): State<Arc<AppState>>,
     Json(body): Json<BindRequest>,
 ) -> Result<impl IntoResponse, EgressError> {
+    let _lifecycle = state.lifecycle.lock().await;
     let correlation_id = Uuid::new_v4().to_string();
 
     // Validate before removing a live binding. Rebinding uses the model's
@@ -837,15 +926,9 @@ pub async fn egress_bind(
         let _ = teardown_bound(previous);
     }
 
-    let mut bound = bind_egress(&state, &body).await?;
-
-    // First health probe (fail-closed: a dead egress is reported as unhealthy,
-    // never silently switched to the host route).
-    probe_bound(&state, &mut bound).await;
-
+    let bound = bind_egress(&state, &body).await?;
     let model_id = bound.config.model_id.clone();
     let mode = bound.config.mode.as_str().to_string();
-    let health_snapshot = bound.health.clone();
 
     let previous = match replace_bound(&state, model_id.clone(), bound) {
         Ok(previous) => previous,
@@ -856,6 +939,8 @@ pub async fn egress_bind(
         // retain the newest fully-probed binding and clean up the old one.
         let _ = teardown_bound(previous);
     }
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    let health_snapshot = probe_registered(&state, &model_id).await?;
 
     // Persist health to Postgres when connected (take/replace: no lock held
     // across await, keeping the handler future Send).
@@ -929,6 +1014,7 @@ pub async fn egress_unbind(
     State(state): State<Arc<AppState>>,
     Json(body): Json<UnbindRequest>,
 ) -> Result<impl IntoResponse, EgressError> {
+    let _lifecycle = state.lifecycle.lock().await;
     let correlation_id = Uuid::new_v4().to_string();
     let removed = take_bound(&state, &body.model_id);
     match removed {
@@ -993,7 +1079,9 @@ pub async fn egress_health_check_model(
     State(state): State<Arc<AppState>>,
     Json(body): Json<ModelRequest>,
 ) -> Result<impl IntoResponse, EgressError> {
+    let _lifecycle = state.lifecycle.lock().await;
     let correlation_id = Uuid::new_v4().to_string();
+    probe_registered(&state, &body.model_id).await?;
     let mut bound = state
         .registry
         .lock()
@@ -1001,8 +1089,7 @@ pub async fn egress_health_check_model(
         .bounds
         .remove(&body.model_id)
         .ok_or_else(|| EgressError::Validation(format!("model {} is not bound", body.model_id)))?;
-
-    probe_bound(&state, &mut bound).await;
+    let mut reprobe = false;
 
     // Health-gated failover: proxy modes only, never to the host route.
     if !bound.health.healthy
@@ -1021,31 +1108,50 @@ pub async fn egress_health_check_model(
             let _ = child.kill();
             let _ = child.wait();
         }
-        let upstream = proxy_upstream_for(&bound.config, &from_bound(&bound), &next);
-        match proxy::spawn_sidecar_in_netns(&bound.ns, &exe, &bound.ns_ip, SIDECAR_PORT, &upstream)
-        {
-            Ok(child) => {
+        let attempt = (|| -> Result<(Upstream, std::process::Child), EgressError> {
+            let upstream = proxy_upstream_for(&bound.config, &from_bound(&bound), &next)?;
+            let gateway = format!(
+                "10.240.{}.1",
+                bound_octet(&bound)
+                    .ok_or_else(|| EgressError::Validation("invalid binding subnet".into()))?
+            );
+            netns::configure_firewall(&bound.ns, &gateway, SIDECAR_PORT)?;
+            if let Upstream::Proxy {
+                connect_addr: Some(endpoint),
+                ..
+            } = &upstream
+            {
+                netns::allow_endpoint(&bound.ns, &gateway, *endpoint, "tcp")?;
+            }
+            let child = proxy::spawn_sidecar_in_netns(
+                &bound.ns,
+                &exe,
+                &bound.ns_ip,
+                SIDECAR_PORT,
+                &upstream,
+            )?;
+            Ok((upstream, child))
+        })();
+        match attempt {
+            Ok((upstream, child)) => {
                 bound.child = Some(child);
                 bound.upstream = upstream;
-                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-                probe_bound(&state, &mut bound).await;
+                reprobe = true;
             }
-            Err(e) => {
-                bound.health.last_error = Some(format!("failover spawn failed: {e}"));
+            Err(_) => {
+                let _ = netns::flush_allow_rules(&bound.ns);
+                bound.health.last_error = Some("approved failover setup failed".into());
             }
         }
     }
 
     let model_id = body.model_id.clone();
-    let snapshot = bound.health.clone();
     let org = bound.config.org_id.clone();
-    {
-        state
-            .registry
-            .lock()
-            .unwrap()
-            .bounds
-            .insert(model_id.clone(), bound);
+    let mut snapshot = bound.health.clone();
+    install_bound(&state, model_id.clone(), bound, false)?;
+    if reprobe {
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        snapshot = probe_registered(&state, &model_id).await?;
     }
     let mut client = state.db.lock().unwrap().take();
     if let Some(c) = client.as_mut() {
@@ -1092,8 +1198,14 @@ fn from_bound(bound: &BoundEgress) -> BindRequest {
         wg_persistent_keepalive: cfg.wg_persistent_keepalive,
         expected_egress_ip: cfg.expected_egress_ip.clone(),
         failover_proxy_addrs: cfg.failover_proxy_addrs.clone(),
-        proxy_username: None,
-        proxy_password: None,
+        proxy_username: match &bound.upstream {
+            Upstream::Proxy { username, .. } => username.clone(),
+            _ => None,
+        },
+        proxy_password: match &bound.upstream {
+            Upstream::Proxy { password, .. } => password.clone(),
+            _ => None,
+        },
         wg_private_key: None,
         wg_preshared_key: None,
         vpn_config: None,
@@ -1125,7 +1237,7 @@ pub async fn egress_health_check(
 /// POST /egress/decrypt — envelope decryption for the execution planes.
 /// When no explicit DEK override is supplied, the plane uses its configured
 /// EGRESS_DEK so callers never need to receive or forward the key.
-#[instrument(skip(state))]
+#[instrument(skip_all)]
 pub async fn egress_decrypt(
     State(state): State<Arc<AppState>>,
     Json(body): Json<DecryptRequest>,
@@ -1169,7 +1281,7 @@ pub async fn egress_decrypt(
 /// plane calls this BEFORE writing a config row, so secrets never touch
 /// the API process in plaintext after this call; the DEK stays in the
 /// egress plane's environment.
-#[instrument(skip(state))]
+#[instrument(skip_all)]
 pub async fn egress_encrypt(
     State(state): State<Arc<AppState>>,
     Json(body): Json<EncryptRequest>,
@@ -1225,7 +1337,7 @@ pub async fn kill_switch_drain(State(state): State<Arc<AppState>>) -> impl IntoR
         .cloned()
         .collect();
     for model_id in bound_list {
-        if let Some(bound) = state.registry.lock().unwrap().bounds.remove(&model_id) {
+        if let Some(bound) = take_bound(&state, &model_id) {
             let _ = teardown_bound(bound);
         }
     }
@@ -1373,6 +1485,7 @@ pub async fn egress_sync(
     State(state): State<Arc<AppState>>,
     Query(scope): Query<SyncScope>,
 ) -> Result<impl IntoResponse, EgressError> {
+    let _lifecycle = state.lifecycle.lock().await;
     scope.validate()?;
     let correlation_id = Uuid::new_v4().to_string();
     let mut client = state.db.lock().unwrap().take();
@@ -1465,7 +1578,6 @@ pub async fn egress_sync(
         };
         match bind_egress(&state, &req).await {
             Ok(mut b) => {
-                probe_bound(&state, &mut b).await;
                 // Keep only the encrypted envelope identity in the live
                 // binding so a later sync notices credential rotation without
                 // retaining decrypted material in the registry.
@@ -1483,6 +1595,8 @@ pub async fn egress_sync(
                         continue;
                     }
                 }
+                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                probe_registered(&state, &cfg.model_id).await?;
                 bound += 1;
             }
             Err(e) => {

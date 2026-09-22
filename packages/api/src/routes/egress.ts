@@ -26,7 +26,7 @@ const EGRESS_DEK_ID = process.env.EGRESS_DEK_ID ?? 'egress-dek';
 
 const createEgressConfigSchema = z.object({
   modelId: z.string().uuid(),
-  egressMode: z.enum(EGRESS_MODES).default('direct'),
+  egressMode: z.enum(EGRESS_MODES),
   proxyType: z.string().max(20).optional(),
   proxyAddr: z.string().max(500).optional(),
   wgPublicKey: z.string().max(200).optional(),

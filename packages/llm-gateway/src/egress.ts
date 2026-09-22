@@ -3,8 +3,8 @@
 // When a model profile has a bound egress (see egress-plane :9090), the
 // gateway routes that model's provider calls through the model's sidecar
 // proxy — the same fail-closed namespace the egress-plane built. The client
-// factory is namespace-scoped: a model WITHOUT a healthy bound egress gets
-// the plain global fetch (direct egress, explicit opt-in).
+// factory requires a healthy bound sidecar. Missing/unhealthy status is NOT
+// an implicit opt-in to direct egress; consumers must reject a null result.
 
 import { ProxyAgent, fetch as undiciFetch } from 'undici';
 import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson } from '@axiom/core';

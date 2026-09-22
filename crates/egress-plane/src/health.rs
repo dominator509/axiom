@@ -8,7 +8,24 @@
 //! route — the check simply fails (LBI-02).
 
 use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    sync::{Mutex, OnceLock},
+};
 use tracing::{info, warn};
+
+pub fn monitor_interval(value: Option<&str>) -> Result<Duration, &'static str> {
+    let seconds = match value {
+        None => 30,
+        Some(value) => value
+            .parse::<u64>()
+            .map_err(|_| "invalid EGRESS_HEALTH_INTERVAL_SECS")?,
+    };
+    if !(1..=3600).contains(&seconds) {
+        return Err("EGRESS_HEALTH_INTERVAL_SECS must be 1..3600");
+    }
+    Ok(Duration::from_secs(seconds))
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct HealthState {
@@ -34,57 +51,19 @@ pub struct ProbeResult {
 /// Accepts a bare IP, `{"ip":"1.2.3.4"}`, or `ip=1.2.3.4`.
 pub fn parse_echo_ip(body: &str) -> Option<String> {
     let trimmed = body.trim();
-    // JSON {"ip":"..."} / {"address":"..."}
-    for key in ["\"ip\"", "\"address\"", "\"query\""] {
-        if let Some(idx) = trimmed.find(key) {
-            let after = &trimmed[idx + key.len()..];
-            if let Some(colon) = after.find(':') {
-                let rest = after[colon + 1..].trim();
-                let start = rest.trim_start_matches(['"', ' ']);
-                let ip: String = start
-                    .chars()
-                    .take_while(|c| {
-                        c.is_ascii_digit()
-                            || *c == '.'
-                            || *c == ':'
-                            || *c == '['
-                            || *c == ']'
-                            || *c == 'a'
-                            || *c == 'b'
-                            || *c == 'c'
-                            || *c == 'd'
-                            || *c == 'e'
-                            || *c == 'f'
-                            || *c == 'A'
-                            || *c == 'B'
-                            || *c == 'C'
-                            || *c == 'D'
-                            || *c == 'E'
-                            || *c == 'F'
-                    })
-                    .collect();
-                if !ip.is_empty() {
-                    return Some(ip);
-                }
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
+        for key in ["ip", "address", "query"] {
+            if let Some(ip) = value.get(key).and_then(|v| v.as_str()) {
+                return ip.parse::<std::net::IpAddr>().ok().map(|ip| ip.to_string());
             }
         }
     }
-    // Bare IP (possibly with trailing whitespace/newline) — allow IPv6 hex.
-    let candidate: String = trimmed
-        .chars()
-        .take_while(|c| {
-            c.is_ascii_digit()
-                || *c == '.'
-                || *c == ':'
-                || *c == '['
-                || *c == ']'
-                || c.is_ascii_hexdigit()
-        })
-        .collect();
-    if candidate.contains('.') || candidate.contains(':') {
-        return Some(candidate);
-    }
-    None
+    trimmed
+        .strip_prefix("ip=")
+        .unwrap_or(trimmed)
+        .parse::<std::net::IpAddr>()
+        .ok()
+        .map(|ip| ip.to_string())
 }
 
 /// Probe the echo endpoint through an HTTP proxy address (the model's
@@ -96,7 +75,83 @@ pub async fn probe_echo(
     timeout: Duration,
 ) -> ProbeResult {
     let started = Instant::now();
+    let client = match probe_client(proxy, timeout) {
+        Ok(client) => client,
+        Err(error) => {
+            return ProbeResult {
+                ok: false,
+                egress_ip: None,
+                latency_ms: 0,
+                error: Some(error.into()),
+            }
+        }
+    };
+
+    match client.get(echo_url).send().await {
+        Ok(mut resp) => {
+            let latency = started.elapsed().as_millis() as u64;
+            let read_body = async {
+                if !resp.status().is_success() {
+                    return Err("echo returned a non-success status");
+                }
+                let mut bytes = Vec::new();
+                while let Some(chunk) = resp.chunk().await.map_err(|_| "echo body read failed")? {
+                    if bytes.len() + chunk.len() > 4096 {
+                        return Err("echo body exceeds size limit");
+                    }
+                    bytes.extend_from_slice(&chunk);
+                }
+                String::from_utf8(bytes).map_err(|_| "echo body is not UTF-8")
+            }
+            .await;
+            match read_body {
+                Ok(body) => match parse_echo_ip(&body) {
+                    Some(ip) => ProbeResult {
+                        ok: true,
+                        egress_ip: Some(ip),
+                        latency_ms: latency,
+                        error: None,
+                    },
+                    None => ProbeResult {
+                        ok: false,
+                        egress_ip: None,
+                        latency_ms: latency,
+                        error: Some("echo body had no valid IP".into()),
+                    },
+                },
+                Err(e) => ProbeResult {
+                    ok: false,
+                    egress_ip: None,
+                    latency_ms: latency,
+                    error: Some(format!("echo body read failed: {e}")),
+                },
+            }
+        }
+        Err(_) => ProbeResult {
+            ok: false,
+            egress_ip: None,
+            latency_ms: started.elapsed().as_millis() as u64,
+            error: Some("echo request failed".into()),
+        },
+    }
+}
+
+// Reusing clients avoids repeatedly loading trust roots and rebuilding the
+// HTTP stack for every periodic check. Cache the transport, NEVER health or
+// echo results. Each proxy/timeout is a distinct key; no implicit direct entry.
+fn probe_client(
+    proxy: Option<(&str, u16)>,
+    timeout: Duration,
+) -> Result<reqwest::Client, &'static str> {
+    static CLIENTS: OnceLock<Mutex<HashMap<String, reqwest::Client>>> = OnceLock::new();
+    let key = format!("{proxy:?}/{timeout:?}");
+    let clients = CLIENTS.get_or_init(Default::default);
+    if let Some(client) = clients.lock().unwrap().get(&key).cloned() {
+        return Ok(client);
+    }
     let mut builder = reqwest::Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
         .timeout(timeout)
         .connect_timeout(timeout.min(Duration::from_secs(5)));
     if let Some((host, port)) = proxy {
@@ -110,69 +165,16 @@ pub async fn probe_echo(
             Ok(p) => {
                 builder = builder.proxy(p);
             }
-            Err(e) => {
-                return ProbeResult {
-                    ok: false,
-                    egress_ip: None,
-                    latency_ms: 0,
-                    error: Some(format!("invalid proxy url: {e}")),
-                };
-            }
+            Err(_) => return Err("invalid proxy url"),
         }
     }
-    let client = match builder.build() {
-        Ok(c) => c,
-        Err(e) => {
-            return ProbeResult {
-                ok: false,
-                egress_ip: None,
-                latency_ms: 0,
-                error: Some(format!("client build failed: {e}")),
-            };
-        }
-    };
-
-    match client.get(echo_url).send().await {
-        Ok(resp) => {
-            let latency = started.elapsed().as_millis() as u64;
-            match resp.text().await {
-                Ok(body) => match parse_echo_ip(&body) {
-                    Some(ip) => ProbeResult {
-                        ok: true,
-                        egress_ip: Some(ip),
-                        latency_ms: latency,
-                        error: None,
-                    },
-                    None => ProbeResult {
-                        ok: false,
-                        egress_ip: None,
-                        latency_ms: latency,
-                        error: Some(format!("echo body had no IP: {}", truncate(&body, 120))),
-                    },
-                },
-                Err(e) => ProbeResult {
-                    ok: false,
-                    egress_ip: None,
-                    latency_ms: latency,
-                    error: Some(format!("echo body read failed: {e}")),
-                },
-            }
-        }
-        Err(e) => ProbeResult {
-            ok: false,
-            egress_ip: None,
-            latency_ms: started.elapsed().as_millis() as u64,
-            error: Some(format!("echo request failed: {e}")),
-        },
+    let client = builder.build().map_err(|_| "client build failed")?;
+    let mut clients = clients.lock().unwrap();
+    if clients.len() >= 256 {
+        clients.clear();
     }
-}
-
-fn truncate(s: &str, n: usize) -> String {
-    let mut out: String = s.chars().take(n).collect();
-    if s.chars().count() > n {
-        out.push('…');
-    }
-    out
+    clients.insert(key, client.clone());
+    Ok(client)
 }
 
 /// Reconcile a probe result into a HealthState, applying the expected-IP
@@ -214,6 +216,55 @@ mod tests {
     use super::*;
 
     #[test]
+    fn monitor_interval_is_bounded_and_never_silently_disabled() {
+        assert_eq!(monitor_interval(None).unwrap(), Duration::from_secs(30));
+        assert_eq!(monitor_interval(Some("5")).unwrap(), Duration::from_secs(5));
+        for invalid in ["", "0", "-1", "3601", "NaN"] {
+            assert!(monitor_interval(Some(invalid)).is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn probe_rejects_errors_redirects_and_oversized_bodies() {
+        let app = axum::Router::new()
+            .route(
+                "/error",
+                axum::routing::get(|| async {
+                    (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "127.0.0.1")
+                }),
+            )
+            .route(
+                "/oversized",
+                axum::routing::get(|| async { "x".repeat(4097) }),
+            )
+            .route(
+                "/redirect",
+                axum::routing::get(|| async { axum::response::Redirect::temporary("/ok") }),
+            )
+            .route("/ok", axum::routing::get(|| async { "127.0.0.1" }));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        assert!(
+            probe_echo(&format!("http://{addr}/ok"), None, Duration::from_secs(1))
+                .await
+                .ok
+        );
+        for path in ["error", "oversized", "redirect"] {
+            assert!(
+                !probe_echo(
+                    &format!("http://{addr}/{path}"),
+                    None,
+                    Duration::from_secs(1)
+                )
+                .await
+                .ok
+            );
+        }
+        server.abort();
+    }
+
+    #[test]
     fn parse_bare_ip() {
         assert_eq!(parse_echo_ip("1.2.3.4\n"), Some("1.2.3.4".to_string()));
         assert_eq!(
@@ -246,6 +297,10 @@ mod tests {
     fn parse_no_ip() {
         assert_eq!(parse_echo_ip("not an ip"), None);
         assert_eq!(parse_echo_ip(""), None);
+        assert_eq!(parse_echo_ip(r#"{"ip":"999.999.1.1"}"#), None);
+        assert_eq!(parse_echo_ip(r#"{"ip":"1.2.3.4secret"}"#), None);
+        assert_eq!(parse_echo_ip("1.2.3.4 extra"), None);
+        assert_eq!(parse_echo_ip("ip=1.2.3.4"), Some("1.2.3.4".into()));
     }
 
     #[test]

@@ -6,6 +6,7 @@
 - `cargo build --workspace` — build Rust crates
 
 ## Test Commands
+- `node scripts/rehearse-egress.mjs --isolated-fixture` — build copied Rust source and run all egress tests, including real Linux netns/WireGuard/leak cases, in a disposable network-disabled Docker container; no host mounts, ports, database, provider calls or production changes. Namespace provisioning capabilities exist only inside the test container; evidence is written under ignored `var/egress-rehearsal/`.
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --viral-evidence` — check published/provider-backed insights filtering against disposable PostgreSQL
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --digest-status` — verify active weekly schedule selection and tenant isolation in disposable PostgreSQL; no external dispatch
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --database-readiness` — verify schema readiness under the runtime role, including empty schema, missing tables/columns and revoked access, using transactional DDL only in a labeled disposable local database

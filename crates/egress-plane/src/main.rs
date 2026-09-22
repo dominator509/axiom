@@ -56,8 +56,8 @@ async fn main() {
         None => None,
     };
 
-    // Sweep orphaned kernel state from unclean shutdowns BEFORE serving.
-    egress_plane::netns::sweep_orphans();
+    // Do not sweep host-wide name prefixes. An orphan collision fails closed
+    // until the operator removes the exact resources owned by this instance.
 
     info!(
         listen_addr = %config.listen_addr,
@@ -72,7 +72,16 @@ async fn main() {
         kill_switch,
         db: std::sync::Mutex::new(db),
         registry: std::sync::Mutex::new(Registry::new()),
+        lifecycle: tokio::sync::Mutex::new(()),
     });
+    let interval = egress_plane::health::monitor_interval(
+        std::env::var("EGRESS_HEALTH_INTERVAL_SECS").ok().as_deref(),
+    )
+    .unwrap_or_else(|error| {
+        eprintln!("{error}");
+        std::process::exit(1)
+    });
+    egress_plane::spawn_health_monitor(&state, interval);
     let app = build_router(state);
 
     let listener = tokio::net::TcpListener::bind(&config.listen_addr)
@@ -112,8 +121,11 @@ async fn run_sidecar(args: &[String]) {
         .or_else(proxy::listen_from_env)
         .unwrap_or_else(|| "127.0.0.1:8080".parse().expect("default listen"));
 
-    let upstream = proxy::upstream_from_env();
-    info!(listen = %listen, upstream = ?upstream, "Sidecar proxy starting");
+    let upstream = proxy::upstream_from_env().unwrap_or_else(|_| {
+        eprintln!("Invalid or missing sidecar upstream configuration");
+        std::process::exit(1);
+    });
+    info!(listen = %listen, "Sidecar proxy starting");
     if let Err(e) = proxy::run_sidecar(listen, upstream).await {
         warn!(error = %e, "Sidecar proxy exited with error");
     }

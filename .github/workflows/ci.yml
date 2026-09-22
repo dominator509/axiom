@@ -16,6 +16,35 @@ permissions:
   contents: read
 
 jobs:
+  egress-rehearsal:
+    # Independent of the JS matrix: an unrelated lint/typecheck failure must
+    # not cancel or skip the privileged networking evidence.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22'
+      - name: Run isolated Linux egress acceptance
+        # Test processes have no external network, host mounts or published
+        # ports. Provisioning capabilities exist only inside this container.
+        run: node scripts/rehearse-egress.mjs --isolated-fixture
+      - name: Preserve source-bound receipt in job output
+        if: always()
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const root = "var/egress-rehearsal";
+            let found = false;
+            if (fs.existsSync(root)) for (const entry of fs.readdirSync(root)) {
+              const file = `${root}/${entry}/receipt.json`;
+              if (fs.existsSync(file)) { console.log(fs.readFileSync(file, "utf8")); found = true; }
+            }
+            if (!found) { console.error("No runtime receipt produced; acceptance unavailable"); process.exitCode = 1; }
+          '
   ci:
     runs-on: ubuntu-latest
     services:
@@ -276,14 +305,6 @@ jobs:
           command -v ffmpeg
           command -v ffprobe
           cargo test --locked -p media-plane video_frames::tests::real_ffmpeg_short_clip_coverage_and_cache -- --exact --ignored
-        shell: bash
-
-      - name: Run privileged egress integration tests
-        if: matrix.task == 'test'
-        run: |
-          sudo -E env "PATH=$PATH" cargo test \
-            --manifest-path crates/egress-plane/Cargo.toml \
-            --test egress_test -- --ignored --test-threads=1
         shell: bash
 
       - name: Rehearse isolated Grok image descriptor handoff

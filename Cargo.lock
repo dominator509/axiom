@@ -579,10 +579,12 @@ dependencies = [
  "thiserror 2.0.19",
  "tokio",
  "tokio-postgres",
+ "tokio-rustls",
  "tracing",
  "tracing-subscriber",
  "url",
  "uuid",
+ "webpki-roots",
  "zeroize",
 ]
 

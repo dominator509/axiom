@@ -59,7 +59,7 @@ impl EgressMode {
 
 /// Decrypted credentials from the envelope (`enc_creds`). This struct must
 /// NEVER be logged or persisted; call `.zeroize()` after use (LBI-05).
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Zeroize)]
+#[derive(Clone, Default, Serialize, Deserialize, Zeroize)]
 #[zeroize(drop)]
 pub struct Creds {
     #[serde(default)]
@@ -74,6 +74,12 @@ pub struct Creds {
     pub vpn_config: Option<String>,
     #[serde(default)]
     pub iface_addr: Option<String>,
+}
+
+impl std::fmt::Debug for Creds {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Creds([REDACTED])")
+    }
 }
 
 /// A fully-resolved per-model egress config (the Rust-side mirror of a

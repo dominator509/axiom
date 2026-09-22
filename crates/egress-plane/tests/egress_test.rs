@@ -55,6 +55,7 @@ async fn start_test_server_with_base(echo_url: String, base_octet: u16) -> Strin
         kill_switch: kill_switch.clone(),
         db: Mutex::new(None),
         registry: Mutex::new(egress_plane::Registry::with_start(base_octet)),
+        lifecycle: tokio::sync::Mutex::new(()),
     });
     let app = egress_plane::build_router_for_test(state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -83,6 +84,7 @@ async fn test_non_loopback_control_plane_requires_token() {
         kill_switch,
         db: Mutex::new(None),
         registry: Mutex::new(egress_plane::Registry::new()),
+        lifecycle: tokio::sync::Mutex::new(()),
     });
     let app = egress_plane::build_router_for_test(state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -110,27 +112,37 @@ async fn test_non_loopback_control_plane_requires_token() {
 }
 
 /// Find a free TCP port by binding :0 and dropping the listener.
+#[cfg(target_os = "linux")]
 fn free_port() -> u16 {
     let l = std::net::TcpListener::bind("127.0.0.1:0").expect("free port");
     l.local_addr().expect("addr").port()
 }
 
-/// Start a tiny HTTP echo server that reports a fixed egress IP, bound to
-/// 0.0.0.0 so it is reachable from model netns via the veth host IP.
-async fn start_echo_server(ip: &str) -> u16 {
-    let port = free_port();
-    let ip = ip.to_string();
-    let app = axum::Router::new().route(
-        "/ip",
-        axum::routing::get(move || async move { axum::Json(serde_json::json!({ "ip": ip })) }),
-    );
+/// Report the actual TCP peer, never a test-supplied expected address.
+async fn start_echo_server() -> u16 {
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:0")
+        .await
+        .expect("echo bind");
+    let port = listener.local_addr().unwrap().port();
+    let app =
+        axum::Router::new().route(
+            "/ip",
+            axum::routing::get(
+                |axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<
+                    std::net::SocketAddr,
+                >| async move {
+                    axum::Json(serde_json::json!({ "ip": peer.ip().to_string() }))
+                },
+            ),
+        );
     tokio::spawn(async move {
-        let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
-            .await
-            .expect("echo bind");
-        axum::serve(listener, app).await.expect("echo serve");
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+        .expect("echo serve");
     });
-    tokio::time::sleep(Duration::from_millis(100)).await;
     port
 }
 
@@ -170,8 +182,14 @@ fn bind_json(model_id: &str, mode: &str, extra: serde_json::Value) -> serde_json
 /// Clean up any leftover netns/veth/wg from failed runs.
 #[cfg(target_os = "linux")]
 fn cleanup_leftovers() {
+    assert_eq!(
+        std::env::var("AXIOM_EGRESS_ISOLATED_REHEARSAL").as_deref(),
+        Ok("1"),
+        "run privileged tests through scripts/rehearse-egress.mjs, never directly on a shared host"
+    );
     for ns in [
         "egress_it_socks_m1",
+        "egress_it_socks_m2",
         "egress_it_wg_m1",
         "egress_it_direct_m1",
         "egress_it_failover_m1",
@@ -202,9 +220,91 @@ fn cleanup_leftovers() {
         .status();
 }
 
+#[cfg(target_os = "linux")]
+fn ns_curl(ns: &str, url: &str) -> std::process::Output {
+    Command::new("ip")
+        .args([
+            "netns",
+            "exec",
+            ns,
+            "setpriv",
+            "--bounding-set=-all",
+            "--inh-caps=-all",
+            "--ambient-caps=-all",
+            "--no-new-privs",
+            "curl",
+            "--noproxy",
+            "*",
+            "--silent",
+            "--fail",
+            "--max-time",
+            "1",
+            url,
+        ])
+        .output()
+        .expect("namespace curl")
+}
+
+#[cfg(target_os = "linux")]
+fn assert_sidecar_unprivileged(ns: &str) {
+    let pids = Command::new("ip")
+        .args(["netns", "pids", ns])
+        .output()
+        .unwrap();
+    let pids = String::from_utf8(pids.stdout).unwrap();
+    assert!(
+        !pids.trim().is_empty(),
+        "sidecar must exist for privilege assertion"
+    );
+    for pid in pids.split_whitespace() {
+        let status = std::fs::read_to_string(format!("/proc/{pid}/status")).unwrap();
+        for field in ["CapInh", "CapPrm", "CapEff", "CapBnd", "CapAmb"] {
+            assert!(
+                status
+                    .lines()
+                    .any(|line| line == format!("{field}:\t0000000000000000")),
+                "nonzero {field}"
+            );
+        }
+        assert!(status.lines().any(|line| line == "NoNewPrivs:\t1"));
+        let env = std::fs::read(format!("/proc/{pid}/environ")).unwrap();
+        assert!(!env.windows(13).any(|x| x == b"DATABASE_URL="));
+        assert!(!env.windows(11).any(|x| x == b"EGRESS_DEK="));
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Basic endpoint tests
 // ---------------------------------------------------------------------------
+
+#[cfg(target_os = "linux")]
+#[tokio::test]
+#[ignore = "requires isolated Linux provisioning capabilities"]
+async fn test_net_admin_alone_cannot_provision_namespaces() {
+    let _guard = netns_lock().lock().await;
+    cleanup_leftovers();
+    let output = Command::new("setpriv")
+        .args([
+            "--bounding-set=-sys_admin",
+            "sh",
+            "-c",
+            "awk '/CapEff:/ {print $2}' /proc/self/status; exec ip netns add egress_it_limited",
+        ])
+        .output()
+        .unwrap();
+    let caps = u64::from_str_radix(String::from_utf8_lossy(&output.stdout).trim(), 16).unwrap();
+    assert_ne!(caps & (1 << 12), 0, "NET_ADMIN positive control");
+    assert_eq!(caps & (1 << 21), 0, "SYS_ADMIN was not removed");
+    if output.status.success() {
+        let _ = Command::new("ip")
+            .args(["netns", "del", "egress_it_limited"])
+            .output();
+    }
+    assert!(
+        !output.status.success(),
+        "update the production capability assessment if the kernel contract changes"
+    );
+}
 
 #[tokio::test]
 async fn test_health_check_endpoint() {
@@ -271,6 +371,130 @@ async fn test_kill_switch_blocks_bind() {
         .await
         .expect("bind");
     assert_eq!(resp.status(), 503, "kill-switch must block new binds");
+}
+
+#[tokio::test]
+async fn test_drain_during_probe_cannot_resurrect_binding() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let slow = Arc::new(AtomicBool::new(false));
+    let reached = Arc::new(tokio::sync::Notify::new());
+    let release = Arc::new(tokio::sync::Notify::new());
+    let (s, r, done) = (slow.clone(), reached.clone(), release.clone());
+    let echo = axum::Router::new().route(
+        "/ip",
+        axum::routing::get(move || {
+            let (s, r, done) = (s.clone(), r.clone(), done.clone());
+            async move {
+                if s.load(Ordering::SeqCst) {
+                    r.notify_one();
+                    done.notified().await;
+                }
+                axum::Json(serde_json::json!({"ip":"127.0.0.1"}))
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move { axum::serve(listener, echo).await.unwrap() });
+    let base = start_test_server(format!("http://{addr}/ip")).await;
+    let client = reqwest::Client::new();
+    assert_eq!(
+        client
+            .post(format!("{base}/egress/bind"))
+            .json(&bind_json("probe_race", "direct", serde_json::json!({})))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
+    slow.store(true, Ordering::SeqCst);
+    let request = client
+        .post(format!("{base}/egress/health-check/model"))
+        .json(&serde_json::json!({"model_id":"probe_race"}));
+    let probe = tokio::spawn(async move { request.send().await.unwrap() });
+    tokio::time::timeout(Duration::from_secs(2), reached.notified())
+        .await
+        .unwrap();
+    assert_eq!(
+        client
+            .post(format!("{base}/kill-switch/drain"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
+    release.notify_one();
+    assert_eq!(probe.await.unwrap().status(), 503);
+    let status: serde_json::Value = client
+        .get(format!("{base}/egress/status"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(status["count"], 0);
+    server.abort();
+}
+
+#[tokio::test]
+async fn test_continuous_monitor_detects_failure_without_operator_probe() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let ready = Arc::new(AtomicBool::new(true));
+    let toggle = ready.clone();
+    let echo = axum::Router::new().route(
+        "/ip",
+        axum::routing::get(move || {
+            let toggle = toggle.clone();
+            async move {
+                (
+                    if toggle.load(Ordering::SeqCst) {
+                        axum::http::StatusCode::OK
+                    } else {
+                        axum::http::StatusCode::SERVICE_UNAVAILABLE
+                    },
+                    "127.0.0.1",
+                )
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let echo_addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move { axum::serve(listener, echo).await.unwrap() });
+    let state = Arc::new(egress_plane::AppState {
+        config: test_config(format!("http://{echo_addr}/ip")),
+        kill_switch: egress_plane::killswitch::KillSwitch::new(false),
+        db: Mutex::new(None),
+        registry: Mutex::new(egress_plane::Registry::new()),
+        lifecycle: tokio::sync::Mutex::new(()),
+    });
+    let request: egress_plane::BindRequest =
+        serde_json::from_value(bind_json("monitor", "direct", serde_json::json!({}))).unwrap();
+    assert!(
+        egress_plane::egress_bind(axum::extract::State(state.clone()), axum::Json(request))
+            .await
+            .is_ok()
+    );
+    ready.store(false, Ordering::SeqCst);
+    egress_plane::spawn_health_monitor(&state, Duration::from_millis(20));
+    let mut detected = false;
+    for _ in 0..100 {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        let registry = state.registry.lock().unwrap();
+        if registry.bounds["monitor"].health.fail_count > 0 {
+            assert!(!registry.bounds["monitor"].health.healthy);
+            assert_eq!(registry.binds_total, 1, "health polling is not a new bind");
+            detected = true;
+            break;
+        }
+    }
+    assert!(
+        detected,
+        "background monitor did not observe the real HTTP failure"
+    );
+    server.abort();
 }
 
 #[tokio::test]
@@ -403,7 +627,14 @@ async fn test_encrypt_endpoint_rejects_bad_dek() {
 async fn test_fail_closed_with_https_echo_and_dead_upstream() {
     let _guard = netns_lock().lock().await;
     cleanup_leftovers();
-    let base_url = start_test_server("https://api.ipify.org".to_string()).await;
+    // A reachable host-side TLS destination is a leak detector even if the
+    // attempted TLS handshake would not authenticate. First prove it accepts.
+    let forbidden = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let target = forbidden.local_addr().unwrap();
+    let control = tokio::net::TcpStream::connect(target).await.unwrap();
+    let _ = forbidden.accept().await.unwrap();
+    drop(control);
+    let base_url = start_test_server(format!("https://{target}/ip")).await;
     let client = reqwest::Client::new();
 
     let resp = client
@@ -430,6 +661,12 @@ async fn test_fail_closed_with_https_echo_and_dead_upstream() {
     assert_eq!(
         body["status"], "bound",
         "bind should still complete: {body}"
+    );
+    assert!(
+        tokio::time::timeout(Duration::from_millis(300), forbidden.accept())
+            .await
+            .is_err(),
+        "HTTPS health probe bypassed the dead proxy and contacted the host target"
     );
 
     let status: serde_json::Value = client
@@ -460,7 +697,7 @@ async fn test_fail_closed_with_https_echo_and_dead_upstream() {
 
 #[tokio::test]
 async fn test_direct_mode_bind_and_health() {
-    let echo_port = start_echo_server("203.0.113.7").await;
+    let echo_port = start_echo_server().await;
     let base_url = start_test_server(format!("http://127.0.0.1:{echo_port}/ip")).await;
     let client = reqwest::Client::new();
 
@@ -470,7 +707,7 @@ async fn test_direct_mode_bind_and_health() {
             "it_direct_m1",
             "direct",
             serde_json::json!({
-                "expected_egress_ip": "203.0.113.7"
+                "expected_egress_ip": "127.0.0.1"
             }),
         ))
         .send()
@@ -480,7 +717,7 @@ async fn test_direct_mode_bind_and_health() {
     let body: serde_json::Value = resp.json().await.expect("json");
     assert_eq!(body["status"], "bound");
     assert_eq!(body["healthy"], true, "direct echo should be healthy");
-    assert_eq!(body["egress_ip"], "203.0.113.7");
+    assert_eq!(body["egress_ip"], "127.0.0.1");
     assert_eq!(body["drift"], false);
 
     // unbind
@@ -509,8 +746,8 @@ async fn test_direct_mode_bind_and_health() {
 async fn test_socks5_proxy_mode_full_chain() {
     let _guard = netns_lock().lock().await;
     cleanup_leftovers();
-    let echo_ip = "198.51.100.9";
-    let echo_port = start_echo_server(echo_ip).await;
+    let echo_ip = "127.0.0.1";
+    let echo_port = start_echo_server().await;
     let (upstream_port, mut upstream_child) = spawn_host_upstream_proxy();
     // ECHO_URL target is reached by the host-side upstream proxy, so it lives
     // on the host loopback. The model's sidecar connects to the upstream
@@ -577,14 +814,255 @@ async fn test_socks5_proxy_mode_full_chain() {
     );
     assert!(metrics.contains("egress_models_bound 1"));
 
-    // Fail-closed proof: unbind, then the netns is gone.
-    let unbind = client
-        .post(format!("{base_url}/egress/unbind"))
-        .json(&serde_json::json!({ "model_id": "it_socks_m1" }))
+    assert_sidecar_unprivileged("egress_it_socks_m1");
+    // Separate local forwarding overhead from provider latency (L4.2).
+    let mut overhead = Vec::new();
+    let echo = format!("http://127.0.0.1:{echo_port}/ip");
+    for _ in 0..11 {
+        let began = std::time::Instant::now();
+        let direct = egress_plane::health::probe_echo(&echo, None, Duration::from_secs(2)).await;
+        let baseline = began.elapsed();
+        let began = std::time::Instant::now();
+        let proxied = egress_plane::health::probe_echo(
+            &echo,
+            Some(("10.240.10.2", 8080)),
+            Duration::from_secs(2),
+        )
+        .await;
+        assert!(
+            direct.ok && proxied.ok,
+            "latency samples require successful paths"
+        );
+        overhead.push(began.elapsed().saturating_sub(baseline).as_micros());
+    }
+    overhead.sort_unstable();
+    eprintln!("EGRESS_PROXY_ADDED_LATENCY_P50_US={}", overhead[5]);
+    assert!(
+        overhead[5] < 5000,
+        "L4.2 forwarding overhead exceeded 5ms: {}us",
+        overhead[5]
+    );
+    // A live listener is reachable in the parent, but the very same approved
+    // proxy IP on a different port must not be reachable from the model.
+    let canary = format!("http://10.240.10.1:{echo_port}/ip");
+    assert!(client
+        .get(&canary)
         .send()
         .await
-        .expect("unbind");
-    assert_eq!(unbind.status(), 200);
+        .unwrap()
+        .status()
+        .is_success());
+    assert!(
+        !ns_curl("egress_it_socks_m1", &canary).status.success(),
+        "host port leak"
+    );
+    // Positive UDP control followed by the identical target from the netns.
+    let udp = tokio::net::UdpSocket::bind("0.0.0.0:0").await.unwrap();
+    let udp_port = udp.local_addr().unwrap().port();
+    let sender = tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap();
+    sender
+        .send_to(b"control", format!("127.0.0.1:{udp_port}"))
+        .await
+        .unwrap();
+    let mut packet = [0u8; 64];
+    udp.recv_from(&mut packet).await.unwrap();
+    let sent = Command::new("ip")
+        .args([
+            "netns",
+            "exec",
+            "egress_it_socks_m1",
+            "bash",
+            "-c",
+            &format!("printf dns-leak > /dev/udp/10.240.10.1/{udp_port}"),
+        ])
+        .output()
+        .unwrap();
+    let _ = sent; // UDP send success never establishes packet delivery.
+    assert!(
+        tokio::time::timeout(Duration::from_millis(400), udp.recv_from(&mut packet))
+            .await
+            .is_err(),
+        "UDP/DNS bypass"
+    );
+
+    let b = client
+        .post(format!("{base_url}/egress/bind"))
+        .json(&bind_json(
+            "it_socks_m2",
+            "socks5",
+            serde_json::json!({"proxy_addr":format!("10.240.11.1:{upstream_port}")}),
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        b.json::<serde_json::Value>().await.unwrap()["healthy"],
+        true
+    );
+    let cross_model = Command::new("ip")
+        .args([
+            "netns",
+            "exec",
+            "egress_it_socks_m1",
+            "setpriv",
+            "--bounding-set=-all",
+            "--inh-caps=-all",
+            "--ambient-caps=-all",
+            "--no-new-privs",
+            "curl",
+            "--silent",
+            "--fail",
+            "--max-time",
+            "1",
+            "--noproxy",
+            "",
+            "--proxy",
+            "http://10.240.11.2:8080",
+            &echo,
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        !cross_model.status.success(),
+        "cross-model proxy returned the real echo"
+    );
+    // Real connected IPv6 canary with static neighbors: a failed neighbor
+    // lookup must not be mistaken for firewall enforcement.
+    let v6 = tokio::net::TcpListener::bind("[::]:0").await.unwrap();
+    let parent: serde_json::Value = serde_json::from_slice(
+        &Command::new("ip")
+            .args(["-j", "addr", "show", "to", "10.240.10.1/32"])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    let child: serde_json::Value = serde_json::from_str(
+        &egress_plane::netns::execute_in_netns(
+            "egress_it_socks_m1",
+            &["ip", "-j", "addr", "show", "to", "10.240.10.2/32"],
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let parent_if = parent[0]["ifname"].as_str().unwrap();
+    let child_if = child[0]["ifname"].as_str().unwrap();
+    // Address-filtered `ip addr` output need not include the link-layer
+    // address. Read it from the link object, not the address projection.
+    let parent_link: serde_json::Value = serde_json::from_slice(
+        &Command::new("ip")
+            .args(["-j", "link", "show", "dev", parent_if])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .unwrap();
+    let child_link: serde_json::Value = serde_json::from_str(
+        &egress_plane::netns::execute_in_netns(
+            "egress_it_socks_m1",
+            &["ip", "-j", "link", "show", "dev", child_if],
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert!(Command::new("ip")
+        .args(["-6", "addr", "add", "fd77::1/64", "dev", parent_if, "nodad"])
+        .status()
+        .unwrap()
+        .success());
+    egress_plane::netns::execute_in_netns(
+        "egress_it_socks_m1",
+        &[
+            "ip",
+            "-6",
+            "addr",
+            "add",
+            "fd77::2/64",
+            "dev",
+            child_if,
+            "nodad",
+        ],
+    )
+    .unwrap();
+    egress_plane::netns::execute_in_netns(
+        "egress_it_socks_m1",
+        &[
+            "ip",
+            "-6",
+            "neigh",
+            "replace",
+            "fd77::1",
+            "lladdr",
+            parent_link[0]["address"].as_str().unwrap(),
+            "dev",
+            child_if,
+            "nud",
+            "permanent",
+        ],
+    )
+    .unwrap();
+    assert!(Command::new("ip")
+        .args([
+            "-6",
+            "neigh",
+            "replace",
+            "fd77::2",
+            "lladdr",
+            child_link[0]["address"].as_str().unwrap(),
+            "dev",
+            parent_if,
+            "nud",
+            "permanent"
+        ])
+        .status()
+        .unwrap()
+        .success());
+    assert!(tokio::net::TcpStream::connect(format!(
+        "[fd77::1]:{}",
+        v6.local_addr().unwrap().port()
+    ))
+    .await
+    .is_ok());
+    let _ = v6.accept().await.unwrap(); // consume the positive-control connection
+    let rules =
+        egress_plane::netns::execute_in_netns("egress_it_socks_m1", &["ip6tables", "-S", "OUTPUT"])
+            .unwrap();
+    assert!(rules.contains("-P OUTPUT DROP"));
+    assert!(!ns_curl(
+        "egress_it_socks_m1",
+        &format!("http://[fd77::1]:{}/", v6.local_addr().unwrap().port())
+    )
+    .status
+    .success());
+    assert!(
+        tokio::time::timeout(Duration::from_millis(300), v6.accept())
+            .await
+            .is_err(),
+        "IPv6 canary accepted a forbidden connection"
+    );
+
+    // Drain kills both live data planes, not just their health flags.
+    assert_eq!(
+        client
+            .post(format!("{base_url}/kill-switch/drain"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
+    assert!(tokio::net::TcpStream::connect("10.240.10.2:8080")
+        .await
+        .is_err());
+    let drained: serde_json::Value = client
+        .get(format!("{base_url}/egress/status"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(drained["count"], 0);
 
     let _ = upstream_child.kill();
     let _ = upstream_child.wait();
@@ -602,8 +1080,8 @@ async fn test_wireguard_tunnel_mode_full_chain() {
     cleanup_leftovers();
     // Host-side WG "server": wg0 with 10.0.0.1/24 on the host, listening on
     // the model's future veth host IP (10.240.1.1) port 51820.
-    let echo_ip = "203.0.113.77";
-    let echo_port = start_echo_server(echo_ip).await;
+    let echo_ip = "10.0.0.2";
+    let echo_port = start_echo_server().await;
 
     // Generate keys.
     let priv_host = wg_genkey();
@@ -722,6 +1200,35 @@ async fn test_wireguard_tunnel_mode_full_chain() {
     }
     assert!(healthy, "wireguard tunnel never became healthy");
 
+    assert_sidecar_unprivileged("egress_it_wg_m1");
+    assert!(egress_plane::tunnel::tunnel_has_handshake(
+        "egress_it_wg_m1"
+    ));
+    assert!(Command::new("ip")
+        .args(["link", "set", "wg-host-test", "down"])
+        .status()
+        .unwrap()
+        .success());
+    let failed: serde_json::Value = client
+        .post(format!("{base_url}/egress/health-check/model"))
+        .json(&serde_json::json!({"model_id":"it_wg_m1"}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        failed["status"], "unhealthy",
+        "tunnel loss must never select host egress"
+    );
+    assert!(!ns_curl(
+        "egress_it_wg_m1",
+        &format!("http://10.240.20.1:{echo_port}/ip")
+    )
+    .status
+    .success());
+
     // Drift policy: expect a different IP -> drift flag set (health still ok).
     // The bound config's expected IP is still echo_ip, so no drift here;
     // drift is covered by the unit tests. Assert health again for stability.
@@ -794,8 +1301,8 @@ fn wg_pubkey(privkey: &str) -> String {
 async fn test_failover_to_approved_alternate_egress() {
     let _guard = netns_lock().lock().await;
     cleanup_leftovers();
-    let echo_ip = "192.0.2.55";
-    let echo_port = start_echo_server(echo_ip).await;
+    let echo_ip = "127.0.0.1";
+    let echo_port = start_echo_server().await;
     let (backup_port, mut backup_child) = spawn_host_upstream_proxy();
     let base_url =
         start_test_server_with_base(format!("http://127.0.0.1:{echo_port}/ip"), 30).await;

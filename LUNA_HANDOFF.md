@@ -1,11 +1,42 @@
 # FanThynks — current continuation handoff
 
-## Canonical coordination state — reconcile before the next feature lane
+## Current execution — M990 F-02/F-04/F-43
 
-This block is authoritative for the current Codex/Hermes state. The records
-below it are preserved historical evidence and must not be treated as active
-assignments when they contain older `ACTIVE_LANE`, `current`, `next`, or
-`owner` wording.
+This section supersedes the historical coordination fields below. Hermes is
+disabled; do not read the bridge or revive any old lane.
+
+- Owner: Codex. Base: `a0af08b29595108d13078a22f3283eb5af53c2cf`.
+- Source milestone: `[AXIOM][P1][M990]`; locate that exact commit, not a moving
+  branch tip. The source manifest in `L5-verification/egress-runtime-receipt.json`
+  pins the tested Rust bytes independently of Git bookkeeping.
+- Implemented: verified HTTPS upstream proxies; IPv4/IPv6 default-deny with
+  exact upstream flows; capability-free sidecars; drain-safe registered child
+  handles; bounded periodic real echo checks; redacted credential tracing;
+  explicit egress-mode creation. No production privileges were widened.
+- Evidence: Linux run `b4fbc5a3-ad2c-407a-b8e5-4a7e47aae562`, 64/64 tests,
+  zero ignored, 24 source/recipe hashes match. Paired median proxy overhead
+  329 microseconds against the unchanged 5,000-microsecond gate. Focused TS
+  59/59; Rust fmt/clippy, API/gateway typechecks, YAML parse, diff check and
+  verify pass. API/gateway lint exit 0 with 221/16 warnings.
+- Feature status: **PARTIAL**, not production-complete. The sidecar's tested
+  OS boundary does not confine host-network Node callers. The shipped runtime
+  privilege recipe cannot provision its namespaces with NET_ADMIN alone.
+- Exact next work: privilege-separated provisioning and mandatory caller
+  confinement; explicit direct-mode sync/dispatch; then real DNS/endpoint,
+  persistence/tenant/restart, job-backoff/Sev-1/Relay and operator acceptance.
+  See `L5-verification/egress-runtime-acceptance.md` for criteria and limits.
+- CI: the rehearsal is now an independent job that retains source-bound
+  receipts in job output. Local success does not establish hosted CI success.
+- Unrelated viral-insight work and historical Hermes files remain untouched
+  and must not be included in this milestone's commit.
+- Live actions: NONE. No SSH, installer, live DB/provider calls, grant,
+  service restart, host-network/firewall change, or deployment occurred.
+
+## Historical coordination state — not the current implementation task
+
+The following block is preserved historical evidence, not current authority.
+Do not treat its `ACTIVE_LANE`, `current`, `next`, or `owner` wording as an
+active assignment. Use the M990 execution section above.
 
 SOURCE_HEAD: `18af143f77ad55f8822391a3a9a8c01e1a398492` (M989 product source, pushed; no active Hermes implementation lane)
 PUBLISHED_BRANCH: `codex/telegram-webhook-hardening`
