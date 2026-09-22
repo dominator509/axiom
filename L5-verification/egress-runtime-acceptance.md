@@ -13,8 +13,9 @@ Authority: `L1-product/L1.1-feature-catalog.md`,
 and `verify: ok` do not override the outstanding requirements below.
 
 Base revision: `a0af08b29595108d13078a22f3283eb5af53c2cf`.
-Implementation milestone: `[AXIOM][P1][M990]` (use its Git commit, not a moving
-branch tip, to reproduce). Unrelated viral-insight and historical Hermes
+Implementation commit: `7be61ec31f5bd0be20691eb054c1429dafb934e6`
+(`[AXIOM][P1][M990]`; clean-image recipe correction is a follow-up). Use an
+exact Git commit, not a moving branch tip, to reproduce. Unrelated viral-insight and historical Hermes
 changes in the workspace are excluded from this milestone. Hermes remains
 disabled.
 
@@ -31,7 +32,7 @@ disabled.
 | Lifecycle and kill switch | Bind/sync/health changes are serialized. The child handle remains registered across health-probe I/O so drain can kill it; a held probe cannot resurrect a drained binding. Reserved subnets are released on failure/drain. |
 | Continuing health checks | Bounded configurable `EGRESS_HEALTH_INTERVAL_SECS` (default 30; valid 1–3600), real echo parsing, bounded body/status/redirect checks, approved-only failover. A running monitor detects a failed echo without an operator request. |
 | Secret-safe handling | Sensitive tracing arguments are skipped, upstream debug output is redacted, and additional credential/decrypted buffers are zeroized. A captured tracing test includes a positive logging control and rejects key/envelope fields. This is not a claim that every temporary credential copy in every process has been audited. |
-| Proxy performance | Transport clients are reused by exact proxy/timeout, never by cached health results. Eleven paired real direct/proxied echo requests measured median additional latency **329 microseconds**, below the unchanged **5,000-microsecond** gate. This is a local debug-build measurement, not an Internet latency promise. |
+| Proxy performance | Transport clients are reused by exact proxy/timeout, never by cached health results. Eleven paired real direct/proxied echo requests in the final clean-base run measured median additional latency **454 microseconds**, below the unchanged **5,000-microsecond** gate. This is a local debug-build measurement, not an Internet latency promise. |
 
 Source: `crates/egress-plane/src/{proxy,netns,tunnel,health,lib,main,config,crypto,db}.rs`,
 `packages/api/src/routes/egress.ts`, and the corresponding regression tests.
@@ -61,7 +62,8 @@ host-network production service.** Every spawned egress sidecar drops all
 capabilities. Cleanup removes only the UUID-labelled test container and its
 new temporary source directory; evidence and the built image are retained.
 
-Final exact-source run: `b4fbc5a3-ad2c-407a-b8e5-4a7e47aae562`.
+Original source-bound cached-base run: `b4fbc5a3-ad2c-407a-b8e5-4a7e47aae562`.
+The clean-base repeat below supersedes its build-reproducibility evidence.
 
 | Evidence | Value |
 | --- | --- |
@@ -112,6 +114,37 @@ contain a MAC address. The test now reads `ip -j link` explicitly.
 `5ce1556d-5fb8-4235-984f-bad086f7c1f4` passed all 64 tests at 622 microseconds.
 The final run above repeats this after documentation comments were corrected
 to stop claiming that a sidecar also confines host-network Node callers.
+
+Hosted CI run `35692982037` exposed a separate **clean-build recipe failure**:
+the original fixture omitted `pkg-config` and `libssl-dev`, which were
+inherited by the locally cached test base. No hosted runtime test ran on that
+attempt. The corrected recipe explicitly installs both and defaults to the
+same digest-pinned Rust builder as `infra/Dockerfile.rust`. The first run's separate
+lint job also failed at unchanged `packages/relay/src/card.ts:286`
+(`no-useless-escape`); that unrelated failure is not waived or repaired by
+the egress milestone. Full CI is not green.
+
+## Clean-base repeat — PASS
+
+`rtk node scripts/rehearse-egress.mjs --isolated-fixture`, with no
+`EGRESS_TEST_BASE` override, built from the declared pinned Rust image and
+passed **all 64 tests, zero ignored**, with median extra latency **454 us**.
+All 24 copied source/recipe hashes match the corrected checkout. No runtime
+source, test assertion, capability restriction or latency threshold changed
+for this correction.
+
+- Run: `250011e7-e6b5-4893-9581-7ddeb86fa56f`.
+- Image: `sha256:cfd63e31565199f9b888b7d2438d8109272331d0773447bd77fc83a32b309004`.
+- Committed receipt: `egress-runtime-clean-build-receipt.json`, SHA-256
+  `3595f3b2539118c1b2e74790b2546a7df14fd1afb8f8154a5e8be3396c662e40`.
+- Source manifest SHA-256:
+  `5409682fe5ade9433874ff8389fd30f984f37419595ca65707c089e88874f81a`.
+- Full output SHA-256:
+  `d632415513b7e71467b389a57e01c14e43e9488492fc6d4de2b3d68ee8c3df6a`.
+- Full artifacts: ignored `var/egress-rehearsal/250011e7-e6b5-4893-9581-7ddeb86fa56f/`.
+
+The hosted build failure and earlier receipts remain preserved. This local
+clean repeat does not by itself change the hosted CI verdict.
 
 ## Remaining execution gates — do not mark F-02/F-04/F-43 complete
 

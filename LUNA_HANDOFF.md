@@ -6,16 +6,18 @@ This section supersedes the historical coordination fields below. Hermes is
 disabled; do not read the bridge or revive any old lane.
 
 - Owner: Codex. Base: `a0af08b29595108d13078a22f3283eb5af53c2cf`.
-- Source milestone: `[AXIOM][P1][M990]`; locate that exact commit, not a moving
-  branch tip. The source manifest in `L5-verification/egress-runtime-receipt.json`
-  pins the tested Rust bytes independently of Git bookkeeping.
+- Source milestone: `[AXIOM][P1][M990]`, product commit
+  `7be61ec31f5bd0be20691eb054c1429dafb934e6`, pushed with exact origin readback.
+  The source manifests in `L5-verification/egress-runtime-receipt.json` and
+  `egress-runtime-clean-build-receipt.json` pin the tested Rust bytes and
+  original/corrected fixture recipes independently of Git bookkeeping.
 - Implemented: verified HTTPS upstream proxies; IPv4/IPv6 default-deny with
   exact upstream flows; capability-free sidecars; drain-safe registered child
   handles; bounded periodic real echo checks; redacted credential tracing;
   explicit egress-mode creation. No production privileges were widened.
-- Evidence: Linux run `b4fbc5a3-ad2c-407a-b8e5-4a7e47aae562`, 64/64 tests,
-  zero ignored, 24 source/recipe hashes match. Paired median proxy overhead
-  329 microseconds against the unchanged 5,000-microsecond gate. Focused TS
+- Evidence: final clean-base Linux run `250011e7-e6b5-4893-9581-7ddeb86fa56f`,
+  64/64 tests, zero ignored, 24 source/recipe hashes match. Paired median proxy
+  overhead 454 microseconds against the unchanged 5,000-microsecond gate. Focused TS
   59/59; Rust fmt/clippy, API/gateway typechecks, YAML parse, diff check and
   verify pass. API/gateway lint exit 0 with 221/16 warnings.
 - Feature status: **PARTIAL**, not production-complete. The sidecar's tested
@@ -26,7 +28,12 @@ disabled; do not read the bridge or revive any old lane.
   persistence/tenant/restart, job-backoff/Sev-1/Relay and operator acceptance.
   See `L5-verification/egress-runtime-acceptance.md` for criteria and limits.
 - CI: the rehearsal is now an independent job that retains source-bound
-  receipts in job output. Local success does not establish hosted CI success.
+  receipts in job output. First hosted run `35692982037` found missing clean
+  image build dependencies (`pkg-config`, `libssl-dev`), masked by the prior
+  local cache; the recipe now declares them and pins the production builder.
+  The clean-base repeat passes all 64 tests with no base override. A new
+  hosted run is still required; the unrelated Relay lint failure remains
+  open and there is no overall green CI claim.
 - Unrelated viral-insight work and historical Hermes files remain untouched
   and must not be included in this milestone's commit.
 - Live actions: NONE. No SSH, installer, live DB/provider calls, grant,

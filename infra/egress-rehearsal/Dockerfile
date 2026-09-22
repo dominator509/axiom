@@ -1,8 +1,11 @@
 # Test-only image. Never used as a deployment image.
-ARG EGRESS_TEST_BASE=rust:1.96.1-slim
+# Match the shipped Rust builder rather than inheriting undeclared tools from
+# a previously built local rehearsal image.
+ARG EGRESS_TEST_BASE=rust:1.97-slim-bookworm@sha256:2775a09d208ff0d7c1f50490c45b62db929e87ba1dcbc3f2132ac71a704bcdd3
 FROM ${EGRESS_TEST_BASE}
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config libssl-dev \
     iproute2 iptables wireguard-tools util-linux curl openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
