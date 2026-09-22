@@ -70,12 +70,15 @@ disabled; do not read the bridge or revive any old lane.
   and 4 proxy-security tests passing and zero missing mandatory checks. It
   tests the egress plane on Linux, not the unimplemented provisioner/runner
   binaries or browser/operator workflow.
-- Next source implementation is the typed policy/upstream handoff and model
-  runner, followed by their isolated acceptance. The current Docker repeat for
-  this change is not a receipt: the local Docker CLI build process became
-  inaccessible before it wrote one. Deployed WireGuard/proxy/DNS, two-tenant
-  queue/Sev-1/Relay, and browser acceptance remain open until a fresh local
-  non-production fixture can complete.
+- The corrected local Docker repeat is receipt `4697681a-94c0-4cde-b225-430dd2a1064b`:
+  it exits 0 with zero missing named checks, including the signed
+  create/inspect/release lifecycle test, in a network-none, non-privileged,
+  no-host-mount fixture. Receipt SHA-256 is
+  `3a892f7b3de0b69d9c7c215f325928830ffa619a129be984a53caf1255a9bda7`.
+  It proves only the disposable Linux provisioner code path. The next source
+  implementation is the typed policy/upstream handoff and model runner,
+  followed by isolated Node-caller acceptance. Deployed WireGuard/proxy/DNS,
+  two-tenant queue/Sev-1/Relay, and browser acceptance remain open.
 
 ## Historical coordination state — not the current implementation task
 

@@ -175,6 +175,31 @@ exercise the new systemd templates. It is therefore local Linux egress-plane
 runtime evidence only, not evidence of deployed caller confinement, tenant
 persistence, Relay/Sev-1 behavior, or browser acceptance.
 
+## M993 provisioner Linux rehearsal — PASS
+
+The same disposable fixture was rerun after adding the typed provisioner. The
+receipt validator was corrected to recognize Rust's module-qualified unit-test
+names; it still requires the exact final test identifier and a successful
+result. This is an evidence-parser correction, not a relaxation of required
+checks.
+
+| Evidence | Value |
+| --- | --- |
+| Run ID | `4697681a-94c0-4cde-b225-430dd2a1064b` |
+| Image ID | `sha256:9b098aed964444141e33984741f6b3dbdc4e6c8752aaf1fc950702d955bacee9` |
+| Runtime container | `--network none`, not privileged, no host mounts, no published ports |
+| Capabilities | `NET_ADMIN`, `SETPCAP`, `SYS_ADMIN` inside the disposable fixture only |
+| Exit | `0` |
+| Required named checks missing | `0` |
+| Receipt SHA-256 | `3a892f7b3de0b69d9c7c215f325928830ffa619a129be984a53caf1255a9bda7` |
+| Source-manifest SHA-256 | `0f69e6f839f775ea25c381c85a9328d0cc55c572a2e42ba96c26416b0b1b71a5` |
+| Test-output SHA-256 | `4caa720f2d4a3dc2da08921a0303486c4d420ca7e1625a20b21e592c800cb4ec` |
+
+This includes the signed lifecycle test that creates, inspects and releases a
+closed namespace only within the fixture. It is **not** proof that a deployed
+host runs the root-only socket service, that a Node caller is confined, or
+that a real provider/tenant/browser acceptance path is safe.
+
 ## Remaining execution gates — do not mark F-02/F-04/F-43 complete
 
 1. **Production privilege/provisioner topology (F-04).** Source deployment

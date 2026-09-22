@@ -74,7 +74,12 @@ try {
     'test_net_admin_alone_cannot_provision_namespaces',
     'signed_lifecycle_creates_inspects_and_releases_a_closed_namespace',
   ];
-  const missingTests = requiredTests.filter(test => !(output.stdout + output.stderr).includes(`test ${test} ... ok`));
+  const testOutput = output.stdout + output.stderr;
+  // Rust prints unit tests using their module-qualified name (for example
+  // `tests::signed_lifecycle...`) but integration tests are unqualified.  The
+  // receipt must accept either spelling while still requiring a successful
+  // result for the exact final test identifier.
+  const missingTests = requiredTests.filter(test => !new RegExp(`^test (?:[A-Za-z0-9_:]+::)*${test} \\.{3} ok$`, 'm').test(testOutput));
   writeFileSync(join(evidence, 'receipt.json'), JSON.stringify({
     id, imageId: inspect.Image, network: 'none', privileged: false, hostMounts: false,
     capabilities: inspect.HostConfig.CapAdd, exitCode, hashes, requiredTests, missingTests,
