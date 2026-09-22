@@ -5,7 +5,7 @@ activated them.  They split namespace administration from the egress control
 plane and run outbound Node work in the already-provisioned model namespace.
 They must be installed as one reviewed release with the matching
 `egress-provisioner` and `worker-egress-dispatch` binaries; the repository does
-not yet claim a deployed instance.
+not claim an installed or activated instance.
 
 ## Identities and authority
 
@@ -22,14 +22,21 @@ may derive these only from a validated model identifier and persisted approved
 egress policy.  Credentials are accepted only in an encrypted or scoped
 in-memory envelope and never logged or returned by inspection responses.
 
-## Required implementation handoff
+## Implemented provisioner protocol
 
-The service templates deliberately name two binaries not yet emitted by this
-repository: `/usr/local/lib/axiom/egress-provisioner` and
-`/usr/local/lib/axiom/worker-egress-dispatch`.  They are a release gate, not
-optional commands.  The provisioner must implement the typed lifecycle below;
-the dispatch binary must accept only an already-authorized job envelope from a
-Unix socket, not user arguments or a provider URL.
+The repository now emits the Rust `egress-provisioner` binary. It accepts only
+a versioned, HMAC-signed, bounded-TTL create/inspect/release lease over its
+local Unix socket. It derives the namespace solely from the signed model ID,
+rejects direct mode and unsafe IDs, uses each valid nonce once, and creates a
+closed IPv4/IPv6 namespace with blackhole defaults before returning `created`.
+It does not accept a command line, path, route, interface, provider URL, or
+raw namespace name. The socket service requires `AXIOM_EGRESS_LEASE_KEY` and
+`AXIOM_EGRESS_CONTROL_UID` from the root-owned
+`/etc/axiom/egress-provisioner.env` file.
+
+`worker-egress-dispatch` is still not emitted. It remains a release gate, not
+an optional command: it must accept only an already-authorized job envelope
+from a Unix socket, not user arguments or a provider URL.
 
 ```
 plane --local UDS--> provisioner --creates--> egress_<model> netns
@@ -38,7 +45,10 @@ worker queue --local UDS--> worker-egress-dispatch@<model> --joins--> egress_<mo
 
 1. The provisioner validates the tenant/model/policy relationship and creates
    the namespace, default-deny rules, exact approved upstream path, sidecar,
-   and namespace handle atomically.
+   and namespace handle atomically. The current binary implements the signed
+   lease, namespace derivation and closed-baseline portion; policy lookup,
+   upstream attachment and sidecar lifecycle remain to be moved out of the
+   unprivileged plane before activation.
 2. It returns only a model-scoped opaque lease.  A failed probe removes the
    lease and runner start is refused.
 3. The worker submits a bounded job envelope to the runner.  The runner never

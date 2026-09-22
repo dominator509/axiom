@@ -150,10 +150,10 @@ pub fn resolve_endpoint(addr: &str) -> io::Result<SocketAddr> {
         })
 }
 
-/// Default deny applies to BOTH protocol families, including connected routes.
-/// Only replies to authorized clients and an explicitly selected upstream
-/// can leave. No new connection to a host/bridge/DNS port is implicitly allowed.
-pub fn configure_firewall(ns: &str, gateway: &str, sidecar_port: u16) -> io::Result<()> {
+/// Install the closed baseline used before an egress policy has attached an
+/// upstream.  It accepts loopback and established replies only; it does not
+/// admit an inbound sidecar, DNS resolver, bridge, or default route.
+pub fn configure_default_deny_firewall(ns: &str) -> io::Result<()> {
     for tool in ["iptables", "ip6tables"] {
         for chain in ["INPUT", "OUTPUT", "FORWARD"] {
             execute_in_netns(ns, &[tool, "-P", chain, "DROP"])?;
@@ -177,6 +177,14 @@ pub fn configure_firewall(ns: &str, gateway: &str, sidecar_port: u16) -> io::Res
             )?;
         }
     }
+    Ok(())
+}
+
+/// Default deny applies to BOTH protocol families, including connected routes.
+/// Only replies to authorized clients and an explicitly selected upstream
+/// can leave. No new connection to a host/bridge/DNS port is implicitly allowed.
+pub fn configure_firewall(ns: &str, gateway: &str, sidecar_port: u16) -> io::Result<()> {
+    configure_default_deny_firewall(ns)?;
     execute_in_netns(
         ns,
         &[

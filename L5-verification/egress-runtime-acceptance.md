@@ -182,15 +182,20 @@ persistence, Relay/Sev-1 behavior, or browser acceptance.
    service with the narrow `NET_ADMIN`, `SYS_ADMIN`, and `SETPCAP` capability
    bound, plus a capability-free egress-plane service and a model-namespace
    runner template. `node scripts/check-egress-runtime-units.mjs` verifies
-   those source invariants. The required provisioner and runner binaries have
-   not yet been emitted, installed, or exercised on a host. `ip netns
-   add/exec` requires additional namespace/mount privilege. The negative
-   runtime test retains NET_ADMIN, removes SYS_ADMIN and proves namespace
-   creation fails. Linux also documents the relevant
+   those source invariants. The repository now emits a signed, local-UDS
+   `egress-provisioner` binary: direct mode is rejected, model namespace
+   identity is derived from a bounded signed lease, and create/inspect/release
+   start from an IPv4/IPv6 closed baseline. Its source tests cover signature
+   tampering, expiry, unsafe identity, direct-mode rejection and nonce replay.
+   The runner binary, plane-to-provisioner policy handoff, installation and
+   real-UID execution remain absent. `ip netns add/exec` requires additional
+   namespace/mount privilege. The negative runtime test retains NET_ADMIN,
+   removes SYS_ADMIN and proves namespace creation fails. Linux also documents the relevant
    [setns capability requirements](https://man7.org/linux/man-pages/man2/setns.2.html).
-   Implement the typed provisioner/runner protocol and test the actual
-   deployment recipe as its real UID/capability set. Do not solve this by
-   giving the whole service SYS_ADMIN, `--privileged`, or host networking.
+   Move policy/upstream attachment into the typed provisioner, implement the
+   runner protocol and test the actual deployment recipe as its real
+   UID/capability set. Do not solve this by giving the whole service
+   SYS_ADMIN, `--privileged`, or host networking.
 
 2. **Caller confinement (F-04/F-43).** L2.6 requires connector/MCP/scraper work
    itself to be unable to bypass model egress. Current Node consumers use an

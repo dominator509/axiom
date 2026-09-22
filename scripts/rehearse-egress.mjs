@@ -26,7 +26,7 @@ try {
     cpSync(join(root, file), join(context, file));
     hashes[file] = createHash('sha256').update(readFileSync(join(root, file))).digest('hex');
   }
-  for (const crate of ['egress-plane', 'media-plane', 'vision-engine', 'scraper']) {
+  for (const crate of ['egress-plane', 'egress-provisioner', 'media-plane', 'vision-engine', 'scraper']) {
     const dest = join(context, 'crates', crate);
     mkdirSync(dest, { recursive: true });
     cpSync(join(root, 'crates', crate, 'Cargo.toml'), join(dest, 'Cargo.toml'));
@@ -72,6 +72,7 @@ try {
     'test_drain_during_probe_cannot_resurrect_binding',
     'test_continuous_monitor_detects_failure_without_operator_probe',
     'test_net_admin_alone_cannot_provision_namespaces',
+    'signed_lifecycle_creates_inspects_and_releases_a_closed_namespace',
   ];
   const missingTests = requiredTests.filter(test => !(output.stdout + output.stderr).includes(`test ${test} ... ok`));
   writeFileSync(join(evidence, 'receipt.json'), JSON.stringify({

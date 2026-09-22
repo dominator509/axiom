@@ -50,8 +50,12 @@ disabled; do not read the bridge or revive any old lane.
   the minimal `NET_ADMIN`, `SYS_ADMIN`, `SETPCAP` bound; a capability-free
   plane; and a capability-free per-model runner joined by
   `NetworkNamespacePath=/run/netns/egress_%i`. The checked templates are not
-  installed runtime units and the named provisioner/runner binaries do not yet
-  exist, so this is **not** host provisioner or caller-confinement acceptance.
+  installed runtime units. The Rust `egress-provisioner` binary now exists and
+  validates signed, short-lived typed create/inspect/release leases, derives
+  the namespace from the model identity, rejects direct mode, prevents replay,
+  and creates an IPv4/IPv6 default-deny baseline. The model runner binary and
+  plane-to-provisioner policy/upstream handoff do not yet exist, so this is
+  **not** host provisioner or caller-confinement acceptance.
 - Added `scripts/check-egress-runtime-units.mjs`, which passes and rejects
   privilege widening in those templates. The egress health bind and manual
   check handlers now return an error if their database health write fails;
@@ -66,10 +70,12 @@ disabled; do not read the bridge or revive any old lane.
   and 4 proxy-security tests passing and zero missing mandatory checks. It
   tests the egress plane on Linux, not the unimplemented provisioner/runner
   binaries or browser/operator workflow.
-- Next source implementation remains the typed provisioner and model runner
-  binaries plus their isolated acceptance; deployed WireGuard/proxy/DNS,
-  two-tenant queue/Sev-1/Relay, and browser acceptance still require the
-  owner-approved non-production target and operator inputs.
+- Next source implementation is the typed policy/upstream handoff and model
+  runner, followed by their isolated acceptance. The current Docker repeat for
+  this change is not a receipt: the local Docker CLI build process became
+  inaccessible before it wrote one. Deployed WireGuard/proxy/DNS, two-tenant
+  queue/Sev-1/Relay, and browser acceptance remain open until a fresh local
+  non-production fixture can complete.
 
 ## Historical coordination state — not the current implementation task
 

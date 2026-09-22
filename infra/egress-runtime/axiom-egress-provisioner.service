@@ -5,9 +5,10 @@ After=network-pre.target
 Before=axiom-egress-plane.service
 
 [Service]
-Type=notify
+Type=exec
 User=root
 Group=root
+EnvironmentFile=/etc/axiom/egress-provisioner.env
 ExecStart=/usr/local/lib/axiom/egress-provisioner --socket /run/axiom/egress/provisioner.sock
 
 # This is the sole long-lived process allowed to create/release AXIOM network

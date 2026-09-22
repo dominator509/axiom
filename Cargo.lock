@@ -589,6 +589,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "egress-provisioner"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "egress-plane",
+ "ring",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "tokio",
+]
+
+[[package]]
 name = "encoding_rs"
 version = "0.8.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
