@@ -1,0 +1,97 @@
+import type { Catalog, SupportedLocale } from './locale.js';
+
+const en: Catalog = {
+  'dashboard.performance.sharingTitle': 'Organization pattern sharing',
+  'dashboard.performance.sharingDescription': 'When enabled, this talent can contribute privacy-safe patterns and receive patterns from other opted-in talents in this organization. Shared groups require at least five published examples from at least two other talents. Captions, assets, identities, and post IDs are never shared.',
+  'dashboard.performance.sharingEnabled': 'Sharing and receiving are enabled for this talent.',
+  'dashboard.performance.sharingDisabled': 'Sharing and receiving are off for this talent.',
+  'dashboard.performance.sharingSaved': 'Pattern sharing preference saved.',
+  'dashboard.performance.sharingSaving': 'Saving pattern sharing…',
+  'dashboard.performance.sharingSave': 'Save sharing preference',
+  'dashboard.performance.sharingFailed': 'Pattern sharing preference could not be confirmed.',
+  'dashboard.performance.sharingLoadFailed': 'Pattern sharing preference could not be loaded.',
+  'dashboard.performance.sharingScopeOrganization': 'Shared organization pattern',
+  'dashboard.performance.sharingScopeModel': 'This talent only',
+  'dashboard.performance.patternsSharedDescription': 'Patterns come from verified published evidence. Organization groups appear only when this talent and contributing talents have opted in; they contain aggregates, not identities or source assets.',
+  'dashboard.performance.dimensionsDescription': 'Caption length and question marks describe the recorded caption; time is its scheduled UTC bucket, not necessarily actual publication time.',
+};
+const es: Catalog = {
+  'dashboard.performance.sharingTitle': 'Compartir patrones de la organización',
+  'dashboard.performance.sharingDescription': 'Al activarse, este talento puede aportar patrones seguros para la privacidad y recibir los de otros talentos que hayan aceptado en esta organización. Los grupos compartidos requieren al menos cinco publicaciones de al menos otros dos talentos. Nunca se comparten textos, recursos, identidades ni ID de publicaciones.',
+  'dashboard.performance.sharingEnabled': 'El intercambio y la recepción están activados para este talento.',
+  'dashboard.performance.sharingDisabled': 'El intercambio y la recepción están desactivados para este talento.',
+  'dashboard.performance.sharingSaved': 'Se guardó la preferencia para compartir patrones.',
+  'dashboard.performance.sharingSaving': 'Guardando el intercambio de patrones…',
+  'dashboard.performance.sharingSave': 'Guardar preferencia de intercambio',
+  'dashboard.performance.sharingFailed': 'No se pudo confirmar la preferencia para compartir patrones.',
+  'dashboard.performance.sharingLoadFailed': 'No se pudo cargar la preferencia para compartir patrones.',
+  'dashboard.performance.sharingScopeOrganization': 'Patrón compartido de la organización',
+  'dashboard.performance.sharingScopeModel': 'Solo este talento',
+  'dashboard.performance.patternsSharedDescription': 'Los patrones proceden de evidencia verificada de publicaciones. Los grupos de la organización solo aparecen si este talento y los talentos que contribuyen han aceptado; contienen agregados, no identidades ni recursos de origen.',
+  'dashboard.performance.dimensionsDescription': 'La longitud y los signos de interrogación describen el texto registrado; la hora corresponde a su franja UTC programada y no necesariamente a la publicación real.',
+};
+const ja: Catalog = {
+  'dashboard.performance.sharingTitle': '組織内パターン共有',
+  'dashboard.performance.sharingDescription': '有効にすると、このタレントはプライバシーに配慮したパターンを提供し、同じ組織で同意した他のタレントのパターンを受け取れます。共有グループには、他の2名以上のタレントによる公開済み投稿が5件以上必要です。キャプション、アセット、本人情報、投稿IDは共有されません。',
+  'dashboard.performance.sharingEnabled': 'このタレントの共有と受信は有効です。',
+  'dashboard.performance.sharingDisabled': 'このタレントの共有と受信は無効です。',
+  'dashboard.performance.sharingSaved': 'パターン共有の設定を保存しました。',
+  'dashboard.performance.sharingSaving': 'パターン共有を保存しています…',
+  'dashboard.performance.sharingSave': '共有設定を保存',
+  'dashboard.performance.sharingFailed': 'パターン共有の設定を確認できませんでした。',
+  'dashboard.performance.sharingLoadFailed': 'パターン共有の設定を読み込めませんでした。',
+  'dashboard.performance.sharingScopeOrganization': '組織共有パターン',
+  'dashboard.performance.sharingScopeModel': 'このタレントのみ',
+  'dashboard.performance.patternsSharedDescription': 'パターンは検証済みの公開実績に基づきます。このタレントと提供元のタレントが同意した場合のみ、組織グループが表示されます。表示するのは集計値であり、本人情報や元アセットではありません。',
+  'dashboard.performance.dimensionsDescription': 'キャプションの長さと疑問符は記録されたキャプションを表します。時刻は予定されたUTC時間帯であり、実際の公開時間とは異なる場合があります。',
+};
+const it: Catalog = {
+  'dashboard.performance.sharingTitle': 'Condivisione dei modelli dell’organizzazione',
+  'dashboard.performance.sharingDescription': 'Se attivata, questa persona può contribuire con modelli rispettosi della privacy e ricevere quelli di altre persone che hanno aderito a questa organizzazione. I gruppi condivisi richiedono almeno cinque post pubblicati da almeno altre due persone. Testi, risorse, identità e ID dei post non vengono mai condivisi.',
+  'dashboard.performance.sharingEnabled': 'La condivisione e la ricezione sono attive per questa persona.',
+  'dashboard.performance.sharingDisabled': 'La condivisione e la ricezione sono disattivate per questa persona.',
+  'dashboard.performance.sharingSaved': 'Preferenza di condivisione dei modelli salvata.',
+  'dashboard.performance.sharingSaving': 'Salvataggio della condivisione dei modelli…',
+  'dashboard.performance.sharingSave': 'Salva preferenza di condivisione',
+  'dashboard.performance.sharingFailed': 'Impossibile confermare la preferenza di condivisione dei modelli.',
+  'dashboard.performance.sharingLoadFailed': 'Impossibile caricare la preferenza di condivisione dei modelli.',
+  'dashboard.performance.sharingScopeOrganization': 'Modello condiviso dell’organizzazione',
+  'dashboard.performance.sharingScopeModel': 'Solo questa persona',
+  'dashboard.performance.patternsSharedDescription': 'I modelli derivano da dati verificati di post pubblicati. I gruppi dell’organizzazione compaiono solo se questa persona e le persone che contribuiscono hanno aderito; contengono aggregati, non identità o risorse sorgente.',
+  'dashboard.performance.dimensionsDescription': 'La lunghezza e i punti interrogativi descrivono il testo registrato; l’orario è la fascia UTC programmata e potrebbe non coincidere con la pubblicazione effettiva.',
+};
+const ptBR: Catalog = {
+  'dashboard.performance.sharingTitle': 'Compartilhamento de padrões da organização',
+  'dashboard.performance.sharingDescription': 'Quando ativado, este talento pode contribuir com padrões que preservam a privacidade e receber padrões de outros talentos que aceitaram participar desta organização. Os grupos compartilhados exigem pelo menos cinco publicações de pelo menos outros dois talentos. Legendas, ativos, identidades e IDs de publicações nunca são compartilhados.',
+  'dashboard.performance.sharingEnabled': 'O compartilhamento e o recebimento estão ativados para este talento.',
+  'dashboard.performance.sharingDisabled': 'O compartilhamento e o recebimento estão desativados para este talento.',
+  'dashboard.performance.sharingSaved': 'Preferência de compartilhamento de padrões salva.',
+  'dashboard.performance.sharingSaving': 'Salvando o compartilhamento de padrões…',
+  'dashboard.performance.sharingSave': 'Salvar preferência de compartilhamento',
+  'dashboard.performance.sharingFailed': 'Não foi possível confirmar a preferência de compartilhamento de padrões.',
+  'dashboard.performance.sharingLoadFailed': 'Não foi possível carregar a preferência de compartilhamento de padrões.',
+  'dashboard.performance.sharingScopeOrganization': 'Padrão compartilhado da organização',
+  'dashboard.performance.sharingScopeModel': 'Somente este talento',
+  'dashboard.performance.patternsSharedDescription': 'Os padrões vêm de evidências verificadas de publicações. Os grupos da organização aparecem somente quando este talento e os talentos contribuintes aceitam participar; eles contêm agregados, não identidades ou ativos de origem.',
+  'dashboard.performance.dimensionsDescription': 'O tamanho da legenda e os pontos de interrogação descrevem a legenda registrada; o horário é sua faixa UTC programada e pode não corresponder à publicação real.',
+};
+const de: Catalog = {
+  'dashboard.performance.sharingTitle': 'Muster innerhalb der Organisation teilen',
+  'dashboard.performance.sharingDescription': 'Wenn diese Option aktiviert ist, kann dieses Talent datenschutzgerechte Muster beitragen und Muster anderer zustimmender Talente in dieser Organisation erhalten. Geteilte Gruppen erfordern mindestens fünf veröffentlichte Beiträge von mindestens zwei weiteren Talenten. Bildtexte, Medien, Identitäten und Beitrags-IDs werden nie geteilt.',
+  'dashboard.performance.sharingEnabled': 'Teilen und Empfangen sind für dieses Talent aktiviert.',
+  'dashboard.performance.sharingDisabled': 'Teilen und Empfangen sind für dieses Talent deaktiviert.',
+  'dashboard.performance.sharingSaved': 'Einstellung zum Teilen von Mustern gespeichert.',
+  'dashboard.performance.sharingSaving': 'Musterfreigabe wird gespeichert…',
+  'dashboard.performance.sharingSave': 'Freigabeeinstellung speichern',
+  'dashboard.performance.sharingFailed': 'Die Einstellung zum Teilen von Mustern konnte nicht bestätigt werden.',
+  'dashboard.performance.sharingLoadFailed': 'Die Einstellung zum Teilen von Mustern konnte nicht geladen werden.',
+  'dashboard.performance.sharingScopeOrganization': 'Geteiltes Organisationsmuster',
+  'dashboard.performance.sharingScopeModel': 'Nur dieses Talent',
+  'dashboard.performance.patternsSharedDescription': 'Muster beruhen auf geprüften veröffentlichten Beiträgen. Organisationsgruppen erscheinen nur, wenn dieses und die beitragenden Talente zugestimmt haben; sie enthalten Aggregate, keine Identitäten oder Quellmedien.',
+  'dashboard.performance.dimensionsDescription': 'Captionlänge und Fragezeichen beschreiben den erfassten Text; die Zeit ist dessen geplantes UTC-Fenster und entspricht nicht unbedingt der tatsächlichen Veröffentlichung.',
+};
+
+export const VIRAL_PATTERN_SHARING_CATALOGS: Record<SupportedLocale, Catalog> = {
+  en, es, ja, it, 'pt-BR': ptBR, de,
+};
+export const VIRAL_PATTERN_SHARING_MESSAGE_KEYS = Object.keys(en) as Array<keyof typeof en>;

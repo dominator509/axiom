@@ -6,6 +6,7 @@ import { talentDestinationAllowed } from '@/lib/navigation-role';
 import PerformancePatterns, { type PerformancePattern } from '@/components/PerformancePatterns';
 import GenerateViralInsightButton from '@/components/GenerateViralInsightButton';
 import ViralInsightScheduleControl from '@/components/ViralInsightScheduleControl';
+import ViralPatternSharingControl from '@/components/ViralPatternSharingControl';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +64,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
   let analytics: AnalyticsData | null = null;
   let viral: ViralData | null = null;
   let viralInsightScheduleEnabled: boolean | null = null;
+  let viralPatternSharingEnabled: boolean | null = null;
   let playbookGuidelines: PlaybookGuideline[] | null = null;
   let playbookUnavailable = false;
   try {
@@ -81,6 +83,11 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
     } catch {
       viralInsightScheduleEnabled = null;
     }
+  }
+  try {
+    viralPatternSharingEnabled = (await api.models.viralPatternSharing(id)).data.enabled;
+  } catch {
+    viralPatternSharingEnabled = null;
   }
   try {
     playbookGuidelines = (await api.models.playbookGuidelines(id)).data;
@@ -241,6 +248,11 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
       <ViralInsightScheduleControl
         modelId={id}
         initialEnabled={viralInsightScheduleEnabled}
+        canManage={canManageViralInsightSchedule}
+      />
+      <ViralPatternSharingControl
+        modelId={id}
+        initialEnabled={viralPatternSharingEnabled}
         canManage={canManageViralInsightSchedule}
       />
       <PerformancePatterns patterns={viral?.patterns} />

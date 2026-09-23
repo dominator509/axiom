@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
-import { mockState, mockDbFactory } from './test-utils.js';
+import { mockState, mockDbFactory, makeChain } from './test-utils.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ viralExemplar: {}, modelProfile: {}, job: {} }));
 const schedule = vi.hoisted(() => ({ enqueue: vi.fn(async () => ({ id: 'job-scheduled-1' })) }));
@@ -13,7 +13,7 @@ vi.mock('@axiom/worker', () => ({
   enqueueWeeklyViralInsight: schedule.enqueue,
 }));
 
-import { LEARNING_ARM_RICH_PATTERN, viralRouter } from './viral.js';
+import { LEARNING_ARM_RICH_PATTERN, readExemplarPatterns, viralRouter } from './viral.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -51,7 +51,7 @@ describe('GET /models/:modelId/viral — insights', () => {
   });
 
   it('returns empty aggregation when no exemplars exist (no 500 on empty)', async () => {
-    mockState.result = [];
+    mockState.results = [[], [{ id: MODEL_ID, sharingEnabled: false }], [], [], [], []];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/viral`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
@@ -135,5 +135,56 @@ describe('model-scoped recurring viral insight schedule', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ data: { enabled: false, scheduleId: null } });
     expect(schedule.enqueue).not.toHaveBeenCalled();
+  });
+});
+
+describe('F-86 opt-in organization pattern sharing', () => {
+  it('lets assigned members read the model consent state', async () => {
+    mockState.result = [{ enabled: true }];
+    const response = await appWithOrg(ORG_ID, 'content_creator').request(`/models/${MODEL_ID}/viral/pattern-sharing`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { enabled: true } });
+  });
+
+  it('requires owner or manager permission to change consent and audits the saved state', async () => {
+    const denied = await appWithOrg(ORG_ID, 'operator').request(`/models/${MODEL_ID}/viral/pattern-sharing`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: true }),
+    });
+    expect(denied.status).toBe(403);
+    expect(mockState.updates).toHaveLength(0);
+
+    mockState.results = [[], [{ id: MODEL_ID }], [{ id: MODEL_ID }]];
+    const allowed = await appWithOrg(ORG_ID, 'owner').request(`/models/${MODEL_ID}/viral/pattern-sharing`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: true }),
+    });
+    expect(allowed.status).toBe(200);
+    expect(await allowed.json()).toEqual({ data: { enabled: true } });
+    expect(mockState.updates).toContainEqual(expect.objectContaining({ viralPatternSharingEnabled: true }));
+  });
+
+  it('returns only abstract pattern fields from opted-in models and suppresses small groups', async () => {
+    const own = [{ platform: 'instagram', arm: 'short:question', context: 'learn-v1:scheduled-utc-2',
+      mediaFormat: 'video/mp4', tosVerdict: 'passed', publishedHourUtc: 18, sampleSize: 3, meanScore: 0.4 }];
+    const shared = [{ platform: 'instagram', arm: 'v2:short:question:hook=question:format=reel',
+      context: 'learn-v2:scheduled-utc-2', mediaFormat: 'video/mp4', tosVerdict: 'passed',
+      publishedHourUtc: 18, sampleSize: 6, meanScore: 0.7, sourceModelId: 'private-model', caption: 'private caption' }];
+    mockState.results = [own, shared];
+    const result = await readExemplarPatterns(makeChain(), ORG_ID, MODEL_ID, undefined, true);
+    expect(result.groups).toEqual([
+      expect.objectContaining({ arm: shared[0].arm, sampleSize: 6, sourceScope: 'organization' }),
+      expect.objectContaining({ arm: own[0].arm, sampleSize: 3, sourceScope: 'model' }),
+    ]);
+    expect(JSON.stringify(result.groups)).not.toContain('private-model');
+    expect(JSON.stringify(result.groups)).not.toContain('private caption');
+  });
+
+  it('does not query or return cross-model patterns when the target has not opted in', async () => {
+    const own = [{ platform: 'reddit', arm: 'short:statement', context: 'learn-v1:scheduled-utc-unknown',
+      mediaFormat: 'unknown', tosVerdict: 'passed', publishedHourUtc: null, sampleSize: 3, meanScore: 0.1 }];
+    mockState.results = [own];
+    const result = await readExemplarPatterns(makeChain(), ORG_ID, MODEL_ID, undefined, false);
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].sourceScope).toBe('model');
+    expect(mockState.results).toHaveLength(0);
   });
 });

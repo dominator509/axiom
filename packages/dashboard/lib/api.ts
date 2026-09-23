@@ -625,6 +625,8 @@ export const api = {
     viral: (id: string) => apiFetch<{ data: unknown }>(`/api/v1/models/${id}/viral`),
     viralInsightSchedule: (id: string) => apiFetch<{ data: { enabled: boolean; scheduleId: string | null } }>(
       `/api/v1/models/${encodeURIComponent(id)}/viral/insight-schedule`),
+    viralPatternSharing: (id: string) => apiFetch<{ data: { enabled: boolean } }>(
+      `/api/v1/models/${encodeURIComponent(id)}/viral/pattern-sharing`),
     enqueueViralInsight: (id: string) =>
       apiFetch<{ success: boolean; jobId: string; windowKey: string }>(
         `/api/v1/models/${encodeURIComponent(id)}/viral/insight`,

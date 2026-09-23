@@ -32,7 +32,7 @@ describe.skipIf(!url)('published insights evidence in PostgreSQL', () => {
         .where(and(eq(schema.viralExemplar.orgId, orgId), eq(schema.viralExemplar.modelId, modelId), publishedExemplarEvidence()));
       expect(new Set(rows.filter(row => ids.includes(row.id)).map(row => row.id))).toEqual(new Set(ids.slice(0, 4)));
       const patterns = await readExemplarPatterns(tx, orgId, modelId);
-      expect(patterns).toEqual({ groups: [{ platform: 'instagram', arm: 'short:question', context: 'learn-v1:scheduled-utc-3', mediaFormat: 'unknown', tosVerdict: 'unavailable', publishedHourUtc: null, sampleSize: 3, meanScore: 1 }], truncated: false, minimumSample: 3 });
+      expect(patterns).toEqual({ groups: [{ platform: 'instagram', arm: 'short:question', context: 'learn-v1:scheduled-utc-3', mediaFormat: 'unknown', tosVerdict: 'unavailable', publishedHourUtc: null, sampleSize: 3, meanScore: 1, sourceScope: 'model' }], truncated: false, minimumSample: 3 });
       expect((await readExemplarPatterns(tx, orgId, modelId, sql`false`)).groups).toEqual([]);
       expect((await readExemplarPatterns(tx, randomUUID(), modelId)).groups).toEqual([]);
       expect((await readExemplarPatterns(tx, orgId, randomUUID())).groups).toEqual([]);
