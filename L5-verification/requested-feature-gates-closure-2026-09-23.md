@@ -230,3 +230,32 @@ shown by the scrape result projection.
 
 Browser acceptance, sidecar/provider quality and runtime/migration acceptance
 remain separate from this source-level history surface.
+
+## M1012 — Published-post attribution links (F-23) — 2026-09-23
+
+Added an authenticated model-scoped link manager that lists only currently
+published post targets and first-party tracked links still bound to those
+targets. Owners, managers and operators can create an audited link only for a
+published target belonging to the selected model and an enabled Native
+provider. Destinations must be public HTTPS URLs. The generated short link
+stores `utm_source=axiom`, `utm_medium=post`, platform campaign and the exact
+published `post_target` ID; its public `/linkbio/:modelId/s/:slug` redirect
+increments the owned short-link click and records click/analytics facts before
+appending the saved UTMs. The attribution report exposes the validated post ID
+alongside existing Fanvue conversion, revenue and cost-derived ROI data. The
+dashboard lets operators select a published post, create the link and copy
+the public URL. No schema migration was needed.
+
+| Verification | Result |
+| --- | --- |
+| `rtk proxy node scripts/test-isolated-workspace.mjs --isolated-fixture` | Passed, 24/24 workspace tasks. Disposable fixture applied 74 migrations, was removed, and left the recovered database untouched. |
+| API package | 92 files, 1,295 tests passed; new published-post listing/create and public redirect coverage included. |
+| Dashboard package | 163 files, 1,060 tests passed; new manager and link-in-bio page coverage included. |
+| Core locale catalog | 30 files, 146 tests passed across six launch locales. |
+| Database / connectors / worker / mobile / MCP server / Fanvue MCP / LLM gateway / Relay / auth | 172 DB tests passed (5 readiness tests skipped); connectors 469, worker 342, mobile 32, MCP server 93, Fanvue MCP 93, LLM gateway 408, Relay 274 and auth 28 passed. |
+| API build and dashboard production build | Passed; OpenAPI generated with 192 paths and the localized link page compiled. |
+| Preflight | Printed `preflight: ok`; graph checkpoint printed `ALL_DONE`. |
+| `rtk proxy git diff --check` | Passed with only configured LF-to-CRLF working-copy warnings. |
+
+This is source and disposable local PostgreSQL evidence. No external link-in-bio
+provider, Fanvue API, production service or production database was used.

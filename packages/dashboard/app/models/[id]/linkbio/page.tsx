@@ -1,6 +1,7 @@
 import { api, getSession } from '@/lib/api';
 import LinkbioPanel from '@/components/LinkbioPanel';
 import LinkbioCostManager from '@/components/LinkbioCostManager';
+import LinkbioPostLinkManager from '@/components/LinkbioPostLinkManager';
 import { getServerLocale } from '@/lib/server-locale';
 import { formatNumber } from '@axiom/core';
 
@@ -33,7 +34,12 @@ interface LinkbioAttribution {
   attributedRevenueByCurrency?: Record<string, number>;
   campaignCostByCurrency?: Record<string, number>;
   roiByCurrency?: Record<string, number | null>;
-  links: Array<{ id: string; slug: string; targetUrl: string; clicks: number; conversions: number; revenueCents: number; costCents: number; roiPercent: number | null; revenueByCurrency?: Record<string, number>; costByCurrency?: Record<string, number>; roiByCurrency?: Record<string, number | null> }>;
+  links: Array<{ id: string; slug: string; targetUrl: string; postTargetId?: string | null; clicks: number; conversions: number; revenueCents: number; costCents: number; roiPercent: number | null; revenueByCurrency?: Record<string, number>; costByCurrency?: Record<string, number>; roiByCurrency?: Record<string, number | null> }>;
+}
+
+interface LinkbioPostLinks {
+  publishedPosts: Array<{ id: string; platform: string; publishedAt: string | null; caption: string }>;
+  links: Array<{ id: string; slug: string; targetUrl: string; postTargetId: string; clicks: number; createdAt: string; path: string }>;
 }
 
 interface LinkbioData {
@@ -50,6 +56,7 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
   let data: LinkbioData | null = null;
   let analytics: LinkbioAnalytics | null = null;
   let attribution: LinkbioAttribution | null = null;
+  let postLinks: LinkbioPostLinks | null = null;
   try {
     data = (await api.models.linkbio(id)).data as unknown as LinkbioData;
   } catch {
@@ -64,6 +71,11 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
     attribution = (await api.models.linkbioAttribution(id)).data as unknown as LinkbioAttribution;
   } catch {
     attribution = null;
+  }
+  try {
+    postLinks = (await api.models.linkbioPostLinks(id)).data as LinkbioPostLinks;
+  } catch {
+    postLinks = null;
   }
 
   const formatCurrency = (cents: number, currency: string) => {
@@ -108,6 +120,7 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
         )}
         <LinkbioPanel modelId={id} providers={data?.providers ?? []} canEdit={canEdit} />
       </div>
+      {data?.nativeEnabled && postLinks && <LinkbioPostLinkManager modelId={id} posts={postLinks.publishedPosts} links={postLinks.links} canEdit={canEdit} />}
       {data?.nativeEnabled && (
         <p style={{ color: 'var(--muted)', fontSize: 12 }}>
           {t('modelSurface.publicPage')}{' '}

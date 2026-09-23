@@ -14,12 +14,15 @@ import { linkbioRouter, publicLinkbioRouter } from './linkbio.js';
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
 const PROVIDER_ID = '33333333-3333-4333-8333-333333333333';
+const TARGET_ID = '44444444-4444-4444-8444-444444444444';
+const BUNDLE_ID = '55555555-5555-4555-8555-555555555555';
 
-function appWithOrg(orgId: string | null) {
+function appWithOrg(orgId: string | null, role: 'owner' | 'manager' | 'operator' | 'model' = 'owner') {
   const app = new Hono<AppBindings>();
   app.use('*', async (c, next) => {
     if (orgId) c.set('orgId', orgId);
     c.set('userId', 'user-1');
+    c.set('role', role);
     await next();
   });
   app.route('/', linkbioRouter);
@@ -72,6 +75,87 @@ describe('GET /models/:modelId/linkbio', () => {
     expect(body.data.providers).toEqual([]);
     expect(body.data.primary).toBeNull();
     expect(body.data.nativeEnabled).toBe(false);
+  });
+});
+
+describe('per-post attribution links', () => {
+  it('lists only model-owned published posts and their first-party tracked links', async () => {
+    const publishedAt = new Date('2026-09-22T12:00:00.000Z');
+    const createdAt = new Date('2026-09-22T13:00:00.000Z');
+    mockState.results = [
+      [],
+      [{ orgId: ORG_ID }],
+      [{ id: TARGET_ID, platform: 'instagram', publishedAt, publicationSnapshot: {
+        caption: 'Published caption', privateStorageKey: '/private/media.jpg',
+      } }],
+      [
+        { id: 'tracked-link', slug: 'post-campaign', targetUrl: 'https://fanvue.com/luna',
+          utm: { utm_source: 'axiom', utm_medium: 'post', utm_campaign: 'instagram', utm_content: TARGET_ID },
+          clicks: 9, createdAt },
+        { id: 'not-a-post-link', slug: 'native-link', targetUrl: 'https://example.com',
+          utm: { utm_source: 'axiom', utm_medium: 'linkbio', utm_content: 'native-1' },
+          clicks: 4, createdAt },
+        { id: 'stale-post-link', slug: 'stale-campaign', targetUrl: 'https://fanvue.com/other',
+          utm: { utm_source: 'axiom', utm_medium: 'post', utm_content: BUNDLE_ID },
+          clicks: 2, createdAt },
+      ],
+    ];
+    const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/post-links`);
+    expect(response.status).toBe(200);
+    const body = await response.json() as any;
+    expect(body.data.publishedPosts).toEqual([{
+      id: TARGET_ID, platform: 'instagram', publishedAt: publishedAt.toISOString(), caption: 'Published caption',
+    }]);
+    expect(body.data.links).toEqual([expect.objectContaining({
+      id: 'tracked-link', postTargetId: TARGET_ID, clicks: 9,
+      path: `/linkbio/${MODEL_ID}/s/post-campaign`, createdAt: createdAt.toISOString(),
+    })]);
+    expect(JSON.stringify(body)).not.toContain('privateStorageKey');
+  });
+
+  it('creates an audited, published-target-scoped UTM link', async () => {
+    mockState.results = [
+      [], // withOrgContext: set_config
+      [{ orgId: ORG_ID }],
+      [{ id: PROVIDER_ID }],
+      [{ id: TARGET_ID, bundleId: BUNDLE_ID, platform: 'instagram' }],
+      [{ id: BUNDLE_ID }],
+      () => [{ id: 'short-link-id', slug: (mockState.insertValues[0] as { slug: string }).slug, targetUrl: 'https://fanvue.com/luna' }],
+      [], // audit-chain lock
+      [], // current audit-chain head
+    ];
+    const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/post-links`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ postTargetId: TARGET_ID, targetUrl: 'https://fanvue.com/luna' }),
+    });
+    expect(response.status).toBe(201);
+    const created = await response.json() as { data: { slug: string } };
+    expect(created).toMatchObject({ data: {
+      postTargetId: TARGET_ID,
+      utm: { utm_source: 'axiom', utm_medium: 'post', utm_campaign: 'instagram', utm_content: TARGET_ID },
+      path: `/linkbio/${MODEL_ID}/s/${(mockState.insertValues[0] as { slug: string }).slug}`,
+    } });
+    expect(created.data.slug).toBe((mockState.insertValues[0] as { slug: string }).slug);
+    expect(mockState.insertValues[0]).toMatchObject({
+      orgId: ORG_ID, modelId: MODEL_ID, targetUrl: 'https://fanvue.com/luna',
+      utm: { utm_source: 'axiom', utm_medium: 'post', utm_campaign: 'instagram', utm_content: TARGET_ID },
+    });
+  });
+
+  it('rejects unsafe destinations and users without mutation access before database writes', async () => {
+    for (const targetUrl of ['http://fanvue.com/luna', 'https://127.0.0.1/private', 'https://fanvue.com:8443/luna']) {
+      const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/post-links`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ postTargetId: TARGET_ID, targetUrl }),
+      });
+      expect(response.status).toBe(400);
+    }
+    const denied = await appWithOrg(ORG_ID, 'model').request(`/models/${MODEL_ID}/linkbio/post-links`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ postTargetId: TARGET_ID, targetUrl: 'https://fanvue.com/luna' }),
+    });
+    expect(denied.status).toBe(403);
+    expect(mockState.insertValues).toHaveLength(0);
   });
 });
 
@@ -465,7 +549,7 @@ describe('public Native Link-in-Bio page', () => {
   };
 
   it('serves the configured page without an operator session', async () => {
-    mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider]];
+    mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider], [], []];
     const res = await publicApp().request(`/${MODEL_ID}`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-security-policy')).toContain("default-src 'none'");
@@ -478,7 +562,7 @@ describe('public Native Link-in-Bio page', () => {
 
   it('records only configured links before redirecting the visitor', async () => {
     mockState.result = [{ id: 'short-link-id' }];
-    mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider]];
+    mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider], [], []];
     const digest = createHash('sha256')
       .update(`${MODEL_ID}:0:${provider.config.links[0].url}`)
       .digest('hex')
@@ -494,9 +578,30 @@ describe('public Native Link-in-Bio page', () => {
   });
 
   it('rejects a tampered target instead of becoming an open redirect', async () => {
-    mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider]];
+    mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider], []];
     const res = await publicApp().request(`/${MODEL_ID}/s/not-a-configured-short-link`);
     expect(res.status).toBe(404);
+  });
+
+  it('records an owned post link and appends its saved UTMs before redirecting', async () => {
+    const stored = {
+      id: 'stored-link-id', targetUrl: 'https://fanvue.com/luna',
+      utm: { utm_source: 'axiom', utm_medium: 'post', utm_campaign: 'instagram', utm_content: TARGET_ID },
+    };
+    mockState.results = [
+      { rows: [{ org_id: ORG_ID }] }, [], [model], [provider], [], [stored],
+      [{ id: stored.id }],
+    ];
+    const response = await publicApp().request(`/${MODEL_ID}/s/post-campaign-1`, {
+      headers: { referer: 'https://instagram.com/p/1', 'user-agent': 'test-browser' },
+    });
+    expect(response.status).toBe(302);
+    const location = new URL(response.headers.get('location')!);
+    expect(location.origin + location.pathname).toBe(stored.targetUrl);
+    expect(location.searchParams.get('utm_content')).toBe(TARGET_ID);
+    expect(mockState.updates).toHaveLength(1);
+    expect(mockState.insertValues.find((values: any) => values.providerId === PROVIDER_ID))
+      .toMatchObject({ orgId: ORG_ID, providerId: PROVIDER_ID, shortLinkId: stored.id });
   });
 
   it('rate-limits the unauthenticated page and redirect surface', async () => {
