@@ -21,9 +21,32 @@ export const METRICS_PUBLISH_AGE_OFFSETS_MS = [
   90 * 24 * 60 * 60_000,
 ] as const;
 
+const INTEGER_METRICS = new Set([
+  'impressions', 'views', 'reach', 'likes', 'comments', 'shares', 'saves', 'follows',
+  'clicks', 'reposts', 'quotes', 'mentions', 'favorites', 'retweets',
+]);
+
+/** Keep only finite, non-negative measurements the connector declares. */
+export function normalizeProviderMetrics(
+  metrics: Record<string, number | undefined>,
+  declaredMetrics: readonly string[],
+): Record<string, number> {
+  const normalized: Record<string, number> = {};
+  for (const name of new Set(declaredMetrics)) {
+    const value = metrics[name];
+    if (value === undefined) continue;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0
+      || (INTEGER_METRICS.has(name) && !Number.isSafeInteger(value))) {
+      throw new Error(`metrics.poll: invalid ${name} observation`);
+    }
+    normalized[name] = value;
+  }
+  return normalized;
+}
+
 /** Reject absent/invalid observations rather than teach the learner invented zeros. */
 export function normalizeEngagementMetrics(metrics: Record<string, number | undefined>) {
-  const names = ['impressions', 'views', 'likes', 'comments', 'shares', 'reposts', 'retweets', 'saves'];
+  const names = ['impressions', 'views', 'likes', 'comments', 'shares', 'reposts', 'retweets', 'saves', 'favorites'];
   for (const name of names) {
     const value = metrics[name];
     if (value !== undefined && (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0))
@@ -31,9 +54,9 @@ export function normalizeEngagementMetrics(metrics: Record<string, number | unde
   }
   const impressions = metrics.impressions ?? metrics.views;
   if (impressions === undefined) throw new Error('metrics.poll: provider supplied no view or impression observation');
-  if (!['likes', 'comments', 'shares', 'reposts', 'retweets', 'saves'].some(name => metrics[name] !== undefined))
+  if (!['likes', 'comments', 'shares', 'reposts', 'retweets', 'saves', 'favorites'].some(name => metrics[name] !== undefined))
     throw new Error('metrics.poll: provider supplied no engagement observation');
-  const likes = metrics.likes ?? 0, comments = metrics.comments ?? 0;
+  const likes = metrics.likes ?? metrics.favorites ?? 0, comments = metrics.comments ?? 0;
   const shares = metrics.shares ?? metrics.reposts ?? metrics.retweets ?? 0, saves = metrics.saves ?? 0;
   const engagement = likes + comments + shares + saves;
   if (!Number.isSafeInteger(engagement)) throw new Error('metrics.poll: engagement counter overflow');
@@ -107,7 +130,8 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
   if (!collected)
     throw new Error(`metrics.poll: connector returned no metrics for ${target.remoteId}`);
 
-  const { impressions, likes, comments, shares, engagementRate } = normalizeEngagementMetrics(collected.metrics ?? {});
+  const providerMetrics = normalizeProviderMetrics(collected.metrics ?? {}, connector.capability().metrics);
+  const { impressions, likes, comments, shares, engagementRate } = normalizeEngagementMetrics(providerMetrics);
 
   await tx.insert(schema.postMetric).values({
     postTargetId: targetId,
@@ -119,8 +143,7 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
     shares,
     comments,
     engagementRate,
-    // reach is captured in the raw metrics but post_metric's schema keeps the
-    // engagement counters; the viral labeler consumes views/likes/shares/comments.
+    providerMetrics,
   });
 
   // Evaluate persisted model rules against this real observation. The

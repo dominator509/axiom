@@ -212,6 +212,40 @@ describe.skipIf(!url)('exemplar retrieval in real PostgreSQL', () => {
       await tx.update(schema.postTarget).set({ error: 'Status metadata may still change' }).where(eq(schema.postTarget.id, targetId));
     });
   });
+  it('rewards the contextual learner from post-link clicks and net attributed conversions', async () => {
+    await fixture(async (tx, modelId) => {
+      const bundleId = randomUUID(), targetId = randomUUID(), providerId = randomUUID(), shortLinkId = randomUUID();
+      await tx.insert(schema.contentBundle).values({ id: bundleId, orgId, modelId });
+      await tx.insert(schema.postTarget).values({ id: targetId, orgId, bundleId, platform: 'instagram', state: 'published',
+        remoteId: targetId, publishedAt: sql`now()`, idemKey: Buffer.from(targetId) });
+      await tx.insert(schema.postMetric).values({ postTargetId: targetId, platform: 'instagram', remoteId: targetId,
+        source: 'provider', views: 100, likes: 5, engagementRate: .05, collectedAt: sql`now()` });
+      await tx.insert(schema.linkbioProvider).values({ id: providerId, orgId, modelId, kind: 'native', isPrimary: true });
+      await tx.insert(schema.shortLink).values({ id: shortLinkId, orgId, modelId, slug: targetId.replaceAll('-', ''),
+        targetUrl: 'https://fanvue.com/model', utm: { utm_medium: 'post', utm_content: targetId } });
+      await tx.insert(schema.linkbioClick).values(Array.from({ length: 20 }, () => ({ orgId, providerId, shortLinkId,
+        target: 'https://fanvue.com/model', source: 'instagram' })));
+      await tx.insert(schema.linkbioAttributionEvent).values([
+        { orgId, modelId, shortLinkId, eventKey: randomUUID(), kind: 'subscription', amountCents: 300, currency: 'USD', occurredAt: sql`now()` },
+        { orgId, modelId, shortLinkId, eventKey: randomUUID(), kind: 'ppv_purchase', amountCents: 500, currency: 'USD', occurredAt: sql`now()` },
+        { orgId, modelId, shortLinkId, eventKey: randomUUID(), kind: 'subscription_refund', amountCents: 300, currency: 'USD', occurredAt: sql`now()` },
+      ]);
+      await tx.insert(schema.viralRecipe).values({ orgId, modelId, platform: 'instagram', sourceTargetId: targetId,
+        perfScore: .95, recipe: { evidence_source: 'published-provider-snapshot-v2',
+          learning_context: 'learn-v1:scheduled-utc-unknown', learning_arm: 'short:question' } });
+
+      await refreshLearningState(tx, orgId, modelId, 'instagram');
+      const [state] = await tx.select().from(schema.banditState).where(eq(schema.banditState.modelId, modelId));
+      const clock = await tx.execute(sql`SELECT POWER(0.5, EXTRACT(EPOCH FROM (now()-published_at))/2592000.0) AS weight
+        FROM post_target WHERE id=${targetId}`);
+      const weight = Number(clock.rows[0].weight);
+      const expectedReward = .0575 * weight; // (20 clicks × 0.25 + (2 conversions − 1 refund) × 0.75) / 100 views.
+      expect(state).toMatchObject({ plays: 1, arm: 'short:question' });
+      expect(state.reward).toBeCloseTo(expectedReward, 8);
+      expect(state.alpha).toBeCloseTo(1 + expectedReward, 8);
+      expect(state.beta).toBeCloseTo(1 + (1 - .0575) * weight, 8);
+    });
+  });
   it('freezes an automatic winner from mature fixed evidence and ignores later metric changes', async () => {
     await fixture(async (tx, modelId) => {
       const assetId = randomUUID(), experimentId = randomUUID(), variants = [randomUUID(), randomUUID()];

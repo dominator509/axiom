@@ -25,6 +25,24 @@ type DailyMetricRow = {
   likes: number;
 };
 
+type PostPerformanceRow = {
+  targetId: string;
+  platform: string;
+  publishedAt: Date | string;
+  collectedAt: Date | string;
+  views: number | string;
+  likes: number | string;
+  shares: number | string;
+  comments: number | string;
+  engagementRate: number | string;
+  providerMetrics: Record<string, number> | null;
+  linkClicks: number | string;
+  subscriptions: number | string;
+  ppvPurchases: number | string;
+  refunds: number | string;
+  revenueByCurrency: Record<string, number> | null;
+};
+
 function resultRows<T>(result: unknown): T[] {
   if (Array.isArray(result)) return result as T[];
   if (result && typeof result === 'object' && 'rows' in result) {
@@ -137,12 +155,98 @@ router.get('/models/:modelId/analytics', async (c) => {
         ),
       );
 
+    // A provider snapshot is cumulative, so select one latest observation per
+    // published target. First-party short-link clicks and signed Fanvue
+    // subscription/PPV facts are joined by the stored per-post UTM identity.
+    // No unique-visitor count or external-provider analytics are inferred.
+    const postPerformanceResult = await tx.execute(sql`
+      WITH latest_metrics AS (
+        SELECT DISTINCT ON (pt.id)
+          pt.id::text AS "targetId", pt.platform,
+          pt.published_at AS "publishedAt", pm.collected_at AS "collectedAt",
+          pm.views, pm.likes, pm.shares, pm.comments,
+          pm.engagement_rate AS "engagementRate",
+          pm.provider_metrics AS "providerMetrics"
+        FROM post_target pt
+        INNER JOIN content_bundle cb ON cb.id=pt.bundle_id AND cb.org_id=pt.org_id
+        INNER JOIN post_metric pm ON pm.post_target_id=pt.id
+        WHERE cb.org_id=${orgId} AND cb.model_id=${modelId}
+          AND (${rawScope}) AND pt.org_id=${orgId}
+          AND pt.state='published' AND pt.remote_id IS NOT NULL AND pt.published_at IS NOT NULL
+          AND pm.source='provider' AND pm.platform=pt.platform AND pm.remote_id=pt.remote_id
+        ORDER BY pt.id, pm.collected_at DESC, pm.id DESC
+      ), targets AS (
+        SELECT * FROM latest_metrics ORDER BY "publishedAt" DESC, "collectedAt" DESC LIMIT 100
+      ), tracked_links AS (
+        SELECT t."targetId", sl.id AS "shortLinkId"
+        FROM targets t
+        INNER JOIN short_link sl ON sl.org_id=${orgId} AND sl.model_id=${modelId}
+          AND sl.utm->>'utm_medium'='post' AND sl.utm->>'utm_content'=t."targetId"
+      ), click_counts AS (
+        SELECT tl."targetId", count(lc.id)::int AS clicks
+        FROM tracked_links tl LEFT JOIN linkbio_click lc ON lc.short_link_id=tl."shortLinkId"
+          AND lc.org_id=${orgId}
+        GROUP BY tl."targetId"
+      ), event_counts AS (
+        SELECT tl."targetId",
+          count(*) FILTER (WHERE ae.kind='subscription')::int AS subscriptions,
+          count(*) FILTER (WHERE ae.kind='ppv_purchase')::int AS "ppvPurchases",
+          count(*) FILTER (WHERE ae.kind='subscription_refund')::int AS refunds
+        FROM tracked_links tl LEFT JOIN linkbio_attribution_event ae ON ae.short_link_id=tl."shortLinkId"
+          AND ae.org_id=${orgId} AND ae.model_id=${modelId} AND ae.source='fanvue'
+        GROUP BY tl."targetId"
+      ), currency_revenue AS (
+        SELECT tl."targetId", ae.currency,
+          sum(CASE WHEN ae.kind='subscription_refund' THEN -ae.amount_cents ELSE ae.amount_cents END)::int AS cents
+        FROM tracked_links tl INNER JOIN linkbio_attribution_event ae ON ae.short_link_id=tl."shortLinkId"
+          AND ae.org_id=${orgId} AND ae.model_id=${modelId} AND ae.source='fanvue'
+        GROUP BY tl."targetId", ae.currency
+      ), revenue AS (
+        SELECT "targetId", jsonb_object_agg(currency,cents) AS "revenueByCurrency"
+        FROM currency_revenue GROUP BY "targetId"
+      )
+      SELECT t."targetId", t.platform, t."publishedAt", t."collectedAt",
+        t.views, t.likes, t.shares, t.comments, t."engagementRate", t."providerMetrics",
+        coalesce(c.clicks,0)::int AS "linkClicks",
+        coalesce(e.subscriptions,0)::int AS subscriptions,
+        coalesce(e."ppvPurchases",0)::int AS "ppvPurchases",
+        coalesce(e.refunds,0)::int AS refunds,
+        coalesce(r."revenueByCurrency",'{}'::jsonb) AS "revenueByCurrency"
+      FROM targets t
+      LEFT JOIN click_counts c ON c."targetId"=t."targetId"
+      LEFT JOIN event_counts e ON e."targetId"=t."targetId"
+      LEFT JOIN revenue r ON r."targetId"=t."targetId"
+      ORDER BY t."publishedAt" DESC, t."collectedAt" DESC
+    `);
+    const postPerformance = resultRows<PostPerformanceRow>(postPerformanceResult).map(row => {
+      const views = Number(row.views), linkClicks = Number(row.linkClicks);
+      return {
+        targetId: row.targetId,
+        platform: row.platform,
+        publishedAt: new Date(row.publishedAt).toISOString(),
+        collectedAt: new Date(row.collectedAt).toISOString(),
+        views,
+        likes: Number(row.likes),
+        shares: Number(row.shares),
+        comments: Number(row.comments),
+        engagementRate: Number(row.engagementRate),
+        providerMetrics: row.providerMetrics ?? {},
+        linkClicks,
+        linkClickRate: views > 0 ? linkClicks / views : null,
+        subscriptions: Number(row.subscriptions),
+        ppvPurchases: Number(row.ppvPurchases),
+        refunds: Number(row.refunds),
+        revenueByCurrency: row.revenueByCurrency ?? {},
+      };
+    });
+
     return {
       windowDays: days,
       totals,
       perPlatform,
       daily,
       postsWithMetrics: postsWithMetrics[0]?.count ?? 0,
+      postPerformance,
     };
   });
   return c.json({ data });

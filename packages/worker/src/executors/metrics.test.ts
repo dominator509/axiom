@@ -4,7 +4,21 @@ vi.mock('@axiom/db', () => ({ schema: {} }));
 vi.mock('../connection.js', () => ({ asPlatform: vi.fn(), connectorForTarget: vi.fn() }));
 vi.mock('../enqueue.js', () => ({ enqueueJob: vi.fn() }));
 
-import { METRICS_PUBLISH_AGE_OFFSETS_MS, metricsPollDedupeParts, nextMetricsPollAt, normalizeEngagementMetrics } from './metrics.js';
+import { METRICS_PUBLISH_AGE_OFFSETS_MS, metricsPollDedupeParts, nextMetricsPollAt, normalizeEngagementMetrics, normalizeProviderMetrics } from './metrics.js';
+
+describe('provider metric projection', () => {
+  it('persists only advertised finite values and preserves fractional provider durations', () => {
+    expect(normalizeProviderMetrics({ views: 12, reach: 9, saves: 3, watch_time: 12.5, private_payload: 99 },
+      ['views', 'reach', 'saves', 'watch_time'])).toEqual({ views: 12, reach: 9, saves: 3, watch_time: 12.5 });
+  });
+  it.each([
+    [{ views: -1 }, ['views']],
+    [{ saves: 1.5 }, ['saves']],
+    [{ watch_time: Infinity }, ['watch_time']],
+  ] as const)('rejects invalid advertised observations %j', (metrics, advertised) => {
+    expect(() => normalizeProviderMetrics(metrics, advertised)).toThrow('metrics.poll: invalid');
+  });
+});
 
 describe('provider observation integrity', () => {
   it.each([{}, { likes: 4 }, { views: 30 }, { views: 0, likes: 1 }, { views: -1, likes: 0 },
@@ -19,6 +33,10 @@ describe('provider observation integrity', () => {
   it('normalizes provider aliases without counting them twice', () => {
     expect(normalizeEngagementMetrics({ impressions: 100, views: 90, likes: 2, comments: 1, shares: 3, reposts: 3, saves: 4 }))
       .toEqual({ impressions: 100, likes: 2, comments: 1, shares: 3, engagementRate: 0.1 });
+  });
+  it('maps the provider favorites counter into the engagement denominator', () => {
+    expect(normalizeEngagementMetrics({ views: 10, favorites: 2 }))
+      .toEqual({ impressions: 10, likes: 2, comments: 0, shares: 0, engagementRate: 0.2 });
   });
 });
 
