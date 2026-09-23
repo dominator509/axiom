@@ -96,8 +96,8 @@ it('localizes linkbio, analytics and attribution copy while preserving data', as
   expect(html).toContain('data-can-edit="true"');
 });
 
-it('mounts the per-post attribution flow only for an enabled native provider', async () => {
-  mocks.linkbio.mockResolvedValue({ data: { providers: [], primary: null, nativeEnabled: true } });
+it('mounts the published-post attribution flow without requiring a native provider', async () => {
+  mocks.linkbio.mockResolvedValue({ data: { providers: [], primary: null, nativeEnabled: false } });
   mocks.linkbioPostLinks.mockResolvedValue({ data: {
     publishedPosts: [{ id: 'post-1', platform: 'instagram', publishedAt: null, caption: 'A published post' }],
     links: [],

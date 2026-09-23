@@ -4,6 +4,7 @@ import { formatNumber } from '@axiom/core';
 const hooks = vi.hoisted(() => ({
   slots: [] as unknown[],
   index: 0,
+  keyCounter: 0,
   send: vi.fn(),
 }));
 
@@ -16,8 +17,13 @@ vi.mock('react', async original => ({
       hooks.slots[index] = typeof value === 'function' ? value(hooks.slots[index]) : value;
     }];
   },
+  useRef: (initial: unknown) => {
+    const index = hooks.index++;
+    if (!(index in hooks.slots)) hooks.slots[index] = { current: initial };
+    return hooks.slots[index];
+  },
 }));
-vi.mock('@/lib/mutation', () => ({ mutationFetch: hooks.send, createIdempotencyKey: () => 'affiliate-intent' }));
+vi.mock('@/lib/mutation', () => ({ mutationFetch: hooks.send, createIdempotencyKey: () => `affiliate-intent-${++hooks.keyCounter}` }));
 
 import PlatformAffiliateManager, { formatAffiliateDate, referralPath } from './PlatformAffiliateManager';
 import type { AffiliateHold, AffiliateProgramSnapshot } from '@/lib/api';
@@ -73,6 +79,7 @@ function namedSelect(tree: unknown, name: string): Node {
 beforeEach(() => {
   hooks.slots = [];
   hooks.index = 0;
+  hooks.keyCounter = 0;
   hooks.send.mockReset();
   vi.stubGlobal('fetch', vi.fn());
 });
@@ -95,7 +102,41 @@ it('creates a partner through the owner API with disclosure and an idempotency k
   await vi.waitFor(() => expect(hooks.send).toHaveBeenCalledOnce());
   expect(hooks.send.mock.calls[0][0]).toBe('/api/v1/platform/affiliate/partners');
   expect(JSON.parse(hooks.send.mock.calls[0][1].body)).toMatchObject({ displayName: 'Partner One', email: 'one@example.test', termsVersion: 'affiliate-v1', disclosureAccepted: true, status: 'invited' });
-  expect(hooks.send.mock.calls[0][2]).toMatchObject({ idempotencyKey: 'affiliate-intent', retries: 0 });
+  expect(hooks.send.mock.calls[0][2]).toMatchObject({ idempotencyKey: 'affiliate-intent-1', retries: 0 });
+});
+
+it('retries an uncertain partner creation with the exact original body and idempotency key', async () => {
+  vi.mocked(fetch).mockResolvedValue(Response.json({ data: snapshot }));
+  hooks.send
+    .mockRejectedValueOnce(new Error('connection lost'))
+    .mockResolvedValueOnce(Response.json({ data: { ...partner, status: 'invited' } }, { status: 201 }));
+
+  let tree = render();
+  namedInput(tree, 'displayName').props.onChange!({ target: { value: 'Partner One' } });
+  tree = render();
+  namedInput(tree, 'email').props.onChange!({ target: { value: 'one@example.test' } });
+  tree = render();
+  const form = find(tree, node => node.type === 'form' && node.props['aria-label'] === 'Create partner');
+  form!.props.onSubmit!({ preventDefault: vi.fn() });
+  await vi.waitFor(() => expect(hooks.send).toHaveBeenCalledOnce());
+
+  await vi.waitFor(() => {
+    tree = render();
+    const section = find(tree, node => node.type === 'section' && node.props.role === 'alert');
+    const button = find(section, node => node.type === 'button');
+    expect(button).toBeDefined();
+    expect(button!.props.disabled).toBe(false);
+  });
+  const section = find(tree, node => node.type === 'section' && node.props.role === 'alert');
+  const retry = find(section, node => node.type === 'button');
+  expect(retry).toBeDefined();
+  (retry!.props.onClick as () => void)();
+  await vi.waitFor(() => expect(hooks.send).toHaveBeenCalledTimes(2));
+
+  expect(hooks.send.mock.calls[1][0]).toBe(hooks.send.mock.calls[0][0]);
+  expect(hooks.send.mock.calls[1][1].body).toBe(hooks.send.mock.calls[0][1].body);
+  expect(hooks.send.mock.calls[1][2]).toEqual(hooks.send.mock.calls[0][2]);
+  await vi.waitFor(() => expect(textContent(render())).toContain('Partner created'));
 });
 
 it('creates campaigns only from disclosed partners and renders report and payout controls', async () => {

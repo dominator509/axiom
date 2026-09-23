@@ -155,7 +155,7 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
         )}
         <LinkbioPanel modelId={id} providers={data?.providers ?? []} canEdit={canEdit} canConnectAnalytics={canConnectAnalytics} />
       </div>
-      {data?.nativeEnabled && postLinks && <LinkbioPostLinkManager modelId={id} posts={postLinks.publishedPosts} links={postLinks.links} canEdit={canEdit} />}
+      {postLinks && <LinkbioPostLinkManager modelId={id} posts={postLinks.publishedPosts} links={postLinks.links} canEdit={canEdit} />}
       {publicPagePath && (
         <p style={{ color: 'var(--muted)', fontSize: 12 }}>
           {t('modelSurface.publicPage')}{' '}
