@@ -129,4 +129,62 @@ it('renders a public referral path and copies an origin-qualified link', async (
   vi.stubGlobal('navigator', { clipboard: { writeText } });
 
   const tree = render(activeSnapshot);
-  const link = find(tree, node => nodu÷Nm¢G§²ÚîÆ­yÒw&VvVæW&FRrÂw&Wf—6RrÂw&V¦V7BrÂv†öÆBuÓ°Ð Ð¢&WGW&â°Ð¢¶–æC¢v'VæFÆRrÀÐ¢6&D–C¢'VæFÆRæ6&D–BÀÐ¢'VæFÆT–C¢'VæFÆRæ–BÀÐ¢ÖVF–&Wf–Ws¢'VæFÆRæÖVF–W&Ç5³ÒóòrrÀÐ¢6F–öã¢'VæFÆRæ6F–öâÀÐ¢6F–öåf&–çG3¢'VæFÆRæ6F–öåf&–çG2ÀÐ¢†6‡Fu6WG3¢'VæFÆRæ†6‡Fu6WG2ÀÐ¢fW&F–7G2ÀÐ¢F&vWEÆFf÷&×3¢'VæFÆRçF&vWEÆFf÷&×2ÀÐ¢&–6S¢'VæFÆRç&–6RÀÐ¢66†VGVÆTC¢'VæFÆRç66†VGVÆTBÀÐ¢7F–öç2ÀÐ¢6öÖÖæEFö¶Vç3¢'VæFÆRæ6öÖÖæEFö¶Vç2ÀÐ¢F–ÖW7F×¢FFRææ÷r‚’ÀÐ¢f÷&ÖC¢v‡FÖÂrÀÐ¢Ó°Ð¢ÐÐ Ð¢&VæFW$–ç6–v‡D6&B†–ç6–v‡C¢–ç6–v‡D6öçFVçB“¢&VÆ”6&B°Ð¢&WGW&â°Ð¢¶–æC¢v–ç6–v‡BrÀÐ¢6&D–C¢–ç6–v‡Bæ6&D–BÀÐ¢òò6†ææVÂFFW'26†&RF†R†—7F÷&–6Â&VÆ”6&BVçfVÆ÷Rââ–ç6–v‡@Ð¢òò†2æò6öçFVçB'VæFÆR&VÆF–öç6†—²F†RV×G’G&ç7÷'Bf–VÆB—0Ð¢òò–çFVçF–öæÆÇ’æWfW"W6VBf÷"FF&6RÆöö·W2÷"6öÖÖæB&÷WF–æràÐ¢'VæFÆT–C¢rrÀÐ¢ÖVF–&Wf–Ws¢rrÀÐ¢6F–öã¢–ç6–v‡BæFW67&—F–öâÀÐ¢6F–öåf&–çG3¢·ÒÀÐ¢†6‡Fu6WG3¢·ÒÀÐ¢fW&F–7G3¢µÒÀÐ¢F&vWEÆFf÷&×3¢µÒÀÐ¢7F–öç3¢µÒÀÐ¢F–ÖW7F×¢FFRææ÷r‚’ÀÐ¢f÷&ÖC¢v‡FÖÂrÀÐ¢–ç6–v‡C¢°Ð¢F—FÆS¢–ç6–v‡BçF—FÆRç6Æ–6RƒÂc’ÀÐ¢FW67&—F–öã¢–ç6–v‡BæFW67&—F–öâç6Æ–6RƒÂ#’ÀÐ¢âââ†–ç6–v‡Bæ–6öâò²–6öã¢–ç6–v‡Bæ–6öâç6Æ–6RƒÂb’Ò¢·Ò’ÀÐ¢w&÷W3¢–ç6–v‡Bæw&÷W2ç6Æ–6RƒÂ’æÖ†w&÷WÓâ‡°Ð¢ÆFf÷&Ó¢w&÷WçÆFf÷&Òç6Æ–6RƒÂC‚’ÀÐ¢ÆV&æ–æt&Ó¢w&÷WæÆV&æ–æt&Òç6Æ–6RƒÂ“b’ÀÐ¢ÆV&æ–æt6öçFW‡C¢w&÷WæÆV&æ–æt6öçFW‡Bç6Æ–6RƒÂ“b’ÀÐ¢6×ÆU6—¦S¢ÖF‚æÖ‚ƒÂÖF‚çG'Væ2†w&÷Wç6×ÆU6—¦R’’ÀÐ¢ÖVå66÷&S¢çVÖ&W"æ—4f–æ—FR†w&÷WæÖVå66÷&R’òw&÷WæÖVå66÷&R¢ÀÐ¢âââ†w&÷WçV&Æ—6†VD†÷W%WF2ÓÒçVÆÂò·Ò¢²V&Æ—6†VD†÷W%WF3¢w&÷WçV&Æ—6†VD†÷W%WF2Ò’ÀÐ¢Ò’’ÀÐ¢ÒÀÐ¢Ó°Ð¢ÐÐ Ð¢Fô‡FÖÂ†6&C¢&VÆ”6&B“¢7G&–ær°Ð¢–b†6&Bæ¶–æBÓÓÒv–ç6–v‡Br’&WGW&âF†—2çFô–ç6–v‡D‡FÖÂ†6&B“°Ð¢6öç7BfW&F–7E&÷w2Ò6&BçfW&F–7G0Ð¢æÖ€Ð¢‡b’ÓàÐ¢Æ#âG·bçÆFf÷&×Ó£Âö#âG·bç76VBò~)ÈR52r¢~)ØÂd”ÂwÒ‚G²‡bç66÷&R¢’çFôf—†VBƒ—ÒR–ÀÐ¢Ð¢æ¦ö–â‚uÆâr“°Ð¢6öç7B†6‡Fu&÷w2Òö&¦V7BæVçG&–W2†6&Bæ†6‡Fu6WG2Ð¢æÖ‚…·ÂFw5Ò’ÓâÆ#âG·Ó£Âö#âG·Fw2ç6Æ–6RƒÂR’æ¦ö–â‚rr—ÖÐ¢æ¦ö–â‚uÆâr“°Ð¢&WGW&â°Ð¢Æ#ï	ù:b'VæFÆS¢G¶6&Bæ'VæFÆT–GÓÂö#æÀÐ¢rrÀÐ¢6&BæÖVF–&Wf–WròÆ#å&Wf–Ws£Âö#âG¶6&BæÖVF–&Wf–WwÖ¢rrÀÐ¢Æ#ä6F–öã£Âö#âG¶6&Bæ6F–öâç6Æ–6RƒÂ#—ÖÀÐ¢rrÀÐ¢Æ#åFõ2fW&F–7G3£Âö#æÀÐ¢fW&F–7E&÷w2ÀÐ¢rrÀÐ¢Æ#ä†6‡Fw3£Âö#æÀÐ¢†6‡Fu&÷w2ÀÐ¢rrÀÐ¢6&Bç&–6RòÆ#å&–6S£Âö#âBG¶6&Bç&–6WÖ¢rrÀÐ¢6&Bç66†VGVÆTBòÆ#å66†VGVÆVC£Âö#âG¶6&Bç66†VGVÆTGÖ¢rrÀÐ¢ÐÐ¢æf–ÇFW"„&ööÆVâÐ¢æ¦ö–â‚uÆâr“°Ð¢ÐÐ Ð¢FôVÖ&VB†6&C¢&VÆ”6&B“¢&V6÷&CÇ7G&–ærÂVæ¶æ÷vãâ°Ð¢–b†6&Bæ¶–æBÓÓÒv–ç6–v‡Br’&WGW&âF†—2çFô–ç6–v‡DVÖ&VB†6&B“°Ð¢&WGW&â°Ð¢F—FÆS¢	ù:b'VæFÆS¢G¶6&Bæ'VæFÆT–Bç6Æ–6RƒÂ‚—ÖÀÐ¢FW67&—F–öã¢6&Bæ6F–öâç6Æ–6RƒÂC’ÀÐ¢6öÆ÷#¢6&BçfW&F–7G2æWfW'’‚‡b’Óâbç76VB’òƒfc¢†fcÀÐ¢âââ†6&BæÖVF–&Wf–Wrò²–ÖvS¢²W&Ã¢6&BæÖVF–&Wf–WrÒÒ¢·Ò’ÀÐ¢f–VÆG3¢°Ð¢°Ð¢æÖS¢uFõ2fW&F–7G2rÀÐ¢fÇVS¢6&BçfW&F–7G0Ð¢æÖ‚‡b’ÓâG·bçÆFf÷&×Ó¢G·bç76VBò~)ÈRr¢~)ØÂwÒ‚G²‡bç66÷&R¢’çFôf—†VBƒ—ÒR–Ð¢æ¦ö–â‚uÆâr’ÀÐ¢–æÆ–æS¢fÇ6RÀÐ¢ÒÀÐ¢°Ð¢æÖS¢uF&vWBÆFf÷&×2rÀÐ¢fÇVS¢6&BçF&vWEÆFf÷&×2æ¦ö–â‚rÂr’ÀÐ¢–æÆ–æS¢G'VRÀÐ¢ÒÀÐ¢âââ†6&Bç&–6Rò·²æÖS¢u&–6RrÂfÇVS¢BG¶6&Bç&–6WÖÂ–æÆ–æS¢G'VRÕÒ¢µÒ’ÀÐ¢âââ†6&Bç66†VGVÆTBò·²æÖS¢u66†VGVÆVBrÂfÇVS¢6&Bç66†VGVÆTBÂ–æÆ–æS¢G'VRÕÒ¢µÒ’ÀÐ¢ÒÀÐ¢F–ÖW7F×¢æWrFFR†6&BçF–ÖW7F×’çFô•4õ7G&–ær‚’ÀÐ¢Ó°Ð¢ÐÐ Ð¢FõFW‡B†6&C¢&VÆ”6&B“¢7G&–ær°Ð¢–b†6&Bæ¶–æBÓÓÒv–ç6–v‡Br’&WGW&âF†—2çFô–ç6–v‡EFW‡B†6&B“°Ð¢6öç7BÆ–æW3¢7G&–æuµÒÒ°Ð¢	ù:b'VæFÆS¢G¶6&Bæ'VæFÆT–GÖÀÐ¢âââ†6&BæÖVF–&Wf–Wrò¶&Wf–Ws¢G¶6&BæÖVF–&Wf–WwÖÒ¢µÒ’ÀÐ¢6F–öã¢G¶6&Bæ6F–öâç6Æ–6RƒÂ#—ÖÀÐ¢rrÀÐ¢uFõ2fW&F–7G3¢rÀÐ¢ââæ6&BçfW&F–7G2æÖ€Ð¢‡b’ÓâG·bçÆFf÷&×Ó¢G·bç76VBòu52r¢td”ÂwÒ‚G²‡bç66÷&R¢’çFôf—†VBƒ—ÒR–ÀÐ¢’ÀÐ¢rrÀÐ¢6&Bæ7F–öç2æWfW'’‚†7F–öâ’Óâ&ööÆVâ†6&Bæ6öÖÖæEFö¶Vç3òå¶7F–öåÒ’Ð¢òt7F–öç2‡&WÇ’v—F‚F†R7F–öâæB—G26–væVBFö¶Vâ“¢pÐ¢¢t7F–öç2‡&WÇ’v—F‚¶W—v÷&B“¢rÀÐ¢ââæ6&Bæ7F–öç2æÖ‚†7F–öâ’ÓâG¶7F–öä¶W—v÷&B†7F–öâÂ6&Bæ6öÖÖæEFö¶Vç3òå¶7F–öåÒ—Ö’ÀÐ¢Ó°Ð¢&WGW&âÆ–æW2æ¦ö–â‚uÆâr“°Ð¢ÐÐ Ð¢&—fFRFô–ç6–v‡D‡FÖÂ†6&C¢&VÆ”6&B“¢7G&–ær°Ð¢6öç7B–ç6–v‡BÒ6&Bæ–ç6–v‡C°Ð¢–b‚–ç6–v‡B’F‡&÷ræWrW'&÷"‚v–ç6–v‡B&VÆ’6&BÖ—76–ær–ç6–v‡B–ÆöBr“°Ð¢6öç7Bw&÷W2Ò–ç6–v‡Bæw&÷W2æÖ†w&÷WÓâ°Ð¢6öç7B†÷W"Òw&÷WçV&Æ—6†VD†÷W%WF2ÓÒçVÆÂòrr¢+rG¶w&÷WçV&Æ—6†VD†÷W%WF7Ó£UD6°Ð¢&WGW&âÆ#âG¶W66T‡FÖÂ†w&÷WçÆFf÷&Ò—ÓÂö#â+rG¶W66T‡FÖÂ†w&÷WæÆV&æ–æt&Ò—Ò+rãÒG¶w&÷Wç6×ÆU6—¦WÒ+rÖVâG¶w&÷WæÖVå66÷&RçFôf—†VBƒ"—ÒG¶†÷W'Ö°Ð¢Ò“°Ð¢&WGW&â°Ð¢Æ#âG¶W66T‡FÖÂ†–ç6–v‡Bæ–6öâóò	ù8‚r—ÒG¶W66T‡FÖÂ†–ç6–v‡BçF—FÆR—ÓÂö#æÀÐ¢rrÀÐ¢W66T‡FÖÂ†–ç6–v‡BæFW67&—F–öâ’ÀÐ¢w&÷W2æÆVæwF‚âòrr¢VæFVf–æVBÀÐ¢w&÷W2æÆVæwF‚âòsÆ#äWf–FVæ6S£Âö#âr¢VæFVf–æVBÀÐ¢ââæw&÷W2ÀÐ¢Òæf–ÇFW"‚‡fÇVR“¢fÇVR—27G&–ærÓâfÇVRÓÒVæFVf–æVB’æ¦ö–â‚uÆâr“°Ð¢ÐÐ Ð¢&—fFRFô–ç6–v‡DVÖ&VB†6&C¢&VÆ”6&B“¢&V6÷&CÇ7G&–ærÂVæ¶æ÷vãâ°Ð¢6öç7B–ç6–v‡BÒ6&Bæ–ç6–v‡C°Ð¢–b‚–ç6–v‡B’F‡&÷ræWrW'&÷"‚v–ç6–v‡B&VÆ’6&BÖ—76–ær–ç6–v‡B–ÆöBr“°Ð¢&WGW&â°Ð¢F—FÆS¢G¶–ç6–v‡Bæ–6öâóò	ù8‚wÒG¶–ç6–v‡BçF—FÆWÖç6Æ–6RƒÂ#Sb’ÀÐ¢FW67&—F–öã¢–ç6–v‡BæFW67&—F–öâç6Æ–6RƒÂC’ÀÐ¢6öÆ÷#¢ƒFcCfSRÀÐ¢f–VÆG3¢–ç6–v‡Bæw&÷W2ç6Æ–6RƒÂ’æÖ†w&÷WÓâ‡°Ð¢æÖS¢w&÷WçÆFf÷&ÒÀÐ¢fÇVS¢G¶w&÷WæÆV&æ–æt&×Ò+rãÒG¶w&÷Wç6×ÆU6—¦WÒ+rÖVâG¶w&÷WæÖVå66÷&RçFôf—†VBƒ"—ÒG¶w&÷WçV&Æ—6†VD†÷W%WF2ÓÒçVÆÂòrr¢+rG¶w&÷WçV&Æ—6†VD†÷W%WF7Ó£UD6ÖÀÐ¢–æÆ–æS¢fÇ6RÀÐ¢Ò’’ÀÐ¢F–ÖW7F×¢æWrFFR†6&BçF–ÖW7F×’çFô•4õ7G&–ær‚’ÀÐ¢Ó°Ð¢ÐÐ Ð¢&—fFRFô–ç6–v‡EFW‡B†6&C¢&VÆ”6&B“¢7G&–ær°Ð¢6öç7B–ç6–v‡BÒ6&Bæ–ç6–v‡C°Ð¢–b‚–ç6–v‡B’F‡&÷ræWrW'&÷"‚v–ç6–v‡B&VÆ’6&BÖ—76–ær–ç6–v‡B–ÆöBr“°Ð¢&WGW&â°Ð¢G¶–ç6–v‡Bæ–6öâóò	ù8‚wÒG¶–ç6–v‡BçF—FÆWÖÀÐ¢rrÀÐ¢–ç6–v‡BæFW67&—F–öâÀÐ¢ââæ–ç6–v‡Bæw&÷W2æÖ†w&÷WÓàÐ¢G¶w&÷WçÆFf÷&×Ò+rG¶w&÷WæÆV&æ–æt&×Ò+rãÒG¶w&÷Wç6×ÆU6—¦WÒ+rÖVâG¶w&÷WæÖVå66÷&RçFôf—†VBƒ"—ÒG¶w&÷WçV&Æ—6†VD†÷W%WF2ÓÒçVÆÂòrr¢+rG¶w&÷WçV&Æ—6†VD†÷W%WF7Ó£UD6ÖÀÐ¢’ÀÐ¢Òæ¦ö–â‚uÆâr“°Ð¢ÐÐ§ÐÐ Ð¦gVæ7F–öâW66T‡FÖÂ‡fÇVS¢7G&–ær“¢7G&–ær°Ð¢&WGW&âfÇVRç&WÆ6R‚õ²cÃâ%ÒörÂ6†&7FW"Óâ‡°¢rbs¢rf×²rÀÐ¢sÂs¢rfÇC²rÀÐ¢sâs¢rfwC²rÀÐ¢r"s¢rgV÷C²rÀÐ¢Õ¶6†&7FW%Òóò6†&7FW"’“°Ð§ÐÐ Ð¦gVæ7F–öâ7F–öä¶W—v÷&B†7F–öã¢6&D7F–öâÂFö¶Vãó¢7G&–ær“¢7G&–ær°Ð¢7v—F6‚†7F–öâ’°Ð¢66RvVF—Eö6F–öâs Ð¢&WGW&âFö¶VâòVF—BG·Fö¶VçÒÆæWr6F–öãæ¢vVF—BÆæWr6F–öãâs°Ð¢66Rw&W66†VGVÆRs Ð¢&WGW&âFö¶VàÐ¢ò66†VGVÆRG·Fö¶VçÒÆgWGW&R•4òÓƒcF–ÖW7F×æ Ð¢¢w66†VGVÆRÆgWGW&R•4òÓƒcF–ÖW7F×âs°Ð¢FVfVÇC Ð¢&WGW&âFö¶VâòG¶7F–öçÒG·Fö¶VçÖ¢7F–öã°Ð¢ÐÐ§ÐÐ
+  const link = find(tree, node => node.type === 'a' && node.props.href === referralPath(campaign.referralToken));
+  expect(link).toBeDefined();
+  expect(link!.props.target).toBe('_blank');
+  const copy = find(tree, node => node.type === 'button' && textContent(node.props.children) === 'Copy referral link');
+  expect(copy).toBeDefined();
+  const copyOnClick = copy!.props.onClick as (() => void) | undefined;
+  expect(copyOnClick).toBeDefined();
+  copyOnClick?.();
+  await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith('https://fanthynks.test/affiliate/r/ref-token'));
+});
+
+it('formats open hold dates in the selected locale with an explicit UTC zone', () => {
+  const hold: AffiliateHold = {
+    id: 'hold-1', programId: 'program-1', partnerId: 'partner-1', commissionId: null,
+    reason: 'fraud_suspected', state: 'open', resolvedByUserId: null,
+    createdAt: '2026-01-01T00:30:00.000Z', resolvedAt: null,
+  };
+  const previousTz = process.env.TZ;
+  process.env.TZ = 'Pacific/Honolulu';
+  try {
+    const tree = render({ ...snapshot, partners: [partner], holds: [hold], summary: { ...snapshot.summary, openHolds: 1 } });
+    const rendered = textContent(tree);
+    expect(rendered).toContain('Jan 1, 2026');
+    expect(rendered).not.toContain('Dec 31, 2025');
+  } finally {
+    if (previousTz === undefined) delete process.env.TZ;
+    else process.env.TZ = previousTz;
+  }
+});
+
+it('renders persisted hold reasons as user-facing labels instead of raw codes', () => {
+  const hold: AffiliateHold = {
+    id: 'hold-2', programId: 'program-1', partnerId: 'partner-1', commissionId: null,
+    reason: 'fraud_suspected', state: 'open', resolvedByUserId: null,
+    createdAt: '2026-01-01T00:30:00.000Z', resolvedAt: null,
+  };
+  const rendered = textContent(render({ ...snapshot, partners: [partner], holds: [hold], summary: { ...snapshot.summary, openHolds: 1 } }));
+  expect(rendered).toContain('Suspected fraud');
+  expect(rendered).not.toContain('fraud_suspected');
+  expect(formatAffiliateDate(hold.createdAt, 'en')).toContain('2026');
+});
+
+it('formats affiliate summary counts through the selected locale', () => {
+  const activeSnapshot: AffiliateProgramSnapshot = {
+    ...snapshot,
+    partners: [partner],
+    summary: {
+      ...snapshot.summary,
+      partners: 1234,
+      campaigns: 2345,
+      attributionEvents: 3456,
+      openHolds: 4,
+    },
+  };
+  const rendered = textContent(render(activeSnapshot));
+  expect(rendered).toContain(formatNumber(1234, 'en'));
+  expect(rendered).toContain(formatNumber(2345, 'en'));
+  expect(rendered).toContain(formatNumber(3456, 'en'));
+});
