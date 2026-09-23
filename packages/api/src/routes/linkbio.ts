@@ -1,6 +1,6 @@
 // ─── Link-in-bio provider lifecycle + first-party tracked redirects ────────
-// Fanlynks pages are hosted here. Linktree and Beacons pages remain managed on
-// their own sites; AXIOM supplies tracked redirect links and optional GA4 import.
+// FanLynks can be self-hosted or externally hosted. Linktree and Beacons pages
+// remain managed on their own sites; AXIOM supplies tracked redirects and analytics imports.
 
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -24,6 +24,16 @@ import { LINKBIO_PROVIDER_KINDS, safeExternalProfileUrl, type LinkbioProviderKin
 const router = new Hono<AppBindings>();
 const publicRouter = new Hono<AppBindings>();
 const linkbioWriteRoles = new Set(['owner', 'manager', 'operator']);
+
+function safeFanlynksProfileUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
 
 // Every public page and redirect is intentionally unauthenticated. The page
 // loader may provision missing short-link rows for older provider records and
@@ -571,11 +581,13 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
   const { modelId } = c.req.param();
   const body = c.req.valid('json');
   const externalKind = body.kind === 'linktree' || body.kind === 'beacons';
-  const profileUrl = body.profileUrl === undefined ? null : safeExternalProfileUrl(body.profileUrl, body.kind);
-  if (externalKind && !profileUrl) {
+  const profileUrl = body.profileUrl === undefined ? null
+    : body.kind === 'fanlynks' ? safeFanlynksProfileUrl(body.profileUrl)
+      : safeExternalProfileUrl(body.profileUrl, body.kind);
+  if ((externalKind || (body.kind === 'fanlynks' && body.profileUrl !== undefined)) && !profileUrl) {
     return apiError(c, 422, statusTitle(422), 'a valid HTTPS profile URL for the selected provider is required');
   }
-  if (!externalKind && body.profileUrl !== undefined) {
+  if (!externalKind && body.kind !== 'fanlynks' && body.profileUrl !== undefined) {
     return apiError(c, 422, statusTitle(422), 'profileUrl is supported only for external link-in-bio providers');
   }
 
@@ -686,6 +698,8 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
       isPrimary: schema.linkbioProvider.isPrimary,
       status: schema.linkbioProvider.status,
       lastSyncedAt: schema.linkbioProvider.lastSyncedAt,
+      hasGa4: isNotNull(schema.linkbioProvider.credentialsEnc),
+      hasFanlynksAnalytics: isNotNull(schema.linkbioProvider.fanlynksTokenEnc),
     }).from(schema.linkbioProvider).where(and(
       eq(schema.linkbioProvider.orgId, orgId),
       eq(schema.linkbioProvider.modelId, modelId),
@@ -781,13 +795,23 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
       target.conversions += conversions;
       targets.set(key, target);
     }
-    const providersWithStats = providers.map((provider: {
+    const providersWithStats = (providers as Array<{
       id: string; kind: string; enabled: boolean; isPrimary: boolean; status: string; lastSyncedAt: Date | null;
-    }) => ({ ...provider, ...(providerTotals.get(provider.id) ?? { ...totals, trackedClicks: 0 }) }));
+      hasGa4: boolean; hasFanlynksAnalytics: boolean;
+    }>).map((provider) => ({ ...provider, ...(providerTotals.get(provider.id) ?? { ...totals, trackedClicks: 0 }) }));
+    const metricCoverage = {
+      uniqueVisitors: providersWithStats.some((provider) => provider.hasGa4),
+      conversions: providersWithStats.some((provider) => provider.hasGa4),
+    };
+    const publicProviders = providersWithStats.map((provider) => {
+      const { hasGa4: _hasGa4, hasFanlynksAnalytics: _hasFanlynksAnalytics, ...publicProvider } = provider;
+      return publicProvider;
+    });
     return {
       windowDays: 90,
       windowStart: start.toISOString(),
-      providers: providersWithStats,
+      providers: publicProviders,
+      metricCoverage,
       totals,
       totalClicks: totals.trackedClicks,
       topTargets: [...targets.values()]
@@ -795,7 +819,7 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
         .slice(0, 20),
       daily: [...daily.entries()].sort(([left], [right]) => left.localeCompare(right))
         .map(([date, values]) => ({ date, ...values })),
-      note: 'Tracked redirects and GA4 event counts are reported separately; daily active users are summed across days and are not range-deduplicated.',
+      note: 'Tracked redirects and imported provider metrics are reported separately. FanLynks exports page views and clicks, not unique visitors or conversions; daily GA4 unique users are summed across days and are not range-deduplicated.',
     };
   });
   return c.json({ data });

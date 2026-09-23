@@ -19,6 +19,9 @@ interface ProviderRow {
   config?: Record<string, unknown> | null;
   analyticsConnection?: {
     analyticsConnected: boolean;
+    fanlynksConnected?: boolean;
+    fanlynksStatus?: string;
+    fanlynksLastSyncedAt?: string | null;
     propertyId: string | null;
     status: string;
     lastSyncedAt: string | null;
@@ -33,6 +36,7 @@ interface LinkbioAnalytics {
   topTargets: Array<{ providerId: string; kind: string; target: string; trackedClicks: number; visits: number; analyticsClicks: number; conversions: number }>;
   daily?: Array<{ date: string; visits: number; activeUsers: number; analyticsClicks: number; conversions: number }>;
   note?: string;
+  metricCoverage?: { uniqueVisitors: boolean; conversions: boolean };
 }
 
 interface LinkbioAttribution {
@@ -135,7 +139,7 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
       .map(([currency, value]) => `${currency} ${Number(value).toLocaleString(locale)}%`).join(' · ');
   };
   const hostedPage = data?.providers.find((provider) => provider.enabled && (provider.kind === 'native' || provider.kind === 'fanlynks'));
-  const publicPagePath = hostedPage?.kind === 'fanlynks' ? `/linkbio/fanlynks/${encodeURIComponent(id)}`
+  const publicPagePath = hostedPage?.kind === 'fanlynks' ? hostedPage.profileUrl || `/linkbio/fanlynks/${encodeURIComponent(id)}`
     : hostedPage?.kind === 'native' ? `/linkbio/${encodeURIComponent(id)}` : null;
 
   return (
@@ -170,11 +174,12 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
           <div className="row" style={{ gap: 16, flexWrap: 'wrap' }}>
             <strong>{t('linkbio.analytics.trackedClicks', { count: formatNumber(analytics.totals?.trackedClicks ?? analytics.totalClicks, locale) })}</strong>
             <strong>{t('linkbio.analytics.visits', { count: formatNumber(analytics.totals?.visits ?? 0, locale) })}</strong>
-            <strong>{t('linkbio.analytics.activeUsers', { count: formatNumber(analytics.totals?.activeUsers ?? 0, locale) })}</strong>
+            <strong>{analytics.metricCoverage?.uniqueVisitors === false ? t('linkbio.fanlynks.notExported') : t('linkbio.analytics.activeUsers', { count: formatNumber(analytics.totals?.activeUsers ?? 0, locale) })}</strong>
             <strong>{t('linkbio.analytics.importedClicks', { count: formatNumber(analytics.totals?.analyticsClicks ?? 0, locale) })}</strong>
-            <strong>{t('linkbio.analytics.conversions', { count: formatNumber(analytics.totals?.conversions ?? 0, locale) })}</strong>
+            <strong>{analytics.metricCoverage?.conversions === false ? t('linkbio.fanlynks.notExported') : t('linkbio.analytics.conversions', { count: formatNumber(analytics.totals?.conversions ?? 0, locale) })}</strong>
           </div>
           <p className="subtle">{t('linkbio.analytics.note')}</p>
+          {analytics.providers.some((provider) => provider.kind === 'fanlynks') && <p className="subtle">{t('linkbio.fanlynks.metricCoverage')}</p>}
           {analytics.totalClicks === 0 && (analytics.totals?.visits ?? 0) === 0 && (analytics.totals?.analyticsClicks ?? 0) === 0 && (analytics.totals?.conversions ?? 0) === 0
             ? <p>{t('linkbio.analytics.noData')}</p> : null}
           <table style={{ marginTop: 8 }}>
@@ -196,7 +201,7 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
                   <td>{formatNumber(target.trackedClicks, locale)}</td>
                   <td>{formatNumber(target.visits, locale)}</td>
                   <td>{formatNumber(target.analyticsClicks, locale)}</td>
-                  <td>{formatNumber(target.conversions, locale)}</td>
+                  <td>{target.kind === 'fanlynks' ? t('linkbio.fanlynks.notExported') : formatNumber(target.conversions, locale)}</td>
                 </tr>
               ))}
             </tbody>
@@ -205,8 +210,8 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
             <table style={{ marginTop: 12 }}>
               <thead><tr><th>{t('linkbio.analytics.date')}</th><th>{t('linkbio.analytics.visitsLabel')}</th><th>{t('linkbio.analytics.activeUsersLabel')}</th><th>{t('linkbio.analytics.importedClicksLabel')}</th><th>{t('linkbio.analytics.conversionsLabel')}</th></tr></thead>
               <tbody>{analytics.daily.map((day) => <tr key={day.date}>
-                <td>{day.date}</td><td>{formatNumber(day.visits, locale)}</td><td>{formatNumber(day.activeUsers, locale)}</td>
-                <td>{formatNumber(day.analyticsClicks, locale)}</td><td>{formatNumber(day.conversions, locale)}</td>
+                <td>{day.date}</td><td>{formatNumber(day.visits, locale)}</td><td>{analytics.metricCoverage?.uniqueVisitors === false ? t('linkbio.fanlynks.notExported') : formatNumber(day.activeUsers, locale)}</td>
+                <td>{formatNumber(day.analyticsClicks, locale)}</td><td>{analytics.metricCoverage?.conversions === false ? t('linkbio.fanlynks.notExported') : formatNumber(day.conversions, locale)}</td>
               </tr>)}</tbody>
             </table>
           )}

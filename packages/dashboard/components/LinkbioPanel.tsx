@@ -12,7 +12,11 @@ type ProviderKind = (typeof KINDS)[number];
 
 interface ProviderAnalyticsConnection {
   analyticsConnected: boolean;
+  fanlynksConnected?: boolean;
+  fanlynksStatus?: string;
+  fanlynksLastSyncedAt?: string | null;
   propertyId: string | null;
+  profileUrl?: string | null;
   status: string;
   lastSyncedAt: string | null;
 }
@@ -44,6 +48,7 @@ type MutationIntent = {
   label: string;
   action: 'provider' | 'analytics-connect' | 'analytics-disconnect' | 'analytics-sync';
   kind: ProviderKind;
+  source?: 'fanlynks' | 'ga4';
   enabled?: boolean;
   key: string;
 };
@@ -103,6 +108,7 @@ export default function LinkbioPanel({
   const [endDate, setEndDate] = useState(() => dateDaysAgo(1));
   const [linkLabel, setLinkLabel] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
+  const [apiToken, setApiToken] = useState('');
 
   function selectKind(next: ProviderKind) {
     const provider = providers.find((entry) => entry.kind === next);
@@ -114,6 +120,7 @@ export default function LinkbioPanel({
     setAccentColor(typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#f9fafb');
     setPropertyId(provider?.analyticsConnection?.propertyId ?? '');
     setMeasurementId('');
+    setApiToken('');
     setError(null);
     setNotice(null);
   }
@@ -146,10 +153,12 @@ export default function LinkbioPanel({
       if (request.action === 'provider' && (data.kind !== request.kind || data.enabled !== request.enabled)) {
         throw new Error(t('linkbio.error.unconfirmed'));
       }
-      if (request.action === 'analytics-connect' && (data.kind !== request.kind || data.analyticsConnected !== true)) {
+      if (request.action === 'analytics-connect' && (data.kind !== request.kind
+        || (request.source === 'fanlynks' ? data.fanlynksConnected !== true : data.analyticsConnected !== true))) {
         throw new Error(t('linkbio.error.unconfirmed'));
       }
-      if (request.action === 'analytics-disconnect' && data.analyticsConnected !== false) {
+      if (request.action === 'analytics-disconnect'
+        && (request.source === 'fanlynks' ? data.fanlynksConnected !== false : data.analyticsConnected !== false)) {
         throw new Error(t('linkbio.error.unconfirmed'));
       }
       if (request.action === 'analytics-sync' && (data.kind !== request.kind || typeof data.importedRows !== 'number')) {
@@ -160,11 +169,14 @@ export default function LinkbioPanel({
       if (request.action === 'analytics-connect') {
         setPrivateKey('');
         setClientEmail('');
-        setNotice(t('linkbio.ga4.savedUnverified'));
+        setApiToken('');
+        setNotice(request.kind === 'fanlynks' ? t('linkbio.fanlynks.savedUnverified') : t('linkbio.ga4.savedUnverified'));
       } else if (request.action === 'analytics-sync') {
-        setNotice(t('linkbio.ga4.syncSucceeded', { count: Number(data.importedRows) }));
+        setNotice(request.kind === 'fanlynks'
+          ? t('linkbio.fanlynks.syncSucceeded', { count: Number(data.importedRows) })
+          : t('linkbio.ga4.syncSucceeded', { count: Number(data.importedRows) }));
       } else if (request.action === 'analytics-disconnect') {
-        setNotice(t('linkbio.ga4.disconnected'));
+        setNotice(request.kind === 'fanlynks' ? t('linkbio.fanlynks.disconnected') : t('linkbio.ga4.disconnected'));
       }
       router.refresh();
     } catch {
@@ -225,17 +237,26 @@ export default function LinkbioPanel({
         return;
       }
     }
+    if (kind === 'fanlynks' && profileUrl.trim()) {
+      try {
+        const parsed = new URL(profileUrl.trim());
+        if (parsed.protocol !== 'https:' || !parsed.hostname || parsed.username || parsed.password) throw new Error();
+      } catch {
+        setError(t('linkbio.error.profileUrl'));
+        return;
+      }
+    }
     runMutation({
       path: `/api/v1/models/${encodeURIComponent(modelId)}/linkbio`,
       method: 'POST',
-      body: JSON.stringify({ kind, config, ...(kind === 'linktree' || kind === 'beacons' ? { profileUrl: profileUrl.trim() } : {}), isPrimary }),
+      body: JSON.stringify({ kind, config, ...((kind === 'linktree' || kind === 'beacons' || (kind === 'fanlynks' && profileUrl.trim())) ? { profileUrl: profileUrl.trim() } : {}), isPrimary }),
       label: t('linkbio.saveProvider'), action: 'provider', kind, enabled: true,
     });
   }
 
   async function copyPath(path: string) {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${path}`);
+      await navigator.clipboard.writeText(new URL(path, window.location.origin).toString());
       setNotice(t('linkbio.copied'));
       setError(null);
     } catch {
@@ -244,7 +265,7 @@ export default function LinkbioPanel({
   }
 
   const publicPagePath = kind === 'fanlynks'
-    ? `/linkbio/fanlynks/${encodeURIComponent(modelId)}`
+    ? profileUrl.trim() || `/linkbio/fanlynks/${encodeURIComponent(modelId)}`
     : kind === 'native' ? `/linkbio/${encodeURIComponent(modelId)}` : null;
   const analyticsConnection = activeProvider?.analyticsConnection;
   const needsExternalSetup = kind === 'linktree' || kind === 'beacons';
@@ -278,8 +299,8 @@ export default function LinkbioPanel({
               {KINDS.map((providerKind) => <option key={providerKind} value={providerKind}>{providerKind}</option>)}
             </select>
           </label>
-          {(kind === 'linktree' || kind === 'beacons') && <label>{t('linkbio.profileUrl')}
-            <input aria-label={t('linkbio.profileUrl')} type="url" maxLength={2048} value={profileUrl} onChange={(event) => setProfileUrl(event.target.value)} placeholder={kind === 'linktree' ? 'https://linktr.ee/creator' : 'https://beacons.ai/creator'} />
+          {(kind === 'linktree' || kind === 'beacons' || kind === 'fanlynks') && <label>{t('linkbio.profileUrl')}
+            <input aria-label={t('linkbio.profileUrl')} type="url" maxLength={2048} value={profileUrl} onChange={(event) => setProfileUrl(event.target.value)} placeholder={kind === 'linktree' ? 'https://linktr.ee/creator' : kind === 'beacons' ? 'https://beacons.ai/creator' : 'https://your-fanlynks.example/creator'} />
           </label>}
           {kind === 'fanlynks' && <label>{t('linkbio.ga4.measurementId')}
             <input aria-label={t('linkbio.ga4.measurementId')} maxLength={23} value={measurementId} onChange={(event) => setMeasurementId(event.target.value.toUpperCase())} placeholder="G-XXXXXXXXXX" />
@@ -327,8 +348,47 @@ export default function LinkbioPanel({
         </div>}
         {needsExternalSetup && <p className="subtle">{t('linkbio.externalSetup')}</p>}
         {!activeProvider && needsExternalSetup && <p className="subtle">{t('linkbio.externalProfileRequired')}</p>}
+        {kind === 'fanlynks' && !profileUrl.trim() && <p className="subtle">{t('linkbio.fanlynks.profileRequired')}</p>}
         {activeProvider?.profileUrl && <p><a href={activeProvider.profileUrl} target="_blank" rel="noreferrer">{activeProvider.profileUrl}</a></p>}
       </fieldset>
+
+      {activeProvider && kind === 'fanlynks' && (
+        <section className="stack" aria-label={t('linkbio.fanlynks.title')}>
+          <h4 style={{ marginBottom: 0 }}>{t('linkbio.fanlynks.title')}</h4>
+          <p className="subtle">{t('linkbio.fanlynks.accessInstructions')}</p>
+          <p className="subtle">{t('linkbio.fanlynks.metricCoverage')}</p>
+          {activeProvider.analyticsConnectionUnavailable ? <p role="alert">{t('linkbio.ga4.connectionUnavailable')}</p>
+            : analyticsConnection?.fanlynksConnected ? (
+            <>
+              <p className="subtle">{analyticsConnection.fanlynksStatus === 'connected'
+                ? t('linkbio.ga4.lastSynced', { date: analyticsConnection.fanlynksLastSyncedAt ?? t('linkbio.ga4.neverSynced') })
+                : analyticsConnection.fanlynksStatus === 'sync_error' ? t('linkbio.ga4.syncError') : t('linkbio.fanlynks.savedUnverified')}</p>
+              <div className="row">
+                <label>{t('linkbio.ga4.startDate')}<input aria-label={t('linkbio.ga4.startDate')} type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
+                <label>{t('linkbio.ga4.endDate')}<input aria-label={t('linkbio.ga4.endDate')} type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
+                <button className="btn" type="button" disabled={!canEdit || busy || !startDate || !endDate} onClick={() => runMutation({
+                  path: `/api/v1/models/${encodeURIComponent(modelId)}/linkbio/${encodeURIComponent(kind)}/analytics-sync?source=fanlynks`,
+                  method: 'POST', body: JSON.stringify({ startDate, endDate }), label: t('linkbio.ga4.sync'), action: 'analytics-sync', kind,
+                })}>{t('linkbio.ga4.sync')}</button>
+                {canConnectAnalytics && <button className="btn danger" type="button" disabled={busy} onClick={() => runMutation({
+                  path: `/api/v1/models/${encodeURIComponent(modelId)}/linkbio/${encodeURIComponent(kind)}/analytics-connection?source=fanlynks`,
+                  method: 'DELETE', body: '', label: t('linkbio.ga4.disconnect'), action: 'analytics-disconnect', kind, source: 'fanlynks',
+                })}>{t('linkbio.ga4.disconnect')}</button>}
+              </div>
+            </>
+          ) : (
+            <fieldset className="stack" disabled={!canConnectAnalytics || busy || pending} style={{ border: 0, padding: 0, minWidth: 0 }}>
+              <p className="subtle">{profileUrl ? <a href={profileUrl} target="_blank" rel="noreferrer">{profileUrl}</a> : t('linkbio.fanlynks.profileRequired')}</p>
+              <label>{t('linkbio.fanlynks.apiToken')}<input aria-label={t('linkbio.fanlynks.apiToken')} type="password" autoComplete="new-password" maxLength={64} value={apiToken} onChange={(event) => setApiToken(event.target.value)} /></label>
+              <button className="btn" type="button" disabled={!canConnectAnalytics || busy || !profileUrl || !apiToken} onClick={() => runMutation({
+                path: `/api/v1/models/${encodeURIComponent(modelId)}/linkbio/${encodeURIComponent(kind)}/analytics-connection`,
+                method: 'POST', body: JSON.stringify({ profileUrl: profileUrl.trim(), apiToken: apiToken.trim() }), label: t('linkbio.fanlynks.connect'), action: 'analytics-connect', kind, source: 'fanlynks',
+              })}>{t('linkbio.fanlynks.connect')}</button>
+              {!canConnectAnalytics && <p className="subtle">{t('linkbio.ga4.ownerRequired')}</p>}
+            </fieldset>
+          )}
+        </section>
+      )}
 
       {activeProvider && kind !== 'native' && (
         <section className="stack" aria-label={t('linkbio.ga4.title')}>
@@ -344,7 +404,7 @@ export default function LinkbioPanel({
                 <label>{t('linkbio.ga4.startDate')}<input aria-label={t('linkbio.ga4.startDate')} type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
                 <label>{t('linkbio.ga4.endDate')}<input aria-label={t('linkbio.ga4.endDate')} type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
                 <button className="btn" type="button" disabled={!canEdit || busy || !startDate || !endDate} onClick={() => runMutation({
-                  path: `/api/v1/models/${encodeURIComponent(modelId)}/linkbio/${encodeURIComponent(kind)}/analytics-sync`,
+                  path: `/api/v1/models/${encodeURIComponent(modelId)}/linkbio/${encodeURIComponent(kind)}/analytics-sync${kind === 'fanlynks' ? '?source=ga4' : ''}`,
                   method: 'POST', body: JSON.stringify({ startDate, endDate }), label: t('linkbio.ga4.sync'), action: 'analytics-sync', kind,
                 })}>{t('linkbio.ga4.sync')}</button>
                 {canConnectAnalytics && <button className="btn danger" type="button" disabled={busy} onClick={() => runMutation({
@@ -362,7 +422,7 @@ export default function LinkbioPanel({
               <label>{t('linkbio.ga4.privateKey')}<textarea aria-label={t('linkbio.ga4.privateKey')} rows={5} maxLength={8000} value={privateKey} onChange={(event) => setPrivateKey(event.target.value)} autoComplete="off" /></label>
               <button className="btn" type="button" disabled={!canConnectAnalytics || busy || !propertyId || !clientEmail || !privateKey} onClick={() => runMutation({
                 path: `/api/v1/models/${encodeURIComponent(modelId)}/linkbio/${encodeURIComponent(kind)}/analytics-connection`,
-                method: 'POST', body: JSON.stringify({ propertyId, clientEmail, privateKey }), label: t('linkbio.ga4.connect'), action: 'analytics-connect', kind,
+                method: 'POST', body: JSON.stringify({ propertyId, clientEmail, privateKey }), label: t('linkbio.ga4.connect'), action: 'analytics-connect', kind, ...(kind === 'fanlynks' ? { source: 'ga4' as const } : {}),
               })}>{t('linkbio.ga4.connect')}</button>
               {!canConnectAnalytics && <p className="subtle">{t('linkbio.ga4.ownerRequired')}</p>}
             </fieldset>

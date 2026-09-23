@@ -116,6 +116,130 @@ describe('GA4 provider credentials', () => {
   });
 });
 
+describe('FanLynks first-party analytics connection', () => {
+  it('stores the page token separately from GA4 credentials and never returns it', async () => {
+    const apiToken = `flx_axm_${'x'.repeat(43)}`;
+    mockState.results = [
+      [], [{ orgId: ORG_ID }], [{ id: PROVIDER_ID, enabled: true, config: {}, profileUrl: null }],
+      [], [{ id: PROVIDER_ID }], [], [], [],
+    ];
+    const response = await appWithRole().request(`/models/${MODEL_ID}/linkbio/fanlynks/analytics-connection`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ profileUrl: 'https://links.example/creator', apiToken }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: {
+      kind: 'fanlynks', fanlynksConnected: true, profileUrl: 'https://links.example/creator',
+    } });
+    expect(mocks.encryptOAuthCredentials).toHaveBeenCalledWith({ accessToken: apiToken });
+    expect(mockState.updates).toContainEqual(expect.objectContaining({
+      fanlynksTokenEnc: Buffer.from('ciphertext'), fanlynksTokenNonce: Buffer.from('nonce'),
+      fanlynksTokenDekId: 'fixture-dek', profileUrl: 'https://links.example/creator', fanlynksAnalyticsStatus: 'configured',
+    }));
+    expect(mockState.updates).not.toContainEqual(expect.objectContaining({ credentialsEnc: Buffer.from('ciphertext') }));
+    expect(JSON.stringify(mockState.updates)).not.toContain(apiToken);
+  });
+
+  it('rejects non-HTTPS profile origins and restricts token changes to owners and managers', async () => {
+    const apiToken = `flx_axm_${'x'.repeat(43)}`;
+    mockState.results = [[], [{ orgId: ORG_ID }], [{ id: PROVIDER_ID, config: {} }]];
+    const invalidUrl = await appWithRole().request(`/models/${MODEL_ID}/linkbio/fanlynks/analytics-connection`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ profileUrl: 'http://links.example/creator', apiToken }),
+    });
+    expect(invalidUrl.status).toBe(422);
+    expect(mocks.encryptOAuthCredentials).not.toHaveBeenCalled();
+
+    const forbidden = await appWithRole('operator').request(`/models/${MODEL_ID}/linkbio/fanlynks/analytics-connection`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ profileUrl: 'https://links.example/creator', apiToken }),
+    });
+    expect(forbidden.status).toBe(403);
+    expect(mocks.encryptOAuthCredentials).not.toHaveBeenCalled();
+  });
+
+  it('reads connection metadata without disclosing encrypted token material', async () => {
+    mockState.results = [[], [{ orgId: ORG_ID }], [{
+      id: PROVIDER_ID, enabled: true, status: 'connected', config: {},
+      fanlynksTokenEnc: Buffer.from('secret-fanlynks-token'), profileUrl: 'https://links.example/creator',
+      lastSyncedAt: new Date('2026-09-22T00:00:00.000Z'),
+    }]];
+    const response = await appWithRole().request(`/models/${MODEL_ID}/linkbio/fanlynks/analytics-connection`);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain('https://links.example/creator');
+    expect(body).toContain('analyticsConnected');
+    expect(body).not.toContain('secret-fanlynks-token');
+  });
+});
+
+describe('FanLynks first-party analytics sync', () => {
+  it('requires completed historical days before calling FanLynks', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    mockState.results = [[], [{ orgId: ORG_ID }], [{
+      id: PROVIDER_ID, enabled: true, kind: 'fanlynks', orgId: ORG_ID, modelId: MODEL_ID,
+      config: {}, profileUrl: 'https://links.example/creator',
+      fanlynksTokenEnc: Buffer.from('encrypted'), fanlynksTokenNonce: Buffer.from('nonce'), fanlynksTokenDekId: 'fixture-dek',
+    }]];
+    const response = await appWithRole().request(`/models/${MODEL_ID}/linkbio/fanlynks/analytics-sync?source=fanlynks`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ startDate: today, endDate: today }),
+    });
+    expect(response.status).toBe(422);
+    expect(mocks.resolveEgressBinding).not.toHaveBeenCalled();
+  });
+
+  it('uses model egress, imports stable daily aggregates, and reports metric coverage', async () => {
+    const startDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const endDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const apiToken = `flx_axm_${'y'.repeat(43)}`;
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, data: {
+      metricCoverage: { pageViews: true, clicks: true, uniqueVisitors: false, conversions: false },
+      sources: [{ date: startDate, source: 'instagram', medium: 'social', pageViews: 9, clicks: 3, events: 12 }],
+    } }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    mockState.results = [
+      [], [{ orgId: ORG_ID }], [{
+        id: PROVIDER_ID, enabled: true, kind: 'fanlynks', orgId: ORG_ID, modelId: MODEL_ID,
+        config: {}, profileUrl: 'https://links.example/creator',
+        fanlynksTokenEnc: Buffer.from('encrypted'), fanlynksTokenNonce: Buffer.from('nonce'), fanlynksTokenDekId: 'fixture-dek',
+      }],
+      [], [], [], [], [], [],
+    ];
+    mocks.decryptOAuthCredentials.mockResolvedValue({ accessToken: apiToken });
+    mocks.buildEgressFetch.mockReturnValue(fetcher);
+
+    const response = await appWithRole('operator').request(`/models/${MODEL_ID}/linkbio/fanlynks/analytics-sync`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ startDate, endDate }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: {
+      kind: 'fanlynks', importedRows: 1, startDate, endDate,
+      metricCoverage: { pageViews: true, clicks: true, uniqueVisitors: false, conversions: false },
+    } });
+    expect(mocks.resolveEgressBinding).toHaveBeenCalledWith(MODEL_ID);
+    expect(mocks.decryptOAuthCredentials).toHaveBeenCalledWith(expect.objectContaining({
+      encToken: Buffer.from('encrypted'), encNonce: Buffer.from('nonce'), dekId: 'fixture-dek',
+    }));
+    expect(fetcher).toHaveBeenCalledOnce();
+    const [requestUrl, requestOptions] = fetcher.mock.calls[0] as [URL, RequestInit];
+    expect(requestUrl.origin).toBe('https://links.example');
+    expect(requestUrl.pathname).toBe('/api/integrations/axiom/analytics');
+    expect(requestUrl.searchParams.get('since')).toBe(`${startDate}T00:00:00.000Z`);
+    expect(requestOptions.headers).toMatchObject({ authorization: `Bearer ${apiToken}` });
+    expect(requestOptions.redirect).toBe('error');
+    expect(mockState.insertValues).toContainEqual(expect.objectContaining({
+      orgId: ORG_ID, providerId: PROVIDER_ID, kind: 'external.metrics', source: 'fanlynks',
+      utmSource: 'instagram', target: 'instagram / social', visits: 9, uniqueVisitors: 0,
+      clicks: 3, conversions: 0, externalEventId: expect.stringMatching(/^fanlynks-[a-f0-9]{64}$/),
+    }));
+    expect(mockState.conflictUpdates).toContainEqual(expect.objectContaining({
+      target: expect.any(Array), set: expect.objectContaining({ visits: 9, uniqueVisitors: 0, clicks: 3, conversions: 0 }),
+    }));
+  });
+});
+
 describe('GA4 analytics sync', () => {
   it('uses model egress and idempotently upserts normalized daily records', async () => {
     const startDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
