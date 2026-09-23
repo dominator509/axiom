@@ -29,7 +29,7 @@ export async function claimNextJob(tx: any, workerId: string): Promise<ClaimResu
  * confinement is enabled they are claimable only by the model namespace
  * runner; malformed payloads are deliberately not eligible for fallback. */
 export const EGRESS_JOB_KINDS = [
-  'publish.target', 'metrics.poll', 'scrape.run', 'fanvue.analytics.sync',
+  'publish.target', 'metrics.poll', 'scrape.run', 'fanvue.analytics.sync', 'public.sfw.reply',
 ] as const;
 
 export interface EgressWorkerScope {

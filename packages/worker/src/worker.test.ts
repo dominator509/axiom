@@ -276,6 +276,7 @@ describe('default executor registry', () => {
         'dlq.replay',
         'digest.weekly',
         'viral.insight',
+        'public.sfw.reply',
       ].sort(),
     );
   });

@@ -15,6 +15,8 @@ it('renders localized provider comment controls only for granted capabilities', 
       <ProviderOperationsPanel
         modelId="model-1"
         connectionId="connection-1"
+        platform="x"
+        canConfigurePublicInvite
         capabilities={['comments.read', 'comments.reply', 'comments.moderate', 'messages.send']}
       />
     </LocaleProvider>,
@@ -23,6 +25,9 @@ it('renders localized provider comment controls only for granted capabilities', 
   expect(html).toContain('Acciones de comunidad');
   expect(html).toContain('ID de la publicación');
   expect(html).toContain('Cargar comentarios');
+  expect(html).toContain('Enlace de invitación a tu comunidad privada de Telegram o Discord');
+  expect(html).toContain('Guardar enlace de invitación');
+  expect(html).toContain('Generar y poner en cola una respuesta SFW');
   expect(html).toContain('Destinatario o ID del chat');
   expect(html).toContain('Enviar mensaje');
   // Reply/moderation actions are rendered only after the provider returns actual comments.

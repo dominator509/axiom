@@ -10,6 +10,7 @@ type ProviderMessage = { id: string; conversationId: string; senderId: string; t
 type YouTubePlaylist = { id: string; title: string; description?: string; privacyStatus?: string };
 type YouTubeCaption = { id: string; language: string; name?: string; status?: string; isDraft?: boolean };
 type ModelMedia = { id: string; kind: string; mimeType: string; fileSize: number; createdAt: string };
+type QueuedPublicSfwReply = { jobId: string; status: 'queued'; scheduledFor: string; text: string };
 const moderationOptions = [
   { action: 'hide', key: 'network.hideComment' },
   { action: 'delete', key: 'network.deleteComment' },
@@ -25,16 +26,25 @@ export function moderationOptionsForCapabilities(capabilities: readonly string[]
 export default function ProviderOperationsPanel({
   modelId,
   connectionId,
+  platform,
+  canConfigurePublicInvite = false,
   capabilities,
 }: {
   modelId: string;
   connectionId: string;
+  platform?: string;
+  canConfigurePublicInvite?: boolean;
   capabilities: string[];
 }) {
   const { t } = useLocale();
   const [postId, setPostId] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
   const [reply, setReply] = useState<Record<string, string>>({});
+  const [privateInviteUrl, setPrivateInviteUrl] = useState('');
+  const [savedInviteUrl, setSavedInviteUrl] = useState('');
+  const [inviteSettingsLoaded, setInviteSettingsLoaded] = useState(false);
+  const [inviteSettingsBusy, setInviteSettingsBusy] = useState(false);
+  const [publicSfwReplies, setPublicSfwReplies] = useState<Record<string, QueuedPublicSfwReply>>({});
   const [recipientId, setRecipientId] = useState('');
   const [messageText, setMessageText] = useState('');
   const [conversationId, setConversationId] = useState('');
@@ -57,6 +67,8 @@ export default function ProviderOperationsPanel({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const hasComments = capabilities.includes('comments.read');
+  const hasPublicSfwFunnel = hasComments && capabilities.includes('comments.reply')
+    && ['x', 'instagram', 'reddit'].includes(platform ?? '');
   const hasMessagesRead = capabilities.includes('messages.read');
   const hasMessagesSend = capabilities.includes('messages.send');
   const hasMessages = hasMessagesRead || hasMessagesSend;
@@ -86,6 +98,21 @@ export default function ProviderOperationsPanel({
     });
     return () => { cancelled = true; };
   }, [hasYoutube, modelId, needsYoutubeAsset, t]);
+
+  useEffect(() => {
+    if (!hasPublicSfwFunnel) return;
+    let cancelled = false;
+    void api.social.publicSfwSettings(modelId).then(result => {
+      if (cancelled) return;
+      const configured = result.data.privateInviteUrl ?? '';
+      setPrivateInviteUrl(configured);
+      setSavedInviteUrl(configured);
+      setInviteSettingsLoaded(true);
+    }).catch(() => {
+      if (!cancelled) setMessage(t('network.operationFailed'));
+    });
+    return () => { cancelled = true; };
+  }, [hasPublicSfwFunnel, modelId, t]);
 
   if (!hasComments && !hasMessages && !hasVault && !hasYoutube) return null;
 
@@ -118,6 +145,40 @@ export default function ProviderOperationsPanel({
       setMessage(t('network.operationFailed'));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function queuePublicSfwReply(comment: Comment) {
+    if (busy || !savedInviteUrl || privateInviteUrl.trim() !== savedInviteUrl) return;
+    setBusy(true);
+    setMessage('');
+    try {
+      const result = await api.social.publicSfwReply(modelId, connectionId, {
+        postId: postId.trim(), commentId: comment.id,
+      });
+      setPublicSfwReplies(current => ({ ...current, [comment.id]: result.data }));
+      setMessage(t('network.publicSfwQueued'));
+    } catch {
+      setMessage(t('network.operationFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePublicSfwSettings() {
+    if (inviteSettingsBusy || !inviteSettingsLoaded) return;
+    setInviteSettingsBusy(true);
+    setMessage('');
+    try {
+      const result = await api.social.savePublicSfwSettings(modelId, privateInviteUrl.trim() || null);
+      const configured = result.data.privateInviteUrl ?? '';
+      setPrivateInviteUrl(configured);
+      setSavedInviteUrl(configured);
+      setMessage(t('network.publicSfwSettingsSaved'));
+    } catch {
+      setMessage(t('network.operationFailed'));
+    } finally {
+      setInviteSettingsBusy(false);
     }
   }
 
@@ -189,6 +250,15 @@ export default function ProviderOperationsPanel({
     {(hasComments || hasMessages || hasYoutube) && <section className="stack" aria-label={t('network.providerOperations')}>
       <h3>{t('network.providerOperations')}</h3>
       {hasComments && <>
+      {hasPublicSfwFunnel && <div className="stack" aria-label={t('network.publicSfwReply')}>
+        <p className="subtle">{t('network.publicSfwDescription')}</p>
+        <label>{t('network.privateInviteUrl')}
+          <input type="url" value={privateInviteUrl} maxLength={512} disabled={!inviteSettingsLoaded || !canConfigurePublicInvite} onChange={event => setPrivateInviteUrl(event.target.value)} />
+        </label>
+        {canConfigurePublicInvite && <button type="button" disabled={!inviteSettingsLoaded || inviteSettingsBusy || privateInviteUrl.trim() === savedInviteUrl} onClick={() => void savePublicSfwSettings()}>
+          {t('network.savePublicSfwSettings')}
+        </button>}
+      </div>}
       <form className="action-row" onSubmit={(event) => void loadComments(event)}>
         <label>
           {t('network.commentPostId')}
@@ -213,6 +283,16 @@ export default function ProviderOperationsPanel({
               <button type="submit" disabled={busy}>{t('network.sendReply')}</button>
             </form>
           )}
+          {hasPublicSfwFunnel && <>
+            <button type="button" disabled={busy || !savedInviteUrl || privateInviteUrl.trim() !== savedInviteUrl} onClick={() => void queuePublicSfwReply(comment)}>
+              {t('network.publicSfwReply')}
+            </button>
+            {publicSfwReplies[comment.id] && <p role="status">
+              {t('network.publicSfwQueued')}<br />
+              <time dateTime={publicSfwReplies[comment.id]!.scheduledFor}>{publicSfwReplies[comment.id]!.scheduledFor}</time><br />
+              {publicSfwReplies[comment.id]!.text}
+            </p>}
+          </>}
           {moderationOptionsForCapabilities(capabilities).map(({ action, key }) => (
             <button key={action} type="button" disabled={busy} onClick={() => {
               if (window.confirm(t('network.confirmModerationAction'))) void runCommentAction({ type: 'comments.moderate', commentId: comment.id, action });

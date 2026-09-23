@@ -16,6 +16,7 @@ import { scrapeRun } from './scrape.js';
 import { mediaTransform } from './media_transform.js';
 import { fanvueAnalyticsSync } from './fanvue_analytics.js';
 import { viralInsight } from './viral_insight.js';
+import { publicSfwReply } from './public_sfw_reply.js';
 
 export type { Executor, ExecutorContext } from './context.js';
 export {
@@ -56,4 +57,5 @@ export const defaultExecutors: Record<string, Executor> = {
   'media.transform': mediaTransform,
   'fanvue.analytics.sync': fanvueAnalyticsSync,
   'viral.insight': viralInsight,
+  'public.sfw.reply': publicSfwReply,
 };

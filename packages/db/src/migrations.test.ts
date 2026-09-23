@@ -160,6 +160,20 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(sql).toContain('external-side-effect-unknown: worker lease expired before completion');
   });
 
+  it('confines public SFW reply jobs to their model egress runner and dead-letters stale sends', () => {
+    expect(sql).toContain("WHEN 'public.sfw.reply' THEN (");
+    expect(sql).toContain("c.id::text = p_job.payload->>'connectionId'");
+    expect(sql).toContain("'fanvue.analytics.sync', 'public.sfw.reply'");
+    expect(sql).toContain("WHEN j.kind IN ('publish.target', 'public.sfw.reply') THEN 'dead'");
+    expect(sql).toContain("kind NOT IN ('publish.target', 'metrics.poll', 'scrape.run', 'fanvue.analytics.sync', 'public.sfw.reply')");
+    expect(sql).toContain("WHEN kind IN ('publish.target', 'relay.card', 'public.sfw.reply') THEN 'dead'");
+  });
+
+  it('stores the model-scoped private community invite used by the public SFW funnel', () => {
+    expect(sql).toContain('public_community_invite_url TEXT');
+    expect(schema.modelProfile.publicCommunityInviteUrl).toBeDefined();
+  });
+
   it('enforces the viral exemplar identity used by the worker upsert', () => {
     expect(sql).toContain('viral_exemplar_identity');
     expect(sql).toContain('UNIQUE (org_id, model_id, bundle_id, platform)');
