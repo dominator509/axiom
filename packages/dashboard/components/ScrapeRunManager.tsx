@@ -73,7 +73,7 @@ export default function ScrapeRunManager({ modelId, runs, benchmark = [], cursor
       <h3>{t('scrape.competitorBenchmark')}</h3>
       <p className="subtle">{t('scrape.observedPublicCounts')}</p>
       <div style={{ overflowX: 'auto' }}><table>
-        <thead><tr><th scope="col">{t('scrape.platform')}</th><th scope="col">{t('scrape.profileUrl')}</th><th scope="col">{t('scrape.followers')}</th><th scope="col">{t('scrape.followers')}/day</th><th scope="col">{t('scrape.posts')}</th><th scope="col">{t('scrape.posts')}/day</th></tr></thead>
+        <thead><tr><th scope="col">{t('scrape.platform')}</th><th scope="col">{t('scrape.profileUrl')}</th><th scope="col">{t('scrape.followers')}</th><th scope="col">{t('scrape.followers')}/day</th><th scope="col">{t('scrape.posts')}</th><th scope="col">{t('scrape.posts')}/day</th><th scope="col">{t('scrape.historyColumn')}</th></tr></thead>
         <tbody>{benchmark.map(profile => <tr key={`${profile.platform}:${profile.profileUrl}`}>
           <td>{profile.platform ?? t('scrape.unavailable')}</td>
           <td><a href={profile.profileUrl} target="_blank" rel="noreferrer">{profile.displayName ?? profile.profileUrl}</a></td>
@@ -81,6 +81,17 @@ export default function ScrapeRunManager({ modelId, runs, benchmark = [], cursor
           <td>{profile.followerChangePerDay === null ? t('scrape.unavailable') : number.format(profile.followerChangePerDay)}</td>
           <td>{profile.posts === null ? t('scrape.unavailable') : number.format(profile.posts)}</td>
           <td>{profile.postsPerDay === null ? t('scrape.unavailable') : number.format(profile.postsPerDay)}</td>
+          <td>{profile.history.length === 0 ? t('scrape.unavailable') : <details>
+            <summary>{t('scrape.benchmarkHistory', { count: number.format(profile.history.length) })}</summary>
+            <table aria-label={`${profile.displayName ?? profile.profileUrl} ${t('scrape.benchmarkHistory', { count: number.format(profile.history.length) })}`}>
+              <thead><tr><th scope="col">{t('scrape.observedAt')}</th><th scope="col">{t('scrape.followers')}</th><th scope="col">{t('scrape.posts')}</th></tr></thead>
+              <tbody>{profile.history.map((observation, index) => <tr key={`${observation.observedAt}:${index}`}>
+                <td>{dateTime.format(new Date(observation.observedAt))}</td>
+                <td>{observation.followers === null ? t('scrape.unavailable') : number.format(observation.followers)}</td>
+                <td>{observation.posts === null ? t('scrape.unavailable') : number.format(observation.posts)}</td>
+              </tr>)}</tbody>
+            </table>
+          </details>}</td>
         </tr>)}</tbody>
       </table></div>
     </section>}
