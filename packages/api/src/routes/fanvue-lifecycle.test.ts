@@ -21,8 +21,14 @@ const SHORT_LINK_ID = '55555555-5555-4555-8555-555555555555';
 const SECRET = 'fanvue-lifecycle-test-secret-0001';
 const CREATOR_ID = '66666666-6666-4666-8666-666666666666';
 
-function app() {
+function app(role?: string) {
   const server = new Hono<AppBindings>();
+  if (role) server.use('*', async (c, next) => {
+    c.set('orgId', ORG_ID);
+    c.set('userId', 'operator-1');
+    c.set('role', role as never);
+    await next();
+  });
   server.route('/', fanvueLifecycleRouter);
   return server;
 }
@@ -136,5 +142,61 @@ describe('signed Fanvue lifecycle webhook', () => {
     });
     expect(response.status).toBe(401);
     expect(mockState.results).toEqual([]);
+  });
+
+  it('sends the operator-authored discount to the expired subscriber and records confirmed delivery', async () => {
+    const rescue = {
+      id: 'rescue-1', orgId: ORG_ID, modelId: MODEL_ID, connectionId: CONNECTION_ID,
+      recipientUuid: RECIPIENT_ID, status: 'ready',
+    };
+    const provider = {
+      auth: { externalUserId: CREATOR_ID },
+      capability: () => ({ operations: ['messages.send'] }),
+      executeOperation: vi.fn().mockResolvedValue({ type: 'mutation', success: true, remoteId: 'message-1' }),
+    };
+    vi.mocked(connectorForConnection).mockResolvedValue({ connector: provider } as never);
+    mockState.results = [
+      [], [{ orgId: ORG_ID }], [rescue], [connection], [], [{ id: rescue.id }],
+      [], [{ id: rescue.id, status: 'sent', sentAt: new Date('2026-09-23T00:00:00Z') }], [], [], [],
+    ];
+
+    const response = await app('owner').request(`/models/${MODEL_ID}/fanvue/churn-rescues/${rescue.id}/send`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: 'We would love to have you back.', offerText: 'Enjoy 15% off your next month with code RETURN15.' }),
+    });
+
+    expect(response.status, await response.clone().text()).toBe(201);
+    expect(await response.json()).toMatchObject({ data: { id: rescue.id, status: 'sent' } });
+    expect(provider.executeOperation).toHaveBeenCalledExactlyOnceWith({
+      type: 'messages.send', recipientId: RECIPIENT_ID,
+      text: 'We would love to have you back.\n\nEnjoy 15% off your next month with code RETURN15.',
+    });
+    expect(mockState.updates).toContainEqual(expect.objectContaining({ status: 'sent', remoteMessageId: 'message-1' }));
+  });
+
+  it('marks an uncertain Fanvue send unknown and does not retry it', async () => {
+    const rescue = {
+      id: 'rescue-2', orgId: ORG_ID, modelId: MODEL_ID, connectionId: CONNECTION_ID,
+      recipientUuid: RECIPIENT_ID, status: 'ready',
+    };
+    const provider = {
+      auth: { externalUserId: CREATOR_ID },
+      capability: () => ({ operations: ['messages.send'] }),
+      executeOperation: vi.fn().mockRejectedValue(new Error('provider response timed out')),
+    };
+    vi.mocked(connectorForConnection).mockResolvedValue({ connector: provider } as never);
+    mockState.results = [[], [{ orgId: ORG_ID }], [rescue], [connection], [], [{ id: rescue.id }], [], [], [], [], []];
+
+    const response = await app('operator').request(`/models/${MODEL_ID}/fanvue/churn-rescues/${rescue.id}/send`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message: 'Come back soon.', offerText: 'A special discount is available.' }),
+    });
+
+    expect(response.status, await response.clone().text()).toBe(202);
+    expect(await response.json()).toMatchObject({ data: { id: rescue.id, status: 'unknown' } });
+    expect(provider.executeOperation).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      type: 'messages.send', recipientId: RECIPIENT_ID,
+    }));
+    expect(mockState.updates).toContainEqual(expect.objectContaining({ status: 'unknown' }));
   });
 });
