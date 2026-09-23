@@ -8,38 +8,44 @@ import { readDashboardJson } from '@/lib/response';
 import { useLocale } from './LocaleProvider';
 
 const DOC_KINDS = ['2257', 'model_release', 'id_verify', 'platform_consent'] as const;
+const DOCUMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 type ConsentT = (key: ConsentMessageKey, values?: Record<string, string | number>) => string;
 const defaultConsentT: ConsentT = (key, values) => interpolate(CONSENT_CATALOGS.en[key], values);
 
 export function consentPayload(data: FormData, t: ConsentT = defaultConsentT) {
   const value = (name: string) => String(data.get(name) ?? '').trim();
   const platform = value('platform'),
-    subjectRef = value('subjectRef'),
-    blobRef = value('blobRef'),
-    sha256 = value('sha256').toLowerCase();
+    subjectRef = value('subjectRef');
   const validFrom = value('validFrom'),
-    validTo = value('validTo');
+    validTo = value('validTo'),
+    expiresOn = value('expiresAt');
   const docKind = value('docKind');
   if (!platform || platform.length > 50) throw new Error(t('consent.invalidPlatform'));
   if (!DOC_KINDS.includes(docKind as (typeof DOC_KINDS)[number]))
     throw new Error(t('consent.invalidKind'));
-  if (!subjectRef || subjectRef.length > 200 || !blobRef || blobRef.length > 1000)
+  if (!subjectRef || subjectRef.length > 200)
     throw new Error(t('consent.invalidReferences'));
-  if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error(t('consent.invalidDigest'));
+  const document = data.get('document');
+  if (!document || typeof document === 'string' || typeof document.arrayBuffer !== 'function'
+    || document.size < 1 || document.size > MAX_DOCUMENT_BYTES || !DOCUMENT_TYPES.includes(document.type.toLowerCase())) {
+    throw new Error(t('consent.invalidDocument'));
+  }
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(validFrom) ||
     (validTo && !/^\d{4}-\d{2}-\d{2}$/.test(validTo)) ||
-    (validTo && validTo < validFrom)
+    (validTo && validTo < validFrom) ||
+    (expiresOn && (!/^\d{4}-\d{2}-\d{2}$/.test(expiresOn) || expiresOn < validFrom))
   )
     throw new Error(t('consent.invalidRange'));
   return {
     platform,
     docKind,
     subjectRef,
-    blobRef,
-    sha256,
+    document,
     validFrom,
     ...(validTo ? { validTo } : {}),
+    ...(expiresOn ? { expiresAt: `${expiresOn}T23:59:59.999Z` } : {}),
   };
 }
 
@@ -50,7 +56,7 @@ export default function ConsentRecordForm({ modelId }: { modelId: string }) {
     [error, setError] = useState(''),
     [message, setMessage] = useState('');
   const active = useRef(false),
-    intent = useRef<{ body: string; key: string } | null>(null);
+    intent = useRef<{ body: FormData; key: string } | null>(null);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (active.current) return;
@@ -58,8 +64,10 @@ export default function ConsentRecordForm({ modelId }: { modelId: string }) {
     setError('');
     setMessage('');
     try {
+      const formData = new FormData(form);
+      consentPayload(formData, t);
       intent.current ??= {
-        body: JSON.stringify(consentPayload(new FormData(form), t)),
+        body: formData,
         key: createIdempotencyKey(),
       };
     } catch (failure) {
@@ -72,7 +80,7 @@ export default function ConsentRecordForm({ modelId }: { modelId: string }) {
       const request = intent.current;
       const response = await mutationFetch(
         `/api/v1/models/${encodeURIComponent(modelId)}/consent-records`,
-        { method: 'POST', headers: { 'content-type': 'application/json' }, body: request.body },
+        { method: 'POST', body: request.body },
         { idempotencyKey: request.key },
       );
       if (!response.ok) {
@@ -122,12 +130,8 @@ export default function ConsentRecordForm({ modelId }: { modelId: string }) {
             <input name="subjectRef" required maxLength={200} />
           </label>
           <label>
-            {t('consent.encryptedDocumentReference')}
-            <input name="blobRef" required maxLength={1000} />
-          </label>
-          <label>
-            {t('consent.sha256Digest')}
-            <input name="sha256" required pattern="[0-9a-fA-F]{64}" maxLength={64} />
+            {t('consent.uploadDocument')}
+            <input name="document" type="file" accept="application/pdf,image/jpeg,image/png" required />
           </label>
           <label>
             {t('consent.validFrom')}
@@ -136,6 +140,10 @@ export default function ConsentRecordForm({ modelId }: { modelId: string }) {
           <label>
             {t('consent.validToOptional')}
             <input name="validTo" type="date" />
+          </label>
+          <label>
+            {t('consent.expiry')}
+            <input name="expiresAt" type="date" />
           </label>
         </fieldset>
         {error && <p role="alert">{error}</p>}

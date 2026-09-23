@@ -6,25 +6,28 @@ function data(values: Record<string, string>) {
   for (const [key, value] of Object.entries(values)) form.set(key, value);
   return form;
 }
-it('accepts metadata-only consent input and rejects invalid digests/ranges', () => {
+it('accepts a bounded supported document and rejects invalid document/date metadata', () => {
   const valid = data({
     platform: 'fanvue',
     docKind: 'model_release',
     subjectRef: 'model-1',
-    blobRef: 'r2://encrypted/one',
-    sha256: 'A'.repeat(64),
     validFrom: '2026-01-01',
     validTo: '2027-01-01',
+    expiresAt: '2026-12-31',
   });
+  valid.set('document', new Blob(['%PDF-1.7 test'], { type: 'application/pdf' }), 'release.pdf');
   expect(consentPayload(valid)).toMatchObject({
     platform: 'fanvue',
-    sha256: 'a'.repeat(64),
     validFrom: '2026-01-01',
+    expiresAt: '2026-12-31T23:59:59.999Z',
   });
-  valid.set('sha256', 'bad');
-  expect(() => consentPayload(valid)).toThrow('SHA-256');
-  valid.set('sha256', 'a'.repeat(64));
+  valid.set('document', new Blob(['<svg/>'], { type: 'image/svg+xml' }), 'document.svg');
+  expect(() => consentPayload(valid)).toThrow('PDF, JPEG or PNG');
+  valid.set('document', new Blob(['%PDF-1.7 test'], { type: 'application/pdf' }), 'release.pdf');
   valid.set('validTo', '2025-01-01');
+  expect(() => consentPayload(valid)).toThrow('date range');
+  valid.set('validTo', '2027-01-01');
+  valid.set('expiresAt', '2025-12-31');
   expect(() => consentPayload(valid)).toThrow('date range');
 });
 
@@ -33,11 +36,10 @@ it('uses the supplied locale for validation feedback', () => {
     platform: '',
     docKind: 'model_release',
     subjectRef: 'model-1',
-    blobRef: 'r2://encrypted/one',
-    sha256: 'a'.repeat(64),
     validFrom: '2026-01-01',
     validTo: '',
   });
+  invalid.set('document', new Blob(['%PDF-1.7 test'], { type: 'application/pdf' }), 'release.pdf');
   const translate = (key: ConsentMessageKey, values?: Record<string, string | number>) =>
     interpolate(CONSENT_CATALOGS.es[key], values);
   expect(() => consentPayload(invalid, translate)).toThrow(

@@ -17,7 +17,7 @@ export default async function ScrapingPage({ params, searchParams }: {
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   try {
     const result = await api.models.scrapeRuns(id, cursor);
-    return <div className="page-stack"><h2>{t('scrape.title')}</h2><div className="card"><ScrapeRunManager modelId={id} runs={result.data} nextCursor={result.meta.next_cursor} cursor={cursor} canEdit={canEdit} /></div></div>;
+    return <div className="page-stack"><h2>{t('scrape.title')}</h2><div className="card"><ScrapeRunManager modelId={id} runs={result.data} benchmark={result.meta.competitor_benchmark} nextCursor={result.meta.next_cursor} cursor={cursor} canEdit={canEdit} /></div></div>;
   } catch {
     return <div className="card stack" role="alert"><h2>{t('scrape.unavailable')}</h2><p>{t('scrape.loadFailed')}</p></div>;
   }

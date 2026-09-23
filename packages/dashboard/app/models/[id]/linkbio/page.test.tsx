@@ -26,6 +26,7 @@ vi.mock('@/components/LinkbioPanel', () => ({
     <div data-model={modelId} data-can-edit={String(canEdit)} />
   ),
 }));
+vi.mock('@/components/LinkbioCostManager', () => ({ default: () => <div data-testid="campaign-costs" /> }));
 
 import LinkbioPage from './page';
 
@@ -65,7 +66,7 @@ it('localizes linkbio, analytics and attribution copy while preserving data', as
     data: {
       currency: 'USD', totalClicks: 12345, attributedConversions: 1234, unattributedConversions: 1001,
       attributedRevenueCents: 12345, conversionRate: 0.25, roi: null, roiStatus: 'unavailable',
-      links: [{ slug: 'welcome', targetUrl: 'https://example.test', clicks: 12345, conversions: 1234, revenueCents: 12345 }],
+      links: [{ id: 'short-link', slug: 'welcome', targetUrl: 'https://example.test', clicks: 12345, conversions: 1234, revenueCents: 12345, costCents: 0, roiPercent: null }],
     },
   });
 

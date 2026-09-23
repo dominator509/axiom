@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { api, getSession } from '@/lib/api';
 import { getServerLocale } from '@/lib/server-locale';
 import ConsentRecordForm from '@/components/ConsentRecordForm';
+import { consentExpiryStatus } from '@/lib/consent-expiry';
 import RevokeConsentButton from '@/components/RevokeConsentButton';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,10 @@ export default async function ConsentPage({ params }: { params: Promise<{ id: st
   const { t, locale } = await getServerLocale();
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
   const dateOnly = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' });
+  const dateTime = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
   const formatDateOnly = (value: string) => dateOnly.format(new Date(`${value}T00:00:00Z`));
+  const formatExpiry = (value: string) => dateTime.format(new Date(value));
+  const now = Date.now();
   let records: Awaited<ReturnType<typeof api.models.consentRecords>>['data'] = [];
   let failed = false;
   try {
@@ -37,12 +41,21 @@ export default async function ConsentPage({ params }: { params: Promise<{ id: st
         <p>{t('consent.empty')}</p>
       ) : (
         <div className="grid">
-          {records.map((record) => (
+          {records.map((record) => {
+            const expiryStatus = consentExpiryStatus(record, new Date(now));
+            const status = expiryStatus === 'revoked' ? t('consent.revoked')
+              : expiryStatus === 'expired' ? t('consent.expired')
+                : expiryStatus === 'expiringSoon' ? t('consent.expiringSoon')
+                  : expiryStatus === 'needsReview' ? t('consent.expiryNeedsReview') : t('consent.granted');
+            const badgeClass = expiryStatus === 'current' ? 'good'
+              : expiryStatus === 'expiringSoon' ? 'warn'
+                : expiryStatus === 'revoked' ? 'mute' : 'bad';
+            return (
             <article key={record.id} className="card stack">
               <div className="row" style={{ justifyContent: 'space-between' }}>
                 <h3>{record.docKind}</h3>
-                <span className={`badge ${record.granted ? 'good' : 'mute'}`}>
-                  {record.granted ? t('consent.granted') : t('consent.revoked')}
+                <span className={`badge ${badgeClass}`}>
+                  {status}
                 </span>
               </div>
               <p>
@@ -55,15 +68,27 @@ export default async function ConsentPage({ params }: { params: Promise<{ id: st
                 <strong>{t('consent.validity')}:</strong> {formatDateOnly(record.validFrom)} {'→'}{' '}
                 {record.validTo ? formatDateOnly(record.validTo) : t('consent.openEnded')}
               </p>
+              <p>
+                <strong>{t('consent.expiry')}:</strong>{' '}
+                {record.expiresAt && Number.isFinite(Date.parse(record.expiresAt))
+                  ? formatExpiry(record.expiresAt)
+                  : record.expiresAt ? t('consent.expiryNeedsReview') : t('consent.openEnded')}
+              </p>
               <p className="mono" style={{ overflowWrap: 'anywhere' }}>
                 <strong>{t('consent.digest')}:</strong>{' '}
                 {typeof record.sha256 === 'string' ? record.sha256 : t('consent.storedDigest')}
               </p>
+              {canEdit && record.hasDocument && record.granted && (
+                <a href={`/api/v1/models/${encodeURIComponent(id)}/consent-records/${encodeURIComponent(record.id)}/document`}>
+                  {t('consent.downloadDocument')}
+                </a>
+              )}
               {canEdit && record.granted && (
                 <RevokeConsentButton modelId={id} recordId={record.id} />
               )}
             </article>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

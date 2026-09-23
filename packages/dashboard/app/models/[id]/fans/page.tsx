@@ -6,6 +6,7 @@ import Link from 'next/link';
 import type { FanTimeline } from '@/lib/api';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
 import FanvueAnalyticsCard from '@/components/FanvueAnalyticsCard';
+import FanvueChurnRescuePanel from '@/components/FanvueChurnRescuePanel';
 import { getServerLocale } from '@/lib/server-locale';
 import type { FanCrmMessageKey } from '@axiom/core';
 
@@ -98,6 +99,7 @@ export default async function FansPage({
         <p className="subtle">{t('fans.description')}</p>
       </div>
       <FanvueAnalyticsCard modelId={id} canSync={canSync} />
+      <FanvueChurnRescuePanel modelId={id} canEdit={canEdit} />
       {canEdit ? (
         <FanContactForm modelId={id} />
       ) : (

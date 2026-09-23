@@ -175,8 +175,11 @@ export interface ConsentRecord {
   revokedAt: string | null;
   subjectRef: string;
   docKind: string;
-  blobRef: string;
-  sha256: string | Uint8Array;
+  blobRef: string | null;
+  sha256: string | Uint8Array | null;
+  documentMimeType?: string | null;
+  documentSize?: number | null;
+  hasDocument?: boolean;
   validFrom: string;
   validTo: string | null;
 }
@@ -423,6 +426,20 @@ export interface ScrapeRun {
   createdAt: string;
   completedAt: string | null;
 }
+export interface ScrapeCompetitorBenchmark {
+  platform: string | null;
+  displayName: string | null;
+  profileUrl: string;
+  observations: number;
+  lastObservedAt: string;
+  followers: number | null;
+  followerChange: number | null;
+  followerChangePerDay: number | null;
+  posts: number | null;
+  postChange: number | null;
+  postsPerDay: number | null;
+  measuredDays: number | null;
+}
 
 export interface TeamMember { id: string; email: string; role: string }
 export interface TeamShift { id: string; modelId: string; assigneeUserId: string | null; assigneeType: 'human' | 'llm'; assigneeAgentRef: string | null; queue: string; startsAt: string; endsAt: string; status: string; note: string | null }
@@ -496,6 +513,7 @@ export interface AffiliateSummary {
 }
 export interface AffiliateProgramSnapshot {
   program: AffiliateProgram;
+  billingWebhook: { configured: boolean; endpoint: string; signatureHeader: string };
   partners: AffiliatePartner[];
   campaigns: AffiliateCampaign[];
   holds: AffiliateHold[];
@@ -579,6 +597,10 @@ export const api = {
       `/api/v1/models/${encodeURIComponent(id)}/earnings?${new URLSearchParams({ connectionId })}`),
     fanvueAnalytics: (id: string) => apiFetch<{ data: { metric: FanvueAnalyticsSnapshot | null; contacts: FanContact[] } }>(
       `/api/v1/models/${encodeURIComponent(id)}/fanvue/analytics`),
+    fanvueChurnRescues: (id: string) => apiFetch<{
+      data: Array<{ id: string; subscriptionId: string; status: string; sentAt: string | null; remoteMessageId: string | null; createdAt: string }>;
+      setup: { webhookConfigured: boolean; endpoints: string[] };
+    }>(`/api/v1/models/${encodeURIComponent(id)}/fanvue/churn-rescues`),
     syncFanvueAnalytics: (id: string, connectionId?: string) => apiFetch<{ data: { jobId: string | null; deduplicated: boolean } }>(
       `/api/v1/models/${encodeURIComponent(id)}/fanvue/analytics/sync`, {
         method: 'POST',
@@ -605,6 +627,15 @@ export const api = {
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio/analytics`),
     linkbioAttribution: (id: string) =>
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio/attribution`),
+    recordLinkbioCampaignCost: (id: string, body: {
+      eventKey: string;
+      shortLinkId: string;
+      amountCents: number;
+      currency: string;
+      occurredAt: string;
+    }) => apiFetch<{ data: unknown; duplicate: boolean }>(`/api/v1/models/${id}/linkbio/campaign-costs`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
     relayBindings: (id: string) =>
       apiFetch<{ data: RelayBinding[]; meta?: { total: number } }>(`/api/v1/models/${id}/relay-bindings`),
     relayCards: (id: string, cursor?: string) => {
@@ -633,7 +664,7 @@ export const api = {
     variantGuidanceSources: (id: string, assetId: string, platform: string) =>
       apiFetch<{ data: VariantGuidanceSource[] }>(`/api/v1/models/${encodeURIComponent(id)}/variant-experiments/guidance-sources?${new URLSearchParams({ assetId, platform })}`),
     scrapeRuns: (id: string, cursor?: string) =>
-      apiFetch<{ data: ScrapeRun[]; meta: { next_cursor: string | null } }>(`/api/v1/models/${encodeURIComponent(id)}/scrape-runs${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
+      apiFetch<{ data: ScrapeRun[]; meta: { next_cursor: string | null; competitor_benchmark: ScrapeCompetitorBenchmark[] } }>(`/api/v1/models/${encodeURIComponent(id)}/scrape-runs${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
     teamOperations: (id: string, cursors: { shiftCursor?: string; noteCursor?: string } = {}) => {
       const query = new URLSearchParams({
         ...(cursors.shiftCursor ? { shiftCursor: cursors.shiftCursor } : {}),

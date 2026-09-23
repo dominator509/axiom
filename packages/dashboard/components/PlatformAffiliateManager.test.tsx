@@ -31,6 +31,7 @@ const campaign = {
 } as const;
 const snapshot: AffiliateProgramSnapshot = {
   program: { id: 'program-1', slug: 'fanthynks', name: 'FanThynks Creator Referral', status: 'active', termsVersion: 'affiliate-v1', defaultCommissionBps: 2000, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+  billingWebhook: { configured: false, endpoint: '/api/v1/platform/affiliate-billing/webhook', signatureHeader: 'X-Axiom-Billing-Signature' },
   partners: [], campaigns: [], holds: [],
   summary: { partners: 0, campaigns: 0, attributionEvents: 0, conversions: 0, accruedCents: 0, reversedCents: 0, openHolds: 0 },
 };

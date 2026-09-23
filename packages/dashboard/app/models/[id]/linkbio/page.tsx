@@ -1,5 +1,6 @@
 import { api, getSession } from '@/lib/api';
 import LinkbioPanel from '@/components/LinkbioPanel';
+import LinkbioCostManager from '@/components/LinkbioCostManager';
 import { getServerLocale } from '@/lib/server-locale';
 import { formatNumber } from '@axiom/core';
 
@@ -21,7 +22,7 @@ interface LinkbioAnalytics {
 }
 
 interface LinkbioAttribution {
-  currency: string;
+  currency: string | null;
   totalClicks: number;
   attributedConversions: number;
   unattributedConversions: number;
@@ -29,7 +30,10 @@ interface LinkbioAttribution {
   conversionRate: number;
   roi: number | null;
   roiStatus: string;
-  links: Array<{ slug: string; targetUrl: string; clicks: number; conversions: number; revenueCents: number }>;
+  attributedRevenueByCurrency?: Record<string, number>;
+  campaignCostByCurrency?: Record<string, number>;
+  roiByCurrency?: Record<string, number | null>;
+  links: Array<{ id: string; slug: string; targetUrl: string; clicks: number; conversions: number; revenueCents: number; costCents: number; roiPercent: number | null; revenueByCurrency?: Record<string, number>; costByCurrency?: Record<string, number>; roiByCurrency?: Record<string, number | null> }>;
 }
 
 interface LinkbioData {
@@ -74,6 +78,18 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+  const formatCurrencyTotals = (totals: Record<string, number> | undefined, fallbackCents: number) => {
+    const entries = Object.entries(totals ?? {}).filter(([currency, cents]) => /^[A-Z]{3}$/.test(currency) && Number.isSafeInteger(cents));
+    if (entries.length === 0) return formatCurrency(fallbackCents, attribution?.currency ?? 'USD');
+    return entries.sort(([left], [right]) => left.localeCompare(right))
+      .map(([currency, cents]) => formatCurrency(cents, currency)).join(' · ');
+  };
+  const formatRoiTotals = (values: Record<string, number | null> | undefined, fallback: number | null) => {
+    const entries = Object.entries(values ?? {}).filter(([currency, value]) => /^[A-Z]{3}$/.test(currency) && typeof value === 'number' && Number.isFinite(value));
+    if (entries.length === 0) return fallback == null ? '—' : `${fallback.toLocaleString(locale)}%`;
+    return entries.sort(([left], [right]) => left.localeCompare(right))
+      .map(([currency, value]) => `${currency} ${Number(value).toLocaleString(locale)}%`).join(' · ');
+  };
 
   return (
     <div>
@@ -135,8 +151,9 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
             <span><strong>{t('modelSurface.trackedClicks', { count: formatNumber(attribution.totalClicks, locale) })}</strong></span>
             <span><strong>{t('modelSurface.attributedConversions', { count: formatNumber(attribution.attributedConversions, locale) })}</strong></span>
             <span><strong>{t('modelSurface.unattributedConversions', { count: formatNumber(attribution.unattributedConversions, locale) })}</strong></span>
-            <span><strong>{t('modelSurface.attributedRevenue', { amount: formatCurrency(attribution.attributedRevenueCents, attribution.currency) })}</strong></span>
+            <span><strong>{t('modelSurface.attributedRevenue', { amount: formatCurrencyTotals(attribution.attributedRevenueByCurrency, attribution.attributedRevenueCents) })}</strong></span>
             <span><strong>{t('modelSurface.clickToConversion', { rate: formatPercent(attribution.conversionRate) })}</strong></span>
+            <span><strong>{t('modelSurface.netRoiByCurrency', { amount: formatRoiTotals(attribution.roiByCurrency, attribution.roi) })}</strong></span>
           </div>
           {attribution.links.length > 0 && (
             <table style={{ marginTop: 8 }}>
@@ -146,11 +163,18 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
                   <td>{link.slug}</td>
                   <td>{formatNumber(link.clicks, locale)}</td>
                   <td>{formatNumber(link.conversions, locale)}</td>
-                  <td>{formatCurrency(link.revenueCents, attribution.currency)}</td>
+                  <td>{formatCurrencyTotals(link.revenueByCurrency, link.revenueCents)}</td>
                 </tr>
               ))}</tbody>
             </table>
           )}
+          <LinkbioCostManager modelId={id} links={attribution.links.map((link) => ({
+            id: link.id, slug: link.slug, revenueCents: link.revenueCents, costCents: link.costCents,
+            roiPercent: link.roiPercent, currency: attribution.currency,
+            revenueByCurrency: link.revenueByCurrency,
+            costByCurrency: link.costByCurrency,
+            roiByCurrency: link.roiByCurrency,
+          }))} canEdit={canEdit} />
         </div>
       )}
     </div>
