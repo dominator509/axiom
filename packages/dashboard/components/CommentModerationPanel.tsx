@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { formatDate } from '@axiom/core';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import { moderationScanRequest, nextModerationScanProgress, type CommentModerationScanProgress } from '@/lib/comment-moderation-scan';
 import { useLocale } from './LocaleProvider';
 
 interface ModerationRule {
@@ -65,8 +66,10 @@ export default function CommentModerationPanel({
   const [action, setAction] = useState<'hide' | 'hide_and_block'>('hide');
   const [connectionId, setConnectionId] = useState('');
   const [postId, setPostId] = useState('');
+  const [scanProgress, setScanProgress] = useState<CommentModerationScanProgress | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const scanRequest = moderationScanRequest(connectionId, postId, null);
 
   const scanConnections = useMemo(() => connections.filter(connection =>
     ['connected', 'active'].includes(connection.status)
@@ -90,6 +93,7 @@ export default function CommentModerationPanel({
   }, [modelId]);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setScanProgress(null); }, [connectionId, postId]);
   useEffect(() => {
     if (!rulePlatforms.includes(platform)) setPlatform(rulePlatforms[0] ?? '');
   }, [platform, rulePlatforms]);
@@ -114,13 +118,15 @@ export default function CommentModerationPanel({
       const result = await response.json() as { data?: Record<string, unknown> };
       if (result.data?.scanned !== undefined) {
         const counts = result.data;
-        setNotice(t('modelSurface.moderationScanResult')
+        const nextProgress = nextModerationScanProgress(scanRequest.key, counts.nextCursor);
+        setScanProgress(nextProgress);
+        setNotice(`${t('modelSurface.moderationScanResult')
           .replace('{scanned}', String(counts.scanned ?? 0))
           .replace('{matched}', String(counts.matched ?? 0))
           .replace('{moderated}', String(counts.moderated ?? 0))
           .replace('{partial}', String(counts.partial ?? 0))
           .replace('{unknown}', String(counts.unknown ?? 0))
-          .replace('{alreadyRecorded}', String(counts.alreadyRecorded ?? 0)));
+          .replace('{alreadyRecorded}', String(counts.alreadyRecorded ?? 0))}${nextProgress ? ` ${t('modelSurface.moderationMorePages')}` : ''}`);
         if (Array.isArray(counts.unsupportedRuleIds) && counts.unsupportedRuleIds.length > 0) {
           setNotice(current => `${current} ${t('modelSurface.moderationUnsupportedRules')}`);
         }
@@ -152,9 +158,8 @@ export default function CommentModerationPanel({
 
   function runScan(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    return mutate(`/api/v1/models/${encodeURIComponent(modelId)}/moderation/scan`, 'POST', {
-      connectionId, postId: postId.trim(),
-    });
+    const request = moderationScanRequest(connectionId, postId, scanProgress);
+    return mutate(`/api/v1/models/${encodeURIComponent(modelId)}/moderation/scan`, 'POST', request.body);
   }
 
   const ruleName = (ruleId: string) => snapshot?.data.find(rule => rule.id === ruleId)?.name ?? ruleId;
@@ -196,7 +201,9 @@ export default function CommentModerationPanel({
       <label>{t('modelSurface.moderationPostId')}
         <input required maxLength={256} value={postId} onChange={event => setPostId(event.target.value)} />
       </label>
-      <button className="btn secondary" type="submit" disabled={busy || !connectionId || !postId.trim()}>{t('modelSurface.moderationScan')}</button>
+      <button className="btn secondary" type="submit" disabled={busy || !connectionId || !postId.trim()}>
+        {scanProgress?.key === scanRequest.key ? t('modelSurface.moderationNextPage') : t('modelSurface.moderationScan')}
+      </button>
     </form>}
     {snapshot && <>
       <div className="stack">

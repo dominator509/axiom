@@ -31,11 +31,11 @@ function app(role = 'owner') {
   return server;
 }
 
-function connector(moderationActions = ['hide', 'block'], mutationFails = false) {
+function connector(moderationActions = ['hide', 'block'], mutationFails = false, nextCursor?: string) {
   return {
     capability: () => ({ operations: ['comments.read', 'comments.moderate'], moderationActions }),
     executeOperation: vi.fn(async (operation: { type: string; action?: string }) => {
-      if (operation.type === 'comments.read') return { type: 'comments', items: [{ id: 'comment-1', text: 'This is SPAM' }], nextCursor: null };
+      if (operation.type === 'comments.read') return { type: 'comments', items: [{ id: 'comment-1', text: 'This is SPAM' }], ...(nextCursor ? { nextCursor } : {}) };
       if (mutationFails) throw new Error('provider response is uncertain');
       return { type: 'mutation', success: true, remoteId: 'comment-1' };
     }),
@@ -89,6 +89,23 @@ describe('keyword comment moderation flow', () => {
     expect(await response.json()).toMatchObject({ data: { moderated: 0, unknown: 1 } });
     expect(mockState.updates[0]).toMatchObject({ status: 'unknown' });
     expect(provider.executeOperation).toHaveBeenCalledTimes(2);
+  });
+
+  it('forwards the provider cursor and returns the next page cursor for continuation', async () => {
+    const provider = connector(['hide'], false, 'provider-cursor-page-3');
+    vi.mocked(connectorForConnection).mockResolvedValue({ connector: provider } as never);
+    mockState.results = [[], [{ orgId: ORG_ID }], [connection], [rule], [], []];
+
+    const response = await app().request(`/models/${MODEL_ID}/moderation/scan`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ connectionId: CONNECTION_ID, postId: 'post-1', cursor: 'provider-cursor-page-2' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { scanned: 1, nextCursor: 'provider-cursor-page-3' } });
+    expect(provider.executeOperation).toHaveBeenNthCalledWith(1, {
+      type: 'comments.read', postId: 'post-1', cursor: 'provider-cursor-page-2', limit: 100,
+    });
   });
 
   it('does not start hide-and-block when the connector only grants hide', async () => {
