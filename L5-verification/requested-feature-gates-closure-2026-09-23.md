@@ -4,10 +4,14 @@ Date: 2026-09-23
 Scope: F06-F07, F09-F18, F24-F30, F32-F37, F39-F41, F44-F48, F52,
 F54-F57, F68-F78, F80-F83 and F91.
 
-Checkout: `codex/telegram-webhook-hardening`, base commit
-`dd8b7f526771bd50f0e14fa8d720e3f61ae01152`. The matrix exercised the current
-working tree, including pre-existing uncommitted implementation changes; it is
-not a clean-checkout or committed-artifact result.
+Checkout: `codex/feature-gate-closure-2026-09-23`, based on
+`dd8b7f526771bd50f0e14fa8d720e3f61ae01152`. The matrix ran on the working tree
+before source commits M1002 (`97f05ed891225e7a5b1844dc80291bc9710f7a4c`) and
+M1003 (`3934c843de62a6d1120922ae6af5ffed70d24b44`); the requested feature
+package contents in those commits match the tested implementation. Uncommitted
+egress and Hermes artifacts were outside this gate scope and remained in the
+working tree during verification, so this is working-tree evidence rather than
+a clean-checkout rerun.
 
 ## Decision and boundary
 
