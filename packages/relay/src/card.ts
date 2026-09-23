@@ -103,15 +103,203 @@ export class CardRenderer {
     const allPassed = verdicts.every((v) => v.passed);
 
     const actions: CardAction[] = allPassed
-      ? ['approve', 'approve_all', 'edit_c×¶¶‰žËkºwµçEÑ¥½¹Ì€¡É•Á±äÝ¥Ñ Ñ¡”…Ñ¥½¸…¹¥ÑÌÍ¥¹•Ñ½­•¸¤èœ4(€€€€€€€€è€Ñ¥½¹Ì€¡É•Á±äÝ¥Ñ ­•åÝ½É¤èœ°4(€€€€€€¸¸¹…É¹…Ñ¥½¹Ì¹µ…À ¡…Ñ¥½¸¤€ôø€€€‘í…Ñ¥½¹-•åÝ½É¡…Ñ¥½¸°…É¹½µµ…¹‘Q½­•¹Ìü¹m…Ñ¥½¹t¥õ€¤°4(€€€tì4(€€€É•ÑÕÉ¸±¥¹•Ì¹©½¥¸ q¸œ¤ì4(€ô4(4(€ÁÉ¥Ù…Ñ”Ñ½%¹Í¥¡Ñ!Ñµ°¡…ÉèI•±…å…É¤èÍÑÉ¥¹œì4(€€€½¹ÍÐ¥¹Í¥¡Ð€ô…É¹¥¹Í¥¡Ðì4(€€€¥˜€ …¥¹Í¥¡Ð¤Ñ¡É½Ü¹•ÜÉÉ½È ¥¹Í¥¡ÐÉ•±…ä…Éµ¥ÍÍ¥¹œ¥¹Í¥¡ÐÁ…å±½…œ¤ì4(€€€½¹ÍÐÉ½ÕÁÌ€ô¥¹Í¥¡Ð¹É½ÕÁÌ¹µ…À¡É½ÕÀ€ôøì4(€€€€€½¹ÍÐ¡½ÕÈ€ôÉ½ÕÀ¹ÁÕ‰±¥Í¡•‘!½ÕÉUÑŒ€ôô¹Õ±°€ü€œœ€è€ƒ
-Ü€‘íÉ½ÕÀ¹ÁÕ‰±¥Í¡•‘!½ÕÉUÑôèÀÀUQ€ì4(€€€€€É•ÑÕÉ¸€ñˆø‘í•Í…Á•!Ñµ°¡É½ÕÀ¹Á±…Ñ™½É´¥ôð½ˆøƒ
-Ü€‘í•Í…Á•!Ñµ°¡É½ÕÀ¹±•…É¹¥¹É´¥ôƒ
-Ü¸ô‘íÉ½ÕÀ¹Í…µÁ±•M¥é•ôƒ
-Üµ•…¸€‘íÉ½ÕÀ¹µ•…¹M½É”¹Ñ½¥á• È¥ô‘í¡½ÕÉõ€ì4(€€€ô¤ì4(€€€É•ÑÕÉ¸l4(€€€€€€ñˆø‘í•Í…Á•!Ñµ°¡¥¹Í¥¡Ð¹¥½¸€üü€ŸÂ~N œ¥ô€‘í•Í…Á•!Ñµ°¡¥¹Í¥¡Ð¹Ñ¥Ñ±”¥ôð½ˆù€°4(€€€€€€œœ°4(€€€€€•Í…Á•!Ñµ°¡¥¹Í¥¡Ð¹‘•ÍÉ¥ÁÑ¥½¸¤°4(€€€€€É½ÕÁÌ¹±•¹Ñ €ø€À€ü€œœ€èÕ¹‘•™¥¹•°4(€€€€€É½ÕÁÌ¹±•¹Ñ €ø€À€ü€œñˆùÙ¥‘•¹”èð½ˆøœ€èÕ¹‘•™¥¹•°4(€€€€€€¸¸¹É½ÕÁÌ°4(€€€t¹™¥±Ñ•È ¡Ù…±Õ”¤èÙ…±Õ”¥ÌÍÑÉ¥¹œ€ôøÙ…±Õ”€„ôôÕ¹‘•™¥¹•¤¹©½¥¸ q¸œ¤ì4(€ô4(4(€ÁÉ¥Ù…Ñ”Ñ½%¹Í¥¡Ñµ‰•¡…ÉèI•±…å…É¤èI•½ÉñÍÑÉ¥¹œ°Õ¹­¹½Ý¸øì4(€€€½¹ÍÐ¥¹Í¥¡Ð€ô…É¹¥¹Í¥¡Ðì4(€€€¥˜€ …¥¹Í¥¡Ð¤Ñ¡É½Ü¹•ÜÉÉ½È ¥¹Í¥¡ÐÉ•±…ä…Éµ¥ÍÍ¥¹œ¥¹Í¥¡ÐÁ…å±½…œ¤ì4(€€€É•ÑÕÉ¸ì4(€€€€€Ñ¥Ñ±”è€‘í¥¹Í¥¡Ð¹¥½¸€üü€ŸÂ~N ô€‘í¥¹Í¥¡Ð¹Ñ¥Ñ±•õ€¹Í±¥” À°€ÈÔØ¤°4(€€€€€‘•ÍÉ¥ÁÑ¥½¸è¥¹Í¥¡Ð¹‘•ÍÉ¥ÁÑ¥½¸¹Í±¥” À°€ÐÀÀÀ¤°4(€€€€€½±½Èè€ÁàÑ˜ÐÙ”Ô°4(€€€€€™¥•±‘Ìè¥¹Í¥¡Ð¹É½ÕÁÌ¹Í±¥” À°€ÄÀ¤¹µ…À¡É½ÕÀ€ôø€¡ì4(€€€€€€€¹…µ”èÉ½ÕÀ¹Á±…Ñ™½É´°4(€€€€€€€Ù…±Õ”è€‘íÉ½ÕÀ¹±•…É¹¥¹Éµôƒ
-Ü¸ô‘íÉ½ÕÀ¹Í…µÁ±•M¥é•ôƒ
-Üµ•…¸€‘íÉ½ÕÀ¹µ•…¹M½É”¹Ñ½¥á• È¥ô‘íÉ½ÕÀ¹ÁÕ‰±¥Í¡•‘!½ÕÉUÑŒ€ôô¹Õ±°€ü€œœ€è€ƒ
-Ü€‘íÉ½ÕÀ¹ÁÕ‰±¥Í¡•‘!½ÕÉUÑôèÀÀUQõ€°4(€€€€€€€¥¹±¥¹”è™…±Í”°4(€€€€€ô¤¤°4(€€€€€Ñ¥µ•ÍÑ…µÀè¹•Ü…Ñ”¡…É¹Ñ¥µ•ÍÑ…µÀ¤¹Ñ½%M=MÑÉ¥¹œ ¤°4(€€€ôì4(€ô4(4(€ÁÉ¥Ù…Ñ”Ñ½%¹Í¥¡ÑQ•áÐ¡…ÉèI•±…å…É¤èÍÑÉ¥¹œì4(€€€½¹ÍÐ¥¹Í¥¡Ð€ô…É¹¥¹Í¥¡Ðì4(€€€¥˜€ …¥¹Í¥¡Ð¤Ñ¡É½Ü¹•ÜÉÉ½È ¥¹Í¥¡ÐÉ•±…ä…Éµ¥ÍÍ¥¹œ¥¹Í¥¡ÐÁ…å±½…œ¤ì4(€€€É•ÑÕÉ¸l4(€€€€€€‘í¥¹Í¥¡Ð¹¥½¸€üü€ŸÂ~N ô€‘í¥¹Í¥¡Ð¹Ñ¥Ñ±•õ€°4(€€€€€€œœ°4(€€€€€¥¹Í¥¡Ð¹‘•ÍÉ¥ÁÑ¥½¸°4(€€€€€€¸¸¹¥¹Í¥¡Ð¹É½ÕÁÌ¹µ…À¡É½ÕÀ€ôø4(€€€€€€€€€€‘íÉ½ÕÀ¹Á±…Ñ™½Éµôƒ
-Ü€‘íÉ½ÕÀ¹±•…É¹¥¹Éµôƒ
-Ü¸ô‘íÉ½ÕÀ¹Í…µÁ±•M¥é•ôƒ
-Üµ•…¸€‘íÉ½ÕÀ¹µ•…¹M½É”¹Ñ½¥á• È¥ô‘íÉ½ÕÀ¹ÁÕ‰±¥Í¡•‘!½ÕÉUÑŒ€ôô¹Õ±°€ü€œœ€è€ƒ
-Ü€‘íÉ½ÕÀ¹ÁÕ‰±¥Í¡•‘!½ÕÉUÑôèÀÀUQõ€°4(€€€€€€¤°4(€€€t¹©½¥¸ q¸œ¤ì4(€ô4)ô4(4)™Õ¹Ñ¥½¸•Í…Á•!Ñµ°¡Ù…±Õ”èÍÑÉ¥¹œ¤èÍÑÉ¥¹œì4(€É•ÑÕÉ¸Ù…±Õ”¹É•Á±…” ½l˜ðø‰t½œ°¡…É…Ñ•È€ôø€¡ì(€€€€œ˜œè€œ™…µÀìœ°4(€€€€œðœè€œ™±Ðìœ°4(€€€€œøœè€œ™Ðìœ°4(€€€€œˆœè€œ™ÅÕ½Ðìœ°4(€õm¡…É…Ñ•Ét€üü¡…É…Ñ•È¤¤ì4)ô4(4)™Õ¹Ñ¥½¸…Ñ¥½¹-•åÝ½É¡…Ñ¥½¸è…É‘Ñ¥½¸°Ñ½­•¸üèÍÑÉ¥¹œ¤èÍÑÉ¥¹œì4(€ÍÝ¥Ñ €¡…Ñ¥½¸¤ì4(€€€…Í”€•‘¥Ñ}…ÁÑ¥½¸œè4(€€€€€É•ÑÕÉ¸Ñ½­•¸€ü•‘¥Ð€‘íÑ½­•¹ô€ñ¹•Ü…ÁÑ¥½¸ù€€è€•‘¥Ð€ñ¹•Ü…ÁÑ¥½¸øœì4(€€€…Í”€É•Í¡•‘Õ±”œè4(€€€€€É•ÑÕÉ¸Ñ½­•¸4(€€€€€€€€üÍ¡•‘Õ±”€‘íÑ½­•¹ô€ñ™ÕÑÕÉ”%M<´àØÀÄÑ¥µ•ÍÑ…µÀù€4(€€€€€€€€è€Í¡•‘Õ±”€ñ™ÕÑÕÉ”%M<´àØÀÄÑ¥µ•ÍÑ…µÀøœì4(€€€‘•™…Õ±Ðè4(€€€€€É•ÑÕÉ¸Ñ½­•¸€ü€‘í…Ñ¥½¹ô€‘íÑ½­•¹õ€€è…Ñ¥½¸ì4(€ô4)ô4(
+      ? ['approve', 'approve_all', 'edit_caption', 'reschedule', 'reject', 'hold', 'publish_now']
+      : ['regenerate', 'revise', 'reject', 'hold'];
+
+    return {
+      kind: 'bundle',
+      cardId: bundle.cardId,
+      bundleId: bundle.id,
+      mediaPreview: bundle.mediaUrls[0] ?? '',
+      caption: bundle.caption,
+      captionVariants: bundle.captionVariants,
+      hashtagSets: bundle.hashtagSets,
+      verdicts,
+      targetPlatforms: bundle.targetPlatforms,
+      price: bundle.price,
+      scheduleAt: bundle.scheduleAt,
+      actions,
+      commandTokens: bundle.commandTokens,
+      timestamp: Date.now(),
+      format: 'html',
+    };
+  }
+
+  renderInsightCard(insight: InsightContent): RelayCard {
+    return {
+      kind: 'insight',
+      cardId: insight.cardId,
+      // Channel adapters share the historical RelayCard envelope. An insight
+      // has no content bundle relationship; the empty transport field is
+      // intentionally never used for database lookups or command routing.
+      bundleId: '',
+      mediaPreview: '',
+      caption: insight.description,
+      captionVariants: {},
+      hashtagSets: {},
+      verdicts: [],
+      targetPlatforms: [],
+      actions: [],
+      timestamp: Date.now(),
+      format: 'html',
+      insight: {
+        title: insight.title.slice(0, 160),
+        description: insight.description.slice(0, 2000),
+        ...(insight.icon ? { icon: insight.icon.slice(0, 16) } : {}),
+        groups: insight.groups.slice(0, 10).map(group => ({
+          platform: group.platform.slice(0, 48),
+          learningArm: group.learningArm.slice(0, 96),
+          learningContext: group.learningContext.slice(0, 96),
+          sampleSize: Math.max(0, Math.trunc(group.sampleSize)),
+          meanScore: Number.isFinite(group.meanScore) ? group.meanScore : 0,
+          ...(group.publishedHourUtc == null ? {} : { publishedHourUtc: group.publishedHourUtc }),
+        })),
+      },
+    };
+  }
+
+  toHtml(card: RelayCard): string {
+    if (card.kind === 'insight') return this.toInsightHtml(card);
+    const verdictRows = card.verdicts
+      .map(
+        (v) =>
+          `<b>${v.platform}:</b> ${v.passed ? 'âœ… PASS' : 'âŒ FAIL'} (${(v.score * 100).toFixed(0)}%)`,
+      )
+      .join('\n');
+    const hashtagRows = Object.entries(card.hashtagSets)
+      .map(([p, tags]) => `<b>${p}:</b> ${tags.slice(0, 5).join(' ')}`)
+      .join('\n');
+    return [
+      `<b>ðŸ“¦ Bundle: ${card.bundleId}</b>`,
+      '',
+      card.mediaPreview ? `<b>Preview:</b> ${card.mediaPreview}` : '',
+      `<b>Caption:</b> ${card.caption.slice(0, 200)}`,
+      '',
+      `<b>ToS Verdicts:</b>`,
+      verdictRows,
+      '',
+      `<b>Hashtags:</b>`,
+      hashtagRows,
+      '',
+      card.price ? `<b>Price:</b> $${card.price}` : '',
+      card.scheduleAt ? `<b>Scheduled:</b> ${card.scheduleAt}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  toEmbed(card: RelayCard): Record<string, unknown> {
+    if (card.kind === 'insight') return this.toInsightEmbed(card);
+    return {
+      title: `ðŸ“¦ Bundle: ${card.bundleId.slice(0, 8)}`,
+      description: card.caption.slice(0, 400),
+      color: card.verdicts.every((v) => v.passed) ? 0x00ff00 : 0xff0000,
+      ...(card.mediaPreview ? { image: { url: card.mediaPreview } } : {}),
+      fields: [
+        {
+          name: 'ToS Verdicts',
+          value: card.verdicts
+            .map((v) => `${v.platform}: ${v.passed ? 'âœ…' : 'âŒ'} (${(v.score * 100).toFixed(0)}%)`)
+            .join('\n'),
+          inline: false,
+        },
+        {
+          name: 'Target Platforms',
+          value: card.targetPlatforms.join(', '),
+          inline: true,
+        },
+        ...(card.price ? [{ name: 'Price', value: `$${card.price}`, inline: true }] : []),
+        ...(card.scheduleAt ? [{ name: 'Scheduled', value: card.scheduleAt, inline: true }] : []),
+      ],
+      timestamp: new Date(card.timestamp).toISOString(),
+    };
+  }
+
+  toText(card: RelayCard): string {
+    if (card.kind === 'insight') return this.toInsightText(card);
+    const lines: string[] = [
+      `ðŸ“¦ Bundle: ${card.bundleId}`,
+      ...(card.mediaPreview ? [`Preview: ${card.mediaPreview}`] : []),
+      `Caption: ${card.caption.slice(0, 200)}`,
+      '',
+      'ToS Verdicts:',
+      ...card.verdicts.map(
+        (v) => `  ${v.platform}: ${v.passed ? 'PASS' : 'FAIL'} (${(v.score * 100).toFixed(0)}%)`,
+      ),
+      '',
+      card.actions.every((action) => Boolean(card.commandTokens?.[action]))
+        ? 'Actions (reply with the action and its signed token):'
+        : 'Actions (reply with keyword):',
+      ...card.actions.map((action) => `  ${actionKeyword(action, card.commandTokens?.[action])}`),
+    ];
+    return lines.join('\n');
+  }
+
+  private toInsightHtml(card: RelayCard): string {
+    const insight = card.insight;
+    if (!insight) throw new Error('insight relay card missing insight payload');
+    const groups = insight.groups.map(group => {
+      const hour = group.publishedHourUtc == null ? '' : ` Â· ${group.publishedHourUtc}:00 UTC`;
+      return `<b>${escapeHtml(group.platform)}</b> Â· ${escapeHtml(group.learningArm)} Â· n=${group.sampleSize} Â· mean ${group.meanScore.toFixed(2)}${hour}`;
+    });
+    return [
+      `<b>${escapeHtml(insight.icon ?? 'ðŸ“ˆ')} ${escapeHtml(insight.title)}</b>`,
+      '',
+      escapeHtml(insight.description),
+      groups.length > 0 ? '' : undefined,
+      groups.length > 0 ? '<b>Evidence:</b>' : undefined,
+      ...groups,
+    ].filter((value): value is string => value !== undefined).join('\n');
+  }
+
+  private toInsightEmbed(card: RelayCard): Record<string, unknown> {
+    const insight = card.insight;
+    if (!insight) throw new Error('insight relay card missing insight payload');
+    return {
+      title: `${insight.icon ?? 'ðŸ“ˆ'} ${insight.title}`.slice(0, 256),
+      description: insight.description.slice(0, 4000),
+      color: 0x4f46e5,
+      fields: insight.groups.slice(0, 10).map(group => ({
+        name: group.platform,
+        value: `${group.learningArm} Â· n=${group.sampleSize} Â· mean ${group.meanScore.toFixed(2)}${group.publishedHourUtc == null ? '' : ` Â· ${group.publishedHourUtc}:00 UTC`}`,
+        inline: false,
+      })),
+      timestamp: new Date(card.timestamp).toISOString(),
+    };
+  }
+
+  private toInsightText(card: RelayCard): string {
+    const insight = card.insight;
+    if (!insight) throw new Error('insight relay card missing insight payload');
+    return [
+      `${insight.icon ?? 'ðŸ“ˆ'} ${insight.title}`,
+      '',
+      insight.description,
+      ...insight.groups.map(group =>
+        `  ${group.platform} Â· ${group.learningArm} Â· n=${group.sampleSize} Â· mean ${group.meanScore.toFixed(2)}${group.publishedHourUtc == null ? '' : ` Â· ${group.publishedHourUtc}:00 UTC`}`,
+      ),
+    ].join('\n');
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"]/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+  }[character] ?? character));
+}
+
+function actionKeyword(action: CardAction, token?: string): string {
+  switch (action) {
+    case 'edit_caption':
+      return token ? `edit ${token} <new caption>` : 'edit <new caption>';
+    case 'reschedule':
+      return token
+        ? `schedule ${token} <future ISO-8601 timestamp>`
+        : 'schedule <future ISO-8601 timestamp>';
+    default:
+      return token ? `${action} ${token}` : action;
+  }
+}
