@@ -834,6 +834,7 @@ app.use('/api/v1/*', enforceModelAccess);
 // Including the role here does not grant approval, scheduling or other routes.
 // Chatter writes are restricted above to exact assigned, active-shift reply routes.
 const operationalMutation = requireMutationRole('owner', 'manager', 'operator', 'content_creator', 'chatter');
+const incidentMutation = requireMutationRole('owner', 'manager', 'operator');
 const ownerOnly = requireRole('owner');
 app.use('/api/v1/models/:modelId/member-assignments/*', ownerOnly);
 
@@ -879,8 +880,8 @@ app.use('/api/v1/models/:modelId/watermark-policy', operationalMutation);
 app.use('/api/v1/models/:modelId/roleplay/*', operationalMutation);
 app.use('/api/v1/models/:modelId/viral/insight', operationalMutation);
 app.use('/api/v1/models/:modelId/playbook-score/record', operationalMutation);
-app.use('/api/v1/incidents', operationalMutation);
-app.use('/api/v1/incidents/*', operationalMutation);
+app.use('/api/v1/incidents', incidentMutation);
+app.use('/api/v1/incidents/*', incidentMutation);
 app.use('/api/v1/crash-reports/*', operationalMutation);
 app.use('/api/v1/digests/generate', operationalMutation);
 app.use('/api/v1/llm/*', operationalMutation);
@@ -931,6 +932,7 @@ app.use('/api/v1/bundles', idempotency());
 // DLQ replay resets a durable job and requeues its side effect. Protect the
 // dashboard retry action with the same durable key/replay contract.
 app.use('/api/v1/incidents/:jobId/replay', idempotency());
+app.use('/api/v1/incidents/:jobId/discard', idempotency());
 app.use('/api/v1/incidents/report', idempotency());
 app.use('/api/v1/killswitch/enable', idempotency());
 app.use('/api/v1/killswitch/disable', idempotency());

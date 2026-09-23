@@ -758,6 +758,8 @@ export const api = {
     list: (cursor?: string) => apiFetch<{ data: Array<Record<string, unknown>>; meta?: { next_cursor?: string | null } }>(`/api/v1/incidents${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
     replay: (jobId: string) =>
       apiFetch<{ success: boolean }>(`/api/v1/incidents/${jobId}/replay`, { method: 'POST' }),
+    discard: (jobId: string) =>
+      apiFetch<{ success: boolean }>(`/api/v1/incidents/${jobId}/discard`, { method: 'POST' }),
   },
   social: {
     list: (modelId: string) =>

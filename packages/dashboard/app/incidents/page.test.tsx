@@ -14,7 +14,20 @@ it('renders escaped crash details and resolve controls, but not unsafe replay', 
   const html = renderToStaticMarkup(await IncidentsPage({}));
   expect(html).toContain('&lt;script&gt;'); expect(html).toContain('Mark resolved');
   expect(html).toContain('Reconcile provider outcome before replay'); expect(html).not.toContain('>Replay<');
+  expect(html).not.toContain('>Discard<');
   expect(html).toContain('crashCursor=older+token');
+});
+it('offers replay and confirmed discard only for safe failed or dead jobs to operational roles', async () => {
+  state.jobs.mockResolvedValue({ data: [{ id: 'job', kind: 'media.transform', state: 'failed', lastError: 'worker exited' }] });
+  const operational = await IncidentsPage({});
+  const operatorHtml = renderToStaticMarkup(operational);
+  expect(operatorHtml).toContain('Replay');
+  expect(operatorHtml).toContain('Discard');
+
+  state.role = 'viewer';
+  const readOnlyHtml = renderToStaticMarkup(await IncidentsPage({}));
+  expect(readOnlyHtml).not.toContain('Replay');
+  expect(readOnlyHtml).not.toContain('Discard');
 });
 it('preserves status across pagination and hides mutations from read-only users', async () => {
   state.role = 'viewer';

@@ -137,3 +137,42 @@ describe('POST /incidents/:jobId/replay — DLQ replay', () => {
     expect(mockState.updates).toHaveLength(0);
   });
 });
+
+describe('POST /incidents/:jobId/discard — DLQ discard', () => {
+  it('marks a safe dead job cancelled and appends an audit event', async () => {
+    mockState.results = [[], [{ id: 'j1', state: 'dead', lastError: 'worker timeout' }]];
+    mockState.result = [{ id: 'j1', state: 'cancelled', lastError: 'worker timeout' }];
+    const res = await appWithOrg(ORG_ID).request('/incidents/j1/discard', { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ success: true, data: { id: 'j1', state: 'cancelled' } });
+    expect(mockState.updates).toContainEqual(expect.objectContaining({
+      state: 'cancelled', lockedBy: null, lockedAt: null, completedAt: expect.any(Date),
+    }));
+    expect(mockState.insertValues.flat().some((row: any) => row.action === 'incident.discard')).toBe(true);
+  });
+
+  it.each(['ready', 'running', 'done', 'cancelled'])('refuses to discard a %s job', async state => {
+    mockState.results = [[], [{ id: 'j-active', state, lastError: null }]];
+    const res = await appWithOrg(ORG_ID).request('/incidents/j-active/discard', { method: 'POST' });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ detail: 'Only dead or failed jobs can be discarded' });
+    expect(mockState.updates).toHaveLength(0);
+  });
+
+  it('blocks discard when a provider side effect has an unknown outcome', async () => {
+    mockState.results = [[], [{
+      id: 'j-unknown', state: 'dead', lastError: 'external-side-effect-unknown: provider response lost',
+    }]];
+    const res = await appWithOrg(ORG_ID).request('/incidents/j-unknown/discard', { method: 'POST' });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ detail: expect.stringContaining('reconcile the external side effect') });
+    expect(mockState.updates).toHaveLength(0);
+  });
+
+  it('rejects without organization context and hides jobs from other organizations', async () => {
+    expect((await appWithOrg(null).request('/incidents/j1/discard', { method: 'POST' })).status).toBe(401);
+    mockState.results = [[], []];
+    expect((await appWithOrg(ORG_ID).request('/incidents/other/discard', { method: 'POST' })).status).toBe(404);
+    expect(mockState.updates).toHaveLength(0);
+  });
+});
