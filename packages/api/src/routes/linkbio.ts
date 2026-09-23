@@ -1,13 +1,12 @@
-// ─── Link-in-bio — native provider CRUD + first-party analytics ────────────
-// External provider adapters are not implemented yet. Keep them out of the
-// production route until provisioning, OAuth, token revocation, and analytics
-// ingestion exist; never represent a database label as an active integration.
+// ─── Link-in-bio provider lifecycle + first-party tracked redirects ────────
+// Fanlynks pages are hosted here. Linktree and Beacons pages remain managed on
+// their own sites; AXIOM supplies tracked redirect links and optional GA4 import.
 
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { sql, eq, and, desc, inArray, isNotNull } from 'drizzle-orm';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { computeRoiPercent } from '../linkbio-roi.js';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
@@ -20,20 +19,25 @@ import {
   statusTitle,
 } from './helpers.js';
 import { rateLimit } from '../contract.js';
+import { LINKBIO_PROVIDER_KINDS, safeExternalProfileUrl, type LinkbioProviderKind } from '../linkbio-integrations.js';
 
 const router = new Hono<AppBindings>();
 const publicRouter = new Hono<AppBindings>();
 const linkbioWriteRoles = new Set(['owner', 'manager', 'operator']);
 
-// Every Native page and redirect is intentionally unauthenticated. The page
+// Every public page and redirect is intentionally unauthenticated. The page
 // loader may provision missing short-link rows for older provider records and
 // the redirect increments click/analytics state, so protect the whole public
 // surface rather than only the legacy click endpoint.
 publicRouter.use('*', rateLimit({ capacity: 60, refillPerSec: 1, maxBuckets: 100_000 }));
 
-const PROVIDER_KINDS = ['native'] as const;
+const PROVIDER_KINDS = LINKBIO_PROVIDER_KINDS;
 const UTM_KEY = /^utm_[a-z][a-z0-9_]{0,31}$/;
 const MAX_UTM_VALUE_LENGTH = 120;
+
+function linkbioKindForPublic(raw: string): LinkbioProviderKind | null {
+  return PROVIDER_KINDS.includes(raw as LinkbioProviderKind) ? raw as LinkbioProviderKind : null;
+}
 
 const attributionUtmSchema = z.object({
   utm_source: z.string().trim().min(1).max(MAX_UTM_VALUE_LENGTH).optional(),
@@ -86,10 +90,19 @@ const nativeLinkInput = z.object({
   utm: z.record(z.string().regex(UTM_KEY), z.string().max(MAX_UTM_VALUE_LENGTH).trim().min(1)).optional(),
 }).passthrough();
 
+const publicTrackingSchema = z.object({
+  ga4MeasurementId: z.string().regex(/^G-[A-Z0-9]{4,20}$/).optional(),
+}).strict();
+const providerConfigSchema = z.object({
+  links: z.array(nativeLinkInput).max(100).optional(),
+  publicTracking: publicTrackingSchema.optional(),
+  accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+}).passthrough();
 const enableSchema = z.object({
   kind: z.enum(PROVIDER_KINDS),
   // Omission toggles availability without replacing the saved page contents.
-  config: z.object({ links: z.array(nativeLinkInput).optional() }).passthrough().optional(),
+  config: providerConfigSchema.optional(),
+  profileUrl: z.string().trim().url().max(2048).optional(),
   isPrimary: z.boolean().optional(),
 });
 
@@ -98,6 +111,54 @@ type PublicNativeLink = NativeLink & { slug: string };
 type AttributionLink = { id: string; utm: Record<string, string> | null };
 type AttributionReportLink = { id: string; slug: string; targetUrl: string; utm: Record<string, string> | null };
 type AttributionEventSummary = { shortLinkId: string | null; kind: string; amountCents: number; currency: string };
+
+function safeConfigValue(value: unknown, key = '', depth = 0): unknown {
+  if (/password|secret|token|credential|authorization|private.?key|api.?key|bearer/i.test(key)) return undefined;
+  if (value === null || typeof value === 'boolean' || typeof value === 'number') return value;
+  if (typeof value === 'string') return value.slice(0, 2048);
+  if (depth >= 4) return undefined;
+  if (Array.isArray(value)) return value.slice(0, 100).map((item) => safeConfigValue(item, '', depth + 1));
+  if (typeof value !== 'object') return undefined;
+  const safe: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+  for (const [childKey, childValue] of Object.entries(value).slice(0, 100)) {
+    if (childKey === '__proto__' || childKey === 'constructor' || childKey === 'prototype') continue;
+    const child = safeConfigValue(childValue, childKey, depth + 1);
+    if (child !== undefined) safe[childKey] = child;
+  }
+  return safe;
+}
+
+function safeProviderConfig(config: unknown): Record<string, unknown> {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return {};
+  const raw = config as Record<string, unknown>;
+  const result: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+  for (const [key, value] of Object.entries(raw)) {
+    if (['links', 'accentColor', 'publicTracking', 'ga4PropertyId', 'ga4ClickEventName', 'ga4ConversionEventNames'].includes(key)
+      || key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+    const safe = safeConfigValue(value, key);
+    if (safe !== undefined) result[key] = safe;
+  }
+  if (Array.isArray(raw.links)) result.links = nativeLinks(raw).slice(0, 100);
+  if (typeof raw.accentColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(raw.accentColor)) {
+    result.accentColor = raw.accentColor;
+  }
+  if (raw.publicTracking && typeof raw.publicTracking === 'object' && !Array.isArray(raw.publicTracking)) {
+    const tracking = raw.publicTracking as Record<string, unknown>;
+    const publicTracking: Record<string, string> = {};
+    if (typeof tracking.ga4MeasurementId === 'string' && /^G-[A-Z0-9]{4,20}$/.test(tracking.ga4MeasurementId)) {
+      publicTracking.ga4MeasurementId = tracking.ga4MeasurementId;
+    }
+    result.publicTracking = publicTracking;
+  }
+  for (const key of ['ga4PropertyId', 'ga4ClickEventName']) {
+    if (typeof raw[key] === 'string' && raw[key].length <= 80) result[key] = raw[key];
+  }
+  if (Array.isArray(raw.ga4ConversionEventNames)) {
+    result.ga4ConversionEventNames = raw.ga4ConversionEventNames
+      .filter((value): value is string => typeof value === 'string' && value.length <= 80).slice(0, 12);
+  }
+  return result;
+}
 
 function nativeLinks(config: unknown): NativeLink[] {
   if (!config || typeof config !== 'object' || Array.isArray(config)) return [];
@@ -133,19 +194,19 @@ function nativeLinks(config: unknown): NativeLink[] {
   });
 }
 
-function nativeShortLinkSlug(modelId: string, link: NativeLink, index: number): string {
+function nativeShortLinkSlug(modelId: string, link: NativeLink, index: number, kind: LinkbioProviderKind = 'native'): string {
   const digest = createHash('sha256')
-    .update(`${modelId}:${index}:${link.url}`)
+    .update(kind === 'native' ? `${modelId}:${index}:${link.url}` : `${kind}:${modelId}:${index}:${link.url}`)
     .digest('hex')
     .slice(0, 16);
-  return `lb-${modelId.replaceAll('-', '').slice(0, 8)}-${index + 1}-${digest}`;
+  return `lb-${kind === 'native' ? '' : `${kind.slice(0, 2)}-`}${modelId.replaceAll('-', '').slice(0, 8)}-${index + 1}-${digest}`;
 }
 
-function nativeShortLinkUtm(link: NativeLink, index: number): Record<string, string> {
+function nativeShortLinkUtm(link: NativeLink, index: number, kind: LinkbioProviderKind = 'native'): Record<string, string> {
   return {
-    utm_source: 'axiom',
+    utm_source: kind === 'native' ? 'axiom' : `axiom-${kind}`,
     utm_medium: 'linkbio',
-    utm_content: `native-${index + 1}`,
+    utm_content: kind === 'native' ? `native-${index + 1}` : `${kind}-${index + 1}`,
     ...link.utm,
   };
 }
@@ -170,12 +231,13 @@ async function syncNativeShortLinks(
   orgId: string,
   modelId: string,
   links: NativeLink[],
+  kind: LinkbioProviderKind = 'native',
   updateExisting = true,
 ): Promise<PublicNativeLink[]> {
   const publicLinks: PublicNativeLink[] = [];
   for (const [index, link] of links.entries()) {
-    const slug = nativeShortLinkSlug(modelId, link, index);
-    const utm = nativeShortLinkUtm(link, index);
+    const slug = nativeShortLinkSlug(modelId, link, index, kind);
+    const utm = nativeShortLinkUtm(link, index, kind);
     const insert = tx.insert(schema.shortLink).values({
       orgId,
       modelId,
@@ -216,7 +278,7 @@ type PublicNativePage = {
     avatarUrl: string | null;
     bio: string | null;
   };
-  provider: { id: string; config: unknown };
+  provider: { id: string; kind: LinkbioProviderKind; profileUrl: string | null; config: unknown };
   links: PublicNativeLink[];
 };
 
@@ -238,6 +300,7 @@ async function loadPublicNativePage(
   tx: any,
   orgId: string,
   modelId: string,
+  kind: LinkbioProviderKind = 'native',
 ): Promise<PublicNativePage | null> {
   const models = await tx
     .select({
@@ -256,6 +319,8 @@ async function loadPublicNativePage(
   const providers = await tx
     .select({
       id: schema.linkbioProvider.id,
+      kind: schema.linkbioProvider.kind,
+      profileUrl: schema.linkbioProvider.profileUrl,
       config: schema.linkbioProvider.config,
     })
     .from(schema.linkbioProvider)
@@ -263,7 +328,7 @@ async function loadPublicNativePage(
       and(
         eq(schema.linkbioProvider.orgId, orgId),
         eq(schema.linkbioProvider.modelId, modelId),
-        eq(schema.linkbioProvider.kind, 'native'),
+        eq(schema.linkbioProvider.kind, kind),
         eq(schema.linkbioProvider.enabled, true),
       ),
     )
@@ -271,22 +336,30 @@ async function loadPublicNativePage(
   const provider = providers[0];
   if (!provider) return null;
 
-  const links = await syncNativeShortLinks(tx, orgId, modelId, nativeLinks(provider.config), false);
+  const links = await syncNativeShortLinks(tx, orgId, modelId, nativeLinks(provider.config), kind, false);
 
   return {
     orgId,
     model,
-    provider,
+    provider: { ...provider, kind, profileUrl: provider.profileUrl ?? null },
     links,
   };
 }
 
-function renderNativePage(page: PublicNativePage): string {
+function renderNativePage(page: PublicNativePage, nonce: string): string {
+  const config = safeProviderConfig(page.provider.config);
+  const ga4MeasurementId = page.provider.kind === 'fanlynks'
+    && typeof (config.publicTracking as Record<string, unknown> | undefined)?.ga4MeasurementId === 'string'
+    ? (config.publicTracking as Record<string, string>).ga4MeasurementId
+    : null;
+  const accentColor = typeof config.accentColor === 'string' ? config.accentColor : '#f9fafb';
   const links =
     page.links.length > 0
       ? page.links
           .map((link) => {
-            const href = `/linkbio/${encodeURIComponent(page.model.id)}/s/${encodeURIComponent(link.slug)}`;
+            const href = page.provider.kind === 'native'
+              ? `/linkbio/${encodeURIComponent(page.model.id)}/s/${encodeURIComponent(link.slug)}`
+              : `/linkbio/${encodeURIComponent(page.provider.kind)}/${encodeURIComponent(page.model.id)}/s/${encodeURIComponent(link.slug)}`;
             return `<a class="link" href="${href}">${escapeHtml(link.label)}</a>`;
           })
           .join('')
@@ -309,11 +382,14 @@ function renderNativePage(page: PublicNativePage): string {
       .avatar { width: 88px; height: 88px; object-fit: cover; border-radius: 50%; margin-bottom: 16px; }
       h1 { margin: 0; font-size: 28px; } .handle, .bio, .empty { color: #cbd5e1; }
       .bio { white-space: pre-wrap; } .links { display: grid; gap: 12px; margin-top: 28px; }
-      .link { display: block; padding: 15px 18px; border-radius: 12px; color: #111827; background: #f9fafb; text-decoration: none; font-weight: 650; }
+      .link { display: block; padding: 15px 18px; border-radius: 12px; color: #111827; background: ${accentColor}; text-decoration: none; font-weight: 650; }
       .link:hover { background: #dbeafe; } footer { margin-top: 32px; color: #94a3b8; font-size: 12px; }
+      #analytics-consent { position: fixed; inset: auto 12px 12px; margin: auto; width: min(92vw, 560px); padding: 16px; border: 1px solid #475569; border-radius: 12px; background: #0f172a; color: #f8fafc; box-shadow: 0 10px 32px #0008; text-align: left; }
+      #analytics-consent[hidden] { display: none; } .consent-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+      .consent-actions button, .privacy-settings { border: 1px solid #64748b; border-radius: 8px; padding: 7px 10px; color: inherit; background: transparent; cursor: pointer; }
     </style>
   </head>
-  <body><main>${avatar}<h1>${escapeHtml(page.model.displayName)}</h1><p class="handle">@${escapeHtml(page.model.handle)}</p>${bio}<section class="links">${links}</section><footer>Powered by FanThynks</footer></main></body>
+  <body><main>${avatar}<h1>${escapeHtml(page.model.displayName)}</h1><p class="handle">@${escapeHtml(page.model.handle)}</p>${bio}<section class="links">${links}</section><footer>Powered by FanThynks${ga4MeasurementId ? ' · <button class="privacy-settings" id="privacy-settings" type="button">Privacy settings</button>' : ''}</footer></main>${ga4MeasurementId ? `<section id="analytics-consent" role="dialog" aria-label="Analytics consent" hidden><strong>Optional analytics</strong><p>This page uses Google Analytics only if you allow it. Your choice is stored in this browser.</p><div class="consent-actions"><button id="analytics-accept" type="button">Allow analytics</button><button id="analytics-reject" type="button">Reject optional analytics</button></div></section><script nonce="${nonce}">(function(){const id='${ga4MeasurementId}';const panel=document.getElementById('analytics-consent');const choiceKey='fanlynks-analytics-consent';let initialized=false;function loadAnalytics(){if(initialized){window.gtag('consent','update',{analytics_storage:'granted',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});return}initialized=true;window.dataLayer=window.dataLayer||[];window.gtag=function(){window.dataLayer.push(arguments)};window.gtag('consent','default',{analytics_storage:'granted',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});window.gtag('js',new Date());window.gtag('config',id,{allow_google_signals:false,allow_ad_personalization_signals:false});const script=document.createElement('script');script.async=true;script.src='https://www.googletagmanager.com/gtag/js?id='+encodeURIComponent(id);document.head.appendChild(script)}function reject(){if(initialized)window.gtag('consent','update',{analytics_storage:'denied',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'})}function show(){panel.hidden=false}document.getElementById('analytics-accept').addEventListener('click',function(){localStorage.setItem(choiceKey,'granted');panel.hidden=true;loadAnalytics()});document.getElementById('analytics-reject').addEventListener('click',function(){localStorage.setItem(choiceKey,'denied');reject();panel.hidden=true});document.getElementById('privacy-settings').addEventListener('click',function(){localStorage.removeItem(choiceKey);show()});const saved=localStorage.getItem(choiceKey);if(saved==='granted')loadAnalytics();else if(saved!=='denied')show()})()</script>` : ''}</body>
 </html>`;
 }
 
@@ -325,22 +401,47 @@ router.get('/models/:modelId/linkbio', async (c) => {
 
   const rows = await withOrgContext(orgId, (tx) =>
     tx
-      .select()
+      .select({
+        id: schema.linkbioProvider.id,
+        kind: schema.linkbioProvider.kind,
+        enabled: schema.linkbioProvider.enabled,
+        isPrimary: schema.linkbioProvider.isPrimary,
+        config: schema.linkbioProvider.config,
+        profileUrl: schema.linkbioProvider.profileUrl,
+        status: schema.linkbioProvider.status,
+        lastSyncedAt: schema.linkbioProvider.lastSyncedAt,
+        createdAt: schema.linkbioProvider.createdAt,
+        updatedAt: schema.linkbioProvider.updatedAt,
+      })
       .from(schema.linkbioProvider)
       .where(
         and(
           eq(schema.linkbioProvider.orgId, orgId),
           eq(schema.linkbioProvider.modelId, modelId),
-          eq(schema.linkbioProvider.kind, 'native'),
+          inArray(schema.linkbioProvider.kind, PROVIDER_KINDS),
         ),
       )
       .orderBy(schema.linkbioProvider.createdAt),
   );
+  const safeRows = rows.map((row: {
+    id: string; kind: string; enabled: boolean; isPrimary: boolean; config: unknown;
+    profileUrl: string | null; status: string; lastSyncedAt: Date | null; createdAt: Date; updatedAt: Date;
+  }) => {
+    const config = safeProviderConfig(row.config);
+    config.links = nativeLinks(row.config).map((link, index) => {
+      const slug = nativeShortLinkSlug(modelId, link, index, row.kind as LinkbioProviderKind);
+      const path = row.kind === 'native'
+        ? `/linkbio/${encodeURIComponent(modelId)}/s/${encodeURIComponent(slug)}`
+        : `/linkbio/${encodeURIComponent(row.kind)}/${encodeURIComponent(modelId)}/s/${encodeURIComponent(slug)}`;
+      return { ...link, slug, path };
+    });
+    return { ...row, config };
+  });
   return c.json({
     data: {
-      providers: rows,
-      primary: rows.find((r: { isPrimary?: boolean | null }) => r.isPrimary) ?? rows[0] ?? null,
-      nativeEnabled: rows.some(
+      providers: safeRows,
+      primary: safeRows.find((r: { isPrimary?: boolean | null }) => r.isPrimary) ?? safeRows[0] ?? null,
+      nativeEnabled: safeRows.some(
         (r: { kind?: string | null; enabled?: boolean | null }) => r.kind === 'native' && r.enabled,
       ),
     },
@@ -463,13 +564,28 @@ router.post('/models/:modelId/linkbio/post-links', zValidator('json', postAttrib
 
 router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const userId = c.get('userId');
+  const role = c.get('role') ?? '';
+  if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authenticated workspace required');
+  if (!linkbioWriteRoles.has(role)) return apiError(c, 403, statusTitle(403), 'role cannot configure link-in-bio providers');
   const { modelId } = c.req.param();
   const body = c.req.valid('json');
-  const userId = c.get('userId') ?? 'system';
+  const externalKind = body.kind === 'linktree' || body.kind === 'beacons';
+  const profileUrl = body.profileUrl === undefined ? null : safeExternalProfileUrl(body.profileUrl, body.kind);
+  if (externalKind && !profileUrl) {
+    return apiError(c, 422, statusTitle(422), 'a valid HTTPS profile URL for the selected provider is required');
+  }
+  if (!externalKind && body.profileUrl !== undefined) {
+    return apiError(c, 422, statusTitle(422), 'profileUrl is supported only for external link-in-bio providers');
+  }
 
   const saved = await withOrgContext(orgId, async (tx) => {
     if ((await modelOrgId(tx, modelId)) !== orgId) return null;
+    if (body.isPrimary === true) {
+      await tx.update(schema.linkbioProvider).set({ isPrimary: false, updatedAt: new Date() }).where(and(
+        eq(schema.linkbioProvider.orgId, orgId), eq(schema.linkbioProvider.modelId, modelId),
+      ));
+    }
     const [row] = await tx
       .insert(schema.linkbioProvider)
       .values({
@@ -479,6 +595,8 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
         enabled: true,
         isPrimary: body.isPrimary ?? false,
         config: body.config ?? {},
+        ...(profileUrl === null ? {} : { profileUrl }),
+        status: 'configured',
       })
       .onConflictDoUpdate({
         target: [
@@ -489,33 +607,45 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
         set: {
           enabled: true,
           ...(body.config === undefined ? {} : { config: body.config }),
+          ...(profileUrl === null ? {} : { profileUrl }),
           updatedAt: new Date(),
           ...(body.isPrimary === undefined ? {} : { isPrimary: body.isPrimary }),
         },
       })
-      .returning();
-    await syncNativeShortLinks(tx, orgId, modelId, nativeLinks(row.config));
+      .returning({
+        id: schema.linkbioProvider.id,
+        kind: schema.linkbioProvider.kind,
+        enabled: schema.linkbioProvider.enabled,
+        isPrimary: schema.linkbioProvider.isPrimary,
+        config: schema.linkbioProvider.config,
+        profileUrl: schema.linkbioProvider.profileUrl,
+        status: schema.linkbioProvider.status,
+        createdAt: schema.linkbioProvider.createdAt,
+        updatedAt: schema.linkbioProvider.updatedAt,
+      });
+    await syncNativeShortLinks(tx, orgId, modelId, nativeLinks(row.config), body.kind);
     await writeAudit(tx, orgId, userId, 'linkbio.enable', modelId, { kind: body.kind });
     return row;
   });
   if (!saved) return apiError(c, 404, statusTitle(404), 'model not found');
-  return c.json({ data: saved }, 201);
+  return c.json({ data: { ...saved, config: safeProviderConfig(saved.config) } }, 201);
 });
 
 // DELETE /models/:id/linkbio/:kind — disable provider
 router.delete('/models/:modelId/linkbio/:kind', async (c) => {
   const orgId = requireOrg(c);
-  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const userId = c.get('userId');
+  const role = c.get('role') ?? '';
+  if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authenticated workspace required');
+  if (!linkbioWriteRoles.has(role)) return apiError(c, 403, statusTitle(403), 'role cannot disable link-in-bio providers');
   const { modelId, kind } = c.req.param();
   if (!PROVIDER_KINDS.includes(kind as (typeof PROVIDER_KINDS)[number])) {
     return apiError(c, 400, statusTitle(400), 'unknown provider kind');
   }
-  const userId = c.get('userId') ?? 'system';
-
   const updated = await withOrgContext(orgId, async (tx) => {
     const rows = await tx
       .update(schema.linkbioProvider)
-      .set({ enabled: false, isPrimary: false, updatedAt: new Date() })
+      .set({ enabled: false, isPrimary: false, status: 'disabled', updatedAt: new Date() })
       .where(
         and(
           eq(schema.linkbioProvider.orgId, orgId),
@@ -523,14 +653,24 @@ router.delete('/models/:modelId/linkbio/:kind', async (c) => {
           eq(schema.linkbioProvider.kind, kind),
         ),
       )
-      .returning();
+      .returning({
+        id: schema.linkbioProvider.id,
+        kind: schema.linkbioProvider.kind,
+        enabled: schema.linkbioProvider.enabled,
+        isPrimary: schema.linkbioProvider.isPrimary,
+        config: schema.linkbioProvider.config,
+        profileUrl: schema.linkbioProvider.profileUrl,
+        status: schema.linkbioProvider.status,
+        createdAt: schema.linkbioProvider.createdAt,
+        updatedAt: schema.linkbioProvider.updatedAt,
+      });
     if (rows.length > 0) {
       await writeAudit(tx, orgId, userId, 'linkbio.disable', modelId, { kind });
     }
     return rows;
   });
-  if (updated.length === 0) return apiError(c, 404, statusTitle(404), 'provider not enabled');
-  return c.json({ data: updated[0] });
+  if (updated.length === 0) return apiError(c, 404, statusTitle(404), 'provider not configured');
+  return c.json({ data: { ...updated[0], config: safeProviderConfig(updated[0].config) } });
 });
 
 // GET /models/:id/linkbio/analytics — normalized cross-provider analytics (F-53)
@@ -538,49 +678,124 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { modelId } = c.req.param();
-
   const data = await withOrgContext(orgId, async (tx) => {
-    const providers = await tx
-      .select()
-      .from(schema.linkbioProvider)
-      .where(
-        and(
-          eq(schema.linkbioProvider.orgId, orgId),
-          eq(schema.linkbioProvider.modelId, modelId),
-          eq(schema.linkbioProvider.kind, 'native'),
-        ),
-      );
+    const providers = await tx.select({
+      id: schema.linkbioProvider.id,
+      kind: schema.linkbioProvider.kind,
+      enabled: schema.linkbioProvider.enabled,
+      isPrimary: schema.linkbioProvider.isPrimary,
+      status: schema.linkbioProvider.status,
+      lastSyncedAt: schema.linkbioProvider.lastSyncedAt,
+    }).from(schema.linkbioProvider).where(and(
+      eq(schema.linkbioProvider.orgId, orgId),
+      eq(schema.linkbioProvider.modelId, modelId),
+      inArray(schema.linkbioProvider.kind, PROVIDER_KINDS),
+    ));
+    const start = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const providerIds = providers.map((provider: { id: string }) => provider.id);
+    const clickRows = providerIds.length === 0 ? [] : await tx.select({
+      providerId: schema.linkbioClick.providerId,
+      target: schema.linkbioClick.target,
+      count: sql<number>`count(*)::int`,
+    }).from(schema.linkbioClick).where(and(
+      eq(schema.linkbioClick.orgId, orgId),
+      inArray(schema.linkbioClick.providerId, providerIds),
+      sql`${schema.linkbioClick.ts} >= ${start}`,
+    )).groupBy(schema.linkbioClick.providerId, schema.linkbioClick.target).orderBy(desc(sql`count(*)`));
+    const metricRows = providerIds.length === 0 ? [] : await tx.select({
+      providerId: schema.linkbioAnalytics.providerId,
+      ts: schema.linkbioAnalytics.ts,
+      target: schema.linkbioAnalytics.target,
+      source: schema.linkbioAnalytics.source,
+      visits: schema.linkbioAnalytics.visits,
+      uniqueVisitors: schema.linkbioAnalytics.uniqueVisitors,
+      clicks: schema.linkbioAnalytics.clicks,
+      conversions: schema.linkbioAnalytics.conversions,
+    }).from(schema.linkbioAnalytics).where(and(
+      eq(schema.linkbioAnalytics.orgId, orgId),
+      inArray(schema.linkbioAnalytics.providerId, providerIds),
+      eq(schema.linkbioAnalytics.kind, 'external.metrics'),
+      sql`${schema.linkbioAnalytics.ts} >= ${start}`,
+    )).orderBy(desc(schema.linkbioAnalytics.ts)).limit(10_000);
 
-    const providerIds = providers.map((p: { id: string }) => p.id);
-    let clicks: Array<{ providerId: string; target: string; count: number }> = [];
-    if (providerIds.length > 0) {
-      clicks = await tx
-        .select({
-          providerId: schema.linkbioClick.providerId,
-          target: schema.linkbioClick.target,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(schema.linkbioClick)
-        .where(
-          sql`${schema.linkbioClick.providerId} IN (${providerIds.map((id: string) => sql`${id}`).join(', ')})`,
-        )
-        .groupBy(schema.linkbioClick.providerId, schema.linkbioClick.target)
-        .orderBy(desc(sql`count(*)`));
+    type Bucket = { visits: number; activeUsers: number; analyticsClicks: number; conversions: number };
+    const totals = { visits: 0, activeUsers: 0, analyticsClicks: 0, conversions: 0, trackedClicks: 0 };
+    const providerTotals = new Map<string, typeof totals>();
+    const daily = new Map<string, Bucket>();
+    const targets = new Map<string, {
+      providerId: string; kind: string; target: string;
+      trackedClicks: number; visits: number; analyticsClicks: number; conversions: number;
+    }>();
+    for (const provider of providers) providerTotals.set(provider.id, { ...totals });
+    const providerKinds = new Map<string, string>(
+      (providers as Array<{ id: string; kind: string }>).map((provider) => [provider.id, provider.kind]),
+    );
+    for (const row of clickRows as Array<{ providerId: string; target: string; count: number }>) {
+      const count = Number(row.count) || 0;
+      const providerTotal = providerTotals.get(row.providerId);
+      if (providerTotal) providerTotal.trackedClicks += count;
+      totals.trackedClicks += count;
+      const key = `${row.providerId}\u0000${row.target}`;
+      const target = targets.get(key) ?? {
+        providerId: row.providerId, kind: providerKinds.get(row.providerId) ?? 'unknown', target: row.target,
+        trackedClicks: 0, visits: 0, analyticsClicks: 0, conversions: 0,
+      };
+      target.trackedClicks += count;
+      targets.set(key, target);
     }
-
-    const total = clicks.reduce((acc, c) => acc + c.count, 0);
+    for (const row of metricRows as Array<{
+      providerId: string | null; ts: Date; target: string | null; source: string | null;
+      visits: number; uniqueVisitors: number; clicks: number; conversions: number;
+    }>) {
+      if (!row.providerId) continue;
+      const visits = Number(row.visits) || 0;
+      const activeUsers = Number(row.uniqueVisitors) || 0;
+      const analyticsClicks = Number(row.clicks) || 0;
+      const conversions = Number(row.conversions) || 0;
+      const providerTotal = providerTotals.get(row.providerId);
+      if (providerTotal) {
+        providerTotal.visits += visits;
+        providerTotal.activeUsers += activeUsers;
+        providerTotal.analyticsClicks += analyticsClicks;
+        providerTotal.conversions += conversions;
+      }
+      totals.visits += visits;
+      totals.activeUsers += activeUsers;
+      totals.analyticsClicks += analyticsClicks;
+      totals.conversions += conversions;
+      const date = new Date(row.ts).toISOString().slice(0, 10);
+      const bucket = daily.get(date) ?? { visits: 0, activeUsers: 0, analyticsClicks: 0, conversions: 0 };
+      bucket.visits += visits;
+      bucket.activeUsers += activeUsers;
+      bucket.analyticsClicks += analyticsClicks;
+      bucket.conversions += conversions;
+      daily.set(date, bucket);
+      const targetValue = row.target ?? '(not set)';
+      const key = `${row.providerId}\u0000${targetValue}`;
+      const target = targets.get(key) ?? {
+        providerId: row.providerId, kind: providerKinds.get(row.providerId) ?? 'unknown', target: targetValue,
+        trackedClicks: 0, visits: 0, analyticsClicks: 0, conversions: 0,
+      };
+      target.visits += visits;
+      target.analyticsClicks += analyticsClicks;
+      target.conversions += conversions;
+      targets.set(key, target);
+    }
+    const providersWithStats = providers.map((provider: {
+      id: string; kind: string; enabled: boolean; isPrimary: boolean; status: string; lastSyncedAt: Date | null;
+    }) => ({ ...provider, ...(providerTotals.get(provider.id) ?? { ...totals, trackedClicks: 0 }) }));
     return {
-      providers: providers.map(
-        (p: { id: string; kind: string; enabled: boolean; isPrimary?: boolean | null }) => ({
-          id: p.id,
-          kind: p.kind,
-          enabled: p.enabled,
-          isPrimary: p.isPrimary,
-          clicks: clicks.filter((c) => c.providerId === p.id).reduce((acc, c) => acc + c.count, 0),
-        }),
-      ),
-      totalClicks: total,
-      topTargets: clicks.slice(0, 10),
+      windowDays: 90,
+      windowStart: start.toISOString(),
+      providers: providersWithStats,
+      totals,
+      totalClicks: totals.trackedClicks,
+      topTargets: [...targets.values()]
+        .sort((left, right) => right.trackedClicks + right.analyticsClicks - left.trackedClicks - left.analyticsClicks)
+        .slice(0, 20),
+      daily: [...daily.entries()].sort(([left], [right]) => left.localeCompare(right))
+        .map(([date, values]) => ({ date, ...values })),
+      note: 'Tracked redirects and GA4 event counts are reported separately; daily active users are summed across days and are not range-deduplicated.',
     };
   });
   return c.json({ data });
@@ -915,7 +1130,7 @@ async function recordNativeShortLinkClick(
   if (!Array.isArray(updated) || updated.length === 0) return null;
 
   const target = new URL(link.url);
-  for (const [key, value] of Object.entries(nativeShortLinkUtm(link, index))) {
+  for (const [key, value] of Object.entries(nativeShortLinkUtm(link, index, page.provider.kind))) {
     target.searchParams.set(key, value);
   }
   await tx.insert(schema.linkbioClick).values({
@@ -933,7 +1148,9 @@ async function recordNativeShortLinkClick(
     source,
     referrer,
     device,
-    utmSource: nativeShortLinkUtm(link, index).utm_source,
+    utmSource: nativeShortLinkUtm(link, index, page.provider.kind).utm_source,
+    target: link.url,
+    clicks: 1,
     ts: new Date(),
     createdAt: new Date(),
   });
@@ -966,6 +1183,7 @@ async function recordStoredShortLinkClick(
   await tx.insert(schema.linkbioAnalytics).values({
     orgId, providerId, kind: 'click', source, referrer, device,
     utmSource: link.utm?.utm_source ?? null, ts: new Date(), createdAt: new Date(),
+    target: link.targetUrl, clicks: 1,
   });
   return target.toString();
 }
@@ -982,11 +1200,27 @@ publicRouter.get('/:modelId', async (c) => {
   );
   if (!page) return c.text('Not Found', 404);
   c.header('Cache-Control', 'no-store');
+  const nonce = randomBytes(18).toString('base64');
   c.header(
     'Content-Security-Policy',
-    "default-src 'none'; img-src https: http:; style-src 'unsafe-inline'; base-uri 'none'",
+    `default-src 'none'; img-src https: http: data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}' https://www.googletagmanager.com; connect-src https://www.google-analytics.com https://analytics.google.com; base-uri 'none'; object-src 'none'`,
   );
-  return c.html(renderNativePage(page));
+  return c.html(renderNativePage(page, nonce));
+});
+
+publicRouter.get('/fanlynks/:modelId', async (c) => {
+  const modelId = c.req.param('modelId');
+  const page = await withPublicModel(modelId, (tx, orgId) =>
+    loadPublicNativePage(tx, orgId, modelId, 'fanlynks'),
+  );
+  if (!page) return c.text('Not Found', 404);
+  c.header('Cache-Control', 'no-store');
+  const nonce = randomBytes(18).toString('base64');
+  c.header(
+    'Content-Security-Policy',
+    `default-src 'none'; img-src https: http: data:; style-src 'unsafe-inline'; script-src 'nonce-${nonce}' https://www.googletagmanager.com; connect-src https://www.google-analytics.com https://analytics.google.com; base-uri 'none'; object-src 'none'`,
+  );
+  return c.html(renderNativePage(page, nonce));
 });
 
 publicRouter.get('/:modelId/s/:slug', async (c) => {
@@ -1023,6 +1257,32 @@ publicRouter.get('/:modelId/s/:slug', async (c) => {
     );
   });
 
+  if (!destination) return c.text('Not Found', 404);
+  return c.redirect(destination, 302);
+});
+
+publicRouter.get('/:kind/:modelId/s/:slug', async (c) => {
+  const kind = linkbioKindForPublic(c.req.param('kind'));
+  if (!kind || kind === 'native') return c.text('Not Found', 404);
+  const modelId = c.req.param('modelId');
+  const slug = c.req.param('slug');
+  const source = c.req.query('source')?.trim().slice(0, 120) || null;
+  const destination = await withPublicModel(modelId, async (tx, orgId) => {
+    const page = await loadPublicNativePage(tx, orgId, modelId, kind);
+    if (!page) return null;
+    const links = await tx.select({
+      id: schema.shortLink.id, targetUrl: schema.shortLink.targetUrl, utm: schema.shortLink.utm,
+    }).from(schema.shortLink).where(and(
+      eq(schema.shortLink.orgId, orgId), eq(schema.shortLink.modelId, modelId), eq(schema.shortLink.slug, slug),
+    )).limit(1);
+    const link = links[0];
+    if (!link || !page.links.some((candidate) => candidate.slug === slug)) return null;
+    return recordStoredShortLinkClick(
+      tx, orgId, modelId, page.provider.id, link, source,
+      c.req.header('referer')?.slice(0, 2048) ?? null,
+      c.req.header('user-agent')?.slice(0, 512) ?? null,
+    );
+  });
   if (!destination) return c.text('Not Found', 404);
   return c.redirect(destination, 302);
 });

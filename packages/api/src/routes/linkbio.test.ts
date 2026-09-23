@@ -270,13 +270,46 @@ describe('POST /models/:modelId/linkbio', () => {
     expect(res.status).toBe(400);
   });
 
-  it('rejects unsupported external providers instead of creating a label row', async () => {
+  it('requires a provider-domain HTTPS profile URL before enabling an external page', async () => {
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ kind: 'linktree' }),
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
+    expect(mockState.insertValues).toEqual([]);
+  });
+
+  it('enables Linktree with validated profile details and tracked destination configuration', async () => {
+    const saved = {
+      id: PROVIDER_ID, kind: 'linktree', enabled: true, isPrimary: true,
+      profileUrl: 'https://linktr.ee/luna', status: 'configured',
+      config: { links: [{ label: 'Fanvue', url: 'https://fanvue.com/luna' }] },
+    };
+    mockState.results = [[], [{ orgId: ORG_ID }], [], [saved]];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        kind: 'linktree', profileUrl: 'https://linktr.ee/luna', isPrimary: true,
+        config: { links: [{ label: 'Fanvue', url: 'https://fanvue.com/luna' }] },
+      }),
+    });
+    expect(res.status).toBe(201);
+    expect(mockState.insertValues[0]).toMatchObject({
+      orgId: ORG_ID, modelId: MODEL_ID, kind: 'linktree', profileUrl: 'https://linktr.ee/luna',
+      config: { links: [{ label: 'Fanvue', url: 'https://fanvue.com/luna' }] },
+    });
+    expect(mockState.updates[0]).toMatchObject({ isPrimary: false });
+    expect(await res.json()).toMatchObject({ data: { kind: 'linktree', profileUrl: 'https://linktr.ee/luna', enabled: true } });
+  });
+
+  it('rejects an external profile URL on the wrong provider host', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'beacons', profileUrl: 'https://linktr.ee/luna' }),
+    });
+    expect(res.status).toBe(422);
+    expect(mockState.insertValues).toEqual([]);
   });
 
   it('rejects enabling a provider for a model outside the organization', async () => {
@@ -334,6 +367,37 @@ describe('GET /models/:modelId/linkbio/analytics', () => {
     const body = (await res.json()) as any;
     expect(body.data.providers).toBeDefined();
     expect(body.data.totalClicks).toBe(0);
+  });
+
+  it('aggregates first-party tracked redirects and imported provider metrics separately', async () => {
+    const today = new Date();
+    mockState.results = [
+      [],
+      [
+        { id: 'native-provider', kind: 'native', enabled: true, isPrimary: false, status: 'configured', lastSyncedAt: null },
+        { id: 'linktree-provider', kind: 'linktree', enabled: true, isPrimary: true, status: 'connected', lastSyncedAt: today },
+      ],
+      [
+        { providerId: 'native-provider', target: 'https://fanvue.com/native', count: 2 },
+        { providerId: 'linktree-provider', target: 'https://fanvue.com/offer', count: 3 },
+      ],
+      [
+        { providerId: 'linktree-provider', ts: today, target: '/profile', source: 'instagram / social', visits: 40, uniqueVisitors: 30, clicks: 5, conversions: 3 },
+      ],
+    ];
+    const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/analytics`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: {
+      totalClicks: 5,
+      totals: { trackedClicks: 5, visits: 40, activeUsers: 30, analyticsClicks: 5, conversions: 3 },
+      providers: [
+        { id: 'native-provider', trackedClicks: 2, visits: 0 },
+        { id: 'linktree-provider', trackedClicks: 3, visits: 40, analyticsClicks: 5, conversions: 3 },
+      ],
+      topTargets: expect.arrayContaining([
+        expect.objectContaining({ kind: 'linktree', target: '/profile', analyticsClicks: 5 }),
+      ]),
+    } });
   });
 });
 
@@ -581,6 +645,46 @@ describe('public Native Link-in-Bio page', () => {
     mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [provider], []];
     const res = await publicApp().request(`/${MODEL_ID}/s/not-a-configured-short-link`);
     expect(res.status).toBe(404);
+  });
+
+  it('serves the Fanlynks page with a nonce-protected, consent-gated GA4 tracker', async () => {
+    const trackedProvider = {
+      id: PROVIDER_ID, kind: 'fanlynks', profileUrl: null,
+      config: { publicTracking: { ga4MeasurementId: 'G-ABCD1234' }, links: [] },
+    };
+    mockState.results = [{ rows: [{ org_id: ORG_ID }] }, [], [model], [trackedProvider]];
+    const response = await publicApp().request(`/fanlynks/${MODEL_ID}`);
+    expect(response.status).toBe(200);
+    const csp = response.headers.get('content-security-policy') ?? '';
+    const html = await response.text();
+    expect(csp).toMatch(/script-src 'nonce-[^']+'/);
+    expect(html).toContain('analytics-consent');
+    expect(html).toContain('analytics-accept');
+    expect(html).toContain('analytics-reject');
+    expect(html).toContain("localStorage.setItem(choiceKey,'denied')");
+    expect(html).toContain('G-ABCD1234');
+  });
+
+  it('records a provider-scoped Linktree redirect and applies saved UTM values', async () => {
+    const link = { label: 'Fanvue', url: 'https://fanvue.com/luna' };
+    const digest = createHash('sha256').update(`linktree:${MODEL_ID}:0:${link.url}`).digest('hex').slice(0, 16);
+    const slug = `lb-li-22222222-1-${digest}`;
+    const trackedProvider = {
+      id: PROVIDER_ID, kind: 'linktree', profileUrl: 'https://linktr.ee/luna', config: { links: [link] },
+    };
+    mockState.results = [
+      { rows: [{ org_id: ORG_ID }] }, [], [model], [trackedProvider], [],
+      [{ id: 'tracked-link-id', targetUrl: link.url, utm: { utm_source: 'axiom-linktree', utm_medium: 'linkbio' } }],
+      [{ id: 'tracked-link-id' }],
+    ];
+    const response = await publicApp().request(`/linktree/${MODEL_ID}/s/${slug}`);
+    expect(response.status).toBe(302);
+    const location = new URL(response.headers.get('location')!);
+    expect(location.origin + location.pathname).toBe(link.url);
+    expect(location.searchParams.get('utm_source')).toBe('axiom-linktree');
+    expect(mockState.insertValues.find((row: any) => row.providerId === PROVIDER_ID && row.kind === 'click')).toMatchObject({
+      orgId: ORG_ID, providerId: PROVIDER_ID, target: link.url, clicks: 1,
+    });
   });
 
   it('records an owned post link and appends its saved UTMs before redirecting', async () => {

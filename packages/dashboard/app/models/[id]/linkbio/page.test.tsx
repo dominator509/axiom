@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   linkbio: vi.fn(),
   linkbioAnalytics: vi.fn(),
+  linkbioAnalyticsConnection: vi.fn(),
   linkbioAttribution: vi.fn(),
   linkbioPostLinks: vi.fn(),
   getServerLocale: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock('@/lib/api', () => ({
     models: {
       linkbio: mocks.linkbio,
       linkbioAnalytics: mocks.linkbioAnalytics,
+      linkbioAnalyticsConnection: mocks.linkbioAnalyticsConnection,
       linkbioAttribution: mocks.linkbioAttribution,
       linkbioPostLinks: mocks.linkbioPostLinks,
     },
@@ -46,6 +48,9 @@ beforeEach(() => {
   mocks.getServerLocale.mockResolvedValue(localeFor('en'));
   mocks.linkbio.mockResolvedValue({ data: { providers: [], primary: null, nativeEnabled: false } });
   mocks.linkbioAnalytics.mockResolvedValue({ data: { providers: [], totalClicks: 0, topTargets: [] } });
+  mocks.linkbioAnalyticsConnection.mockResolvedValue({ data: {
+    kind: 'linktree', enabled: true, status: 'configured', analyticsConnected: false, propertyId: null, lastSyncedAt: null,
+  } });
   mocks.linkbioAttribution.mockResolvedValue({ data: null });
   mocks.linkbioPostLinks.mockResolvedValue({ data: { publishedPosts: [], links: [] } });
 });
@@ -64,7 +69,11 @@ it('localizes linkbio, analytics and attribution copy while preserving data', as
     },
   });
   mocks.linkbioAnalytics.mockResolvedValue({
-    data: { providers: [], totalClicks: 12345, topTargets: [{ target: 'https://example.test', count: 12345 }] },
+    data: {
+      providers: [], totalClicks: 12345,
+      totals: { trackedClicks: 12345, visits: 42, activeUsers: 35, analyticsClicks: 9, conversions: 2 },
+      topTargets: [{ providerId: 'p1', kind: 'native', target: 'https://example.test', trackedClicks: 12345, visits: 42, analyticsClicks: 9, conversions: 2 }],
+    },
   });
   mocks.linkbioAttribution.mockResolvedValue({
     data: {

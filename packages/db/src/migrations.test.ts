@@ -174,6 +174,19 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(schema.modelProfile.publicCommunityInviteUrl).toBeDefined();
   });
 
+  it('adds encrypted provider credentials and idempotent normalized linkbio analytics', () => {
+    expect(sql).toContain('credentials_enc BYTEA');
+    expect(sql).toContain('credentials_nonce BYTEA');
+    // The provider kind check already exists in 0002; do not add a duplicate.
+    expect(sql).toContain("kind IN ('native','fanlynks','linktree','beacons')");
+    expect(sql).toContain('external_event_id TEXT');
+    expect(sql).toContain('visits INTEGER NOT NULL DEFAULT 0');
+    expect(sql).toContain('unique_visitors INTEGER NOT NULL DEFAULT 0');
+    expect(sql).toContain('clicks INTEGER NOT NULL DEFAULT 0');
+    expect(sql).toContain('conversions INTEGER NOT NULL DEFAULT 0');
+    expect(sql).toContain('ON linkbio_analytics (provider_id, external_event_id)');
+  });
+
   it('enforces the viral exemplar identity used by the worker upsert', () => {
     expect(sql).toContain('viral_exemplar_identity');
     expect(sql).toContain('UNIQUE (org_id, model_id, bundle_id, platform)');
@@ -754,8 +767,9 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // Includes the durable MCP revocation and capability-registry indexes,
     // the seven platform affiliate lookup indexes, link attribution, and four
     // Fanvue lifecycle/link-in-bio cost indexes in 0069, comment moderation
-    // indexes in 0070, and subscription attribution indexes in 0071.
-    expect(indexStatements).toHaveLength(114);
+    // indexes in 0070, subscription attribution indexes in 0071, and
+    // normalized link-in-bio analytics indexes in 0075.
+    expect(indexStatements).toHaveLength(115);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(
