@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { href: '/connections/grok', key: 'nav.grokStorage', icon: 'connection' },
   { href: '/audit', key: 'nav.audit', icon: 'audit' },
   { href: '/incidents', key: 'nav.incidents', icon: 'incident' },
+  { href: '/health', key: 'nav.health', icon: 'health' },
   { href: '/killswitch', key: 'nav.safety', icon: 'safety' },
   { href: '/settings', key: 'nav.settings', icon: 'settings' },
   { href: '/digests', key: 'nav.digests', icon: 'digest' },
@@ -28,6 +29,7 @@ function NavIcon({ name }: { name: (typeof NAV_ITEMS)[number]['icon'] }) {
       <path d="M5 3.25h10a1.75 1.75 0 0 1 1.75 1.75v10A1.75 1.75 0 0 1 15 16.75H5A1.75 1.75 0 0 1 3.25 15V5A1.75 1.75 0 0 1 5 3.25Zm2.25 4h5.5m-5.5 3h5.5m-5.5 3h3.25" />
     ),
     incident: <path d="M10 2.5 18 17H2L10 2.5Zm0 5v4.25m0 2.5v.25" />,
+    health: <path d="M10 2.25 17 5v4.25c0 3.75-2.45 6.75-7 8.5-4.55-1.75-7-4.75-7-8.5V5l7-2.75Zm-3.25 7.5 2.1 2.1 4.4-4.6" />,
     safety: (
       <path d="M10 2.25c2.1 1.45 4.08 2.12 6 2.25v4.75c0 4.13-2.38 6.95-6 8.5-3.62-1.55-6-4.37-6-8.5V4.5c1.92-.13 3.9-.8 6-2.25Zm-2.5 7.5 1.7 1.7 3.55-3.7" />
     ),

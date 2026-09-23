@@ -535,7 +535,23 @@ export interface UiLocaleSnapshot {
   canSetOrg: boolean;
 }
 
+export interface LlmProviderCapability {
+  provider: string;
+  available: boolean;
+  transport: 'local' | 'user-subscription' | 'unsupported';
+  auth: 'oauth' | 'none' | null;
+  operatorApiCost: false;
+  reason: string | null;
+}
+
 export const api = {
+  health: {
+    liveness: () => apiFetch<{ status: 'ok'; version: string }>('/api/v1/health'),
+    readiness: () => apiFetch<{
+      status: 'ok' | 'unavailable';
+      dependencies: { postgres: 'ok' | 'unavailable' };
+    }>('/api/v1/ready'),
+  },
   myShifts: (cursor?: string) => apiFetch<{ data: Array<Omit<TeamShift, 'assigneeUserId'> & { modelName: string }>; meta: { next_cursor: string | null } }>(`/api/v1/my-shifts${cursor ? `?${new URLSearchParams({ cursor })}` : ''}`),
   fans: {
     get: (id: string) => apiFetch<{ data: FanTimeline }>(`/api/v1/fans/${encodeURIComponent(id)}`),
@@ -791,7 +807,7 @@ export const api = {
     sync: (connectionId: string, resource: 'campaign' | 'members' | 'posts', cursor?: string) => apiFetch<{ data: { resource: string; count: number; nextCursor: string | null } }>(`/api/v1/connectors/patreon/sync?connectionId=${encodeURIComponent(connectionId)}`, { method: 'POST', body: JSON.stringify({ resource, ...(cursor ? { cursor } : {}) }) }),
   },
   llm: {
-    providers: () => apiFetch<{ providers: string[] }>('/api/v1/llm/providers'),
+    providers: () => apiFetch<{ providers: string[]; capabilities: LlmProviderCapability[] }>('/api/v1/llm/providers'),
   },
   orgSettings: {
     get: () => apiFetch<{ data: { viralSharing: boolean; publishingEnabled: boolean; weeklyDigestEnabled: boolean; weeklyDigestScheduleId: string | null } }>('/api/v1/org-settings'),

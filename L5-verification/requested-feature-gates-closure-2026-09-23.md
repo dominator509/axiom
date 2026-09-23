@@ -107,6 +107,44 @@ and the affiliate manager snapshot fixture includes the required
 `billingWebhook` contract. Focused suites passed after each correction and the
 entire isolated matrix then passed.
 
+## M1007 — user-facing UI wiring follow-up
+
+The current UI re-audit found and closed three concrete user-facing gaps within
+the requested gate set:
+
+- F77: the incidents page now exposes confirmed, audited discard for safe
+  failed/dead jobs. The API scopes by organization, limits the state transition,
+  requires owner/manager/operator mutation access, and blocks discard when an
+  external provider outcome is unknown. The control reuses one idempotency key
+  after an uncertain response and refreshes the listing after confirmation.
+- F39-F41: the self-service provider page now renders the gateway's actual
+  capability matrix, including local vLLM and providers disabled by policy.
+  Labels distinguish policy support from an active connection or healthy
+  endpoint; this adds no provider API-key fields or provider calls.
+- F73-F76: the footer and primary navigation now open a health overview with
+  API liveness, PostgreSQL readiness, incident recovery, Prometheus metrics,
+  and owner-only per-profile egress checks using the existing tenant-scoped
+  network health endpoint. A failed status request is shown as unavailable;
+  the page does not imply that unprobed workers or external providers are
+  healthy.
+
+The all-route navigation contract now includes `/health`. The existing
+model-scoped watermark and provider-cache controls, Fan CRM, schedule, cascade,
+experiment, scrape, team, report, media, generation, agent/MCP, link-in-bio,
+playbook, Relay, and Patreon UI suites also passed in the full dashboard run.
+This is source/UI and local behavior evidence; it is not browser/device
+acceptance or live deployment evidence. The owner's explicit live-deployment
+evidence waiver above remains in force.
+
+| Command | Result |
+| --- | --- |
+| `rtk pnpm --filter @axiom/dashboard test -- --run` | Exit 0; 161 files, 1,042 tests passed, including all-route navigation, health/provider status, incident replay/discard and the requested feature component suites. |
+| `rtk pnpm --filter @axiom/core test -- --run` | Exit 0; 27 files, 143 tests passed, including six-locale catalog completeness. |
+| `rtk pnpm --filter @axiom/dashboard test -- components/Navigation.test.tsx app/health/page.test.tsx app/connections/grok/page.test.tsx` | Exit 0; 3 files, 52 tests passed after adding the operational-role navigation matrix. |
+| `rtk pnpm --filter @axiom/core build` | Exit 0. |
+| `API_ORIGIN=http://127.0.0.1:3001 rtk pnpm --filter @axiom/dashboard build` | Exit 0; optimized production build compiled and generated dynamic `/health` and connection routes. The loopback origin was build configuration only; no live service was contacted. |
+| `rtk pnpm --filter @axiom/dashboard typecheck` | Exit 0. |
+
 ## Owner acceptance
 
 This record closes only the requested feature IDs against source and local
