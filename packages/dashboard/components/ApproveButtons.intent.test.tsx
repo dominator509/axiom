@@ -30,6 +30,9 @@ vi.mock('./LocaleProvider', () => ({
       'review.revisionQueued': 'Caption revision queued. Approval requires a fresh ToS scan. Media and hashtags are unchanged.',
       'review.noDestinations': 'No supported publishing destinations in this bundle.',
       'review.slotLocalTime': 'Slot (your local time)',
+      'review.tiktokDeliveryMode': 'TikTok delivery',
+      'review.tiktokDirectPublish': 'Publish directly',
+      'review.tiktokDraftUpload': 'Upload to TikTok inbox for creator publishing',
       'review.dstRepeatedHour': 'During a repeated daylight-saving hour, the first occurrence is used.',
       'review.account': `${values?.platform ?? ''} account`,
       'review.selectAccount': 'Select a connected account',
@@ -65,12 +68,12 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-function buttons(revisionId = 'revision-a') {
+function buttons(revisionId = 'revision-a', platforms = ['threads']) {
   hooks.stateIndex = 0;
   hooks.refIndex = 0;
   const element = ApproveButtons({
-    bundleId, revisionId, tosBlocked: false, platforms: ['threads'],
-    connections: [{ id: 'account', modelId: 'model', platform: 'threads', status: 'connected',
+    bundleId, revisionId, tosBlocked: false, platforms,
+    connections: [{ id: 'account', modelId: 'model', platform: platforms[0], status: 'connected',
       displayName: 'Account', capabilities: [], connectedAt: '2026-01-01' }],
   });
   latestView = element;
@@ -82,6 +85,20 @@ function key(fetch: ReturnType<typeof vi.fn>, index: number) {
 }
 
 describe('review action intent', () => {
+  it('offers TikTok direct and creator-assisted delivery and persists the selected mode on approval', async () => {
+    hooks.values[2] = '2090-03-20T15:30';
+    hooks.values[7] = 'draft';
+    const fetch = vi.fn().mockImplementation(success);
+    vi.stubGlobal('fetch', fetch);
+    const actions = buttons('revision-a', ['tiktok']);
+    const html = renderToStaticMarkup(latestView);
+    expect(html).toContain('Upload to TikTok inbox for creator publishing');
+    await actions[0]();
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({
+      platforms: ['tiktok'],
+      providerOptions: { tiktokDeliveryMode: 'draft' },
+    });
+  });
   it.each([0, 1, 2])('renders locked inputs and only the original recovery action after uncertainty (%s)', async index => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('response lost')));
     await buttons()[index]();

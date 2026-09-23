@@ -58,6 +58,24 @@ describe('RelayCardHistory', () => {
     expect(readOnly).not.toContain('I confirmed delivery');
   });
 
+  it('renders Snapchat manual-assist assets and profile action from the sanitized card contract', () => {
+    const html = renderToStaticMarkup(<RelayCardHistory modelId="model-1" cards={[{
+      ...card,
+      channel: 'manual-assist',
+      snapchatHandoff: {
+        instructions: 'Open Snapchat, share the media, then confirm the outcome.',
+        caption: 'A story caption',
+        assets: ['https://media.example.test/story.jpg'],
+        handoffUrl: 'https://www.snapchat.com/add/creator',
+      },
+    }]} nextCursor={null} canReconcile />);
+    expect(html).toContain('Open Snapchat, share the media');
+    expect(html).toContain('A story caption');
+    expect(html).toContain('https://media.example.test/story.jpg');
+    expect(html).toContain('https://www.snapchat.com/add/creator');
+    expect(html).toContain('Open Snapchat profile');
+  });
+
   it('covers every digest/relay key in all six catalogs without English fallback', () => {
     const keys = MESSAGE_KEYS.filter(k => k.startsWith('digest.') || k.startsWith('relay.'));
     expect(keys.length).toBeGreaterThan(0);

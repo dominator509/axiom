@@ -26,6 +26,8 @@ export interface ExecutorContext {
    * a provider accepts a side effect but the executor transaction rolls back.
    */
   persistSideEffectMarker?: <T>(operation: (tx: any) => Promise<T>) => Promise<T>;
+  /** Commit a recurring follow-up independently so a later work failure does not stop the chain. */
+  persistScheduledContinuation?: <T>(operation: (tx: any) => Promise<T>) => Promise<T>;
 }
 
 export type Executor = (ctx: ExecutorContext) => Promise<void>;

@@ -44,11 +44,18 @@ export async function connectorForConnection(
   connection: PlatformConnectionRow,
 ): Promise<ResolvedTargetConnector> {
   const platform = asPlatform(connection.platform);
+  const auth = await decryptConnectorAuth(connection);
+  if (platform === 'snapchat' && auth.extra?.snapchatManualAssist === true && !auth.accessToken) {
+    // Human handoffs do not make provider requests and must remain usable when
+    // a model has not configured external egress. The injected transport is
+    // still fail-closed if a future code path accidentally attempts I/O.
+    const noProviderNetwork = (async () => { throw new Error('Snapchat manual-assist connection cannot make provider requests'); }) as typeof fetch;
+    return { connection, connector: createConnector(platform, auth, noProviderNetwork) };
+  }
   const binding = await resolveEgressBinding(connection.modelId);
   if (!binding) {
     throw new Error(`model ${connection.modelId} has no healthy egress binding`);
   }
-  const auth = await decryptConnectorAuth(connection);
   return {
     connection,
     connector: createConnector(platform, auth, buildEgressFetch(binding)),
@@ -312,7 +319,12 @@ export function parseConnectorAuth(plaintext: string): ConnectorAuth {
       : typeof record.access_token === 'string'
         ? record.access_token
         : '';
-  if (!accessToken) throw new Error('stored connector credential has no access token');
+  const extra = record.extra && typeof record.extra === 'object' && !Array.isArray(record.extra)
+    ? record.extra as Record<string, unknown>
+    : undefined;
+  const manualSnapchat = extra?.snapchatManualAssist === true;
+  const discordWebhook = typeof extra?.webhookUrl === 'string' && extra.webhookUrl.startsWith('https://discord.com/api/webhooks/');
+  if (!accessToken && !manualSnapchat && !discordWebhook) throw new Error('stored connector credential has no access token');
 
   const auth: ConnectorAuth = { accessToken };
   if (typeof record.refreshToken === 'string') auth.refreshToken = record.refreshToken;
@@ -322,9 +334,7 @@ export function parseConnectorAuth(plaintext: string): ConnectorAuth {
     auth.externalUserId = record.external_user_id;
   if (typeof record.expiresAt === 'number') auth.expiresAt = record.expiresAt;
   else if (typeof record.expires_at === 'number') auth.expiresAt = record.expires_at;
-  if (record.extra && typeof record.extra === 'object' && !Array.isArray(record.extra)) {
-    auth.extra = record.extra as Record<string, unknown>;
-  }
+  if (extra) auth.extra = extra;
   return auth;
 }
 

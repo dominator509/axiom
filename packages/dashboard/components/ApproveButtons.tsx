@@ -56,6 +56,7 @@ export default function ApproveButtons({
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tiktokDeliveryMode, setTiktokDeliveryMode] = useState<'direct' | 'draft'>('direct');
   const inFlight = useRef(false);
   const intent = useRef<{
     path: string;
@@ -134,6 +135,7 @@ export default function ApproveButtons({
                 .filter((platform) => connectionIds[platform])
                 .map((platform) => [platform, connectionIds[platform]]),
             ),
+            ...(selected.includes('tiktok') ? { providerOptions: { tiktokDeliveryMode } } : {}),
           }));
       } else if (action === 'revise') {
         res = await send(JSON.stringify({ instructions: instructions.trim(), revisionId }));
@@ -235,6 +237,19 @@ export default function ApproveButtons({
         <p style={{ color: 'var(--bad)', margin: 0 }}>
           {t('review.connectAccount', { platforms: selectedWithoutConnection.join(', ') })}
         </p>
+      )}
+      {selected.includes('tiktok') && (
+        <label className="field-stack" style={{ margin: 0 }}>
+          {t('review.tiktokDeliveryMode')}
+          <select
+            disabled={inputsLocked}
+            value={tiktokDeliveryMode}
+            onChange={(event) => setTiktokDeliveryMode(event.target.value as 'direct' | 'draft')}
+          >
+            <option value="direct">{t('review.tiktokDirectPublish')}</option>
+            <option value="draft">{t('review.tiktokDraftUpload')}</option>
+          </select>
+        </label>
       )}
       {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
       {notice && <p role="status">{notice}</p>}

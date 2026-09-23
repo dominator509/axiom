@@ -32,6 +32,8 @@ it('requires confirmation and a future valid local slot', () => {
   expect(() => postScheduleIntent(fields('reschedule', 'on', ''))).toThrow('future');
   expect(() => postScheduleIntent(fields('reschedule', 'on', '2000-01-01T12:00'))).toThrow('future');
   expect(postScheduleIntent(fields())).toEqual({ method: 'PATCH', body: JSON.stringify({ scheduledFor: new Date('2090-03-20T15:30').toISOString() }) });
+  const draft = fields(); draft.set('tiktokDeliveryMode', 'draft');
+  expect(JSON.parse(postScheduleIntent(draft, undefined, 'tiktok').body!)).toMatchObject({ providerOptions: { tiktokDeliveryMode: 'draft' } });
   expect(postScheduleIntent(fields('cancel', 'on', ''))).toEqual({ method: 'DELETE', body: undefined });
 });
 it('retains the original reschedule request when a retry follows edited fields', async () => {

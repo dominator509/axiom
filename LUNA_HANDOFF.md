@@ -39,6 +39,58 @@ disabled; do not read the bridge or revive any old lane.
 - Live actions: NONE. No SSH, installer, live DB/provider calls, grant,
   service restart, host-network/firewall change, or deployment occurred.
 
+## Current Codex-only execution — F03/F31/F58-F67 connector reconciliation
+
+This section is the current source-of-truth for the connector pass. Hermes is
+disabled; do not read the bridge, revive delegated lanes, or treat historical
+Hermes receipts as work in progress.
+
+- Owner: Codex. Scope: Fanvue MCP (F03), Fanvue MCP client/agentic inbox and
+  analytics (F31), and the ten social connector rows F58-F67.
+- Source-wired in this checkout: model-scoped OAuth/manual onboarding,
+  encrypted account persistence, capability and scope declarations, provider
+  operation routes/UI, refresh/revoke/disconnect handling, Fanvue vault and
+  inbox operations, provider-specific publish/metrics contracts, TikTok direct
+  versus draft/manual-assist delivery, YouTube Shorts/captions/thumbnail
+  operations, and Snapchat capability-honest manual-assist Relay handoff.
+- Snapchat invariant: unsupported organic posting is never reported as
+  published; it persists `manual_assist` with bounded human instructions and
+  a Relay card. Connector idempotency treats that state as terminal for retry.
+- UI invariant: TikTok delivery mode is selected in approval/scheduling UI and
+  persisted as target `providerOptions`; provider operations use a browser-safe
+  same-origin client transport rather than importing the server-only
+  `next/headers` API module.
+- OAuth lifecycle invariant: Fanvue and Snapchat refresh controls use their
+  provider-specific refresh endpoints; Snapchat refresh rotates credentials
+  through model egress and encrypted storage, while manual-assist Snapchat
+  connections are explicitly labelled and never offered an OAuth refresh.
+- Evidence: connectors 27 files / 467 tests; dashboard 158 files /
+  1,028 tests; API connector/post/provider/Relay/Snapchat-refresh source
+  tests and the network page focused suite are green; core locale is 30/30.
+  The full disposable Docker workspace matrix passed against 69 migrations:
+  API 84 files / 1,236 tests, worker 342, DB 171 (5 intentional skips),
+  Fanvue MCP 80, MCP server 91, mobile 28, relay 274, LLM gateway 407,
+  auth 28, and core 143. All listed package typechecks passed; `git diff
+  --check` passed.
+  The full build compiled all packages, passed dashboard type/lint/static-page
+  generation and exported the mobile web bundle. Windows then refused Next's
+  standalone pnpm symlink copy with `EPERM`; this is an environment packaging
+  limitation, not a source compile pass.
+- Docker evidence: `docker compose -f infra/docker-compose.yml config
+  --quiet` passes; the pinned local Timescale/PostgreSQL service reached
+  healthy state; the labeled disposable CI fixture applied all 69 migrations,
+  passed the full workspace matrix, and removed only its random test database.
+  No workspace volume, hosted database, provider credential, or live service
+  was touched.
+- Feature status: **SOURCE-WIRED/PARTIAL**, not production-complete. Remaining
+  gates are approved provider OAuth/app credentials, refresh/revoke/disconnect
+  receipts, real provider publish/metrics receipts where supported, Snapchat
+  manual-assist browser acceptance, hosted/deployed migration/RLS/runtime
+  acceptance, and desktop/mobile browser acceptance. The disposable local
+  database/runtime matrix is complete; it is not evidence of hosted readiness.
+- Live actions: NONE. No live provider, database, installer, migration,
+  permission, service, network or deployment action occurred.
+
 ### M992 source preparation — privilege topology and durable health status
 
 - Product commit: `e6e50b3c8826c2e0151fc4edecfe0431a44676ca`, pushed and

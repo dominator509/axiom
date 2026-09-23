@@ -154,6 +154,7 @@ const FANVUE_API_BASE = 'https://api.fanvue.com';
 const FANVUE_API_VERSION = '2025-06-26';
 
 export class FanvueMcpClient {
+  private readonly fetchImpl: typeof fetch;
   private endpoint: string = '';
   private apiKey: string = '';
   private token: string = '';
@@ -167,8 +168,10 @@ export class FanvueMcpClient {
   private toolsDiscovered: boolean = false;
   private requestCounter = 1;
 
-  constructor() {
-    // Configured via connect()
+  constructor(fetchImpl?: typeof fetch) {
+    // Runtime callers inject the model-bound egress transport. The default
+    // resolves globalThis.fetch at request time for tests and standalone use.
+    this.fetchImpl = fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
   }
 
   /** Resolve the JSON-RPC endpoint URL (append /mcp when missing). */
@@ -278,7 +281,7 @@ export class FanvueMcpClient {
 
     let response: Response;
     try {
-      response = await fetch(this.mcpUrl(), {
+      response = await this.fetchImpl(this.mcpUrl(), {
         method: 'POST',
         headers: this.headers(),
         body: JSON.stringify(frame),
@@ -390,18 +393,26 @@ export class FanvueMcpClient {
   async startImageUpload(): Promise<StartImageUploadResult> {
     const result = await this.callTool('custom__start-image-upload', {});
     const unwrapped = this.unwrap(result, 'mediaUuid');
-    if (typeof unwrapped.mediaUuid !== 'string' || typeof unwrapped.uploadUrl !== 'string') {
+    if (typeof unwrapped.mediaUuid !== 'string' || !unwrapped.mediaUuid ||
+        typeof unwrapped.uploadId !== 'string' || !unwrapped.uploadId ||
+        typeof unwrapped.uploadUrl !== 'string' || !unwrapped.uploadUrl) {
       throw new FanvueMcpError(
         'UPLOAD_FAILED',
-        'Fanvue MCP start-image-upload returned no mediaUuid/uploadUrl',
+        'Fanvue MCP start-image-upload returned an incomplete upload reservation',
         undefined,
         result,
       );
     }
+    let uploadUrl: URL;
+    try { uploadUrl = new URL(unwrapped.uploadUrl); }
+    catch { throw new FanvueMcpError('UPLOAD_FAILED', 'Fanvue MCP upload URL was invalid'); }
+    if (uploadUrl.protocol !== 'https:' || uploadUrl.username || uploadUrl.password) {
+      throw new FanvueMcpError('UPLOAD_FAILED', 'Fanvue MCP upload URL must be credential-free HTTPS');
+    }
     return {
       mediaUuid: unwrapped.mediaUuid as string,
-      uploadId: (unwrapped.uploadId as string) ?? '',
-      uploadUrl: unwrapped.uploadUrl as string,
+      uploadId: unwrapped.uploadId as string,
+      uploadUrl: uploadUrl.toString(),
       instructions: (unwrapped.instructions as string) ?? '',
     };
   }
@@ -418,7 +429,7 @@ export class FanvueMcpClient {
       // SharedArrayBuffer, which is not a portable Fetch BodyInit.
       const body = new ArrayBuffer(bytes.byteLength);
       new Uint8Array(body).set(bytes);
-      response = await fetch(uploadUrl, {
+      response = await this.fetchImpl(uploadUrl, {
         method: 'PUT',
         body,
         signal: AbortSignal.timeout(DEFAULT_TOOL_TIMEOUT_MS),
@@ -502,7 +513,7 @@ export class FanvueMcpClient {
     this.assertConnected();
     let response: Response;
     try {
-      response = await fetch(`${FANVUE_API_BASE}${path}`, {
+      response = await this.fetchImpl(`${FANVUE_API_BASE}${path}`, {
         method: 'GET',
         headers: this.restHeaders(),
         signal: AbortSignal.timeout(DEFAULT_TOOL_TIMEOUT_MS),
@@ -531,7 +542,7 @@ export class FanvueMcpClient {
     this.assertConnected();
     let response: Response;
     try {
-      response = await fetch(`${FANVUE_API_BASE}${path}`, {
+      response = await this.fetchImpl(`${FANVUE_API_BASE}${path}`, {
         method: 'POST',
         headers: this.restHeaders(),
         body: JSON.stringify(body),

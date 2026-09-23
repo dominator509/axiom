@@ -62,11 +62,16 @@ it('offers activation only after a saved configuration exists', async () => {
 });
 it('exposes provider OAuth entry points only to operational roles', async () => {
   const html = await render();
-  expect(html).toContain('/api/v1/connectors/fanvue/authorize?modelId=model');
-  expect(html).toContain('/api/v1/connectors/threads/authorize?modelId=model');
+  for (const platform of ['fanvue', 'threads', 'tiktok', 'x', 'youtube', 'reddit', 'instagram', 'facebook', 'discord']) {
+    expect(html).toContain(`/api/v1/connectors/${platform}/authorize?modelId=model`);
+  }
+  expect(html).toContain('<h3>Snapchat</h3>');
+  expect(html).toContain('<h3>Telegram</h3>');
   vi.mocked(getSession).mockResolvedValue({ user: { id: 'user', role: 'viewer' } });
   const readonly = await render();
   expect(readonly).not.toContain('/api/v1/connectors/fanvue/authorize');
+  expect(readonly).not.toContain('/api/v1/connectors/tiktok/authorize');
+  expect(readonly).not.toContain('/api/v1/connectors/snapchat/manual');
   expect(readonly).toContain('Connecting accounts requires an owner, manager or operator role.');
 });
 it('confirms a successful browser OAuth return without trusting arbitrary query text', async () => {
@@ -128,6 +133,32 @@ it('localizes connected-account headings while preserving provider data', async 
   expect(html).toContain(catalog.t('de', 'network.capabilities'));
   expect(html).toContain('fanvue');
   expect(html).toContain('DJ');
+});
+it('shows a refresh action for connected accounts with a refresh-token flow', async () => {
+  vi.mocked(api.social.list).mockResolvedValue({ data: [{
+    id: 'x-connection', modelId: 'model', platform: 'fanvue', displayName: '@creator', status: 'connected',
+    capabilities: ['publish'], connectedAt: '2026-01-01T00:00:00Z',
+  }] });
+  const html = await render();
+  expect(html).toContain('Refresh access');
+});
+
+it('shows the same refresh action for a Snapchat OAuth connection but not a manual handoff', async () => {
+  vi.mocked(api.social.list).mockResolvedValue({ data: [{
+    id: 'snap-connection', modelId: 'model', platform: 'snapchat', displayName: '@creator', status: 'connected',
+    capabilities: ['publish'], connectedAt: '2026-01-01T00:00:00Z',
+  }] });
+  expect(await render()).toContain('Refresh access');
+});
+
+it('labels Snapchat manual-assist connections and does not offer OAuth refresh for them', async () => {
+  vi.mocked(api.social.list).mockResolvedValue({ data: [{
+    id: 'snap-manual', modelId: 'model', platform: 'snapchat', displayName: '@creator', status: 'connected',
+    capabilities: ['publish', 'publish.manual_assist'], connectedAt: '2026-01-01T00:00:00Z',
+  }] });
+  const html = await render();
+  expect(html).toContain('Manual assist');
+  expect(html).not.toContain('Refresh access');
 });
 it('formats network latency with the selected locale', async () => {
   vi.mocked(getServerLocale).mockResolvedValue(localeFor('de'));

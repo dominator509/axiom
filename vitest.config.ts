@@ -51,6 +51,7 @@ export default defineConfig({
       '**/dist/**',
       '**/var/**',
       '**/.codex/**',
+      '**/.codex-review/**',
       '**/L5-verification/**',
     ],
 

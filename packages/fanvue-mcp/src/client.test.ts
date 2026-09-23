@@ -260,11 +260,12 @@ describe('documented custom__ image-post flow', () => {
 
   it('unwraps text-content envelopes (MCP standard result shape)', async () => {
     const fetchMock = stubMcpFlow({
-      content: [{ type: 'text', text: JSON.stringify({ mediaUuid: 'wrapped-1', uploadUrl: 'u' }) }],
+      content: [{ type: 'text', text: JSON.stringify({ mediaUuid: 'wrapped-1', uploadId: 'upload-wrapped', uploadUrl: 'https://upload.example.test/u' }) }],
     });
     const c = await connectedClient();
     const result = await c.startImageUpload();
     expect(result.mediaUuid).toBe('wrapped-1');
+    expect(result.uploadId).toBe('upload-wrapped');
     expect(vi.mocked(fetchMock).mock.calls.length).toBe(3);
   });
 });

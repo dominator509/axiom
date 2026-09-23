@@ -95,6 +95,22 @@ describe('capabilityNames', () => {
     ]);
   });
 
+  it('serializes only the connector-declared moderation actions', () => {
+    expect(capabilities.capabilityNames({
+      publish: true,
+      media: [],
+      maxMediaBytes: 0,
+      maxMediaCount: 0,
+      caption: false,
+      maxCaptionLength: 0,
+      scheduling: 'none',
+      metrics: [],
+      refreshMetrics: false,
+      operations: ['comments.moderate'],
+      moderationActions: ['delete', 'block'],
+    })).toEqual(['publish', 'comments.moderate', 'comments.moderate.delete', 'comments.moderate.block']);
+  });
+
   it('does not advertise scheduling or insights when they are unsupported', () => {
     expect(
       capabilities.capabilityNames({

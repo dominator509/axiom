@@ -25,8 +25,14 @@ import type {
   MetricPeriod,
   ValidationReport,
   MediaType,
+  SocialOperationInput,
+  SocialOperationName,
+  SocialOperationResult,
+  FanvueVaultFolder,
+  FanvueVaultMedia,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
+import { FanvueMcpClient } from '@axiom/fanvue-mcp';
 import { mediaTypeHint, validatePublish } from './validation.js';
 import { parseFanvueEarningsSummary, type FanvueEarningsSummary } from './fanvue-earnings.js';
 import {
@@ -46,11 +52,20 @@ import {
 import { messageMediaQuery, parseMessageMedia, type FanvueMessageMedia } from './fanvue-message-media.js';
 import { fetchFanvuePreview, previewRange, type FanvuePreviewVariant } from './fanvue-media-preview.js';
 import { FanvueMessageDeliveryError, replyText, messageReceipt, inboxPageQuery, inboxUserUuid, parseChatPage, parseMessagePage, type FanvueChatPage, type FanvueMessagePage } from './fanvue-inbox.js';
+import {
+  parseVaultFolder,
+  parseVaultMedia,
+  parseVaultPage,
+  vaultFolderName,
+  vaultMediaUuids,
+  vaultPageValues,
+} from './fanvue-vault.js';
 
 const FANVUE_API_BASE = 'https://api.fanvue.com';
 const FANVUE_API_VERSION = '2025-06-26';
 const FANVUE_TOKEN_URL = 'https://auth.fanvue.com/oauth2/token';
 const FANVUE_REVOKE_URL = 'https://auth.fanvue.com/oauth2/revoke';
+const FANVUE_MCP_ENDPOINT = 'https://mcp.fanvue.com';
 const FANVUE_MAX_MEDIA_BYTES = 1_610_612_736;
 
 function insightsQuery(values: Record<string, string | number | undefined>): string {
@@ -126,17 +141,191 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
   }
 
   capability(): ConnectorCapability {
+    const canPublish = this.hasGrantedScope('write:post') && this.hasGrantedScope('write:media');
+    const canReadPostMetrics = this.hasGrantedScope('read:post');
+    const canReadVault = this.hasGrantedScope('read:media');
+    const canManageVault = this.hasGrantedScope('write:media');
+    const operations: SocialOperationName[] = [
+      ...(canReadVault ? ['vault.folders.read', 'vault.folder.read', 'vault.media.read'] as const : []),
+      ...(canManageVault ? [
+        'vault.folder.create', 'vault.folder.rename', 'vault.folder.delete',
+        'vault.media.add', 'vault.media.remove', 'vault.media.update',
+      ] as const : []),
+    ];
     return {
-      publish: true,
-      media: ['image' as MediaType, 'video' as MediaType, 'audio' as MediaType],
+      publish: canPublish,
+      media: canPublish ? ['image' as MediaType, 'video' as MediaType, 'audio' as MediaType] : [],
       maxMediaBytes: FANVUE_MAX_MEDIA_BYTES, // 1.5 GiB — API limit (sizeBytes <= 1610612736)
       maxMediaCount: 10,
       caption: true,
       maxCaptionLength: 5000, // text max length per API reference
       scheduling: 'internal' as const,
-      metrics: ['likes' as const, 'comments' as const],
-      refreshMetrics: true,
+      metrics: canReadPostMetrics ? ['likes' as const, 'comments' as const] : [],
+      refreshMetrics: canReadPostMetrics,
+      operations,
     };
+  }
+
+  async listVaultFolders(page = 1, size = 15, mediaName?: string): Promise<{
+    items: FanvueVaultFolder[];
+    pagination: { page: number; size: number; hasMore: boolean };
+  }> {
+    this.assertGrantedScope('vault folder listing', 'read:media');
+    const bounded = vaultPageValues(page, size);
+    const query = new URLSearchParams({ page: String(bounded.page), size: String(bounded.size) });
+    if (mediaName !== undefined) {
+      const name = mediaName.trim();
+      if (name.length > 255) throw new Error('Fanvue vault mediaName must not exceed 255 characters');
+      if (name) query.set('mediaName', name);
+    }
+    return parseVaultPage(
+      await this.fanvueRequest<unknown>('GET', `/vault/folders?${query}`),
+      parseVaultFolder,
+    );
+  }
+
+  async getVaultFolder(folderName: string): Promise<FanvueVaultFolder> {
+    this.assertGrantedScope('vault folder details', 'read:media');
+    const name = vaultFolderName(folderName);
+    return parseVaultFolder(await this.fanvueRequest<unknown>(
+      'GET', `/vault/folders/${encodeURIComponent(name)}`,
+    ));
+  }
+
+  async createVaultFolder(name: string): Promise<FanvueVaultFolder> {
+    this.assertGrantedScope('vault folder creation', 'write:media');
+    return parseVaultFolder(await this.fanvueRequest<unknown>('POST', '/vault/folders', {
+      name: vaultFolderName(name),
+    }));
+  }
+
+  async renameVaultFolder(folderName: string, name: string): Promise<FanvueVaultFolder> {
+    this.assertGrantedScope('vault folder rename', 'write:media');
+    const oldName = vaultFolderName(folderName);
+    return parseVaultFolder(await this.fanvueRequest<unknown>(
+      'PATCH', `/vault/folders/${encodeURIComponent(oldName)}`, { name: vaultFolderName(name) },
+    ));
+  }
+
+  async deleteVaultFolder(folderName: string): Promise<void> {
+    this.assertGrantedScope('vault folder deletion', 'write:media');
+    const name = vaultFolderName(folderName);
+    await this.fanvueRequest<string>('DELETE', `/vault/folders/${encodeURIComponent(name)}`, undefined, true);
+  }
+
+  async listVaultMedia(folderName: string, options: {
+    page?: number;
+    size?: number;
+    mediaType?: 'image' | 'video' | 'audio' | 'document';
+    name?: string;
+    startDate?: string;
+    endDate?: string;
+    variants?: Array<'blurred' | 'main' | 'thumbnail' | 'thumbnail_gallery'>;
+  } = {}): Promise<{ items: FanvueVaultMedia[]; pagination: { page: number; size: number; hasMore: boolean } }> {
+    this.assertGrantedScope('vault media listing', 'read:media');
+    const folder = vaultFolderName(folderName);
+    const bounded = vaultPageValues(options.page, options.size);
+    const query = new URLSearchParams({ page: String(bounded.page), size: String(bounded.size) });
+    if (options.mediaType) query.set('mediaType', options.mediaType);
+    if (options.name !== undefined) {
+      const name = options.name.trim();
+      if (name.length > 255) throw new Error('Fanvue vault media name filter must not exceed 255 characters');
+      if (name) query.set('name', name);
+    }
+    for (const key of ['startDate', 'endDate'] as const) {
+      const value = options[key];
+      if (value !== undefined) {
+        if (!Number.isFinite(Date.parse(value))) throw new Error(`Fanvue vault ${key} must be an ISO date`);
+        query.set(key, value);
+      }
+    }
+    if (options.variants?.length) query.set('variants', options.variants.join(','));
+    return parseVaultPage(
+      await this.fanvueRequest<unknown>(
+        'GET', `/vault/folders/${encodeURIComponent(folder)}/media?${query}`,
+      ),
+      parseVaultMedia,
+    );
+  }
+
+  async addVaultMedia(folderName: string, mediaUuids: string[]): Promise<number> {
+    this.assertGrantedScope('vault media assignment', 'write:media');
+    const folder = vaultFolderName(folderName);
+    const body = { mediaUuids: vaultMediaUuids(mediaUuids) };
+    const result = await this.fanvueRequest<unknown>(
+      'POST', `/vault/folders/${encodeURIComponent(folder)}/media`, body,
+    );
+    const addedCount = (result as Record<string, unknown> | null)?.['addedCount'];
+    if (!Number.isSafeInteger(addedCount) || (addedCount as number) < 0) {
+      throw new Error('Fanvue vault add-media response is invalid');
+    }
+    return addedCount as number;
+  }
+
+  async removeVaultMedia(folderName: string, mediaUuid: string): Promise<void> {
+    this.assertGrantedScope('vault media removal', 'write:media');
+    const folder = vaultFolderName(folderName);
+    const [uuid] = vaultMediaUuids([mediaUuid]);
+    await this.fanvueRequest<string>(
+      'DELETE', `/vault/folders/${encodeURIComponent(folder)}/media/${uuid}`, undefined, true,
+    );
+  }
+
+  async updateVaultMedia(folderName: string, mediaUuid: string, patch: {
+    name?: string | null;
+    recommendedPrice?: number | null;
+  }): Promise<void> {
+    this.assertGrantedScope('vault media update', 'write:media');
+    const folder = vaultFolderName(folderName);
+    const [uuid] = vaultMediaUuids([mediaUuid]);
+    if (!('name' in patch) && !('recommendedPrice' in patch)) {
+      throw new Error('Fanvue vault media update requires at least one property');
+    }
+    if (patch.name !== undefined && patch.name !== null && (!patch.name.trim() || patch.name.length > 255)) {
+      throw new Error('Fanvue vault media name must contain 1 to 255 characters');
+    }
+    if (patch.recommendedPrice !== undefined && patch.recommendedPrice !== null &&
+      (!Number.isSafeInteger(patch.recommendedPrice) || patch.recommendedPrice < 0)) {
+      throw new Error('Fanvue vault recommended price must be a non-negative integer');
+    }
+    await this.fanvueRequest<unknown>(
+      'PATCH', `/vault/folders/${encodeURIComponent(folder)}/media/${uuid}`, {
+        ...(patch.name !== undefined ? { name: patch.name?.trim() ?? null } : {}),
+        ...(patch.recommendedPrice !== undefined ? { recommendedPrice: patch.recommendedPrice } : {}),
+      },
+    );
+  }
+
+  async executeOperation(input: SocialOperationInput): Promise<SocialOperationResult> {
+    switch (input.type) {
+      case 'vault.folders.read': {
+        const page = await this.listVaultFolders(input.page, input.size, input.mediaName);
+        return { type: 'vault.folders', ...page };
+      }
+      case 'vault.folder.read':
+        return { type: 'vault.folder', folder: await this.getVaultFolder(input.folderName) };
+      case 'vault.folder.create':
+        return { type: 'vault.folder', folder: await this.createVaultFolder(input.name) };
+      case 'vault.folder.rename':
+        return { type: 'vault.folder', folder: await this.renameVaultFolder(input.folderName, input.name) };
+      case 'vault.folder.delete':
+        await this.deleteVaultFolder(input.folderName);
+        return { type: 'mutation', success: true };
+      case 'vault.media.read': {
+        const page = await this.listVaultMedia(input.folderName, input);
+        return { type: 'vault.media', ...page };
+      }
+      case 'vault.media.add':
+        return { type: 'mutation', success: true, affectedCount: await this.addVaultMedia(input.folderName, input.mediaUuids) };
+      case 'vault.media.remove':
+        await this.removeVaultMedia(input.folderName, input.mediaUuid);
+        return { type: 'mutation', success: true };
+      case 'vault.media.update':
+        await this.updateVaultMedia(input.folderName, input.mediaUuid, input);
+        return { type: 'mutation', success: true };
+      default:
+        throw new Error(`Fanvue does not support the ${input.type} operation`);
+    }
   }
 
   // ── Token refresh (Ory client_secret_basic) ──
@@ -423,6 +612,15 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
       });
     }
 
+    const audience = input.options?.['audience'];
+    if (audience !== undefined && audience !== 'subscribers' && audience !== 'followers-and-subscribers') {
+      report.errors.push({ field: 'options.audience', message: 'Fanvue audience is not supported', severity: 'error' });
+    }
+    const price = input.options?.['price'];
+    if (price !== undefined && (typeof price !== 'number' || !Number.isFinite(price) || price < 0)) {
+      report.errors.push({ field: 'options.price', message: 'Fanvue price must be a non-negative finite number', severity: 'error' });
+    }
+
     report.valid = report.errors.length === 0;
     report.tosVerdict = report.valid ? (report.warnings.length > 0 ? 'flag' : 'pass') : 'block';
     return report;
@@ -430,6 +628,24 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
     return this.idempotentPublish(input, async () => {
+      const existingPostId = input.options?.['publishId'];
+      if (typeof existingPostId === 'string' && existingPostId.trim()) {
+        this.assertGrantedScope('post reconciliation', 'read:post');
+        // A provider-pending retry is a read-only reconciliation. Never repeat
+        // the MCP or REST create call for a resource that already has an ID.
+        const existing = await this.fanvueRequest<FanvuePost>('GET', `/posts/${encodeURIComponent(existingPostId)}`);
+        return this.postResult(existing);
+      }
+
+      this.assertGrantedScope('post publishing', 'write:post');
+      this.assertGrantedScope('media upload', 'write:media');
+
+      const declaredMediaType = mediaTypeHint(input);
+      if (input.mediaUrls.length === 1 && declaredMediaType === 'image') {
+        const mcpResult = await this.publishImageViaMcp(input);
+        if (mcpResult) return mcpResult;
+      }
+
       // Resolve the creator uuid (needed for presigned part URLs).
       let creatorUuid = this.modelId;
       if (!creatorUuid) {
@@ -440,7 +656,6 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
       // 1. Upload each media URL → mediaUuid list.
       const mediaUuids: string[] = [];
-      const declaredMediaType = mediaTypeHint(input);
       for (const mediaUrl of input.mediaUrls) {
         const mediaUuid = await this.uploadMedia(mediaUrl, creatorUuid, declaredMediaType);
         mediaUuids.push(mediaUuid);
@@ -450,25 +665,75 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
       const audience =
         (input.options?.['audience'] as 'subscribers' | 'followers-and-subscribers' | undefined) ??
         'followers-and-subscribers';
+      const price = input.options?.['price'];
       const post = await this.fanvueRequest<FanvuePost>('POST', '/posts', {
         audience,
         text: input.caption,
         mediaUuids,
+        ...(typeof price === 'number' ? { price } : {}),
         publishAt: input.scheduledFor ?? null,
       });
 
       this.log('info', 'publish', `Fanvue post created: ${post.uuid}`);
+      return this.postResult(post);
+    });
+  }
 
-      return {
-        remoteId: post.uuid,
-        state: 'published',
-        postUrl: `https://fanvue.com/post/${post.uuid}`,
-      };
+  private postResult(post: FanvuePost): ConnectorPublishResult {
+    if (!post.uuid) throw new Error('Fanvue post response did not include a post UUID');
+    return {
+      remoteId: post.uuid,
+      state: post.publishAt && !post.publishedAt ? 'pending' : 'published',
+      postUrl: `https://fanvue.com/post/${encodeURIComponent(post.uuid)}`,
+    };
+  }
+
+  /** Use Fanvue's documented MCP custom tools for the supported single-image flow. */
+  private async publishImageViaMcp(input: ConnectorPublishInput): Promise<ConnectorPublishResult | null> {
+    // The MCP create-image-post tool requires read:media. If a creator granted
+    // only upload/post scopes, use the REST multipart flow instead of invoking
+    // an MCP operation that their token is not authorized to perform.
+    if (!this.hasGrantedScope('read:media')) return null;
+
+    await this.ensureFreshToken();
+    const mcp = new FanvueMcpClient(this.fetchImpl);
+    await mcp.connect({ endpoint: FANVUE_MCP_ENDPOINT, accessToken: this.auth.accessToken });
+    if (!mcp.hasTool('custom__start-image-upload') || !mcp.hasTool('custom__create-image-post')) return null;
+
+    const imageBytes = await this.downloadMedia(input.mediaUrls[0]!);
+    const upload = await mcp.startImageUpload();
+    const etag = await mcp.uploadImageBytes(upload.uploadUrl, imageBytes);
+    const rawAudience = input.options?.['audience'];
+    const audience = rawAudience === 'subscribers' ? 'subscribers' : 'followers-and-subscribers';
+    const rawPrice = input.options?.['price'];
+    const rawCollections = input.options?.['collectionUuids'];
+    const rawExpiresAt = input.options?.['expiresAt'];
+    const post = await mcp.createImagePost({
+      image: { mediaUuid: upload.mediaUuid, uploadId: upload.uploadId, etag },
+      audience,
+      text: input.caption,
+      ...(typeof rawPrice === 'number' ? { price: rawPrice } : {}),
+      ...(input.scheduledFor ? { publishAt: input.scheduledFor } : {}),
+      ...(typeof rawExpiresAt === 'string' ? { expiresAt: rawExpiresAt } : {}),
+      ...(Array.isArray(rawCollections) && rawCollections.every(value => typeof value === 'string')
+        ? { collectionUuids: rawCollections }
+        : {}),
+    });
+    return this.postResult({
+      uuid: post.uuid,
+      createdAt: post.createdAt,
+      text: post.text,
+      price: post.price,
+      audience: post.audience,
+      publishAt: post.publishAt,
+      publishedAt: post.publishedAt,
+      expiresAt: post.expiresAt,
     });
   }
 
   /** Account earnings, not post engagement. Uses this connector's bound egress transport. */
   async fetchEarningsSummary(): Promise<FanvueEarningsSummary> {
+    this.assertGrantedScope('earnings summary', 'read:insights');
     const response = await this.fanvueRequest<unknown>(
       'GET', '/insights/earnings/summary?timezone=UTC&granularity=day',
     );
@@ -482,6 +747,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     cursor?: string,
     size = 50,
   ): Promise<FanvueEarningsPage> {
+    this.assertGrantedScope('earnings history', 'read:insights');
     const boundedSize = pageValue(size, 'earnings page size', 50);
     const query = insightsQuery({ startDate, endDate, cursor, size: boundedSize });
     const response = await this.fanvueRequest<unknown>('GET', `/insights/earnings?${query}`);
@@ -495,6 +761,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     page = 1,
     size = 50,
   ): Promise<FanvueTopSpendersPage> {
+    this.assertGrantedScope('top-spender insights', 'read:fan');
     const query = insightsQuery({
       startDate,
       endDate,
@@ -512,6 +779,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     cursor?: string,
     size = 50,
   ): Promise<FanvueSubscriberEventsPage> {
+    this.assertGrantedScope('subscriber events', 'read:fan');
     const query = insightsQuery({ startDate, endDate, cursor, size: pageValue(size, 'subscriber page size', 50) });
     const response = await this.fanvueRequest<unknown>('GET', `/insights/subscribers?${query}`);
     return parseFanvueSubscriberEvents(response);
@@ -519,6 +787,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
   /** Current subscriber count from the documented smart-list snapshot. */
   async fetchSmartLists(): Promise<FanvueSmartList[]> {
+    this.assertGrantedScope('smart lists', 'read:chat');
     const response = await this.fanvueRequest<unknown>('GET', '/chats/lists/smart');
     return parseFanvueSmartLists(response);
   }
@@ -528,6 +797,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     if (userUuids.length === 0 || userUuids.length > 20) {
       throw new Error('Fanvue fan insights require between 1 and 20 user UUIDs');
     }
+    this.assertGrantedScope('fan insights', 'read:fan');
     const query = insightsQuery({ fanUuids: userUuids.join(',') });
     const response = await this.fanvueRequest<unknown>('GET', `/insights/fans?${query}`);
     return parseFanvueFanInsights(response);
@@ -535,11 +805,13 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
   /** Read-only unread counts; this endpoint does not mark chats as read. */
   async fetchUnreadCounts(): Promise<FanvueUnreadCounts> {
+    this.assertGrantedScope('unread chat counts', 'read:chat');
     const response = await this.fanvueRequest<unknown>('GET', '/chats/unread');
     return parseFanvueUnreadCounts(response);
   }
 
   async fetchMessageMedia(userUuid: string, messageUuid: string, mediaUuids: string[]): Promise<FanvueMessageMedia> {
+    this.assertGrantedScope('chat media', 'read:chat');
     const query = messageMediaQuery(userUuid, messageUuid, mediaUuids);
     const response = await this.fanvueRequest<unknown>('GET', `/chats/${userUuid}/messages/${messageUuid}/media?${query}`);
     return parseMessageMedia(response, messageUuid, mediaUuids);
@@ -552,6 +824,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
   }
 
   async fetchChats(page = 1, size = 25): Promise<FanvueChatPage> {
+    this.assertGrantedScope('chat listing', 'read:chat');
     const query = inboxPageQuery(page, size);
     const response = await this.fanvueRequest<unknown>('GET', `/chats?${query}`);
     return parseChatPage(response, page, size);
@@ -559,6 +832,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
   /** Inspection must not silently consume unread state or send read receipts. */
   async fetchChatMessages(userUuid: string, page = 1, size = 25): Promise<FanvueMessagePage> {
+    this.assertGrantedScope('chat history', 'read:chat');
     const user = inboxUserUuid(userUuid);
     const query = inboxPageQuery(page, size);
     query.set('markAsRead', 'false');
@@ -572,6 +846,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
    * before invoking this and reconcile uncertain outcomes outside this adapter.
    */
   async sendTextReply(userUuid: string, text: string, beforeDispatch: () => Promise<void>): Promise<{ messageUuid: string }> {
+    this.assertGrantedScope('chat reply', 'write:chat');
     const user = inboxUserUuid(userUuid), body = { text: replyText(text) };
     await this.ensureFreshToken(); // Failure here precedes message dispatch.
     await beforeDispatch(); // Permission and durable fence must commit after refresh.
@@ -596,6 +871,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
+    this.assertGrantedScope('post metrics', 'read:post');
     const post = await this.fanvueRequest<FanvuePost>('GET', `/posts/${remoteId}`);
 
     return {

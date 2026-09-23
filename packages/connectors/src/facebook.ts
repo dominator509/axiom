@@ -19,6 +19,8 @@ import type {
   MetricPeriod,
   ValidationReport,
   MediaType,
+  SocialOperationInput,
+  SocialOperationResult,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
 import { mediaTypeHint, validatePublish } from './validation.js';
@@ -50,6 +52,10 @@ interface FbInsightsResponse {
 interface FbPermissionsResponse {
   success: boolean;
 }
+interface FbCommentsResponse {
+  data: Array<{ id: string; message?: string; from?: { id?: string; name?: string }; created_time?: string; permalink_url?: string }>;
+  paging?: { cursors?: { after?: string } };
+}
 
 export class FacebookConnector extends BaseConnector implements SocialConnector {
   constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
@@ -57,14 +63,16 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
   }
 
   capability(): ConnectorCapability {
+    const canPublish = this.hasGrantedScope('pages_manage_posts');
+    const canReadMetrics = this.hasGrantedScope('pages_read_engagement');
     return {
-      publish: true,
-      media: [
+      publish: canPublish,
+      media: canPublish ? [
         'image' as MediaType,
         'video' as MediaType,
         'story' as MediaType,
         'text' as MediaType,
-      ],
+      ] : [],
       maxMediaBytes: 4_294_967_296, // 4 GB
       // This connector publishes one Page post per request. Publishing a
       // list here would make the implementation emit several independent
@@ -75,8 +83,13 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
       // The worker owns the scheduled slot; this connector publishes when
       // the job is due and does not request a provider-side schedule.
       scheduling: 'internal' as const,
-      metrics: ['impressions', 'likes', 'comments', 'shares'],
-      refreshMetrics: true,
+      metrics: canReadMetrics ? ['impressions', 'likes', 'comments', 'shares'] : [],
+      refreshMetrics: canReadMetrics,
+      operations: [
+        ...(canReadMetrics ? ['comments.read' as const] : []),
+        ...(this.hasGrantedScope('pages_manage_engagement') ? ['comments.reply' as const, 'comments.moderate' as const] : []),
+      ],
+      moderationActions: this.hasGrantedScope('pages_manage_engagement') ? ['hide', 'delete', 'approve'] : [],
     };
   }
 
@@ -86,6 +99,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
     return this.idempotentPublish(input, async () => {
+      this.assertGrantedScope('publishing', 'pages_manage_posts');
       const pageId = this.auth.externalUserId;
       if (!pageId) {
         throw new Error('Facebook externalUserId (Page ID) is required');
@@ -209,6 +223,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
+    this.assertGrantedScope('metrics', 'pages_read_engagement');
     const pageId = this.auth.externalUserId;
     if (!pageId) {
       throw new Error('Facebook externalUserId (Page ID) is required for metrics');
@@ -302,6 +317,54 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
       },
       raw: insights as unknown as Record<string, unknown>,
     };
+  }
+
+  async executeOperation(operation: SocialOperationInput): Promise<SocialOperationResult> {
+    if (!this.capability().operations?.includes(operation.type)) {
+      throw new Error(`Facebook ${operation.type} is unavailable: required permission was not granted`);
+    }
+    const readOnly = operation.type === 'comments.read';
+    this.assertGrantedScope(operation.type, ...(readOnly ? ['pages_read_engagement'] : ['pages_manage_engagement']));
+    const pageId = this.auth.externalUserId;
+    if (!pageId) throw new Error('Facebook Page ID is required for community operations');
+    if (operation.type === 'comments.read') {
+      const url = new URL(`${FB_GRAPH_BASE}/${encodeURIComponent(operation.postId)}/comments`);
+      url.searchParams.set('fields', 'id,message,from,created_time,permalink_url');
+      url.searchParams.set('limit', String(operation.limit ?? 50));
+      if (operation.cursor) url.searchParams.set('after', operation.cursor);
+      const response = await this.apiGet<FbCommentsResponse>(url.toString());
+      return {
+        type: 'comments',
+        items: (response.data ?? []).map((comment) => ({
+          id: comment.id,
+          postId: operation.postId,
+          text: comment.message ?? '',
+          ...(comment.from?.id ? { authorId: comment.from.id } : {}),
+          ...(comment.from?.name ? { authorName: comment.from.name } : {}),
+          ...(comment.created_time ? { createdAt: comment.created_time } : {}),
+          ...(comment.permalink_url ? { permalink: comment.permalink_url } : {}),
+        })),
+        ...(response.paging?.cursors?.after ? { nextCursor: response.paging.cursors.after } : {}),
+      };
+    }
+    if (operation.type === 'comments.reply') {
+      const response = await this.apiPost<{ id?: string }>(
+        `${FB_GRAPH_BASE}/${encodeURIComponent(operation.commentId)}/comments`,
+        { message: operation.text },
+      );
+      return { type: 'mutation', success: true, ...(response.id ? { remoteId: response.id } : {}) };
+    }
+    if (operation.type === 'comments.moderate') {
+      if (operation.action === 'delete') {
+        await this.apiDelete(`${FB_GRAPH_BASE}/${encodeURIComponent(operation.commentId)}`);
+      } else if (operation.action === 'hide' || operation.action === 'approve') {
+        await this.apiPost(`${FB_GRAPH_BASE}/${encodeURIComponent(operation.commentId)}`, { is_hidden: operation.action === 'hide' });
+      } else {
+        throw new Error(`Facebook does not support comment action '${operation.action}'`);
+      }
+      return { type: 'mutation', success: true, remoteId: operation.commentId };
+    }
+    throw new Error(`Facebook does not support ${operation.type}`);
   }
 
   async revoke(): Promise<void> {

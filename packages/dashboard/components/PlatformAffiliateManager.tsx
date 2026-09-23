@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import * as React from 'react';
-import { CATALOGS, formatNumber, LocaleCatalog } from '@axiom/core';
+import { CATALOGS, formatNumber, LocaleCatalog, type SupportedLocale } from '@axiom/core';
 import type {
   AffiliateCampaign,
   AffiliateCampaignReport,
@@ -24,7 +24,7 @@ function hasReactDispatcher(): boolean {
   return Boolean(internals && internals.H);
 }
 
-function useAffiliateLocale(): { locale: string; t: (key: string, values?: Record<string, string | number>) => string } {
+function useAffiliateLocale(): { locale: SupportedLocale; t: (key: string, values?: Record<string, string | number>) => string } {
   if (hasReactDispatcher()) {
     const { locale, t } = useLocale();
     return { locale, t };
@@ -32,11 +32,11 @@ function useAffiliateLocale(): { locale: string; t: (key: string, values?: Recor
   return { locale: 'en', t: englishT };
 }
 
-function money(cents: number, locale: string): string {
+function money(cents: number, locale: SupportedLocale): string {
   return new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' }).format(cents / 100);
 }
 
-export function formatAffiliateDate(value: string, locale: string): string {
+export function formatAffiliateDate(value: string, locale: SupportedLocale): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(value));
 }
 

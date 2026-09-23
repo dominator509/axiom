@@ -19,6 +19,8 @@ import type {
   MetricPeriod,
   ValidationReport,
   MediaType,
+  SocialOperationInput,
+  SocialOperationResult,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
 import { mediaTypeHint, validatePublish } from './validation.js';
@@ -54,15 +56,24 @@ interface ThreadsPermissionsResponse {
   success: boolean;
 }
 
+interface ThreadsRepliesResponse {
+  data?: Array<{ id?: string; text?: string; username?: string; timestamp?: string; permalink?: string }>;
+  paging?: { cursors?: { after?: string } };
+}
+
 export class ThreadsConnector extends BaseConnector implements SocialConnector {
   constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
     super('threads' as Platform, 'Threads', 'api' as PublishMode, auth, fetchImpl);
   }
 
   capability(): ConnectorCapability {
+    const canPublish = this.hasGrantedScope('threads_content_publish');
+    const canReadMetrics = this.hasGrantedScope('threads_manage_insights');
+    const canReadReplies = this.hasGrantedScope('threads_read_replies');
+    const canManageReplies = this.hasGrantedScope('threads_manage_replies');
     return {
-      publish: true,
-      media: ['image' as MediaType, 'video' as MediaType, 'carousel' as MediaType],
+      publish: canPublish,
+      media: canPublish ? ['image' as MediaType, 'video' as MediaType, 'carousel' as MediaType] : [],
       maxMediaBytes: 104_857_600, // 100 MB
       maxMediaCount: 20,
       caption: true,
@@ -70,8 +81,14 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
       // The worker owns the scheduled slot; Threads containers are created
       // and published immediately when the job runs.
       scheduling: 'internal' as const,
-      metrics: ['impressions', 'likes', 'comments', 'shares', 'reposts', 'quotes'],
-      refreshMetrics: true,
+      metrics: canReadMetrics ? ['impressions', 'likes', 'comments', 'shares', 'reposts', 'quotes'] : [],
+      refreshMetrics: canReadMetrics,
+      operations: [
+        ...(canReadReplies ? ['comments.read' as const] : []),
+        ...(canPublish && canManageReplies ? ['comments.reply' as const] : []),
+        ...(canManageReplies ? ['comments.moderate' as const] : []),
+      ],
+      moderationActions: canManageReplies ? ['hide', 'approve', 'reject'] : [],
     };
   }
 
@@ -81,6 +98,7 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
     return this.idempotentPublish(input, async () => {
+      this.assertGrantedScope('publishing', 'threads_content_publish');
       const threadsUserId = this.auth.externalUserId;
       if (!threadsUserId) {
         throw new Error('Threads externalUserId (Threads User ID) is required');
@@ -156,6 +174,7 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
+    this.assertGrantedScope('metrics', 'threads_manage_insights');
     const threadsUserId = this.auth.externalUserId;
     if (!threadsUserId) {
       throw new Error('Threads externalUserId is required for metrics');
@@ -210,6 +229,62 @@ export class ThreadsConnector extends BaseConnector implements SocialConnector {
       },
       raw: data as unknown as Record<string, unknown>,
     };
+  }
+
+  async executeOperation(operation: SocialOperationInput): Promise<SocialOperationResult> {
+    if (!this.capability().operations?.includes(operation.type)) {
+      throw new Error(`Threads ${operation.type} is unavailable: required permission was not granted`);
+    }
+    const base = THREADS_GRAPH_BASE;
+    if (operation.type === 'comments.read') {
+      this.assertGrantedScope('reply reads', 'threads_read_replies');
+      const url = new URL(`${base}/${encodeURIComponent(operation.postId)}/replies`);
+      url.searchParams.set('fields', 'id,text,username,timestamp,permalink');
+      url.searchParams.set('limit', String(operation.limit ?? 50));
+      if (operation.cursor) url.searchParams.set('after', operation.cursor);
+      const response = await this.apiGet<ThreadsRepliesResponse>(url.toString());
+      return {
+        type: 'comments',
+        items: (response.data ?? []).flatMap(reply => typeof reply.id === 'string' ? [{
+          id: reply.id,
+          postId: operation.postId,
+          text: reply.text ?? '',
+          ...(reply.username ? { authorName: reply.username } : {}),
+          ...(reply.timestamp ? { createdAt: reply.timestamp } : {}),
+          ...(reply.permalink ? { permalink: reply.permalink } : {}),
+        }] : []),
+        ...(response.paging?.cursors?.after ? { nextCursor: response.paging.cursors.after } : {}),
+      };
+    }
+    if (operation.type === 'comments.reply') {
+      this.assertGrantedScope('reply publishing', 'threads_content_publish', 'threads_manage_replies');
+      const replyText = operation.text.trim();
+      if (!replyText || replyText.length > 500) throw new Error('Threads replies must contain 1–500 characters');
+      const createUrl = graphUrl(`${base}/me/threads`, {
+        media_type: 'TEXT',
+        text: replyText,
+        reply_to_id: operation.commentId,
+      });
+      const container = await this.apiPost<ThreadsMediaContainerResponse>(createUrl);
+      if (!container.id) throw new Error('Threads did not return a reply container ID');
+      const published = await this.apiPost<ThreadsPublishResponse>(graphUrl(`${base}/me/threads_publish`, {
+        creation_id: container.id,
+      }));
+      if (!published.id) throw new Error('Threads did not confirm the published reply');
+      return { type: 'mutation', success: true, remoteId: published.id };
+    }
+    if (operation.type === 'comments.moderate') {
+      this.assertGrantedScope('reply moderation', 'threads_manage_replies');
+      if (operation.action === 'hide') {
+        await this.apiPost(`${base}/${encodeURIComponent(operation.commentId)}/manage_reply?hide=true`);
+      } else if (operation.action === 'approve' || operation.action === 'reject') {
+        await this.apiPost(`${base}/${encodeURIComponent(operation.commentId)}/manage_pending_reply?approve=${operation.action === 'approve'}`);
+      } else {
+        throw new Error(`Threads does not support reply moderation action '${operation.action}'`);
+      }
+      return { type: 'mutation', success: true, remoteId: operation.commentId };
+    }
+    throw new Error(`Threads does not support ${operation.type}`);
   }
 
   async revoke(): Promise<void> {

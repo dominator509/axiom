@@ -7,6 +7,7 @@ import { schema } from '@axiom/db';
 import { renderViralInsightCard, resolveOrgDigestLocale } from '@axiom/core';
 import type { Executor, ExecutorContext } from './context.js';
 import { enqueueJob } from '../enqueue.js';
+import { enqueueWeeklyViralInsight } from '../viral-insight-schedule.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const WINDOW_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -30,12 +31,35 @@ function rowsOf(value: unknown): Array<Record<string, unknown>> {
   return Array.isArray(value) ? value as Array<Record<string, unknown>> : (value as { rows?: Array<Record<string, unknown>> })?.rows ?? [];
 }
 
-export const viralInsight: Executor = async ({ tx, job }: ExecutorContext) => {
+export const viralInsight: Executor = async (ctx: ExecutorContext) => {
+  const { tx, job } = ctx;
   const modelId = job.payload.modelId;
   const windowKey = job.payload.windowKey;
   if (typeof modelId !== 'string' || !UUID_RE.test(modelId)) throw new Error('Invalid viral insight model');
   if (typeof windowKey !== 'string') throw new Error('Invalid viral insight window');
   const { start, end } = windowBounds(windowKey);
+
+  const automaticScheduleId = job.payload.automaticScheduleId;
+  if (automaticScheduleId !== undefined) {
+    if (typeof automaticScheduleId !== 'string' || !UUID_RE.test(automaticScheduleId))
+      throw new Error('Invalid automatic viral insight schedule');
+    const [model] = await tx.select({ scheduleId: schema.modelProfile.viralInsightScheduleId })
+      .from(schema.modelProfile)
+      .where(and(
+        eq(schema.modelProfile.orgId, job.org_id),
+        eq(schema.modelProfile.id, modelId),
+      ))
+      .limit(1)
+      .for('update');
+    // Disabling or replacing a schedule invalidates already-queued work. The
+    // next occurrence is chained in the same transaction as this completion.
+    if (model?.scheduleId !== automaticScheduleId) return;
+    const persistContinuation: NonNullable<ExecutorContext['persistScheduledContinuation']> =
+      ctx.persistScheduledContinuation ?? (async <T>(operation: (continuationTx: any) => Promise<T>): Promise<T> => operation(tx));
+    await persistContinuation(continuationTx => enqueueWeeklyViralInsight(
+      continuationTx, job.org_id, modelId, automaticScheduleId,
+    ));
+  }
 
   const raw = await tx.execute(sql`
     SELECT

@@ -18,6 +18,8 @@ import type {
   MetricPeriod,
   ValidationReport,
   MediaType,
+  SocialOperationInput,
+  SocialOperationResult,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
 import { mediaTypeHint, validatePublish } from './validation.js';
@@ -34,6 +36,10 @@ interface RedditSubmitResponse {
       url?: string;
     };
   };
+}
+interface RedditCommentListing {
+  kind?: string;
+  data?: { after?: string | null; children?: Array<{ kind?: string; data?: { id?: string; name?: string; link_id?: string; body?: string; author?: string; created_utc?: number; permalink?: string } }> };
 }
 
 interface RedditAboutRulesResponse {
@@ -76,16 +82,24 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
   }
 
   capability(): ConnectorCapability {
+    const canPublish = this.hasGrantedScope('submit');
+    const canReadMetrics = this.hasGrantedScope('read');
     return {
-      publish: true,
-      media: ['image' as MediaType, 'video' as MediaType, 'text' as MediaType],
+      publish: canPublish,
+      media: canPublish ? ['image' as MediaType, 'video' as MediaType, 'text' as MediaType] : [],
       maxMediaBytes: 1_073_741_824, // 1 GB
       maxMediaCount: 1,
       caption: true,
       maxCaptionLength: 40_000,
       scheduling: 'internal' as const,
-      metrics: ['views', 'likes', 'comments'],
-      refreshMetrics: true,
+      metrics: canReadMetrics ? ['views', 'likes', 'comments'] : [],
+      refreshMetrics: canReadMetrics,
+      operations: [
+        ...(canReadMetrics ? ['comments.read' as const] : []),
+        ...(canPublish ? ['comments.reply' as const] : []),
+        ...(this.hasGrantedScope('modposts') ? ['comments.moderate' as const] : []),
+      ],
+      moderationActions: this.hasGrantedScope('modposts') ? ['hide', 'delete', 'approve', 'reject'] : [],
     };
   }
 
@@ -95,6 +109,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
     return this.idempotentPublish(input, async () => {
+      this.assertGrantedScope('publishing', 'submit');
       const subreddit = (input.options?.subreddit as string) ?? '';
       if (!subreddit) {
         throw new Error('Reddit requires a subreddit in input.options.subreddit');
@@ -227,6 +242,7 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
+    this.assertGrantedScope('metrics', 'read');
     // Normalize remoteId — strip t3_ prefix if present, then re-add
     const normalizedId = remoteId.startsWith('t3_') ? remoteId : `t3_${remoteId}`;
 
@@ -280,6 +296,72 @@ export class RedditConnector extends BaseConnector implements SocialConnector {
         permalink: post.permalink,
       },
     };
+  }
+
+  async executeOperation(operation: SocialOperationInput): Promise<SocialOperationResult> {
+    if (!this.capability().operations?.includes(operation.type)) {
+      throw new Error(`Reddit ${operation.type} is unavailable: required permission was not granted`);
+    }
+    if (operation.type === 'comments.read') {
+      this.assertGrantedScope('comments.read', 'read');
+      const url = new URL(`${REDDIT_API_BASE}/comments/${encodeURIComponent(operation.postId.replace(/^t3_/, ''))}.json`);
+      url.searchParams.set('limit', String(operation.limit ?? 50));
+      if (operation.cursor) url.searchParams.set('after', operation.cursor);
+      const response = await this.fetchImpl(url.toString(), {
+        headers: { Authorization: `Bearer ${this.auth.accessToken}`, 'User-Agent': 'axiom:connector:reddit:v0.1.0 (by /u/axiom)' },
+      });
+      if (!response.ok) throw new Error(`Reddit comment read failed: HTTP ${response.status}`);
+      const body = await response.json() as RedditCommentListing[];
+      const listing = Array.isArray(body) ? body[1]?.data : undefined;
+      return {
+        type: 'comments',
+        items: (listing?.children ?? []).filter((child) => child.kind === 't1' && child.data?.id).map((child) => ({
+          id: child.data!.name ?? `t1_${child.data!.id}`,
+          postId: child.data!.link_id ?? operation.postId,
+          text: child.data!.body ?? '',
+          ...(child.data?.author ? { authorName: child.data.author } : {}),
+          ...(typeof child.data?.created_utc === 'number' ? { createdAt: new Date(child.data.created_utc * 1000).toISOString() } : {}),
+          ...(child.data?.permalink ? { permalink: `https://www.reddit.com${child.data.permalink}` } : {}),
+        })),
+        ...(listing?.after ? { nextCursor: listing.after } : {}),
+      };
+    }
+    if (operation.type === 'comments.reply') {
+      this.assertGrantedScope('comments.reply', 'submit');
+      const response = await this.fetchImpl(`${REDDIT_API_BASE}/api/comment`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.auth.accessToken}`,
+          'User-Agent': 'axiom:connector:reddit:v0.1.0 (by /u/axiom)',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({ api_type: 'json', thing_id: operation.commentId, text: operation.text }),
+      });
+      if (!response.ok) throw new Error(`Reddit comment reply failed: HTTP ${response.status}`);
+      const body = await response.json() as { json?: { data?: { things?: Array<{ data?: { name?: string } }> } } };
+      const remoteId = body.json?.data?.things?.[0]?.data?.name;
+      if (!remoteId) throw new Error('Reddit did not return a comment ID');
+      return { type: 'mutation', success: true, remoteId };
+    }
+    if (operation.type === 'comments.moderate') {
+      this.assertGrantedScope('comment moderation', 'modposts');
+      if (!['hide', 'delete', 'approve', 'reject'].includes(operation.action)) {
+        throw new Error(`Reddit does not support comment action '${operation.action}'`);
+      }
+      const approve = operation.action === 'approve';
+      const response = await this.fetchImpl(`${REDDIT_API_BASE}/api/${approve ? 'approve' : 'remove'}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.auth.accessToken}`,
+          'User-Agent': 'axiom:connector:reddit:v0.1.0 (by /u/axiom)',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({ id: operation.commentId, ...(operation.action === 'reject' ? { spam: 'true' } : {}) }),
+      });
+      if (!response.ok) throw new Error(`Reddit comment moderation failed: HTTP ${response.status}`);
+      return { type: 'mutation', success: true, remoteId: operation.commentId };
+    }
+    throw new Error(`Reddit does not support ${operation.type}`);
   }
 
   async revoke(): Promise<void> {

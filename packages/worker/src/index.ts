@@ -6,6 +6,7 @@ export { publishIdemKey, minuteSlot, jobDedupeKey } from './idempotency.js';
 export type { PublishKeyInput } from './idempotency.js';
 export { enqueueJob } from './enqueue.js';
 export { enqueueWeeklyDigest, nextDigestAt } from './digest-schedule.js';
+export { enqueueWeeklyViralInsight, nextViralInsightAt } from './viral-insight-schedule.js';
 export type { EnqueueJobInput } from './enqueue.js';
 export { embedFeatures } from './embedding.js';
 export { claimNextJob } from './claim.js';
@@ -53,3 +54,4 @@ export {
 } from './connection.js';
 export type { TargetConnectionRef, ResolvedTargetConnector, ResolvedPatreonConnector } from './connection.js';
 export { storeGeneratedAsset } from './generated-asset-store.js';
+export { resolveProviderAssetUrl } from './executors/publish.js';

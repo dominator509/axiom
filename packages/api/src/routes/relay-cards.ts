@@ -33,7 +33,36 @@ const publicCard = {
   enabled: schema.relayCard.enabled,
   priority: schema.relayCard.priority,
   createdAt: schema.relayCard.createdAt,
+  // Kept out of the generic response; safeRelayCard extracts only the
+  // non-secret Snapchat manual-assist fields for the human action UI.
+  config: schema.relayCard.config,
 };
+
+function safeSnapchatHandoff(channel: string | null, config: unknown) {
+  if (channel !== 'manual-assist' || !config || typeof config !== 'object' || Array.isArray(config)) return undefined;
+  const candidate = (config as Record<string, unknown>).snapchatManualAssist;
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return undefined;
+  const value = candidate as Record<string, unknown>;
+  const instructions = typeof value.instructions === 'string' ? value.instructions.slice(0, 2000) : '';
+  const caption = typeof value.caption === 'string' ? value.caption.slice(0, 1000) : '';
+  const assets = Array.isArray(value.assets)
+    ? value.assets.flatMap(asset => {
+        if (typeof asset !== 'string' || asset.length > 2048) return [];
+        try {
+          const parsed = new URL(asset);
+          return parsed.protocol === 'https:' && !parsed.username && !parsed.password ? [parsed.toString()] : [];
+        } catch { return []; }
+      }).slice(0, 4)
+    : [];
+  let handoffUrl: string | undefined;
+  if (typeof value.handoffUrl === 'string') {
+    try {
+      const parsed = new URL(value.handoffUrl);
+      if (parsed.protocol === 'https:' && (parsed.hostname === 'snapchat.com' || parsed.hostname.endsWith('.snapchat.com')) && !parsed.username && !parsed.password) handoffUrl = parsed.toString();
+    } catch { /* omit invalid external link */ }
+  }
+  return { instructions, caption, assets, ...(handoffUrl ? { handoffUrl } : {}) };
+}
 
 function safeRelayCard(row: {
   id: string;
@@ -47,6 +76,7 @@ function safeRelayCard(row: {
   enabled: boolean;
   priority: number;
   createdAt: Date;
+  config?: unknown;
 }) {
   return {
     id: row.id,
@@ -60,6 +90,7 @@ function safeRelayCard(row: {
     enabled: row.enabled,
     priority: row.priority,
     createdAt: row.createdAt,
+    snapchatHandoff: safeSnapchatHandoff(row.channel ?? null, row.config),
   };
 }
 

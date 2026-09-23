@@ -157,6 +157,9 @@ importers:
       '@axiom/core':
         specifier: workspace:*
         version: link:../core
+      '@axiom/fanvue-mcp':
+        specifier: workspace:*
+        version: link:../fanvue-mcp
       zod:
         specifier: ^3.23.0
         version: 3.25.76

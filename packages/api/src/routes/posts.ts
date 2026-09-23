@@ -62,11 +62,20 @@ export async function hasUnknownPublishOutcome(
   return markers.length > 0;
 }
 
+const tiktokProviderOptionsSchema = z.object({
+  tiktokDeliveryMode: z.enum(['direct', 'draft']).optional(),
+}).strict();
+
 const schedulePostSchema = z.object({
   bundleId: z.string().uuid(),
   platform: z.string().min(1).max(50),
   connectionId: z.string().uuid().optional(),
   scheduledFor: z.string().datetime(),
+  providerOptions: tiktokProviderOptionsSchema.optional(),
+}).strict().superRefine((value, context) => {
+  if (value.platform !== 'tiktok' && value.providerOptions?.tiktokDeliveryMode) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['providerOptions'], message: 'TikTok delivery options are valid only for TikTok targets' });
+  }
 });
 
 // Publication state is owned by the worker after it has performed the
@@ -77,13 +86,15 @@ const rescheduleSchema = z
     scheduledFor: z.string().datetime().optional(),
     platform: z.string().min(1).max(50).optional(),
     connectionId: z.string().uuid().optional(),
+    providerOptions: tiktokProviderOptionsSchema.optional(),
   })
   .strict()
   .refine(
     (value) =>
       value.scheduledFor !== undefined ||
       value.platform !== undefined ||
-      value.connectionId !== undefined,
+      value.connectionId !== undefined ||
+      value.providerOptions !== undefined,
     {
       message: 'at least one editable field is required',
     },
@@ -147,6 +158,7 @@ router.get('/models/:modelId/calendar', async (c) => {
         state: schema.postTarget.state,
         remoteId: schema.postTarget.remoteId,
         error: schema.postTarget.error,
+        providerOptions: schema.postTarget.providerOptions,
       })
       .from(schema.postTarget)
       .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.postTarget.bundleId))
@@ -249,6 +261,7 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
         connectionId: connectionResolution.connections.get(platform),
         scheduledFor,
         state: 'pending',
+        providerOptions: body.providerOptions ?? {},
         idemKey: Buffer.from(`${body.bundleId}|${platform}|${scheduledFor.toISOString()}`),
       })
       .returning();
@@ -257,6 +270,7 @@ router.post('/posts', zValidator('json', schedulePostSchema), async (c) => {
       platform,
       connectionId: connectionResolution.connections.get(platform),
       scheduledFor: scheduledFor.toISOString(),
+      providerOptions: body.providerOptions ?? {},
     });
 
     // Canonical flow (L2.0): schedule → worker publish at slot time. Enqueue
@@ -324,6 +338,12 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
     const nextPlatform = (platform ?? existing.platform) as Platform;
     const nextScheduledFor = scheduledFor ?? existing.scheduledFor;
     const platformChanged = platform !== undefined && platform !== existing.platform;
+    const nextProviderOptions = body.providerOptions ?? (platformChanged && platform !== 'tiktok'
+      ? {}
+      : existing.providerOptions ?? {});
+    if (nextPlatform !== 'tiktok' && nextProviderOptions.tiktokDeliveryMode) {
+      return { status: 400 as const, data: null, error: 'TikTok delivery options are valid only for TikTok targets' };
+    }
 
     const bundles = await tx
       .select({
@@ -399,6 +419,7 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
       .set({
         ...(scheduledFor ? { scheduledFor } : {}),
         ...(platform ? { platform } : {}),
+        providerOptions: nextProviderOptions,
         connectionId: connectionResolution.connections.get(nextPlatform),
         idemKey: nextIdemKey,
       })
@@ -417,7 +438,7 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
         error: 'post changed while the edit was being applied; retry the action',
       };
     }
-    if (scheduledFor || platform || body.connectionId) {
+    if (scheduledFor || platform || body.connectionId || body.providerOptions) {
       // Keep the durable worker handoff aligned with the edited target. The
       // dedupe key makes this a no-op when the original job is still present;
       // the UPDATE fixes its run time when it is ready, and enqueue repairs a
@@ -445,6 +466,7 @@ router.patch('/posts/:id', zValidator('json', rescheduleSchema), async (c) => {
     return { status: 200 as const, data: rows[0] };
   });
   if (result.status === 404) return apiError(c, 404, statusTitle(404), 'post not found');
+  if (result.status === 400) return apiError(c, 400, statusTitle(400), result.error);
   if (result.status === 409) return apiError(c, 409, statusTitle(409), result.error);
   return c.json({ data: result.data });
 });

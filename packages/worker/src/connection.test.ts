@@ -36,6 +36,14 @@ describe('parseConnectorAuth', () => {
     );
   });
 
+  it('accepts an empty access token only for explicitly marked Snapchat manual assist', () => {
+    expect(parseConnectorAuth(JSON.stringify({ accessToken: '', extra: { snapchatManualAssist: true, snapchatProfileUrl: 'https://www.snapchat.com/add/creator' } }))).toEqual({
+      accessToken: '',
+      extra: { snapchatManualAssist: true, snapchatProfileUrl: 'https://www.snapchat.com/add/creator' },
+    });
+    expect(() => parseConnectorAuth(JSON.stringify({ accessToken: '', extra: { snapchatProfileUrl: 'https://www.snapchat.com/add/creator' } }))).toThrow('no access token');
+  });
+
   it('rejects empty credentials', () => {
     expect(() => parseConnectorAuth('   ')).toThrow('stored connector credential is empty');
   });

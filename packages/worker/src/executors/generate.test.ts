@@ -101,7 +101,7 @@ describe('content.generate caption revisions', () => {
     expect(messages[0].content).toContain('Original IG');
     expect(messages[0].content).toContain('Make it warmer');
     expect(state.chat.mock.calls[1][0][0].content).toContain('Original Threads');
-    expect(state.chat.mock.calls[0][1]).toEqual({ model: undefined, userId: 'operator-1' });
+    expect(state.chat.mock.calls[0][1]).toEqual(expect.objectContaining({ model: undefined, userId: 'operator-1' }));
     expect(state.updates).toEqual([
       {
         captions: { instagram: 'Revised IG', threads: 'Revised Threads' },

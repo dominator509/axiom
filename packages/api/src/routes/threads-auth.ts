@@ -34,6 +34,13 @@ const REDIRECT_URI = new URL('/api/v1/connectors/threads/callback', APPLICATION_
 const OAUTH_STATE_COOKIE = 'axiom_threads_oauth_state';
 const OAUTH_COOKIE_PATH = '/api/v1/connectors/threads';
 const OAUTH_REQUEST_TIMEOUT_MS = 30_000;
+const THREADS_SCOPES = [
+  'threads_basic',
+  'threads_content_publish',
+  'threads_manage_insights',
+  'threads_read_replies',
+  'threads_manage_replies',
+] as const;
 // Resolve on request so build-time OpenAPI generation can import the route
 // without requiring runtime deployment secrets.
 const oauthStateKey = () => resolveOAuthCookieSecret();
@@ -75,10 +82,7 @@ router.get('/authorize', async (c) => {
   const authUrl = new URL('https://threads.net/oauth/authorize');
   authUrl.searchParams.set('client_id', THREADS_APP_ID);
   authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
-  authUrl.searchParams.set(
-    'scope',
-    'threads_basic,threads_content_publish,threads_manage_insights',
-  );
+  authUrl.searchParams.set('scope', THREADS_SCOPES.join(','));
   authUrl.searchParams.set('response_type', 'code');
   const state = randomBytes(24).toString('base64url');
   setOAuthStateCookie(
@@ -195,6 +199,10 @@ router.get('/callback', async (c) => {
         accessToken: finalToken,
         externalUserId: threadsUserId,
         expiresAt: Math.floor(Date.now() / 1000) + expiresIn,
+        // The Threads token exchange does not return an authoritative scope
+        // list. These are the permissions requested in this OAuth grant; the
+        // connector still reports provider errors if Meta rejects a gated call.
+        extra: { grantedScopes: [...THREADS_SCOPES] },
       },
       actorRef: 'oauth:threads',
     });

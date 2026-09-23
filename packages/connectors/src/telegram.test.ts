@@ -69,7 +69,7 @@ describe('publish', () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({
         ok: true,
-        result: { message_id: 42, chat: { id: -100, type: 'channel' }, text: 'x' },
+        result: { message_id: 42, chat: { id: -100, type: 'channel', username: 'axiom_news' }, text: 'x' },
       }),
     );
     vi.stubGlobal('fetch', fetchMock);
@@ -115,6 +115,26 @@ describe('publish', () => {
     expect(body.text).toBe(
       '&lt;b&gt;unsafe &amp; untrusted&lt;/b&gt;\n\nhttps://fanvue.com/post/1?a=1&amp;b=2\n\n#&lt;tag&gt;',
     );
+  });
+
+  it.each([
+    ['image', 'sendPhoto', 'photo'],
+    ['video', 'sendVideo', 'video'],
+  ] as const)('uploads an explicit %s through %s', async (mediaType, method, field) => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      ok: true,
+      result: { message_id: 45, chat: { id: -100, type: 'channel' } },
+    }));
+    const connector = new TelegramConnector(AUTH, fetchMock);
+    const result = await connector.publish(input({
+      mediaUrls: ['https://media.example.test/asset'],
+      options: { mediaType },
+    }));
+    expect(result.state).toBe('published');
+    expect((fetchMock.mock.calls[0] as [string, RequestInit])[0]).toBe(`https://api.telegram.org/bot123:bot-token/${method}`);
+    const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string) as Record<string, string>;
+    expect(body[field]).toBe('https://media.example.test/asset');
+    expect(body.caption).toContain('New update is live');
   });
 
   it('fails when Telegram returns an API-level error in an HTTP 200 response', async () => {
@@ -184,29 +204,13 @@ describe('fetchMetrics', () => {
 });
 
 describe('revoke', () => {
-  it('calls logOut and logs the event', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true, result: true }));
-    vi.stubGlobal('fetch', fetchMock);
-
+  it('disconnects only this local account and never calls Telegram logOut', async () => {
+    const fetchMock = vi.fn();
     const c = new TelegramConnector(AUTH);
     await c.revoke();
-
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://api.telegram.org/bot123:bot-token/logOut');
-    expect(init.method).toBe('POST');
-    expect(c.getLogs().some((l) => l.message === 'Telegram bot logged out')).toBe(true);
-  });
-
-  it('fails closed when logOut returns an API-level error', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(jsonResponse({ ok: false, error_code: 401, description: 'invalid' })),
-    );
-
-    await expect(new TelegramConnector(AUTH).revoke()).rejects.toThrow(
-      'Telegram logOut rejected (401): invalid',
-    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(c.auth.accessToken).toBe('');
+    expect(c.auth.externalUserId).toBeUndefined();
+    expect(c.getLogs().at(-1)?.message).toContain('removed locally');
   });
 });

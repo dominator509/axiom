@@ -17,6 +17,7 @@ export const postTarget = pgTable(
       .notNull()
       .references(() => contentBundle.id),
     platform: text('platform').notNull(),
+    providerOptions: jsonb('provider_options').$type<{ tiktokDeliveryMode?: 'direct' | 'draft' }>().notNull().default({}),
     connectionId: uuid('connection_id'),
     scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
     state: text('state').notNull().default('pending'),

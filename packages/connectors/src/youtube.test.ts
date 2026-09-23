@@ -244,7 +244,7 @@ describe('publish', () => {
 
     const c = new YouTubeConnector(AUTH);
     await c.publish(
-      input({ options: { title: 'Long', durationSec: 120, aspectRatio: '9:16', tags: ['fun'] } }),
+      input({ options: { title: 'Long', durationSec: 181, aspectRatio: '9:16', tags: ['fun'] } }),
     );
 
     const initBody = JSON.parse(
@@ -253,6 +253,17 @@ describe('publish', () => {
       snippet: { tags: string[] };
     };
     expect(initBody.snippet.tags).toEqual(['fun']);
+  });
+
+  it('classifies square videos up to three minutes as Shorts', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(initResponse('https://upload.googleapis.com/up'))
+      .mockResolvedValueOnce(jsonResponse({ id: 'square-short', kind: 'youtube#video' }));
+    const c = new YouTubeConnector(AUTH, fetchMock);
+    await c.publish(input({ options: { title: 'Square short', durationSec: 180, aspectRatio: '1:1', tags: [] } }));
+    const initBody = JSON.parse((fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string) as { snippet: { tags: string[] } };
+    expect(initBody.snippet.tags).toEqual(['#Shorts']);
   });
 
   it('applies default title, tags, category and privacy status', async () => {
@@ -360,15 +371,16 @@ describe('publish', () => {
 });
 
 describe('fetchMetrics', () => {
-  it('parses string statistics into ConnectorMetrics', async () => {
+  it('parses YouTube Analytics report rows into ConnectorMetrics', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({
-        items: [
-          {
-            id: 'vid-1',
-            statistics: { viewCount: '100', likeCount: '5', commentCount: '2', favoriteCount: '1' },
-          },
+        columnHeaders: [
+          { name: 'video', columnType: 'DIMENSION', dataType: 'STRING' },
+          { name: 'views', columnType: 'METRIC', dataType: 'INTEGER' },
+          { name: 'likes', columnType: 'METRIC', dataType: 'INTEGER' },
+          { name: 'comments', columnType: 'METRIC', dataType: 'INTEGER' },
         ],
+        rows: [['vid-1', 100, 5, 2]],
       }),
     );
     vi.stubGlobal('fetch', fetchMock);
@@ -381,31 +393,71 @@ describe('fetchMetrics', () => {
     expect(metrics.metrics).toEqual({ views: 100, likes: 5, comments: 2 });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://www.googleapis.com/youtube/v3/videos?part=statistics&id=vid-1');
+    const parsed = new URL(url);
+    expect(parsed.origin + parsed.pathname).toBe('https://www.googleapis.com/youtube/analytics/v2/reports');
+    expect(parsed.searchParams.get('ids')).toBe('channel==MINE');
+    expect(parsed.searchParams.get('dimensions')).toBe('video');
+    expect(parsed.searchParams.get('filters')).toBe('video==vid-1');
+    expect(parsed.searchParams.get('metrics')).toBe('views,likes,comments');
+    expect(parsed.searchParams.has('sort')).toBe(false);
     expect(init.method).toBe('GET');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer yt-token-123');
   });
 
-  it('defaults missing statistics to zero', async () => {
+  it('defaults an empty Analytics report to zero', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(jsonResponse({ items: [{ id: 'vid-1', statistics: {} }] })),
+      vi.fn().mockResolvedValue(jsonResponse({ columnHeaders: [{ name: 'views' }], rows: [] })),
     );
     const c = new YouTubeConnector(AUTH);
     const metrics = await c.fetchMetrics('vid-1');
     expect(metrics.metrics).toEqual({ views: 0, likes: 0, comments: 0 });
   });
 
-  it('throws when the video is not found', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [] })));
-    const c = new YouTubeConnector(AUTH);
-    await expect(c.fetchMetrics('vid-1')).rejects.toThrow('YouTube video vid-1 not found');
+  it('rejects malformed video IDs before provider I/O', async () => {
+    const fetchMock = vi.fn();
+    const c = new YouTubeConnector(AUTH, fetchMock);
+    await expect(c.fetchMetrics('video&id=other')).rejects.toThrow('YouTube video ID is invalid');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('throws on HTTP errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 500)));
     const c = new YouTubeConnector(AUTH);
     await expect(c.fetchMetrics('vid-1')).rejects.toThrow('API GET');
+  });
+});
+
+describe('executeOperation', () => {
+  it('uploads captions with YouTube multipart/related metadata and bounded binary content', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('WEBVTT\n\n00:00.000 --> 00:01.000\nHello', {
+        status: 200,
+        headers: { 'Content-Type': 'text/vtt' },
+      }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'caption-track-1' }));
+    const connector = new YouTubeConnector(AUTH, fetchMock);
+    const result = await connector.executeOperation({
+      type: 'youtube.captions.upload',
+      videoId: 'video-1',
+      language: 'en-US',
+      name: 'English captions',
+      mediaUrl: 'https://media.example.test/asset',
+      isDraft: true,
+    });
+
+    expect(result).toEqual({ type: 'mutation', success: true, remoteId: 'caption-track-1' });
+    const [uploadUrl, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(new URL(uploadUrl).origin + new URL(uploadUrl).pathname).toBe('https://www.googleapis.com/upload/youtube/v3/captions');
+    const headers = init.headers as Record<string, string>;
+    expect(headers['Content-Type']).toMatch(/^multipart\/related; boundary=axiom-/);
+    expect(init.body).toBeInstanceOf(Blob);
+    const payload = await (init.body as Blob).text();
+    expect(payload).toContain('"videoId":"video-1"');
+    expect(payload).toContain('"language":"en-US"');
+    expect(payload).toContain('WEBVTT');
+    expect(payload).toContain('Content-Transfer-Encoding: binary');
+    expect(payload).toContain('--');
   });
 });
 

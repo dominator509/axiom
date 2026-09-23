@@ -16,17 +16,31 @@ const defaultCalendarText: Record<string, string> = {
 
 type CalendarTranslate = (key: string) => string;
 
-export function postScheduleIntent(data: FormData, translate: CalendarTranslate = key => defaultCalendarText[key] ?? key) {
+export function postScheduleIntent(
+  data: FormData,
+  translate: CalendarTranslate = key => defaultCalendarText[key] ?? key,
+  platform?: string,
+) {
   if (data.get('confirm') !== 'on') throw new Error(translate('calendar.confirmScheduleFirst'));
   const action = data.get('action');
   if (action === 'cancel') return { method: 'DELETE' as const, body: undefined };
   if (action !== 'reschedule') throw new Error(translate('calendar.chooseAction'));
   const scheduledFor = approvalSlot(String(data.get('scheduledFor') ?? ''));
   if (!scheduledFor) throw new Error(translate('calendar.futureDateTime'));
-  return { method: 'PATCH' as const, body: JSON.stringify({ scheduledFor }) };
+  const deliveryMode = data.get('tiktokDeliveryMode');
+  return { method: 'PATCH' as const, body: JSON.stringify({
+    scheduledFor,
+    ...(platform === 'tiktok' && (deliveryMode === 'direct' || deliveryMode === 'draft')
+      ? { providerOptions: { tiktokDeliveryMode: deliveryMode } }
+      : {}),
+  }) };
 }
 
-export default function PostScheduleForm({ postId }: { postId: string }) {
+export default function PostScheduleForm({
+  postId,
+  platform,
+  tiktokDeliveryMode = 'direct',
+}: { postId: string; platform?: string; tiktokDeliveryMode?: 'direct' | 'draft' }) {
   const { t } = useLocale();
   const router = useRouter();
   const [action, setAction] = useState('reschedule');
@@ -40,7 +54,7 @@ export default function PostScheduleForm({ postId }: { postId: string }) {
     const form = event.currentTarget;
     setError(''); setMessage('');
     try {
-      intent.current ??= { ...postScheduleIntent(new FormData(form), t), key: createIdempotencyKey() };
+      intent.current ??= { ...postScheduleIntent(new FormData(form), t, platform), key: createIdempotencyKey() };
     } catch (failure) { setError(failure instanceof Error ? failure.message : t('calendar.checkScheduleFields')); return; }
     active.current = true; setBusy(true); setPending(true);
     try {
@@ -72,6 +86,7 @@ export default function PostScheduleForm({ postId }: { postId: string }) {
       <fieldset className="stack" disabled={busy || pending} style={{ border: 0, padding: 0, minWidth: 0 }}>
         <label>{t('calendar.scheduleAction')}<select name="action" value={action} onChange={event => setAction(event.target.value)}><option value="reschedule">{t('calendar.reschedule')}</option><option value="cancel">{t('calendar.cancelScheduled')}</option></select></label>
         {action === 'reschedule' && <label>{t('calendar.newLocalTime')}<input name="scheduledFor" type="datetime-local" required /><span className="subtle">{t('calendar.dstNote')}</span></label>}
+        {action === 'reschedule' && platform === 'tiktok' && <label>{t('review.tiktokDeliveryMode')}<select name="tiktokDeliveryMode" defaultValue={tiktokDeliveryMode}><option value="direct">{t('review.tiktokDirectPublish')}</option><option value="draft">{t('review.tiktokDraftUpload')}</option></select></label>}
         <label className="checkbox-option"><input name="confirm" type="checkbox" required /> {t('calendar.confirmChange')}</label>
       </fieldset>
       {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}

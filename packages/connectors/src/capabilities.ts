@@ -54,6 +54,8 @@ export function capabilityNames(capability: ConnectorCapability): string[] {
   for (const media of capability.media) names.push(`publish.${media}`);
   if (capability.scheduling !== 'none') names.push(`schedule.${capability.scheduling}`);
   if (capability.metrics.length > 0) names.push('read.insights');
+  for (const operation of capability.operations ?? []) names.push(operation);
+  for (const action of capability.moderationActions ?? []) names.push(`comments.moderate.${action}`);
 
   return names;
 }

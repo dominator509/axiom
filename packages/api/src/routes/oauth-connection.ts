@@ -4,9 +4,10 @@
 
 import { and, eq } from 'drizzle-orm';
 import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson } from '@axiom/core';
-import { PATREON_CAPABILITY_NAMES } from '@axiom/connectors';
+import { PATREON_CAPABILITY_NAMES, createConnector } from '@axiom/connectors';
 import { schema } from '@axiom/db';
 import { capabilityNames, resolveCapabilities } from '@axiom/worker';
+import type { Platform } from '@axiom/core';
 import { modelOrgId, withOrgContext, writeAudit } from './helpers.js';
 
 const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
@@ -15,7 +16,19 @@ const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TO
   : {};
 const EGRESS_DEK_ID = process.env.EGRESS_DEK_ID ?? 'egress-dek';
 
-export type OAuthPlatform = 'fanvue' | 'threads' | 'patreon';
+export type OAuthPlatform =
+  | 'fanvue'
+  | 'threads'
+  | 'patreon'
+  | 'snapchat'
+  | 'instagram'
+  | 'facebook'
+  | 'tiktok'
+  | 'x'
+  | 'youtube'
+  | 'reddit'
+  | 'discord'
+  | 'telegram';
 
 export type OAuthCredentialEnvelope = {
   accessToken: string;
@@ -74,6 +87,41 @@ export async function encryptOAuthCredentials(
   };
 }
 
+/** Decrypt one stored provider envelope through the key-owning egress plane. */
+export async function decryptOAuthCredentials(connection: {
+  encToken: Uint8Array;
+  encNonce: Uint8Array;
+  dekId: string;
+}): Promise<OAuthCredentialEnvelope> {
+  const response = await fetch(`${EGRESS_PLANE_URL}/egress/decrypt`, {
+    method: 'POST',
+    headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      enc_token: Buffer.from(connection.encToken).toString('base64'),
+      enc_nonce: Buffer.from(connection.encNonce).toString('base64'),
+      dek_id: connection.dekId,
+    }),
+    signal: AbortSignal.timeout(2_000),
+  });
+  if (!response.ok) throw new Error('egress credential decrypt failed');
+  const body = await readBoundedResponseJson<{ plaintext?: string }>(response);
+  if (!body.plaintext) throw new Error('egress credential decrypt returned no plaintext');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(body.plaintext, 'base64').toString('utf8'));
+  } catch {
+    throw new Error('stored OAuth credential envelope is invalid');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('stored OAuth credential envelope is invalid');
+  }
+  const credentials = parsed as Partial<OAuthCredentialEnvelope>;
+  if (typeof credentials.accessToken !== 'string') {
+    throw new Error('stored OAuth credential envelope has no access token');
+  }
+  return credentials as OAuthCredentialEnvelope;
+}
+
 /**
  * Validate the model ownership, encrypt the credentials, then create the
  * connection and audit entry under the owning org's RLS context.
@@ -87,11 +135,12 @@ export async function persistOAuthConnection(
   if (!ownsModel) return null;
 
   const envelope = await encryptOAuthCredentials(input.credentials);
-  const capabilities = input.capabilities ?? (
-    input.platform === 'patreon'
-      ? [...PATREON_CAPABILITY_NAMES]
-      : capabilityNames(resolveCapabilities(input.platform))
-  );
+  const scopes = input.credentials.extra?.grantedScopes;
+  const capabilities = input.platform === 'patreon'
+    ? [...PATREON_CAPABILITY_NAMES]
+    : Array.isArray(scopes)
+      ? capabilityNames(createConnector(input.platform as Platform, input.credentials).capability())
+      : input.capabilities ?? capabilityNames(resolveCapabilities(input.platform as Platform));
 
   return withOrgContext(input.orgId, async (tx) => {
     // Re-check ownership in the write transaction so a deleted/reassigned

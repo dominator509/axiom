@@ -162,6 +162,7 @@ export interface PostTarget {
   state: string;
   remoteId: string | null;
   error: string | null;
+  providerOptions?: { tiktokDeliveryMode?: 'direct' | 'draft' };
 }
 
 export interface ConsentRecord {
@@ -287,6 +288,12 @@ export interface RelayCardHistory {
   enabled: boolean;
   priority: number;
   createdAt: string;
+  snapchatHandoff?: {
+    instructions: string;
+    caption: string;
+    assets: string[];
+    handoffUrl?: string;
+  };
 }
 
 export type RelayCardReconciliationOutcome = 'delivered' | 'not_delivered';
@@ -578,6 +585,8 @@ export const api = {
         body: JSON.stringify(connectionId ? { connectionId } : {}),
       }),
     viral: (id: string) => apiFetch<{ data: unknown }>(`/api/v1/models/${id}/viral`),
+    viralInsightSchedule: (id: string) => apiFetch<{ data: { enabled: boolean; scheduleId: string | null } }>(
+      `/api/v1/models/${encodeURIComponent(id)}/viral/insight-schedule`),
     enqueueViralInsight: (id: string) =>
       apiFetch<{ success: boolean; jobId: string; windowKey: string }>(
         `/api/v1/models/${encodeURIComponent(id)}/viral/insight`,
@@ -722,6 +731,26 @@ export const api = {
   social: {
     list: (modelId: string) =>
       apiFetch<{ data: SocialConnection[] }>(`/api/v1/social-accounts?modelId=${modelId}`),
+    refreshOAuth: (platform: 'tiktok' | 'x' | 'youtube' | 'reddit', connectionId: string) =>
+      apiFetch<{ status: string; platform: string; refreshed: boolean }>(
+        `/api/v1/connectors/${platform}/refresh?connectionId=${encodeURIComponent(connectionId)}`,
+        { method: 'POST' },
+      ),
+    operate: (modelId: string, connectionId: string, operation: Record<string, unknown>) =>
+      apiFetch<{ data: Record<string, unknown> }>(
+        `/api/v1/models/${encodeURIComponent(modelId)}/social-accounts/${encodeURIComponent(connectionId)}/operations`,
+        { method: 'POST', body: JSON.stringify(operation) },
+      ),
+    connectTelegram: (body: { modelId: string; botToken: string; channelId: string }) =>
+      apiFetch<{ status: string; platform: 'telegram'; connectionId: string; displayName: string; botUsername: string }>(
+        '/api/v1/connectors/telegram/manual',
+        { method: 'POST', body: JSON.stringify(body) },
+      ),
+    connectDiscordBot: (body: { modelId: string; botToken: string; channelId: string }) =>
+      apiFetch<{ status: string; platform: 'discord'; mode: 'bot'; connectionId: string; displayName: string | null; botUsername: string; grantedOperations: string[] }>(
+        '/api/v1/connectors/discord/manual',
+        { method: 'POST', body: JSON.stringify(body) },
+      ),
   },
   patreon: {
     status: (connectionId: string) => apiFetch<{ data: PatreonStatus }>(`/api/v1/connectors/patreon/status?connectionId=${encodeURIComponent(connectionId)}`),

@@ -102,6 +102,16 @@ export default function RelayCardHistory({
           {card.channel ?? t('relay.card.channelUnassigned')} · {displayCreatedAt(card.createdAt)}
         </div>
         {card.description && <p style={{ margin: 0 }}>{card.description}</p>}
+        {card.snapchatHandoff && <section className="stack" aria-label={t('relay.card.snapchat.instructions')}>
+          <p style={{ margin: 0 }}>{card.snapchatHandoff.instructions}</p>
+          {card.snapchatHandoff.caption && <p style={{ margin: 0 }}><strong>{t('relay.card.snapchat.caption')}:</strong> {card.snapchatHandoff.caption}</p>}
+          {card.snapchatHandoff.assets.map((asset, index) => <a key={`${card.id}-asset-${index}`} href={asset} target="_blank" rel="noopener noreferrer">
+            {t('relay.card.snapchat.asset', { number: index + 1 })}
+          </a>)}
+          {card.snapchatHandoff.handoffUrl && <a className="btn secondary" href={card.snapchatHandoff.handoffUrl} target="_blank" rel="noopener noreferrer">
+            {t('relay.card.snapchat.openProfile')}
+          </a>}
+        </section>}
         <RelayCardReconciliation modelId={modelId} card={card} canReconcile={canReconcile} />
         <div className="row" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
           <span className="subtle">{card.enabled ? t('relay.card.enabled') : t('relay.card.disabled')} · {t('relay.card.priority', { value: formatNumber(card.priority, locale) })}</span>

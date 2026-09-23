@@ -21,6 +21,7 @@ import { ParkJobError } from './context.js';
 import { runPrePostBefore, runPrePostAfter } from './pre_post.js';
 import type { Executor, ExecutorContext } from './context.js';
 import { readTrustedThumbnailFeatures } from '../thumbnail-features.js';
+import type { RelayHandoff } from '@axiom/connectors';
 
 const KILL_SWITCH_PARK_MS = 60_000;
 const PENDING_PUBLISH_RETRY_MS = 60_000;
@@ -39,7 +40,7 @@ export function resolvePublicationSnapshot(
 
 /** Target states that must not be dispatched to a connector again. */
 export function isTerminalPublishTargetState(state: string): boolean {
-  return state === 'published' || state === 'skipped' || state === 'canceled';
+  return state === 'published' || state === 'skipped' || state === 'manual_assist' || state === 'canceled';
 }
 
 type PublishAsset = {
@@ -80,6 +81,44 @@ export function buildPublicationSnapshot(input: {
   };
 }
 
+/** Persist a human-assisted publish action as a disabled, model-scoped Relay
+ * review card. `enabled: false` prevents the card from being mistaken for an
+ * outbound relay instruction; the human explicitly reconciles it in UI. */
+export async function persistAssistedPublishHandoff(
+  tx: any,
+  input: {
+    orgId: string;
+    modelId: string;
+    bundleId: string;
+    targetId: string;
+    handoff: RelayHandoff;
+  },
+): Promise<void> {
+  const { handoff } = input;
+  if (handoff.platform !== 'snapchat') return;
+  await tx.insert(schema.relayCard).values({
+    orgId: input.orgId,
+    modelId: input.modelId,
+    bundleId: input.bundleId,
+    channel: 'manual-assist',
+    externalRef: input.targetId,
+    state: 'pending',
+    title: `${handoff.platform} manual publish`,
+    description: handoff.instructions,
+    icon: '👻',
+    enabled: false,
+    priority: 0,
+    config: {
+      snapchatManualAssist: {
+        instructions: handoff.instructions.slice(0, 2000),
+        assets: handoff.assets.slice(0, 4),
+        caption: handoff.caption.slice(0, 1000),
+        ...(handoff.handoffUrl ? { handoffUrl: handoff.handoffUrl } : {}),
+      },
+    },
+  }).onConflictDoNothing();
+}
+
 /**
  * Keep media publication tenant- and model-scoped, and reject kinds for which
  * the publish pipeline has no media-plane contract.
@@ -103,6 +142,34 @@ export function validatePublishAsset(
     throw new Error(`publish.target: unsupported asset kind ${asset.kind}`);
   }
   return asset.kind;
+}
+
+/** Provider metadata needed by connectors with preflight media contracts. */
+export function publicationMediaOptions(
+  platform: string,
+  asset: Pick<PublishAsset, 'kind' | 'mimeType' | 'width' | 'height' | 'duration'> | undefined,
+): Record<string, unknown> {
+  if (!asset) return {};
+  return {
+    mediaType: asset.mimeType === 'image/gif' ? 'gif'
+      : asset.kind === 'video' ? 'video'
+        : asset.kind === 'audio' ? 'audio'
+          : 'image',
+    ...(platform === 'snapchat' ? {
+      mediaMimeType: asset.mimeType,
+      mediaWidth: asset.width ?? null,
+      mediaHeight: asset.height ?? null,
+      // asset.duration is stored in seconds by the ingest/media pipeline.
+      mediaDurationSeconds: asset.duration ?? null,
+    } : {}),
+    ...(platform === 'youtube' && asset.duration !== null && asset.duration !== undefined
+      ? { durationSec: asset.duration }
+      : {}),
+    ...(platform === 'youtube' && asset.width !== null && asset.width !== undefined && asset.width > 0 &&
+      asset.height !== null && asset.height !== undefined && asset.height > 0
+      ? { aspectRatio: `${asset.width}:${asset.height}` }
+      : {}),
+  };
 }
 
 /**
@@ -248,7 +315,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     // Already published — idempotent re-run no-op (LBI-05). Some providers
     // confirm the side effect with a successful empty response (for example,
     // Discord can return 204), so a null remote_id is still terminal. An
-    // assisted connector's skipped handoff is also terminal: the operator
+    // assisted connector's skipped/manual-assist handoff is also terminal: the operator
     // must complete it manually rather than causing an automatic retry loop.
     return;
   }
@@ -395,6 +462,8 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     scheduledFor: target.scheduledFor ? new Date(target.scheduledFor).toISOString() : undefined,
     options: {
       modelId: model.id,
+      ...publicationMediaOptions(platform, asset),
+      ...(platform === 'tiktok' ? { deliveryMode: target.providerOptions?.tiktokDeliveryMode ?? 'direct' } : {}),
       ...(target.state === 'pending' && target.remoteId ? { publishId: target.remoteId } : {}),
     },
   };
@@ -422,6 +491,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     // Pre-post hooks intentionally expose only their public input shape. Keep
     // the persisted TikTok publish_id across a pending-status retry.
     options: {
+      ...(input.options ?? {}),
       ...(preStage.input.options ?? {}),
       ...(target.state === 'pending' && target.remoteId ? { publishId: target.remoteId } : {}),
     },
@@ -537,6 +607,15 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   }
 
   if (result.state === 'skipped') {
+    if (result.handoff) {
+      await persistAssistedPublishHandoff(tx, {
+        orgId: job.org_id,
+        modelId: model.id,
+        bundleId: bundle.id,
+        targetId,
+        handoff: result.handoff,
+      });
+    }
     await tx
       .update(schema.prePostRun)
       .set({
@@ -554,6 +633,32 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     await tx
       .update(schema.postTarget)
       .set({ state: 'skipped', remoteId: result.remoteId, error: result.error ?? null })
+      .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
+    return;
+  }
+
+  if (result.state === 'manual_assist') {
+    if (result.handoff) {
+      await persistAssistedPublishHandoff(tx, {
+        orgId: job.org_id,
+        modelId: model.id,
+        bundleId: bundle.id,
+        targetId,
+        handoff: result.handoff,
+      });
+    }
+    await tx
+      .update(schema.prePostRun)
+      .set({
+        status: 'skipped',
+        output: { state: result.state, remoteId: result.remoteId },
+        error: result.error ?? null,
+        finishedAt: new Date(),
+      })
+      .where(and(eq(schema.prePostRun.id, dispatchMarker.id), eq(schema.prePostRun.orgId, job.org_id)));
+    await tx
+      .update(schema.postTarget)
+      .set({ state: 'manual_assist', remoteId: result.remoteId, error: result.error ?? null, publicationSnapshot })
       .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
     return;
   }

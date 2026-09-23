@@ -55,6 +55,11 @@ const approveBundleSchema = z.object({
   platforms: z.array(z.string().min(1)).min(1),
   slot: z.string().datetime().optional(),
   connectionIds: z.record(z.string().min(1), z.string().uuid()).default({}),
+  providerOptions: z.object({ tiktokDeliveryMode: z.enum(['direct', 'draft']).optional() }).strict().optional(),
+}).superRefine((value, context) => {
+  if (value.providerOptions?.tiktokDeliveryMode && !value.platforms.includes('tiktok')) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['providerOptions'], message: 'TikTok delivery options require TikTok to be selected' });
+  }
 });
 
 const reviseBundleSchema = z.object({
@@ -518,6 +523,9 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
           connectionId: connectionResolution.connections.get(platform),
           scheduledFor: slot,
           state: 'pending',
+          providerOptions: platform === 'tiktok' && body.providerOptions?.tiktokDeliveryMode
+            ? { tiktokDeliveryMode: body.providerOptions.tiktokDeliveryMode }
+            : {},
           remoteId: null,
           error: null,
           idemKey: Buffer.from(`${id}|${platform}|${slot.toISOString()}`),
@@ -542,6 +550,7 @@ router.post('/:id/approve', zValidator('json', approveBundleSchema), async (c) =
       connectionIds: Object.fromEntries(
         platforms.map((platform) => [platform, connectionResolution.connections.get(platform)]),
       ),
+      providerOptions: body.providerOptions ?? {},
       slot: slot.toISOString(),
     });
     return { status: 200 as const, data: updated };

@@ -11,6 +11,8 @@ import type {
   ConnectorMetrics,
   MetricPeriod,
   MetricName,
+  SocialOperationInput,
+  SocialOperationResult,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
 
@@ -213,6 +215,25 @@ export abstract class BaseConnector implements SocialConnector {
     };
   }
 
+  /**
+   * OAuth providers may return a user-approved subset of the requested scopes.
+   * Older/manual credentials have no scope manifest and preserve their legacy
+   * connector contract; once a manifest is present, operations fail closed.
+   */
+  protected hasGrantedScope(...accepted: string[]): boolean {
+    const value = this.auth.extra?.grantedScopes;
+    if (!Array.isArray(value)) return true;
+    const granted = new Set(value.filter((scope): scope is string => typeof scope === 'string'));
+    return accepted.some((scope) => granted.has(scope));
+  }
+
+  /** Hard provider boundary for callers that invoke publish/metrics directly. */
+  protected assertGrantedScope(operation: string, ...accepted: string[]): void {
+    if (!this.hasGrantedScope(...accepted)) {
+      throw new Error(`${this.displayName} ${operation} is unavailable: required permission was not granted`);
+    }
+  }
+
   // ── Abstract methods ──
 
   abstract capability(): ConnectorCapability;
@@ -220,6 +241,10 @@ export abstract class BaseConnector implements SocialConnector {
   abstract publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult>;
   abstract fetchMetrics(remoteId: string, period?: MetricPeriod): Promise<ConnectorMetrics>;
   abstract revoke(): Promise<void>;
+
+  async executeOperation(input: SocialOperationInput): Promise<SocialOperationResult> {
+    throw new Error(`${this.displayName} does not support the ${input.type} operation`);
+  }
 
   // ── Idempotency ──
 
@@ -238,7 +263,7 @@ export abstract class BaseConnector implements SocialConnector {
   protected recordIdempotency(
     key: string,
     remoteId: string | null,
-    state: 'published' | 'pending' | 'failed' | 'skipped',
+    state: 'published' | 'pending' | 'failed' | 'skipped' | 'manual_assist',
   ): void {
     this.idempotencyLedger.set(`${this.platform}:${key}`, {
       idempotencyKey: key,
@@ -267,12 +292,14 @@ export abstract class BaseConnector implements SocialConnector {
           error: undefined,
         };
       }
-      if (existing.state === 'skipped') {
-        this.log('info', 'publish', `Skipping previously-skipped post ${input.idempotencyKey}`);
+      if (existing.state === 'skipped' || existing.state === 'manual_assist') {
+        this.log('info', 'publish', `Skipping previously-${existing.state} post ${input.idempotencyKey}`);
         return {
           remoteId: null,
-          state: 'skipped',
-          error: 'Previously skipped',
+          state: existing.state,
+          error: existing.state === 'manual_assist'
+            ? 'Previously handed off for manual assistance'
+            : 'Previously skipped',
         };
       }
       if (existing.state === 'pending') {

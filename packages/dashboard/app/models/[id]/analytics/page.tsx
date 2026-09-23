@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { talentDestinationAllowed } from '@/lib/navigation-role';
 import PerformancePatterns, { type PerformancePattern } from '@/components/PerformancePatterns';
 import GenerateViralInsightButton from '@/components/GenerateViralInsightButton';
+import ViralInsightScheduleControl from '@/components/ViralInsightScheduleControl';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,9 @@ interface ViralData {
 
 export default async function AnalyticsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const session = await getSession();
+  const role = session?.user?.role;
+  const canManageViralInsightSchedule = role === 'owner' || role === 'manager';
   let uiLocale = 'en';
   try {
     uiLocale = (await api.uiLocale.get()).data.locale;
@@ -47,7 +51,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
   const decimal = new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 2 });
   const day = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' });
-  if (!talentDestinationAllowed((await getSession())?.user?.role, 'analytics'))
+  if (!talentDestinationAllowed(role, 'analytics'))
     return (
       <div className="card stack">
         <h2>{t('analytics.analyticsAccessUnavailable')}</h2>
@@ -58,6 +62,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
   const reportMonth = new Date().toISOString().slice(0, 7);
   let analytics: AnalyticsData | null = null;
   let viral: ViralData | null = null;
+  let viralInsightScheduleEnabled: boolean | null = null;
   let playbookGuidelines: PlaybookGuideline[] | null = null;
   let playbookUnavailable = false;
   try {
@@ -69,6 +74,13 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
     viral = (await api.models.viral(id)).data as unknown as ViralData;
   } catch {
     viral = null;
+  }
+  if (canManageViralInsightSchedule) {
+    try {
+      viralInsightScheduleEnabled = (await api.models.viralInsightSchedule(id)).data.enabled;
+    } catch {
+      viralInsightScheduleEnabled = null;
+    }
   }
   try {
     playbookGuidelines = (await api.models.playbookGuidelines(id)).data;
@@ -226,6 +238,11 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
         <h2 style={{ margin: 0 }}>{t('analytics.viralInsights')}</h2>
         <GenerateViralInsightButton modelId={id} />
       </div>
+      <ViralInsightScheduleControl
+        modelId={id}
+        initialEnabled={viralInsightScheduleEnabled}
+        canManage={canManageViralInsightSchedule}
+      />
       <PerformancePatterns patterns={viral?.patterns} />
       <p className="subtle">{t('analytics.verifiedExemplarDisclaimer')}</p>
       <div className="card">

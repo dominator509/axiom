@@ -88,9 +88,11 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
   }
 
   capability(): ConnectorCapability {
+    const canPublish = this.hasGrantedScope('video.publish', 'video.upload');
+    const canReadMetrics = this.hasGrantedScope('video.list');
     return {
-      publish: true,
-      media: ['video' as MediaType, 'short' as MediaType],
+      publish: canPublish,
+      media: canPublish ? ['video' as MediaType, 'short' as MediaType] : [],
       maxMediaBytes: TIKTOK_MAX_MEDIA_BYTES,
       maxMediaCount: 1,
       caption: true,
@@ -98,8 +100,8 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       scheduling: 'internal' as const,
       // TikTok's video-level query exposes engagement counts, but not
       // follower gains attributable to an individual video.
-      metrics: ['views', 'likes', 'comments', 'shares'],
-      refreshMetrics: true,
+      metrics: canReadMetrics ? ['views', 'likes', 'comments', 'shares'] : [],
+      refreshMetrics: canReadMetrics,
     };
   }
 
@@ -109,12 +111,17 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
     return this.idempotentPublish(input, async () => {
+      const options = input.options ?? {};
+      const deliveryMode = options.deliveryMode === undefined ? 'direct' : options.deliveryMode;
+      if (deliveryMode !== 'direct' && deliveryMode !== 'draft') {
+        throw new Error('TikTok deliveryMode must be direct or draft');
+      }
+      this.assertGrantedScope('publishing', deliveryMode === 'draft' ? 'video.upload' : 'video.publish');
       const videoUrl = input.mediaUrls[0];
       if (!videoUrl) {
         throw new Error('TikTok requires at least one video URL');
       }
 
-      const options = input.options ?? {};
       const pendingPublishId =
         typeof options.publishId === 'string' && options.publishId.length > 0
           ? options.publishId
@@ -123,6 +130,13 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       // A TikTok publish is asynchronous. Retries resume by polling the
       // publish_id stored on post_target instead of uploading a second copy.
       if (pendingPublishId) {
+        if (deliveryMode === 'draft') {
+          return {
+            remoteId: pendingPublishId,
+            state: 'manual_assist',
+            error: 'Video is in the TikTok inbox. A creator must finish editing and publish it in TikTok.',
+          };
+        }
         return this.statusResult(pendingPublishId, await this.fetchPublishStatus(pendingPublishId));
       }
 
@@ -163,31 +177,36 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       // TikTok requires privacy_level to be selected from the account's
       // current creator-info response. Validate the default as well as an
       // explicitly requested option before creating an upload session.
-      const creatorInfo = await this.fetchCreatorInfo();
-      const allowedPrivacyLevels = creatorInfo.data.privacy_level_options ?? [];
       const privacyLevel =
         typeof options.privacyLevel === 'string' && options.privacyLevel.trim().length > 0
           ? options.privacyLevel
           : 'SELF_ONLY';
-      if (!allowedPrivacyLevels.includes(privacyLevel)) {
-        throw new Error(
-          `TikTok privacy level ${privacyLevel} is not allowed for this account; allowed levels: ${allowedPrivacyLevels.join(', ') || 'none'}`,
-        );
+      if (deliveryMode === 'direct') {
+        const creatorInfo = await this.fetchCreatorInfo();
+        const allowedPrivacyLevels = creatorInfo.data.privacy_level_options ?? [];
+        if (!allowedPrivacyLevels.includes(privacyLevel)) {
+          throw new Error(
+            `TikTok privacy level ${privacyLevel} is not allowed for this account; allowed levels: ${allowedPrivacyLevels.join(', ') || 'none'}`,
+          );
+        }
       }
 
-      // Step 1: Initialize the video upload. TikTok requires post_info,
-      // including privacy_level, in this request alongside FILE_UPLOAD data.
+      // Direct posting needs creator-selected post metadata. Draft upload uses
+      // TikTok's inbox endpoint and deliberately omits post_info so the creator
+      // can finish the post in TikTok before it becomes public.
       const initPayload: Record<string, unknown> = {
-        post_info: {
-          title: input.caption,
-          privacy_level: privacyLevel,
-          disable_duet: options.disableDuet ?? false,
-          disable_stitch: options.disableStitch ?? false,
-          disable_comment: options.disableComment ?? false,
-          brand_content_toggle: options.brandContentToggle ?? options.brandContent ?? false,
-          brand_organic_toggle: options.brandOrganicToggle ?? options.brandOrganicUse ?? false,
-          is_aigc: options.isAigc ?? false,
-        },
+        ...(deliveryMode === 'direct' ? {
+          post_info: {
+            title: input.caption,
+            privacy_level: privacyLevel,
+            disable_duet: options.disableDuet ?? false,
+            disable_stitch: options.disableStitch ?? false,
+            disable_comment: options.disableComment ?? false,
+            brand_content_toggle: options.brandContentToggle ?? options.brandContent ?? false,
+            brand_organic_toggle: options.brandOrganicToggle ?? options.brandOrganicUse ?? false,
+            is_aigc: options.isAigc ?? false,
+          },
+        } : {}),
         source_info: {
           source: 'FILE_UPLOAD',
           video_size: videoSize,
@@ -197,7 +216,7 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       };
 
       const initResp = await this.apiPost<TiktokInitResponse>(
-        `${TIKTOK_API_BASE}/post/publish/video/init/`,
+        `${TIKTOK_API_BASE}/post/publish/${deliveryMode === 'draft' ? 'inbox/video/init/' : 'video/init/'}`,
         initPayload,
         {
           'Content-Type': 'application/json',
@@ -253,6 +272,14 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
 
       this.log('info', 'publish', `TikTok video uploaded (${videoBuffer.byteLength} bytes)`);
 
+      if (deliveryMode === 'draft') {
+        return {
+          remoteId: publish_id,
+          state: 'manual_assist',
+          error: 'Video uploaded to the TikTok inbox. A creator must open TikTok, finish editing, and publish it there.',
+        };
+      }
+
       // Step 3: TikTok processes the upload asynchronously. Use the
       // documented status endpoint; there is no /video/complete endpoint.
       return this.statusResult(publish_id, await this.fetchPublishStatus(publish_id));
@@ -260,6 +287,7 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
+    this.assertGrantedScope('metrics', 'video.list');
     const queryUrl = `${TIKTOK_API_BASE}/video/query/?fields=statistics&id=${remoteId}`;
 
     const resp = await this.apiGet<TiktokVideoQueryResponse>(queryUrl, {

@@ -1,4 +1,5 @@
 import { formatNumber } from '@axiom/core';
+import { Fragment } from 'react';
 import { api, getSession } from '@/lib/api';
 import type { SocialConnection } from '@/lib/api';
 import NetworkForm from '@/components/NetworkForm';
@@ -6,17 +7,38 @@ import EgressCredentials from '@/components/EgressCredentials';
 import NetworkHealth from '@/components/NetworkHealth';
 import ActivateNetwork from '@/components/ActivateNetwork';
 import DisconnectSocialAccountButton from '@/components/DisconnectSocialAccountButton';
+import SnapchatConnect from '@/components/SnapchatConnect';
+import TelegramConnect from '@/components/TelegramConnect';
+import DiscordBotConnect from '@/components/DiscordBotConnect';
+import RefreshSocialAccountButton from '@/components/RefreshSocialAccountButton';
+import ProviderOperationsPanel from '@/components/ProviderOperationsPanel';
 import { getServerLocale } from '@/lib/server-locale';
 
 type Translator = Awaited<ReturnType<typeof getServerLocale>>['t'];
+
+const OAUTH_PLATFORM_NAMES: Record<string, string> = {
+  fanvue: 'Fanvue',
+  threads: 'Threads',
+  patreon: 'Patreon',
+  snapchat: 'Snapchat',
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  tiktok: 'TikTok',
+  x: 'X',
+  youtube: 'YouTube',
+  reddit: 'Reddit',
+  discord: 'Discord',
+};
 
 export const dynamic = 'force-dynamic';
 
 export default async function NetworkPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams?: Promise<{ oauth?: string | string[]; platform?: string | string[] } | undefined> }) {
   const { id } = await params;
   const query = (await searchParams) ?? {};
-  const oauthConnected = query?.oauth === 'connected' && (query.platform === 'fanvue' || query.platform === 'threads' || query.platform === 'patreon');
-  const oauthPlatform = query?.platform === 'fanvue' ? 'Fanvue' : query?.platform === 'threads' ? 'Threads' : 'Patreon';
+  const oauthPlatform = typeof query.platform === 'string' && Object.hasOwn(OAUTH_PLATFORM_NAMES, query.platform)
+    ? query.platform
+    : '';
+  const oauthConnected = query?.oauth === 'connected' && oauthPlatform !== '';
   const session = await getSession();
   const { locale, t } = await getServerLocale();
   const owner = session?.user?.role === 'owner';
@@ -34,7 +56,7 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
 
   return (
     <div className="page-stack">
-      {oauthConnected && <p className="notice" role="status">{t('network.oauthSuccess', { platform: oauthPlatform })}</p>}
+      {oauthConnected && <p className="notice" role="status">{t('network.oauthSuccess', { platform: OAUTH_PLATFORM_NAMES[oauthPlatform] })}</p>}
       <div className="card">
         <h2>{t('model.networkSecurity')}</h2>
         {!owner && <p>{t('network.ownerOnly')}</p>}
@@ -99,9 +121,28 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
       <div className="card stack">
         <h2>{t('network.socialConnections')}</h2>
         <p className="subtle">{t('network.socialConnectionsDescription')}</p>
+        <div className="card stack">
+          <h3>{t('network.snapchatTitle')}</h3>
+          {canManageAccounts ? <SnapchatConnect modelId={id} /> : <p className="subtle">{t('network.manageAccountsRequired')}</p>}
+        </div>
+        <div className="card stack">
+          <h3>{t('network.telegramTitle')}</h3>
+          {canManageAccounts ? <TelegramConnect modelId={id} /> : <p className="subtle">{t('network.manageAccountsRequired')}</p>}
+        </div>
+        <div className="card stack">
+          <h3>{t('network.discordBotTitle')}</h3>
+          {canManageAccounts ? <DiscordBotConnect modelId={id} /> : <p className="subtle">{t('network.manageAccountsRequired')}</p>}
+        </div>
         {canManageAccounts ? <div className="action-row">
           <a className="btn secondary" href={`/api/v1/connectors/fanvue/authorize?modelId=${encodeURIComponent(id)}`}>{t('network.connectFanvue')}</a>
           <a className="btn secondary" href={`/api/v1/connectors/threads/authorize?modelId=${encodeURIComponent(id)}`}>{t('network.connectThreads')}</a>
+          <a className="btn secondary" href={`/api/v1/connectors/tiktok/authorize?modelId=${encodeURIComponent(id)}`}>{t('network.connectTikTok')}</a>
+          <a className="btn secondary" href={`/api/v1/connectors/x/authorize?modelId=${encodeURIComponent(id)}`}>{t('network.connectX')}</a>
+          <a className="btn secondary" href={`/api/v1/connectors/youtube/authorize?modelId=${encodeURIComponent(id)}`}>{t('network.connectYouTube')}</a>
+          <a className="btn secondary" href={`/api/v1/connectors/reddit/authorize?modelId=${encodeURIComponent(id)}`}>{t('network.connectReddit')}</a>
+          <a className="btn secondary" href={`/api/v1/connectors/instagram/authorize?modelId=${encodeURIComponent(id)}`}>{t('network.connectInstagram')}</a>
+          <a className="btn secondary" href={`/api/v1/connectors/facebook/authorize?modelId=${encodeURIComponent(id)}`}>{t('network.connectFacebook')}</a>
+          <a className="btn secondary" href={`/api/v1/connectors/discord/authorize?modelId=${encodeURIComponent(id)}`}>{t('network.connectDiscord')}</a>
           <a className="btn secondary" href={`/api/v1/connectors/patreon/authorize?modelId=${encodeURIComponent(id)}`}>{t('network.connectPatreon')}</a>
           <a className="btn secondary" href={`/models/${encodeURIComponent(id)}/patreon`}>{t('network.patreonCommunity')}</a>
         </div> : <p className="subtle">{t('network.manageAccountsRequired')}</p>}
@@ -137,17 +178,32 @@ async function SocialAccounts({ modelId, canManage, t }: { modelId: string; canM
       </thead>
       <tbody>
         {accounts.map((a) => (
-          <tr key={String(a.id)}>
+          <Fragment key={String(a.id)}>
+          <tr>
             <td>{String(a.platform)}</td>
             <td>{String(a.displayName)}</td>
             <td>
               <span className={`badge ${a.status === 'connected' ? 'good' : 'mute'}`}>
                 {String(a.status)}
               </span>
+              {a.platform === 'snapchat' && a.capabilities.includes('publish.manual_assist') && (
+                <span className="badge mute">{t('network.snapchatManualAssist')}</span>
+              )}
             </td>
             <td className="mono">{(a.capabilities as string[])?.join(', ') ?? '—'}</td>
-            {canManage && <td><DisconnectSocialAccountButton accountId={a.id} displayName={`${a.platform} (${a.displayName})`} /></td>}
+            {canManage && <td><div className="action-row">
+              {a.status === 'connected' && !a.capabilities.includes('publish.manual_assist') && ['fanvue', 'tiktok', 'x', 'youtube', 'reddit', 'snapchat'].includes(a.platform) && (
+                <RefreshSocialAccountButton platform={a.platform as 'fanvue' | 'tiktok' | 'x' | 'youtube' | 'reddit' | 'snapchat'} connectionId={a.id} />
+              )}
+              <DisconnectSocialAccountButton accountId={a.id} displayName={`${a.platform} (${a.displayName})`} />
+            </div></td>}
           </tr>
+          {canManage && a.status === 'connected' && (a.capabilities ?? []).some(capability => capability === 'comments.read' || capability.startsWith('messages.') || capability.startsWith('youtube.') || capability.startsWith('vault.')) && <tr>
+            <td colSpan={canManage ? 5 : 4}>
+              <ProviderOperationsPanel modelId={modelId} connectionId={a.id} capabilities={a.capabilities ?? []} />
+            </td>
+          </tr>}
+          </Fragment>
         ))}
       </tbody>
     </table>

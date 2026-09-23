@@ -15,6 +15,9 @@ export const modelProfile = pgTable('model_profile', {
   bio: text('bio'),
   characterLockPrompt: text('character_lock_prompt').notNull().default(''),
   characterLockVersion: integer('character_lock_version').notNull().default(0),
+  // F-85 recurring Relay insight schedule. Null is opt-out and also acts as
+  // the generation token for invalidating already-queued occurrences.
+  viralInsightScheduleId: uuid('viral_insight_schedule_id'),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

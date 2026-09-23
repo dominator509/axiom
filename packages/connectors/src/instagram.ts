@@ -12,6 +12,8 @@ import type {
   MetricPeriod,
   ValidationReport,
   MediaType,
+  SocialOperationInput,
+  SocialOperationResult,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
 import { mediaTypeHint, validatePublish } from './validation.js';
@@ -45,6 +47,10 @@ interface IgInsightsResponse {
 interface IgPermissionsResponse {
   success: boolean;
 }
+interface IgCommentsResponse {
+  data: Array<{ id: string; text?: string; username?: string; timestamp?: string; permalink?: string }>;
+  paging?: { cursors?: { after?: string } };
+}
 
 export class InstagramConnector extends BaseConnector implements SocialConnector {
   constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
@@ -52,14 +58,16 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
   }
 
   capability(): ConnectorCapability {
+    const canPublish = this.hasGrantedScope('instagram_content_publish', 'instagram_business_content_publish');
+    const canReadMetrics = this.hasGrantedScope('instagram_manage_insights', 'instagram_business_manage_insights');
     return {
-      publish: true,
-      media: [
+      publish: canPublish,
+      media: canPublish ? [
         'image' as MediaType,
         'video' as MediaType,
         'carousel' as MediaType,
         'story' as MediaType,
-      ],
+      ] : [],
       maxMediaBytes: 104_857_600, // 100 MB
       maxMediaCount: 10,
       caption: true,
@@ -67,8 +75,14 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
       // The worker owns the scheduled slot and invokes this connector when
       // it is due; this connector does not send a provider-side schedule.
       scheduling: 'internal' as const,
-      metrics: ['impressions', 'likes', 'comments', 'shares', 'saves'],
-      refreshMetrics: true,
+      metrics: canReadMetrics ? ['impressions', 'likes', 'comments', 'shares', 'saves'] : [],
+      refreshMetrics: canReadMetrics,
+      operations: this.hasGrantedScope('instagram_manage_comments', 'instagram_business_manage_comments')
+        ? ['comments.read', 'comments.reply', 'comments.moderate']
+        : [],
+      moderationActions: this.hasGrantedScope('instagram_manage_comments', 'instagram_business_manage_comments')
+        ? ['hide', 'delete', 'approve']
+        : [],
     };
   }
 
@@ -88,6 +102,7 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
     return this.idempotentPublish(input, async () => {
+      this.assertGrantedScope('publishing', 'instagram_content_publish', 'instagram_business_content_publish');
       const igUserId = this.auth.externalUserId;
       if (!igUserId) {
         throw new Error('Instagram externalUserId (IG Business Account ID) is required');
@@ -203,6 +218,7 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
+    this.assertGrantedScope('metrics', 'instagram_manage_insights', 'instagram_business_manage_insights');
     const metrics = await this.apiGet<IgInsightsResponse>(
       `${IG_GRAPH_BASE}/${remoteId}/insights` +
         '?metric=impressions,likes,comments,shares,saved',
@@ -229,6 +245,50 @@ export class InstagramConnector extends BaseConnector implements SocialConnector
       },
       raw: metrics as unknown as Record<string, unknown>,
     };
+  }
+
+  async executeOperation(operation: SocialOperationInput): Promise<SocialOperationResult> {
+    if (!this.capability().operations?.includes(operation.type)) {
+      throw new Error(`Instagram ${operation.type} is unavailable: required permission was not granted`);
+    }
+    this.assertGrantedScope(operation.type, 'instagram_manage_comments', 'instagram_business_manage_comments');
+    if (operation.type === 'comments.read') {
+      const url = new URL(`${IG_GRAPH_BASE}/${encodeURIComponent(operation.postId)}/comments`);
+      url.searchParams.set('fields', 'id,text,username,timestamp,permalink');
+      url.searchParams.set('limit', String(operation.limit ?? 50));
+      if (operation.cursor) url.searchParams.set('after', operation.cursor);
+      const response = await this.apiGet<IgCommentsResponse>(url.toString());
+      return {
+        type: 'comments',
+        items: (response.data ?? []).map((comment) => ({
+          id: comment.id,
+          postId: operation.postId,
+          text: comment.text ?? '',
+          ...(comment.username ? { authorName: comment.username } : {}),
+          ...(comment.timestamp ? { createdAt: comment.timestamp } : {}),
+          ...(comment.permalink ? { permalink: comment.permalink } : {}),
+        })),
+        ...(response.paging?.cursors?.after ? { nextCursor: response.paging.cursors.after } : {}),
+      };
+    }
+    if (operation.type === 'comments.reply') {
+      const response = await this.apiPost<{ id?: string }>(
+        `${IG_GRAPH_BASE}/${encodeURIComponent(operation.commentId)}/replies`,
+        { message: operation.text },
+      );
+      return { type: 'mutation', success: true, ...(response.id ? { remoteId: response.id } : {}) };
+    }
+    if (operation.type === 'comments.moderate') {
+      if (operation.action === 'delete') {
+        await this.apiDelete(`${IG_GRAPH_BASE}/${encodeURIComponent(operation.commentId)}`);
+      } else if (operation.action === 'hide' || operation.action === 'approve') {
+        await this.apiPost(`${IG_GRAPH_BASE}/${encodeURIComponent(operation.commentId)}`, { hide: operation.action === 'hide' });
+      } else {
+        throw new Error(`Instagram does not support comment action '${operation.action}'`);
+      }
+      return { type: 'mutation', success: true, remoteId: operation.commentId };
+    }
+    throw new Error(`Instagram does not support ${operation.type}`);
   }
 
   async revoke(): Promise<void> {

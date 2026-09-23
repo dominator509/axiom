@@ -115,7 +115,7 @@ describe('GET /authorize', () => {
     expect(location.origin).toBe('https://threads.net');
     expect(location.searchParams.get('client_id')).toBe('test-threads-client');
     expect(location.searchParams.get('scope')).toBe(
-      'threads_basic,threads_content_publish,threads_manage_insights',
+      'threads_basic,threads_content_publish,threads_manage_insights,threads_read_replies,threads_manage_replies',
     );
     expect(response.headers.get('set-cookie')).toContain('HttpOnly');
   });

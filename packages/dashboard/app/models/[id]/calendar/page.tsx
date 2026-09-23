@@ -159,7 +159,7 @@ export default async function CalendarPage({ params, searchParams }: {
             )}
             {showReview && <Link href={`/models/${encodeURIComponent(id)}/approvals`}>{role === 'content_creator' ? t('calendar.reviewDrafts') : t('calendar.viewBundlesApprovals')}</Link>}
             {showTeamNotes && <PostTeamNotes key={`notes:${p.id}`} modelId={id} postId={p.id} canEdit={canEdit || role === 'content_creator'} />}
-            {canEdit && p.state === 'pending' && !p.remoteId && <PostScheduleForm key={`${p.id}:${p.scheduledFor}`} postId={p.id} />}
+            {canEdit && p.state === 'pending' && !p.remoteId && <PostScheduleForm key={`${p.id}:${p.scheduledFor}`} postId={p.id} platform={p.platform} tiktokDeliveryMode={p.providerOptions?.tiktokDeliveryMode} />}
           </div>
         ))}
       </div>

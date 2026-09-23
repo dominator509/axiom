@@ -20,6 +20,8 @@ import type {
   MetricPeriod,
   ValidationReport,
   MediaType,
+  SocialOperationInput,
+  SocialOperationResult,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
 import { mediaTypeHint, validatePublish } from './validation.js';
@@ -98,6 +100,10 @@ interface TweetMetricsResponse {
 interface RevokeResponse {
   revoked: boolean;
 }
+interface XRepliesResponse {
+  data?: Array<{ id: string; text?: string; author_id?: string; created_at?: string }>;
+  meta?: { next_token?: string };
+}
 
 export class XConnector extends BaseConnector implements SocialConnector {
   constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
@@ -105,21 +111,27 @@ export class XConnector extends BaseConnector implements SocialConnector {
   }
 
   capability(): ConnectorCapability {
+    const canPublish = this.hasGrantedScope('tweet.write');
+    const canReadMetrics = this.hasGrantedScope('tweet.read');
     return {
-      publish: true,
-      media: [
+      publish: canPublish,
+      media: canPublish ? [
         'image' as MediaType,
         'video' as MediaType,
         'gif' as MediaType,
         'text' as MediaType,
-      ],
+      ] : [],
       maxMediaBytes: X_MAX_MEDIA_BYTES,
       maxMediaCount: 4,
       caption: true,
       maxCaptionLength: 4_000,
       scheduling: 'internal' as const,
-      metrics: ['likes', 'comments', 'shares', 'impressions', 'reposts', 'quotes'],
-      refreshMetrics: true,
+      metrics: canReadMetrics ? ['likes', 'comments', 'shares', 'impressions', 'reposts', 'quotes'] : [],
+      refreshMetrics: canReadMetrics,
+      operations: [
+        ...(this.hasGrantedScope('tweet.read') ? ['comments.read' as const] : []),
+        ...(this.hasGrantedScope('tweet.write') ? ['comments.reply' as const] : []),
+      ],
     };
   }
 
@@ -147,6 +159,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
     return this.idempotentPublish(input, async () => {
+      this.assertGrantedScope('publishing', 'tweet.write');
       const validation = await this.validate(input);
       if (!validation.valid) {
         throw new Error(
@@ -191,6 +204,7 @@ export class XConnector extends BaseConnector implements SocialConnector {
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
+    this.assertGrantedScope('metrics', 'tweet.read');
     const url = `${TWITTER_API_BASE}/tweets/${remoteId}?tweet.fields=public_metrics`;
 
     const resp = await this.fetchImpl(url, {
@@ -230,6 +244,44 @@ export class XConnector extends BaseConnector implements SocialConnector {
       },
       raw: data.data as unknown as Record<string, unknown>,
     };
+  }
+
+  async executeOperation(operation: SocialOperationInput): Promise<SocialOperationResult> {
+    if (!this.capability().operations?.includes(operation.type)) {
+      throw new Error(`X ${operation.type} is unavailable: required permission was not granted`);
+    }
+    if (operation.type === 'comments.read') {
+      this.assertGrantedScope('comments.read', 'tweet.read');
+      const url = new URL(`${TWITTER_API_BASE}/tweets/search/recent`);
+      url.searchParams.set('query', `conversation_id:${operation.postId}`);
+      url.searchParams.set('max_results', String(operation.limit ?? 50));
+      url.searchParams.set('tweet.fields', 'id,text,author_id,created_at');
+      if (operation.cursor) url.searchParams.set('next_token', operation.cursor);
+      const response = await this.apiGet<XRepliesResponse>(url.toString());
+      return {
+        type: 'comments',
+        items: (response.data ?? []).map((tweet) => ({
+          id: tweet.id,
+          postId: operation.postId,
+          text: tweet.text ?? '',
+          ...(tweet.author_id ? { authorId: tweet.author_id } : {}),
+          ...(tweet.created_at ? { createdAt: tweet.created_at } : {}),
+          permalink: `https://x.com/i/status/${tweet.id}`,
+        })),
+        ...(response.meta?.next_token ? { nextCursor: response.meta.next_token } : {}),
+      };
+    }
+    if (operation.type === 'comments.reply') {
+      this.assertGrantedScope('comments.reply', 'tweet.write');
+      const response = await this.apiPost<TweetResponse>(`${TWITTER_API_BASE}/tweets`, {
+        text: operation.text,
+        reply: { in_reply_to_tweet_id: operation.commentId },
+      }, { Authorization: `Bearer ${this.auth.accessToken}`, 'Content-Type': 'application/json' });
+      const id = response.data?.id;
+      if (!id) throw new Error('X reply response omitted the post ID');
+      return { type: 'mutation', success: true, remoteId: id };
+    }
+    throw new Error(`X does not support ${operation.type}`);
   }
 
   async revoke(): Promise<void> {

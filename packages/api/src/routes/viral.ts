@@ -3,19 +3,89 @@
 
 import { Hono } from 'hono';
 import { sql, eq, and, desc, type SQL } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import { schema } from '@axiom/db';
-import { enqueueJob } from '@axiom/worker';
+import { enqueueJob, enqueueWeeklyViralInsight } from '@axiom/worker';
 import type { AppBindings } from '../index.js';
-import { withOrgContext, requireOrg, apiError, statusTitle } from './helpers.js';
+import { withOrgContext, requireOrg, apiError, statusTitle, writeAudit } from './helpers.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
 import { modelAccessCondition } from '../model-access.js';
 import { isoWeekKey } from './digests.js';
+import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 
 export const LEARNING_ARM_RICH_PATTERN = '^v2:(short|medium|long):(question|statement):hook=(question|bold-claim|story|stat|controversy|teaser|unknown):format=(reel|carousel|single|story|longform|unknown)(:time=(morning|afternoon|evening|night))?$';
 
 const router = new Hono<AppBindings>();
 
 const insightEnqueueRoles = new Set(['owner', 'manager', 'operator', 'content_creator']);
+const insightScheduleRoles = new Set(['owner', 'manager']);
+const insightScheduleSchema = z.object({ enabled: z.boolean() }).strict();
+
+router.get('/models/:modelId/viral/insight-schedule', async c => {
+  const orgId = requireOrg(c);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const role = c.get('role');
+  const modelId = c.req.param('modelId');
+  const rows = await withOrgContext(orgId, tx => tx.select({
+    id: schema.modelProfile.id,
+    scheduleId: schema.modelProfile.viralInsightScheduleId,
+  }).from(schema.modelProfile).where(and(
+    eq(schema.modelProfile.orgId, orgId),
+    eq(schema.modelProfile.id, modelId),
+    modelAccessCondition(role, orgId, c.get('userId'), schema.modelProfile.id),
+  )).limit(1));
+  if (!rows[0]) return apiError(c, 404, statusTitle(404), 'model not found');
+  return c.json({ data: { enabled: Boolean(rows[0].scheduleId), scheduleId: rows[0].scheduleId ?? null } });
+});
+
+router.patch('/models/:modelId/viral/insight-schedule', async c => {
+  const orgId = requireOrg(c);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const userId = c.get('userId');
+  const role = c.get('role');
+  if (!userId) return apiError(c, 401, statusTitle(401), 'authentication required');
+  if (!insightScheduleRoles.has(role ?? ''))
+    return apiError(c, 403, statusTitle(403), 'recurring viral insight scheduling requires an owner or manager');
+
+  let payload: unknown;
+  try {
+    payload = await readBoundedJson(c.req.raw, 8 * 1024);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError)
+      return apiError(c, 413, statusTitle(413), 'viral insight schedule body too large');
+    payload = {};
+  }
+  const parsed = insightScheduleSchema.safeParse(payload);
+  if (!parsed.success) return apiError(c, 400, statusTitle(400), 'invalid viral insight schedule');
+
+  const modelId = c.req.param('modelId');
+  const result = await withOrgContext(orgId, async tx => {
+    const [current] = await tx.select({
+      id: schema.modelProfile.id,
+      scheduleId: schema.modelProfile.viralInsightScheduleId,
+    }).from(schema.modelProfile).where(and(
+      eq(schema.modelProfile.orgId, orgId),
+      eq(schema.modelProfile.id, modelId),
+    )).limit(1).for('update');
+    if (!current) return null;
+
+    const scheduleId = parsed.data.enabled ? current.scheduleId ?? randomUUID() : null;
+    const [saved] = await tx.update(schema.modelProfile).set({
+      viralInsightScheduleId: scheduleId,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(schema.modelProfile.orgId, orgId),
+      eq(schema.modelProfile.id, modelId),
+    )).returning({ id: schema.modelProfile.id });
+    if (!saved) return null;
+    if (scheduleId) await enqueueWeeklyViralInsight(tx, orgId, modelId, scheduleId);
+    await writeAudit(tx, orgId, userId, 'viral.insight.schedule.update', modelId, { enabled: Boolean(scheduleId) });
+    return { enabled: Boolean(scheduleId), scheduleId };
+  });
+  if (!result) return apiError(c, 404, statusTitle(404), 'model not found');
+  return c.json({ data: result });
+});
 
 /** Retained legacy/manual exemplars are not evidence of published performance. */
 export function publishedExemplarEvidence() {

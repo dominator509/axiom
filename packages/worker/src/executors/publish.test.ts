@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { schema } from '@axiom/db';
 import {
   assertProviderReadableMediaUrls,
   isTerminalPublishTargetState,
   publishDispatchMarkerValues,
   publishTarget,
+  persistAssistedPublishHandoff,
+  publicationMediaOptions,
   resolvePublicationSnapshot,
   buildPublicationSnapshot,
   resolveProviderAssetUrl,
@@ -151,13 +154,54 @@ describe('validatePublishAsset', () => {
   });
 });
 
+describe('publicationMediaOptions', () => {
+  it('passes stored Snap video metadata to the connector boundary for eligibility checks', () => {
+    expect(publicationMediaOptions('snapchat', {
+      kind: 'video', mimeType: 'video/mp4', width: 1080, height: 1920, duration: 30,
+    })).toEqual({
+      mediaType: 'video', mediaMimeType: 'video/mp4', mediaWidth: 1080,
+      mediaHeight: 1920, mediaDurationSeconds: 30,
+    });
+  });
+
+  it('keeps provider-specific metadata off unrelated connector contracts', () => {
+    expect(publicationMediaOptions('instagram', {
+      kind: 'video', mimeType: 'video/mp4', width: 1080, height: 1920, duration: 30,
+    })).toEqual({ mediaType: 'video' });
+    expect(publicationMediaOptions('snapchat', undefined)).toEqual({});
+  });
+});
+
 describe('isTerminalPublishTargetState', () => {
-  it('treats published, assisted skipped, and canceled targets as terminal', () => {
+  it('treats published, skipped, manual-assist, and canceled targets as terminal', () => {
     expect(isTerminalPublishTargetState('published')).toBe(true);
     expect(isTerminalPublishTargetState('skipped')).toBe(true);
+    expect(isTerminalPublishTargetState('manual_assist')).toBe(true);
     expect(isTerminalPublishTargetState('canceled')).toBe(true);
     expect(isTerminalPublishTargetState('pending')).toBe(false);
     expect(isTerminalPublishTargetState('failed')).toBe(false);
+  });
+});
+
+describe('persistAssistedPublishHandoff', () => {
+  it('stores Snapchat manual instructions as a disabled, idempotent model-scoped Relay card', async () => {
+    const insert = { values: vi.fn().mockReturnThis(), onConflictDoNothing: vi.fn().mockResolvedValue(undefined) };
+    const tx = { insert: vi.fn().mockReturnValue(insert) };
+    await persistAssistedPublishHandoff(tx, {
+      orgId: 'org-1', modelId: 'model-1', bundleId: 'bundle-1', targetId: 'target-1',
+      handoff: {
+        platform: 'snapchat', type: 'assisted_publish', instructions: 'Open Snapchat and share.',
+        assets: ['https://media.example.test/story.jpg'], caption: 'Story caption',
+        handoffUrl: 'https://www.snapchat.com/add/creator',
+      },
+    });
+    expect(tx.insert).toHaveBeenCalledWith(schema.relayCard);
+    expect(insert.values).toHaveBeenCalledWith(expect.objectContaining({
+      orgId: 'org-1', modelId: 'model-1', bundleId: 'bundle-1', channel: 'manual-assist',
+      externalRef: 'target-1', state: 'pending', enabled: false,
+      config: { snapchatManualAssist: expect.objectContaining({ caption: 'Story caption', assets: ['https://media.example.test/story.jpg'] }) },
+    }));
+    expect(insert.onConflictDoNothing).toHaveBeenCalledOnce();
   });
 });
 

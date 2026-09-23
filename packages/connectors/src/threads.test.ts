@@ -206,6 +206,48 @@ describe('fetchMetrics', () => {
   });
 });
 
+describe('reply operations', () => {
+  it('reads normalized replies and preserves the provider cursor', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({
+      data: [{ id: 'reply-1', text: 'Hello', username: 'fan', timestamp: '2026-01-01T00:00:00Z', permalink: 'https://threads.net/t/1' }],
+      paging: { cursors: { after: 'cursor-2' } },
+    }));
+    const connector = new ThreadsConnector({ ...AUTH, extra: { grantedScopes: ['threads_read_replies'] } }, fetchImpl as unknown as typeof fetch);
+    expect(connector.capability().operations).toContain('comments.read');
+    await expect(connector.executeOperation({ type: 'comments.read', postId: 'post-1', limit: 25 })).resolves.toEqual({
+      type: 'comments',
+      items: [{ id: 'reply-1', postId: 'post-1', text: 'Hello', authorName: 'fan', createdAt: '2026-01-01T00:00:00Z', permalink: 'https://threads.net/t/1' }],
+      nextCursor: 'cursor-2',
+    });
+    expect(fetchImpl.mock.calls[0]?.[0]).toContain('/post-1/replies?');
+  });
+
+  it('publishes a reply through a text container and the publish endpoint', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ id: 'container-1' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'reply-2' }));
+    const connector = new ThreadsConnector({ ...AUTH, extra: { grantedScopes: ['threads_content_publish', 'threads_manage_replies'] } }, fetchImpl as unknown as typeof fetch);
+    await expect(connector.executeOperation({ type: 'comments.reply', commentId: 'parent-1', text: '  Thanks!  ' }))
+      .resolves.toEqual({ type: 'mutation', success: true, remoteId: 'reply-2' });
+    const [createUrl] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(new URL(createUrl).searchParams.get('reply_to_id')).toBe('parent-1');
+    const [publishUrl] = fetchImpl.mock.calls[1] as [string, RequestInit];
+    expect(new URL(publishUrl).searchParams.get('creation_id')).toBe('container-1');
+  });
+
+  it('hides and moderates replies only with the matching grant', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ success: true }));
+    const connector = new ThreadsConnector({ ...AUTH, extra: { grantedScopes: ['threads_manage_replies'] } }, fetchImpl as unknown as typeof fetch);
+    expect(connector.capability().moderationActions).toEqual(['hide', 'approve', 'reject']);
+    await connector.executeOperation({ type: 'comments.moderate', commentId: 'reply-3', action: 'hide' });
+    expect(fetchImpl.mock.calls[0]?.[0]).toContain('/reply-3/manage_reply?hide=true');
+    await expect(new ThreadsConnector({ ...AUTH, extra: { grantedScopes: [] } }, fetchImpl as unknown as typeof fetch)
+      .executeOperation({ type: 'comments.moderate', commentId: 'reply-3', action: 'hide' }))
+      .rejects.toThrow(/required permission was not granted/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('revoke', () => {
   it('deletes permissions when externalUserId is set', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ success: true }));

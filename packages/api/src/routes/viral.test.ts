@@ -7,7 +7,11 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => mockDbFactory({ viralExemplar: {}, modelProfile: {}, job: {} }));
-vi.mock('@axiom/worker', () => ({ enqueueJob: vi.fn(async () => ({ id: 'job-viral-1' })) }));
+const schedule = vi.hoisted(() => ({ enqueue: vi.fn(async () => ({ id: 'job-scheduled-1' })) }));
+vi.mock('@axiom/worker', () => ({
+  enqueueJob: vi.fn(async () => ({ id: 'job-viral-1' })),
+  enqueueWeeklyViralInsight: schedule.enqueue,
+}));
 
 import { LEARNING_ARM_RICH_PATTERN, viralRouter } from './viral.js';
 
@@ -28,6 +32,9 @@ function appWithOrg(orgId: string | null, role: string | undefined = undefined) 
 
 beforeEach(() => {
   mockState.result = [];
+  mockState.results = [];
+  mockState.updates = [];
+  schedule.enqueue.mockClear();
 });
 
 afterEach(() => {
@@ -89,5 +96,44 @@ describe('POST /models/:modelId/viral/insight', () => {
   it('denies a chatter from generating an unattended insight card', async () => {
     const res = await appWithOrg(ORG_ID, 'chatter').request(`/models/${MODEL_ID}/viral/insight`, { method: 'POST' });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('model-scoped recurring viral insight schedule', () => {
+  it('lets assigned members read whether the schedule is enabled', async () => {
+    mockState.result = [{ id: MODEL_ID, scheduleId: null }];
+    const response = await appWithOrg(ORG_ID, 'content_creator').request(`/models/${MODEL_ID}/viral/insight-schedule`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { enabled: false, scheduleId: null } });
+  });
+
+  it('allows an owner to enable a weekly schedule and queues the first completed-week run', async () => {
+    mockState.results = [[], [{ id: MODEL_ID, scheduleId: null }], [{ id: MODEL_ID }]];
+    const response = await appWithOrg(ORG_ID, 'owner').request(`/models/${MODEL_ID}/viral/insight-schedule`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: true }),
+    });
+    expect(response.status).toBe(200);
+    const body = await response.json() as { data: { enabled: boolean; scheduleId: string } };
+    expect(body.data.enabled).toBe(true);
+    expect(body.data.scheduleId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(schedule.enqueue).toHaveBeenCalledWith(expect.anything(), ORG_ID, MODEL_ID, body.data.scheduleId);
+  });
+
+  it('requires owner or manager permission before enabling recurring external delivery', async () => {
+    const response = await appWithOrg(ORG_ID, 'operator').request(`/models/${MODEL_ID}/viral/insight-schedule`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: true }),
+    });
+    expect(response.status).toBe(403);
+    expect(schedule.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('disables an existing schedule without enqueuing another occurrence', async () => {
+    mockState.results = [[], [{ id: MODEL_ID, scheduleId: '33333333-3333-4333-8333-333333333333' }], [{ id: MODEL_ID }]];
+    const response = await appWithOrg(ORG_ID, 'manager').request(`/models/${MODEL_ID}/viral/insight-schedule`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: false }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { enabled: false, scheduleId: null } });
+    expect(schedule.enqueue).not.toHaveBeenCalled();
   });
 });

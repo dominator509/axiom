@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Sign in' };
 
 export default async function LoginPage({ searchParams }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
-} = {}) {
+}) {
   const query = await searchParams;
   const rawReferral = query?.affiliate_ref;
   const affiliateRef = typeof rawReferral === 'string' && /^[A-Za-z0-9_-]{1,256}$/.test(rawReferral)

@@ -78,6 +78,29 @@ describe('model relay-card history', () => {
     const response = await app().request(`/models/${MODEL_ID}/relay-cards`);
     expect(response.status).toBe(404);
   });
+
+  it('returns only allowlisted Snapchat handoff fields and never provider credentials', async () => {
+    const createdAt = new Date('2026-01-02T03:04:05.000Z');
+    mockState.results = [[], [{ orgId: ORG_ID }], [], [{
+      id: 'snap-card', bundleId: 'bundle-1', modelId: MODEL_ID, channel: 'manual-assist', state: 'pending',
+      title: 'Snapchat manual publish', description: 'Open Snapchat and share.', icon: '👻', enabled: false,
+      priority: 0, createdAt, externalRef: 'private-target',
+      config: { accessToken: 'must-not-leak', snapchatManualAssist: {
+        instructions: 'Open Snapchat and share.', caption: 'A story', assets: ['https://media.example.test/snap.jpg'],
+        handoffUrl: 'https://www.snapchat.com/add/creator', unexpected: 'must-not-leak',
+      } },
+    }]];
+    const response = await app().request(`/models/${MODEL_ID}/relay-cards`);
+    expect(response.status).toBe(200);
+    const json = await response.json() as { data: Array<Record<string, unknown>> };
+    expect(json.data[0]?.snapchatHandoff).toEqual({
+      instructions: 'Open Snapchat and share.', caption: 'A story', assets: ['https://media.example.test/snap.jpg'],
+      handoffUrl: 'https://www.snapchat.com/add/creator',
+    });
+    expect(JSON.stringify(json)).not.toContain('must-not-leak');
+    expect(json.data[0]).not.toHaveProperty('config');
+    expect(json.data[0]).not.toHaveProperty('externalRef');
+  });
 });
 
 describe('relay-card operator reconciliation', () => {

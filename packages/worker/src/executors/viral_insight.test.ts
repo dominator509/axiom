@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   results: [] as unknown[],
@@ -23,6 +23,7 @@ function chain(): any {
 vi.mock('@axiom/db', () => ({
   schema: {
     uiLocalePreference: { orgId: 'org_id', scope: 'scope', locale: 'locale' },
+    modelProfile: { id: 'id', orgId: 'org_id', viralInsightScheduleId: 'viral_insight_schedule_id' },
     relayCard: {},
     job: { orgId: 'org_id', dedupeKey: 'dedupe_key', id: 'id' },
   },
@@ -60,6 +61,8 @@ describe('viral.insight executor', () => {
     state.values = [];
   });
 
+  afterEach(() => vi.useRealTimers());
+
   it('stores one bounded, localized Relay card and never dispatches externally', async () => {
     await viralInsight({ tx: chain(), job: job(), workerId: 'test', killSwitchEnabled: false });
     expect(state.values).toHaveLength(2);
@@ -86,5 +89,37 @@ describe('viral.insight executor', () => {
     state.results = [[], [{ scope: 'org', locale: 'en' }]];
     await viralInsight({ tx: chain(), job: job(), workerId: 'test', killSwitchEnabled: false });
     expect(state.values).toEqual([]);
+  });
+
+  it('chains only the active model schedule and evaluates the prior completed week', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-21T10:00:00Z'));
+    state.results = [[{ scheduleId: '44444444-4444-4444-8444-444444444444' }], [], [{
+      platform: 'fanvue', learning_arm: 'v2:short:question', learning_context: 'learn-v2:scheduled-utc-2',
+      published_hour_utc: 19, sample_size: 4, mean_score: 1.25,
+    }], [{ scope: 'org', locale: 'en' }], [{ id: 'source-card-1' }], []];
+    const persistScheduledContinuation = vi.fn(async (operation: (tx: any) => Promise<any>): Promise<any> => operation(chain()));
+    await viralInsight({
+      tx: chain(),
+      job: { ...job(), payload: { ...job().payload, windowKey: '2026-08-03', automaticScheduleId: '44444444-4444-4444-8444-444444444444' } },
+      workerId: 'test', killSwitchEnabled: false, persistScheduledContinuation,
+    });
+    expect(persistScheduledContinuation).toHaveBeenCalledOnce();
+    expect(state.values[0]).toMatchObject({
+      orgId: ORG_ID, queue: 'viral', kind: 'viral.insight',
+      payload: { modelId: MODEL_ID, windowKey: expect.any(String), automaticScheduleId: '44444444-4444-4444-8444-444444444444' },
+    });
+    expect(state.values[0].payload).toMatchObject({ windowKey: '2026-09-21' });
+  });
+
+  it('ignores an occurrence from a disabled or replaced schedule before reading evidence', async () => {
+    state.results = [[{ scheduleId: null }]];
+    await viralInsight({
+      tx: chain(),
+      job: { ...job(), payload: { ...job().payload, automaticScheduleId: '44444444-4444-4444-8444-444444444444' } },
+      workerId: 'test', killSwitchEnabled: false,
+    });
+    expect(state.values).toEqual([]);
+    expect(state.results).toHaveLength(0);
   });
 });

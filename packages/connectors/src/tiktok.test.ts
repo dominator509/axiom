@@ -70,6 +70,11 @@ describe('TikTokConnector basics', () => {
     expect(c.displayName).toBe('TikTok');
     expect(c.publishMode).toBe('api');
   });
+
+  it('advertises draft uploads when the connection has video.upload but not video.publish', () => {
+    const c = new TikTokConnector({ accessToken: 'draft-token', extra: { grantedScopes: ['video.upload'] } });
+    expect(c.capability().publish).toBe(true);
+  });
 });
 
 describe('validate', () => {
@@ -124,6 +129,38 @@ describe('validate', () => {
 });
 
 describe('publish', () => {
+  it('uploads to the creator inbox with video.upload and records manual completion instead of claiming publication', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('mp4bytes', { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse(INIT_OK))
+      .mockResolvedValueOnce(new Response(null, { status: 201 }));
+    const connector = new TikTokConnector({
+      accessToken: 'draft-token',
+      extra: { grantedScopes: ['video.upload'], username: 'draftuser' },
+    }, fetchMock);
+
+    const result = await connector.publish(input({ options: { deliveryMode: 'draft' } }));
+
+    expect(result.state).toBe('manual_assist');
+    expect(result.remoteId).toBe('pub-1');
+    expect(result.error).toContain('finish editing, and publish it there');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const [initUrl, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(initUrl).toBe('https://open.tiktokapis.com/v2/post/publish/inbox/video/init/');
+    expect(JSON.parse(init.body as string)).toEqual({
+      source_info: { source: 'FILE_UPLOAD', video_size: 8, chunk_size: 8, total_chunk_count: 1 },
+    });
+  });
+
+  it('refuses direct publishing when only the TikTok draft-upload scope was granted', async () => {
+    const fetchMock = vi.fn();
+    const connector = new TikTokConnector({ accessToken: 'draft-token', extra: { grantedScopes: ['video.upload'] } }, fetchMock);
+    const result = await connector.publish(input());
+    expect(result.state).toBe('failed');
+    expect(result.error).toContain('required permission was not granted');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('runs download → creator info → init → PUT upload → status and returns the post id', async () => {
     const fetchMock = vi
       .fn()

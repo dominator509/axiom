@@ -37,18 +37,20 @@ const FANVUE_AUTH_URL = 'https://auth.fanvue.com/oauth2/auth';
 const FANVUE_TOKEN_URL = 'https://auth.fanvue.com/oauth2/token';
 const OAUTH_REQUEST_TIMEOUT_MS = 30_000;
 // Default scopes per Fanvue docs: read:self, read:chat, plus the write scopes
-// the publish/upload/metrics paths require (write:post, write:media, read:post,
-// read:insights, read:fan). The connector's publish() needs write:post +
-// write:media; fetchMetrics needs read:post.
+// the publish/upload/metrics paths require (write:post, write:media, read:media,
+// read:post, read:insights, read:fan). Fanvue's custom MCP image-post flow
+// requires read:media in addition to its write scopes.
 const FANVUE_SCOPES = [
   'openid',
   'offline_access',
   'offline',
   'read:self',
   'read:chat',
+  'write:chat',
   'read:post',
   'write:post',
   'write:media',
+  'read:media',
   'read:insights',
   'read:fan',
 ];
@@ -218,7 +220,14 @@ router.get('/callback', async (c) => {
         ...(refreshToken ? { refreshToken } : {}),
         externalUserId,
         expiresAt,
-        extra: { clientId: FANVUE_CLIENT_ID, clientSecret: FANVUE_CLIENT_SECRET },
+        extra: {
+          clientId: FANVUE_CLIENT_ID,
+          clientSecret: FANVUE_CLIENT_SECRET,
+          // OAuth omits `scope` when the token has the exact requested scope set.
+          // If it returns a set, keep only scopes this client requested.
+          grantedScopes: (typeof tokens['scope'] === 'string' ? tokens['scope'].split(/\s+/) : FANVUE_SCOPES)
+            .filter((scope): scope is string => FANVUE_SCOPES.includes(scope)),
+        },
       },
       actorRef: 'oauth:fanvue',
     });
