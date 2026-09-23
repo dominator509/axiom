@@ -7,15 +7,17 @@ import DashboardScreen from './src/screens/DashboardScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RelayScreen from './src/screens/RelayScreen';
 import PatreonScreen from './src/screens/PatreonScreen';
+import ConsentScreen from './src/screens/ConsentScreen';
 import { palette } from './src/theme';
 import { CATALOGS, LocaleCatalog, type SupportedLocale } from '@axiom/core';
 
-type Tab = 'dashboard' | 'relay' | 'patreon';
+type Tab = 'dashboard' | 'relay' | 'patreon' | 'consent';
 
 const TABS: Array<{ key: Tab; labelKey: string; icon: string }> = [
   { key: 'dashboard', labelKey: 'mobile.studioTab', icon: '◇' },
   { key: 'relay', labelKey: 'mobile.relayTitle', icon: '✦' },
   { key: 'patreon', labelKey: 'mobile.communityTab', icon: '◎' },
+  { key: 'consent', labelKey: 'mobile.consentTab', icon: '▤' },
 ];
 const localeCatalog = new LocaleCatalog(CATALOGS);
 
@@ -84,6 +86,8 @@ export default function App() {
           <DashboardScreen user={user} onSignOut={handleSignOut} onLocaleChange={setLocale} />
         ) : tab === 'patreon' ? (
           <PatreonScreen user={user} />
+        ) : tab === 'consent' ? (
+          <ConsentScreen />
         ) : (
           <RelayScreen />
         )}
