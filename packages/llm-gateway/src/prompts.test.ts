@@ -95,7 +95,7 @@ describe('buildS1', () => {
     expect(s1).toContain('Max caption length: 2200 characters');
     expect(s1).toContain('Max hashtags: 30');
     expect(s1).toContain('Links allowed: Yes');
-    expect(s1).toContain('Blocked keywords: nude, naked, sex, porn, escort, onlyfans');
+    expect(s1).toContain('Blocked keywords: nude, naked, sex, sexual, porn, erotic, escort, onlyfans, nsfw, adult content');
     expect(s1).toContain('Content requiring review: suggestive, revealing, sexual_wellness');
     expect(s1).toContain('[TOS THRESHOLDS]');
     expect(s1).toContain('Acceptance threshold: 70/100');
