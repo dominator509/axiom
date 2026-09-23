@@ -5,6 +5,7 @@ import { GenerationTool } from './tools/generation.js';
 import { PublishingTool } from './tools/publishing.js';
 import { NetworkTool } from './tools/network.js';
 import { tierAtLeast } from './auth.js';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 
 // ─── Tool registry ──────────────────────────────────────────────────────────
 
@@ -46,7 +47,10 @@ export function getManifest(tier: Tier, _modelId: string): ToolDescriptor[] {
     manifest.push({
       name: tool.name,
       description: tool.description,
-      inputSchema: tool.inputSchema._def ?? {},
+      inputSchema: zodToJsonSchema(tool.inputSchema, {
+        target: 'jsonSchema7',
+        $refStrategy: 'none',
+      }),
       requiresApproval: tool.requiresApproval,
       tier: tool.tier,
     });

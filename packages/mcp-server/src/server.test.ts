@@ -66,7 +66,33 @@ describe('McpServer.handleRequest — protocol surface', () => {
       method: 'ping',
       id: 1,
     });
-    expect(res).toEqual({ jsonrpc: '2.0', result: { status: 'pong' }, id: 1 });
+    expect(res).toEqual({ jsonrpc: '2.0', result: {}, id: 1 });
+  });
+
+  it('negotiates the supported MCP initialization handshake', async () => {
+    const response = await makeServer(Tier.Viewer).handleRequest({
+      jsonrpc: '2.0',
+      method: 'initialize',
+      params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'openclaw', version: '1' } },
+      id: 1,
+    });
+    expect(response).toEqual({
+      jsonrpc: '2.0',
+      id: 1,
+      result: {
+        protocolVersion: '2025-11-25',
+        capabilities: { tools: { listChanged: false } },
+        serverInfo: { name: 'axiom-crm', version: '0.1.0' },
+      },
+    });
+  });
+
+  it('does not respond to MCP notifications', async () => {
+    const response = await makeServer(Tier.Viewer).handleRequest({
+      jsonrpc: '2.0',
+      method: 'notifications/initialized',
+    });
+    expect(response).toBeNull();
   });
 
   it('runs the injected audit hook before a tool call', async () => {
@@ -85,7 +111,7 @@ describe('McpServer.handleRequest — protocol surface', () => {
     });
 
     expect(response).toMatchObject({
-      error: { code: -32603, message: 'Internal error' },
+      error: { code: -32602, message: 'Unknown tool' },
       id: 'audit-1',
     });
     expect(events).toEqual([
@@ -114,7 +140,10 @@ describe('McpServer.handleRequest — protocol surface', () => {
     });
 
     expect(response).toMatchObject({
-      error: { code: -32603, message: 'Internal error' },
+      result: {
+        isError: true,
+        content: [{ type: 'text', text: 'Tool call failed. Check the AXIOM dashboard for status.' }],
+      },
       id: 'audit-2',
     });
   });
@@ -127,6 +156,13 @@ describe('McpServer.handleRequest — protocol surface', () => {
 
     const b = await server.handleRequest({ jsonrpc: '2.0', method: 'tools/list', id: 2 });
     expect((b as { result: { tools: unknown[] } }).result.tools).toHaveLength(3);
+    const tools = (b as { result: { tools: Array<Record<string, unknown>> } }).result.tools;
+    expect(Object.keys(tools[0]).sort()).toEqual(['description', 'inputSchema', 'name']);
+    expect(tools[0].inputSchema).toMatchObject({
+      type: 'object',
+      properties: { modelId: { type: 'string', format: 'uuid' } },
+      required: ['modelId'],
+    });
   });
 
   it('returns -32601 for unknown methods', async () => {
@@ -164,7 +200,7 @@ describe('McpServer.handleRequest — protocol surface', () => {
     });
     expect(res).toMatchObject({
       jsonrpc: '2.0',
-      error: { code: -32603, message: 'Internal error' },
+      error: { code: -32602, message: 'Unknown tool' },
       id: 4,
     });
   });
@@ -323,11 +359,14 @@ describe('McpServer.handleRequest — callTool end to end', () => {
     };
     const res = await server.handleRequest(req);
     expect(res).toMatchObject({ jsonrpc: '2.0', id: 'req-42' });
-    const result = (res as { result: { data: { metric: string } } }).result;
-    expect(result.data.metric).toBe('views');
+    const result = (res as { result: { content: Array<{ type: string; text: string }>; isError: boolean } }).result;
+    expect(result.isError).toBe(false);
+    expect(result.content).toHaveLength(1);
+    const payload = JSON.parse(result.content[0].text) as { data: { metric: string } };
+    expect(payload.data.metric).toBe('views');
   });
 
-  it('surfaces validation failures as -32603 internal errors', async () => {
+  it('surfaces tool validation failures as bounded MCP tool errors', async () => {
     const server = makeServer(Tier.Viewer);
     const res = (await server.handleRequest({
       jsonrpc: '2.0',
@@ -336,9 +375,9 @@ describe('McpServer.handleRequest — callTool end to end', () => {
       id: 5,
     })) as McpResponse;
     expect(res).toMatchObject({
-      error: {
-        code: -32603,
-        message: 'Internal error',
+      result: {
+        isError: true,
+        content: [{ type: 'text', text: 'Tool call failed. Check the AXIOM dashboard for status.' }],
       },
       id: 5,
     });
@@ -352,13 +391,13 @@ describe('McpServer.handleRequest — callTool end to end', () => {
       params: { name: 'analytics_query' },
       id: 6,
     })) as McpResponse;
-    expect(res).toMatchObject({ error: { code: -32603 } });
+    expect(res).toMatchObject({ result: { isError: true }, id: 6 });
   });
 
   it('preserves numeric request ids in responses', async () => {
     const server = makeServer(Tier.Viewer);
     const res = await server.handleRequest({ jsonrpc: '2.0', method: 'ping', id: 123 });
-    expect(res.id).toBe(123);
+    expect(res?.id).toBe(123);
   });
 });
 

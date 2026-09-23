@@ -1,4 +1,10 @@
-export { McpServer, createMcpServer, createMcpServerAsync } from './server.js';
+export {
+  McpServer,
+  createMcpServer,
+  createMcpServerAsync,
+  CURRENT_MCP_PROTOCOL_VERSION,
+  SUPPORTED_MCP_PROTOCOL_VERSIONS,
+} from './server.js';
 export type { McpServerOptions, McpToolAuditEvent } from './server.js';
 export {
   Tier,

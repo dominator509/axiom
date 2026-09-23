@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import AgentPermissionManager, { ERROR_MESSAGE_KEYS, TERMINAL_STATUSES, classifyStatus, errorText } from './AgentPermissionManager';
+import AgentPermissionManager, { buildOpenClawSetupCommands, ERROR_MESSAGE_KEYS, TERMINAL_STATUSES, classifyStatus, errorText } from './AgentPermissionManager';
 import LocaleProvider from './LocaleProvider';
 import { CATALOGS, SUPPORTED_LOCALES, type MessageKey } from '@axiom/core';
 
@@ -14,6 +14,15 @@ const permission = {
 
 // A hostile backend message: control characters, markup and an injection attempt.
 const HOSTILE_BACKEND_MESSAGE = '<img src=x onerror=alert(1)> INTERNAL STACK: secret-token-abc123';
+const OPENCLAW_COPY_KEYS = [
+  'agent.openclawTitle',
+  'agent.openclawDescription',
+  'agent.openclawEndpointLabel',
+  'agent.openclawEndpointInvalid',
+  'agent.openclawEnvironment',
+  'agent.openclawCommandDescription',
+  'agent.openclawExpiry',
+] as const;
 
 it('localizes agent permissions while preserving agent references and token metadata', () => {
   const html = renderToStaticMarkup(<LocaleProvider initialLocale="es"><AgentPermissionManager modelId="model-1" permissions={[permission]} canEdit /></LocaleProvider>);
@@ -24,11 +33,42 @@ it('localizes agent permissions while preserving agent references and token meta
   expect(html).toContain('publicación deshabilitada');
   expect(html).toContain('puede editar');
   expect(html).toContain('Tokens emitidos');
+  expect(html).toContain('Conectar OpenClaw');
+  expect(html).toContain('AXIOM_MCP_TOKEN');
+  expect(html).toContain('El token bearer caduca a los 15 minutos.');
   expect(html).toContain('Revocar');
   expect(html).toContain('grok-roleplayer');
   expect(html).toContain('2030');
   expect(html).not.toContain('T00:15:00.000Z');
   expect(html).not.toContain('Issue 15-minute token');
+});
+
+it('builds OpenClaw setup commands with a validated endpoint and environment token reference', () => {
+  const commands = buildOpenClawSetupCommands('https://axiom.example.test');
+  expect(commands).not.toBeNull();
+  expect(commands).toContain('openclaw mcp doctor axiom --probe');
+  expect(commands).toContain('https://axiom.example.test/api/mcp');
+  expect(commands).toContain('Bearer ${AXIOM_MCP_TOKEN}');
+  expect(commands).not.toContain('one-time-secret');
+
+  const invalidOrigins = [
+    'javascript:alert(1)',
+    'https://user:password@axiom.example.test',
+    'https://axiom.example.test/path',
+    'https://axiom.example.test/?token=secret',
+  ];
+  for (const origin of invalidOrigins) expect(buildOpenClawSetupCommands(origin)).toBeNull();
+});
+
+it('provides localized OpenClaw setup guidance in every launch locale', () => {
+  for (const locale of SUPPORTED_LOCALES) {
+    for (const key of OPENCLAW_COPY_KEYS) {
+      const value = CATALOGS[locale][key];
+      expect(value, `${locale}:${key}`).toBeTypeOf('string');
+      expect(value.trim(), `${locale}:${key}`).not.toBe('');
+      if (locale !== 'en') expect(value, `${locale}:${key}`).not.toBe(CATALOGS.en[key]);
+    }
+  }
 });
 
 it('localizes the read-only owner boundary and hides mutation controls', () => {
