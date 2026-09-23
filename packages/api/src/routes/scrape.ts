@@ -12,7 +12,7 @@ import type { Context } from 'hono';
 import { withOrgContext, requireOrg, apiError, statusTitle, writeAudit } from './helpers.js';
 import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 import { parseCursor, cursorLt, nextCursor } from '../contract.js';
-import { projectScrapeRun } from '../scraper-quality-contract.js';
+import { computeCompetitorBenchmarks, projectScrapeRun } from '../scraper-quality-contract.js';
 
 const router = new Hono<AppBindings>();
 const socialSchema = z.object({ kind: z.literal('social'), platform: z.string().trim().min(1).max(50), profileUrl: z.string().url().max(2_000) }).strict();
@@ -39,18 +39,39 @@ router.get('/models/:modelId/scrape-runs', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const { limit, cursor } = parseCursor(c, 20, 100);
-  const rows = await withOrgContext(orgId, (tx) => tx.select().from(schema.scrapeRun)
-    .where(and(
+  const modelId = c.req.param('modelId');
+  const result = await withOrgContext(orgId, async (tx) => {
+    const model = await tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile).where(and(
+      eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId),
+    )).limit(1);
+    if (!model[0]) return null;
+    const rows = await tx.select().from(schema.scrapeRun)
+      .where(and(
+        eq(schema.scrapeRun.orgId, orgId),
+        eq(schema.scrapeRun.modelId, modelId),
+        ...cursorLt(schema.scrapeRun.createdAt, schema.scrapeRun.id, cursor),
+      ))
+      .orderBy(desc(schema.scrapeRun.createdAt), desc(schema.scrapeRun.id)).limit(limit);
+    const benchmarkRows = await tx.select({
+      id: schema.scrapeRun.id,
+      result: schema.scrapeRun.result,
+      createdAt: schema.scrapeRun.createdAt,
+      completedAt: schema.scrapeRun.completedAt,
+    }).from(schema.scrapeRun).where(and(
       eq(schema.scrapeRun.orgId, orgId),
-      eq(schema.scrapeRun.modelId, c.req.param('modelId')),
-      ...cursorLt(schema.scrapeRun.createdAt, schema.scrapeRun.id, cursor),
-    ))
-    .orderBy(desc(schema.scrapeRun.createdAt), desc(schema.scrapeRun.id)).limit(limit));
+      eq(schema.scrapeRun.modelId, modelId),
+      eq(schema.scrapeRun.kind, 'competitor'),
+    )).orderBy(desc(schema.scrapeRun.createdAt), desc(schema.scrapeRun.id)).limit(100);
+    return { rows, benchmark: computeCompetitorBenchmarks(benchmarkRows) };
+  });
+  if (!result) return apiError(c, 404, statusTitle(404), 'model not found');
+  const { rows } = result;
   const last = rows[rows.length - 1];
   return c.json({ data: rows.map(projectScrapeRun), meta: {
     total: rows.length,
     limit,
     next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length),
+    competitor_benchmark: result.benchmark,
   } });
 });
 

@@ -10,7 +10,16 @@ import { ParkJobError } from './context.js';
 import type { Executor, ExecutorContext } from './context.js';
 
 const RATE_BUCKET_PARK_MS = 30_000;
-export const METRICS_POLL_INTERVAL_MS = 15 * 60_000;
+export const METRICS_PUBLISH_AGE_OFFSETS_MS = [
+  60 * 60_000,
+  6 * 60 * 60_000,
+  24 * 60 * 60_000,
+  7 * 24 * 60 * 60_000,
+  14 * 24 * 60 * 60_000,
+  30 * 24 * 60 * 60_000,
+  60 * 24 * 60 * 60_000,
+  90 * 24 * 60 * 60_000,
+] as const;
 
 /** Reject absent/invalid observations rather than teach the learner invented zeros. */
 export function normalizeEngagementMetrics(metrics: Record<string, number | undefined>) {
@@ -32,13 +41,17 @@ export function normalizeEngagementMetrics(metrics: Record<string, number | unde
   return { impressions, likes, comments, shares, engagementRate: impressions > 0 ? engagement / impressions : 0 };
 }
 
-export function nextMetricsPollAt(now = new Date()): Date {
-  return new Date(now.getTime() + METRICS_POLL_INTERVAL_MS);
+/** Poll around the product's 1h/6h/24h/7d windows, then decay to sparse snapshots. */
+export function nextMetricsPollAt(publishedAt: Date | string, now = new Date()): Date | null {
+  const published = new Date(publishedAt);
+  if (!Number.isFinite(published.getTime()) || !Number.isFinite(now.getTime())) throw new Error('metrics.poll: invalid schedule time');
+  const age = Math.max(0, now.getTime() - published.getTime());
+  const nextOffset = METRICS_PUBLISH_AGE_OFFSETS_MS.find(offset => offset > age);
+  return nextOffset === undefined ? null : new Date(published.getTime() + nextOffset);
 }
 
 export function metricsPollDedupeParts(targetId: string, runAt: Date): string[] {
-  const cadenceBucket = Math.floor(runAt.getTime() / METRICS_POLL_INTERVAL_MS);
-  return ['metrics.poll', targetId, String(cadenceBucket)];
+  return ['metrics.poll', targetId, runAt.toISOString()];
 }
 
 export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
@@ -138,14 +151,16 @@ export const metricsPoll: Executor = async (ctx: ExecutorContext) => {
   // publish executor; every successful poll owns the next cadence slot. A
   // time-bucketed dedupe key collapses duplicate schedulers without merging
   // distinct future polls.
-  const nextRunAt = nextMetricsPollAt();
-  await enqueueJob(tx, {
-    orgId: job.org_id,
-    queue: 'metrics',
-    kind: 'metrics.poll',
-    payload: { targetId },
-    runAfter: nextRunAt,
-    maxAttempts: job.max_attempts,
-    dedupeParts: metricsPollDedupeParts(targetId, nextRunAt),
-  });
+  const nextRunAt = nextMetricsPollAt(target.publishedAt ?? target.createdAt);
+  if (nextRunAt) {
+    await enqueueJob(tx, {
+      orgId: job.org_id,
+      queue: 'metrics',
+      kind: 'metrics.poll',
+      payload: { targetId },
+      runAfter: nextRunAt,
+      maxAttempts: job.max_attempts,
+      dedupeParts: metricsPollDedupeParts(targetId, nextRunAt),
+    });
+  }
 };

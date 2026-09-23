@@ -146,6 +146,7 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
     const canReadVault = this.hasGrantedScope('read:media');
     const canManageVault = this.hasGrantedScope('write:media');
     const operations: SocialOperationName[] = [
+      ...(this.hasGrantedScope('write:chat') ? ['messages.send' as const] : []),
       ...(canReadVault ? ['vault.folders.read', 'vault.folder.read', 'vault.media.read'] as const : []),
       ...(canManageVault ? [
         'vault.folder.create', 'vault.folder.rename', 'vault.folder.delete',
@@ -298,6 +299,24 @@ export class FanvueConnector extends BaseConnector implements SocialConnector {
 
   async executeOperation(input: SocialOperationInput): Promise<SocialOperationResult> {
     switch (input.type) {
+      case 'messages.send': {
+        this.assertGrantedScope('direct message sending', 'write:chat');
+        const recipientId = input.recipientId.trim();
+        const text = input.text.trim();
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(recipientId)) {
+          throw new Error('Fanvue direct message recipient must be a user UUID');
+        }
+        if (!text || text.length > 10_000) {
+          throw new Error('Fanvue direct message text must contain 1 to 10000 characters');
+        }
+        const result = await this.fanvueRequest<unknown>(
+          'POST', `/chats/${encodeURIComponent(recipientId)}/message`, { text },
+        );
+        const response = result && typeof result === 'object' ? result as Record<string, unknown> : {};
+        const messageId = typeof response['uuid'] === 'string' ? response['uuid']
+          : typeof response['id'] === 'string' ? response['id'] : undefined;
+        return { type: 'mutation', success: true, ...(messageId ? { remoteId: messageId } : {}) };
+      }
       case 'vault.folders.read': {
         const page = await this.listVaultFolders(input.page, input.size, input.mediaName);
         return { type: 'vault.folders', ...page };

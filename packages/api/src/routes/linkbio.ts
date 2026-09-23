@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { sql, eq, and, desc, inArray } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
+import { computeRoiPercent } from '../linkbio-roi.js';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import {
@@ -51,6 +52,14 @@ const attributionEventSchema = z.object({
   utm: attributionUtmSchema,
 }).strict();
 
+const campaignCostSchema = z.object({
+  eventKey: z.string().trim().min(1).max(240),
+  shortLinkId: z.string().uuid(),
+  amountCents: z.number().int().min(0).max(1_000_000_000),
+  currency: z.string().regex(/^[A-Z]{3}$/).default('USD'),
+  occurredAt: z.string().datetime({ offset: true }),
+}).strict();
+
 const nativeLinkInput = z.object({
   label: z.string().trim().min(1).max(120),
   url: z.string().trim().min(1).max(2048).refine((value) => {
@@ -71,7 +80,7 @@ type NativeLink = { label: string; url: string; utm: Record<string, string> };
 type PublicNativeLink = NativeLink & { slug: string };
 type AttributionLink = { id: string; utm: Record<string, string> | null };
 type AttributionReportLink = { id: string; slug: string; targetUrl: string };
-type AttributionEventSummary = { shortLinkId: string | null; kind: string; amountCents: number };
+type AttributionEventSummary = { shortLinkId: string | null; kind: string; amountCents: number; currency: string };
 
 function nativeLinks(config: unknown): NativeLink[] {
   if (!config || typeof config !== 'object' || Array.isArray(config)) return [];
@@ -515,9 +524,54 @@ router.post(
   },
 );
 
+// POST /models/:id/linkbio/campaign-costs — record real operator-supplied spend.
+router.post('/models/:modelId/linkbio/campaign-costs', zValidator('json', campaignCostSchema), async (c) => {
+  const orgId = requireOrg(c);
+  const userId = c.get('userId');
+  if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authenticated workspace required');
+  const modelId = c.req.param('modelId');
+  const body = c.req.valid('json');
+  const result = await withOrgContext(orgId, async (tx) => {
+    const models = await tx.select({ id: schema.modelProfile.id }).from(schema.modelProfile).where(and(
+      eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId),
+    )).limit(1);
+    if (models.length === 0) return { status: 404 as const, error: 'model not found' };
+    const links = await tx.select({ id: schema.shortLink.id }).from(schema.shortLink).where(and(
+      eq(schema.shortLink.id, body.shortLinkId),
+      eq(schema.shortLink.orgId, orgId),
+      eq(schema.shortLink.modelId, modelId),
+    )).limit(1);
+    if (links.length === 0) return { status: 404 as const, error: 'short link is not assigned to this model' };
+    const occurredAt = new Date(body.occurredAt);
+    const values = {
+      orgId, modelId, shortLinkId: body.shortLinkId, eventKey: body.eventKey,
+      amountCents: body.amountCents, currency: body.currency, occurredAt, recordedByUserId: userId,
+    };
+    const inserted = await tx.insert(schema.linkbioCampaignCost).values(values).onConflictDoNothing({
+      target: [schema.linkbioCampaignCost.orgId, schema.linkbioCampaignCost.eventKey],
+    }).returning();
+    if (inserted.length > 0) {
+      await writeAudit(tx, orgId, userId, 'linkbio.campaign_cost.record', body.shortLinkId, {
+        modelId, amountCents: body.amountCents, currency: body.currency,
+      });
+      return { status: 201 as const, data: inserted[0], duplicate: false };
+    }
+    const existing = await tx.select().from(schema.linkbioCampaignCost).where(and(
+      eq(schema.linkbioCampaignCost.orgId, orgId), eq(schema.linkbioCampaignCost.eventKey, body.eventKey),
+    )).limit(1);
+    const prior = existing[0];
+    if (!prior) return { status: 409 as const, error: 'campaign cost could not be reconciled' };
+    if (prior.modelId !== modelId || prior.shortLinkId !== body.shortLinkId || prior.amountCents !== body.amountCents
+      || prior.currency !== body.currency || prior.occurredAt.getTime() !== occurredAt.getTime()) {
+      return { status: 409 as const, error: 'event key is already bound to a different campaign cost' };
+    }
+    return { status: 200 as const, data: prior, duplicate: true };
+  });
+  if ('error' in result) return apiError(c, result.status, statusTitle(result.status), result.error ?? 'campaign cost rejected');
+  return c.json({ data: result.data, duplicate: result.duplicate }, result.status);
+});
+
 // GET /models/:id/linkbio/attribution — bounded first-party revenue join.
-// ROI is intentionally reported as unavailable until campaign cost data is an
-// architecture-backed contract; revenue and conversion counts are real facts.
 router.get('/models/:modelId/linkbio/attribution', async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
@@ -542,33 +596,88 @@ router.get('/models/:modelId/linkbio/attribution', async (c) => {
       shortLinkId: schema.linkbioAttributionEvent.shortLinkId,
       kind: schema.linkbioAttributionEvent.kind,
       amountCents: schema.linkbioAttributionEvent.amountCents,
+      currency: schema.linkbioAttributionEvent.currency,
     }).from(schema.linkbioAttributionEvent).where(and(
       eq(schema.linkbioAttributionEvent.orgId, orgId),
       eq(schema.linkbioAttributionEvent.modelId, modelId),
     )) as AttributionEventSummary[];
+    const costs = await tx.select({
+      shortLinkId: schema.linkbioCampaignCost.shortLinkId,
+      amountCents: schema.linkbioCampaignCost.amountCents,
+      currency: schema.linkbioCampaignCost.currency,
+    }).from(schema.linkbioCampaignCost).where(and(
+      eq(schema.linkbioCampaignCost.orgId, orgId),
+      eq(schema.linkbioCampaignCost.modelId, modelId),
+    ));
     const clicksByLink = new Map<string, number>();
     for (const click of clicks) if (click.shortLinkId) clicksByLink.set(click.shortLinkId, (clicksByLink.get(click.shortLinkId) ?? 0) + 1);
-    const eventsByLink = new Map<string, { conversions: number; revenueCents: number }>();
+    const eventsByLink = new Map<string, { conversions: number; revenueByCurrency: Record<string, number> }>();
     let unattributedConversions = 0;
+    const unattributedRevenueByCurrency: Record<string, number> = {};
     for (const event of events) {
-      if (!event.shortLinkId) { unattributedConversions += 1; continue; }
-      const current = eventsByLink.get(event.shortLinkId) ?? { conversions: 0, revenueCents: 0 };
+      const signedAmount = event.kind === 'subscription_refund' ? -event.amountCents : event.amountCents;
+      if (!event.shortLinkId) {
+        unattributedConversions += 1;
+        unattributedRevenueByCurrency[event.currency] = (unattributedRevenueByCurrency[event.currency] ?? 0) + signedAmount;
+        continue;
+      }
+      const current = eventsByLink.get(event.shortLinkId) ?? { conversions: 0, revenueByCurrency: {} };
       current.conversions += 1;
-      current.revenueCents += event.kind === 'subscription_refund' ? -event.amountCents : event.amountCents;
+      current.revenueByCurrency[event.currency] = (current.revenueByCurrency[event.currency] ?? 0) + signedAmount;
       eventsByLink.set(event.shortLinkId, current);
     }
+    const costsByLink = new Map<string, Record<string, number>>();
+    for (const cost of costs) {
+      const current = costsByLink.get(cost.shortLinkId) ?? {};
+      current[cost.currency] = (current[cost.currency] ?? 0) + cost.amountCents;
+      costsByLink.set(cost.shortLinkId, current);
+    }
     const rows = links.map((link) => {
-      const event = eventsByLink.get(link.id) ?? { conversions: 0, revenueCents: 0 };
-      return { ...link, clicks: clicksByLink.get(link.id) ?? 0, ...event };
+      const event = eventsByLink.get(link.id) ?? { conversions: 0, revenueByCurrency: {} };
+      const costByCurrency = costsByLink.get(link.id) ?? {};
+      const currencies = [...new Set([...Object.keys(event.revenueByCurrency), ...Object.keys(costByCurrency)])];
+      const roiByCurrency = Object.fromEntries(currencies.map((currency) => [
+        currency,
+        computeRoiPercent(event.revenueByCurrency[currency] ?? 0, costByCurrency[currency] ?? 0) ?? null,
+      ]));
+      return {
+        ...link,
+        clicks: clicksByLink.get(link.id) ?? 0,
+        conversions: event.conversions,
+        revenueCents: event.revenueByCurrency.USD ?? 0,
+        costCents: costByCurrency.USD ?? 0,
+        roiPercent: roiByCurrency.USD ?? null,
+        revenueByCurrency: event.revenueByCurrency,
+        costByCurrency,
+        roiByCurrency,
+      };
     });
     const totalClicks = rows.reduce((sum, row) => sum + row.clicks, 0);
     const attributedConversions = rows.reduce((sum, row) => sum + row.conversions, 0);
+    const attributedRevenueByCurrency: Record<string, number> = {};
+    const campaignCostByCurrency: Record<string, number> = {};
+    for (const row of rows) {
+      for (const [currency, amount] of Object.entries(row.revenueByCurrency)) {
+        attributedRevenueByCurrency[currency] = (attributedRevenueByCurrency[currency] ?? 0) + amount;
+      }
+      for (const [currency, amount] of Object.entries(row.costByCurrency)) {
+        campaignCostByCurrency[currency] = (campaignCostByCurrency[currency] ?? 0) + amount;
+      }
+    }
+    const currencies = [...new Set([...Object.keys(attributedRevenueByCurrency), ...Object.keys(campaignCostByCurrency)])];
+    const roiByCurrency = Object.fromEntries(currencies.map((currency) => [
+      currency,
+      computeRoiPercent(attributedRevenueByCurrency[currency] ?? 0, campaignCostByCurrency[currency] ?? 0) ?? null,
+    ]));
+    const hasSpend = Object.values(campaignCostByCurrency).some((amount) => amount > 0);
     return {
-      currency: 'USD', totalClicks, attributedConversions, unattributedConversions,
-      attributedRevenueCents: rows.reduce((sum, row) => sum + row.revenueCents, 0),
+      currency: currencies.length === 1 ? currencies[0] : null,
+      totalClicks, attributedConversions, unattributedConversions,
+      attributedRevenueCents: attributedRevenueByCurrency.USD ?? 0,
+      attributedRevenueByCurrency, unattributedRevenueByCurrency, campaignCostByCurrency, roiByCurrency,
       conversionRate: totalClicks > 0 ? attributedConversions / totalClicks : 0,
-      roi: null,
-      roiStatus: 'unavailable_without_campaign_costs',
+      roi: roiByCurrency.USD ?? null,
+      roiStatus: hasSpend ? 'available_by_currency' : 'unavailable_without_campaign_costs',
       links: rows,
     };
   });

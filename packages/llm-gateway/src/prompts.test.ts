@@ -106,6 +106,16 @@ describe('buildS1', () => {
 
   it('says links not allowed for tiktok', () => {
     expect(buildS1('tiktok')).toContain('Links allowed: No');
+    expect(buildS1('tiktok')).toContain('refer to the profile link without adding a URL');
+  });
+
+  it('adds a respectful SFW funnel only to public-facing platforms', () => {
+    const instagram = buildS1('instagram');
+    expect(instagram).toContain('[PUBLIC SFW FUNNEL]');
+    expect(instagram).toContain('transparent call to action');
+    expect(instagram).toContain('Do not imply private access or fabricate invite URLs.');
+    expect(buildS1('fanvue')).not.toContain('[PUBLIC SFW FUNNEL]');
+    expect(buildS1('telegram')).not.toContain('[PUBLIC SFW FUNNEL]');
   });
 
   it('omits review categories line when the platform has none (telegram)', () => {

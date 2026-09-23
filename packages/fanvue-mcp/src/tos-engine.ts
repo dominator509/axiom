@@ -40,11 +40,19 @@ export interface PlatformRule {
   reviewCategories: string[];
 }
 
+function containsBlockedKeyword(text: string, keyword: string): boolean {
+  const words = (value: string) => value.normalize('NFKC').toLocaleLowerCase('und').match(/[\p{L}\p{N}_]+/gu) ?? [];
+  const haystack = words(text);
+  const needle = words(keyword);
+  if (needle.length === 0 || needle.length > haystack.length) return false;
+  return haystack.some((_, start) => needle.every((word, offset) => haystack[start + offset] === word));
+}
+
 export const PLATFORM_RULES: Record<Platform, PlatformRule> = {
   instagram: {
     platform: 'instagram',
-    description: 'Instagram Community Guidelines — no nudity, hate speech, harassment',
-    blockedKeywords: ['nude', 'naked', 'sex', 'porn', 'escort', 'onlyfans'],
+    description: 'Instagram Community Guidelines plus AXIOM public SFW policy — explicit adult terms are blocked and suggestive material requires review',
+    blockedKeywords: ['nude', 'naked', 'sex', 'sexual', 'porn', 'erotic', 'escort', 'onlyfans', 'nsfw', 'adult content'],
     maxHashtags: 30,
     maxCaptionLength: 2200,
     linksAllowed: true,
@@ -61,12 +69,12 @@ export const PLATFORM_RULES: Record<Platform, PlatformRule> = {
   },
   x: {
     platform: 'x',
-    description: 'X/Twitter Rules — no violent content, harassment, adult content (permissive)',
-    blockedKeywords: ['violence', 'gore', 'harassment'],
+    description: 'X rules plus AXIOM public SFW policy — explicit adult terms are blocked and suggestive material requires review',
+    blockedKeywords: ['violence', 'gore', 'harassment', 'nude', 'naked', 'sex', 'sexual', 'porn', 'erotic', 'escort', 'onlyfans', 'nsfw', 'adult content'],
     maxHashtags: 50,
     maxCaptionLength: 4000,
     linksAllowed: true,
-    reviewCategories: ['suggestive'],
+    reviewCategories: ['suggestive', 'revealing', 'sexual_wellness', 'intimate', 'extremely_explicit'],
   },
   youtube: {
     platform: 'youtube',
@@ -98,12 +106,12 @@ export const PLATFORM_RULES: Record<Platform, PlatformRule> = {
   },
   reddit: {
     platform: 'reddit',
-    description: 'Reddit Content Policy — no harassment, no involuntary pornography',
-    blockedKeywords: ['harassment', 'dox', 'gore'],
+    description: 'Reddit rules plus AXIOM public SFW policy — adult content remains blocked even where a provider allows it',
+    blockedKeywords: ['harassment', 'dox', 'gore', 'nude', 'naked', 'sex', 'sexual', 'porn', 'erotic', 'escort', 'onlyfans', 'nsfw', 'adult content'],
     maxHashtags: 0,
     maxCaptionLength: 40000,
     linksAllowed: true,
-    reviewCategories: ['suggestive'],
+    reviewCategories: ['suggestive', 'revealing', 'sexual_wellness', 'intimate', 'extremely_explicit'],
   },
   threads: {
     platform: 'threads',
@@ -183,10 +191,7 @@ export function evaluateTextToS(
     const rule = PLATFORM_RULES[platform];
     const threshold = DEFAULT_PLATFORM_THRESHOLDS[platform];
     const reasons: string[] = [];
-    const captionLower = caption.toLowerCase();
-    const blocked = rule.blockedKeywords.filter((keyword) =>
-      captionLower.includes(keyword.toLowerCase()),
-    );
+    const blocked = rule.blockedKeywords.filter((keyword) => containsBlockedKeyword(caption, keyword));
     if (blocked.length > 0) {
       reasons.push(`Caption contains blocked keywords: ${blocked.join(', ')}`);
     }
@@ -357,10 +362,7 @@ export class ToSEngine {
 
       // Check caption for blocked keywords
       const caption = asset.caption ?? '';
-      const captionLower = caption.toLowerCase();
-      const blockedInCaption = rule.blockedKeywords.filter((kw) =>
-        captionLower.includes(kw.toLowerCase()),
-      );
+      const blockedInCaption = rule.blockedKeywords.filter((kw) => containsBlockedKeyword(caption, kw));
       if (blockedInCaption.length > 0) {
         reasons.push(`Caption contains blocked keywords: ${blockedInCaption.join(', ')}`);
       }

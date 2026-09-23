@@ -55,6 +55,7 @@ describe('FanvueConnector', () => {
     expect(cap.maxCaptionLength).toBe(5000);
     expect(cap.scheduling).toBe('internal');
     expect(cap.metrics).toEqual(['likes', 'comments']);
+    expect(cap.operations).toContain('messages.send');
   });
 
   it('exposes platform, displayName and publishMode', () => {
@@ -62,6 +63,49 @@ describe('FanvueConnector', () => {
     expect(c.platform).toBe('fanvue');
     expect(c.displayName).toBe('Fanvue');
     expect(c.publishMode).toBe('api');
+  });
+});
+
+describe('direct messages', () => {
+  it('sends a bounded one-to-one message only with the granted chat scope', async () => {
+    const recipientId = '123e4567-e89b-42d3-a456-426614174000';
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ uuid: 'message-1' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const connector = new FanvueConnector({
+      ...AUTH,
+      extra: { grantedScopes: ['read:chat', 'write:chat'] },
+    });
+
+    const result = await connector.executeOperation!({
+      type: 'messages.send', recipientId, text: 'A renewed subscription offer is ready.',
+    });
+
+    expect(result).toEqual({ type: 'mutation', success: true, remoteId: 'message-1' });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(`https://api.fanvue.com/chats/${recipientId}/message`);
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(String(init.body))).toEqual({ text: 'A renewed subscription offer is ready.' });
+    expect(init.headers).toMatchObject({
+      Authorization: 'Bearer fanvue-token',
+      'X-Fanvue-API-Version': '2025-06-26',
+    });
+  });
+
+  it('hides message sending without write:chat and rejects malformed recipients before I/O', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const readOnly = new FanvueConnector({ ...AUTH, extra: { grantedScopes: ['read:chat'] } });
+    expect(readOnly.capability().operations).not.toContain('messages.send');
+    await expect(readOnly.executeOperation!({
+      type: 'messages.send', recipientId: 'not-a-uuid', text: 'Hello',
+    })).rejects.toThrow('required permission was not granted');
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const writable = new FanvueConnector({ ...AUTH, extra: { grantedScopes: ['write:chat'] } });
+    await expect(writable.executeOperation!({
+      type: 'messages.send', recipientId: 'not-a-uuid', text: 'Hello',
+    })).rejects.toThrow('recipient must be a user UUID');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

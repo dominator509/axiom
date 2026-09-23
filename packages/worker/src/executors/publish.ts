@@ -705,7 +705,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   // no provider resource to query (Discord webhook execution with a 204
   // response is one example).
   if (shouldEnqueueMetrics(result.remoteId, connector.capability().metrics)) {
-    const runAfter = new Date(Date.now() + 60_000); // first poll ~1 min after publish
+    const runAfter = new Date(Date.now() + 60 * 60_000); // first observation closes the 1-hour performance window
     await enqueueJob(tx, {
       orgId: job.org_id,
       queue: 'metrics',

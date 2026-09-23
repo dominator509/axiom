@@ -107,6 +107,7 @@ export interface TaskVariables {
 // thresholds. Prompt generation must consume the same data so policy changes
 // cannot silently diverge from enforcement.
 const PLATFORM_RULES = SHARED_PLATFORM_RULES;
+const PUBLIC_SFW_PLATFORMS = new Set<Platform>(['instagram', 'tiktok', 'x', 'youtube', 'facebook', 'reddit', 'threads', 'snapchat']);
 
 // ─── S0: System Persona Segment ───
 
@@ -183,6 +184,13 @@ export function buildS1(platform: Platform): string {
 
   if (rules.reviewCategories.length > 0) {
     lines.push(`Content requiring review: ${rules.reviewCategories.join(', ')}`);
+  }
+
+  if (PUBLIC_SFW_PLATFORMS.has(platform)) {
+    lines.push('\n[PUBLIC SFW FUNNEL]');
+    lines.push('Keep every public post non-explicit and suitable for a general audience. Do not imply private access or fabricate invite URLs.');
+    lines.push('Use a respectful, transparent call to action that points to the creator\'s existing profile link-in-bio when available.');
+    if (!rules.linksAllowed) lines.push('This platform does not allow caption links; refer to the profile link without adding a URL.');
   }
 
   const threshold = DEFAULT_PLATFORM_THRESHOLDS[platform] ?? 70;
