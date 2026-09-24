@@ -157,7 +157,7 @@ describe('Snapchat OAuth onboarding', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: 'success', platform: 'snapchat', refreshed: true });
     const encryptCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/egress/encrypt'));
-    const payload = JSON.parse(Buffer.from(String((encryptCall?.[1] as RequestInit)?.body).match(/\"plaintext\":\"([^\"]+)\"/)?.[1] ?? '', 'base64').toString('utf8')) as Record<string, unknown>;
+    const payload = JSON.parse(Buffer.from(String((encryptCall?.[1] as RequestInit)?.body).match(/"plaintext":"([^"]+)"/)?.[1] ?? '', 'base64').toString('utf8')) as Record<string, unknown>;
     expect(payload).toMatchObject({ accessToken: 'new-access', refreshToken: 'new-refresh', extra: { grantedScopes: ['snapchat-profile-api'] } });
   });
 
