@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mutationFetch } from '@/lib/mutation';
+import { notifyKillSwitchChanged } from '@/lib/killswitch-events';
 
 export default function KillSwitchControl({ enabled }: { enabled: boolean }) {
   const router = useRouter();
@@ -27,6 +28,12 @@ export default function KillSwitchControl({ enabled }: { enabled: boolean }) {
         setError(b?.error?.message ?? 'Action failed');
         return;
       }
+      // Wake the layout-mounted KillSwitchBanner (client) — router.refresh()
+      // alone does not remount it, so it would stay on mount-time state.
+      notifyKillSwitchChanged({
+        enabled: enable,
+        reason: enable ? reason : '',
+      });
       router.refresh();
     } catch {
       setError('Network error');
