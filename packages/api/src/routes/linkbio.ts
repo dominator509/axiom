@@ -106,7 +106,7 @@ const enableSchema = z.object({
   isPrimary: z.boolean().optional(),
 });
 
-type NativeLink = { label: string; url: string; utm: Record<string, string> };
+type NativeLink = { label: string; url: string; utm?: Record<string, string> };
 type PublicNativeLink = NativeLink & { slug: string };
 type AttributionLink = { id: string; utm: Record<string, string> | null };
 type AttributionReportLink = { id: string; slug: string; targetUrl: string; utm: Record<string, string> | null };
@@ -190,7 +190,8 @@ function nativeLinks(config: unknown): NativeLink[] {
             ),
           )
         : {};
-    return [{ label, url, utm }];
+    // Omit an empty utm so saved configs round-trip unchanged for existing clients.
+    return [Object.keys(utm).length > 0 ? { label, url, utm } : { label, url }];
   });
 }
 
