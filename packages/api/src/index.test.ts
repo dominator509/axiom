@@ -339,4 +339,56 @@ describe('MCP transport body limits', () => {
       id: null,
     });
   });
+
+  it('rejects modern MCP HTTP requests when the required standard headers are missing', async () => {
+    const response = await app.request('/api/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'MCP-Protocol-Version': '2026-07-28',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: -32020 },
+      id: 1,
+    });
+  });
+
+  it('rejects standard MCP HTTP headers that disagree with the JSON-RPC request', async () => {
+    const response = await app.request('/api/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'MCP-Protocol-Version': '2026-07-28',
+        'Mcp-Method': 'tools/call',
+        'Mcp-Name': 'analytics_query',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 2 }),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: -32020 },
+      id: 2,
+    });
+  });
+
+  it('allows header-free modern protocol notifications through to authentication', async () => {
+    const response = await app.request('/api/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'MCP-Protocol-Version': '2026-07-28',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { message: 'Authentication failed' },
+    });
+  });
 });

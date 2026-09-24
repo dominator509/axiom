@@ -74,9 +74,18 @@ describe('getManifest — descriptors', () => {
     }
   });
 
-  it('exposes the raw zod _def as inputSchema', () => {
+  it('converts Zod inputs into MCP-compatible JSON Schema', () => {
     const analytics = getManifest(Tier.Viewer, MODEL).find((t) => t.name === 'analytics_query')!;
-    expect(analytics.inputSchema).toBe(allTools.analytics_query.inputSchema._def);
+    expect(analytics.inputSchema).toMatchObject({
+      type: 'object',
+      properties: {
+        modelId: { type: 'string', format: 'uuid' },
+        dateFrom: { type: 'string', format: 'date-time' },
+        metric: { type: 'string', enum: ['views', 'likes', 'shares', 'comments', 'engagement_rate'] },
+      },
+      required: ['modelId'],
+    });
+    expect(analytics.inputSchema).not.toHaveProperty('_def');
   });
 
   it('flags generation as requiring approval at Operator tier', () => {

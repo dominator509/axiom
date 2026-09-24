@@ -154,3 +154,30 @@ production secrets or live integrations, or change any deployment/provider
 state. The API build warned that its current local `BETTER_AUTH_SECRET` is
 weak; its value was not printed or recorded, and production secret quality was
 not verified.
+
+## M1009 — OpenClaw MCP onboarding (F-38) — 2026-09-23
+
+Implemented the OpenClaw remote MCP setup flow and completed the MCP
+Streamable HTTP interoperability path. The server negotiates supported MCP
+protocol versions, handles standard initialization, ping, notifications,
+tools/list, and tools/call messages, and returns standard JSON Schema inputs
+and tool result content blocks. The API enforces the modern protocol headers
+and version while keeping notification requests header-free as required.
+
+The Agent Access screen now produces a copyable OpenClaw server configuration
+using the current site origin and an environment-variable reference for the
+short-lived bearer token. It includes the remote doctor probe command and
+explains token renewal and revocation. The token itself is not embedded in the
+generated configuration or persisted by the UI.
+
+| Verification | Result |
+| --- | --- |
+| `rtk node scripts/test-isolated-workspace.mjs --isolated-fixture` | Passed, 24/24 workspace tasks; disposable fixture applied 73 migrations and was removed; recovered database remained untouched. |
+| MCP server package tests | 87 passed; 6 database-backed tests skipped when no test database was configured. |
+| API `src/index.test.ts` | 67 passed. |
+| Dashboard `AgentPermissionManager.test.tsx` | 10 passed. |
+| Core `locale.test.ts` | 30 passed. |
+| API typecheck and focused dashboard lint | Passed. |
+
+This verifies local implementation and the disposable Docker workspace matrix.
+No live OpenClaw client, external provider, or deployed service was used.

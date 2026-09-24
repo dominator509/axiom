@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDate } from '@axiom/core';
 import type { AgentPermission } from '@/lib/api';
@@ -65,6 +65,32 @@ export function errorText(state: ErrorState, t: (key: string) => string): string
   return state.kind === 'unconfirmed' ? `${t(key)} ${t('agent.retry')}` : t(key);
 }
 
+/** Build shell-safe OpenClaw setup commands without embedding a bearer token. */
+export function buildOpenClawSetupCommands(origin: string): string | null {
+  try {
+    const parsedOrigin = new URL(origin);
+    if (
+      !['http:', 'https:'].includes(parsedOrigin.protocol) ||
+      parsedOrigin.username ||
+      parsedOrigin.password ||
+      parsedOrigin.pathname !== '/' ||
+      parsedOrigin.search ||
+      parsedOrigin.hash
+    ) {
+      return null;
+    }
+
+    const definition = JSON.stringify({
+      url: new URL('/api/mcp', parsedOrigin.origin).toString(),
+      transport: 'streamable-http',
+      headers: { Authorization: 'Bearer ${AXIOM_MCP_TOKEN}' },
+    });
+    return `openclaw mcp set axiom '${definition}'\nopenclaw mcp doctor axiom --probe`;
+  } catch {
+    return null;
+  }
+}
+
 type Intent = { path: string; method: 'POST'; body: string; key: string };
 
 export default function AgentPermissionManager({ modelId, permissions, canEdit }: { modelId: string; permissions: AgentPermission[]; canEdit: boolean }) {
@@ -78,7 +104,14 @@ export default function AgentPermissionManager({ modelId, permissions, canEdit }
   const [error, setError] = useState<ErrorState>({ kind: 'none' });
   const [message, setMessage] = useState('');
   const [issuedToken, setIssuedToken] = useState<string | null>(null);
+  const [mcpOrigin, setMcpOrigin] = useState('');
   const intent = useRef<Intent | null>(null);
+
+  useEffect(() => {
+    setMcpOrigin(window.location.origin);
+  }, []);
+
+  const openClawCommands = buildOpenClawSetupCommands(mcpOrigin);
 
   async function run(next?: Omit<Intent, 'key'>, onSuccess?: (data: unknown) => void) {
     if (busy) return;
@@ -139,6 +172,16 @@ export default function AgentPermissionManager({ modelId, permissions, canEdit }
     {permissions.length === 0 ? <p>{t('agent.noGrants')}</p> : <div className="stack">{permissions.map(permission => <article className="card stack" key={permission.id}>
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'start' }}><div><h3>{permission.agentRef}</h3><p className="subtle">{tierLabel(permission.tier)} · {permission.canPublish ? t('agent.publishingScopeEnabled') : t('agent.publishingScopeDisabled')} · {permission.canEdit ? t('agent.canEdit') : t('agent.readOnlyEdits')}</p></div>{canEdit && <button className="btn secondary" type="button" disabled={busy} onClick={() => issueToken(permission)}>{t('agent.issueToken')}</button>}</div>
       {permission.tokens.length > 0 && <div className="stack"><strong>{t('agent.issuedTokens')}</strong>{permission.tokens.map(token => <div className="row" style={{ justifyContent: 'space-between' }} key={token.tokenId}><span className="mono">{token.tokenId} · {t('agent.expires', { value: formatDate(new Date(token.expiresAt), locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) })}</span>{canEdit && !token.revokedAt && <button className="btn secondary" type="button" disabled={busy} onClick={() => revokeToken(permission, token.tokenId)}>{t('agent.revoke')}</button>}</div>)}</div>}
+      <details className="stack">
+        <summary>{t('agent.openclawTitle')}</summary>
+        <p className="subtle">{t('agent.openclawDescription')}</p>
+        <label>{t('agent.openclawEndpointLabel')}<input value={mcpOrigin} onChange={event => setMcpOrigin(event.target.value)} inputMode="url" /></label>
+        <p className="subtle">{t('agent.openclawEnvironment')}</p>
+        {openClawCommands
+          ? <><p className="subtle">{t('agent.openclawCommandDescription')}</p><textarea readOnly value={openClawCommands} rows={4} aria-label={t('agent.openclawCommandDescription')} /></>
+          : <p role="alert">{t('agent.openclawEndpointInvalid')}</p>}
+        <p className="subtle">{t('agent.openclawExpiry')}</p>
+      </details>
     </article>)}</div>}
     {issuedToken && <div className="card stack" role="status"><strong>{t('agent.oneTimeToken')}</strong><p className="subtle">{t('agent.oneTimeTokenDescription')}</p><textarea readOnly value={issuedToken} rows={4} aria-label={t('agent.oneTimeToken')} /></div>}
     {canEdit ? <fieldset className="stack" disabled={busy || intent.current !== null} style={{ border: 0, padding: 0, minWidth: 0 }}><legend>{t('agent.grantTitle')}</legend><div className="row"><label>{t('agent.agentReference')}<input value={agentRef} onChange={event => setAgentRef(event.target.value)} maxLength={128} placeholder={t('agent.agentReferencePlaceholder')} /></label><label>{t('agent.tier')}<select value={tier} onChange={event => setTier(event.target.value as typeof tier)}>{TIERS.map(value => <option key={value} value={value}>{t(`agent.tier.${value}`)}</option>)}</select></label><label><input type="checkbox" checked={canPublish} onChange={event => setCanPublish(event.target.checked)} /> {t('agent.publishingScope')}</label><label><input type="checkbox" checked={canEditAgent} onChange={event => setCanEditAgent(event.target.checked)} /> {t('agent.editScope')}</label><button className="btn" type="button" onClick={saveGrant}>{t('agent.saveGrant')}</button></div></fieldset> : <p className="subtle">{t('agent.ownerRequired')}</p>}

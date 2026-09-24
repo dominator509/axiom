@@ -16,7 +16,7 @@ export interface McpRequest {
   jsonrpc: '2.0';
   method: string;
   params?: Record<string, unknown>;
-  id: string | number;
+  id?: string | number | null;
 }
 
 /** A JSON-RPC 2.0 success response. */
@@ -37,7 +37,14 @@ export interface McpError {
   id: string | number | null;
 }
 
-export type McpResponse = McpSuccess | McpError;
+export type McpResponse = McpSuccess | McpError | null;
+
+export const SUPPORTED_MCP_PROTOCOL_VERSIONS = [
+  '2025-06-18',
+  '2025-11-25',
+  '2026-07-28',
+] as const;
+export const CURRENT_MCP_PROTOCOL_VERSION = '2026-07-28';
 
 /** Durable audit event emitted before an MCP tool executes. */
 export interface McpToolAuditEvent {
@@ -119,29 +126,68 @@ export class McpServer {
    * Dispatches to the appropriate method handler.
    */
   async handleRequest(request: McpRequest): Promise<McpResponse> {
-    const { method, params, id } = request;
+    const { method, params } = request;
+    const id = typeof request.id === 'string' || typeof request.id === 'number' ? request.id : null;
+
+    // Notifications have no JSON-RPC id and must not receive a response.
+    if (!Object.hasOwn(request, 'id')) return null;
 
     try {
       switch (method) {
+        case 'initialize': {
+          const requestedVersion = params?.protocolVersion;
+          const protocolVersion =
+            typeof requestedVersion === 'string' &&
+            (SUPPORTED_MCP_PROTOCOL_VERSIONS as readonly string[]).includes(requestedVersion)
+              ? requestedVersion
+              : CURRENT_MCP_PROTOCOL_VERSION;
+          return this._respond(id, {
+            protocolVersion,
+            capabilities: { tools: { listChanged: false } },
+            serverInfo: { name: 'axiom-crm', version: '0.1.0' },
+          });
+        }
+
         case 'listTools':
-        case 'tools/list':
-          return this._respond(id, { tools: this.listTools() });
+        case 'tools/list': {
+          const tools = this.listTools().map(({ name, description, inputSchema }) => ({
+            name,
+            description,
+            inputSchema,
+          }));
+          return this._respond(id, { tools });
+        }
 
         case 'callTool':
         case 'tools/call': {
           if (!params || typeof params.name !== 'string') {
             return this._error(id, -32602, 'Invalid params: tool name required');
           }
-          const result = await this.callTool(
-            params.name as string,
-            (params.arguments ?? {}) as Record<string, unknown>,
-            id,
-          );
-          return this._respond(id, result);
+          try {
+            const result = await this.callTool(
+              params.name as string,
+              (params.arguments ?? {}) as Record<string, unknown>,
+              id,
+            );
+            return this._respond(id, {
+              content: [{ type: 'text', text: JSON.stringify(result) }],
+              isError: false,
+            });
+          } catch (error) {
+            if (error instanceof Error && error.message.startsWith('Unknown tool:')) {
+              return this._error(id, -32602, 'Unknown tool');
+            }
+            // Tool internals can contain provider, database, or tenant details.
+            // MCP clients receive a safe tool error without leaking that data.
+            return this._respond(id, {
+              content: [{ type: 'text', text: 'Tool call failed. Check the AXIOM dashboard for status.' }],
+              isError: true,
+            });
+          }
         }
 
         case 'ping':
-          return this._respond(id, { status: 'pong' });
+          return this._respond(id, {});
 
         default:
           return this._error(id, -32601, `Method not found: ${method}`);

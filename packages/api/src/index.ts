@@ -69,7 +69,13 @@ import {
 } from '@axiom/auth';
 import { LLMGateway, createLLMRouter } from '@axiom/llm-gateway';
 import { asPlatform, enqueueJob, registerConnectors, resolveCapabilities } from '@axiom/worker';
-import { createMcpServerAsync, isModelKillSwitchEnabled, withModelOrg } from '@axiom/mcp-server';
+import {
+  createMcpServerAsync,
+  isModelKillSwitchEnabled,
+  withModelOrg,
+  CURRENT_MCP_PROTOCOL_VERSION,
+  SUPPORTED_MCP_PROTOCOL_VERSIONS,
+} from '@axiom/mcp-server';
 import {
   TelegramAdapter,
   DiscordAdapter,
@@ -1101,6 +1107,49 @@ app.post('/api/mcp', async (c) => {
       400,
     );
   }
+  const requestId =
+    typeof body.id === 'string' || typeof body.id === 'number' || body.id === null ? body.id : null;
+  const mcpMethod = typeof body.method === 'string' ? body.method : null;
+  const params = body.params && typeof body.params === 'object' && !Array.isArray(body.params)
+    ? body.params as Record<string, unknown>
+    : {};
+  const expectedName =
+    (mcpMethod === 'tools/call' || mcpMethod === 'callTool') && typeof params.name === 'string'
+      ? params.name
+      : null;
+  const protocolVersionHeader = c.req.header('mcp-protocol-version');
+  const methodHeader = c.req.header('mcp-method');
+  const nameHeader = c.req.header('mcp-name');
+  const modernProtocol = protocolVersionHeader === CURRENT_MCP_PROTOCOL_VERSION;
+  const notification = !Object.hasOwn(body, 'id');
+  const headerMismatch = (): Response => c.json(
+    { jsonrpc: '2.0', error: { code: -32020, message: 'MCP request headers do not match the request' }, id: requestId },
+    400,
+  );
+  if (protocolVersionHeader && !(SUPPORTED_MCP_PROTOCOL_VERSIONS as readonly string[]).includes(protocolVersionHeader)) {
+    return c.json(
+      { jsonrpc: '2.0', error: { code: -32020, message: 'Unsupported MCP protocol version' }, id: requestId },
+      400,
+    );
+  }
+  if (
+    (modernProtocol && !notification && (!methodHeader || (expectedName !== null && !nameHeader))) ||
+    (methodHeader !== undefined && methodHeader !== mcpMethod) ||
+    (nameHeader !== undefined && nameHeader !== expectedName)
+  ) {
+    return headerMismatch();
+  }
+  if (
+    body.jsonrpc !== '2.0' ||
+    !mcpMethod ||
+    (Object.hasOwn(body, 'id') &&
+      !(typeof body.id === 'string' || (typeof body.id === 'number' && Number.isSafeInteger(body.id))))
+  ) {
+    return c.json(
+      { jsonrpc: '2.0', error: { code: -32600, message: 'Invalid request' }, id: requestId },
+      400,
+    );
+  }
   let server: Awaited<ReturnType<typeof createMcpServerAsync>>;
   try {
     server = await createMcpServerAsync(
@@ -1154,8 +1203,6 @@ app.post('/api/mcp', async (c) => {
       401,
     );
   }
-  const requestId =
-    typeof body.id === 'string' || typeof body.id === 'number' || body.id === null ? body.id : null;
   try {
     if (await isModelKillSwitchEnabled(server.getModelId())) {
       return c.json(
@@ -1164,6 +1211,7 @@ app.post('/api/mcp', async (c) => {
       );
     }
     const response = await server.handleRequest(body as never);
+    if (response === null) return c.body(null, 202);
     return c.json(response);
   } catch {
     return c.json(
