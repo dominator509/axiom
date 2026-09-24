@@ -135,7 +135,9 @@ it('renders a public referral path and copies an origin-qualified link', async (
   expect(link!.props.target).toBe('_blank');
   const copy = find(tree, node => node.type === 'button' && textContent(node.props.children) === 'Copy referral link');
   expect(copy).toBeDefined();
-  copy!.props.onClick!();
+  const copyOnClick = copy!.props.onClick as (() => void) | undefined;
+  expect(copyOnClick).toBeDefined();
+  copyOnClick?.();
   await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith('https://fanthynks.test/affiliate/r/ref-token'));
 });
 

@@ -283,7 +283,7 @@ export class CardRenderer {
 }
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>\"]/g, character => ({
+  return value.replace(/[&<>"]/g, character => ({
     '&': '&amp;',
     '<': '&lt;',
     '>': '&gt;',

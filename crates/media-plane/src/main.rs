@@ -547,7 +547,7 @@ fn validate_watermark_bounds(opacity: Option<u32>, scale: Option<u32>) -> Result
         }
     }
     if let Some(value) = scale {
-        if value < MIN_WATERMARK_SCALE || value > MAX_WATERMARK_SCALE {
+        if !(MIN_WATERMARK_SCALE..=MAX_WATERMARK_SCALE).contains(&value) {
             return Err(MediaError::InvalidTransform);
         }
     }
