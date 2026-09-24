@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   analytics: vi.fn(),
   viral: vi.fn(),
   viralInsightSchedule: vi.fn(),
+  viralPatternSharing: vi.fn(),
   playbookGuidelines: vi.fn(),
   uiLocale: vi.fn(),
 }));
@@ -15,6 +16,7 @@ vi.mock('@/lib/api', () => ({
       analytics: mocks.analytics,
       viral: mocks.viral,
       viralInsightSchedule: mocks.viralInsightSchedule,
+      viralPatternSharing: mocks.viralPatternSharing,
       playbookGuidelines: mocks.playbookGuidelines,
     },
     uiLocale: { get: mocks.uiLocale },
@@ -26,12 +28,16 @@ vi.mock('@/components/GenerateViralInsightButton', () => ({
 vi.mock('@/components/ViralInsightScheduleControl', () => ({
   default: () => <div data-testid="viral-insight-schedule" />,
 }));
+vi.mock('@/components/ViralPatternSharingControl', () => ({
+  default: () => <div data-testid="viral-pattern-sharing" />,
+}));
 import Page from './page';
 beforeEach(() => {
   mocks.role = 'model';
   mocks.analytics.mockReset();
   mocks.viral.mockReset();
   mocks.viralInsightSchedule.mockReset();
+  mocks.viralPatternSharing.mockReset().mockResolvedValue({ data: { enabled: false } });
   mocks.playbookGuidelines.mockReset();
   mocks.uiLocale.mockReset().mockResolvedValue({ data: { locale: 'en' } });
 });

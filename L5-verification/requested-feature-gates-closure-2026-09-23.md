@@ -181,3 +181,29 @@ generated configuration or persisted by the UI.
 
 This verifies local implementation and the disposable Docker workspace matrix.
 No live OpenClaw client, external provider, or deployed service was used.
+
+## M1010 — Consent-scoped viral pattern sharing (F-86) — 2026-09-23
+
+Added a per-model opt-in for organization-wide pattern learning. Sharing is off
+by default and can be changed only by an owner or manager. The aggregate query
+uses published, verified evidence from other opted-in models in the same
+organization, requires at least five examples across at least two other models,
+and returns abstract platform/format/arm/timing/sample/score fields. It does
+not select source model IDs, post IDs, captions, or assets. The analytics page
+labels model-only versus organization-shared patterns and explains the scope
+and schedule in all six supported locales.
+
+| Verification | Result |
+| --- | --- |
+| `rtk proxy node scripts/test-isolated-workspace.mjs --isolated-fixture` | Passed, 24/24 workspace tasks. Disposable fixture applied 74 migrations, was removed, and left the recovered database untouched. |
+| API suite | 92 files, 1,289 tests passed; viral evidence PostgreSQL integration passed. |
+| Dashboard suite | 1,056 tests passed. |
+| Core suite | 144 tests passed. |
+| DB suite | 172 passed; 5 readiness integration tests skipped. |
+| MCP / connectors / LLM gateway / mobile | 93 / 469 / 408 / 32 tests passed. |
+| Focused viral API, schema, locale, dashboard, and component suites | Passed, including permission, default-off, opt-in, projection privacy, and localized copy coverage. |
+| `git diff --check` | Passed; Git reported only configured LF-to-CRLF warnings. |
+
+Migration 0060 was exercised only inside the disposable Docker fixture; no
+production database was migrated. No external provider or deployed service
+was used.

@@ -654,6 +654,8 @@ describe('model_profile table', () => {
     expect(cols.displayName.notNull).toBe(true);
     expect(cols.handle.notNull).toBe(true);
     expect(cols.bio.notNull).toBe(false);
+    expect(cols.viralPatternSharingEnabled.notNull).toBe(true);
+    expect(cols.viralPatternSharingEnabled.default).toBe(false);
   });
 
   it('relates to org (one), connections and bundles (many)', () => {

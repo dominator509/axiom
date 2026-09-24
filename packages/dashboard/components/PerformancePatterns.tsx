@@ -5,7 +5,7 @@ import { useLocale } from './LocaleProvider';
 
 export interface PerformancePattern {
   platform: string; arm: string; context: string; mediaFormat?: string; tosVerdict?: string;
-  publishedHourUtc?: number | null; sampleSize: number; meanScore: number;
+  publishedHourUtc?: number | null; sampleSize: number; meanScore: number; sourceScope?: 'model' | 'organization';
 }
 const times: Record<string, string> = {
   'learn-v1:scheduled-utc-0': '00:00–05:59 UTC', 'learn-v1:scheduled-utc-1': '06:00–11:59 UTC',
@@ -27,7 +27,8 @@ export default function PerformancePatterns({ patterns }: { patterns?: { groups:
   const { locale, t } = useLocale();
   return <section className="card stack" aria-label={t('dashboard.performance.ariaLabel')}>
     <h3>{t('dashboard.performance.title')}</h3>
-    <p className="subtle">{t('dashboard.performance.description')}</p>
+    <p className="subtle">{t('dashboard.performance.dimensionsDescription')}</p>
+    <p className="subtle">{t('dashboard.performance.patternsSharedDescription')}</p>
     {!patterns ? <p>{t('dashboard.performance.patternsUnavailable')}</p> : patterns.groups.length === 0 ? <p>{t('dashboard.performance.patternsNotEnough', { count: formatNumber(patterns.minimumSample, locale) })}</p> : <div className="grid">{patterns.groups.map(group => {
       const parsed = parseLearningArm(group.arm);
       const length = parsed?.captionLength ?? 'unknown';
@@ -37,6 +38,7 @@ export default function PerformancePatterns({ patterns }: { patterns?: { groups:
         : '';
       return <article className="card stack" key={`${group.platform}:${group.arm}:${group.context}:${group.mediaFormat ?? 'unknown'}:${group.tosVerdict ?? 'unavailable'}:${group.publishedHourUtc ?? 'unknown'}`}>
         <h4>{group.platform} · {length} caption · {kind === 'question' ? t('dashboard.performance.questionMark') : t('dashboard.performance.noQuestionMark')}{richEvidence}</h4>
+        <p>{group.sourceScope === 'organization' ? t('dashboard.performance.sharingScopeOrganization') : t('dashboard.performance.sharingScopeModel')}</p>
         <p>{timeLabel(group.context, t('dashboard.performance.unknownScheduledTime'), t('dashboard.performance.scheduledTimeUnknown'))}</p>
         <p>{t('dashboard.performance.recordedMedia')}: {group.mediaFormat && group.mediaFormat !== 'unknown' ? group.mediaFormat : t('dashboard.performance.unknownFormat')} · {t('dashboard.performance.published')}: {hourBucket(group.publishedHourUtc, t('dashboard.performance.publicationTimeUnavailable'))}</p>
         <p>{t('dashboard.performance.tosVerdict')}: {group.tosVerdict && group.tosVerdict !== 'unavailable' ? group.tosVerdict : t('model.unavailable')}</p>

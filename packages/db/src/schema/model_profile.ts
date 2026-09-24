@@ -18,6 +18,9 @@ export const modelProfile = pgTable('model_profile', {
   // F-85 recurring Relay insight schedule. Null is opt-out and also acts as
   // the generation token for invalidating already-queued occurrences.
   viralInsightScheduleId: uuid('viral_insight_schedule_id'),
+  // F-86 requires explicit per-model consent before abstract org-level
+  // patterns can be shared or received. Raw model content remains scoped.
+  viralPatternSharingEnabled: boolean('viral_pattern_sharing_enabled').notNull().default(false),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true, precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
