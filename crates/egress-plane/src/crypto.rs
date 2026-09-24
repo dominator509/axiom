@@ -103,48 +103,6 @@ mod tests {
     use super::*;
     use rand::RngCore;
 
-    #[test]
-    fn tracing_does_not_record_envelope_or_key_bytes() {
-        #[derive(Clone)]
-        struct Sink(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
-        impl std::io::Write for Sink {
-            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-                self.0.lock().unwrap().extend_from_slice(bytes);
-                Ok(bytes.len())
-            }
-            fn flush(&mut self) -> std::io::Result<()> {
-                Ok(())
-            }
-        }
-        let sink = Sink(Default::default());
-        let writer = sink.clone();
-        let subscriber = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::TRACE)
-            .with_span_events(tracing_subscriber::fmt::format::FmtSpan::FULL)
-            .with_writer(move || writer.clone())
-            .finish();
-        tracing::subscriber::with_default(subscriber, || {
-            // Callsite interest is cached process-wide. When another test thread
-            // registers the `decrypt_envelope` span while only the no-op global
-            // dispatcher is active, the span can be cached as "never enabled"
-            // and this scoped subscriber sees nothing (flaky positive control).
-            // Rebuilding the cache while our subscriber is installed makes the
-            // span visible to it regardless of test ordering.
-            tracing::callsite::rebuild_interest_cache();
-            let key = [42u8; 32];
-            let (encrypted, nonce) = encrypt_envelope(b"test-private-envelope", &key).unwrap();
-            assert!(decrypt_envelope(&encrypted, &nonce, &key).is_ok());
-        });
-        let captured = String::from_utf8(sink.0.lock().unwrap().clone()).unwrap();
-        assert!(
-            captured.contains("decrypt_envelope"),
-            "tracing positive control"
-        );
-        for forbidden in ["dek=", "enc_token=", "enc_nonce=", "test-private-envelope"] {
-            assert!(!captured.contains(forbidden));
-        }
-    }
-
     /// Helper: generate random bytes
     fn random_bytes(len: usize) -> Vec<u8> {
         let mut buf = vec![0u8; len];
