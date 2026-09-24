@@ -644,6 +644,11 @@ export const api = {
     linkbio: (id: string) => apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio`),
     linkbioAnalytics: (id: string) =>
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio/analytics`),
+    linkbioAnalyticsConnection: (id: string, kind: string) =>
+      apiFetch<{ data: {
+        kind: string; enabled: boolean; status: string; analyticsConnected: boolean;
+        propertyId: string | null; lastSyncedAt: string | null;
+      } }>(`/api/v1/models/${encodeURIComponent(id)}/linkbio/${encodeURIComponent(kind)}/analytics-connection`),
     linkbioAttribution: (id: string) =>
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio/attribution`),
     linkbioPostLinks: (id: string) =>

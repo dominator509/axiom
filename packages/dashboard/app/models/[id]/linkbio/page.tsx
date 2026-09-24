@@ -12,14 +12,27 @@ interface ProviderRow {
   kind: string;
   enabled: boolean;
   isPrimary: boolean;
+  status?: string;
+  lastSyncedAt?: string | null;
+  profileUrl?: string | null;
   clicks?: number;
   config?: Record<string, unknown> | null;
+  analyticsConnection?: {
+    analyticsConnected: boolean;
+    propertyId: string | null;
+    status: string;
+    lastSyncedAt: string | null;
+  } | null;
+  analyticsConnectionUnavailable?: boolean;
 }
 
 interface LinkbioAnalytics {
   providers: ProviderRow[];
   totalClicks: number;
-  topTargets: Array<{ target: string; count: number }>;
+  totals?: { visits: number; activeUsers: number; analyticsClicks: number; conversions: number; trackedClicks: number };
+  topTargets: Array<{ providerId: string; kind: string; target: string; trackedClicks: number; visits: number; analyticsClicks: number; conversions: number }>;
+  daily?: Array<{ date: string; visits: number; activeUsers: number; analyticsClicks: number; conversions: number }>;
+  note?: string;
 }
 
 interface LinkbioAttribution {
@@ -53,6 +66,7 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
   const session = await getSession();
   const { locale, t } = await getServerLocale();
   const canEdit = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
+  const canConnectAnalytics = ['owner', 'manager'].includes(session?.user?.role ?? '');
   let data: LinkbioData | null = null;
   let analytics: LinkbioAnalytics | null = null;
   let attribution: LinkbioAttribution | null = null;
@@ -66,6 +80,24 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
     analytics = (await api.models.linkbioAnalytics(id)).data as unknown as LinkbioAnalytics;
   } catch {
     analytics = null;
+  }
+  if (data) {
+    const connections = canEdit
+      ? await Promise.all(data.providers.map(async (provider) => {
+          if (provider.kind === 'native') return { connection: null, unavailable: false };
+          try { return { connection: (await api.models.linkbioAnalyticsConnection(id, provider.kind)).data, unavailable: false }; }
+          catch { return { connection: null, unavailable: true }; }
+        }))
+      : data.providers.map(() => ({ connection: null, unavailable: false }));
+    data = {
+      ...data,
+      providers: data.providers.map((provider, index) => ({
+        ...provider,
+        clicks: analytics?.providers.find((item) => item.id === provider.id)?.clicks ?? 0,
+        analyticsConnection: connections[index]?.connection,
+        analyticsConnectionUnavailable: connections[index]?.unavailable,
+      })),
+    };
   }
   try {
     attribution = (await api.models.linkbioAttribution(id)).data as unknown as LinkbioAttribution;
@@ -102,6 +134,9 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
     return entries.sort(([left], [right]) => left.localeCompare(right))
       .map(([currency, value]) => `${currency} ${Number(value).toLocaleString(locale)}%`).join(' · ');
   };
+  const hostedPage = data?.providers.find((provider) => provider.enabled && (provider.kind === 'native' || provider.kind === 'fanlynks'));
+  const publicPagePath = hostedPage?.kind === 'fanlynks' ? `/linkbio/fanlynks/${encodeURIComponent(id)}`
+    : hostedPage?.kind === 'native' ? `/linkbio/${encodeURIComponent(id)}` : null;
 
   return (
     <div>
@@ -118,42 +153,66 @@ export default async function LinkbioPage({ params }: { params: Promise<{ id: st
             {data.primary ? t('modelSurface.primaryProvider', { kind: data.primary.kind }) : ''}
           </p>
         )}
-        <LinkbioPanel modelId={id} providers={data?.providers ?? []} canEdit={canEdit} />
+        <LinkbioPanel modelId={id} providers={data?.providers ?? []} canEdit={canEdit} canConnectAnalytics={canConnectAnalytics} />
       </div>
       {data?.nativeEnabled && postLinks && <LinkbioPostLinkManager modelId={id} posts={postLinks.publishedPosts} links={postLinks.links} canEdit={canEdit} />}
-      {data?.nativeEnabled && (
+      {publicPagePath && (
         <p style={{ color: 'var(--muted)', fontSize: 12 }}>
           {t('modelSurface.publicPage')}{' '}
-          <a href={`/linkbio/${encodeURIComponent(id)}`} target="_blank" rel="noreferrer">
-            /linkbio/{id}
+          <a href={publicPagePath} target="_blank" rel="noreferrer">
+            {publicPagePath}
           </a>
         </p>
       )}
-      <p style={{ color: 'var(--muted)', fontSize: 12 }}>
-        {t('modelSurface.externalAdaptersUnavailable')}
-      </p>
-      {analytics && analytics.totalClicks > 0 && (
+      {analytics && (
         <div className="card">
           <h3>{t('modelSurface.clickAnalytics')}</h3>
-          <strong>{t('modelSurface.totalClicks', { count: formatNumber(analytics.totalClicks, locale) })}</strong>
+          <div className="row" style={{ gap: 16, flexWrap: 'wrap' }}>
+            <strong>{t('linkbio.analytics.trackedClicks', { count: formatNumber(analytics.totals?.trackedClicks ?? analytics.totalClicks, locale) })}</strong>
+            <strong>{t('linkbio.analytics.visits', { count: formatNumber(analytics.totals?.visits ?? 0, locale) })}</strong>
+            <strong>{t('linkbio.analytics.activeUsers', { count: formatNumber(analytics.totals?.activeUsers ?? 0, locale) })}</strong>
+            <strong>{t('linkbio.analytics.importedClicks', { count: formatNumber(analytics.totals?.analyticsClicks ?? 0, locale) })}</strong>
+            <strong>{t('linkbio.analytics.conversions', { count: formatNumber(analytics.totals?.conversions ?? 0, locale) })}</strong>
+          </div>
+          <p className="subtle">{t('linkbio.analytics.note')}</p>
+          {analytics.totalClicks === 0 && (analytics.totals?.visits ?? 0) === 0 && (analytics.totals?.analyticsClicks ?? 0) === 0 && (analytics.totals?.conversions ?? 0) === 0
+            ? <p>{t('linkbio.analytics.noData')}</p> : null}
           <table style={{ marginTop: 8 }}>
             <thead>
               <tr>
+                <th>{t('linkbio.kind')}</th>
                 <th>{t('modelSurface.target')}</th>
-                <th>{t('modelSurface.clicks')}</th>
+                <th>{t('linkbio.analytics.trackedClicksLabel')}</th>
+                <th>{t('linkbio.analytics.visitsLabel')}</th>
+                <th>{t('linkbio.analytics.importedClicksLabel')}</th>
+                <th>{t('linkbio.analytics.conversionsLabel')}</th>
               </tr>
             </thead>
             <tbody>
-              {analytics.topTargets.map((t) => (
-                <tr key={t.target}>
-                  <td>{t.target}</td>
-                  <td>{formatNumber(t.count, locale)}</td>
+              {analytics.topTargets.map((target) => (
+                <tr key={`${target.providerId}-${target.target}`}>
+                  <td>{target.kind}</td>
+                  <td>{target.target}</td>
+                  <td>{formatNumber(target.trackedClicks, locale)}</td>
+                  <td>{formatNumber(target.visits, locale)}</td>
+                  <td>{formatNumber(target.analyticsClicks, locale)}</td>
+                  <td>{formatNumber(target.conversions, locale)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {analytics.daily && analytics.daily.length > 0 && (
+            <table style={{ marginTop: 12 }}>
+              <thead><tr><th>{t('linkbio.analytics.date')}</th><th>{t('linkbio.analytics.visitsLabel')}</th><th>{t('linkbio.analytics.activeUsersLabel')}</th><th>{t('linkbio.analytics.importedClicksLabel')}</th><th>{t('linkbio.analytics.conversionsLabel')}</th></tr></thead>
+              <tbody>{analytics.daily.map((day) => <tr key={day.date}>
+                <td>{day.date}</td><td>{formatNumber(day.visits, locale)}</td><td>{formatNumber(day.activeUsers, locale)}</td>
+                <td>{formatNumber(day.analyticsClicks, locale)}</td><td>{formatNumber(day.conversions, locale)}</td>
+              </tr>)}</tbody>
+            </table>
+          )}
         </div>
       )}
+      {!analytics && <div className="card"><p>{t('linkbio.analytics.unavailable')}</p></div>}
       {attribution && (
         <div className="card">
           <h3>{t('modelSurface.fanvueAttribution')}</h3>

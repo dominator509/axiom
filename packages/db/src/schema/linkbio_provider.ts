@@ -2,6 +2,7 @@ import { pgTable, uuid, text, timestamp, boolean, jsonb, unique } from 'drizzle-
 import { relations } from 'drizzle-orm';
 import { org } from './org.js';
 import { modelProfile } from './model_profile.js';
+import { bytea } from './types.js';
 
 export const linkbioProvider = pgTable(
   'linkbio_provider',
@@ -17,6 +18,12 @@ export const linkbioProvider = pgTable(
     enabled: boolean('enabled').notNull().default(true),
     isPrimary: boolean('is_primary').notNull().default(false),
     config: jsonb('config').$type<Record<string, unknown>>().default({}),
+    profileUrl: text('profile_url'),
+    status: text('status').notNull().default('configured'),
+    credentialsEnc: bytea('credentials_enc'),
+    credentialsNonce: bytea('credentials_nonce'),
+    credentialsDekId: text('credentials_dek_id'),
+    lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

@@ -484,7 +484,12 @@ AND j.run_after=:'fixture_slot'::timestamptz AND p.scheduled_for=:'fixture_slot'
   assert.equal(providerList.status, 200);
   const savedProviders = (await providerList.json()).data.providers;
   assert.equal(savedProviders.length, 1, 'Lifecycle must not duplicate providers');
-  assert.deepEqual(savedProviders[0].config, linkbioConfig, 'Rejected link edits must leave saved content unchanged');
+  // The list view adds read-only tracked-link fields (slug, path); compare the saved content itself.
+  const listedLinks = savedProviders[0].config.links;
+  assert.deepEqual({ ...savedProviders[0].config, links: listedLinks.map(({ label, url }) => ({ label, url })) }, linkbioConfig,
+    'Rejected link edits must leave saved content unchanged');
+  assert.ok(listedLinks.every((link) => typeof link.path === 'string' && link.path.startsWith(`/linkbio/${createdBody.data.id}/s/`)),
+    'Listed Native links must expose their tracked short-link path');
   console.log('linkbio smoke: native creation, same-ID replay, anonymous page and tracked redirect, disable/404 and re-enable with preserved links passed (no external URL fetched)');
   const networkPath = `/api/v1/models/${createdBody.data.id}/network`;
   const operatorNetworkRead = await request(networkPath, { headers: { cookie } });
