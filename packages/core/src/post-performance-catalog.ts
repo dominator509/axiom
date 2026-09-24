@@ -1,0 +1,120 @@
+import type { Catalog, SupportedLocale } from './locale.js';
+
+const en: Catalog = {
+  'analytics.postPerformance': 'Published post performance',
+  'analytics.postPerformanceEmpty': 'No published provider snapshots are available yet.',
+  'analytics.postPerformanceScope': 'Provider values are the latest reported snapshot. Link clicks and Fanvue subscription, PPV and refund facts come from matched first-party post links. Repeat clicks count; unique visitors are not collected.',
+  'analytics.post': 'Post',
+  'analytics.collectedAt': 'Snapshot collected',
+  'analytics.reach': 'Reach',
+  'analytics.saves': 'Saves',
+  'analytics.providerClicks': 'Provider clicks',
+  'analytics.watchTime': 'Watch time (provider units)',
+  'analytics.linkClicks': 'Tracked link clicks',
+  'analytics.linkClickRate': 'Link clicks per view',
+  'analytics.subscriptions': 'Subscriptions',
+  'analytics.ppvPurchases': 'PPV purchases',
+  'analytics.refunds': 'Refunds',
+  'analytics.revenue': 'Net attributed revenue',
+  'analytics.notReported': 'Not reported',
+};
+
+const es: Catalog = {
+  'analytics.postPerformance': 'Rendimiento de publicaciones',
+  'analytics.postPerformanceEmpty': 'Todavía no hay instantáneas del proveedor para publicaciones.',
+  'analytics.postPerformanceScope': 'Los valores del proveedor son la instantánea más reciente. Los clics y los eventos de suscripción, PPV y reembolso de Fanvue proceden de enlaces propios asociados a la publicación. Se cuentan los clics repetidos; no se recopilan visitantes únicos.',
+  'analytics.post': 'Publicación',
+  'analytics.collectedAt': 'Instantánea recopilada',
+  'analytics.reach': 'Alcance',
+  'analytics.saves': 'Guardados',
+  'analytics.providerClicks': 'Clics del proveedor',
+  'analytics.watchTime': 'Tiempo de reproducción (unidades del proveedor)',
+  'analytics.linkClicks': 'Clics en enlaces medidos',
+  'analytics.linkClickRate': 'Clics en enlaces por visualización',
+  'analytics.subscriptions': 'Suscripciones',
+  'analytics.ppvPurchases': 'Compras PPV',
+  'analytics.refunds': 'Reembolsos',
+  'analytics.revenue': 'Ingresos netos atribuidos',
+  'analytics.notReported': 'No informado',
+};
+
+const ja: Catalog = {
+  'analytics.postPerformance': '公開投稿のパフォーマンス',
+  'analytics.postPerformanceEmpty': '利用可能なプロバイダーの投稿スナップショットはまだありません。',
+  'analytics.postPerformanceScope': 'プロバイダーの値は最新の報告スナップショットです。リンクのクリックとFanvueの購読、PPV、返金イベントは、投稿に対応する自社リンクから取得します。繰り返しクリックも数えます。ユニーク訪問者は収集しません。',
+  'analytics.post': '投稿',
+  'analytics.collectedAt': '取得日時',
+  'analytics.reach': 'リーチ',
+  'analytics.saves': '保存数',
+  'analytics.providerClicks': 'プロバイダーのクリック数',
+  'analytics.watchTime': '視聴時間（プロバイダー単位）',
+  'analytics.linkClicks': '追跡リンクのクリック数',
+  'analytics.linkClickRate': '表示あたりのリンククリック数',
+  'analytics.subscriptions': '購読数',
+  'analytics.ppvPurchases': 'PPV購入数',
+  'analytics.refunds': '返金数',
+  'analytics.revenue': '帰属済み純売上',
+  'analytics.notReported': '未報告',
+};
+
+const it: Catalog = {
+  'analytics.postPerformance': 'Performance dei post pubblicati',
+  'analytics.postPerformanceEmpty': 'Non sono ancora disponibili snapshot del provider per i post pubblicati.',
+  'analytics.postPerformanceScope': 'I valori del provider sono gli snapshot più recenti. I clic e gli eventi Fanvue di abbonamento, PPV e rimborso provengono dai link proprietari associati al post. I clic ripetuti vengono conteggiati; i visitatori unici non sono raccolti.',
+  'analytics.post': 'Post',
+  'analytics.collectedAt': 'Snapshot raccolto',
+  'analytics.reach': 'Copertura',
+  'analytics.saves': 'Salvataggi',
+  'analytics.providerClicks': 'Clic del provider',
+  'analytics.watchTime': 'Tempo di visione (unità del provider)',
+  'analytics.linkClicks': 'Clic sui link tracciati',
+  'analytics.linkClickRate': 'Clic sui link per visualizzazione',
+  'analytics.subscriptions': 'Abbonamenti',
+  'analytics.ppvPurchases': 'Acquisti PPV',
+  'analytics.refunds': 'Rimborsi',
+  'analytics.revenue': 'Ricavi netti attribuiti',
+  'analytics.notReported': 'Non riportato',
+};
+
+const ptBR: Catalog = {
+  'analytics.postPerformance': 'Desempenho das publicações',
+  'analytics.postPerformanceEmpty': 'Ainda não há snapshots de publicações disponíveis do provedor.',
+  'analytics.postPerformanceScope': 'Os valores do provedor são do snapshot mais recente. Cliques e eventos de assinatura, PPV e reembolso do Fanvue vêm de links próprios associados à publicação. Cliques repetidos são contados; visitantes únicos não são coletados.',
+  'analytics.post': 'Publicação',
+  'analytics.collectedAt': 'Snapshot coletado',
+  'analytics.reach': 'Alcance',
+  'analytics.saves': 'Salvamentos',
+  'analytics.providerClicks': 'Cliques do provedor',
+  'analytics.watchTime': 'Tempo de exibição (unidades do provedor)',
+  'analytics.linkClicks': 'Cliques em links rastreados',
+  'analytics.linkClickRate': 'Cliques em links por visualização',
+  'analytics.subscriptions': 'Assinaturas',
+  'analytics.ppvPurchases': 'Compras PPV',
+  'analytics.refunds': 'Reembolsos',
+  'analytics.revenue': 'Receita líquida atribuída',
+  'analytics.notReported': 'Não informado',
+};
+
+const de: Catalog = {
+  'analytics.postPerformance': 'Leistung veröffentlichter Beiträge',
+  'analytics.postPerformanceEmpty': 'Es sind noch keine Anbieter-Snapshots veröffentlichter Beiträge verfügbar.',
+  'analytics.postPerformanceScope': 'Anbieterwerte stammen aus dem zuletzt gemeldeten Snapshot. Link-Klicks sowie Fanvue-Abonnement-, PPV- und Erstattungsereignisse stammen aus zugeordneten eigenen Beitragslinks. Wiederholte Klicks werden gezählt; eindeutige Besucher werden nicht erfasst.',
+  'analytics.post': 'Beitrag',
+  'analytics.collectedAt': 'Snapshot erfasst',
+  'analytics.reach': 'Reichweite',
+  'analytics.saves': 'Speicherungen',
+  'analytics.providerClicks': 'Anbieter-Klicks',
+  'analytics.watchTime': 'Wiedergabezeit (Anbietereinheiten)',
+  'analytics.linkClicks': 'Erfasste Link-Klicks',
+  'analytics.linkClickRate': 'Link-Klicks pro Aufruf',
+  'analytics.subscriptions': 'Abonnements',
+  'analytics.ppvPurchases': 'PPV-Käufe',
+  'analytics.refunds': 'Erstattungen',
+  'analytics.revenue': 'Netto zugeordneter Umsatz',
+  'analytics.notReported': 'Nicht gemeldet',
+};
+
+export const POST_PERFORMANCE_CATALOGS: Record<SupportedLocale, Catalog> = {
+  en, es, ja, it, 'pt-BR': ptBR, de,
+};
+export const POST_PERFORMANCE_MESSAGE_KEYS = Object.keys(en) as Array<keyof typeof en>;

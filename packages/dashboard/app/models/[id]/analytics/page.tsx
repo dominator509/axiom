@@ -23,6 +23,24 @@ interface AnalyticsData {
   }>;
   daily: Array<{ day: string; views: number; likes: number }>;
   postsWithMetrics: number;
+  postPerformance?: Array<{
+    targetId: string;
+    platform: string;
+    publishedAt: string;
+    collectedAt: string;
+    views: number;
+    likes: number;
+    shares: number;
+    comments: number;
+    engagementRate: number;
+    providerMetrics: Record<string, number>;
+    linkClicks: number;
+    linkClickRate: number | null;
+    subscriptions: number;
+    ppvPurchases: number;
+    refunds: number;
+    revenueByCurrency: Record<string, number>;
+  }>;
 }
 
 interface ViralData {
@@ -52,6 +70,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
   const decimal = new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const percent = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 2 });
   const day = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' });
+  const dateTime = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' });
   if (!talentDestinationAllowed(role, 'analytics'))
     return (
       <div className="card stack">
@@ -191,6 +210,72 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ id: 
               </table>
             </div>
           )}
+          <div className="card stack">
+            <h3>{t('analytics.postPerformance')}</h3>
+            <p className="subtle">{t('analytics.postPerformanceScope')}</p>
+            {(analytics.postPerformance ?? []).length === 0 ? (
+              <p style={{ color: 'var(--muted)' }}>{t('analytics.postPerformanceEmpty')}</p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{t('analytics.post')}</th>
+                      <th>{t('analytics.collectedAt')}</th>
+                      <th>{t('analytics.views')}</th>
+                      <th>{t('analytics.reach')}</th>
+                      <th>{t('analytics.likes')}</th>
+                      <th>{t('analytics.saves')}</th>
+                      <th>{t('analytics.shares')}</th>
+                      <th>{t('analytics.comments')}</th>
+                      <th>{t('analytics.providerClicks')}</th>
+                      <th>{t('analytics.watchTime')}</th>
+                      <th>{t('analytics.linkClicks')}</th>
+                      <th>{t('analytics.linkClickRate')}</th>
+                      <th>{t('analytics.subscriptions')}</th>
+                      <th>{t('analytics.ppvPurchases')}</th>
+                      <th>{t('analytics.refunds')}</th>
+                      <th>{t('analytics.revenue')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analytics.postPerformance!.map((post) => {
+                      const observed = (name: string) => {
+                        const value = post.providerMetrics[name];
+                        return value === undefined ? t('analytics.notReported') : number.format(value);
+                      };
+                      const revenue = Object.entries(post.revenueByCurrency)
+                        .sort(([left], [right]) => left.localeCompare(right))
+                        .map(([currency, cents]) => new Intl.NumberFormat(locale, {
+                          style: 'currency', currency, maximumFractionDigits: 2,
+                        }).format(cents / 100))
+                        .join(', ') || t('analytics.notReported');
+                      return (
+                        <tr key={post.targetId}>
+                          <td><span className="mono">{post.platform} · {post.targetId.slice(0, 8)}</span></td>
+                          <td>{dateTime.format(new Date(post.collectedAt))}</td>
+                          <td>{number.format(post.views)}</td>
+                          <td>{observed('reach')}</td>
+                          <td>{number.format(post.likes)}</td>
+                          <td>{observed('saves')}</td>
+                          <td>{number.format(post.shares)}</td>
+                          <td>{number.format(post.comments)}</td>
+                          <td>{observed('clicks')}</td>
+                          <td>{observed('watch_time')}</td>
+                          <td>{number.format(post.linkClicks)}</td>
+                          <td>{post.linkClickRate === null ? t('analytics.notReported') : percent.format(post.linkClickRate)}</td>
+                          <td>{number.format(post.subscriptions)}</td>
+                          <td>{number.format(post.ppvPurchases)}</td>
+                          <td>{number.format(post.refunds)}</td>
+                          <td>{revenue}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </>
       ) : (
         <div className="card">

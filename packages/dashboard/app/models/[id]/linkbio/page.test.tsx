@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   linkbio: vi.fn(),
   linkbioAnalytics: vi.fn(),
   linkbioAttribution: vi.fn(),
+  linkbioPostLinks: vi.fn(),
   getServerLocale: vi.fn(),
 }));
 
@@ -17,6 +18,7 @@ vi.mock('@/lib/api', () => ({
       linkbio: mocks.linkbio,
       linkbioAnalytics: mocks.linkbioAnalytics,
       linkbioAttribution: mocks.linkbioAttribution,
+      linkbioPostLinks: mocks.linkbioPostLinks,
     },
   },
 }));
@@ -27,6 +29,7 @@ vi.mock('@/components/LinkbioPanel', () => ({
   ),
 }));
 vi.mock('@/components/LinkbioCostManager', () => ({ default: () => <div data-testid="campaign-costs" /> }));
+vi.mock('@/components/LinkbioPostLinkManager', () => ({ default: () => <div data-testid="post-attribution-links" /> }));
 
 import LinkbioPage from './page';
 
@@ -44,6 +47,7 @@ beforeEach(() => {
   mocks.linkbio.mockResolvedValue({ data: { providers: [], primary: null, nativeEnabled: false } });
   mocks.linkbioAnalytics.mockResolvedValue({ data: { providers: [], totalClicks: 0, topTargets: [] } });
   mocks.linkbioAttribution.mockResolvedValue({ data: null });
+  mocks.linkbioPostLinks.mockResolvedValue({ data: { publishedPosts: [], links: [] } });
 });
 
 const render = async (locale: SupportedLocale = 'en') => {
@@ -81,6 +85,16 @@ it('localizes linkbio, analytics and attribution copy while preserving data', as
   expect(html).toContain(formatNumber(1234, 'de'));
   expect(html).not.toContain('12345');
   expect(html).toContain('data-can-edit="true"');
+});
+
+it('mounts the per-post attribution flow only for an enabled native provider', async () => {
+  mocks.linkbio.mockResolvedValue({ data: { providers: [], primary: null, nativeEnabled: true } });
+  mocks.linkbioPostLinks.mockResolvedValue({ data: {
+    publishedPosts: [{ id: 'post-1', platform: 'instagram', publishedAt: null, caption: 'A published post' }],
+    links: [],
+  } });
+  const html = await render();
+  expect(html).toContain('data-testid="post-attribution-links"');
 });
 
 it.each(['es', 'ja', 'it', 'pt-BR', 'de'] as SupportedLocale[])('localizes the empty provider state in %s', async (locale) => {

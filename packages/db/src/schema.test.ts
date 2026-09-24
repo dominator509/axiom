@@ -1119,6 +1119,8 @@ describe('post_metric table', () => {
     expect(cols.engagementRate.dataType).toBe('number');
     expect(cols.engagementRate.columnType).toBe('PgDoublePrecision');
     expect(cols.engagementRate.default).toBe(0);
+    expect(cols.providerMetrics.dataType).toBe('json');
+    expect(cols.providerMetrics.hasDefault).toBe(true);
   });
 
   it('relates to post target', () => {

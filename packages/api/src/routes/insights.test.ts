@@ -52,15 +52,12 @@ afterEach(() => {
 describe('analytics — GET /models/:id/analytics', () => {
   const appWithOrg = withOrg(analyticsRouter);
   it('returns totals + per-platform + daily series', async () => {
-    mockState.result = [
-      {
-        platform: 'instagram',
-        views: 1000,
-        likes: 100,
-        shares: 10,
-        comments: 5,
-        engagementRate: 4.2,
-      },
+    mockState.results = [
+      [],
+      [{ platform: 'instagram', views: 1000, likes: 100, shares: 10, comments: 5, engagementRate: 4.2 }],
+      [],
+      [{ count: 1 }],
+      [],
     ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/analytics?days=30`);
     expect(res.status).toBe(200);

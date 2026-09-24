@@ -6,8 +6,8 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
-import { sql, eq, and, desc, inArray } from 'drizzle-orm';
-import { createHash } from 'node:crypto';
+import { sql, eq, and, desc, inArray, isNotNull } from 'drizzle-orm';
+import { createHash, randomUUID } from 'node:crypto';
 import { computeRoiPercent } from '../linkbio-roi.js';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
@@ -23,6 +23,7 @@ import { rateLimit } from '../contract.js';
 
 const router = new Hono<AppBindings>();
 const publicRouter = new Hono<AppBindings>();
+const linkbioWriteRoles = new Set(['owner', 'manager', 'operator']);
 
 // Every Native page and redirect is intentionally unauthenticated. The page
 // loader may provision missing short-link rows for older provider records and
@@ -60,6 +61,22 @@ const campaignCostSchema = z.object({
   occurredAt: z.string().datetime({ offset: true }),
 }).strict();
 
+const postAttributionLinkSchema = z.object({
+  postTargetId: z.string().uuid(),
+  targetUrl: z.string().trim().url().max(2048),
+}).strict();
+
+type PostAttributionLinkResult =
+  | { error: string; status: 404 | 409 }
+  | { data: {
+      id: string;
+      slug: string;
+      targetUrl: string;
+      postTargetId: string;
+      utm: Record<string, string>;
+      path: string;
+    } };
+
 const nativeLinkInput = z.object({
   label: z.string().trim().min(1).max(120),
   url: z.string().trim().min(1).max(2048).refine((value) => {
@@ -79,7 +96,7 @@ const enableSchema = z.object({
 type NativeLink = { label: string; url: string; utm: Record<string, string> };
 type PublicNativeLink = NativeLink & { slug: string };
 type AttributionLink = { id: string; utm: Record<string, string> | null };
-type AttributionReportLink = { id: string; slug: string; targetUrl: string };
+type AttributionReportLink = { id: string; slug: string; targetUrl: string; utm: Record<string, string> | null };
 type AttributionEventSummary = { shortLinkId: string | null; kind: string; amountCents: number; currency: string };
 
 function nativeLinks(config: unknown): NativeLink[] {
@@ -131,6 +148,21 @@ function nativeShortLinkUtm(link: NativeLink, index: number): Record<string, str
     utm_content: `native-${index + 1}`,
     ...link.utm,
   };
+}
+
+function safeTrackedDestination(value: string): string | null {
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    const privateIpv4 = /^(10\.|127\.|169\.254\.|192\.168\.)/.test(hostname)
+      || /^172\.(?:1[6-9]|2\d|3[01])\./.test(hostname);
+    if (url.protocol !== 'https:' || url.username || url.password || url.port
+      || hostname === 'localhost' || hostname.endsWith('.localhost') || privateIpv4
+      || hostname === '::1' || hostname.includes(':')) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 async function syncNativeShortLinks(
@@ -316,6 +348,119 @@ router.get('/models/:modelId/linkbio', async (c) => {
 });
 
 // POST /models/:id/linkbio — enable provider {kind, config}
+// GET /models/:id/linkbio/post-links — published targets and their tracked links.
+router.get('/models/:modelId/linkbio/post-links', async (c) => {
+  const orgId = requireOrg(c);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const { modelId } = c.req.param();
+  const result = await withOrgContext(orgId, async (tx) => {
+    if ((await modelOrgId(tx, modelId)) !== orgId) return null;
+    const targets = await tx.select({
+      id: schema.postTarget.id,
+      platform: schema.postTarget.platform,
+      publishedAt: schema.postTarget.publishedAt,
+      publicationSnapshot: schema.postTarget.publicationSnapshot,
+    }).from(schema.postTarget)
+      .innerJoin(schema.contentBundle, eq(schema.contentBundle.id, schema.postTarget.bundleId))
+      .where(and(
+        eq(schema.postTarget.orgId, orgId),
+        eq(schema.contentBundle.orgId, orgId),
+        eq(schema.contentBundle.modelId, modelId),
+        eq(schema.postTarget.state, 'published'),
+        isNotNull(schema.postTarget.remoteId),
+      ))
+      .orderBy(desc(schema.postTarget.publishedAt), desc(schema.postTarget.id)).limit(100);
+    const rows = await tx.select({
+      id: schema.shortLink.id,
+      slug: schema.shortLink.slug,
+      targetUrl: schema.shortLink.targetUrl,
+      utm: schema.shortLink.utm,
+      clicks: schema.shortLink.clicks,
+      createdAt: schema.shortLink.createdAt,
+    }).from(schema.shortLink).where(and(
+      eq(schema.shortLink.orgId, orgId), eq(schema.shortLink.modelId, modelId),
+    )).orderBy(desc(schema.shortLink.createdAt), desc(schema.shortLink.id)).limit(100);
+    const publishedPostIds = new Set(targets.map((target: { id: string }) => target.id));
+    const postLinks = rows.flatMap((row: { id: string; slug: string; targetUrl: string; utm: unknown; clicks: number; createdAt: Date }) => {
+      const utm = row.utm && typeof row.utm === 'object' && !Array.isArray(row.utm)
+        ? row.utm as Record<string, string> : {};
+      const postTargetId = utm.utm_medium === 'post'
+        && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(utm.utm_content ?? '')
+        && publishedPostIds.has(utm.utm_content) ? utm.utm_content : null;
+      return postTargetId ? [{
+        id: row.id, slug: row.slug, targetUrl: row.targetUrl, postTargetId,
+        clicks: row.clicks, createdAt: row.createdAt.toISOString(),
+        path: `/linkbio/${encodeURIComponent(modelId)}/s/${encodeURIComponent(row.slug)}`,
+      }] : [];
+    });
+    return {
+      publishedPosts: targets.map((target: { id: string; platform: string; publishedAt: Date | null; publicationSnapshot: unknown }) => {
+        const snapshot = target.publicationSnapshot && typeof target.publicationSnapshot === 'object'
+          ? target.publicationSnapshot as Record<string, unknown> : {};
+        const caption = typeof snapshot.caption === 'string' ? snapshot.caption.slice(0, 160) : '';
+        return { id: target.id, platform: target.platform, publishedAt: target.publishedAt?.toISOString() ?? null, caption };
+      }),
+      links: postLinks,
+    };
+  });
+  if (!result) return apiError(c, 404, statusTitle(404), 'model not found');
+  return c.json({ data: result });
+});
+
+// POST /models/:id/linkbio/post-links — create the per-post UTM short link.
+router.post('/models/:modelId/linkbio/post-links', zValidator('json', postAttributionLinkSchema), async (c) => {
+  const orgId = requireOrg(c);
+  const userId = c.get('userId');
+  const role = c.get('role') ?? '';
+  if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authenticated workspace required');
+  if (!linkbioWriteRoles.has(role)) return apiError(c, 403, statusTitle(403), 'role cannot create attribution links');
+  const { modelId } = c.req.param();
+  const body = c.req.valid('json');
+  const destination = safeTrackedDestination(body.targetUrl);
+  if (!destination) return apiError(c, 400, statusTitle(400), 'attribution destination must be a public HTTPS URL');
+
+  const saved = await withOrgContext<PostAttributionLinkResult>(orgId, async (tx) => {
+    if ((await modelOrgId(tx, modelId)) !== orgId) return { error: 'model not found', status: 404 as const };
+    const providers = await tx.select({ id: schema.linkbioProvider.id }).from(schema.linkbioProvider).where(and(
+      eq(schema.linkbioProvider.orgId, orgId), eq(schema.linkbioProvider.modelId, modelId),
+      eq(schema.linkbioProvider.kind, 'native'), eq(schema.linkbioProvider.enabled, true),
+    )).limit(1);
+    if (!providers[0]) return { error: 'enable the Native link-in-bio provider before creating tracked links', status: 409 as const };
+    const targets = await tx.select({
+      id: schema.postTarget.id, bundleId: schema.postTarget.bundleId, platform: schema.postTarget.platform,
+    }).from(schema.postTarget).where(and(
+      eq(schema.postTarget.orgId, orgId), eq(schema.postTarget.id, body.postTargetId),
+      eq(schema.postTarget.state, 'published'), isNotNull(schema.postTarget.remoteId),
+    )).limit(1);
+    const target = targets[0];
+    if (!target) return { error: 'published post not found', status: 404 as const };
+    const bundles = await tx.select({ id: schema.contentBundle.id }).from(schema.contentBundle).where(and(
+      eq(schema.contentBundle.orgId, orgId), eq(schema.contentBundle.id, target.bundleId),
+      eq(schema.contentBundle.modelId, modelId),
+    )).limit(1);
+    if (!bundles[0]) return { error: 'published post not found', status: 404 as const };
+
+    const slug = `post-${randomUUID().replaceAll('-', '').slice(0, 16)}`;
+    const utm = {
+      utm_source: 'axiom', utm_medium: 'post', utm_campaign: target.platform,
+      utm_content: target.id,
+    };
+    const rows = await tx.insert(schema.shortLink).values({
+      orgId, modelId, slug, targetUrl: destination, utm,
+    }).onConflictDoNothing({ target: [schema.shortLink.orgId, schema.shortLink.slug] }).returning({
+      id: schema.shortLink.id, slug: schema.shortLink.slug, targetUrl: schema.shortLink.targetUrl,
+    });
+    const row = rows[0];
+    if (!row) return { error: 'could not reserve a unique tracked-link slug; retry the request', status: 409 as const };
+    await writeAudit(tx, orgId, userId, 'linkbio.post_link.create', row.id, {
+      modelId, postTargetId: target.id, platform: target.platform,
+    });
+    return { data: { ...row, postTargetId: target.id, utm, path: `/linkbio/${encodeURIComponent(modelId)}/s/${encodeURIComponent(row.slug)}` } };
+  });
+  if ('error' in saved) return apiError(c, saved.status, statusTitle(saved.status), saved.error);
+  return c.json({ data: saved.data }, 201);
+});
+
 router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async (c) => {
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
@@ -583,7 +728,7 @@ router.get('/models/:modelId/linkbio/attribution', async (c) => {
       .where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId)))
       .limit(1);
     if (models.length === 0) return null;
-    const links = await tx.select({ id: schema.shortLink.id, slug: schema.shortLink.slug, targetUrl: schema.shortLink.targetUrl })
+    const links = await tx.select({ id: schema.shortLink.id, slug: schema.shortLink.slug, targetUrl: schema.shortLink.targetUrl, utm: schema.shortLink.utm })
       .from(schema.shortLink)
       .where(and(eq(schema.shortLink.orgId, orgId), eq(schema.shortLink.modelId, modelId)))
       .limit(1001) as AttributionReportLink[];
@@ -642,6 +787,9 @@ router.get('/models/:modelId/linkbio/attribution', async (c) => {
       ]));
       return {
         ...link,
+        postTargetId: link.utm?.utm_medium === 'post'
+          && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(link.utm.utm_content ?? '')
+          ? link.utm.utm_content : null,
         clicks: clicksByLink.get(link.id) ?? 0,
         conversions: event.conversions,
         revenueCents: event.revenueByCurrency.USD ?? 0,
@@ -792,6 +940,36 @@ async function recordNativeShortLinkClick(
   return target.toString();
 }
 
+async function recordStoredShortLinkClick(
+  tx: any,
+  orgId: string,
+  modelId: string,
+  providerId: string,
+  link: { id: string; targetUrl: string; utm: Record<string, string> | null },
+  source: string | null,
+  referrer: string | null,
+  device: string | null,
+): Promise<string | null> {
+  const updated = await tx.update(schema.shortLink).set({ clicks: sql`${schema.shortLink.clicks} + 1` }).where(and(
+    eq(schema.shortLink.id, link.id), eq(schema.shortLink.orgId, orgId), eq(schema.shortLink.modelId, modelId),
+  )).returning({ id: schema.shortLink.id });
+  if (!Array.isArray(updated) || updated.length === 0) return null;
+  const target = new URL(link.targetUrl);
+  for (const [key, value] of Object.entries(link.utm ?? {})) {
+    if (UTM_KEY.test(key) && typeof value === 'string' && value.length > 0 && value.length <= MAX_UTM_VALUE_LENGTH) {
+      target.searchParams.set(key, value);
+    }
+  }
+  await tx.insert(schema.linkbioClick).values({
+    orgId, providerId, shortLinkId: link.id, target: link.targetUrl, source, ts: new Date(),
+  });
+  await tx.insert(schema.linkbioAnalytics).values({
+    orgId, providerId, kind: 'click', source, referrer, device,
+    utmSource: link.utm?.utm_source ?? null, ts: new Date(), createdAt: new Date(),
+  });
+  return target.toString();
+}
+
 // ── Public Native provider ─────────────────────────────────────────────────
 // The dashboard owns provider configuration, but visitors must not need an
 // operator session to view the page or record a click. The model→org lookup
@@ -819,6 +997,18 @@ publicRouter.get('/:modelId/s/:slug', async (c) => {
   const destination = await withPublicModel(modelId, async (tx, orgId) => {
     const page = await loadPublicNativePage(tx, orgId, modelId);
     if (!page) return null;
+    const storedLinks = await tx.select({
+      id: schema.shortLink.id, targetUrl: schema.shortLink.targetUrl, utm: schema.shortLink.utm,
+    }).from(schema.shortLink).where(and(
+      eq(schema.shortLink.orgId, orgId), eq(schema.shortLink.modelId, modelId), eq(schema.shortLink.slug, slug),
+    )).limit(1);
+    if (storedLinks[0]) {
+      return recordStoredShortLinkClick(
+        tx, orgId, modelId, page.provider.id, storedLinks[0], source,
+        c.req.header('referer')?.slice(0, 2048) ?? null,
+        c.req.header('user-agent')?.slice(0, 512) ?? null,
+      );
+    }
     const link = page.links.find((candidate) => candidate.slug === slug);
     if (!link) return null;
     return recordNativeShortLinkClick(

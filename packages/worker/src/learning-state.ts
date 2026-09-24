@@ -140,10 +140,13 @@ export async function selectLearnedGuidance(
 }
 
 /** One observation per published target, with a 30-day half-life measured from
- * publication, never from polling/recipe refresh. Decay both success and failure
- * evidence toward the Beta(1,1) prior. Plays remains the raw observation count.
- * Selection derives this at the transaction clock too: an idle cached posterior
- * must not freeze old evidence in time. No new provider call or state write.
+ * publication, never from polling/recipe refresh. Tracked posts use provider
+ * views, first-party short-link clicks and signed Fanvue subscription/PPV
+ * outcomes (refunds reduce conversions); posts without a per-post link retain
+ * the established provider-engagement reward. Decay both outcomes toward the
+ * Beta(1,1) prior. Plays remains the raw observation count. Selection derives
+ * this at the transaction clock too: an idle cached posterior must not freeze
+ * old evidence in time. No new provider call or state write.
  */
 function learningPosterior(orgId: string, modelId: string, platform: string) {
   return sql`SELECT r.org_id,r.model_id,r.platform,r.recipe->>'learning_context' AS context,r.recipe->>'learning_arm' AS arm,
@@ -151,6 +154,27 @@ function learningPosterior(orgId: string, modelId: string, platform: string) {
       1+SUM((1-score.value) * age.weight) AS beta,COUNT(*)::integer AS plays,
       SUM(score.value * age.weight) AS reward
     FROM viral_recipe r JOIN post_target t ON t.id=r.source_target_id AND t.org_id=r.org_id
+    LEFT JOIN LATERAL (
+      SELECT count(DISTINCT sl.id)>0 AS has_post_link, count(lc.id)::float8 AS clicks
+      FROM short_link sl
+      LEFT JOIN linkbio_click lc ON lc.short_link_id=sl.id AND lc.org_id=r.org_id
+      WHERE sl.org_id=r.org_id AND sl.model_id=r.model_id
+        AND sl.utm->>'utm_medium'='post' AND sl.utm->>'utm_content'=t.id::text
+    ) link_state ON true
+    LEFT JOIN LATERAL (
+      SELECT (count(ae.id) FILTER (WHERE ae.kind IN ('subscription','ppv_purchase')))::float8 AS purchases,
+        (count(ae.id) FILTER (WHERE ae.kind='subscription_refund'))::float8 AS refunds
+      FROM short_link sl
+      LEFT JOIN linkbio_attribution_event ae ON ae.short_link_id=sl.id AND ae.org_id=r.org_id
+        AND ae.model_id=r.model_id AND ae.source='fanvue'
+      WHERE sl.org_id=r.org_id AND sl.model_id=r.model_id
+        AND sl.utm->>'utm_medium'='post' AND sl.utm->>'utm_content'=t.id::text
+    ) attribution ON true
+    LEFT JOIN LATERAL (
+      SELECT pm.views::float8 AS views FROM post_metric pm
+      WHERE pm.post_target_id=t.id AND pm.platform=t.platform AND pm.remote_id=t.remote_id AND pm.source='provider'
+      ORDER BY pm.collected_at DESC, pm.id DESC LIMIT 1
+    ) provider ON true
     CROSS JOIN LATERAL (SELECT CASE WHEN EXISTS (
       SELECT 1 FROM variant_experiment e
       CROSS JOIN LATERAL jsonb_array_elements(e.evaluation->'observations') observation
@@ -159,7 +183,11 @@ function learningPosterior(orgId: string, modelId: string, platform: string) {
         AND e.winner_variant_id IS NOT NULL
         AND observation->>'targetId'=r.source_target_id::text
         AND observation->>'variantId'=e.winner_variant_id::text
-    ) THEN 1.0 ELSE LEAST(1.0,GREATEST(0.0,r.perf_score)) END AS value) score
+    ) THEN 1.0
+      WHEN link_state.has_post_link THEN LEAST(1.0,GREATEST(0.0,
+        (0.25*link_state.clicks + 0.75*GREATEST(0.0,attribution.purchases-attribution.refunds))
+          / GREATEST(COALESCE(provider.views,0),1)))
+      ELSE LEAST(1.0,GREATEST(0.0,r.perf_score)) END AS value) score
     CROSS JOIN LATERAL (SELECT POWER(0.5, GREATEST(0.0,
       EXTRACT(EPOCH FROM (now()-t.published_at))) / 2592000.0) AS weight) age
     WHERE r.org_id=${orgId} AND r.model_id=${modelId} AND r.platform=${platform}
