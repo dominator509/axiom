@@ -22,6 +22,7 @@ COPY Cargo.toml Cargo.lock ./
 
 # Copy individual crate manifests
 COPY crates/egress-plane/Cargo.toml ./crates/egress-plane/Cargo.toml
+COPY crates/egress-provisioner/Cargo.toml ./crates/egress-provisioner/Cargo.toml
 COPY crates/media-plane/Cargo.toml ./crates/media-plane/Cargo.toml
 COPY crates/vision-engine/Cargo.toml ./crates/vision-engine/Cargo.toml
 COPY crates/scraper/Cargo.toml ./crates/scraper/Cargo.toml
