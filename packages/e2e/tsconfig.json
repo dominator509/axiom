@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "sourceMap": false,
+    "types": ["node", "@playwright/test"]
+  },
+  "extends": "../../tsconfig.base.json",
+  "include": ["./**/*.ts"]
+}

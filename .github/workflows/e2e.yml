@@ -1,0 +1,90 @@
+# ─── AXIOM E2E ────────────────────────────────────────────────────────────────
+# End-to-end suite (@axiom/e2e, Playwright) against an ephemeral stack:
+# timescale Postgres service → migrations → API (dist) → Next.js dashboard.
+# Never touches production data or test.fanthynks.com; the optional prod
+# smoke project is read-only and stays skipped without its CI secrets.
+
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: timescale/timescaledb:2.29.2-pg16
+        env:
+          POSTGRES_USER: axiom
+          POSTGRES_PASSWORD: changeme
+          POSTGRES_DB: axiom_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U axiom -d axiom_e2e"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 30s
+
+    steps:
+      - name: Checkout repository
+        # v7.0.1, immutable release commit.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Install pnpm
+        # v6.1.0, immutable signed release commit.
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+        with:
+          version: '9.14.0'
+
+      - name: Setup Node.js v22 with pnpm cache
+        # v7.0.0, immutable release commit.
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter @axiom/e2e exec playwright install --with-deps chromium
+
+      - name: Build API and its workspace dependencies
+        run: pnpm build --filter @axiom/api...
+
+      - name: Prepare ephemeral E2E database
+        env:
+          MIGRATOR_DATABASE_URL: postgresql://axiom:axiom@localhost:5432/axiom_e2e
+        run: pnpm migrate
+
+      - name: Run Playwright E2E suite
+        env:
+          CI: '1'
+          # Same role the deployment container smoke test uses; the
+          # least-privilege axiom_app role is not granted the auth tables by
+          # the migrations (see PR body).
+          E2E_DATABASE_URL: postgresql://axiom:axiom@localhost:5432/axiom_e2e
+          E2E_MIGRATOR_DATABASE_URL: postgresql://axiom:axiom@localhost:5432/axiom_e2e
+        run: pnpm --filter @axiom/e2e test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        # v4, immutable release commit.
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: playwright-report
+          path: |
+            packages/e2e/playwright-report/
+            packages/e2e/test-results/
+          retention-days: 7
