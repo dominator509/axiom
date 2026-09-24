@@ -44,6 +44,6 @@ describe('model egress worker scope', () => {
     await expect(claimNextModelEgressJob({ execute }, 'runner', { modelId })).resolves.toEqual({ job: null, empty: true });
     await expect(claimNextNonEgressJob({ execute }, 'global')).resolves.toEqual({ job: null, empty: true });
     expect(execute).toHaveBeenCalledTimes(2);
-    expect(EGRESS_JOB_KINDS).toEqual(['publish.target', 'metrics.poll', 'scrape.run', 'fanvue.analytics.sync']);
+    expect(EGRESS_JOB_KINDS).toEqual(['publish.target', 'metrics.poll', 'scrape.run', 'fanvue.analytics.sync', 'public.sfw.reply']);
   });
 });

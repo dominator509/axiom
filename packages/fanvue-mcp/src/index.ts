@@ -18,6 +18,16 @@ export {
   PLATFORM_RULES,
   evaluateTextToS,
 } from './tos-engine.js';
+export {
+  PUBLIC_SFW_PLATFORMS,
+  PUBLIC_SFW_SYSTEM_PROMPT,
+  buildPublicSfwReply,
+  isPrivateCommunityInvite,
+  parsePublicSfwDraft,
+  publicSfwReplyDelayMs,
+  validatePublicSfwReply,
+} from './public-sfw-funnel.js';
+export type { PublicSfwDraft } from './public-sfw-funnel.js';
 export type {
   PlatformScore,
   EvaluationResult,

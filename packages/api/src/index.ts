@@ -39,6 +39,7 @@ import { socialOAuthRouter } from './routes/social-oauth.js';
 import { telegramAuthRouter } from './routes/telegram-auth.js';
 import { discordAuthRouter } from './routes/discord-auth.js';
 import { providerOperationsRouter } from './routes/provider-operations.js';
+import { publicSfwFunnelRouter } from './routes/public-sfw-funnel.js';
 import { patreonRouter } from './routes/patreon.js';
 import { consentRouter } from './routes/consent.js';
 import { relayBindingsRouter } from './routes/relay-bindings.js';
@@ -928,6 +929,8 @@ app.use('/api/v1/platform/affiliate/*', ownerOnly);
 // reserving the same request twice.
 app.use('/api/v1/models/:modelId/generate/*', idempotency());
 app.use('/api/v1/models/:modelId/social-accounts/*/operations', idempotency());
+app.use('/api/v1/models/:modelId/social-accounts/*/public-sfw-replies', idempotency());
+app.use('/api/v1/models/:modelId/public-sfw-reply-settings', idempotency());
 app.use('/api/v1/models/:modelId/media-upload', idempotency(true, 64 * 1024 * 1024));
 app.use('/api/v1/models/:id', idempotency());
 app.use('/api/v1/bundles/*/approve', idempotency());
@@ -1021,6 +1024,7 @@ app.use('/api/v1/ui-locale', idempotency());
 
 app.route('/api/v1/models', modelsRouter);
 app.route('/api/v1/models', providerOperationsRouter);
+app.route('/api/v1/models', publicSfwFunnelRouter);
 app.route('/api/v1/bundles', bundlesRouter);
 app.route('/api/v1/social-accounts', socialRouter);
 app.route('/api/v1/connectors/fanvue', fanvueAuthRouter);

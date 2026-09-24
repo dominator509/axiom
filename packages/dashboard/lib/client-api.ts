@@ -44,6 +44,20 @@ export const clientApi = {
       `/api/v1/models/${encodeURIComponent(modelId)}/social-accounts/${encodeURIComponent(connectionId)}/operations`,
       { method: 'POST', body: JSON.stringify(operation), headers: { 'Content-Type': 'application/json' } },
     ),
+    publicSfwSettings: (modelId: string) => clientApiFetch<{ data: { privateInviteUrl: string | null } }>(
+      `/api/v1/models/${encodeURIComponent(modelId)}/public-sfw-reply-settings`,
+    ),
+    savePublicSfwSettings: (modelId: string, privateInviteUrl: string | null) => clientApiFetch<{
+      data: { privateInviteUrl: string | null };
+    }>(`/api/v1/models/${encodeURIComponent(modelId)}/public-sfw-reply-settings`, {
+      method: 'PATCH', body: JSON.stringify({ privateInviteUrl }), headers: { 'Content-Type': 'application/json' },
+    }),
+    publicSfwReply: (modelId: string, connectionId: string, body: { postId: string; commentId: string }) => clientApiFetch<{
+      data: { jobId: string; status: 'queued'; scheduledFor: string; text: string };
+    }>(
+      `/api/v1/models/${encodeURIComponent(modelId)}/social-accounts/${encodeURIComponent(connectionId)}/public-sfw-replies`,
+      { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } },
+    ),
     refreshOAuth: (platform: 'fanvue' | 'tiktok' | 'x' | 'youtube' | 'reddit' | 'snapchat', connectionId: string) => clientApiFetch<{
       status?: string;
       success?: boolean;

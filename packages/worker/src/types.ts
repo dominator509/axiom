@@ -36,7 +36,8 @@ export type JobKind =
   | 'scrape.run'
   | 'media.transform'
   | 'incident.notify'
-  | 'dlq.replay';
+  | 'dlq.replay'
+  | 'public.sfw.reply';
 
 export const JOB_KINDS: JobKind[] = [
   'content.generate',
@@ -53,6 +54,7 @@ export const JOB_KINDS: JobKind[] = [
   'media.transform',
   'incident.notify',
   'dlq.replay',
+  'public.sfw.reply',
 ];
 
 /** Payload contracts (loose — payload is jsonb; parse defensively). */
@@ -99,3 +101,11 @@ export interface IncidentNotifyPayload {
 }
 export interface ScrapeRunPayload { runId: string; modelId: string }
 export interface MediaTransformPayload { operationId: string }
+export interface PublicSfwReplyPayload {
+  modelId: string;
+  connectionId: string;
+  platform: 'x' | 'instagram' | 'reddit';
+  postId: string;
+  commentId: string;
+  text: string;
+}

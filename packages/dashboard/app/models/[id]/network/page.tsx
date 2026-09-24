@@ -43,6 +43,7 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
   const { locale, t } = await getServerLocale();
   const owner = session?.user?.role === 'owner';
   const canManageAccounts = ['owner', 'manager', 'operator'].includes(session?.user?.role ?? '');
+  const canConfigurePublicInvite = ['owner', 'manager'].includes(session?.user?.role ?? '');
   let network = null;
   let failed = false;
   if (owner) {
@@ -52,7 +53,7 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
       failed = true;
     }
   }
-  const accounts = await SocialAccounts({ modelId: id, canManage: canManageAccounts, t });
+  const accounts = await SocialAccounts({ modelId: id, canManage: canManageAccounts, canConfigurePublicInvite, t });
 
   return (
     <div className="page-stack">
@@ -155,7 +156,7 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
   );
 }
 
-async function SocialAccounts({ modelId, canManage, t }: { modelId: string; canManage: boolean; t: Translator }) {
+async function SocialAccounts({ modelId, canManage, canConfigurePublicInvite, t }: { modelId: string; canManage: boolean; canConfigurePublicInvite: boolean; t: Translator }) {
   let accounts: SocialConnection[] = [];
   try {
     accounts = (await api.social.list(modelId)).data;
@@ -200,7 +201,7 @@ async function SocialAccounts({ modelId, canManage, t }: { modelId: string; canM
           </tr>
           {canManage && a.status === 'connected' && (a.capabilities ?? []).some(capability => capability === 'comments.read' || capability.startsWith('messages.') || capability.startsWith('youtube.') || capability.startsWith('vault.')) && <tr>
             <td colSpan={canManage ? 5 : 4}>
-              <ProviderOperationsPanel modelId={modelId} connectionId={a.id} capabilities={a.capabilities ?? []} />
+              <ProviderOperationsPanel modelId={modelId} connectionId={a.id} platform={a.platform} canConfigurePublicInvite={canConfigurePublicInvite} capabilities={a.capabilities ?? []} />
             </td>
           </tr>}
           </Fragment>

@@ -13,6 +13,9 @@ export const modelProfile = pgTable('model_profile', {
   handle: text('handle').notNull(),
   avatarUrl: text('avatar_url'),
   bio: text('bio'),
+  // F-42: owner-configured public funnel destination. The API accepts only
+  // private Telegram or Discord invite URLs before persisting this value.
+  publicCommunityInviteUrl: text('public_community_invite_url'),
   characterLockPrompt: text('character_lock_prompt').notNull().default(''),
   characterLockVersion: integer('character_lock_version').notNull().default(0),
   // F-85 recurring Relay insight schedule. Null is opt-out and also acts as
