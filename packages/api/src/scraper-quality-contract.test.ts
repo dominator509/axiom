@@ -223,6 +223,10 @@ describe('scraper benchmark/history quality evidence', () => {
       postChange: 4,
       postsPerDay: 2,
       measuredDays: 2,
+      history: [
+        { observedAt: '2026-09-01T00:00:00Z', followers: 100, posts: 200 },
+        { observedAt: '2026-09-03T00:00:00Z', followers: 130, posts: 204 },
+      ],
     });
   });
 

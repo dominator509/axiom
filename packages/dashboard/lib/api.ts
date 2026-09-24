@@ -439,6 +439,7 @@ export interface ScrapeCompetitorBenchmark {
   postChange: number | null;
   postsPerDay: number | null;
   measuredDays: number | null;
+  history: Array<{ observedAt: string; followers: number | null; posts: number | null }>;
 }
 
 export interface TeamMember { id: string; email: string; role: string }

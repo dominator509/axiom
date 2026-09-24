@@ -181,6 +181,7 @@ export interface CompetitorBenchmarkProfile {
   postChange: number | null;
   postsPerDay: number | null;
   measuredDays: number | null;
+  history: Array<{ observedAt: string; followers: number | null; posts: number | null }>;
 }
 
 /** Compare only repeated, observed public-profile snapshots; absent values stay unknown. */
@@ -245,6 +246,11 @@ export function computeCompetitorBenchmarks(
         ? Math.round((postChange / measuredDays) * 100) / 100
         : null,
       measuredDays: measuredDays !== null ? Math.round(measuredDays * 100) / 100 : null,
+      history: entries.slice(-24).map(({ profile, observedAt }) => ({
+        observedAt,
+        followers: profile.followers,
+        posts: profile.posts,
+      })),
     });
   }
   return output.sort((a, b) => (b.followerChangePerDay ?? -Infinity) - (a.followerChangePerDay ?? -Infinity)

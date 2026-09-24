@@ -207,3 +207,26 @@ and schedule in all six supported locales.
 Migration 0060 was exercised only inside the disposable Docker fixture; no
 production database was migrated. No external provider or deployed service
 was used.
+
+## M1011 — Competitor benchmark observation history (F-18) — 2026-09-23
+
+The competitor benchmark already computed growth and posting frequency from
+repeat public-profile scrapes, but the UI exposed only the latest counts and
+delta. It now returns the last 24 time-ordered observations for each bounded
+competitor profile and lets the user expand a localized history table with
+observation time, follower count and post count. Missing values remain
+unavailable; no counts are inferred. The endpoint remains organization/model
+scoped and the history contains only the same bounded public fields already
+shown by the scrape result projection.
+
+| Verification | Result |
+| --- | --- |
+| API scraper contract and route suites | 39/39 passed. |
+| Dashboard `ScrapeRunManager` suite | 3/3 passed. |
+| Core locale and new history catalog suites | 31/31 passed across six launch locales. |
+| API typecheck | Passed. |
+| Dashboard typecheck | Existing unrelated error in `PlatformAffiliateManager.test.tsx:138` (`Type '{}' has no call signatures`); the focused changed component test passes. |
+| `git diff --check` | Passed; Git emitted only configured LF-to-CRLF warnings. |
+
+Browser acceptance, sidecar/provider quality and runtime/migration acceptance
+remain separate from this source-level history surface.
