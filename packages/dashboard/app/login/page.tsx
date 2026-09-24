@@ -38,9 +38,6 @@ export default function LoginPage() {
           <h2>Enter your studio</h2>
           <p className="subtle">Sign in to continue to your private workspace.</p>
           <LoginForm />
-          <p className="login-footnote">
-            Protected by encrypted, tenant-isolated access. Sessions stay on your private cloud.
-          </p>
         </div>
       </section>
     </div>
