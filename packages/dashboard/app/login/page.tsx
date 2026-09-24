@@ -32,13 +32,15 @@ export default function LoginPage() {
           <span>Always in control</span>
         </div>
       </section>
-      <section className="login-panel">
+      <section className="login-panel" aria-label="Sign in">
         <div className="login-card">
           <p className="eyebrow">Welcome back</p>
           <h2>Enter your studio</h2>
           <p className="subtle">Sign in to continue to your private workspace.</p>
           <LoginForm />
-          <p className="login-footnote">Protected by encrypted, tenant-isolated access.</p>
+          <p className="login-footnote">
+            Protected by encrypted, tenant-isolated access. Sessions stay on your private cloud.
+          </p>
         </div>
       </section>
     </div>

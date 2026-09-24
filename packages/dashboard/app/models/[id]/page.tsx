@@ -29,7 +29,15 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
     fanCount = 0;
   }
 
-  if (!model) return <div className="card">Model not found.</div>;
+  if (!model) {
+    return (
+      <div className="empty-state card">
+        <span className="empty-mark">?</span>
+        <h2>Talent not found</h2>
+        <p>This profile may have been removed, or the link is no longer valid.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="grid">
@@ -73,10 +81,15 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
                 <span className="mono">{network.lastEgressIp}</span>
               </div>
             )}
-            {network.lastError && <div style={{ color: 'var(--bad)' }}>{network.lastError}</div>}
+            {network.lastError && (
+              <div className="notice error" role="status">
+                <strong>Network issue</strong>
+                <span>{network.lastError}</span>
+              </div>
+            )}
           </>
         ) : (
-          <p style={{ color: 'var(--muted)', margin: 0 }}>No egress config.</p>
+          <p className="subtle" style={{ margin: 0 }}>No egress config yet for this talent.</p>
         )}
       </div>
       <div className="card stack">

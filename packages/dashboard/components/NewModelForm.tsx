@@ -13,6 +13,7 @@ export default function NewModelForm() {
   const [handle, setHandle] = useState('');
   const [bio, setBio] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -30,6 +31,7 @@ export default function NewModelForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setBusy(true);
     try {
       const res = await mutationFetch('/api/v1/models', {
         method: 'POST',
@@ -38,7 +40,7 @@ export default function NewModelForm() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        setError(body?.error?.message ?? 'Create failed');
+        setError(body?.error?.message ?? 'Could not create this profile. Check the name and handle, then try again.');
         return;
       }
       setOpen(false);
@@ -47,7 +49,9 @@ export default function NewModelForm() {
       setBio('');
       router.refresh();
     } catch {
-      setError('Network error');
+      setError('Network error — check your connection and try again.');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -120,16 +124,17 @@ export default function NewModelForm() {
           <textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={2} />
         </div>
         {error && (
-          <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>
-            {error}
-          </p>
+          <div className="notice error" role="alert">
+            <strong>Could not create profile</strong>
+            <span>{error}</span>
+          </div>
         )}
         <div className="modal-actions">
-          <button className="btn" type="submit">
-            Create profile
-          </button>
-          <button className="btn secondary" type="button" onClick={() => setOpen(false)}>
+          <button className="btn secondary" type="button" onClick={() => setOpen(false)} disabled={busy}>
             Cancel
+          </button>
+          <button className="btn" type="submit" disabled={busy}>
+            {busy ? 'Creating…' : 'Create profile'}
           </button>
         </div>
       </form>
