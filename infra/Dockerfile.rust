@@ -30,6 +30,7 @@ COPY crates/scraper/Cargo.toml ./crates/scraper/Cargo.toml
 # Copy the real source. The image build must fail on real compilation errors;
 # there is no placeholder target or ignored build failure in the release path.
 COPY crates/egress-plane/src ./crates/egress-plane/src
+COPY crates/egress-provisioner/src ./crates/egress-provisioner/src
 COPY crates/media-plane/src ./crates/media-plane/src
 COPY crates/vision-engine/src ./crates/vision-engine/src
 COPY crates/scraper/src ./crates/scraper/src
