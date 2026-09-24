@@ -8,6 +8,7 @@ import {
   aggregateScrapeOutcome,
   canDispatchScrapeRun,
   computeScrapeBenchmark,
+  computeCompetitorBenchmarks,
   dedupeResults,
   effectiveConcurrency,
   effectiveTimeout,
@@ -199,6 +200,30 @@ describe('scraper benchmark/history quality evidence', () => {
     expect(benchmark.successRate).toBeCloseTo(1 / 3);
     expect(benchmark.averageItems).toBeCloseTo(14 / 3);
     expect(benchmark.averageDurationMs).toBeCloseTo(2_000);
+  });
+
+  it('measures competitor follower growth and posting frequency only across repeated public snapshots', () => {
+    const benchmark = computeCompetitorBenchmarks([
+      { id: 'new', createdAt: '2026-09-03T00:00:00Z', completedAt: '2026-09-03T00:00:00Z', result: { results: [
+        { platform: 'instagram', display_name: 'Creator', profile_url: 'https://example.com/creator', followers: 130, posts: 204 },
+        { platform: 'instagram', followers: 999, posts: 999 },
+      ] } },
+      { id: 'old', createdAt: '2026-09-01T00:00:00Z', completedAt: '2026-09-01T00:00:00Z', result: { results: [
+        { platform: 'instagram', display_name: 'Creator', profile_url: 'https://example.com/creator', followers: 100, posts: 200 },
+      ] } },
+    ]);
+    expect(benchmark).toHaveLength(1);
+    expect(benchmark[0]).toMatchObject({
+      platform: 'instagram',
+      observations: 2,
+      followers: 130,
+      followerChange: 30,
+      followerChangePerDay: 15,
+      posts: 204,
+      postChange: 4,
+      postsPerDay: 2,
+      measuredDays: 2,
+    });
   });
 
   it('returns zeroed evidence for an empty window', () => {

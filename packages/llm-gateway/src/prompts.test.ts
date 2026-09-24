@@ -95,7 +95,7 @@ describe('buildS1', () => {
     expect(s1).toContain('Max caption length: 2200 characters');
     expect(s1).toContain('Max hashtags: 30');
     expect(s1).toContain('Links allowed: Yes');
-    expect(s1).toContain('Blocked keywords: nude, naked, sex, porn, escort, onlyfans');
+    expect(s1).toContain('Blocked keywords: nude, naked, sex, sexual, porn, erotic, escort, onlyfans, nsfw, adult content');
     expect(s1).toContain('Content requiring review: suggestive, revealing, sexual_wellness');
     expect(s1).toContain('[TOS THRESHOLDS]');
     expect(s1).toContain('Acceptance threshold: 70/100');
@@ -106,6 +106,16 @@ describe('buildS1', () => {
 
   it('says links not allowed for tiktok', () => {
     expect(buildS1('tiktok')).toContain('Links allowed: No');
+    expect(buildS1('tiktok')).toContain('refer to the profile link without adding a URL');
+  });
+
+  it('adds a respectful SFW funnel only to public-facing platforms', () => {
+    const instagram = buildS1('instagram');
+    expect(instagram).toContain('[PUBLIC SFW FUNNEL]');
+    expect(instagram).toContain('transparent call to action');
+    expect(instagram).toContain('Do not imply private access or fabricate invite URLs.');
+    expect(buildS1('fanvue')).not.toContain('[PUBLIC SFW FUNNEL]');
+    expect(buildS1('telegram')).not.toContain('[PUBLIC SFW FUNNEL]');
   });
 
   it('omits review categories line when the platform has none (telegram)', () => {

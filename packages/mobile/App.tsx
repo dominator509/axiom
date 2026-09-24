@@ -2,27 +2,34 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { restoreSession, type SessionUser } from './src/api/auth';
+import { getUiLocale } from './src/api/endpoints';
 import DashboardScreen from './src/screens/DashboardScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RelayScreen from './src/screens/RelayScreen';
 import PatreonScreen from './src/screens/PatreonScreen';
 import { palette } from './src/theme';
+import { CATALOGS, LocaleCatalog, type SupportedLocale } from '@axiom/core';
 
 type Tab = 'dashboard' | 'relay' | 'patreon';
 
-const TABS: Array<{ key: Tab; label: string; icon: string }> = [
-  { key: 'dashboard', label: 'Studio', icon: '◇' },
-  { key: 'relay', label: 'Relay', icon: '✦' },
-  { key: 'patreon', label: 'Community', icon: '◎' },
+const TABS: Array<{ key: Tab; labelKey: string; icon: string }> = [
+  { key: 'dashboard', labelKey: 'mobile.studioTab', icon: '◇' },
+  { key: 'relay', labelKey: 'mobile.relayTitle', icon: '✦' },
+  { key: 'patreon', labelKey: 'mobile.communityTab', icon: '◎' },
 ];
+const localeCatalog = new LocaleCatalog(CATALOGS);
 
 export default function App() {
   const [restoring, setRestoring] = useState(true);
   const [user, setUser] = useState<SessionUser | null>(null);
   const [tab, setTab] = useState<Tab>('dashboard');
+  const [locale, setLocale] = useState<SupportedLocale>('en');
 
   useEffect(() => {
     let mounted = true;
+    void getUiLocale().then((snapshot) => {
+      if (mounted) setLocale(snapshot.locale);
+    }).catch(() => undefined);
     void restoreSession()
       .then((session) => {
         if (!mounted) return;
@@ -50,7 +57,7 @@ export default function App() {
     return (
       <View style={styles.restoreScreen}>
         <ActivityIndicator color={palette.roseBright} />
-        <Text style={styles.restoreText}>Restoring secure session…</Text>
+        <Text style={styles.restoreText}>{localeCatalog.t(locale, 'mobile.restoringSession')}</Text>
       </View>
     );
   }
@@ -65,16 +72,16 @@ export default function App() {
         </View>
         <View>
           <Text style={styles.brand}>FanThynks</Text>
-          <Text style={styles.brandDetail}>CREATOR INTELLIGENCE</Text>
+          <Text style={styles.brandDetail}>{localeCatalog.t(locale, 'mobile.brandDetail')}</Text>
         </View>
         <View style={styles.privatePill}>
           <View style={styles.liveDot} />
-          <Text style={styles.privateText}>PRIVATE</Text>
+          <Text style={styles.privateText}>{localeCatalog.t(locale, 'mobile.privateBadge')}</Text>
         </View>
       </View>
       <View style={styles.body}>
         {tab === 'dashboard' ? (
-          <DashboardScreen user={user} onSignOut={handleSignOut} />
+          <DashboardScreen user={user} onSignOut={handleSignOut} onLocaleChange={setLocale} />
         ) : tab === 'patreon' ? (
           <PatreonScreen user={user} />
         ) : (
@@ -93,7 +100,7 @@ export default function App() {
               accessibilityState={{ selected: active }}
             >
               <Text style={[styles.tabIcon, active && styles.tabIconActive]}>{item.icon}</Text>
-              <Text style={[styles.tabText, active && styles.tabTextActive]}>{item.label}</Text>
+              <Text style={[styles.tabText, active && styles.tabTextActive]}>{localeCatalog.t(locale, item.labelKey)}</Text>
             </Pressable>
           );
         })}

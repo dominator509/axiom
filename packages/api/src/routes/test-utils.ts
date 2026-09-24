@@ -18,7 +18,8 @@ export function makeChain(): any {
     get(_t: unknown, prop: string | symbol) {
       if (prop === 'then') {
         return (resolve: (v: unknown) => void, reject?: (e: unknown) => void) => {
-          const value = mockState.results.length > 0 ? mockState.results.shift() : mockState.result;
+          const result = mockState.results.length > 0 ? mockState.results.shift() : mockState.result;
+          const value = typeof result === 'function' ? (result as () => unknown)() : result;
           Promise.resolve(value).then(resolve, reject);
         };
       }

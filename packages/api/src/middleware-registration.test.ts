@@ -14,6 +14,12 @@ describe('application idempotency registration', () => {
     expect(boundary).toBeLessThan(source.indexOf("app.route('/api/v1/models', modelsRouter);"));
     expect(boundary).toBeLessThan(source.indexOf("const operationalMutation = requireMutationRole('owner', 'manager', 'operator', 'content_creator', 'chatter');"));
   });
+  it('limits incident mutations to owners, managers, and operators', () => {
+    expect(source).toContain("const incidentMutation = requireMutationRole('owner', 'manager', 'operator');");
+    expect(source).toContain("app.use('/api/v1/incidents', incidentMutation);");
+    expect(source).toContain("app.use('/api/v1/incidents/*', incidentMutation);");
+    expect(source).not.toContain("app.use('/api/v1/incidents/*', operationalMutation);");
+  });
   it.each([
     '/api/v1/models',
     '/api/v1/models/model',

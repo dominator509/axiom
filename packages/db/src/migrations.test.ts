@@ -59,6 +59,12 @@ const TS_TO_SQL: Record<string, string> = {
   triggerRule: 'trigger_rule',
   linkbioAnalytics: 'linkbio_analytics',
   linkbioAttributionEvent: 'linkbio_attribution_event',
+  linkbioCampaignCost: 'linkbio_campaign_cost',
+  fanvueWebhookEvent: 'fanvue_webhook_event',
+  fanvueChurnRescue: 'fanvue_churn_rescue',
+  fanvueSubscriptionAttribution: 'fanvue_subscription_attribution',
+  commentModerationRule: 'comment_moderation_rule',
+  commentModerationAction: 'comment_moderation_action',
   relayBinding: 'relay_binding',
   agentPermission: 'agent_permission',
   crashReport: 'crash_report',
@@ -713,14 +719,29 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     expect(sql).toContain('JOIN content_bundle cb ON pt.bundle_id = cb.id');
   });
 
+  it('persists bounded, tenant-scoped Fanvue subscription attribution for later payment joins', () => {
+    expect(sql).toContain('ALTER TABLE linkbio_attribution_event');
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS fanvue_connection_id UUID');
+    expect(sql).toContain('ADD COLUMN IF NOT EXISTS fanvue_subscription_id TEXT');
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS fanvue_subscription_attribution');
+    expect(sql).toContain('UNIQUE (connection_id, subscription_id)');
+    expect(sql).toContain('CREATE INDEX IF NOT EXISTS fanvue_subscription_attribution_scope');
+    expect(sql).toContain('ALTER TABLE fanvue_subscription_attribution ENABLE ROW LEVEL SECURITY;');
+    expect(sql).toContain('ALTER TABLE fanvue_subscription_attribution FORCE ROW LEVEL SECURITY;');
+    expect(sql).toContain('CREATE POLICY org_isolation ON fanvue_subscription_attribution');
+    expect(sql).toContain('GRANT SELECT, INSERT, UPDATE ON fanvue_subscription_attribution TO axiom_app, axiom;');
+  });
+
   it('creates indexes for the hot query paths', () => {
     const indexStatements = sql.match(/CREATE INDEX IF NOT EXISTS /g) ?? [];
     // 15 tables in 0000 (org_id + key lookup) + 1 in 0001 (org_id) +
     // 5 in 0002 (fan/fan_touchpoint/custom_request/linkbio_click/playbook) +
     // 4 in 0003 (viral_exemplar embedding/model_id/label/org_id re-created) +
     // Includes the durable MCP revocation and capability-registry indexes,
-    // the seven platform affiliate lookup indexes, and link attribution.
-    expect(indexStatements).toHaveLength(106);
+    // the seven platform affiliate lookup indexes, link attribution, and four
+    // Fanvue lifecycle/link-in-bio cost indexes in 0069, comment moderation
+    // indexes in 0070, and subscription attribution indexes in 0071.
+    expect(indexStatements).toHaveLength(114);
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_org_slug ON org(slug);');
     expect(sql).toContain('CREATE INDEX IF NOT EXISTS idx_job_queue_state ON job(queue, state);');
     expect(sql).toContain(

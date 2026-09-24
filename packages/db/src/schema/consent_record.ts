@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, boolean, date } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, boolean, date, integer } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { org } from './org.js';
 import { modelProfile } from './model_profile.js';
@@ -32,6 +32,9 @@ export const consentRecord = pgTable('consent_record', {
     .$type<'2257' | 'model_release' | 'id_verify' | 'platform_consent'>(),
   blobRef: text('blob_ref'),
   sha256: bytea('sha256'),
+  documentCiphertext: bytea('document_ciphertext'),
+  documentMimeType: text('document_mime_type'),
+  documentSize: integer('document_size'),
   validFrom: date('valid_from').notNull().defaultNow(),
   validTo: date('valid_to'),
 });

@@ -98,7 +98,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <main id="main-content" tabIndex={-1} className="main">{children}</main>
               <footer className="footer">
                 <span>{t('layout.privateByDesign')}</span>
-                <Link href="/api/v1/health">
+                <Link href="/health">
                   {t('layout.systemHealth')}
                 </Link>
               </footer>

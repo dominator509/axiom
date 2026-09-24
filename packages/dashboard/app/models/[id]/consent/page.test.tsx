@@ -35,13 +35,13 @@ it('renders a role-aware metadata vault without document contents', async () => 
     await ConsentPage({ params: Promise.resolve({ id: 'model' }) }),
   );
   expect(html).toContain('Consent vault');
-  expect(html).toContain('Save consent metadata');
+  expect(html).toContain('Save consent record');
   expect(html).toContain('Revoke record');
   expect(html).not.toContain('opaque');
   state.role = 'viewer';
   expect(
     renderToStaticMarkup(await ConsentPage({ params: Promise.resolve({ id: 'model' }) })),
-  ).not.toContain('Save consent metadata');
+  ).not.toContain('Save consent record');
 });
 
 it('renders the vault using the persisted locale', async () => {

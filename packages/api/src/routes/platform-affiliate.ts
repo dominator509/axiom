@@ -259,6 +259,11 @@ router.get('/program', async (c) => {
   return c.json({
     data: {
       program,
+      billingWebhook: {
+        configured: Boolean(process.env.PLATFORM_BILLING_WEBHOOK_SECRET),
+        endpoint: '/api/v1/platform/affiliate-billing/webhook',
+        signatureHeader: 'X-Axiom-Billing-Signature',
+      },
       partners,
       campaigns,
       holds,

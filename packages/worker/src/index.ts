@@ -14,7 +14,7 @@ export type { ClaimResult } from './claim.js';
 export { defaultExecutors } from './executors/index.js';
 export { triggerEvaluate } from './executors/trigger.js';
 export {
-  METRICS_POLL_INTERVAL_MS,
+  METRICS_PUBLISH_AGE_OFFSETS_MS,
   metricsPollDedupeParts,
   nextMetricsPollAt,
 } from './executors/metrics.js';

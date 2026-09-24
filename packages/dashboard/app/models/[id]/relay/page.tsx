@@ -2,6 +2,8 @@ import { api, getSession } from '@/lib/api';
 import { CATALOGS, LocaleCatalog, normalizeLocale } from '@axiom/core';
 import RelayBindingManager from '@/components/RelayBindingManager';
 import RelayCardHistory from '@/components/RelayCardHistory';
+import TelegramConnect from '@/components/TelegramConnect';
+import DiscordBotConnect from '@/components/DiscordBotConnect';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +42,13 @@ export default async function RelayPage({
   }
   return <div className="page-stack">
     <h2>{t('relay.title')}</h2>
+    <section className="card stack">
+      <div><h3>{t('relay.communitySetup.heading')}</h3><p className="subtle">{t('relay.communitySetup.description')}</p></div>
+      {canEdit ? <div className="grid">
+        <div className="card stack"><h4>{t('network.telegramTitle')}</h4><TelegramConnect modelId={id} /></div>
+        <div className="card stack"><h4>{t('network.discordBotTitle')}</h4><DiscordBotConnect modelId={id} /></div>
+      </div> : <p className="subtle">{t('relay.communitySetup.roleRequired')}</p>}
+    </section>
     <div className="card">
       <h3>{t('relay.destinations.heading')}</h3>
       {failed ? <p role="alert">{t('relay.destinations.loadFailed')}</p> : <RelayBindingManager modelId={id} bindings={bindings} canEdit={canEdit} t={t} />}

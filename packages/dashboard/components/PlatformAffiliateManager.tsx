@@ -209,6 +209,16 @@ export default function PlatformAffiliateManager({ initial }: Props) {
         <div className="stat-card accent"><small>{t('affiliate.accruedCommission')}</small><strong>{money(snapshot.summary.accruedCents, locale)}</strong><span>{t('affiliate.openHolds', { count: formatNumber(snapshot.summary.openHolds, locale) })}</span></div>
       </section>
 
+      <section className="card stack" aria-labelledby="affiliate-billing-heading">
+        <h2 id="affiliate-billing-heading">{t('affiliate.billingHeading')}</h2>
+        <p className="subtle">{t('affiliate.billingDescription')}</p>
+        <p><strong>{t('affiliate.billingEndpoint')}:</strong> <code>{snapshot.billingWebhook.endpoint}</code></p>
+        <p className="mono">{snapshot.billingWebhook.signatureHeader}: t=&lt;unix-seconds&gt;,v1=&lt;sha256-hex&gt;</p>
+        <span className={`badge ${snapshot.billingWebhook.configured ? 'good' : 'warn'}`}>
+          {snapshot.billingWebhook.configured ? t('affiliate.billingConfigured') : t('affiliate.billingMissing')}
+        </span>
+      </section>
+
       <div className="grid">
         <form className="card stack" aria-label={t('affiliate.createPartner')} onSubmit={event => { void createPartner(event); }}>
           <div><p className="eyebrow">{t('affiliate.partnerOnboarding')}</p><h2>{t('affiliate.invitePartner')}</h2></div>

@@ -105,4 +105,63 @@ router.post('/incidents/:jobId/replay', async (c) => {
   return c.json({ success: true, data: result.data });
 });
 
+// POST /incidents/:jobId/discard — keep the row and audit event, but make a
+// terminal failed/dead job ineligible for future execution.
+router.post('/incidents/:jobId/discard', async (c) => {
+  const orgId = requireOrg(c);
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  const { jobId } = c.req.param();
+  const userId = c.get('userId') ?? 'system';
+
+  const result = await withOrgContext(orgId, async (tx) => {
+    const existing = await tx
+      .select({ state: schema.job.state, lastError: schema.job.lastError })
+      .from(schema.job)
+      .where(and(eq(schema.job.id, jobId), eq(schema.job.orgId, orgId)))
+      .limit(1)
+      .for('update');
+    if (existing.length === 0) return { status: 404 as const, data: null };
+    if (!['dead', 'failed'].includes(existing[0].state)) {
+      return {
+        status: 409 as const,
+        data: null,
+        message: 'Only dead or failed jobs can be discarded',
+      };
+    }
+    if (existing[0].lastError?.startsWith('external-side-effect-unknown:')) {
+      return {
+        status: 409 as const,
+        data: null,
+        message: 'Provider outcome is unknown; reconcile the external side effect before discarding',
+      };
+    }
+
+    const rows = await tx
+      .update(schema.job)
+      .set({
+        state: 'cancelled',
+        lockedBy: null,
+        lockedAt: null,
+        completedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.job.id, jobId),
+          eq(schema.job.orgId, orgId),
+          sql`${schema.job.state} IN ('dead', 'failed')`,
+        ),
+      )
+      .returning();
+    if (rows.length === 0) return { status: 404 as const, data: null };
+    await writeAudit(tx, orgId, userId, 'incident.discard', jobId, {
+      previousState: existing[0].state,
+    });
+    return { status: 200 as const, data: rows[0] };
+  });
+
+  if (result.status === 404) return apiError(c, 404, statusTitle(404), 'job not found');
+  if (result.status === 409) return apiError(c, 409, statusTitle(409), result.message);
+  return c.json({ success: true, data: result.data });
+});
+
 export { router as incidentsRouter };

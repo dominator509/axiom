@@ -4,7 +4,7 @@ vi.mock('@axiom/db', () => ({ schema: {} }));
 vi.mock('../connection.js', () => ({ asPlatform: vi.fn(), connectorForTarget: vi.fn() }));
 vi.mock('../enqueue.js', () => ({ enqueueJob: vi.fn() }));
 
-import { METRICS_POLL_INTERVAL_MS, metricsPollDedupeParts, nextMetricsPollAt, normalizeEngagementMetrics } from './metrics.js';
+import { METRICS_PUBLISH_AGE_OFFSETS_MS, metricsPollDedupeParts, nextMetricsPollAt, normalizeEngagementMetrics } from './metrics.js';
 
 describe('provider observation integrity', () => {
   it.each([{}, { likes: 4 }, { views: 30 }, { views: 0, likes: 1 }, { views: -1, likes: 0 },
@@ -23,17 +23,27 @@ describe('provider observation integrity', () => {
 });
 
 describe('metrics poll scheduling', () => {
-  it('advances the loop by the bounded polling cadence', () => {
-    const now = new Date('2026-09-09T20:00:00.000Z');
-    expect(nextMetricsPollAt(now)).toEqual(new Date(now.getTime() + METRICS_POLL_INTERVAL_MS));
+  it('captures the 1h, 6h, 24h and 7d windows before decaying to sparse snapshots', () => {
+    const publishedAt = new Date('2026-09-09T20:00:00.000Z');
+    expect(nextMetricsPollAt(publishedAt, publishedAt)).toEqual(new Date(publishedAt.getTime() + 60 * 60_000));
+    expect(nextMetricsPollAt(publishedAt, new Date(publishedAt.getTime() + 60 * 60_000)))
+      .toEqual(new Date(publishedAt.getTime() + 6 * 60 * 60_000));
+    expect(nextMetricsPollAt(publishedAt, new Date(publishedAt.getTime() + 6 * 60 * 60_000)))
+      .toEqual(new Date(publishedAt.getTime() + 24 * 60 * 60_000));
+    expect(nextMetricsPollAt(publishedAt, new Date(publishedAt.getTime() + 24 * 60 * 60_000)))
+      .toEqual(new Date(publishedAt.getTime() + 7 * 24 * 60 * 60_000));
+    expect(METRICS_PUBLISH_AGE_OFFSETS_MS).toHaveLength(8);
+    expect(nextMetricsPollAt(publishedAt, new Date(publishedAt.getTime() + 90 * 24 * 60 * 60_000))).toBeNull();
   });
 
-  it('deduplicates one target within a cadence bucket', () => {
-    const runAt = new Date('2026-09-09T20:15:00.000Z');
+  it('deduplicates the exact target and scheduled window while keeping separate windows distinct', () => {
+    const runAt = new Date('2026-09-09T21:00:00.000Z');
     expect(metricsPollDedupeParts('target-1', runAt)).toEqual([
       'metrics.poll',
       'target-1',
-      String(Math.floor(runAt.getTime() / METRICS_POLL_INTERVAL_MS)),
+      runAt.toISOString(),
     ]);
+    expect(metricsPollDedupeParts('target-1', new Date('2026-09-10T02:00:00.000Z')))
+      .not.toEqual(metricsPollDedupeParts('target-1', runAt));
   });
 });

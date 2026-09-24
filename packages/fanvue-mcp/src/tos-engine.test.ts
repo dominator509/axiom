@@ -189,6 +189,15 @@ describe('evaluate', () => {
     expect(evaluateTextToS('safe caption', [], ['threads']).verdict).toBe('pass');
   });
 
+  it('enforces the product SFW boundary for public Instagram, X and Reddit captions', () => {
+    for (const platform of ['instagram', 'x', 'reddit'] as const) {
+      expect(evaluateTextToS('A safe public caption about adult content', [], [platform]).verdict).toBe('block');
+      expect(evaluateTextToS('A public caption about sex education', [], [platform]).verdict).toBe('block');
+      expect(evaluateTextToS('The Essex coast is beautiful', [], [platform]).verdict).toBe('pass');
+      expect(PLATFORM_RULES[platform].reviewCategories).toContain('suggestive');
+    }
+  });
+
   it('forwards an override through evaluate', async () => {
     stubVision(0.0, 'pass', { overridden: true, override_source: 'request' });
     const engine = new ToSEngine();

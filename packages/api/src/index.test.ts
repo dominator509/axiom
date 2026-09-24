@@ -95,7 +95,7 @@ describe('mounted route groups', () => {
     ['POST', '/bundles/:id/revise'], ['POST', '/bundles/:id/reject'],
     ['GET', '/killswitch'], ['POST', '/killswitch/enable'], ['POST', '/killswitch/disable'],
     ['GET', '/audit'], ['GET', '/audit/verify'], ['GET', '/incidents'],
-    ['POST', '/incidents/:id/replay'], ['GET', '/social-accounts'], ['GET', '/llm/providers'],
+    ['POST', '/incidents/:id/replay'], ['POST', '/incidents/:id/discard'], ['GET', '/social-accounts'], ['GET', '/llm/providers'],
     ['GET', '/crash-reports'], ['PATCH', '/crash-reports/:id/resolve'],
     ['GET', '/models/:id/media'], ['GET', '/models/:id/media/:assetId'],
     ['GET', '/models/:id/variant-experiments/guidance-sources'],

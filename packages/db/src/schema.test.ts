@@ -1526,14 +1526,15 @@ describe('linkbio_attribution_event table', () => {
     expect(cols.amountCents.notNull).toBe(true);
     expect(cols.utm.notNull).toBe(true);
     expect(foreignKeysOf(linkbioAttributionEvent).map((fk) => tableName(fk.foreignTable))).toEqual(
-      expect.arrayContaining(['org', 'model_profile', 'short_link']),
+      expect.arrayContaining(['org', 'model_profile', 'short_link', 'platform_connection']),
     );
   });
 
-  it('relates to org, model and short link without exposing provider payloads', () => {
+  it('relates to org, model, Fanvue connection and short link without exposing provider payloads', () => {
     expect(relationNames(linkbioAttributionEventRelations)).toEqual({
       org: { type: 'One', table: 'org', fieldName: 'org', fields: ['org_id'], references: ['id'] },
       model: { type: 'One', table: 'model_profile', fieldName: 'model', fields: ['model_id'], references: ['id'] },
+      fanvueConnection: { type: 'One', table: 'platform_connection', fieldName: 'fanvueConnection', fields: ['fanvue_connection_id'], references: ['id'] },
       shortLink: { type: 'One', table: 'short_link', fieldName: 'shortLink', fields: ['short_link_id'], references: ['id'] },
     });
   });

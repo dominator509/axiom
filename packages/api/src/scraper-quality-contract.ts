@@ -168,6 +168,89 @@ export interface PublicScrapeRun {
   completedAt: string | null;
 }
 
+export interface CompetitorBenchmarkProfile {
+  platform: string | null;
+  displayName: string | null;
+  profileUrl: string;
+  observations: number;
+  lastObservedAt: string;
+  followers: number | null;
+  followerChange: number | null;
+  followerChangePerDay: number | null;
+  posts: number | null;
+  postChange: number | null;
+  postsPerDay: number | null;
+  measuredDays: number | null;
+}
+
+/** Compare only repeated, observed public-profile snapshots; absent values stay unknown. */
+export function computeCompetitorBenchmarks(
+  runs: Array<{ id: string; createdAt: Date | string; completedAt?: Date | string | null; result: unknown }>,
+): CompetitorBenchmarkProfile[] {
+  const snapshots = new Map<string, Array<{ profile: ScrapeProfileView; observedAt: string }>>();
+  const orderedRuns = [...runs].sort((a, b) => {
+    const aTime = new Date(a.completedAt ?? a.createdAt).getTime();
+    const bTime = new Date(b.completedAt ?? b.createdAt).getTime();
+    return aTime - bTime || a.id.localeCompare(b.id);
+  });
+  for (const run of orderedRuns) {
+    const observedAt = iso(run.completedAt ?? run.createdAt);
+    if (!observedAt || !Number.isFinite(new Date(observedAt).getTime())) continue;
+    const result = projectScrapeResult('competitor', run.result);
+    for (const profile of result.profiles) {
+      if (!profile.profileUrl) continue;
+      let key: string;
+      try {
+        const url = new URL(profile.profileUrl);
+        url.search = '';
+        url.hash = '';
+        key = `${(profile.platform ?? '').toLowerCase()}|${url.toString().toLowerCase()}`;
+      } catch { continue; }
+      const entries = snapshots.get(key) ?? [];
+      entries.push({ profile, observedAt });
+      snapshots.set(key, entries);
+    }
+  }
+
+  const output: CompetitorBenchmarkProfile[] = [];
+  for (const entries of snapshots.values()) {
+    const latest = entries.at(-1);
+    const previous = entries.length > 1 ? entries.at(-2) : undefined;
+    if (!latest) continue;
+    const measuredDays = previous
+      ? Math.max(0, (new Date(latest.observedAt).getTime() - new Date(previous.observedAt).getTime()) / 86_400_000)
+      : null;
+    const followerChange = previous?.profile.followers !== null && previous?.profile.followers !== undefined
+      && latest.profile.followers !== null
+      ? latest.profile.followers - previous.profile.followers
+      : null;
+    const postChange = previous?.profile.posts !== null && previous?.profile.posts !== undefined
+      && latest.profile.posts !== null && latest.profile.posts >= previous.profile.posts
+      ? latest.profile.posts - previous.profile.posts
+      : null;
+    output.push({
+      platform: latest.profile.platform,
+      displayName: latest.profile.displayName,
+      profileUrl: latest.profile.profileUrl!,
+      observations: entries.length,
+      lastObservedAt: latest.observedAt,
+      followers: latest.profile.followers,
+      followerChange,
+      followerChangePerDay: followerChange !== null && measuredDays !== null && measuredDays > 0
+        ? Math.round((followerChange / measuredDays) * 100) / 100
+        : null,
+      posts: latest.profile.posts,
+      postChange,
+      postsPerDay: postChange !== null && measuredDays !== null && measuredDays > 0
+        ? Math.round((postChange / measuredDays) * 100) / 100
+        : null,
+      measuredDays: measuredDays !== null ? Math.round(measuredDays * 100) / 100 : null,
+    });
+  }
+  return output.sort((a, b) => (b.followerChangePerDay ?? -Infinity) - (a.followerChangePerDay ?? -Infinity)
+    || b.observations - a.observations || a.profileUrl.localeCompare(b.profileUrl)).slice(0, 100);
+}
+
 type ScrapeRunRowLike = {
   id: string;
   modelId: string;

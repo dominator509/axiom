@@ -6,7 +6,7 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () =>
-  mockDbFactory({ linkbioProvider: {}, linkbioClick: {}, shortLink: {}, linkbioAnalytics: {} }),
+  mockDbFactory({ linkbioProvider: {}, linkbioClick: {}, shortLink: {}, linkbioAnalytics: {}, linkbioCampaignCost: {} }),
 );
 
 import { linkbioRouter, publicLinkbioRouter } from './linkbio.js';
@@ -307,9 +307,10 @@ describe('Fanvue attribution events', () => {
       [{ id: SHORT_LINK_ID, slug: 'native-one', targetUrl: 'https://fanvue.example/creator' }],
       [{ shortLinkId: SHORT_LINK_ID }, { shortLinkId: null }],
       [
-        { shortLinkId: SHORT_LINK_ID, kind: 'subscription', amountCents: 1200 },
-        { shortLinkId: null, kind: 'ppv_purchase', amountCents: 500 },
+        { shortLinkId: SHORT_LINK_ID, kind: 'subscription', amountCents: 1200, currency: 'USD' },
+        { shortLinkId: null, kind: 'ppv_purchase', amountCents: 500, currency: 'USD' },
       ],
+      [],
     ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/attribution`);
     expect(res.status).toBe(200);
@@ -319,6 +320,53 @@ describe('Fanvue attribution events', () => {
       roiStatus: 'unavailable_without_campaign_costs',
       links: [{ slug: 'native-one', clicks: 1, conversions: 1, revenueCents: 1200 }],
     } });
+  });
+
+  it('computes ROI from recorded spend and provider revenue in the same currency', async () => {
+    mockState.results = [
+      [],
+      [{ id: MODEL_ID }],
+      [{ id: SHORT_LINK_ID, slug: 'native-one', targetUrl: 'https://fanvue.example/creator' }],
+      [],
+      [{ shortLinkId: SHORT_LINK_ID, kind: 'subscription', amountCents: 1500, currency: 'USD' }],
+      [{ shortLinkId: SHORT_LINK_ID, amountCents: 1000, currency: 'USD' }],
+    ];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/attribution`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ data: {
+      currency: 'USD', attributedRevenueCents: 1500, campaignCostByCurrency: { USD: 1000 },
+      roi: 50, roiByCurrency: { USD: 50 }, roiStatus: 'available_by_currency',
+      links: [{ revenueCents: 1500, costCents: 1000, roiPercent: 50 }],
+    } });
+  });
+});
+
+describe('POST /models/:id/linkbio/campaign-costs', () => {
+  const SHORT_LINK_ID = '44444444-4444-4444-8444-444444444444';
+  const cost = {
+    eventKey: 'spend-1', shortLinkId: SHORT_LINK_ID, amountCents: 1000, currency: 'USD',
+    occurredAt: '2026-01-02T03:04:05.000Z',
+  };
+
+  it('records scoped spend and returns the durable row', async () => {
+    mockState.results = [[], [{ id: MODEL_ID }], [{ id: SHORT_LINK_ID }], [{ id: 'cost-1', ...cost }]];
+    const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/campaign-costs`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cost),
+    });
+    expect(res.status).toBe(201);
+    expect(mockState.insertValues[0]).toMatchObject({ orgId: ORG_ID, modelId: MODEL_ID, shortLinkId: SHORT_LINK_ID, amountCents: 1000, recordedByUserId: 'user-1' });
+  });
+
+  it('rejects malformed or cross-model cost facts before persistence', async () => {
+    const invalid = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/campaign-costs`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...cost, amountCents: -1 }),
+    });
+    expect(invalid.status).toBe(400);
+    mockState.results = [[{ id: MODEL_ID }], []];
+    const missing = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/campaign-costs`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cost),
+    });
+    expect(missing.status).toBe(404);
   });
 });
 

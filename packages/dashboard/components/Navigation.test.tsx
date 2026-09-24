@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import NavLinks from './NavLinks';
 import ModelTabs from './ModelTabs';
-import { roleLabel } from '@/lib/navigation-role';
+import { roleLabel, workspaceDestinationAllowed } from '@/lib/navigation-role';
 
 const location = vi.hoisted(() => ({ pathname: '/' }));
 vi.mock('next/navigation', () => ({ usePathname: () => location.pathname }));
@@ -28,6 +28,14 @@ describe('workspace navigation coverage', () => {
     const html = renderToStaticMarkup(<NavLinks role="content_creator" />);
     expect(html).toContain('href="/connections/grok"');
     expect(html).toContain('Grok &amp; storage');
+  });
+  it.each(['owner', 'manager', 'operator', 'analyst', 'agent'])('exposes system health to operational role %s', role => {
+    expect(workspaceDestinationAllowed(role, '/health')).toBe(true);
+    expect(renderToStaticMarkup(<NavLinks role={role} />)).toContain('href="/health"');
+  });
+  it.each(['chatter', 'content_creator', 'model', undefined])('keeps system health out of restricted navigation for %s', role => {
+    expect(workspaceDestinationAllowed(role, '/health')).toBe(false);
+    expect(renderToStaticMarkup(<NavLinks role={role} />)).not.toContain('href="/health"');
   });
   it.each([
     ['chatter', ['', 'fans', 'inbox', 'roleplay']],

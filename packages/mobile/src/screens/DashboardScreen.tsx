@@ -35,6 +35,7 @@ const UTC_DATE_TIME: Intl.DateTimeFormatOptions = { timeZone: 'UTC' };
 interface DashboardScreenProps {
   user: SessionUser;
   onSignOut: () => void;
+  onLocaleChange?: (locale: SupportedLocale) => void;
 }
 
 interface DashboardState {
@@ -232,7 +233,7 @@ export function DashboardView({
  * Org settings (viral-sharing toggle, publishing), weekly digest cards and
  * crash reports — all fetched from the BFF /api/v1/* with the session cookie.
  */
-export default function DashboardScreen({ user, onSignOut }: DashboardScreenProps) {
+export default function DashboardScreen({ user, onSignOut, onLocaleChange }: DashboardScreenProps) {
   const [state, setState] = useState<DashboardState>({
     settings: null,
     uiLocale: null,
@@ -308,6 +309,7 @@ export default function DashboardScreen({ user, onSignOut }: DashboardScreenProp
       const updated = await patchUiLocale(locale, 'user', localeIntent.current);
       if (updated.locale !== locale || updated.userLocale !== locale) throw new Error('unconfirmed language preference');
       localeIntent.current = null;
+      onLocaleChange?.(updated.locale);
       setState((prev) => ({ ...prev, uiLocale: updated, savingLocale: false, actionMessage: t('mobile.languageSaved', { locale }) }));
     } catch (err) {
       setState((prev) => ({ ...prev, savingLocale: false, error: err instanceof Error ? err.message : String(err) }));
