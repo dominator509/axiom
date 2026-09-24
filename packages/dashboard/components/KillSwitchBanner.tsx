@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 interface KillSwitchState {
@@ -24,8 +25,14 @@ export default function KillSwitchBanner() {
 
   return (
     <div className="banner" role="alert">
-      <strong>⚠ GLOBAL KILL SWITCH ENABLED</strong>
-      <span>Publishing is halted{state.reason ? ` — ${state.reason}` : ''}.</span>
+      <strong>Publishing halted</strong>
+      <span>
+        Outbound posts and DMs are paused
+        {state.reason ? ` — ${state.reason}` : ''}.
+      </span>
+      <Link href="/killswitch" className="killswitch-banner-link">
+        Manage safety →
+      </Link>
     </div>
   );
 }

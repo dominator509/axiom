@@ -58,8 +58,10 @@ export default async function HomePage() {
           <span className="empty-mark">A</span>
           <h2>Your studio is ready.</h2>
           <p>
-            Create your first talent profile to begin shaping her brand, content, and growth engine.
+            Create your first talent profile to begin shaping brand, content, and growth from one
+            private workspace.
           </p>
+          <p className="empty-hint">Use <strong>Add talent</strong> above to open the profile form.</p>
         </div>
       )}
 

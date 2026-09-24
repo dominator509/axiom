@@ -13,32 +13,50 @@ export default async function KillSwitchPage() {
   }
 
   return (
-    <div style={{ maxWidth: 560 }}>
-      <h1>Publishing safety</h1>
+    <div className="page-stack" style={{ maxWidth: 640 }}>
+      <section className="page-hero">
+        <div>
+          <p className="eyebrow">Safety</p>
+          <h1>Publishing safety</h1>
+          <p className="page-intro">
+            Halt or resume outbound publishing and DM jobs for the whole studio in one control.
+          </p>
+        </div>
+      </section>
+
       {error && (
-        <div className="card" style={{ color: 'var(--bad)' }}>
-          {error}
+        <div className="notice error" role="alert">
+          <strong>Could not load safety status</strong>
+          <span className="mono">{error}</span>
         </div>
       )}
+
       {state && (
-        <div className="card">
+        <div className="card stack">
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <h2 style={{ margin: 0 }}>Publishing</h2>
             {state.enabled ? (
-              <span className="badge bad">HALTED</span>
+              <span className="badge bad">
+                <i /> Halted
+              </span>
             ) : (
-              <span className="badge good">enabled</span>
+              <span className="badge good">
+                <i /> Enabled
+              </span>
             )}
           </div>
           {state.enabled && (
-            <p style={{ color: 'var(--bad)' }}>
-              Reason: {state.reason || 'no reason recorded'} — started{' '}
-              {state.startedAt ? new Date(state.startedAt).toLocaleString() : '?'}
-            </p>
+            <div className="notice error" role="status">
+              <strong>Publishing is halted</strong>
+              <span>
+                Reason: {state.reason || 'no reason recorded'}
+                {state.startedAt ? ` · since ${new Date(state.startedAt).toLocaleString()}` : ''}
+              </span>
+            </div>
           )}
-          <p style={{ color: 'var(--muted)' }}>
+          <p className="subtle" style={{ margin: 0 }}>
             Flipping the switch persists to <span className="mono">org_settings</span>, is
-            audit-logged, and halts the scheduler from dequeuing publish/DM jobs within seconds.
+            audit-logged, and stops the scheduler from dequeuing publish/DM jobs within seconds.
           </p>
           <KillSwitchControl enabled={state.enabled} />
         </div>
