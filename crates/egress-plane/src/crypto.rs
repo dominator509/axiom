@@ -124,6 +124,13 @@ mod tests {
             .with_writer(move || writer.clone())
             .finish();
         tracing::subscriber::with_default(subscriber, || {
+            // Callsite interest is cached process-wide. When another test thread
+            // registers the `decrypt_envelope` span while only the no-op global
+            // dispatcher is active, the span can be cached as "never enabled"
+            // and this scoped subscriber sees nothing (flaky positive control).
+            // Rebuilding the cache while our subscriber is installed makes the
+            // span visible to it regardless of test ordering.
+            tracing::callsite::rebuild_interest_cache();
             let key = [42u8; 32];
             let (encrypted, nonce) = encrypt_envelope(b"test-private-envelope", &key).unwrap();
             assert!(decrypt_envelope(&encrypted, &nonce, &key).is_ok());
