@@ -51,9 +51,9 @@ COPY packages ./packages
 # available before the next package starts compiling.
 RUN cd packages/core && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
     cd packages/db && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
+    cd packages/fanvue-mcp && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
     cd packages/connectors && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
     cd packages/relay && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
-    cd packages/fanvue-mcp && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
     cd packages/llm-gateway && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app && \
     cd packages/worker && /app/node_modules/.bin/tsc -b --force tsconfig.json && cd /app
 RUN pnpm --filter=@axiom/worker --prod deploy /app/pruned
