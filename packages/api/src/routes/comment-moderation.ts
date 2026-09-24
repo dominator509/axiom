@@ -181,7 +181,9 @@ router.post('/models/:modelId/moderation/scan', zValidator('json', scanSchema), 
   } catch {
     return apiError(c, 502, statusTitle(502), 'provider comment scan failed');
   }
-  if (commentsResult.type !== 'comments' || commentsResult.items.length > 100) {
+  if (commentsResult.type !== 'comments' || !Array.isArray(commentsResult.items) || commentsResult.items.length > 100
+    || (commentsResult.nextCursor !== undefined
+      && (typeof commentsResult.nextCursor !== 'string' || commentsResult.nextCursor.length === 0 || commentsResult.nextCursor.length > 512))) {
     return apiError(c, 502, statusTitle(502), 'provider returned an invalid comment page');
   }
 
