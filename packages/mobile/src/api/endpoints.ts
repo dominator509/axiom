@@ -69,6 +69,25 @@ export interface MobileModelProfile {
   isActive: boolean;
 }
 
+export interface MobileConsentRecord {
+  id: string;
+  platform: string;
+  docKind: string;
+  granted: boolean;
+  grantedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  validFrom: string;
+  validTo: string | null;
+  hasDocument: boolean;
+}
+
+export interface MobileConsentStatus {
+  platform: string;
+  ok: boolean;
+  missing: string[];
+}
+
 export interface MobileSocialConnection {
   id: string;
   modelId: string;
@@ -259,6 +278,52 @@ export function parseMobilePatreonRecord(value: unknown, resource: PatreonResour
     detail,
     updatedAt: optionalDate(value, 'syncedAt'),
     isPublic: typeof value['isPublic'] === 'boolean' ? value['isPublic'] : null,
+  };
+}
+
+/** Project only consent metadata safe for the mobile display; identifiers and encrypted bytes are discarded. */
+export function parseMobileConsentRecord(value: unknown): MobileConsentRecord {
+  if (!isRecord(value)) throw new Error('response shape: consent record must be an object');
+  const validFrom = requireString(value, 'validFrom');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(validFrom)) throw new Error('response shape: consent validFrom must be a date');
+  const grantedAt = value['grantedAt'];
+  const expiresAt = value['expiresAt'];
+  const revokedAt = value['revokedAt'];
+  const validTo = value['validTo'];
+  const optionalTimestamp = (key: string, current: unknown): string | null => {
+    if (current === null || current === undefined) return null;
+    if (typeof current !== 'string' || current.length > 80) throw new Error(`response shape: consent ${key} must be a timestamp or null`);
+    return current;
+  };
+  if (typeof value['granted'] !== 'boolean' || typeof value['hasDocument'] !== 'boolean') {
+    throw new Error('response shape: consent grant/document state must be boolean');
+  }
+  if (validTo !== null && validTo !== undefined && (typeof validTo !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(validTo))) {
+    throw new Error('response shape: consent validTo must be a date or null');
+  }
+  return {
+    id: requireString(value, 'id'),
+    platform: boundedText(value['platform'], 'unknown', 50),
+    docKind: boundedText(value['docKind'], 'unknown', 100),
+    granted: value['granted'],
+    grantedAt: optionalTimestamp('grantedAt', grantedAt),
+    expiresAt: optionalTimestamp('expiresAt', expiresAt),
+    revokedAt: optionalTimestamp('revokedAt', revokedAt),
+    validFrom,
+    validTo: typeof validTo === 'string' ? validTo : null,
+    hasDocument: value['hasDocument'],
+  };
+}
+
+export function parseMobileConsentStatus(value: unknown): MobileConsentStatus {
+  if (!isRecord(value)) throw new Error('response shape: consent status must be an object');
+  if (typeof value['ok'] !== 'boolean' || !Array.isArray(value['missing']) || value['missing'].some(item => typeof item !== 'string')) {
+    throw new Error('response shape: consent status fields are invalid');
+  }
+  return {
+    platform: boundedText(value['platform'], 'unknown', 50),
+    ok: value['ok'],
+    missing: value['missing'].slice(0, 16).map(item => boundedText(item, 'unknown', 120)),
   };
 }
 
@@ -496,6 +561,21 @@ export async function reportCrash(input: ReportCrashInput): Promise<CrashReportE
 export async function getModels(): Promise<CursorPage<MobileModelProfile>> {
   const body = await apiFetch<unknown>('/api/v1/models');
   return parseCursorPage(body, parseMobileModel);
+}
+
+/** GET consent metadata for one model. Personal subject references and document bytes are never projected. */
+export async function getConsentRecords(modelId: string): Promise<MobileConsentRecord[]> {
+  const body = await apiFetch<unknown>(`/api/v1/models/${encodeURIComponent(modelId)}/consent-records`);
+  if (!isRecord(body) || !Array.isArray(body['data'])) throw new Error('response shape: consent records must be an array');
+  return body['data'].slice(0, 100).map(parseMobileConsentRecord);
+}
+
+/** GET the server's authoritative publish preflight for one destination platform. */
+export async function getConsentStatus(modelId: string, platform: string): Promise<MobileConsentStatus> {
+  const query = new URLSearchParams({ platform });
+  const body = await apiFetch<unknown>(`/api/v1/models/${encodeURIComponent(modelId)}/consent-status?${query}`);
+  if (!isRecord(body)) throw new Error('response shape: consent status envelope must be an object');
+  return parseMobileConsentStatus(body['data']);
 }
 
 /** GET /api/v1/social-accounts?modelId=... — metadata only, never credentials. */

@@ -2,11 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearStoredCookie } from './client';
 import {
+  getConsentRecords,
+  getConsentStatus,
   getModels,
   getPatreonData,
   getPatreonStatus,
   getSocialConnections,
   getUiLocale,
+  parseMobileConsentRecord,
+  parseMobileConsentStatus,
   parseMobilePatreonRecord,
   parseMobilePatreonStatus,
   parseUiLocaleSnapshot,
@@ -116,5 +120,47 @@ describe('mobile F-91 Patreon endpoints', () => {
   it('rejects malformed provider records and unsupported resource states', () => {
     expect(() => parseMobilePatreonRecord({ id: 'row-1' }, 'posts')).not.toThrow();
     expect(() => parseMobilePatreonStatus({ connection: { ...connection, platform: 'instagram' }, counts: {}, sync: [] })).toThrow('expected Patreon connection');
+  });
+});
+
+describe('mobile F-87 consent endpoints', () => {
+  const fetchMock = vi.fn();
+  const record = {
+    id: 'consent-1', modelId: 'model-1', platform: 'instagram', docKind: '2257',
+    granted: true, grantedAt: '2026-01-01T00:00:00.000Z', expiresAt: null, revokedAt: null,
+    validFrom: '2026-01-01', validTo: null, hasDocument: true,
+    subjectRef: 'private-subject-reference', sha256: 'private-digest',
+    documentCiphertext: 'private-ciphertext', blobRef: 'private-blob-reference',
+  };
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    clearStoredCookie();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  it('projects only bounded consent metadata and discards subject identifiers and document material', () => {
+    const parsed = parseMobileConsentRecord(record);
+    expect(parsed).toMatchObject({ id: 'consent-1', docKind: '2257', hasDocument: true, validFrom: '2026-01-01' });
+    expect(parsed).not.toHaveProperty('subjectRef');
+    expect(parsed).not.toHaveProperty('sha256');
+    expect(JSON.stringify(parsed)).not.toContain('private-');
+  });
+
+  it('rejects incomplete grant state and normalizes the publish preflight shape', () => {
+    expect(() => parseMobileConsentRecord({ ...record, hasDocument: 'yes' })).toThrow('grant/document state');
+    expect(parseMobileConsentStatus({ platform: 'instagram', ok: false, missing: ['2257', 'platform_consent:instagram'] }))
+      .toEqual({ platform: 'instagram', ok: false, missing: ['2257', 'platform_consent:instagram'] });
+    expect(() => parseMobileConsentStatus({ platform: 'instagram', ok: false, missing: [1] })).toThrow('status fields');
+  });
+
+  it('loads model-scoped records and asks the server for the authoritative platform status', async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [record], meta: { total: 1 } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { platform: 'reddit', ok: false, missing: ['model_release'] } }), { status: 200 }));
+    await expect(getConsentRecords('model/one')).resolves.toMatchObject([{ id: 'consent-1', platform: 'instagram' }]);
+    await expect(getConsentStatus('model/one', 'reddit')).resolves.toEqual({ platform: 'reddit', ok: false, missing: ['model_release'] });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/models/model%2Fone/consent-records');
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/models/model%2Fone/consent-status?platform=reddit');
   });
 });
