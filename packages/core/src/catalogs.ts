@@ -6,6 +6,7 @@ import { MODEL_SURFACE_CATALOGS } from './model-surface-catalog.js';
 import { MONTHLY_REPORT_CATALOGS } from './monthly-report-catalog.js';
 import { VIRAL_PATTERN_SHARING_CATALOGS } from './viral-pattern-sharing-catalog.js';
 import { SCRAPE_HISTORY_CATALOGS } from './scrape-history-catalog.js';
+import { LINKBIO_POST_LINK_CATALOGS } from './linkbio-post-link-catalog.js';
 
 /**
  * The single runtime catalog exposed to the application.
@@ -25,6 +26,7 @@ export const CATALOGS: Record<SupportedLocale, Catalog> = Object.fromEntries(
       ...MONTHLY_REPORT_CATALOGS[locale],
       ...VIRAL_PATTERN_SHARING_CATALOGS[locale],
       ...SCRAPE_HISTORY_CATALOGS[locale],
+      ...LINKBIO_POST_LINK_CATALOGS[locale],
     },
   ]),
 ) as Record<SupportedLocale, Catalog>;

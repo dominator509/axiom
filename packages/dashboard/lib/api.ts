@@ -646,6 +646,11 @@ export const api = {
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio/analytics`),
     linkbioAttribution: (id: string) =>
       apiFetch<{ data: unknown }>(`/api/v1/models/${id}/linkbio/attribution`),
+    linkbioPostLinks: (id: string) =>
+      apiFetch<{ data: {
+        publishedPosts: Array<{ id: string; platform: string; publishedAt: string | null; caption: string }>;
+        links: Array<{ id: string; slug: string; targetUrl: string; postTargetId: string; clicks: number; createdAt: string; path: string }>;
+      } }>(`/api/v1/models/${id}/linkbio/post-links`),
     recordLinkbioCampaignCost: (id: string, body: {
       eventKey: string;
       shortLinkId: string;
