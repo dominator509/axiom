@@ -1,29 +1,43 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { mutationFetch } from '@/lib/mutation';
+import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
+import { readDashboardError } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 export default function ReplayButton({ jobId }: { jobId: string }) {
+  const { t } = useLocale();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const inFlight = useRef(false);
+  const intent = useRef<{ jobId: string; key: string } | null>(null);
 
   async function replay() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setMsg(null);
     try {
-      const res = await mutationFetch(`/api/v1/incidents/${jobId}/replay`, { method: 'POST' });
+      if (intent.current?.jobId !== jobId) {
+        intent.current = { jobId, key: createIdempotencyKey() };
+      }
+      const res = await mutationFetch(`/api/v1/incidents/${jobId}/replay`, { method: 'POST' }, {
+        idempotencyKey: intent.current.key,
+      });
       if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
-        setMsg(b?.error?.message ?? 'Replay failed');
+        const b = await readDashboardError(res);
+        setMsg(b?.error?.message ?? t('incidents.replayFailed'));
       } else {
-        setMsg('Requeued');
+        intent.current = null;
+        setMsg(t('incidents.requeued'));
         router.refresh();
       }
     } catch {
-      setMsg('Network error');
+      setMsg(t('incidents.replayNotConfirmed'));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -37,9 +51,9 @@ export default function ReplayButton({ jobId }: { jobId: string }) {
         onClick={replay}
         style={{ padding: '4px 10px', fontSize: 12 }}
       >
-        {busy ? '…' : 'Replay'}
+        {busy ? '…' : t('incidents.replay')}
       </button>
-      {msg && <span style={{ color: 'var(--muted)', marginLeft: 6, fontSize: 12 }}>{msg}</span>}
+      {msg && <span role="status" style={{ color: 'var(--muted)', marginLeft: 6, fontSize: 12 }}>{msg}</span>}
     </span>
   );
 }

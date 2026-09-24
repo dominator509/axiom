@@ -1,0 +1,178 @@
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { and, eq, desc } from 'drizzle-orm';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { schema } from '@axiom/db';
+import { storeGeneratedAsset } from '@axiom/worker';
+import { createObjectStorage } from '@axiom/llm-gateway';
+import type { AppBindings } from '../index.js';
+import { apiError, requireOrg, statusTitle, withOrgContext, writeAudit } from './helpers.js';
+import { parseCursor, cursorLt, nextCursor } from '../contract.js';
+import { assetPreview } from '../asset-preview.js';
+import { modelAccessCondition } from '../model-access.js';
+
+export const mediaUploadRouter = new Hono<AppBindings>();
+// Both uploaded and generated assets use the same tenant-scoped storage table.
+mediaUploadRouter.get('/models/:modelId/media', async c => {
+  const orgId = requireOrg(c), modelId = c.req.param('modelId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  if (!z.string().uuid().safeParse(modelId).success) return apiError(c, 400, statusTitle(400), 'Invalid model');
+  const origin = c.req.query('origin');
+  const kind = c.req.query('kind');
+  if (origin && !['uploaded', 'generated', 'transformed', 'legacy'].includes(origin))
+    return apiError(c, 400, statusTitle(400), 'Invalid media origin filter');
+  if (kind && !['image', 'video'].includes(kind))
+    return apiError(c, 400, statusTitle(400), 'Invalid media kind filter');
+  const { limit, cursor } = parseCursor(c, 20, 100);
+  const { rows, operationRows } = await withOrgContext(orgId, async tx => {
+    const rows = await tx.select({
+      id: schema.asset.id, kind: schema.asset.kind, origin: schema.asset.origin, mimeType: schema.asset.mimeType,
+      fileSize: schema.asset.fileSize, width: schema.asset.width, height: schema.asset.height, createdAt: schema.asset.createdAt,
+    }).from(schema.asset).where(and(eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
+      modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.asset.modelId),
+      ...(origin ? [eq(schema.asset.origin, origin)] : []),
+      ...(kind ? [eq(schema.asset.kind, kind)] : []),
+      ...cursorLt(schema.asset.createdAt, schema.asset.id, cursor)))
+      .orderBy(desc(schema.asset.createdAt), desc(schema.asset.id)).limit(limit);
+
+    // Lifecycle and source/result relationships are projections over existing
+    // operation state. Keep this query bounded and tenant/model scoped; never
+    // expose operation.error, storage keys, provider responses, or credentials.
+    const operationRows = await tx.select({
+      operation: schema.mediaOperation,
+      outputAssetId: schema.assetVariant.outputAssetId,
+    }).from(schema.mediaOperation)
+      .leftJoin(schema.assetVariant, and(
+        eq(schema.assetVariant.id, schema.mediaOperation.resultVariantId),
+        eq(schema.assetVariant.orgId, orgId),
+        eq(schema.assetVariant.assetId, schema.mediaOperation.sourceAssetId),
+      ))
+      .where(and(
+        eq(schema.mediaOperation.orgId, orgId),
+        eq(schema.mediaOperation.modelId, modelId),
+        modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.mediaOperation.modelId),
+      ))
+      .orderBy(desc(schema.mediaOperation.createdAt)).limit(100);
+    return { rows, operationRows };
+  });
+
+  type OperationRow = {
+    operation: typeof schema.mediaOperation.$inferSelect;
+    outputAssetId: string | null;
+  };
+  const typedOperations = operationRows as OperationRow[];
+  const operationsBySource = new Map<string, OperationRow[]>();
+  const sourceByOutput = new Map<string, string>();
+  for (const row of typedOperations) {
+    const sourceRows = operationsBySource.get(row.operation.sourceAssetId) ?? [];
+    sourceRows.push(row);
+    operationsBySource.set(row.operation.sourceAssetId, sourceRows);
+    if (row.outputAssetId && !sourceByOutput.has(row.outputAssetId)) {
+      sourceByOutput.set(row.outputAssetId, row.operation.sourceAssetId);
+    }
+  }
+
+  type GalleryAssetRow = {
+    id: string;
+    kind: string;
+    origin: string;
+    mimeType: string;
+    fileSize: number;
+    width: number | null;
+    height: number | null;
+    createdAt: Date;
+  };
+  const galleryRows = rows as GalleryAssetRow[];
+  const data = galleryRows.map((row: GalleryAssetRow) => {
+    const sourceOperations = operationsBySource.get(row.id) ?? [];
+    const latest = sourceOperations[0];
+    return {
+      ...row,
+      // An asset without a media operation is stored, but its processing state
+      // is unknown. It must not be mistaken for a completed transform.
+      status: latest?.operation.state ?? 'unknown',
+      operationId: latest?.operation.id,
+      sourceAssetId: sourceByOutput.get(row.id),
+      resultAssetIds: [...new Set(sourceOperations.map(item => item.outputAssetId).filter((id): id is string => !!id))],
+    };
+  });
+  const last = galleryRows[galleryRows.length - 1];
+  return c.json({ data, meta: { next_cursor: nextCursor(last?.createdAt, last?.id, limit, rows.length) } });
+});
+mediaUploadRouter.get('/models/:modelId/media/:assetId', async c => {
+  const orgId = requireOrg(c), modelId = c.req.param('modelId'), assetId = c.req.param('assetId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  if (![modelId, assetId].every(id => z.string().uuid().safeParse(id).success)) return apiError(c, 400, statusTitle(400), 'Invalid media identity');
+  const asset = await withOrgContext(orgId, async tx => (await tx.select().from(schema.asset).where(and(
+    eq(schema.asset.id, assetId), eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId),
+    modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.asset.modelId),
+  )).limit(1))[0]);
+  if (!asset || asset.id !== assetId || asset.orgId !== orgId || asset.modelId !== modelId) return apiError(c, 404, statusTitle(404), 'Media unavailable');
+  try {
+    const mediaRoot = process.env.AXIOM_MEDIA_ROOT ?? 'var/media';
+    const storage = c.get('userId') ? createObjectStorage({ userId: c.get('userId')!, orgId }, mediaRoot) : undefined;
+    return await assetPreview(asset, c.req.raw, mediaRoot, { orgId, modelId }, storage);
+  }
+  catch { return apiError(c, 404, statusTitle(404), 'Media unavailable'); }
+});
+mediaUploadRouter.post('/models/:modelId/media-upload', async c => {
+  const orgId = requireOrg(c), userId = c.get('userId'), modelId = c.req.param('modelId');
+  if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'Authenticated operator required');
+  if (!z.string().uuid().safeParse(modelId).success) return apiError(c, 400, statusTitle(400), 'Invalid model');
+  const mimeType = c.req.header('content-type');
+  if (mimeType !== 'image/jpeg' && mimeType !== 'image/png' && mimeType !== 'video/mp4')
+    return apiError(c, 415, 'Unsupported Media Type', 'Upload JPEG, PNG or MP4');
+  const selection = c.req.query('sanitize');
+  if (selection !== 'true' && selection !== 'false') return apiError(c, 400, statusTitle(400), 'Choose whether to sanitize');
+  const exists = await withOrgContext(orgId, async tx => (await tx.select({ id: schema.modelProfile.id })
+    .from(schema.modelProfile).where(and(eq(schema.modelProfile.id, modelId), eq(schema.modelProfile.orgId, orgId), modelAccessCondition(c.get('role'), orgId, userId))).limit(1))[0]);
+  if (!exists) return apiError(c, 404, statusTitle(404), 'Model not found');
+  // The assembled app's idempotency middleware bounds and caches raw bytes.
+  // Refuse an unprotected mount rather than reading an unbounded upload.
+  if (!c.req.bodyCache.arrayBuffer) return apiError(c, 503, statusTitle(503), 'Upload boundary unavailable');
+  const bytes = Buffer.from(await c.req.arrayBuffer());
+  const max = (mimeType === 'video/mp4' ? 64 : 20) * 1024 * 1024;
+  if (bytes.length < 12 || bytes.length > max) return apiError(c, 413, 'Payload Too Large', 'Invalid upload size');
+  const directory = await mkdtemp(join(tmpdir(), 'axiom-upload-'));
+  const mediaRoot = resolve(process.env.AXIOM_MEDIA_ROOT ?? 'var/media');
+  const storage = createObjectStorage({ userId, orgId }, mediaRoot);
+  let storedKey: string | undefined;
+  let persistenceAttempted = false;
+  try {
+    const source = join(directory, 'input');
+    await writeFile(source, bytes, { flag: 'wx', mode: 0o600 });
+    const { exactFileHashChanged, ...stored } = await storeGeneratedAsset({ path: source, byteLength: bytes.length, mimeType }, {
+      orgId, modelId, requestRoot: directory, mediaRoot, storage, sanitizeMetadata: selection === 'true',
+    });
+    storedKey = stored.storageKey;
+    persistenceAttempted = true;
+    const result = await withOrgContext(orgId, async tx => {
+      const [inserted] = await tx.insert(schema.asset).values({ orgId, modelId,
+      kind: mimeType === 'video/mp4' ? 'video' : 'image', origin: 'uploaded', ...stored,
+      }).onConflictDoNothing().returning({ id: schema.asset.id });
+      const asset = inserted ?? (await tx.select({ id: schema.asset.id }).from(schema.asset).where(and(
+        eq(schema.asset.orgId, orgId), eq(schema.asset.modelId, modelId), eq(schema.asset.sha256, stored.sha256),
+      )).limit(1))[0];
+      if (!asset) throw new Error('Content belongs to another model');
+      await writeAudit(tx, orgId, userId, 'asset.upload', asset.id, {
+        sanitizeMetadata: selection === 'true', mimeType: stored.mimeType, fileSize: stored.fileSize, exactFileHashChanged,
+      });
+      return { id: asset.id as string, inserted: !!inserted };
+    });
+    if (!result.inserted) await storage.delete(storedKey, { orgId, modelId }).catch(() => 'unknown');
+    storedKey = undefined;
+    return c.json({ data: { id: result.id, mimeType: stored.mimeType, sanitized: selection === 'true', exactFileHashChanged, tosStatus: 'not-scanned' } }, 201);
+  } catch {
+    // A selected cleaning error never falls back to storing the original.
+    if (persistenceAttempted) return apiError(c, 503, statusTitle(503), 'Upload persistence is unconfirmed. Reconcile this request before uploading again.');
+    return apiError(c, 422, statusTitle(422), 'Upload could not be completed. Selected sanitization must succeed; no fallback to original media.',
+      { code: 'ASSET_UPLOAD_NOT_STORED' });
+  } finally {
+    // A lost COMMIT acknowledgement can mean the DB row exists. Never delete
+    // its file on an ambiguous persistence outcome; retain for reconciliation.
+    if (storedKey && !persistenceAttempted) await storage.delete(storedKey, { orgId, modelId }).catch(() => 'unknown');
+    await rm(directory, { recursive: true, force: true });
+  }
+});

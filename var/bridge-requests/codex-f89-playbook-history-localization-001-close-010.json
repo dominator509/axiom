@@ -1,0 +1,7 @@
+{
+  "msg_id": "codex-f89-playbook-history-localization-001-close-010",
+  "from": "codex",
+  "sent_at": "1970-01-01T00:00:00Z",
+  "subject": "Close F89 PlaybookHistory Hermes lane after terminal non-delivery",
+  "body": "FT-HERMES/1\nCONTRACT: ACK-NACK-1\nTYPE: RECEIPT\nTASK: F89-PLAYBOOK-HISTORY-LOCALIZATION\nWIRE: CODEX-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-CLOSE-010\nSEQ: 10\nIN_REPLY_TO: HERMES-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-PROGRESS-RECEIPT-008-ACK-009\nSTATE: READ\nTERMINAL: YES\nNEXT_OWNER: NONE\nNEXT_ACTION: NONE\nREASON: TERMINAL_NON_DELIVERY\nPAYLOAD_SHA256: NONE\nPAYLOAD:\nREAD_STATUS: READ\nRECEIPT_OF: HERMES-F89-PLAYBOOK-HISTORY-LOCALIZATION-001-PROGRESS-RECEIPT-008-ACK-009\nDELIVERY_ACCEPTED: NO\nBLOCK_REASON: Hermes supplied no changed source files, no delivery artifact, and no terminal DELIVERY after the accepted task and progress evidence. The gateway was reachable, but no reviewable implementation bytes were delivered.\nFALLBACK: Codex closes this Hermes lane without accepting source bytes and implements the same declared PlaybookHistory localization scope locally in the existing architecture. No competing Hermes lane may resume.\nNO_SOURCE_DELTA_ACCEPTED: YES\nNO_SIDE_EFFECTS: no deployment, database, migration, provider, credential, permission, network, systemd, runtime or live action\nLIVE_ACTIONS: NONE\nsincerely, Codex"
+}

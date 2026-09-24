@@ -1,7 +1,14 @@
 // ─── Facebook Connector ───
 // Uses the Facebook Graph API v22.0 for publishing, metrics, and app permissions management.
 
-import { BaseConnector } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+  readResponseJson,
+  readResponseText,
+  redactProviderText,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -12,9 +19,11 @@ import type {
   MetricPeriod,
   ValidationReport,
   MediaType,
+  SocialOperationInput,
+  SocialOperationResult,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
-import { validatePublish } from './validation.js';
+import { mediaTypeHint, validatePublish } from './validation.js';
 
 const FB_GRAPH_BASE = 'https://graph.facebook.com/v22.0';
 
@@ -43,6 +52,10 @@ interface FbInsightsResponse {
 interface FbPermissionsResponse {
   success: boolean;
 }
+interface FbCommentsResponse {
+  data: Array<{ id: string; message?: string; from?: { id?: string; name?: string }; created_time?: string; permalink_url?: string }>;
+  paging?: { cursors?: { after?: string } };
+}
 
 export class FacebookConnector extends BaseConnector implements SocialConnector {
   constructor(auth: ConnectorAuth, fetchImpl?: typeof fetch) {
@@ -50,21 +63,33 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
   }
 
   capability(): ConnectorCapability {
+    const canPublish = this.hasGrantedScope('pages_manage_posts');
+    const canReadMetrics = this.hasGrantedScope('pages_read_engagement');
     return {
-      publish: true,
-      media: [
+      publish: canPublish,
+      media: canPublish ? [
         'image' as MediaType,
         'video' as MediaType,
         'story' as MediaType,
         'text' as MediaType,
-      ],
+      ] : [],
       maxMediaBytes: 4_294_967_296, // 4 GB
-      maxMediaCount: 10,
+      // This connector publishes one Page post per request. Publishing a
+      // list here would make the implementation emit several independent
+      // posts while returning only the last remote ID.
+      maxMediaCount: 1,
       caption: true,
       maxCaptionLength: 63_206,
-      scheduling: 'native' as const,
-      metrics: ['impressions', 'likes', 'comments', 'shares'],
-      refreshMetrics: true,
+      // The worker owns the scheduled slot; this connector publishes when
+      // the job is due and does not request a provider-side schedule.
+      scheduling: 'internal' as const,
+      metrics: canReadMetrics ? ['impressions', 'likes', 'comments', 'shares'] : [],
+      refreshMetrics: canReadMetrics,
+      operations: [
+        ...(canReadMetrics ? ['comments.read' as const] : []),
+        ...(this.hasGrantedScope('pages_manage_engagement') ? ['comments.reply' as const, 'comments.moderate' as const] : []),
+      ],
+      moderationActions: this.hasGrantedScope('pages_manage_engagement') ? ['hide', 'delete', 'approve'] : [],
     };
   }
 
@@ -74,6 +99,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
     return this.idempotentPublish(input, async () => {
+      this.assertGrantedScope('publishing', 'pages_manage_posts');
       const pageId = this.auth.externalUserId;
       if (!pageId) {
         throw new Error('Facebook externalUserId (Page ID) is required');
@@ -83,6 +109,13 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
       const caption = input.caption;
       const mediaUrls = input.mediaUrls;
       const link = input.options?.link as string | undefined;
+
+      // Keep the provider boundary fail-closed even when a caller bypasses
+      // validate(). A multi-media bundle must never silently fan out into
+      // multiple Facebook posts with an incomplete durable result.
+      if (mediaUrls.length > 1) {
+        throw new Error('Facebook supports at most one media item per publish request');
+      }
 
       // ── Text-only post (with optional link) ──
       if (mediaUrls.length === 0) {
@@ -115,7 +148,7 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
       let lastRemoteId: string | null = null;
 
       for (const mediaUrl of mediaUrls) {
-        const mediaType = this.detectMediaType(mediaUrl);
+        const mediaType = this.detectMediaType(mediaUrl, mediaTypeHint(input));
 
         if (mediaType === 'video') {
           // POST /{page-id}/videos
@@ -190,25 +223,35 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
+    this.assertGrantedScope('metrics', 'pages_read_engagement');
     const pageId = this.auth.externalUserId;
     if (!pageId) {
       throw new Error('Facebook externalUserId (Page ID) is required for metrics');
     }
 
     const accessToken = this.auth.accessToken;
+    const postNodeId = remoteId.startsWith(`${pageId}_`) ? remoteId : `${pageId}_${remoteId}`;
 
     // Get insights for the post
     const insightsUrl =
-      `${FB_GRAPH_BASE}/${pageId}_${remoteId}/insights` +
-      `?metric=impressions,likes,comments,shares&access_token=${accessToken}`;
+      `${FB_GRAPH_BASE}/${postNodeId}/insights` +
+      '?metric=impressions,likes,comments,shares';
 
-    const resp = await this.fetchImpl(insightsUrl);
+    const resp = await this.fetchImpl(insightsUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
     if (!resp.ok) {
-      const body = await resp.text().catch(() => '');
-      throw new Error(`Facebook metrics fetch failed: HTTP ${resp.status} — ${body}`);
+      const body = await readResponseText(
+        resp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      throw new Error(
+        `Facebook metrics fetch failed: HTTP ${resp.status} — ${redactProviderText(body)}`,
+      );
     }
 
-    const insights = (await resp.json()) as FbInsightsResponse;
+    const insights = await readResponseJson<FbInsightsResponse>(resp);
 
     const result: Partial<Record<string, number>> = {};
 
@@ -227,15 +270,17 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
     // Fallback: fetch post reactions/comments counts directly
     if (likes === 0 || comments === 0) {
       try {
-        const postUrl = `${FB_GRAPH_BASE}/${pageId}_${remoteId}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0),shares&access_token=${accessToken}`;
+        const postUrl = `${FB_GRAPH_BASE}/${postNodeId}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0),shares`;
 
-        const postResp = await this.fetchImpl(postUrl);
+        const postResp = await this.fetchImpl(postUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
         if (postResp.ok) {
-          const postData = (await postResp.json()) as {
+          const postData = await readResponseJson<{
             likes?: { summary?: { total_count?: number } };
             comments?: { summary?: { total_count?: number } };
             shares?: { count?: number };
-          };
+          }>(postResp);
 
           if (postData.likes?.summary?.total_count != null) {
             likes = postData.likes.summary.total_count;
@@ -274,56 +319,117 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
     };
   }
 
+  async executeOperation(operation: SocialOperationInput): Promise<SocialOperationResult> {
+    if (!this.capability().operations?.includes(operation.type)) {
+      throw new Error(`Facebook ${operation.type} is unavailable: required permission was not granted`);
+    }
+    const readOnly = operation.type === 'comments.read';
+    this.assertGrantedScope(operation.type, ...(readOnly ? ['pages_read_engagement'] : ['pages_manage_engagement']));
+    const pageId = this.auth.externalUserId;
+    if (!pageId) throw new Error('Facebook Page ID is required for community operations');
+    if (operation.type === 'comments.read') {
+      const url = new URL(`${FB_GRAPH_BASE}/${encodeURIComponent(operation.postId)}/comments`);
+      url.searchParams.set('fields', 'id,message,from,created_time,permalink_url');
+      url.searchParams.set('limit', String(operation.limit ?? 50));
+      if (operation.cursor) url.searchParams.set('after', operation.cursor);
+      const response = await this.apiGet<FbCommentsResponse>(url.toString());
+      return {
+        type: 'comments',
+        items: (response.data ?? []).map((comment) => ({
+          id: comment.id,
+          postId: operation.postId,
+          text: comment.message ?? '',
+          ...(comment.from?.id ? { authorId: comment.from.id } : {}),
+          ...(comment.from?.name ? { authorName: comment.from.name } : {}),
+          ...(comment.created_time ? { createdAt: comment.created_time } : {}),
+          ...(comment.permalink_url ? { permalink: comment.permalink_url } : {}),
+        })),
+        ...(response.paging?.cursors?.after ? { nextCursor: response.paging.cursors.after } : {}),
+      };
+    }
+    if (operation.type === 'comments.reply') {
+      const response = await this.apiPost<{ id?: string }>(
+        `${FB_GRAPH_BASE}/${encodeURIComponent(operation.commentId)}/comments`,
+        { message: operation.text },
+      );
+      return { type: 'mutation', success: true, ...(response.id ? { remoteId: response.id } : {}) };
+    }
+    if (operation.type === 'comments.moderate') {
+      if (operation.action === 'delete') {
+        await this.apiDelete(`${FB_GRAPH_BASE}/${encodeURIComponent(operation.commentId)}`);
+      } else if (operation.action === 'hide' || operation.action === 'approve') {
+        await this.apiPost(`${FB_GRAPH_BASE}/${encodeURIComponent(operation.commentId)}`, { is_hidden: operation.action === 'hide' });
+      } else {
+        throw new Error(`Facebook does not support comment action '${operation.action}'`);
+      }
+      return { type: 'mutation', success: true, remoteId: operation.commentId };
+    }
+    throw new Error(`Facebook does not support ${operation.type}`);
+  }
+
   async revoke(): Promise<void> {
     const pageId = this.auth.externalUserId;
     if (!pageId) {
-      this.log('warn', 'revoke', 'No externalUserId set; skipping revoke');
-      return;
+      throw new Error('Facebook revoke requires externalUserId (Page ID)');
     }
 
     const accessToken = this.auth.accessToken;
 
     // Revoke: DELETE /{page-id}/permissions removes all app permissions
-    const revokeUrl = `${FB_GRAPH_BASE}/${pageId}/permissions?access_token=${encodeURIComponent(accessToken)}`;
+    const revokeUrl = `${FB_GRAPH_BASE}/${pageId}/permissions`;
 
     const response = await this.fetchImpl(revokeUrl, {
       method: 'DELETE',
       headers: {
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      this.log(
-        'warn',
-        'revoke',
-        `Facebook permissions deletion warned: ${response.status} — ${body}`,
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      throw new Error(
+        `Facebook page permissions deletion failed: HTTP ${response.status} — ${redactProviderText(body)}`,
       );
     } else {
-      const result = (await response.json()) as FbPermissionsResponse;
+      const responseBody = await readResponseText(
+        response,
+        CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+        'provider JSON response',
+      );
+      const result = responseBody.trim()
+        ? (JSON.parse(responseBody) as FbPermissionsResponse)
+        : { success: true };
       this.log('info', 'revoke', `Facebook permissions revoked for page ${pageId}`, {
         success: result.success,
       });
     }
 
-    // Also attempt to revoke the user-level token
-    try {
-      const userTokenRevokeUrl = `${FB_GRAPH_BASE}/me/permissions?access_token=${encodeURIComponent(accessToken)}`;
-
-      const userResp = await this.fetchImpl(userTokenRevokeUrl, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (userResp.ok) {
-        this.log('info', 'revoke', 'Facebook user-level permissions also revoked');
-      }
-    } catch {
-      // Non-critical
+    // Also revoke the user-level token. A failure here must keep the local
+    // connection so the operator can retry instead of orphaning a live token.
+    const userTokenRevokeUrl = `${FB_GRAPH_BASE}/me/permissions`;
+    const userResp = await this.fetchImpl(userTokenRevokeUrl, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!userResp.ok) {
+      const body = await readResponseText(
+        userResp,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      throw new Error(
+        `Facebook user permissions deletion failed: HTTP ${userResp.status} — ${redactProviderText(body)}`,
+      );
     }
+    this.log('info', 'revoke', 'Facebook user-level permissions also revoked');
 
     // Clear cached auth data
     this.auth.accessToken = '';
@@ -332,7 +438,10 @@ export class FacebookConnector extends BaseConnector implements SocialConnector 
   }
 
   /** Detect media type from URL extension */
-  private detectMediaType(url: string): 'image' | 'video' | 'story' {
+  private detectMediaType(url: string, declared?: MediaType): 'image' | 'video' | 'story' {
+    if (declared === 'video') return 'video';
+    if (declared === 'image') return 'image';
+
     try {
       const pathname = new URL(url).pathname;
       const ext = pathname.split('.').pop()?.toLowerCase() ?? '';

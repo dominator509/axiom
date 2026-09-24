@@ -44,6 +44,9 @@ describe('GET /:modelId/network', () => {
         lastEgressIp: '203.0.113.7',
         failCount: 0,
         lastError: null,
+        encCreds: new Uint8Array([1, 2, 3]),
+        encNonce: new Uint8Array([4, 5, 6]),
+        dekId: 'secret-dek-id',
       },
     ];
     const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`);
@@ -51,13 +54,16 @@ describe('GET /:modelId/network', () => {
     const body = (await res.json()) as any;
     expect(body.data.egressMode).toBe('wireguard');
     expect(body.data.healthy).toBe(true);
+    expect(body.data).not.toHaveProperty('encCreds');
+    expect(body.data).not.toHaveProperty('encNonce');
+    expect(body.data).not.toHaveProperty('dekId');
   });
 
-  it('returns a direct-default shape when no config exists', async () => {
+  it('does not imply direct routing was chosen when no config exists', async () => {
     const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
-    expect(body.data.egressMode).toBe('direct');
+    expect(body.data.egressMode).toBeNull();
     expect(body.data.healthy).toBe(false);
   });
 
@@ -68,6 +74,47 @@ describe('GET /:modelId/network', () => {
 });
 
 describe('PUT /:modelId/network', () => {
+  it('requires an explicit mode instead of silently selecting direct', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`, {
+      method: 'PUT', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ proxyAddr: '127.0.0.1:1080' }),
+    });
+    expect(res.status).toBe(400);
+  });
+  it('accepts explicit null to clear saved proxy settings and expected IP fields', async () => {
+    mockState.result = [{ id: 'cfg-1', orgId: ORG_ID, modelId: MODEL_ID }];
+    mockState.updates = [];
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`, {
+      method: 'PUT', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        egressMode: 'direct',
+        proxyType: null,
+        proxyAddr: null,
+        expectedEgressIp: null,
+        failoverProxyAddrs: [],
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(mockState.updates).toContainEqual(expect.objectContaining({
+      proxyType: null,
+      proxyAddr: null,
+      expectedEgressIp: null,
+      failoverProxyAddrs: [],
+    }));
+  });
+
+  it('does not clear omitted proxy or expected IP fields', async () => {
+    mockState.result = [{ id: 'cfg-1', orgId: ORG_ID, modelId: MODEL_ID }];
+    mockState.updates = [];
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`, {
+      method: 'PUT', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ egressMode: 'direct' }),
+    });
+    expect(res.status).toBe(200);
+    expect(mockState.updates[0]).not.toHaveProperty('proxyAddr');
+    expect(mockState.updates[0]).not.toHaveProperty('expectedEgressIp');
+  });
+
   it('updates an existing config', async () => {
     mockState.result = [
       {
@@ -76,6 +123,9 @@ describe('PUT /:modelId/network', () => {
         modelId: MODEL_ID,
         egressMode: 'socks5',
         proxyAddr: '127.0.0.1:1080',
+        encCreds: new Uint8Array([1, 2, 3]),
+        encNonce: new Uint8Array([4, 5, 6]),
+        dekId: 'secret-dek-id',
       },
     ];
     const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`, {
@@ -86,6 +136,18 @@ describe('PUT /:modelId/network', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.egressMode).toBe('socks5');
+    expect(body.data).not.toHaveProperty('encCreds');
+    expect(body.data).not.toHaveProperty('encNonce');
+    expect(body.data).not.toHaveProperty('dekId');
+  });
+
+  it('rejects plaintext credential fields on the metadata route (400)', async () => {
+    const res = await appWithOrg(ORG_ID).request(`/${MODEL_ID}/network`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ egressMode: 'socks5', proxyPassword: 'must-use-egress-route' }),
+    });
+    expect(res.status).toBe(400);
   });
 
   it('rejects an invalid egress mode (400)', async () => {

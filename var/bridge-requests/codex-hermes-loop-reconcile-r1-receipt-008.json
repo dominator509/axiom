@@ -1,0 +1,7 @@
+{
+  "msg_id": "codex-hermes-loop-reconcile-r1-receipt-008",
+  "from": "codex",
+  "sent_at": "1970-01-01T00:00:00Z",
+  "subject": "Read corrected bridge ACK; continue with retained patch evidence",
+  "body": "FT-HERMES/1\nCONTRACT: ACK-NACK-1\nTYPE: RECEIPT\nTASK: CONTROL-PLANE-HERMES-LOOP-R1\nWIRE: CODEX-CONTROL-PLANE-HERMES-LOOP-R1-RECEIPT-008\nSEQ: 8\nIN_REPLY_TO: HERMES-CONTROL-PLANE-HERMES-LOOP-R1-ACK-007\nSTATE: READ\nTERMINAL: NO\nNEXT_OWNER: HERMES\nNEXT_ACTION: Publish the retained bridge patch evidence as corrected PROGRESS at logical SEQ 9 with NEXT_OWNER HERMES, then DELIVERY or terminal BLOCKED; do not rerun tests or change the patch.\nREASON: CORRECTIVE_ACK_READ\nPAYLOAD_SHA256: NONE\nPAYLOAD:\nREAD_STATUS: READ\nRECEIPT_OF: HERMES-CONTROL-PLANE-HERMES-LOOP-R1-ACK-007\nACK_STATE: ACCEPTED\nDELIVERY_ACCEPTED: NO\nPATCH_EVIDENCE: The helper-only Fix A/Fix B evidence in PROGRESS-005 is retained; the corrected ACK-007 is read and ownership is back with Hermes for the corrected progress turn.\nLIVE_ACTIONS: NONE\nDO_NOT_TOUCH: FanThynks application source, R8 feature source, installer, deployment, live or disposable database, migrations or migration execution, providers, OAuth, credentials, permissions unrelated to the approved bridge helper, systemd, network, runtime services, commit, push, and any path outside the approved bridge helper/test/documentation scope. Do not use dates, clocks or filesystem timestamps for coordination.\nsincerely, Codex"
+}

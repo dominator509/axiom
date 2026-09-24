@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  isProductionEnvironment,
+  readBoundedResponseErrorText,
+  readBoundedResponseJson,
+} from '@axiom/core';
 
 // ─── Credential Schema ───
 // Fanvue uses OAuth 2.0 (no API keys). The MCP server is authorized through
@@ -11,6 +16,10 @@ const FanvueCredentialsSchema = z.object({
   apiKey: z.string().min(1).optional(),
   accessToken: z.string().min(1).optional(),
   modelId: z.string().optional(),
+  /** The caller may know the token expiry; unknown expiry stays unknown. */
+  expiresAt: z
+    .union([z.string().datetime({ offset: true }), z.number().int().positive()])
+    .optional(),
 });
 
 export type FanvueCredentials = z.infer<typeof FanvueCredentialsSchema>;
@@ -21,7 +30,8 @@ export interface ConnectResult {
   connected: boolean;
   modelId: string;
   token: string;
-  expiresAt: string;
+  /** ISO timestamp when known; null means the provider did not disclose it. */
+  expiresAt: string | null;
   protocolVersion: string;
   serverCapabilities: Record<string, unknown>;
   tools: string[];
@@ -144,6 +154,7 @@ const FANVUE_API_BASE = 'https://api.fanvue.com';
 const FANVUE_API_VERSION = '2025-06-26';
 
 export class FanvueMcpClient {
+  private readonly fetchImpl: typeof fetch;
   private endpoint: string = '';
   private apiKey: string = '';
   private token: string = '';
@@ -151,13 +162,16 @@ export class FanvueMcpClient {
   private connected: boolean = false;
   private protocolVersion: string = MCP_PROTOCOL_VERSION;
   private serverCapabilities: Record<string, unknown> = {};
+  private expiresAt: string | null = null;
   private toolNames: string[] = [];
   /** True once tools/list has been discovered (even if it returned zero tools). */
   private toolsDiscovered: boolean = false;
   private requestCounter = 1;
 
-  constructor() {
-    // Configured via connect()
+  constructor(fetchImpl?: typeof fetch) {
+    // Runtime callers inject the model-bound egress transport. The default
+    // resolves globalThis.fetch at request time for tests and standalone use.
+    this.fetchImpl = fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
   }
 
   /** Resolve the JSON-RPC endpoint URL (append /mcp when missing). */
@@ -183,10 +197,21 @@ export class FanvueMcpClient {
    */
   async connect(credentials: FanvueCredentials): Promise<ConnectResult> {
     const parsed = FanvueCredentialsSchema.parse(credentials);
-    this.endpoint = parsed.endpoint.replace(/\/+$/, '');
+    const endpoint = new URL(parsed.endpoint);
+    if (endpoint.protocol !== 'http:' && endpoint.protocol !== 'https:') {
+      throw new Error('Fanvue MCP endpoint must use http(s)');
+    }
+    if (isProductionEnvironment(process.env) && endpoint.protocol !== 'https:') {
+      throw new Error('Fanvue MCP endpoint must use HTTPS in production');
+    }
+    if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+      throw new Error('Fanvue MCP endpoint must not contain credentials, query, or fragment data');
+    }
+    this.endpoint = endpoint.toString().replace(/\/+$/, '');
     this.apiKey = parsed.apiKey ?? '';
     this.token = parsed.accessToken ?? '';
     this.modelId = parsed.modelId ?? '';
+    this.expiresAt = normalizeExpiry(parsed.expiresAt);
 
     // 1. initialize handshake (JSON-RPC 2.0).
     const initResult = await this.request('initialize', {
@@ -214,6 +239,8 @@ export class FanvueMcpClient {
     if (typeof serverInfo.auth === 'object' && serverInfo.auth !== null) {
       const auth = serverInfo.auth as Record<string, unknown>;
       if (typeof auth.token === 'string') this.token = auth.token;
+      const serverExpiry = normalizeExpiry(auth.expiresAt);
+      if (serverExpiry) this.expiresAt = serverExpiry;
     }
     this.connected = true;
 
@@ -221,7 +248,7 @@ export class FanvueMcpClient {
       connected: true,
       modelId: this.modelId,
       token: this.token || this.apiKey,
-      expiresAt: '2099-01-01T00:00:00Z',
+      expiresAt: this.expiresAt,
       protocolVersion: this.protocolVersion,
       serverCapabilities: this.serverCapabilities,
       tools: this.toolNames,
@@ -254,7 +281,7 @@ export class FanvueMcpClient {
 
     let response: Response;
     try {
-      response = await fetch(this.mcpUrl(), {
+      response = await this.fetchImpl(this.mcpUrl(), {
         method: 'POST',
         headers: this.headers(),
         body: JSON.stringify(frame),
@@ -281,7 +308,7 @@ export class FanvueMcpClient {
 
     let payload: McpJsonRpcResponse;
     try {
-      payload = (await response.json()) as McpJsonRpcResponse;
+      payload = await readBoundedResponseJson<McpJsonRpcResponse>(response);
     } catch {
       throw new FanvueMcpError(
         'BAD_RESPONSE',
@@ -366,18 +393,26 @@ export class FanvueMcpClient {
   async startImageUpload(): Promise<StartImageUploadResult> {
     const result = await this.callTool('custom__start-image-upload', {});
     const unwrapped = this.unwrap(result, 'mediaUuid');
-    if (typeof unwrapped.mediaUuid !== 'string' || typeof unwrapped.uploadUrl !== 'string') {
+    if (typeof unwrapped.mediaUuid !== 'string' || !unwrapped.mediaUuid ||
+        typeof unwrapped.uploadId !== 'string' || !unwrapped.uploadId ||
+        typeof unwrapped.uploadUrl !== 'string' || !unwrapped.uploadUrl) {
       throw new FanvueMcpError(
         'UPLOAD_FAILED',
-        'Fanvue MCP start-image-upload returned no mediaUuid/uploadUrl',
+        'Fanvue MCP start-image-upload returned an incomplete upload reservation',
         undefined,
         result,
       );
     }
+    let uploadUrl: URL;
+    try { uploadUrl = new URL(unwrapped.uploadUrl); }
+    catch { throw new FanvueMcpError('UPLOAD_FAILED', 'Fanvue MCP upload URL was invalid'); }
+    if (uploadUrl.protocol !== 'https:' || uploadUrl.username || uploadUrl.password) {
+      throw new FanvueMcpError('UPLOAD_FAILED', 'Fanvue MCP upload URL must be credential-free HTTPS');
+    }
     return {
       mediaUuid: unwrapped.mediaUuid as string,
-      uploadId: (unwrapped.uploadId as string) ?? '',
-      uploadUrl: unwrapped.uploadUrl as string,
+      uploadId: unwrapped.uploadId as string,
+      uploadUrl: uploadUrl.toString(),
       instructions: (unwrapped.instructions as string) ?? '',
     };
   }
@@ -394,7 +429,7 @@ export class FanvueMcpClient {
       // SharedArrayBuffer, which is not a portable Fetch BodyInit.
       const body = new ArrayBuffer(bytes.byteLength);
       new Uint8Array(body).set(bytes);
-      response = await fetch(uploadUrl, {
+      response = await this.fetchImpl(uploadUrl, {
         method: 'PUT',
         body,
         signal: AbortSignal.timeout(DEFAULT_TOOL_TIMEOUT_MS),
@@ -406,7 +441,7 @@ export class FanvueMcpClient {
       );
     }
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
+      const body = await readBoundedResponseErrorText(response);
       throw new FanvueMcpError(
         'UPLOAD_FAILED',
         `Fanvue image PUT failed: ${response.status} ${response.statusText}`,
@@ -478,7 +513,7 @@ export class FanvueMcpClient {
     this.assertConnected();
     let response: Response;
     try {
-      response = await fetch(`${FANVUE_API_BASE}${path}`, {
+      response = await this.fetchImpl(`${FANVUE_API_BASE}${path}`, {
         method: 'GET',
         headers: this.restHeaders(),
         signal: AbortSignal.timeout(DEFAULT_TOOL_TIMEOUT_MS),
@@ -500,14 +535,14 @@ export class FanvueMcpClient {
         body,
       );
     }
-    return response.json() as Promise<T>;
+    return readBoundedResponseJson<T>(response);
   }
 
   private async restPost<T>(path: string, body: unknown): Promise<T> {
     this.assertConnected();
     let response: Response;
     try {
-      response = await fetch(`${FANVUE_API_BASE}${path}`, {
+      response = await this.fetchImpl(`${FANVUE_API_BASE}${path}`, {
         method: 'POST',
         headers: this.restHeaders(),
         body: JSON.stringify(body),
@@ -530,7 +565,7 @@ export class FanvueMcpClient {
         body,
       );
     }
-    return response.json() as Promise<T>;
+    return readBoundedResponseJson<T>(response);
   }
 
   /** GET /insights/earnings/summary (documented; read:insights scope). */
@@ -565,9 +600,23 @@ export class FanvueMcpClient {
    */
   private async safeJson(response: Response): Promise<unknown | null> {
     try {
-      return await response.json();
+      return await readBoundedResponseJson(response);
     } catch {
       return null;
     }
   }
+}
+
+function normalizeExpiry(value: unknown): string | null {
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value) || value <= 0) return null;
+    const milliseconds = value < 10_000_000_000 ? value * 1000 : value;
+    const date = new Date(milliseconds);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
+  if (typeof value === 'string') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
+  return null;
 }

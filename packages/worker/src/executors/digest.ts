@@ -5,9 +5,11 @@
 // viral_exemplar labels. Org context is set by the worker (set_config), and
 // the SQL also filters by org_id explicitly.
 
-import { sql } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
+import { renderDigestCard, resolveOrgDigestLocale } from '@axiom/core';
 import type { Executor, ExecutorContext } from './context.js';
+import { enqueueWeeklyDigest } from '../digest-schedule.js';
 
 export interface WeeklyDigest {
   weekStart: string;
@@ -24,36 +26,76 @@ export interface WeeklyDigest {
 
 export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
   const { tx, job } = ctx;
-  const since = new Date(Date.now() - 7 * 24 * 3600_000);
+  const automaticId = job.payload.automaticScheduleId;
+  if (automaticId !== undefined) {
+    if (typeof automaticId !== 'string' || !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(automaticId))
+      throw new Error('Invalid automatic digest schedule');
+    // Lock shares the settings update transaction boundary. A replaced/disabled
+    // schedule cannot produce a card or perpetuate its obsolete queue chain.
+    const [settings] = await tx.select().from(schema.orgSettings)
+      .where(eq(schema.orgSettings.orgId, job.org_id)).limit(1).for('update');
+    if (settings?.weeklyDigestScheduleId !== automaticId) return;
+  }
+  const until = new Date();
+  const since = new Date(until.getTime() - 7 * 24 * 3600_000);
 
-  // 1. 7-day aggregates from the metrics hypertable.
+  // 1. 7-day aggregates from the metrics hypertable. Provider metrics are
+  // cumulative snapshots, so retain only the newest observation per target;
+  // summing every poll would count the same views/likes repeatedly.
   const aggRows = await tx.execute(sql`
+    WITH latest_metrics AS (
+      SELECT DISTINCT ON (pm.post_target_id)
+        pm.post_target_id,
+        pm.views,
+        pm.likes,
+        pm.shares,
+        pm.comments,
+        pm.engagement_rate
+      FROM post_metric pm
+      JOIN post_target pt ON pt.id = pm.post_target_id
+      JOIN content_bundle cb ON cb.id = pt.bundle_id
+      WHERE cb.org_id = ${job.org_id}
+        AND pt.org_id = ${job.org_id}
+        AND pt.state = 'published' AND pt.remote_id IS NOT NULL
+        AND pm.source = 'provider' AND pm.remote_id = pt.remote_id
+        AND pm.platform = pt.platform
+        AND pm.collected_at >= ${since}
+        AND pm.collected_at <= ${until}
+      ORDER BY pm.post_target_id, pm.collected_at DESC, pm.id DESC
+    )
     SELECT count(*)::int AS posts,
-           coalesce(sum(pm.views), 0)::bigint AS views,
-           coalesce(sum(pm.likes), 0)::bigint AS likes,
-           coalesce(sum(pm.shares), 0)::bigint AS shares,
-           coalesce(sum(pm.comments), 0)::bigint AS comments,
-           coalesce(avg(pm.engagement_rate), 0)::float8 AS avg_engagement
-    FROM post_metric pm
-    JOIN post_target pt ON pt.id = pm.post_target_id
-    JOIN content_bundle cb ON cb.id = pt.bundle_id
-    WHERE cb.org_id = ${job.org_id}
-      AND pt.org_id = ${job.org_id}
-      AND pm.collected_at >= ${since}
+           coalesce(sum(views), 0)::bigint AS views,
+           coalesce(sum(likes), 0)::bigint AS likes,
+           coalesce(sum(shares), 0)::bigint AS shares,
+           coalesce(sum(comments), 0)::bigint AS comments,
+           coalesce(avg(engagement_rate), 0)::float8 AS avg_engagement
+    FROM latest_metrics
   `);
   const agg = Array.isArray(aggRows) ? aggRows[0] : (aggRows as { rows: unknown[] }).rows?.[0];
 
   // 2. Top platform by views over the window.
   const topRows = await tx.execute(sql`
-    SELECT pm.platform, sum(pm.views)::bigint AS views
-    FROM post_metric pm
-    JOIN post_target pt ON pt.id = pm.post_target_id
-    JOIN content_bundle cb ON cb.id = pt.bundle_id
-    WHERE cb.org_id = ${job.org_id}
-      AND pt.org_id = ${job.org_id}
-      AND pm.collected_at >= ${since}
-    GROUP BY pm.platform
-    ORDER BY views DESC
+    WITH latest_metrics AS (
+      SELECT DISTINCT ON (pm.post_target_id)
+        pm.post_target_id,
+        pm.platform,
+        pm.views
+      FROM post_metric pm
+      JOIN post_target pt ON pt.id = pm.post_target_id
+      JOIN content_bundle cb ON cb.id = pt.bundle_id
+      WHERE cb.org_id = ${job.org_id}
+        AND pt.org_id = ${job.org_id}
+        AND pt.state = 'published' AND pt.remote_id IS NOT NULL
+        AND pm.source = 'provider' AND pm.remote_id = pt.remote_id
+        AND pm.platform = pt.platform
+        AND pm.collected_at >= ${since}
+        AND pm.collected_at <= ${until}
+      ORDER BY pm.post_target_id, pm.collected_at DESC, pm.id DESC
+    )
+    SELECT platform, sum(views)::bigint AS views
+    FROM latest_metrics
+    GROUP BY platform
+    ORDER BY views DESC, platform ASC
     LIMIT 1
   `);
   const topRow = Array.isArray(topRows) ? topRows[0] : (topRows as { rows: unknown[] }).rows?.[0];
@@ -68,6 +110,8 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
     WHERE mp.org_id = ${job.org_id}
       AND ve.org_id = ${job.org_id}
       AND ve.created_at >= ${since}
+      AND ve.created_at <= ${until}
+      AND ve.features->>'evidence_source' = 'published-provider-snapshot-v2'
   `);
   const labelRow = Array.isArray(labelRows)
     ? labelRows[0]
@@ -86,20 +130,57 @@ export const digestWeekly: Executor = async (ctx: ExecutorContext) => {
     strongPosts: Number(labelRow?.strong ?? 0),
   };
 
-  const description =
-    `${digest.posts} posts · ${digest.views.toLocaleString()} views · ` +
-    `${digest.avgEngagement.toFixed(2)}% avg engagement · top platform ${digest.topPlatform} · ` +
-    `${digest.viralPosts} viral / ${digest.strongPosts} strong labels this week`;
+  // 4. Resolve the organization UI locale through the existing typed locale
+  // contract. An automatic digest is unattended and org-scoped, so only the
+  // org preference applies; anything absent or unrecognized falls back to
+  // English rather than being coerced. No migration or second preference
+  // source is introduced.
+  const localeRows = (await tx
+    .select({ scope: schema.uiLocalePreference.scope, locale: schema.uiLocalePreference.locale })
+    .from(schema.uiLocalePreference)
+    .where(eq(schema.uiLocalePreference.orgId, job.org_id))) as Array<{
+    scope: 'user' | 'org';
+    locale: string;
+  }>;
+  const resolved = resolveOrgDigestLocale(
+    localeRows.map((row) => ({
+      scope: row.scope,
+      orgId: job.org_id,
+      locale: row.locale,
+      updatedAt: '',
+    })),
+  );
 
-  // 4. Durable digest card (F-28: weekly digests ride the Relay as cards).
+  // 5. Render the operator-visible card in the resolved locale: catalog-backed
+  // title/description, locale-aware number formatting and an explicit UTC date
+  // policy. Provider platform names and aggregate values remain data.
+  const card = renderDigestCard(resolved.locale, {
+    weekStart: digest.weekStart,
+    posts: digest.posts,
+    views: digest.views,
+    avgEngagement: digest.avgEngagement,
+    topPlatform: digest.topPlatform,
+    viralPosts: digest.viralPosts,
+    strongPosts: digest.strongPosts,
+  });
+
+  // 6. Durable digest card (F-28: weekly digests ride the Relay as cards).
   await tx.insert(schema.relayCard).values({
     orgId: job.org_id,
     channel: 'digest',
-    state: 'sent',
-    title: `Weekly digest — ${since.toISOString().slice(0, 10)}`,
-    description,
+    // The digest executor only stores an operator-visible card. It never
+    // invokes a channel adapter, so it must not claim external delivery.
+    state: 'stored',
+    title: card.title,
+    description: card.description,
     icon: '📊',
-    config: { digest },
+    config: {
+      digest,
+      externalDelivery: 'not-attempted',
+      uiLocale: card.locale,
+      uiLocaleSource: resolved.source,
+    },
     priority: 5,
   });
+  if (typeof automaticId === 'string') await enqueueWeeklyDigest(tx, job.org_id, automaticId, until);
 };

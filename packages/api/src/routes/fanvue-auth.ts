@@ -5,9 +5,13 @@
 //   POST /refresh  — rotate the token for one org/model-scoped connection
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { randomBytes, createHash } from 'node:crypto';
 import type { AppBindings } from '../index.js';
+import { normalizeAuthOrigin } from '@axiom/auth';
+import { buildEgressFetch, resolveEgressBinding } from '@axiom/llm-gateway';
 import { connectorForConnection } from '@axiom/worker';
+import { readBoundedResponseJson } from '@axiom/core';
 import { apiError, modelOrgId, requireOrg, statusTitle, withOrgContext } from './helpers.js';
 import {
   clearOAuthStateCookie,
@@ -23,36 +27,50 @@ import {
 
 const FANVUE_CLIENT_ID = process.env.FANVUE_CLIENT_ID || '';
 const FANVUE_CLIENT_SECRET = process.env.FANVUE_CLIENT_SECRET || '';
+const APPLICATION_ORIGIN = normalizeAuthOrigin(
+  process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
+);
 const FANVUE_REDIRECT_URI =
   process.env.FANVUE_REDIRECT_URI ||
-  new URL(
-    '/api/v1/connectors/fanvue/callback',
-    process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
-  ).toString();
+  new URL('/api/v1/connectors/fanvue/callback', APPLICATION_ORIGIN).toString();
 const FANVUE_AUTH_URL = 'https://auth.fanvue.com/oauth2/auth';
 const FANVUE_TOKEN_URL = 'https://auth.fanvue.com/oauth2/token';
+const OAUTH_REQUEST_TIMEOUT_MS = 30_000;
 // Default scopes per Fanvue docs: read:self, read:chat, plus the write scopes
-// the publish/upload/metrics paths require (write:post, write:media, read:post,
-// read:insights, read:fan). The connector's publish() needs write:post +
-// write:media; fetchMetrics needs read:post.
+// the publish/upload/metrics paths require (write:post, write:media, read:media,
+// read:post, read:insights, read:fan). Fanvue's custom MCP image-post flow
+// requires read:media in addition to its write scopes.
 const FANVUE_SCOPES = [
   'openid',
   'offline_access',
   'offline',
   'read:self',
   'read:chat',
+  'write:chat',
   'read:post',
   'write:post',
   'write:media',
+  'read:media',
   'read:insights',
   'read:fan',
 ];
 
 const OAUTH_STATE_COOKIE = 'axiom_fanvue_oauth_state';
 const OAUTH_COOKIE_PATH = '/api/v1/connectors/fanvue';
-const OAUTH_STATE_KEY = resolveOAuthCookieSecret();
+// Resolve on request so build-time OpenAPI generation can import the route
+// without requiring runtime deployment secrets.
+const oauthStateKey = () => resolveOAuthCookieSecret();
 
 const router = new Hono<AppBindings>();
+
+function browserConnectionRedirect(c: Context<AppBindings>, modelId: string, platform: string) {
+  const accept = c.req.header('accept') ?? '';
+  if (!accept.includes('text/html')) return null;
+  const destination = new URL(`/models/${encodeURIComponent(modelId)}/network`, APPLICATION_ORIGIN);
+  destination.searchParams.set('oauth', 'connected');
+  destination.searchParams.set('platform', platform);
+  return c.redirect(destination.toString(), 303);
+}
 
 function base64URLEncode(buffer: Buffer): string {
   return buffer.toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -90,7 +108,7 @@ router.get('/authorize', async (c) => {
     c,
     OAUTH_STATE_COOKIE,
     { state, verifier, orgId, modelId, issuedAt: Date.now() },
-    OAUTH_STATE_KEY,
+    oauthStateKey(),
     OAUTH_COOKIE_PATH,
   );
 
@@ -124,7 +142,7 @@ router.get('/callback', async (c) => {
     return apiError(c, 400, statusTitle(400), 'Missing authorization code');
   }
 
-  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_STATE_KEY);
+  const pending = getOAuthStateCookie(c, OAUTH_STATE_COOKIE, oauthStateKey());
   if (!state || !pending || pending.state !== state || !pending.verifier) {
     return apiError(c, 400, statusTitle(400), 'Invalid or missing state (CSRF check failed)');
   }
@@ -141,8 +159,18 @@ router.get('/callback', async (c) => {
   try {
     // Exchange the auth code for tokens (client_secret_basic per Fanvue docs)
     const basicAuth = Buffer.from(`${FANVUE_CLIENT_ID}:${FANVUE_CLIENT_SECRET}`).toString('base64');
+    const egressBinding = await resolveEgressBinding(pending.modelId);
+    if (!egressBinding) {
+      return apiError(
+        c,
+        503,
+        statusTitle(503),
+        'Fanvue token exchange unavailable: model egress binding is unhealthy',
+      );
+    }
+    const egressFetch = buildEgressFetch(egressBinding);
 
-    const resp = await fetch(FANVUE_TOKEN_URL, {
+    const resp = await egressFetch(FANVUE_TOKEN_URL, {
       method: 'POST',
       headers: {
         Authorization: `Basic ${basicAuth}`,
@@ -154,9 +182,10 @@ router.get('/callback', async (c) => {
         redirect_uri: FANVUE_REDIRECT_URI,
         code_verifier: pending.verifier,
       }),
+      signal: AbortSignal.timeout(OAUTH_REQUEST_TIMEOUT_MS),
     });
 
-    const tokens: Record<string, unknown> = (await resp.json()) as Record<string, unknown>;
+    const tokens = await readBoundedResponseJson<Record<string, unknown>>(resp);
 
     if (!resp.ok) {
       console.error('Fanvue token exchange failed', { status: resp.status });
@@ -191,12 +220,21 @@ router.get('/callback', async (c) => {
         ...(refreshToken ? { refreshToken } : {}),
         externalUserId,
         expiresAt,
-        extra: { clientId: FANVUE_CLIENT_ID, clientSecret: FANVUE_CLIENT_SECRET },
+        extra: {
+          clientId: FANVUE_CLIENT_ID,
+          clientSecret: FANVUE_CLIENT_SECRET,
+          // OAuth omits `scope` when the token has the exact requested scope set.
+          // If it returns a set, keep only scopes this client requested.
+          grantedScopes: (typeof tokens['scope'] === 'string' ? tokens['scope'].split(/\s+/) : FANVUE_SCOPES)
+            .filter((scope): scope is string => FANVUE_SCOPES.includes(scope)),
+        },
       },
       actorRef: 'oauth:fanvue',
     });
     if (!connection) return apiError(c, 404, statusTitle(404), 'model not found');
 
+    const browserRedirect = browserConnectionRedirect(c, pending.modelId, 'fanvue');
+    if (browserRedirect) return browserRedirect;
     return c.json({
       success: true,
       message: 'Fanvue connected.',

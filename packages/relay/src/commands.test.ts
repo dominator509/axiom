@@ -1,7 +1,7 @@
 // ─── CommandRouter — Vitest Suite ───
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { CommandRouter, type CardAction } from './commands.js';
+import { CommandRouter } from './commands.js';
 
 const SECRET = 'test-signing-secret';
 
@@ -165,47 +165,34 @@ describe('cleanupExpiredNonces', () => {
     expect(router.verifyCommand(s2, n2, 'approve', 'b2')).toBe(false); // still stored → reuse rejected
     vi.useRealTimers();
   });
+
+  it('reclaims expired entries during normal verification', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+
+    const first = router.createCommandToken('approve', 'card-1');
+    expect(router.verifyCommandToken(first)).not.toBeNull();
+
+    vi.advanceTimersByTime(6 * 60 * 1000);
+    const second = router.createCommandToken('approve', 'card-2');
+    expect(router.verifyCommandToken(second)).not.toBeNull();
+
+    const nonces = (router as unknown as { nonces: Map<string, unknown> }).nonces;
+    expect(nonces.size).toBe(1);
+    vi.useRealTimers();
+  });
 });
 
-describe('processCommand / getAuditLog', () => {
-  it('records a successful command in the audit log', async () => {
+describe('processCommand', () => {
+  it('fails closed when no durable executor is configured', async () => {
     const result = await router.processCommand('bundle-1', 'approve', { note: 'ok' });
-    expect(result.success).toBe(true);
-    expect(result.cardId).toBe('bundle-1');
-    expect(result.action).toBe('approve');
+    expect(result).toMatchObject({
+      success: false,
+      cardId: 'bundle-1',
+      action: 'approve',
+      error: 'relay command executor not configured',
+    });
     expect(result.timestamp).toBeGreaterThan(0);
-    expect(result.error).toBeUndefined();
-
-    const log = router.getAuditLog();
-    expect(log).toHaveLength(1);
-    expect(log[0]).toMatchObject({ cardId: 'bundle-1', action: 'approve' });
-  });
-
-  it('getAuditLog returns a copy, not a live reference', async () => {
-    await router.processCommand('b1', 'hold');
-    const log = router.getAuditLog();
-    log.pop();
-    expect(router.getAuditLog()).toHaveLength(1);
-  });
-
-  it('accumulates multiple commands in order', async () => {
-    const actions: CardAction[] = [
-      'approve',
-      'reject',
-      'hold',
-      'revise',
-      'regenerate',
-      'edit_caption',
-      'change_price',
-      'reschedule',
-      'approve_all',
-    ];
-    for (const a of actions) {
-      await router.processCommand(`b-${a}`, a);
-    }
-    const log = router.getAuditLog();
-    expect(log).toHaveLength(9);
-    expect(log.map((r) => r.action)).toEqual(actions);
   });
 });
 
@@ -227,10 +214,10 @@ describe('processCommand with injected executor (H-3 DB wiring)', () => {
     expect(result.error).toBe('bundle not found');
   });
 
-  it('does not write the in-memory audit log when an executor is present', async () => {
+  it('executes commands without creating a process-local success record', async () => {
     const executor = vi.fn().mockResolvedValue(undefined);
     const r = new CommandRouter('secret', 5, executor);
     await r.processCommand('card-3', 'hold', {});
-    expect(r.getAuditLog()).toHaveLength(0);
+    expect(executor).toHaveBeenCalledOnce();
   });
 });

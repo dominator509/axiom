@@ -91,6 +91,27 @@ describe('validate', () => {
     expect(report.valid).toBe(false);
     expect(report.errors.some((e) => e.field === 'caption')).toBe(true);
   });
+
+  it('enforces the shared media count and caption limits', async () => {
+    const c = new FanvueConnector(AUTH);
+    const report = await c.validate(
+      input({
+        mediaUrls: Array.from({ length: 11 }, (_, index) => `https://cdn.example.com/${index}.jpg`),
+        caption: 'x'.repeat(5001),
+      }),
+    );
+    expect(report.valid).toBe(false);
+    expect(report.errors.some((error) => error.field === 'mediaUrls')).toBe(true);
+    expect(report.errors.some((error) => error.field === 'caption')).toBe(true);
+    expect(report.tosVerdict).toBe('block');
+  });
+
+  it('accepts m4a audio input that the upload path can classify', async () => {
+    const c = new FanvueConnector(AUTH);
+    const report = await c.validate(input({ mediaUrls: ['https://cdn.example.com/voice.m4a'] }));
+    expect(report.valid).toBe(true);
+    expect(report.errors).toEqual([]);
+  });
 });
 
 describe('publish', () => {
@@ -99,6 +120,15 @@ describe('publish', () => {
     const mediaBytes = new Uint8Array([1, 2, 3, 4]);
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       const u = String(url);
+      if (u === 'https://mcp.fanvue.com/mcp') {
+        const frame = JSON.parse(init?.body as string) as { method: string; id: number };
+        return Promise.resolve(jsonResponse({
+          jsonrpc: '2.0', id: frame.id,
+          result: frame.method === 'initialize'
+            ? { protocolVersion: '2025-03-26', capabilities: {}, serverInfo: { name: 'fixture' } }
+            : { tools: [] },
+        }));
+      }
       if (u.startsWith('https://cdn.example.com/')) {
         return Promise.resolve(
           new Response(mediaBytes, {
@@ -165,7 +195,7 @@ describe('publish', () => {
     expect(result.latencyMs).toEqual(expect.any(Number));
 
     // First call downloads the media.
-    expect(fetchMock.mock.calls[0][0]).toBe('https://cdn.example.com/photo.jpg');
+    expect(fetchMock.mock.calls.find((call) => String(call[0]) === 'https://cdn.example.com/photo.jpg')?.[0]).toBe('https://cdn.example.com/photo.jpg');
 
     // Upload session creation carries the version header and media metadata.
     const createSession = fetchMock.mock.calls.find(
@@ -217,6 +247,62 @@ describe('publish', () => {
       mediaUuids: ['m-uuid-1'],
       publishAt: null,
     });
+  });
+
+  it('publishes a single image through the documented MCP custom tools using the injected model egress transport', async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const transport = vi.fn(async (request: string | URL, init: RequestInit = {}) => {
+      const url = String(request);
+      calls.push({ url, init });
+      if (url === 'https://cdn.example.com/photo.jpg') return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { 'content-type': 'image/jpeg' } });
+      if (url === 'https://mcp.fanvue.com/mcp') {
+        const frame = JSON.parse(init.body as string) as { method: string; id: number; params?: { name?: string } };
+        const result = frame.method === 'initialize'
+          ? { protocolVersion: '2025-03-26', capabilities: {}, serverInfo: { name: 'fanvue' } }
+          : frame.method === 'tools/list'
+            ? { tools: [{ name: 'custom__start-image-upload' }, { name: 'custom__create-image-post' }] }
+            : frame.params?.name === 'custom__start-image-upload'
+              ? { mediaUuid: 'media-1', uploadId: 'upload-1', uploadUrl: 'https://storage.fanvue.test/put', instructions: 'PUT image bytes' }
+              : { uuid: 'post-mcp-1', audience: 'subscribers', publishAt: null, publishedAt: '2026-08-07T00:00:00.000Z' };
+        return jsonResponse({ jsonrpc: '2.0', id: frame.id, result });
+      }
+      if (url === 'https://storage.fanvue.test/put') return new Response(null, { status: 200, headers: { etag: '"mcp-etag"' } });
+      throw new Error(`unexpected URL ${url}`);
+    });
+    const connector = new FanvueConnector(AUTH, transport as typeof fetch);
+    const result = await connector.publish(input({ options: { mediaType: 'image', audience: 'subscribers', price: 1200 } }));
+
+    expect(result.error).toBeUndefined();
+    expect(result).toMatchObject({ state: 'published', remoteId: 'post-mcp-1' });
+    expect(calls.map(call => call.url)).toEqual([
+      'https://mcp.fanvue.com/mcp',
+      'https://mcp.fanvue.com/mcp',
+      'https://cdn.example.com/photo.jpg',
+      'https://mcp.fanvue.com/mcp',
+      'https://storage.fanvue.test/put',
+      'https://mcp.fanvue.com/mcp',
+    ]);
+    const mcpCalls = calls.filter(call => call.url === 'https://mcp.fanvue.com/mcp');
+    expect((mcpCalls[0]!.init.headers as Record<string, string>).Authorization).toBe('Bearer fanvue-token');
+    expect(JSON.parse(mcpCalls.at(-1)!.init.body as string).params.arguments).toMatchObject({
+      image: { mediaUuid: 'media-1', uploadId: 'upload-1', etag: '"mcp-etag"' },
+      audience: 'subscribers', text: 'Check out my new post!', price: 1200,
+    });
+    expect((calls[4]!.init.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
+  });
+
+  it('uses REST upload when the grant lacks read:media required by the MCP image-post tool', async () => {
+    const { fetchMock } = multipartFetchMock();
+    const connector = new FanvueConnector({
+      ...AUTH,
+      extra: { grantedScopes: ['write:post', 'write:media'] },
+    }, fetchMock as typeof fetch);
+
+    const result = await connector.publish(input({ options: { mediaType: 'image' } }));
+
+    expect(result).toMatchObject({ state: 'published', remoteId: 'post-1' });
+    expect(fetchMock.mock.calls.some(([url]) => String(url) === 'https://mcp.fanvue.com/mcp')).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/media/uploads'))).toBe(true);
   });
 
   it('passes publishAt through when scheduledFor is provided', async () => {
@@ -295,6 +381,23 @@ describe('publish', () => {
     expect(result.state).toBe('failed');
     expect(result.error).toContain('Fanvue API POST /media/uploads failed: 500');
     expect(result.remoteId).toBeNull();
+  });
+
+  it('rejects a media response that exceeds the declared size limit before creating a session', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(new Uint8Array([1]), {
+        status: 200,
+        headers: { 'content-length': '1610612737' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const c = new FanvueConnector(AUTH);
+    const result = await c.publish(input());
+
+    expect(result.state).toBe('failed');
+    expect(result.error).toContain('maximum supported size');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('returns a failed result when the post creation fails', async () => {
@@ -439,13 +542,12 @@ describe('revoke', () => {
     expect(c.getLogs().some((l) => l.action === 'revoke')).toBe(true);
   });
 
-  it('logs a warning when no refresh credentials are available', async () => {
+  it('fails when no refresh credentials are available', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new FanvueConnector(AUTH);
-    await c.revoke();
+    await expect(c.revoke()).rejects.toThrow('requires refresh token and client credentials');
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(c.getLogs().some((l) => l.action === 'revoke' && l.level === 'warn')).toBe(true);
   });
 });

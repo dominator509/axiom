@@ -1,0 +1,12 @@
+diff --git a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs
+index 63c41fc..e65cf0d 100644
+--- a/crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs
++++ b/crates/codegen/xai-grok-shell/src/session/acp_session_tests/tool_layer_images_bridge_tests.rs
+@@ -1,6 +1,7 @@
+ //! Wiring tests for MCP tool-layer images through `handle_bridge_tool_success`.
+ use super::support::*;
+ use super::*;
++use base64::Engine;
+ use xai_grok_sampling_types::{ContentPart, ConversationItem};
+ use xai_grok_tools::types::output::{MCPOutput, ToolOutput, ToolRunResult};
+ use xai_grok_tools::util::base64_images::{ExtractedImage, IMAGE_CONTENT_PLACEHOLDER};

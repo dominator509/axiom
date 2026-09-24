@@ -10,14 +10,51 @@ import {
   generatePhotoshootPrompts,
   buildS0,
   buildS1,
+  buildS2,
   buildS3,
   assemblePrompt,
   LLMGateway,
+  CACHE_CONTROL_PROVIDERS,
+  CACHE_CONTROL_UNSUPPORTED_CODE,
+  defaultCacheControlSetting,
   type ModelProfile as PromptModelProfile,
+  type CacheControlSetting,
 } from '@axiom/llm-gateway';
 import type { Executor, ExecutorContext } from './context.js';
 import { enqueueJob } from '../enqueue.js';
+
+import { modelPlaybookContext } from '../playbook-context.js';
 import { asPlatform } from '../connection.js';
+import { retrieveCaptionGuidance } from '../viral-retrieval.js';
+import { captionGuidanceReceipt } from '../caption-guidance.js';
+import type { CaptionGuidanceReceipt, PhotoshootRecipe } from '@axiom/db/schema';
+
+async function loadModelCacheControls(
+  tx: ExecutorContext['tx'],
+  orgId: string,
+  modelId: string,
+): Promise<CacheControlSetting[]> {
+  const rows = await tx.select().from(schema.providerCacheControl).where(and(
+    eq(schema.providerCacheControl.orgId, orgId),
+    eq(schema.providerCacheControl.modelId, modelId),
+  ));
+  const byProvider = new Map(rows.map((row: { provider: string }) => [row.provider, row]));
+  return CACHE_CONTROL_PROVIDERS.map(provider => {
+    const row = byProvider.get(provider) as {
+      provider: string;
+      enabled: boolean;
+      prefixAlignment: boolean;
+      promptCacheKey: string | null;
+    } | undefined;
+    if (!row) return defaultCacheControlSetting(provider);
+    return {
+      provider: row.provider,
+      enabled: row.enabled,
+      prefixAlignment: row.prefixAlignment,
+      promptCacheKey: row.promptCacheKey,
+    };
+  });
+}
 
 export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   const { tx, job } = ctx;
@@ -35,9 +72,10 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
     platform?: string;
     enrichWithLlm?: boolean;
     model?: string;
+    revision?: { id: string; instructions: string; userId?: string };
   };
   let modelId = payload.modelId;
-  let existingBundle: { id: string; modelId: string } | undefined;
+  let existingBundle: typeof schema.contentBundle.$inferSelect | undefined;
 
   // MCP requests allocate the bundle before queueing so callers can receive a
   // durable identifier immediately. Reuse that row instead of creating a
@@ -45,7 +83,7 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   // idempotent across the tool -> queue -> executor boundary.
   if (payload.bundleId) {
     const bundles = await tx
-      .select({ id: schema.contentBundle.id, modelId: schema.contentBundle.modelId })
+      .select()
       .from(schema.contentBundle)
       .where(
         and(
@@ -53,7 +91,8 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
           eq(schema.contentBundle.orgId, job.org_id),
         ),
       )
-      .limit(1);
+      .limit(1)
+      .for('update');
     if (bundles.length === 0) {
       throw new Error('content.generate: bundle ' + payload.bundleId + ' not found');
     }
@@ -62,6 +101,25 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
       throw new Error('content.generate: bundle lookup returned no row');
     }
     existingBundle = bundle;
+    if (payload.revision) {
+      const revision = payload.revision;
+      if (
+        typeof revision.id !== 'string' ||
+        typeof revision.instructions !== 'string' ||
+        !revision.instructions.trim() ||
+        revision.instructions.length > 2000 ||
+        (revision.userId !== undefined && typeof revision.userId !== 'string')
+      ) {
+        throw new Error('content.generate: invalid revision request');
+      }
+      if (bundle.state !== 'revising' || bundle.tosReport?.revisionId !== revision.id) {
+        throw new Error(
+          'content.generate: stale revision; bundle is no longer awaiting this request',
+        );
+      }
+    } else if (bundle.state !== 'generated' || bundle.tosReport?.revisionId) {
+      throw new Error('content.generate: existing bundle is no longer awaiting generation');
+    }
     if (modelId && modelId !== bundle.modelId) {
       throw new Error('content.generate: bundle/model mismatch');
     }
@@ -69,6 +127,8 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
   }
 
   if (!modelId) throw new Error('content.generate: payload.modelId required');
+  if (payload.revision && !existingBundle)
+    throw new Error('content.generate: revision requires a bundle');
 
   const models = await tx
     .select()
@@ -92,25 +152,103 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
     bio: model.bio ?? null,
   };
 
-  const variants = generatePhotoshootPrompts({
-    modelName: model.displayName,
+  if (payload.revision && existingBundle) {
+    const currentCaptions = existingBundle.captions ?? {};
+    const platforms = Object.keys(currentCaptions).map(asPlatform);
+    if (platforms.length === 0)
+      throw new Error('content.generate: revision has no target captions');
+    const captions: Record<string, string> = {};
+    const captionGuidance: Record<string, CaptionGuidanceReceipt> = {};
+    const gateway = new LLMGateway();
+    const cacheControls = await loadModelCacheControls(tx, job.org_id, modelId);
+    for (const target of platforms) {
+      const original = currentCaptions[target];
+      if (typeof original !== 'string') throw new Error('content.generate: invalid source caption');
+      const guidance = await retrieveCaptionGuidance(tx, job.org_id, modelId, target, 3, `${original} ${payload.revision.instructions}`,
+        existingBundle.publishIntent?.platform === target ? existingBundle.publishIntent.scheduledAt : null);
+      const prompt = assemblePrompt({
+        S0: buildS0(profile),
+        S1: buildS1(target) + await modelPlaybookContext(tx, job.org_id, modelId, target),
+        S2: buildS2(guidance.exemplars),
+        S3: buildS3({
+          modelId,
+          platform: target,
+          task: 'Revise the supplied caption according to the operator instructions. Return only the revised caption, without commentary. Preserve the depicted content; do not claim the media was changed.',
+          context: JSON.stringify({
+            caption: original,
+            hashtags: existingBundle.hashtags,
+            instructions: payload.revision.instructions,
+          }),
+        }),
+      });
+      // Unlike optional enrichment, a requested revision must not silently
+      // fall back to unchanged text. Errors roll back and use normal job retry.
+      const result = await gateway.chat(
+        [
+          { role: 'system', content: prompt },
+          { role: 'user', content: payload.revision.instructions },
+        ],
+        { model: payload.model, userId: payload.revision.userId, cacheControls },
+      );
+      const caption = result.content.trim();
+      if (!caption || caption.length > 32000)
+        throw new Error('content.generate: invalid revised caption');
+      captions[target] = caption;
+      captionGuidance[target] = captionGuidanceReceipt(caption, guidance);
+    }
+    if (platforms.every((target) => captions[target] === currentCaptions[target])) {
+      throw new Error('content.generate: provider returned unchanged captions');
+    }
+    await tx
+      .update(schema.contentBundle)
+      .set({
+        captions,
+        captionGuidance,
+        tosReport: { verdict: 'pending', revisionId: payload.revision.id },
+        state: 'generated',
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.contentBundle.id, existingBundle.id),
+          eq(schema.contentBundle.orgId, job.org_id),
+        ),
+      );
+    await enqueueJob(tx, {
+      orgId: job.org_id,
+      queue: 'tos',
+      kind: 'tos.scan',
+      payload: { bundleId: existingBundle.id },
+      dedupeParts: ['tos.scan', existingBundle.id, payload.revision.id],
+    });
+    return;
+  }
+
+  const generationRecipe: PhotoshootRecipe = {
     style: payload.style ?? 'studio',
     outfit: payload.outfit ?? 'summer dress',
     location: payload.location ?? 'studio',
     mood: payload.mood ?? 'energetic',
     lighting: payload.lighting ?? 'soft studio',
     aspectRatio: payload.aspectRatio ?? '4:5',
+  };
+  const variants = generatePhotoshootPrompts({
+    modelName: model.displayName,
+    ...generationRecipe,
     platform: platform as never,
   });
 
   let caption = variants[0].caption;
+  const captionGuidance: Record<string, CaptionGuidanceReceipt> = {};
   if (payload.enrichWithLlm) {
     try {
       const gateway = new LLMGateway();
+      const guidance = await retrieveCaptionGuidance(tx, job.org_id, modelId, platform, 3, variants[0].prompt,
+        existingBundle?.publishIntent?.platform === platform ? existingBundle.publishIntent.scheduledAt : null);
       const prompt = assemblePrompt({
         S0: buildS0(profile),
-        S1: buildS1(platform as never),
-        S2: '',
+        S1: buildS1(platform as never) + await modelPlaybookContext(tx, job.org_id, modelId, platform),
+        S2: buildS2(guidance.exemplars),
         S3: buildS3({
           modelId,
           task: 'Write an engaging caption for the photoshoot, max 200 chars.',
@@ -123,12 +261,20 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
           { role: 'system', content: prompt },
           { role: 'user', content: variants[0].prompt },
         ],
-        { model: payload.model },
+        { model: payload.model, cacheControls: await loadModelCacheControls(tx, job.org_id, modelId) },
       );
-      caption = chat.content.trim();
-    } catch (err) {
+      const enriched = chat.content.trim();
+      if (!enriched || enriched.length > 32000) throw new Error('Invalid enriched caption');
+      caption = enriched;
+      captionGuidance[platform] = captionGuidanceReceipt(caption, guidance);
+    } catch (error) {
+      if (
+        error && typeof error === 'object' &&
+        'code' in error &&
+        (error as { code?: unknown }).code === CACHE_CONTROL_UNSUPPORTED_CODE
+      ) throw error;
       // Best-effort enrichment; prompt engine output still forms the bundle.
-      console.error('content.generate enrich failed:', (err as Error).message);
+      console.error('content.generate enrichment unavailable', { platform });
     }
   }
 
@@ -140,7 +286,9 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
         .values({
           orgId: job.org_id,
           modelId,
+          generationRecipe,
           captions: { [platform]: caption },
+          captionGuidance,
           hashtags: variants[0].hashtags,
           tosReport: null,
           state: 'generated',
@@ -154,7 +302,9 @@ export const contentGenerate: Executor = async (ctx: ExecutorContext) => {
     await tx
       .update(schema.contentBundle)
       .set({
+        generationRecipe,
         captions: { [platform]: caption },
+        captionGuidance,
         hashtags: variants[0].hashtags,
         tosReport: null,
         state: 'generated',

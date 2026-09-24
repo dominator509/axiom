@@ -1,7 +1,13 @@
 // ─── TikTok Connector ───
 // Uses the TikTok Content Posting API v2 for uploads, metrics, and OAuth management.
 
-import { BaseConnector } from './base.js';
+import {
+  BaseConnector,
+  CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+  readResponseBytes,
+  readResponseText,
+  redactProviderText,
+} from './base.js';
 import type {
   SocialConnector,
   ConnectorAuth,
@@ -17,6 +23,7 @@ import type { Platform, PublishMode } from '@axiom/core';
 import { validatePublish } from './validation.js';
 
 const TIKTOK_API_BASE = 'https://open.tiktokapis.com/v2';
+const TIKTOK_MAX_MEDIA_BYTES = 524_288_000;
 const MIN_TIKTOK_CHUNK_SIZE = 5 * 1024 * 1024;
 const MAX_TIKTOK_CHUNK_SIZE = 64 * 1024 * 1024;
 
@@ -24,6 +31,20 @@ interface TiktokInitResponse {
   data: {
     publish_id: string;
     upload_url: string;
+  };
+  error?: {
+    code: string;
+    message: string;
+  };
+}
+
+interface TiktokCreatorInfoResponse {
+  data: {
+    privacy_level_options?: string[];
+    comment_disabled?: boolean;
+    duet_disabled?: boolean;
+    stitch_disabled?: boolean;
+    max_video_post_duration_sec?: number;
   };
   error?: {
     code: string;
@@ -67,16 +88,20 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
   }
 
   capability(): ConnectorCapability {
+    const canPublish = this.hasGrantedScope('video.publish', 'video.upload');
+    const canReadMetrics = this.hasGrantedScope('video.list');
     return {
-      publish: true,
-      media: ['video' as MediaType, 'short' as MediaType],
-      maxMediaBytes: 524_288_000, // 500 MB
+      publish: canPublish,
+      media: canPublish ? ['video' as MediaType, 'short' as MediaType] : [],
+      maxMediaBytes: TIKTOK_MAX_MEDIA_BYTES,
       maxMediaCount: 1,
       caption: true,
       maxCaptionLength: 2_200,
       scheduling: 'internal' as const,
-      metrics: ['views', 'likes', 'comments', 'shares', 'follows'],
-      refreshMetrics: true,
+      // TikTok's video-level query exposes engagement counts, but not
+      // follower gains attributable to an individual video.
+      metrics: canReadMetrics ? ['views', 'likes', 'comments', 'shares'] : [],
+      refreshMetrics: canReadMetrics,
     };
   }
 
@@ -86,12 +111,17 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
 
   async publish(input: ConnectorPublishInput): Promise<ConnectorPublishResult> {
     return this.idempotentPublish(input, async () => {
+      const options = input.options ?? {};
+      const deliveryMode = options.deliveryMode === undefined ? 'direct' : options.deliveryMode;
+      if (deliveryMode !== 'direct' && deliveryMode !== 'draft') {
+        throw new Error('TikTok deliveryMode must be direct or draft');
+      }
+      this.assertGrantedScope('publishing', deliveryMode === 'draft' ? 'video.upload' : 'video.publish');
       const videoUrl = input.mediaUrls[0];
       if (!videoUrl) {
         throw new Error('TikTok requires at least one video URL');
       }
 
-      const options = input.options ?? {};
       const pendingPublishId =
         typeof options.publishId === 'string' && options.publishId.length > 0
           ? options.publishId
@@ -100,6 +130,13 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       // A TikTok publish is asynchronous. Retries resume by polling the
       // publish_id stored on post_target instead of uploading a second copy.
       if (pendingPublishId) {
+        if (deliveryMode === 'draft') {
+          return {
+            remoteId: pendingPublishId,
+            state: 'manual_assist',
+            error: 'Video is in the TikTok inbox. A creator must finish editing and publish it in TikTok.',
+          };
+        }
         return this.statusResult(pendingPublishId, await this.fetchPublishStatus(pendingPublishId));
       }
 
@@ -108,7 +145,11 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       if (!videoResponse.ok) {
         throw new Error(`Failed to download video from ${videoUrl}: ${videoResponse.status}`);
       }
-      const videoBuffer = await videoResponse.arrayBuffer();
+      const videoBuffer = await readResponseBytes(
+        videoResponse,
+        TIKTOK_MAX_MEDIA_BYTES,
+        'TikTok video',
+      );
       const videoSize = videoBuffer.byteLength;
       if (videoSize <= 0) throw new Error('TikTok video must not be empty');
       const requestedChunkSize = Number(options.chunkSize);
@@ -122,10 +163,7 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       // instead of sending metadata TikTok will reject after initialization.
       if (videoSize <= MAX_TIKTOK_CHUNK_SIZE && chunkSize >= videoSize) {
         chunkSize = videoSize;
-      } else if (
-        chunkSize < MIN_TIKTOK_CHUNK_SIZE ||
-        chunkSize > MAX_TIKTOK_CHUNK_SIZE
-      ) {
+      } else if (chunkSize < MIN_TIKTOK_CHUNK_SIZE || chunkSize > MAX_TIKTOK_CHUNK_SIZE) {
         throw new Error(
           `TikTok chunkSize must be between ${MIN_TIKTOK_CHUNK_SIZE} and ${MAX_TIKTOK_CHUNK_SIZE} bytes for videos larger than one final chunk`,
         );
@@ -136,19 +174,39 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       // requested chunk size.
       const totalChunkCount = Math.max(1, Math.floor(videoSize / chunkSize));
 
-      // Step 1: Initialize the video upload. TikTok requires post_info,
-      // including privacy_level, in this request alongside FILE_UPLOAD data.
+      // TikTok requires privacy_level to be selected from the account's
+      // current creator-info response. Validate the default as well as an
+      // explicitly requested option before creating an upload session.
+      const privacyLevel =
+        typeof options.privacyLevel === 'string' && options.privacyLevel.trim().length > 0
+          ? options.privacyLevel
+          : 'SELF_ONLY';
+      if (deliveryMode === 'direct') {
+        const creatorInfo = await this.fetchCreatorInfo();
+        const allowedPrivacyLevels = creatorInfo.data.privacy_level_options ?? [];
+        if (!allowedPrivacyLevels.includes(privacyLevel)) {
+          throw new Error(
+            `TikTok privacy level ${privacyLevel} is not allowed for this account; allowed levels: ${allowedPrivacyLevels.join(', ') || 'none'}`,
+          );
+        }
+      }
+
+      // Direct posting needs creator-selected post metadata. Draft upload uses
+      // TikTok's inbox endpoint and deliberately omits post_info so the creator
+      // can finish the post in TikTok before it becomes public.
       const initPayload: Record<string, unknown> = {
-        post_info: {
-          title: input.caption,
-          privacy_level: (options.privacyLevel as string | undefined) ?? 'SELF_ONLY',
-          disable_duet: options.disableDuet ?? false,
-          disable_stitch: options.disableStitch ?? false,
-          disable_comment: options.disableComment ?? false,
-          brand_content_toggle: options.brandContentToggle ?? options.brandContent ?? false,
-          brand_organic_toggle: options.brandOrganicToggle ?? options.brandOrganicUse ?? false,
-          is_aigc: options.isAigc ?? false,
-        },
+        ...(deliveryMode === 'direct' ? {
+          post_info: {
+            title: input.caption,
+            privacy_level: privacyLevel,
+            disable_duet: options.disableDuet ?? false,
+            disable_stitch: options.disableStitch ?? false,
+            disable_comment: options.disableComment ?? false,
+            brand_content_toggle: options.brandContentToggle ?? options.brandContent ?? false,
+            brand_organic_toggle: options.brandOrganicToggle ?? options.brandOrganicUse ?? false,
+            is_aigc: options.isAigc ?? false,
+          },
+        } : {}),
         source_info: {
           source: 'FILE_UPLOAD',
           video_size: videoSize,
@@ -158,7 +216,7 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       };
 
       const initResp = await this.apiPost<TiktokInitResponse>(
-        `${TIKTOK_API_BASE}/post/publish/video/init/`,
+        `${TIKTOK_API_BASE}/post/publish/${deliveryMode === 'draft' ? 'inbox/video/init/' : 'video/init/'}`,
         initPayload,
         {
           'Content-Type': 'application/json',
@@ -180,9 +238,8 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
         // TikTok's final chunk may contain the remainder, so the number of
         // PUTs must match total_chunk_count even when video_size is not an
         // exact multiple of chunk_size.
-        const end = chunkIndex === totalChunkCount - 1
-          ? videoSize
-          : Math.min(start + chunkSize, videoSize);
+        const end =
+          chunkIndex === totalChunkCount - 1 ? videoSize : Math.min(start + chunkSize, videoSize);
         const chunk = videoBuffer.slice(start, end);
         const uploadResp = await this.fetchImpl(upload_url, {
           method: 'PUT',
@@ -195,9 +252,13 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
         });
 
         if (!uploadResp.ok) {
-          const uploadBody = await uploadResp.text().catch(() => '');
+          const uploadBody = await readResponseText(
+            uploadResp,
+            CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+            'provider error response',
+          ).catch(() => '');
           throw new Error(
-            `TikTok video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${uploadBody}`,
+            `TikTok video upload failed: ${uploadResp.status} ${uploadResp.statusText} — ${redactProviderText(uploadBody)}`,
           );
         }
 
@@ -211,6 +272,14 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
 
       this.log('info', 'publish', `TikTok video uploaded (${videoBuffer.byteLength} bytes)`);
 
+      if (deliveryMode === 'draft') {
+        return {
+          remoteId: publish_id,
+          state: 'manual_assist',
+          error: 'Video uploaded to the TikTok inbox. A creator must open TikTok, finish editing, and publish it there.',
+        };
+      }
+
       // Step 3: TikTok processes the upload asynchronously. Use the
       // documented status endpoint; there is no /video/complete endpoint.
       return this.statusResult(publish_id, await this.fetchPublishStatus(publish_id));
@@ -218,6 +287,7 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
   }
 
   async fetchMetrics(remoteId: string, _period?: MetricPeriod): Promise<ConnectorMetrics> {
+    this.assertGrantedScope('metrics', 'video.list');
     const queryUrl = `${TIKTOK_API_BASE}/video/query/?fields=statistics&id=${remoteId}`;
 
     const resp = await this.apiGet<TiktokVideoQueryResponse>(queryUrl, {
@@ -244,7 +314,6 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
         likes: stats.like_count ?? 0,
         comments: stats.comment_count ?? 0,
         shares: stats.share_count ?? 0,
-        follows: 0, // TikTok's video-level API does not expose follower gains per video
       },
       raw: { statistics: stats },
     };
@@ -267,8 +336,14 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       }),
     });
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw new Error(`TikTok token revoke failed: ${response.status} — ${body}`);
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      throw new Error(
+        `TikTok token revoke failed: ${response.status} — ${redactProviderText(body)}`,
+      );
     }
 
     this.auth.accessToken = '';
@@ -283,6 +358,23 @@ export class TikTokConnector extends BaseConnector implements SocialConnector {
       { publish_id: publishId },
       { 'Content-Type': 'application/json' },
     );
+  }
+
+  private async fetchCreatorInfo(): Promise<TiktokCreatorInfoResponse> {
+    const response = await this.apiPost<TiktokCreatorInfoResponse>(
+      `${TIKTOK_API_BASE}/post/publish/creator_info/query/`,
+      undefined,
+      { 'Content-Type': 'application/json; charset=UTF-8' },
+    );
+    if (response.error && response.error.code !== 'ok') {
+      throw new Error(
+        `TikTok creator info query failed: ${response.error.code} — ${response.error.message}`,
+      );
+    }
+    if (!response.data || !Array.isArray(response.data.privacy_level_options)) {
+      throw new Error('TikTok creator info query returned no privacy_level_options');
+    }
+    return response;
   }
 
   private detectVideoMimeType(url: string, configured: unknown): string {

@@ -3,9 +3,10 @@
 // Every dashboard route uses these so tenant isolation and auditability are
 // enforced in one place, defense-in-depth on top of Postgres RLS.
 
-import { sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
+import { tosReportPassesForPlatforms } from '@axiom/core';
 import { db, schema } from '@axiom/db';
 import { problem, problemResponse } from '../contract.js';
 
@@ -66,6 +67,85 @@ export function requireOrg(c: Context): string | null {
   return orgId;
 }
 
+export type PublishConnectionResolution = { connections: Map<string, string> } | { error: string };
+
+/**
+ * Resolve the account each new publish target will use before the target and
+ * its worker job are committed. A target without a connection_id is only
+ * safe when there is exactly one connected account for that model/platform;
+ * silently choosing an account would publish to the wrong tenant account.
+ */
+export async function resolvePublishConnections(
+  tx: any,
+  orgId: string,
+  modelId: string,
+  platforms: readonly string[],
+  requestedConnectionIds: Record<string, string> = {},
+): Promise<PublishConnectionResolution> {
+  if (platforms.length === 0) return { connections: new Map() };
+
+  const rows = await tx
+    .select({
+      id: schema.platformConnection.id,
+      platform: schema.platformConnection.platform,
+    })
+    .from(schema.platformConnection)
+    .where(
+      and(
+        eq(schema.platformConnection.orgId, orgId),
+        eq(schema.platformConnection.modelId, modelId),
+        inArray(schema.platformConnection.platform, [...platforms]),
+        inArray(schema.platformConnection.status, ['connected', 'active']),
+      ),
+    )
+    .orderBy(schema.platformConnection.connectedAt);
+
+  const resolved = new Map<string, string>();
+  for (const platform of platforms) {
+    const candidates = rows.filter((row: { platform: string }) => row.platform === platform);
+    const requestedId = requestedConnectionIds[platform];
+    if (requestedId) {
+      const selected = candidates.find((row: { id: string }) => row.id === requestedId);
+      if (!selected) {
+        return {
+          error: `selected ${platform} connection is unavailable or not connected`,
+        };
+      }
+      resolved.set(platform, selected.id);
+      continue;
+    }
+    if (candidates.length === 0) {
+      return { error: `no connected ${platform} account is available for this model` };
+    }
+    if (candidates.length > 1) {
+      return {
+        error: `multiple connected ${platform} accounts are available; select a connectionId`,
+      };
+    }
+    resolved.set(platform, candidates[0].id);
+  }
+  return { connections: resolved };
+}
+
+/**
+ * Return a safe, non-sensitive approval error when a bundle has no complete
+ * passing ToS report for every requested destination. Approval callers must
+ * use the same strict check so missing or malformed compliance data cannot be
+ * interpreted as a pass by one entry point and a block by another.
+ */
+export function tosApprovalFailure(report: unknown, platforms: readonly string[]): string | null {
+  if (isRecord(report) && report.verdict === 'block') {
+    return 'ToS block: bundle cannot be approved';
+  }
+  return tosReportPassesForPlatforms(report, platforms)
+    ? null
+    : 'ToS check unavailable or not passing: bundle cannot be approved';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /** Resolve a model's owning org — used to scope nested model resources. */
 export async function modelOrgId(tx: any, modelId: string): Promise<string | null> {
   const rows = await tx
@@ -90,6 +170,12 @@ export async function writeAudit(
   target: string,
   detail: Record<string, unknown>,
 ): Promise<{ prevHash: Buffer; rowHash: Buffer }> {
+  // Serialize audit writers for one organization before reading the chain
+  // head. Without a transaction-scoped lock, concurrent mutations can both
+  // observe the same row_hash and append siblings with the same prev_hash,
+  // permanently forking the tamper-evident chain.
+  await tx.execute(sql`SELECT id FROM org WHERE id = ${orgId} FOR UPDATE`);
+
   // Latest chain head for this org
   const prev = await tx
     .select({ rowHash: schema.auditLog.rowHash })

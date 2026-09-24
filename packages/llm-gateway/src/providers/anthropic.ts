@@ -6,6 +6,8 @@ import type {
   BaseProvider,
 } from './types.js';
 import { ProviderError } from './types.js';
+import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
+import { applyCacheControl } from '../cache-controls.js';
 
 // Anthropic Claude pricing (USD per 1M tokens)
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -88,7 +90,7 @@ function toAnthropicBody(
   if (options?.stop !== undefined) body.stop_sequences = options.stop;
   if (stream) body.stream = true;
 
-  return body;
+  return applyCacheControl(body, options?.cacheControl ?? null).body;
 }
 
 export class AnthropicProvider implements BaseProvider {
@@ -113,10 +115,11 @@ export class AnthropicProvider implements BaseProvider {
         'anthropic-version': this.apiVersion,
       },
       body: JSON.stringify(body),
+      signal: options?.signal,
     });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
+      const text = await readProviderErrorText(res);
       throw new ProviderError(
         `Anthropic API error ${res.status}: ${text}`,
         res.status,
@@ -125,7 +128,7 @@ export class AnthropicProvider implements BaseProvider {
       );
     }
 
-    const data = (await res.json()) as AnthropicMessageResponse;
+    const data = await readProviderJson<AnthropicMessageResponse>(res);
 
     const content = data.content
       .filter((block) => block.type === 'text')
@@ -162,10 +165,11 @@ export class AnthropicProvider implements BaseProvider {
         'anthropic-version': this.apiVersion,
       },
       body: JSON.stringify(body),
+      signal: options?.signal,
     });
 
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
+      const text = await readProviderErrorText(res);
       throw new ProviderError(
         `Anthropic stream error ${res.status}: ${text}`,
         res.status,
@@ -314,7 +318,7 @@ export async function callAnthropic(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new ProviderError(
       `Anthropic API error ${res.status}: ${text}`,
       res.status,
@@ -322,7 +326,7 @@ export async function callAnthropic(
       text,
     );
   }
-  return res.json() as Promise<AnthropicMessageResponse>;
+  return readProviderJson<AnthropicMessageResponse>(res);
 }
 
 export async function* streamAnthropic(
@@ -342,7 +346,7 @@ export async function* streamAnthropic(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new ProviderError(
       `Anthropic stream error ${res.status}: ${text}`,
       res.status,

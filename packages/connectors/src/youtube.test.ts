@@ -1,6 +1,6 @@
 // ─── YouTube Connector — Vitest Suite ───
 // Covers: capability(), validate(), publish() resumable upload flow
-// (init with metadata → download → PUT to Location URL), Shorts tag detection,
+// (download → init with metadata → PUT to Location URL), Shorts tag detection,
 // fetchMetrics() via videos?part=statistics, and revoke() via Google's revoke endpoint.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -47,11 +47,11 @@ describe('YouTubeConnector basics', () => {
     const cap = c.capability();
     expect(cap.publish).toBe(true);
     expect(cap.media).toEqual(['video', 'short']);
-    expect(cap.maxMediaBytes).toBe(274_877_906_944);
+    expect(cap.maxMediaBytes).toBe(536_870_912);
     expect(cap.maxMediaCount).toBe(1);
     expect(cap.caption).toBe(true);
     expect(cap.maxCaptionLength).toBe(5_000);
-    expect(cap.scheduling).toBe('native');
+    expect(cap.scheduling).toBe('internal');
     expect(cap.metrics).toEqual(['views', 'likes', 'comments']);
     expect(cap.refreshMetrics).toBe(true);
   });
@@ -120,8 +120,8 @@ describe('publish', () => {
     const uploadUrl = 'https://upload.googleapis.com/upload/youtube/v3/videos?upload_id=xyz789';
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(initResponse(uploadUrl)) // 0: init session
-      .mockResolvedValueOnce(new Response('videodata', { status: 200 })) // 1: download source
+      .mockResolvedValueOnce(new Response('videodata', { status: 200 })) // 0: download source
+      .mockResolvedValueOnce(initResponse(uploadUrl)) // 1: init session
       .mockResolvedValueOnce(
         jsonResponse({
           id: 'vid-1',
@@ -137,7 +137,6 @@ describe('publish', () => {
       input({
         options: {
           title: 'My Video',
-          videoSize: 1024,
           privacyStatus: 'unlisted',
           tags: ['test', 'demo'],
           categoryId: '22',
@@ -153,14 +152,18 @@ describe('publish', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
 
-    // 0: init
-    const [initUrl, initInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    // 0: download source
+    const [downloadUrl] = fetchMock.mock.calls[0] as [string];
+    expect(downloadUrl).toBe('https://cdn.example.com/video.mp4');
+
+    // 1: init
+    const [initUrl, initInit] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(initUrl).toBe(UPLOAD_SESSION_URL);
     expect(initInit.method).toBe('POST');
     const headers = initInit.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer yt-token-123');
     expect(headers['Content-Type']).toBe('application/json; charset=UTF-8');
-    expect(headers['X-Upload-Content-Length']).toBe('1024');
+    expect(headers['X-Upload-Content-Length']).toBe('9');
     expect(headers['X-Upload-Content-Type']).toBe('video/*');
     expect(JSON.parse(initInit.body as string)).toEqual({
       snippet: {
@@ -175,10 +178,6 @@ describe('publish', () => {
       },
     });
 
-    // 1: download
-    const [downloadUrl] = fetchMock.mock.calls[1] as [string];
-    expect(downloadUrl).toBe('https://cdn.example.com/video.mp4');
-
     // 2: PUT upload
     const [putUrl, putInit] = fetchMock.mock.calls[2] as [string, RequestInit];
     expect(putUrl).toBe(uploadUrl);
@@ -191,8 +190,8 @@ describe('publish', () => {
     const uploadUrl = 'https://upload.googleapis.com/upload/youtube/v3/videos?upload_id=short1';
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(initResponse(uploadUrl))
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(initResponse(uploadUrl))
       .mockResolvedValueOnce(jsonResponse({ id: 'vid-2', kind: 'youtube#video' }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -204,7 +203,7 @@ describe('publish', () => {
     );
 
     const initBody = JSON.parse(
-      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+      (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
     ) as {
       snippet: { tags: string[] };
     };
@@ -215,8 +214,8 @@ describe('publish', () => {
     const uploadUrl = 'https://upload.googleapis.com/upload/youtube/v3/videos?upload_id=short2';
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(initResponse(uploadUrl))
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(initResponse(uploadUrl))
       .mockResolvedValueOnce(jsonResponse({ id: 'vid-5', kind: 'youtube#video' }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -227,7 +226,7 @@ describe('publish', () => {
     // Regression: publish() must not mutate the caller's input options
     expect(options.tags).toEqual(['fun']);
     const initBody = JSON.parse(
-      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+      (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
     ) as {
       snippet: { tags: string[] };
     };
@@ -238,29 +237,40 @@ describe('publish', () => {
     const uploadUrl = 'https://upload.googleapis.com/upload/youtube/v3/videos?upload_id=long1';
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(initResponse(uploadUrl))
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(initResponse(uploadUrl))
       .mockResolvedValueOnce(jsonResponse({ id: 'vid-3', kind: 'youtube#video' }));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new YouTubeConnector(AUTH);
     await c.publish(
-      input({ options: { title: 'Long', durationSec: 120, aspectRatio: '9:16', tags: ['fun'] } }),
+      input({ options: { title: 'Long', durationSec: 181, aspectRatio: '9:16', tags: ['fun'] } }),
     );
 
     const initBody = JSON.parse(
-      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+      (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
     ) as {
       snippet: { tags: string[] };
     };
     expect(initBody.snippet.tags).toEqual(['fun']);
   });
 
+  it('classifies square videos up to three minutes as Shorts', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(initResponse('https://upload.googleapis.com/up'))
+      .mockResolvedValueOnce(jsonResponse({ id: 'square-short', kind: 'youtube#video' }));
+    const c = new YouTubeConnector(AUTH, fetchMock);
+    await c.publish(input({ options: { title: 'Square short', durationSec: 180, aspectRatio: '1:1', tags: [] } }));
+    const initBody = JSON.parse((fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string) as { snippet: { tags: string[] } };
+    expect(initBody.snippet.tags).toEqual(['#Shorts']);
+  });
+
   it('applies default title, tags, category and privacy status', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(initResponse('https://upload.googleapis.com/up'))
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(initResponse('https://upload.googleapis.com/up'))
       .mockResolvedValueOnce(jsonResponse({ id: 'vid-4', kind: 'youtube#video' }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -268,7 +278,7 @@ describe('publish', () => {
     await c.publish(input());
 
     const initBody = JSON.parse(
-      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+      (fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string,
     ) as {
       snippet: { title: string; description: string; tags: string[]; categoryId: string };
       status: { privacyStatus: string; selfDeclaredMadeForKids: boolean };
@@ -296,7 +306,8 @@ describe('publish', () => {
   it('returns a failed result when the resumable init fails', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(jsonResponse({ error: { message: 'denied' } }, 403));
+      .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'youtube-secret' }, 403));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new YouTubeConnector(AUTH);
@@ -304,10 +315,14 @@ describe('publish', () => {
 
     expect(result.state).toBe('failed');
     expect(result.error).toContain('YouTube resumable upload init failed: 403');
+    expect(result.error).not.toContain('youtube-secret');
   });
 
   it('returns a failed result when no Location header is returned', async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(initResponse());
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('data', { status: 200 }))
+      .mockResolvedValueOnce(initResponse());
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new YouTubeConnector(AUTH);
@@ -318,10 +333,7 @@ describe('publish', () => {
   });
 
   it('returns a failed result when the source video cannot be downloaded', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(initResponse('https://upload.googleapis.com/up'))
-      .mockResolvedValueOnce(jsonResponse({}, 404));
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({}, 404));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new YouTubeConnector(AUTH);
@@ -336,9 +348,9 @@ describe('publish', () => {
   it('returns a failed result when the PUT upload fails', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(initResponse('https://upload.googleapis.com/up'))
       .mockResolvedValueOnce(new Response('data', { status: 200 }))
-      .mockResolvedValueOnce(jsonResponse({ error: 'quota' }, 503));
+      .mockResolvedValueOnce(initResponse('https://upload.googleapis.com/up'))
+      .mockResolvedValueOnce(jsonResponse({ access_token: 'youtube-secret' }, 503));
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new YouTubeConnector(AUTH);
@@ -346,6 +358,7 @@ describe('publish', () => {
 
     expect(result.state).toBe('failed');
     expect(result.error).toContain('YouTube video upload failed: 503');
+    expect(result.error).not.toContain('youtube-secret');
   });
 
   it('returns a failed result on network errors', async () => {
@@ -358,15 +371,16 @@ describe('publish', () => {
 });
 
 describe('fetchMetrics', () => {
-  it('parses string statistics into ConnectorMetrics', async () => {
+  it('parses YouTube Analytics report rows into ConnectorMetrics', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({
-        items: [
-          {
-            id: 'vid-1',
-            statistics: { viewCount: '100', likeCount: '5', commentCount: '2', favoriteCount: '1' },
-          },
+        columnHeaders: [
+          { name: 'video', columnType: 'DIMENSION', dataType: 'STRING' },
+          { name: 'views', columnType: 'METRIC', dataType: 'INTEGER' },
+          { name: 'likes', columnType: 'METRIC', dataType: 'INTEGER' },
+          { name: 'comments', columnType: 'METRIC', dataType: 'INTEGER' },
         ],
+        rows: [['vid-1', 100, 5, 2]],
       }),
     );
     vi.stubGlobal('fetch', fetchMock);
@@ -379,31 +393,71 @@ describe('fetchMetrics', () => {
     expect(metrics.metrics).toEqual({ views: 100, likes: 5, comments: 2 });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://www.googleapis.com/youtube/v3/videos?part=statistics&id=vid-1');
+    const parsed = new URL(url);
+    expect(parsed.origin + parsed.pathname).toBe('https://www.googleapis.com/youtube/analytics/v2/reports');
+    expect(parsed.searchParams.get('ids')).toBe('channel==MINE');
+    expect(parsed.searchParams.get('dimensions')).toBe('video');
+    expect(parsed.searchParams.get('filters')).toBe('video==vid-1');
+    expect(parsed.searchParams.get('metrics')).toBe('views,likes,comments');
+    expect(parsed.searchParams.has('sort')).toBe(false);
     expect(init.method).toBe('GET');
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer yt-token-123');
   });
 
-  it('defaults missing statistics to zero', async () => {
+  it('defaults an empty Analytics report to zero', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(jsonResponse({ items: [{ id: 'vid-1', statistics: {} }] })),
+      vi.fn().mockResolvedValue(jsonResponse({ columnHeaders: [{ name: 'views' }], rows: [] })),
     );
     const c = new YouTubeConnector(AUTH);
     const metrics = await c.fetchMetrics('vid-1');
     expect(metrics.metrics).toEqual({ views: 0, likes: 0, comments: 0 });
   });
 
-  it('throws when the video is not found', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ items: [] })));
-    const c = new YouTubeConnector(AUTH);
-    await expect(c.fetchMetrics('vid-1')).rejects.toThrow('YouTube video vid-1 not found');
+  it('rejects malformed video IDs before provider I/O', async () => {
+    const fetchMock = vi.fn();
+    const c = new YouTubeConnector(AUTH, fetchMock);
+    await expect(c.fetchMetrics('video&id=other')).rejects.toThrow('YouTube video ID is invalid');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('throws on HTTP errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 500)));
     const c = new YouTubeConnector(AUTH);
     await expect(c.fetchMetrics('vid-1')).rejects.toThrow('API GET');
+  });
+});
+
+describe('executeOperation', () => {
+  it('uploads captions with YouTube multipart/related metadata and bounded binary content', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('WEBVTT\n\n00:00.000 --> 00:01.000\nHello', {
+        status: 200,
+        headers: { 'Content-Type': 'text/vtt' },
+      }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'caption-track-1' }));
+    const connector = new YouTubeConnector(AUTH, fetchMock);
+    const result = await connector.executeOperation({
+      type: 'youtube.captions.upload',
+      videoId: 'video-1',
+      language: 'en-US',
+      name: 'English captions',
+      mediaUrl: 'https://media.example.test/asset',
+      isDraft: true,
+    });
+
+    expect(result).toEqual({ type: 'mutation', success: true, remoteId: 'caption-track-1' });
+    const [uploadUrl, init] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(new URL(uploadUrl).origin + new URL(uploadUrl).pathname).toBe('https://www.googleapis.com/upload/youtube/v3/captions');
+    const headers = init.headers as Record<string, string>;
+    expect(headers['Content-Type']).toMatch(/^multipart\/related; boundary=axiom-/);
+    expect(init.body).toBeInstanceOf(Blob);
+    const payload = await (init.body as Blob).text();
+    expect(payload).toContain('"videoId":"video-1"');
+    expect(payload).toContain('"language":"en-US"');
+    expect(payload).toContain('WEBVTT');
+    expect(payload).toContain('Content-Transfer-Encoding: binary');
+    expect(payload).toContain('--');
   });
 });
 
@@ -416,11 +470,12 @@ describe('revoke', () => {
     await c.revoke();
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://oauth2.googleapis.com/revoke?token=yt-token-123');
+    expect(url).toBe('https://oauth2.googleapis.com/revoke');
     expect(init.method).toBe('POST');
     expect((init.headers as Record<string, string>)['Content-Type']).toBe(
       'application/x-www-form-urlencoded',
     );
+    expect(init.body).toEqual(new URLSearchParams({ token: 'yt-token-123' }));
 
     expect(
       c.getLogs().some((l) => l.action === 'revoke' && l.message.includes('revoked successfully')),
@@ -430,17 +485,12 @@ describe('revoke', () => {
     expect(c.auth.expiresAt).toBe(0);
   });
 
-  it('warns but does not throw when revocation fails, and still clears auth', async () => {
+  it('retains auth when revocation fails', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: 'invalid_token' }, 400));
     vi.stubGlobal('fetch', fetchMock);
 
-    const c = new YouTubeConnector(AUTH);
-    await expect(c.revoke()).resolves.toBeUndefined();
-
-    expect(c.getLogs().some((l) => l.level === 'warn' && l.message.includes('warned: 400'))).toBe(
-      true,
-    );
-    expect(c.auth.accessToken).toBe('');
-    expect(c.auth.expiresAt).toBe(0);
+    const c = new YouTubeConnector({ accessToken: 'yt-token-123' });
+    await expect(c.revoke()).rejects.toThrow('token revocation failed: HTTP 400');
+    expect(c.auth.accessToken).toBe('yt-token-123');
   });
 });

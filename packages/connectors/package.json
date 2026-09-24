@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@axiom/core": "workspace:*",
+    "@axiom/fanvue-mcp": "workspace:*",
     "zod": "^3.23.0"
   },
   "devDependencies": {

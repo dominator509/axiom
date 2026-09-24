@@ -1,0 +1,14 @@
+[package]
+name = "egress-provisioner"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+egress-plane = { path = "../egress-plane" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+ring.workspace = true
+base64 = "0.22"
+thiserror.workspace = true

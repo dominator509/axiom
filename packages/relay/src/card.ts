@@ -16,6 +16,24 @@ export interface BundleContent {
   commandTokens?: Partial<Record<CardAction, string>>;
 }
 
+export interface InsightGroup {
+  platform: string;
+  learningArm: string;
+  learningContext: string;
+  sampleSize: number;
+  meanScore: number;
+  publishedHourUtc?: number | null;
+}
+
+export interface InsightContent {
+  id: string;
+  cardId?: string;
+  title: string;
+  description: string;
+  groups: readonly InsightGroup[];
+  icon?: string;
+}
+
 export interface PlatformVerdict {
   platform: string;
   passed: boolean;
@@ -38,6 +56,8 @@ export type CardAction =
 export interface RelayCard {
   /** Persistent relay_card id; absent only for non-dispatch preview renders. */
   cardId?: string;
+  /** Insight cards use the same channel adapters but have no bundle lifecycle. */
+  kind?: 'bundle' | 'insight';
   bundleId: string;
   mediaPreview: string;
   caption: string;
@@ -52,36 +72,42 @@ export interface RelayCard {
   commandTokens?: Partial<Record<CardAction, string>>;
   timestamp: number;
   format: 'html' | 'embed' | 'text';
+  insight?: {
+    title: string;
+    description: string;
+    icon?: string;
+    groups: readonly InsightGroup[];
+  };
 }
 
 // --- CardRenderer ---
 export class CardRenderer {
   renderBundleCard(bundle: BundleContent): RelayCard {
-    const verdicts: PlatformVerdict[] = bundle.targetPlatforms.map((platform) => ({
-      platform,
-      passed: (bundle.tosScores[platform] ?? 1) >= 0.7,
-      score: bundle.tosScores[platform] ?? 1,
-      reason:
-        (bundle.tosScores[platform] ?? 1) >= 0.7
-          ? 'ToS check passed'
-          : 'ToS check failed — score below threshold',
-    }));
+    const verdicts: PlatformVerdict[] = bundle.targetPlatforms.map((platform) => {
+      const rawScore = bundle.tosScores[platform];
+      const hasScore = typeof rawScore === 'number' && Number.isFinite(rawScore);
+      const score = hasScore ? Math.max(0, Math.min(1, rawScore)) : 0;
+      const passed = hasScore && score >= 0.7;
+      return {
+        platform,
+        passed,
+        score,
+        reason: !hasScore
+          ? 'ToS check unavailable — review required'
+          : passed
+            ? 'ToS check passed'
+            : 'ToS check failed — score below threshold',
+      };
+    });
 
     const allPassed = verdicts.every((v) => v.passed);
 
     const actions: CardAction[] = allPassed
-      ? [
-          'approve',
-          'approve_all',
-          'edit_caption',
-          'reschedule',
-          'reject',
-          'hold',
-          'publish_now',
-        ]
+      ? ['approve', 'approve_all', 'edit_caption', 'reschedule', 'reject', 'hold', 'publish_now']
       : ['regenerate', 'revise', 'reject', 'hold'];
 
     return {
+      kind: 'bundle',
       cardId: bundle.cardId,
       bundleId: bundle.id,
       mediaPreview: bundle.mediaUrls[0] ?? '',
@@ -99,7 +125,41 @@ export class CardRenderer {
     };
   }
 
+  renderInsightCard(insight: InsightContent): RelayCard {
+    return {
+      kind: 'insight',
+      cardId: insight.cardId,
+      // Channel adapters share the historical RelayCard envelope. An insight
+      // has no content bundle relationship; the empty transport field is
+      // intentionally never used for database lookups or command routing.
+      bundleId: '',
+      mediaPreview: '',
+      caption: insight.description,
+      captionVariants: {},
+      hashtagSets: {},
+      verdicts: [],
+      targetPlatforms: [],
+      actions: [],
+      timestamp: Date.now(),
+      format: 'html',
+      insight: {
+        title: insight.title.slice(0, 160),
+        description: insight.description.slice(0, 2000),
+        ...(insight.icon ? { icon: insight.icon.slice(0, 16) } : {}),
+        groups: insight.groups.slice(0, 10).map(group => ({
+          platform: group.platform.slice(0, 48),
+          learningArm: group.learningArm.slice(0, 96),
+          learningContext: group.learningContext.slice(0, 96),
+          sampleSize: Math.max(0, Math.trunc(group.sampleSize)),
+          meanScore: Number.isFinite(group.meanScore) ? group.meanScore : 0,
+          ...(group.publishedHourUtc == null ? {} : { publishedHourUtc: group.publishedHourUtc }),
+        })),
+      },
+    };
+  }
+
   toHtml(card: RelayCard): string {
+    if (card.kind === 'insight') return this.toInsightHtml(card);
     const verdictRows = card.verdicts
       .map(
         (v) =>
@@ -129,6 +189,7 @@ export class CardRenderer {
   }
 
   toEmbed(card: RelayCard): Record<string, unknown> {
+    if (card.kind === 'insight') return this.toInsightEmbed(card);
     return {
       title: `📦 Bundle: ${card.bundleId.slice(0, 8)}`,
       description: card.caption.slice(0, 400),
@@ -155,6 +216,7 @@ export class CardRenderer {
   }
 
   toText(card: RelayCard): string {
+    if (card.kind === 'insight') return this.toInsightText(card);
     const lines: string[] = [
       `📦 Bundle: ${card.bundleId}`,
       ...(card.mediaPreview ? [`Preview: ${card.mediaPreview}`] : []),
@@ -172,6 +234,61 @@ export class CardRenderer {
     ];
     return lines.join('\n');
   }
+
+  private toInsightHtml(card: RelayCard): string {
+    const insight = card.insight;
+    if (!insight) throw new Error('insight relay card missing insight payload');
+    const groups = insight.groups.map(group => {
+      const hour = group.publishedHourUtc == null ? '' : ` · ${group.publishedHourUtc}:00 UTC`;
+      return `<b>${escapeHtml(group.platform)}</b> · ${escapeHtml(group.learningArm)} · n=${group.sampleSize} · mean ${group.meanScore.toFixed(2)}${hour}`;
+    });
+    return [
+      `<b>${escapeHtml(insight.icon ?? '📈')} ${escapeHtml(insight.title)}</b>`,
+      '',
+      escapeHtml(insight.description),
+      groups.length > 0 ? '' : undefined,
+      groups.length > 0 ? '<b>Evidence:</b>' : undefined,
+      ...groups,
+    ].filter((value): value is string => value !== undefined).join('\n');
+  }
+
+  private toInsightEmbed(card: RelayCard): Record<string, unknown> {
+    const insight = card.insight;
+    if (!insight) throw new Error('insight relay card missing insight payload');
+    return {
+      title: `${insight.icon ?? '📈'} ${insight.title}`.slice(0, 256),
+      description: insight.description.slice(0, 4000),
+      color: 0x4f46e5,
+      fields: insight.groups.slice(0, 10).map(group => ({
+        name: group.platform,
+        value: `${group.learningArm} · n=${group.sampleSize} · mean ${group.meanScore.toFixed(2)}${group.publishedHourUtc == null ? '' : ` · ${group.publishedHourUtc}:00 UTC`}`,
+        inline: false,
+      })),
+      timestamp: new Date(card.timestamp).toISOString(),
+    };
+  }
+
+  private toInsightText(card: RelayCard): string {
+    const insight = card.insight;
+    if (!insight) throw new Error('insight relay card missing insight payload');
+    return [
+      `${insight.icon ?? '📈'} ${insight.title}`,
+      '',
+      insight.description,
+      ...insight.groups.map(group =>
+        `  ${group.platform} · ${group.learningArm} · n=${group.sampleSize} · mean ${group.meanScore.toFixed(2)}${group.publishedHourUtc == null ? '' : ` · ${group.publishedHourUtc}:00 UTC`}`,
+      ),
+    ].join('\n');
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"]/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+  }[character] ?? character));
 }
 
 function actionKeyword(action: CardAction, token?: string): string {

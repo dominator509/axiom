@@ -9,6 +9,7 @@ import { mockState, mockDbFactory } from './test-utils.js';
 vi.mock('@axiom/db', () => mockDbFactory({ orgSettings: {}, killSwitch: {} }));
 
 import { killswitchRouter } from './killswitch.js';
+import { db } from '@axiom/db';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -25,6 +26,7 @@ function appWithOrg(orgId: string | null) {
 
 beforeEach(() => {
   mockState.result = [];
+  mockState.results = [];
 });
 
 afterEach(() => {
@@ -33,6 +35,23 @@ afterEach(() => {
 });
 
 describe('GET /killswitch — status', () => {
+  it('fails closed without creating settings when no row exists', async () => {
+    const insert = vi.fn(() => { throw new Error('Status must not write'); });
+    const update = vi.fn(() => { throw new Error('Status must not write'); });
+    const select = vi.fn(() => ({ from: () => ({ where: () => ({ limit: async () => [] }) }) }));
+    vi.mocked(db.transaction).mockImplementationOnce(async (callback: any) => callback({
+      execute: vi.fn().mockResolvedValue([]), select, insert, update,
+    }));
+    const res = await appWithOrg(ORG_ID).request('/killswitch');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ data: {
+      enabled: true, reason: '', startedAt: null, updatedAt: null,
+    } });
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(insert).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it('reports the kill switch disabled when settings exist and publishing is enabled', async () => {
     mockState.result = [
       {
@@ -116,6 +135,22 @@ describe('POST /killswitch/enable', () => {
       body: '{not-json',
     });
     expect(res.status).toBe(400);
+  });
+
+  it('initializes missing settings before enabling the switch', async () => {
+    const updated = {
+      orgId: ORG_ID,
+      publishingEnabled: false,
+      killSwitchReason: 'New org shutdown',
+    };
+    mockState.results = [[], [updated], [updated]];
+    const res = await appWithOrg(ORG_ID).request('/killswitch/enable', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ reason: 'New org shutdown' }),
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).data.enabled).toBe(true);
   });
 });
 

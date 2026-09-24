@@ -3,9 +3,12 @@ import type { RelayCard, CardAction } from '../card.js';
 import { CardRenderer } from '../card.js';
 import { CommandRouter, type CommandContext } from '../commands.js';
 
+const TELEGRAM_API_TIMEOUT_SECONDS = 60;
+
 export interface TelegramConfig {
   token: string;
   webhookUrl?: string;
+  webhookSecret?: string;
 }
 
 type CommandHandler = (
@@ -19,22 +22,23 @@ export class TelegramAdapter {
   private renderer: CardRenderer;
   private handlers: Map<string, CommandHandler> = new Map();
   private commandRouter?: CommandRouter;
+  private webhookSecret?: string;
   private callbackHandlerRegistered = false;
 
   constructor(config: TelegramConfig, commandRouter?: CommandRouter) {
-    this.bot = new Bot(config.token);
+    this.bot = new Bot(config.token, {
+      client: { timeoutSeconds: TELEGRAM_API_TIMEOUT_SECONDS },
+    });
     this.renderer = new CardRenderer();
     this.commandRouter = commandRouter;
+    this.webhookSecret = config.webhookSecret;
   }
 
   getBot(): Bot {
     return this.bot;
   }
 
-  onCommand(
-    action: CardAction,
-    handler: CommandHandler,
-  ): void {
+  onCommand(action: CardAction, handler: CommandHandler): void {
     this.handlers.set(action, handler);
   }
 
@@ -61,6 +65,9 @@ export class TelegramAdapter {
   }
 
   async handleCallback(callbackQuery: any): Promise<void> {
+    const callbackId = typeof callbackQuery?.id === 'string' ? callbackQuery.id : '';
+    if (!callbackId) return;
+
     const token = typeof callbackQuery?.data === 'string' ? callbackQuery.data : '';
     const sourceId = callbackQuery?.message?.chat?.id;
     const pending = this.commandRouter?.peekCommandToken(token);
@@ -76,16 +83,22 @@ export class TelegramAdapter {
       await this.bot.api.sendMessage(String(sourceId), parameterPrompt(pending.action, token));
       return;
     }
-    const processed = await this.dispatchToken(
+
+    // Telegram keeps showing a client-side progress indicator until the
+    // callback is acknowledged. A command handler can perform DB and
+    // provider work, so acknowledge a valid command before entering it.
+    const handler = pending ? this.handlers.get(pending.action) : undefined;
+    if (!handler || sourceId === undefined || sourceId === null) {
+      await this.bot.api.answerCallbackQuery(callbackId);
+      return;
+    }
+    await this.bot.api.answerCallbackQuery(callbackId, { text: 'Action received' });
+
+    await this.dispatchToken(
       token,
       undefined,
       sourceId === undefined || sourceId === null ? undefined : String(sourceId),
     );
-    if (processed) {
-      await this.bot.api.answerCallbackQuery(callbackQuery.id, {
-        text: `Action processed`,
-      });
-    }
   }
 
   setupCommands(): void {
@@ -119,13 +132,61 @@ export class TelegramAdapter {
   async startPolling(): Promise<void> {
     this.setupCommands();
     this.registerCallbackHandler();
-    this.bot.start();
+
+    // grammY's start promise intentionally stays pending for the lifetime of
+    // long polling. Wait only for its onStart callback so initializeRuntime
+    // can fail closed on invalid credentials or a failed deleteWebhook call
+    // without blocking API startup on the polling loop itself.
+    let resolveStartup!: () => void;
+    let rejectStartup!: (reason?: unknown) => void;
+    let startupComplete = false;
+    const startup = new Promise<void>((resolve, reject) => {
+      resolveStartup = resolve;
+      rejectStartup = reject;
+    });
+
+    let polling: Promise<void>;
+    try {
+      polling = this.bot.start({
+        onStart: () => {
+          startupComplete = true;
+          resolveStartup();
+        },
+      });
+    } catch (error) {
+      rejectStartup(error);
+      await startup;
+      return;
+    }
+
+    void polling.catch((error) => {
+      if (!startupComplete) {
+        rejectStartup(error);
+        return;
+      }
+      console.error('Telegram long polling stopped', error);
+    });
+
+    await startup;
   }
 
   async setWebhook(url: string): Promise<void> {
-    await this.bot.api.setWebhook(url);
+    // Webhook delivery calls bot.handleUpdate, which requires botInfo. Polling
+    // initializes grammY as part of bot.start(), but webhook mode has no such
+    // implicit initialization step.
+    await this.bot.init();
+    if (this.webhookSecret) {
+      await this.bot.api.setWebhook(url, { secret_token: this.webhookSecret });
+    } else {
+      await this.bot.api.setWebhook(url);
+    }
     this.setupCommands();
     this.registerCallbackHandler();
+  }
+
+  /** Process one provider-delivered webhook update after the API verifies it. */
+  async handleWebhook(update: Parameters<Bot['handleUpdate']>[0]): Promise<void> {
+    await this.bot.handleUpdate(update);
   }
 
   private registerCallbackHandler(): void {
@@ -177,10 +238,7 @@ function isParameterizedAction(action: CardAction): action is 'edit_caption' | '
   return action === 'edit_caption' || action === 'reschedule';
 }
 
-function commandParams(
-  action: CardAction,
-  remainder: string,
-): Record<string, unknown> {
+function commandParams(action: CardAction, remainder: string): Record<string, unknown> {
   if (!remainder) return {};
   if (action === 'edit_caption') return { caption: remainder };
   if (action === 'reschedule') return { scheduledFor: remainder };

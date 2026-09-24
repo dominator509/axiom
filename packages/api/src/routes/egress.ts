@@ -1,27 +1,32 @@
 // ─── Egress config management (L2.6) — Vitest-backed API routes ───
 // Real DB-backed CRUD for model_network_configs (org-scoped via RLS
-// app.current_org_id) + proxy endpoints to the egress-plane (:3000) for
-// bind/unbind/status/sync. Credentials never enter the API process in
-// plaintext: the API calls the plane's /egress/encrypt to get an envelope
+// app.current_org_id) + proxy endpoints to the egress-plane (:9090) for
+// bind/unbind/status/sync. Credentials pass through the authenticated API
+// in memory: the API calls the plane's /egress/encrypt to get an envelope
 // and stores enc_creds/enc_nonce/dek_id.
 
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { zValidator } from '@hono/zod-validator';
+import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
 import { eq, and, sql } from 'drizzle-orm';
+import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson } from '@axiom/core';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { apiError, modelOrgId, statusTitle } from './helpers.js';
+import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 
 const router = new Hono<AppBindings>();
 
-const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? 'http://127.0.0.1:3000';
+const EGRESS_PLANE_URL = process.env.EGRESS_PLANE_URL ?? DEFAULT_EGRESS_PLANE_URL;
+const EGRESS_PLANE_HEADERS: Record<string, string> = process.env.EGRESS_PLANE_TOKEN?.trim()
+  ? { 'x-egress-plane-token': process.env.EGRESS_PLANE_TOKEN.trim() }
+  : {};
 const EGRESS_MODES = ['direct', 'socks5', 'http', 'https', 'wireguard', 'vpn'] as const;
 const EGRESS_DEK_ID = process.env.EGRESS_DEK_ID ?? 'egress-dek';
 
 const createEgressConfigSchema = z.object({
   modelId: z.string().uuid(),
-  egressMode: z.enum(EGRESS_MODES).default('direct'),
+  egressMode: z.enum(EGRESS_MODES),
   proxyType: z.string().max(20).optional(),
   proxyAddr: z.string().max(500).optional(),
   wgPublicKey: z.string().max(200).optional(),
@@ -36,6 +41,11 @@ const createEgressConfigSchema = z.object({
   proxyPassword: z.string().max(500).optional(),
   wgPrivateKey: z.string().max(500).optional(),
   wgPresharedKey: z.string().max(500).optional(),
+  wgInterfaceAddress: z.string().max(49).refine(value => {
+    const [address, prefix, extra] = value.split('/');
+    return extra === undefined && z.string().ip({ version: 'v4' }).safeParse(address).success
+      && /^(?:[0-9]|[12][0-9]|3[0-2])$/.test(prefix ?? '');
+  }, 'WireGuard interface address must be IPv4/CIDR').optional(),
   vpnConfig: z.string().max(20000).optional(),
 });
 
@@ -56,7 +66,7 @@ async function encryptCreds(
   try {
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/encrypt`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
       body: JSON.stringify({
         plaintext: Buffer.from(plaintext, 'utf8').toString('base64'),
         dek_id: EGRESS_DEK_ID,
@@ -64,11 +74,11 @@ async function encryptCreds(
       signal: AbortSignal.timeout(2000),
     });
     if (!res.ok) return null;
-    const body = (await res.json()) as {
+    const body = await readBoundedResponseJson<{
       enc_creds?: string;
       enc_nonce?: string;
       dek_id?: string;
-    };
+    }>(res);
     if (!body.enc_creds || !body.enc_nonce) return null;
     return {
       encCreds: new Uint8Array(Buffer.from(body.enc_creds, 'base64')),
@@ -87,6 +97,7 @@ function credsPayload(body: Record<string, unknown>): string | null {
     proxyPassword: 'proxy_password',
     wgPrivateKey: 'wg_private_key',
     wgPresharedKey: 'wg_preshared_key',
+    wgInterfaceAddress: 'iface_addr',
     vpnConfig: 'vpn_config',
   } as const;
   const credentials: Record<string, string> = {};
@@ -117,9 +128,8 @@ router.get('/', async (c) => {
         .where(eq(schema.modelNetworkConfigs.orgId, orgId)),
     );
     return c.json({ data: rows.map(sanitizeConfig), meta: { total: rows.length } });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 500, statusTitle(500), `egress config list failed: ${msg}`);
+  } catch {
+    return apiError(c, 500, statusTitle(500), 'egress config list failed');
   }
 });
 
@@ -140,9 +150,8 @@ router.get('/:id', async (c) => {
     );
     if (rows.length === 0) return apiError(c, 404, statusTitle(404), 'config not found');
     return c.json({ data: sanitizeConfig(rows[0]) });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 500, statusTitle(500), `egress config get failed: ${msg}`);
+  } catch {
+    return apiError(c, 500, statusTitle(500), 'egress config get failed');
   }
 });
 
@@ -210,9 +219,8 @@ router.post('/', zValidator('json', createEgressConfigSchema), async (c) => {
     });
     if (!inserted) return apiError(c, 404, statusTitle(404), 'model not found');
     return c.json({ data: sanitizeConfig(inserted[0]) }, 201);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 500, statusTitle(500), `egress config create failed: ${msg}`);
+  } catch {
+    return apiError(c, 500, statusTitle(500), 'egress config create failed');
   }
 });
 
@@ -276,9 +284,8 @@ router.patch('/:id', zValidator('json', updateEgressConfigSchema), async (c) => 
     });
     if (updated.length === 0) return apiError(c, 404, statusTitle(404), 'config not found');
     return c.json({ data: sanitizeConfig(updated[0]) });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 500, statusTitle(500), `egress config update failed: ${msg}`);
+  } catch {
+    return apiError(c, 500, statusTitle(500), 'egress config update failed');
   }
 });
 
@@ -298,9 +305,8 @@ router.delete('/:id', async (c) => {
     );
     if (deleted.length === 0) return apiError(c, 404, statusTitle(404), 'config not found');
     return c.json({ success: true });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 500, statusTitle(500), `egress config delete failed: ${msg}`);
+  } catch {
+    return apiError(c, 500, statusTitle(500), 'egress config delete failed');
   }
 });
 
@@ -309,8 +315,15 @@ router.delete('/:id', async (c) => {
 // POST /plane/bind — forward a bind request to the egress plane
 router.post('/plane/bind', async (c) => {
   const orgId = c.get('orgId');
-  const body = await c.req.json().catch(() => ({}));
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  let body: unknown = {};
+  try {
+    body = await readBoundedJson(c.req.raw);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return apiError(c, 413, statusTitle(413), 'egress bind body too large');
+    }
+  }
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return apiError(c, 400, statusTitle(400), 'request body must be an object');
   }
@@ -326,28 +339,34 @@ router.post('/plane/bind', async (c) => {
     }
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/bind`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
       // The authenticated request context is authoritative. Put org_id last
       // so a caller cannot smuggle another tenant into the plane payload.
       body: JSON.stringify({ ...payload, org_id: orgId }),
       signal: AbortSignal.timeout(10000),
     });
-    const data = await res.json().catch(() => ({}));
+    const data = await readBoundedResponseJson(res).catch(() => ({}));
     return c.json(
       { data },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
     );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
+  } catch {
+    return apiError(c, 502, statusTitle(502), 'egress plane unreachable');
   }
 });
 
 // POST /plane/unbind — forward an unbind request
 router.post('/plane/unbind', async (c) => {
   const orgId = c.get('orgId');
-  const body = await c.req.json().catch(() => ({}));
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  let body: unknown = {};
+  try {
+    body = await readBoundedJson(c.req.raw);
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return apiError(c, 413, statusTitle(413), 'egress unbind body too large');
+    }
+  }
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return apiError(c, 400, statusTitle(400), 'request body must be an object');
   }
@@ -363,18 +382,17 @@ router.post('/plane/unbind', async (c) => {
     }
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/unbind`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
       body: JSON.stringify({ ...payload, org_id: orgId }),
       signal: AbortSignal.timeout(10000),
     });
-    const data = await res.json().catch(() => ({}));
+    const data = await readBoundedResponseJson(res).catch(() => ({}));
     return c.json(
       { data },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
     );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
+  } catch {
+    return apiError(c, 502, statusTitle(502), 'egress plane unreachable');
   }
 });
 
@@ -386,15 +404,15 @@ router.get('/plane/status', async (c) => {
   let res: Response;
   try {
     res = await fetch(`${EGRESS_PLANE_URL}/egress/status`, {
+      headers: EGRESS_PLANE_HEADERS,
       signal: AbortSignal.timeout(3000),
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
+  } catch {
+    return apiError(c, 502, statusTitle(502), 'egress plane unreachable');
   }
 
   try {
-    const data = (await res.json().catch(() => ({}))) as unknown;
+    const data = (await readBoundedResponseJson(res).catch(() => ({}))) as unknown;
     const dataRecord =
       typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : null;
     const rows = await withOrgContext(orgId, (tx) =>
@@ -416,35 +434,43 @@ router.get('/plane/status', async (c) => {
         typeof (model as Record<string, unknown>).model_id === 'string' &&
         allowedModelIds.has((model as Record<string, unknown>).model_id as string),
     );
-    const scopedData =
-      dataRecord
-        ? { ...dataRecord, count: models.length, models }
-        : { count: models.length, models };
+    const scopedData = dataRecord
+      ? { ...dataRecord, count: models.length, models }
+      : { count: models.length, models };
     return c.json(
       { data: scopedData },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
     );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 500, statusTitle(500), `egress status scope failed: ${msg}`);
+  } catch {
+    return apiError(c, 500, statusTitle(500), 'egress status scope failed');
   }
 });
 
-// POST /plane/sync — ask the plane to sync configs from the DB
+// POST /plane/sync — reconcile only the authenticated owner's selected model
 router.post('/plane/sync', async (c) => {
+  const orgId = c.get('orgId');
+  if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  let payload: unknown;
+  try { payload = await readBoundedJson(c.req.raw); }
+  catch { return apiError(c, 400, statusTitle(400), 'model_id required'); }
+  const parsed = z.object({ model_id: z.string().uuid() }).strict().safeParse(payload);
+  if (!parsed.success) return apiError(c, 400, statusTitle(400), 'model_id required');
   try {
-    const res = await fetch(`${EGRESS_PLANE_URL}/egress/sync`, {
+    const ownerOrgId = await withOrgContext(orgId, tx => modelOrgId(tx, parsed.data.model_id));
+    if (ownerOrgId !== orgId) return apiError(c, 404, statusTitle(404), 'model not found');
+    const query = new URLSearchParams({ model_id: parsed.data.model_id, org_id: orgId });
+    const res = await fetch(`${EGRESS_PLANE_URL}/egress/sync-model?${query}`, {
       method: 'POST',
+      headers: EGRESS_PLANE_HEADERS,
       signal: AbortSignal.timeout(30000),
     });
-    const data = await res.json().catch(() => ({}));
+    const data = await readBoundedResponseJson(res).catch(() => ({}));
     return c.json(
       { data },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
     );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
+  } catch {
+    return apiError(c, 502, statusTitle(502), 'egress plane unreachable');
   }
 });
 
@@ -452,16 +478,16 @@ router.post('/plane/sync', async (c) => {
 router.get('/plane/health', async (c) => {
   try {
     const res = await fetch(`${EGRESS_PLANE_URL}/health`, {
+      headers: EGRESS_PLANE_HEADERS,
       signal: AbortSignal.timeout(2000),
     });
-    const data = await res.json().catch(() => ({}));
+    const data = await readBoundedResponseJson(res).catch(() => ({}));
     return c.json(
       { data },
       res.status as 200 | 400 | 401 | 402 | 403 | 404 | 409 | 422 | 429 | 500 | 502 | 503 | 504,
     );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return apiError(c, 502, statusTitle(502), `egress plane unreachable: ${msg}`);
+  } catch {
+    return apiError(c, 502, statusTitle(502), 'egress plane unreachable');
   }
 });
 

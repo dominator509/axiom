@@ -17,6 +17,12 @@ export const fanvueMetric = pgTable('fanvue_metric', {
   messages: integer('messages').notNull().default(0),
   tips: integer('tips').notNull().default(0),
   tipEarningsUsd: numeric('tip_earnings_usd', { precision: 12, scale: 2 }).notNull().default('0'),
+  subscriberEventsNew: integer('subscriber_events_new').notNull().default(0),
+  subscriberEventsCancelled: integer('subscriber_events_cancelled').notNull().default(0),
+  unreadMessages: integer('unread_messages').notNull().default(0),
+  topSpenderCount: integer('top_spender_count').notNull().default(0),
+  windowStart: timestamp('window_start', { withTimezone: true }),
+  windowEnd: timestamp('window_end', { withTimezone: true }),
   raw: jsonb('raw').$type<Record<string, unknown>>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

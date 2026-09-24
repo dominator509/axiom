@@ -2,6 +2,7 @@
 
 import type { Executor } from './context.js';
 import { contentGenerate } from './generate.js';
+import { mediaGenerate } from './media_generate.js';
 import { tosScan } from './tos.js';
 import { relayCard } from './relay_card.js';
 import { publishTarget } from './publish.js';
@@ -10,9 +11,18 @@ import { viralLabel } from './viral.js';
 import { incidentNotify } from './incident.js';
 import { dlqReplay } from './dlq.js';
 import { digestWeekly } from './digest.js';
+import { triggerEvaluate } from './trigger.js';
+import { scrapeRun } from './scrape.js';
+import { mediaTransform } from './media_transform.js';
+import { fanvueAnalyticsSync } from './fanvue_analytics.js';
+import { viralInsight } from './viral_insight.js';
 
 export type { Executor, ExecutorContext } from './context.js';
-export { ParkJobError } from './context.js';
+export {
+  EXTERNAL_SIDE_EFFECT_UNKNOWN_PREFIX,
+  ParkJobError,
+  isExternalSideEffectUnknown,
+} from './context.js';
 export {
   contentGenerate,
   tosScan,
@@ -23,10 +33,16 @@ export {
   incidentNotify,
   dlqReplay,
   digestWeekly,
+  triggerEvaluate,
+  scrapeRun,
+  mediaTransform,
+  fanvueAnalyticsSync,
+  viralInsight,
 };
 
 export const defaultExecutors: Record<string, Executor> = {
   'content.generate': contentGenerate,
+  'media.generate': mediaGenerate,
   'tos.scan': tosScan,
   'relay.card': relayCard,
   'publish.target': publishTarget,
@@ -35,4 +51,9 @@ export const defaultExecutors: Record<string, Executor> = {
   'incident.notify': incidentNotify,
   'dlq.replay': dlqReplay,
   'digest.weekly': digestWeekly,
+  'trigger.evaluate': triggerEvaluate,
+  'scrape.run': scrapeRun,
+  'media.transform': mediaTransform,
+  'fanvue.analytics.sync': fanvueAnalyticsSync,
+  'viral.insight': viralInsight,
 };

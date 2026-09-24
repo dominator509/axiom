@@ -1,4 +1,5 @@
 use std::io;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::process::Command;
 use std::time::Duration;
 use tracing::{error, info, instrument, warn};
@@ -71,10 +72,38 @@ pub fn delete_netns(name: &str) -> io::Result<()> {
 pub fn set_null_default_route(ns: &str) -> io::Result<()> {
     require_linux_netns()?;
     // Delete any existing default route first
-    let _ = execute_in_netns(ns, &["ip", "route", "del", "default"]);
+    match execute_in_netns(ns, &["ip", "route", "del", "default"]) {
+        Ok(_) => {}
+        Err(error) if is_missing_route_error(&error) => {}
+        Err(error) => return Err(error),
+    }
 
     // Add a blackhole route — all traffic to 0.0.0.0/0 is dropped
-    let output = execute_in_netns(ns, &["ip", "route", "add", "blackhole", "default"]);
+    execute_in_netns(
+        ns,
+        &[
+            "ip",
+            "-6",
+            "route",
+            "replace",
+            "blackhole",
+            "default",
+            "metric",
+            "32767",
+        ],
+    )?;
+    let output = execute_in_netns(
+        ns,
+        &[
+            "ip",
+            "route",
+            "add",
+            "blackhole",
+            "default",
+            "metric",
+            "32767",
+        ],
+    );
     match output {
         Ok(out) => {
             info!(netns = %ns, output = %out.trim(), "Set null default route (blackhole)");
@@ -93,6 +122,148 @@ pub fn set_null_default_route(ns: &str) -> io::Result<()> {
     }
 }
 
+/// Resolve once in the parent namespace. The sidecar and firewall consume
+/// the same numeric endpoint, preventing DNS changes from widening routing.
+pub fn resolve_endpoint(addr: &str) -> io::Result<SocketAddr> {
+    let url = url::Url::parse(&format!("http://{addr}")).map_err(io::Error::other)?;
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(io::Error::other(
+            "endpoint must be host:port without credentials",
+        ));
+    }
+    let host = url
+        .host_str()
+        .ok_or_else(|| io::Error::other("endpoint host required"))?;
+    let port = url
+        .port_or_known_default()
+        .ok_or_else(|| io::Error::other("endpoint port required"))?;
+    (host.trim_matches(['[', ']']), port)
+        .to_socket_addrs()?
+        .find(SocketAddr::is_ipv4)
+        .ok_or_else(|| {
+            io::Error::other("an IPv4 upstream endpoint is required by the veth transport")
+        })
+}
+
+/// Install the closed baseline used before an egress policy has attached an
+/// upstream.  It accepts loopback and established replies only; it does not
+/// admit an inbound sidecar, DNS resolver, bridge, or default route.
+pub fn configure_default_deny_firewall(ns: &str) -> io::Result<()> {
+    for tool in ["iptables", "ip6tables"] {
+        for chain in ["INPUT", "OUTPUT", "FORWARD"] {
+            execute_in_netns(ns, &[tool, "-P", chain, "DROP"])?;
+            execute_in_netns(ns, &[tool, "-F", chain])?;
+        }
+        for (chain, iface) in [("INPUT", "-i"), ("OUTPUT", "-o")] {
+            execute_in_netns(ns, &[tool, "-A", chain, iface, "lo", "-j", "ACCEPT"])?;
+            execute_in_netns(
+                ns,
+                &[
+                    tool,
+                    "-A",
+                    chain,
+                    "-m",
+                    "conntrack",
+                    "--ctstate",
+                    "ESTABLISHED,RELATED",
+                    "-j",
+                    "ACCEPT",
+                ],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Default deny applies to BOTH protocol families, including connected routes.
+/// Only replies to authorized clients and an explicitly selected upstream
+/// can leave. No new connection to a host/bridge/DNS port is implicitly allowed.
+pub fn configure_firewall(ns: &str, gateway: &str, sidecar_port: u16) -> io::Result<()> {
+    configure_default_deny_firewall(ns)?;
+    execute_in_netns(
+        ns,
+        &[
+            "iptables",
+            "-A",
+            "INPUT",
+            "-s",
+            gateway,
+            "-p",
+            "tcp",
+            "--dport",
+            &sidecar_port.to_string(),
+            "-j",
+            "ACCEPT",
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn allow_endpoint(
+    ns: &str,
+    gateway: &str,
+    endpoint: SocketAddr,
+    protocol: &str,
+) -> io::Result<()> {
+    if !endpoint.is_ipv4() || !matches!(protocol, "tcp" | "udp") {
+        return Err(io::Error::other("unsupported upstream transport"));
+    }
+    let ip = endpoint.ip().to_string();
+    if ip != gateway {
+        execute_in_netns(
+            ns,
+            &[
+                "ip",
+                "route",
+                "replace",
+                &format!("{ip}/32"),
+                "via",
+                gateway,
+            ],
+        )?;
+    }
+    execute_in_netns(
+        ns,
+        &[
+            "iptables",
+            "-A",
+            "OUTPUT",
+            "-d",
+            &ip,
+            "-p",
+            protocol,
+            "--dport",
+            &endpoint.port().to_string(),
+            "-j",
+            "ACCEPT",
+        ],
+    )?;
+    Ok(())
+}
+
+pub fn allow_tunnel(ns: &str) -> io::Result<()> {
+    for tool in ["iptables", "ip6tables"] {
+        execute_in_netns(
+            ns,
+            &[
+                tool,
+                "-A",
+                "OUTPUT",
+                "-o",
+                crate::tunnel::TUNNEL_IFACE,
+                "-j",
+                "ACCEPT",
+            ],
+        )?;
+    }
+    Ok(())
+}
+
 /// Add an allow-rule in the namespace to permit egress to a specific host.
 /// Uses iptables in the target namespace: ACCEPT traffic to the host, then
 /// sets a default DROP policy on the OUTPUT chain.
@@ -100,7 +271,7 @@ pub fn set_null_default_route(ns: &str) -> io::Result<()> {
 pub fn add_allow_rule(ns: &str, host: &str) -> io::Result<()> {
     require_linux_netns()?;
     // Ensure the OUTPUT chain exists and has a default DROP policy
-    let _ = execute_in_netns(ns, &["iptables", "-P", "OUTPUT", "DROP"]);
+    execute_in_netns(ns, &["iptables", "-P", "OUTPUT", "DROP"])?;
 
     // Add an ACCEPT rule for the specific host (insert at position 1)
     let output = execute_in_netns(
@@ -124,12 +295,14 @@ pub fn add_allow_rule(ns: &str, host: &str) -> io::Result<()> {
 #[instrument]
 pub fn flush_allow_rules(ns: &str) -> io::Result<()> {
     require_linux_netns()?;
+    execute_in_netns(ns, &["ip6tables", "-P", "OUTPUT", "DROP"])?;
+    execute_in_netns(ns, &["ip6tables", "-F", "OUTPUT"])?;
     let output = execute_in_netns(ns, &["iptables", "-F", "OUTPUT"]);
     match output {
         Ok(out) => {
             info!(netns = %ns, output = %out.trim(), "Flushed all allow rules");
             // After flush, set DROP policy so fail-closed is maintained
-            let _ = execute_in_netns(ns, &["iptables", "-P", "OUTPUT", "DROP"]);
+            execute_in_netns(ns, &["iptables", "-P", "OUTPUT", "DROP"])?;
             Ok(())
         }
         Err(e) => {
@@ -137,6 +310,13 @@ pub fn flush_allow_rules(ns: &str) -> io::Result<()> {
             Err(e)
         }
     }
+}
+
+fn is_missing_route_error(error: &io::Error) -> bool {
+    let message = error.to_string();
+    message.contains("No such process")
+        || message.contains("Cannot find")
+        || message.contains("not exist")
 }
 
 /// Execute a command inside a network namespace via `ip netns exec`.
@@ -174,9 +354,9 @@ pub fn execute_in_netns(ns: &str, cmd: &[&str]) -> io::Result<String> {
 /// `host_ip` is assigned to the host-side interface (e.g. 10.240.0.1/30),
 /// `ns_ip` to the netns-side (e.g. 10.240.0.2/30). The netns-side address is
 /// where the per-model sidecar proxy listens; the host-side address is what
-/// API/connector clients connect to. Interface names are derived from a hash
+/// API/connector clients originate from. Interface names are derived from a hash
 /// of the namespace name so distinct models never collide (and the 15-char
-/// Linux ifname limit is respected). Returns the host-side address.
+/// Linux ifname limit is respected). Returns the host-side interface name.
 #[instrument]
 pub fn setup_veth(ns: &str, host_ip: &str, ns_ip: &str) -> io::Result<String> {
     require_linux_netns()?;
@@ -235,15 +415,18 @@ pub fn setup_veth(ns: &str, host_ip: &str, ns_ip: &str) -> io::Result<String> {
             String::from_utf8_lossy(&addr_out.stderr).trim()
         )));
     }
-    let _ = Command::new("ip")
+    let up = Command::new("ip")
         .args(["link", "set", &veth_host, "up"])
-        .output();
+        .output()?;
+    if !up.status.success() {
+        return Err(io::Error::other("host veth link activation failed"));
+    }
     execute_in_netns(ns, &["ip", "addr", "add", ns_ip, "dev", &veth_ns])?;
     execute_in_netns(ns, &["ip", "link", "set", &veth_ns, "up"])?;
-    let _ = execute_in_netns(ns, &["ip", "link", "set", "lo", "up"]);
+    execute_in_netns(ns, &["ip", "link", "set", "lo", "up"])?;
 
     info!(netns = %ns, veth_host = %veth_host, host_ip = %host_ip, ns_ip = %ns_ip, "veth pair ready");
-    Ok(host_ip.to_string())
+    Ok(veth_host)
 }
 
 /// Remove a veth pair by host-side interface name (idempotent).
@@ -320,7 +503,7 @@ pub async fn health_check_proxy(proxy_type: &str, addr: &str) -> Result<bool, St
     .await;
 
     match tcp_check {
-        Ok(_stream) => {
+        Ok(Ok(_stream)) => {
             info!(proxy_type = %proxy_type, addr = %addr, "TCP connect succeeded");
 
             // For HTTP proxies, try an HTTP health check
@@ -344,11 +527,10 @@ pub async fn health_check_proxy(proxy_type: &str, addr: &str) -> Result<bool, St
 
             Ok(true)
         }
-        Err(e) => {
+        Ok(Err(_)) | Err(_) => {
             warn!(
                 proxy_type = %proxy_type,
                 addr = %addr,
-                error = %e,
                 "TCP connect to proxy failed"
             );
             Ok(false)
@@ -386,5 +568,18 @@ mod tests {
     fn test_execute_in_netns_no_ns() {
         let result = execute_in_netns("nonexistent_ns_88888", &["echo", "hello"]);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn only_missing_routes_are_safe_to_ignore_during_cleanup() {
+        assert!(is_missing_route_error(&io::Error::other(
+            "RTNETLINK answers: No such process"
+        )));
+        assert!(is_missing_route_error(&io::Error::other(
+            "Cannot find device"
+        )));
+        assert!(!is_missing_route_error(&io::Error::other(
+            "RTNETLINK answers: Operation not permitted"
+        )));
     }
 }

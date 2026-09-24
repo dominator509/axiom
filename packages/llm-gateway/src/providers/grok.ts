@@ -1,5 +1,7 @@
 // Grok (xAI) provider — https://docs.x.ai/api/chat-completions
 
+import { readProviderErrorText, readProviderJson } from '../bounded-provider-response.js';
+
 export const GROK_BASE_URL = 'https://api.x.ai/v1';
 
 export interface GrokCompletionRequest {
@@ -42,10 +44,10 @@ export async function callGrok(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new Error(`Grok API error ${res.status}: ${text}`);
   }
-  return res.json() as Promise<GrokCompletionResponse>;
+  return readProviderJson<GrokCompletionResponse>(res);
 }
 
 export async function* streamGrok(
@@ -64,7 +66,7 @@ export async function* streamGrok(
     signal,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
+    const text = await readProviderErrorText(res);
     throw new Error(`Grok stream error ${res.status}: ${text}`);
   }
   const reader = res.body?.getReader();

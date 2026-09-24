@@ -24,21 +24,33 @@ export interface JobRow {
 /** Job kinds per L3.4 §2. */
 export type JobKind =
   | 'content.generate'
+  | 'media.generate'
   | 'tos.scan'
   | 'relay.card'
   | 'publish.target'
   | 'metrics.poll'
+  | 'fanvue.analytics.sync'
   | 'viral.label'
+  | 'viral.insight'
+  | 'trigger.evaluate'
+  | 'scrape.run'
+  | 'media.transform'
   | 'incident.notify'
   | 'dlq.replay';
 
 export const JOB_KINDS: JobKind[] = [
   'content.generate',
+  'media.generate',
   'tos.scan',
   'relay.card',
   'publish.target',
   'metrics.poll',
+  'fanvue.analytics.sync',
   'viral.label',
+  'viral.insight',
+  'trigger.evaluate',
+  'scrape.run',
+  'media.transform',
   'incident.notify',
   'dlq.replay',
 ];
@@ -50,11 +62,22 @@ export interface PublishTargetPayload {
 export interface MetricsPollPayload {
   targetId: string;
 }
+export interface FanvueAnalyticsSyncPayload {
+  modelId: string;
+  connectionId?: string;
+  startDate?: string;
+  endDate?: string;
+}
 export interface ViralLabelPayload {
   targetId: string;
 }
+export interface ViralInsightPayload {
+  modelId: string;
+  windowKey: string;
+}
 export interface RelayCardPayload {
-  bundleId: string;
+  bundleId?: string;
+  insightCardId?: string;
   channel?: string;
 }
 export interface GeneratePayload {
@@ -74,3 +97,5 @@ export interface IncidentNotifyPayload {
   incidentId: string;
   severity?: string;
 }
+export interface ScrapeRunPayload { runId: string; modelId: string }
+export interface MediaTransformPayload { operationId: string }

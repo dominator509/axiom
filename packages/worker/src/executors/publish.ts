@@ -7,19 +7,40 @@
 //  5. Enqueue metrics.poll for the published target (L2.8 §1).
 
 import { eq, and } from 'drizzle-orm';
-import { schema, getPublishingConsentStatus, consentRequirementMessage } from '@axiom/db';
+import { isProductionEnvironment, tosReportPassesForPlatforms } from '@axiom/core';
+import {
+  schema,
+  getPublishingConsentStatus,
+  consentRequirementMessage,
+  getTosScanState,
+} from '@axiom/db';
 import { asPlatform, connectorForTarget } from '../connection.js';
+import { matchingCaptionGuidance } from '../caption-guidance.js';
 import { enqueueJob } from '../enqueue.js';
 import { ParkJobError } from './context.js';
 import { runPrePostBefore, runPrePostAfter } from './pre_post.js';
 import type { Executor, ExecutorContext } from './context.js';
+import { readTrustedThumbnailFeatures } from '../thumbnail-features.js';
+import type { RelayHandoff } from '@axiom/connectors';
 
 const KILL_SWITCH_PARK_MS = 60_000;
 const PENDING_PUBLISH_RETRY_MS = 60_000;
 
+type PublicationSnapshot = NonNullable<typeof schema.postTarget.$inferSelect.publicationSnapshot>;
+export function resolvePublicationSnapshot(
+  target: { publicationSnapshot?: PublicationSnapshot | null; remoteId?: string | null },
+  dispatched: PublicationSnapshot,
+): PublicationSnapshot | null {
+  if (target.publicationSnapshot) return target.publicationSnapshot;
+  // An existing provider resource means this is reconciliation/status polling,
+  // not evidence that the current mutable input was sent to that resource.
+  if (target.remoteId) return null;
+  return dispatched;
+}
+
 /** Target states that must not be dispatched to a connector again. */
 export function isTerminalPublishTargetState(state: string): boolean {
-  return state === 'published' || state === 'skipped';
+  return state === 'published' || state === 'skipped' || state === 'manual_assist' || state === 'canceled';
 }
 
 type PublishAsset = {
@@ -28,7 +49,75 @@ type PublishAsset = {
   modelId: string;
   kind: string;
   storageKey: string;
+  mimeType?: string;
+  width?: number | null;
+  height?: number | null;
+  duration?: number | null;
 };
+
+export function buildPublicationSnapshot(input: {
+  caption: string;
+  hashtags: string[];
+  modelId: string;
+  assetId: string | null;
+  scheduledFor: string | null;
+  captionGuidance?: PublicationSnapshot['captionGuidance'];
+  tosReport?: PublicationSnapshot['tosReport'];
+  media?: PublicationSnapshot['media'];
+  shootConfig?: PublicationSnapshot['shootConfig'];
+  thumbnailFeatures?: PublicationSnapshot['thumbnailFeatures'];
+}): PublicationSnapshot {
+  return {
+    caption: input.caption,
+    hashtags: input.hashtags,
+    modelId: input.modelId,
+    assetId: input.assetId,
+    scheduledFor: input.scheduledFor,
+    captionGuidance: input.captionGuidance ?? null,
+    tosReport: input.tosReport ?? null,
+    media: input.media ?? null,
+    shootConfig: input.shootConfig ?? null,
+    thumbnailFeatures: input.thumbnailFeatures ?? null,
+  };
+}
+
+/** Persist a human-assisted publish action as a disabled, model-scoped Relay
+ * review card. `enabled: false` prevents the card from being mistaken for an
+ * outbound relay instruction; the human explicitly reconciles it in UI. */
+export async function persistAssistedPublishHandoff(
+  tx: any,
+  input: {
+    orgId: string;
+    modelId: string;
+    bundleId: string;
+    targetId: string;
+    handoff: RelayHandoff;
+  },
+): Promise<void> {
+  const { handoff } = input;
+  if (handoff.platform !== 'snapchat') return;
+  await tx.insert(schema.relayCard).values({
+    orgId: input.orgId,
+    modelId: input.modelId,
+    bundleId: input.bundleId,
+    channel: 'manual-assist',
+    externalRef: input.targetId,
+    state: 'pending',
+    title: `${handoff.platform} manual publish`,
+    description: handoff.instructions,
+    icon: '👻',
+    enabled: false,
+    priority: 0,
+    config: {
+      snapchatManualAssist: {
+        instructions: handoff.instructions.slice(0, 2000),
+        assets: handoff.assets.slice(0, 4),
+        caption: handoff.caption.slice(0, 1000),
+        ...(handoff.handoffUrl ? { handoffUrl: handoff.handoffUrl } : {}),
+      },
+    },
+  }).onConflictDoNothing();
+}
 
 /**
  * Keep media publication tenant- and model-scoped, and reject kinds for which
@@ -53,6 +142,34 @@ export function validatePublishAsset(
     throw new Error(`publish.target: unsupported asset kind ${asset.kind}`);
   }
   return asset.kind;
+}
+
+/** Provider metadata needed by connectors with preflight media contracts. */
+export function publicationMediaOptions(
+  platform: string,
+  asset: Pick<PublishAsset, 'kind' | 'mimeType' | 'width' | 'height' | 'duration'> | undefined,
+): Record<string, unknown> {
+  if (!asset) return {};
+  return {
+    mediaType: asset.mimeType === 'image/gif' ? 'gif'
+      : asset.kind === 'video' ? 'video'
+        : asset.kind === 'audio' ? 'audio'
+          : 'image',
+    ...(platform === 'snapchat' ? {
+      mediaMimeType: asset.mimeType,
+      mediaWidth: asset.width ?? null,
+      mediaHeight: asset.height ?? null,
+      // asset.duration is stored in seconds by the ingest/media pipeline.
+      mediaDurationSeconds: asset.duration ?? null,
+    } : {}),
+    ...(platform === 'youtube' && asset.duration !== null && asset.duration !== undefined
+      ? { durationSec: asset.duration }
+      : {}),
+    ...(platform === 'youtube' && asset.width !== null && asset.width !== undefined && asset.width > 0 &&
+      asset.height !== null && asset.height !== undefined && asset.height > 0
+      ? { aspectRatio: `${asset.width}:${asset.height}` }
+      : {}),
+  };
 }
 
 /**
@@ -93,7 +210,7 @@ export function resolveProviderAssetUrl(asset: Pick<PublishAsset, 'id' | 'storag
   if (base.protocol !== 'http:' && base.protocol !== 'https:') {
     throw new Error('publish.target: AXIOM_ASSET_DELIVERY_BASE_URL must use http(s)');
   }
-  if (process.env.NODE_ENV === 'production' && base.protocol !== 'https:') {
+  if (isProductionEnvironment(process.env) && base.protocol !== 'https:') {
     throw new Error('publish.target: AXIOM_ASSET_DELIVERY_BASE_URL must use https in production');
   }
   if (base.username || base.password || base.search || base.hash) {
@@ -147,6 +264,30 @@ export function shouldEnqueueMetrics(
   return Boolean(remoteId && metrics.length > 0);
 }
 
+/**
+ * Build the durable reconciliation record written immediately before a
+ * provider publish. Keep the marker deliberately narrow: it must identify the
+ * attempt without persisting captions, media URLs, or credentials.
+ */
+export function publishDispatchMarkerValues(
+  orgId: string,
+  modelId: string,
+  targetId: string,
+  platform: string,
+  idempotencyKey: string,
+  startedAt = new Date(),
+) {
+  return {
+    orgId,
+    modelId,
+    targetId,
+    script: 'publish.dispatch',
+    status: 'pending',
+    input: { platform, idempotencyKey },
+    startedAt,
+  };
+}
+
 export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   const { tx, job, killSwitchEnabled } = ctx;
   const payload = (job.payload ?? {}) as { targetId?: string };
@@ -163,16 +304,30 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     .select()
     .from(schema.postTarget)
     .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)))
-    .limit(1);
+    .limit(1)
+    // Serialize publish attempts for one target before any provider I/O. A
+    // second worker waits for the first transaction, then observes its
+    // committed terminal state instead of racing into another publish call.
+    .for('update');
   if (targets.length === 0) throw new Error(`publish.target: target ${targetId} not found`);
   const target = targets[0];
   if (isTerminalPublishTargetState(target.state)) {
     // Already published — idempotent re-run no-op (LBI-05). Some providers
     // confirm the side effect with a successful empty response (for example,
     // Discord can return 204), so a null remote_id is still terminal. An
-    // assisted connector's skipped handoff is also terminal: the operator
+    // assisted connector's skipped/manual-assist handoff is also terminal: the operator
     // must complete it manually rather than causing an automatic retry loop.
     return;
+  }
+
+  // The job may have been claimed before an operator postponed the target.
+  // Recheck the authoritative schedule under its lock before provider I/O;
+  // updating only a ready job's run_after cannot cover that claim race.
+  if (!target.remoteId && target.scheduledFor) {
+    const delayMs = new Date(target.scheduledFor).getTime() - Date.now();
+    if (delayMs > 0) {
+      throw new ParkJobError('publish.target: target rescheduled into the future', delayMs);
+    }
   }
 
   const bundles = await tx
@@ -187,6 +342,28 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   if (bundle.state !== 'approved') {
     throw new Error(
       `publish.target: bundle ${target.bundleId} is ${bundle.state}; publishing requires approved state`,
+    );
+  }
+
+  const tosScanState = await getTosScanState(tx, job.org_id, target.bundleId);
+  if (tosScanState === 'pending') {
+    throw new ParkJobError(
+      `publish.target: ToS scan for bundle ${target.bundleId} is still running`,
+      PENDING_PUBLISH_RETRY_MS,
+    );
+  }
+  if (tosScanState !== 'completed') {
+    throw new Error(
+      `publish.target: ToS scan for bundle ${target.bundleId} is ${tosScanState}; refusing provider dispatch`,
+    );
+  }
+
+  // Defense-in-depth for every producer of post_targets, including MCP and
+  // operator tooling: no connector call is allowed without a complete,
+  // passing ToS report for the exact destination.
+  if (!tosReportPassesForPlatforms(bundle.tosReport, [target.platform])) {
+    throw new Error(
+      `publish.target: ToS check unavailable or not passing for ${target.platform}; refusing provider dispatch`,
     );
   }
 
@@ -258,6 +435,10 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
           modelId: schema.asset.modelId,
           kind: schema.asset.kind,
           storageKey: schema.asset.storageKey,
+          mimeType: schema.asset.mimeType,
+          width: schema.asset.width,
+          height: schema.asset.height,
+          duration: schema.asset.duration,
         })
         .from(schema.asset)
         .where(
@@ -281,6 +462,8 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     scheduledFor: target.scheduledFor ? new Date(target.scheduledFor).toISOString() : undefined,
     options: {
       modelId: model.id,
+      ...publicationMediaOptions(platform, asset),
+      ...(platform === 'tiktok' ? { deliveryMode: target.providerOptions?.tiktokDeliveryMode ?? 'direct' } : {}),
       ...(target.state === 'pending' && target.remoteId ? { publishId: target.remoteId } : {}),
     },
   };
@@ -308,6 +491,7 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     // Pre-post hooks intentionally expose only their public input shape. Keep
     // the persisted TikTok publish_id across a pending-status retry.
     options: {
+      ...(input.options ?? {}),
       ...(preStage.input.options ?? {}),
       ...(target.state === 'pending' && target.remoteId ? { publishId: target.remoteId } : {}),
     },
@@ -324,12 +508,87 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     );
   }
 
+  // A marker left in its initial state means a previous worker may have
+  // reached the provider and died before committing the target result. Treat
+  // that outcome as unknown and dead-letter for reconciliation; never issue a
+  // blind second provider call. Legitimate asynchronous provider results use
+  // the distinct `provider-pending` state below and remain retryable.
+  const unresolvedDispatch = await tx
+    .select({ id: schema.prePostRun.id })
+    .from(schema.prePostRun)
+    .where(
+      and(
+        eq(schema.prePostRun.orgId, job.org_id),
+        eq(schema.prePostRun.targetId, targetId),
+        eq(schema.prePostRun.script, 'publish.dispatch'),
+        eq(schema.prePostRun.status, 'pending'),
+      ),
+    )
+    .limit(1);
+  if (unresolvedDispatch.length > 0) {
+    ctx.markExternalSideEffect?.();
+    throw new Error(
+      `publish.target: unresolved dispatch marker ${unresolvedDispatch[0].id}; provider reconciliation required before retry`,
+    );
+  }
+
+  // Commit an independent reconciliation anchor before provider I/O. If the
+  // provider accepts the post and this executor process crashes before its
+  // transaction commits, the pending marker survives stale-job recovery and
+  // tells operators that the target requires provider reconciliation instead
+  // of an unsafe blind retry.
+  const persistSideEffectMarker: NonNullable<ExecutorContext['persistSideEffectMarker']> =
+    ctx.persistSideEffectMarker ??
+    (async <T>(operation: (markerTx: any) => Promise<T>): Promise<T> => operation(tx));
+  const [dispatchMarker] = await persistSideEffectMarker<Array<{ id: string }>>((markerTx) =>
+    markerTx
+      .insert(schema.prePostRun)
+      .values(
+        publishDispatchMarkerValues(job.org_id, model.id, targetId, platform, input.idempotencyKey),
+      )
+      .returning({ id: schema.prePostRun.id }),
+  );
+  if (!dispatchMarker?.id) {
+    throw new Error('publish.target: dispatch marker insert returned no id');
+  }
+
+  // From this point onward the provider may have accepted the request. If
+  // local persistence fails after this call, the worker must not retry the
+  // target automatically because that can double-post.
+  ctx.markExternalSideEffect?.();
   const result = await connector.publish(stagedInput);
+  // Preserve the first dispatched copy across asynchronous status polls.
+  // Ledger-only recoveries without this evidence intentionally remain unknown.
+  const publicationSnapshot = resolvePublicationSnapshot(target, buildPublicationSnapshot({
+    caption: stagedInput.caption, hashtags: stagedInput.hashtags ?? [], modelId: model.id,
+    assetId: bundle.assetId ?? null, scheduledFor: input.scheduledFor ?? null,
+    captionGuidance: matchingCaptionGuidance(stagedInput.caption, bundle.captionGuidance?.[target.platform]),
+    tosReport: bundle.tosReport ?? null,
+    shootConfig: bundle.generationRecipe ?? null,
+    thumbnailFeatures: readTrustedThumbnailFeatures(bundle.tosReport?.thumbnail_features, bundle.assetId ?? null),
+    media: asset ? {
+      kind: asset.kind,
+      mimeType: asset.mimeType ?? 'application/octet-stream',
+      width: asset.width ?? null,
+      height: asset.height ?? null,
+      duration: asset.duration ?? null,
+    } : null,
+  }));
 
   if (result.state === 'pending') {
     await tx
+      .update(schema.prePostRun)
+      .set({
+        status: 'provider-pending',
+        output: { state: result.state, remoteId: result.remoteId },
+        error: result.error ?? null,
+      })
+      .where(
+        and(eq(schema.prePostRun.id, dispatchMarker.id), eq(schema.prePostRun.orgId, job.org_id)),
+      );
+    await tx
       .update(schema.postTarget)
-      .set({ state: 'pending', remoteId: result.remoteId, error: result.error ?? null })
+      .set({ state: 'pending', remoteId: result.remoteId, error: result.error ?? null, publicationSnapshot })
       .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
 
     // The current job already owns the canonical publish.target dedupe key.
@@ -348,6 +607,26 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
   }
 
   if (result.state === 'skipped') {
+    if (result.handoff) {
+      await persistAssistedPublishHandoff(tx, {
+        orgId: job.org_id,
+        modelId: model.id,
+        bundleId: bundle.id,
+        targetId,
+        handoff: result.handoff,
+      });
+    }
+    await tx
+      .update(schema.prePostRun)
+      .set({
+        status: 'skipped',
+        output: { state: result.state, remoteId: result.remoteId },
+        error: result.error ?? null,
+        finishedAt: new Date(),
+      })
+      .where(
+        and(eq(schema.prePostRun.id, dispatchMarker.id), eq(schema.prePostRun.orgId, job.org_id)),
+      );
     // Assisted connectors intentionally have no provider remote ID. Persist
     // the handoff as terminal so the worker marks the job done and does not
     // retry the same operator action as though it were a failed API call.
@@ -358,17 +637,55 @@ export const publishTarget: Executor = async (ctx: ExecutorContext) => {
     return;
   }
 
+  if (result.state === 'manual_assist') {
+    if (result.handoff) {
+      await persistAssistedPublishHandoff(tx, {
+        orgId: job.org_id,
+        modelId: model.id,
+        bundleId: bundle.id,
+        targetId,
+        handoff: result.handoff,
+      });
+    }
+    await tx
+      .update(schema.prePostRun)
+      .set({
+        status: 'skipped',
+        output: { state: result.state, remoteId: result.remoteId },
+        error: result.error ?? null,
+        finishedAt: new Date(),
+      })
+      .where(and(eq(schema.prePostRun.id, dispatchMarker.id), eq(schema.prePostRun.orgId, job.org_id)));
+    await tx
+      .update(schema.postTarget)
+      .set({ state: 'manual_assist', remoteId: result.remoteId, error: result.error ?? null, publicationSnapshot })
+      .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
+    return;
+  }
+
   if (result.state !== 'published') {
     throw new Error(`publish.target: connector publish failed: ${result.error ?? 'no remote_id'}`);
   }
 
+  await tx
+    .update(schema.prePostRun)
+    .set({
+      status: 'success',
+      output: { state: result.state, remoteId: result.remoteId },
+      error: null,
+      finishedAt: new Date(),
+    })
+    .where(
+      and(eq(schema.prePostRun.id, dispatchMarker.id), eq(schema.prePostRun.orgId, job.org_id)),
+    );
+
   // 3b. Post-publish hook (recorded in pre_post_run; fire-and-forget hooks).
-  await runPrePostAfter(ctx, prePostInput, result);
+  await runPrePostAfter(ctx, { ...prePostInput, phase: 'after' }, result);
 
   // 4. Mark published + write idempotency ledger in the SAME txn (L3.4 §4).
   await tx
     .update(schema.postTarget)
-    .set({ state: 'published', remoteId: result.remoteId, error: null })
+    .set({ state: 'published', remoteId: result.remoteId, error: null, publicationSnapshot, publishedAt: target.publishedAt ?? new Date() })
     .where(and(eq(schema.postTarget.id, targetId), eq(schema.postTarget.orgId, job.org_id)));
 
   if (idemKeyHex) {

@@ -5,13 +5,15 @@ import { restoreSession, type SessionUser } from './src/api/auth';
 import DashboardScreen from './src/screens/DashboardScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RelayScreen from './src/screens/RelayScreen';
+import PatreonScreen from './src/screens/PatreonScreen';
 import { palette } from './src/theme';
 
-type Tab = 'dashboard' | 'relay';
+type Tab = 'dashboard' | 'relay' | 'patreon';
 
 const TABS: Array<{ key: Tab; label: string; icon: string }> = [
   { key: 'dashboard', label: 'Studio', icon: '◇' },
   { key: 'relay', label: 'Relay', icon: '✦' },
+  { key: 'patreon', label: 'Community', icon: '◎' },
 ];
 
 export default function App() {
@@ -62,7 +64,7 @@ export default function App() {
           <Text style={styles.brandLetter}>A</Text>
         </View>
         <View>
-          <Text style={styles.brand}>AXIOM</Text>
+          <Text style={styles.brand}>FanThynks</Text>
           <Text style={styles.brandDetail}>CREATOR INTELLIGENCE</Text>
         </View>
         <View style={styles.privatePill}>
@@ -73,6 +75,8 @@ export default function App() {
       <View style={styles.body}>
         {tab === 'dashboard' ? (
           <DashboardScreen user={user} onSignOut={handleSignOut} />
+        ) : tab === 'patreon' ? (
+          <PatreonScreen user={user} />
         ) : (
           <RelayScreen />
         )}

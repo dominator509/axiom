@@ -1,0 +1,35 @@
+[Unit]
+Description=AXIOM model egress control plane
+After=network-online.target axiom-egress-provisioner.socket
+Wants=network-online.target
+Requires=axiom-egress-provisioner.socket
+
+[Service]
+Type=exec
+User=axiom-egress
+Group=axiom-egress-control
+ExecStart=/usr/local/lib/axiom/egress-plane
+Environment=EGRESS_PROVISIONER_SOCKET=/run/axiom/egress/provisioner.sock
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/run/axiom/egress
+UMask=0077
+Restart=on-failure
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target

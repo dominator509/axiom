@@ -1,0 +1,40 @@
+[Unit]
+Description=AXIOM confined outbound runner for model %i
+After=axiom-egress-provisioner.service
+Requires=axiom-egress-provisioner.service
+ConditionPathExists=/run/netns/egress_%i
+
+[Service]
+Type=exec
+User=axiom-egress-runner
+Group=axiom-egress-runner
+# The provisioner creates this exact namespace only after its default-deny
+# route/firewall and model-specific upstream are ready.  A missing namespace
+# prevents the runner from starting rather than falling back to host network.
+NetworkNamespacePath=/run/netns/egress_%i
+Environment=AXIOM_EGRESS_RUNNER=1
+Environment=AXIOM_EGRESS_CONFINEMENT_REQUIRED=1
+Environment=WORKER_EGRESS_MODEL_ID=%i
+ExecStart=/usr/bin/node /srv/axiom/packages/worker/dist/runner.js
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+# Node's V8 runtime requires legitimate JIT mappings. The runner is instead
+# confined by its model network namespace, empty capabilities and a fixed
+# dispatch executable; validate the effective policy on the target.
+RestrictRealtime=yes
+RestrictNamespaces=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/run/axiom/egress
+UMask=0077
+TimeoutStartSec=30s
+TimeoutStopSec=15s

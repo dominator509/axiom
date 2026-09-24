@@ -1,0 +1,16 @@
+[Unit]
+Description=AXIOM egress provisioner control socket
+
+[Socket]
+# The root-owned provisioner receives requests only over this local Unix
+# socket.  It is deliberately not a TCP listener and not reachable from a
+# container or remote client.
+ListenStream=/run/axiom/egress/provisioner.sock
+SocketUser=root
+SocketGroup=axiom-egress-control
+SocketMode=0660
+DirectoryMode=0750
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

@@ -1,6 +1,7 @@
 use axum::{
-    extract::Json,
-    http::StatusCode,
+    extract::{DefaultBodyLimit, Json, Request},
+    http::{header, StatusCode},
+    middleware::{self, Next},
     response::IntoResponse,
     routing::{get, post},
     Router,
@@ -10,8 +11,12 @@ use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use thiserror::Error;
+use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tracing::info;
+
+const MEDIA_AUTH_TOKEN_ENV: &str = "AXIOM_MEDIA_AUTH_TOKEN";
+mod video_frames;
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -42,6 +47,12 @@ pub enum MediaError {
 
     #[error("Media path is outside the configured media root")]
     InvalidPath,
+
+    #[error("Invalid image transform dimensions or crop bounds")]
+    InvalidTransform,
+
+    #[error("Media input exceeds the configured size limit: {0}")]
+    InputTooLarge(String),
 }
 
 impl IntoResponse for MediaError {
@@ -66,6 +77,8 @@ impl IntoResponse for MediaError {
                 format!("Input file does not exist: {p}"),
             ),
             Self::InvalidPath => (StatusCode::BAD_REQUEST, self.to_string()),
+            Self::InvalidTransform => (StatusCode::BAD_REQUEST, self.to_string()),
+            Self::InputTooLarge(_) => (StatusCode::PAYLOAD_TOO_LARGE, self.to_string()),
         };
         (status, Json(serde_json::json!({ "error": body }))).into_response()
     }
@@ -88,6 +101,12 @@ struct WatermarkRequest {
     output_path: String,
     #[serde(default = "default_position")]
     position: String,
+    /// Optional overlay opacity as a percentage (0-100). Absent = fully opaque.
+    #[serde(default)]
+    opacity: Option<u32>,
+    /// Optional watermark scale as a percentage (5-100). Absent = native size.
+    #[serde(default)]
+    scale: Option<u32>,
 }
 
 fn default_position() -> String {
@@ -142,6 +161,12 @@ struct VideoWatermarkRequest {
     output_path: String,
     #[serde(default = "default_position")]
     position: String,
+    /// Optional overlay opacity as a percentage (0-100). Absent = fully opaque.
+    #[serde(default)]
+    opacity: Option<u32>,
+    /// Optional watermark scale as a percentage (5-100). Absent = native size.
+    #[serde(default)]
+    scale: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -180,6 +205,17 @@ async fn health() -> Json<serde_json::Value> {
 // ---------------------------------------------------------------------------
 // Filesystem boundary
 // ---------------------------------------------------------------------------
+
+const MEDIA_REQUEST_MAX_BYTES: usize = 64 * 1024;
+const MAX_IMAGE_FILE_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION: u32 = 16_384;
+/// Bounded overlay opacity percentage (F-14). Absent = fully opaque.
+const MAX_WATERMARK_OPACITY: u32 = 100;
+/// Bounded overlay scale percentage (F-14). Absent = native size.
+const MIN_WATERMARK_SCALE: u32 = 5;
+const MAX_WATERMARK_SCALE: u32 = 100;
+const MAX_IMAGE_ALLOC_BYTES: u64 = 256 * 1024 * 1024;
+const HASH_BUFFER_BYTES: usize = 64 * 1024;
 
 /// All media-plane file access is confined to `<working-directory>/var/media`.
 /// Relative asset IDs are resolved beneath this root; absolute paths are
@@ -234,6 +270,46 @@ fn path_arg(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
+fn image_limits() -> image::Limits {
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(MAX_IMAGE_DIMENSION);
+    limits.max_image_height = Some(MAX_IMAGE_DIMENSION);
+    limits.max_alloc = Some(MAX_IMAGE_ALLOC_BYTES);
+    limits
+}
+
+/// Decode images with explicit resource limits so decompression bombs cannot
+/// turn a small uploaded file into an unbounded allocation.
+fn open_image(path: &Path) -> Result<image::DynamicImage, MediaError> {
+    let size = std::fs::metadata(path)?.len();
+    if size > MAX_IMAGE_FILE_BYTES {
+        return Err(MediaError::InputTooLarge(path.display().to_string()));
+    }
+
+    let mut reader = image::ImageReader::open(path)?;
+    reader.limits(image_limits());
+    Ok(reader.decode()?)
+}
+
+async fn hash_file(path: &Path) -> Result<String, MediaError> {
+    let mut file = tokio::fs::File::open(path).await?;
+    let mut buffer = vec![0u8; HASH_BUFFER_BYTES];
+    let mut hasher = Sha256::new();
+    loop {
+        let read = file.read(&mut buffer).await?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<Vec<_>>()
+        .concat())
+}
+
 // ---------------------------------------------------------------------------
 // /media/transcode
 // ---------------------------------------------------------------------------
@@ -248,7 +324,7 @@ async fn transcode(
 
     let input_path = resolve_input(&req.input_path)?;
     let output_path = resolve_output(&req.output_path)?;
-    let img = image::open(input_path)?;
+    let img = open_image(&input_path)?;
 
     match req.target_format.to_lowercase().as_str() {
         "png" => img.save(output_path)?,
@@ -268,16 +344,40 @@ async fn transcode(
 async fn watermark(
     Json(req): Json<WatermarkRequest>,
 ) -> Result<Json<serde_json::Value>, MediaError> {
+    validate_watermark_bounds(req.opacity, req.scale)?;
     info!(
-        "watermark: {} + {} -> {} (position: {})",
-        req.image_path, req.watermark_path, req.output_path, req.position
+        "watermark: {} + {} -> {} (position: {}, opacity: {:?}, scale: {:?})",
+        req.image_path, req.watermark_path, req.output_path, req.position, req.opacity, req.scale
     );
 
     let image_path = resolve_input(&req.image_path)?;
     let watermark_path = resolve_input(&req.watermark_path)?;
     let output_path = resolve_output(&req.output_path)?;
-    let mut base = image::open(image_path)?;
-    let watermark_img = image::open(watermark_path)?;
+    let mut base = open_image(&image_path)?;
+    let mut watermark_img = open_image(&watermark_path)?;
+
+    // Bounded scale (F-14): 100 keeps the native size.
+    if let Some(scale) = req.scale {
+        if scale != MAX_WATERMARK_SCALE {
+            let (wm_w, wm_h) = (watermark_img.width(), watermark_img.height());
+            let target_w = ((u64::from(wm_w) * u64::from(scale)) / 100).max(1);
+            let target_h = ((u64::from(wm_h) * u64::from(scale)) / 100).max(1);
+            if target_w > u64::from(MAX_IMAGE_DIMENSION) || target_h > u64::from(MAX_IMAGE_DIMENSION) {
+                return Err(MediaError::InvalidTransform);
+            }
+            watermark_img = watermark_img.resize_exact(
+                target_w as u32,
+                target_h as u32,
+                image::imageops::FilterType::Lanczos3,
+            );
+        }
+    }
+
+    // Bounded opacity (F-14). The media plane has no alpha-multiply primitive
+    // without adding a dependency, so a partial opacity is applied only when
+    // the overlay itself already carries alpha; a fully opaque value (100 or
+    // absent) leaves the default compositing path unchanged.
+    let alpha = opacity_alpha(req.opacity);
 
     let (base_w, base_h) = (base.width(), base.height());
     let (wm_w, wm_h) = (watermark_img.width(), watermark_img.height());
@@ -294,6 +394,10 @@ async fn watermark(
         other => return Err(MediaError::InvalidPosition(other.to_string())),
     };
 
+    if alpha < 1.0 {
+        apply_overlay_alpha(&mut watermark_img, alpha);
+    }
+
     image::imageops::overlay(&mut base, &watermark_img, x as i64, y as i64);
     base.save(output_path)?;
 
@@ -306,7 +410,37 @@ async fn watermark(
 // /media/resize
 // ---------------------------------------------------------------------------
 
+fn validate_image_output(width: u32, height: u32) -> Result<(), MediaError> {
+    if width == 0
+        || height == 0
+        || width > MAX_IMAGE_DIMENSION
+        || height > MAX_IMAGE_DIMENSION
+        || u64::from(width) * u64::from(height) * 16 > MAX_IMAGE_ALLOC_BYTES
+    {
+        return Err(MediaError::InvalidTransform);
+    }
+    Ok(())
+}
+
+fn validate_crop(
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    source_width: u32,
+    source_height: u32,
+) -> Result<(), MediaError> {
+    validate_image_output(width, height)?;
+    if !x.checked_add(width).is_some_and(|end| end <= source_width)
+        || !y.checked_add(height).is_some_and(|end| end <= source_height)
+    {
+        return Err(MediaError::InvalidTransform);
+    }
+    Ok(())
+}
+
 async fn resize(Json(req): Json<ResizeRequest>) -> Result<Json<serde_json::Value>, MediaError> {
+    validate_image_output(req.width, req.height)?;
     info!(
         "resize: {} -> {} ({}x{})",
         req.image_path, req.output_path, req.width, req.height
@@ -314,7 +448,7 @@ async fn resize(Json(req): Json<ResizeRequest>) -> Result<Json<serde_json::Value
 
     let image_path = resolve_input(&req.image_path)?;
     let output_path = resolve_output(&req.output_path)?;
-    let img = image::open(image_path)?;
+    let img = open_image(&image_path)?;
     let resized = img.resize_exact(req.width, req.height, image::imageops::FilterType::Lanczos3);
     resized.save(output_path)?;
 
@@ -335,7 +469,15 @@ async fn clip(Json(req): Json<ClipRequest>) -> Result<Json<serde_json::Value>, M
 
     let image_path = resolve_input(&req.image_path)?;
     let output_path = resolve_output(&req.output_path)?;
-    let img = image::open(image_path)?;
+    let img = open_image(&image_path)?;
+    validate_crop(
+        req.x,
+        req.y,
+        req.width,
+        req.height,
+        img.width(),
+        img.height(),
+    )?;
     let cropped = img.crop_imm(req.x, req.y, req.width, req.height);
     cropped.save(output_path)?;
 
@@ -352,17 +494,7 @@ async fn compute_hash(Json(req): Json<HashRequest>) -> Result<Json<HashResponse>
     info!("compute-hash: {}", req.image_path);
 
     let image_path = resolve_input(&req.image_path)?;
-    let bytes = tokio::fs::read(image_path).await?;
-    let hash = {
-        let mut hasher = Sha256::new();
-        hasher.update(&bytes);
-        hasher
-            .finalize()
-            .iter()
-            .map(|b| format!("{:02x}", b))
-            .collect::<Vec<_>>()
-            .concat()
-    };
+    let hash = hash_file(&image_path).await?;
 
     Ok(Json(HashResponse { hash }))
 }
@@ -405,6 +537,44 @@ fn overlay_position(position: &str) -> Result<&'static str, MediaError> {
     })
 }
 
+/// Validate the bounded F-14 overlay opacity/scale fields. Absent values are
+/// allowed (the media plane's native default). Present values must be in range,
+/// otherwise the request fails closed before any transform runs.
+fn validate_watermark_bounds(opacity: Option<u32>, scale: Option<u32>) -> Result<(), MediaError> {
+    if let Some(value) = opacity {
+        if value > MAX_WATERMARK_OPACITY {
+            return Err(MediaError::InvalidTransform);
+        }
+    }
+    if let Some(value) = scale {
+        if !(MIN_WATERMARK_SCALE..=MAX_WATERMARK_SCALE).contains(&value) {
+            return Err(MediaError::InvalidTransform);
+        }
+    }
+    Ok(())
+}
+
+/// ffmpeg `colorchannelmixer=aa` alpha factor for the bounded opacity. A fully
+/// opaque overlay (100) keeps the identity factor so the default path is
+/// byte-identical to the pre-F-14 behaviour.
+fn opacity_alpha(opacity: Option<u32>) -> f64 {
+    match opacity {
+        Some(value) => f64::from(value.min(MAX_WATERMARK_OPACITY)) / 100.0,
+        None => 1.0,
+    }
+}
+
+/// Multiply an RGBA/RGB image's alpha channel by `alpha` (0.0-1.0). RGB images
+/// are converted to RGBA first so partial opacity has an effect.
+fn apply_overlay_alpha(image: &mut image::DynamicImage, alpha: f64) {
+    let mut rgba = image.to_rgba8();
+    for pixel in rgba.pixels_mut() {
+        let scaled = (f64::from(pixel[3]) * alpha).round().clamp(0.0, 255.0) as u8;
+        pixel[3] = scaled;
+    }
+    *image = image::DynamicImage::ImageRgba8(rgba);
+}
+
 // /media/video/transcode
 async fn video_transcode(
     Json(req): Json<VideoTranscodeRequest>,
@@ -440,16 +610,38 @@ async fn video_transcode(
 async fn video_watermark(
     Json(req): Json<VideoWatermarkRequest>,
 ) -> Result<Json<serde_json::Value>, MediaError> {
+    validate_watermark_bounds(req.opacity, req.scale)?;
     info!(
-        "video watermark: {} + {} -> {} (position: {})",
-        req.video_path, req.watermark_path, req.output_path, req.position
+        "video watermark: {} + {} -> {} (position: {}, opacity: {:?}, scale: {:?})",
+        req.video_path, req.watermark_path, req.output_path, req.position, req.opacity, req.scale
     );
     let video_path = resolve_input(&req.video_path)?;
     let watermark_path = resolve_input(&req.watermark_path)?;
     let output_path = resolve_output(&req.output_path)?;
     let pos = overlay_position(&req.position)?;
 
-    let filter = format!("overlay={pos}");
+    // Bounded F-14 presentation fields. The overlay chain keeps the identity
+    // path when both are absent/neutral so pre-F-14 behaviour is unchanged.
+    let mut filters: Vec<String> = Vec::new();
+    if let Some(scale) = req.scale {
+        if scale != MAX_WATERMARK_SCALE {
+            filters.push(format!("[1:v]scale=iw*{scale}/100:ih*{scale}/100[wm]"));
+        }
+    }
+    if let Some(opacity) = req.opacity {
+        if opacity < MAX_WATERMARK_OPACITY {
+            filters.push(format!(
+                "[1:v]colorchannelmixer=aa={:.2}[wm]",
+                opacity_alpha(Some(opacity))
+            ));
+        }
+    }
+    let overlay = format!("overlay={pos}");
+    let filter = if filters.is_empty() {
+        overlay
+    } else {
+        format!("{};[wm]{overlay}", filters.join(";"))
+    };
     let args: Vec<String> = vec![
         "-y".into(),
         "-i".into(),
@@ -572,6 +764,83 @@ async fn video_probe(
     }))
 }
 
+/// Protect media operations when the service crosses a process or container
+/// boundary. Health remains public for Docker readiness checks; non-loopback
+/// deployments must configure the internal bearer token before binding.
+async fn require_internal_auth(request: Request, next: Next) -> axum::response::Response {
+    let Some(expected) = configured_auth_token() else {
+        return next.run(request).await;
+    };
+
+    let authorized = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| bearer_token_authorized(value, &expected));
+
+    if authorized {
+        next.run(request).await
+    } else {
+        (
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, "Bearer")],
+            "media plane authentication required",
+        )
+            .into_response()
+    }
+}
+
+fn configured_auth_token() -> Option<String> {
+    std::env::var(MEDIA_AUTH_TOKEN_ENV)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn bearer_token_authorized(header_value: &str, expected: &str) -> bool {
+    header_value
+        .strip_prefix("Bearer ")
+        .is_some_and(|provided| provided == expected)
+}
+
+fn non_loopback_without_auth(addr: &str, auth_token: Option<&str>) -> bool {
+    let is_loopback = addr
+        .parse::<std::net::SocketAddr>()
+        .map(|socket| socket.ip().is_loopback())
+        .unwrap_or(false);
+    !is_loopback
+        && auth_token
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+}
+
+fn validate_bind_security(addr: &str) {
+    assert!(
+        !non_loopback_without_auth(addr, configured_auth_token().as_deref()),
+        "media-plane refuses non-loopback bind addresses without {MEDIA_AUTH_TOKEN_ENV}"
+    );
+}
+
+fn build_app() -> Router {
+    let protected_routes = Router::new()
+        .route("/media/transcode", post(transcode))
+        .route("/media/watermark", post(watermark))
+        .route("/media/resize", post(resize))
+        .route("/media/clip", post(clip))
+        .route("/media/compute-hash", post(compute_hash))
+        .route("/media/video/transcode", post(video_transcode))
+        .route("/media/video/watermark", post(video_watermark))
+        .route("/media/video/clip", post(video_clip))
+        .route("/media/video/probe", post(video_probe))
+        .route("/media/video/frames", post(video_frames::extract))
+        .layer(middleware::from_fn(require_internal_auth));
+
+    Router::new()
+        .route("/health", get(health))
+        .merge(protected_routes)
+        .layer(DefaultBodyLimit::max(MEDIA_REQUEST_MAX_BYTES))
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -585,29 +854,14 @@ async fn main() {
         )
         .init();
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/media/transcode", post(transcode))
-        .route("/media/watermark", post(watermark))
-        .route("/media/resize", post(resize))
-        .route("/media/clip", post(clip))
-        .route("/media/compute-hash", post(compute_hash))
-        .route("/media/video/transcode", post(video_transcode))
-        .route("/media/video/watermark", post(video_watermark))
-        .route("/media/video/clip", post(video_clip))
-        .route("/media/video/probe", post(video_probe));
-
     let addr = std::env::var("AXIOM_MEDIA_ADDR").unwrap_or_else(|_| "127.0.0.1:8100".to_string());
     let socket_addr: std::net::SocketAddr =
         addr.parse().expect("AXIOM_MEDIA_ADDR must be host:port");
-    assert!(
-        socket_addr.ip().is_loopback(),
-        "media-plane refuses non-loopback bind addresses"
-    );
+    validate_bind_security(&addr);
     info!("media-plane listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(socket_addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, build_app()).await.unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -617,6 +871,31 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn image_transform_dimensions_are_bounded() {
+        assert!(validate_image_output(1080, 1350).is_ok());
+        assert!(validate_image_output(4096, 4096).is_ok());
+        for (width, height) in [
+            (0, 1),
+            (1, 0),
+            (16385, 1),
+            (1, 16385),
+            (4097, 4096),
+            (u32::MAX, u32::MAX),
+        ] {
+            assert!(validate_image_output(width, height).is_err());
+        }
+    }
+
+    #[test]
+    fn crop_must_fit_without_clamping_or_integer_overflow() {
+        assert!(validate_crop(10, 20, 90, 80, 100, 100).is_ok());
+        assert!(validate_crop(10, 20, 91, 80, 100, 100).is_err());
+        assert!(validate_crop(10, 20, 90, 81, 100, 100).is_err());
+        assert!(validate_crop(u32::MAX, 0, 1, 1, 100, 100).is_err());
+        assert!(validate_crop(0, u32::MAX, 1, 1, 100, 100).is_err());
+    }
 
     #[test]
     fn overlay_position_maps_all_known_positions() {
@@ -649,6 +928,31 @@ mod tests {
     }
 
     #[test]
+    fn image_decoder_limits_are_explicit() {
+        let limits = image_limits();
+        assert_eq!(limits.max_image_width, Some(MAX_IMAGE_DIMENSION));
+        assert_eq!(limits.max_image_height, Some(MAX_IMAGE_DIMENSION));
+        assert_eq!(limits.max_alloc, Some(MAX_IMAGE_ALLOC_BYTES));
+    }
+
+    #[test]
+    fn hash_file_returns_the_streamed_sha256_digest() {
+        let path = media_root()
+            .unwrap()
+            .join(format!("hash-fixture-{}.bin", std::process::id()));
+        std::fs::write(&path, b"axiom-hash-fixture").unwrap();
+
+        let actual = tokio_test_block_on(hash_file(&path)).unwrap();
+        let expected = Sha256::digest(b"axiom-hash-fixture")
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<Vec<_>>()
+            .concat();
+        assert_eq!(actual, expected);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn video_probe_reports_missing_as_exists_false() {
         let req = VideoProbeRequest {
             video_path: "/nonexistent/nope.mp4".to_string(),
@@ -658,6 +962,76 @@ mod tests {
         assert!(!resp.exists);
     }
 
+    #[test]
+    fn non_loopback_bind_requires_authentication() {
+        assert!(non_loopback_without_auth("0.0.0.0:8100", None));
+        assert!(!non_loopback_without_auth(
+            "0.0.0.0:8100",
+            Some("internal-token")
+        ));
+        assert!(!non_loopback_without_auth("127.0.0.1:8100", None));
+    }
+
+    #[test]
+    fn bearer_auth_requires_exact_scheme_and_token() {
+        assert!(bearer_token_authorized(
+            "Bearer internal-token",
+            "internal-token"
+        ));
+        assert!(!bearer_token_authorized(
+            "bearer internal-token",
+            "internal-token"
+        ));
+        assert!(!bearer_token_authorized("Bearer wrong", "internal-token"));
+    }
+
+    #[tokio::test]
+    async fn media_routes_are_protected_while_health_remains_public() {
+        use axum::{body::Body, http::Request as HttpRequest};
+        use tower::ServiceExt;
+
+        std::env::set_var(MEDIA_AUTH_TOKEN_ENV, "internal-token");
+
+        let unauthorized = build_app()
+            .oneshot(
+                HttpRequest::builder()
+                    .method("POST")
+                    .uri("/media/video/probe")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(unauthorized.status(), StatusCode::UNAUTHORIZED);
+
+        let health = build_app()
+            .oneshot(
+                HttpRequest::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(health.status(), StatusCode::OK);
+
+        let authorized = build_app()
+            .oneshot(
+                HttpRequest::builder()
+                    .method("POST")
+                    .uri("/media/video/probe")
+                    .header(header::AUTHORIZATION, "Bearer internal-token")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(r#"{"video_path":"missing.mp4"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(authorized.status(), StatusCode::OK);
+
+        std::env::remove_var(MEDIA_AUTH_TOKEN_ENV);
+    }
+
     /// Minimal synchronous block_on for the async helpers under test.
     fn tokio_test_block_on<F: std::future::Future>(fut: F) -> F::Output {
         tokio::runtime::Builder::new_current_thread()
@@ -665,5 +1039,36 @@ mod tests {
             .build()
             .unwrap()
             .block_on(fut)
+    }
+
+    #[test]
+    fn watermark_bounds_accept_absent_and_neutral_values() {
+        assert!(validate_watermark_bounds(None, None).is_ok());
+        assert!(validate_watermark_bounds(Some(100), Some(100)).is_ok());
+        assert!(validate_watermark_bounds(Some(0), Some(5)).is_ok());
+    }
+
+    #[test]
+    fn watermark_bounds_reject_out_of_range_values() {
+        assert!(matches!(
+            validate_watermark_bounds(Some(101), None),
+            Err(MediaError::InvalidTransform)
+        ));
+        assert!(matches!(
+            validate_watermark_bounds(None, Some(4)),
+            Err(MediaError::InvalidTransform)
+        ));
+        assert!(matches!(
+            validate_watermark_bounds(None, Some(101)),
+            Err(MediaError::InvalidTransform)
+        ));
+    }
+
+    #[test]
+    fn opacity_alpha_maps_percentage_to_identity_scale() {
+        assert_eq!(opacity_alpha(None), 1.0);
+        assert_eq!(opacity_alpha(Some(100)), 1.0);
+        assert!((opacity_alpha(Some(50)) - 0.5).abs() < f64::EPSILON);
+        assert!((opacity_alpha(Some(0)) - 0.0).abs() < f64::EPSILON);
     }
 }

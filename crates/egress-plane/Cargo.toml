@@ -28,6 +28,8 @@ rand = "0.8"
 base64 = "0.22"
 # Postgres access for model_network_configs (L2.6: Rust worker loads egress config)
 tokio-postgres = "0.7"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+webpki-roots = "1"
 
 [dev-dependencies]
 axum-test = "16"

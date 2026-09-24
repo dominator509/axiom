@@ -1,0 +1,24 @@
+# Build tooling only: no credentials, provider calls, or production deployment.
+FROM rust:1.96.1-slim@sha256:31ee7fc65186be7e0e0ccb3f2ca305f14e4739e7642a1ae65753aa5d7b874523
+
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    ca-certificates curl unzip pkg-config libssl-dev cmake
+RUN rustup set auto-self-update disable && rustup toolchain install 1.94.0 --profile minimal
+
+# Exact Linux x86_64 artifact and digest from the pinned upstream bin/protoc.
+# Use its supported PROTOC override instead of a Windows CRLF dotslash wrapper.
+RUN curl --fail --show-error --location --retry 3 \
+    https://github.com/protocolbuffers/protobuf/releases/download/v29.3/protoc-29.3-linux-x86_64.zip \
+    --output /tmp/protoc.zip \
+    && echo '3e866620c5be27664f3d2fa2d656b5f3e09b5152b42f1bedbf427b333e90021a  /tmp/protoc.zip' | sha256sum --check \
+    && unzip -q /tmp/protoc.zip -d /opt/protoc \
+    && /opt/protoc/bin/protoc --version
+
+ENV PROTOC=/opt/protoc/bin/protoc
+ENV RUSTUP_TOOLCHAIN=1.94.0
+ENV CARGO_HTTP_MULTIPLEXING=false
+ENV CARGO_TARGET_DIR=/build-target
+WORKDIR /axiom/var/grok-source-37949780
+# jemalloc's native build invokes make directly (cmake alone is insufficient).
+RUN apt-get update && apt-get install --no-install-recommends -y make
+CMD ["cargo", "check", "--locked", "-p", "xai-grok-tools"]

@@ -59,7 +59,7 @@ impl EgressMode {
 
 /// Decrypted credentials from the envelope (`enc_creds`). This struct must
 /// NEVER be logged or persisted; call `.zeroize()` after use (LBI-05).
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Zeroize)]
+#[derive(Clone, Default, Serialize, Deserialize, Zeroize)]
 #[zeroize(drop)]
 pub struct Creds {
     #[serde(default)]
@@ -72,6 +72,14 @@ pub struct Creds {
     pub wg_preshared_key: Option<String>,
     #[serde(default)]
     pub vpn_config: Option<String>,
+    #[serde(default)]
+    pub iface_addr: Option<String>,
+}
+
+impl std::fmt::Debug for Creds {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Creds([REDACTED])")
+    }
 }
 
 /// A fully-resolved per-model egress config (the Rust-side mirror of a
@@ -156,6 +164,13 @@ impl NetworkConfig {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn stored_tunnel_address_survives_credential_decode() {
+        let creds: super::Creds = serde_json::from_str(r#"{"iface_addr":"10.88.0.9/32"}"#).unwrap();
+        assert_eq!(creds.iface_addr.as_deref(), Some("10.88.0.9/32"));
+        let legacy: super::Creds = serde_json::from_str("{}").unwrap();
+        assert!(legacy.iface_addr.is_none());
+    }
     use super::*;
 
     #[test]

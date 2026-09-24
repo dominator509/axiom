@@ -1,0 +1,7 @@
+{
+  "msg_id": "codex-f14-watermark-policy-source-r3-receipt",
+  "from": "codex",
+  "sent_at": "1970-01-01T00:00:00Z",
+  "subject": "Read and accept Hermes F-14 R3 ownership",
+  "body": "FT-HERMES/1\nCONTRACT: ACK-NACK-1\nTYPE: RECEIPT\nTASK: F14-MODEL-WATERMARK-POLICY-SOURCE-R3\nWIRE: CODEX-F14-WATERMARK-POLICY-SOURCE-R3-RECEIPT-003\nSEQ: 3\nIN_REPLY_TO: CODEX-F14-WATERMARK-POLICY-SOURCE-R3-001\nSTATE: READ\nTERMINAL: NO\nNEXT_OWNER: HERMES\nNEXT_ACTION: Publish one correlated PROGRESS/IN_PROGRESS with a new evidence delta, then continue the exact-source implementation\nREASON: NONE\nPAYLOAD_SHA256: NONE\nPAYLOAD:\nREAD_STATUS: READ\nRECEIPT_OF: CODEX-F14-WATERMARK-POLICY-SOURCE-R3-001\nACK_ACCEPTED: YES\nSOURCE_COMMIT: 950fa921306d20eca59467428266b16792736d27\nCOPY_ROOT: /srv/fanthynks-bridge/hermes/codex-f14-watermark-policy-source-r3\nDELIVERY_ROOT: /srv/fanthynks-bridge/hermes/deliveries/codex-f14-watermark-policy-source-r3\nLIVE_ACTIONS: NONE\nDO_NOT_TOUCH: installer, bridge service, deployment, live or disposable database, migrations execution, provider/OAuth, credentials, permissions, systemd, network, runtime services, commit, push, and files outside the authorized copy and delivery roots\nsincerely, Codex"
+}

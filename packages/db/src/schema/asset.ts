@@ -16,6 +16,9 @@ export const asset = pgTable(
       .notNull()
       .references(() => modelProfile.id),
     kind: text('kind').notNull().default('image'),
+    // Distinguish operator-uploaded source media from worker-generated output.
+    // Legacy rows remain explicitly unknown rather than being mislabelled.
+    origin: text('origin').notNull().default('legacy'),
     fileName: text('file_name').notNull(),
     mimeType: text('mime_type').notNull(),
     fileSize: integer('file_size').notNull(),

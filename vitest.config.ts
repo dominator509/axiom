@@ -41,8 +41,25 @@ export default defineConfig({
   plugins: [preferTsSource()],
 
   test: {
-    // Where to find test files
-    include: ['**/*.test.ts'],
+    // Only product-package tests belong to the repository matrix. Review
+    // copies under var/, .codex/, and L5-verification/ are intentionally
+    // outside the source tree and must not be discovered as application
+    // tests.
+    include: ['**/*.test.ts', '**/*.test.tsx'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/var/**',
+      '**/.codex/**',
+      '**/.codex-review/**',
+      '**/L5-verification/**',
+    ],
+
+    // Database-backed integration files share the one TEST_DATABASE_URL
+    // created by scripts/test-isolated-workspace.mjs. Run those files in a
+    // deterministic sequence so their tenant fixtures cannot deadlock each
+    // other while unit tests retain normal file parallelism.
+    fileParallelism: !process.env.TEST_DATABASE_URL,
 
     // Use forks pool for process-level isolation (more robust than threads)
     pool: 'forks',

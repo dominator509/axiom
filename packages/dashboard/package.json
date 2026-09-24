@@ -10,11 +10,12 @@
     "test": "vitest run",
     "dev": "next dev -p 3002",
     "start": "next start -p 3002",
-    "clean": "node ../../scripts/clean.mjs .next"
+    "clean": "node ../../scripts/clean.mjs .next .next-dev"
   },
   "dependencies": {
     "@axiom/auth": "workspace:*",
-    "next": "^15.5.22",
+    "@axiom/core": "workspace:*",
+    "next": "^15.5.24",
     "react": "^19.0.8",
     "react-dom": "^19.0.8"
   },

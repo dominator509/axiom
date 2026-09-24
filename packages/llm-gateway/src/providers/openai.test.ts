@@ -225,6 +225,15 @@ describe('OpenAIProvider', () => {
     });
   });
 
+  it('emits the bounded cache key only when the persisted control is enabled', async () => {
+    const p = new OpenAIProvider('sk-test-456');
+    await p.chat([{ role: 'user', content: 'x' }], {
+      cacheControl: { provider: 'openai', enabled: true, prefixAlignment: false, promptCacheKey: 'model:v1' },
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.prompt_cache_key).toBe('model:v1');
+  });
+
   it('estimates usage when the API omits it', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({

@@ -52,6 +52,16 @@ describe('TelegramConnector', () => {
     expect(bad.valid).toBe(false);
     expect(bad.errors[0]).toMatchObject({ field: 'mediaUrls', severity: 'error' });
   });
+
+  it('blocks media beyond the single link-share item', async () => {
+    const report = await new TelegramConnector(AUTH).validate(
+      input({
+        mediaUrls: ['https://fanvue.com/post/1', 'https://fanvue.com/post/2'],
+      }),
+    );
+    expect(report.valid).toBe(false);
+    expect(report.errors.some((error) => error.field === 'mediaUrls')).toBe(true);
+  });
 });
 
 describe('publish', () => {
@@ -59,7 +69,7 @@ describe('publish', () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({
         ok: true,
-        result: { message_id: 42, chat: { id: -100, type: 'channel' }, text: 'x' },
+        result: { message_id: 42, chat: { id: -100, type: 'channel', username: 'axiom_news' }, text: 'x' },
       }),
     );
     vi.stubGlobal('fetch', fetchMock);
@@ -80,21 +90,90 @@ describe('publish', () => {
     expect(body.disable_web_page_preview).toBe(false);
   });
 
-  it('falls back to @channel when externalUserId is missing', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse({ ok: true, result: { message_id: 7, chat: { id: -100, type: 'channel' } } }),
-      );
+  it('escapes user content when Telegram HTML parsing is enabled', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        ok: true,
+        result: { message_id: 43, chat: { id: -100, type: 'channel' } },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await new TelegramConnector(AUTH).publish(
+      input({
+        caption: '<b>unsafe & untrusted</b>',
+        mediaUrls: ['https://fanvue.com/post/1?a=1&b=2'],
+        hashtags: ['<tag>'],
+      }),
+    );
+
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
+    ) as {
+      text: string;
+    };
+    expect(body.text).toBe(
+      '&lt;b&gt;unsafe &amp; untrusted&lt;/b&gt;\n\nhttps://fanvue.com/post/1?a=1&amp;b=2\n\n#&lt;tag&gt;',
+    );
+  });
+
+  it.each([
+    ['image', 'sendPhoto', 'photo'],
+    ['video', 'sendVideo', 'video'],
+  ] as const)('uploads an explicit %s through %s', async (mediaType, method, field) => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      ok: true,
+      result: { message_id: 45, chat: { id: -100, type: 'channel' } },
+    }));
+    const connector = new TelegramConnector(AUTH, fetchMock);
+    const result = await connector.publish(input({
+      mediaUrls: ['https://media.example.test/asset'],
+      options: { mediaType },
+    }));
+    expect(result.state).toBe('published');
+    expect((fetchMock.mock.calls[0] as [string, RequestInit])[0]).toBe(`https://api.telegram.org/bot123:bot-token/${method}`);
+    const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string) as Record<string, string>;
+    expect(body[field]).toBe('https://media.example.test/asset');
+    expect(body.caption).toContain('New update is live');
+  });
+
+  it('fails when Telegram returns an API-level error in an HTTP 200 response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ ok: false, error_code: 400, description: 'bad chat' })),
+    );
+
+    const result = await new TelegramConnector(AUTH).publish(input());
+    expect(result.state).toBe('failed');
+    expect(result.error).toContain('Telegram sendMessage rejected (400): bad chat');
+  });
+
+  it('fails closed when externalUserId is missing', async () => {
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
     const c = new TelegramConnector({ accessToken: '123:bot-token' });
-    await c.publish(input({ hashtags: undefined }));
-    const body = JSON.parse(
-      (fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string,
-    ) as Record<string, string>;
-    expect(body.chat_id).toBe('@channel');
-    expect(body.text).toBe('New update is live\n\nhttps://fanvue.com/post/1');
+    const result = await c.publish(input({ hashtags: undefined }));
+
+    expect(result.state).toBe('failed');
+    expect(result.error).toBe('Telegram externalUserId (channel ID or username) is required');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when externalUserId is only whitespace', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await new TelegramConnector({
+      accessToken: '123:bot-token',
+      externalUserId: '   ',
+    }).publish(input());
+
+    expect(result.state).toBe('failed');
+    expect(result.error).toBe('Telegram externalUserId (channel ID or username) is required');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('returns failed when the API rejects', async () => {
@@ -125,16 +204,13 @@ describe('fetchMetrics', () => {
 });
 
 describe('revoke', () => {
-  it('calls logOut and logs the event', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ ok: true, result: true }));
-    vi.stubGlobal('fetch', fetchMock);
-
+  it('disconnects only this local account and never calls Telegram logOut', async () => {
+    const fetchMock = vi.fn();
     const c = new TelegramConnector(AUTH);
     await c.revoke();
-
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('https://api.telegram.org/bot123:bot-token/logOut');
-    expect(init.method).toBe('POST');
-    expect(c.getLogs().some((l) => l.message === 'Telegram bot logged out')).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(c.auth.accessToken).toBe('');
+    expect(c.auth.externalUserId).toBeUndefined();
+    expect(c.getLogs().at(-1)?.message).toContain('removed locally');
   });
 });

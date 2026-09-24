@@ -204,6 +204,15 @@ describe('AnthropicProvider', () => {
     expect(body.stop_sequences).toEqual(['END']);
   });
 
+  it('emits the Anthropic ephemeral breakpoint on the persisted static prefix', async () => {
+    const p = new AnthropicProvider('ant-key-789');
+    await p.chat([{ role: 'system', content: 'stable prefix' }, { role: 'user', content: 'x' }], {
+      cacheControl: { provider: 'anthropic', enabled: true, prefixAlignment: true, promptCacheKey: null },
+    });
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.system).toEqual([{ type: 'text', text: 'stable prefix', cache_control: { type: 'ephemeral' } }]);
+  });
+
   it('estimates usage and uses fallback pricing for unknown models', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({

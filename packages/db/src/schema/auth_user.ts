@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, uuid, unique } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { org } from './org.js';
 
@@ -12,7 +12,7 @@ export const authUser = pgTable('auth_user', {
   role: text('role').notNull().default('operator'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, table => [unique('auth_user_org_identity').on(table.orgId, table.id)]);
 
 export const authUserRelations = relations(authUser, ({ one }) => ({
   org: one(org, {

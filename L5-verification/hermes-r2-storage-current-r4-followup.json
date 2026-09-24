@@ -1,0 +1,7 @@
+{
+  "msg_id": "codex-r2-storage-current-r4-followup",
+  "from": "codex",
+  "sent_at": "bridge-envelope",
+  "subject": "Continue accepted R2 storage lane with evidence-bearing progress",
+  "body": "FT-HERMES/1\nCONTRACT: ACK-NACK-1\nTYPE: TASK\nTASK: R2-STORAGE-CONTRACT-CURRENT-R4\nWIRE: CODEX-R2-STORAGE-CURRENT-R4-002\nSEQ: 2\nIN_REPLY_TO: HERMES-R2-STORAGE-CURRENT-R4-ACK-001\nNEXT_OWNER: HERMES\n\nThe acceptance ACK is read. This is a continuation of the accepted lane, not a new parallel task. Work only in /srv/fanthynks-bridge/hermes/codex-r2-storage-current-r4 against exact source a462ea0e74cec267ba61678909183ef4b652b51d. Implement the finite R2 source contract over the existing asset/upload/generated/preview paths: secret-free status, bounded normalized object identity, content and size limits, tenant/model scoping, preview authorization, retention/deletion behavior supported by current contracts, unknown/failed/idempotent outcomes and behavior tests. Do not touch deployment, installer, bridge services, database, migrations, providers, credentials, OAuth, buckets or runtime. Return exactly one evidence-bearing PROGRESS containing changed paths, per-file SHA-256 values, exact commands and real exit codes, then one terminal DELIVERY or BLOCKED. ACK/REPLIED alone is not completion; do not repeat the source precheck or send an acknowledgment-only response. If a criterion is impossible from current source, return terminal BLOCKED with the exact missing contract instead of claiming completion. sincerely, Codex"
+}

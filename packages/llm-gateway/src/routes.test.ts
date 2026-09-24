@@ -77,6 +77,22 @@ const validBody = {
 };
 
 describe('createRouter — POST /chat', () => {
+  it('rejects an oversized JSON body before provider work', async () => {
+    const gateway = makeGatewayStub();
+    const app = createRouter(gateway);
+    const res = await app.request('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'x'.repeat(262_144) }],
+      }),
+    });
+
+    expect(res.status).toBe(413);
+    await expect(res.json()).resolves.toEqual({ error: 'payload too large' });
+    expect(gateway.chat).not.toHaveBeenCalled();
+  });
+
   // POST /chat — non-streaming completion
   it('returns a structured JSON error when the provider call fails', async () => {
     const gateway = makeGatewayStub();
@@ -353,12 +369,88 @@ describe('createRouter — GET endpoints', () => {
 });
 
 describe('createRouter — subscription OAuth lifecycle', () => {
+  it('binds attempt observation and cancellation to session identity, ignoring supplied identities', async () => {
+    const gateway = makeGatewayStub();
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    let signal: AbortSignal | undefined;
+    gateway.connectSubscription = vi.fn((_provider, _user, incoming) => (async function* () {
+      signal = incoming;
+      yield 'Private provider instructions';
+      await pending;
+    })());
+    const app = new Hono<{ Variables: { userId: string; orgId: string } }>();
+    // Test session injection; production identity comes from requireAuth.
+    let user = 'first-user';
+    app.use('*', async (c, next) => { c.set('userId', user); c.set('orgId', 'test-org'); await next(); });
+    app.route('/', createRouter(gateway));
+    try {
+      const started = await app.request('/subscriptions/grok/login-attempt?userId=other', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'other' }) });
+      expect(started.status).toBe(202);
+      const { id } = await started.json() as { id: string };
+      expect(gateway.connectSubscription).toHaveBeenCalledWith('grok', 'first-user', expect.any(AbortSignal));
+      user = 'second-user';
+      expect(await (await app.request('/subscriptions/grok/login-attempt')).json()).toEqual({ attempt: null });
+      for (const method of ['GET', 'DELETE']) {
+        const response = await app.request(`/subscriptions/grok/login-attempt/${id}?userId=first-user`, { method });
+        expect(response.status).toBe(404);
+        expect(await response.text()).not.toContain('Private provider instructions');
+      }
+      expect(signal?.aborted).toBe(false);
+      user = 'first-user';
+      expect((await app.request(`/subscriptions/grok/login-attempt/${id}`, { method: 'DELETE' })).status).toBe(200);
+      expect(signal?.aborted).toBe(true);
+    } finally { finish(); }
+  });
+  it('keeps a Grok attempt alive after the starting request closes and resumes by GET', async () => {
+    const gateway = makeGatewayStub();
+    let signal: AbortSignal | undefined;
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    gateway.connectSubscription = vi.fn((_provider, _user, incoming) => (async function* () {
+      signal = incoming;
+      yield 'Provider instructions';
+      await pending;
+    })());
+    const app = authenticatedApp(gateway);
+    const request = new AbortController();
+    const started = await app.request('/subscriptions/grok/login-attempt', { method: 'POST', signal: request.signal });
+    expect(started.status).toBe(202);
+    expect(started.headers.get('cache-control')).toBe('no-store');
+    const { id } = await started.json() as { id: string };
+    request.abort();
+    expect(signal?.aborted).toBe(false);
+    const duplicate = await app.request('/subscriptions/grok/login-attempt', { method: 'POST' });
+    expect((await duplicate.json() as { id: string }).id).toBe(id);
+    expect(gateway.connectSubscription).toHaveBeenCalledTimes(1);
+    const resumed = await app.request('/subscriptions/grok/login-attempt');
+    expect((await resumed.json() as { attempt: unknown }).attempt).toMatchObject({ id, state: 'pending', messages: ['Provider instructions'] });
+    expect((await app.request('/subscriptions/grok', { method: 'DELETE' })).status).toBe(409);
+    expect(gateway.disconnectSubscription).not.toHaveBeenCalled();
+    finish();
+    await vi.waitFor(async () => {
+      const result = await app.request(`/subscriptions/grok/login-attempt/${id}`);
+      expect(await result.json()).toMatchObject({ id, state: 'completed', messages: [] });
+    });
+  });
+
+  it('rejects unauthenticated attempt creation and the obsolete Grok stream', async () => {
+    const gateway = makeGatewayStub();
+    expect((await createRouter(gateway).request('/subscriptions/grok/login-attempt', { method: 'POST' })).status).toBe(401);
+    expect((await authenticatedApp(gateway).request('/subscriptions/grok/login', { method: 'POST' })).status).toBe(409);
+    expect(gateway.connectSubscription).not.toHaveBeenCalled();
+  });
+
   it('reports connection state for the authenticated user', async () => {
     const gateway = makeGatewayStub();
     const res = await authenticatedApp(gateway).request('/subscriptions/grok');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ provider: 'grok', connected: true });
-    expect(gateway.getSubscriptionStatus).toHaveBeenCalledWith('grok', 'user-route-test');
+    expect(gateway.getSubscriptionStatus).toHaveBeenCalledWith(
+      'grok',
+      'user-route-test',
+      expect.any(AbortSignal),
+    );
   });
 
   it('streams provider login instructions without caching', async () => {
@@ -367,13 +459,59 @@ describe('createRouter — subscription OAuth lifecycle', () => {
       method: 'POST',
     });
     expect(res.status).toBe(200);
-    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(res.headers.get('cache-control')).toBe('no-store, no-transform');
+    expect(res.headers.get('x-accel-buffering')).toBe('no');
     expect(await res.text()).toContain('event: connected');
     expect(gateway.connectSubscription).toHaveBeenCalledWith(
       'openai',
       'user-route-test',
       expect.any(AbortSignal),
     );
+  });
+
+  it.each([false, true])('aborts a cancelled login reader without writing a late result (error=%s)', async (fail) => {
+    const gateway = makeGatewayStub();
+    let loginSignal: AbortSignal | undefined;
+    let finished = false;
+    gateway.connectSubscription = vi.fn((_provider, _userId, signal) => (async function* () {
+      loginSignal = signal;
+      try {
+        yield 'Continue in your browser';
+        await new Promise<void>((resolve) => {
+          if (signal?.aborted) resolve();
+          else signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+        if (fail) throw new Error('late provider error');
+      } finally { finished = true; }
+    })());
+    const res = await authenticatedApp(gateway).request('/subscriptions/openai/login', { method: 'POST' });
+    const reader = res.body!.getReader();
+    expect((await reader.read()).done).toBe(false);
+    await reader.cancel();
+    expect(loginSignal?.aborted).toBe(true);
+    await vi.waitFor(() => expect(finished).toBe(true));
+  });
+
+  it('forwards request abort and never reports the interrupted login as connected', async () => {
+    const gateway = makeGatewayStub();
+    const request = new AbortController();
+    let loginSignal: AbortSignal | undefined;
+    gateway.connectSubscription = vi.fn((_provider, _userId, signal) => (async function* () {
+      loginSignal = signal;
+      yield 'Continue in your browser';
+      await new Promise<void>((resolve) => {
+        if (signal?.aborted) resolve();
+        else signal?.addEventListener('abort', () => resolve(), { once: true });
+      });
+    })());
+    const res = await authenticatedApp(gateway).request('/subscriptions/openai/login', {
+      method: 'POST', signal: request.signal,
+    });
+    const reader = res.body!.getReader();
+    expect((await reader.read()).done).toBe(false);
+    request.abort();
+    expect(loginSignal?.aborted).toBe(true);
+    expect((await reader.read()).done).toBe(true);
   });
 
   it('disconnects only the authenticated user profile', async () => {
@@ -383,7 +521,11 @@ describe('createRouter — subscription OAuth lifecycle', () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ provider: 'anthropic', connected: false });
-    expect(gateway.disconnectSubscription).toHaveBeenCalledWith('anthropic', 'user-route-test');
+    expect(gateway.disconnectSubscription).toHaveBeenCalledWith(
+      'anthropic',
+      'user-route-test',
+      expect.any(AbortSignal),
+    );
   });
 
   it('rejects providers without a qualifying subscription transport', async () => {

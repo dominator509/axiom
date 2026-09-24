@@ -1,5 +1,5 @@
 export { CardRenderer } from './card.js';
-export type { BundleContent, PlatformVerdict, RelayCard } from './card.js';
+export type { BundleContent, InsightContent, InsightGroup, PlatformVerdict, RelayCard } from './card.js';
 
 export { TelegramAdapter } from './channels/telegram.js';
 export { DiscordAdapter } from './channels/discord.js';
@@ -28,6 +28,11 @@ export {
 export { HealthCheckRegistry } from './observability/health.js';
 export type { StandardHealthProbes } from './observability/health.js';
 
-export { MetricPoller } from './metrics/poller.js';
-
 export { createRelayRoutes } from './routes.js';
+export {
+  RELAY_CARD_STATES,
+  RELAY_CARD_DISPATCHED_STATES,
+  isExternallyDispatched,
+  relayCardExternalDelivery,
+} from '@axiom/core';
+export type { RelayCardState, RelayCardExternalDelivery } from '@axiom/core';

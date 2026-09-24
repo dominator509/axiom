@@ -11,20 +11,150 @@ import type {
   ConnectorMetrics,
   MetricPeriod,
   MetricName,
+  SocialOperationInput,
+  SocialOperationResult,
 } from './types.js';
 import type { Platform, PublishMode } from '@axiom/core';
-
-/**
- * In-memory idempotency ledger (would be backed by DB in production).
- * Maps `${platform}:${idempotencyKey}` -> IdempotencyEntry.
- */
-const idempotencyLedger = new Map<string, IdempotencyEntry>();
 
 /** Default metric names available to all platforms */
 export const COMMON_METRICS: MetricName[] = ['likes', 'comments', 'shares', 'views', 'impressions'];
 
 /** Maximum log entries kept per connector */
 const MAX_LOG = 100;
+const MAX_PROVIDER_ERROR_LENGTH = 1_024;
+/** Provider JSON responses are expected to be small, paginated envelopes. */
+export const CONNECTOR_MAX_JSON_RESPONSE_BYTES = 1 * 1024 * 1024;
+export const CONNECTOR_MAX_ERROR_RESPONSE_BYTES = 64 * 1024;
+const SENSITIVE_QUERY_KEYS = new Set([
+  'access_token',
+  'refresh_token',
+  'client_secret',
+  'api_key',
+  'apikey',
+  'password',
+  'secret',
+  'token',
+]);
+
+/** Parse a successful provider response without treating an empty body as a failure. */
+async function parseSuccessfulJson<T>(response: Response): Promise<T> {
+  const body = await readResponseText(
+    response,
+    CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+    'provider JSON response',
+  );
+  if (body.trim().length === 0) return undefined as T;
+  return JSON.parse(body) as T;
+}
+
+/**
+ * Read a remote media response with a hard byte ceiling before allocating the
+ * final contiguous buffer. Provider-facing upload connectors must not allow a
+ * dishonest/missing Content-Length or an untrusted URL to exhaust the worker.
+ */
+export async function readResponseBytes(
+  response: Response,
+  maxBytes: number,
+  label: string,
+): Promise<Uint8Array> {
+  const contentLength = response.headers.get('content-length');
+  if (contentLength !== null) {
+    const declaredLength = Number(contentLength);
+    if (!Number.isSafeInteger(declaredLength) || declaredLength < 0) {
+      throw new Error(`${label} returned an invalid content length`);
+    }
+    if (declaredLength > maxBytes) {
+      throw new Error(`${label} exceeds the maximum supported size of ${maxBytes} bytes`);
+    }
+  }
+
+  if (!response.body) {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > maxBytes) {
+      throw new Error(`${label} exceeds the maximum supported size of ${maxBytes} bytes`);
+    }
+    return bytes;
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new Error(`${label} exceeds the maximum supported size of ${maxBytes} bytes`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const result = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return result;
+}
+
+/**
+ * Read provider text with a hard byte ceiling. This is used for both JSON
+ * envelopes and error payloads so a provider cannot exhaust connector memory
+ * through a response body that omits or falsifies Content-Length.
+ */
+export async function readResponseText(
+  response: Response,
+  maxBytes: number,
+  label: string,
+): Promise<string> {
+  const bytes = await readResponseBytes(response, maxBytes, label);
+  return new TextDecoder().decode(bytes);
+}
+
+/** Parse a bounded provider JSON response body. */
+export async function readResponseJson<T>(response: Response): Promise<T> {
+  return JSON.parse(
+    await readResponseText(response, CONNECTOR_MAX_JSON_RESPONSE_BYTES, 'provider JSON response'),
+  ) as T;
+}
+
+/** Redact credential-bearing query parameters before a provider URL is logged. */
+export function redactProviderUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    for (const key of url.searchParams.keys()) {
+      if (SENSITIVE_QUERY_KEYS.has(key.toLowerCase())) {
+        url.searchParams.set(key, '[REDACTED]');
+      }
+    }
+    if (url.username) url.username = '[REDACTED]';
+    if (url.password) url.password = '[REDACTED]';
+    return url.toString();
+  } catch {
+    return rawUrl.replace(
+      /([?&](?:access_token|refresh_token|client_secret|api[_-]?key|apikey|password|secret|token)=)[^&\s]*/gi,
+      '$1[REDACTED]',
+    );
+  }
+}
+
+/** Bound and redact provider text before it reaches logs or durable errors. */
+export function redactProviderText(rawText: string): string {
+  return rawText
+    .replace(/Bearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]')
+    .replace(
+      /(["']?(?:access_token|refresh_token|client_secret|api[_-]?key|apikey|password|secret|token)["']?\s*[:=]\s*["']?)[^"'\s,}&]+/gi,
+      '$1[REDACTED]',
+    )
+    .slice(0, MAX_PROVIDER_ERROR_LENGTH);
+}
 
 /**
  * Bound every provider request so a stalled upstream cannot occupy a worker
@@ -57,6 +187,15 @@ export abstract class BaseConnector implements SocialConnector {
 
   protected logHistory: LogEntry[] = [];
 
+  /**
+   * Connector-local idempotency is only a convenience for repeated calls on
+   * the same instance. Durable publish idempotency belongs to the worker's
+   * database ledger; sharing this cache across connector instances could turn
+   * a post-commit retry into a false skipped result after a transaction
+   * rollback.
+   */
+  private readonly idempotencyLedger = new Map<string, IdempotencyEntry>();
+
   constructor(
     platform: Platform,
     displayName: string,
@@ -71,11 +210,28 @@ export abstract class BaseConnector implements SocialConnector {
     const transport = fetchImpl;
     this.fetchImpl = (input, init) => {
       const timeoutSignal = AbortSignal.timeout(CONNECTOR_REQUEST_TIMEOUT_MS);
-      const signal = init?.signal
-        ? AbortSignal.any([init.signal, timeoutSignal])
-        : timeoutSignal;
+      const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
       return transport(input, { ...init, signal });
     };
+  }
+
+  /**
+   * OAuth providers may return a user-approved subset of the requested scopes.
+   * Older/manual credentials have no scope manifest and preserve their legacy
+   * connector contract; once a manifest is present, operations fail closed.
+   */
+  protected hasGrantedScope(...accepted: string[]): boolean {
+    const value = this.auth.extra?.grantedScopes;
+    if (!Array.isArray(value)) return true;
+    const granted = new Set(value.filter((scope): scope is string => typeof scope === 'string'));
+    return accepted.some((scope) => granted.has(scope));
+  }
+
+  /** Hard provider boundary for callers that invoke publish/metrics directly. */
+  protected assertGrantedScope(operation: string, ...accepted: string[]): void {
+    if (!this.hasGrantedScope(...accepted)) {
+      throw new Error(`${this.displayName} ${operation} is unavailable: required permission was not granted`);
+    }
   }
 
   // ── Abstract methods ──
@@ -86,6 +242,10 @@ export abstract class BaseConnector implements SocialConnector {
   abstract fetchMetrics(remoteId: string, period?: MetricPeriod): Promise<ConnectorMetrics>;
   abstract revoke(): Promise<void>;
 
+  async executeOperation(input: SocialOperationInput): Promise<SocialOperationResult> {
+    throw new Error(`${this.displayName} does not support the ${input.type} operation`);
+  }
+
   // ── Idempotency ──
 
   /**
@@ -93,7 +253,7 @@ export abstract class BaseConnector implements SocialConnector {
    * Returns existing entry if already published/skipped, null if fresh.
    */
   protected checkIdempotency(key: string): IdempotencyEntry | undefined {
-    const entry = idempotencyLedger.get(`${this.platform}:${key}`);
+    const entry = this.idempotencyLedger.get(`${this.platform}:${key}`);
     return entry;
   }
 
@@ -103,9 +263,9 @@ export abstract class BaseConnector implements SocialConnector {
   protected recordIdempotency(
     key: string,
     remoteId: string | null,
-    state: 'published' | 'pending' | 'failed' | 'skipped',
+    state: 'published' | 'pending' | 'failed' | 'skipped' | 'manual_assist',
   ): void {
-    idempotencyLedger.set(`${this.platform}:${key}`, {
+    this.idempotencyLedger.set(`${this.platform}:${key}`, {
       idempotencyKey: key,
       platform: this.platform,
       remoteId,
@@ -132,12 +292,14 @@ export abstract class BaseConnector implements SocialConnector {
           error: undefined,
         };
       }
-      if (existing.state === 'skipped') {
-        this.log('info', 'publish', `Skipping previously-skipped post ${input.idempotencyKey}`);
+      if (existing.state === 'skipped' || existing.state === 'manual_assist') {
+        this.log('info', 'publish', `Skipping previously-${existing.state} post ${input.idempotencyKey}`);
         return {
           remoteId: null,
-          state: 'skipped',
-          error: 'Previously skipped',
+          state: existing.state,
+          error: existing.state === 'manual_assist'
+            ? 'Previously handed off for manual assistance'
+            : 'Previously skipped',
         };
       }
       if (existing.state === 'pending') {
@@ -159,7 +321,7 @@ export abstract class BaseConnector implements SocialConnector {
       return result;
     } catch (err: unknown) {
       const elapsed = Date.now() - start;
-      const errorMsg = err instanceof Error ? err.message : String(err);
+      const errorMsg = redactProviderText(err instanceof Error ? err.message : String(err));
       this.recordIdempotency(input.idempotencyKey, null, 'failed');
 
       return {
@@ -214,12 +376,19 @@ export abstract class BaseConnector implements SocialConnector {
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      this.log('error', 'apiGet', `HTTP ${response.status}: ${body}`, { url });
-      throw new Error(`API GET ${url} failed: ${response.status} ${response.statusText}`);
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      const safeUrl = redactProviderUrl(url);
+      this.log('error', 'apiGet', `HTTP ${response.status}: ${redactProviderText(body)}`, {
+        url: safeUrl,
+      });
+      throw new Error(`API GET ${safeUrl} failed: ${response.status} ${response.statusText}`);
     }
 
-    return response.json() as Promise<T>;
+    return parseSuccessfulJson<T>(response);
   }
 
   /**
@@ -227,26 +396,34 @@ export abstract class BaseConnector implements SocialConnector {
    */
   protected async apiPost<T>(
     url: string,
-    body: unknown,
+    body?: unknown,
     headers?: Record<string, string>,
   ): Promise<T> {
+    const requestHeaders: Record<string, string> = {
+      Authorization: `Bearer ${this.auth.accessToken}`,
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...headers,
+    };
     const response = await this.fetchImpl(url, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.auth.accessToken}`,
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      body: JSON.stringify(body),
+      headers: requestHeaders,
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
 
     if (!response.ok) {
-      const responseBody = await response.text().catch(() => '');
-      this.log('error', 'apiPost', `HTTP ${response.status}: ${responseBody}`, { url });
-      throw new Error(`API POST ${url} failed: ${response.status} ${response.statusText}`);
+      const responseBody = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      const safeUrl = redactProviderUrl(url);
+      this.log('error', 'apiPost', `HTTP ${response.status}: ${redactProviderText(responseBody)}`, {
+        url: safeUrl,
+      });
+      throw new Error(`API POST ${safeUrl} failed: ${response.status} ${response.statusText}`);
     }
 
-    return response.json() as Promise<T>;
+    return parseSuccessfulJson<T>(response);
   }
 
   /**
@@ -267,12 +444,19 @@ export abstract class BaseConnector implements SocialConnector {
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      this.log('error', 'apiUpload', `HTTP ${response.status}: ${body}`, { url });
-      throw new Error(`API Upload to ${url} failed: ${response.status} ${response.statusText}`);
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      const safeUrl = redactProviderUrl(url);
+      this.log('error', 'apiUpload', `HTTP ${response.status}: ${redactProviderText(body)}`, {
+        url: safeUrl,
+      });
+      throw new Error(`API Upload to ${safeUrl} failed: ${response.status} ${response.statusText}`);
     }
 
-    return response.json() as Promise<T>;
+    return parseSuccessfulJson<T>(response);
   }
 
   /**
@@ -289,11 +473,24 @@ export abstract class BaseConnector implements SocialConnector {
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      this.log('error', 'apiDelete', `HTTP ${response.status}: ${body}`, { url });
-      throw new Error(`API DELETE ${url} failed: ${response.status} ${response.statusText}`);
+      const body = await readResponseText(
+        response,
+        CONNECTOR_MAX_ERROR_RESPONSE_BYTES,
+        'provider error response',
+      ).catch(() => '');
+      const safeUrl = redactProviderUrl(url);
+      this.log('error', 'apiDelete', `HTTP ${response.status}: ${redactProviderText(body)}`, {
+        url: safeUrl,
+      });
+      throw new Error(`API DELETE ${safeUrl} failed: ${response.status} ${response.statusText}`);
     }
 
-    return response.json() as Promise<T>;
+    const responseBody = await readResponseText(
+      response,
+      CONNECTOR_MAX_JSON_RESPONSE_BYTES,
+      'provider JSON response',
+    );
+    if (responseBody.trim().length === 0) return undefined as T;
+    return JSON.parse(responseBody) as T;
   }
 }

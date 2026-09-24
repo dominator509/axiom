@@ -2,7 +2,13 @@
 // TOKENKILLER S0–S3 segment building, prompt assembly, photoshoot prompt generation,
 // and CourseAdherenceScore calculator.
 
-// ─── TokenKillerSegments (local definition, mirrors @axiom/fanvue-mcp) ───
+import {
+  DEFAULT_PLATFORM_THRESHOLDS,
+  PLATFORM_RULES as SHARED_PLATFORM_RULES,
+} from '@axiom/fanvue-mcp';
+import type { PlatformRule } from '@axiom/fanvue-mcp';
+
+// ─── TokenKillerSegments ───
 
 export interface TokenKillerSegments {
   /** S0: System persona (static, model-dependent) */
@@ -69,14 +75,7 @@ export interface ModelProfile {
   characterRules?: string[];
 }
 
-export interface PlatformRules {
-  description: string;
-  blockedKeywords: string[];
-  maxHashtags: number;
-  maxCaptionLength: number;
-  linksAllowed: boolean;
-  reviewCategories: string[];
-}
+export type PlatformRules = Omit<PlatformRule, 'platform'>;
 
 export interface ViralExemplar {
   id: string;
@@ -97,112 +96,17 @@ export interface TaskVariables {
   talkingPoints?: string[];
   mediaDescriptions?: string[];
   imageCaption?: string;
+  task?: string;
+  context?: string;
   [key: string]: unknown;
 }
 
-// ─── Platform Rules Map (mirrors fanvue-mcp tos-engine data) ───
+// ─── Platform Rules ───
 
-const PLATFORM_RULES: Record<Platform, PlatformRules> = {
-  instagram: {
-    description: 'Instagram Community Guidelines — no nudity, hate speech, harassment',
-    blockedKeywords: ['nude', 'naked', 'sex', 'porn', 'escort', 'onlyfans'],
-    maxHashtags: 30,
-    maxCaptionLength: 2200,
-    linksAllowed: true,
-    reviewCategories: ['suggestive', 'revealing', 'sexual_wellness'],
-  },
-  tiktok: {
-    description: 'TikTok Community Guidelines — no sexually explicit content, adult nudity',
-    blockedKeywords: ['nude', 'naked', 'sex', 'porn', 'escort', 'onlyfans', 'nsfw'],
-    maxHashtags: 20,
-    maxCaptionLength: 2200,
-    linksAllowed: false,
-    reviewCategories: ['suggestive', 'revealing', 'intimate'],
-  },
-  x: {
-    description: 'X/Twitter Rules — no violent content, harassment, adult content (permissive)',
-    blockedKeywords: ['violence', 'gore', 'harassment'],
-    maxHashtags: 50,
-    maxCaptionLength: 4000,
-    linksAllowed: true,
-    reviewCategories: ['suggestive'],
-  },
-  youtube: {
-    description: 'YouTube Community Guidelines — no nudity, sexual content, harmful content',
-    blockedKeywords: [
-      'nude',
-      'naked',
-      'sex',
-      'porn',
-      'escort',
-      'onlyfans',
-      'nsfw',
-      'violence',
-      'gore',
-    ],
-    maxHashtags: 15,
-    maxCaptionLength: 5000,
-    linksAllowed: true,
-    reviewCategories: ['suggestive', 'revealing', 'sexual_wellness', 'intimate'],
-  },
-  facebook: {
-    description: 'Facebook Community Standards — no nudity, sexual solicitation, hate speech',
-    blockedKeywords: ['nude', 'naked', 'sex', 'porn', 'escort', 'onlyfans', 'nsfw'],
-    maxHashtags: 30,
-    maxCaptionLength: 63206,
-    linksAllowed: true,
-    reviewCategories: ['suggestive', 'revealing', 'sexual_wellness'],
-  },
-  reddit: {
-    description: 'Reddit Content Policy — no harassment, no involuntary pornography',
-    blockedKeywords: ['harassment', 'dox', 'gore'],
-    maxHashtags: 0,
-    maxCaptionLength: 40000,
-    linksAllowed: true,
-    reviewCategories: ['suggestive'],
-  },
-  threads: {
-    description: 'Threads Guidelines — no nudity, hate speech, harassment',
-    blockedKeywords: ['nude', 'naked', 'sex', 'porn', 'escort', 'onlyfans', 'nsfw'],
-    maxHashtags: 10,
-    maxCaptionLength: 500,
-    linksAllowed: false,
-    reviewCategories: ['suggestive', 'revealing'],
-  },
-  snapchat: {
-    description: 'Snapchat Community Guidelines — no explicit sexual content, no bullying',
-    blockedKeywords: ['nude', 'naked', 'sex', 'porn', 'escort', 'onlyfans', 'nsfw', 'harassment'],
-    maxHashtags: 0,
-    maxCaptionLength: 250,
-    linksAllowed: false,
-    reviewCategories: ['suggestive', 'revealing', 'intimate'],
-  },
-  discord: {
-    description:
-      'Discord Community Guidelines — no hate speech, harassment, explicit content in non-NSFW channels',
-    blockedKeywords: ['harassment', 'dox', 'gore'],
-    maxHashtags: 0,
-    maxCaptionLength: 2000,
-    linksAllowed: true,
-    reviewCategories: ['suggestive'],
-  },
-  telegram: {
-    description: 'Telegram Terms — no illegal content, spam, copyright infringement',
-    blockedKeywords: ['spam', 'scam', 'illegal'],
-    maxHashtags: 0,
-    maxCaptionLength: 4096,
-    linksAllowed: true,
-    reviewCategories: [],
-  },
-  fanvue: {
-    description: 'Fanvue ToS — no illegal content, no minors, platform-specific content rules',
-    blockedKeywords: ['minor', 'underage', 'illegal'],
-    maxHashtags: 50,
-    maxCaptionLength: 5000,
-    linksAllowed: true,
-    reviewCategories: ['extremely_explicit'],
-  },
-};
+// The compliance engine is the single source of truth for provider rules and
+// thresholds. Prompt generation must consume the same data so policy changes
+// cannot silently diverge from enforcement.
+const PLATFORM_RULES = SHARED_PLATFORM_RULES;
 
 // ─── S0: System Persona Segment ───
 
@@ -281,22 +185,7 @@ export function buildS1(platform: Platform): string {
     lines.push(`Content requiring review: ${rules.reviewCategories.join(', ')}`);
   }
 
-  // ToS thresholds
-  const thresholdMap: Record<Platform, number> = {
-    instagram: 70,
-    tiktok: 65,
-    x: 75,
-    youtube: 60,
-    facebook: 70,
-    reddit: 65,
-    threads: 70,
-    snapchat: 60,
-    discord: 70,
-    telegram: 70,
-    fanvue: 80,
-  };
-
-  const threshold = thresholdMap[platform] ?? 70;
+  const threshold = DEFAULT_PLATFORM_THRESHOLDS[platform] ?? 70;
   lines.push(`\n[TOS THRESHOLDS]`);
   lines.push(`Acceptance threshold: ${threshold}/100`);
   lines.push(`Above threshold + 15 → block`);
@@ -356,6 +245,12 @@ export function buildS3(task: TaskVariables): string {
   lines.push(`Angle: ${task.angle ?? 'default'}`);
   lines.push(`Emoji style: ${task.emojiStyle ?? 'moderate'}`);
   lines.push(`CTA: ${task.cta ?? 'engagement'}`);
+  if (typeof task.task === 'string' && task.task) {
+    lines.push(`Instruction: ${task.task}`);
+  }
+  if (typeof task.context === 'string' && task.context) {
+    lines.push(`Context: ${task.context}`);
+  }
 
   if (task.talkingPoints && task.talkingPoints.length > 0) {
     lines.push(`Talking points: ${task.talkingPoints.join(' | ')}`);

@@ -11,7 +11,7 @@ Build AXIOM: a cost-optimized, self-hostable, multi-tenant CRM for operating Fan
 PRIME-BLOCK-BEGIN
 This repository is governed by the AXIOM FanvueCRM Blueprint v2 (6Layer paradigm). AGENTS.md is the authoritative control plane.
 On every session start, execute THE BOOT SEQUENCE:
-1. Read AGENTS.md fully. 2. Read COMMANDS.md. 3. Run: sh scripts/ledger.sh tail 30. 4. Run: sh scripts/preflight.sh -- it MUST print "preflight: ok"; if it fails, report the exact missing items. 5. Run: sh scripts/graph-next.sh and dispatch on its one-line output. 6. Repeat step 5 after every completed node until ALL_DONE, then run the ship gate.
+1. Read AGENTS.md fully. 2. Read COMMANDS.md. 3. Read HERMES_MANIFESTO.md before any Hermes bridge work. 4. Run: sh scripts/ledger.sh tail 30. 5. Run: sh scripts/preflight.sh -- it MUST print "preflight: ok"; if it fails, report the exact missing items. 6. Run: sh scripts/graph-next.sh and dispatch on its one-line output. 7. Repeat step 6 after every completed node until ALL_DONE, then run the ship gate.
 Hard rules: do not ask the user questions. Use only commands from COMMANDS.md. One node at a time. Commit after every milestone. Append ledger events. No stubs, mocks, demo modes. Every line must be real.
 PRIME-BLOCK-END
 

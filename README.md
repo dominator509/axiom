@@ -1,9 +1,17 @@
-# Fanvue CRM — Enterprise Blueprint Pack (v2, "Perfected")
+# FanThynks — Creator OS
 
-**Codename:** `AXIOM` (Agent-Xrossed Influence & Operations Manager)
+**Product:** FanThynks
+**Registered domain:** `fanthynks.com` (production DNS/deployment pending)
+**Legacy engineering codename:** `AXIOM` (Agent-Xrossed Influence & Operations Manager)
 **Format:** 6Layer Software Blueprint Paradigm
-**Status:** Ready for greenfield execution
+**Status:** Implementation in progress; production acceptance remains gated
 **Supersedes:** `FanvueArch.md` (v1)
+
+FanThynks is the public product name. Existing `@axiom/*` packages, `AXIOM_*`
+environment variables, database/storage identifiers, mobile slug, and historical
+blueprint/ledger references retain their engineering names for compatibility.
+The rebrand does not migrate credentials, change OAuth callbacks, or make the
+registered domain a live deployment.
 
 This pack is a complete, execution-ready blueprint for a cost-optimized, self-hostable, multi-tenant CRM that manages multiple Fanvue models and their full social-media ecosystems. It is a hardened rewrite of the v1 architecture with the same feature surface (nothing removed) plus the explicitly requested additions:
 
