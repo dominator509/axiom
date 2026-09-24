@@ -65,7 +65,7 @@ jobs:
 
       - name: Prepare ephemeral E2E database
         env:
-          MIGRATOR_DATABASE_URL: postgresql://axiom:axiom@localhost:5432/axiom_e2e
+          MIGRATOR_DATABASE_URL: postgresql://axiom:changeme@localhost:5432/axiom_e2e
         run: pnpm migrate
 
       - name: Run Playwright E2E suite
@@ -74,8 +74,8 @@ jobs:
           # Same role the deployment container smoke test uses; the
           # least-privilege axiom_app role is not granted the auth tables by
           # the migrations (see PR body).
-          E2E_DATABASE_URL: postgresql://axiom:axiom@localhost:5432/axiom_e2e
-          E2E_MIGRATOR_DATABASE_URL: postgresql://axiom:axiom@localhost:5432/axiom_e2e
+          E2E_DATABASE_URL: postgresql://axiom:changeme@localhost:5432/axiom_e2e
+          E2E_MIGRATOR_DATABASE_URL: postgresql://axiom:changeme@localhost:5432/axiom_e2e
         run: pnpm --filter @axiom/e2e test:e2e
 
       - name: Upload Playwright report
