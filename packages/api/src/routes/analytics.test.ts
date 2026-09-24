@@ -44,19 +44,19 @@ describe('GET /models/:modelId/analytics — aggregates', () => {
     expect(body.data.totals.likes).toBe(0);
     expect(body.data.windowDays).toBe(30);
     expect(body.data.postsWithMetrics).toBe(0);
+    expect(body.data.postPerformance).toEqual([]);
   });
 
   it('aggregates per-platform totals', async () => {
-    mockState.result = [
-      {
-        platform: 'instagram',
-        views: 100,
-        likes: 10,
-        shares: 2,
-        comments: 3,
-        engagementRate: 0.08,
-      },
-      { platform: 'x', views: 50, likes: 5, shares: 1, comments: 1, engagementRate: 0.06 },
+    mockState.results = [
+      [],
+      [
+        { platform: 'instagram', views: 100, likes: 10, shares: 2, comments: 3, engagementRate: 0.08 },
+        { platform: 'x', views: 50, likes: 5, shares: 1, comments: 1, engagementRate: 0.06 },
+      ],
+      [],
+      [{ count: 2 }],
+      [],
     ];
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/analytics?days=7`);
     expect(res.status).toBe(200);
@@ -69,7 +69,7 @@ describe('GET /models/:modelId/analytics — aggregates', () => {
   it('maps latest-snapshot aggregates and daily observations from the database', async () => {
     // The first result is the RLS set_config statement in withOrgContext;
     // subsequent results are the latest-per-target platform rows, daily rows,
-    // and the distinct post count.
+    // the distinct post count, and the latest per-post attribution projection.
     mockState.results = [
       [],
       [
@@ -84,6 +84,11 @@ describe('GET /models/:modelId/analytics — aggregates', () => {
       ],
       [{ day: '2026-09-09', views: 110, likes: 11 }],
       [{ count: 1 }],
+      [{ targetId: '33333333-3333-4333-8333-333333333333', platform: 'instagram',
+        publishedAt: '2026-09-08T12:00:00.000Z', collectedAt: '2026-09-09T12:00:00.000Z',
+        views: '100', likes: '11', shares: '2', comments: '3', engagementRate: '0.08',
+        providerMetrics: { reach: 140, saves: 4, clicks: 30, watch_time: 5.5 },
+        linkClicks: '20', subscriptions: '2', ppvPurchases: '1', refunds: '1', revenueByCurrency: { USD: 475 } }],
     ];
 
     const res = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/analytics?days=7`);
@@ -92,6 +97,14 @@ describe('GET /models/:modelId/analytics — aggregates', () => {
     expect(body.data.totals).toEqual({ views: 110, likes: 11, shares: 2, comments: 3 });
     expect(body.data.daily).toEqual([{ day: '2026-09-09', views: 110, likes: 11 }]);
     expect(body.data.postsWithMetrics).toBe(1);
+    expect(body.data.postPerformance).toEqual([{
+      targetId: '33333333-3333-4333-8333-333333333333', platform: 'instagram',
+      publishedAt: '2026-09-08T12:00:00.000Z', collectedAt: '2026-09-09T12:00:00.000Z',
+      views: 100, likes: 11, shares: 2, comments: 3, engagementRate: 0.08,
+      providerMetrics: { reach: 140, saves: 4, clicks: 30, watch_time: 5.5 },
+      linkClicks: 20, linkClickRate: 0.2, subscriptions: 2, ppvPurchases: 1, refunds: 1,
+      revenueByCurrency: { USD: 475 },
+    }]);
   });
 
   it('clamps days to the 1..365 window', async () => {

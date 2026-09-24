@@ -155,6 +155,28 @@ it('formats remaining analytics counts and scores in the selected locale', async
   expect(html).toContain('Revisión 12.345');
   expect(html).toContain(new Intl.NumberFormat('es', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(12.345));
 });
+it('renders observed provider dimensions and first-party post attribution', async () => {
+  mocks.analytics.mockResolvedValue({ data: {
+    totals: { views: 100, likes: 5, shares: 1, comments: 2 }, windowDays: 30,
+    perPlatform: [], daily: [], postsWithMetrics: 1,
+    postPerformance: [{
+      targetId: '33333333-3333-4333-8333-333333333333', platform: 'instagram',
+      publishedAt: '2026-09-08T12:00:00.000Z', collectedAt: '2026-09-09T12:00:00.000Z',
+      views: 100, likes: 5, shares: 1, comments: 2, engagementRate: 0.08,
+      providerMetrics: { reach: 140, saves: 4, clicks: 30, watch_time: 5.5 },
+      linkClicks: 20, linkClickRate: 0.2, subscriptions: 2, ppvPurchases: 1, refunds: 1,
+      revenueByCurrency: { USD: 475 },
+    }],
+  } });
+  mocks.viral.mockResolvedValue({ data: { totalExemplars: 0 } });
+  mocks.playbookGuidelines.mockResolvedValue({ data: [] });
+  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ id: 'assigned' }) }));
+  expect(html).toContain('Published post performance');
+  expect(html).toContain('Tracked link clicks');
+  expect(html).toContain('instagram · 33333333');
+  expect(html).toContain(new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(4.75));
+  expect(html).toContain('Repeat clicks count; unique visitors are not collected.');
+});
 it.each(['chatter', 'unknown'])('does not request analytics for %s', async (role) => {
   mocks.role = role;
   expect(

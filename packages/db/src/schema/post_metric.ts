@@ -5,6 +5,7 @@ import {
   timestamp,
   doublePrecision,
   bigint,
+  jsonb,
   primaryKey,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
@@ -28,6 +29,11 @@ export const postMetric = pgTable(
     shares: bigint('shares', { mode: 'number' }).notNull().default(0),
     comments: bigint('comments', { mode: 'number' }).notNull().default(0),
     engagementRate: doublePrecision('engagement_rate').notNull().default(0),
+    // Preserve only normalized connector-declared measurements. This carries
+    // provider-specific reach, saves, clicks and watch-time values without
+    // storing raw provider payloads or pretending every connector reports the
+    // same metric set.
+    providerMetrics: jsonb('provider_metrics').$type<Record<string, number>>().notNull().default({}),
     collectedAt: timestamp('collected_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ name: 'post_metric_pkey', columns: [t.id, t.collectedAt] })],
