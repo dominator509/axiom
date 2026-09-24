@@ -27,11 +27,11 @@ test.describe('publishing safety (kill switch)', () => {
     await page.getByLabel(/Reason \(recorded in audit\)/).fill(reason);
     await page.getByRole('button', { name: 'ENGAGE KILL SWITCH' }).click();
 
-    await expect(page.getByText('HALTED')).toBeVisible();
+    await expect(page.getByText('HALTED', { exact: true })).toBeVisible();
     await expect(page.getByText(reason)).toBeVisible();
 
     await page.reload();
-    await expect(page.getByText('HALTED')).toBeVisible();
+    await expect(page.getByText('HALTED', { exact: true })).toBeVisible();
     await expect(page.getByText(reason)).toBeVisible();
 
     await page.getByRole('button', { name: 'Restore publishing' }).click();
@@ -39,7 +39,7 @@ test.describe('publishing safety (kill switch)', () => {
 
     await page.reload();
     await expect(page.getByText('enabled', { exact: true })).toBeVisible();
-    await expect(page.getByText('HALTED')).toBeHidden();
+    await expect(page.getByText('HALTED', { exact: true })).toBeHidden();
   });
 });
 
