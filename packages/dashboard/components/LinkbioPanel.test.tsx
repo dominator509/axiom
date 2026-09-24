@@ -94,9 +94,9 @@ function fanlynksPanel(connected = false, canConnectAnalytics = true) {
   }] });
 }
 
-function findButton(element: ReactElement, label: string): ReactElement<{ onClick: () => Promise<void> }> | undefined {
+function findButton(element: ReactElement, label: string): ReactElement<{ onClick: () => Promise<void>; disabled?: boolean }> | undefined {
   const props = element.props as { children?: unknown };
-  if (element.type === 'button' && props.children === label) return element as ReactElement<{ onClick: () => Promise<void> }>;
+  if (element.type === 'button' && props.children === label) return element as ReactElement<{ onClick: () => Promise<void>; disabled?: boolean }>;
   for (const child of [props.children].flat(Infinity)) {
     if (child && typeof child === 'object' && 'props' in child) {
       const found = findButton(child as ReactElement, label);
