@@ -49,7 +49,9 @@ test.describe('dashboard', () => {
 
     await expect(page).toHaveURL(/\/models\/[0-9a-f-]+/);
     await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible();
-    await expect(page.getByText('@seeded.star')).toBeVisible();
+    // The handle renders in both the workspace header and the profile card;
+    // scope to the header to avoid a strict-mode ambiguity.
+    await expect(page.locator('.talent-header').getByText('@seeded.star')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Network & security' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible();
     // Workspace tabs render.

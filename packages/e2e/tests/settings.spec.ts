@@ -52,12 +52,12 @@ test.describe('org settings', () => {
     });
     expect(patchRes.status()).toBe(200);
     expect(
-      ((await patchRes.json()) as { data: { viral_sharing: boolean } }).data.viral_sharing,
+      ((await patchRes.json()) as { data: { viralSharing: boolean } }).data.viralSharing,
     ).toBe(true);
 
     const getRes = await apiGet(page.request, '/api/v1/org-settings');
     expect(getRes.status()).toBe(200);
-    expect(((await getRes.json()) as { data: { viral_sharing: boolean } }).data.viral_sharing).toBe(
+    expect(((await getRes.json()) as { data: { viralSharing: boolean } }).data.viralSharing).toBe(
       true,
     );
 
@@ -68,7 +68,7 @@ test.describe('org settings', () => {
 
     const getAgain = await apiGet(page.request, '/api/v1/org-settings');
     expect(
-      ((await getAgain.json()) as { data: { viral_sharing: boolean } }).data.viral_sharing,
+      ((await getAgain.json()) as { data: { viralSharing: boolean } }).data.viralSharing,
     ).toBe(false);
   });
 
