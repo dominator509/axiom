@@ -1,6 +1,6 @@
 // ─── Link-in-bio provider lifecycle + first-party tracked redirects ────────
-// Fanlynks pages are hosted here. Linktree and Beacons pages remain managed on
-// their own sites; AXIOM supplies tracked redirect links and optional GA4 import.
+// FanLynks can be self-hosted or externally hosted. Linktree and Beacons pages
+// remain managed on their own sites; AXIOM supplies tracked redirects and analytics imports.
 
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -24,6 +24,16 @@ import { LINKBIO_PROVIDER_KINDS, safeExternalProfileUrl, type LinkbioProviderKin
 const router = new Hono<AppBindings>();
 const publicRouter = new Hono<AppBindings>();
 const linkbioWriteRoles = new Set(['owner', 'manager', 'operator']);
+
+function safeFanlynksProfileUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
 
 // Every public page and redirect is intentionally unauthenticated. The page
 // loader may provision missing short-link rows for older provider records and
@@ -572,11 +582,13 @@ router.post('/models/:modelId/linkbio', zValidator('json', enableSchema), async 
   const { modelId } = c.req.param();
   const body = c.req.valid('json');
   const externalKind = body.kind === 'linktree' || body.kind === 'beacons';
-  const profileUrl = body.profileUrl === undefined ? null : safeExternalProfileUrl(body.profileUrl, body.kind);
-  if (externalKind && !profileUrl) {
+  const profileUrl = body.profileUrl === undefined ? null
+    : body.kind === 'fanlynks' ? safeFanlynksProfileUrl(body.profileUrl)
+      : safeExternalProfileUrl(body.profileUrl, body.kind);
+  if ((externalKind || (body.kind === 'fanlynks' && body.profileUrl !== undefined)) && !profileUrl) {
     return apiError(c, 422, statusTitle(422), 'a valid HTTPS profile URL for the selected provider is required');
   }
-  if (!externalKind && body.profileUrl !== undefined) {
+  if (!externalKind && body.kind !== 'fanlynks' && body.profileUrl !== undefined) {
     return apiError(c, 422, statusTitle(422), 'profileUrl is supported only for external link-in-bio providers');
   }
 
@@ -687,6 +699,7 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
       isPrimary: schema.linkbioProvider.isPrimary,
       status: schema.linkbioProvider.status,
       lastSyncedAt: schema.linkbioProvider.lastSyncedAt,
+      hasGa4: isNotNull(schema.linkbioProvider.credentialsEnc),
     }).from(schema.linkbioProvider).where(and(
       eq(schema.linkbioProvider.orgId, orgId),
       eq(schema.linkbioProvider.modelId, modelId),
@@ -719,27 +732,46 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
       sql`${schema.linkbioAnalytics.ts} >= ${start}`,
     )).orderBy(desc(schema.linkbioAnalytics.ts)).limit(10_000);
 
-    type Bucket = { visits: number; activeUsers: number; analyticsClicks: number; conversions: number };
-    const totals = { visits: 0, activeUsers: 0, analyticsClicks: 0, conversions: 0, trackedClicks: 0 };
-    const providerTotals = new Map<string, typeof totals>();
-    const daily = new Map<string, Bucket>();
-    const targets = new Map<string, {
-      providerId: string; kind: string; target: string;
-      trackedClicks: number; visits: number; analyticsClicks: number; conversions: number;
-    }>();
-    for (const provider of providers) providerTotals.set(provider.id, { ...totals });
+    type MetricBucket = {
+      providerId: string; kind: string; source: string | null;
+      visits: number; activeUsers: number; analyticsClicks: number; conversions: number;
+      uniqueVisitorsAvailable: boolean; conversionsAvailable: boolean;
+    };
+    type DailyMetricBucket = MetricBucket & { date: string };
+    type TargetMetricBucket = MetricBucket & { target: string; trackedClicks: number };
+    const totals = { trackedClicks: 0 };
     const providerKinds = new Map<string, string>(
       (providers as Array<{ id: string; kind: string }>).map((provider) => [provider.id, provider.kind]),
     );
+    const providerHasGa4 = new Map<string, boolean>(
+      (providers as Array<{ id: string; hasGa4: boolean }>).map((provider) => [provider.id, provider.hasGa4]),
+    );
+    const sourceTotals = new Map<string, MetricBucket>();
+    const daily = new Map<string, DailyMetricBucket>();
+    const targets = new Map<string, TargetMetricBucket>();
+    const makeBucket = (providerId: string, source: string | null, metricRow: boolean): MetricBucket => {
+      const available = metricRow && source !== 'fanlynks' && providerHasGa4.get(providerId) === true;
+      return {
+        providerId,
+        kind: providerKinds.get(providerId) ?? 'unknown',
+        source,
+        visits: 0,
+        activeUsers: 0,
+        analyticsClicks: 0,
+        conversions: 0,
+        uniqueVisitorsAvailable: available,
+        conversionsAvailable: available,
+      };
+    };
     for (const row of clickRows as Array<{ providerId: string; target: string; count: number }>) {
       const count = Number(row.count) || 0;
-      const providerTotal = providerTotals.get(row.providerId);
-      if (providerTotal) providerTotal.trackedClicks += count;
       totals.trackedClicks += count;
-      const key = `${row.providerId}\u0000${row.target}`;
+      const source = null;
+      const key = JSON.stringify([row.providerId, source, row.target]);
       const target = targets.get(key) ?? {
-        providerId: row.providerId, kind: providerKinds.get(row.providerId) ?? 'unknown', target: row.target,
-        trackedClicks: 0, visits: 0, analyticsClicks: 0, conversions: 0,
+        ...makeBucket(row.providerId, source, false),
+        target: row.target,
+        trackedClicks: 0,
       };
       target.trackedClicks += count;
       targets.set(key, target);
@@ -749,54 +781,69 @@ router.get('/models/:modelId/linkbio/analytics', async (c) => {
       visits: number; uniqueVisitors: number; clicks: number; conversions: number;
     }>) {
       if (!row.providerId) continue;
+      const providerId = row.providerId;
+      const source = row.source ?? null;
       const visits = Number(row.visits) || 0;
       const activeUsers = Number(row.uniqueVisitors) || 0;
       const analyticsClicks = Number(row.clicks) || 0;
       const conversions = Number(row.conversions) || 0;
-      const providerTotal = providerTotals.get(row.providerId);
-      if (providerTotal) {
-        providerTotal.visits += visits;
-        providerTotal.activeUsers += activeUsers;
-        providerTotal.analyticsClicks += analyticsClicks;
-        providerTotal.conversions += conversions;
-      }
-      totals.visits += visits;
-      totals.activeUsers += activeUsers;
-      totals.analyticsClicks += analyticsClicks;
-      totals.conversions += conversions;
+      const sourceKey = JSON.stringify([providerId, source]);
+      const sourceBucket = sourceTotals.get(sourceKey) ?? makeBucket(providerId, source, true);
+      sourceBucket.visits += visits;
+      sourceBucket.activeUsers += activeUsers;
+      sourceBucket.analyticsClicks += analyticsClicks;
+      sourceBucket.conversions += conversions;
+      sourceTotals.set(sourceKey, sourceBucket);
+
       const date = new Date(row.ts).toISOString().slice(0, 10);
-      const bucket = daily.get(date) ?? { visits: 0, activeUsers: 0, analyticsClicks: 0, conversions: 0 };
-      bucket.visits += visits;
-      bucket.activeUsers += activeUsers;
-      bucket.analyticsClicks += analyticsClicks;
-      bucket.conversions += conversions;
-      daily.set(date, bucket);
+      const dailyKey = JSON.stringify([providerId, source, date]);
+      const dailyBucket = daily.get(dailyKey) ?? { ...makeBucket(providerId, source, true), date };
+      dailyBucket.visits += visits;
+      dailyBucket.activeUsers += activeUsers;
+      dailyBucket.analyticsClicks += analyticsClicks;
+      dailyBucket.conversions += conversions;
+      daily.set(dailyKey, dailyBucket);
+
       const targetValue = row.target ?? '(not set)';
-      const key = `${row.providerId}\u0000${targetValue}`;
-      const target = targets.get(key) ?? {
-        providerId: row.providerId, kind: providerKinds.get(row.providerId) ?? 'unknown', target: targetValue,
-        trackedClicks: 0, visits: 0, analyticsClicks: 0, conversions: 0,
+      const targetKey = JSON.stringify([providerId, source, targetValue]);
+      const target = targets.get(targetKey) ?? {
+        ...makeBucket(providerId, source, true),
+        target: targetValue,
+        trackedClicks: 0,
       };
       target.visits += visits;
+      target.activeUsers += activeUsers;
       target.analyticsClicks += analyticsClicks;
       target.conversions += conversions;
-      targets.set(key, target);
+      targets.set(targetKey, target);
     }
-    const providersWithStats = providers.map((provider: {
-      id: string; kind: string; enabled: boolean; isPrimary: boolean; status: string; lastSyncedAt: Date | null;
-    }) => ({ ...provider, ...(providerTotals.get(provider.id) ?? { ...totals, trackedClicks: 0 }) }));
+    const publicProviders = (providers as Array<{
+      id: string; hasGa4?: boolean;
+    }>).map((provider) => {
+      const { hasGa4: _hasGa4, ...publicProvider } = provider;
+      return {
+        ...publicProvider,
+        clicks: (clickRows as Array<{ providerId: string; count: number }>)
+          .filter((row) => row.providerId === provider.id)
+          .reduce((sum, row) => sum + (Number(row.count) || 0), 0),
+      };
+    });
     return {
       windowDays: 90,
       windowStart: start.toISOString(),
-      providers: providersWithStats,
+      providers: publicProviders,
       totals,
       totalClicks: totals.trackedClicks,
+      sourceTotals: [...sourceTotals.values()]
+        .sort((left, right) => left.providerId.localeCompare(right.providerId)
+          || (left.source ?? '').localeCompare(right.source ?? '')),
       topTargets: [...targets.values()]
         .sort((left, right) => right.trackedClicks + right.analyticsClicks - left.trackedClicks - left.analyticsClicks)
         .slice(0, 20),
-      daily: [...daily.entries()].sort(([left], [right]) => left.localeCompare(right))
-        .map(([date, values]) => ({ date, ...values })),
-      note: 'Tracked redirects and GA4 event counts are reported separately; daily active users are summed across days and are not range-deduplicated.',
+      daily: [...daily.values()].sort((left, right) => left.date.localeCompare(right.date)
+        || left.providerId.localeCompare(right.providerId)
+        || (left.source ?? '').localeCompare(right.source ?? '')),
+      note: 'Tracked redirects and imported provider metrics are reported separately by source. FanLynks exports page views and clicks, not unique visitors or conversions; daily GA4 unique users are summed across days and are not range-deduplicated.',
     };
   });
   return c.json({ data });

@@ -43,6 +43,16 @@ vi.mock('./LocaleProvider', () => ({
         'linkbio.ga4.endDate': 'End date', 'linkbio.ga4.sync': 'Sync analytics',
         'linkbio.ga4.syncError': 'Sync failed', 'linkbio.ga4.neverSynced': 'not synced yet',
         'linkbio.ga4.lastSynced': 'Last sync {date}', 'linkbio.ga4.ownerRequired': 'Owner or manager required',
+        'linkbio.fanlynks.title': 'FanLynks first-party analytics',
+        'linkbio.fanlynks.accessInstructions': 'Use the page-scoped read-only AXIOM token.',
+        'linkbio.fanlynks.apiToken': 'Page-scoped AXIOM analytics token',
+        'linkbio.fanlynks.connect': 'Connect FanLynks analytics',
+        'linkbio.fanlynks.savedUnverified': 'Token saved, not verified',
+        'linkbio.fanlynks.syncSucceeded': 'FanLynks imported {count} rows',
+        'linkbio.fanlynks.disconnected': 'FanLynks token removed',
+        'linkbio.fanlynks.profileRequired': 'Public HTTPS profile URL required',
+        'linkbio.fanlynks.metricCoverage': 'Page views and clicks only; unique visitors and conversions are unavailable.',
+        'linkbio.fanlynks.notExported': 'Not exported by FanLynks',
         'linkbio.roleRequired': 'Link-in-bio changes require an owner, manager or operator role.',
         'linkbio.error.enableFailed': 'Enable failed', 'linkbio.error.unconfirmed': 'Unconfirmed link-in-bio change',
         'linkbio.error.notConfirmed': 'Change not confirmed. Retry the same link-in-bio change.',
@@ -72,9 +82,21 @@ function panel(enabled: boolean, canEdit = true) {
   }] });
 }
 
-function findButton(element: ReactElement, label: string): ReactElement<{ onClick: () => Promise<void> }> | undefined {
+function fanlynksPanel(connected = false, canConnectAnalytics = true) {
+  hooks.index = 0;
+  return LinkbioPanel({ modelId: 'model', canEdit: true, canConnectAnalytics, providers: [{
+    id: 'fanlynks', kind: 'fanlynks', enabled: true, isPrimary: false, status: 'configured',
+    profileUrl: 'https://links.example/creator', config: { links: [] },
+    analyticsConnection: {
+      analyticsConnected: false, fanlynksConnected: connected,
+      fanlynksStatus: connected ? 'connected' : 'configured', propertyId: null, status: 'configured', lastSyncedAt: null,
+    },
+  }] });
+}
+
+function findButton(element: ReactElement, label: string): ReactElement<{ onClick: () => Promise<void>; disabled?: boolean }> | undefined {
   const props = element.props as { children?: unknown };
-  if (element.type === 'button' && props.children === label) return element as ReactElement<{ onClick: () => Promise<void> }>;
+  if (element.type === 'button' && props.children === label) return element as ReactElement<{ onClick: () => Promise<void>; disabled?: boolean }>;
   for (const child of [props.children].flat(Infinity)) {
     if (child && typeof child === 'object' && 'props' in child) {
       const found = findButton(child as ReactElement, label);
@@ -169,4 +191,27 @@ it('requires a label and destination before adding a link', async () => {
   hooks.values[16] = '';
   await findButton(panel(true), 'Add link')!.props.onClick();
   expect(hooks.values[3]).toBe('A link label and URL are required');
+});
+
+it('wires FanLynks page-scoped token input to the encrypted connection request', async () => {
+  const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { kind: 'fanlynks', fanlynksConnected: true } }), { status: 200, headers: { 'content-type': 'application/json' } }));
+  vi.stubGlobal('fetch', fetch);
+  const apiToken = `flx_axm_${'a'.repeat(43)}`;
+  fanlynksPanel(false);
+  hooks.values[17] = apiToken;
+  await findButton(fanlynksPanel(false), 'Connect FanLynks analytics')!.props.onClick();
+  expect(fetch).toHaveBeenCalledOnce();
+  expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({
+    profileUrl: 'https://links.example/creator',
+    apiToken,
+  });
+  expect(hooks.values[17]).toBe('');
+  expect(renderToStaticMarkup(fanlynksPanel(true))).toContain('Sync analytics');
+});
+
+it('labels unsupported FanLynks metrics and limits the connector to owners and managers', () => {
+  const html = renderToStaticMarkup(fanlynksPanel(false, false));
+  expect(html).toContain('Page views and clicks only; unique visitors and conversions are unavailable.');
+  expect(html).toContain('Owner or manager required');
+  expect(findButton(fanlynksPanel(false, false), 'Connect FanLynks analytics')?.props.disabled).toBe(true);
 });
