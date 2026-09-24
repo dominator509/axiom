@@ -52,8 +52,11 @@ export const clientApi = {
     }>(`/api/v1/models/${encodeURIComponent(modelId)}/public-sfw-reply-settings`, {
       method: 'PATCH', body: JSON.stringify({ privateInviteUrl }), headers: { 'Content-Type': 'application/json' },
     }),
+    publicSfwReplies: (modelId: string, connectionId: string, postId: string) => clientApiFetch<{
+      data: Array<{ jobId: string; commentId: string; status: 'queued' | 'sending' | 'sent' | 'failed' | 'unknown' | 'cancelled'; scheduledFor: string; text: string }>;
+    }>(`/api/v1/models/${encodeURIComponent(modelId)}/social-accounts/${encodeURIComponent(connectionId)}/public-sfw-replies?${new URLSearchParams({ postId })}`),
     publicSfwReply: (modelId: string, connectionId: string, body: { postId: string; commentId: string }) => clientApiFetch<{
-      data: { jobId: string; status: 'queued'; scheduledFor: string; text: string };
+      data: { jobId: string; commentId: string; status: 'queued'; scheduledFor: string; text: string };
     }>(
       `/api/v1/models/${encodeURIComponent(modelId)}/social-accounts/${encodeURIComponent(connectionId)}/public-sfw-replies`,
       { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } },

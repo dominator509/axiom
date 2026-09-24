@@ -1,7 +1,11 @@
 import { expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { CATALOGS, LocaleCatalog } from '@axiom/core';
 import LocaleProvider from './LocaleProvider';
 import ProviderOperationsPanel, { moderationOptionsForCapabilities } from './ProviderOperationsPanel';
+import PublicSfwReplyReceipt from './PublicSfwReplyReceipt';
+
+const catalog = new LocaleCatalog(CATALOGS);
 
 it('exposes only exact provider-advertised moderation actions to the UI', () => {
   expect(moderationOptionsForCapabilities(['comments.moderate', 'comments.moderate.delete', 'comments.moderate.block']).map(item => item.action))
@@ -33,6 +37,22 @@ it('renders localized provider comment controls only for granted capabilities', 
   // Reply/moderation actions are rendered only after the provider returns actual comments.
   expect(html).not.toContain('Responder al comentario');
   expect(html).not.toContain('Ocultar comentario');
+});
+
+it('renders durable public-reply outcomes with a direct incident recovery link', () => {
+  const html = renderToStaticMarkup(
+    <LocaleProvider initialLocale="de">
+      <PublicSfwReplyReceipt receipt={{
+        jobId: 'job-unknown', commentId: 'comment-1', status: 'unknown', scheduledFor: null,
+        text: 'Thanks for asking about the community.',
+      }} />
+    </LocaleProvider>,
+  );
+  expect(html).toContain(catalog.t('de', 'network.publicSfwStatus.unknown'));
+  expect(html).toContain('job-unknown');
+  expect(html).toContain(catalog.t('de', 'network.publicSfwIncident'));
+  expect(html).toContain('href="/incidents"');
+  expect(html).toContain('Thanks for asking about the community.');
 });
 
 it('renders Fanvue Vault controls from granted capabilities with localized labels', () => {

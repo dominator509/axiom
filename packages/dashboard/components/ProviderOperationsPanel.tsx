@@ -4,13 +4,14 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { clientApi as api } from '@/lib/client-api';
 import { useLocale } from './LocaleProvider';
 import FanvueVaultPanel from './FanvueVaultPanel';
+import PublicSfwReplyReceipt, { type PublicSfwReplyReceiptData } from './PublicSfwReplyReceipt';
 
 type Comment = { id: string; text: string; authorName?: string; permalink?: string; createdAt?: string };
 type ProviderMessage = { id: string; conversationId: string; senderId: string; text: string; createdAt?: string };
 type YouTubePlaylist = { id: string; title: string; description?: string; privacyStatus?: string };
 type YouTubeCaption = { id: string; language: string; name?: string; status?: string; isDraft?: boolean };
 type ModelMedia = { id: string; kind: string; mimeType: string; fileSize: number; createdAt: string };
-type QueuedPublicSfwReply = { jobId: string; status: 'queued'; scheduledFor: string; text: string };
+type QueuedPublicSfwReply = PublicSfwReplyReceiptData;
 const moderationOptions = [
   { action: 'hide', key: 'network.hideComment' },
   { action: 'delete', key: 'network.deleteComment' },
@@ -121,12 +122,21 @@ export default function ProviderOperationsPanel({
     if (!postId.trim() || busy) return;
     setBusy(true);
     setMessage('');
+    setPublicSfwReplies({});
     try {
       const result = await api.social.operate(modelId, connectionId, { type: 'comments.read', postId: postId.trim(), limit: 50 });
       const data = result.data as { items?: Comment[]; type?: string };
       if (data.type !== 'comments' || !Array.isArray(data.items)) throw new Error('Invalid provider response');
       setComments(data.items);
       setMessage(data.items.length === 0 ? t('network.noComments') : t('network.operationSucceeded'));
+      if (hasPublicSfwFunnel) {
+        try {
+          const receipts = await api.social.publicSfwReplies(modelId, connectionId, postId.trim());
+          setPublicSfwReplies(Object.fromEntries(receipts.data.map(receipt => [receipt.commentId, receipt])));
+        } catch {
+          setMessage(t('network.publicSfwStatusUnavailable'));
+        }
+      }
     } catch {
       setMessage(t('network.operationFailed'));
     } finally {
@@ -159,7 +169,18 @@ export default function ProviderOperationsPanel({
       setPublicSfwReplies(current => ({ ...current, [comment.id]: result.data }));
       setMessage(t('network.publicSfwQueued'));
     } catch {
-      setMessage(t('network.operationFailed'));
+      try {
+        const receipts = await api.social.publicSfwReplies(modelId, connectionId, postId.trim());
+        const existing = receipts.data.find(receipt => receipt.commentId === comment.id);
+        if (existing) {
+          setPublicSfwReplies(current => ({ ...current, [comment.id]: existing }));
+          setMessage(t('network.publicSfwExisting'));
+        } else {
+          setMessage(t('network.operationFailed'));
+        }
+      } catch {
+        setMessage(t('network.operationFailed'));
+      }
     } finally {
       setBusy(false);
     }
@@ -284,14 +305,10 @@ export default function ProviderOperationsPanel({
             </form>
           )}
           {hasPublicSfwFunnel && <>
-            <button type="button" disabled={busy || !savedInviteUrl || privateInviteUrl.trim() !== savedInviteUrl} onClick={() => void queuePublicSfwReply(comment)}>
+            {!publicSfwReplies[comment.id] && <button type="button" disabled={busy || !savedInviteUrl || privateInviteUrl.trim() !== savedInviteUrl} onClick={() => void queuePublicSfwReply(comment)}>
               {t('network.publicSfwReply')}
-            </button>
-            {publicSfwReplies[comment.id] && <p role="status">
-              {t('network.publicSfwQueued')}<br />
-              <time dateTime={publicSfwReplies[comment.id]!.scheduledFor}>{publicSfwReplies[comment.id]!.scheduledFor}</time><br />
-              {publicSfwReplies[comment.id]!.text}
-            </p>}
+            </button>}
+            {publicSfwReplies[comment.id] && <PublicSfwReplyReceipt receipt={publicSfwReplies[comment.id]!} />}
           </>}
           {moderationOptionsForCapabilities(capabilities).map(({ action, key }) => (
             <button key={action} type="button" disabled={busy} onClick={() => {

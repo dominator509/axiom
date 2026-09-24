@@ -117,6 +117,34 @@ describe('public SFW reply flow', () => {
     expect(mockState.updates.at(-1)).toMatchObject({ publicCommunityInviteUrl: 'https://t.me/+abcDEF_123456' });
   });
 
+  it('returns a safe durable receipt for previously queued or uncertain replies', async () => {
+    mockState.results.push(
+      [],
+      [{ id: MODEL_ID }],
+      [{ id: CONNECTION_ID }],
+      [{
+        id: 'job-unknown', state: 'dead', runAfter: new Date('2026-09-23T12:00:00.000Z'),
+        lastError: 'external-side-effect-unknown: provider response lost',
+        payload: { commentId: 'comment-1', text: 'Thanks for asking! Join us at https://discord.gg/private' },
+      }],
+    );
+    const response = await app().request(`/${MODEL_ID}/social-accounts/${CONNECTION_ID}/public-sfw-replies?postId=post-1`);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual({ data: [{
+      jobId: 'job-unknown', commentId: 'comment-1', status: 'unknown',
+      scheduledFor: '2026-09-23T12:00:00.000Z', text: 'Thanks for asking! Join us at https://discord.gg/private',
+    }] });
+    expect(JSON.stringify(body)).not.toContain('external-side-effect-unknown');
+  });
+
+  it('requires a valid post and model-scoped operator access to reply status', async () => {
+    expect((await app('viewer').request(`/${MODEL_ID}/social-accounts/${CONNECTION_ID}/public-sfw-replies?postId=post-1`)).status).toBe(403);
+    expect((await app().request(`/${MODEL_ID}/social-accounts/${CONNECTION_ID}/public-sfw-replies`)).status).toBe(400);
+    mockState.results.push([], [], []);
+    expect((await app().request(`/${MODEL_ID}/social-accounts/${CONNECTION_ID}/public-sfw-replies?postId=post-1`)).status).toBe(404);
+  });
+
   it('rejects unsupported platforms before connector dispatch', async () => {
     readResults('tiktok');
     const response = await app().request(`/${MODEL_ID}/social-accounts/${CONNECTION_ID}/public-sfw-replies`, {
