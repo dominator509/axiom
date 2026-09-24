@@ -189,33 +189,33 @@ router.post('/models/:modelId/linkbio/:kind/analytics-connection', zValidator('j
   if (kind === 'fanlynks') {
     const fanlynksBody = fanlynksCredentialSchema.safeParse(body);
     if (fanlynksBody.success) {
-    const origin = fanlynksOrigin(fanlynksBody.data.profileUrl);
-    if (!origin) return apiError(c, 422, statusTitle(422), 'FanLynks profile URL must use HTTPS and cannot contain embedded credentials');
-    let envelope;
-    try {
-      envelope = await encryptOAuthCredentials({ accessToken: fanlynksBody.data.apiToken });
-    } catch {
-      return apiError(c, 503, statusTitle(503), 'credential encryption service is unavailable');
-    }
-    const updated = await withOrgContext(orgId, async (tx) => {
-      const rows = await tx.update(schema.linkbioProvider).set({
-        profileUrl: fanlynksBody.data.profileUrl,
-        fanlynksTokenEnc: envelope.encToken,
-        fanlynksTokenNonce: envelope.encNonce,
-        fanlynksTokenDekId: envelope.dekId,
-        fanlynksAnalyticsStatus: 'configured',
-        updatedAt: new Date(),
-      }).where(and(
-        eq(schema.linkbioProvider.orgId, orgId), eq(schema.linkbioProvider.modelId, modelId),
-        eq(schema.linkbioProvider.kind, kind), eq(schema.linkbioProvider.enabled, true),
-      )).returning({ id: schema.linkbioProvider.id });
-      if (rows.length > 0) await writeAudit(tx, orgId, userId, 'linkbio.analytics.connect', modelId, {
-        kind, profileOrigin: origin, tokenPrefix: 'flx_axm_',
+      const origin = fanlynksOrigin(fanlynksBody.data.profileUrl);
+      if (!origin) return apiError(c, 422, statusTitle(422), 'FanLynks profile URL must use HTTPS and cannot contain embedded credentials');
+      let envelope;
+      try {
+        envelope = await encryptOAuthCredentials({ accessToken: fanlynksBody.data.apiToken });
+      } catch {
+        return apiError(c, 503, statusTitle(503), 'credential encryption service is unavailable');
+      }
+      const updated = await withOrgContext(orgId, async (tx) => {
+        const rows = await tx.update(schema.linkbioProvider).set({
+          profileUrl: fanlynksBody.data.profileUrl,
+          fanlynksTokenEnc: envelope.encToken,
+          fanlynksTokenNonce: envelope.encNonce,
+          fanlynksTokenDekId: envelope.dekId,
+          fanlynksAnalyticsStatus: 'configured',
+          updatedAt: new Date(),
+        }).where(and(
+          eq(schema.linkbioProvider.orgId, orgId), eq(schema.linkbioProvider.modelId, modelId),
+          eq(schema.linkbioProvider.kind, kind), eq(schema.linkbioProvider.enabled, true),
+        )).returning({ id: schema.linkbioProvider.id });
+        if (rows.length > 0) await writeAudit(tx, orgId, userId, 'linkbio.analytics.connect', modelId, {
+          kind, profileOrigin: origin, tokenPrefix: 'flx_axm_',
+        });
+        return rows.length > 0;
       });
-      return rows.length > 0;
-    });
-    if (!updated) return apiError(c, 409, statusTitle(409), 'provider changed while connecting analytics');
-    return c.json({ data: { kind, fanlynksConnected: true, fanlynksStatus: 'configured', profileUrl: fanlynksBody.data.profileUrl } });
+      if (!updated) return apiError(c, 409, statusTitle(409), 'provider changed while connecting analytics');
+      return c.json({ data: { kind, fanlynksConnected: true, fanlynksStatus: 'configured', profileUrl: fanlynksBody.data.profileUrl } });
     }
   }
 
@@ -282,7 +282,7 @@ router.delete('/models/:modelId/linkbio/:kind/analytics-connection', async (c) =
         fanlynksTokenEnc: null,
         fanlynksTokenNonce: null,
         fanlynksTokenDekId: null,
-        fanlynksAnalyticsStatus: 'configured',
+        fanlynksAnalyticsStatus: 'disconnected',
         fanlynksLastSyncedAt: null,
         updatedAt: new Date(),
       }).where(eq(schema.linkbioProvider.id, provider.id)).returning({ id: schema.linkbioProvider.id });
@@ -308,7 +308,7 @@ router.delete('/models/:modelId/linkbio/:kind/analytics-connection', async (c) =
   });
   if (!updated) return apiError(c, 404, statusTitle(404), 'analytics connection not found');
   return c.json({ data: kind === 'fanlynks' && c.req.query('source') === 'fanlynks'
-    ? { kind, fanlynksConnected: false }
+    ? { kind, fanlynksConnected: false, fanlynksStatus: 'disconnected' }
     : { kind, analyticsConnected: false } });
 });
 

@@ -26,7 +26,7 @@ export const linkbioProvider = pgTable(
     fanlynksTokenEnc: bytea('fanlynks_token_enc'),
     fanlynksTokenNonce: bytea('fanlynks_token_nonce'),
     fanlynksTokenDekId: text('fanlynks_token_dek_id'),
-    fanlynksAnalyticsStatus: text('fanlynks_analytics_status').notNull().default('configured'),
+    fanlynksAnalyticsStatus: text('fanlynks_analytics_status').notNull().default('disconnected'),
     fanlynksLastSyncedAt: timestamp('fanlynks_last_synced_at', { withTimezone: true }),
     lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

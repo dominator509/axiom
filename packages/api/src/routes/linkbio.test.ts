@@ -369,13 +369,13 @@ describe('GET /models/:modelId/linkbio/analytics', () => {
     expect(body.data.totalClicks).toBe(0);
   });
 
-  it('aggregates first-party tracked redirects and imported provider metrics separately', async () => {
+  it('keeps GA4 and FanLynks metrics in separate source totals', async () => {
     const today = new Date();
     mockState.results = [
       [],
       [
-        { id: 'native-provider', kind: 'native', enabled: true, isPrimary: false, status: 'configured', lastSyncedAt: null },
-        { id: 'linktree-provider', kind: 'linktree', enabled: true, isPrimary: true, status: 'connected', lastSyncedAt: today },
+        { id: 'native-provider', kind: 'native', enabled: true, isPrimary: false, status: 'configured', lastSyncedAt: null, hasGa4: false },
+        { id: 'linktree-provider', kind: 'linktree', enabled: true, isPrimary: true, status: 'connected', lastSyncedAt: today, hasGa4: true },
       ],
       [
         { providerId: 'native-provider', target: 'https://fanvue.com/native', count: 2 },
@@ -383,21 +383,36 @@ describe('GET /models/:modelId/linkbio/analytics', () => {
       ],
       [
         { providerId: 'linktree-provider', ts: today, target: '/profile', source: 'instagram / social', visits: 40, uniqueVisitors: 30, clicks: 5, conversions: 3 },
+        { providerId: 'linktree-provider', ts: today, target: '/profile', source: 'fanlynks', visits: 100, uniqueVisitors: 0, clicks: 12, conversions: 0 },
       ],
     ];
-    const response = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/linkbio/analytics`);
+    const response = await appWithOrg(ORG_ID).request('/models/' + MODEL_ID + '/linkbio/analytics');
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ data: {
-      totalClicks: 5,
-      totals: { trackedClicks: 5, visits: 40, activeUsers: 30, analyticsClicks: 5, conversions: 3 },
-      providers: [
-        { id: 'native-provider', trackedClicks: 2, visits: 0 },
-        { id: 'linktree-provider', trackedClicks: 3, visits: 40, analyticsClicks: 5, conversions: 3 },
-      ],
-      topTargets: expect.arrayContaining([
-        expect.objectContaining({ kind: 'linktree', target: '/profile', analyticsClicks: 5 }),
-      ]),
-    } });
+    const body = (await response.json()) as any;
+    expect(body.data.totalClicks).toBe(5);
+    expect(body.data.totals).toEqual({ trackedClicks: 5 });
+    expect(body.data.providers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'native-provider', clicks: 2 }),
+      expect.objectContaining({ id: 'linktree-provider', clicks: 3 }),
+    ]));
+    expect(body.data.sourceTotals).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        source: 'instagram / social', visits: 40, activeUsers: 30, analyticsClicks: 5, conversions: 3,
+        uniqueVisitorsAvailable: true, conversionsAvailable: true,
+      }),
+      expect.objectContaining({
+        source: 'fanlynks', visits: 100, activeUsers: 0, analyticsClicks: 12, conversions: 0,
+        uniqueVisitorsAvailable: false, conversionsAvailable: false,
+      }),
+    ]));
+    expect(body.data.topTargets).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: 'instagram / social', target: '/profile', visits: 40, analyticsClicks: 5 }),
+      expect.objectContaining({ source: 'fanlynks', target: '/profile', visits: 100, analyticsClicks: 12, conversionsAvailable: false }),
+    ]));
+    expect(body.data.daily).toEqual(expect.arrayContaining([
+      expect.objectContaining({ source: 'instagram / social', visits: 40, activeUsers: 30 }),
+      expect.objectContaining({ source: 'fanlynks', visits: 100, activeUsers: 0, uniqueVisitorsAvailable: false }),
+    ]));
   });
 });
 

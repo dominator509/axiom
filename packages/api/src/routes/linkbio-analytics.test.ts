@@ -158,6 +158,27 @@ describe('FanLynks first-party analytics connection', () => {
     expect(mocks.encryptOAuthCredentials).not.toHaveBeenCalled();
   });
 
+  it('clears the FanLynks status when the page token is disconnected', async () => {
+    mockState.results = [
+      [],
+      [{ orgId: ORG_ID }],
+      [{ id: PROVIDER_ID, config: {} }],
+      [{ id: PROVIDER_ID }],
+    ];
+    const response = await appWithRole().request(
+      '/models/' + MODEL_ID + '/linkbio/fanlynks/analytics-connection?source=fanlynks',
+      { method: 'DELETE' },
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: {
+      kind: 'fanlynks', fanlynksConnected: false, fanlynksStatus: 'disconnected',
+    } });
+    expect(mockState.updates).toContainEqual(expect.objectContaining({
+      fanlynksTokenEnc: null, fanlynksTokenNonce: null, fanlynksTokenDekId: null,
+      fanlynksAnalyticsStatus: 'disconnected', fanlynksLastSyncedAt: null,
+    }));
+  });
+
   it('reads connection metadata without disclosing encrypted token material', async () => {
     mockState.results = [[], [{ orgId: ORG_ID }], [{
       id: PROVIDER_ID, enabled: true, status: 'connected', config: {},

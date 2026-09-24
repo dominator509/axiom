@@ -71,8 +71,43 @@ it('localizes linkbio, analytics and attribution copy while preserving data', as
   mocks.linkbioAnalytics.mockResolvedValue({
     data: {
       providers: [], totalClicks: 12345,
-      totals: { trackedClicks: 12345, visits: 42, activeUsers: 35, analyticsClicks: 9, conversions: 2 },
-      topTargets: [{ providerId: 'p1', kind: 'native', target: 'https://example.test', trackedClicks: 12345, visits: 42, analyticsClicks: 9, conversions: 2 }],
+      totals: { trackedClicks: 12345 },
+      sourceTotals: [
+        {
+          providerId: 'p1', kind: 'linktree', source: 'instagram / social',
+          visits: 42, activeUsers: 35, analyticsClicks: 9, conversions: 2,
+          uniqueVisitorsAvailable: true, conversionsAvailable: true,
+        },
+        {
+          providerId: 'p1', kind: 'linktree', source: 'fanlynks',
+          visits: 17, activeUsers: 0, analyticsClicks: 4, conversions: 0,
+          uniqueVisitorsAvailable: false, conversionsAvailable: false,
+        },
+      ],
+      topTargets: [
+        {
+          providerId: 'p1', kind: 'linktree', source: 'instagram / social',
+          target: 'https://example.test', trackedClicks: 0, visits: 42, activeUsers: 35,
+          analyticsClicks: 9, conversions: 2, uniqueVisitorsAvailable: true, conversionsAvailable: true,
+        },
+        {
+          providerId: 'p1', kind: 'linktree', source: 'fanlynks',
+          target: 'https://example.test', trackedClicks: 0, visits: 17, activeUsers: 0,
+          analyticsClicks: 4, conversions: 0, uniqueVisitorsAvailable: false, conversionsAvailable: false,
+        },
+      ],
+      daily: [
+        {
+          providerId: 'p1', kind: 'linktree', source: 'instagram / social', date: '2026-09-22',
+          visits: 42, activeUsers: 35, analyticsClicks: 9, conversions: 2,
+          uniqueVisitorsAvailable: true, conversionsAvailable: true,
+        },
+        {
+          providerId: 'p1', kind: 'linktree', source: 'fanlynks', date: '2026-09-22',
+          visits: 17, activeUsers: 0, analyticsClicks: 4, conversions: 0,
+          uniqueVisitorsAvailable: false, conversionsAvailable: false,
+        },
+      ],
     },
   });
   mocks.linkbioAttribution.mockResolvedValue({
@@ -89,6 +124,9 @@ it('localizes linkbio, analytics and attribution copy while preserving data', as
   expect(html).toContain(catalog.t('de', 'modelSurface.fanvueAttribution'));
   expect(html).not.toContain(catalog.t('en', 'modelSurface.clickAnalytics'));
   expect(html).toContain('https://example.test');
+  expect(html).toContain('instagram / social');
+  expect(html).toContain('fanlynks');
+  expect(html).toContain(catalog.t('de', 'linkbio.fanlynks.notExported'));
   expect(html).toContain('welcome');
   expect(html).toContain(formatNumber(12345, 'de'));
   expect(html).toContain(formatNumber(1234, 'de'));
