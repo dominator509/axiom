@@ -21,10 +21,16 @@ function transport(
   next: Record<string, string> = {},
   assetId?: string,
   reportFields: Record<string, unknown> = {},
+  locale = 'en',
 ) {
   const fetchMock = vi.fn(async (input: string | URL | Request) => {
     const url = new URL(String(input));
     const requestedState = url.searchParams.get('state');
+    if (url.pathname === '/api/v1/ui-locale') {
+      return new Response(JSON.stringify({ data: { locale } }), {
+        headers: { 'content-type': 'application/json' },
+      });
+    }
     if (url.pathname === '/api/v1/social-accounts') {
       return new Response(
         JSON.stringify({
@@ -79,6 +85,17 @@ async function renderPage(query: Record<string, string | string[] | undefined> =
 }
 
 describe('approval review queue', () => {
+  it('renders the Operator route with the persisted locale, generated media, and review controls', async () => {
+    session.mockResolvedValue({ user: { role: 'operator' } });
+    transport('generated', 'pass', false, {}, 'generated-asset', {}, 'es');
+    const html = await renderPage();
+    expect(html).toContain('Orientación de subtítulos');
+    expect(html).toContain('No hay recibo de orientación de generación.');
+    expect(html).toContain('Caption awaiting operator review');
+    expect(html).toContain('Loading media preview');
+    expect(html).toContain('Approve</button>');
+  });
+
   it.each(['owner', 'manager', 'operator', 'content_creator'])('offers saved draft editing for %s', async role => {
     session.mockResolvedValue({ user: { role } });
     transport('generated', 'pass', false, {}, 'asset');
@@ -106,13 +123,13 @@ describe('approval review queue', () => {
     expect(html).toContain('Loading media preview');
     expect(html).toContain('Older hold bundles');
     for (const text of ['Revise captions', 'Reject', 'Record compliance review', 'Media generation retry options', 'Approve</button>']) expect(html).not.toContain(text);
-    expect(fetchMock.mock.calls.every(([input]) => new URL(String(input)).pathname === '/api/v1/bundles')).toBe(true);
+    expect(fetchMock.mock.calls.every(([input]) => ['/api/v1/bundles', '/api/v1/ui-locale'].includes(new URL(String(input)).pathname))).toBe(true);
   });
   it.each(['chatter', 'model', 'unexpected', undefined])('does not load queue resources for excluded role %s', async role => {
     session.mockResolvedValue({ user: { role } });
     const fetchMock = transport('hold');
     expect(await renderPage()).toContain('Review access unavailable');
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.every(([input]) => new URL(String(input)).pathname === '/api/v1/ui-locale')).toBe(true);
   });
   it('distinguishes a saved brief from completed media generation', async () => {
     transport('generated', 'pending');
