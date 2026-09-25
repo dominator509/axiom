@@ -148,6 +148,22 @@ describe('FanLynks first-party analytics connection', () => {
       body: JSON.stringify({ profileUrl: 'http://links.example/creator', apiToken }),
     });
     expect(invalidUrl.status).toBe(422);
+    for (const profileUrl of [
+      'https://metadata.internal/creator',
+      'https://localhost/creator',
+      'https://node.local/creator',
+      'https://127.0.0.1/creator',
+      'https://[::1]/creator',
+      'https://links.example:8443/creator',
+      'https://links.example@evil.example/creator',
+    ]) {
+      mockState.results = [[], [{ orgId: ORG_ID }], [{ id: PROVIDER_ID, config: {} }]];
+      const rejected = await appWithRole().request(`/models/${MODEL_ID}/linkbio/fanlynks/analytics-connection`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ profileUrl, apiToken }),
+      });
+      expect(rejected.status, profileUrl).toBe(422);
+    }
     expect(mocks.encryptOAuthCredentials).not.toHaveBeenCalled();
 
     const forbidden = await appWithRole('operator').request(`/models/${MODEL_ID}/linkbio/fanlynks/analytics-connection`, {

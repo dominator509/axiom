@@ -27,7 +27,7 @@ type MiddlewareTestApp = Hono<{
 }>;
 
 function makeApp(
-  opts: { rate?: { capacity?: number; refillPerSec?: number; maxBuckets?: number } } = {},
+  opts: { rate?: { capacity?: number; refillPerSec?: number; maxBuckets?: number; keyBy?: 'credential' | 'client-ip' } } = {},
 ) {
   const app = new Hono<{
     Bindings: { incoming?: { socket?: { remoteAddress?: string } } };
@@ -425,6 +425,24 @@ describe('idempotency middleware (durable, M-2)', () => {
   });
 });
 
+describe('independent per-surface rate budgets', () => {
+  it('does not share a client IP bucket between distinct limiter policies', async () => {
+    const app = new Hono<{ Bindings: { incoming?: { socket?: { remoteAddress?: string } } } }>();
+    app.use('/public/*', rateLimit({ capacity: 60, refillPerSec: 0, keyBy: 'client-ip' }));
+    app.use('/auth/*', rateLimit({ capacity: 2, refillPerSec: 0, keyBy: 'client-ip' }));
+    app.get('/public/page', (c) => c.text('ok'));
+    app.get('/auth/session', (c) => c.text('ok'));
+    const peer = { incoming: { socket: { remoteAddress: '203.0.113.240' } } };
+    for (let i = 0; i < 60; i += 1) {
+      expect((await app.request('/public/page', {}, peer)).status).toBe(200);
+    }
+    expect((await app.request('/public/page', {}, peer)).status).toBe(429);
+    expect((await app.request('/auth/session', {}, peer)).status).toBe(200);
+    expect((await app.request('/auth/session', {}, peer)).status).toBe(200);
+    expect((await app.request('/auth/session', {}, peer)).status).toBe(429);
+  });
+});
+
 describe('rateLimit middleware (L3.0)', () => {
   it('allows requests within the bucket', async () => {
     const app = makeApp({ rate: { capacity: 2, refillPerSec: 0 } });
@@ -510,6 +528,30 @@ describe('rateLimit middleware (L3.0)', () => {
     expect(clientA.status).toBe(200);
     expect(clientB.status).toBe(200);
     expect(clientAReplay.status).toBe(429);
+  });
+});
+
+describe('anonymous auth IP rate-limit key', () => {
+  it('cannot be reset by rotating unauthenticated Authorization or API-key headers', async () => {
+    const app = makeApp({ rate: { capacity: 1, refillPerSec: 0, keyBy: 'client-ip' } });
+    app.get('/auth-test', (c) => c.json({ ok: true }));
+    const peer = { incoming: { socket: { remoteAddress: '203.0.113.231' } } };
+    const first = await app.request('/auth-test', { headers: { Authorization: 'Bearer random-a' } }, peer);
+    const second = await app.request('/auth-test', { headers: { Authorization: 'Bearer random-b', 'X-API-Key': 'random-b' } }, peer);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(429);
+  });
+
+  it('uses validated forwarded client IP for a trusted proxy, not a supplied token', async () => {
+    const app = makeApp({ rate: { capacity: 1, refillPerSec: 0, keyBy: 'client-ip' } });
+    app.get('/auth-test', (c) => c.json({ ok: true }));
+    const proxy = { incoming: { socket: { remoteAddress: '127.0.0.1' } } };
+    const request = (ip: string, token: string) => app.request('/auth-test', {
+      headers: { 'X-Forwarded-For': ip, Authorization: `Bearer ${token}` },
+    }, proxy);
+    expect((await request('203.0.113.232', 'a')).status).toBe(200);
+    expect((await request('203.0.113.232', 'b')).status).toBe(429);
+    expect((await request('203.0.113.233', 'b')).status).toBe(200);
   });
 });
 
