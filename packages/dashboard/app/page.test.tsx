@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import LocaleProvider from '@/components/LocaleProvider';
 import HomePage from './page';
 
 const getServerLocale = vi.hoisted(() => vi.fn());
@@ -70,7 +71,9 @@ function transport({ empty = false, countFailure = false, pageFailure = false, t
 }
 
 async function render(query: Record<string, string | string[] | undefined> = {}) {
-  return renderToStaticMarkup(await HomePage({ searchParams: Promise.resolve(query) }));
+  const locale = (await getServerLocale()).locale;
+  const page = await HomePage({ searchParams: Promise.resolve(query) });
+  return renderToStaticMarkup(<LocaleProvider initialLocale={locale}>{page}</LocaleProvider>);
 }
 
 describe('portfolio pagination and counts', () => {
