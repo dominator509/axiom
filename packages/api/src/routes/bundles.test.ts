@@ -9,7 +9,8 @@ import type { AppBindings } from '../index.js';
 import { mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => ({
-  ...mockDbFactory({ contentBundle: {}, postTarget: {}, asset: {}, platformConnection: {}, orgSettings: {} }),
+  ...mockDbFactory({ contentBundle: {}, postTarget: {}, asset: {}, platformConnection: {}, orgSettings: {},
+    job: { orgId: {}, kind: {}, payload: {}, state: {}, attempts: {}, maxAttempts: {}, runAfter: {}, lockedAt: {}, startedAt: {}, createdAt: {}, id: {} } }),
   getPublishingConsentStatus: vi.fn(async () => ({ ok: true, missing: [] })),
   getTosScanState: vi.fn(async () => 'completed'),
   consentRequirementMessage: vi.fn(
@@ -78,11 +79,46 @@ describe('generation safety snapshot', () => {
   });
   it.each([true, false, undefined])('reports existing workspace pause state (%s)', async enabled => {
     mockState.results = [[], [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated', assetId: null }],
-      enabled === undefined ? [] : [{ publishingEnabled: enabled }]];
+      [], enabled === undefined ? [] : [{ publishingEnabled: enabled }]];
     const result = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}`);
     expect(result.status).toBe(200);
     expect(await result.json()).toMatchObject({ generationPaused: enabled !== true });
     expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it.each(['ready', 'running', 'dead', 'failed', 'done', 'cancelled'] as const)(
+    'reports scoped media job state %s without exposing its error text', async jobState => {
+      const terminalFailure = jobState === 'dead' || jobState === 'failed';
+      const bundleState = terminalFailure ? 'hold' : 'generated';
+      mockState.results = [[], [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: bundleState, assetId: null }],
+        [{ state: jobState, attempts: 2, maxAttempts: 3,
+          runAfter: new Date(Date.now() - 600_000), lockedAt: new Date(Date.now() - 600_000),
+          startedAt: new Date(Date.now() - 600_000), createdAt: new Date(Date.now() - 600_000),
+          lastError: 'provider token=must-not-leak' }],
+        ...(bundleState === 'generated' ? [[{ publishingEnabled: true }]] : [])];
+      const result = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}`);
+      expect(result.status).toBe(200);
+      const body = await result.json() as { generationJob: { state: string; attempts: number; maxAttempts: number; ageSeconds: number } };
+      expect(body.generationJob).toMatchObject({ state: jobState, attempts: 2, maxAttempts: 3 });
+      expect(body.generationJob.ageSeconds).toBeGreaterThanOrEqual(0);
+      expect(JSON.stringify(body)).not.toContain('provider token');
+    },
+  );
+
+  it('reports a missing media job explicitly for a generated bundle', async () => {
+    mockState.results = [[], [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated', assetId: null }], [], [{ publishingEnabled: true }]];
+    const result = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}`);
+    expect(await result.json()).toMatchObject({ generationJob: null, generationPaused: false });
+  });
+
+  it('reports how long an eligible job has waited for a worker', async () => {
+    const old = new Date(Date.now() - 600_000);
+    mockState.results = [[], [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated', assetId: null }],
+      [{ state: 'ready', attempts: 0, maxAttempts: 3, runAfter: old, lockedAt: null, startedAt: null, createdAt: old }],
+      [{ publishingEnabled: true }]];
+    const result = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}`);
+    const body = await result.json() as { generationJob: { ageSeconds: number } };
+    expect(body.generationJob.ageSeconds).toBeGreaterThanOrEqual(600);
   });
 });
 
@@ -236,7 +272,7 @@ describe('GET / — list bundles', () => {
 
 describe('GET /:id — get bundle', () => {
   it('returns the bundle when in the org', async () => {
-    mockState.result = [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated' }];
+    mockState.results = [[], [{ id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated', assetId: 'saved-asset' }]];
     const res = await appWithOrg(ORG_ID).request(`/${BUNDLE_ID}`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
