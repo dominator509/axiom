@@ -22,13 +22,21 @@ beforeAll(async () => {
 describe('front-door API and MCP request budgets', () => {
   it.each(['/api/v1/health', '/api/mcp'])('cannot reset %s by rotating unverified credentials', async (path) => {
     const peer = { incoming: { socket: { remoteAddress: path === '/api/mcp' ? '203.0.113.250' : '203.0.113.249' } } };
-    let last: Response | undefined;
-    for (let attempt = 0; attempt < 61; attempt += 1) {
-      last = await app.request(path, {
-        headers: { Authorization: `Bearer frontdoor-${attempt}`, 'X-API-Key': `frontdoor-${attempt}` },
-      }, peer);
+    // Hold the limiter clock still so refill cannot make the 61st request pass
+    // on a slower runner. Restore it even if an assertion fails.
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      let last: Response | undefined;
+      for (let attempt = 0; attempt < 61; attempt += 1) {
+        last = await app.request(path, {
+          headers: { Authorization: `Bearer frontdoor-${attempt}`, 'X-API-Key': `frontdoor-${attempt}` },
+        }, peer);
+      }
+      expect(last?.status).toBe(429);
+    } finally {
+      clock.mockRestore();
     }
-    expect(last?.status).toBe(429);
   });
 });
 
