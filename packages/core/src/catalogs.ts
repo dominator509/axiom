@@ -9,6 +9,7 @@ import { SCRAPE_HISTORY_CATALOGS } from './scrape-history-catalog.js';
 import { LINKBIO_POST_LINK_CATALOGS } from './linkbio-post-link-catalog.js';
 import { LINKBIO_PROVIDER_ANALYTICS_CATALOGS } from './linkbio-provider-analytics-catalog.js';
 import { POST_PERFORMANCE_CATALOGS } from './post-performance-catalog.js';
+import { GENERATION_STATUS_CATALOGS } from './generation-status-catalog.js';
 
 /**
  * The single runtime catalog exposed to the application.
@@ -31,6 +32,7 @@ export const CATALOGS: Record<SupportedLocale, Catalog> = Object.fromEntries(
       ...LINKBIO_POST_LINK_CATALOGS[locale],
       ...LINKBIO_PROVIDER_ANALYTICS_CATALOGS[locale],
       ...POST_PERFORMANCE_CATALOGS[locale],
+      ...GENERATION_STATUS_CATALOGS[locale],
     },
   ]),
 ) as Record<SupportedLocale, Catalog>;

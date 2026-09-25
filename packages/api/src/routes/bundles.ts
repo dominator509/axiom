@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
-import { sql, eq, and } from 'drizzle-orm';
+import { sql, eq, and, desc } from 'drizzle-orm';
 import {
   schema,
   getPublishingConsentStatus,
@@ -104,12 +104,39 @@ router.get('/:id', async (c) => {
     if (rows[0].assetId && rows[0].tosReport?.verdict === 'pending') {
       return { data: rows[0], scanFailed: (await getTosScanState(tx, orgId, id)) === 'failed' };
     }
-    if (rows[0].state !== 'generated' || rows[0].assetId) return { data: rows[0] };
+    if (rows[0].assetId || !['generated', 'hold'].includes(rows[0].state)) return { data: rows[0] };
+    // A bundle row alone cannot tell the dashboard whether media.generate is
+    // waiting for a worker, running, or terminally failed. Return only bounded
+    // queue metadata; never expose provider/worker last_error text here.
+    const [job] = await tx.select({
+      state: schema.job.state,
+      attempts: schema.job.attempts,
+      maxAttempts: schema.job.maxAttempts,
+      runAfter: schema.job.runAfter,
+      lockedAt: schema.job.lockedAt,
+      startedAt: schema.job.startedAt,
+      createdAt: schema.job.createdAt,
+    }).from(schema.job).where(and(
+      eq(schema.job.orgId, orgId),
+      eq(schema.job.kind, 'media.generate'),
+      sql`${schema.job.payload}->>'bundleId' = ${id}`,
+    )).orderBy(desc(schema.job.createdAt), desc(schema.job.id)).limit(1);
+    const generationJob = job ? {
+      state: job.state,
+      attempts: job.attempts,
+      maxAttempts: job.maxAttempts,
+      ageSeconds: (() => {
+        const reference = job.state === 'ready' ? job.runAfter
+          : job.state === 'running' ? job.lockedAt ?? job.startedAt ?? job.createdAt : null;
+        return reference instanceof Date ? Math.max(0, Math.floor((Date.now() - reference.getTime()) / 1000)) : 0;
+      })(),
+    } : null;
+    if (rows[0].state === 'hold') return { data: rows[0], generationJob };
     const settings = await tx.select({ publishingEnabled: schema.orgSettings.publishingEnabled })
       .from(schema.orgSettings).where(eq(schema.orgSettings.orgId, orgId)).limit(1);
     // Same fail-closed interpretation as the worker; this is a snapshot, not
     // a claim that a worker is running or that a generation was dispatched.
-    return { data: rows[0], generationPaused: settings[0]?.publishingEnabled !== true };
+    return { data: rows[0], generationPaused: settings[0]?.publishingEnabled !== true, generationJob };
   });
   if (!result) return apiError(c, 404, statusTitle(404), 'bundle not found');
   return c.json(result);

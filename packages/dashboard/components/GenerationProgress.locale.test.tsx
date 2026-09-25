@@ -9,7 +9,11 @@ vi.mock('./LocaleProvider', () => ({
     locale: 'es',
     setLocale: () => undefined,
     t: (key: string) => ({
-      'generation.queued': 'La generación de Grok está en cola o ejecutándose.',
+      'generation.checking': 'Comprobando el estado de la generación…',
+      'generation.queued': 'La generación de Grok está en cola y espera a un trabajador.',
+      'generation.running': 'La generación de Grok está en curso.',
+      'generation.failedNoAsset': 'El trabajo de generación terminó sin adjuntar un recurso.',
+      'generation.jobMissing': 'No hay ningún trabajo de generación de medios asociado con este paquete.',
       'generation.openApprovals': 'Abrir Aprobaciones',
       'generation.openIncidents': 'Abrir Incidentes',
       'generation.openReviewDrafts': 'Abrir Borradores de revisión',
@@ -21,8 +25,8 @@ import GenerationProgress from './GenerationProgress';
 describe('GenerationProgress locale coverage', () => {
   it('renders generation status and review navigation in Spanish', () => {
     const html = renderToStaticMarkup(<GenerationProgress bundleId="bundle" modelId="model" />);
-    expect(html).toContain('La generación de Grok está en cola');
+    expect(html).toContain('Comprobando el estado de la generación');
     expect(html).toContain('Abrir Aprobaciones');
-    expect(html).not.toContain('Grok generation queued or running');
+    expect(html).not.toContain('Grok generation is queued');
   });
 });

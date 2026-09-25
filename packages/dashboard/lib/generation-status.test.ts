@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { watchGeneration } from './generation-status';
 
 const bundle = { id: 'bundle-a', modelId: 'model-a', state: 'generated', assetId: null, tosReport: { verdict: 'pending' } };
-const response = (data: unknown) => new Response(JSON.stringify({ data }));
+const response = (data: unknown, extra: Record<string, unknown> = {}) => {
+  const row = data as { state?: string; assetId?: string | null };
+  const defaultJob = !row.assetId && ['generated', 'hold'].includes(row.state ?? '')
+    ? { generationJob: { state: 'ready', attempts: 0, maxAttempts: 3, ageSeconds: 0 } } : {};
+  return new Response(JSON.stringify({ data, ...defaultJob, ...extra }));
+};
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
@@ -17,14 +22,14 @@ describe('generation status polling', () => {
     expect(fetcher).toHaveBeenCalledOnce(); expect(unavailable).not.toHaveBeenCalled(); stop();
   });
   it.each(['true', 1, null])('rejects malformed scan failure %j', async scanFailed => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ data: bundle, scanFailed })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(bundle, { scanFailed, generationJob: { state: 'ready', attempts: 0, maxAttempts: 3, ageSeconds: 0 } })));
     const status = vi.fn(), unavailable = vi.fn();
     const stop = watchGeneration('bundle-a', 'model-a', status, unavailable);
     await vi.advanceTimersByTimeAsync(100);
     expect(status).not.toHaveBeenCalled(); expect(unavailable).toHaveBeenCalledOnce(); stop();
   });
   it.each(['true', 1, null])('rejects malformed pause state %j without claiming generation is active', async generationPaused => {
-    const fetcher = vi.fn().mockResolvedValue(Response.json({ data: bundle, generationPaused }));
+    const fetcher = vi.fn().mockResolvedValue(response(bundle, { generationPaused, generationJob: { state: 'ready', attempts: 0, maxAttempts: 3, ageSeconds: 0 } }));
     vi.stubGlobal('fetch', fetcher);
     const status = vi.fn(); const unavailable = vi.fn();
     const stop = watchGeneration('bundle-a', 'model-a', status, unavailable);
@@ -35,8 +40,8 @@ describe('generation status polling', () => {
     stop();
   });
   it('reports a paused workspace and keeps observing without redispatching', async () => {
-    const fetcher = vi.fn().mockResolvedValueOnce(Response.json({ data: bundle, generationPaused: true }))
-      .mockResolvedValueOnce(Response.json({ data: { ...bundle, state: 'hold' }, generationPaused: false }));
+    const fetcher = vi.fn().mockResolvedValueOnce(response(bundle, { generationPaused: true, generationJob: { state: 'ready', attempts: 0, maxAttempts: 3, ageSeconds: 0 } }))
+      .mockResolvedValueOnce(response({ ...bundle, state: 'hold' }, { generationPaused: false, generationJob: { state: 'dead', attempts: 3, maxAttempts: 3, ageSeconds: 0 } }));
     vi.stubGlobal('fetch', fetcher);
     const status = vi.fn(); const unavailable = vi.fn();
     const stop = watchGeneration('bundle-a', 'model-a', status, unavailable);
@@ -86,6 +91,30 @@ describe('generation status polling', () => {
     stop();
   });
 
+  it('reports a terminal generation failure once without exposing error text', async () => {
+    const fetcher = vi.fn().mockResolvedValue(response(bundle, {
+      generationJob: { state: 'dead', attempts: 3, maxAttempts: 3, ageSeconds: 600, lastError: 'provider token=secret' },
+    }));
+    vi.stubGlobal('fetch', fetcher);
+    const status = vi.fn(), unavailable = vi.fn();
+    const stop = watchGeneration('bundle-a', 'model-a', status, unavailable);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(status).toHaveBeenCalledWith(expect.objectContaining({ generationJob: { state: 'dead', attempts: 3, maxAttempts: 3, ageSeconds: 600 } }));
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(unavailable).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it('does not present an unverified pending state when the job snapshot is missing', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ data: bundle })));
+    const status = vi.fn(), unavailable = vi.fn();
+    const stop = watchGeneration('bundle-a', 'model-a', status, unavailable);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(status).not.toHaveBeenCalled();
+    expect(unavailable).toHaveBeenCalledOnce();
+    stop();
+  });
+
   it.each([
     new Response('', { status: 401 }),
     response({ ...bundle, modelId: 'another-model' }),
@@ -122,11 +151,13 @@ describe('generation status polling', () => {
   it('bounds polling when a worker never completes', async () => {
     const fetcher = vi.fn().mockImplementation(async () => response(bundle));
     vi.stubGlobal('fetch', fetcher);
-    const unavailable = vi.fn();
-    const stop = watchGeneration('bundle-a', 'model-a', vi.fn(), unavailable);
+    const status = vi.fn(), unavailable = vi.fn();
+    const stop = watchGeneration('bundle-a', 'model-a', status, unavailable);
     await vi.advanceTimersByTimeAsync(650_000);
     expect(fetcher).toHaveBeenCalledTimes(120);
-    expect(unavailable).toHaveBeenCalledOnce();
+    expect(status).toHaveBeenCalledTimes(120);
+    expect(status.mock.calls.at(-1)?.[0]).toMatchObject({ generationJob: { state: 'ready' } });
+    expect(unavailable).not.toHaveBeenCalled();
     stop();
   });
 });
