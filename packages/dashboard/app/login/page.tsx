@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import LoginForm from '@/components/LoginForm';
 import LocaleProvider from '@/components/LocaleProvider';
+import BrandMark, { BrandWordmark } from '@/components/BrandMark';
 import { CATALOGS, LocaleCatalog, resolveLocale } from '@axiom/core';
 
 export const metadata: Metadata = { title: 'Sign in' };
@@ -24,9 +25,9 @@ export default async function LoginPage({ searchParams }: {
     <div className="login-page">
       <section className="login-story" aria-label={t('auth.introduction')}>
         <div className="brand login-brand">
-          <span className="brand-mark">F</span>
+          <BrandMark />
           <span className="brand-copy">
-            <strong>FanThynks</strong>
+            <BrandWordmark />
             <small>{t('brand.creatorIntelligence')}</small>
           </span>
         </div>
