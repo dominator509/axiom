@@ -39,7 +39,7 @@ function safeFanlynksProfileUrl(value: string): string | null {
 // loader may provision missing short-link rows for older provider records and
 // the redirect increments click/analytics state, so protect the whole public
 // surface rather than only the legacy click endpoint.
-publicRouter.use('*', rateLimit({ capacity: 60, refillPerSec: 1, maxBuckets: 100_000 }));
+publicRouter.use('*', rateLimit({ capacity: 60, refillPerSec: 1, maxBuckets: 100_000, keyBy: 'client-ip' }));
 
 const PROVIDER_KINDS = LINKBIO_PROVIDER_KINDS;
 const UTM_KEY = /^utm_[a-z][a-z0-9_]{0,31}$/;

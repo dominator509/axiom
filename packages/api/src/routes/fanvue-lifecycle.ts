@@ -18,7 +18,7 @@ const rescueSendSchema = z.object({
 const readableRoles = new Set(['owner', 'manager', 'operator', 'analyst', 'content_creator', 'model']);
 const sendRoles = new Set(['owner', 'manager', 'operator']);
 
-router.use('/webhooks/fanvue/*', rateLimit({ capacity: 120, refillPerSec: 2, maxBuckets: 100_000 }));
+router.use('/webhooks/fanvue/*', rateLimit({ capacity: 120, refillPerSec: 2, maxBuckets: 100_000, keyBy: 'client-ip' }));
 
 /** Public provider callback. The signed body and connection URL bind the event to one Fanvue account. */
 router.post('/webhooks/fanvue/:orgId/:connectionId', async (c) => {

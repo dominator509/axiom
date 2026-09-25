@@ -704,10 +704,10 @@ app.use('*', logger());
 app.use('*', secureHeaders());
 // L3.0 contract: correlation_id on every request, then per-token rate limits.
 app.use('*', correlationId);
-app.use('/api/v1/*', rateLimit());
+app.use('/api/v1/*', rateLimit({ keyBy: 'client-ip' }));
 // MCP is an authenticated agent surface, but it is outside the REST prefix;
 // apply the same per-credential bucket before JSON-RPC dispatch.
-app.use('/api/mcp', rateLimit());
+app.use('/api/mcp', rateLimit({ keyBy: 'client-ip' }));
 app.onError(onError);
 
 // Health check
@@ -744,7 +744,7 @@ app.route('/affiliate', publicPlatformAffiliateRouter);
 // its own anonymous budget rather than inheriting only the /api/v1 limiter.
 // Keep this before the handler so every auth method, including future ones,
 // receives the same abuse-control boundary and Retry-After response.
-app.use('/api/auth/*', rateLimit({ capacity: 20, refillPerSec: 1, maxBuckets: 100_000 }));
+app.use('/api/auth/*', rateLimit({ capacity: 20, refillPerSec: 1, maxBuckets: 100_000, keyBy: 'client-ip' }));
 
 // ── Better Auth — mounted at /api/auth/* (replaces the 501 placeholder) ──
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));
@@ -1262,7 +1262,7 @@ export function createRelayApp(): Hono {
   // Provider webhooks are public transport surfaces. Apply the same
   // transport-aware limiter used by the REST API before any body parsing or
   // signature work, so a valid secret is not an unlimited memory/CPU budget.
-  relay.use('/webhooks/*', rateLimit({ capacity: 120, refillPerSec: 2, maxBuckets: 100_000 }));
+  relay.use('/webhooks/*', rateLimit({ capacity: 120, refillPerSec: 2, maxBuckets: 100_000, keyBy: 'client-ip' }));
 
   const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
   const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL?.trim();

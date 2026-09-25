@@ -48,7 +48,14 @@ function validSyncWindow(startDate: string, endDate: string): boolean {
 function fanlynksOrigin(profileUrl: string): string | null {
   try {
     const url = new URL(profileUrl);
-    if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) return null;
+    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    // Custom FanLynks domains are supported, but an internal or literal IP
+    // destination must not receive the stored bearer token at sync.
+    if (url.protocol !== 'https:' || url.port || url.username || url.password
+      || host === 'localhost' || host.endsWith('.localhost')
+      || host.endsWith('.local') || host.endsWith('.internal')
+      || !/^[a-z0-9.-]+$/.test(host) || !host.includes('.')
+      || /^\d+(?:\.\d+){3}$/.test(host)) return null;
     return url.origin;
   } catch {
     return null;
@@ -190,7 +197,7 @@ router.post('/models/:modelId/linkbio/:kind/analytics-connection', zValidator('j
     const fanlynksBody = fanlynksCredentialSchema.safeParse(body);
     if (fanlynksBody.success) {
       const origin = fanlynksOrigin(fanlynksBody.data.profileUrl);
-      if (!origin) return apiError(c, 422, statusTitle(422), 'FanLynks profile URL must use HTTPS and cannot contain embedded credentials');
+      if (!origin) return apiError(c, 422, statusTitle(422), 'FanLynks profile URL must use a public HTTPS domain without a custom port or embedded credentials');
       let envelope;
       try {
         envelope = await encryptOAuthCredentials({ accessToken: fanlynksBody.data.apiToken });

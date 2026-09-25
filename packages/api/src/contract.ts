@@ -513,7 +513,7 @@ function getBucket(
  * no token). Returns 429 with Retry-After per L3.0.
  */
 export function rateLimit(
-  opts: { capacity?: number; refillPerSec?: number; maxBuckets?: number } = {},
+  opts: { capacity?: number; refillPerSec?: number; maxBuckets?: number; keyBy?: 'credential' | 'client-ip' } = {},
 ) {
   const capacity = opts.capacity ?? DEFAULT_CAPACITY;
   const refillPerSec = opts.refillPerSec ?? DEFAULT_REFILL;
@@ -529,11 +529,15 @@ export function rateLimit(
       .filter(Boolean)
       .at(-1);
     const clientAddress = isTrustedProxyAddress(peerAddress) ? forwardedFor : peerAddress;
-    const source = credential
-      ? `bearer:${credential}`
-      : apiKey
-        ? `api-key:${apiKey}`
-        : `ip:${clientAddress || 'anonymous'}`;
+    // Public auth runs before any credential is verified. Its bucket must not
+    // be selected by a caller-controlled Authorization or X-API-Key value.
+    const source = opts.keyBy === 'client-ip'
+      ? `ip:${clientAddress || 'anonymous'}`
+      : credential
+        ? `bearer:${credential}`
+        : apiKey
+          ? `api-key:${apiKey}`
+          : `ip:${clientAddress || 'anonymous'}`;
     // Retain only an irreversible fingerprint, never a live credential.
     const bucketKey = createHash('sha256').update(source).digest('base64url');
     const bucket = getBucket(bucketKey, capacity, refillPerSec, maxBuckets);
