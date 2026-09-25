@@ -73,7 +73,7 @@ describe('scan failure feedback', () => {
   it('distinguishes queued and running jobs from terminal failures', () => {
     state.assetReady = false; state.scanFailed = false;
     state.generationJob = { state: 'ready', attempts: 0, maxAttempts: 3, ageSeconds: 0 };
-    expect(renderToStaticMarkup(<GenerationProgress bundleId="bundle" modelId="model" />)).toContain('Grok generation queued');
+    expect(renderToStaticMarkup(<GenerationProgress bundleId="bundle" modelId="model" />)).toContain('Grok generation is queued');
     state.calls = 0; state.generationJob = { state: 'running', attempts: 1, maxAttempts: 3, ageSeconds: 0 };
     expect(renderToStaticMarkup(<GenerationProgress bundleId="bundle" modelId="model" />)).toContain('Grok generation is running');
     state.calls = 0; state.bundleState = 'hold'; state.generationJob = { state: 'dead', attempts: 3, maxAttempts: 3, ageSeconds: 0 };
