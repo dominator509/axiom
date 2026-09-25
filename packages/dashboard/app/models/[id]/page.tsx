@@ -2,6 +2,7 @@ import { api, getSession } from '@/lib/api';
 import { formatNumber, type MessageKey } from '@axiom/core';
 import CharacterLockEditor from '@/components/CharacterLockEditor';
 import ProfileEditor from '@/components/ProfileEditor';
+import LocalDateTime from '@/components/LocalDateTime';
 import ModelLifecycleControls from '@/components/ModelLifecycleControls';
 import ProviderCacheControls from '@/components/ProviderCacheControls';
 import WatermarkPolicyControls from '@/components/WatermarkPolicyControls';
@@ -95,7 +96,7 @@ export default async function ModelOverviewPage({ params }: { params: Promise<{ 
           : <p>{t('model.characterLockUnavailable')}</p>)}
         {!canEdit && <p className="subtle">{t('model.profileEditRequires')}</p>}
         <div>
-          <strong>{t('model.created')}:</strong> {dateTime(model.createdAt)}
+          <strong>{t('model.created')}:</strong> <LocalDateTime value={model.createdAt} fallback={dateTime(model.createdAt)} />
         </div>
       </div>
       {allowed('network') && <div className="card stack">

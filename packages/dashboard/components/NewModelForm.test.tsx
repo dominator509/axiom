@@ -6,6 +6,7 @@ vi.mock('./LocaleProvider', () => ({ useLocale: () => ({ locale: 'en', setLocale
 const hooks = vi.hoisted(() => ({
   values: [] as unknown[], refs: [] as { current: unknown }[], stateIndex: 0, refIndex: 0,
   refresh: vi.fn(),
+  publish: vi.fn(),
 }));
 // Controlled hooks exercise the component's real handler and mutation transport, not a browser.
 vi.mock('react', async (original) => ({
@@ -22,6 +23,10 @@ vi.mock('react', async (original) => ({
   },
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
+vi.mock('@/lib/talent-roster', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/talent-roster')>(),
+  publishTalentProfileCreated: hooks.publish,
+}));
 
 import NewModelForm from './NewModelForm';
 
@@ -29,6 +34,7 @@ beforeEach(() => {
   hooks.values = [true, 'Creator', 'creator', 'Bio', null, false];
   hooks.refs = [];
   hooks.refresh.mockReset();
+  hooks.publish.mockReset();
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -54,11 +60,16 @@ describe('profile creation intent', () => {
     await handler();
     expect(fetch).toHaveBeenCalledOnce();
     expect(hooks.values[5]).toBe(true);
-    finish(new Response('{}', { status: 201 }));
+    finish(new Response(JSON.stringify({ data: {
+      id: 'model-1', displayName: 'Creator', handle: 'creator', bio: 'Bio', isActive: true,
+    } }), { status: 201 }));
     await pending;
     expect(hooks.values[5]).toBe(false);
     expect(hooks.values[0]).toBe(false);
     expect(hooks.refresh).toHaveBeenCalledOnce();
+    expect(hooks.publish).toHaveBeenCalledWith({
+      id: 'model-1', displayName: 'Creator', handle: 'creator', bio: 'Bio', isActive: true,
+    });
   });
 
   it('reuses the same key when the user retries after all network attempts fail', async () => {
@@ -69,7 +80,9 @@ describe('profile creation intent', () => {
     expect(hooks.values[4]).toEqual(expect.stringContaining('could not be confirmed'));
     expect(hooks.values[5]).toBe(false);
     expect(hooks.refresh).not.toHaveBeenCalled();
-    fetch.mockResolvedValue(new Response('{}', { status: 201 }));
+    fetch.mockResolvedValue(new Response(JSON.stringify({ data: {
+      id: 'model-1', displayName: 'Creator', handle: 'creator', bio: 'Bio', isActive: true,
+    } }), { status: 201 }));
     await submit()();
     expect(key(fetch, 0)).toBeTruthy();
     expect(key(fetch, 1)).toBe(key(fetch, 0));
@@ -83,7 +96,9 @@ describe('profile creation intent', () => {
     expect(hooks.values[4]).toBe('Invalid name');
     expect(hooks.values[5]).toBe(false);
     hooks.values[1] = 'Corrected creator';
-    fetch.mockResolvedValue(new Response('{}', { status: 201 }));
+    fetch.mockResolvedValue(new Response(JSON.stringify({ data: {
+      id: 'model-1', displayName: 'Corrected creator', handle: 'creator', bio: 'Bio', isActive: true,
+    } }), { status: 201 }));
     await submit()();
     expect(key(fetch, 1)).not.toBe(key(fetch, 0));
   });
