@@ -168,10 +168,12 @@ describe('buildEgressFetch', () => {
     const res = await egressFetch('https://api.example.com/v1/chat/completions', {
       method: 'POST',
       headers: { authorization: 'Bearer test' },
+      redirect: 'error',
     });
     expect(await res.text()).toBe('ok');
     expect(undiciFetchMock).toHaveBeenCalledTimes(1);
-    const init = undiciFetchMock.mock.calls[0][1] as { dispatcher: unknown };
+    const init = undiciFetchMock.mock.calls[0][1] as { dispatcher: unknown; redirect?: string };
+    expect(init.redirect).toBe('error');
     // dispatcher must be an undici ProxyAgent for the sidecar proxy URL
     expect(init.dispatcher).toBeDefined();
     expect((init.dispatcher as { constructor: { name: string } }).constructor.name).toBe(
@@ -194,15 +196,24 @@ describe('buildEgressFetch', () => {
     undiciFetchMock.mockClear();
   });
 
-  it('uses undici without a proxy dispatcher for an explicit direct binding', async () => {
+  it('uses the public-address checked connector for an explicit direct binding', async () => {
     undiciFetchMock.mockResolvedValue(new Response('ok'));
     const { buildEgressFetch } = await loadEgress();
     const egressFetch = buildEgressFetch({ kind: 'direct' });
     const res = await egressFetch('https://api.example.com/direct');
     expect(await res.text()).toBe('ok');
     expect(undiciFetchMock).toHaveBeenCalledTimes(1);
-    expect(undiciFetchMock.mock.calls[0]).toHaveLength(1);
+    const init = undiciFetchMock.mock.calls[0][1] as { dispatcher: { constructor: { name: string } } };
+    expect(init.dispatcher.constructor.name).toBe('Agent');
     undiciFetchMock.mockClear();
+  });
+
+  it('rejects private IP literals before Node can bypass the DNS lookup guard', async () => {
+    const { buildEgressFetch } = await loadEgress();
+    const egressFetch = buildEgressFetch({ kind: 'direct' });
+    expect(() => egressFetch('http://127.0.0.1/metadata')).toThrow('non-public IP');
+    expect(() => egressFetch('http://[::1]/metadata')).toThrow('non-public IP');
+    expect(undiciFetchMock).not.toHaveBeenCalled();
   });
 
   it('fails closed when confinement is required outside the isolated model runner', async () => {
@@ -250,5 +261,37 @@ describe('buildEgressFetch', () => {
     expect(() => assertEgressFetchCaller(env, {
       platform: 'linux', stat: (path) => path === expectedPath ? { dev: 4, ino: 4026533001 } : { dev: 4, ino: 4026532001 },
     })).toThrow('Egress fetch caller is not running in its assigned network namespace');
+  });
+});
+
+describe('public egress address policy', () => {
+  it('allows public DNS answers but rejects a mixed public/private answer set', async () => {
+    const { assertPublicEgressAnswers } = await loadEgress();
+    expect(() => assertPublicEgressAnswers([
+      { address: '93.184.216.34', family: 4 },
+      { address: '2606:4700:4700::1111', family: 6 },
+    ])).not.toThrow();
+    expect(() => assertPublicEgressAnswers([
+      { address: '93.184.216.34', family: 4 },
+      { address: '127.0.0.1', family: 4 },
+    ])).toThrow('non-public');
+    expect(() => assertPublicEgressAnswers([
+      { address: '93.184.216.34', family: 4 },
+      { address: 'fe80::1', family: 6 },
+    ])).toThrow('non-public');
+  });
+
+  it.each([
+    '127.0.0.1', '10.0.0.1', '172.16.0.1', '192.168.1.1',
+    '169.254.169.254', '100.64.0.1', '192.0.2.1', '198.18.0.1', '224.0.0.1',
+    '::1', 'fc00::1', 'fe80::1', '2001:db8::1', '2002::1', '3fff::1',
+  ])('rejects non-public address %s', async (address) => {
+    const { isPublicEgressAddress } = await loadEgress();
+    expect(isPublicEgressAddress(address)).toBe(false);
+  });
+
+  it.each(['8.8.8.8', '93.184.216.34', '2606:4700:4700::1111'])('accepts public address %s', async (address) => {
+    const { isPublicEgressAddress } = await loadEgress();
+    expect(isPublicEgressAddress(address)).toBe(true);
   });
 });
