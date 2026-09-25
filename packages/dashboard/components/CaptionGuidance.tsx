@@ -1,14 +1,17 @@
 import { createHash } from 'node:crypto';
 import { formatNumber, isLearningArm, isLearningContext, learningContextBucket, parseLearningArm } from '@axiom/core';
 import type { ContentBundle } from '@/lib/api';
-import { useLocale } from './LocaleProvider';
+import type { getServerLocale } from '@/lib/server-locale';
 
-const armKeys: Record<string, string> = {
+type ServerLocale = Awaited<ReturnType<typeof getServerLocale>>;
+type CaptionKey = Parameters<ServerLocale['t']>[0];
+
+const armKeys: Record<string, CaptionKey> = {
   'short:question': 'caption.shortQuestion', 'short:statement': 'caption.shortStatement',
   'medium:question': 'caption.mediumQuestion', 'medium:statement': 'caption.mediumStatement',
   'long:question': 'caption.longQuestion', 'long:statement': 'caption.longStatement',
 };
-function armLabel(arm: string, t: (key: string, values?: Record<string, string | number>) => string): string {
+function armLabel(arm: string, t: ServerLocale['t']): string {
   const parsed = parseLearningArm(arm);
   if (!parsed) return t('caption.unknownStructure');
   const base = armKeys[`${parsed.captionLength}:${parsed.captionShape}`]
@@ -29,10 +32,10 @@ function validReceipt(value: unknown): value is Receipt {
 }
 
 /** Server-rendered evidence summary. No exemplar text, identifiers or hashes are exposed. */
-export default function CaptionGuidance({ captions, receipts }: {
+export default function CaptionGuidance({ captions, receipts, locale, t }: {
   captions: Record<string, string>; receipts: ContentBundle['captionGuidance'];
+  locale: ServerLocale['locale']; t: ServerLocale['t'];
 }) {
-  const { locale, t } = useLocale();
   const entries = Object.entries(captions);
   if (!entries.length) return null;
   return <details className="card stack">
