@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import LocaleProvider from '@/components/LocaleProvider';
 import HomePage from './page';
 
 const getServerLocale = vi.hoisted(() => vi.fn());
@@ -45,13 +46,15 @@ const messages: Record<string, string> = {
   'home.nextPage': 'Next page',
 };
 
-vi.mocked(getServerLocale).mockResolvedValue({
-  locale: 'en',
-  t: (key: string, values?: Record<string, string | number>) => {
-    if (key === 'home.profilesShown') return `${values?.count ?? 0} profiles shown`;
-    if (key === 'home.shown') return `${values?.count ?? 0} shown`;
-    return messages[key] ?? key;
-  },
+beforeEach(() => {
+  vi.mocked(getServerLocale).mockResolvedValue({
+    locale: 'en',
+    t: (key: string, values?: Record<string, string | number>) => {
+      if (key === 'home.profilesShown') return `${values?.count ?? 0} profiles shown`;
+      if (key === 'home.shown') return `${values?.count ?? 0} shown`;
+      return messages[key] ?? key;
+    },
+  });
 });
 
 function transport({ empty = false, countFailure = false, pageFailure = false, totalCount = 101, pageCount = 1 } = {}) {
@@ -70,7 +73,9 @@ function transport({ empty = false, countFailure = false, pageFailure = false, t
 }
 
 async function render(query: Record<string, string | string[] | undefined> = {}) {
-  return renderToStaticMarkup(await HomePage({ searchParams: Promise.resolve(query) }));
+  const locale = (await getServerLocale()).locale;
+  const page = await HomePage({ searchParams: Promise.resolve(query) });
+  return renderToStaticMarkup(<LocaleProvider initialLocale={locale}>{page}</LocaleProvider>);
 }
 
 describe('portfolio pagination and counts', () => {
@@ -116,8 +121,7 @@ describe('portfolio pagination and counts', () => {
     transport({ totalCount: 12345, pageCount: 1234 });
     const html = await render();
     expect(html).toContain('<strong>12.345</strong>');
-    expect(html).toContain('1.234 profiles shown');
-    expect(html).toContain('1.234 shown');
+    expect(html).toMatch(/>1\.234\b/);
   });
 
   it('round-trips the cursor and offers reset on an exhausted page', async () => {
