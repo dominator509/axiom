@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 // Apple touch icon (180x180): the FanThynks Shared Roof mark on the brand
-// black tile with a soft gold glow, matching the app icon in the brand kit.
+// petrol tile with a soft teal glow, retaining the gold roof from the brand kit.
 export const size = { width: 180, height: 180 };
 export const contentType = 'image/png';
 
@@ -15,7 +15,7 @@ export default function AppleIcon() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'radial-gradient(circle at 50% 0%, rgba(207,160,41,0.28), #050505 70%)',
+          background: 'radial-gradient(circle at 50% 0%, rgba(103,189,178,0.22), #0c1a20 70%)',
         }}
       >
         <svg width="112" height="126" viewBox="20 17 140 158">
