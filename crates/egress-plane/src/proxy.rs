@@ -18,9 +18,10 @@
 
 use base64::Engine as _;
 use std::io;
-use std::net::SocketAddr;
+use std::future::Future;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::{lookup_host, TcpListener, TcpStream};
 use tokio_rustls::{rustls, TlsConnector};
 use tracing::{debug, info, warn};
 
@@ -248,7 +249,7 @@ async fn http_forward(socket: &mut TcpStream, upstream: &Upstream) -> io::Result
         .host_str()
         .ok_or_else(|| io::Error::other("absolute URL missing host"))?;
     let port = url.port_or_known_default().unwrap_or(80);
-    let target_addr = format!("{host}:{port}");
+    let target_addr = format_host_port(host, port);
     let path = if url.path().is_empty() {
         "/".to_string()
     } else {
@@ -297,9 +298,132 @@ trait ProxyStream: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> ProxyStream for T {}
 
 async fn connect_target(upstream: &Upstream, target: &str) -> io::Result<Box<dyn ProxyStream>> {
+    connect_target_with_lookup(upstream, target, lookup_target_addresses).await
+}
+
+async fn lookup_target_addresses(host: String, port: u16) -> io::Result<Vec<SocketAddr>> {
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        return Ok(vec![SocketAddr::new(ip, port)]);
+    }
+    Ok(lookup_host((host.as_str(), port)).await?.collect())
+}
+
+async fn connect_target_with_lookup<F, Fut>(
+    upstream: &Upstream,
+    target: &str,
+    lookup: F,
+) -> io::Result<Box<dyn ProxyStream>>
+where
+    F: FnOnce(String, u16) -> Fut,
+    Fut: Future<Output = io::Result<Vec<SocketAddr>>>,
+{
+    let resolved = resolve_public_target(target, lookup).await?;
+    connect_resolved_target(upstream, resolved).await
+}
+
+async fn resolve_public_target<F, Fut>(target: &str, lookup: F) -> io::Result<SocketAddr>
+where
+    F: FnOnce(String, u16) -> Fut,
+    Fut: Future<Output = io::Result<Vec<SocketAddr>>>,
+{
+    let (host, port) = parse_target_authority(target)?;
+    let addresses = lookup(host.to_owned(), port).await?;
+    if addresses.is_empty() {
+        return Err(io::Error::other("target DNS returned no addresses"));
+    }
+    if addresses.iter().any(|address| !is_public_ip(address.ip())) {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "target DNS returned a non-public address",
+        ));
+    }
+    // Connect to the checked numeric answer. Never pass the original hostname
+    // to TcpStream or a remote proxy, where it could be resolved again.
+    Ok(addresses[0])
+}
+
+fn parse_target_authority(target: &str) -> io::Result<(&str, u16)> {
+    let (host, port) = if let Some(bracketed) = target.strip_prefix('[') {
+        let end = bracketed
+            .find(']')
+            .ok_or_else(|| io::Error::other("bad bracketed target"))?;
+        let host = &bracketed[..end];
+        let port = bracketed[end + 1..]
+            .strip_prefix(':')
+            .ok_or_else(|| io::Error::other("target port missing"))?;
+        (host, port)
+    } else {
+        let (host, port) = target
+            .rsplit_once(':')
+            .ok_or_else(|| io::Error::other("target port missing"))?;
+        if host.contains(':') {
+            return Err(io::Error::other("IPv6 target must use brackets"));
+        }
+        (host, port)
+    };
+    if host.is_empty() {
+        return Err(io::Error::other("target hostname missing"));
+    }
+    let port = port
+        .parse::<u16>()
+        .map_err(|_| io::Error::other("bad target port"))?;
+    if port == 0 {
+        return Err(io::Error::other("target port must be nonzero"));
+    }
+    Ok((host, port))
+}
+
+fn format_host_port(host: &str, port: u16) -> String {
+    if host.contains(':') {
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    }
+}
+
+fn is_public_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => is_public_ipv4(ip),
+        IpAddr::V6(ip) => is_public_ipv6(ip),
+    }
+}
+
+fn is_public_ipv4(ip: Ipv4Addr) -> bool {
+    let [a, b, c, _] = ip.octets();
+    !(a == 0
+        || a == 10
+        || a == 127
+        || a >= 224
+        || (a == 100 && (64..=127).contains(&b))
+        || (a == 169 && b == 254)
+        || (a == 172 && (16..=31).contains(&b))
+        || (a == 192 && b == 0 && (c == 0 || c == 2))
+        || (a == 192 && b == 88 && c == 99)
+        || (a == 192 && b == 168)
+        || (a == 198 && (b == 18 || b == 19 || (b == 51 && c == 100)))
+        || (a == 203 && b == 0 && c == 113))
+}
+
+fn is_public_ipv6(ip: Ipv6Addr) -> bool {
+    let [first, second, third, fourth, ..] = ip.segments();
+    // Permit global unicast (2000::/3) only. Exclude protocol assignments,
+    // documentation, and 6to4, which can embed or tunnel to private IPv4.
+    (first & 0xe000) == 0x2000
+        && !(first == 0x2001
+            && ((second <= 0x01ff)
+                || (second == 0x0db8)
+                || (second == 0 && third == 0x0000 && fourth == 0)))
+        && first != 0x2002
+        && !(first == 0x3fff && second <= 0x000f)
+}
+
+async fn connect_resolved_target(
+    upstream: &Upstream,
+    resolved: SocketAddr,
+) -> io::Result<Box<dyn ProxyStream>> {
     match upstream {
         Upstream::Direct => {
-            let tcp = TcpStream::connect(target).await?;
+            let tcp = TcpStream::connect(resolved).await?;
             tcp.set_nodelay(true)?;
             Ok(Box::new(tcp))
         }
@@ -348,6 +472,7 @@ async fn connect_target(upstream: &Upstream, target: &str) -> io::Result<Box<dyn
             };
             match kind {
                 ProxyKind::Http | ProxyKind::Https => {
+                    let target = resolved.to_string();
                     let mut req = format!("CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n");
                     if let (Some(u), Some(p)) = (username, password) {
                         let cred =
@@ -415,9 +540,10 @@ async fn connect_target(upstream: &Upstream, target: &str) -> io::Result<Box<dyn
                         }
                     }
                     // connect request with domain
-                    let host_port = target
-                        .rsplit_once(':')
-                        .ok_or_else(|| io::Error::other("bad target"))?;
+                    let target = resolved.to_string();
+                    let host_port = target.rsplit_once(':').ok_or_else(|| {
+                        io::Error::other("bad resolved target")
+                    })?;
                     let host = host_port.0;
                     let port: u16 = host_port
                         .1
@@ -433,11 +559,7 @@ async fn connect_target(upstream: &Upstream, target: &str) -> io::Result<Box<dyn
                             req.push(0x04);
                             req.extend_from_slice(&ip.octets());
                         }
-                        Err(_) if !host.is_empty() && host.len() <= 255 => {
-                            req.extend_from_slice(&[0x03, host.len() as u8]);
-                            req.extend_from_slice(host.as_bytes());
-                        }
-                        _ => return Err(io::Error::other("invalid SOCKS target")),
+                        Err(_) => return Err(io::Error::other("resolved target is not numeric")),
                     }
                     req.extend_from_slice(&port.to_be_bytes());
                     proxy.write_all(&req).await?;
@@ -620,5 +742,109 @@ mod tests {
         assert_eq!(listen_from_env(), Some("10.240.1.2:8080".parse().unwrap()));
         std::env::set_var("SIDECAR_LISTEN", "bogus");
         assert_eq!(listen_from_env(), None);
+    }
+
+    #[test]
+    fn public_address_policy_rejects_non_global_ipv4_and_ipv6() {
+        for address in [
+            "0.1.2.3", "10.0.0.1", "100.64.0.1", "127.0.0.1", "169.254.169.254",
+            "172.16.0.1", "192.0.2.1", "192.168.1.1", "198.18.0.1", "198.51.100.1",
+            "203.0.113.1", "224.0.0.1", "240.0.0.1", "::1", "fc00::1", "fe80::1",
+            "2001:db8::1", "2002::1", "3fff::1",
+        ] {
+            assert!(!is_public_ip(address.parse().unwrap()), "unexpected public: {address}");
+        }
+        for address in ["8.8.8.8", "93.184.216.34", "2606:4700:4700::1111"] {
+            assert!(is_public_ip(address.parse().unwrap()), "unexpected non-public: {address}");
+        }
+    }
+
+    #[tokio::test]
+    async fn rejects_a_private_dns_answer_before_opening_any_upstream_connection() {
+        let upstream = Upstream::Proxy {
+            kind: ProxyKind::Http,
+            addr: "127.0.0.1:1".into(),
+            connect_addr: None,
+            username: None,
+            password: None,
+        };
+        let error = connect_target_with_lookup(
+            &upstream,
+            "custom.fanlynks.example:443",
+            |hostname: String, port| async move {
+                assert_eq!(hostname, "custom.fanlynks.example");
+                assert_eq!(port, 443);
+                // Model the final A/AAAA set returned after CNAME resolution.
+                // One private answer poisons the whole set, even if another is public.
+                Ok(vec![
+                    "93.184.216.34:443".parse().unwrap(),
+                    "[fe80::1]:443".parse().unwrap(),
+                ])
+            },
+        )
+        .await
+        .err()
+        .unwrap();
+        assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn pins_a_public_dns_answer_as_numeric_connect_authority_for_upstream_proxy() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy_addr = listener.local_addr().unwrap();
+        let (request_tx, request_rx) = tokio::sync::oneshot::channel();
+        tokio::spawn(async move {
+            let (mut proxy, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut byte = [0u8; 1];
+            while request.len() < 8192 {
+                if proxy.read_exact(&mut byte).await.is_err() {
+                    break;
+                }
+                request.push(byte[0]);
+                if request.ends_with(b"\r\n\r\n") {
+                    break;
+                }
+            }
+            proxy
+                .write_all(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                .await
+                .unwrap();
+            let _ = request_tx.send(String::from_utf8_lossy(&request).into_owned());
+        });
+
+        let upstream = Upstream::Proxy {
+            kind: ProxyKind::Http,
+            addr: proxy_addr.to_string(),
+            connect_addr: Some(proxy_addr),
+            username: None,
+            password: None,
+        };
+        let resolutions = Arc::new(AtomicUsize::new(0));
+        let resolution_count = Arc::clone(&resolutions);
+        let tunnel = connect_target_with_lookup(
+            &upstream,
+            "custom.fanlynks.example:443",
+            move |hostname: String, port| async move {
+                resolution_count.fetch_add(1, Ordering::SeqCst);
+                assert_eq!(hostname, "custom.fanlynks.example");
+                assert_eq!(port, 443);
+                Ok(vec!["93.184.216.34:443".parse().unwrap()])
+            },
+        )
+        .await
+        .unwrap();
+        let request = request_rx.await.unwrap();
+        assert!(request.starts_with("CONNECT 93.184.216.34:443 HTTP/1.1\r\n"));
+        assert!(!request.contains("custom.fanlynks.example"));
+        assert_eq!(resolutions.load(Ordering::SeqCst), 1);
+        // No origin TLS tunnel was initiated in this harness, so no dummy or
+        // production Authorization header can cross it before address approval.
+        drop(tunnel);
     }
 }
