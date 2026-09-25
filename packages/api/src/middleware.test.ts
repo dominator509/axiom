@@ -425,6 +425,24 @@ describe('idempotency middleware (durable, M-2)', () => {
   });
 });
 
+describe('independent per-surface rate budgets', () => {
+  it('does not share a client IP bucket between distinct limiter policies', async () => {
+    const app = new Hono<{ Bindings: { incoming?: { socket?: { remoteAddress?: string } } } }>();
+    app.use('/public/*', rateLimit({ capacity: 60, refillPerSec: 0, keyBy: 'client-ip' }));
+    app.use('/auth/*', rateLimit({ capacity: 2, refillPerSec: 0, keyBy: 'client-ip' }));
+    app.get('/public/page', (c) => c.text('ok'));
+    app.get('/auth/session', (c) => c.text('ok'));
+    const peer = { incoming: { socket: { remoteAddress: '203.0.113.240' } } };
+    for (let i = 0; i < 60; i += 1) {
+      expect((await app.request('/public/page', {}, peer)).status).toBe(200);
+    }
+    expect((await app.request('/public/page', {}, peer)).status).toBe(429);
+    expect((await app.request('/auth/session', {}, peer)).status).toBe(200);
+    expect((await app.request('/auth/session', {}, peer)).status).toBe(200);
+    expect((await app.request('/auth/session', {}, peer)).status).toBe(429);
+  });
+});
+
 describe('rateLimit middleware (L3.0)', () => {
   it('allows requests within the bucket', async () => {
     const app = makeApp({ rate: { capacity: 2, refillPerSec: 0 } });
