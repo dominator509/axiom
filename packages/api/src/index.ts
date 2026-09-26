@@ -96,7 +96,7 @@ import {
 } from '@axiom/relay';
 import { relayViralPersistence } from './relay-viral.js';
 import { relayIncidentPageHandler } from './relay-incidents.js';
-import { correlationId, onError, idempotency, rateLimit } from './contract.js';
+import { correlationId, onError, idempotency, prepareAuthRequest, rateLimit } from './contract.js';
 import {
   checkDatabase,
   db,
@@ -744,10 +744,10 @@ app.route('/affiliate', publicPlatformAffiliateRouter);
 // its own anonymous budget rather than inheriting only the /api/v1 limiter.
 // Keep this before the handler so every auth method, including future ones,
 // receives the same abuse-control boundary and Retry-After response.
-app.use('/api/auth/*', rateLimit({ capacity: 20, refillPerSec: 1, maxBuckets: 100_000 }));
+app.use('/api/auth/*', rateLimit({ capacity: 20, refillPerSec: 1, maxBuckets: 100_000, clientIpOnly: true }));
 
 // ── Better Auth — mounted at /api/auth/* (replaces the 501 placeholder) ──
-app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));
+app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(prepareAuthRequest(c)));
 console.log('Better Auth mounted at /api/auth/*');
 
 // ── Mount dashboard + CRM routes ──

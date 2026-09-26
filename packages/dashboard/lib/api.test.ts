@@ -2,10 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   getAll: vi.fn(),
+  getRequestHeader: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({
   cookies: async () => ({ getAll: mocks.getAll }),
+  headers: async () => ({ get: mocks.getRequestHeader }),
 }));
 
 import { api, DEFAULT_SERVER_REQUEST_TIMEOUT_MS, getSession } from './api';
@@ -15,6 +17,7 @@ describe('dashboard server API client', () => {
     vi.restoreAllMocks();
     vi.useRealTimers();
     mocks.getAll.mockReturnValue([]);
+    mocks.getRequestHeader.mockReturnValue(null);
   });
 
   afterEach(() => {
@@ -71,6 +74,36 @@ describe('dashboard server API client', () => {
     await vi.advanceTimersByTimeAsync(DEFAULT_SERVER_REQUEST_TIMEOUT_MS);
 
     await rejection;
+  });
+
+  it('forwards the Cloudflare tunnel IP to server-side API reads', async () => {
+    mocks.getRequestHeader.mockImplementation((name: string) =>
+      name.toLowerCase() === 'cf-connecting-ip' ? '198.51.100.62' : null,
+    );
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: [] })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.models.list();
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(new Headers(init.headers).get('cf-connecting-ip')).toBe('198.51.100.62');
+  });
+
+  it('forwards the Cloudflare tunnel IP for session lookup', async () => {
+    mocks.getRequestHeader.mockImplementation((name: string) =>
+      name.toLowerCase() === 'cf-connecting-ip' ? '198.51.100.63' : null,
+    );
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ user: { id: 'test-user' } }), {
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(getSession()).resolves.toMatchObject({ user: { id: 'test-user' } });
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(new Headers(init.headers).get('cf-connecting-ip')).toBe('198.51.100.63');
   });
 
   it('fails closed when session bootstrap times out', async () => {

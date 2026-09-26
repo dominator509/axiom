@@ -10,10 +10,10 @@ vi.mock('next/server', () => ({
 
 import { middleware, SESSION_REQUEST_TIMEOUT_MS } from './middleware';
 
-function requestFor(pathname: string): NextRequest {
+function requestFor(pathname: string, requestHeaders: Record<string, string> = {}): NextRequest {
   return {
     nextUrl: { pathname },
-    headers: { get: vi.fn().mockReturnValue('') },
+    headers: { get: vi.fn((name: string) => requestHeaders[name.toLowerCase()] ?? '') },
     url: `http://dashboard.test${pathname}`,
   } as unknown as NextRequest;
 }
@@ -36,6 +36,21 @@ describe('dashboard auth middleware', () => {
   it.each(['/linkbioprivate', '/models/model/linkbio'])('keeps private or lookalike routes authenticated: %s', async (path) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('null')));
     expect(await middleware(requestFor(path))).toEqual({ type: 'redirect', url: 'http://dashboard.test/login' });
+  });
+
+  it('forwards the tunnel client IP to the API session lookup', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response('{"user":{"id":"test"}}'));
+    vi.stubGlobal('fetch', fetch);
+
+    await middleware(requestFor('/dashboard', {
+      cookie: 'session=abc',
+      'cf-connecting-ip': '198.51.100.64',
+    }));
+
+    const init = fetch.mock.calls[0]?.[1] as RequestInit;
+    const headers = new Headers(init.headers);
+    expect(headers.get('cookie')).toBe('session=abc');
+    expect(headers.get('cf-connecting-ip')).toBe('198.51.100.64');
   });
 
   it('fails closed and redirects when session bootstrap hangs', async () => {
