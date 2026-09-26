@@ -9,6 +9,7 @@ beforeEach(() => session.mockResolvedValue({ user: { role: 'owner' } }));
 
 vi.mock('next/headers', () => ({
   cookies: async () => ({ getAll: () => [] }),
+  headers: async () => new Headers(),
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
@@ -106,13 +107,19 @@ describe('approval review queue', () => {
     expect(html).toContain('Loading media preview');
     expect(html).toContain('Older hold bundles');
     for (const text of ['Revise captions', 'Reject', 'Record compliance review', 'Media generation retry options', 'Approve</button>']) expect(html).not.toContain(text);
-    expect(fetchMock.mock.calls.every(([input]) => new URL(String(input)).pathname === '/api/v1/bundles')).toBe(true);
+    const queueRequests = fetchMock.mock.calls
+      .map(([input]) => new URL(String(input)))
+      .filter((url) => url.pathname !== '/api/v1/ui-locale');
+    expect(queueRequests.every((url) => url.pathname === '/api/v1/bundles')).toBe(true);
   });
   it.each(['chatter', 'model', 'unexpected', undefined])('does not load queue resources for excluded role %s', async role => {
     session.mockResolvedValue({ user: { role } });
     const fetchMock = transport('hold');
     expect(await renderPage()).toContain('Review access unavailable');
-    expect(fetchMock).not.toHaveBeenCalled();
+    const queueRequests = fetchMock.mock.calls
+      .map(([input]) => new URL(String(input)))
+      .filter((url) => ['/api/v1/bundles', '/api/v1/social-accounts'].includes(url.pathname));
+    expect(queueRequests).toHaveLength(0);
   });
   it('distinguishes a saved brief from completed media generation', async () => {
     transport('generated', 'pending');
@@ -228,7 +235,9 @@ describe('approval review queue', () => {
     expect(nextUrl.searchParams.get('holdCursor')).toBe('opaque+/=cursor');
     fetchMock.mockClear();
     await renderPage(Object.fromEntries(nextUrl.searchParams));
-    const requests = fetchMock.mock.calls.map(([input]) => new URL(String(input)));
+    const requests = fetchMock.mock.calls
+      .map(([input]) => new URL(String(input)))
+      .filter((url) => url.pathname !== '/api/v1/ui-locale');
     const held = requests.find((url) => url.searchParams.get('state') === 'hold');
     expect(held?.searchParams.get('cursor')).toBe('opaque+/=cursor');
     expect(held?.searchParams.get('modelId')).toBe('model-under-review');

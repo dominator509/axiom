@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readBoundedResponseJson } from '@axiom/core';
+import { TRUSTED_CLIENT_IP_HEADER, readBoundedResponseJson } from '@axiom/core';
 import { resolveApiOrigin } from './lib/api-origin';
 import { authRedirectUrl } from './lib/auth-redirect';
 
@@ -21,8 +21,11 @@ export async function middleware(request: NextRequest) {
     controller.abort(new Error(`session request timed out after ${SESSION_REQUEST_TIMEOUT_MS}ms`));
   }, SESSION_REQUEST_TIMEOUT_MS);
   try {
+    const headers = new Headers(cookie ? { cookie } : {});
+    const tunnelClientIp = request.headers.get(TRUSTED_CLIENT_IP_HEADER);
+    if (tunnelClientIp) headers.set(TRUSTED_CLIENT_IP_HEADER, tunnelClientIp);
     const response = await fetch(`${API_ORIGIN}/api/auth/get-session`, {
-      headers: cookie ? { cookie } : {},
+      headers,
       cache: 'no-store',
       signal: controller.signal,
     });

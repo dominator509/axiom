@@ -5,6 +5,7 @@
 import { cookies, headers as nextHeaders } from 'next/headers';
 import {
   AXIOM_ERROR_RESPONSE_MAX_BYTES,
+  TRUSTED_CLIENT_IP_HEADER,
   readBoundedResponseJson,
   readBoundedResponseText,
   type ScrapeResultView,
@@ -70,7 +71,9 @@ export class ApiError extends Error {
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const cookieStore = await cookies();
-  const acceptLanguage = path === '/api/v1/ui-locale' ? (await nextHeaders()).get('accept-language') : null;
+  const incomingHeaders = await nextHeaders();
+  const acceptLanguage = path === '/api/v1/ui-locale' ? incomingHeaders.get('accept-language') : null;
+  const tunnelClientIp = incomingHeaders.get(TRUSTED_CLIENT_IP_HEADER);
   const cookieHeader = cookieStore
     .getAll()
     .map((c) => `${c.name}=${c.value}`)
@@ -82,6 +85,9 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     ...(acceptLanguage ? { 'accept-language': acceptLanguage } : {}),
     ...(init?.headers ?? {}),
   });
+  // Only the inbound dashboard request may provide the Cloudflare header.
+  headers.delete(TRUSTED_CLIENT_IP_HEADER);
+  if (tunnelClientIp) headers.set(TRUSTED_CLIENT_IP_HEADER, tunnelClientIp);
   const method = (init?.method ?? 'GET').toUpperCase();
   const isMutation = !['GET', 'HEAD', 'OPTIONS'].includes(method);
   const isApiRequest = path === '/api/v1' || path.startsWith('/api/v1/');
@@ -853,14 +859,18 @@ export const api = {
 /** Resolve the Better Auth session server-side (for layout redirects). */
 export async function getSession() {
   const cookieStore = await cookies();
+  const incomingHeaders = await nextHeaders();
+  const tunnelClientIp = incomingHeaders.get(TRUSTED_CLIENT_IP_HEADER);
   const cookieHeader = cookieStore
     .getAll()
     .map((c) => `${c.name}=${c.value}`)
     .join('; ');
   const requestSignal = createRequestSignal(undefined, DEFAULT_SERVER_REQUEST_TIMEOUT_MS);
   try {
+    const headers = new Headers(cookieHeader ? { cookie: cookieHeader } : {});
+    if (tunnelClientIp) headers.set(TRUSTED_CLIENT_IP_HEADER, tunnelClientIp);
     const res = await fetch(`${API_BASE}/api/auth/get-session`, {
-      headers: cookieHeader ? { cookie: cookieHeader } : {},
+      headers,
       cache: 'no-store',
       signal: requestSignal.signal,
     });

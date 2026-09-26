@@ -8,7 +8,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import type { Context, Next } from 'hono';
 import { randomUUID } from 'node:crypto';
 
-import type { UserRole } from '@axiom/core';
+import { TRUSTED_CLIENT_IP_HEADER, type UserRole } from '@axiom/core';
 import { db } from '@axiom/db';
 import { authUser, authSession, authAccount, authVerification } from '@axiom/db/schema';
 import { resolveAuthConfig } from './config.js';
@@ -40,6 +40,7 @@ export const auth = betterAuth({
   // available. Better Auth then fails closed instead of reporting that a
   // verification email was sent when no message was delivered.
   advanced: {
+    ipAddress: { ipAddressHeaders: [TRUSTED_CLIENT_IP_HEADER] },
     cookiePrefix: 'axiom',
     defaultCookieAttributes: {
       sameSite: 'lax',
