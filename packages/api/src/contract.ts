@@ -535,7 +535,14 @@ export function rateLimit(
         ? `api-key:${apiKey}`
         : `ip:${clientAddress || 'anonymous'}`;
     // Retain only an irreversible fingerprint, never a live credential.
-    const bucketKey = createHash('sha256').update(source).digest('base64url');
+    // Namespace the bucket per limiter configuration: several rateLimit()
+    // instances with different budgets can sit on the same request path
+    // (e.g. the global /api/v1/* limiter plus a route-specific one). Without
+    // this, the first-created bucket's capacity silently wins for every
+    // limiter sharing the credential, and the tighter budget never bites.
+    const bucketKey = createHash('sha256')
+      .update(`${capacity}:${refillPerSec}:${source}`)
+      .digest('base64url');
     const bucket = getBucket(bucketKey, capacity, refillPerSec, maxBuckets);
 
     if (bucket.tokens < 1) {
@@ -567,6 +574,29 @@ interface SignInAttemptRecord {
 const SIGNIN_ATTEMPTS = new Map<string, SignInAttemptRecord>();
 const SIGNIN_MAX_FAILURES = 10;
 const SIGNIN_LOCK_SECONDS = 15 * 60;
+// Hard bound on attacker-controlled map growth: distinct wrong-password emails
+// are attacker input, so the map must not grow with every probe.
+const SIGNIN_MAX_RECORDS = 10_000;
+
+/**
+ * Evict the least-recently-used record, preferring records that are not
+ * actively locking an account. Active locks survive churn; evicting a live
+ * lock would silently lift it.
+ */
+function evictSignInRecord(): void {
+  let oldestUnlockedKey: string | undefined;
+  let oldestUnlockedAt = Infinity;
+  let oldestKey: string | undefined;
+  const now = Date.now() / 1000;
+  for (const [key, record] of SIGNIN_ATTEMPTS) {
+    if (oldestKey === undefined) oldestKey = key;
+    if (record.lockedUntil <= now && record.lockedUntil < oldestUnlockedAt) {
+      oldestUnlockedAt = record.lockedUntil;
+      oldestUnlockedKey = key;
+    }
+  }
+  SIGNIN_ATTEMPTS.delete(oldestUnlockedKey ?? oldestKey!);
+}
 
 function signInAttemptKey(email: string): string {
   return createHash('sha256').update(`signin:${email.toLowerCase().trim()}`).digest('base64url');
@@ -579,8 +609,36 @@ function signInAttemptKey(email: string): string {
  * no better-auth-level lockout configured. Only 401s (wrong credentials)
  * count — never 400s — so malformed requests cannot be weaponized to lock a
  * victim out. Successful sign-in clears the account's record.
+ *
+ * Hardening notes (independent-review follow-up):
+ * - Bounded storage: the record map is capped at `maxRecords` with
+ *   LRU eviction, preferring non-locked records, so a churn of distinct
+ *   emails cannot grow process memory without bound and cannot evict an
+ *   active lock. Dead records (lock expired, no live failure streak) are
+ *   dropped on read.
+ * - No lock renewal: requests arriving while an account is locked receive
+ *   429 without touching the record, so probing a locked account cannot
+ *   extend the lock. The lock still expires on schedule; after expiry the
+ *   failure streak restarts from zero.
+ * - No email, no tracking: bodies without a parseable email are passed
+ *   through untracked — there is no account to protect and no shared
+ *   'unknown' bucket to poison.
+ * - Residual risk (explicit lockout policy, for owner review): a patient,
+ *   distributed attacker can re-lock an account indefinitely by spending
+ *   `maxFailures` well-formed wrong passwords per `lockSeconds` cycle. This
+ *   is inherent to any lockout and is accepted because (a) the /api/auth/*
+ *   IP bucket in front of this middleware already caps single-source
+ *   throughput, (b) the threshold (10) absorbs ordinary typos, and
+ *   (c) a correct sign-in clears the record immediately. If owner policy
+ *   prefers availability over brute-force braking, set lockSeconds to a
+ *   smaller value or replace the hard lock with a delay/CAPTCHA step.
  */
-export function signInAttemptThrottle() {
+export function signInAttemptThrottle(
+  opts: { maxFailures?: number; lockSeconds?: number; maxRecords?: number } = {},
+) {
+  const maxFailures = Math.max(1, Math.floor(opts.maxFailures ?? SIGNIN_MAX_FAILURES));
+  const lockSeconds = Math.max(1, Math.floor(opts.lockSeconds ?? SIGNIN_LOCK_SECONDS));
+  const maxRecords = Math.max(1, Math.floor(opts.maxRecords ?? SIGNIN_MAX_RECORDS));
   return async (c: Context, next: Next): Promise<Response | void> => {
     if (c.req.method !== 'POST') return await next();
     let email: string | undefined;
@@ -590,10 +648,27 @@ export function signInAttemptThrottle() {
     } catch {
       email = undefined;
     }
-    const key = signInAttemptKey(email ?? 'unknown');
+    // No parseable email: no account to protect. Pass through untracked so
+    // malformed/credential-less traffic cannot fill the map.
+    if (!email) return await next();
+    const key = signInAttemptKey(email);
     const now = Date.now() / 1000;
-    const record = SIGNIN_ATTEMPTS.get(key);
+    let record = SIGNIN_ATTEMPTS.get(key);
+    if (record) {
+      // Drop dead records: lock expired and no live failure streak.
+      if (record.lockedUntil <= now && record.failures === 0) {
+        SIGNIN_ATTEMPTS.delete(key);
+        record = undefined;
+      } else {
+        // LRU refresh so the size bound below evicts the least-recently-used
+        // record rather than the most recently active one.
+        SIGNIN_ATTEMPTS.delete(key);
+        SIGNIN_ATTEMPTS.set(key, record);
+      }
+    }
     if (record && record.lockedUntil > now) {
+      // Locked: 429 without touching the record — attempts made while locked
+      // can neither extend the lock nor consume failure budget.
       const retryAfter = Math.max(1, Math.ceil(record.lockedUntil - now));
       const correlationId = (c.get('correlationId') as string) ?? randomUUID();
       return problemResponse(
@@ -605,14 +680,18 @@ export function signInAttemptThrottle() {
       );
     }
     await next();
-    if (c.res.status === 401 && email) {
+    if (c.res.status === 401) {
       const current = SIGNIN_ATTEMPTS.get(key) ?? { failures: 0, lockedUntil: 0 };
       current.failures += 1;
-      if (current.failures >= SIGNIN_MAX_FAILURES) {
-        current.lockedUntil = now + SIGNIN_LOCK_SECONDS;
+      if (current.failures >= maxFailures) {
+        current.lockedUntil = now + lockSeconds;
         current.failures = 0;
       }
+      SIGNIN_ATTEMPTS.delete(key);
       SIGNIN_ATTEMPTS.set(key, current);
+      // Bounded storage: never let attacker-chosen emails grow the map
+      // without limit.
+      while (SIGNIN_ATTEMPTS.size > maxRecords) evictSignInRecord();
     } else if (c.res.ok) {
       SIGNIN_ATTEMPTS.delete(key);
     }
