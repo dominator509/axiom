@@ -9,6 +9,7 @@ beforeEach(() => session.mockResolvedValue({ user: { role: 'owner' } }));
 
 vi.mock('next/headers', () => ({
   cookies: async () => ({ getAll: () => [] }),
+  headers: async () => new Headers(),
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
