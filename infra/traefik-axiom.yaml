@@ -10,6 +10,8 @@ http:
       service: axiom-api
       tls:
         certResolver: letsencrypt
+      middlewares:
+        - security-headers
       priority: 100
 
     axiom-api-http:
@@ -20,6 +22,16 @@ http:
       middlewares:
         - redirect-to-https
       priority: 100
+
+  middlewares:
+    security-headers:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        permissionsPolicy: "camera=(), microphone=(), geolocation=()"
 
   services:
     axiom-api:

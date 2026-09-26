@@ -339,7 +339,8 @@ jobs:
       # ═══════════════════════════════════════════════════════════
       - name: Install cargo-audit
         if: matrix.task == 'security'
-        run: cargo install cargo-audit --locked
+        # Pinned: a floating `cargo install` would otherwise track latest at CI time.
+        run: cargo install cargo-audit --version 0.22.2 --locked
 
       - name: Run repository security gates
         if: matrix.task == 'security'
@@ -349,6 +350,13 @@ jobs:
           node scripts/test-local-grok-startup.mjs --isolated-fixture
           node scripts/test-login-stream-compression.mjs
           pnpm security-check
+
+      - name: Audit Rust workspace dependencies
+        if: matrix.task == 'security'
+        # Covers the hot-path planes (egress, media, vision, scraper): image,
+        # reqwest, axum, rustls and their transitive crates. Previously only
+        # the Grok CLI input-guard lockfile was audited.
+        run: cargo audit --file Cargo.lock
 
       - name: Audit Grok CLI input guard dependencies
         if: matrix.task == 'security'
