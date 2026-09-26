@@ -6,7 +6,7 @@
 
 import { and, eq } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
-import { schema } from '@axiom/db';
+import { schema, tosScanSnapshotDigest } from '@axiom/db';
 import {
   evaluateTextToS,
   PLATFORM_RULES,
@@ -19,6 +19,9 @@ import { enqueueJob } from '../enqueue.js';
 import { makeTrustedThumbnailFeatures } from '../thumbnail-features.js';
 
 type ToSAsset = {
+  id?: string;
+  orgId?: string;
+  modelId?: string;
   kind: string;
   storageKey: string;
   sha256?: Buffer;
@@ -114,7 +117,10 @@ export async function evaluateMediaToS(
 
 export const tosScan: Executor = async (ctx: ExecutorContext) => {
   const { tx } = ctx;
-  const payload = (ctx.job.payload ?? {}) as { bundleId?: string };
+  const payload = (ctx.job.payload ?? {}) as {
+    bundleId?: string; rescanRequestId?: string; rescanJobId?: string; retryOfJobId?: string;
+    assetId?: string; assetSha256?: string; revisionId?: string | null; contentDigest?: string;
+  };
   const bundleId = payload.bundleId;
   if (!bundleId) throw new Error('tos.scan: payload.bundleId required');
 
@@ -134,6 +140,23 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
     );
   }
 
+  const currentReport = (bundle.tosReport && typeof bundle.tosReport === 'object'
+    ? bundle.tosReport : {}) as Record<string, unknown>;
+  const revisionId = typeof currentReport.revisionId === 'string' ? currentReport.revisionId : null;
+  let rescanReceipt: Record<string, unknown> | undefined;
+  if (payload.rescanRequestId !== undefined) {
+    const marker = currentReport.rescan && typeof currentReport.rescan === 'object'
+      ? currentReport.rescan as Record<string, unknown> : null;
+    if (!marker || bundle.state === 'revising' || !['generated', 'hold'].includes(bundle.state)
+      || currentReport.verdict !== 'pending' || !bundle.assetId
+      || payload.rescanJobId !== ctx.job.id || marker.jobId !== ctx.job.id || marker.state !== 'queued'
+      || marker.requestId !== payload.rescanRequestId || marker.retryOfJobId !== payload.retryOfJobId
+      || marker.assetId !== payload.assetId || marker.assetSha256 !== payload.assetSha256
+      || marker.revisionId !== payload.revisionId || marker.contentDigest !== payload.contentDigest
+      || revisionId !== payload.revisionId)
+      throw new Error('tos.scan: rescan request no longer matches the locked bundle receipt');
+    rescanReceipt = marker;
+  }
   const captions = (bundle.captions as Record<string, string> | null) ?? {};
   const hashtags = (bundle.hashtags as string[] | null) ?? [];
   const platforms = asToSPlatforms(Object.keys(captions));
@@ -154,7 +177,8 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
   let asset: ToSAsset | undefined;
   if (bundle.assetId) {
     const assets = await tx
-      .select({ kind: schema.asset.kind, storageKey: schema.asset.storageKey, sha256: schema.asset.sha256 })
+      .select({ id: schema.asset.id, orgId: schema.asset.orgId, modelId: schema.asset.modelId,
+        kind: schema.asset.kind, storageKey: schema.asset.storageKey, sha256: schema.asset.sha256 })
       .from(schema.asset)
       .where(
         and(
@@ -163,13 +187,27 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
           eq(schema.asset.modelId, bundle.modelId),
         ),
       )
-      .limit(1);
+      .limit(1)
+      .for('share');
     asset = assets[0];
     if (!asset) {
       throw new Error(
         `tos.scan: asset ${bundle.assetId} not found or not owned by model ${bundle.modelId}`,
       );
     }
+  }
+
+  if (rescanReceipt) {
+    const assetSha256 = asset?.sha256 ? Buffer.from(asset.sha256).toString('hex') : '';
+    if (!asset || asset.id !== payload.assetId || asset.orgId !== ctx.job.org_id || asset.modelId !== bundle.modelId
+      || assetSha256 !== payload.assetSha256 || !/^[0-9a-f]{64}$/i.test(assetSha256))
+      throw new Error('tos.scan: rescan asset identity changed before evaluation');
+    const contentDigest = tosScanSnapshotDigest({
+      orgId: ctx.job.org_id, bundleId, modelId: bundle.modelId, assetId: payload.assetId!,
+      assetSha256, revisionId, captions, hashtags,
+    });
+    if (contentDigest !== payload.contentDigest)
+      throw new Error('tos.scan: rescan content changed before evaluation');
   }
 
   const reports: MediaEvaluation[] = [];
@@ -237,6 +275,9 @@ export const tosScan: Executor = async (ctx: ExecutorContext) => {
         ...(typeof bundle.tosReport?.revisionId === 'string'
           ? { revisionId: bundle.tosReport.revisionId }
           : {}),
+        ...(rescanReceipt ? { rescan: {
+          ...rescanReceipt, state: 'completed', verdict: report.verdict, completedAt: new Date().toISOString(),
+        } } : {}),
       },
       updatedAt: new Date(),
     })

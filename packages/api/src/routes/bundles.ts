@@ -7,12 +7,13 @@ import { Hono } from 'hono';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { boundedJsonValidator as zValidator } from '../bounded-json-validator.js';
-import { sql, eq, and } from 'drizzle-orm';
+import { sql, eq, and, desc } from 'drizzle-orm';
 import {
   schema,
   getPublishingConsentStatus,
   consentRequirementMessage,
   getTosScanState,
+  tosScanSnapshotDigest,
 } from '@axiom/db';
 import type { CaptionGuidanceReceipt } from '@axiom/db/schema';
 import type { AppBindings } from '../index.js';
@@ -69,6 +70,12 @@ const reviseBundleSchema = z.object({
 
 const rejectBundleSchema = z.object({ revisionId: z.string().uuid().optional() });
 
+const tosRescanSchema = z.object({
+  modelId: z.string().uuid(),
+  assetId: z.string().uuid(),
+  expectedRevisionId: z.string().uuid().nullable(),
+}).strict();
+
 type PublishIntent = {
   action: 'schedule' | 'publish';
   platform: string;
@@ -113,6 +120,127 @@ router.get('/:id', async (c) => {
   });
   if (!result) return apiError(c, 404, statusTitle(404), 'bundle not found');
   return c.json(result);
+});
+
+// POST /api/v1/bundles/:id/tos-rescan — explicitly retry only a failed saved-asset scan.
+router.post('/:id/tos-rescan', zValidator('json', tosRescanSchema), async (c) => {
+  const orgId = requireOrg(c);
+  const userId = c.get('userId');
+  if (!orgId || !userId) return apiError(c, 401, statusTitle(401), 'authentication required');
+  const role = c.get('role');
+  if (!['owner', 'manager', 'operator'].includes(role ?? ''))
+    return apiError(c, 403, statusTitle(403), 'ToS rescans require an operator role');
+  const id = z.string().uuid().safeParse(c.req.param('id'));
+  if (!id.success) return apiError(c, 400, statusTitle(400), 'invalid bundle id');
+  const input = c.req.valid('json');
+
+  const result = await withOrgContext(orgId, async (tx) => {
+    const [bundle] = await tx.select().from(schema.contentBundle).where(and(
+      eq(schema.contentBundle.id, id.data),
+      eq(schema.contentBundle.orgId, orgId),
+      modelAccessCondition(role, orgId, userId, schema.contentBundle.modelId),
+    )).limit(1).for('update');
+    if (!bundle || bundle.orgId !== orgId) return { status: 404 as const, error: 'bundle not found' };
+    if (bundle.modelId !== input.modelId) return { status: 404 as const, error: 'bundle not found' };
+    if (!['generated', 'hold'].includes(bundle.state) || bundle.assetId !== input.assetId)
+      return { status: 409 as const, error: 'saved media or reviewable bundle state changed; reload before rescanning' };
+
+    const currentReport = (bundle.tosReport && typeof bundle.tosReport === 'object'
+      ? bundle.tosReport : {}) as Record<string, unknown>;
+    const revisionId = typeof currentReport.revisionId === 'string' ? currentReport.revisionId : null;
+    if (currentReport.verdict !== 'pending' || revisionId !== input.expectedRevisionId)
+      return { status: 409 as const, error: 'scan or caption revision changed; reload before rescanning' };
+
+    const [asset] = await tx.select({
+      id: schema.asset.id, orgId: schema.asset.orgId, modelId: schema.asset.modelId,
+      kind: schema.asset.kind, sha256: schema.asset.sha256,
+    }).from(schema.asset).where(and(
+      eq(schema.asset.id, input.assetId),
+      eq(schema.asset.orgId, orgId),
+      eq(schema.asset.modelId, input.modelId),
+    )).limit(1).for('share');
+    const assetSha256 = asset?.sha256 ? Buffer.from(asset.sha256).toString('hex') : '';
+    if (!asset || asset.id !== input.assetId || asset.orgId !== orgId || asset.modelId !== input.modelId
+      || !['image', 'video'].includes(asset.kind) || !/^[0-9a-f]{64}$/i.test(assetSha256))
+      return { status: 409 as const, error: 'saved media changed or is unavailable; reload before rescanning' };
+
+    const scanJobs: Array<{
+      id: string;
+      state: string;
+      attempts: number;
+      lastError: string | null;
+      lockedBy: string | null;
+      lockedAt: Date | null;
+    }> = await tx.select({
+      id: schema.job.id, state: schema.job.state, attempts: schema.job.attempts,
+      lastError: schema.job.lastError, lockedBy: schema.job.lockedBy, lockedAt: schema.job.lockedAt,
+    }).from(schema.job).where(and(
+      eq(schema.job.orgId, orgId),
+      eq(schema.job.kind, 'tos.scan'),
+      sql`${schema.job.payload} ->> 'bundleId' = ${bundle.id}`,
+    )).orderBy(desc(schema.job.createdAt), desc(schema.job.id)).for('update');
+    const prior = scanJobs[0];
+    if (!prior) return { status: 409 as const, error: 'no failed ToS scan is available to retry' };
+    if (scanJobs.some((job) => job.state === 'running'
+      || (job.state === 'ready' && job.attempts === 0)))
+      return { status: 409 as const, error: 'a ToS scan is already queued or running' };
+    if (scanJobs.some((job) => job.id !== prior.id && job.state === 'ready'))
+      return { status: 409 as const, error: 'another ToS scan must be reconciled before retrying' };
+    const retryable = (prior.state === 'ready' && prior.attempts > 0 && Boolean(prior.lastError)
+      && !prior.lockedBy && !prior.lockedAt)
+      || ((prior.state === 'failed' || prior.state === 'dead') && prior.attempts > 0 && Boolean(prior.lastError));
+    if (!retryable) return { status: 409 as const, error: 'latest ToS scan is not in a retryable failed state' };
+
+    const captions = (bundle.captions as Record<string, string> | null) ?? {};
+    const hashtags = (bundle.hashtags as string[] | null) ?? [];
+    if (Object.keys(captions).length === 0 || Object.values(captions).some(value => typeof value !== 'string'))
+      return { status: 409 as const, error: 'bundle captions are unavailable; reload before rescanning' };
+    const contentDigest = tosScanSnapshotDigest({
+      orgId, bundleId: bundle.id, modelId: bundle.modelId, assetId: input.assetId,
+      assetSha256, revisionId, captions, hashtags,
+    });
+    const requestId = randomUUID();
+    const scanJobId = randomUUID();
+    const queued = await enqueueJob(tx, {
+      id: scanJobId, orgId, queue: 'tos', kind: 'tos.scan',
+      payload: {
+        bundleId: bundle.id, rescanRequestId: requestId, rescanJobId: scanJobId,
+        retryOfJobId: prior.id, assetId: input.assetId, assetSha256, revisionId, contentDigest,
+      },
+      dedupeParts: ['tos.rescan', bundle.id, requestId],
+    });
+    if (!queued || queued.id !== scanJobId)
+      return { status: 409 as const, error: 'rescan could not be reserved; reload before trying again' };
+    if (prior.state === 'ready') {
+      const retired = await tx.update(schema.job).set({
+        state: 'dead', lockedBy: null, lockedAt: null, completedAt: new Date(),
+      }).where(and(eq(schema.job.id, prior.id), eq(schema.job.orgId, orgId), eq(schema.job.state, 'ready')))
+        .returning({ id: schema.job.id });
+      if (retired.length !== 1) throw new Error('ToS scan changed while the rescan was being reserved');
+    }
+    const requestedAt = new Date().toISOString();
+    const rescan = {
+      requestId, jobId: scanJobId, retryOfJobId: prior.id, assetId: input.assetId,
+      assetSha256, revisionId, contentDigest, state: 'queued', requestedAt,
+    };
+    await tx.update(schema.contentBundle).set({
+      tosReport: {
+        ...currentReport, verdict: 'pending', scores: [], reasons: [],
+        videoScan: null, thumbnail_features: null, decisionSource: null, humanReview: null, rescan,
+      },
+      updatedAt: new Date(),
+    }).where(and(eq(schema.contentBundle.id, bundle.id), eq(schema.contentBundle.orgId, orgId)));
+    await writeAudit(tx, orgId, userId, 'bundle.tos-rescan.requested', bundle.id, {
+      requestId, scanJobId, retryOfJobId: prior.id, assetId: input.assetId,
+      assetSha256, revisionId, contentDigest, priorAttempts: prior.attempts,
+    });
+    return { status: 202 as const, data: {
+      bundleId: bundle.id, modelId: bundle.modelId, scanJobId, requestId,
+      state: 'queued', approvalBlocked: true,
+    } };
+  });
+  if (result.status !== 202) return apiError(c, result.status, statusTitle(result.status), result.error);
+  return c.json({ data: result.data }, 202);
 });
 
 // Authenticated browser media delivery; no storage path is returned to clients.
@@ -726,7 +854,7 @@ router.get('/', async (c) => {
   const state = c.req.query('state');
   const { limit, cursor } = parseCursor(c);
 
-  const rows = await withOrgContext(orgId, (tx) => {
+  const rows = await withOrgContext(orgId, async (tx) => {
     const conds = [
       eq(schema.contentBundle.orgId, orgId),
       modelAccessCondition(c.get('role'), orgId, c.get('userId'), schema.contentBundle.modelId),
@@ -734,12 +862,18 @@ router.get('/', async (c) => {
     ];
     if (modelId) conds.push(eq(schema.contentBundle.modelId, modelId));
     if (state) conds.push(eq(schema.contentBundle.state, state));
-    return tx
+    const bundles: Array<typeof schema.contentBundle.$inferSelect> = await tx
       .select()
       .from(schema.contentBundle)
       .where(and(...conds))
       .limit(limit)
       .orderBy(sql`${schema.contentBundle.createdAt} DESC`, sql`${schema.contentBundle.id} DESC`);
+    return Promise.all(bundles.map(async (bundle) => ({
+      ...bundle,
+      scanFailed: Boolean(bundle.assetId && bundle.tosReport?.verdict === 'pending')
+        ? await getTosScanState(tx, orgId, bundle.id) === 'failed'
+        : false,
+    })));
   });
   const last = rows[rows.length - 1];
   return c.json({

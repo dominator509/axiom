@@ -91,6 +91,13 @@ describe('getTosScanState', () => {
     );
   });
 
+  it('treats a previously attempted ready scan with an error as failed, but not an untouched ready scan', async () => {
+    await expect(getTosScanState(txFor([{ state: 'ready', attempts: 1, lastError: 'fetch failed' }]), 'org-1', 'bundle-1'))
+      .resolves.toBe('failed');
+    await expect(getTosScanState(txFor([{ state: 'ready', attempts: 0, lastError: null }]), 'org-1', 'bundle-1'))
+      .resolves.toBe('pending');
+  });
+
   it('fails closed for failed or missing scan jobs', async () => {
     await expect(getTosScanState(txFor([{ state: 'failed' }]), 'org-1', 'bundle-1')).resolves.toBe(
       'failed',

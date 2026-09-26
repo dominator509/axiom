@@ -935,6 +935,7 @@ app.use('/api/v1/models/:modelId/public-sfw-reply-settings', idempotency());
 app.use('/api/v1/models/:modelId/media-upload', idempotency(true, 64 * 1024 * 1024));
 app.use('/api/v1/models/:id', idempotency());
 app.use('/api/v1/bundles/*/approve', idempotency());
+app.use('/api/v1/bundles/*/tos-rescan', idempotency());
 app.use('/api/v1/bundles/*/revise', idempotency());
 app.use('/api/v1/bundles/*/draft', idempotency());
 app.use('/api/v1/bundles/*/reject', idempotency());
