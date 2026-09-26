@@ -96,7 +96,7 @@ import {
 } from '@axiom/relay';
 import { relayViralPersistence } from './relay-viral.js';
 import { relayIncidentPageHandler } from './relay-incidents.js';
-import { correlationId, onError, idempotency, rateLimit } from './contract.js';
+import { correlationId, onError, idempotency, rateLimit, signInAttemptThrottle } from './contract.js';
 import {
   checkDatabase,
   db,
@@ -745,6 +745,9 @@ app.route('/affiliate', publicPlatformAffiliateRouter);
 // Keep this before the handler so every auth method, including future ones,
 // receives the same abuse-control boundary and Retry-After response.
 app.use('/api/auth/*', rateLimit({ capacity: 20, refillPerSec: 1, maxBuckets: 100_000 }));
+// Per-account brake on password guessing: the IP bucket above cannot see a
+// slow, distributed campaign aimed at one account.
+app.use('/api/auth/sign-in/email', signInAttemptThrottle());
 
 // ── Better Auth — mounted at /api/auth/* (replaces the 501 placeholder) ──
 app.on(['GET', 'POST'], '/api/auth/*', (c) => auth.handler(c.req.raw));

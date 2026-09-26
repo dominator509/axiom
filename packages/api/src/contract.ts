@@ -556,6 +556,70 @@ export function rateLimit(
 }
 
 // ---------------------------------------------------------------------------
+// Sign-in attempt throttle (per-account brute-force brake)
+// ---------------------------------------------------------------------------
+
+interface SignInAttemptRecord {
+  failures: number;
+  lockedUntil: number; // epoch seconds
+}
+
+const SIGNIN_ATTEMPTS = new Map<string, SignInAttemptRecord>();
+const SIGNIN_MAX_FAILURES = 10;
+const SIGNIN_LOCK_SECONDS = 15 * 60;
+
+function signInAttemptKey(email: string): string {
+  return createHash('sha256').update(`signin:${email.toLowerCase().trim()}`).digest('base64url');
+}
+
+/**
+ * Per-account brake for POST /api/auth/sign-in/email. The /api/auth/* IP
+ * bucket is the first line of defense, but it cannot see a slow,
+ * distributed password-guessing campaign aimed at one account, and there is
+ * no better-auth-level lockout configured. Only 401s (wrong credentials)
+ * count — never 400s — so malformed requests cannot be weaponized to lock a
+ * victim out. Successful sign-in clears the account's record.
+ */
+export function signInAttemptThrottle() {
+  return async (c: Context, next: Next): Promise<Response | void> => {
+    if (c.req.method !== 'POST') return await next();
+    let email: string | undefined;
+    try {
+      const body = (await c.req.raw.clone().json()) as { email?: unknown };
+      if (typeof body?.email === 'string') email = body.email;
+    } catch {
+      email = undefined;
+    }
+    const key = signInAttemptKey(email ?? 'unknown');
+    const now = Date.now() / 1000;
+    const record = SIGNIN_ATTEMPTS.get(key);
+    if (record && record.lockedUntil > now) {
+      const retryAfter = Math.max(1, Math.ceil(record.lockedUntil - now));
+      const correlationId = (c.get('correlationId') as string) ?? randomUUID();
+      return problemResponse(
+        problem(429, 'Too Many Requests', 'Too many failed sign-in attempts', correlationId, {
+          retry_after_seconds: retryAfter,
+        }),
+        429,
+        { 'Retry-After': String(retryAfter) },
+      );
+    }
+    await next();
+    if (c.res.status === 401 && email) {
+      const current = SIGNIN_ATTEMPTS.get(key) ?? { failures: 0, lockedUntil: 0 };
+      current.failures += 1;
+      if (current.failures >= SIGNIN_MAX_FAILURES) {
+        current.lockedUntil = now + SIGNIN_LOCK_SECONDS;
+        current.failures = 0;
+      }
+      SIGNIN_ATTEMPTS.set(key, current);
+    } else if (c.res.ok) {
+      SIGNIN_ATTEMPTS.delete(key);
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Cursor pagination helper (L3.0: all list endpoints paginate cursor+limit)
 // ---------------------------------------------------------------------------
 
