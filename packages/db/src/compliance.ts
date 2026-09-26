@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { consentRecord } from './schema/consent_record.js';
 import { job } from './schema/job.js';
@@ -30,6 +31,31 @@ export type ConsentStatus = {
 };
 
 export type TosScanState = 'missing' | 'pending' | 'completed' | 'failed';
+export type TosScanSnapshotInput = {
+  orgId: string;
+  bundleId: string;
+  modelId: string;
+  assetId: string;
+  assetSha256: string;
+  revisionId: string | null;
+  captions: Record<string, string>;
+  hashtags: string[];
+};
+
+/** Stable content identity shared by the API receipt and the worker check. */
+export function tosScanSnapshotDigest(snapshot: TosScanSnapshotInput): string {
+  const captions = Object.entries(snapshot.captions).sort(([left], [right]) => left.localeCompare(right));
+  return createHash('sha256').update(JSON.stringify({
+    orgId: snapshot.orgId,
+    bundleId: snapshot.bundleId,
+    modelId: snapshot.modelId,
+    assetId: snapshot.assetId,
+    assetSha256: snapshot.assetSha256,
+    revisionId: snapshot.revisionId,
+    captions,
+    hashtags: snapshot.hashtags,
+  })).digest('hex');
+}
 
 /**
  * Return the durable ToS scan state for a bundle.
@@ -45,7 +71,7 @@ export async function getTosScanState(
   bundleId: string,
 ): Promise<TosScanState> {
   const rows = await tx
-    .select({ state: job.state })
+    .select({ state: job.state, attempts: job.attempts, lastError: job.lastError })
     .from(job)
     .where(
       and(
@@ -59,6 +85,7 @@ export async function getTosScanState(
 
   const state = rows[0]?.state;
   if (state === 'done') return 'completed';
+  if (state === 'ready' && (rows[0]?.attempts ?? 0) > 0 && rows[0]?.lastError) return 'failed';
   if (state === 'ready' || state === 'running') return 'pending';
   if (state === 'failed' || state === 'dead') return 'failed';
   return 'missing';
