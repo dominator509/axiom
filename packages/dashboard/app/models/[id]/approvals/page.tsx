@@ -6,6 +6,7 @@ import RequestedSchedule from '@/components/RequestedSchedule';
 import BundleMedia from '@/components/BundleMedia';
 import VideoReview from '@/components/VideoReview';
 import SavedGenerationRetry from '@/components/SavedGenerationRetry';
+import TosRescan from '@/components/TosRescan';
 import AdaptationControls from '@/components/AdaptationControls';
 import DraftEditor from '@/components/DraftEditor';
 import CaptionGuidance from '@/components/CaptionGuidance';
@@ -139,6 +140,9 @@ export default async function ApprovalsPage({
               )}
             </div>
             <div style={{ marginTop: 12 }}>
+              {canApprove && ['generated', 'hold'].includes(b.state) && b.assetId && b.tosReport?.verdict === 'pending' && b.scanFailed === true
+                && <TosRescan key={b.id} modelId={id} bundleId={b.id} assetId={b.assetId}
+                  expectedRevisionId={b.tosReport.revisionId ?? null} />}
               {canApprove && b.state !== 'revising' && (b.state === 'hold' || (b.assetId && ['block', 'review'].includes(b.tosReport?.verdict ?? '')))
                 && <SavedGenerationRetry key={b.id} modelId={id} bundleId={b.id} blocked={b.tosReport?.verdict === 'block'} />}
               {canApprove && b.state !== 'revising' && b.assetId && b.tosReport?.verdict === 'review' && b.tosReport.videoScan?.scanId && (

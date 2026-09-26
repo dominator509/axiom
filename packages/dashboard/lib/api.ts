@@ -138,6 +138,7 @@ export interface ContentBundle {
     postingHourUtc?: number; timingBucket?: 'morning' | 'afternoon' | 'evening' | 'night' }>;
   publishIntent?: { action: 'schedule' | 'publish'; platform: string; scheduledAt: string | null } | null;
   assetId?: string | null;
+  scanFailed?: boolean;
   id: string;
   orgId: string;
   modelId: string;

@@ -12,6 +12,14 @@ vi.mock('@axiom/db', () => ({
   ...mockDbFactory({ contentBundle: {}, postTarget: {}, asset: {}, platformConnection: {}, orgSettings: {} }),
   getPublishingConsentStatus: vi.fn(async () => ({ ok: true, missing: [] })),
   getTosScanState: vi.fn(async () => 'completed'),
+  tosScanSnapshotDigest: vi.fn((snapshot: { orgId: string; bundleId: string; modelId: string; assetId: string;
+    assetSha256: string; revisionId: string | null; captions: Record<string, string>; hashtags: string[] }) =>
+    createHash('sha256').update(JSON.stringify({
+      orgId: snapshot.orgId, bundleId: snapshot.bundleId, modelId: snapshot.modelId, assetId: snapshot.assetId,
+      assetSha256: snapshot.assetSha256, revisionId: snapshot.revisionId,
+      captions: Object.entries(snapshot.captions).sort(([left], [right]) => left.localeCompare(right)),
+      hashtags: snapshot.hashtags,
+    })).digest('hex')),
   consentRequirementMessage: vi.fn(
     (_status: unknown, platform: string) => `consent required for ${platform}`,
   ),
@@ -54,6 +62,103 @@ const BUNDLE_ID = '33333333-3333-4333-8333-333333333333';
 const INSTAGRAM_CONNECTION_ID = '44444444-4444-4444-8444-444444444444';
 const X_CONNECTION_ID = '55555555-5555-4555-8555-555555555555';
 const GUIDANCE_BUNDLE_ID = '66666666-6666-4666-8666-666666666666';
+
+describe('explicit ToS rescan', () => {
+  const assetId = GUIDANCE_BUNDLE_ID;
+  const hash = '12'.repeat(32);
+  const bundle = (overrides: Record<string, unknown> = {}) => ({
+    id: BUNDLE_ID, orgId: ORG_ID, modelId: MODEL_ID, state: 'generated', assetId,
+    captions: { instagram: 'Saved caption' }, hashtags: ['#safe'],
+    tosReport: { verdict: 'pending', revisionId: null }, ...overrides,
+  });
+  const asset = (overrides: Record<string, unknown> = {}) => ({
+    id: assetId, orgId: ORG_ID, modelId: MODEL_ID, kind: 'image', sha256: Buffer.from(hash, 'hex'), ...overrides,
+  });
+  const failedScan = () => ({
+    id: '77777777-7777-4777-8777-777777777777', state: 'ready', attempts: 1,
+    lastError: 'fetch failed', lockedBy: null, lockedAt: null,
+  });
+  const body = (overrides: Record<string, unknown> = {}) => ({
+    modelId: MODEL_ID, assetId, expectedRevisionId: null, ...overrides,
+  });
+  const request = (input: unknown, role: 'owner' | 'manager' | 'operator' | 'content_creator' | 'chatter' = 'owner') =>
+    appWithOrg(ORG_ID, role).request(`/${BUNDLE_ID}/tos-rescan`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input),
+    });
+
+  it('retires only the failed attempt and queues a snapshot-bound ToS job', async () => {
+    mockState.results = [[], [bundle()], [asset()], [failedScan()], [{ id: '77777777-7777-4777-8777-777777777777' }]];
+    const response = await request(body());
+    expect(response.status).toBe(202);
+    const receipt = (await response.json() as any).data;
+    expect(receipt).toMatchObject({ bundleId: BUNDLE_ID, modelId: MODEL_ID, state: 'queued', approvalBlocked: true });
+    expect(receipt.scanJobId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(mockState.updates[0]).toMatchObject({ state: 'dead', lockedBy: null, lockedAt: null });
+    expect(mockState.updates[0]).not.toHaveProperty('attempts');
+    expect(mockState.updates[0]).not.toHaveProperty('lastError');
+    const call = vi.mocked(enqueueJob).mock.calls[0][1];
+    expect(call).toMatchObject({
+      id: receipt.scanJobId, queue: 'tos', kind: 'tos.scan',
+      payload: {
+        bundleId: BUNDLE_ID, rescanJobId: receipt.scanJobId,
+        retryOfJobId: '77777777-7777-4777-8777-777777777777',
+        assetId, assetSha256: hash, revisionId: null,
+      },
+    });
+    expect(call.payload).toHaveProperty('rescanRequestId');
+    expect(call.payload).toHaveProperty('contentDigest');
+    expect(vi.mocked(enqueueJob).mock.calls.every(([, value]) => value.kind === 'tos.scan')).toBe(true);
+    expect(mockState.updates[1]).toMatchObject({
+      tosReport: { verdict: 'pending', revisionId: null, rescan: { state: 'queued', jobId: receipt.scanJobId } },
+    });
+    expect(mockState.insertValues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ action: 'bundle.tos-rescan.requested', target: BUNDLE_ID }),
+    ]));
+  });
+
+  it('requires owner, manager, or operator and rejects stale or out-of-scope snapshots', async () => {
+    expect((await request(body(), 'content_creator')).status).toBe(403);
+    mockState.results = [[], [bundle({ modelId: '99999999-9999-4999-8999-999999999999' })]];
+    expect((await request(body())).status).toBe(404);
+    mockState.results = [[], [bundle({ orgId: '99999999-9999-4999-8999-999999999999' })]];
+    expect((await request(body())).status).toBe(404);
+    mockState.results = [[], [bundle({ tosReport: { verdict: 'pending', revisionId: '88888888-8888-4888-8888-888888888888' } })]];
+    expect((await request(body())).status).toBe(409);
+    mockState.results = [[], [bundle()], [asset({ modelId: '99999999-9999-4999-8999-999999999999' })]];
+    expect((await request(body())).status).toBe(409);
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
+
+  it('does not enqueue again after a committed retry is visible to a duplicate click', async () => {
+    mockState.results = [[], [bundle()], [asset()], [failedScan()], [{ id: '77777777-7777-4777-8777-777777777777' }]];
+    const first = await request(body());
+    expect(first.status).toBe(202);
+    const receipt = (await first.json() as any).data;
+
+    mockState.results = [
+      [],
+      [bundle({ tosReport: { verdict: 'pending', revisionId: null, rescan: { state: 'queued', jobId: receipt.scanJobId } } })],
+      [asset()],
+      [{ id: receipt.scanJobId, state: 'ready', attempts: 0, lastError: null }],
+    ];
+    const duplicate = await request(body());
+    expect(duplicate.status).toBe(409);
+    expect(enqueueJob).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves queued, running, and first-attempt scans alone', async () => {
+    mockState.results = [[], [bundle()], [asset()], [{ ...failedScan(), attempts: 0 }]];
+    expect((await request(body())).status).toBe(409);
+    expect(enqueueJob).not.toHaveBeenCalled();
+    expect(mockState.updates).toHaveLength(0);
+
+    mockState.results = [[], [bundle()], [asset()], [{ ...failedScan(), state: 'running' }]];
+    expect((await request(body())).status).toBe(409);
+    expect(enqueueJob).not.toHaveBeenCalled();
+    expect(mockState.updates).toHaveLength(0);
+  });
+});
+
 
 describe('generation safety snapshot', () => {
   it.each(['failed', 'pending', 'completed', 'missing'] as const)('reports durable scan state %s without redispatching', async state => {
@@ -184,11 +289,12 @@ function passingTos(...platforms: string[]) {
   };
 }
 
-function appWithOrg(orgId: string | null) {
+function appWithOrg(orgId: string | null, role: 'owner' | 'manager' | 'operator' | 'content_creator' | 'chatter' = 'owner') {
   const app = new Hono<AppBindings>();
   app.use('*', async (c, next) => {
     if (orgId) c.set('orgId', orgId);
     c.set('userId', 'user-1');
+    c.set('role', role);
     await next();
   });
   app.route('/', bundlesRouter);
@@ -201,7 +307,7 @@ beforeEach(() => {
   mockState.result = [];
   mockState.results = [];
   mockState.insertValues = [];
-  vi.mocked(enqueueJob).mockClear();
+  vi.mocked(enqueueJob).mockReset().mockImplementation(async (_tx, input) => ({ id: input.id ?? 'job-1' }));
   vi.mocked(getPublishingConsentStatus).mockClear();
   vi.mocked(getTosScanState).mockReset().mockResolvedValue('completed');
 });
