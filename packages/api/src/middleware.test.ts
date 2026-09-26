@@ -27,7 +27,7 @@ type MiddlewareTestApp = Hono<{
 }>;
 
 function makeApp(
-  opts: { rate?: { capacity?: number; refillPerSec?: number; maxBuckets?: number } } = {},
+  opts: { rate?: { capacity?: number; refillPerSec?: number; maxBuckets?: number; clientIpOnly?: boolean } } = {},
 ) {
   const app = new Hono<{
     Bindings: { incoming?: { socket?: { remoteAddress?: string } } };
@@ -466,19 +466,19 @@ describe('rateLimit middleware (L3.0)', () => {
     expect(replayOldest.status).toBe(200);
   });
 
-  it('does not trust a spoofed forwarding header from a direct peer', async () => {
+  it('does not trust spoofed forwarded or tunnel-IP headers from a direct peer', async () => {
     const app = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
     app.get('/x', (c) => c.json({ ok: true }));
     const directPeer = { incoming: { socket: { remoteAddress: '203.0.113.10' } } };
 
     const first = await app.request(
       '/x',
-      { headers: { 'X-Forwarded-For': 'spoofed-client-a' } },
+      { headers: { 'X-Forwarded-For': 'spoofed-client-a', 'CF-Connecting-IP': '198.51.100.10' } },
       directPeer,
     );
     const second = await app.request(
       '/x',
-      { headers: { 'X-Forwarded-For': 'spoofed-client-b' } },
+      { headers: { 'X-Forwarded-For': 'spoofed-client-b', 'CF-Connecting-IP': '198.51.100.11' } },
       directPeer,
     );
 
@@ -486,30 +486,61 @@ describe('rateLimit middleware (L3.0)', () => {
     expect(second.status).toBe(429);
   });
 
-  it('uses the forwarded client address only behind a trusted proxy peer', async () => {
+  it('uses the tunnel client address only behind a trusted proxy peer', async () => {
     const app = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
     app.get('/x', (c) => c.json({ ok: true }));
     const trustedProxy = { incoming: { socket: { remoteAddress: '127.0.0.1' } } };
 
     const clientA = await app.request(
       '/x',
-      { headers: { 'X-Forwarded-For': '198.51.100.10' } },
+      { headers: { 'CF-Connecting-IP': '198.51.100.10' } },
       trustedProxy,
     );
     const clientB = await app.request(
       '/x',
-      { headers: { 'X-Forwarded-For': '198.51.100.11' } },
+      { headers: { 'CF-Connecting-IP': '198.51.100.11' } },
       trustedProxy,
     );
     const clientAReplay = await app.request(
       '/x',
-      { headers: { 'X-Forwarded-For': '198.51.100.10' } },
+      { headers: { 'CF-Connecting-IP': '198.51.100.10' } },
       trustedProxy,
     );
 
     expect(clientA.status).toBe(200);
     expect(clientB.status).toBe(200);
     expect(clientAReplay.status).toBe(429);
+  });
+
+  it('uses independent client-IP buckets and ignores caller credentials for auth limits', async () => {
+    const app = makeApp({ rate: { capacity: 1, refillPerSec: 0, clientIpOnly: true } });
+    app.get('/x', (c) => c.json({ ok: true }));
+    const trustedProxy = { incoming: { socket: { remoteAddress: '127.0.0.1' } } };
+    const request = (ip: string, token: string) => app.request('/x', {
+      headers: {
+        'CF-Connecting-IP': ip,
+        Authorization: 'Bearer ' + token,
+        'X-API-Key': token,
+      },
+    }, trustedProxy);
+
+    expect((await request('198.51.100.20', 'rotating-a')).status).toBe(200);
+    expect((await request('198.51.100.21', 'rotating-b')).status).toBe(200);
+    expect((await request('198.51.100.20', 'rotating-c')).status).toBe(429);
+  });
+
+  it('shares the trusted-peer fallback bucket when the tunnel IP is missing or malformed', async () => {
+    const app = makeApp({ rate: { capacity: 1, refillPerSec: 0, clientIpOnly: true } });
+    app.get('/x', (c) => c.json({ ok: true }));
+    const trustedProxy = { incoming: { socket: { remoteAddress: '127.0.0.1' } } };
+
+    const missing = await app.request('/x', {}, trustedProxy);
+    const malformed = await app.request('/x', {
+      headers: { 'CF-Connecting-IP': '198.51.100.22, 198.51.100.23' },
+    }, trustedProxy);
+
+    expect(missing.status).toBe(200);
+    expect(malformed.status).toBe(429);
   });
 });
 

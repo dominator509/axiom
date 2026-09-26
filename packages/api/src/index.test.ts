@@ -1,5 +1,6 @@
 // ─── @axiom/api app wiring — Vitest Suite ───
 import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { TRUSTED_CLIENT_IP_HEADER } from '@axiom/core';
 import * as database from '@axiom/db';
 
 // The api index mounts the fanvue auth router which reads env at load time.
@@ -67,11 +68,17 @@ describe('better-auth mounted at /api/auth/*', () => {
     expect([200, 401]).toContain(res.status);
   });
 
-  it('rate-limits repeated auth requests', async () => {
-    const headers = { 'X-API-Key': 'auth-rate-limit-test' };
+  it('rate-limits auth by trusted client IP even when caller credentials rotate', async () => {
+    const trustedProxy = { incoming: { socket: { remoteAddress: '127.0.0.1' } } };
     let last: Response | undefined;
     for (let attempt = 0; attempt < 21; attempt += 1) {
-      last = await app.request('/api/auth/get-session', { headers });
+      last = await app.request('/api/auth/get-session', {
+        headers: {
+          [TRUSTED_CLIENT_IP_HEADER]: '198.51.100.41',
+          Authorization: 'Bearer rotating-' + attempt,
+          'X-API-Key': 'rotating-' + attempt,
+        },
+      }, trustedProxy);
     }
     expect(last?.status).toBe(429);
     expect(last?.headers.get('Retry-After')).toBeTruthy();

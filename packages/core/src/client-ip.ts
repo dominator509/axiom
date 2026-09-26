@@ -1,0 +1,1 @@
+export const TRUSTED_CLIENT_IP_HEADER = 'cf-connecting-ip';

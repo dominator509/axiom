@@ -11,7 +11,7 @@ import { BlockList, isIP } from 'node:net';
 import type { Context, Next } from 'hono';
 import { sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-import { readBoundedResponseJson } from '@axiom/core';
+import { TRUSTED_CLIENT_IP_HEADER, readBoundedResponseJson } from '@axiom/core';
 import { db } from '@axiom/db';
 import { captureUnhandledApiError, describeCrash } from './crash-reporter.js';
 import {
@@ -448,19 +448,13 @@ const RATE_BUCKETS = new Map<string, Bucket>();
 const DEFAULT_CAPACITY = 60; // 60 requests
 const DEFAULT_REFILL = 10; // 10 req/sec sustained
 
-// The API normally sits behind Caddy, which overwrites X-Forwarded-For with
-// the client address before forwarding. A direct client must not be able to
-// rotate that header to evade anonymous limits, so only transport peers in a
-// private/loopback network may delegate the client identity to that header.
+// TEST's Cloudflare Tunnel terminates at the dashboard, whose API rewrite
+// connects to this loopback-bound service. Trust the client-IP header only
+// from a loopback peer and never use arbitrary X-Forwarded-For values.
 const TRUSTED_PROXY_NETWORKS = new BlockList();
 for (const [address, prefix, family] of [
   ['127.0.0.0', 8, 'ipv4'],
-  ['10.0.0.0', 8, 'ipv4'],
-  ['172.16.0.0', 12, 'ipv4'],
-  ['192.168.0.0', 16, 'ipv4'],
   ['::1', 128, 'ipv6'],
-  ['fc00::', 7, 'ipv6'],
-  ['fe80::', 10, 'ipv6'],
 ] as const) {
   TRUSTED_PROXY_NETWORKS.addSubnet(address, prefix, family);
 }
@@ -479,6 +473,35 @@ function isTrustedProxyAddress(address: string | undefined): boolean {
   if (family === 4) return TRUSTED_PROXY_NETWORKS.check(normalized, 'ipv4');
   if (family === 6) return TRUSTED_PROXY_NETWORKS.check(normalized, 'ipv6');
   return false;
+}
+
+function normalizeClientIp(value: string | undefined): string | undefined {
+  const address = value?.trim();
+  if (!address || isIP(address) === 0) return undefined;
+  const mappedIpv4 = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(address)?.[1];
+  if (mappedIpv4 && isIP(mappedIpv4) === 4) return mappedIpv4;
+  return address.toLowerCase();
+}
+
+function trustedClientAddress(c: Context): string | undefined {
+  const peerAddress = transportPeerAddress(c);
+  if (!isTrustedProxyAddress(peerAddress)) return undefined;
+  return normalizeClientIp(c.req.header(TRUSTED_CLIENT_IP_HEADER));
+}
+
+/**
+ * Clone the auth request with only a validated client IP from the trusted
+ * loopback dashboard proxy. Better Auth must not fall back to attacker-
+ * controlled forwarding headers when the tunnel value is missing or invalid.
+ */
+export function prepareAuthRequest(c: Context): Request {
+  const headers = new Headers(c.req.raw.headers);
+  headers.delete(TRUSTED_CLIENT_IP_HEADER);
+  headers.delete('x-forwarded-for');
+  headers.delete('x-real-ip');
+  const clientAddress = trustedClientAddress(c);
+  if (clientAddress) headers.set(TRUSTED_CLIENT_IP_HEADER, clientAddress);
+  return new Request(c.req.raw, { headers });
 }
 
 function getBucket(
@@ -513,7 +536,7 @@ function getBucket(
  * no token). Returns 429 with Retry-After per L3.0.
  */
 export function rateLimit(
-  opts: { capacity?: number; refillPerSec?: number; maxBuckets?: number } = {},
+  opts: { capacity?: number; refillPerSec?: number; maxBuckets?: number; clientIpOnly?: boolean } = {},
 ) {
   const capacity = opts.capacity ?? DEFAULT_CAPACITY;
   const refillPerSec = opts.refillPerSec ?? DEFAULT_REFILL;
@@ -522,18 +545,14 @@ export function rateLimit(
     const credential = c.req.header('Authorization')?.replace(/^Bearer\s+/i, '');
     const apiKey = c.req.header('X-API-Key');
     const peerAddress = transportPeerAddress(c);
-    const forwardedFor = c.req
-      .header('x-forwarded-for')
-      ?.split(',')
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .at(-1);
-    const clientAddress = isTrustedProxyAddress(peerAddress) ? forwardedFor : peerAddress;
-    const source = credential
-      ? `bearer:${credential}`
-      : apiKey
-        ? `api-key:${apiKey}`
-        : `ip:${clientAddress || 'anonymous'}`;
+    const clientAddress = trustedClientAddress(c) ?? peerAddress;
+    const source = opts.clientIpOnly
+      ? `ip:${clientAddress || 'anonymous'}`
+      : credential
+        ? `bearer:${credential}`
+        : apiKey
+          ? `api-key:${apiKey}`
+          : `ip:${clientAddress || 'anonymous'}`;
     // Retain only an irreversible fingerprint, never a live credential.
     const bucketKey = createHash('sha256').update(source).digest('base64url');
     const bucket = getBucket(bucketKey, capacity, refillPerSec, maxBuckets);

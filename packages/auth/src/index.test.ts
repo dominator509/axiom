@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { Hono } from 'hono';
 import { getCookies } from 'better-auth/cookies';
-import type { UserRole } from '@axiom/core';
+import { TRUSTED_CLIENT_IP_HEADER, type UserRole } from '@axiom/core';
 
 // The auth module creates a pg.Pool at import time but does not connect until
 // a query runs — a fake DATABASE_URL keeps construction safe and offline.
@@ -59,6 +59,10 @@ describe('better-auth configuration', () => {
   it('uses a hardened cookie prefix and lax sameSite', () => {
     expect(auth.options?.advanced?.cookiePrefix).toBe('axiom');
     expect(auth.options?.advanced?.defaultCookieAttributes?.sameSite).toBe('lax');
+  });
+
+  it('resolves client IP only from the configured tunnel header', () => {
+    expect(auth.options?.advanced?.ipAddress?.ipAddressHeaders).toEqual([TRUSTED_CLIENT_IP_HEADER]);
   });
 
   it.each([
