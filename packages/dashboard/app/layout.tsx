@@ -1,4 +1,5 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
+import { Montserrat } from 'next/font/google';
 import Link from 'next/link';
 import './globals.css';
 import { api, getSession } from '@/lib/api';
@@ -7,10 +8,27 @@ import NavLinks from '@/components/NavLinks';
 import SignOutButton from '@/components/SignOutButton';
 import { CATALOGS, LocaleCatalog, normalizeLocale } from '@axiom/core';
 import LocaleProvider from '@/components/LocaleProvider';
+import BrandMark, { BrandWordmark } from '@/components/BrandMark';
+
+// Montserrat is the FanLynks family typeface. next/font downloads it at build
+// time and serves it from this app, so browsers never call Google Fonts.
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  display: 'swap',
+  variable: '--font-montserrat',
+});
 
 export const metadata: Metadata = {
   title: { default: 'FanThynks — Creator OS', template: '%s · FanThynks' },
   description: 'Private creator intelligence and operations.',
+  applicationName: 'FanThynks',
+  appleWebApp: { title: 'FanThynks' },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0c1a20',
+  colorScheme: 'dark',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -37,7 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const roleLabel = t(roleKeys[role ?? ''] ?? 'role.member');
 
   return (
-    <html lang={locale}>
+    <html lang={locale} className={montserrat.variable}>
       <body>
         {!session ? (
           <main className="auth-shell">{children}</main>
@@ -56,9 +74,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <a href="#main-content" className="skip-link">{t('ui.skipToContent')}</a>
             <aside className="sidebar">
               <Link href="/" className="brand" aria-label={t('layout.home')}>
-                <span className="brand-mark">F</span>
+                <BrandMark />
                 <span className="brand-copy">
-                  <strong>FanThynks</strong>
+                  <BrandWordmark />
                   <small>{t('brand.creatorIntelligence')}</small>
                 </span>
               </Link>
@@ -83,8 +101,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="workspace">
               <header className="mobile-bar">
                 <Link href="/" className="brand compact">
-                  <span className="brand-mark">F</span>
-                  <strong>FanThynks</strong>
+                  <BrandMark />
+                  <BrandWordmark />
                 </Link>
                 <div className="mobile-actions">
                   <span className="eyebrow">{t('brand.creatorOs')}</span>
