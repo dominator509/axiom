@@ -3,19 +3,19 @@ import { formatNumber, isLearningArm, isLearningContext, learningContextBucket, 
 import type { ContentBundle } from '@/lib/api';
 import type { getServerLocale } from '@/lib/server-locale';
 
-type ServerLocale = Awaited<ReturnType<typeof getServerLocale>>;
-type CaptionKey = Parameters<ServerLocale['t']>[0];
-
-const armKeys: Record<string, CaptionKey> = {
+const armKeys: Record<string, string> = {
   'short:question': 'caption.shortQuestion', 'short:statement': 'caption.shortStatement',
   'medium:question': 'caption.mediumQuestion', 'medium:statement': 'caption.mediumStatement',
   'long:question': 'caption.longQuestion', 'long:statement': 'caption.longStatement',
 };
-function armLabel(arm: string, t: ServerLocale['t']): string {
+type ServerTranslator = Awaited<ReturnType<typeof getServerLocale>>['t'];
+type TranslatorKey = Parameters<ServerTranslator>[0];
+function armLabel(arm: string, t: ServerTranslator): string {
   const parsed = parseLearningArm(arm);
   if (!parsed) return t('caption.unknownStructure');
-  const base = armKeys[`${parsed.captionLength}:${parsed.captionShape}`]
-    ? t(armKeys[`${parsed.captionLength}:${parsed.captionShape}`])
+  const dynamicKey = armKeys[`${parsed.captionLength}:${parsed.captionShape}`] as TranslatorKey | undefined;
+  const base = dynamicKey
+    ? t(dynamicKey)
     : `${parsed.captionLength} ${parsed.captionShape} ${t('caption.unknown')}`;
   if (parsed.version === 'learn-v1') return base;
   return `${base} · ${parsed.hookType ?? t('caption.unknown')} ${t('caption.hook')} · ${parsed.format ?? t('caption.unknown')} ${t('caption.format')}${parsed.timingBucket ? ` · ${parsed.timingBucket} timing` : ''}`;
@@ -31,10 +31,20 @@ function validReceipt(value: unknown): value is Receipt {
       && /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(id));
 }
 
-/** Server-rendered evidence summary. No exemplar text, identifiers or hashes are exposed. */
+/**
+ * Server-rendered evidence summary. No exemplar text, identifiers or hashes are
+ * exposed.
+ *
+ * This component stays on the server so the sha256 receipt check can use
+ * `node:crypto`, so it receives `locale` and `t` from the calling Server
+ * Component (see `getServerLocale`) instead of the client `useLocale` hook.
+ * Consuming the client hook from a Server Component was the approvals crash
+ * root cause (AXIOM #36 digest 1270550845).
+ */
 export default function CaptionGuidance({ captions, receipts, locale, t }: {
   captions: Record<string, string>; receipts: ContentBundle['captionGuidance'];
-  locale: ServerLocale['locale']; t: ServerLocale['t'];
+  locale: Awaited<ReturnType<typeof getServerLocale>>['locale'];
+  t: Awaited<ReturnType<typeof getServerLocale>>['t'];
 }) {
   const entries = Object.entries(captions);
   if (!entries.length) return null;
