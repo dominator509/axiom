@@ -559,7 +559,15 @@ describe('signInAttemptThrottle (adversarial)', () => {
   let freshThrottle: typeof signInAttemptThrottle;
 
   function makeSignInApp(
-    opts: { maxFailures?: number; lockSeconds?: number; maxRecords?: number } = {},
+    opts: {
+      maxFailures?: number;
+      lockSeconds?: number;
+      maxRecords?: number;
+      maxSourceFailures?: number;
+      sourceWindowSeconds?: number;
+      sourceLockSeconds?: number;
+      maxLockSources?: number;
+    } = {},
   ) {
     const app = new Hono<{
       Bindings: { incoming?: { socket?: { remoteAddress?: string } } };
@@ -587,6 +595,35 @@ describe('signInAttemptThrottle (adversarial)', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password: 'wrong' }),
     } as const;
+  }
+
+  // Sign-in attempts from a specific source IP. The throttle resolves the
+  // client IP from the transport peer (see signInSourceKey), which tests
+  // inject through the Hono Env bindings.
+  function envFor(ip: string) {
+    return { incoming: { socket: { remoteAddress: ip } } };
+  }
+
+  function attempt(email: string, password: string, ip: string) {
+    return {
+      init: {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      } as const,
+      env: envFor(ip),
+    };
+  }
+
+  async function attemptStatus(
+    app: ReturnType<typeof makeSignInApp>,
+    email: string,
+    password: string,
+    ip: string,
+  ): Promise<number> {
+    const { init, env } = attempt(email, password, ip);
+    const res = await app.request('/api/auth/sign-in/email', init, env);
+    return res.status;
   }
 
   beforeEach(async () => {
@@ -718,6 +755,123 @@ describe('signInAttemptThrottle (adversarial)', () => {
     // when the lock fired): a single new failure must not re-lock.
     const r = await app.request('/api/auth/sign-in/email', wrong(VICTIM));
     expect(r.status).toBe(401);
+  });
+
+  // ── Owner-required adversarial tests: per-attacker limits ────────────────
+  // These cover the 2026-09-26 owner decision: an attacker must not be able
+  // to hold a victim's account locked indefinitely by re-failing every lock
+  // cycle, and a correct password from the real owner must always work.
+
+  it('lets the real owner sign in with a correct password during a lockout from another source', async () => {
+    const app = makeSignInApp({ maxFailures: 3, lockSeconds: 900 });
+    const ATTACKER = '203.0.113.7';
+    const OWNER = '198.51.100.9';
+    for (let i = 0; i < 3; i += 1) {
+      expect(await attemptStatus(app, VICTIM, 'wrong', ATTACKER)).toBe(401);
+    }
+    // The account is locked and the attacker's source is bound to the lock.
+    expect(await attemptStatus(app, VICTIM, 'wrong', ATTACKER)).toBe(429);
+    // The owner, on their own network with the correct password, is never
+    // locked out by someone else's failures.
+    expect(await attemptStatus(app, VICTIM, GOOD, OWNER)).toBe(200);
+    // The successful sign-in cleared the account record: the attacker's next
+    // failure starts a fresh budget instead of hitting a lock.
+    expect(await attemptStatus(app, VICTIM, 'wrong', ATTACKER)).toBe(401);
+  });
+
+  it('stops a single source from re-locking an account across lock cycles', async () => {
+    const app = makeSignInApp({
+      maxFailures: 2,
+      lockSeconds: 60,
+      maxSourceFailures: 3,
+      sourceWindowSeconds: 600,
+      sourceLockSeconds: 3600,
+    });
+    const ATTACKER = '203.0.113.7';
+    const OWNER = '198.51.100.9';
+    // Cycle 1: two failures lock the account (source budget: 2 of 3).
+    expect(await attemptStatus(app, VICTIM, 'wrong', ATTACKER)).toBe(401);
+    expect(await attemptStatus(app, VICTIM, 'wrong', ATTACKER)).toBe(401);
+    expect(await attemptStatus(app, VICTIM, 'wrong', ATTACKER)).toBe(429);
+    vi.advanceTimersByTime(61_000); // lock expired
+    // Cycle 2: one more failure spends the source's last budget. The handler
+    // still answers 401, but the source is now locked out for an hour.
+    expect(await attemptStatus(app, VICTIM, 'wrong', ATTACKER)).toBe(401);
+    expect(await attemptStatus(app, VICTIM, 'wrong', ATTACKER)).toBe(429);
+    // The victim is never locked out: a correct password from any unbound
+    // source succeeds even mid-attack.
+    expect(await attemptStatus(app, VICTIM, GOOD, OWNER)).toBe(200);
+    // And the account itself was never re-locked: a wrong password from an
+    // unbound source reaches the handler (401), not a 429.
+    expect(await attemptStatus(app, VICTIM, 'wrong', '192.0.2.44')).toBe(401);
+  });
+
+  it('binds every attacking source to an active lock', async () => {
+    const app = makeSignInApp({ maxFailures: 2, lockSeconds: 900 });
+    const A = '203.0.113.7';
+    const B = '203.0.113.8';
+    expect(await attemptStatus(app, VICTIM, 'wrong', A)).toBe(401);
+    expect(await attemptStatus(app, VICTIM, 'wrong', A)).toBe(401);
+    expect(await attemptStatus(app, VICTIM, 'wrong', A)).toBe(429); // bound
+    // A second attacker's first attempt during the lock still reaches the
+    // handler (B never attacked), but that failure binds B to the lock...
+    expect(await attemptStatus(app, VICTIM, 'wrong', B)).toBe(401);
+    expect(await attemptStatus(app, VICTIM, 'wrong', B)).toBe(429); // ...now bound
+    // Neither source's probing extended the lock: after the original 900s
+    // the owner signs in cleanly.
+    vi.advanceTimersByTime(901_000);
+    expect(await attemptStatus(app, VICTIM, GOOD, B)).toBe(200);
+  });
+
+  it('still rejects the bound attacking source even with a correct password (same-source limitation)', async () => {
+    const app = makeSignInApp({ maxFailures: 2, lockSeconds: 900 });
+    const A = '203.0.113.7';
+    expect(await attemptStatus(app, VICTIM, 'wrong', A)).toBe(401);
+    expect(await attemptStatus(app, VICTIM, 'wrong', A)).toBe(401);
+    // The throttle cannot tell the owner apart from the attacker when they
+    // share a source IP: the bound source stays 429'd. Documented in the
+    // middleware's contract comment.
+    expect(await attemptStatus(app, VICTIM, GOOD, A)).toBe(429);
+  });
+
+  it('spends one per-source budget across accounts', async () => {
+    const app = makeSignInApp({
+      maxFailures: 10,
+      lockSeconds: 60,
+      maxSourceFailures: 3,
+      sourceWindowSeconds: 600,
+      sourceLockSeconds: 3600,
+    });
+    const A = '203.0.113.7';
+    expect(await attemptStatus(app, VICTIM, 'wrong', A)).toBe(401);
+    expect(await attemptStatus(app, OTHER, 'wrong', A)).toBe(401);
+    expect(await attemptStatus(app, 'third@example.com', 'wrong', A)).toBe(401);
+    // No account is locked (maxFailures 10), but the source burned its whole
+    // budget across three accounts and is now cut off.
+    const { init, env } = attempt('fourth@example.com', 'wrong', A);
+    const blocked = await app.request('/api/auth/sign-in/email', init, env);
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get('Retry-After')).toBe('3600');
+    const body = (await blocked.json()) as any;
+    expect(body.title).toBe('Too Many Requests');
+    expect(body.detail).toContain('from this source');
+    expect(body.retry_after_seconds).toBe(3600);
+  });
+
+  it('resets the per-source failure window after expiry', async () => {
+    const app = makeSignInApp({
+      maxFailures: 10,
+      lockSeconds: 60,
+      maxSourceFailures: 2,
+      sourceWindowSeconds: 60,
+      sourceLockSeconds: 300,
+    });
+    const A = '203.0.113.7';
+    expect(await attemptStatus(app, VICTIM, 'wrong', A)).toBe(401); // 1 of 2
+    vi.advanceTimersByTime(61_000); // window expired
+    expect(await attemptStatus(app, VICTIM, 'wrong', A)).toBe(401); // fresh window: 1 of 2
+    expect(await attemptStatus(app, VICTIM, 'wrong', A)).toBe(401); // 2 of 2: source locks after
+    expect(await attemptStatus(app, VICTIM, 'wrong', A)).toBe(429); // source locked
   });
 });
 
