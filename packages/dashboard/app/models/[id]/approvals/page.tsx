@@ -131,7 +131,7 @@ export default async function ApprovalsPage({
               <div className="mono" style={{ color: 'var(--muted)' }}>
                 {(b.hashtags ?? []).join(' ')}
               </div>
-              <CaptionGuidance captions={b.captions ?? {}} receipts={b.captionGuidance} />
+              <CaptionGuidance captions={b.captions ?? {}} receipts={b.captionGuidance} locale={locale} t={t} />
               {canApprove && <AdaptationControls bundleId={b.id} revisionId={b.tosReport?.revisionId} platforms={Object.keys(b.captions ?? {})} />}
               {(canApprove || role === 'content_creator') && b.assetId && ['generated', 'hold'].includes(b.state) && (
                 <DraftEditor key={`${b.id}:${b.tosReport?.revisionId ?? 'initial'}`} bundleId={b.id}
