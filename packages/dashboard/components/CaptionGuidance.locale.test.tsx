@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { useLocale } from './LocaleProvider';
 
 vi.mock('./LocaleProvider', () => ({
   useLocale: () => ({
@@ -27,6 +28,10 @@ vi.mock('./LocaleProvider', () => ({
     },
   }),
 }));
+const localizedProps = () => {
+  const { locale, t } = useLocale();
+  return { locale, t };
+};
 import CaptionGuidance from './CaptionGuidance';
 
 const caption = 'Original caption?';
@@ -36,7 +41,7 @@ const receipt = { version: 'caption-guidance-v1' as const, selectedArm: 'short:q
 
 describe('CaptionGuidance locale coverage', () => {
   it('renders structural guidance labels in Spanish without exposing private evidence', () => {
-    const html = renderToStaticMarkup(<CaptionGuidance captions={{ instagram: caption }} receipts={{ instagram: receipt }} />);
+    const html = renderToStaticMarkup(<CaptionGuidance {...localizedProps()} captions={{ instagram: caption }} receipts={{ instagram: receipt }} />);
     expect(html).toContain('Orientación de subtítulos');
     expect(html).toContain('Subtítulo corto con pregunta');
     expect(html).not.toContain(receipt.captionSha256);
@@ -46,7 +51,7 @@ describe('CaptionGuidance locale coverage', () => {
   const manyExamples = Array.from({ length: 12 }, (_, index) =>
     `11111111-1111-4111-8111-${String(index + 1).padStart(12, '0')}`,
   );
-  const html = renderToStaticMarkup(<CaptionGuidance captions={{ instagram: caption }} receipts={{ instagram: {
+  const html = renderToStaticMarkup(<CaptionGuidance {...localizedProps()} captions={{ instagram: caption }} receipts={{ instagram: {
     ...receipt,
     exemplarIds: manyExamples,
   } }} />);
