@@ -1,33 +1,29 @@
 import { createHash } from 'node:crypto';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-
-vi.mock('./LocaleProvider', () => ({
-  useLocale: () => ({
-    locale: 'es',
-    setLocale: () => undefined,
-    t: (key: string, values?: Record<string, string | number>) => {
-      const text = ({
-        'caption.guidance': 'Orientación de subtítulos',
-        'caption.guidanceDescription': 'Qué informó el subtítulo generado.',
-        'caption.shortQuestion': 'Subtítulo corto con pregunta',
-        'caption.hook': 'gancho',
-        'caption.format': 'formato',
-        'caption.noReceipt': 'No hay recibo de orientación de generación.',
-        'caption.invalidReceipt': 'No se pudo verificar la evidencia de orientación.',
-        'caption.changed': 'El subtítulo cambió desde la generación.',
-        'caption.unknownStructure': 'Estructura de subtítulo desconocida',
-        'caption.unknown': 'desconocido',
-        'caption.noStructure': 'No se seleccionó una estructura de subtítulo aprendida',
-        'caption.priorExamples': 'Se proporcionaron {count} ejemplo(s) anterior(es).',
-        'caption.noScheduledContext': 'No había contexto de hora programada.',
-        'caption.selectionContext': 'Contexto de selección: {from}:00–{to}:59 UTC.',
-      }[key] ?? key);
-      return text.replace(/\{([a-zA-Z0-9_.]+)\}/g, (_match, name: string) => String(values?.[name] ?? _match));
-    },
-  }),
-}));
 import CaptionGuidance from './CaptionGuidance';
+
+// CaptionGuidance receives locale/translator from the caller now (ops-hub #29).
+const t = (key: string, values?: Record<string, string | number>) => {
+  const text = ({
+    'caption.guidance': 'Orientación de subtítulos',
+    'caption.guidanceDescription': 'Qué informó el subtítulo generado.',
+    'caption.shortQuestion': 'Subtítulo corto con pregunta',
+    'caption.hook': 'gancho',
+    'caption.format': 'formato',
+    'caption.noReceipt': 'No hay recibo de orientación de generación.',
+    'caption.invalidReceipt': 'No se pudo verificar la evidencia de orientación.',
+    'caption.changed': 'El subtítulo cambió desde la generación.',
+    'caption.unknownStructure': 'Estructura de subtítulo desconocida',
+    'caption.unknown': 'desconocido',
+    'caption.noStructure': 'No se seleccionó una estructura de subtítulo aprendida',
+    'caption.priorExamples': 'Se proporcionaron {count} ejemplo(s) anterior(es).',
+    'caption.noScheduledContext': 'No había contexto de hora programada.',
+    'caption.selectionContext': 'Contexto de selección: {from}:00–{to}:59 UTC.',
+  }[key] ?? key);
+  return text.replace(/\{([a-zA-Z0-9_.]+)\}/g, (_match, name: string) => String(values?.[name] ?? _match));
+};
+const props = { locale: 'es', t } as unknown as { locale: 'es'; t: Parameters<typeof CaptionGuidance>[0]['t'] };
 
 const caption = 'Original caption?';
 const receipt = { version: 'caption-guidance-v1' as const, selectedArm: 'short:question',
@@ -36,7 +32,7 @@ const receipt = { version: 'caption-guidance-v1' as const, selectedArm: 'short:q
 
 describe('CaptionGuidance locale coverage', () => {
   it('renders structural guidance labels in Spanish without exposing private evidence', () => {
-    const html = renderToStaticMarkup(<CaptionGuidance captions={{ instagram: caption }} receipts={{ instagram: receipt }} />);
+    const html = renderToStaticMarkup(<CaptionGuidance captions={{ instagram: caption }} receipts={{ instagram: receipt }} {...props} />);
     expect(html).toContain('Orientación de subtítulos');
     expect(html).toContain('Subtítulo corto con pregunta');
     expect(html).not.toContain(receipt.captionSha256);
@@ -49,7 +45,7 @@ describe('CaptionGuidance locale coverage', () => {
   const html = renderToStaticMarkup(<CaptionGuidance captions={{ instagram: caption }} receipts={{ instagram: {
     ...receipt,
     exemplarIds: manyExamples,
-  } }} />);
+  } }} {...props} />);
   expect(html).toContain('Se proporcionaron 12 ejemplo(s) anterior(es).');
   });
 });
