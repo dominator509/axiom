@@ -23,3 +23,8 @@ it('keeps provider and analytics copy translated with matching interpolation pla
     }
   }
 });
+
+it('uses English provider status in English and Portuguese copy in Brazilian Portuguese', () => {
+  expect(CATALOGS.en['linkbio.status']).toBe('Provider status');
+  expect(CATALOGS['pt-BR']['linkbio.status']).toBe('Status do provedor');
+});
