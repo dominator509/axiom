@@ -444,7 +444,6 @@ interface Bucket {
   updatedAt: number;
 }
 
-const RATE_BUCKETS = new Map<string, Bucket>();
 const DEFAULT_CAPACITY = 60; // 60 requests
 const DEFAULT_REFILL = 10; // 10 req/sec sustained
 
@@ -482,20 +481,21 @@ function isTrustedProxyAddress(address: string | undefined): boolean {
 }
 
 function getBucket(
+  buckets: Map<string, Bucket>,
   key: string,
   capacity: number,
   refillPerSec: number,
   maxBuckets: number,
 ): Bucket {
-  let bucket = RATE_BUCKETS.get(key);
+  let bucket = buckets.get(key);
   const now = Date.now() / 1000;
   if (!bucket) {
-    if (RATE_BUCKETS.size >= maxBuckets) {
-      const oldest = RATE_BUCKETS.keys().next().value as string | undefined;
-      if (oldest) RATE_BUCKETS.delete(oldest);
+    if (buckets.size >= maxBuckets) {
+      const oldest = buckets.keys().next().value as string | undefined;
+      if (oldest) buckets.delete(oldest);
     }
     bucket = { tokens: capacity, capacity, refillPerSec, updatedAt: now };
-    RATE_BUCKETS.set(key, bucket);
+    buckets.set(key, bucket);
     return bucket;
   }
   // Refill
@@ -503,8 +503,8 @@ function getBucket(
   bucket.tokens = Math.min(bucket.capacity, bucket.tokens + elapsed * bucket.refillPerSec);
   bucket.updatedAt = now;
   // Refresh insertion order so the size bound below behaves as an LRU cache.
-  RATE_BUCKETS.delete(key);
-  RATE_BUCKETS.set(key, bucket);
+  buckets.delete(key);
+  buckets.set(key, bucket);
   return bucket;
 }
 
@@ -513,11 +513,14 @@ function getBucket(
  * no token). Returns 429 with Retry-After per L3.0.
  */
 export function rateLimit(
-  opts: { capacity?: number; refillPerSec?: number; maxBuckets?: number } = {},
+  opts: { capacity?: number; refillPerSec?: number; maxBuckets?: number; keyBy?: 'credential' | 'client-ip' } = {},
 ) {
   const capacity = opts.capacity ?? DEFAULT_CAPACITY;
   const refillPerSec = opts.refillPerSec ?? DEFAULT_REFILL;
   const maxBuckets = Math.max(1, opts.maxBuckets ?? 10_000);
+  // Separate budgets by limiter instance: auth, API, MCP and webhooks must
+  // never consume one another's quota for the same client IP.
+  const buckets = new Map<string, Bucket>();
   return async (c: Context, next: Next): Promise<Response | void> => {
     const credential = c.req.header('Authorization')?.replace(/^Bearer\s+/i, '');
     const apiKey = c.req.header('X-API-Key');
@@ -529,14 +532,18 @@ export function rateLimit(
       .filter(Boolean)
       .at(-1);
     const clientAddress = isTrustedProxyAddress(peerAddress) ? forwardedFor : peerAddress;
-    const source = credential
-      ? `bearer:${credential}`
-      : apiKey
-        ? `api-key:${apiKey}`
-        : `ip:${clientAddress || 'anonymous'}`;
+    // Public auth runs before any credential is verified. Its bucket must not
+    // be selected by a caller-controlled Authorization or X-API-Key value.
+    const source = opts.keyBy === 'client-ip'
+      ? `ip:${clientAddress || 'anonymous'}`
+      : credential
+        ? `bearer:${credential}`
+        : apiKey
+          ? `api-key:${apiKey}`
+          : `ip:${clientAddress || 'anonymous'}`;
     // Retain only an irreversible fingerprint, never a live credential.
     const bucketKey = createHash('sha256').update(source).digest('base64url');
-    const bucket = getBucket(bucketKey, capacity, refillPerSec, maxBuckets);
+    const bucket = getBucket(buckets, bucketKey, capacity, refillPerSec, maxBuckets);
 
     if (bucket.tokens < 1) {
       const retryAfter =

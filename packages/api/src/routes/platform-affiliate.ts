@@ -31,7 +31,7 @@ const affiliateClaimRouter = new Hono<AppBindings>();
 
 // Referral links are anonymous by design, but they are still an abuse surface.
 // Rate-limit the redirect before it can write an attribution fact.
-publicRouter.use('*', rateLimit({ capacity: 60, refillPerSec: 1, maxBuckets: 100_000 }));
+publicRouter.use('*', rateLimit({ capacity: 60, refillPerSec: 1, maxBuckets: 100_000, keyBy: 'client-ip' }));
 
 const emailSchema = z.string().trim().email().max(320).transform((value) => value.toLowerCase());
 const partnerCreateSchema = z.object({

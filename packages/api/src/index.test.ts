@@ -19,6 +19,27 @@ beforeAll(async () => {
   await new Promise((r) => setTimeout(r, 250));
 });
 
+describe('front-door API and MCP request budgets', () => {
+  it.each(['/api/v1/health', '/api/mcp'])('cannot reset %s by rotating unverified credentials', async (path) => {
+    const peer = { incoming: { socket: { remoteAddress: path === '/api/mcp' ? '203.0.113.250' : '203.0.113.249' } } };
+    // Hold the limiter clock still so refill cannot make the 61st request pass
+    // on a slower runner. Restore it even if an assertion fails.
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    try {
+      let last: Response | undefined;
+      for (let attempt = 0; attempt < 61; attempt += 1) {
+        last = await app.request(path, {
+          headers: { Authorization: `Bearer frontdoor-${attempt}`, 'X-API-Key': `frontdoor-${attempt}` },
+        }, peer);
+      }
+      expect(last?.status).toBe(429);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+});
+
 describe('health', () => {
   it('readiness reports 503 without schema or database error details', async () => {
     const check = vi.spyOn(database, 'checkDatabase').mockRejectedValue(new Error('private database diagnostics'));
@@ -67,11 +88,22 @@ describe('better-auth mounted at /api/auth/*', () => {
     expect([200, 401]).toContain(res.status);
   });
 
-  it('rate-limits repeated auth requests', async () => {
-    const headers = { 'X-API-Key': 'auth-rate-limit-test' };
+  it('shares an auth budget when arbitrary credential headers rotate', async () => {
+    const peer = { incoming: { socket: { remoteAddress: '203.0.113.244' } } };
     let last: Response | undefined;
     for (let attempt = 0; attempt < 21; attempt += 1) {
-      last = await app.request('/api/auth/get-session', { headers });
+      last = await app.request('/api/auth/get-session', {
+        headers: { Authorization: `Bearer unverified-${attempt}`, 'X-API-Key': `unverified-${attempt}` },
+      }, peer);
+    }
+    expect(last?.status).toBe(429);
+  });
+
+  it('rate-limits repeated auth requests', async () => {
+    const peer = { incoming: { socket: { remoteAddress: '203.0.113.245' } } };
+    let last: Response | undefined;
+    for (let attempt = 0; attempt < 21; attempt += 1) {
+      last = await app.request('/api/auth/get-session', { headers: { 'X-API-Key': 'auth-rate-limit-test' } }, peer);
     }
     expect(last?.status).toBe(429);
     expect(last?.headers.get('Retry-After')).toBeTruthy();

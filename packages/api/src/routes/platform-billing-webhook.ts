@@ -9,7 +9,7 @@ import { platformAffiliateRouter } from './platform-affiliate.js';
 import { apiError, statusTitle } from './helpers.js';
 
 const router = new Hono<AppBindings>();
-router.use('/affiliate-billing/webhook', rateLimit({ capacity: 120, refillPerSec: 2, maxBuckets: 100_000 }));
+router.use('/affiliate-billing/webhook', rateLimit({ capacity: 120, refillPerSec: 2, maxBuckets: 100_000, keyBy: 'client-ip' }));
 
 router.post('/affiliate-billing/webhook', async c => {
   let raw: string;
