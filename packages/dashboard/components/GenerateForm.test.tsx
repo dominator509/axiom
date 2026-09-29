@@ -65,7 +65,7 @@ describe('generation intent', () => {
     hooks.values[6] = ['instagram'];
     const selectedHtml = renderToStaticMarkup(GenerateForm({ modelId: 'model-a' }));
     expect(selectedHtml).toContain('aria-pressed="true"');
-    expect(selectedHtml).toContain('✓ <!-- -->instagram');
+    expect(selectedHtml).toMatch(/<span aria-hidden="true">✓\s*<\/span>instagram/);
 
     hooks.values[6] = [];
     hooks.stateIndex = 0; hooks.refIndex = 0;
