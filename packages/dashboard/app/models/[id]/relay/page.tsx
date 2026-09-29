@@ -51,7 +51,7 @@ export default async function RelayPage({
     </section>
     <div className="card">
       <h3>{t('relay.destinations.heading')}</h3>
-      {failed ? <p role="alert">{t('relay.destinations.loadFailed')}</p> : <RelayBindingManager modelId={id} bindings={bindings} canEdit={canEdit} t={t} />}
+      {failed ? <p role="alert">{t('relay.destinations.loadFailed')}</p> : <RelayBindingManager modelId={id} bindings={bindings} canEdit={canEdit} />}
     </div>
     <div className="card stack">
       <h3>{t('relay.history.heading')}</h3>
