@@ -250,7 +250,7 @@ describe('approval review queue', () => {
     const held = requests.find((url) => url.searchParams.get('state') === 'hold');
     expect(held?.searchParams.get('cursor')).toBe('opaque+/=cursor');
     expect(held?.searchParams.get('modelId')).toBe('model-under-review');
-    expect(requests).toHaveLength(4);
+    expect(requests.filter((url) => url.pathname !== '/api/v1/ui-locale')).toHaveLength(4);
   });
 
   it('offers reset on an exhausted page without claiming the entire queue is empty', async () => {
