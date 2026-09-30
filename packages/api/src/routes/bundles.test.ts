@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import { createHash } from 'node:crypto';
 import type { AppBindings } from '../index.js';
-import { mockState, mockDbFactory } from './test-utils.js';
+import { makeChain, mockState, mockDbFactory } from './test-utils.js';
 
 vi.mock('@axiom/db', () => ({
   ...mockDbFactory({ contentBundle: {}, postTarget: {}, asset: {}, platformConnection: {}, orgSettings: {} }),
@@ -53,7 +53,7 @@ import { bundlesRouter } from './bundles.js';
 import { assetPreview } from '../asset-preview.js';
 vi.mock('../asset-preview.js', () => ({ assetPreview: vi.fn() }));
 import { enqueueJob, resolveCapabilities } from '@axiom/worker';
-import { getPublishingConsentStatus, getTosScanState } from '@axiom/db';
+import { db, getPublishingConsentStatus, getTosScanState } from '@axiom/db';
 import { captionSha256 } from '../variant-guidance.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -143,6 +143,39 @@ describe('explicit ToS rescan', () => {
     ];
     const duplicate = await request(body());
     expect(duplicate.status).toBe(409);
+    expect(enqueueJob).toHaveBeenCalledTimes(1);
+  });
+
+  it('reserves only one retry for concurrent requests serialized by the bundle row lock', async () => {
+    let transactionTail = Promise.resolve();
+    vi.spyOn(db, 'transaction').mockImplementation(((callback: (tx: unknown) => Promise<unknown>) => {
+      const previous = transactionTail;
+      let release!: () => void;
+      transactionTail = new Promise<void>(resolve => { release = resolve; });
+      return previous.then(async () => {
+        try {
+          return await callback(makeChain());
+        } finally {
+          release();
+        }
+      });
+    }) as typeof db.transaction);
+
+    mockState.results = [
+      [], [bundle()], [asset()], [failedScan()],
+      [{ id: failedScan().id }], [], [], [],
+      [],
+      [bundle({ tosReport: { verdict: 'pending', revisionId: null, rescan: { state: 'queued' } } })],
+      [asset()],
+      () => {
+        const queued = vi.mocked(enqueueJob).mock.calls[0]?.[1];
+        return [{ id: queued?.id, state: 'ready', attempts: 0, lastError: null, lockedBy: null, lockedAt: null }];
+      },
+    ];
+
+    const [first, concurrentDuplicate] = await Promise.all([request(body()), request(body())]);
+    expect(first.status).toBe(202);
+    expect(concurrentDuplicate.status).toBe(409);
     expect(enqueueJob).toHaveBeenCalledTimes(1);
   });
 
