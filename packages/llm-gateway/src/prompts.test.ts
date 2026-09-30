@@ -382,6 +382,14 @@ describe('generatePhotoshootPrompts', () => {
     expect(variants[2].caption).toContain('summer dress');
   });
 
+  it('avoids repeating a mood as energy and a matching style/location in captions', () => {
+    const captions = generatePhotoshootPrompts({ ...config, style: 'studio', location: 'Studio' })
+      .map(variant => variant.caption);
+    expect(captions.join(' ')).not.toMatch(/energetic energy/i);
+    expect(captions.join(' ')).not.toMatch(/vibes at studio/i);
+    for (const caption of captions) expect(caption.match(/studio/gi)).toHaveLength(1);
+  });
+
   it('builds slugged hashtags from style/location/mood/outfit and dedupes', () => {
     const variants = generatePhotoshootPrompts(config);
     for (const v of variants) {
