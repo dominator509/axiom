@@ -22,6 +22,15 @@ export default function TalentRoster({ models, totalCount, nextCursor, cursor, e
   const { t, locale } = useLocale();
   const [createdProfiles, setCreatedProfiles] = useState<TalentRosterProfile[]>([]);
 
+  // Optimistic creations belong to the page they were made on. When the cursor
+  // changes (client navigation to another page), drop them so a page-1 row cannot
+  // leak into page 2's list, shown count or total.
+  const [createdOnCursor, setCreatedOnCursor] = useState<string | undefined>(cursor);
+  if (createdOnCursor !== cursor) {
+    setCreatedOnCursor(cursor);
+    setCreatedProfiles([]);
+  }
+
   useEffect(() => {
     const onCreated = (event: Event) => {
       const profile = parseTalentRosterProfile((event as CustomEvent<unknown>).detail);
