@@ -870,7 +870,7 @@ router.get('/', async (c) => {
       .orderBy(sql`${schema.contentBundle.createdAt} DESC`, sql`${schema.contentBundle.id} DESC`);
     return Promise.all(bundles.map(async (bundle) => ({
       ...bundle,
-      scanFailed: Boolean(bundle.assetId && bundle.tosReport?.verdict === 'pending')
+      scanFailed: bundle.assetId !== null && bundle.tosReport?.verdict === 'pending'
         ? await getTosScanState(tx, orgId, bundle.id) === 'failed'
         : false,
     })));
