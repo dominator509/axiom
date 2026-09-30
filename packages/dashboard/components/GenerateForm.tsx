@@ -242,18 +242,24 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
         <div>
           <label>{t('generation.platforms')}</label>
           <div className="row" style={{ flexWrap: 'wrap' }}>
-            {PLATFORMS.map((p) => (
-              <button
+            {PLATFORMS.map((p) => {
+              const selected = platforms.includes(p);
+              return <button
                 key={p}
                 type="button"
-                className={`btn ${platforms.includes(p) ? '' : 'secondary'}`}
+                className={`btn platform-toggle ${selected ? '' : 'secondary'}`}
+                data-selected={selected}
+                aria-pressed={selected}
                 style={{ padding: '4px 10px', fontSize: 12 }}
                 onClick={() => togglePlatform(p)}
               >
-                {p}
-              </button>
-            ))}
+                {selected && <span aria-hidden="true">✓ </span>}{p}
+              </button>;
+            })}
           </div>
+          {platforms.length === 0 && <p id="generation-platform-selection-help" className="subtle" role="status">
+            {t('generation.selectPlatform')}
+          </p>}
         </div>
         <label className="checkbox-option">
           <input
@@ -268,7 +274,12 @@ export default function GenerateForm({ modelId, initialSourceAssetId = '', opera
         {error && <p role="alert" style={{ color: 'var(--bad)', margin: 0 }}>{error}</p>}
         {busy && <p role="status">{t('generation.submitting')}</p>}
         <div>
-          <button className="btn" type="submit" disabled={busy || (!intent.current && platforms.length === 0)}>
+          <button
+            className="btn"
+            type="submit"
+            aria-describedby={platforms.length === 0 ? 'generation-platform-selection-help' : undefined}
+            disabled={busy || (!intent.current && platforms.length === 0)}
+          >
             {busy ? t('generation.generating') : intent.current ? t('generation.checkSameRequest') : mediaKind === 'brief' ? t('generation.generateBrief') : t('generation.queueGrok')}
           </button>
         </div>

@@ -392,12 +392,16 @@ export function generatePhotoshootPrompts(config: PhotoshootConfig): PhotoshootV
     },
   ];
 
+  const styleMatchesLocation = config.style.trim().toLocaleLowerCase() === config.location.trim().toLocaleLowerCase();
+  const styleLocation = styleMatchesLocation
+    ? `${config.location} setting`
+    : `${config.style} look at ${config.location}`;
   const captionTemplates = [
-    `New look, new vibes. ${config.mood} energy at ${config.location}. ✨`,
+    `New look, new vibes. ${config.mood} mood in the ${styleLocation}. ✨`,
     `Feeling ${config.mood} in this ${config.style} moment. 📸`,
-    `${config.location} doing its thing. ${config.modelName} in ${config.outfit}. 🔥`,
+    `${config.modelName} in ${config.outfit}, bringing a ${config.mood} mood to the ${styleLocation}. 🔥`,
     `This one's giving ${config.mood} + ${config.style}. What do you think? 💫`,
-    `Living for these ${config.style} vibes at ${config.location}. ${config.mood} energy only. ⚡`,
+    `Living for the ${styleLocation}. ${config.mood} mood only. ⚡`,
   ];
 
   const baseHashtags = [

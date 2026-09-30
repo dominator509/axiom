@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
-import { readDashboardError } from '@/lib/response';
+import { readDashboardError, readDashboardJson } from '@/lib/response';
+import { parseTalentRosterProfile, publishTalentProfileCreated } from '@/lib/talent-roster';
 import { useLocale } from './LocaleProvider';
 
 export default function NewModelForm() {
@@ -54,6 +55,9 @@ export default function NewModelForm() {
         setError(body?.error?.message ?? t('dashboard.newModel.createFailed'));
         return;
       }
+      const body = await readDashboardJson<{ data?: unknown }>(res);
+      const profile = parseTalentRosterProfile(body.data);
+      if (profile) publishTalentProfileCreated(profile);
       intent.current = null;
       setOpen(false);
       setDisplayName('');

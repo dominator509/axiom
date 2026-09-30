@@ -60,6 +60,22 @@ function key(fetch: ReturnType<typeof vi.fn>, index: number) {
 }
 
 describe('generation intent', () => {
+  it('exposes selected platform state and the reason generation is disabled', () => {
+    hooks.stateIndex = 0; hooks.refIndex = 0;
+    hooks.values[6] = ['instagram'];
+    const selectedHtml = renderToStaticMarkup(GenerateForm({ modelId: 'model-a' }));
+    expect(selectedHtml).toContain('aria-pressed="true"');
+    expect(selectedHtml).toMatch(/<span aria-hidden="true">✓\s*<\/span>instagram/);
+
+    hooks.values[6] = [];
+    hooks.stateIndex = 0; hooks.refIndex = 0;
+    const emptyHtml = renderToStaticMarkup(GenerateForm({ modelId: 'model-a' }));
+    expect(emptyHtml).toContain('aria-pressed="false"');
+    expect(emptyHtml).toContain('role="status"');
+    expect(emptyHtml).toContain('Select at least one destination platform.');
+    expect(emptyHtml).toContain('aria-describedby="generation-platform-selection-help"');
+  });
+
   it('formats ToS scores in the selected locale', () => {
     hooks.stateIndex = 0;
     hooks.refIndex = 0;
