@@ -4,7 +4,10 @@ import HomePage from './page';
 
 const getServerLocale = vi.hoisted(() => vi.fn());
 
-vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [] }) }));
+vi.mock('next/headers', () => ({
+  cookies: async () => ({ getAll: () => [] }),
+  headers: async () => new Headers(),
+}));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/lib/server-locale', () => ({ getServerLocale }));
 afterEach(() => vi.unstubAllGlobals());

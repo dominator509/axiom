@@ -15,6 +15,7 @@ import {
   nextCursor,
   problem,
   problemResponse,
+  prepareAuthRequest,
   type CursorPage,
 } from './contract.js';
 
@@ -183,6 +184,73 @@ describe('CursorPage shape', () => {
     expect(page.meta).toHaveProperty('total');
     expect(page.meta).toHaveProperty('limit');
     expect(page.meta).toHaveProperty('next_cursor');
+  });
+});
+
+describe('trusted auth client IP forwarding', () => {
+  function makeAuthRequestApp() {
+    const app = new Hono<{ Bindings: { incoming?: { socket?: { remoteAddress?: string } } } }>();
+    app.post('/auth', async (c) => {
+      const request = prepareAuthRequest(c);
+      return c.json({
+        clientIp: request.headers.get('cf-connecting-ip'),
+        forwardedFor: request.headers.get('x-forwarded-for'),
+        realIp: request.headers.get('x-real-ip'),
+        body: await request.text(),
+      });
+    });
+    return app;
+  }
+
+  it('preserves one valid tunnel IP and strips untrusted forwarding alternatives', async () => {
+    const app = makeAuthRequestApp();
+    const response = await app.request('/auth', {
+      method: 'POST',
+      headers: {
+        'CF-Connecting-IP': '::ffff:198.51.100.24',
+        'X-Forwarded-For': '203.0.113.5, 203.0.113.6',
+        'X-Real-IP': '203.0.113.7',
+      },
+      body: 'auth-body',
+    }, { incoming: { socket: { remoteAddress: '127.0.0.1' } } });
+
+    expect(await response.json()).toEqual({
+      clientIp: '198.51.100.24',
+      forwardedFor: null,
+      realIp: null,
+      body: 'auth-body',
+    });
+  });
+
+  it('strips forged client IP headers from a direct peer', async () => {
+    const app = makeAuthRequestApp();
+    const response = await app.request('/auth', {
+      method: 'POST',
+      headers: {
+        'CF-Connecting-IP': '198.51.100.25',
+        'X-Forwarded-For': '198.51.100.25',
+        'X-Real-IP': '198.51.100.25',
+      },
+      body: 'auth-body',
+    }, { incoming: { socket: { remoteAddress: '203.0.113.8' } } });
+
+    expect(await response.json()).toEqual({
+      clientIp: null,
+      forwardedFor: null,
+      realIp: null,
+      body: 'auth-body',
+    });
+  });
+
+  it('strips malformed or multi-value tunnel IPs', async () => {
+    const app = makeAuthRequestApp();
+    const response = await app.request('/auth', {
+      method: 'POST',
+      headers: { 'CF-Connecting-IP': '198.51.100.26, 198.51.100.27' },
+      body: 'auth-body',
+    }, { incoming: { socket: { remoteAddress: '127.0.0.1' } } });
+
+    expect(await response.json()).toMatchObject({ clientIp: null, body: 'auth-body' });
   });
 });
 
