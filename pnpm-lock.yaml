@@ -7,9 +7,9 @@ settings:
 overrides:
   esbuild: ^0.25.0
   '@xmldom/xmldom': 0.9.12
-  brace-expansion: 2.1.6
+  brace-expansion: 2.1.7
   undici@6: 6.28.1
-  hono: 4.12.34
+  hono: 4.13.7
   js-yaml: 3.15.2
   nanoid: 3.3.18
   postcss: 8.5.25
@@ -17,11 +17,7 @@ overrides:
   tar: 7.5.21
   uuid: 11.1.1
   vite: 6.4.3
-
-patchedDependencies:
-  image-size@1.2.1:
-    hash: i4onpywxx2nucvjjdin4fwteee
-    path: patches/image-size@1.2.1.patch
+  image-size: 2.0.3
 
 importers:
 
@@ -39,6 +35,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^3.2.7
         version: 3.2.7(vitest@3.2.7(@types/node@22.20.1)(lightningcss@1.33.0)(terser@5.49.2)(tsx@4.23.1)(yaml@2.9.0))
+      brace-expansion:
+        specifier: 2.1.7
+        version: 2.1.7
       eslint:
         specifier: ^9.14.0
         version: 9.39.5
@@ -101,16 +100,16 @@ importers:
         version: link:../worker
       '@hono/node-server':
         specifier: ^2.0.12
-        version: 2.0.12(hono@4.12.34)
+        version: 2.0.12(hono@4.13.7)
       '@hono/zod-validator':
         specifier: ^0.4.0
-        version: 0.4.3(hono@4.12.34)(zod@3.25.76)
+        version: 0.4.3(hono@4.13.7)(zod@3.25.76)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.29.4)(pg@8.22.0)
       hono:
-        specifier: 4.12.34
-        version: 4.12.34
+        specifier: 4.13.7
+        version: 4.13.7
       zod:
         specifier: ^3.23.0
         version: 3.25.76
@@ -147,8 +146,8 @@ importers:
         specifier: ^8.11.0
         version: 8.20.0
       hono:
-        specifier: 4.12.34
-        version: 4.12.34
+        specifier: 4.13.7
+        version: 4.13.7
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -263,7 +262,7 @@ importers:
         version: link:../fanvue-mcp
       '@hono/zod-validator':
         specifier: ^0.4.0
-        version: 0.4.3(hono@4.12.34)(zod@3.25.76)
+        version: 0.4.3(hono@4.13.7)(zod@3.25.76)
       '@openai/codex':
         specifier: 0.149.1
         version: 0.149.1
@@ -274,8 +273,8 @@ importers:
         specifier: ^16.4.0
         version: 16.6.1
       hono:
-        specifier: 4.12.34
-        version: 4.12.34
+        specifier: 4.13.7
+        version: 4.13.7
       undici:
         specifier: ^8.10.2
         version: 8.11.2
@@ -312,13 +311,13 @@ importers:
         version: link:../worker
       '@hono/zod-validator':
         specifier: ^0.4.0
-        version: 0.4.3(hono@4.12.34)(zod@3.25.76)
+        version: 0.4.3(hono@4.13.7)(zod@3.25.76)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.29.4)(pg@8.22.0)
       hono:
-        specifier: 4.12.34
-        version: 4.12.34
+        specifier: 4.13.7
+        version: 4.13.7
       uuid:
         specifier: 11.1.1
         version: 11.1.1
@@ -391,8 +390,8 @@ importers:
         specifier: ^1.0.0
         version: 1.45.1
       hono:
-        specifier: 4.12.34
-        version: 4.12.34
+        specifier: 4.13.7
+        version: 4.13.7
       jsonwebtoken:
         specifier: ^9.0.0
         version: 9.0.3
@@ -1441,12 +1440,12 @@ packages:
     resolution: {integrity: sha512-eWpQYr67tqJLeaSUl0Q+TquuYfUdTibpOJlUMV2FfUP7+KqCC5TufnwnlXL6mobZBJbGAYRd7ZvEBDCbLInjhg==}
     engines: {node: '>=20'}
     peerDependencies:
-      hono: 4.12.34
+      hono: 4.13.7
 
   '@hono/zod-validator@0.4.3':
     resolution: {integrity: sha512-xIgMYXDyJ4Hj6ekm9T9Y27s080Nl9NXHcJkOvkXPhubOLj8hZkOL8pDnnXfvCf5xEE8Q4oMFenQUZZREUY2gqQ==}
     peerDependencies:
-      hono: 4.12.34
+      hono: 4.13.7
       zod: ^3.19.1
 
   '@humanfs/core@0.19.2':
@@ -2568,8 +2567,8 @@ packages:
     resolution: {integrity: sha512-apC2+fspHGI3mMKj+dGevkGo/tCqVB8jMb6i+OX+E29p0Iposz07fABkRIfVUPNd5A5VbuOz1bZbnmkKLYF+wQ==}
     engines: {node: '>= 5.10.0'}
 
-  brace-expansion@2.1.6:
-    resolution: {integrity: sha512-pi/WFpBvCBmB/NsURt7hW5sDvuOqvJaDMDai7CrlT9xoehzWRzo/dhQRKqOhpPvlnicVaTzHCbzGnnTgpvMTFw==}
+  brace-expansion@2.1.7:
+    resolution: {integrity: sha512-uZbew1NqdmPDTMJ8ah1y+b+9QEJrfkXFk3RcTQw3X0jW/xRUvFKsg1CfQdSYGdTbXZWExtU3J3ccxtnfw1Fi0g==}
 
   braces@3.0.3:
     resolution: {integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==}
@@ -3012,6 +3011,7 @@ packages:
   eslint@9.39.5:
     resolution: {integrity: sha512-DgZS62aPLXKlnxILS/AYCoRvHaZeXceIzlXPkkGGzJWSow1aEk0lbTlxUSlyjC8jcaKxAdOnTDz+o1JFSBsyjw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -3360,8 +3360,8 @@ packages:
   hermes-parser@0.36.1:
     resolution: {integrity: sha512-GApNk4zLHi2UWoWZZkx7LNCOSzLSc5lB55pZ/PhK7ycFeg7u5LcF88p/WbpIi1XUDtE0MpHE3uRR3u3KB7TjSQ==}
 
-  hono@4.12.34:
-    resolution: {integrity: sha512-GqXJqY/xJkJmuloTrnV1ZEXG3fqte+VjkUqoRNZXcrUidiUOP4fMSIHHY4tsqZBK++kVyWmt/AAfSUuy57/eSA==}
+  hono@4.13.7:
+    resolution: {integrity: sha512-c8/gF9ac8Y78/agExVocyLevgR+JlpNB444Py0FSX8pJoPdYUfUzRcXtYEYGwt6l19qIlVZPN5Mfsw9jFShmQQ==}
     engines: {node: '>=16.9.0'}
 
   hosted-git-info@7.0.2:
@@ -3398,9 +3398,9 @@ packages:
     resolution: {integrity: sha512-BAg6QkE8W+TuQLrrw0Ugr7HegXduRuuj8/ti2kSOc+jz1dmx8/WNcjr6XGnq5YpDWxFwwaavqD0+jIUOKelTsw==}
     engines: {node: '>= 4'}
 
-  image-size@1.2.1:
-    resolution: {integrity: sha512-rH+46sQJ2dlwfjfhCyNx5thzrv+dtmBIhPHk0zgRUukHzZ/kRueTJXoYYsclBaKcSMBWuGbOFXtioLpzTb5euw==}
-    engines: {node: '>=16.x'}
+  image-size@2.0.3:
+    resolution: {integrity: sha512-9BJAtVCBth+76NwqnEfWr3PiRnYhbquk6K/USuQ1GQajz5NgLzO7tNsnoNjHfO7LuftgkBf+CCH6j28hjMbIYQ==}
+    engines: {node: '>=18'}
     hasBin: true
 
   import-fresh@3.3.1:
@@ -4358,9 +4358,6 @@ packages:
 
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
-
-  queue@6.0.2:
-    resolution: {integrity: sha512-iHZWu+q3IdFZFX36ro/lKBkSvfkztY5Y7HMiPlOUjhupPcG2JMfst2KKEpu5XndviX/3UhFbRngUPNKtgvtZiA==}
 
   range-parser@1.2.1:
     resolution: {integrity: sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg==}
@@ -6318,13 +6315,13 @@ snapshots:
 
   '@grammyjs/types@4.0.0': {}
 
-  '@hono/node-server@2.0.12(hono@4.12.34)':
+  '@hono/node-server@2.0.12(hono@4.13.7)':
     dependencies:
-      hono: 4.12.34
+      hono: 4.13.7
 
-  '@hono/zod-validator@0.4.3(hono@4.12.34)(zod@3.25.76)':
+  '@hono/zod-validator@0.4.3(hono@4.13.7)(zod@3.25.76)':
     dependencies:
-      hono: 4.12.34
+      hono: 4.13.7
       zod: 3.25.76
 
   '@humanfs/core@0.19.2':
@@ -7502,7 +7499,7 @@ snapshots:
     dependencies:
       big-integer: 1.6.52
 
-  brace-expansion@2.1.6:
+  brace-expansion@2.1.7:
     dependencies:
       balanced-match: 1.0.2
 
@@ -8278,7 +8275,7 @@ snapshots:
     dependencies:
       hermes-estree: 0.36.1
 
-  hono@4.12.34: {}
+  hono@4.13.7: {}
 
   hosted-git-info@7.0.2:
     dependencies:
@@ -8311,9 +8308,7 @@ snapshots:
 
   ignore@7.0.6: {}
 
-  image-size@1.2.1(patch_hash=i4onpywxx2nucvjjdin4fwteee):
-    dependencies:
-      queue: 6.0.2
+  image-size@2.0.3: {}
 
   import-fresh@3.3.1:
     dependencies:
@@ -9096,7 +9091,7 @@ snapshots:
       flow-enums-runtime: 0.0.6
       graceful-fs: 4.2.11
       hermes-parser: 0.35.0
-      image-size: 1.2.1(patch_hash=i4onpywxx2nucvjjdin4fwteee)
+      image-size: 2.0.3
       invariant: 2.2.4
       jest-worker: 29.7.0
       jsc-safe-url: 0.2.4
@@ -9150,15 +9145,15 @@ snapshots:
 
   minimatch@10.2.6:
     dependencies:
-      brace-expansion: 2.1.6
+      brace-expansion: 2.1.7
 
   minimatch@3.1.5:
     dependencies:
-      brace-expansion: 2.1.6
+      brace-expansion: 2.1.7
 
   minimatch@9.0.9:
     dependencies:
-      brace-expansion: 2.1.6
+      brace-expansion: 2.1.7
 
   minimist@1.2.8: {}
 
@@ -9464,10 +9459,6 @@ snapshots:
   pure-rand@6.1.0: {}
 
   queue-microtask@1.2.3: {}
-
-  queue@6.0.2:
-    dependencies:
-      inherits: 2.0.4
 
   range-parser@1.2.1: {}
 
