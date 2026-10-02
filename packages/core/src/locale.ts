@@ -2263,6 +2263,7 @@ export class LocaleCatalog {
    * never a raw key. Missing translations emit a test-visible diagnostic.
    */
   t(locale: SupportedLocale, key: string, values?: InterpolationValues): string {
+    values = { productName: 'FanThynks', ...values };
     const localized = this.catalogs[locale]?.[key];
     if (typeof localized === 'string') {
       return interpolate(localized, values);

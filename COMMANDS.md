@@ -6,6 +6,7 @@
 - `cargo build --workspace` — build Rust crates
 
 ## Test Commands
+- `pnpm test:browser` — build real API/dashboard and pinned Chromium; repeat the HTTPS sign-in/workspace/branding journey against owned internal Docker fixtures, verify negative controls and cleanup; no live targets or reused credentials. Requires a clean committed checkout. Receipts: `var/browser-rehearsal/`.
 - `node scripts/test-vitest-mocker.mjs` — installed Vitest redirect-mock file boundary regressions using synthetic temporary files; no network listener or credentials
 - `node scripts/rehearse-egress.mjs --isolated-fixture` — build copied Rust source and run all egress tests, including real Linux netns/WireGuard/leak cases, in a disposable network-disabled Docker container; no host mounts, ports, database, provider calls or production changes. Namespace provisioning capabilities exist only inside the test container; evidence is written under ignored `var/egress-rehearsal/`.
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --viral-evidence` — check published/provider-backed insights filtering against disposable PostgreSQL

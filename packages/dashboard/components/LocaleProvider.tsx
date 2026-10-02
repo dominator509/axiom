@@ -1,6 +1,8 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { DEFAULT_BRAND, type PublicBrand } from '@axiom/core';
+import { brandCopy } from '@/lib/brand-copy';
 import {
   CATALOGS,
   CONSENT_CATALOGS,
@@ -54,9 +56,11 @@ const LocaleContext = createContext<LocaleContextValue>(defaultValue);
 
 export default function LocaleProvider({
   initialLocale,
+  brand = DEFAULT_BRAND,
   children,
 }: {
   initialLocale: SupportedLocale;
+  brand?: PublicBrand;
   children?: React.ReactNode;
 }) {
   const [locale, setLocale] = useState(initialLocale);
@@ -64,9 +68,9 @@ export default function LocaleProvider({
     () => ({
       locale,
       setLocale,
-      t: (key, values) => catalog.t(locale, key, values),
+      t: brandCopy(catalog, locale, brand),
     }),
-    [locale],
+    [locale, brand],
   );
 
   useEffect(() => {

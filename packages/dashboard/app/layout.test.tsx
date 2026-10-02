@@ -9,7 +9,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
-import RootLayout, { metadata } from './layout';
+import RootLayout, { generateMetadata } from './layout';
 import LoginPage from './login/page';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -23,6 +23,26 @@ async function render(user: Record<string, unknown> | null, uiLocale = 'en') {
 }
 
 describe('dashboard session presentation', () => {
+  it('renders configured branding as text across metadata, navigation and login', async () => {
+    const brand = { name: '<Studio & {email}>', tagline: 'Hello <world> & friends' };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/api/v1/brand')) return new Response(JSON.stringify({ data: brand }));
+      if (String(input).includes('/api/v1/ui-locale')) return new Response(JSON.stringify({ data: { locale: 'en' } }));
+      return new Response(JSON.stringify({ user: { id: 'u', email: 'member@example.invalid', orgId: 'org', role: 'operator' } }));
+    }));
+    const metadata = await generateMetadata();
+    expect(metadata.applicationName).toBe(brand.name);
+    expect(metadata.description).toBe(brand.tagline);
+    const html = renderToStaticMarkup(await RootLayout({ children: <p>Workspace</p> }));
+    expect(html).toContain('&lt;Studio &amp; {email}&gt;');
+    expect(html).toContain('Hello &lt;world&gt; &amp; friends');
+    expect(html).not.toContain('<Studio');
+    expect(html).not.toContain('Fan<span>Thynks</span>');
+    const login = renderToStaticMarkup(await LoginPage({}));
+    expect(login).toContain('&lt;Studio &amp; {email}&gt;');
+    expect(login).toContain('Hello &lt;world&gt; &amp; friends');
+    expect(login).not.toContain('FanThynks account');
+  });
   it('provides keyboard navigation directly to the signed-in page', async () => {
     const html = await render({ id: 'user', email: 'member@example.invalid', orgId: 'org', role: 'operator' });
     expect(html).toContain('href="#main-content"');
@@ -30,6 +50,8 @@ describe('dashboard session presentation', () => {
     expect(html).toContain('href="/connections/grok"');
   });
   it('uses FanThynks branding in metadata, navigation and login', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: { name: 'FanThynks', tagline: null } }))));
+    const metadata = await generateMetadata();
     expect(metadata.title).toEqual({ default: 'FanThynks — Creator OS', template: '%s · FanThynks' });
     const html = await render({ id: 'user', email: 'member@example.invalid', orgId: 'org', role: 'operator' });
     expect(html).toContain('FanThynks home');
