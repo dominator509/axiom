@@ -5,13 +5,14 @@ import { useRouter } from 'next/navigation';
 import type { RelayBinding } from '@/lib/api';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardError, readDashboardJson } from '@/lib/response';
+import { useLocale } from './LocaleProvider';
 
 const CHANNELS = ['telegram', 'discord', 'signal', 'imessage'] as const;
 type Intent = { path: string; method: 'POST' | 'PATCH'; body: string; key: string; id: string; expectedId?: string; enabled: boolean };
-type Translator = (key: string, values?: Record<string, string | number>) => string;
 
-export default function RelayBindingManager({ modelId, bindings, canEdit, t }: { modelId: string; bindings: RelayBinding[]; canEdit: boolean; t: Translator }) {
+export default function RelayBindingManager({ modelId, bindings, canEdit }: { modelId: string; bindings: RelayBinding[]; canEdit: boolean }) {
   const router = useRouter();
+  const { t } = useLocale();
   const [channel, setChannel] = useState<(typeof CHANNELS)[number]>('telegram');
   const [chatRef, setChatRef] = useState('');
   const [busy, setBusy] = useState(false);
