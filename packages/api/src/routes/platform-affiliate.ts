@@ -29,6 +29,14 @@ const router = new Hono<AppBindings>();
 const publicRouter = new Hono<AppBindings>();
 const affiliateClaimRouter = new Hono<AppBindings>();
 
+// The claim endpoint mounts at /api/affiliate, outside /api/v1/*, so it does
+// not inherit the global API limiter. Give it the same budget as the public
+// affiliate surface: each claim costs up to three DB reads plus a write, so
+// an unauthenticated-account flood (or a compromised one) could amplify DB
+// load without a cap. Keying stays credential-first: this router is behind
+// requireAuth, so each account gets its own budget.
+affiliateClaimRouter.use('*', rateLimit({ capacity: 60, refillPerSec: 1, maxBuckets: 100_000 }));
+
 // Referral links are anonymous by design, but they are still an abuse surface.
 // Rate-limit the redirect before it can write an attribution fact.
 publicRouter.use('*', rateLimit({ capacity: 60, refillPerSec: 1, maxBuckets: 100_000 }));

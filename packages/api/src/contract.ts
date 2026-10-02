@@ -535,7 +535,14 @@ export function rateLimit(
         ? `api-key:${apiKey}`
         : `ip:${clientAddress || 'anonymous'}`;
     // Retain only an irreversible fingerprint, never a live credential.
-    const bucketKey = createHash('sha256').update(source).digest('base64url');
+    // Namespace the bucket per limiter configuration: several rateLimit()
+    // instances with different budgets can sit on the same request path
+    // (e.g. the global /api/v1/* limiter plus a route-specific one). Without
+    // this, the first-created bucket's capacity silently wins for every
+    // limiter sharing the credential, and the tighter budget never bites.
+    const bucketKey = createHash('sha256')
+      .update(`${capacity}:${refillPerSec}:${source}`)
+      .digest('base64url');
     const bucket = getBucket(bucketKey, capacity, refillPerSec, maxBuckets);
 
     if (bucket.tokens < 1) {
@@ -552,6 +559,283 @@ export function rateLimit(
     }
     bucket.tokens -= 1;
     return await next();
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Sign-in attempt throttle (per-account brute-force brake + per-source brake)
+// ---------------------------------------------------------------------------
+
+interface SignInAttemptRecord {
+  failures: number;
+  lockedUntil: number; // epoch seconds
+  // Source fingerprints (see signInSourceKey) that attacked this account and
+  // are bound to the active lock. Oldest first; bounded by maxLockSources.
+  lockedSources: string[];
+}
+
+interface SignInSourceRecord {
+  failures: number; // 401s from this source across all accounts, current window
+  windowStart: number; // epoch seconds
+  lockedUntil: number; // epoch seconds
+}
+
+const SIGNIN_ATTEMPTS = new Map<string, SignInAttemptRecord>();
+const SIGNIN_SOURCES = new Map<string, SignInSourceRecord>();
+const SIGNIN_MAX_FAILURES = 10;
+const SIGNIN_LOCK_SECONDS = 15 * 60;
+// Hard bound on attacker-controlled map growth: distinct wrong-password emails
+// are attacker input, so the map must not grow with every probe.
+const SIGNIN_MAX_RECORDS = 10_000;
+// Per-source (attacker) brake: a single source that burns through this many
+// wrong passwords across any accounts inside the window is locked out of the
+// sign-in route for SIGNIN_SOURCE_LOCK_SECONDS. This is what stops one
+// attacker from re-locking a victim's account every lock cycle indefinitely:
+// each cycle costs them account failures AND source budget, and the source
+// budget runs out first.
+const SIGNIN_MAX_SOURCE_FAILURES = 30;
+const SIGNIN_SOURCE_WINDOW_SECONDS = 15 * 60;
+const SIGNIN_SOURCE_LOCK_SECONDS = 60 * 60;
+// lockedSources is attacker-influenced (a rotating-source attacker binds a new
+// fingerprint per attempt during a lock), so it is bounded per record.
+const SIGNIN_MAX_LOCK_SOURCES = 64;
+
+/**
+ * Evict the least-recently-used record, preferring records that are not
+ * actively locking an account. Active locks survive churn; evicting a live
+ * lock would silently lift it.
+ */
+function evictSignInRecord(): void {
+  let oldestUnlockedKey: string | undefined;
+  let oldestUnlockedAt = Infinity;
+  let oldestKey: string | undefined;
+  const now = Date.now() / 1000;
+  for (const [key, record] of SIGNIN_ATTEMPTS) {
+    if (oldestKey === undefined) oldestKey = key;
+    if (record.lockedUntil <= now && record.lockedUntil < oldestUnlockedAt) {
+      oldestUnlockedAt = record.lockedUntil;
+      oldestUnlockedKey = key;
+    }
+  }
+  SIGNIN_ATTEMPTS.delete(oldestUnlockedKey ?? oldestKey!);
+}
+
+function signInAttemptKey(email: string): string {
+  return createHash('sha256').update(`signin:${email.toLowerCase().trim()}`).digest('base64url');
+}
+
+/**
+ * Fingerprint of the attacking source: the client IP resolved exactly the
+ * way rateLimit() resolves it (transport peer, or X-Forwarded-For only when
+ * the peer is a trusted proxy), hashed so the map never stores a live
+ * address. Two requests from the same network source share one budget.
+ */
+function signInSourceKey(c: Context): string {
+  const peerAddress = transportPeerAddress(c);
+  const forwardedFor = c.req
+    .header('x-forwarded-for')
+    ?.split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .at(-1);
+  const clientAddress = isTrustedProxyAddress(peerAddress) ? forwardedFor : peerAddress;
+  const source = (clientAddress ?? 'anonymous').toLowerCase();
+  return createHash('sha256').update(`signin-source:${source}`).digest('base64url');
+}
+
+function signInLockedResponse(
+  c: Context,
+  retryAfter: number,
+  detail: string,
+): Response {
+  const correlationId = (c.get('correlationId') as string) ?? randomUUID();
+  return problemResponse(
+    problem(429, 'Too Many Requests', detail, correlationId, {
+      retry_after_seconds: retryAfter,
+    }),
+    429,
+    { 'Retry-After': String(retryAfter) },
+  );
+}
+
+/**
+ * Brake for POST /api/auth/sign-in/email. The /api/auth/* IP bucket is the
+ * first line of defense, but it cannot see a slow, distributed
+ * password-guessing campaign aimed at one account, and there is no
+ * better-auth-level lockout configured. Only 401s (wrong credentials)
+ * count — never 400s — so malformed requests cannot be weaponized to lock a
+ * victim out. Successful sign-in clears the account's record.
+ *
+ * Anti-lockout design (owner decision 2026-09-26: the account lock must not
+ * let an attacker hold a victim's account locked indefinitely):
+ * - The account lock binds to the attacking SOURCES, not to the account
+ *   alone. While an account is locked, requests from a bound source get 429
+ *   without touching the record (no lock renewal). Requests from any other
+ *   source — e.g. the real owner on their own network — pass through: a
+ *   correct password succeeds (200) and clears the record immediately, so a
+ *   victim is never locked out by someone else's failures. A wrong password
+ *   from a new source during a lock binds that source to the lock too,
+ *   which is what defeats distributed re-lock attempts.
+ * - The per-source brake caps how many wrong passwords one source can spend
+ *   across ALL accounts per window. An attacker re-locking a victim every
+ *   lock cycle burns source budget each cycle and is cut off long before
+ *   "indefinitely": with defaults, one source can force at most
+ *   maxSourceFailures / maxFailures re-locks per window before its own
+ *   hour-long lockout.
+ * - Same-source limitation (documented, not fixed): if the victim shares
+ *   the attacker's source IP (same NAT/exit node), they share the lockout.
+ *   The /api/auth/* IP bucket in front of this middleware already bounds
+ *   that shared pipe. A CAPTCHA step-up after repeated failures remains a
+ *   future option if owner policy wants it.
+ *
+ * Hardening notes (independent-review follow-up):
+ * - Bounded storage: both maps are capped at `maxRecords` with LRU-ish
+ *   eviction, and each account record's bound-source list is capped at
+ *   `maxLockSources`, so attacker-chosen inputs cannot grow process memory
+ *   without bound and cannot evict an active lock.
+ * - No lock renewal: requests arriving from a bound source while an account
+ *   is locked receive 429 without touching the record, so probing a locked
+ *   account cannot extend the lock. The lock still expires on schedule;
+ *   after expiry the failure streak restarts from zero.
+ * - No email, no tracking: bodies without a parseable email are passed
+ *   through untracked — there is no account to protect and no shared
+ *   'unknown' bucket to poison.
+ */
+export function signInAttemptThrottle(
+  opts: {
+    maxFailures?: number;
+    lockSeconds?: number;
+    maxRecords?: number;
+    maxSourceFailures?: number;
+    sourceWindowSeconds?: number;
+    sourceLockSeconds?: number;
+    maxLockSources?: number;
+  } = {},
+) {
+  const maxFailures = Math.max(1, Math.floor(opts.maxFailures ?? SIGNIN_MAX_FAILURES));
+  const lockSeconds = Math.max(1, Math.floor(opts.lockSeconds ?? SIGNIN_LOCK_SECONDS));
+  const maxRecords = Math.max(1, Math.floor(opts.maxRecords ?? SIGNIN_MAX_RECORDS));
+  const maxSourceFailures = Math.max(
+    1,
+    Math.floor(opts.maxSourceFailures ?? SIGNIN_MAX_SOURCE_FAILURES),
+  );
+  const sourceWindowSeconds = Math.max(
+    1,
+    Math.floor(opts.sourceWindowSeconds ?? SIGNIN_SOURCE_WINDOW_SECONDS),
+  );
+  const sourceLockSeconds = Math.max(
+    1,
+    Math.floor(opts.sourceLockSeconds ?? SIGNIN_SOURCE_LOCK_SECONDS),
+  );
+  const maxLockSources = Math.max(1, Math.floor(opts.maxLockSources ?? SIGNIN_MAX_LOCK_SOURCES));
+  return async (c: Context, next: Next): Promise<Response | void> => {
+    if (c.req.method !== 'POST') return await next();
+    let email: string | undefined;
+    try {
+      const body = (await c.req.raw.clone().json()) as { email?: unknown };
+      if (typeof body?.email === 'string') email = body.email;
+    } catch {
+      email = undefined;
+    }
+    // No parseable email: no account to protect. Pass through untracked so
+    // malformed/credential-less traffic cannot fill the maps.
+    if (!email) return await next();
+    const key = signInAttemptKey(email);
+    const sourceKey = signInSourceKey(c);
+    const now = Date.now() / 1000;
+
+    // Per-source brake first: a burned-out source cannot feed the account
+    // map at all.
+    let sourceRecord = SIGNIN_SOURCES.get(sourceKey);
+    if (sourceRecord && sourceRecord.lockedUntil <= now && sourceRecord.windowStart + sourceWindowSeconds <= now) {
+      // Window and lock both expired: drop the record entirely.
+      SIGNIN_SOURCES.delete(sourceKey);
+      sourceRecord = undefined;
+    }
+    if (sourceRecord && sourceRecord.lockedUntil > now) {
+      const retryAfter = Math.max(1, Math.ceil(sourceRecord.lockedUntil - now));
+      return signInLockedResponse(c, retryAfter, 'Too many failed sign-in attempts from this source');
+    }
+
+    let record = SIGNIN_ATTEMPTS.get(key);
+    if (record) {
+      // Drop dead records: lock expired and no live failure streak.
+      if (record.lockedUntil <= now && record.failures === 0) {
+        SIGNIN_ATTEMPTS.delete(key);
+        record = undefined;
+      } else {
+        // LRU refresh so the size bound below evicts the least-recently-used
+        // record rather than the most recently active one.
+        SIGNIN_ATTEMPTS.delete(key);
+        SIGNIN_ATTEMPTS.set(key, record);
+      }
+    }
+    if (record && record.lockedUntil > now) {
+      if (record.lockedSources.includes(sourceKey)) {
+        // Locked and this source is bound to the lock: 429 without touching
+        // the record — attempts made while locked can neither extend the
+        // lock nor consume failure budget.
+        const retryAfter = Math.max(1, Math.ceil(record.lockedUntil - now));
+        return signInLockedResponse(c, retryAfter, 'Too many failed sign-in attempts');
+      }
+      // Locked, but this source never attacked the account (e.g. the real
+      // owner on their own network): let the request through. A correct
+      // password succeeds and clears the record; a wrong one binds this
+      // source to the lock and spends its own per-source budget.
+    }
+
+    await next();
+
+    if (c.res.status === 401) {
+      // Per-source accounting: every wrong password spends the source's
+      // budget, no matter which account it targeted.
+      let current = SIGNIN_SOURCES.get(sourceKey);
+      if (!current || current.windowStart + sourceWindowSeconds <= now) {
+        current = { failures: 0, windowStart: now, lockedUntil: 0 };
+      } else {
+        // LRU refresh for the size bound below.
+        SIGNIN_SOURCES.delete(sourceKey);
+      }
+      current.failures += 1;
+      if (current.failures >= maxSourceFailures) {
+        current.lockedUntil = now + sourceLockSeconds;
+      }
+      SIGNIN_SOURCES.set(sourceKey, current);
+      // Bounded storage: source fingerprints are attacker-influenced, so the
+      // map must not grow without limit. Evict oldest first; evicting a
+      // source record never lifts an account lock.
+      while (SIGNIN_SOURCES.size > maxRecords) {
+        const oldest = SIGNIN_SOURCES.keys().next().value as string | undefined;
+        if (!oldest) break;
+        SIGNIN_SOURCES.delete(oldest);
+      }
+
+      // Per-account accounting.
+      const account = SIGNIN_ATTEMPTS.get(key) ?? { failures: 0, lockedUntil: 0, lockedSources: [] };
+      if (account.lockedUntil > now) {
+        // Account is locked and this source was not bound: bind it. No
+        // failure counting, no lock renewal — the lock still expires on
+        // schedule.
+        if (!account.lockedSources.includes(sourceKey)) {
+          account.lockedSources.push(sourceKey);
+          while (account.lockedSources.length > maxLockSources) account.lockedSources.shift();
+        }
+      } else {
+        account.failures += 1;
+        if (account.failures >= maxFailures) {
+          account.lockedUntil = now + lockSeconds;
+          account.failures = 0;
+          account.lockedSources = [sourceKey];
+        }
+      }
+      SIGNIN_ATTEMPTS.delete(key);
+      SIGNIN_ATTEMPTS.set(key, account);
+      // Bounded storage: never let attacker-chosen emails grow the map
+      // without limit.
+      while (SIGNIN_ATTEMPTS.size > maxRecords) evictSignInRecord();
+    } else if (c.res.ok) {
+      SIGNIN_ATTEMPTS.delete(key);
+    }
   };
 }
 
