@@ -40,7 +40,57 @@ Appendices (`appendices/`) hold the platform capability matrix, the cost model, 
 
 ---
 
-## Read order
+## Reproducible development and CI
+
+Node **22** is the supported major; local development and GitHub Actions use
+the exact **22.23.3** release in `.nvmrc` and `.node-version`, with
+**pnpm 9.14.0** from `packageManager`. Select that Node version using your
+version manager before installing. Node 24 is outside this contract.
+The root `.npmrc` rejects unsupported engine versions; the environment check
+also requires the exact pinned patch release.
+
+Use `pnpm install --frozen-lockfile` for every normal install (local, CI,
+and container). Intentional dependency changes use `pnpm add/update` and commit
+the resulting lockfile. Do not regenerate the lockfile to bypass an install error.
+
+Set `API_ORIGIN=http://127.0.0.1:3001` in the shell used for validation:
+
+```sh
+export API_ORIGIN=http://127.0.0.1:3001
+node scripts/check-ci-environment.mjs
+pnpm install --frozen-lockfile
+pnpm --filter @axiom/api... build
+pnpm --filter @axiom/dashboard test
+pnpm --filter @axiom/api test
+pnpm test
+pnpm typecheck && pnpm lint && pnpm build
+pnpm audit:dependencies
+```
+
+In PowerShell, use `$env:API_ORIGIN='http://127.0.0.1:3001'` for the first line.
+The complete build requires symlink support; the hosted Linux run is the
+reference when Windows denies Next standalone symlink creation.
+Database-dependent tests require a disposable, isolated database; passing a
+suite with database tests skipped does not replace the full CI receipt.
+
+For isolated development, the API defaults to `API_HOST=127.0.0.1` and
+`API_PORT=3001`; dashboard `dev` and `start` use port **3000**. Open
+`http://127.0.0.1:3000`. Dashboard `/api/*` and `/linkbio/*` rewrites go to
+the API on **3001**, never back to the dashboard. This matches CI's host-network
+container fixture. The CI smoke command's HTTPS auth-origin argument is a
+separate test-only cookie/auth contract; it does not change the HTTP rewrite.
+Supply credentials only to your isolated local services; do not copy CI fixture
+credentials to any external environment.
+
+This origin is a build/test fixture, not a production setting. Production
+continues to require an explicit service API origin. No deployment origins are
+changed. `pnpm setup-dev` starts a database and runs migrations: only use it in
+your own disposable environment, never against a shared or production database.
+
+The six CI matrix legs run with `fail-fast: false`: a failed leg remains failed
+and cannot cancel its siblings. No `continue-on-error` masks failures.
+
+## Blueprint read order
 
 1. `00-IMPROVEMENTS-AND-CHANGELOG.md` — what changed vs v1 and why (start here).
 2. `L0-governance/L0.0-governance-and-invariants.md` — the invariants everything else must uphold.

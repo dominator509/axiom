@@ -29,6 +29,7 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/check-ci-environment.mjs` — verify pinned local/CI Node and pnpm plus the explicit loopback API-origin fixture; no service or database access
 - `node packages/worker/dist/runner.js` — existing continuous worker; setting both `WORKER_MEDIA_ORG_ID` and `WORKER_MEDIA_MODEL_ID` restricts it to that model's unstarted media-generation/ToS/local-transform jobs. Transforms additionally require a queued operation and matching source-asset ownership. Partial/invalid scope fails startup. Scoped mode never invokes global claims or registers publishing connectors; prior attempts and uncertain dispatches require reconciliation. Build worker first and provide the normal runtime/scanner configuration. Without either scope setting this remains the full worker, including publication.
 - `node scripts/run-exact-media-job.mjs --inspect <org-id> <model-id> <bundle-id> <job-id>` — read-only exact media/ToS job inspection with explicitly supplied database environment; never loads dotenv or prints payloads
 - `node scripts/run-exact-media-job.mjs --execute-approved <org-id> <model-id> <bundle-id> <job-id>` — explicitly authorized Linux-only first-attempt execution of one existing media/ToS job through the real worker; requires current package builds/runtime configuration, no queue loop, retry loop or publishing executor; inspect/reconcile non-done outcomes before further action
