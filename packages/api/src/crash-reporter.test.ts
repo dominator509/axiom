@@ -15,6 +15,8 @@ import { correlationId, onError } from './contract.js';
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 
 beforeEach(() => {
+  // Vitest 4 restoreAllMocks restores spies without clearing vi.fn history.
+  vi.clearAllMocks();
   mockState.result = [];
   mockState.results = [];
 });

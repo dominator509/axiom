@@ -224,7 +224,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y ffmpeg
+          # Direct package tests need compiled workspace exports, which Turbo
+          # normally supplies through test -> build. Prepare those first, then
+          # preserve the ordered Vitest migration receipt against the real DB.
+          pnpm --filter @axiom/api... build
+          pnpm install --frozen-lockfile
+          pnpm --filter @axiom/dashboard test
+          pnpm --filter @axiom/api test
           pnpm test
+          pnpm typecheck && pnpm lint && pnpm build
+          pnpm audit:dependencies
 
       - name: Rust cargo check
         if: matrix.task == 'test'
@@ -345,6 +354,7 @@ jobs:
         if: matrix.task == 'security'
         run: |
           node scripts/test-security-gate.mjs
+          node scripts/test-vitest-mocker.mjs
           node scripts/test-local-grok-origin.mjs
           node scripts/test-local-grok-startup.mjs --isolated-fixture
           node scripts/test-login-stream-compression.mjs
