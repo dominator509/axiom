@@ -11,7 +11,8 @@ assert.equal(readFileSync(new URL('.node-version', root), 'utf8').trim(), expect
   'Node version-manager files must agree');
 assert.equal(execSync('pnpm --version', { encoding: 'utf8' }).trim(), expectedPnpm,
   'Use the pnpm release pinned in packageManager');
-assert.equal(process.env.API_ORIGIN, 'http://127.0.0.1:3001',
+// Do not echo a supplied URL: a misconfigured value could contain credentials.
+assert.ok(process.env.API_ORIGIN === 'http://127.0.0.1:3001',
   'Development/CI fixture requires API_ORIGIN=http://127.0.0.1:3001');
 console.log('environment: ok - Node ' + expectedNode + ', pnpm ' + expectedPnpm +
   ', API_ORIGIN=http://127.0.0.1:3001; dashboard :3000 -> API :3001');

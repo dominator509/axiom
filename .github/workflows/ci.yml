@@ -91,12 +91,6 @@ jobs:
       - name: Verify development and CI environment contract
         run: node scripts/check-ci-environment.mjs
 
-      - name: Temporary Lane 2 controlled failure
-        if: matrix.task == 'security'
-        run: |
-          echo "Intentional branch-only failure proving matrix independence"
-          exit 1
-
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
 
