@@ -512,7 +512,7 @@ jobs:
             echo "axiom-vision-ci: unauthenticated inference route was not rejected"
             exit 1
           fi
-          echo "axiom-vision-ci: authenticated boundary probe passed"
+          echo "axiom-vision-ci: public health metadata and unauthenticated inference denial passed (model inference not exercised)"
 
           curl --fail --silent --show-error \
             -H "x-egress-plane-token: $ci_egress_value" \
