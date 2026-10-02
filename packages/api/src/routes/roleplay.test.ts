@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { UserRole } from '@axiom/core';
 import type { AppBindings } from '../index.js';
@@ -40,6 +40,10 @@ beforeEach(() => {
   mockState.results = [];
   mockState.insertValues = [];
   mockState.updates = [];
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('roleplay persistence contract', () => {
