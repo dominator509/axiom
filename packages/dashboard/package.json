@@ -8,8 +8,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint app/ components/ lib/",
     "test": "vitest run",
-    "dev": "next dev -p 3002",
-    "start": "next start -p 3002",
+    "dev": "next dev -p 3000",
+    "start": "next start -p 3000",
     "clean": "node ../../scripts/clean.mjs .next .next-dev"
   },
   "dependencies": {

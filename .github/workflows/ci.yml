@@ -27,7 +27,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
       - name: Run isolated Linux egress acceptance
         # Test processes have no external network, host mounts or published
         # ports. Provisioning capabilities exist only inside this container.
@@ -64,7 +64,7 @@ jobs:
           --health-retries 12
           --health-start-period 30s
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         task: [typecheck, lint, test, build, security, container]
 
@@ -84,9 +84,12 @@ jobs:
         # v7.0.0, immutable release commit.
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
           cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
+
+      - name: Verify development and CI environment contract
+        run: node scripts/check-ci-environment.mjs
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
