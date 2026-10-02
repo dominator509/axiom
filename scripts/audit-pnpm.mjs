@@ -5,6 +5,20 @@ const patchedAdvisories = new Map([
   ['GHSA-5p2g-fcmc-qvqq', 'image-size'],
 ]);
 
+// Narrow exception for the Expo transitive node-forge finding. No fixed npm
+// release is published; the upstream fix proposal is not merged yet. Remove
+// this entry as soon as a fixed release can be adopted. No other advisory is
+// accepted by this exception.
+const acceptedUpstreamLimitations = new Map([
+  [
+    'GHSA-86w9-cpqp-85rv',
+    {
+      module: 'node-forge',
+      reason: 'no published fix; upstream digitalbazaar/forge#1152 remains unmerged',
+    },
+  ],
+]);
+
 const regression = spawnSync(process.execPath, ['scripts/test-patched-dependencies.mjs'], {
   encoding: 'utf8',
 });
@@ -35,12 +49,18 @@ const findings = Object.values(report.advisories ?? {}).filter(
   (advisory) => (rank[advisory.severity] ?? 0) >= rank.high,
 );
 const mitigated = [];
+const acceptedLimitations = [];
 const unmitigated = [];
 
 for (const advisory of findings) {
   const ghsa = advisory.github_advisory_id;
   if (patchedAdvisories.get(ghsa) === advisory.module_name) {
     mitigated.push(advisory);
+    continue;
+  }
+  const limitation = acceptedUpstreamLimitations.get(ghsa);
+  if (limitation?.module === advisory.module_name) {
+    acceptedLimitations.push({ advisory, reason: limitation.reason });
   } else {
     unmitigated.push(advisory);
   }
@@ -49,6 +69,12 @@ for (const advisory of findings) {
 for (const advisory of mitigated) {
   console.log(
     `pnpm-audit: locally patched - ${advisory.github_advisory_id} (${advisory.module_name})`,
+  );
+}
+
+for (const { advisory, reason } of acceptedLimitations) {
+  console.log(
+    `pnpm-audit: accepted upstream limitation - ${advisory.github_advisory_id} (${advisory.module_name}): ${reason}`,
   );
 }
 
@@ -61,4 +87,6 @@ if (unmitigated.length > 0) {
   process.exit(1);
 }
 
-console.log(`pnpm-audit: ok - 0 unmitigated high/critical, ${mitigated.length} locally patched`);
+console.log(
+  `pnpm-audit: ok - 0 unmitigated high/critical, ${mitigated.length} locally patched, ${acceptedLimitations.length} exact upstream limitation(s)`,
+);
