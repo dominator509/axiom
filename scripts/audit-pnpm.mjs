@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 const patchedAdvisories = new Map([
   ['GHSA-w3rx-r6r6-pgpr', 'image-size'],
   ['GHSA-5p2g-fcmc-qvqq', 'image-size'],
+  ['GHSA-vfj7-8cjw-p6xm', 'braces'],
 ]);
 
 // Narrow exception for the Expo transitive node-forge finding. No fixed npm
@@ -29,6 +30,21 @@ if (regression.status !== 0) {
   process.exit(1);
 }
 console.log('pnpm-audit: security patch regression ok');
+
+// This is a verified source patch, not an accepted upstream limitation.
+// Missing, altered or bypassed installations must fail before audit classification.
+const bracesPatch = spawnSync(process.execPath, ['scripts/check-braces-patch.mjs'], {
+  encoding: 'utf8',
+  timeout: 120_000,
+  maxBuffer: 2 * 1024 * 1024,
+});
+if (bracesPatch.status !== 0) {
+  console.error('pnpm-audit: fail - braces patch verification did not pass');
+  if (bracesPatch.stdout) console.error(bracesPatch.stdout.trim());
+  if (bracesPatch.stderr) console.error(bracesPatch.stderr.trim());
+  process.exit(1);
+}
+console.log(bracesPatch.stdout.trim());
 
 const command = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : 'pnpm';
 const args =

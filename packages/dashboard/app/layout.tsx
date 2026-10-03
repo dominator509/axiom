@@ -9,6 +9,8 @@ import SignOutButton from '@/components/SignOutButton';
 import { CATALOGS, LocaleCatalog, normalizeLocale } from '@axiom/core';
 import LocaleProvider from '@/components/LocaleProvider';
 import BrandMark, { BrandWordmark } from '@/components/BrandMark';
+import { getPublicBrand } from '@/lib/brand';
+import { brandCopy } from '@/lib/brand-copy';
 
 // Montserrat is the FanLynks family typeface. next/font downloads it at build
 // time and serves it from this app, so browsers never call Google Fonts.
@@ -19,12 +21,16 @@ const montserrat = Montserrat({
   variable: '--font-montserrat',
 });
 
-export const metadata: Metadata = {
-  title: { default: 'FanThynks — Creator OS', template: '%s · FanThynks' },
-  description: 'Private creator intelligence and operations.',
-  applicationName: 'FanThynks',
-  appleWebApp: { title: 'FanThynks' },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const brand = await getPublicBrand();
+  return {
+    // A configured name is literal text, never a Next.js %s template.
+    title: { absolute: brand.name + ' — Creator OS' },
+    description: brand.tagline ?? 'Private creator intelligence and operations.',
+    applicationName: brand.name,
+    appleWebApp: { title: brand.name },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: '#0c1a20',
@@ -32,6 +38,7 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const brand = await getPublicBrand();
   const session = await getSession();
   const email = session?.user?.email ?? 'operator';
   const role = session?.user?.role;
@@ -41,7 +48,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
   const locale = normalizeLocale(uiLocale) ?? 'en';
   const copy = new LocaleCatalog(CATALOGS);
-  const t = (key: string, values?: Record<string, string | number>) => copy.t(locale, key, values);
+  const t = brandCopy(copy, locale, brand);
   const roleKeys: Record<string, string> = {
     owner: 'role.owner',
     manager: 'role.manager',
@@ -69,14 +76,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </section>
           </main>
         ) : (
-          <LocaleProvider initialLocale={locale}>
+          <LocaleProvider initialLocale={locale} brand={brand}>
           <div className="app-shell">
             <a href="#main-content" className="skip-link">{t('ui.skipToContent')}</a>
             <aside className="sidebar">
               <Link href="/" className="brand" aria-label={t('layout.home')}>
                 <BrandMark />
                 <span className="brand-copy">
-                  <BrandWordmark />
+                  <BrandWordmark name={brand.name} />
                   <small>{t('brand.creatorIntelligence')}</small>
                 </span>
               </Link>
@@ -102,7 +109,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <header className="mobile-bar">
                 <Link href="/" className="brand compact">
                   <BrandMark />
-                  <BrandWordmark />
+                  <BrandWordmark name={brand.name} />
                 </Link>
                 <div className="mobile-actions">
                   <span className="eyebrow">{t('brand.creatorOs')}</span>

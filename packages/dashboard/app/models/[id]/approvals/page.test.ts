@@ -124,13 +124,15 @@ describe('approval review queue', () => {
     expect(html).toContain('Loading media preview');
     expect(html).toContain('Older hold bundles');
     for (const text of ['Revise captions', 'Reject', 'Record compliance review', 'Media generation retry options', 'Approve</button>']) expect(html).not.toContain(text);
-    expect(fetchMock.mock.calls.every(([input]) => ['/api/v1/bundles', '/api/v1/ui-locale'].includes(new URL(String(input)).pathname))).toBe(true);
+    expect(fetchMock.mock.calls.filter(([input]) => new URL(String(input)).pathname === '/api/v1/brand')).toHaveLength(1);
+    expect(fetchMock.mock.calls.every(([input]) => ['/api/v1/bundles', '/api/v1/ui-locale', '/api/v1/brand'].includes(new URL(String(input)).pathname))).toBe(true);
   });
   it.each(['chatter', 'model', 'unexpected', undefined])('does not load queue resources for excluded role %s', async role => {
     session.mockResolvedValue({ user: { role } });
     const fetchMock = transport('hold');
     expect(await renderPage()).toContain('Review access unavailable');
-    expect(fetchMock.mock.calls.every(([input]) => new URL(String(input)).pathname === '/api/v1/ui-locale')).toBe(true);
+    expect(fetchMock.mock.calls.filter(([input]) => new URL(String(input)).pathname === '/api/v1/brand')).toHaveLength(1);
+    expect(fetchMock.mock.calls.every(([input]) => ['/api/v1/ui-locale', '/api/v1/brand'].includes(new URL(String(input)).pathname))).toBe(true);
   });
   it('distinguishes a saved brief from completed media generation', async () => {
     transport('generated', 'pending');
@@ -250,7 +252,8 @@ describe('approval review queue', () => {
     const held = requests.find((url) => url.searchParams.get('state') === 'hold');
     expect(held?.searchParams.get('cursor')).toBe('opaque+/=cursor');
     expect(held?.searchParams.get('modelId')).toBe('model-under-review');
-    expect(requests.filter((url) => url.pathname !== '/api/v1/ui-locale')).toHaveLength(4);
+    expect(requests.filter((url) => url.pathname === '/api/v1/brand')).toHaveLength(1);
+    expect(requests.filter((url) => !['/api/v1/ui-locale', '/api/v1/brand'].includes(url.pathname))).toHaveLength(4);
   });
 
   it('offers reset on an exhausted page without claiming the entire queue is empty', async () => {

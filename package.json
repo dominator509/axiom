@@ -8,6 +8,7 @@
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "test:browser": "node scripts/rehearse-browser.mjs --isolated-fixture",
     "dev": "turbo run dev",
     "format": "prettier --write .",
     "clean": "turbo run clean",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "^15.5.0",
+    "@playwright/test": "1.63.0",
     "@types/jest": "^29.5.0",
     "@types/node": "^22.9.0",
     "@vitest/coverage-v8": "4.1.11",
@@ -59,6 +61,8 @@
       "vite": "6.4.3",
       "image-size": "2.0.3"
     },
-    "patchedDependencies": {}
+    "patchedDependencies": {
+      "braces@3.0.3": "patches/braces@3.0.3.patch"
+    }
   }
 }

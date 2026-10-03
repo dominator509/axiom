@@ -18,10 +18,10 @@ export default function BrandMark({ className = 'brand-mark' }: { className?: st
   );
 }
 
-export function BrandWordmark() {
+export function BrandWordmark({ name = 'FanThynks' }: { name?: string }) {
   return (
     <strong className="brand-wordmark">
-      Fan<span>Thynks</span>
+      {name === 'FanThynks' ? <>Fan<span>Thynks</span></> : name}
     </strong>
   );
 }

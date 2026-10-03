@@ -16,6 +16,37 @@ permissions:
   contents: read
 
 jobs:
+  browser:
+    # Independent of the matrix. Owns its database, credentials and internal
+    # network; no shared service, production URL or repository secret is used.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: '.nvmrc'
+      - name: Real Chromium sign-in and public brand acceptance
+        run: node scripts/rehearse-browser.mjs --isolated-fixture
+      - name: Preserve browser receipt and sanitized logs
+        if: always()
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const root = "var/browser-rehearsal";
+            if (!fs.existsSync(root)) throw new Error("Browser receipt unavailable");
+            for (const entry of fs.readdirSync(root)) {
+              const dir = `${root}/${entry}`;
+              console.log(fs.readFileSync(`${dir}/receipt.json`, "utf8"));
+              for (const file of fs.readdirSync(dir).filter(f => f.startsWith("journey-") && f.endsWith(".log"))) {
+                console.log(file, fs.readFileSync(`${dir}/${file}`, "utf8"));
+              }
+            }
+          '
   egress-rehearsal:
     # Independent of the JS matrix: an unrelated lint/typecheck failure must
     # not cancel or skip the privileged networking evidence.
