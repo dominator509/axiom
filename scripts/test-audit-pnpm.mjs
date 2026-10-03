@@ -15,19 +15,29 @@ try {
     await (await import('node:fs/promises')).readFile(new URL('./audit-pnpm.mjs', import.meta.url)),
   );
   writeFileSync(join(root, 'scripts/test-patched-dependencies.mjs'), 'process.exit(0);\n');
+  writeFileSync(
+    join(root, 'scripts/check-braces-patch.mjs'),
+    'process.exit(process.env.AUDIT_PATCH_FAILURE === "1" ? 1 : 0);\n',
+  );
   writeFileSync(join(root, 'bin/pnpm'), '#!/bin/sh\ncat "$AUDIT_FIXTURE"\nexit 1\n', {
     mode: 0o755,
   });
+  writeFileSync(join(root, 'bin/pnpm.cmd'), '@echo off\r\ntype "%AUDIT_FIXTURE%"\r\nexit /b 1\r\n');
 
-  const run = (advisories) => {
+  const run = (advisories, patchFailure = false) => {
     const file = join(root, 'audit.json');
     writeFileSync(file, JSON.stringify({ advisories }));
+    const env = { ...process.env };
+    const searchPath = process.env.PATH || process.env.Path;
+    for (const key of Object.keys(env)) if (key.toLowerCase() === 'path') delete env[key];
     return spawnSync(process.execPath, [join(root, 'scripts/audit-pnpm.mjs')], {
+      cwd: root,
       encoding: 'utf8',
       env: {
-        ...process.env,
-        PATH: `${join(root, 'bin')}${delimiter}${process.env.PATH}`,
+        ...env,
+        PATH: `${join(root, 'bin')}${delimiter}${searchPath}`,
         AUDIT_FIXTURE: file,
+        AUDIT_PATCH_FAILURE: patchFailure ? '1' : '0',
       },
     });
   };
@@ -73,8 +83,26 @@ try {
     'Existing moderate findings remain outside the high/critical gate',
   );
 
+  const braces = {
+    github_advisory_id: 'GHSA-vfj7-8cjw-p6xm',
+    module_name: 'braces',
+    severity: 'high',
+  };
+  const patched = run({ 1: braces });
+  assert.equal(patched.status, 0, patched.stderr);
+  assert.match(patched.stdout, /locally patched - GHSA-vfj7-8cjw-p6xm \(braces\)/);
+  const missingPatch = run({ 1: braces }, true);
+  assert.equal(missingPatch.status, 1);
+  assert.match(missingPatch.stderr, /braces patch verification did not pass/);
+  const patchMismatch = run({ 1: { ...braces, module_name: 'other-package' } });
+  assert.equal(patchMismatch.status, 1);
+  assert.match(patchMismatch.stderr, /fail - GHSA-vfj7-8cjw-p6xm \(other-package, high\)/);
+  const critical = run({ 1: { ...newAdvisory, severity: 'critical' } });
+  assert.equal(critical.status, 1);
+  assert.match(critical.stderr, /new-package, critical/);
+
   console.log(
-    'pnpm-audit: allowlist regression passed (exact GHSA/package accepted; new high finding and package mismatch fail)',
+    'pnpm-audit: classification regressions 8 passed, 0 failed, 0 skipped (including failed patch verification and unknown high/critical findings)',
   );
 } finally {
   rmSync(root, { recursive: true, force: true });
