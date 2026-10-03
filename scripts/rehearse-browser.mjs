@@ -144,7 +144,7 @@ try {
     await journey('default');
     remove('containers', api);
     start(api, receipt.images.api, 'container:' + db, { ...apiEnv,
-      AXIOM_BRAND_NAME: 'Fixture Studio <&> {email}', AXIOM_BRAND_TAGLINE: 'Private fixture creator workspace' });
+      AXIOM_BRAND_NAME: 'Fixture Studio <&> {email} %s $& $$', AXIOM_BRAND_TAGLINE: 'Private fixture creator workspace' });
     await wait();
     if (repetition === 1) { await journey('negative-brand'); await journey('negative-cookie'); }
     await journey('configured');

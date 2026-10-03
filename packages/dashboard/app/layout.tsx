@@ -24,7 +24,8 @@ const montserrat = Montserrat({
 export async function generateMetadata(): Promise<Metadata> {
   const brand = await getPublicBrand();
   return {
-    title: { default: brand.name + ' — Creator OS', template: '%s · ' + brand.name },
+    // A configured name is literal text, never a Next.js %s template.
+    title: { absolute: brand.name + ' — Creator OS' },
     description: brand.tagline ?? 'Private creator intelligence and operations.',
     applicationName: brand.name,
     appleWebApp: { title: brand.name },

@@ -7,7 +7,10 @@ import { CATALOGS, LocaleCatalog, resolveLocale } from '@axiom/core';
 import { getPublicBrand } from '@/lib/brand';
 import { brandCopy } from '@/lib/brand-copy';
 
-export const metadata: Metadata = { title: 'Sign in' };
+export async function generateMetadata(): Promise<Metadata> {
+  const brand = await getPublicBrand();
+  return { title: { absolute: 'Sign in · ' + brand.name } };
+}
 
 export default async function LoginPage({ searchParams }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;

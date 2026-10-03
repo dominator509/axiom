@@ -16,7 +16,7 @@ if (process.env.CI !== 'true' || process.env.AXIOM_BROWSER_FIXTURE !== 'owned-in
 const database = new URL(process.env.MIGRATOR_DATABASE_URL);
 if (database.hostname !== '127.0.0.1' || database.pathname !== '/axiom_test') throw new Error('Disposable database required');
 const configured = mode !== 'default';
-const name = configured ? 'Fixture Studio <&> {email}' : 'FanThynks';
+const name = configured ? 'Fixture Studio <&> {email} %s $& $$' : 'FanThynks';
 const tagline = configured ? 'Private fixture creator workspace' : null;
 const dir = mkdtempSync(join(tmpdir(), 'axiom-browser-'));
 const cert = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { resolveTitle } from 'next/dist/lib/metadata/resolvers/resolve-title';
 
 vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [] }), headers: async () => new Headers() }));
 // next/font is compiled by Next; outside it the loader is a plain stub.
@@ -10,7 +11,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import RootLayout, { generateMetadata } from './layout';
-import LoginPage from './login/page';
+import LoginPage, { generateMetadata as generateLoginMetadata } from './login/page';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -23,6 +24,15 @@ async function render(user: Record<string, unknown> | null, uiLocale = 'en') {
 }
 
 describe('dashboard session presentation', () => {
+  it('preserves title-template syntax in configured names literally', async () => {
+    const brand = { name: 'Studio %s $& $$', tagline: null };
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ data: brand })));
+    const root = await generateMetadata();
+    const login = await generateLoginMetadata();
+    const template = typeof root.title === 'object' && root.title && 'template' in root.title ? root.title.template : null;
+    expect(resolveTitle(root.title, null).absolute).toBe(brand.name + ' — Creator OS');
+    expect(resolveTitle(login?.title, template).absolute).toBe('Sign in · ' + brand.name);
+  });
   it('renders configured branding as text across metadata, navigation and login', async () => {
     const brand = { name: '<Studio & {email}>', tagline: 'Hello <world> & friends' };
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
@@ -52,7 +62,7 @@ describe('dashboard session presentation', () => {
   it('uses FanThynks branding in metadata, navigation and login', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: { name: 'FanThynks', tagline: null } }))));
     const metadata = await generateMetadata();
-    expect(metadata.title).toEqual({ default: 'FanThynks — Creator OS', template: '%s · FanThynks' });
+    expect(metadata.title).toEqual({ absolute: 'FanThynks — Creator OS' });
     const html = await render({ id: 'user', email: 'member@example.invalid', orgId: 'org', role: 'operator' });
     expect(html).toContain('FanThynks home');
     expect(html).toContain('class="brand-mark" aria-hidden="true"><svg');
