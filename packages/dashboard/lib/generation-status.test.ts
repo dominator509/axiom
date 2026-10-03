@@ -148,16 +148,18 @@ describe('generation status polling', () => {
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
-  it('bounds polling when a worker never completes', async () => {
+  it('marks the retained snapshot unavailable when the polling window ends', async () => {
     const fetcher = vi.fn().mockImplementation(async () => response(bundle));
     vi.stubGlobal('fetch', fetcher);
     const status = vi.fn(), unavailable = vi.fn();
     const stop = watchGeneration('bundle-a', 'model-a', status, unavailable);
-    await vi.advanceTimersByTimeAsync(650_000);
+    await vi.advanceTimersByTimeAsync(590_000);
+    expect(unavailable).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(60_000);
     expect(fetcher).toHaveBeenCalledTimes(120);
     expect(status).toHaveBeenCalledTimes(120);
     expect(status.mock.calls.at(-1)?.[0]).toMatchObject({ generationJob: { state: 'ready' } });
-    expect(unavailable).not.toHaveBeenCalled();
+    expect(unavailable).toHaveBeenCalledOnce();
     stop();
   });
 });

@@ -88,9 +88,10 @@ export function watchGeneration(
     } finally {
       clearTimeout(deadline);
     }
-    // Bound browser polling, but retain the last verified queue state. A job
-    // that remains ready is still confirmed as queued, not "unavailable".
+    // Retain the last snapshot, but stop presenting it as current once this
+    // browser no longer observes the job. Unavailable does not mean failed.
     if (!stopped && ++attempts < 120) next = setTimeout(() => void poll(), 5_000);
+    else if (!stopped) onUnavailable();
   }
   void poll();
   return () => {
