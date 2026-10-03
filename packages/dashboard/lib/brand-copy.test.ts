@@ -8,9 +8,11 @@ describe('localized public branding', () => {
     const defaults = brandCopy(catalog, locale, DEFAULT_BRAND);
     expect(defaults('layout.home')).toContain('FanThynks');
     expect(defaults('brand.creatorIntelligence')).toBe(catalog.t(locale, 'brand.creatorIntelligence'));
-    const custom = brandCopy(catalog, locale, { name: '<Studio & {email}>', tagline: 'One & <tagline>' });
-    expect(custom('layout.home', { email: 'not-a-name' })).toContain('<Studio & {email}>');
-    expect(custom('auth.createAccount')).toContain('<Studio & {email}>');
+    const custom = brandCopy(catalog, locale, { name: '<Studio & {email} $& $$>', tagline: 'One & <tagline>' });
+    expect(custom('layout.home', { email: 'not-a-name' })).toContain('<Studio & {email} $& $$>');
+    expect(custom('auth.createAccount')).toContain('<Studio & {email} $& $$>');
+    expect(custom('layout.authPendingSignedIn', { email: '__PUBLIC_BRAND_NAME__@example.invalid' }))
+      .toContain('__PUBLIC_BRAND_NAME__@example.invalid');
     expect(custom('brand.creatorIntelligence')).toBe('One & <tagline>');
   });
 });

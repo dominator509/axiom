@@ -5,7 +5,8 @@ import { type LocaleCatalog, type PublicBrand, type SupportedLocale } from '@axi
 export function brandCopy(catalog: LocaleCatalog, locale: SupportedLocale, brand: PublicBrand) {
   return (key: string, values?: Record<string, string | number>) => {
     if (key === 'brand.creatorIntelligence' && brand.tagline !== null) return brand.tagline;
-    const marker = '__PUBLIC_BRAND_NAME__';
-    return catalog.t(locale, key, { ...values, productName: marker }).replaceAll(marker, brand.name);
+    let marker = '__PUBLIC_BRAND_NAME__';
+    while (Object.values(values ?? {}).some(value => String(value).includes(marker))) marker += '_';
+    return catalog.t(locale, key, { ...values, productName: marker }).replaceAll(marker, () => brand.name);
   };
 }

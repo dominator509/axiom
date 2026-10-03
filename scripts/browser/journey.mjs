@@ -36,6 +36,7 @@ const proxy = https.createServer({ key: readFileSync(join(dir, 'key.pem')), cert
 });
 await new Promise(resolve => proxy.listen(3443, '127.0.0.1', resolve));
 const results = [];
+const probes = [];
 let currentCheck = 'browser launch';
 let faultObserved = false;
 const check = async (label, work) => {
@@ -89,7 +90,11 @@ COMMIT;
       .then(body => !body.includes(Buffer.from(process.env.BROWSER_SECRET_SENTINEL)))
       .catch(() => false));
   });
-  const status = path => page.evaluate(async path => (await fetch(path, { cache: 'no-store' })).status, path);
+  const status = async path => {
+    const value = await page.evaluate(async path => (await fetch(path, { cache: 'no-store' })).status, path);
+    probes.push({ path: path.replace(/[a-f0-9-]{36}/g, '<fixture-id>'), status: value });
+    return value;
+  };
   const signIn = async (identity, suppliedPassword) => {
     await page.goto('/login');
     await page.getByLabel('Email', { exact: true }).fill(identity);
@@ -139,13 +144,19 @@ COMMIT;
     const cookies = await context.cookies(origin);
     expect(cookies.some(cookie => cookie.name.includes('session_token') && cookie.secure && cookie.httpOnly)).toBe(true);
   });
-  await check('workspace reload and tenant isolation', async () => {
+  await check('workspace restored after reload', async () => {
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
     await expect(page.getByText('Hidden other tenant talent', { exact: true })).toHaveCount(0);
+  });
+  await check('tenant list contains exactly its own record', async () => {
     const models = await page.evaluate(async () => (await (await fetch('/api/v1/models')).json()).data);
     expect(models.map(model => model.id)).toEqual([ownModel]);
+  });
+  await check('cross-tenant read denied', async () => {
     expect(await status(`/api/v1/models/${otherModel}`)).toBe(404);
+  });
+  await check('owner-only control denied', async () => {
     expect(await status('/api/v1/killswitch')).toBe(403);
   });
   await check('configured navigation and literal text', async () => {
@@ -175,7 +186,7 @@ COMMIT;
   if (expected && faultObserved && currentCheck === expected) {
     console.log(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, expectedFailure: currentCheck }));
   } else {
-    console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck }));
+    console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck, probes }));
     process.exitCode = 1;
   }
 } finally {

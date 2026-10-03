@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -63,6 +63,8 @@ try {
   const archive = spawnSync('git', ['archive', '--format=tar', receipt.sourceSha],
     { cwd: root, maxBuffer: 128 * 1024 * 1024 });
   if (archive.status !== 0) throw new Error('Cannot archive the pinned source');
+  receipt.sourceArchive = { command: `git archive --format=tar ${receipt.sourceSha}`,
+    sha256: createHash('sha256').update(archive.stdout).digest('hex') };
   const endpoint = process.env.DOCKER_HOST || JSON.parse(execute('docker-context', ['context', 'inspect']))[0].Endpoints.docker.Host;
   if (!endpoint.startsWith('npipe://') && !endpoint.startsWith('unix://')) throw new Error('Only a local Docker engine is allowed');
   for (const [kind, file] of [['api', 'hono'], ['dashboard', 'next'], ['runner', 'browser']]) {
@@ -120,7 +122,16 @@ try {
     };
     const journey = mode => {
       console.log(`Browser fixture ${repetition}: ${mode}`);
-      const output = execute(`journey-${repetition}-${mode}`, ['exec', runner, 'node', 'scripts/browser/journey.mjs', mode]);
+      let output;
+      try {
+        output = execute(`journey-${repetition}-${mode}`, ['exec', runner, 'node', 'scripts/browser/journey.mjs', mode]);
+      } catch (error) {
+        const log = readFileSync(join(directory, `journey-${repetition}-${mode}.log`), 'utf8');
+        const summary = log.split(/\r?\n/).find(line => line.startsWith('{"mode":'));
+        receipt.journeys.push({ repetition, ...(summary ? JSON.parse(summary) : { mode, failed: 1, countsUnavailable: true }) });
+        save();
+        throw error;
+      }
       const result = JSON.parse(output.split(/\r?\n/).at(-1));
       receipt.journeys.push({ repetition, ...result });
       console.log(JSON.stringify(result));
