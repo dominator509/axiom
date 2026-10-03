@@ -55,3 +55,10 @@ Sanitized logs omit generated secrets and browser credential/cookie dumps.
 The independent `browser` CI job prints the receipt and journey logs. Existing
 HTTP/container smoke remains a separate gate. See
 [the approved acceptance contract](../L3-specification/L3.7-public-brand-and-browser-acceptance.md).
+
+The browser journey exposed a shared rate-bucket collision: the first request
+from an IP selected the capacity/refill for subsequent requests under different
+route policies. Buckets now share only within identical configured policies,
+with the existing per-policy LRU limits. Auth remains 20 requests/1 per second;
+the general API remains 60 requests/10 per second. Regression tests cover both
+request orders, different refill rates and sharing within the same policy.
