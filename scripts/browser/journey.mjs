@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import https from 'node:https';
 import http from 'node:http';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const origin = 'https://127.0.0.1:3443';
 const mode = process.argv[2];
@@ -98,10 +99,17 @@ COMMIT;
     return value;
   };
   const signIn = async (identity, suppliedPassword) => {
+    // These are separate user scenarios, not a rate-limit load test. Let the
+    // unchanged auth bucket (20 tokens, 1/sec) fully refill and Better Auth's
+    // 10-second credential window expire. Never retry a failed credential POST.
+    await delay(21_000);
     await page.goto('/login');
     await page.getByLabel('Email', { exact: true }).fill(identity);
     await page.getByLabel('Password', { exact: true }).fill(suppliedPassword);
+    const response = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/sign-in/email'
+      && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    return response;
   };
   await page.goto('/login');
   await check('public brand projection', async () => {
@@ -123,13 +131,13 @@ COMMIT;
   });
   await check('anonymous API denied', async () => { expect(await status('/api/v1/models')).toBe(401); });
   await check('bad password stays signed out', async () => {
-    await signIn(email, 'deliberately-wrong-password');
+    expect((await signIn(email, 'deliberately-wrong-password')).status()).toBe(401);
     await expect(page.getByRole('alert')).toBeVisible();
     expect(new URL(page.url()).pathname).toBe('/login');
     expect(await status('/api/v1/models')).toBe(401);
   });
   await check('unassigned identity pending', async () => {
-    await signIn(pendingEmail, password);
+    expect((await signIn(pendingEmail, password)).status()).toBe(200);
     if (mode === 'negative-cookie') {
       await expect(page.getByRole('alert')).toContainText('browser session could not be confirmed');
       expect((await context.cookies(origin)).some(cookie => cookie.name.includes('session_token'))).toBe(false);
@@ -141,7 +149,7 @@ COMMIT;
   await page.getByRole('button', { name: 'Sign out', exact: true }).first().click();
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
   await check('browser session retained', async () => {
-    await signIn(email, password);
+    expect((await signIn(email, password)).status()).toBe(200);
     await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
   });
   await check('session cookie is secure and HttpOnly', async () => {

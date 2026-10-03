@@ -120,7 +120,10 @@ try {
       }
       throw new Error('API readiness/dashboard login timed out');
     };
-    const journey = mode => {
+    const journey = async mode => {
+      // Independent scenarios reuse the real API, so respect its unchanged
+      // authentication windows before creating the next pair of identities.
+      await delay(21_000);
       console.log(`Browser fixture ${repetition}: ${mode}`);
       let output;
       try {
@@ -138,13 +141,13 @@ try {
       save();
     };
     await wait();
-    journey('default');
+    await journey('default');
     remove('containers', api);
     start(api, receipt.images.api, 'container:' + db, { ...apiEnv,
       AXIOM_BRAND_NAME: 'Fixture Studio <&> {email}', AXIOM_BRAND_TAGLINE: 'Private fixture creator workspace' });
     await wait();
-    if (repetition === 1) { journey('negative-brand'); journey('negative-cookie'); }
-    journey('configured');
+    if (repetition === 1) { await journey('negative-brand'); await journey('negative-cookie'); }
+    await journey('configured');
     for (const container of [dashboard, api, runner, db]) remove('containers', container);
     remove('volumes', volume);
     remove('networks', fixture);

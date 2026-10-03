@@ -56,6 +56,11 @@ The independent `browser` CI job prints the receipt and journey logs. Existing
 HTTP/container smoke remains a separate gate. See
 [the approved acceptance contract](../L3-specification/L3.7-public-brand-and-browser-acceptance.md).
 
+Independent authentication scenarios allow a 21-second cooldown for the
+existing 20-token, 1-token/second auth bucket and Better Auth's credential
+window. Credential POSTs are asserted once and are never retried. This is
+functional acceptance, not a burst-load test; production limits are unchanged.
+
 The browser journey exposed a shared rate-bucket collision: the first request
 from an IP selected the capacity/refill for subsequent requests under different
 route policies. Buckets now share only within identical configured policies,
