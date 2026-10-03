@@ -132,14 +132,14 @@ COMMIT;
   await check('anonymous API denied', async () => { expect(await status('/api/v1/models')).toBe(401); });
   await check('bad password stays signed out', async () => {
     expect((await signIn(email, 'deliberately-wrong-password')).status()).toBe(401);
-    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.locator('form').getByRole('alert')).toBeVisible();
     expect(new URL(page.url()).pathname).toBe('/login');
     expect(await status('/api/v1/models')).toBe(401);
   });
   await check('unassigned identity pending', async () => {
     expect((await signIn(pendingEmail, password)).status()).toBe(200);
     if (mode === 'negative-cookie') {
-      await expect(page.getByRole('alert')).toContainText('browser session could not be confirmed');
+      await expect(page.locator('form').getByRole('alert')).toContainText('browser session could not be confirmed');
       expect((await context.cookies(origin)).some(cookie => cookie.name.includes('session_token'))).toBe(false);
       faultObserved = true;
     }
