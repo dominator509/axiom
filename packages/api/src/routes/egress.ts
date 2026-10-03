@@ -13,7 +13,7 @@ import { DEFAULT_EGRESS_PLANE_URL, readBoundedResponseJson } from '@axiom/core';
 import { db, schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { apiError, modelOrgId, statusTitle } from './helpers.js';
-import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
+import { RequestBodyTooLargeError } from '../webhook-body.js';
 
 const router = new Hono<AppBindings>();
 
@@ -318,7 +318,7 @@ router.post('/plane/bind', async (c) => {
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   let body: unknown = {};
   try {
-    body = await readBoundedJson(c.req.raw);
+    body = await c.req.json();
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) {
       return apiError(c, 413, statusTitle(413), 'egress bind body too large');
@@ -361,7 +361,7 @@ router.post('/plane/unbind', async (c) => {
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   let body: unknown = {};
   try {
-    body = await readBoundedJson(c.req.raw);
+    body = await c.req.json();
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) {
       return apiError(c, 413, statusTitle(413), 'egress unbind body too large');
@@ -450,8 +450,12 @@ router.get('/plane/status', async (c) => {
 router.post('/plane/sync', async (c) => {
   const orgId = c.get('orgId');
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
+  // Read through Hono's cache-aware accessor. The durable idempotency
+  // middleware consumes the raw request stream to hash it and repopulates
+  // `c.req.bodyCache`; reading `c.req.raw` directly here would see an
+  // already-drained stream and fail with "model_id required".
   let payload: unknown;
-  try { payload = await readBoundedJson(c.req.raw); }
+  try { payload = await c.req.json(); }
   catch { return apiError(c, 400, statusTitle(400), 'model_id required'); }
   const parsed = z.object({ model_id: z.string().uuid() }).strict().safeParse(payload);
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'model_id required');

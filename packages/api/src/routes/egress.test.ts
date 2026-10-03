@@ -539,6 +539,73 @@ describe('Plane proxy endpoints', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  // Regression for the TEST egress sync failure: "API /api/v1/egress/plane/sync
+  // 400 model_id required". The durable idempotency middleware registered on
+  // `/api/v1/egress/plane/sync` consumes the raw request stream to hash it and
+  // repopulates `c.req.bodyCache`. The route previously read `c.req.raw`
+  // directly, so it saw an already-drained stream and rejected a valid body.
+  // This mirrors that middleware exactly and asserts the body still parses.
+  it('POST /plane/sync parses the body after an upstream middleware drains c.req.raw', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ status: 'synced', bound: 1 }), { status: 200 }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    mockState.result = [{ orgId: 'org-1' }];
+
+    const app = new Hono<AppBindings>();
+    app.use('*', async (c, next) => {
+      c.set('orgId', 'org-1');
+      await next();
+    });
+    // Simulate idempotency(): read the raw stream, then cache the bytes so
+    // Hono's own accessors still work — exactly as contract.ts does.
+    app.use('/plane/sync', async (c, next) => {
+      const bytes = new Uint8Array(await c.req.raw.arrayBuffer());
+      c.req.bodyCache.arrayBuffer = Promise.resolve(bytes.slice().buffer) as unknown as ArrayBuffer;
+      await next();
+    });
+    app.route('/', egressRouter);
+
+    const res = await app.request('/plane/sync', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model_id: MODEL_ID }),
+    });
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toContain('/egress/sync-model?');
+  });
+
+  it('POST /plane/bind parses the body after an upstream middleware drains c.req.raw', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ status: 'bound' }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    mockState.result = [{ orgId: 'org-1' }];
+
+    const app = new Hono<AppBindings>();
+    app.use('*', async (c, next) => {
+      c.set('orgId', 'org-1');
+      await next();
+    });
+    app.use('/plane/bind', async (c, next) => {
+      const bytes = new Uint8Array(await c.req.raw.arrayBuffer());
+      c.req.bodyCache.arrayBuffer = Promise.resolve(bytes.slice().buffer) as unknown as ArrayBuffer;
+      await next();
+    });
+    app.route('/', egressRouter);
+
+    const res = await app.request('/plane/bind', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model_id: MODEL_ID }),
+    });
+    expect(res.status).toBe(200);
+    expect(fetchMock.mock.calls[0][0]).toContain('/egress/bind');
+  });
+
   it('returns 502 when the plane is unreachable', async () => {
     vi.stubGlobal(
       'fetch',
