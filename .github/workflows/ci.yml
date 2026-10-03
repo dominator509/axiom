@@ -16,6 +16,37 @@ permissions:
   contents: read
 
 jobs:
+  browser:
+    # Independent of the matrix. Owns its database, credentials and internal
+    # network; no shared service, production URL or repository secret is used.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: '.nvmrc'
+      - name: Real Chromium sign-in and public brand acceptance
+        run: node scripts/rehearse-browser.mjs --isolated-fixture
+      - name: Preserve browser receipt and sanitized logs
+        if: always()
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const root = "var/browser-rehearsal";
+            if (!fs.existsSync(root)) throw new Error("Browser receipt unavailable");
+            for (const entry of fs.readdirSync(root)) {
+              const dir = `${root}/${entry}`;
+              console.log(fs.readFileSync(`${dir}/receipt.json`, "utf8"));
+              for (const file of fs.readdirSync(dir).filter(f => f.startsWith("journey-") && f.endsWith(".log"))) {
+                console.log(file, fs.readFileSync(`${dir}/${file}`, "utf8"));
+              }
+            }
+          '
   egress-rehearsal:
     # Independent of the JS matrix: an unrelated lint/typecheck failure must
     # not cancel or skip the privileged networking evidence.
@@ -27,7 +58,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
       - name: Run isolated Linux egress acceptance
         # Test processes have no external network, host mounts or published
         # ports. Provisioning capabilities exist only inside this container.
@@ -64,7 +95,7 @@ jobs:
           --health-retries 12
           --health-start-period 30s
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         task: [typecheck, lint, test, build, security, container]
 
@@ -84,9 +115,12 @@ jobs:
         # v7.0.0, immutable release commit.
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
           cache: 'pnpm'
           cache-dependency-path: pnpm-lock.yaml
+
+      - name: Verify development and CI environment contract
+        run: node scripts/check-ci-environment.mjs
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
@@ -224,7 +258,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y ffmpeg
+          # Direct package tests need compiled workspace exports, which Turbo
+          # normally supplies through test -> build. Prepare those first, then
+          # preserve the ordered Vitest migration receipt against the real DB.
+          pnpm --filter @axiom/api... build
+          pnpm install --frozen-lockfile
+          pnpm --filter @axiom/dashboard test
+          pnpm --filter @axiom/api test
           pnpm test
+          pnpm typecheck && pnpm lint && pnpm build
+          pnpm audit:dependencies
 
       - name: Rust cargo check
         if: matrix.task == 'test'
@@ -345,6 +388,7 @@ jobs:
         if: matrix.task == 'security'
         run: |
           node scripts/test-security-gate.mjs
+          node scripts/test-vitest-mocker.mjs
           node scripts/test-local-grok-origin.mjs
           node scripts/test-local-grok-startup.mjs --isolated-fixture
           node scripts/test-login-stream-compression.mjs
@@ -499,7 +543,7 @@ jobs:
             echo "axiom-vision-ci: unauthenticated inference route was not rejected"
             exit 1
           fi
-          echo "axiom-vision-ci: authenticated boundary probe passed"
+          echo "axiom-vision-ci: public health metadata and unauthenticated inference denial passed (model inference not exercised)"
 
           curl --fail --silent --show-error \
             -H "x-egress-plane-token: $ci_egress_value" \

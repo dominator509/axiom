@@ -24,5 +24,5 @@ requireProductionDatabaseUrl(process.env);
 await initializeRuntime();
 
 serve({ fetch: app.fetch, port: PORT, hostname: HOST }, (info) =>
-  console.log(`AXIOM API running on ${HOST}:${info.port}`),
+  console.log(`FanThynks API running on ${HOST}:${info.port}`),
 );
