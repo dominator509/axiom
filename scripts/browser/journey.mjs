@@ -82,6 +82,8 @@ COMMIT;
   const deliveredBodies = [];
   let scriptCount = 0;
   page.on('response', response => {
+    const path = new URL(response.url()).pathname;
+    if (path.startsWith('/api/auth/')) probes.push({ path, status: response.status() });
     const kind = response.request().resourceType();
     if (kind === 'script') scriptCount++;
     // Read while each response is available, before a later navigation can
@@ -141,6 +143,8 @@ COMMIT;
   await check('browser session retained', async () => {
     await signIn(email, password);
     await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
+  });
+  await check('session cookie is secure and HttpOnly', async () => {
     const cookies = await context.cookies(origin);
     expect(cookies.some(cookie => cookie.name.includes('session_token') && cookie.secure && cookie.httpOnly)).toBe(true);
   });
