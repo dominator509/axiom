@@ -111,6 +111,16 @@ COMMIT;
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     return response;
   };
+  const signOut = async () => {
+    // Workspace navigation/prefetch also resolves sessions through the auth
+    // routes. Test revocation after the unchanged auth budget has recovered.
+    await delay(21_000);
+    const response = page.waitForResponse(response => new URL(response.url()).pathname === '/api/auth/sign-out'
+      && response.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Sign out', exact: true }).first().click();
+    expect((await response).status()).toBe(200);
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+  };
   await page.goto('/login');
   await check('public brand projection', async () => {
     const response = await context.request.get('/api/v1/brand');
@@ -146,8 +156,7 @@ COMMIT;
     await expect(page.getByRole('heading', { name: 'Workspace access pending' })).toBeVisible();
     expect(await status('/api/v1/models')).toBe(401);
   });
-  await page.getByRole('button', { name: 'Sign out', exact: true }).first().click();
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+  await signOut();
   await check('browser session retained', async () => {
     expect((await signIn(email, password)).status()).toBe(200);
     await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
@@ -177,8 +186,7 @@ COMMIT;
     expect(await page.locator('body').innerText()).not.toContain('Hidden other tenant talent');
   });
   await check('logout revokes browser access', async () => {
-    await page.getByRole('button', { name: 'Sign out', exact: true }).first().click();
-    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+    await signOut();
     expect(await status('/api/v1/models')).toBe(401);
     await page.reload();
     expect(await status('/api/v1/models')).toBe(401);

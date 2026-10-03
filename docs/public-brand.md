@@ -58,7 +58,8 @@ HTTP/container smoke remains a separate gate. See
 
 Independent authentication scenarios allow a 21-second cooldown for the
 existing 20-token, 1-token/second auth bucket and Better Auth's credential
-window. Credential POSTs are asserted once and are never retried. This is
+window, including before logout after navigation/session prefetches. Credential
+and logout POSTs are asserted once and are never retried. This is
 functional acceptance, not a burst-load test; production limits are unchanged.
 
 The browser journey exposed a shared rate-bucket collision: the first request
