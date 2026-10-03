@@ -61,6 +61,8 @@
       "vite": "6.4.3",
       "image-size": "2.0.3"
     },
-    "patchedDependencies": {}
+    "patchedDependencies": {
+      "braces@3.0.3": "patches/braces@3.0.3.patch"
+    }
   }
 }
