@@ -58,6 +58,11 @@ try {
   if (git.status !== 0 || status.status !== 0 || status.stdout.trim()) throw new Error('A clean committed source checkout is required');
   receipt.sourceSha = git.stdout.trim();
   if (!/^[a-f0-9]{40}$/.test(receipt.sourceSha)) throw new Error('Invalid source SHA');
+  // All three builds consume the same immutable tracked source, even if the
+  // working directory changes while a long-running dependency install runs.
+  const archive = spawnSync('git', ['archive', '--format=tar', receipt.sourceSha],
+    { cwd: root, maxBuffer: 128 * 1024 * 1024 });
+  if (archive.status !== 0) throw new Error('Cannot archive the pinned source');
   const endpoint = process.env.DOCKER_HOST || JSON.parse(execute('docker-context', ['context', 'inspect']))[0].Endpoints.docker.Host;
   if (!endpoint.startsWith('npipe://') && !endpoint.startsWith('unix://')) throw new Error('Only a local Docker engine is allowed');
   for (const [kind, file] of [['api', 'hono'], ['dashboard', 'next'], ['runner', 'browser']]) {
@@ -65,7 +70,7 @@ try {
     console.log(`Building disposable ${kind} image at ${receipt.sourceSha}`);
     const args = ['build', ...labels, '-f', `infra/Dockerfile.${file}`, '-t', tag];
     if (kind === 'dashboard') args.push('--build-arg', 'API_ORIGIN=http://127.0.0.1:3001');
-    execute('build-' + kind, [...args, '.'], { timeout: 1800000 });
+    execute('build-' + kind, [...args, '-'], { input: archive.stdout, timeout: 1800000 });
     owned.images.add(tag);
     receipt.images[kind] = execute('image-' + kind, ['image', 'inspect', '--format', '{{.Id}}', tag]);
   }

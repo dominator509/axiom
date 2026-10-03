@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_BRAND } from '@axiom/core';
 import { fetchPublicBrand } from './brand';
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('server branding request', () => {
   it('uses the API public projection without credentials and without persistent caching', async () => {
@@ -22,5 +22,12 @@ describe('server branding request', () => {
   it('falls back on network failure', async () => {
     vi.stubGlobal('fetch', async () => { throw new Error('private diagnostic'); });
     expect(await fetchPublicBrand()).toEqual(DEFAULT_BRAND);
+  });
+  it('falls back when the response body never completes', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('fetch', async () => new Response(new ReadableStream()));
+    const pending = fetchPublicBrand();
+    await vi.advanceTimersByTimeAsync(2_001);
+    expect(await pending).toEqual(DEFAULT_BRAND);
   });
 });

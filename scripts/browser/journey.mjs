@@ -37,6 +37,7 @@ const proxy = https.createServer({ key: readFileSync(join(dir, 'key.pem')), cert
 await new Promise(resolve => proxy.listen(3443, '127.0.0.1', resolve));
 const results = [];
 let currentCheck = 'browser launch';
+let faultObserved = false;
 const check = async (label, work) => {
   currentCheck = label;
   await work();
@@ -77,9 +78,16 @@ COMMIT;
   });
   context = await browser.newContext({ baseURL: origin, ignoreHTTPSErrors: true, viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();
-  const responses = [];
+  const deliveredBodies = [];
+  let scriptCount = 0;
   page.on('response', response => {
-    if (['document', 'script'].includes(response.request().resourceType())) responses.push(response);
+    const kind = response.request().resourceType();
+    if (kind === 'script') scriptCount++;
+    // Read while each response is available, before a later navigation can
+    // evict it from Chromium's resource buffer. Retain only a boolean.
+    if (['document', 'script'].includes(kind)) deliveredBodies.push(response.body()
+      .then(body => !body.includes(Buffer.from(process.env.BROWSER_SECRET_SENTINEL)))
+      .catch(() => false));
   });
   const status = path => page.evaluate(async path => (await fetch(path, { cache: 'no-store' })).status, path);
   const signIn = async (identity, suppliedPassword) => {
@@ -97,7 +105,11 @@ COMMIT;
   });
   await check('rendered brand and metadata', async () => {
     const expected = mode === 'negative-brand' ? 'Deliberately wrong expected brand' : name;
-    await expect(page).toHaveTitle(`${expected} — Creator OS`);
+    if (mode === 'negative-brand') {
+      await expect(page).toHaveTitle(`Sign in · ${name}`);
+      faultObserved = true;
+    }
+    await expect(page).toHaveTitle(`Sign in · ${expected}`);
     await expect(page.locator('.brand-wordmark').first()).toHaveText(expected);
     if (tagline) await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', tagline);
     expect(await page.locator('body').innerText()).not.toMatch(/\bAXIOM\b/);
@@ -111,6 +123,11 @@ COMMIT;
   });
   await check('unassigned identity pending', async () => {
     await signIn(pendingEmail, password);
+    if (mode === 'negative-cookie') {
+      await expect(page.getByRole('alert')).toContainText('browser session could not be confirmed');
+      expect((await context.cookies(origin)).some(cookie => cookie.name.includes('session_token'))).toBe(false);
+      faultObserved = true;
+    }
     await expect(page.getByRole('heading', { name: 'Workspace access pending' })).toBeVisible();
     expect(await status('/api/v1/models')).toBe(401);
   });
@@ -146,8 +163,8 @@ COMMIT;
   await check('no server secret in delivered HTML or scripts', async () => {
     const sentinel = process.env.BROWSER_SECRET_SENTINEL;
     expect(typeof sentinel === 'string' && sentinel.length >= 32).toBe(true);
-    expect(responses.some(response => response.request().resourceType() === 'script')).toBe(true);
-    for (const response of responses) expect((await response.body()).includes(Buffer.from(sentinel))).toBe(false);
+    expect(scriptCount).toBeGreaterThan(0);
+    expect((await Promise.all(deliveredBodies)).every(Boolean)).toBe(true);
   });
   if (mode.startsWith('negative-')) throw new Error('Negative control unexpectedly passed');
   console.log(JSON.stringify({ mode, passed: results.length, failed: 0, skipped: 0, checks: results }));
@@ -155,7 +172,7 @@ COMMIT;
   // Never dump Playwright call logs, credential form values, cookies or HTML.
   const expected = mode === 'negative-brand' ? 'rendered brand and metadata'
     : mode === 'negative-cookie' ? 'unassigned identity pending' : null;
-  if (expected && currentCheck === expected) {
+  if (expected && faultObserved && currentCheck === expected) {
     console.log(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, expectedFailure: currentCheck }));
   } else {
     console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck }));
