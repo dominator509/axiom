@@ -29,10 +29,12 @@ export {
   getPublishingConsentStatus,
   consentRequirementMessage,
   getTosScanState,
+  tosScanSnapshotDigest,
 } from './compliance.js';
 export type {
   RequiredConsentDocumentKind,
   ConsentPolicyRow,
   ConsentStatus,
   TosScanState,
+  TosScanSnapshotInput,
 } from './compliance.js';

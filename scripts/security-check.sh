@@ -93,6 +93,7 @@ echo ""
 echo "--- Check 4: pnpm audit ---"
 if command -v pnpm &>/dev/null; then
   echo "  Running pnpm audit..."
+  node scripts/test-audit-pnpm.mjs
   # The wrapper accepts only advisories backed by repository patches and the
   # executable regression gate above; every other high/critical finding fails.
   if node scripts/audit-pnpm.mjs 2>&1; then

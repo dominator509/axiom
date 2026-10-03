@@ -426,6 +426,41 @@ describe('idempotency middleware (durable, M-2)', () => {
 });
 
 describe('rateLimit middleware (L3.0)', () => {
+  it.each(['auth-first', 'api-first'])('keeps distinct route budgets independent (%s)', async order => {
+    const auth = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
+    const api = makeApp({ rate: { capacity: 3, refillPerSec: 0 } });
+    auth.get('/x', c => c.json({ ok: true }));
+    api.get('/x', c => c.json({ ok: true }));
+    const headers = { 'X-API-Key': `policy-${order}` };
+    const hit = (app: ReturnType<typeof makeApp>) => app.request('/x', { headers });
+    if (order === 'api-first') expect((await hit(api)).status).toBe(200);
+    expect((await hit(auth)).status).toBe(200);
+    expect((await hit(auth)).status).toBe(429);
+    for (let i = 0; i < (order === 'api-first' ? 2 : 3); i++) expect((await hit(api)).status).toBe(200);
+    expect((await hit(api)).status).toBe(429);
+  });
+
+  it('distinguishes refill policies with the same capacity', async () => {
+    const slow = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
+    const fast = makeApp({ rate: { capacity: 1, refillPerSec: 10 } });
+    slow.get('/x', c => c.json({ ok: true }));
+    fast.get('/x', c => c.json({ ok: true }));
+    const headers = { 'X-API-Key': 'same-capacity-distinct-refill' };
+    expect((await slow.request('/x', { headers })).status).toBe(200);
+    expect((await slow.request('/x', { headers })).status).toBe(429);
+    expect((await fast.request('/x', { headers })).status).toBe(200);
+  });
+
+  it('still shares one budget between routes with the same policy', async () => {
+    const first = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
+    const second = makeApp({ rate: { capacity: 1, refillPerSec: 0 } });
+    first.get('/x', c => c.json({ ok: true }));
+    second.get('/x', c => c.json({ ok: true }));
+    const headers = { 'X-API-Key': 'shared-policy-budget' };
+    expect((await first.request('/x', { headers })).status).toBe(200);
+    expect((await second.request('/x', { headers })).status).toBe(429);
+  });
+
   it('allows requests within the bucket', async () => {
     const app = makeApp({ rate: { capacity: 2, refillPerSec: 0 } });
     app.get('/x', (c) => c.json({ ok: true }));

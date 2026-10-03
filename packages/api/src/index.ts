@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { createBrandRouter } from './routes/brand.js';
 import { isProductionEnvironment, resolveRelaySecret, type UserRole } from '@axiom/core';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
@@ -711,6 +712,7 @@ app.use('/api/mcp', rateLimit());
 app.onError(onError);
 
 // Health check
+app.route('/api/v1/brand', createBrandRouter(process.env));
 app.get('/api/v1/health', (c) => c.json({ status: 'ok', version: '0.1.0' }));
 app.get('/api/v1/ready', async (c) => {
   try {
@@ -935,6 +937,7 @@ app.use('/api/v1/models/:modelId/public-sfw-reply-settings', idempotency());
 app.use('/api/v1/models/:modelId/media-upload', idempotency(true, 64 * 1024 * 1024));
 app.use('/api/v1/models/:id', idempotency());
 app.use('/api/v1/bundles/*/approve', idempotency());
+app.use('/api/v1/bundles/*/tos-rescan', idempotency());
 app.use('/api/v1/bundles/*/revise', idempotency());
 app.use('/api/v1/bundles/*/draft', idempotency());
 app.use('/api/v1/bundles/*/reject', idempotency());

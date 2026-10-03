@@ -4,7 +4,7 @@
 #
 # Steps:
 #   1. Check for .env, copy .env.example if missing
-#   2. Run pnpm install
+#   2. Run pnpm install --frozen-lockfile
 #   3. If docker is available, start postgres via docker compose
 #   4. Wait for postgres readiness
 #   5. Run database migrations
@@ -15,6 +15,11 @@ if [ -n "${BASH_VERSION:-}" ]; then set -o pipefail; fi
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
+
+# This bootstrap is local-only. Validate tooling before writing files or
+# starting services; builds use the same non-secret API fixture as CI.
+export API_ORIGIN="${API_ORIGIN:-http://127.0.0.1:3001}"
+node scripts/check-ci-environment.mjs
 
 echo "=== setup-dev.sh: AXIOM Development Environment Setup ==="
 echo ""
@@ -47,7 +52,7 @@ echo ""
 # Step 2: Install dependencies
 # ------------------------------------------------------------------
 echo "--- Step 2: Installing pnpm dependencies ---"
-pnpm install
+pnpm install --frozen-lockfile
 echo ""
 
 # ------------------------------------------------------------------

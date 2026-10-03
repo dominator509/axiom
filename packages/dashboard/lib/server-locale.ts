@@ -14,6 +14,8 @@ import {
   type SupportedLocale,
 } from '@axiom/core';
 import { api } from './api';
+import { getPublicBrand } from './brand';
+import { brandCopy } from './brand-copy';
 
 const catalog = new LocaleCatalog(
   Object.fromEntries(
@@ -46,6 +48,7 @@ export async function getServerLocale(): Promise<{
   dateTime: (value: string | Date) => string;
 }> {
   let locale: SupportedLocale = 'en';
+  const brand = await getPublicBrand();
   try {
     const snapshot = await api.uiLocale.get();
     locale = normalizeLocale(snapshot.data.locale) ?? 'en';
@@ -61,7 +64,7 @@ export async function getServerLocale(): Promise<{
 
   return {
     locale,
-    t: (key, values) => catalog.t(locale, key, values),
+    t: brandCopy(catalog, locale, brand),
     dateTime: (value) => intl.format(typeof value === 'string' ? new Date(value) : value),
   };
 }

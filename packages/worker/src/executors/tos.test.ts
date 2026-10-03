@@ -2,6 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockState = vi.hoisted(() => ({
   results: [] as unknown[],
+  tosSnapshotDigest: (snapshot: { orgId: string; bundleId: string; modelId: string; assetId: string; assetSha256: string;
+    revisionId: string | null; captions: Record<string, string>; hashtags: string[] }) => JSON.stringify({
+      orgId: snapshot.orgId, bundleId: snapshot.bundleId, modelId: snapshot.modelId, assetId: snapshot.assetId,
+      assetSha256: snapshot.assetSha256, revisionId: snapshot.revisionId,
+      captions: Object.entries(snapshot.captions).sort(([left], [right]) => left.localeCompare(right)),
+      hashtags: snapshot.hashtags,
+    }),
   evaluate: vi.fn(),
   textEvaluate: vi.fn(),
   enqueue: vi.fn(),
@@ -53,6 +60,7 @@ vi.mock('@axiom/db', () => ({
     },
     job: {},
   },
+  tosScanSnapshotDigest: mockState.tosSnapshotDigest,
 }));
 
 vi.mock('@axiom/fanvue-mcp', async () => ({
@@ -225,6 +233,94 @@ describe('tosScan', () => {
     expect(first.videoScan.scanId).not.toBe(repeated.videoScan.scanId);
     expect(first.videoScan.contentDigest).toBe(repeated.videoScan.contentDigest);
     expect(first.videoScan.contentDigest).not.toBe(changed.videoScan.contentDigest);
+  });
+  it('runs only a rescan receipt still bound to the same saved asset and caption revision', async () => {
+    const assetSha256 = Buffer.alloc(32, 0x12).toString('hex');
+    const revisionId = 'revision-1';
+    const captions = { instagram: 'Saved caption' };
+    const hashtags = ['safe'];
+    const snapshot = {
+      orgId: 'org-1', bundleId: 'bundle-1', modelId: 'model-1', assetId: 'asset-1',
+      assetSha256, revisionId, captions, hashtags,
+    };
+    const contentDigest = mockState.tosSnapshotDigest(snapshot);
+    const jobId = 'rescan-job-1';
+    const rescan = {
+      requestId: 'request-1', jobId, retryOfJobId: 'failed-scan-1', assetId: 'asset-1',
+      assetSha256, revisionId, contentDigest, state: 'queued',
+    };
+    const job = {
+      ...JOB,
+      id: jobId,
+      payload: {
+        bundleId: 'bundle-1', rescanRequestId: rescan.requestId, rescanJobId: jobId,
+        retryOfJobId: rescan.retryOfJobId, assetId: rescan.assetId, assetSha256,
+        revisionId, contentDigest,
+      },
+    };
+    mockState.results = [[{
+      id: 'bundle-1', orgId: 'org-1', modelId: 'model-1', assetId: 'asset-1', state: 'generated',
+      captions, hashtags, tosReport: { verdict: 'pending', revisionId, rescan },
+    }], [{
+      id: 'asset-1', orgId: 'org-1', modelId: 'model-1', kind: 'image',
+      storageKey: 'generated/image.jpg', sha256: Buffer.from(assetSha256, 'hex'),
+    }], []];
+
+    await tosScan({ tx: makeChain(), job, killSwitchEnabled: false, workerId: 'worker-1' });
+
+    const report = (mockState.updates[0] as { tosReport: Record<string, any> }).tosReport;
+    expect(report).toMatchObject({
+      verdict: 'pass', revisionId,
+      rescan: { ...rescan, state: 'completed', verdict: 'pass' },
+    });
+    expect(mockState.evaluate).toHaveBeenCalledWith(
+      { imageData: 'generated/image.jpg', caption: 'Saved caption', hashtags },
+      ['instagram'],
+    );
+    expect(mockState.enqueue).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      kind: 'relay.card', payload: { bundleId: 'bundle-1', revisionId },
+    }));
+    expect(mockState.enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['changed-asset', 'changed-caption', 'completed-marker'] as const)('refuses stale rescan evidence after %s', async changed => {
+    const assetSha256 = Buffer.alloc(32, 0x12).toString('hex');
+    const revisionId = 'revision-1';
+    const captions = { instagram: 'Saved caption' };
+    const hashtags = ['safe'];
+    const snapshot = {
+      orgId: 'org-1', bundleId: 'bundle-1', modelId: 'model-1', assetId: 'asset-1',
+      assetSha256, revisionId, captions, hashtags,
+    };
+    const contentDigest = mockState.tosSnapshotDigest(snapshot);
+    const jobId = 'rescan-job-1';
+    const rescan = {
+      requestId: 'request-1', jobId, retryOfJobId: 'failed-scan-1', assetId: 'asset-1',
+      assetSha256, revisionId, contentDigest, state: changed === 'completed-marker' ? 'completed' : 'queued',
+    };
+    mockState.results = [[{
+      id: 'bundle-1', orgId: 'org-1', modelId: 'model-1', assetId: 'asset-1', state: 'generated',
+      captions: changed === 'changed-caption' ? { instagram: 'Edited caption' } : captions,
+      hashtags, tosReport: { verdict: 'pending', revisionId, rescan },
+    }], [{
+      id: 'asset-1', orgId: 'org-1', modelId: 'model-1', kind: 'image',
+      storageKey: 'generated/image.jpg',
+      sha256: Buffer.from(changed === 'changed-asset' ? '34'.repeat(32) : assetSha256, 'hex'),
+    }]];
+    const job = {
+      ...JOB, id: jobId,
+      payload: {
+        bundleId: 'bundle-1', rescanRequestId: rescan.requestId, rescanJobId: jobId,
+        retryOfJobId: rescan.retryOfJobId, assetId: rescan.assetId, assetSha256,
+        revisionId, contentDigest,
+      },
+    };
+
+    await expect(tosScan({ tx: makeChain(), job, killSwitchEnabled: false, workerId: 'worker-1' }))
+      .rejects.toThrow(changed === 'changed-asset' ? 'asset identity changed' : changed === 'changed-caption' ? 'content changed' : 'receipt');
+    expect(mockState.evaluate).not.toHaveBeenCalled();
+    expect(mockState.updates).toHaveLength(0);
+    expect(mockState.enqueue).not.toHaveBeenCalled();
   });
   it('preserves the revision identity through the scan', async () => {
     mockState.results = [

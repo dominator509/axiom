@@ -1,4 +1,5 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
+import { Montserrat } from 'next/font/google';
 import Link from 'next/link';
 import './globals.css';
 import { api, getSession } from '@/lib/api';
@@ -7,13 +8,37 @@ import NavLinks from '@/components/NavLinks';
 import SignOutButton from '@/components/SignOutButton';
 import { CATALOGS, LocaleCatalog, normalizeLocale } from '@axiom/core';
 import LocaleProvider from '@/components/LocaleProvider';
+import BrandMark, { BrandWordmark } from '@/components/BrandMark';
+import { getPublicBrand } from '@/lib/brand';
+import { brandCopy } from '@/lib/brand-copy';
 
-export const metadata: Metadata = {
-  title: { default: 'FanThynks — Creator OS', template: '%s · FanThynks' },
-  description: 'Private creator intelligence and operations.',
+// Montserrat is the FanLynks family typeface. next/font downloads it at build
+// time and serves it from this app, so browsers never call Google Fonts.
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  display: 'swap',
+  variable: '--font-montserrat',
+});
+
+export async function generateMetadata(): Promise<Metadata> {
+  const brand = await getPublicBrand();
+  return {
+    // A configured name is literal text, never a Next.js %s template.
+    title: { absolute: brand.name + ' — Creator OS' },
+    description: brand.tagline ?? 'Private creator intelligence and operations.',
+    applicationName: brand.name,
+    appleWebApp: { title: brand.name },
+  };
+}
+
+export const viewport: Viewport = {
+  themeColor: '#0c1a20',
+  colorScheme: 'dark',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const brand = await getPublicBrand();
   const session = await getSession();
   const email = session?.user?.email ?? 'operator';
   const role = session?.user?.role;
@@ -23,7 +48,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   }
   const locale = normalizeLocale(uiLocale) ?? 'en';
   const copy = new LocaleCatalog(CATALOGS);
-  const t = (key: string, values?: Record<string, string | number>) => copy.t(locale, key, values);
+  const t = brandCopy(copy, locale, brand);
   const roleKeys: Record<string, string> = {
     owner: 'role.owner',
     manager: 'role.manager',
@@ -37,7 +62,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const roleLabel = t(roleKeys[role ?? ''] ?? 'role.member');
 
   return (
-    <html lang={locale}>
+    <html lang={locale} className={montserrat.variable}>
       <body>
         {!session ? (
           <main className="auth-shell">{children}</main>
@@ -51,14 +76,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </section>
           </main>
         ) : (
-          <LocaleProvider initialLocale={locale}>
+          <LocaleProvider initialLocale={locale} brand={brand}>
           <div className="app-shell">
             <a href="#main-content" className="skip-link">{t('ui.skipToContent')}</a>
             <aside className="sidebar">
               <Link href="/" className="brand" aria-label={t('layout.home')}>
-                <span className="brand-mark">F</span>
+                <BrandMark />
                 <span className="brand-copy">
-                  <strong>FanThynks</strong>
+                  <BrandWordmark name={brand.name} />
                   <small>{t('brand.creatorIntelligence')}</small>
                 </span>
               </Link>
@@ -83,8 +108,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="workspace">
               <header className="mobile-bar">
                 <Link href="/" className="brand compact">
-                  <span className="brand-mark">F</span>
-                  <strong>FanThynks</strong>
+                  <BrandMark />
+                  <BrandWordmark name={brand.name} />
                 </Link>
                 <div className="mobile-actions">
                   <span className="eyebrow">{t('brand.creatorOs')}</span>

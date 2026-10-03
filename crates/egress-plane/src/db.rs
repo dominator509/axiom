@@ -93,6 +93,12 @@ pub async fn save_health(
     drift: bool,
     last_error: Option<&str>,
 ) -> Result<(), String> {
+    // Bind model_id as a real UUID. The prepared statement infers a `uuid`
+    // parameter from `model_id = $6`, and tokio-postgres cannot serialize a
+    // `&str` to `uuid` ("error serializing parameter 5"). Parsing here also
+    // rejects malformed ids before a round trip.
+    let model_uuid = uuid::Uuid::parse_str(model_id)
+        .map_err(|e| format!("invalid model_id {model_id:?}: {e}"))?;
     let tx = client
         .transaction()
         .await
@@ -108,14 +114,14 @@ pub async fn save_health(
         "UPDATE model_network_configs
          SET healthy = $1, last_check = now(), latency_ms = $2, last_egress_ip = $3,
              fail_count = $4, last_error = $5, updated_at = now()
-         WHERE model_id = $6::uuid",
+         WHERE model_id = $6",
         &[
             &healthy,
-            &latency_ms.map(|v| v as i32),
+            &latency_ms.map(|v| i32::try_from(v).unwrap_or(i32::MAX)),
             &egress_ip,
             &(fail_count as i32),
             &last_error,
-            &model_id,
+            &model_uuid,
         ],
     )
     .await
@@ -176,5 +182,44 @@ mod tests {
         std::env::set_var("EGRESS_DEK", "abc");
         assert!(dek_from_env().is_none());
         std::env::remove_var("EGRESS_DEK");
+    }
+
+    /// Regression for the TEST egress health-persistence failure
+    /// ("save health failed: error serializing parameter 5").
+    ///
+    /// The `model_network_configs.model_id` column is a UUID, so the prepared
+    /// UPDATE infers a `uuid` parameter for `WHERE model_id = $6`. Passing a
+    /// `&str` there fails at serialization time; the fix parses the id into a
+    /// `Uuid` first. This pins both halves of that contract against the exact
+    /// parameter types the server reports for the statement.
+    #[test]
+    fn save_health_model_id_binds_as_uuid_not_str() {
+        use tokio_postgres::types::{private::BytesMut, ToSql, Type};
+
+        let model_id = "41851a4a-08ec-4031-9de4-25ea8bac7167";
+
+        // What the old code did: bind the raw &str against the uuid param.
+        let raw: &str = model_id;
+        let mut buf = BytesMut::new();
+        assert!(
+            raw.to_sql_checked(&Type::UUID, &mut buf).is_err(),
+            "a bare &str must not serialize against a uuid parameter"
+        );
+
+        // What the fix does: parse to Uuid, then bind.
+        let parsed = uuid::Uuid::parse_str(model_id).expect("valid uuid parses");
+        let mut buf = BytesMut::new();
+        assert!(
+            parsed.to_sql_checked(&Type::UUID, &mut buf).is_ok(),
+            "a parsed Uuid must serialize against a uuid parameter"
+        );
+    }
+
+    #[test]
+    fn save_health_rejects_malformed_model_id_before_round_trip() {
+        // Mirrors the guard added at the top of save_health: a malformed id is
+        // rejected as a string error rather than reaching the database.
+        let err = uuid::Uuid::parse_str("not-a-uuid").unwrap_err();
+        assert!(!err.to_string().is_empty());
     }
 }

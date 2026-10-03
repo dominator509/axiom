@@ -2,14 +2,21 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import LoginForm from '@/components/LoginForm';
 import LocaleProvider from '@/components/LocaleProvider';
+import BrandMark, { BrandWordmark } from '@/components/BrandMark';
 import { CATALOGS, LocaleCatalog, resolveLocale } from '@axiom/core';
+import { getPublicBrand } from '@/lib/brand';
+import { brandCopy } from '@/lib/brand-copy';
 
-export const metadata: Metadata = { title: 'Sign in' };
+export async function generateMetadata(): Promise<Metadata> {
+  const brand = await getPublicBrand();
+  return { title: { absolute: 'Sign in · ' + brand.name } };
+}
 
 export default async function LoginPage({ searchParams }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const query = await searchParams;
+  const brand = await getPublicBrand();
   const rawReferral = query?.affiliate_ref;
   const affiliateRef = typeof rawReferral === 'string' && /^[A-Za-z0-9_-]{1,256}$/.test(rawReferral)
     ? rawReferral
@@ -17,16 +24,16 @@ export default async function LoginPage({ searchParams }: {
   const requestHeaders = await headers();
   const locale = resolveLocale({ acceptLanguage: requestHeaders.get('accept-language') }).locale;
   const copy = new LocaleCatalog(CATALOGS);
-  const t = (key: string, values?: Record<string, string | number>) => copy.t(locale, key, values);
+  const t = brandCopy(copy, locale, brand);
 
   return (
-    <LocaleProvider initialLocale={locale}>
+    <LocaleProvider initialLocale={locale} brand={brand}>
     <div className="login-page">
       <section className="login-story" aria-label={t('auth.introduction')}>
         <div className="brand login-brand">
-          <span className="brand-mark">F</span>
+          <BrandMark />
           <span className="brand-copy">
-            <strong>FanThynks</strong>
+            <BrandWordmark name={brand.name} />
             <small>{t('brand.creatorIntelligence')}</small>
           </span>
         </div>

@@ -6,6 +6,9 @@
 - `cargo build --workspace` — build Rust crates
 
 ## Test Commands
+- `node scripts/check-braces-patch.mjs` — verify all active braces installations against pinned source hashes and run depth/compatibility regressions before audit recognition
+- `pnpm test:browser` — build real API/dashboard and pinned Chromium; repeat the HTTPS sign-in/workspace/branding journey against owned internal Docker fixtures, verify negative controls and cleanup; no live targets or reused credentials. Requires a clean committed checkout. Receipts: `var/browser-rehearsal/`.
+- `node scripts/test-vitest-mocker.mjs` — installed Vitest redirect-mock file boundary regressions using synthetic temporary files; no network listener or credentials
 - `node scripts/rehearse-egress.mjs --isolated-fixture` — build copied Rust source and run all egress tests, including real Linux netns/WireGuard/leak cases, in a disposable network-disabled Docker container; no host mounts, ports, database, provider calls or production changes. Namespace provisioning capabilities exist only inside the test container; evidence is written under ignored `var/egress-rehearsal/`.
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --viral-evidence` — check published/provider-backed insights filtering against disposable PostgreSQL
 - `node scripts/test-isolated-workspace.mjs --isolated-fixture --digest-status` — verify active weekly schedule selection and tenant isolation in disposable PostgreSQL; no external dispatch
@@ -28,6 +31,7 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/check-ci-environment.mjs` — verify pinned local/CI Node and pnpm plus the explicit loopback API-origin fixture; no service or database access
 - `node packages/worker/dist/runner.js` — existing continuous worker; setting both `WORKER_MEDIA_ORG_ID` and `WORKER_MEDIA_MODEL_ID` restricts it to that model's unstarted media-generation/ToS/local-transform jobs. Transforms additionally require a queued operation and matching source-asset ownership. Partial/invalid scope fails startup. Scoped mode never invokes global claims or registers publishing connectors; prior attempts and uncertain dispatches require reconciliation. Build worker first and provide the normal runtime/scanner configuration. Without either scope setting this remains the full worker, including publication.
 - `node scripts/run-exact-media-job.mjs --inspect <org-id> <model-id> <bundle-id> <job-id>` — read-only exact media/ToS job inspection with explicitly supplied database environment; never loads dotenv or prints payloads
 - `node scripts/run-exact-media-job.mjs --execute-approved <org-id> <model-id> <bundle-id> <job-id>` — explicitly authorized Linux-only first-attempt execution of one existing media/ToS job through the real worker; requires current package builds/runtime configuration, no queue loop, retry loop or publishing executor; inspect/reconcile non-done outcomes before further action

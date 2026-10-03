@@ -7,6 +7,8 @@ import { schema } from '@axiom/db';
 import { jobDedupeKey } from './idempotency.js';
 
 export interface EnqueueJobInput {
+  /** Optional caller-generated id used to bind a durable receipt to one job. */
+  id?: string;
   orgId: string;
   queue: string;
   kind: string;
@@ -24,6 +26,7 @@ export interface EnqueueJobInput {
  */
 export async function enqueueJob(tx: any, input: EnqueueJobInput): Promise<{ id: string } | null> {
   const values = {
+    ...(input.id ? { id: input.id } : {}),
     orgId: input.orgId,
     queue: input.queue,
     kind: input.kind,
