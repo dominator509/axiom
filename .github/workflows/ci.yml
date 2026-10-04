@@ -148,6 +148,12 @@ jobs:
         if: matrix.task == 'typecheck'
         run: node scripts/test-phase-gates.mjs
 
+      - name: Verify release evidence coverage and fail-closed regressions
+        if: matrix.task == 'typecheck'
+        run: |
+          node scripts/check-release-evidence.mjs --check
+          node --test scripts/check-release-evidence.test.mjs
+
       # ═══════════════════════════════════════════════════════════
       #  MATRIX TASK: lint
       # ═══════════════════════════════════════════════════════════
