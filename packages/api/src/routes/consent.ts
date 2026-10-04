@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, desc, eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
+import { consentDocumentUploadType } from '@axiom/core';
 import { schema, getPublishingConsentStatus } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import {
@@ -170,11 +171,12 @@ router.post('/models/:modelId/consent-records', async (c) => {
   const parsed = consentFormMetadata(form);
   if (!parsed.success) return apiError(c, 400, statusTitle(400), 'invalid consent document metadata');
   const uploaded = form.get('document');
-  if (!uploaded || typeof uploaded === 'string' || typeof uploaded.arrayBuffer !== 'function' || uploaded.size < 1 || uploaded.size > MAX_CONSENT_DOCUMENT_BYTES) {
-    return apiError(c, 400, statusTitle(400), 'consent document must be between 1 byte and 10 MiB');
+  if (!uploaded || typeof uploaded === 'string' || typeof uploaded.arrayBuffer !== 'function' || uploaded.size < 1) {
+    return apiError(c, 400, statusTitle(400), 'consent document must be at least 1 byte');
   }
-  const mimeType = consentDocumentType(uploaded.type.toLowerCase());
-  if (!mimeType) return apiError(c, 415, statusTitle(415), 'consent document must be a PDF, JPEG or PNG');
+  if (uploaded.size > MAX_CONSENT_DOCUMENT_BYTES) return apiError(c, 413, statusTitle(413), 'consent document exceeds 25 MiB');
+  const mimeType = consentDocumentUploadType(uploaded.type, uploaded.name);
+  if (!mimeType) return apiError(c, 415, statusTitle(415), 'consent document must be a PDF, JPEG, PNG or DNG');
   const plaintext = Buffer.from(await uploaded.arrayBuffer());
   if (!matchesConsentDocumentType(plaintext, mimeType)) {
     plaintext.fill(0);

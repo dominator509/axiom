@@ -57,7 +57,7 @@ const en: Record<ConsentMessageKey, string> = {
   'consent.title': 'Consent vault',
   'consent.reviewApprovals': 'Review approvals',
   'consent.metadataDescription':
-    'Consent records include an encrypted PDF, JPEG or PNG. Publication gates require a current, granted record.',
+    'Consent records include an encrypted PDF, JPEG, PNG or DNG. Publication gates require a current, granted record.',
   'consent.requiresEditRole':
     'Adding or revoking consent requires an owner, manager or operator role.',
   'consent.loadFailed': 'Consent records could not be loaded. Refresh to try again.',
@@ -75,15 +75,15 @@ const en: Record<ConsentMessageKey, string> = {
   'consent.storedDigest': '[stored digest]',
   'consent.addMetadata': 'Add consent metadata',
   'consent.formDescription':
-    'Documents are encrypted before storage. Files may be up to 10 MiB; only PDF, JPEG and PNG are accepted.',
+    'Documents are encrypted before storage. Files may be up to 25 MiB; PDF, JPEG, PNG and DNG are accepted.',
   'consent.platformPlaceholder': 'fanvue',
   'consent.documentKind': 'Document kind',
   'consent.subjectReference': 'Subject reference',
   'consent.encryptedDocumentReference': 'Encrypted document reference',
   'consent.sha256Digest': 'SHA-256 digest',
-  'consent.uploadDocument': 'Consent document (PDF, JPEG or PNG; up to 10 MiB)',
+  'consent.uploadDocument': 'Consent document (PDF, JPEG, PNG or DNG; up to 25 MiB)',
   'consent.downloadDocument': 'Download encrypted consent document',
-  'consent.invalidDocument': 'Choose a PDF, JPEG or PNG document no larger than 10 MiB.',
+  'consent.invalidDocument': 'Choose a PDF, JPEG, PNG or DNG document no larger than 25 MiB.',
   'consent.validFrom': 'Valid from',
   'consent.validToOptional': 'Valid to (optional)',
   'consent.expiry': 'Expiry date (optional)',
@@ -115,7 +115,7 @@ export const CONSENT_CATALOGS: Record<SupportedLocale, Catalog> = {
     'consent.title': 'Bóveda de consentimiento',
     'consent.reviewApprovals': 'Revisar aprobaciones',
     'consent.metadataDescription':
-      'Los registros incluyen un PDF, JPEG o PNG cifrado. Los controles de publicación requieren un registro vigente y concedido.',
+      'Los registros incluyen un PDF, JPEG, PNG o DNG cifrado. Los controles de publicación requieren un registro vigente y concedido.',
     'consent.requiresEditRole':
       'Agregar o revocar consentimiento requiere el rol de propietario, gerente u operador.',
     'consent.loadFailed':
@@ -134,15 +134,15 @@ export const CONSENT_CATALOGS: Record<SupportedLocale, Catalog> = {
     'consent.storedDigest': '[resumen almacenado]',
     'consent.addMetadata': 'Agregar metadatos de consentimiento',
     'consent.formDescription':
-      'Los documentos se cifran antes de guardarse. Se aceptan PDF, JPEG y PNG de hasta 10 MiB.',
+      'Los documentos se cifran antes de guardarse. Se aceptan PDF, JPEG, PNG y DNG de hasta 25 MiB.',
     'consent.platformPlaceholder': 'fanvue',
     'consent.documentKind': 'Tipo de documento',
     'consent.subjectReference': 'Referencia del sujeto',
     'consent.encryptedDocumentReference': 'Referencia del documento cifrado',
     'consent.sha256Digest': 'Resumen SHA-256',
-    'consent.uploadDocument': 'Documento de consentimiento (PDF, JPEG o PNG; hasta 10 MiB)',
+    'consent.uploadDocument': 'Documento de consentimiento (PDF, JPEG, PNG o DNG; hasta 25 MiB)',
     'consent.downloadDocument': 'Descargar documento de consentimiento cifrado',
-    'consent.invalidDocument': 'Elige un PDF, JPEG o PNG de hasta 10 MiB.',
+    'consent.invalidDocument': 'Elige un PDF, JPEG, PNG o DNG de hasta 25 MiB.',
     'consent.validFrom': 'Válido desde',
     'consent.validToOptional': 'Válido hasta (opcional)',
     'consent.expiry': 'Fecha de caducidad (opcional)',
@@ -173,7 +173,7 @@ export const CONSENT_CATALOGS: Record<SupportedLocale, Catalog> = {
     'consent.title': '同意管理',
     'consent.reviewApprovals': '承認を確認',
     'consent.metadataDescription':
-      '記録には暗号化されたPDF、JPEG、PNGが含まれます。公開ゲートには有効で許可済みの記録が必要です。',
+      '記録には暗号化されたPDF、JPEG、PNG、DNGが含まれます。公開ゲートには有効で許可済みの記録が必要です。',
     'consent.requiresEditRole':
       '同意の追加または取り消しには、オーナー、マネージャー、またはオペレーター権限が必要です。',
     'consent.loadFailed': '同意記録を読み込めませんでした。更新して再試行してください。',
@@ -191,15 +191,15 @@ export const CONSENT_CATALOGS: Record<SupportedLocale, Catalog> = {
     'consent.storedDigest': '[保存済みダイジェスト]',
     'consent.addMetadata': '同意メタデータを追加',
     'consent.formDescription':
-      '文書は保存前に暗号化されます。PDF、JPEG、PNGを最大10 MiBまで登録できます。',
+      '文書は保存前に暗号化されます。PDF、JPEG、PNG、DNGを最大25 MiBまで登録できます。',
     'consent.platformPlaceholder': 'fanvue',
     'consent.documentKind': '文書種別',
     'consent.subjectReference': '対象参照',
     'consent.encryptedDocumentReference': '暗号化文書参照',
     'consent.sha256Digest': 'SHA-256ダイジェスト',
-    'consent.uploadDocument': '同意書類（PDF、JPEG、PNG、最大10 MiB）',
+    'consent.uploadDocument': '同意書類（PDF、JPEG、PNG、DNG、最大25 MiB）',
     'consent.downloadDocument': '暗号化された同意書類をダウンロード',
-    'consent.invalidDocument': '10 MiB以下のPDF、JPEG、PNGを選択してください。',
+    'consent.invalidDocument': '25 MiB以下のPDF、JPEG、PNG、DNGを選択してください。',
     'consent.validFrom': '開始日',
     'consent.validToOptional': '終了日（任意）',
     'consent.expiry': '有効期限（任意）',
@@ -229,7 +229,7 @@ export const CONSENT_CATALOGS: Record<SupportedLocale, Catalog> = {
     'consent.title': 'Archivio dei consensi',
     'consent.reviewApprovals': 'Rivedi approvazioni',
     'consent.metadataDescription':
-      'I record includono un PDF, JPEG o PNG cifrato. I controlli di pubblicazione richiedono un record valido e concesso.',
+      'I record includono un PDF, JPEG, PNG o DNG cifrato. I controlli di pubblicazione richiedono un record valido e concesso.',
     'consent.requiresEditRole':
       'Per aggiungere o revocare un consenso serve il ruolo di proprietario, manager o operatore.',
     'consent.loadFailed': 'Impossibile caricare i record di consenso. Aggiorna per riprovare.',
@@ -247,15 +247,15 @@ export const CONSENT_CATALOGS: Record<SupportedLocale, Catalog> = {
     'consent.storedDigest': '[digest salvato]',
     'consent.addMetadata': 'Aggiungi metadati del consenso',
     'consent.formDescription':
-      'I documenti vengono cifrati prima del salvataggio. Sono accettati PDF, JPEG e PNG fino a 10 MiB.',
+      'I documenti vengono cifrati prima del salvataggio. Sono accettati PDF, JPEG, PNG e DNG fino a 25 MiB.',
     'consent.platformPlaceholder': 'fanvue',
     'consent.documentKind': 'Tipo di documento',
     'consent.subjectReference': 'Riferimento del soggetto',
     'consent.encryptedDocumentReference': 'Riferimento del documento cifrato',
     'consent.sha256Digest': 'Digest SHA-256',
-    'consent.uploadDocument': 'Documento di consenso (PDF, JPEG o PNG; fino a 10 MiB)',
+    'consent.uploadDocument': 'Documento di consenso (PDF, JPEG, PNG o DNG; fino a 25 MiB)',
     'consent.downloadDocument': 'Scarica il documento di consenso cifrato',
-    'consent.invalidDocument': 'Scegli un PDF, JPEG o PNG fino a 10 MiB.',
+    'consent.invalidDocument': 'Scegli un PDF, JPEG, PNG o DNG fino a 25 MiB.',
     'consent.validFrom': 'Valido dal',
     'consent.validToOptional': 'Valido fino al (facoltativo)',
     'consent.expiry': 'Data di scadenza (facoltativa)',
@@ -286,7 +286,7 @@ export const CONSENT_CATALOGS: Record<SupportedLocale, Catalog> = {
     'consent.title': 'Cofre de consentimentos',
     'consent.reviewApprovals': 'Revisar aprovações',
     'consent.metadataDescription':
-      'Os registros incluem um PDF, JPEG ou PNG criptografado. Os controles de publicação exigem um registro válido e concedido.',
+      'Os registros incluem um PDF, JPEG, PNG ou DNG criptografado. Os controles de publicação exigem um registro válido e concedido.',
     'consent.requiresEditRole':
       'Adicionar ou revogar consentimento exige o papel de proprietário, gerente ou operador.',
     'consent.loadFailed':
@@ -305,15 +305,15 @@ export const CONSENT_CATALOGS: Record<SupportedLocale, Catalog> = {
     'consent.storedDigest': '[resumo armazenado]',
     'consent.addMetadata': 'Adicionar metadados de consentimento',
     'consent.formDescription':
-      'Os documentos são criptografados antes do armazenamento. Aceitamos PDF, JPEG e PNG de até 10 MiB.',
+      'Os documentos são criptografados antes do armazenamento. Aceitamos PDF, JPEG, PNG e DNG de até 25 MiB.',
     'consent.platformPlaceholder': 'fanvue',
     'consent.documentKind': 'Tipo de documento',
     'consent.subjectReference': 'Referência do sujeito',
     'consent.encryptedDocumentReference': 'Referência do documento criptografado',
     'consent.sha256Digest': 'Resumo SHA-256',
-    'consent.uploadDocument': 'Documento de consentimento (PDF, JPEG ou PNG; até 10 MiB)',
+    'consent.uploadDocument': 'Documento de consentimento (PDF, JPEG, PNG ou DNG; até 25 MiB)',
     'consent.downloadDocument': 'Baixar documento de consentimento criptografado',
-    'consent.invalidDocument': 'Escolha um PDF, JPEG ou PNG de até 10 MiB.',
+    'consent.invalidDocument': 'Escolha um PDF, JPEG, PNG ou DNG de até 25 MiB.',
     'consent.validFrom': 'Válido a partir de',
     'consent.validToOptional': 'Válido até (opcional)',
     'consent.expiry': 'Data de expiração (opcional)',
@@ -344,7 +344,7 @@ export const CONSENT_CATALOGS: Record<SupportedLocale, Catalog> = {
     'consent.title': 'Einwilligungsarchiv',
     'consent.reviewApprovals': 'Freigaben prüfen',
     'consent.metadataDescription':
-      'Einwilligungsdatensätze enthalten ein verschlüsseltes PDF, JPEG oder PNG. Veröffentlichungsprüfungen verlangen einen gültigen, erteilten Datensatz.',
+      'Einwilligungsdatensätze enthalten ein verschlüsseltes PDF, JPEG, PNG oder DNG. Veröffentlichungsprüfungen verlangen einen gültigen, erteilten Datensatz.',
     'consent.requiresEditRole':
       'Zum Hinzufügen oder Widerrufen einer Einwilligung ist die Rolle Eigentümer, Manager oder Operator erforderlich.',
     'consent.loadFailed':
@@ -363,15 +363,15 @@ export const CONSENT_CATALOGS: Record<SupportedLocale, Catalog> = {
     'consent.storedDigest': '[gespeicherter Digest]',
     'consent.addMetadata': 'Einwilligungsmetadaten hinzufügen',
     'consent.formDescription':
-      'Dokumente werden vor dem Speichern verschlüsselt. Zulässig sind PDF, JPEG und PNG bis 10 MiB.',
+      'Dokumente werden vor dem Speichern verschlüsselt. Zulässig sind PDF, JPEG, PNG und DNG bis 25 MiB.',
     'consent.platformPlaceholder': 'fanvue',
     'consent.documentKind': 'Dokumenttyp',
     'consent.subjectReference': 'Betreffreferenz',
     'consent.encryptedDocumentReference': 'Referenz des verschlüsselten Dokuments',
     'consent.sha256Digest': 'SHA-256-Digest',
-    'consent.uploadDocument': 'Einwilligungsdokument (PDF, JPEG oder PNG; bis 10 MiB)',
+    'consent.uploadDocument': 'Einwilligungsdokument (PDF, JPEG, PNG oder DNG; bis 25 MiB)',
     'consent.downloadDocument': 'Verschlüsseltes Einwilligungsdokument herunterladen',
-    'consent.invalidDocument': 'Wählen Sie ein PDF, JPEG oder PNG bis 10 MiB.',
+    'consent.invalidDocument': 'Wählen Sie ein PDF, JPEG, PNG oder DNG bis 25 MiB.',
     'consent.validFrom': 'Gültig ab',
     'consent.validToOptional': 'Gültig bis (optional)',
     'consent.expiry': 'Ablaufdatum (optional)',
