@@ -8,10 +8,16 @@ const read = file => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'
 const expected = requirements(read);
 const current = JSON.parse(read('L5-verification/release-evidence.json'));
 const releaseSha = 'a'.repeat(40);
+const currentSha = 'd8bfb217b4549e8b53c513de71fd92c1ea499c95';
 const ciUrl = 'https://github.com/dominator509/axiom/actions/runs/123';
 const jobUrl = `${ciUrl}/job/456`;
-function complete() {
+function empty() {
   const register = structuredClone(current);
+  for (const row of register.criteria) { row.status = 'unverified'; row.evidence = []; }
+  return register;
+}
+function complete() {
+  const register = empty();
   register.signoff = { sha: releaseSha, owner: 'Synthetic test owner', reference: 'Test-only signed acceptance record' };
   for (const row of register.criteria) {
     row.status = 'passed';
@@ -22,13 +28,50 @@ function complete() {
   }
   return register;
 }
+const incrementalIds = new Set(['LBI-02', 'NONFUNCTIONAL-2', 'SECURITY-2']);
+function incremental() {
+  const register = empty();
+  for (const row of register.criteria) if (incrementalIds.has(row.id)) {
+    row.status = 'passed';
+    row.evidence = [{ criterion: row.id, sha: releaseSha, command: 'node scripts/rehearse-rls-catalog.mjs --isolated-fixture',
+      environment: 'synthetic validator input', scope: row.id, limitations: 'Validator regression only',
+      observedAt: '2026-10-03T00:00:00Z', logSha256: createHash('sha256').update('test log').digest('hex'), ciUrl, jobUrl,
+      counts: { passed: 20, failed: 0, skipped: 0, total: 20, unit: 'assertions' }, skips: [], images: [] }];
+  }
+  return register;
+}
 
 test('current register is structurally complete without implying release acceptance', () => {
   assert.equal(validate(current, expected).criteria, expected.length);
-  assert.throws(() => validate(current, expected, { releaseSha }), /Release blocked/);
+  assert.equal(validate(current, expected).passed, 3);
+  assert.throws(() => validate(current, expected, { releaseSha: currentSha }), /Release blocked/);
 });
 test('complete synthetic evidence is accepted by the structural release validator', () => {
   assert.equal(validate(complete(), expected, { releaseSha }).passed, expected.length);
+});
+test('incremental exact-SHA evidence validates without closing open release rows', () => {
+  const register = incremental();
+  assert.equal(validate(register, expected, { verifySha: releaseSha }).passed, incrementalIds.size);
+  assert.equal(register.criteria.filter(row => row.status === 'unverified').length, expected.length - incrementalIds.size);
+  assert.throws(() => validate(register, expected, { releaseSha }), /Release blocked/);
+  verifyHosted(register, releaseSha, hosted, () => Buffer.from('test log'));
+});
+test('incremental verification rejects stale or skipped evidence', () => {
+  const stale = incremental();
+  stale.criteria.find(row => row.id === 'LBI-02').evidence[0].sha = 'c'.repeat(40);
+  assert.throws(() => validate(stale, expected, { verifySha: releaseSha }), /stale evidence SHA/);
+  const skipped = incremental();
+  skipped.criteria.find(row => row.id === 'LBI-02').evidence[0].counts.skipped = 1;
+  skipped.criteria.find(row => row.id === 'LBI-02').evidence[0].counts.total = 21;
+  skipped.criteria.find(row => row.id === 'LBI-02').evidence[0].skips = ['not run'];
+  assert.throws(() => validate(skipped, expected, { verifySha: releaseSha }), /skipped acceptance/);
+});
+test('incremental verification requires an accepted row and no evidence on open rows', () => {
+  assert.throws(() => validate(empty(), expected, { verifySha: releaseSha }), /no passed criteria/);
+  const register = incremental();
+  const open = register.criteria.find(row => row.id === 'LBI-03');
+  open.evidence = [{ ...register.criteria.find(row => row.id === 'LBI-02').evidence[0], criterion: open.id }];
+  assert.throws(() => validate(register, expected, { verifySha: releaseSha }), /non-passed criterion/);
 });
 for (const value of ['', null, 'main', 'abcd123']) test(`release rejects invalid SHA ${JSON.stringify(value)}`, () => {
   assert.throws(() => validate(current, expected, { releaseSha: value }), /immutable SHA/);

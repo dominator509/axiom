@@ -56,6 +56,8 @@ the owner's standing authorization. Recheck main CI after each merge.
    validator. This PR; hosted validation is required before completion.
 2. Effective RLS catalog: derive tenant tables from schema, inspect migrated flags,
    policies and runtime-role privileges, and run cross-tenant negative controls.
+   Isolated acceptance passed at `d8bfb217b4549e8b53c513de71fd92c1ea499c95`;
+   deployed-state inspection remains outside this lane.
 3. L5 matrix: extend real isolated stack/browser journeys and negative controls;
    include pinned-model inference, unknown dispatch and durable audit outcomes.
 4. Providers/Relay: real dedicated accounts or sandboxes and supported hardware;
@@ -69,11 +71,20 @@ the owner's standing authorization. Recheck main CI after each merge.
 8. Product/sign-off: F01-F91, six locales, desktop/native-mobile actions, synthetic
    consent-vault controls, owner records attestation and release-specific sign-off.
 
-Items 2-8 remain open. A Docker deployment can establish isolated runtime proof.
-It cannot establish real provider entitlement, real channel delivery, customer
-consent, month-long availability, or the owner's deployed controls. Missing
-external prerequisites are blockers for their rows; independent isolated work
-continues. No shared/production database changes or migrations are permitted.
+Lane 2's isolated effective-RLS acceptance passed at main SHA
+`d8bfb217b4549e8b53c513de71fd92c1ea499c95`: [CI run 37211855138](https://github.com/dominator509/axiom/actions/runs/37211855138),
+[test job 111464478851](https://github.com/dominator509/axiom/actions/runs/37211855138/job/111464478851)
+reported 20 passed/0 failed/0 skipped with cleanup verified. The evidence is
+limited to its disposable migrated database and locale cross-tenant negative
+controls; it does not inspect a deployed database or prove exhaustive CRUD for
+every tenant table. The release register retains those exact-SHA receipts.
+
+Items 3-8 remain open, and this does not authorize release. A Docker deployment
+can establish isolated runtime proof. It cannot establish real provider
+entitlement, real channel delivery, customer consent, month-long availability,
+or the owner's deployed controls. Missing external prerequisites are blockers
+for their rows; independent isolated work continues. No shared/production
+database changes or migrations are permitted.
 
 ## Evidence format and gates
 
@@ -81,7 +92,8 @@ continues. No shared/production database changes or migrations are permitted.
 L5.0 and L5.2. Dated checkpoint prose is excluded. Requirements are stored verbatim
 with SHA-256 hashes. Any addition, removal or textual change requires explicit
 reconciliation. Existing partial and historical tests are not blanket acceptance;
-initial rows are unverified with owning lanes and concrete next steps.
+rows without accepted lane receipts remain unverified with owning lanes and
+concrete next steps.
 
 `node scripts/check-release-evidence.mjs --check` validates coverage and receipt
 shape while permitting open rows. CI runs it and its negative-control suite.
