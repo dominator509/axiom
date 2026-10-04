@@ -63,7 +63,8 @@ try {
   receipt.sourceSha = run('git', ['rev-parse', 'HEAD']).stdout;
   assert.match(receipt.sourceSha, /^[a-f0-9]{40}$/);
   assert.equal(run('git', ['status', '--porcelain']).stdout, '', 'Commit source before testing');
-  const endpoint = process.env.DOCKER_HOST || JSON.parse(docker(['context', 'inspect']).stdout)[0].Endpoints.docker.Host;
+  const contextEndpoint = JSON.parse(docker(['context', 'inspect']).stdout)[0].Endpoints.docker.Host;
+  const endpoint = process.env.DOCKER_CONTEXT ? contextEndpoint : process.env.DOCKER_HOST || contextEndpoint;
   assert.ok(endpoint.startsWith('npipe://') || endpoint.startsWith('unix://'), 'Local Docker only');
   const model = join(root, 'var', 'models', 'nsfw-vit.onnx');
   receipt.modelSha256 = createHash('sha256').update(readFileSync(model)).digest('hex');
@@ -111,6 +112,8 @@ try {
     ['node', '-e', 'setInterval(()=>{},1000)']);
     docker(['exec', '--user', '0', runner, 'chown', '1001:1001', '/app/var/media', '/models']);
     docker(['cp', model, `${runner}:/models/nsfw-vit.onnx`]);
+    assert.equal(docker(['exec', runner, 'node', '-e', "console.log(require('crypto').createHash('sha256').update(require('fs').readFileSync('/models/nsfw-vit.onnx')).digest('hex'))"]).stdout,
+      receipt.modelSha256, 'Verify the copied artifact after the build');
     docker(['exec', runner, 'ffmpeg', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=blue:s=64x64', '-frames:v', '1', '-threads', '1', '/app/var/media/fixture.png']);
     docker(['exec', runner, 'ffmpeg', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=blue:s=64x64:r=4:d=2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '/app/var/media/source.mp4']);
     create(`${prefix}-${repetition}-media-service`, receipt.images.media, `container:${db}`, { AXIOM_MEDIA_AUTH_TOKEN: token },
@@ -129,8 +132,9 @@ try {
     const source = run('git', ['show', `${receipt.sourceSha}:scripts/l5/runtime.mjs`]).stdout;
     docker(['exec', '-i', runner, 'node', '-e', "let s='';process.stdin.on('data',b=>s+=b);process.stdin.on('end',()=>require('fs').writeFileSync('/app/fixture.mjs',s))"], { input: source });
     const result = docker(['exec', runner, 'node', '/app/fixture.mjs'], { allowFailure: true, timeout: 600000 });
-    const report = JSON.parse(result.stdout.split(/\r?\n/).find(line => line.startsWith('{"l5Runtime":')) ?? 'null');
+    const report = JSON.parse(scrub(result.stdout.split(/\r?\n/).find(line => line.startsWith('{"l5Runtime":')) ?? 'null'));
     assert.ok(report && report.total === report.passed + report.failed + report.skipped, 'Complete runtime counts required');
+    assert.equal(report.total, 19, 'All nineteen runtime cases must execute');
     receipt.runs.push({ repetition, ...report });
     receipt.passed += report.passed; receipt.failed += report.failed; receipt.skipped += report.skipped;
     if (result.status !== 0 && report.failed === 0) throw new Error('Runtime process failed outside its test report');

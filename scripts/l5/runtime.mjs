@@ -16,7 +16,7 @@ for (const [key, user] of [['DATABASE_URL', 'axiom_app'], ['L5_OWNER_DATABASE_UR
 const { Client } = createRequire(import.meta.resolve('@axiom/db'))('pg');
 const admin = new Client({ connectionString: process.env.L5_OWNER_DATABASE_URL, statement_timeout: 10000 });
 await admin.connect();
-const report = { l5Runtime: true, tests: [], passed: 0, failed: 0, skipped: 0 };
+const report = { l5Runtime: true, node: process.versions.node, tests: [], passed: 0, failed: 0, skipped: 0 };
 async function check(name, operation) {
   try { await operation(); report.tests.push({ name, passed: true }); report.passed++; }
   catch (error) { report.tests.push({ name, passed: false, error: error.message }); report.failed++; }
