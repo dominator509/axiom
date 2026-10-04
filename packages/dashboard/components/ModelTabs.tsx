@@ -23,7 +23,7 @@ const TABS = [
   { href: 'relay', labelKey: 'dashboard.tabs.relayDelivery' },
   { href: 'agents', labelKey: 'dashboard.tabs.agentAccess' },
   { href: 'cascades', labelKey: 'dashboard.tabs.cascadeSchedules' },
-  { href: 'triggers', labelKey: 'dashboard.tabs.automationRules' },
+  { href: 'triggers', labelKey: 'automation.title' },
   { href: 'experiments', labelKey: 'dashboard.tabs.variantExperiments' },
   { href: 'scraping', labelKey: 'scrape.title' },
   { href: 'team', labelKey: 'dashboard.tabs.teamShifts' },
