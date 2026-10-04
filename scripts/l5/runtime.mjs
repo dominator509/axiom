@@ -53,10 +53,28 @@ async function jobFixture(kind = 'tos.scan', mediaKind = 'image', lostLease = fa
   const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
   return { org, model, bundle, job: result.rows[0], hash: hash.toString('hex') };
 }
+async function relayDispatchFixture() {
+  const { org, model } = await tenant();
+  const bundle = randomUUID(), job = randomUUID();
+  await scoped(org, async tx => {
+    await tx.insert(schema.orgSettings).values({ orgId: org, publishingEnabled: true });
+    await tx.insert(schema.contentBundle).values({ id: bundle, orgId: org, modelId: model,
+      state: 'generated', captions: { instagram: 'Synthetic approval fixture.' }, hashtags: [],
+      tosReport: { verdict: 'pass', scores: [{ platform: 'instagram', score: 0, verdict: 'pass' }] } });
+    await tx.insert(schema.relayBinding).values({ orgId: org, modelId: model,
+      channel: 'signal', chatRef: 'l5-fixture-signal-chat', enabled: true });
+    await tx.insert(schema.job).values({ id: job, orgId: org, queue: 'l5-fixture', kind: 'relay.card',
+      state: 'running', payload: { bundleId: bundle }, attempts: 0, maxAttempts: 1,
+      lockedBy: 'l5-worker', lockedAt: new Date() });
+  });
+  const result = await scoped(org, tx => tx.execute(sql`SELECT * FROM job WHERE id=${job}`));
+  return { org, model, bundle, job: result.rows[0] };
+}
 const state = fixture => scoped(fixture.org, async tx => ({
   bundle: (await tx.select().from(schema.contentBundle).where(eq(schema.contentBundle.id, fixture.bundle)))[0],
   job: (await tx.select().from(schema.job).where(eq(schema.job.id, fixture.job.id)))[0],
   cards: (await tx.execute(sql`SELECT * FROM job WHERE kind='relay.card' AND payload->>'bundleId'=${fixture.bundle}`)).rows,
+  relayMarkers: (await tx.execute(sql`SELECT id,state,channel,external_ref FROM relay_card WHERE org_id=${fixture.org} AND bundle_id=${fixture.bundle}`)).rows,
 }));
 
 try {
@@ -132,6 +150,43 @@ try {
       }
     });
   }
+  await check('relay unknown dispatch marker survives and blocks duplicate/replay', async () => {
+    const fixture = await relayDispatchFixture();
+    const originalCliPath = process.env.SIGNAL_CLI_PATH;
+    const originalAccount = process.env.SIGNAL_ACCOUNT;
+    process.env.SIGNAL_CLI_PATH = `/tmp/axiom-l5-missing-signal-${process.env.AXIOM_L5_FIXTURE}`;
+    process.env.SIGNAL_ACCOUNT = 'fixture-only-account';
+    try {
+      assert.equal(await processJob(fixture.job, defaultExecutors, 'l5-worker', {}), 'dead');
+      let records = await state(fixture);
+      assert.equal(records.job.state, 'dead');
+      assert.ok(records.job.lastError?.startsWith('external-side-effect-unknown:'), 'dispatch failure must be recorded as unknown');
+      assert.equal(records.relayMarkers.length, 1);
+      assert.deepEqual(records.relayMarkers.map(({ state, channel, external_ref }) => ({ state, channel, external_ref })), [
+        { state: 'pending', channel: 'signal', external_ref: 'l5-fixture-signal-chat' },
+      ]);
+
+      await assert.rejects(scoped(fixture.org, tx => defaultExecutors['dlq.replay']({
+        tx, workerId: 'l5-worker', killSwitchEnabled: false,
+        job: { org_id: fixture.org, payload: { jobId: fixture.job.id } },
+      })), /provider reconciliation before retry/);
+      await assert.rejects(scoped(fixture.org, tx => defaultExecutors['relay.card']({
+        tx, job: fixture.job, workerId: 'l5-worker', killSwitchEnabled: false,
+        markExternalSideEffect: () => {},
+      })), /unresolved dispatch marker .* provider reconciliation required before retry/);
+
+      records = await state(fixture);
+      assert.equal(records.job.state, 'dead');
+      assert.ok(records.job.lastError?.startsWith('external-side-effect-unknown:'), 'replay must preserve the unknown outcome');
+      assert.equal(records.relayMarkers.length, 1);
+      assert.equal(records.relayMarkers[0].state, 'pending');
+    } finally {
+      if (originalCliPath === undefined) delete process.env.SIGNAL_CLI_PATH;
+      else process.env.SIGNAL_CLI_PATH = originalCliPath;
+      if (originalAccount === undefined) delete process.env.SIGNAL_ACCOUNT;
+      else process.env.SIGNAL_ACCOUNT = originalAccount;
+    }
+  });
   await check('audit chain round-trips nested JSON through PostgreSQL', async () => {
     const { org } = await tenant();
     await scoped(org, tx => writeAudit(tx, org, 'l5-operator', 'l5.audit', 'fixture', { reason: 'approved', nested: { b: 2, a: [1, true, null] } }));
