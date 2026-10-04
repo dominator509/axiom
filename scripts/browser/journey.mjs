@@ -13,6 +13,7 @@ const origin = 'https://127.0.0.1:3443';
 const mode = process.argv[2];
 if (!['default', 'configured', 'negative-brand', 'negative-cookie'].includes(mode)) throw new Error('Unknown fixture mode');
 if (process.env.CI !== 'true' || process.env.AXIOM_BROWSER_FIXTURE !== 'owned-internal') throw new Error('Fixture guard missing');
+const safePath = value => new URL(value, origin).pathname.replace(/[a-f0-9-]{36}/g, '<fixture-id>');
 const database = new URL(process.env.MIGRATOR_DATABASE_URL);
 if (database.hostname !== '127.0.0.1' || database.pathname !== '/axiom_test') throw new Error('Disposable database required');
 const configured = mode !== 'default';
@@ -38,6 +39,7 @@ const proxy = https.createServer({ key: readFileSync(join(dir, 'key.pem')), cert
 await new Promise(resolve => proxy.listen(3443, '127.0.0.1', resolve));
 const results = [];
 const probes = [];
+const redirects = [];
 let currentCheck = 'browser launch';
 let faultObserved = false;
 const check = async (label, work) => {
@@ -47,6 +49,7 @@ const check = async (label, work) => {
 };
 const browser = await chromium.launch({ headless: true });
 let context;
+let page;
 try {
   const password = randomBytes(24).toString('base64url');
   const email = `browser-${randomUUID()}@example.invalid`;
@@ -79,11 +82,15 @@ COMMIT;
     expect(seeded.stdout.trim()).toBe('1');
   });
   context = await browser.newContext({ baseURL: origin, ignoreHTTPSErrors: true, viewport: { width: 1440, height: 1000 } });
-  const page = await context.newPage();
+  page = await context.newPage();
   const deliveredBodies = [];
   let scriptCount = 0;
   page.on('response', response => {
     const path = new URL(response.url()).pathname;
+    if (response.status() >= 300 && response.status() < 400) {
+      const location = response.headers().location;
+      if (location) redirects.push({ status: response.status(), from: safePath(response.url()), to: safePath(location) });
+    }
     if (path.startsWith('/api/auth/')) probes.push({ path, status: response.status() });
     if (/^\/(?:api\/v1\/)?models\/[a-f0-9-]{36}(?:\/calendar)?$/.test(path)) {
       probes.push({ path: path.replace(/[a-f0-9-]{36}/g, '<fixture-id>'), status: response.status() });
@@ -230,7 +237,8 @@ COMMIT;
   if (expected && faultObserved && currentCheck === expected) {
     console.log(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, expectedFailure: currentCheck }));
   } else {
-    console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck, probes }));
+    console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck,
+      currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects }));
     process.exitCode = 1;
   }
 } finally {
