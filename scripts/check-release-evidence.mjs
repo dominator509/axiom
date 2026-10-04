@@ -49,9 +49,12 @@ export function requirements(read) {
   return result;
 }
 
-export function validate(register, expected, { releaseSha } = {}) {
+export function validate(register, expected, { releaseSha, verifySha } = {}) {
   const release = releaseSha !== undefined;
+  const receiptSha = releaseSha ?? verifySha;
   if (release) check(typeof releaseSha === 'string' && sha.test(releaseSha), 'Release requires full immutable SHA');
+  if (verifySha !== undefined) check(typeof verifySha === 'string' && sha.test(verifySha), 'Receipt verification requires full immutable SHA');
+  check(!(release && verifySha !== undefined), 'Choose release or receipt verification, not both');
   check(register?.version === 1, 'Unsupported evidence register version');
   check(sha.test(register.baselineSha), 'Invalid baseline SHA');
   check(Array.isArray(register.criteria), 'Missing criteria');
@@ -88,11 +91,16 @@ export function validate(register, expected, { releaseSha } = {}) {
       check(Array.isArray(receipt.skips) && receipt.skips.length === counts.skipped && receipt.skips.every(nonempty), `${row.id}: undocumented skips`);
       check(Array.isArray(receipt.images) && receipt.images.every(image => /^.+@sha256:[a-f0-9]{64}$/.test(image)), `${row.id}: invalid image provenance`);
       if (row.status === 'passed') check(counts.failed === 0 && counts.passed > 0, `${row.id}: failing pass receipt`);
-      if (release && row.status === 'passed') {
-        check(receipt.sha === releaseSha, `${row.id}: stale release evidence`);
-        check(counts.skipped === 0, `${row.id}: skipped release acceptance`);
+      if (receiptSha !== undefined && row.status === 'passed') {
+        check(receipt.sha === receiptSha, `${row.id}: stale evidence SHA`);
+        check(counts.skipped === 0, `${row.id}: skipped acceptance`);
       }
     }
+  }
+  if (verifySha !== undefined) {
+    check(register.criteria.some(row => row.status === 'passed'), 'Receipt verification blocked: no passed criteria');
+    check(register.criteria.every(row => row.evidence.length === 0 || row.status === 'passed'),
+      'Receipt verification blocked: evidence attached to a non-passed criterion');
   }
   if (release) {
     check(register.criteria.every(row => row.status === 'passed'), 'Release blocked: open acceptance criteria');
@@ -128,21 +136,43 @@ export function verifyHosted(register, releaseSha, gh, readLog) {
 }
 
 export function main(args) {
+  const mode = args[0];
+  if (mode === '--receipt-log-sha') {
+    check(args.length === 2 && /^[1-9]\d*$/.test(args[1]), 'Usage: node scripts/check-release-evidence.mjs --receipt-log-sha <job-id>');
+    let rawLog;
+    try {
+      rawLog = execFileSync('gh', ['api', `repos/dominator509/axiom/actions/jobs/${args[1]}/logs`], {
+        timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
+      });
+    } catch { throw new Error('Hosted log unavailable; receipt digest not generated'); }
+    console.log(digest(rawLog));
+    return;
+  }
   const release = args[0] === '--release';
-  check(args.length === (release ? 2 : 1) && (release || args[0] === '--check'),
-    'Usage: node scripts/check-release-evidence.mjs --check | --release <full-sha>');
+  const verifyReceipts = args[0] === '--verify-receipts';
+  check(args.length === (release || verifyReceipts ? 2 : 1) && (release || verifyReceipts || args[0] === '--check'),
+    'Usage: node scripts/check-release-evidence.mjs --check | --verify-receipts <full-sha> | --receipt-log-sha <job-id> | --release <full-sha>');
   const root = new URL('../', import.meta.url);
   const read = file => readFileSync(new URL(file, root), 'utf8');
   const register = JSON.parse(read('L5-verification/release-evidence.json'));
-  const result = validate(register, requirements(read), { releaseSha: release ? args[1] : undefined });
+  const targetSha = release || verifyReceipts ? args[1] : undefined;
+  const result = validate(register, requirements(read), {
+    releaseSha: release ? args[1] : undefined,
+    verifySha: verifyReceipts ? args[1] : undefined,
+  });
   const gh = endpoint => {
     // Never display gh stderr: authentication diagnostics can contain private data.
     try {
       return execFileSync('gh', ['api', endpoint], { timeout: 30_000, maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     } catch { throw new Error('Hosted receipt unavailable; release blocked'); }
   };
-  if (release) verifyHosted(register, args[1], endpoint => JSON.parse(gh(endpoint).toString('utf8')), gh);
-  console.log(`release-evidence: ${result.criteria} criteria, ${result.passed} accepted, ${result.criteria - result.passed} open; ${release ? 'release evidence complete; human review still required' : 'register valid; NOT release approval'}`);
+  if (release || verifyReceipts) verifyHosted(register, targetSha, endpoint => JSON.parse(gh(endpoint).toString('utf8')), gh);
+  const outcome = release
+    ? 'release evidence complete; human review still required'
+    : verifyReceipts
+      ? `hosted receipts verified at ${targetSha}; NOT release approval`
+      : 'register valid; NOT release approval';
+  console.log(`release-evidence: ${result.criteria} criteria, ${result.passed} accepted, ${result.criteria - result.passed} open; ${outcome}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

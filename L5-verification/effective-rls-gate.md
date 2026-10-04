@@ -68,6 +68,16 @@ skipped locally on Node 22.23.3; cleanup succeeded. Focused source-migration/API
 locale tests reported 34 passed/0 failed/0 skipped. Final hosted receipts and
 post-merge verification are required before this readiness item is accepted.
 
+The post-merge receipt is now available at main SHA
+`d8bfb217b4549e8b53c513de71fd92c1ea499c95`: [CI run 37211855138](https://github.com/dominator509/axiom/actions/runs/37211855138),
+[test job 111464478851](https://github.com/dominator509/axiom/actions/runs/37211855138/job/111464478851).
+The exact `node scripts/rehearse-rls-catalog.mjs --isolated-fixture` step used
+Node 22.23.3 and reported **20 passed/0 failed/0 skipped**, with cleanup verified.
+The lane's evidence register records this result and its raw job-log digest.
+The Windows local attempt did not run the fixture: its Node 24.14.1 failed the
+pinned-version guard before Docker or PostgreSQL started; it is not counted as
+an acceptance result.
+
 ## Limits
 
 Catalog flags and policy composition do not prove arbitrary policy-expression

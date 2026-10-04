@@ -18,9 +18,33 @@
       "requirement": "| 02 | Tenant isolation via RLS | cross-org read returns 0 rows; policy-coverage query = table count | integration |",
       "requirementSha256": "b233e5e037cd7fb698e42cc7a963d07d01e6f2e0fcd038396340965dfa72b4ba",
       "lane": 2,
-      "status": "unverified",
-      "nextStep": "Inspect the effective migrated catalog and exercise runtime-role cross-tenant access in disposable PostgreSQL.",
-      "evidence": []
+      "status": "passed",
+      "nextStep": "Repeat this catalog check on the final release SHA; live deployed-database state remains unverified.",
+      "evidence": [
+        {
+          "criterion": "LBI-02",
+          "sha": "d8bfb217b4549e8b53c513de71fd92c1ea499c95",
+          "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3, network-disabled disposable PostgreSQL using the pinned Timescale image",
+          "scope": "74 Drizzle-derived tenant tables; effective migrated catalog and actual app role; 9 rollback-only catalog fault controls; 8 locale tenant/user behavior cases; rollback and cleanup",
+          "limitations": "Disposable database only; no deployed/shared/production database inspection and no exhaustive CRUD fixture for every tenant table",
+          "observedAt": "2026-10-04T15:17:19.527Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37211855138",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37211855138/job/111464478851",
+          "logSha256": "68b1f031458b7bfc8e802fac67a629c691a8d79b88ca89364917038e6fdf4c50",
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ]
     },
     {
       "id": "LBI-03",
@@ -368,9 +392,33 @@
       "requirement": "- [ ] Cross-tenant read returns **0 rows** under RLS (LBI-02).",
       "requirementSha256": "ec51891904c25afdc2645f2fc56f1ee14df86d2b7e2b3de200ca76692eeabd5c",
       "lane": 2,
-      "status": "unverified",
-      "nextStep": "Inspect the effective migrated catalog and exercise runtime-role cross-tenant access in disposable PostgreSQL.",
-      "evidence": []
+      "status": "passed",
+      "nextStep": "Repeat this catalog check on the final release SHA; live deployed-database state remains unverified.",
+      "evidence": [
+        {
+          "criterion": "NONFUNCTIONAL-2",
+          "sha": "d8bfb217b4549e8b53c513de71fd92c1ea499c95",
+          "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3, network-disabled disposable PostgreSQL using the pinned Timescale image",
+          "scope": "74 Drizzle-derived tenant tables; effective migrated catalog and actual app role; 9 rollback-only catalog fault controls; 8 locale tenant/user behavior cases; rollback and cleanup",
+          "limitations": "Disposable database only; no deployed/shared/production database inspection and no exhaustive CRUD fixture for every tenant table",
+          "observedAt": "2026-10-04T15:17:19.527Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37211855138",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37211855138/job/111464478851",
+          "logSha256": "68b1f031458b7bfc8e802fac67a629c691a8d79b88ca89364917038e6fdf4c50",
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ]
     },
     {
       "id": "NONFUNCTIONAL-3",
@@ -428,9 +476,33 @@
       "requirement": "- [ ] Every org-scoped table has `org_isolation` RLS with `FORCE`; app role can't bypass (LBI-02).",
       "requirementSha256": "7d10b2235f4e3f320dad2a2cffda91551bfcfabe8d6d27ef1077258d2a49518d",
       "lane": 2,
-      "status": "unverified",
-      "nextStep": "Inspect the effective migrated catalog and exercise runtime-role cross-tenant access in disposable PostgreSQL.",
-      "evidence": []
+      "status": "passed",
+      "nextStep": "Repeat this catalog check on the final release SHA; live deployed-database state remains unverified.",
+      "evidence": [
+        {
+          "criterion": "SECURITY-2",
+          "sha": "d8bfb217b4549e8b53c513de71fd92c1ea499c95",
+          "command": "node scripts/rehearse-rls-catalog.mjs --isolated-fixture",
+          "environment": "GitHub Actions ubuntu-24.04, Node 22.23.3, network-disabled disposable PostgreSQL using the pinned Timescale image",
+          "scope": "74 Drizzle-derived tenant tables; effective migrated catalog and actual app role; 9 rollback-only catalog fault controls; 8 locale tenant/user behavior cases; rollback and cleanup",
+          "limitations": "Disposable database only; no deployed/shared/production database inspection and no exhaustive CRUD fixture for every tenant table",
+          "observedAt": "2026-10-04T15:17:19.527Z",
+          "ciUrl": "https://github.com/dominator509/axiom/actions/runs/37211855138",
+          "jobUrl": "https://github.com/dominator509/axiom/actions/runs/37211855138/job/111464478851",
+          "logSha256": "68b1f031458b7bfc8e802fac67a629c691a8d79b88ca89364917038e6fdf4c50",
+          "counts": {
+            "passed": 20,
+            "failed": 0,
+            "skipped": 0,
+            "total": 20,
+            "unit": "assertions"
+          },
+          "skips": [],
+          "images": [
+            "timescale/timescaledb:2.29.2-pg16@sha256:289d55704b1b3ee8263cd3805c6930f9cd54506835a8f19f9b85dad17d5c5a8a"
+          ]
+        }
+      ]
     },
     {
       "id": "SECURITY-3",
