@@ -27,7 +27,7 @@ export default async function ModelLayout({
     <div className="page-stack">
       <header className="talent-header">
         <div>
-          <Link href="/" className="back-link">
+          <Link href="/" className="back-link" prefetch={false}>
             <span aria-hidden="true">←</span> {t('modelSurface.talentPortfolio')}
           </Link>
           <div className="talent-identity">

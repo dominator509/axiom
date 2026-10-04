@@ -40,10 +40,12 @@ export default function ModelTabs({ modelId, role }: { modelId: string; role?: s
       {TABS.filter(tab => talentDestinationAllowed(role, tab.href)).map((tab) => {
         const href = tab.href ? `${base}/${tab.href}` : base;
         const active = pathname === href || pathname === `${href}/`;
+        // Avoid pre-rendering every authenticated workspace destination on each talent page.
         return (
           <Link
             key={tab.href}
             href={href}
+            prefetch={false}
             className={active ? 'active' : undefined}
             aria-current={active ? 'page' : undefined}
           >

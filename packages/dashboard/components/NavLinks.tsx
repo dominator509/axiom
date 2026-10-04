@@ -65,10 +65,12 @@ export default function NavLinks({ role }: { role?: string | null }) {
           item.href === '/'
             ? pathname === '/' || pathname.startsWith('/models/')
             : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        // These private, dynamic routes perform server-side session checks on navigation.
         return (
           <Link
             key={item.href}
             href={item.href}
+            prefetch={false}
             className={active ? 'active' : undefined}
             aria-current={active ? 'page' : undefined}
           >

@@ -13,6 +13,7 @@ const origin = 'https://127.0.0.1:3443';
 const mode = process.argv[2];
 if (!['default', 'configured', 'negative-brand', 'negative-cookie'].includes(mode)) throw new Error('Unknown fixture mode');
 if (process.env.CI !== 'true' || process.env.AXIOM_BROWSER_FIXTURE !== 'owned-internal') throw new Error('Fixture guard missing');
+const safePath = value => new URL(value, origin).pathname.replace(/[a-f0-9-]{36}/g, '<fixture-id>');
 const database = new URL(process.env.MIGRATOR_DATABASE_URL);
 if (database.hostname !== '127.0.0.1' || database.pathname !== '/axiom_test') throw new Error('Disposable database required');
 const configured = mode !== 'default';
@@ -38,6 +39,7 @@ const proxy = https.createServer({ key: readFileSync(join(dir, 'key.pem')), cert
 await new Promise(resolve => proxy.listen(3443, '127.0.0.1', resolve));
 const results = [];
 const probes = [];
+const redirects = [];
 let currentCheck = 'browser launch';
 let faultObserved = false;
 const check = async (label, work) => {
@@ -47,6 +49,27 @@ const check = async (label, work) => {
 };
 const browser = await chromium.launch({ headless: true });
 let context;
+let page;
+const deliveredBodies = [];
+let scriptCount = 0;
+const observePage = observedPage => observedPage.on('response', response => {
+  const path = new URL(response.url()).pathname;
+  if (response.status() >= 300 && response.status() < 400) {
+    const location = response.headers().location;
+    if (location) redirects.push({ status: response.status(), from: safePath(response.url()), to: safePath(location), check: currentCheck });
+  }
+  if (path.startsWith('/api/auth/')) probes.push({ path, status: response.status() });
+  if (/^\/(?:api\/v1\/)?models\/[a-f0-9-]{36}(?:\/calendar)?$/.test(path)) {
+    probes.push({ path: safePath(response.url()), status: response.status() });
+  }
+  const kind = response.request().resourceType();
+  if (kind === 'script') scriptCount++;
+  // Read while each response is available, before a later navigation can
+  // evict it from Chromium's resource buffer. Retain only a boolean.
+  if (['document', 'script'].includes(kind)) deliveredBodies.push(response.body()
+    .then(body => !body.includes(Buffer.from(process.env.BROWSER_SECRET_SENTINEL)))
+    .catch(() => false));
+});
 try {
   const password = randomBytes(24).toString('base64url');
   const email = `browser-${randomUUID()}@example.invalid`;
@@ -79,20 +102,8 @@ COMMIT;
     expect(seeded.stdout.trim()).toBe('1');
   });
   context = await browser.newContext({ baseURL: origin, ignoreHTTPSErrors: true, viewport: { width: 1440, height: 1000 } });
-  const page = await context.newPage();
-  const deliveredBodies = [];
-  let scriptCount = 0;
-  page.on('response', response => {
-    const path = new URL(response.url()).pathname;
-    if (path.startsWith('/api/auth/')) probes.push({ path, status: response.status() });
-    const kind = response.request().resourceType();
-    if (kind === 'script') scriptCount++;
-    // Read while each response is available, before a later navigation can
-    // evict it from Chromium's resource buffer. Retain only a boolean.
-    if (['document', 'script'].includes(kind)) deliveredBodies.push(response.body()
-      .then(body => !body.includes(Buffer.from(process.env.BROWSER_SECRET_SENTINEL)))
-      .catch(() => false));
-  });
+  page = await context.newPage();
+  observePage(page);
   const status = async path => {
     const value = await page.evaluate(async path => (await fetch(path, { cache: 'no-store' })).status, path);
     probes.push({ path: path.replace(/[a-f0-9-]{36}/g, '<fixture-id>'), status: value });
@@ -170,6 +181,44 @@ COMMIT;
     await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
     await expect(page.getByText('Hidden other tenant talent', { exact: true })).toHaveCount(0);
   });
+  await check('talent navigation starts in a fresh authenticated context', async () => {
+    // The preceding auth checks intentionally sign out and back in. Carry the verified
+    // session into a clean client router so anonymous prefetch results cannot leak into this journey.
+    const cookies = await context.cookies(origin);
+    expect(cookies.some(cookie => cookie.name.includes('session_token') && cookie.secure && cookie.httpOnly)).toBe(true);
+    await Promise.all(deliveredBodies);
+    await context.close();
+    // Earlier anonymous checks share one fixture IP and auth bucket; let it refill before UI prefetches.
+    await delay(21_000);
+    context = await browser.newContext({ baseURL: origin, ignoreHTTPSErrors: true, viewport: { width: 390, height: 844 } });
+    await context.addCookies(cookies);
+    page = await context.newPage();
+    observePage(page);
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
+    expect(await status('/api/v1/models')).toBe(200);
+  });
+  await check('talent profile route opens from the roster', async () => {
+    await page.locator('a.model-link').filter({ hasText: 'Visible fixture talent' }).click();
+    await expect(page).toHaveURL(new RegExp(`/models/${ownModel}$`));
+  });
+  await check('talent profile renders its model heading', async () => {
+    await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
+  });
+  const scheduleAction = page.locator(`.page-stack > .grid a[href="/models/${ownModel}/calendar"]`);
+  await check('talent profile exposes View schedule', async () => {
+    await expect(scheduleAction).toHaveText('View schedule');
+  });
+  await check('View schedule navigates to its calendar route', async () => {
+    await scheduleAction.click();
+    await expect(page).toHaveURL(new RegExp(`/models/${ownModel}/calendar(?:\\?.*)?$`));
+  });
+  await check('calendar route renders its page heading', async () => {
+    await expect(page.getByRole('heading', { name: 'Content calendar', exact: true })).toBeVisible();
+  });
+  await check('calendar route has no server exception', async () => {
+    await expect(page.getByText('Application error: a server-side exception has occurred')).toHaveCount(0);
+  });
   await check('tenant list contains exactly its own record', async () => {
     const models = await page.evaluate(async () => (await (await fetch('/api/v1/models')).json()).data);
     expect(models.map(model => model.id)).toEqual([ownModel]);
@@ -206,7 +255,8 @@ COMMIT;
   if (expected && faultObserved && currentCheck === expected) {
     console.log(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, expectedFailure: currentCheck }));
   } else {
-    console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck, probes }));
+    console.error(JSON.stringify({ mode, passed: results.length, failed: 1, skipped: 0, failure: currentCheck,
+      currentPath: page ? safePath(page.url()) : '<not-available>', probes, redirects }));
     process.exitCode = 1;
   }
 } finally {
