@@ -30,6 +30,9 @@ function run(command, args, { input, env = {}, timeout = 120000 } = {}) {
   return (result.stdout ?? Buffer.alloc(0)).toString().trim();
 }
 const docker = (args, options) => run('docker', args, options);
+// Never persist Docker's complete Config.Env, even for generated credentials.
+const inspectOwned = () => JSON.parse(docker(['inspect', '--format',
+  '{"Id":{{json .Id}},"labels":{{json .Config.Labels}},"privileged":{{json .HostConfig.Privileged}},"network":{{json .HostConfig.NetworkMode}},"ports":{{json .HostConfig.PortBindings}},"mounts":{{json .Mounts}}}', name]));
 const sql = (statement, role = 'axiom') => docker(['exec', '-i', name, 'psql', '-X', '-qAt',
   '-U', role, '-d', 'axiom_test', '-v', 'ON_ERROR_STOP=1'], { input: statement });
 function check(name, action) {
@@ -60,11 +63,11 @@ try {
     '--env', 'POSTGRES_USER=axiom', '--env', 'POSTGRES_DB=axiom_test', '--env', 'POSTGRES_PASSWORD', image],
   { env: { POSTGRES_PASSWORD: password } });
   created = true;
-  const inspect = JSON.parse(docker(['inspect', name]))[0];
-  assert.equal(inspect.HostConfig.Privileged, false);
-  assert.equal(inspect.HostConfig.NetworkMode, 'none');
-  assert.equal(Object.keys(inspect.HostConfig.PortBindings ?? {}).length, 0);
-  assert.equal(inspect.Mounts.some(m => m.Type === 'bind'), false);
+  const inspect = inspectOwned();
+  assert.equal(inspect.privileged, false);
+  assert.equal(inspect.network, 'none');
+  assert.equal(Object.keys(inspect.ports ?? {}).length, 0);
+  assert.equal(inspect.mounts.some(m => m.Type === 'bind'), false);
   docker(['start', name]);
   let ready = false;
   for (let i = 0; i < 60; i++) {
@@ -137,9 +140,9 @@ try {
 } finally {
   try {
     if (created) {
-      const info = JSON.parse(docker(['inspect', name]))[0];
-      assert.equal(info.Config.Labels[label], id, 'Refuse cleanup of unowned container');
-      docker(['rm', '--force', '--volumes', name]);
+      const info = inspectOwned();
+      assert.equal(info.labels[label], id, 'Refuse cleanup of unowned container');
+      docker(['rm', '--force', '--volumes', info.Id]);
       const remaining = docker(['ps', '-a', '--filter', `label=${label}=${id}`, '--format', '{{.ID}}']);
       assert.equal(remaining, '', 'Owned container remains');
     }
