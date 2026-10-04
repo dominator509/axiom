@@ -177,6 +177,7 @@ export const MESSAGE_KEYS = [
   'model.noNetworkConfiguration',
   'model.openNetworkSettings',
   'network.oauthSuccess',
+  'network.oauthNotConfigured',
   'network.ownerOnly',
   'network.configurationLoadFailed',
   'network.egressMode',

@@ -1034,10 +1034,11 @@ app.route('/api/v1/social-accounts', socialRouter);
 app.route('/api/v1/connectors/fanvue', fanvueAuthRouter);
 app.route('/api/v1/connectors/threads', threadsAuthRouter);
 app.route('/api/v1/connectors/snapchat', snapchatAuthRouter);
+// Patreon has a dedicated router; mount it before the generic /:platform matcher.
+app.route('/api/v1', patreonRouter);
 app.route('/api/v1/connectors', socialOAuthRouter);
 app.route('/api/v1/connectors/telegram', telegramAuthRouter);
 app.route('/api/v1/connectors/discord', discordAuthRouter);
-app.route('/api/v1', patreonRouter);
 app.route('/api/v1', killswitchRouter);
 app.route('/api/v1/egress', egressRouter);
 app.route('/api/v1/models', networkRouter);

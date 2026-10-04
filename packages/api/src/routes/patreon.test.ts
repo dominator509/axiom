@@ -82,7 +82,7 @@ beforeEach(async () => {
   );
 });
 
-function app(): Hono<AppBindings> {
+function app(router = patreonRouter): Hono<AppBindings> {
   const nextApp = new Hono<AppBindings>();
   nextApp.use('*', async (c, next) => {
     c.set('orgId', ORG_ID);
@@ -90,11 +90,39 @@ function app(): Hono<AppBindings> {
     c.set('role', 'owner');
     await next();
   });
-  nextApp.route('/', patreonRouter);
+  nextApp.route('/', router);
   return nextApp;
 }
 
 describe('Patreon OAuth boundary', () => {
+  it('returns a localized browser destination when OAuth is unconfigured and preserves the API error contract', async () => {
+    const previousClientId = process.env.PATREON_CLIENT_ID;
+    const previousClientSecret = process.env.PATREON_CLIENT_SECRET;
+    process.env.PATREON_CLIENT_ID = '';
+    process.env.PATREON_CLIENT_SECRET = '';
+    try {
+      const browser = await app().request(`/connectors/patreon/authorize?modelId=${MODEL_ID}`, { headers: { Accept: 'text/html' } });
+      expect(browser.status).toBe(303);
+      const destination = new URL(browser.headers.get('location')!);
+      expect(destination.origin).toBe('https://fanthynks.example');
+      expect(destination.pathname).toBe(`/models/${MODEL_ID}/network`);
+      expect(destination.searchParams.get('oauth')).toBe('unavailable');
+      expect(destination.searchParams.get('platform')).toBe('patreon');
+      expect(destination.search).not.toContain('credential');
+      expect(destination.search).not.toContain('secret');
+
+      const api = await app().request(`/connectors/patreon/authorize?modelId=${MODEL_ID}`, { headers: { Accept: 'application/json' } });
+      expect(api.status).toBe(503);
+      expect(api.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
+      expect(await api.json()).toMatchObject({ status: 503, detail: 'Patreon OAuth credentials are not configured' });
+    } finally {
+      if (previousClientId === undefined) delete process.env.PATREON_CLIENT_ID;
+      else process.env.PATREON_CLIENT_ID = previousClientId;
+      if (previousClientSecret === undefined) delete process.env.PATREON_CLIENT_SECRET;
+      else process.env.PATREON_CLIENT_SECRET = previousClientSecret;
+    }
+  });
+
   it('uses the v2 read/sync/event scopes and seals model target state', async () => {
     const response = await app().request(`/connectors/patreon/authorize?modelId=${MODEL_ID}`);
     expect(response.status).toBe(302);

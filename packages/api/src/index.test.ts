@@ -142,6 +142,24 @@ describe('mounted route groups', () => {
     expect(res.status).toBe(401);
   });
 
+  it('Patreon and Snapchat authorize routes require an authenticated session', async () => {
+    for (const platform of ['patreon', 'snapchat']) {
+      const res = await app.request(`/api/v1/connectors/${platform}/authorize?modelId=22222222-2222-4222-8222-222222222222`);
+      expect(res.status).toBe(401);
+    }
+  });
+
+  it('mounts Patreon OAuth before the generic provider matcher', () => {
+    const authorizeRoutes = app.routes
+      .filter((route: { method: string; path: string }) => route.method === 'GET' && route.path.endsWith('/authorize'))
+      .map((route: { path: string }) => route.path);
+    const patreon = authorizeRoutes.indexOf('/api/v1/connectors/patreon/authorize');
+    const generic = authorizeRoutes.indexOf('/api/v1/connectors/:platform/authorize');
+    expect(patreon).toBeGreaterThanOrEqual(0);
+    expect(generic).toBeGreaterThanOrEqual(0);
+    expect(patreon).toBeLessThan(generic);
+  });
+
   it('fanvue callback rejects missing code', async () => {
     const res = await app.request('/api/v1/connectors/fanvue/callback');
     expect(res.status).toBe(400);
