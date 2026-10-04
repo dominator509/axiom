@@ -170,13 +170,18 @@ COMMIT;
     await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
     await expect(page.getByText('Hidden other tenant talent', { exact: true })).toHaveCount(0);
   });
-  await check('talent schedule navigation renders on the server', async () => {
+  await check('talent profile opens from the roster', async () => {
     await page.locator('a.model-link').filter({ hasText: 'Visible fixture talent' }).click();
-    const viewSchedule = page.getByRole('link', { name: 'View schedule', exact: true });
-    await expect(viewSchedule).toBeVisible();
-    await viewSchedule.click();
+    await expect(page.getByRole('link', { name: 'View schedule', exact: true })).toBeVisible();
+  });
+  await check('View schedule navigates to its calendar route', async () => {
+    await page.getByRole('link', { name: 'View schedule', exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/models/${ownModel}/calendar(?:\\?.*)?$`));
+  });
+  await check('calendar route renders its page heading', async () => {
     await expect(page.getByRole('heading', { name: 'Content calendar', exact: true })).toBeVisible();
+  });
+  await check('calendar route has no server exception', async () => {
     await expect(page.getByText('Application error: a server-side exception has occurred')).toHaveCount(0);
   });
   await check('tenant list contains exactly its own record', async () => {
