@@ -51,12 +51,16 @@ before testing the fault; an already-unsafe catalog cannot yield false-positive
 fault-detection results. Read/update invisibility and explicit DELETE privilege
 denial are separate assertions within the foreign-row behavior case.
 
-Before-fix hosted regression head: `e42a79974ed5247a664ff06a4ef163a902926abd`,
-[CI 37166986531](https://github.com/dominator509/axiom/actions/runs/37166986531).
-This is deliberately the regression-only head; consult its completed job output
-for the before counts. An initial local iteration had 4 passed/16 failed/0 skipped,
-including one incorrectly specified DELETE expectation that was corrected before
-the hosted regression head. That initial count is not the final before receipt.
+Before-fix hosted regression head: `e42a79974ed5247a664ff06a4ef163a902926abd`.
+The [test job in CI 37166986531](https://github.com/dominator509/axiom/actions/runs/37166986531/job/111331844661)
+ran the exact command above and reported **5 passed/15 failed/0 skipped**, with
+cleanup verified. Actions checked out integration commit
+`2be7f4f50c989beff944a2bd94cd96e3beef199b`, recorded in the receipt itself; the PR
+head and tested integration SHA are deliberately distinguished. Eleven failures
+are the unsafe catalog and the safe-baseline prerequisite of its fault controls;
+four are the denied-write assertions that the permissive policy violates.
+An initial local iteration also had an incorrectly specified DELETE expectation;
+that was corrected before this hosted regression head, without granting DELETE.
 
 At fix commit `4622d742dc2e773316feefc3db3cd49d07ceb9d3`, the unchanged security
 assertions run with the corrected DELETE contract reported 20 passed/0 failed/0
