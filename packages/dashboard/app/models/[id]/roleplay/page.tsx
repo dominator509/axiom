@@ -75,7 +75,7 @@ export default async function RoleplayPage({ params }: { params: Promise<{ id: s
                 return [];
               });
           })();
-    const canEdit = ['owner', 'manager', 'operator', 'chatter'].includes(role ?? '');
+    const canEdit = ['owner', 'manager', 'operator'].includes(role ?? '');
     return <RoleplayManager modelId={id} actorOptions={actorOptions} canEdit={canEdit} />;
   } catch {
     const destination = role === 'chatter' ? '/shifts' : `/models/${encodeURIComponent(id)}/team`;

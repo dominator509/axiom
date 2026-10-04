@@ -8,7 +8,7 @@ vi.mock('@/lib/api', () => ({
   api: { myShifts: mocks.myShifts, models: { teamOperations: mocks.teamOperations } },
 }));
 vi.mock('@/components/RoleplayManager', () => ({
-  default: ({ actorOptions }: { actorOptions: Array<{ label: string }> }) => <p>Actors: {actorOptions.map(option => option.label).join(', ')}</p>,
+  default: ({ actorOptions, canEdit }: { actorOptions: Array<{ label: string }>; canEdit: boolean }) => <><p>Actors: {actorOptions.map(option => option.label).join(', ')}</p><p>Can edit persona and provider: {String(canEdit)}</p></>,
 }));
 
 import Page from './page';
@@ -29,6 +29,7 @@ it('uses the chatter-owned shift roster instead of the administrative team endpo
   expect(mocks.myShifts).toHaveBeenCalledOnce();
   expect(mocks.teamOperations).not.toHaveBeenCalled();
   expect(html).toContain('Human chatter · Alex');
+  expect(html).toContain('Can edit persona and provider: false');
 });
 
 it('keeps management roleplay actor discovery on the team operations endpoint', async () => {
@@ -43,4 +44,5 @@ it('keeps management roleplay actor discovery on the team operations endpoint', 
   expect(mocks.teamOperations).toHaveBeenCalledWith('model-1');
   expect(mocks.myShifts).not.toHaveBeenCalled();
   expect(html).toContain('LLM · grok');
+  expect(html).toContain('Can edit persona and provider: true');
 });

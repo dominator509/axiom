@@ -89,6 +89,23 @@ describe('roleplay persistence contract', () => {
     }));
   });
 
+  it('loads a saved soul.md revision without requiring an active roleplay actor', async () => {
+    mockState.results = [
+      [],
+      [{ id: MODEL_ID }],
+      [{ revision: 3, source: 'soul.md', sourceRef: 'soul.md', content: 'Stored persona' }],
+    ];
+    const response = await appWithAuth().request(`/models/${MODEL_ID}/roleplay/persona`);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: {
+      revision: 3,
+      source: 'soul.md',
+      sourceRef: 'soul.md',
+      content: 'Stored persona',
+    } });
+    expect(mockState.insertValues).toHaveLength(0);
+  });
+
   it('does not allow a chatter to write LLM-owned memory', async () => {
     const response = await appWithAuth('chatter').request(`/models/${MODEL_ID}/roleplay/memory`, {
       method: 'POST',

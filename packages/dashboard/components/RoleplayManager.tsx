@@ -53,6 +53,8 @@ export default function RoleplayManager({
   const [conversationKey, setConversationKey] = useState('default');
   const [context, setContext] = useState<RoleplayContext | null>(null);
   const [personaText, setPersonaText] = useState('');
+  const [personaRevision, setPersonaRevision] = useState(0);
+  const [personaLoaded, setPersonaLoaded] = useState(false);
   const [personaMode, setPersonaMode] = useState<'suggested' | 'manual'>('manual');
   const [suggestionKey, setSuggestionKey] = useState<RoleplayPersonalityKey>(
     ROLEPLAY_PERSONALITY_SUGGESTIONS[0].key,
@@ -91,7 +93,10 @@ export default function RoleplayManager({
       if (!body.data?.meta?.activeShiftId || body.data.meta.actor?.ref !== actor.actor.ref)
         throw new Error(t('roleplay.contextUnconfirmed'));
       setContext(body.data);
-      setPersonaText(body.data.persona?.content ?? '');
+      if (!canEdit) {
+        setPersonaRevision(body.data.persona?.revision ?? 0);
+        setPersonaText(body.data.persona?.content ?? '');
+      }
       setSummary(body.data.handoff?.lastSafeSummary ?? '');
       setNextAction(body.data.handoff?.allowedNextAction ?? t('roleplay.defaultNextAction'));
     } catch {
@@ -102,12 +107,58 @@ export default function RoleplayManager({
     }
   }
 
+  async function loadPersona() {
+    setPersonaLoaded(false);
+    try {
+      const response = await fetch(
+        `/api/v1/models/${encodeURIComponent(modelId)}/roleplay/persona`,
+        { cache: 'no-store', signal: AbortSignal.timeout(10_000) },
+      );
+      if (response.status === 404) {
+        setPersonaRevision(0);
+        setPersonaText('');
+        setPersonaLoaded(true);
+        return;
+      }
+      if (!response.ok) throw new Error(t('roleplay.contextUnavailable'));
+      const body = await readDashboardJson<{ data: RoleplayPersona | null }>(response);
+      if (body.data === null) {
+        setPersonaRevision(0);
+        setPersonaText('');
+        setPersonaLoaded(true);
+        return;
+      }
+      if (
+        !body.data ||
+        body.data.source !== 'soul.md' ||
+        !Number.isSafeInteger(body.data.revision) ||
+        body.data.revision < 1 ||
+        typeof body.data.content !== 'string'
+      )
+        throw new Error(t('roleplay.contextUnconfirmed'));
+      setPersonaRevision(body.data.revision);
+      setPersonaText(body.data.content);
+      setPersonaLoaded(true);
+    } catch {
+      setError(t('roleplay.contextUnavailable'));
+    }
+  }
+
   useEffect(() => {
     setLastTurn(null);
     void load();
   }, [actorKey, conversationKey]);
 
-  async function mutate(path: string, body: Record<string, unknown>, success: string) {
+  useEffect(() => {
+    if (canEdit) void loadPersona();
+  }, [modelId, canEdit]);
+
+  async function mutate(
+    path: string,
+    body: Record<string, unknown>,
+    success: string,
+    onSaved?: (data: unknown) => void,
+  ) {
     if (busy) return;
     setBusy(true);
     setError('');
@@ -123,7 +174,8 @@ export default function RoleplayManager({
         { idempotencyKey: createIdempotencyKey(), retries: 0 },
       );
       if (!response.ok) throw new Error(t('roleplay.changeRejected'));
-      await readDashboardJson<{ data: unknown }>(response);
+      const result = await readDashboardJson<{ data: unknown }>(response);
+      onSaved?.(result.data);
       setMessage(success);
       await load();
     } catch {
@@ -155,7 +207,7 @@ export default function RoleplayManager({
   }
 
   function useSuggestedPersonality() {
-    if (!canEdit || busy) return;
+    if (!canEdit || busy || !personaLoaded) return;
     const suggestion = getRoleplayPersonalitySuggestion(suggestionKey);
     if (!suggestion) return;
     setError('');
@@ -165,22 +217,35 @@ export default function RoleplayManager({
   }
 
   function enableManualPersonality() {
-    if (!canEdit || busy) return;
+    if (!canEdit || busy || !personaLoaded) return;
     setError('');
     setPersonaMode('manual');
     setMessage(t('roleplay.manualModeEnabled'));
   }
 
   function savePersona() {
-    if (!canEdit || !context) return;
+    if (!canEdit || !personaLoaded || !personaText.trim()) return;
     void mutate(
       `/api/v1/models/${encodeURIComponent(modelId)}/roleplay/persona`,
       {
-        expectedRevision: context.persona?.revision ?? 0,
+        expectedRevision: personaRevision,
         sourceRef: 'soul.md',
         content: personaText,
       },
       t('roleplay.personaSaved'),
+      (data) => {
+        const saved = data as RoleplayPersona;
+        if (
+          !saved ||
+          saved.source !== 'soul.md' ||
+          !Number.isSafeInteger(saved.revision) ||
+          saved.revision !== personaRevision + 1 ||
+          typeof saved.content !== 'string'
+        )
+          throw new Error(t('roleplay.contextUnconfirmed'));
+        setPersonaRevision(saved.revision);
+        setPersonaText(saved.content);
+      },
     );
   }
 
@@ -356,7 +421,7 @@ export default function RoleplayManager({
               {t('roleplay.suggestedPersonality')}
               <select
                 value={suggestionKey}
-                disabled={!canEdit || busy}
+                disabled={!canEdit || busy || !personaLoaded}
                 onChange={(event) => setSuggestionKey(event.target.value as RoleplayPersonalityKey)}
               >
                 {ROLEPLAY_PERSONALITY_SUGGESTIONS.map((suggestion) => (
@@ -371,7 +436,7 @@ export default function RoleplayManager({
               <button
                 className={`btn${personaMode === 'suggested' ? '' : ' secondary'}`}
                 type="button"
-                disabled={!canEdit || busy}
+                disabled={!canEdit || busy || !personaLoaded}
                 aria-pressed={personaMode === 'suggested'}
                 onClick={useSuggestedPersonality}
               >
@@ -380,7 +445,7 @@ export default function RoleplayManager({
               <button
                 className={`btn${personaMode === 'manual' ? '' : ' secondary'}`}
                 type="button"
-                disabled={!canEdit || busy}
+                disabled={!canEdit || busy || !personaLoaded}
                 aria-pressed={personaMode === 'manual'}
                 onClick={enableManualPersonality}
               >
@@ -401,7 +466,7 @@ export default function RoleplayManager({
             <input
               type="file"
               accept=".md,.txt,text/markdown,text/plain"
-              disabled={!canEdit || busy}
+              disabled={!canEdit || busy || !personaLoaded}
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 event.currentTarget.value = '';
@@ -415,11 +480,11 @@ export default function RoleplayManager({
             maxLength={8000}
             rows={12}
             placeholder={t('roleplay.personaPlaceholder')}
-            disabled={!canEdit || busy}
+            disabled={!canEdit || busy || !personaLoaded}
           />
           <p className="subtle">
             {t('roleplay.personaRevision', {
-              revision: formatRoleplayCount(context?.persona?.revision ?? 0, locale),
+              revision: formatRoleplayCount(personaRevision, locale),
               count: formatRoleplayCount(personaText.length, locale),
             })}
           </p>
@@ -427,7 +492,7 @@ export default function RoleplayManager({
             <button
               className="btn"
               type="button"
-              disabled={busy || !context || !personaText.trim()}
+              disabled={busy || !personaLoaded || !personaText.trim()}
               onClick={savePersona}
             >
               {t('roleplay.savePersona')}
