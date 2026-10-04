@@ -31,6 +31,8 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `sh scripts/fetch-vision-model.sh` — fetch and checksum the pinned public ONNX artifact into ignored local storage; no inference or accuracy claim.
+- `node scripts/rehearse-l5-runtime.mjs --isolated-fixture` — build committed API/media/vision images, exercise real worker/audit/ToS boundaries twice in owned network-disabled PostgreSQL fixtures, and verify cleanup; requires the pinned model and a clean committed checkout. No existing databases, host mounts, published ports, provider credentials or customer media.
 - `node scripts/rehearse-rls-catalog.mjs --isolated-fixture` — build the committed schema, migrate a fresh network-disabled PostgreSQL container, verify effective RLS and role privileges, inject rollback-only faults and exercise tenant locale writes; never reads `.env` or an existing database URL. Requires clean committed source and pinned Node. Receipts and private logs: `var/rls-rehearsal/`.
 - `node scripts/check-release-evidence.mjs --check` — verify complete L5 acceptance coverage and receipt structure; open rows remain open and this is not release approval.
 - `node --test scripts/check-release-evidence.test.mjs` — isolated negative controls for missing/stale/failed evidence and unavailable hosted readback; no services, credentials or database access.

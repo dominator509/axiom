@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { canonicalAuditPayload } from '@axiom/core';
 import { incidentNotify } from './incident.js';
 
 function makeTx(previousHash: Buffer) {
@@ -64,9 +65,7 @@ describe('incident.notify executor', () => {
       ts: now.toISOString(),
       prev_hash: previousHash.toString('hex'),
     };
-    const expected = createHash('sha256')
-      .update(JSON.stringify(payload, Object.keys(payload).sort()))
-      .digest();
+    const expected = createHash('sha256').update(canonicalAuditPayload(payload)).digest();
     expect(row.rowHash).toEqual(expected);
   });
 

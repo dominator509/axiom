@@ -1,6 +1,7 @@
 // ─── Audit Router (LBI-08 hash chain) — Vitest Suite ───
 // Covers: list + verify endpoints, org scoping.
 
+import { createHash } from 'node:crypto';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { AppBindings } from '../index.js';
@@ -16,7 +17,7 @@ vi.mock('./helpers.js', async (importOriginal) => {
 });
 
 import { auditRouter } from './audit.js';
-import { verifyAuditChain, writeAudit } from './helpers.js';
+import { canonical, verifyAuditChain, writeAudit } from './helpers.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -86,6 +87,8 @@ describe('GET /audit/verify — chain integrity', () => {
     const body = (await res.json()) as any;
     expect(body.data.rows).toBe(1);
     expect(body.data.valid).toBe(true);
+    expect(body.data.fullyVerified).toBe(true);
+    expect(body.data.legacyRows).toBe(0);
   });
 
   it('verifies a valid chained pair (genesis + model.create)', async () => {
@@ -132,6 +135,32 @@ describe('GET /audit/verify — chain integrity', () => {
     const body = (await res.json()) as any;
     expect(body.data.rows).toBe(2);
     expect(body.data.valid).toBe(true);
+    expect(body.data.fullyVerified).toBe(false);
+    expect(body.data.legacyRows).toBe(1);
+  });
+
+  it('reports a new-format row as fully verified', async () => {
+    const ts = new Date('2026-01-01T00:01:00Z');
+    const prevHash = Buffer.alloc(32);
+    const payload = {
+      org_id: ORG_ID,
+      actor_ref: 'user-1',
+      action: 'model.create',
+      target: 'm1',
+      detail: { review: { approved: true } },
+      ts: ts.toISOString(),
+      prev_hash: prevHash.toString('hex'),
+    };
+    mockState.result = [{
+      id: 'a1', ts, action: payload.action, prevHash,
+      rowHash: createHash('sha256').update(canonical(payload)).digest(),
+      actorRef: payload.actor_ref, target: payload.target, detail: payload.detail,
+    }];
+
+    const res = await appWithOrg(ORG_ID).request('/audit/verify');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.data).toMatchObject({ rows: 1, valid: true, fullyVerified: true, legacyRows: 0 });
   });
 
   it('flags a tampered chain as invalid', async () => {

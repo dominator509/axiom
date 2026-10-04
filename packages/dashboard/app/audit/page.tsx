@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export default async function AuditPage() {
   const { t, dateTime, locale } = await getServerLocale();
   let entries: Array<Record<string, unknown>> = [];
-  let verification: { rows: number; valid: boolean; brokenAt?: string } | null = null;
+  let verification: { rows: number; valid: boolean; fullyVerified: boolean; legacyRows: number; brokenAt?: string } | null = null;
   let error: string | null = null;
   try {
     [entries, verification] = await Promise.all([
@@ -23,9 +23,10 @@ export default async function AuditPage() {
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <h1>{t('audit.title')}</h1>
         {verification && (
-          <span className={`badge ${verification.valid ? 'good' : 'bad'}`}>
-            {t(verification.valid ? 'audit.chainValid' : 'audit.chainBroken', {
+          <span className={`badge ${!verification.valid ? 'bad' : verification.fullyVerified ? 'good' : 'warn'}`}>
+            {t(!verification.valid ? 'audit.chainBroken' : verification.fullyVerified ? 'audit.chainValid' : 'audit.chainLegacy', {
               count: formatNumber(verification.rows, locale),
+              legacy: formatNumber(verification.legacyRows, locale),
               value: verification.brokenAt ?? 'unknown',
             })}
           </span>

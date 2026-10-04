@@ -289,6 +289,9 @@ export class ToSEngine {
     options: { override?: OverrideVerdict } = {},
   ): Promise<ImageClassification> {
     const result = await this.visionClient.callTosClassify(imagePath, options);
+    if (!options.override && (result.overridden || result.overrideSource !== null)) {
+      throw new Error('tos-engine: unrequested vision override; refusing to create a compliance verdict');
+    }
     return {
       score: Math.round(result.score * 100),
       category: result.category,

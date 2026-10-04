@@ -650,6 +650,7 @@ export const MESSAGE_KEYS = [
   'nav.audit',
   'audit.title',
   'audit.chainValid',
+  'audit.chainLegacy',
   'audit.chainBroken',
   'audit.entries',
   'audit.when',

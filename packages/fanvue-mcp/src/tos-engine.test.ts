@@ -77,6 +77,12 @@ describe('classifyImage', () => {
     expect(body.override).toBe('block');
     expect(result.category).toBe('block');
   });
+
+  it('rejects an unrequested environment override before creating a compliance verdict', async () => {
+    stubVision(0, 'pass', { overridden: true, override_source: 'environment' });
+    await expect(new ToSEngine().evaluate({ imageData: '/tmp/img.png' }, ['instagram']))
+      .rejects.toThrow('unrequested vision override');
+  });
 });
 
 describe('evaluate', () => {

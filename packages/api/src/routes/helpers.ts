@@ -6,7 +6,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
-import { tosReportPassesForPlatforms } from '@axiom/core';
+import { tosReportPassesForPlatforms, canonicalAuditPayload, legacyAuditPayload } from '@axiom/core';
 import { db, schema } from '@axiom/db';
 import { problem, problemResponse } from '../contract.js';
 
@@ -158,7 +158,7 @@ export async function modelOrgId(tx: any, modelId: string): Promise<string | nul
 
 /** Canonical serialization for the audit chain (deterministic JSON). */
 export function canonical(o: unknown): string {
-  return JSON.stringify(o, Object.keys(o as object).sort());
+  return canonicalAuditPayload(o);
 }
 
 /** Append a hash-chained audit entry (LBI-08). Must run inside org context. */
@@ -178,7 +178,7 @@ export async function writeAudit(
 
   // Latest chain head for this org
   const prev = await tx
-    .select({ rowHash: schema.auditLog.rowHash })
+    .select({ rowHash: schema.auditLog.rowHash, ts: schema.auditLog.ts })
     .from(schema.auditLog)
     .where(sql`${schema.auditLog.orgId} = ${orgId}`)
     .orderBy(sql`${schema.auditLog.ts} DESC, ${schema.auditLog.id} DESC`)
@@ -188,7 +188,7 @@ export async function writeAudit(
       ? Buffer.from(prev[0].rowHash as Uint8Array)
       : Buffer.from('0000000000000000000000000000000000000000000000000000000000000000', 'hex');
 
-  const ts = new Date();
+  const ts = new Date(Math.max(Date.now(), prev[0]?.ts ? new Date(prev[0].ts).getTime() + 1 : 0));
   const payload = canonical({
     org_id: orgId,
     actor_ref: actorRef,
@@ -218,7 +218,7 @@ export async function writeAudit(
 export async function verifyAuditChain(
   tx: any,
   orgId: string,
-): Promise<{ rows: number; valid: boolean; brokenAt?: string }> {
+): Promise<{ rows: number; valid: boolean; fullyVerified: boolean; legacyRows: number; brokenAt?: string }> {
   const rows = await tx
     .select({
       id: schema.auditLog.id,
@@ -238,23 +238,26 @@ export async function verifyAuditChain(
     '0000000000000000000000000000000000000000000000000000000000000000',
     'hex',
   );
+  let legacyRows = 0;
+  const broken = (row: { action: string; ts: Date }) => ({ rows: rows.length, valid: false,
+    fullyVerified: false, legacyRows, brokenAt: `${row.action}@${row.ts}` });
   for (const row of rows) {
     const storedPrev = Buffer.from(row.prevHash as Uint8Array);
     const storedRow = Buffer.from(row.rowHash as Uint8Array);
     if (!storedPrev.equals(prev)) {
-      return { rows: rows.length, valid: false, brokenAt: `${row.action}@${row.ts}` };
+      return broken(row);
     }
     // Genesis head (migration 0000 seeds row_hash = sha256('genesis') with
     // zero prev_hash) — a fixed chain anchor, not a canonical serialization.
-    if (row.action === 'genesis' && row.actorRef === 'system') {
+    if (row.action === 'genesis' && row.actorRef === 'system' && prev.equals(Buffer.alloc(32))) {
       const expected = createHash('sha256').update('genesis').digest();
       if (!expected.equals(storedRow)) {
-        return { rows: rows.length, valid: false, brokenAt: `${row.action}@${row.ts}` };
+        return broken(row);
       }
       prev = storedRow;
       continue;
     }
-    const payload = canonical({
+    const payload = {
       org_id: orgId,
       actor_ref: row.actorRef,
       action: row.action,
@@ -262,14 +265,16 @@ export async function verifyAuditChain(
       detail: row.detail,
       ts: new Date(row.ts).toISOString(),
       prev_hash: storedPrev.toString('hex'),
-    });
-    const expected = createHash('sha256').update(payload).digest();
+    };
+    const expected = createHash('sha256').update(canonical(payload)).digest();
     if (!expected.equals(storedRow)) {
-      return { rows: rows.length, valid: false, brokenAt: `${row.action}@${row.ts}` };
+      const legacy = createHash('sha256').update(legacyAuditPayload(payload)).digest();
+      if (!legacy.equals(storedRow)) return broken(row);
+      legacyRows++;
     }
     prev = storedRow;
   }
-  return { rows: rows.length, valid: true };
+  return { rows: rows.length, valid: true, fullyVerified: legacyRows === 0, legacyRows };
 }
 
 /** Deterministic idempotency key for a post target (LBI-05). */
