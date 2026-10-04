@@ -94,6 +94,8 @@ try {
 INSERT INTO org (id, name, slug) VALUES (:'org', 'Browser fixture', :'org'), (:'other_org', 'Other browser fixture', :'other_org');
 INSERT INTO model_profile (id, org_id, display_name, handle) VALUES
 (:'model', :'org', 'Visible fixture talent', :'model'), (:'other_model', :'other_org', 'Hidden other tenant talent', :'other_model');
+INSERT INTO relay_binding (org_id, model_id, channel, chat_ref, enabled)
+VALUES (:'org', :'model', 'telegram', '@fixture_channel', true);
 UPDATE auth_user SET org_id = :'org' WHERE email = :'email' AND org_id IS NULL AND role = 'operator';
 SELECT count(*) FROM auth_user WHERE email = :'email' AND org_id = :'org' AND role = 'operator';
 COMMIT;
@@ -218,6 +220,17 @@ COMMIT;
   });
   await check('calendar route has no server exception', async () => {
     await expect(page.getByText('Application error: a server-side exception has occurred')).toHaveCount(0);
+  });
+  await check('Relay destination action label stays readable on mobile', async () => {
+    await page.goto(`/models/${ownModel}/relay`);
+    const disableAction = page.getByRole('button', { name: 'Disable', exact: true });
+    await expect(disableAction).toBeVisible();
+    const renderedLines = await disableAction.evaluate(button => {
+      const range = document.createRange();
+      range.selectNodeContents(button);
+      return range.getClientRects().length;
+    });
+    expect(renderedLines).toBe(1);
   });
   await check('tenant list contains exactly its own record', async () => {
     const models = await page.evaluate(async () => (await (await fetch('/api/v1/models')).json()).data);
