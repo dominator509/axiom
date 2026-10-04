@@ -85,6 +85,9 @@ COMMIT;
   page.on('response', response => {
     const path = new URL(response.url()).pathname;
     if (path.startsWith('/api/auth/')) probes.push({ path, status: response.status() });
+    if (/^\/(?:api\/v1\/)?models\/[a-f0-9-]{36}(?:\/calendar)?$/.test(path)) {
+      probes.push({ path: path.replace(/[a-f0-9-]{36}/g, '<fixture-id>'), status: response.status() });
+    }
     const kind = response.request().resourceType();
     if (kind === 'script') scriptCount++;
     // Read while each response is available, before a later navigation can
@@ -170,8 +173,14 @@ COMMIT;
     await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
     await expect(page.getByText('Hidden other tenant talent', { exact: true })).toHaveCount(0);
   });
-  await check('talent profile opens from the roster', async () => {
+  await check('talent profile route opens from the roster', async () => {
     await page.locator('a.model-link').filter({ hasText: 'Visible fixture talent' }).click();
+    await expect(page).toHaveURL(new RegExp(`/models/${ownModel}$`));
+  });
+  await check('talent profile renders its model heading', async () => {
+    await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
+  });
+  await check('talent profile exposes View schedule', async () => {
     await expect(page.getByRole('link', { name: 'View schedule', exact: true })).toBeVisible();
   });
   await check('View schedule navigates to its calendar route', async () => {
