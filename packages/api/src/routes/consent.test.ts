@@ -9,7 +9,7 @@ vi.mock('@axiom/db', () => ({
 }));
 
 import { getPublishingConsentStatus } from '@axiom/db';
-import { consentDocumentSha256, openConsentDocument } from '../consent-vault.js';
+import { consentDocumentSha256, MAX_CONSENT_DOCUMENT_BYTES, openConsentDocument } from '../consent-vault.js';
 import { consentRouter } from './consent.js';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
@@ -101,6 +101,58 @@ describe('Consent & Records Vault', () => {
     mockState.results = [[{ ...stored }]];
     const denied = await appWithOrg(ORG_ID, 'chatter').request(`/models/${MODEL_ID}/consent-records/${stored.id}/document`);
     expect(denied.status).toBe(403);
+  });
+
+  it('accepts a DNG upload at the 25 MiB limit and keeps its attachment type', async () => {
+    const source = Buffer.alloc(MAX_CONSENT_DOCUMENT_BYTES, 0x5a);
+    source.write('II', 0, 'ascii');
+    source.writeUInt16LE(42, 2);
+    source.writeUInt32LE(8, 4);
+    source.writeUInt16LE(1, 8);
+    source.writeUInt16LE(0xc612, 10);
+    source.writeUInt16LE(1, 12);
+    source.writeUInt32LE(4, 14);
+    source.set([1, 4, 0, 0], 18);
+    source.writeUInt32LE(0, 22);
+
+    mockState.results = [
+      [],
+      [{ orgId: ORG_ID }],
+      () => {
+        const inserted = mockState.insertValues[0] as { id: string; documentMimeType: string; documentSize: number };
+        return [{ id: inserted.id, documentMimeType: inserted.documentMimeType, documentSize: inserted.documentSize }];
+      },
+      [],
+    ];
+    const form = new FormData();
+    form.set('platform', 'instagram');
+    form.set('docKind', 'id_verify');
+    form.set('subjectRef', 'performer-1');
+    form.set('validFrom', '2026-09-01');
+    form.set('document', new Blob([source], { type: 'application/octet-stream' }), 'drivers-license.dng');
+
+    const uploaded = await appWithOrg(ORG_ID).request(`/models/${MODEL_ID}/consent-records`, {
+      method: 'POST',
+      body: form,
+    });
+
+    expect(uploaded.status).toBe(201);
+    expect((await uploaded.json() as any).data).toMatchObject({
+      documentMimeType: 'image/tiff',
+      documentSize: MAX_CONSENT_DOCUMENT_BYTES,
+      hasDocument: true,
+    });
+    const stored = mockState.insertValues[0] as any;
+    expect(Buffer.from(stored.documentCiphertext).includes(source)).toBe(false);
+
+    mockState.results = [[], [{ ...stored }]];
+    const downloaded = await appWithOrg(ORG_ID).request(
+      `/models/${MODEL_ID}/consent-records/${stored.id}/document`,
+    );
+    expect(downloaded.status).toBe(200);
+    expect(downloaded.headers.get('content-type')).toBe('image/tiff');
+    expect(downloaded.headers.get('content-disposition')).toContain('.dng');
+    await downloaded.body?.cancel();
   });
 
   it('returns a fail-closed publish status for an incomplete set', async () => {

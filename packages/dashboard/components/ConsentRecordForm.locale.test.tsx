@@ -16,6 +16,10 @@ describe('ConsentRecordForm localization', () => {
       );
       expect(html).toContain(CONSENT_CATALOGS[locale]['consent.addMetadata']);
       expect(html).toContain(CONSENT_CATALOGS[locale]['consent.save']);
+      expect(html).toContain(CONSENT_CATALOGS[locale]['consent.uploadDocument']);
+      expect(html).toContain('25 MiB');
+      expect(html).toContain('DNG');
+      expect(html).toContain('accept="application/pdf,image/jpeg,image/png,.dng"');
     });
   }
 });

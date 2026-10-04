@@ -14,6 +14,7 @@ export * from './network-child-controls-catalog.js';
 export * from './review-catalog.js';
 export * from './generation-status-catalog.js';
 export * from './consent-catalog.js';
+export * from './consent-document.js';
 export * from './fan-crm-catalog.js';
 export * from './locale-settings.js';
 export * from './digest-card.js';

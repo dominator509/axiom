@@ -2,14 +2,18 @@
 
 import { useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { CONSENT_CATALOGS, interpolate, type ConsentMessageKey } from '@axiom/core';
+import {
+  CONSENT_CATALOGS,
+  consentDocumentUploadType,
+  interpolate,
+  MAX_CONSENT_DOCUMENT_BYTES,
+  type ConsentMessageKey,
+} from '@axiom/core';
 import { createIdempotencyKey, mutationFetch } from '@/lib/mutation';
 import { readDashboardJson } from '@/lib/response';
 import { useLocale } from './LocaleProvider';
 
 const DOC_KINDS = ['2257', 'model_release', 'id_verify', 'platform_consent'] as const;
-const DOCUMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
-const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 type ConsentT = (key: ConsentMessageKey, values?: Record<string, string | number>) => string;
 const defaultConsentT: ConsentT = (key, values) => interpolate(CONSENT_CATALOGS.en[key], values);
 
@@ -27,8 +31,11 @@ export function consentPayload(data: FormData, t: ConsentT = defaultConsentT) {
   if (!subjectRef || subjectRef.length > 200)
     throw new Error(t('consent.invalidReferences'));
   const document = data.get('document');
+  const documentType = document && typeof document !== 'string'
+    ? consentDocumentUploadType(document.type, document.name)
+    : null;
   if (!document || typeof document === 'string' || typeof document.arrayBuffer !== 'function'
-    || document.size < 1 || document.size > MAX_DOCUMENT_BYTES || !DOCUMENT_TYPES.includes(document.type.toLowerCase())) {
+    || document.size < 1 || document.size > MAX_CONSENT_DOCUMENT_BYTES || !documentType) {
     throw new Error(t('consent.invalidDocument'));
   }
   if (
@@ -131,7 +138,7 @@ export default function ConsentRecordForm({ modelId }: { modelId: string }) {
           </label>
           <label>
             {t('consent.uploadDocument')}
-            <input name="document" type="file" accept="application/pdf,image/jpeg,image/png" required />
+            <input name="document" type="file" accept="application/pdf,image/jpeg,image/png,.dng" required />
           </label>
           <label>
             {t('consent.validFrom')}
