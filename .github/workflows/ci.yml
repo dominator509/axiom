@@ -312,17 +312,9 @@ jobs:
           node scripts/check-grok-rand-contract.mjs --fetch-upstream
           sh infra/grok-cli/rand-regression/test-linux.sh
 
-      - name: RLS coverage check — verify ENABLE ROW LEVEL SECURITY policies
+      - name: Effective RLS catalog and tenant-write regressions
         if: matrix.task == 'test'
-        run: |
-          MATCHES=$(grep -r "ENABLE ROW LEVEL SECURITY" packages/db/migrations/ 2>/dev/null | wc -l)
-          echo "RLS policy statements found: $MATCHES"
-          if [ "$MATCHES" -ge 15 ]; then
-            echo "RLS coverage: PASS (>= 15)"
-          else
-            echo "RLS coverage: FAIL — only $MATCHES ENABLE ROW LEVEL SECURITY statements found (expected >= 15)"
-            exit 1
-          fi
+        run: node scripts/rehearse-rls-catalog.mjs --isolated-fixture
 
       - name: Install runtime rehearsal dependencies
         if: matrix.task == 'test'
