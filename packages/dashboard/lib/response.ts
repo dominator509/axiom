@@ -3,6 +3,7 @@ import { readBoundedResponseJson } from '@axiom/core';
 export interface DashboardErrorBody {
   error?: { message?: string };
   message?: string;
+  code?: string;
   [key: string]: unknown;
 }
 

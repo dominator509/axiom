@@ -2,7 +2,7 @@ import { mutationFetch } from './mutation';
 import { readDashboardError, readDashboardJson } from './response';
 
 class ClientApiError extends Error {
-  constructor(public readonly status: number, message: string) {
+  constructor(public readonly status: number, message: string, public readonly code?: string) {
     super(message);
     this.name = 'ClientApiError';
   }
@@ -14,7 +14,11 @@ async function clientApiFetch<T>(path: string, init: RequestInit = {}): Promise<
     : await fetch(path, { ...init, credentials: 'same-origin' });
   if (!response.ok) {
     const body = await readDashboardError(response);
-    throw new ClientApiError(response.status, body.error?.message ?? body.message ?? `API ${response.status}`);
+    throw new ClientApiError(
+      response.status,
+      body.error?.message ?? body.message ?? `API ${response.status}`,
+      body.code,
+    );
   }
   return readDashboardJson<T>(response);
 }
@@ -76,6 +80,7 @@ export const clientApi = {
       connectionId: string;
       displayName: string;
       botUsername: string;
+      channelId: string;
     }>('/api/v1/connectors/telegram/manual', {
       method: 'POST',
       body: JSON.stringify(body),

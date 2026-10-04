@@ -4,6 +4,9 @@ const state = vi.hoisted(() => ({
   results: [] as unknown[],
   values: [] as Array<Record<string, unknown>>,
   sent: [] as Array<{ channel: string; chatRef: string; card: Record<string, unknown> }>,
+  telegramConfigs: [] as Array<Record<string, unknown>>,
+  telegramFetch: vi.fn(),
+  resolveTelegramTransport: vi.fn(),
   marked: 0,
 }));
 
@@ -42,6 +45,10 @@ vi.mock('@axiom/db', () => ({
   },
 }));
 
+vi.mock('../connection.js', () => ({
+  telegramRelayTransportForTarget: state.resolveTelegramTransport,
+}));
+
 vi.mock('@axiom/relay', () => {
   class MockCardRenderer {
     renderInsightCard(input: Record<string, unknown>) {
@@ -49,7 +56,7 @@ vi.mock('@axiom/relay', () => {
     }
   }
   class MockTelegramAdapter {
-    constructor(_config: unknown) {}
+    constructor(config: Record<string, unknown>) { state.telegramConfigs.push(config); }
     async sendCard(chatRef: string, card: Record<string, unknown>) {
       state.sent.push({ channel: 'telegram', chatRef, card });
     }
@@ -131,8 +138,14 @@ beforeEach(() => {
   state.results = [];
   state.values = [];
   state.sent = [];
+  state.telegramConfigs = [];
+  state.telegramFetch = vi.fn();
+  state.resolveTelegramTransport.mockReset().mockResolvedValue({
+    token: 'encrypted-per-model-bot-token',
+    fetch: state.telegramFetch,
+  });
   state.marked = 0;
-  vi.stubEnv('TELEGRAM_BOT_TOKEN', 'test-token');
+  vi.stubEnv('TELEGRAM_BOT_TOKEN', '');
   vi.stubEnv('DISCORD_BOT_TOKEN', 'discord-token');
   vi.stubEnv('DISCORD_APPLICATION_ID', 'discord-app');
 });
@@ -168,6 +181,11 @@ describe('relayInsightCard', () => {
     });
     expect(state.values[0].config).toMatchObject({ sourceCardId: CARD_ID, externalDelivery: 'attempted' });
     expect(state.sent).toHaveLength(1);
+    expect(state.resolveTelegramTransport).toHaveBeenCalledWith(expect.anything(), ORG_ID, MODEL_ID, 'chat-1');
+    expect(state.telegramConfigs).toEqual([{
+      token: 'encrypted-per-model-bot-token',
+      fetch: state.telegramFetch,
+    }]);
     expect(state.sent[0]).toMatchObject({ channel: 'telegram', chatRef: 'chat-1' });
     expect(state.sent[0].card).toMatchObject({ kind: 'insight', cardId: 'marker-1', actions: [] });
     expect(state.marked).toBe(1);

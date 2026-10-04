@@ -50,6 +50,13 @@ describe('construction / getBot / onCommand', () => {
     expect(bot.api.options?.timeoutSeconds).toBe(60);
   });
 
+  it('passes the model egress fetch transport to grammY', () => {
+    const egressFetch = vi.fn();
+    const egressAdapter = new TelegramAdapter({ token: config.token, fetch: egressFetch });
+
+    expect(egressAdapter.getBot().api.options?.fetch).toBe(egressFetch);
+  });
+
   it('stores action handlers for callback queries', async () => {
     const events: string[] = [];
     const handler = vi.fn().mockImplementation(async () => {

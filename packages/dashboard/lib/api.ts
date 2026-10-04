@@ -805,7 +805,7 @@ export const api = {
         { method: 'POST', body: JSON.stringify(operation) },
       ),
     connectTelegram: (body: { modelId: string; botToken: string; channelId: string }) =>
-      apiFetch<{ status: string; platform: 'telegram'; connectionId: string; displayName: string; botUsername: string }>(
+      apiFetch<{ status: string; platform: 'telegram'; connectionId: string; displayName: string; botUsername: string; channelId: string }>(
         '/api/v1/connectors/telegram/manual',
         { method: 'POST', body: JSON.stringify(body) },
       ),
