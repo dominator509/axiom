@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { loadEnvFile } from 'node:process';
 import { createRequire } from 'node:module';
 import { randomUUID, createHash } from 'node:crypto';
+import { canonicalAuditPayload } from '../packages/core/dist/audit-payload.js';
 const [mode, email, expectedId] = process.argv.slice(2);
 assert.ok(['--inspect', '--rehearse', '--assign'].includes(mode));
 assert.ok(email && email.length <= 254 && !/[\r\n]/.test(email));
@@ -33,12 +34,12 @@ try {
       [orgId, 'Grok connection workspace', `grok-connect-${orgId}`, '[]']);
     const changed = await client.query('UPDATE auth_user SET org_id=$1,updated_at=now() WHERE id=$2 AND org_id IS NULL AND role=$3 RETURNING id', [orgId, user.id, 'operator']);
     assert.equal(changed.rowCount, 1);
-    // Same sorted-key payload contract as API writeAudit; this new org has no prior chain.
+    // Same v2 payload contract as API writeAudit; this new org has no prior chain.
     const ts = new Date().toISOString();
     const prevHash = Buffer.alloc(32);
     const payload = { org_id: orgId, actor_ref: 'local-operator', action: 'workspace.grok-onboard',
       target: user.id, detail: {}, ts, prev_hash: prevHash.toString('hex') };
-    const rowHash = createHash('sha256').update(JSON.stringify(payload, Object.keys(payload).sort())).digest();
+    const rowHash = createHash('sha256').update(canonicalAuditPayload(payload)).digest();
     await client.query('INSERT INTO audit_log (org_id,actor_ref,action,target,detail,ts,prev_hash,row_hash) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
       [orgId, payload.actor_ref, payload.action, user.id, {}, ts, prevHash, rowHash]);
     const { rows: [counts] } = await client.query('SELECT (SELECT count(*) FROM model_profile) AS models,(SELECT count(*) FROM job) AS jobs,(SELECT count(*) FROM audit_log) AS audits');

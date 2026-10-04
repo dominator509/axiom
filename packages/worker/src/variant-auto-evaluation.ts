@@ -1,6 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { createHash } from 'node:crypto';
 import { schema } from '@axiom/db';
+import { canonicalAuditPayload } from '@axiom/core';
 import { assessVariantPerformance, type VariantObservation } from './variant-evaluation.js';
 
 export function evaluationDigest(evaluation: Record<string, unknown>): string {
@@ -20,12 +21,11 @@ async function auditEvaluation(tx: any, orgId: string, experimentId: string, eva
   const prevHash = previous[0]?.hash ? Buffer.from(previous[0].hash) : Buffer.alloc(32);
   const ts = new Date(Math.max(Date.now(), previous[0]?.ts ? new Date(previous[0].ts).getTime() + 1 : 0));
   const evidenceDigest = evaluationDigest(evaluation);
-  // The legacy verifier canonicalizes top-level keys only. Binding the digest
-  // into target protects the entire evaluation without changing old chains.
+  // Retain the full evaluation digest in the target as well as the v2 row hash.
   const target = `${experimentId}:${evidenceDigest}`;
   const detail = { experimentId, evidenceDigest, policy: evaluation.policy, assessment: evaluation.assessment };
   const payload = { org_id: orgId, actor_ref: 'worker:variant-evaluation', action: 'variant.experiment.auto-evaluate', target, detail, ts: ts.toISOString(), prev_hash: prevHash.toString('hex') };
-  const rowHash = createHash('sha256').update(JSON.stringify(payload, Object.keys(payload).sort())).digest();
+  const rowHash = createHash('sha256').update(canonicalAuditPayload(payload)).digest();
   await tx.insert(schema.auditLog).values({ orgId, actorRef: payload.actor_ref, action: payload.action, target, detail, ts, prevHash, rowHash });
 }
 

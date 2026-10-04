@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { schema } from '@axiom/db';
+import { canonicalAuditPayload } from '@axiom/core';
 import type { Executor, ExecutorContext } from './context.js';
 
 export const incidentNotify: Executor = async (ctx: ExecutorContext) => {
@@ -14,19 +15,19 @@ export const incidentNotify: Executor = async (ctx: ExecutorContext) => {
   if (!payload.incidentId) throw new Error('incident.notify: payload.incidentId required');
 
   const actorRef = `worker:${ctx.workerId}`;
-  const now = new Date();
   // Serialize this worker-side append with API audit writers. Without the
   // org-row lock, concurrent writers can observe one chain head and append
   // siblings with the same prev_hash, permanently forking the audit chain.
   await tx.execute(sql`SELECT id FROM org WHERE id = ${job.org_id} FOR UPDATE`);
   const prev = await tx
-    .select({ rowHash: schema.auditLog.rowHash })
+    .select({ rowHash: schema.auditLog.rowHash, ts: schema.auditLog.ts })
     .from(schema.auditLog)
     .where(eq(schema.auditLog.orgId, job.org_id))
     .orderBy(desc(schema.auditLog.ts), desc(schema.auditLog.id))
     .limit(1);
   const prevHash: Buffer =
     prev.length > 0 ? Buffer.from(prev[0].rowHash as Uint8Array) : Buffer.alloc(32);
+  const now = new Date(Math.max(Date.now(), prev[0]?.ts ? new Date(prev[0].ts).getTime() + 1 : 0));
   const detail = { message: payload.message ?? '', severity: 'sev-1' };
   const auditPayload = {
     org_id: job.org_id,
@@ -37,7 +38,7 @@ export const incidentNotify: Executor = async (ctx: ExecutorContext) => {
     ts: now.toISOString(),
     prev_hash: prevHash.toString('hex'),
   };
-  const canonicalPayload = JSON.stringify(auditPayload, Object.keys(auditPayload).sort());
+  const canonicalPayload = canonicalAuditPayload(auditPayload);
   const rowHash = createHash('sha256').update(canonicalPayload).digest();
 
   await tx.insert(schema.auditLog).values({

@@ -25,7 +25,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.getServerLocale.mockResolvedValue(localeFor('de'));
   mocks.list.mockResolvedValue({ data: [{ id: 'audit-1', ts: '2026-09-15T12:00:00Z', actorRef: 'operator-123', action: 'model.updated', target: 'model-123', detail: { ok: true } }] });
-  mocks.verify.mockResolvedValue({ data: { rows: 12345, valid: true } });
+  mocks.verify.mockResolvedValue({ data: { rows: 12345, valid: true, fullyVerified: true, legacyRows: 0 } });
 });
 
 it('formats the audit chain entry count in the selected locale', async () => {
@@ -34,4 +34,11 @@ it('formats the audit chain entry count in the selected locale', async () => {
   expect(html).toContain(formatNumber(12345, 'de'));
   expect(html).not.toContain('12345 entries');
   expect(html).toContain('operator-123');
+});
+
+it('warns when a valid chain contains rows using legacy hashes', async () => {
+  mocks.verify.mockResolvedValue({ data: { rows: 12, valid: true, fullyVerified: false, legacyRows: 3 } });
+  const html = renderToStaticMarkup(await AuditPage());
+  expect(html).toContain(catalog.t('de', 'audit.chainLegacy', { count: formatNumber(12, 'de'), legacy: formatNumber(3, 'de') }));
+  expect(html).toContain('badge warn');
 });

@@ -38,7 +38,10 @@ function create(name, image, network, env, extra = [], command = []) {
     '{"labels":{{json .Config.Labels}},"privileged":{{json .HostConfig.Privileged}},"network":{{json .HostConfig.NetworkMode}},"mounts":{{json .Mounts}},"ports":{{json .HostConfig.PortBindings}}}', name]).stdout);
   assert.equal(info.labels[label], id);
   assert.equal(info.privileged, false);
-  assert.equal(info.network, network);
+  const networkModes = network.startsWith('container:')
+    ? [network, `container:${docker(['inspect', '--format', '{{.Id}}', network.slice('container:'.length)]).stdout}`]
+    : [network];
+  assert.ok(networkModes.includes(info.network), 'Container must share only the intended fixture network namespace');
   assert.equal(info.mounts.some(m => m.Type === 'bind'), false);
   assert.equal(Object.keys(info.ports ?? {}).length, 0);
   docker(['start', name]);

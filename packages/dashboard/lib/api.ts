@@ -779,7 +779,7 @@ export const api = {
   audit: {
     list: () => apiFetch<{ data: Array<Record<string, unknown>> }>('/api/v1/audit'),
     verify: () =>
-      apiFetch<{ data: { rows: number; valid: boolean; brokenAt?: string } }>(
+      apiFetch<{ data: { rows: number; valid: boolean; fullyVerified: boolean; legacyRows: number; brokenAt?: string } }>(
         '/api/v1/audit/verify',
       ),
   },

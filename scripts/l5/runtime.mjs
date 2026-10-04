@@ -137,6 +137,7 @@ try {
     await scoped(org, tx => writeAudit(tx, org, 'l5-operator', 'l5.audit', 'fixture', { reason: 'approved', nested: { b: 2, a: [1, true, null] } }));
     const result = await scoped(org, tx => verifyAuditChain(tx, org));
     assert.equal(result.rows, 1); assert.equal(result.valid, true);
+    assert.equal(result.fullyVerified, true); assert.equal(result.legacyRows, 0);
   });
   for (const detail of [{ reason: 'changed' }, { nested: { approval: false } }, { steps: ['reordered', 'actions'] }]) {
     await check(`audit detects detail tampering: ${Object.keys(detail)[0]}`, async () => {
@@ -165,6 +166,7 @@ try {
         job: { org_id: org, payload: { incidentId: randomUUID(), message: `Synthetic incident ${index}` } } }))));
     const result = await scoped(org, tx => verifyAuditChain(tx, org));
     assert.equal(result.rows, 12); assert.equal(result.valid, true);
+    assert.equal(result.fullyVerified, true); assert.equal(result.legacyRows, 0);
   });
 } finally {
   await pool.end(); await admin.end();
