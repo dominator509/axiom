@@ -60,7 +60,7 @@ const observePage = observedPage => observedPage.on('response', response => {
   }
   if (path.startsWith('/api/auth/')) probes.push({ path, status: response.status() });
   if (/^\/(?:api\/v1\/)?models\/[a-f0-9-]{36}(?:\/calendar)?$/.test(path)) {
-    probes.push({ path: safePath(response.url()), status: response.status(), hasSessionCookie: /session_token=/i.test(response.request().headers().cookie ?? '') });
+    probes.push({ path: safePath(response.url()), status: response.status() });
   }
   const kind = response.request().resourceType();
   if (kind === 'script') scriptCount++;
@@ -188,6 +188,8 @@ COMMIT;
     expect(cookies.some(cookie => cookie.name.includes('session_token') && cookie.secure && cookie.httpOnly)).toBe(true);
     await Promise.all(deliveredBodies);
     await context.close();
+    // Earlier anonymous checks share one fixture IP and auth bucket; let it refill before UI prefetches.
+    await delay(21_000);
     context = await browser.newContext({ baseURL: origin, ignoreHTTPSErrors: true, viewport: { width: 1440, height: 1000 } });
     await context.addCookies(cookies);
     page = await context.newPage();
