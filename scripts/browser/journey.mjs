@@ -50,6 +50,26 @@ const check = async (label, work) => {
 const browser = await chromium.launch({ headless: true });
 let context;
 let page;
+const deliveredBodies = [];
+let scriptCount = 0;
+const observePage = observedPage => observedPage.on('response', response => {
+  const path = new URL(response.url()).pathname;
+  if (response.status() >= 300 && response.status() < 400) {
+    const location = response.headers().location;
+    if (location) redirects.push({ status: response.status(), from: safePath(response.url()), to: safePath(location), check: currentCheck });
+  }
+  if (path.startsWith('/api/auth/')) probes.push({ path, status: response.status() });
+  if (/^\/(?:api\/v1\/)?models\/[a-f0-9-]{36}(?:\/calendar)?$/.test(path)) {
+    probes.push({ path: safePath(response.url()), status: response.status(), hasSessionCookie: /session_token=/i.test(response.request().headers().cookie ?? '') });
+  }
+  const kind = response.request().resourceType();
+  if (kind === 'script') scriptCount++;
+  // Read while each response is available, before a later navigation can
+  // evict it from Chromium's resource buffer. Retain only a boolean.
+  if (['document', 'script'].includes(kind)) deliveredBodies.push(response.body()
+    .then(body => !body.includes(Buffer.from(process.env.BROWSER_SECRET_SENTINEL)))
+    .catch(() => false));
+});
 try {
   const password = randomBytes(24).toString('base64url');
   const email = `browser-${randomUUID()}@example.invalid`;
@@ -83,26 +103,7 @@ COMMIT;
   });
   context = await browser.newContext({ baseURL: origin, ignoreHTTPSErrors: true, viewport: { width: 1440, height: 1000 } });
   page = await context.newPage();
-  const deliveredBodies = [];
-  let scriptCount = 0;
-  page.on('response', response => {
-    const path = new URL(response.url()).pathname;
-    if (response.status() >= 300 && response.status() < 400) {
-      const location = response.headers().location;
-      if (location) redirects.push({ status: response.status(), from: safePath(response.url()), to: safePath(location) });
-    }
-    if (path.startsWith('/api/auth/')) probes.push({ path, status: response.status() });
-    if (/^\/(?:api\/v1\/)?models\/[a-f0-9-]{36}(?:\/calendar)?$/.test(path)) {
-      probes.push({ path: path.replace(/[a-f0-9-]{36}/g, '<fixture-id>'), status: response.status() });
-    }
-    const kind = response.request().resourceType();
-    if (kind === 'script') scriptCount++;
-    // Read while each response is available, before a later navigation can
-    // evict it from Chromium's resource buffer. Retain only a boolean.
-    if (['document', 'script'].includes(kind)) deliveredBodies.push(response.body()
-      .then(body => !body.includes(Buffer.from(process.env.BROWSER_SECRET_SENTINEL)))
-      .catch(() => false));
-  });
+  observePage(page);
   const status = async path => {
     const value = await page.evaluate(async path => (await fetch(path, { cache: 'no-store' })).status, path);
     probes.push({ path: path.replace(/[a-f0-9-]{36}/g, '<fixture-id>'), status: value });
@@ -179,6 +180,21 @@ COMMIT;
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
     await expect(page.getByText('Hidden other tenant talent', { exact: true })).toHaveCount(0);
+  });
+  await check('talent navigation starts in a fresh authenticated context', async () => {
+    // The preceding auth checks intentionally sign out and back in. Carry the verified
+    // session into a clean client router so anonymous prefetch results cannot leak into this journey.
+    const cookies = await context.cookies(origin);
+    expect(cookies.some(cookie => cookie.name.includes('session_token') && cookie.secure && cookie.httpOnly)).toBe(true);
+    await Promise.all(deliveredBodies);
+    await context.close();
+    context = await browser.newContext({ baseURL: origin, ignoreHTTPSErrors: true, viewport: { width: 1440, height: 1000 } });
+    await context.addCookies(cookies);
+    page = await context.newPage();
+    observePage(page);
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
+    expect(await status('/api/v1/models')).toBe(200);
   });
   await check('talent profile route opens from the roster', async () => {
     await page.locator('a.model-link').filter({ hasText: 'Visible fixture talent' }).click();
