@@ -17,6 +17,7 @@ import type { InsightGroup, RelayCard } from '@axiom/relay';
 import { ParkJobError } from './context.js';
 import type { ExecutorContext } from './context.js';
 import { assertRelayBindingDispatchable, type RelayBindingForDispatch } from './relay_policy.js';
+import { telegramRelayTransportForTarget, type TelegramRelayTransport } from '../connection.js';
 
 const NO_BINDING_PARK_MS = 5 * 60_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -78,12 +79,12 @@ async function sendInsightCard(
   chatRef: string,
   card: RelayCard,
   ctx: ExecutorContext,
+  telegramTransport: TelegramRelayTransport | null,
 ): Promise<void> {
   switch (channel) {
     case 'telegram': {
-      const token = process.env.TELEGRAM_BOT_TOKEN;
-      if (!token) throw new Error('relay.insight: TELEGRAM_BOT_TOKEN not configured');
-      const adapter = new TelegramAdapter({ token });
+      if (!telegramTransport) throw new Error('relay.insight: Telegram connection was not resolved before dispatch');
+      const adapter = new TelegramAdapter({ token: telegramTransport.token, fetch: telegramTransport.fetch });
       ctx.markExternalSideEffect?.();
       await adapter.sendCard(chatRef, card);
       return;
@@ -167,12 +168,18 @@ export async function relayInsightCard(ctx: ExecutorContext, cardId: string): Pr
   const dispatchBindings = (bindings as RelayBindingForDispatch[]).map(binding =>
     asDispatchBinding(binding, assertRelayBindingDispatchable(binding)),
   );
+  const readyBindings = await Promise.all(dispatchBindings.map(async (dispatch) => ({
+    ...dispatch,
+    telegramTransport: dispatch.channel === 'telegram'
+      ? await telegramRelayTransportForTarget(tx, job.org_id, source.modelId as string, dispatch.chatRef)
+      : null,
+  })));
   const groups = insightGroups(source);
   const renderer = new CardRenderer();
   const persistSideEffectMarker: NonNullable<ExecutorContext['persistSideEffectMarker']> =
     ctx.persistSideEffectMarker ?? (async <T>(operation: (markerTx: any) => Promise<T>): Promise<T> => operation(tx));
 
-  for (const { binding, channel, chatRef } of dispatchBindings) {
+  for (const { binding, channel, chatRef, telegramTransport } of readyBindings) {
     const externalRef = `${source.externalRef}:binding:${binding.id}`;
     const existing = await tx
       .select({ id: schema.relayCard.id, state: schema.relayCard.state })
@@ -227,7 +234,7 @@ export async function relayInsightCard(ctx: ExecutorContext, cardId: string): Pr
       groups,
       icon: source.icon ?? undefined,
     });
-    await sendInsightCard(channel, chatRef, rendered, ctx);
+    await sendInsightCard(channel, chatRef, rendered, ctx, telegramTransport);
     await tx
       .update(schema.relayCard)
       .set({ state: 'sent' })

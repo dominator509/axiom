@@ -7,6 +7,8 @@ const TELEGRAM_API_TIMEOUT_SECONDS = 60;
 
 export interface TelegramConfig {
   token: string;
+  /** Route requests through the model's authenticated egress transport. */
+  fetch?: typeof fetch;
   webhookUrl?: string;
   webhookSecret?: string;
 }
@@ -27,7 +29,10 @@ export class TelegramAdapter {
 
   constructor(config: TelegramConfig, commandRouter?: CommandRouter) {
     this.bot = new Bot(config.token, {
-      client: { timeoutSeconds: TELEGRAM_API_TIMEOUT_SECONDS },
+      client: {
+        timeoutSeconds: TELEGRAM_API_TIMEOUT_SECONDS,
+        ...(config.fetch ? { fetch: config.fetch } : {}),
+      },
     });
     this.renderer = new CardRenderer();
     this.commandRouter = commandRouter;

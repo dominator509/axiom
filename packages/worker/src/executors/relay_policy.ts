@@ -24,9 +24,8 @@ export function assertRelayBindingDispatchable(
 
   switch (channel) {
     case 'telegram':
-      if (!env.TELEGRAM_BOT_TOKEN) {
-        throw new Error('relay dispatch: TELEGRAM_BOT_TOKEN not configured');
-      }
+      // Telegram credentials are encrypted per model and resolved from the
+      // owning platform_connection before any dispatch marker is created.
       break;
     case 'discord':
       if (!env.DISCORD_BOT_TOKEN || !env.DISCORD_APPLICATION_ID) {

@@ -35,6 +35,11 @@ export interface ResolvedPatreonConnector {
   connector: PatreonCommunityConnector;
 }
 
+export interface TelegramRelayTransport {
+  token: string;
+  fetch: typeof fetch;
+}
+
 /**
  * Build a connector for an already-resolved tenant connection. Provider
  * traffic remains bound to the model's healthy egress sidecar, including
@@ -289,6 +294,65 @@ export async function decryptConnectorAuth(
 
   const plaintext = Buffer.from(body.plaintext, 'base64').toString('utf8');
   return parseConnectorAuth(plaintext);
+}
+
+function normalizeTelegramChatRef(value: string): string {
+  const normalized = value.trim();
+  return normalized.startsWith('@') ? normalized.slice(1).toLowerCase() : normalized.toLowerCase();
+}
+
+function telegramAuthMatchesChatRef(auth: ConnectorAuth, chatRef: string): boolean {
+  const extra = auth.extra ?? {};
+  const aliases = [
+    auth.externalUserId,
+    extra.telegramChatId,
+    extra.telegramInputRef,
+    extra.telegramChannelUsername,
+  ].filter((alias): alias is string => typeof alias === 'string' && alias.trim().length > 0);
+  const expected = normalizeTelegramChatRef(chatRef);
+  return aliases.some((alias) => normalizeTelegramChatRef(alias) === expected);
+}
+
+/**
+ * Resolve the unique encrypted Telegram connection for a model's relay
+ * destination, then bind Bot API requests to the same model-scoped egress.
+ * Credentials are never selected across organization/model boundaries, and
+ * old connections resolve only when their stored destination matches exactly.
+ */
+export async function telegramRelayTransportForTarget(
+  tx: any,
+  orgId: string,
+  modelId: string,
+  chatRef: string,
+): Promise<TelegramRelayTransport> {
+  if (!chatRef.trim()) throw new Error('relay dispatch: Telegram destination is empty');
+  const rows = await tx
+    .select()
+    .from(schema.platformConnection)
+    .where(and(
+      eq(schema.platformConnection.orgId, orgId),
+      eq(schema.platformConnection.modelId, modelId),
+      eq(schema.platformConnection.platform, 'telegram'),
+      inArray(schema.platformConnection.status, ['connected', 'active']),
+    ))
+    .orderBy(schema.platformConnection.connectedAt) as PlatformConnectionRow[];
+
+  const matches: Array<{ connection: PlatformConnectionRow; auth: ConnectorAuth }> = [];
+  for (const connection of rows) {
+    const auth = await decryptConnectorAuth(connection);
+    if (telegramAuthMatchesChatRef(auth, chatRef)) matches.push({ connection, auth });
+  }
+  if (matches.length === 0) {
+    throw new Error('relay dispatch: no active Telegram connection matches this model destination; reconnect the bot and channel');
+  }
+  if (matches.length > 1) {
+    throw new Error('relay dispatch: multiple active Telegram connections match this model destination; disconnect duplicates before retrying');
+  }
+  const { connection, auth } = matches[0];
+  if (!auth.accessToken) throw new Error('relay dispatch: matched Telegram connection has no bot token');
+  const binding = await resolveEgressBinding(connection.modelId);
+  if (!binding) throw new Error(`model ${connection.modelId} has no healthy egress binding`);
+  return { token: auth.accessToken, fetch: buildEgressFetch(binding) };
 }
 
 /** Parse the encrypted credential contract without exposing its contents in errors/logs. */

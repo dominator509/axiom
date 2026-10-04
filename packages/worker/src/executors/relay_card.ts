@@ -20,6 +20,7 @@ import { resolveProviderAssetUrl, validatePublishAsset } from './publish.js';
 import { assertRelayBindingDispatchable, type RelayBindingForDispatch } from './relay_policy.js';
 import { relayInsightCard } from './relay_insight.js';
 import type { Executor, ExecutorContext } from './context.js';
+import { telegramRelayTransportForTarget, type TelegramRelayTransport } from '../connection.js';
 
 const NO_BINDING_PARK_MS = 5 * 60_000;
 
@@ -133,13 +134,19 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
       NO_BINDING_PARK_MS,
     );
   }
-  const dispatchBindings = bindings.map((binding: RelayBindingForDispatch) => ({
+  const dispatchBindings: Array<{ binding: RelayBindingForDispatch; channel: string; chatRef: string }> = bindings.map((binding: RelayBindingForDispatch) => ({
     binding,
     channel: assertRelayBindingDispatchable(binding),
     // The preflight above rejects null/blank refs; the fallback only satisfies
     // TypeScript because the DB transaction row is intentionally untyped.
     chatRef: binding.chatRef?.trim() ?? '',
   }));
+  const readyBindings = await Promise.all(dispatchBindings.map(async (dispatch) => ({
+    ...dispatch,
+    telegramTransport: dispatch.channel === 'telegram'
+      ? await telegramRelayTransportForTarget(tx, job.org_id, bundle.modelId, dispatch.chatRef)
+      : null,
+  })));
   const commandRouter = new CommandRouter(resolveRelaySecret(process.env));
 
   const captions = (bundle.captions as Record<string, string> | null) ?? {};
@@ -172,7 +179,10 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
     targetPlatforms.map((platform) => [platform, (bundle.hashtags as string[]) ?? []]),
   );
   const renderer = new CardRenderer();
-  for (const { binding, channel, chatRef } of dispatchBindings) {
+  for (const { binding, channel, chatRef, telegramTransport } of readyBindings) {
+    if (channel === 'telegram' && !telegramTransport) {
+      throw new Error('relay.card: Telegram connection was not resolved before dispatch');
+    }
     // A pending relay row is durable evidence that an earlier worker may
     // already have handed this exact card to the provider. The provider does
     // not expose a portable idempotency key across Telegram, Discord, Signal,
@@ -256,9 +266,8 @@ export const relayCard: Executor = async (ctx: ExecutorContext) => {
 
     switch (channel) {
       case 'telegram': {
-        const token = process.env.TELEGRAM_BOT_TOKEN;
-        if (!token) throw new Error('relay.card: TELEGRAM_BOT_TOKEN not configured');
-        const adapter = new TelegramAdapter({ token });
+        const transport = telegramTransport as TelegramRelayTransport;
+        const adapter = new TelegramAdapter({ token: transport.token, fetch: transport.fetch });
         ctx.markExternalSideEffect?.();
         await adapter.sendCard(chatRef, card);
         break;

@@ -11,6 +11,9 @@ const mockState = vi.hoisted(() => ({
   lockModes: [] as string[],
   discordLogins: 0,
   discordDestroys: 0,
+  telegramConfigs: [] as Array<Record<string, unknown>>,
+  telegramFetch: vi.fn(),
+  resolveTelegramTransport: vi.fn(),
 }));
 
 function makeChain(): any {
@@ -64,9 +67,16 @@ vi.mock('@axiom/db', () => ({
   },
 }));
 
+vi.mock('../connection.js', () => ({
+  telegramRelayTransportForTarget: mockState.resolveTelegramTransport,
+}));
+
 vi.mock('@axiom/relay', async () => {
   const actual = await vi.importActual<typeof import('@axiom/relay')>('@axiom/relay');
   class TestTelegramAdapter {
+    constructor(config: Record<string, unknown>) {
+      mockState.telegramConfigs.push(config);
+    }
     async sendCard(chatRef: string, card: Record<string, unknown>): Promise<void> {
       mockState.sent.push({ chatRef, card });
     }
@@ -136,7 +146,13 @@ beforeEach(() => {
   mockState.lockModes = [];
   mockState.discordLogins = 0;
   mockState.discordDestroys = 0;
-  vi.stubEnv('TELEGRAM_BOT_TOKEN', 'test-token');
+  mockState.telegramConfigs = [];
+  mockState.telegramFetch = vi.fn();
+  mockState.resolveTelegramTransport.mockReset().mockResolvedValue({
+    token: 'encrypted-per-model-bot-token',
+    fetch: mockState.telegramFetch,
+  });
+  vi.stubEnv('TELEGRAM_BOT_TOKEN', '');
   vi.stubEnv('AXIOM_ASSET_DELIVERY_BASE_URL', 'https://media.example.test/assets');
 });
 
@@ -220,13 +236,20 @@ describe('relayCard', () => {
     ).toThrow("channel 'threads' dispatch not implemented");
   });
 
-  it('preflights adapter configuration before any provider dispatch', () => {
-    expect(() =>
-      assertRelayBindingDispatchable(
-        { id: 'binding-1', channel: 'telegram', chatRef: 'chat-1' },
-        {},
-      ),
-    ).toThrow('TELEGRAM_BOT_TOKEN not configured');
+  it('uses the encrypted model Telegram connection without a deployment-wide token', async () => {
+    expect(assertRelayBindingDispatchable(
+      { id: 'binding-1', channel: 'telegram', chatRef: 'chat-1' },
+      {},
+    )).toBe('telegram');
+
+    await relayCard({ tx: makeChain(), job: JOB, killSwitchEnabled: false, workerId: 'worker-1' });
+
+    expect(mockState.resolveTelegramTransport).toHaveBeenCalledWith(expect.anything(), 'org-1', 'model-1', 'chat-1');
+    expect(mockState.telegramConfigs).toContainEqual({
+      token: 'encrypted-per-model-bot-token',
+      fetch: mockState.telegramFetch,
+    });
+    expect(mockState.sent).toHaveLength(1);
   });
 
   it('fails closed instead of duplicating a card with an unresolved dispatch marker', async () => {

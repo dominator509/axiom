@@ -65,6 +65,7 @@ it.each(SUPPORTED_LOCALES)('renders relay controls from the %s catalog', (locale
   expect(text).toContain(catalog.t(locale, 'relay.binding.empty'));
   expect(text).toContain(catalog.t(locale, 'relay.binding.formLegend'));
   expect(text).toContain(catalog.t(locale, 'relay.binding.add'));
+  expect(text).toContain(catalog.t(locale, 'relay.binding.telegramHint'));
 });
 
 it('keeps relay configuration guidance visible for read-only roles', () => {
