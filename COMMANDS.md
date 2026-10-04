@@ -31,6 +31,7 @@
 - `cargo test --workspace` — run all Rust tests
 
 ## Validation
+- `node scripts/rehearse-rls-catalog.mjs --isolated-fixture` — build the committed schema, migrate a fresh network-disabled PostgreSQL container, verify effective RLS and role privileges, inject rollback-only faults and exercise tenant locale writes; never reads `.env` or an existing database URL. Requires clean committed source and pinned Node. Receipts and private logs: `var/rls-rehearsal/`.
 - `node scripts/check-release-evidence.mjs --check` — verify complete L5 acceptance coverage and receipt structure; open rows remain open and this is not release approval.
 - `node --test scripts/check-release-evidence.test.mjs` — isolated negative controls for missing/stale/failed evidence and unavailable hosted readback; no services, credentials or database access.
 - `node scripts/check-release-evidence.mjs --release <full-sha>` — require all acceptance rows passed without skips, exact-SHA receipts, owner sign-off and successful GitHub run/job readback; fails closed on missing evidence. Does not deploy or authorize production operations.

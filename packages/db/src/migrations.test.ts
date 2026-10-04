@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { Table } from 'drizzle-orm';
 import * as schema from './schema/index.js';
+import { nonTenantTables } from './rls-catalog.js';
 
 /** Resolve a table's SQL name via the runtime symbol map. */
 function tableName(table: any): string {
@@ -687,25 +688,7 @@ describe('migration assets (0000_initial.sql + 0001_model_network_configs.sql)',
     // Auth identity tables are cross-tenant (session lookup happens before org
     // context exists) — excluded from the RLS sweep. All other tables are
     // org-scoped and must be RLS-protected (LBI-02).
-    const nonTenant = new Set([
-      'auth_user',
-      'auth_session',
-      'auth_account',
-      'auth_verification',
-      // The denylist is deliberately global so every API instance can reject
-      // a revoked capability before model/org resolution.
-      'mcp_token_revocation',
-      // FanThynks SaaS acquisition state is platform-owned, not tenant data.
-      'affiliate_program',
-      'affiliate_partner',
-      'affiliate_campaign',
-      'affiliate_attribution_event',
-      'affiliate_conversion',
-      'affiliate_commission_event',
-      'affiliate_hold',
-      'affiliate_payout_export',
-      'affiliate_audit_event',
-    ]);
+    const nonTenant = nonTenantTables;
     // 0000/0001 emit literal ALTER statements; 0002 emits the same statements
     // through a DO block with format('...', t) — both patterns are valid.
     const doBlockTables = new Set([
