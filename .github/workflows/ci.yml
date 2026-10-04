@@ -16,6 +16,31 @@ permissions:
   contents: read
 
 jobs:
+  l5-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Setup pinned Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: '.nvmrc'
+      - name: Fetch checksum-pinned public vision model
+        run: sh scripts/fetch-vision-model.sh
+      - name: Real isolated worker, model and audit acceptance
+        run: node scripts/rehearse-l5-runtime.mjs --isolated-fixture
+      - name: Preserve full runtime receipt
+        if: always()
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const root = "var/l5-runtime";
+            if (!fs.existsSync(root)) throw new Error("Runtime receipt unavailable");
+            for (const entry of fs.readdirSync(root)) console.log(fs.readFileSync(`${root}/${entry}/receipt.json`, "utf8"));
+          '
   browser:
     # Independent of the matrix. Owns its database, credentials and internal
     # network; no shared service, production URL or repository secret is used.
