@@ -180,11 +180,12 @@ COMMIT;
   await check('talent profile renders its model heading', async () => {
     await expect(page.getByRole('heading', { name: 'Visible fixture talent', exact: true })).toBeVisible();
   });
+  const scheduleAction = page.locator(`.page-stack > .grid a[href="/models/${ownModel}/calendar"]`);
   await check('talent profile exposes View schedule', async () => {
-    await expect(page.getByRole('link', { name: 'View schedule', exact: true })).toBeVisible();
+    await expect(scheduleAction).toHaveText('View schedule');
   });
   await check('View schedule navigates to its calendar route', async () => {
-    await page.getByRole('link', { name: 'View schedule', exact: true }).click();
+    await scheduleAction.click();
     await expect(page).toHaveURL(new RegExp(`/models/${ownModel}/calendar(?:\\?.*)?$`));
   });
   await check('calendar route renders its page heading', async () => {
