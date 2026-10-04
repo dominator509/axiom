@@ -30,6 +30,9 @@ test('current register is structurally complete without implying release accepta
 test('complete synthetic evidence is accepted by the structural release validator', () => {
   assert.equal(validate(complete(), expected, { releaseSha }).passed, expected.length);
 });
+for (const value of ['', null, 'main', 'abcd123']) test(`release rejects invalid SHA ${JSON.stringify(value)}`, () => {
+  assert.throws(() => validate(current, expected, { releaseSha: value }), /immutable SHA/);
+});
 for (const [name, mutate] of [
   ['missing criterion', r => r.criteria.pop()],
   ['duplicate criterion', r => { r.criteria[1] = r.criteria[0]; }],

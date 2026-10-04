@@ -50,6 +50,8 @@ export function requirements(read) {
 }
 
 export function validate(register, expected, { releaseSha } = {}) {
+  const release = releaseSha !== undefined;
+  if (release) check(typeof releaseSha === 'string' && sha.test(releaseSha), 'Release requires full immutable SHA');
   check(register?.version === 1, 'Unsupported evidence register version');
   check(sha.test(register.baselineSha), 'Invalid baseline SHA');
   check(Array.isArray(register.criteria), 'Missing criteria');
@@ -86,14 +88,13 @@ export function validate(register, expected, { releaseSha } = {}) {
       check(Array.isArray(receipt.skips) && receipt.skips.length === counts.skipped && receipt.skips.every(nonempty), `${row.id}: undocumented skips`);
       check(Array.isArray(receipt.images) && receipt.images.every(image => /^.+@sha256:[a-f0-9]{64}$/.test(image)), `${row.id}: invalid image provenance`);
       if (row.status === 'passed') check(counts.failed === 0 && counts.passed > 0, `${row.id}: failing pass receipt`);
-      if (releaseSha && row.status === 'passed') {
+      if (release && row.status === 'passed') {
         check(receipt.sha === releaseSha, `${row.id}: stale release evidence`);
         check(counts.skipped === 0, `${row.id}: skipped release acceptance`);
       }
     }
   }
-  if (releaseSha) {
-    check(sha.test(releaseSha), 'Release requires full immutable SHA');
+  if (release) {
     check(register.criteria.every(row => row.status === 'passed'), 'Release blocked: open acceptance criteria');
     check(register.signoff?.sha === releaseSha && nonempty(register.signoff.owner) &&
       nonempty(register.signoff.reference), 'Release blocked: missing owner sign-off for this SHA');
