@@ -4,6 +4,7 @@ import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 assert.deepEqual(process.argv.slice(2), ['--isolated-fixture']);
 const root = new URL('../', import.meta.url);
@@ -42,7 +43,9 @@ try {
   const endpoint = process.env.DOCKER_HOST || JSON.parse(docker(['context', 'inspect']))[0].Endpoints.docker.Host;
   assert.ok(endpoint.startsWith('npipe://') || endpoint.startsWith('unix://'), 'Only local Docker is permitted');
   // Rebuild the exact committed schema before deriving the inventory.
-  if (process.platform === 'win32') run(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', 'pnpm.cmd --filter @axiom/db... build']);
+  // The global Windows pnpm.cmd may hard-code a different adjacent node.exe.
+  // Launch Corepack through this pinned Node binary instead of that shim.
+  if (process.platform === 'win32') run(process.execPath, [join(dirname(process.execPath), 'node_modules/corepack/dist/pnpm.js'), '--filter', '@axiom/db...', 'build']);
   else run('pnpm', ['--filter', '@axiom/db...', 'build']);
   const { tenantTableNames, nonTenantTables, rlsCatalogSql, assertRlsCatalog } =
     await import('../packages/db/dist/rls-catalog.js');
