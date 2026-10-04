@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import { formatNumber, learningContextBucket } from '@axiom/core';
 import type { PerformancePattern } from './PerformancePatterns';
