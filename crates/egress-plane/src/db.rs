@@ -70,6 +70,8 @@ pub async fn load_org_publishing_enabled(
     tx: &Transaction<'_>,
     org_id: &str,
 ) -> Result<Option<bool>, String> {
+    let org_uuid = uuid::Uuid::parse_str(org_id)
+        .map_err(|error| format!("invalid organization id: {error}"))?;
     tx.query_one(
         "SELECT set_config('app.current_org_id', $1, true)",
         &[&org_id],
@@ -77,8 +79,8 @@ pub async fn load_org_publishing_enabled(
     .await
     .map_err(|error| format!("set organization RLS context failed: {error}"))?;
     tx.query_opt(
-        "SELECT publishing_enabled FROM org_settings WHERE org_id = $1::uuid",
-        &[&org_id],
+        "SELECT publishing_enabled FROM org_settings WHERE org_id = $1",
+        &[&org_uuid],
     )
     .await
     .map(|row| row.map(|row| row.get(0)))

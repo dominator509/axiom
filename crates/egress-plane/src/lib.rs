@@ -372,9 +372,8 @@ fn take_org_bounds(state: &Arc<AppState>, org_id: &str) -> Vec<BoundEgress> {
     let model_ids: Vec<String> = registry
         .bounds
         .iter()
-        .filter_map(|(model_id, bound)| {
-            (bound.config.org_id.as_str() == org_id).then(|| model_id.clone())
-        })
+        .filter(|(_, bound)| bound.config.org_id.as_str() == org_id)
+        .map(|(model_id, _)| model_id.clone())
         .collect();
     let mut removed = Vec::with_capacity(model_ids.len());
     for model_id in model_ids {
