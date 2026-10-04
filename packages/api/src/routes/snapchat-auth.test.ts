@@ -47,6 +47,34 @@ beforeEach(() => {
 });
 
 describe('Snapchat OAuth onboarding', () => {
+  it('returns a localized browser destination when OAuth is unconfigured and preserves the API error contract', async () => {
+    const previousClientId = process.env.SNAPCHAT_CLIENT_ID;
+    const previousClientSecret = process.env.SNAPCHAT_CLIENT_SECRET;
+    process.env.SNAPCHAT_CLIENT_ID = '';
+    process.env.SNAPCHAT_CLIENT_SECRET = '';
+    try {
+      const browser = await app.request(`/authorize?modelId=${MODEL_ID}`, { headers: { Accept: 'text/html' } });
+      expect(browser.status).toBe(303);
+      const destination = new URL(browser.headers.get('location')!);
+      expect(destination.origin).toBe('https://axiom.example.test');
+      expect(destination.pathname).toBe(`/models/${MODEL_ID}/network`);
+      expect(destination.searchParams.get('oauth')).toBe('unavailable');
+      expect(destination.searchParams.get('platform')).toBe('snapchat');
+      expect(destination.search).not.toContain('credential');
+      expect(destination.search).not.toContain('secret');
+
+      const api = await app.request(`/authorize?modelId=${MODEL_ID}`, { headers: { Accept: 'application/json' } });
+      expect(api.status).toBe(503);
+      expect(api.headers.get('Content-Type')).toMatch(/^application\/problem\+json/);
+      expect(await api.json()).toMatchObject({ status: 503, detail: 'Snapchat Public Profile API OAuth credentials are not configured' });
+    } finally {
+      if (previousClientId === undefined) delete process.env.SNAPCHAT_CLIENT_ID;
+      else process.env.SNAPCHAT_CLIENT_ID = previousClientId;
+      if (previousClientSecret === undefined) delete process.env.SNAPCHAT_CLIENT_SECRET;
+      else process.env.SNAPCHAT_CLIENT_SECRET = previousClientSecret;
+    }
+  });
+
   it('binds a sealed state to the model and requests only the documented profile scope', async () => {
     const response = await app.request(`/authorize?modelId=${MODEL_ID}`);
     expect(response.status).toBe(302);
