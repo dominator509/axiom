@@ -80,6 +80,17 @@ it('confirms a successful browser OAuth return without trusting arbitrary query 
     'connected successfully',
   );
 });
+it('shows a safe provider configuration notice only for supported OAuth return parameters', async () => {
+  expect(await render({ oauth: 'unavailable', platform: 'snapchat' })).toContain(
+    catalog.t('en', 'network.oauthNotConfigured', { platform: 'Snapchat' }),
+  );
+  expect(await render({ oauth: 'unavailable', platform: 'patreon' })).toContain(
+    catalog.t('en', 'network.oauthNotConfigured', { platform: 'Patreon' }),
+  );
+  expect(await render({ oauth: 'unavailable', platform: 'unknown' })).not.toContain(
+    'OAuth is not configured',
+  );
+});
 it.each(['es', 'ja', 'it', 'pt-BR', 'de'] as SupportedLocale[])('renders mounted network copy in %s', async (locale) => {
   vi.mocked(getServerLocale).mockResolvedValue(localeFor(locale));
   const html = await render();

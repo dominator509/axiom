@@ -36,23 +36,27 @@ const router = new Hono<AppBindings>();
 function clientId() { return process.env.SNAPCHAT_CLIENT_ID?.trim() ?? ''; }
 function clientSecret() { return process.env.SNAPCHAT_CLIENT_SECRET?.trim() ?? ''; }
 
-function browserRedirect(c: Context<AppBindings>, modelId: string) {
+function browserRedirect(c: Context<AppBindings>, modelId: string, result: 'connected' | 'unavailable' = 'connected') {
   if (!(c.req.header('accept') ?? '').includes('text/html')) return null;
   const destination = new URL(`/models/${encodeURIComponent(modelId)}/network`, APPLICATION_ORIGIN);
-  destination.searchParams.set('oauth', 'connected');
+  destination.searchParams.set('oauth', result);
   destination.searchParams.set('platform', 'snapchat');
   return c.redirect(destination.toString(), 303);
 }
 
 router.get('/authorize', async c => {
-  const id = clientId();
-  const secret = clientSecret();
-  if (!id || !secret) return apiError(c, 503, statusTitle(503), 'Snapchat Public Profile API OAuth credentials are not configured');
   const orgId = requireOrg(c);
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   const modelId = c.req.query('modelId');
   if (!modelId) return apiError(c, 400, statusTitle(400), 'modelId query required');
   if ((await withOrgContext(orgId, tx => modelOrgId(tx, modelId))) !== orgId) return apiError(c, 404, statusTitle(404), 'model not found');
+  const id = clientId();
+  const secret = clientSecret();
+  if (!id || !secret) {
+    const browser = browserRedirect(c, modelId, 'unavailable');
+    if (browser) return browser;
+    return apiError(c, 503, statusTitle(503), 'Snapchat Public Profile API OAuth credentials are not configured');
+  }
 
   const state = randomBytes(32).toString('base64url');
   setOAuthStateCookie(c, OAUTH_STATE_COOKIE, { state, orgId, modelId, issuedAt: Date.now() }, resolveOAuthCookieSecret(), OAUTH_COOKIE_PATH);

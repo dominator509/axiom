@@ -34,8 +34,6 @@ import {
 } from './oauth-state.js';
 import { persistOAuthConnection } from './oauth-connection.js';
 
-const PATREON_CLIENT_ID = process.env.PATREON_CLIENT_ID?.trim() ?? '';
-const PATREON_CLIENT_SECRET = process.env.PATREON_CLIENT_SECRET?.trim() ?? '';
 const APPLICATION_ORIGIN = normalizeAuthOrigin(
   process.env.BETTER_AUTH_URL || 'http://127.0.0.1:3001',
 );
@@ -55,6 +53,8 @@ const PATREON_SCOPES = [
 const OAUTH_STATE_COOKIE = 'axiom_patreon_oauth_state';
 const OAUTH_COOKIE_PATH = '/api/v1/connectors/patreon';
 const oauthStateKey = () => resolveOAuthCookieSecret();
+const clientId = () => process.env.PATREON_CLIENT_ID?.trim() ?? '';
+const clientSecret = () => process.env.PATREON_CLIENT_SECRET?.trim() ?? '';
 
 const syncSchema = z
   .object({
@@ -72,10 +72,10 @@ function base64Url(buffer: Buffer): string {
   return buffer.toString('base64url');
 }
 
-function browserConnectionRedirect(c: Context<AppBindings>, modelId: string) {
+function browserConnectionRedirect(c: Context<AppBindings>, modelId: string, result: 'connected' | 'unavailable' = 'connected') {
   if (!(c.req.header('accept') ?? '').includes('text/html')) return null;
   const destination = new URL(`/models/${encodeURIComponent(modelId)}/network`, APPLICATION_ORIGIN);
-  destination.searchParams.set('oauth', 'connected');
+  destination.searchParams.set('oauth', result);
   destination.searchParams.set('platform', 'patreon');
   return c.redirect(destination.toString(), 303);
 }
@@ -263,15 +263,19 @@ async function savePosts(
 }
 
 router.get('/connectors/patreon/authorize', async (c) => {
-  if (!PATREON_CLIENT_ID || !PATREON_CLIENT_SECRET) {
-    return apiError(c, 500, statusTitle(500), 'Patreon client credentials not configured');
-  }
   const orgId = requireOrg(c);
   const modelId = c.req.query('modelId');
   if (!orgId) return apiError(c, 401, statusTitle(401), 'orgId required');
   if (!modelId) return apiError(c, 400, statusTitle(400), 'modelId query required');
   const ownsModel = await withOrgContext(orgId, (tx) => modelOrgId(tx, modelId));
   if (ownsModel !== orgId) return apiError(c, 404, statusTitle(404), 'model not found');
+  const configuredClientId = clientId();
+  const configuredClientSecret = clientSecret();
+  if (!configuredClientId || !configuredClientSecret) {
+    const browser = browserConnectionRedirect(c, modelId, 'unavailable');
+    if (browser) return browser;
+    return apiError(c, 503, statusTitle(503), 'Patreon OAuth credentials are not configured');
+  }
 
   const verifier = base64Url(randomBytes(32));
   const challenge = base64Url(createHash('sha256').update(verifier).digest());
@@ -292,7 +296,7 @@ router.get('/connectors/patreon/authorize', async (c) => {
 
   const url = new URL(PATREON_AUTHORIZE_URL);
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('client_id', PATREON_CLIENT_ID);
+  url.searchParams.set('client_id', configuredClientId);
   url.searchParams.set('redirect_uri', PATREON_REDIRECT_URI);
   url.searchParams.set('scope', PATREON_SCOPES.join(' '));
   url.searchParams.set('state', state);
@@ -315,7 +319,9 @@ router.get('/connectors/patreon/callback', async (c) => {
     return apiError(c, 400, statusTitle(400), 'OAuth state has no model connection target');
   }
   clearOAuthStateCookie(c, OAUTH_STATE_COOKIE, OAUTH_COOKIE_PATH);
-  if (!PATREON_CLIENT_ID || !PATREON_CLIENT_SECRET) {
+  const configuredClientId = clientId();
+  const configuredClientSecret = clientSecret();
+  if (!configuredClientId || !configuredClientSecret) {
     return apiError(c, 500, statusTitle(500), 'Patreon client credentials not configured');
   }
 
@@ -335,8 +341,8 @@ router.get('/connectors/patreon/callback', async (c) => {
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        client_id: PATREON_CLIENT_ID,
-        client_secret: PATREON_CLIENT_SECRET,
+        client_id: configuredClientId,
+        client_secret: configuredClientSecret,
         redirect_uri: PATREON_REDIRECT_URI,
         code_verifier: pending.verifier,
       }),

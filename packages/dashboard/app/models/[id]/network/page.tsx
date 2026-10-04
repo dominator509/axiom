@@ -39,6 +39,7 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
     ? query.platform
     : '';
   const oauthConnected = query?.oauth === 'connected' && oauthPlatform !== '';
+  const oauthUnavailable = query?.oauth === 'unavailable' && ['patreon', 'snapchat'].includes(oauthPlatform);
   const session = await getSession();
   const { locale, t } = await getServerLocale();
   const owner = session?.user?.role === 'owner';
@@ -58,6 +59,7 @@ export default async function NetworkPage({ params, searchParams }: { params: Pr
   return (
     <div className="page-stack">
       {oauthConnected && <p className="notice" role="status">{t('network.oauthSuccess', { platform: OAUTH_PLATFORM_NAMES[oauthPlatform] })}</p>}
+      {oauthUnavailable && <p className="notice" role="alert">{t('network.oauthNotConfigured', { platform: OAUTH_PLATFORM_NAMES[oauthPlatform] })}</p>}
       <div className="card">
         <h2>{t('model.networkSecurity')}</h2>
         {!owner && <p>{t('network.ownerOnly')}</p>}
