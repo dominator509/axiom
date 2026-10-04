@@ -40,6 +40,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -131,6 +132,45 @@ describe('PATCH /org-settings', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.viralSharing).toBe(true);
+  });
+
+  it.each([
+    { publishingEnabled: false, expectedPath: '/kill-switch/org/drain', expectedBlocked: true },
+    { publishingEnabled: true, expectedPath: '/kill-switch/org/release', expectedBlocked: false },
+  ])('propagates publishingEnabled=$publishingEnabled to the egress plane', async ({ publishingEnabled, expectedPath, expectedBlocked }) => {
+    mockState.result = [{ ...settingsRow, publishingEnabled }];
+    const planeRequests: Array<{ url: string; body: unknown }> = [];
+    const fetchMock = vi.fn(async (input: string, init?: RequestInit) => {
+      planeRequests.push({ url: input, body: JSON.parse(String(init?.body)) });
+      const body = JSON.parse(String(init?.body)) as { org_id: string };
+      return new Response(JSON.stringify({ org_id: body.org_id, org_blocked: expectedBlocked }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await appWithOrg(ORG_ID).request('/org-settings', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ publishingEnabled }),
+    });
+    expect(res.status).toBe(200);
+    expect(planeRequests).toEqual([{ url: expect.stringContaining(expectedPath), body: { org_id: ORG_ID } }]);
+  });
+
+  it('returns 503 when a publishing toggle is not confirmed by the plane', async () => {
+    mockState.result = [{ ...settingsRow, publishingEnabled: false }];
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      org_id: ORG_ID,
+      org_blocked: false,
+    }), { status: 200, headers: { 'content-type': 'application/json' } })));
+    const res = await appWithOrg(ORG_ID).request('/org-settings', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ publishingEnabled: false }),
+    });
+    expect(res.status).toBe(503);
   });
 
   it('404s when no settings row exists to update', async () => {

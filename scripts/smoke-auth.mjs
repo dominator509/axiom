@@ -530,6 +530,23 @@ UPDATE auth_user SET role = 'owner' WHERE email = :'fixture_email' AND org_id = 
   assert.equal(settingsRows.status, 0, 'Read-only safety status verification must execute');
   assert.equal(settingsRows.stdout.trim(), '0', 'GET safety status must not create settings');
   console.log('safety status HTTP smoke: operator denied; owner read fails closed and creates no settings');
+  const pauseStarted = Date.now();
+  const paused = await request('/api/v1/killswitch/enable', {
+    method: 'POST',
+    headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
+    body: JSON.stringify({ reason: 'Disposable egress-plane control smoke' }),
+  });
+  assert.equal(paused.status, 200, 'owner pause must persist and receive egress-plane readback');
+  assert.ok(Date.now() - pauseStarted < 5_000, 'organization egress pause must complete within five seconds');
+  assert.equal((await (await request('/api/v1/killswitch', { headers: { cookie } })).json()).data.enabled, true);
+  const resumed = await request('/api/v1/killswitch/disable', {
+    method: 'POST',
+    headers: { ...headers, cookie, 'Idempotency-Key': randomUUID() },
+    body: '{}',
+  });
+  assert.equal(resumed.status, 200, 'owner resume must receive egress-plane readback');
+  assert.equal((await (await request('/api/v1/killswitch', { headers: { cookie } })).json()).data.enabled, false);
+  console.log(`organization kill-switch HTTP smoke: plane drain/readback and release/readback passed in ${Date.now() - pauseStarted}ms`);
   for (const values of [
     { proxyAddr: '127.0.0.1:1080', expectedEgressIp: '203.0.113.7' },
     { proxyAddr: null, expectedEgressIp: null },

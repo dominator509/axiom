@@ -42,6 +42,7 @@ vi.mock('@axiom/db', () => ({
   schema: {
     modelNetworkConfigs: {},
     modelProfile: {},
+    orgSettings: { publishingEnabled: {} },
   },
 }));
 
@@ -447,7 +448,7 @@ describe('Plane proxy endpoints', () => {
       }),
     );
     vi.stubGlobal('fetch', fetchMock);
-    mockState.result = [{ orgId: 'org-1' }];
+    mockState.result = [{ orgId: 'org-1', publishingEnabled: true }];
     const res = await appWithOrg('org-1').request('/plane/bind', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -467,7 +468,7 @@ describe('Plane proxy endpoints', () => {
       .fn()
       .mockResolvedValue(new Response(JSON.stringify({ status: 'bound' }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
-    mockState.result = [{ orgId: 'org-1' }];
+    mockState.result = [{ orgId: 'org-1', publishingEnabled: true }];
     const res = await appWithOrg('org-1').request('/plane/bind', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -493,6 +494,28 @@ describe('Plane proxy endpoints', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('POST /plane/bind fails closed when publishing is paused or settings are missing', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    mockState.result = [{ orgId: 'org-1', publishingEnabled: false }];
+    const paused = await appWithOrg('org-1').request('/plane/bind', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model_id: MODEL_ID, mode: 'direct' }),
+    });
+    expect(paused.status).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    mockState.result = [{ orgId: 'org-1' }];
+    const missing = await appWithOrg('org-1').request('/plane/bind', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model_id: MODEL_ID, mode: 'direct' }),
+    });
+    expect(missing.status).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('POST /plane/unbind requires an owned model before forwarding', async () => {
     const fetchMock = vi
       .fn()
@@ -500,7 +523,7 @@ describe('Plane proxy endpoints', () => {
         new Response(JSON.stringify({ status: 'unbound', model_id: MODEL_ID }), { status: 200 }),
       );
     vi.stubGlobal('fetch', fetchMock);
-    mockState.result = [{ orgId: 'org-1' }];
+    mockState.result = [{ orgId: 'org-1', publishingEnabled: true }];
     const res = await appWithOrg('org-1').request('/plane/unbind', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -583,7 +606,7 @@ describe('Plane proxy endpoints', () => {
       .fn()
       .mockResolvedValue(new Response(JSON.stringify({ status: 'bound' }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
-    mockState.result = [{ orgId: 'org-1' }];
+    mockState.result = [{ orgId: 'org-1', publishingEnabled: true }];
 
     const app = new Hono<AppBindings>();
     app.use('*', async (c, next) => {

@@ -374,6 +374,206 @@ async fn test_kill_switch_blocks_bind() {
 }
 
 #[tokio::test]
+async fn test_org_kill_switch_drains_only_target_and_requires_explicit_release() {
+    const ORG_A: &str = "11111111-1111-4111-8111-111111111111";
+    const ORG_B: &str = "22222222-2222-4222-8222-222222222222";
+    let echo = axum::Router::new().route(
+        "/ip",
+        axum::routing::get(|| async { axum::Json(serde_json::json!({ "ip": "127.0.0.1" })) }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let echo_addr = listener.local_addr().unwrap();
+    let echo_server = tokio::spawn(async move { axum::serve(listener, echo).await.unwrap() });
+    let base = start_test_server(format!("http://{echo_addr}/ip")).await;
+    let client = reqwest::Client::new();
+
+    for (model_id, org_id) in [("org_a_model", ORG_A), ("org_b_model", ORG_B)] {
+        let response = client
+            .post(format!("{base}/egress/bind"))
+            .json(&bind_json(
+                model_id,
+                "direct",
+                serde_json::json!({ "org_id": org_id }),
+            ))
+            .send()
+            .await
+            .expect("bind direct fixture");
+        assert_eq!(response.status(), 200, "fixture binding for {org_id}");
+    }
+
+    let started = std::time::Instant::now();
+    let drain = client
+        .post(format!("{base}/kill-switch/org/drain"))
+        .json(&serde_json::json!({ "org_id": ORG_A }))
+        .send()
+        .await
+        .expect("org drain");
+    assert_eq!(drain.status(), 200);
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "org drain exceeded 5 seconds"
+    );
+    let drain_body: serde_json::Value = drain.json().await.expect("drain JSON");
+    assert_eq!(drain_body["org_id"], ORG_A);
+    assert_eq!(drain_body["org_blocked"], true);
+    assert_eq!(drain_body["drained"], 1);
+    let gate_status: serde_json::Value = client
+        .get(format!("{base}/kill-switch/org/status"))
+        .query(&[("org_id", ORG_A)])
+        .send()
+        .await
+        .expect("org gate status")
+        .json()
+        .await
+        .expect("org gate status JSON");
+    assert_eq!(gate_status["org_blocked"], true);
+    assert_eq!(gate_status["bound_models"], 0);
+
+    let status: serde_json::Value = client
+        .get(format!("{base}/egress/status"))
+        .send()
+        .await
+        .expect("egress status")
+        .json()
+        .await
+        .expect("status JSON");
+    let model_ids: Vec<&str> = status["models"]
+        .as_array()
+        .expect("models array")
+        .iter()
+        .filter_map(|model| model["model_id"].as_str())
+        .collect();
+    assert!(!model_ids.contains(&"org_a_model"));
+    assert!(
+        model_ids.contains(&"org_b_model"),
+        "other tenant binding remains live"
+    );
+
+    let blocked_bind = client
+        .post(format!("{base}/egress/bind"))
+        .json(&bind_json(
+            "org_a_rejected",
+            "direct",
+            serde_json::json!({ "org_id": ORG_A }),
+        ))
+        .send()
+        .await
+        .expect("paused tenant bind");
+    assert_eq!(blocked_bind.status(), 503, "paused tenant cannot rebind");
+
+    let release = client
+        .post(format!("{base}/kill-switch/org/release"))
+        .json(&serde_json::json!({ "org_id": ORG_A }))
+        .send()
+        .await
+        .expect("org release");
+    assert_eq!(release.status(), 200);
+    assert_eq!(
+        release.json::<serde_json::Value>().await.unwrap()["org_blocked"],
+        false
+    );
+    let resumed_status: serde_json::Value = client
+        .get(format!("{base}/kill-switch/org/status"))
+        .query(&[("org_id", ORG_A)])
+        .send()
+        .await
+        .expect("resumed org gate status")
+        .json()
+        .await
+        .expect("resumed org gate status JSON");
+    assert_eq!(resumed_status["org_blocked"], false);
+    let resumed_bind = client
+        .post(format!("{base}/egress/bind"))
+        .json(&bind_json(
+            "org_a_resumed",
+            "direct",
+            serde_json::json!({ "org_id": ORG_A }),
+        ))
+        .send()
+        .await
+        .expect("resumed tenant bind");
+    assert_eq!(resumed_bind.status(), 200);
+    echo_server.abort();
+}
+
+#[cfg(feature = "db-integration-tests")]
+#[tokio::test]
+async fn test_org_publishing_gate_is_rls_scoped() {
+    let database_url = std::env::var("TEST_DATABASE_URL")
+        .expect("TEST_DATABASE_URL must point to the disposable axiom_test database");
+    let database_config: tokio_postgres::Config = database_url.parse().expect("valid database URL");
+    assert_eq!(database_config.get_dbname(), Some("axiom_test"));
+    assert!(
+        database_config.get_hosts().iter().any(|host| matches!(
+            host,
+            tokio_postgres::config::Host::Tcp(host)
+                if host == "localhost" || host == "127.0.0.1" || host == "::1"
+        )),
+        "database fixture must be loopback-only"
+    );
+    let (mut client, connection) = tokio_postgres::connect(&database_url, tokio_postgres::NoTls)
+        .await
+        .expect("connect to disposable database");
+    let connection_task = tokio::spawn(async move {
+        connection.await.expect("database connection task");
+    });
+    let tx = client
+        .transaction()
+        .await
+        .expect("begin fixture transaction");
+    let org_a = uuid::Uuid::new_v4();
+    let org_b = uuid::Uuid::new_v4();
+    let missing_org = uuid::Uuid::new_v4();
+    for (org_id, enabled) in [(&org_a, false), (&org_b, true)] {
+        let org_id_text = org_id.to_string();
+        tx.query_one(
+            "SELECT set_config('app.current_org_id', $1, true)",
+            &[&org_id_text],
+        )
+        .await
+        .expect("set tenant context for fixture insert");
+        let slug = format!("egress-killswitch-{}", org_id.simple());
+        tx.execute(
+            "INSERT INTO org (id, name, slug) VALUES ($1, $2, $3)",
+            &[org_id, &"Egress kill-switch test", &slug],
+        )
+        .await
+        .expect("insert isolated organization fixture");
+        tx.execute(
+            "INSERT INTO org_settings (org_id, publishing_enabled) VALUES ($1, $2)",
+            &[org_id, &enabled],
+        )
+        .await
+        .expect("insert isolated organization settings fixture");
+    }
+
+    let org_a_text = org_a.to_string();
+    let org_b_text = org_b.to_string();
+    let missing_org_text = missing_org.to_string();
+    assert_eq!(
+        egress_plane::db::load_org_publishing_enabled(&tx, &org_a_text)
+            .await
+            .expect("read org A gate"),
+        Some(false)
+    );
+    assert_eq!(
+        egress_plane::db::load_org_publishing_enabled(&tx, &org_b_text)
+            .await
+            .expect("read org B gate"),
+        Some(true)
+    );
+    assert_eq!(
+        egress_plane::db::load_org_publishing_enabled(&tx, &missing_org_text)
+            .await
+            .expect("read missing org gate"),
+        None,
+        "a missing settings row must remain distinguishable so reconciliation can fail closed"
+    );
+    tx.rollback().await.expect("roll back isolated fixtures");
+    connection_task.abort();
+}
+
+#[tokio::test]
 async fn test_drain_during_probe_cannot_resurrect_binding() {
     use std::sync::atomic::{AtomicBool, Ordering};
     let slow = Arc::new(AtomicBool::new(false));

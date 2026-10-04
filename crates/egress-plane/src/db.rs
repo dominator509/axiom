@@ -3,7 +3,7 @@
 //! model_network_configs (decrypt in-memory)"). All queries run with the
 //! model's org RLS context set, so tenant isolation is enforced by the DB.
 
-use tokio_postgres::{Client, NoTls};
+use tokio_postgres::{Client, NoTls, Transaction};
 use tracing::{error, info, warn};
 
 use crate::config::{Creds, EgressMode, NetworkConfig};
@@ -61,6 +61,30 @@ pub async fn load_configs(client: &mut Client) -> Result<Vec<NetworkConfig>, Str
         });
     }
     Ok(out)
+}
+
+/// Read one tenant's durable publishing gate under FORCE RLS. The caller must
+/// provide a transaction so app.current_org_id remains transaction-local and
+/// cannot leak into the egress connection's next tenant query.
+pub async fn load_org_publishing_enabled(
+    tx: &Transaction<'_>,
+    org_id: &str,
+) -> Result<Option<bool>, String> {
+    let org_uuid = uuid::Uuid::parse_str(org_id)
+        .map_err(|error| format!("invalid organization id: {error}"))?;
+    tx.query_one(
+        "SELECT set_config('app.current_org_id', $1, true)",
+        &[&org_id],
+    )
+    .await
+    .map_err(|error| format!("set organization RLS context failed: {error}"))?;
+    tx.query_opt(
+        "SELECT publishing_enabled FROM org_settings WHERE org_id = $1",
+        &[&org_uuid],
+    )
+    .await
+    .map(|row| row.map(|row| row.get(0)))
+    .map_err(|error| format!("load organization publishing state failed: {error}"))
 }
 
 /// Decrypt a config's credential envelope with the supplied DEK.

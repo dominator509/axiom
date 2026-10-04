@@ -12,6 +12,7 @@ import { killswitchRouter } from './killswitch.js';
 import { db } from '@axiom/db';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
+let planeFetch: ReturnType<typeof vi.fn>;
 
 function appWithOrg(orgId: string | null) {
   const app = new Hono<AppBindings>();
@@ -27,6 +28,15 @@ function appWithOrg(orgId: string | null) {
 beforeEach(() => {
   mockState.result = [];
   mockState.results = [];
+  planeFetch = vi.fn(async (input: string, init?: RequestInit) => {
+    const url = new URL(input);
+    const body = JSON.parse(String(init?.body)) as { org_id: string };
+    return new Response(JSON.stringify({
+      org_id: body.org_id,
+      org_blocked: url.pathname.endsWith('/drain'),
+    }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+  vi.stubGlobal('fetch', planeFetch);
 });
 
 afterEach(() => {
@@ -125,6 +135,9 @@ describe('POST /killswitch/enable', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.enabled).toBe(true);
+    expect(planeFetch).toHaveBeenCalledTimes(1);
+    expect(String(planeFetch.mock.calls[0][0])).toContain('/kill-switch/org/drain');
+    expect(JSON.parse(String(planeFetch.mock.calls[0][1]?.body))).toEqual({ org_id: ORG_ID });
   });
 
   it('rejects a malformed JSON body (400)', async () => {
@@ -152,6 +165,21 @@ describe('POST /killswitch/enable', () => {
     expect(res.status).toBe(200);
     expect(((await res.json()) as any).data.enabled).toBe(true);
   });
+
+  it('returns 503 when the plane does not confirm the organization pause', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      org_id: ORG_ID,
+      org_blocked: false,
+    }), { status: 200, headers: { 'content-type': 'application/json' } })));
+    mockState.result = [{ orgId: ORG_ID, publishingEnabled: false }];
+    const res = await appWithOrg(ORG_ID).request('/killswitch/enable', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ reason: 'Pause until plane confirms' }),
+    });
+    expect(res.status).toBe(503);
+    expect((await res.json() as any).detail).toContain('did not confirm');
+  });
 });
 
 describe('POST /killswitch/disable', () => {
@@ -163,6 +191,7 @@ describe('POST /killswitch/disable', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
     expect(body.data.enabled).toBe(false);
+    expect(String(planeFetch.mock.calls[0][0])).toContain('/kill-switch/org/release');
   });
 });
 

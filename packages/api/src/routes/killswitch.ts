@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, writeAudit, apiError, statusTitle } from './helpers.js';
+import { setEgressOrgGate } from './egress-control.js';
 
 const router = new Hono<AppBindings>();
 
@@ -89,6 +90,9 @@ router.post('/killswitch/enable', zValidator('json', killSwitchSchema), async (c
     });
     return row;
   });
+  if (!(await setEgressOrgGate(orgId, true))) {
+    return apiError(c, 503, statusTitle(503), 'egress plane did not confirm the organization pause');
+  }
   return c.json({ data: { enabled: true, ...updated } });
 });
 
@@ -121,6 +125,9 @@ router.post('/killswitch/disable', async (c) => {
     await writeAudit(tx, orgId, userId, 'killswitch.disable', orgId, {});
     return row;
   });
+  if (!(await setEgressOrgGate(orgId, false))) {
+    return apiError(c, 503, statusTitle(503), 'egress plane did not confirm the organization resume');
+  }
   return c.json({ data: { enabled: false, ...updated } });
 });
 
@@ -160,6 +167,9 @@ router.post('/kill-switch', zValidator('json', killSwitchSchema), async (c) => {
     });
     return row;
   });
+  if (!(await setEgressOrgGate(orgId, true))) {
+    return apiError(c, 503, statusTitle(503), 'egress plane did not confirm the organization pause');
+  }
   return c.json({ data: { enabled: true, ...updated } });
 });
 

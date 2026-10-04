@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm';
 import { schema } from '@axiom/db';
 import type { AppBindings } from '../index.js';
 import { withOrgContext, requireOrg, apiError, statusTitle, writeAudit } from './helpers.js';
+import { setEgressOrgGate } from './egress-control.js';
 import { readBoundedJson, RequestBodyTooLargeError } from '../webhook-body.js';
 
 const router = new Hono<AppBindings>();
@@ -92,6 +93,9 @@ router.patch('/org-settings', async (c) => {
   });
   if (rows === null) return apiError(c, 409, 'Conflict', 'Digest schedule changed. Refresh before recovery.');
   if (rows.length === 0) return apiError(c, 404, statusTitle(404), 'org settings not found');
+  if (body.publishingEnabled !== undefined && !(await setEgressOrgGate(orgId, !body.publishingEnabled))) {
+    return apiError(c, 503, statusTitle(503), 'egress plane did not confirm the organization publishing state');
+  }
   return c.json({ success: true, data: { ...rows[0], weeklyDigestEnabled: !!rows[0].weeklyDigestScheduleId } });
 });
 

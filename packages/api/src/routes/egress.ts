@@ -332,11 +332,29 @@ router.post('/plane/bind', async (c) => {
   if (!modelId.success) {
     return apiError(c, 400, statusTitle(400), 'model_id must be a UUID');
   }
+  let ownerOrgId: string | null;
+  let publishingEnabled: boolean;
   try {
-    const ownerOrgId = await withOrgContext(orgId, (tx) => modelOrgId(tx, modelId.data));
+    ownerOrgId = await withOrgContext(orgId, (tx) => modelOrgId(tx, modelId.data));
     if (ownerOrgId !== orgId) {
       return apiError(c, 404, statusTitle(404), 'model not found');
     }
+    const settings = await withOrgContext(orgId, (tx) =>
+      tx
+        .select({ publishingEnabled: schema.orgSettings.publishingEnabled })
+        .from(schema.orgSettings)
+        .where(eq(schema.orgSettings.orgId, orgId))
+        .limit(1),
+    );
+    publishingEnabled = settings[0]?.publishingEnabled === true;
+  } catch {
+    return apiError(c, 503, statusTitle(503), 'organization publishing state could not be verified');
+  }
+  if (!publishingEnabled) {
+    return apiError(c, 503, statusTitle(503), 'publishing is paused for this organization');
+  }
+
+  try {
     const res = await fetch(`${EGRESS_PLANE_URL}/egress/bind`, {
       method: 'POST',
       headers: { ...EGRESS_PLANE_HEADERS, 'content-type': 'application/json' },
